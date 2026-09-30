@@ -164,9 +164,9 @@ impl WorldSession {
         });
         #[cfg(test)]
         if !canonical {
-            self.pets.represented_pet_created_by_spell_like_cpp = created_by_spell;
-            self.pets.represented_pet_react_state_like_cpp = react_state;
-            self.pets.represented_pet_command_state_like_cpp = command_state;
+            self.fixtures.pets.represented_pet_created_by_spell_like_cpp = created_by_spell;
+            self.fixtures.pets.represented_pet_react_state_like_cpp = react_state;
+            self.fixtures.pets.represented_pet_command_state_like_cpp = command_state;
         }
         #[cfg(not(test))]
         let _ = canonical;
@@ -177,7 +177,9 @@ impl WorldSession {
             });
             #[cfg(test)]
             {
-                self.pets.represented_pet_movement_speed_rates_like_cpp =
+                self.fixtures
+                    .pets
+                    .represented_pet_movement_speed_rates_like_cpp =
                     [1.0; UnitMoveTypeLikeCpp::COUNT];
             }
         }

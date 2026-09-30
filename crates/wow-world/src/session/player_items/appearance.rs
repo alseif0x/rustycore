@@ -508,7 +508,8 @@ impl WorldSession {
         &self,
         item_modified_appearance_id: u32,
     ) -> bool {
-        self.collections
+        self.fixtures
+            .collections
             .represented_item_appearances_like_cpp
             .contains(&item_modified_appearance_id)
     }
@@ -787,7 +788,8 @@ impl WorldSession {
         &self,
         item_modified_appearance_id: u32,
     ) -> Option<FavoriteAppearanceStateLikeCpp> {
-        self.collections
+        self.fixtures
+            .collections
             .represented_favorite_item_appearances_like_cpp
             .get(&item_modified_appearance_id)
             .copied()
@@ -993,7 +995,8 @@ impl WorldSession {
     ) {
         #[cfg(test)]
         {
-            self.presentation
+            self.fixtures
+                .presentation
                 .represented_alter_appearance_requests_like_cpp
                 .push(request);
         }
@@ -1003,6 +1006,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedAlterAppearanceLikeCpp] {
         &self
+            .fixtures
             .presentation
             .represented_alter_appearance_requests_like_cpp
     }

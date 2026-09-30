@@ -778,7 +778,7 @@ fn install_visible_aura_with_interrupt_flags(
     caster_guid: ObjectGuid,
     aura_interrupt_flags: u32,
 ) {
-    session.auras.visible_auras.insert(
+    session.fixtures.auras.visible_auras.insert(
         slot,
         AuraApplication {
             spell_id,

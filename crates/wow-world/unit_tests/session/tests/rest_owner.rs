@@ -430,10 +430,12 @@ fn rest_queries_reject_stale_and_missing_owner_even_with_populated_fixtures() {
         .player_flags_test_fixture_like_cpp
         .represented_loaded_player_flags_like_cpp = Some(PLAYER_FLAGS_RESTING_LIKE_CPP);
     session
+        .fixtures
         .progression
         .rest_mgr_test_fixture_like_cpp
         .represented_rest_location_initialized_like_cpp = true;
     session
+        .fixtures
         .progression
         .rest_mgr_test_fixture_like_cpp
         .represented_rest_flag_mask_like_cpp = REST_FLAG_IN_CITY_LIKE_CPP;

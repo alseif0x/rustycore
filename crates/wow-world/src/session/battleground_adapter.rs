@@ -103,13 +103,22 @@ impl WorldSession {
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
                 wow_entities::PlayerBattlegroundState::from_represented_parts_like_cpp(
-                    self.battleground.player_battleground_type_id_like_cpp,
-                    self.battleground.player_battleground_map_id_like_cpp,
-                    self.battleground.represented_battleground_status_like_cpp,
-                    self.battleground
+                    self.fixtures
+                        .battleground
+                        .player_battleground_type_id_like_cpp,
+                    self.fixtures
+                        .battleground
+                        .player_battleground_map_id_like_cpp,
+                    self.fixtures
+                        .battleground
+                        .represented_battleground_status_like_cpp,
+                    self.fixtures
+                        .battleground
                         .represented_battleground_queue_slots_like_cpp
                         .clone(),
-                    self.battleground.represented_arena_team_id_invited_like_cpp,
+                    self.fixtures
+                        .battleground
+                        .represented_arena_team_id_invited_like_cpp,
                 ),
             );
         }
@@ -192,7 +201,8 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        self.battleground
+        self.fixtures
+            .battleground
             .represented_battlemaster_hellos_like_cpp
             .push(RepresentedBattlemasterHelloLikeCpp { unit, entry });
         true
@@ -212,7 +222,8 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        self.battleground
+        self.fixtures
+            .battleground
             .represented_battlefield_lists_like_cpp
             .push(RepresentedBattlefieldListLikeCpp { list_id });
         true
@@ -260,7 +271,8 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        self.battleground
+        self.fixtures
+            .battleground
             .represented_battlemaster_joins_like_cpp
             .push(RepresentedBattlemasterJoinLikeCpp {
                 packed_queue_id,
@@ -335,7 +347,8 @@ impl WorldSession {
         // so the bounded port records the accepted intent after the representable
         // gates above without pretending that the queue was live.
         #[cfg(test)]
-        self.battleground
+        self.fixtures
+            .battleground
             .represented_battlemaster_join_arenas_like_cpp
             .push(RepresentedBattlemasterJoinArenaLikeCpp {
                 team_size_index,
@@ -420,7 +433,8 @@ impl WorldSession {
         // fanout and ScheduleQueueUpdate. Rust records the bounded intent after
         // the currently represented gates without pretending that live queueing exists.
         #[cfg(test)]
-        self.battleground
+        self.fixtures
+            .battleground
             .represented_battlemaster_join_skirmishes_like_cpp
             .push(RepresentedBattlemasterJoinSkirmishLikeCpp {
                 bg_type_id,
@@ -483,7 +497,8 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        self.battleground
+        self.fixtures
+            .battleground
             .represented_battlefield_ports_like_cpp
             .push(RepresentedBattlefieldPortLikeCpp {
                 ticket,
@@ -528,21 +543,30 @@ impl WorldSession {
     pub(crate) fn represented_battlemaster_hellos_like_cpp(
         &self,
     ) -> &[RepresentedBattlemasterHelloLikeCpp] {
-        &self.battleground.represented_battlemaster_hellos_like_cpp
+        &self
+            .fixtures
+            .battleground
+            .represented_battlemaster_hellos_like_cpp
     }
 
     #[cfg(test)]
     pub(crate) fn represented_battlefield_lists_like_cpp(
         &self,
     ) -> &[RepresentedBattlefieldListLikeCpp] {
-        &self.battleground.represented_battlefield_lists_like_cpp
+        &self
+            .fixtures
+            .battleground
+            .represented_battlefield_lists_like_cpp
     }
 
     #[cfg(test)]
     pub(crate) fn represented_battlemaster_joins_like_cpp(
         &self,
     ) -> &[RepresentedBattlemasterJoinLikeCpp] {
-        &self.battleground.represented_battlemaster_joins_like_cpp
+        &self
+            .fixtures
+            .battleground
+            .represented_battlemaster_joins_like_cpp
     }
 
     #[cfg(test)]
@@ -550,6 +574,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedBattlemasterJoinArenaLikeCpp] {
         &self
+            .fixtures
             .battleground
             .represented_battlemaster_join_arenas_like_cpp
     }
@@ -559,6 +584,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedBattlemasterJoinSkirmishLikeCpp] {
         &self
+            .fixtures
             .battleground
             .represented_battlemaster_join_skirmishes_like_cpp
     }
@@ -567,7 +593,10 @@ impl WorldSession {
     pub(crate) fn represented_battlefield_ports_like_cpp(
         &self,
     ) -> &[RepresentedBattlefieldPortLikeCpp] {
-        &self.battleground.represented_battlefield_ports_like_cpp
+        &self
+            .fixtures
+            .battleground
+            .represented_battlefield_ports_like_cpp
     }
 
     #[cfg_attr(not(test), allow(unused_variables))]
@@ -616,7 +645,8 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        self.battleground
+        self.fixtures
+            .battleground
             .represented_wargame_invite_acceptances_like_cpp
             .push(RepresentedWargameInviteAcceptanceLikeCpp {
                 inviter_name: inviter_name.to_string(),
@@ -632,6 +662,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedWargameInviteAcceptanceLikeCpp] {
         &self
+            .fixtures
             .battleground
             .represented_wargame_invite_acceptances_like_cpp
     }

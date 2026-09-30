@@ -484,7 +484,7 @@ fn initial_canonical_player_preserves_loaded_seasonal_unique_bit_like_cpp() {
     let (mut session, _, _) = make_session();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 12_345)));
     session.set_loaded_player_name_like_cpp("SeasonalBit".to_string());
-    session.movement.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
+    session.fixtures.movement.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
     let quest_store = seasonal_quest_store_like_cpp([12_345]);
     let quest_v2_store = seasonal_quest_v2_store_like_cpp([(12_345, 65)]);
 

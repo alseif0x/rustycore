@@ -525,12 +525,13 @@ impl WorldSession {
 
         #[cfg(test)]
         {
-            self.combat.player_max_health_like_cpp =
+            self.fixtures.combat.player_max_health_like_cpp =
                 _canonical_max_health.clamp(1, u64::from(u32::MAX)) as u32;
-            self.combat.player_health_like_cpp =
-                canonical_health.min(u64::from(self.combat.player_max_health_like_cpp)) as u32;
-            self.combat.player_alive_like_cpp =
-                _canonical_alive && self.combat.player_health_like_cpp > 0;
+            self.fixtures.combat.player_health_like_cpp = canonical_health
+                .min(u64::from(self.fixtures.combat.player_max_health_like_cpp))
+                as u32;
+            self.fixtures.combat.player_alive_like_cpp =
+                _canonical_alive && self.fixtures.combat.player_health_like_cpp > 0;
         }
         self.view
             .last_presented_creature_melee_health_state_revision_like_cpp = committed_revision;

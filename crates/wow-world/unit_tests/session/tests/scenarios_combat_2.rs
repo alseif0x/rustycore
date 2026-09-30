@@ -48,8 +48,8 @@ fn combat_tick_charging_player_skips_melee_update_without_reset_like_cpp() {
             unit.set_weapon_damage(WeaponAttackType::BaseAttack, 7.0, 7.0);
         })
         .unwrap();
-    session.combat.combat_target = Some(guid);
-    session.combat.in_combat = true;
+    session.fixtures.combat.combat_target = Some(guid);
+    session.fixtures.combat.in_combat = true;
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -127,8 +127,8 @@ fn combat_tick_pacified_player_resets_timer_without_damage_like_cpp() {
             unit.set_weapon_damage(WeaponAttackType::BaseAttack, 7.0, 7.0);
         })
         .unwrap();
-    session.combat.combat_target = Some(guid);
-    session.combat.in_combat = true;
+    session.fixtures.combat.combat_target = Some(guid);
+    session.fixtures.combat.in_combat = true;
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -225,8 +225,8 @@ fn combat_tick_uses_canonical_player_offhand_timer_like_cpp() {
             unit.set_weapon_damage(WeaponAttackType::OffAttack, 4.0, 4.0);
         })
         .unwrap();
-    session.combat.combat_target = Some(guid);
-    session.combat.in_combat = true;
+    session.fixtures.combat.combat_target = Some(guid);
+    session.fixtures.combat.in_combat = true;
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -332,8 +332,8 @@ fn combat_tick_out_of_range_sets_short_retry_timer_like_cpp() {
                 .add_unit_state(UnitState::MELEE_ATTACKING.bits());
         })
         .unwrap();
-    session.combat.combat_target = Some(guid);
-    session.combat.in_combat = true;
+    session.fixtures.combat.combat_target = Some(guid);
+    session.fixtures.combat.in_combat = true;
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -412,8 +412,8 @@ fn combat_tick_bad_facing_sets_short_retry_timer_like_cpp() {
                 .add_unit_state(UnitState::MELEE_ATTACKING.bits());
         })
         .unwrap();
-    session.combat.combat_target = Some(guid);
-    session.combat.in_combat = true;
+    session.fixtures.combat.combat_target = Some(guid);
+    session.fixtures.combat.in_combat = true;
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -497,8 +497,8 @@ fn combat_tick_melee_range_uses_combat_reach_like_cpp() {
                 .add_unit_state(UnitState::MELEE_ATTACKING.bits());
         })
         .unwrap();
-    session.combat.combat_target = Some(guid);
-    session.combat.in_combat = true;
+    session.fixtures.combat.combat_target = Some(guid);
+    session.fixtures.combat.in_combat = true;
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -566,8 +566,8 @@ fn combat_tick_boundary_radius_suppresses_bad_facing_like_cpp() {
                 .add_unit_state(UnitState::MELEE_ATTACKING.bits());
         })
         .unwrap();
-    session.combat.combat_target = Some(guid);
-    session.combat.in_combat = true;
+    session.fixtures.combat.combat_target = Some(guid);
+    session.fixtures.combat.in_combat = true;
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session
         .mutate_world_creature(guid, |creature| {
@@ -635,8 +635,8 @@ fn combat_tick_clears_canonical_player_attack_when_target_dies_like_cpp() {
                 .add_unit_state(UnitState::MELEE_ATTACKING.bits());
         })
         .unwrap();
-    session.combat.combat_target = Some(guid);
-    session.combat.in_combat = true;
+    session.fixtures.combat.combat_target = Some(guid);
+    session.fixtures.combat.in_combat = true;
     register_test_creature(&mut session, manager.clone(), guid, 1);
     session
         .mutate_world_creature(guid, |creature| {
@@ -764,8 +764,8 @@ fn combat_tick_reports_cpp_like_over_damage_on_killing_swing() {
             unit.set_weapon_damage(WeaponAttackType::BaseAttack, 7.0, 7.0);
         })
         .unwrap();
-    session.combat.combat_target = Some(guid);
-    session.combat.in_combat = true;
+    session.fixtures.combat.combat_target = Some(guid);
+    session.fixtures.combat.in_combat = true;
     register_test_creature(&mut session, manager.clone(), guid, 3);
     session
         .mutate_world_creature(guid, |creature| {

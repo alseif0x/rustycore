@@ -142,7 +142,7 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.presentation.player_emote_state_like_cpp = emote_state;
+            self.fixtures.presentation.player_emote_state_like_cpp = emote_state;
             if !canonical {
                 let _ = self.mutate_canonical_player_like_cpp(|player| {
                     player.unit_mut().set_emote_state_like_cpp(emote_state);
@@ -159,7 +159,7 @@ impl WorldSession {
             self.with_owned_player_like_cpp(|player| player.unit().emote_state_like_cpp());
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.presentation.player_emote_state_like_cpp);
+            return Some(self.fixtures.presentation.player_emote_state_like_cpp);
         }
         canonical
     }

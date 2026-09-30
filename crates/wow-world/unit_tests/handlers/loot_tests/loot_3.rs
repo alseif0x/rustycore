@@ -139,7 +139,7 @@ async fn loot_unit_dead_player_returns_silently_like_cpp() {
     assert!(!session.is_active_loot_guid(loot_guid));
     assert!(!session.loot.loot_table.contains_key(&loot_guid));
     assert!(session.active_spell_cast_snapshot_like_cpp().is_some());
-    assert!(session.auras.visible_auras.contains_key(&3));
+    assert!(session.fixtures.auras.visible_auras.contains_key(&3));
 }
 #[tokio::test]
 async fn loot_unit_master_looter_first_open_sends_candidate_list_like_cpp() {

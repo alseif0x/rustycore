@@ -618,7 +618,7 @@ fn set_currency_flags_preserves_new_state_like_cpp() {
 #[test]
 fn player_currency_vendor_add_caps_and_marks_state_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.identity.player_race = 1;
+    session.fixtures.identity.player_race = 1;
     session.set_currency_types_store(Arc::new(wow_data::CurrencyTypesStore::from_entries([
         wow_data::CurrencyTypesEntry {
             max_qty: 150,

@@ -14,6 +14,7 @@ impl WorldSession {
         slot: u8,
     ) -> bool {
         if !self
+            .fixtures
             .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pets_like_cpp
@@ -23,6 +24,7 @@ impl WorldSession {
         }
 
         let Some(slot_ref) = self
+            .fixtures
             .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pet_slots_like_cpp
@@ -62,6 +64,7 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn battle_pet_unlock_slot_like_cpp(&mut self, slot: u8) -> bool {
         let Some(slot_ref) = self
+            .fixtures
             .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pet_slots_like_cpp
@@ -95,7 +98,8 @@ impl WorldSession {
         rows: impl IntoIterator<Item = (u8, Option<ObjectGuid>, bool)>,
     ) -> bool {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.pets
+        self.fixtures
+            .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pet_slots_authority_complete_like_cpp = false;
 
@@ -122,17 +126,20 @@ impl WorldSession {
             return false;
         }
 
-        self.pets
+        self.fixtures
+            .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pet_slots_like_cpp = slots;
-        self.pets
+        self.fixtures
+            .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pet_slots_authority_complete_like_cpp = true;
         true
     }
     #[cfg(test)]
     pub(crate) fn represented_battle_pet_slot_like_cpp(&self, slot: u8) -> Option<ObjectGuid> {
-        self.pets
+        self.fixtures
+            .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pet_slots_like_cpp
             .get(slot as usize)
@@ -140,7 +147,8 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn represented_battle_pet_slot_locked_like_cpp(&self, slot: u8) -> Option<bool> {
-        self.pets
+        self.fixtures
+            .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pet_slots_like_cpp
             .get(slot as usize)

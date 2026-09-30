@@ -143,12 +143,14 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn reputation_mgr_like_cpp(&self) -> ReputationMgrRefLikeCpp<'_> {
-        ReputationMgrLikeCpp::borrowing_like_cpp(&self.progression.reputation_state_like_cpp)
+        ReputationMgrLikeCpp::borrowing_like_cpp(
+            &self.fixtures.progression.reputation_state_like_cpp,
+        )
     }
     #[cfg(test)]
     pub(crate) fn reputation_mgr_like_cpp_mut(&mut self) -> ReputationMgrMutLikeCpp<'_> {
         ReputationMgrLikeCpp::borrowing_mut_like_cpp(
-            &mut self.progression.reputation_state_like_cpp,
+            &mut self.fixtures.progression.reputation_state_like_cpp,
         )
     }
     /// Run one C++ `ReputationMgr` read against the Player's own state.
@@ -171,7 +173,7 @@ impl WorldSession {
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
             let manager = ReputationMgrLikeCpp::borrowing_like_cpp(
-                &self.progression.reputation_state_like_cpp,
+                &self.fixtures.progression.reputation_state_like_cpp,
             );
             return Some(operation.take().expect("reputation operation is available")(&manager));
         }
@@ -198,7 +200,7 @@ impl WorldSession {
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
             let mut manager = ReputationMgrLikeCpp::borrowing_mut_like_cpp(
-                &mut self.progression.reputation_state_like_cpp,
+                &mut self.fixtures.progression.reputation_state_like_cpp,
             );
             return Some(operation.take().expect("reputation mutation is available")(
                 &mut manager,

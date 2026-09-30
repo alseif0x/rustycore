@@ -12,7 +12,7 @@ impl WorldSession {
     ) {
         #[cfg(test)]
         {
-            self.movement.player_movement_jump_like_cpp = jump;
+            self.fixtures.movement.player_movement_jump_like_cpp = jump;
         }
         #[cfg(not(test))]
         let _ = jump;
@@ -23,8 +23,8 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some((
-                self.movement.last_fall_time_like_cpp,
-                self.movement.last_fall_z_like_cpp,
+                self.fixtures.movement.last_fall_time_like_cpp,
+                self.fixtures.movement.last_fall_z_like_cpp,
             ));
         }
         canonical
@@ -37,8 +37,8 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.movement.last_fall_time_like_cpp = time;
-            self.movement.last_fall_z_like_cpp = z;
+            self.fixtures.movement.last_fall_time_like_cpp = time;
+            self.fixtures.movement.last_fall_z_like_cpp = z;
         }
         canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
@@ -154,12 +154,15 @@ impl WorldSession {
             final_damage,
         };
         #[cfg(test)]
-        self.movement.fall_damage_events_like_cpp.push(event);
+        self.fixtures
+            .movement
+            .fall_damage_events_like_cpp
+            .push(event);
         Some(event)
     }
     #[cfg(test)]
     pub(crate) fn fall_damage_events_like_cpp(&self) -> &[MovementFallDamageEvent] {
-        &self.movement.fall_damage_events_like_cpp
+        &self.fixtures.movement.fall_damage_events_like_cpp
     }
     pub(crate) fn apply_knock_back_ack_like_cpp(
         &mut self,
@@ -212,7 +215,7 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn player_movement_jump_like_cpp(&self) -> &wow_packet::packets::movement::JumpInfo {
-        &self.movement.player_movement_jump_like_cpp
+        &self.fixtures.movement.player_movement_jump_like_cpp
     }
     pub(in crate::session) fn move_represented_player_fall_like_cpp(&mut self) -> bool {
         let Some(mut movement_flags) = self.resolved_player_movement_flags_like_cpp() else {

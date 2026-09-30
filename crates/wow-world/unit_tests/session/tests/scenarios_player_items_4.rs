@@ -810,7 +810,7 @@ fn canonical_player_saved_equipment_and_void_storage_follow_handle_generation_li
 #[test]
 fn player_currency_item_refund_ignores_caps_and_total_counters_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.identity.player_race = 1;
+    session.fixtures.identity.player_race = 1;
     session.set_currency_types_store(Arc::new(wow_data::CurrencyTypesStore::from_entries([
         wow_data::CurrencyTypesEntry {
             max_qty: 100,

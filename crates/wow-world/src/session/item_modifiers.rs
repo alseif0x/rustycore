@@ -363,6 +363,7 @@ impl WorldSession {
                 let penalty_spell_id = player.titan_grip_penalty_spell_id();
                 let has_penalty_aura = penalty_spell_id > 0
                     && self
+                        .fixtures
                         .auras
                         .visible_auras
                         .values()

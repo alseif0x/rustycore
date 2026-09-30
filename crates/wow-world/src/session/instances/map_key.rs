@@ -388,7 +388,7 @@ impl WorldSession {
         if movement_info.position.z >= min_height {
             #[cfg(test)]
             {
-                self.movement.player_out_of_bounds_like_cpp = false;
+                self.fixtures.movement.player_out_of_bounds_like_cpp = false;
             }
             return None;
         }
@@ -401,7 +401,7 @@ impl WorldSession {
 
         #[cfg(test)]
         {
-            self.movement.player_out_of_bounds_like_cpp = true;
+            self.fixtures.movement.player_out_of_bounds_like_cpp = true;
         }
         let damage = max_health;
         let (_, health_after, _, _, killed_player) =
@@ -435,12 +435,15 @@ impl WorldSession {
             damage,
         };
         #[cfg(test)]
-        self.movement.under_map_damage_events_like_cpp.push(event);
+        self.fixtures
+            .movement
+            .under_map_damage_events_like_cpp
+            .push(event);
         Some(event)
     }
     #[cfg(test)]
     pub(crate) fn under_map_damage_events_like_cpp(&self) -> &[MovementUnderMapDamageEvent] {
-        &self.movement.under_map_damage_events_like_cpp
+        &self.fixtures.movement.under_map_damage_events_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn set_taxi_node_map_id_like_cpp(&mut self, node_id: u32, map_id: u16) {

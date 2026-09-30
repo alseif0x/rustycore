@@ -695,7 +695,7 @@ async fn battlefield_leave_rejects_in_combat_active_battleground_like_cpp() {
     let (mut session, send_rx) = make_session();
     session.set_player_battleground_type_id_like_cpp(3);
     session.set_represented_battleground_status_like_cpp(Some(2));
-    session.combat.in_combat = true;
+    session.fixtures.combat.in_combat = true;
 
     session
         .handle_battlefield_leave(WorldPacket::new_empty())
@@ -713,7 +713,7 @@ async fn battlefield_leave_allows_wait_leave_even_in_combat_like_cpp() {
     let (mut session, send_rx) = make_session();
     session.set_player_battleground_type_id_like_cpp(3);
     session.set_represented_battleground_status_like_cpp(Some(4));
-    session.combat.in_combat = true;
+    session.fixtures.combat.in_combat = true;
 
     session
         .handle_battlefield_leave(WorldPacket::new_empty())

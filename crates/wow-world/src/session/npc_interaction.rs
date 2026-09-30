@@ -61,7 +61,8 @@ impl WorldSession {
                 let is_alive = if canonical_player.unit().data().max_health == 0
                     && self.core.player_handle_like_cpp.is_none()
                 {
-                    self.combat.player_alive_like_cpp && self.combat.player_health_like_cpp > 0
+                    self.fixtures.combat.player_alive_like_cpp
+                        && self.fixtures.combat.player_health_like_cpp > 0
                 } else {
                     canonical_player.unit().is_alive() && canonical_player.unit().data().health > 0
                 };
@@ -76,7 +77,8 @@ impl WorldSession {
                         canonical_fail_closed_like_cpp = true;
                         return None;
                     }
-                    self.combat.player_alive_like_cpp && self.combat.player_health_like_cpp > 0
+                    self.fixtures.combat.player_alive_like_cpp
+                        && self.fixtures.combat.player_health_like_cpp > 0
                 }
                 #[cfg(not(test))]
                 {

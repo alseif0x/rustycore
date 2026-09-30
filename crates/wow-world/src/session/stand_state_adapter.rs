@@ -66,7 +66,7 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if _canonical || self.core.player_handle_like_cpp.is_none() {
-            self.presentation.player_stand_state_like_cpp = state;
+            self.fixtures.presentation.player_stand_state_like_cpp = state;
         }
     }
 
@@ -91,7 +91,8 @@ impl WorldSession {
         ) {
             debug!(?intent, ?outcome, "represented->live intent applied");
             #[cfg(test)]
-            self.presentation
+            self.fixtures
+                .presentation
                 .represented_live_applications_like_cpp
                 .push(RepresentedLiveApplicationLikeCpp { intent, outcome });
         }
@@ -382,7 +383,10 @@ impl WorldSession {
     pub(crate) fn represented_live_applications_like_cpp(
         &self,
     ) -> &[RepresentedLiveApplicationLikeCpp] {
-        &self.presentation.represented_live_applications_like_cpp
+        &self
+            .fixtures
+            .presentation
+            .represented_live_applications_like_cpp
     }
 
     pub(in crate::session) fn resolved_player_stand_state_like_cpp(
@@ -392,7 +396,7 @@ impl WorldSession {
             self.with_owned_player_like_cpp(|player| player.unit().stand_state_like_cpp());
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.presentation.player_stand_state_like_cpp);
+            return Some(self.fixtures.presentation.player_stand_state_like_cpp);
         }
         canonical
     }

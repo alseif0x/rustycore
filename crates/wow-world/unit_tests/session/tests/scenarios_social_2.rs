@@ -149,7 +149,7 @@ fn party_member_reads_canonical_power_without_registry_republish_like_cpp() {
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
-    session.identity.player_name = Some("Tester".to_string());
+    session.fixtures.identity.player_name = Some("Tester".to_string());
     session.set_player_registry(Arc::clone(&registry));
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, guid, position, 571, 0);
@@ -183,7 +183,7 @@ fn player_registry_publishes_home_group_party_type_like_cpp() {
     group_registry.register_group_like_cpp(group_guid, group);
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
-    session.identity.player_name = Some("PartyTypeTester".to_string());
+    session.fixtures.identity.player_name = Some("PartyTypeTester".to_string());
     session.social.group_guid = Some(group_guid);
     session.set_player_registry(Arc::clone(&registry));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
@@ -208,10 +208,10 @@ fn player_registry_publishes_party_member_vehicle_seat_id_like_cpp() {
     bind_canonical_test_player_to_registry_like_cpp(&mut session, &registry, guid, position, 571);
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
-    session.identity.player_name = Some("VehicleSeatTester".to_string());
-    session.vehicles.player_vehicle_seat_flags_like_cpp =
+    session.fixtures.identity.player_name = Some("VehicleSeatTester".to_string());
+    session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp =
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
-    session.vehicles.player_vehicle_seat_id_like_cpp = Some(1001);
+    session.fixtures.vehicles.player_vehicle_seat_id_like_cpp = Some(1001);
     session.set_player_registry(Arc::clone(&registry));
 
     session.register_in_player_registry();
@@ -228,10 +228,10 @@ fn represented_request_vehicle_exit_clears_party_vehicle_state_like_cpp() {
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
-    session.identity.player_name = Some("VehicleExitTester".to_string());
-    session.vehicles.player_vehicle_seat_flags_like_cpp =
+    session.fixtures.identity.player_name = Some("VehicleExitTester".to_string());
+    session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp =
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ENTER_OR_EXIT);
-    session.vehicles.player_vehicle_seat_id_like_cpp = Some(1001);
+    session.fixtures.vehicles.player_vehicle_seat_id_like_cpp = Some(1001);
     session.set_player_registry(Arc::clone(&registry));
     session.register_in_player_registry();
 
@@ -239,11 +239,18 @@ fn represented_request_vehicle_exit_clears_party_vehicle_state_like_cpp() {
 
     assert!(
         session
+            .fixtures
             .vehicles
             .player_vehicle_seat_flags_like_cpp
             .is_none()
     );
-    assert!(session.vehicles.player_vehicle_seat_id_like_cpp.is_none());
+    assert!(
+        session
+            .fixtures
+            .vehicles
+            .player_vehicle_seat_id_like_cpp
+            .is_none()
+    );
     let info = registry.party_member(guid).expect("registered player");
     assert!(!info.in_vehicle);
     assert_eq!(info.party_member_vehicle_seat, 0);
@@ -424,10 +431,10 @@ fn update_zone_enemies_pvp_flagged_uses_faction_group_mask_like_cpp() {
 
     assert!(session.update_zone_represented_like_cpp(60, 60));
     assert!(session.represented_is_resting_like_cpp());
-    assert!(!session.combat.player_pvp_hostile_like_cpp);
+    assert!(!session.fixtures.combat.player_pvp_hostile_like_cpp);
 
     assert!(session.update_zone_represented_like_cpp(70, 70));
-    assert!(session.combat.player_pvp_hostile_like_cpp);
+    assert!(session.fixtures.combat.player_pvp_hostile_like_cpp);
     assert!(
         session.represented_is_resting_like_cpp(),
         "C++ hostile LinkedChat branch leaves an existing city-rest flag untouched"

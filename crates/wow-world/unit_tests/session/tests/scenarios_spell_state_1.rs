@@ -471,6 +471,7 @@ fn remove_known_spell_removes_first_rank_learned_skill_like_cpp() {
 
     assert!(
         session
+            .fixtures
             .progression
             .player_skill_test_fixture_like_cpp
             .player_skill_non_durable_tombstones_like_cpp

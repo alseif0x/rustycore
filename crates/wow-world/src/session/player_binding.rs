@@ -121,13 +121,15 @@ impl WorldSession {
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
                 wow_entities::PlayerWorldLocalState::from_represented_parts_like_cpp(
-                    self.identity.player_zone_id_like_cpp,
-                    self.identity.player_area_id_like_cpp,
-                    self.identity.player_zone_area_authority_complete_like_cpp,
-                    self.combat.player_pvp_hostile_like_cpp,
-                    self.combat.player_pvp_end_timer_like_cpp,
-                    self.combat.player_contested_pvp_timer_like_cpp,
-                    self.identity.represented_is_outdoors_like_cpp,
+                    self.fixtures.identity.player_zone_id_like_cpp,
+                    self.fixtures.identity.player_area_id_like_cpp,
+                    self.fixtures
+                        .identity
+                        .player_zone_area_authority_complete_like_cpp,
+                    self.fixtures.combat.player_pvp_hostile_like_cpp,
+                    self.fixtures.combat.player_pvp_end_timer_like_cpp,
+                    self.fixtures.combat.player_contested_pvp_timer_like_cpp,
+                    self.fixtures.identity.represented_is_outdoors_like_cpp,
                 ),
             );
         }
@@ -346,7 +348,7 @@ impl WorldSession {
         });
         #[cfg(test)]
         if _canonical.is_some() || self.core.player_handle_like_cpp.is_none() {
-            self.identity.player_faction_template_like_cpp =
+            self.fixtures.identity.player_faction_template_like_cpp =
                 (faction_template != 0).then_some(faction_template);
         }
     }
@@ -366,16 +368,16 @@ impl WorldSession {
         });
         #[cfg(test)]
         {
-            self.identity.player_name = Some(controller.name().to_string());
-            self.movement.player_position = Some(controller_position);
+            self.fixtures.identity.player_name = Some(controller.name().to_string());
+            self.fixtures.movement.player_position = Some(controller_position);
         }
         self.core.current_map_id = controller.map_id();
         #[cfg(test)]
         {
-            self.identity.player_race = controller.race();
-            self.identity.player_class = controller.class();
-            self.identity.player_level = controller.level();
-            self.identity.player_gender = controller.gender();
+            self.fixtures.identity.player_race = controller.race();
+            self.fixtures.identity.player_class = controller.class();
+            self.fixtures.identity.player_level = controller.level();
+            self.fixtures.identity.player_gender = controller.gender();
         }
         #[cfg(test)]
         {
@@ -422,7 +424,7 @@ impl WorldSession {
                 .level = level;
             #[cfg(test)]
             {
-                self.identity.player_level = level;
+                self.fixtures.identity.player_level = level;
             }
         }
         self.refresh_represented_talent_points_like_cpp();
@@ -444,7 +446,7 @@ impl WorldSession {
                 .player_identity_bootstrap_like_cpp
                 .get_or_insert_default()
                 .class = class;
-            self.identity.player_class = class;
+            self.fixtures.identity.player_class = class;
         }
         self.refresh_represented_talent_points_like_cpp();
     }
@@ -455,7 +457,7 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if _canonical || self.core.player_handle_like_cpp.is_none() {
-            self.identity.player_create_mode_like_cpp = create_mode;
+            self.fixtures.identity.player_create_mode_like_cpp = create_mode;
             return true;
         }
         _canonical
@@ -481,7 +483,7 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.progression.player_character_points_like_cpp = points;
+            self.fixtures.progression.player_character_points_like_cpp = points;
         }
         canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
@@ -494,7 +496,7 @@ impl WorldSession {
         }
         #[cfg(test)]
         {
-            return self.identity.player_name.clone();
+            return self.fixtures.identity.player_name.clone();
         }
         if self.core.player_handle_like_cpp.is_some() {
             return None;
@@ -513,7 +515,7 @@ impl WorldSession {
         });
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return self.identity.player_faction_template_like_cpp;
+            return self.fixtures.identity.player_faction_template_like_cpp;
         }
         canonical.flatten()
     }
@@ -534,7 +536,8 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.movement
+                self.fixtures
+                    .movement
                     .represented_can_swim_to_fly_transition_like_cpp,
             );
         }
@@ -547,7 +550,7 @@ impl WorldSession {
         });
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.identity.player_scale_duration_like_cpp);
+            return Some(self.fixtures.identity.player_scale_duration_like_cpp);
         }
         canonical
     }
@@ -562,7 +565,7 @@ impl WorldSession {
         }
         #[cfg(test)]
         {
-            return self.identity.player_race;
+            return self.fixtures.identity.player_race;
         }
         #[cfg(not(test))]
         if self.core.player_handle_like_cpp.is_some() {
@@ -581,7 +584,7 @@ impl WorldSession {
         }
         #[cfg(test)]
         {
-            return self.identity.player_class;
+            return self.fixtures.identity.player_class;
         }
         #[cfg(not(test))]
         if self.core.player_handle_like_cpp.is_some() {
@@ -598,7 +601,7 @@ impl WorldSession {
         let canonical = self.with_owned_player_like_cpp(Player::create_mode_like_cpp);
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.identity.player_create_mode_like_cpp);
+            return Some(self.fixtures.identity.player_create_mode_like_cpp);
         }
         canonical
     }
@@ -609,7 +612,7 @@ impl WorldSession {
         }
         #[cfg(test)]
         {
-            return self.identity.player_level;
+            return self.fixtures.identity.player_level;
         }
         #[cfg(not(test))]
         if self.core.player_handle_like_cpp.is_some() {
@@ -628,7 +631,7 @@ impl WorldSession {
         }
         #[cfg(test)]
         {
-            return self.identity.player_gender;
+            return self.fixtures.identity.player_gender;
         }
         #[cfg(not(test))]
         if self.core.player_handle_like_cpp.is_some() {
@@ -643,7 +646,7 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn set_player_faction_template_like_cpp(&mut self, faction_template: u32) {
-        self.identity.player_faction_template_like_cpp =
+        self.fixtures.identity.player_faction_template_like_cpp =
             (faction_template != 0).then_some(faction_template);
         let _ = self.mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_faction(faction_template);

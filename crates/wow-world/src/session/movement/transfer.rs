@@ -324,7 +324,7 @@ impl WorldSession {
         self.set_player_movement_flags_like_cpp(movement_flags);
         #[cfg(test)]
         {
-            self.movement.player_movement_jump_like_cpp =
+            self.fixtures.movement.player_movement_jump_like_cpp =
                 wow_packet::packets::movement::JumpInfo::default();
         }
         let _ = self.mutate_canonical_player_like_cpp(|player| {
@@ -571,7 +571,8 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.combat
+            self.fixtures
+                .combat
                 .represented_delayed_resurrection_after_teleport_like_cpp = Some(request);
         }
         canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
@@ -589,7 +590,8 @@ impl WorldSession {
         let request = canonical.or_else(|| {
             (self.core.player_handle_like_cpp.is_none())
                 .then(|| {
-                    self.combat
+                    self.fixtures
+                        .combat
                         .represented_delayed_resurrection_after_teleport_like_cpp
                         .take()
                 })
@@ -836,7 +838,8 @@ impl WorldSession {
         self.process_represented_delayed_resurrection_after_teleport_like_cpp();
         #[cfg(test)]
         {
-            self.movement.delayed_operations_processed_like_cpp = self
+            self.fixtures.movement.delayed_operations_processed_like_cpp = self
+                .fixtures
                 .movement
                 .delayed_operations_processed_like_cpp
                 .saturating_add(1);
@@ -876,7 +879,8 @@ impl WorldSession {
         delayed_operations_processed: bool,
     ) -> MoveTeleportAckActionLikeCpp {
         #[cfg(test)]
-        self.teleport
+        self.fixtures
+            .teleport
             .move_teleport_ack_events_like_cpp
             .push(MoveTeleportAckEventLikeCpp {
                 mover_guid,
@@ -931,15 +935,25 @@ impl WorldSession {
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(PlayerTeleportStateLikeCpp {
                 recovery: Default::default(),
-                far_destination: self.teleport.pending_teleport,
+                far_destination: self.fixtures.teleport.pending_teleport,
                 post_add: None,
-                can_delay: self.teleport.represented_can_delay_teleport_like_cpp,
-                has_delayed: self.teleport.represented_has_delayed_teleport_like_cpp,
-                near_pending: self.teleport.near_teleport_pending_like_cpp,
-                far_pending: self.teleport.represented_far_teleport_pending_like_cpp,
-                near_destination: self.teleport.near_teleport_destination_like_cpp,
-                delayed: self.teleport.represented_delayed_teleport_like_cpp,
+                can_delay: self
+                    .fixtures
+                    .teleport
+                    .represented_can_delay_teleport_like_cpp,
+                has_delayed: self
+                    .fixtures
+                    .teleport
+                    .represented_has_delayed_teleport_like_cpp,
+                near_pending: self.fixtures.teleport.near_teleport_pending_like_cpp,
+                far_pending: self
+                    .fixtures
+                    .teleport
+                    .represented_far_teleport_pending_like_cpp,
+                near_destination: self.fixtures.teleport.near_teleport_destination_like_cpp,
+                delayed: self.fixtures.teleport.represented_delayed_teleport_like_cpp,
                 near_destination_zone_area: self
+                    .fixtures
                     .teleport
                     .near_teleport_destination_zone_area_like_cpp,
             });
@@ -963,15 +977,22 @@ impl WorldSession {
                 .player_teleport_state_snapshot_like_cpp()
                 .unwrap_or_default();
             update(&mut state);
-            self.teleport.pending_teleport = state.far_destination;
-            self.teleport.represented_can_delay_teleport_like_cpp = state.can_delay;
-            self.teleport.represented_has_delayed_teleport_like_cpp = state.has_delayed;
-            self.teleport.near_teleport_pending_like_cpp = state.near_pending;
-            self.teleport.represented_far_teleport_pending_like_cpp = state.far_pending;
-            self.teleport.near_teleport_destination_like_cpp = state.near_destination;
-            self.teleport.represented_delayed_teleport_like_cpp = state.delayed;
-            self.teleport.near_teleport_destination_zone_area_like_cpp =
-                state.near_destination_zone_area;
+            self.fixtures.teleport.pending_teleport = state.far_destination;
+            self.fixtures
+                .teleport
+                .represented_can_delay_teleport_like_cpp = state.can_delay;
+            self.fixtures
+                .teleport
+                .represented_has_delayed_teleport_like_cpp = state.has_delayed;
+            self.fixtures.teleport.near_teleport_pending_like_cpp = state.near_pending;
+            self.fixtures
+                .teleport
+                .represented_far_teleport_pending_like_cpp = state.far_pending;
+            self.fixtures.teleport.near_teleport_destination_like_cpp = state.near_destination;
+            self.fixtures.teleport.represented_delayed_teleport_like_cpp = state.delayed;
+            self.fixtures
+                .teleport
+                .near_teleport_destination_zone_area_like_cpp = state.near_destination_zone_area;
             true
         }
         #[cfg(not(test))]
@@ -1005,6 +1026,6 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn move_teleport_ack_events_like_cpp(&self) -> &[MoveTeleportAckEventLikeCpp] {
-        &self.teleport.move_teleport_ack_events_like_cpp
+        &self.fixtures.teleport.move_teleport_ack_events_like_cpp
     }
 }

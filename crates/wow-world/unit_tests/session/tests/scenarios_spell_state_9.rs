@@ -20,15 +20,17 @@ fn cancel_mount_aura_removes_represented_mounted_aura_like_cpp() {
         .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)
         .unwrap();
 
-    assert!(session.vehicles.player_mounted_like_cpp);
+    assert!(session.fixtures.vehicles.player_mounted_like_cpp);
     assert!(
         session
+            .fixtures
             .presentation
             .player_unit_flags_like_cpp
             .contains(UnitFlags::MOUNT)
     );
     assert!(
         session
+            .fixtures
             .auras
             .visible_auras
             .values()
@@ -40,15 +42,17 @@ fn cancel_mount_aura_removes_represented_mounted_aura_like_cpp() {
         1
     );
 
-    assert!(!session.vehicles.player_mounted_like_cpp);
+    assert!(!session.fixtures.vehicles.player_mounted_like_cpp);
     assert!(
         !session
+            .fixtures
             .presentation
             .player_unit_flags_like_cpp
             .contains(UnitFlags::MOUNT)
     );
     assert!(
         !session
+            .fixtures
             .auras
             .visible_auras
             .values()
@@ -62,7 +66,7 @@ fn cancel_mount_aura_removes_represented_mounted_aura_like_cpp() {
 #[test]
 fn represented_mount_source_spell_usable_matches_cpp_mount_condition_filter() {
     let (mut session, _, _) = make_session();
-    session.identity.player_class = 1;
+    session.fixtures.identity.player_class = 1;
     session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
         wow_data::MountEntry {
             id: 1,
@@ -105,7 +109,7 @@ fn represented_mount_source_spell_usable_matches_cpp_mount_condition_filter() {
 #[test]
 fn account_mount_load_learns_mount_spells_before_use_condition_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.identity.player_class = 1;
+    session.fixtures.identity.player_class = 1;
     session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
         wow_data::MountEntry {
             id: 1,

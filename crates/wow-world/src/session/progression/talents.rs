@@ -28,24 +28,41 @@ impl WorldSession {
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             let mut runtime = wow_entities::PlayerTalentRuntimeState::default();
             runtime.replace_talent_groups_like_cpp(
-                self.progression.represented_talents_like_cpp.clone(),
+                self.fixtures
+                    .progression
+                    .represented_talents_like_cpp
+                    .clone(),
             );
-            runtime.replace_glyph_groups_like_cpp(self.progression.represented_glyphs_like_cpp);
-            if self.progression.represented_talents_loaded_like_cpp {
+            runtime.replace_glyph_groups_like_cpp(
+                self.fixtures.progression.represented_glyphs_like_cpp,
+            );
+            if self
+                .fixtures
+                .progression
+                .represented_talents_loaded_like_cpp
+            {
                 runtime.mark_talents_loaded_like_cpp();
             }
-            if self.progression.represented_glyphs_loaded_like_cpp {
+            if self.fixtures.progression.represented_glyphs_loaded_like_cpp {
                 runtime.mark_glyphs_loaded_like_cpp();
             }
             runtime.set_active_group_like_cpp(
-                self.progression.represented_active_talent_group_like_cpp,
+                self.fixtures
+                    .progression
+                    .represented_active_talent_group_like_cpp,
             );
             runtime.set_bonus_groups_like_cpp(
-                self.progression.represented_bonus_talent_groups_like_cpp,
+                self.fixtures
+                    .progression
+                    .represented_bonus_talent_groups_like_cpp,
             );
             runtime.set_reset_talents_state_like_cpp(
-                self.progression.represented_talent_reset_cost_like_cpp,
-                self.progression.represented_talent_reset_time_secs_like_cpp,
+                self.fixtures
+                    .progression
+                    .represented_talent_reset_cost_like_cpp,
+                self.fixtures
+                    .progression
+                    .represented_talent_reset_time_secs_like_cpp,
             );
             return Some(runtime);
         }
@@ -57,19 +74,27 @@ impl WorldSession {
         runtime: wow_entities::PlayerTalentRuntimeState,
     ) -> bool {
         if self.core.player_handle_like_cpp.is_none() {
-            self.progression.represented_talents_like_cpp =
+            self.fixtures.progression.represented_talents_like_cpp =
                 runtime.talent_groups_snapshot_like_cpp();
-            self.progression.represented_talents_loaded_like_cpp =
-                runtime.talents_loaded_like_cpp();
-            self.progression.represented_glyphs_like_cpp = runtime.glyph_groups_snapshot_like_cpp();
-            self.progression.represented_glyphs_loaded_like_cpp = runtime.glyphs_loaded_like_cpp();
-            self.progression.represented_active_talent_group_like_cpp =
-                runtime.active_group_like_cpp();
-            self.progression.represented_bonus_talent_groups_like_cpp =
-                runtime.bonus_groups_like_cpp();
-            self.progression.represented_talent_reset_cost_like_cpp =
-                runtime.reset_talents_cost_like_cpp();
-            self.progression.represented_talent_reset_time_secs_like_cpp =
+            self.fixtures
+                .progression
+                .represented_talents_loaded_like_cpp = runtime.talents_loaded_like_cpp();
+            self.fixtures.progression.represented_glyphs_like_cpp =
+                runtime.glyph_groups_snapshot_like_cpp();
+            self.fixtures.progression.represented_glyphs_loaded_like_cpp =
+                runtime.glyphs_loaded_like_cpp();
+            self.fixtures
+                .progression
+                .represented_active_talent_group_like_cpp = runtime.active_group_like_cpp();
+            self.fixtures
+                .progression
+                .represented_bonus_talent_groups_like_cpp = runtime.bonus_groups_like_cpp();
+            self.fixtures
+                .progression
+                .represented_talent_reset_cost_like_cpp = runtime.reset_talents_cost_like_cpp();
+            self.fixtures
+                .progression
+                .represented_talent_reset_time_secs_like_cpp =
                 runtime.reset_talents_time_secs_like_cpp();
             return true;
         }
@@ -442,7 +467,7 @@ impl WorldSession {
         });
         #[cfg(test)]
         if let Some(points) = _points {
-            self.progression.player_character_points_like_cpp = points;
+            self.fixtures.progression.player_character_points_like_cpp = points;
         }
     }
     pub(in crate::session) fn represented_talent_info_like_cpp(
@@ -534,13 +559,15 @@ impl WorldSession {
         cost: u32,
     ) {
         #[cfg(test)]
-        self.progression
+        self.fixtures
+            .progression
             .represented_talent_respec_criteria_events_like_cpp
             .push(
                 RepresentedTalentRespecCriteriaEventLikeCpp::MoneySpentOnRespecs { amount: cost },
             );
         #[cfg(test)]
-        self.progression
+        self.fixtures
+            .progression
             .represented_talent_respec_criteria_events_like_cpp
             .push(RepresentedTalentRespecCriteriaEventLikeCpp::TotalRespecs { quantity: 1 });
         #[cfg(not(test))]
@@ -572,7 +599,11 @@ impl WorldSession {
         });
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
-            return Some(self.progression.represented_talent_reset_cost_like_cpp);
+            return Some(
+                self.fixtures
+                    .progression
+                    .represented_talent_reset_cost_like_cpp,
+            );
         }
         canonical
     }
@@ -584,14 +615,19 @@ impl WorldSession {
         });
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
-            return Some(self.progression.represented_talent_reset_time_secs_like_cpp);
+            return Some(
+                self.fixtures
+                    .progression
+                    .represented_talent_reset_time_secs_like_cpp,
+            );
         }
         canonical
     }
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_talent_reset_script_hook_like_cpp(&mut self, no_cost: bool) {
         #[cfg(test)]
-        self.progression
+        self.fixtures
+            .progression
             .represented_talent_reset_script_hooks_like_cpp
             .push(RepresentedTalentResetScriptHookLikeCpp { no_cost });
     }
@@ -600,6 +636,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedTalentResetScriptHookLikeCpp] {
         &self
+            .fixtures
             .progression
             .represented_talent_reset_script_hooks_like_cpp
     }
@@ -608,6 +645,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedTalentRespecCriteriaEventLikeCpp] {
         &self
+            .fixtures
             .progression
             .represented_talent_respec_criteria_events_like_cpp
     }

@@ -41,7 +41,8 @@ impl WorldSession {
     /// C++ `CollectionMgr::GetHeirloomBonus`.
     #[cfg(test)]
     pub(crate) fn account_heirloom_bonus_like_cpp(&self, item_id: u32) -> u32 {
-        self.collections
+        self.fixtures
+            .collections
             .represented_account_heirlooms_like_cpp
             .get(&item_id)
             .map(|data| data.bonus_id)
@@ -295,13 +296,15 @@ impl WorldSession {
             #[cfg(test)]
             {
                 if !self
+                    .fixtures
                     .pets
                     .battle_pet_test_fixture_like_cpp
                     .represented_battle_pet_slots_authority_complete_like_cpp
                 {
                     return false;
                 }
-                self.pets
+                self.fixtures
+                    .pets
                     .battle_pet_test_fixture_like_cpp
                     .represented_battle_pet_slots_like_cpp
                     .iter()
@@ -506,7 +509,7 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn account_mounts_like_cpp(&self) -> &HashMap<i32, u8> {
-        &self.collections.account_mounts_like_cpp
+        &self.fixtures.collections.account_mounts_like_cpp
     }
     pub(crate) fn account_mount_rows_like_cpp(&self) -> Vec<AccountMount> {
         let Some(mut mounts) =

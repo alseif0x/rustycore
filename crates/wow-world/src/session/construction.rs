@@ -33,6 +33,8 @@ use crate::session::state::SessionCatalogs;
 use crate::session::state::SessionCore;
 use crate::session::state::SessionDirectory;
 use crate::session::state::SessionDriverServices;
+#[cfg(test)]
+use crate::session::state::SessionFixtures;
 use crate::session::state::SessionLifecycleState;
 use crate::session::state::SessionPhaseRail;
 use crate::session::state::SessionQuestState;
@@ -482,31 +484,421 @@ impl WorldSession {
                 mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp::default(),
             },
             #[cfg(test)]
-            identity: PlayerIdentityState {
+            fixtures: SessionFixtures {
                 #[cfg(test)]
-                player_race: 0,
+                identity: PlayerIdentityState {
+                    #[cfg(test)]
+                    player_race: 0,
+                    #[cfg(test)]
+                    player_class: 0,
+                    #[cfg(test)]
+                    player_level: 0,
+                    #[cfg(test)]
+                    player_gender: 0,
+                    #[cfg(test)]
+                    player_create_mode_like_cpp: wow_data::PLAYER_CREATE_MODE_NORMAL_LIKE_CPP,
+                    #[cfg(test)]
+                    player_name: None,
+                    #[cfg(test)]
+                    player_scale_duration_like_cpp: 0,
+                    #[cfg(test)]
+                    player_faction_template_like_cpp: None,
+                    #[cfg(test)]
+                    player_zone_id_like_cpp: 0,
+                    #[cfg(test)]
+                    player_area_id_like_cpp: 0,
+                    #[cfg(test)]
+                    player_zone_area_authority_complete_like_cpp: false,
+                    #[cfg(test)]
+                    represented_is_outdoors_like_cpp: None,
+                },
                 #[cfg(test)]
-                player_class: 0,
+                collections: CollectionsState {
+                    #[cfg(test)]
+                    account_mounts_like_cpp: HashMap::new(),
+                    #[cfg(test)]
+                    represented_account_heirlooms_like_cpp: BTreeMap::new(),
+                    #[cfg(test)]
+                    represented_account_toys_like_cpp: BTreeMap::new(),
+                    #[cfg(test)]
+                    represented_item_appearances_like_cpp: HashSet::new(),
+                    #[cfg(test)]
+                    represented_item_appearance_blocks_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    represented_temporary_item_appearances_like_cpp: HashMap::new(),
+                    #[cfg(test)]
+                    represented_favorite_item_appearances_like_cpp: HashMap::new(),
+                    #[cfg(test)]
+                    represented_transmog_illusions_like_cpp: HashSet::new(),
+
+                    #[cfg(test)]
+                    represented_completed_achievements_like_cpp: HashSet::new(),
+                },
                 #[cfg(test)]
-                player_level: 0,
+                auras: AuraState {
+                    #[cfg(test)]
+                    represented_shapeshift_form_like_cpp: 0,
+                    #[cfg(test)]
+                    player_spell_hit_aura_authority_tombstoned_like_cpp: false,
+                    #[cfg(test)]
+                    visible_auras: HashMap::new(),
+                    #[cfg(test)]
+                    player_aura_authority_complete_like_cpp: false,
+                    #[cfg(test)]
+                    canonical_threat_aura_snapshots_like_cpp: HashMap::new(),
+                },
                 #[cfg(test)]
-                player_gender: 0,
+                progression: ProgressionState {
+                    #[cfg(test)]
+                    championing_faction_like_cpp: 0,
+                    #[cfg(test)]
+                    represented_enchanting_skill: 0,
+                    #[cfg(test)]
+                    player_skill_test_fixture_like_cpp: PlayerSkillTestFixtureLikeCpp::default(),
+                    #[cfg(test)]
+                    represented_gray_level_script_overrides_like_cpp: HashMap::new(),
+                    #[cfg(test)]
+                    rest_mgr_test_fixture_like_cpp: RestMgrTestFixtureLikeCpp::default(),
+                    #[cfg(test)]
+                    represented_talent_reset_cost_like_cpp: 0,
+                    #[cfg(test)]
+                    represented_talent_reset_time_secs_like_cpp: 0,
+                    #[cfg(test)]
+                    player_character_points_like_cpp: 0,
+                    #[cfg(test)]
+                    player_xp: 0,
+                    #[cfg(test)]
+                    player_next_level_xp: 400,
+                    #[cfg(test)]
+                    represented_primary_specialization_id_like_cpp: 0,
+                    #[cfg(test)]
+                    represented_weapon_proficiency_like_cpp: 0,
+                    #[cfg(test)]
+                    represented_armor_proficiency_like_cpp: 0,
+                    #[cfg(test)]
+                    represented_confirm_respec_wipe_requests_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    represented_talent_reset_script_hooks_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    represented_talent_respec_visual_spell_casts_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    represented_talent_respec_criteria_events_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    represented_active_talent_group_like_cpp: 0,
+                    #[cfg(test)]
+                    represented_bonus_talent_groups_like_cpp: 0,
+                    #[cfg(test)]
+                    represented_talents_like_cpp: std::array::from_fn(|_| BTreeMap::new()),
+                    #[cfg(test)]
+                    represented_talents_loaded_like_cpp: false,
+                    #[cfg(test)]
+                    represented_glyphs_like_cpp: [[0;
+                        wow_packet::packets::misc::MAX_GLYPH_SLOT_INDEX_LIKE_CPP];
+                        MAX_SPECIALIZATIONS_LIKE_CPP],
+                    #[cfg(test)]
+                    represented_glyphs_loaded_like_cpp: false,
+                    #[cfg(test)]
+                    #[cfg(test)]
+                    reputation_state_like_cpp: wow_entities::PlayerReputationStateLikeCpp::default(
+                    ),
+                    #[cfg(test)]
+                    watched_faction_index_like_cpp: -1,
+                },
                 #[cfg(test)]
-                player_create_mode_like_cpp: wow_data::PLAYER_CREATE_MODE_NORMAL_LIKE_CPP,
+                combat: CombatState {
+                    #[cfg(test)]
+                    represented_player_powers_like_cpp: empty_character_power_snapshot_like_cpp(),
+                    #[cfg(test)]
+                    represented_player_max_powers_like_cpp: empty_character_power_snapshot_like_cpp(
+                    ),
+                    #[cfg(test)]
+                    represented_player_base_mana_like_cpp: 0,
+                    #[cfg(test)]
+                    selection_guid: None,
+                    #[cfg(test)]
+                    combat_target: None,
+                    #[cfg(test)]
+                    in_combat: false,
+                    #[cfg(test)]
+                    player_alive_like_cpp: true,
+                    #[cfg(test)]
+                    player_game_master_like_cpp: false,
+                    #[cfg(test)]
+                    player_cheat_god_like_cpp: false,
+                    #[cfg(test)]
+                    player_normal_damage_immune_like_cpp: false,
+                    #[cfg(test)]
+                    player_environmental_damage_immune_like_cpp: false,
+                    #[cfg(test)]
+                    player_health_like_cpp: 100,
+                    #[cfg(test)]
+                    player_max_health_like_cpp: 100,
+                    #[cfg(test)]
+                    area_spirit_healer_guid_like_cpp: ObjectGuid::EMPTY,
+                    #[cfg(test)]
+                    player_pvp_hostile_like_cpp: false,
+                    #[cfg(test)]
+                    player_pvp_enabled_like_cpp: false,
+                    #[cfg(test)]
+                    player_in_pvp_flag_like_cpp: false,
+                    #[cfg(test)]
+                    player_pvp_end_timer_like_cpp: None,
+                    #[cfg(test)]
+                    player_contested_pvp_timer_like_cpp: 0,
+                    #[cfg(test)]
+                    represented_resurrection_request_like_cpp: None,
+                    #[cfg(test)]
+                    represented_delayed_resurrection_after_teleport_like_cpp: None,
+                    #[cfg(test)]
+                    represented_death_timer_active_like_cpp: false,
+                    #[cfg(test)]
+                    represented_repop_at_graveyard_count: 0,
+                },
                 #[cfg(test)]
-                player_name: None,
+                movement: MovementState {
+                    #[cfg(test)]
+                    player_position: None,
+                    #[cfg(test)]
+                    player_movement_flags_like_cpp: MovementFlag::NONE,
+                    #[cfg(test)]
+                    represented_can_swim_to_fly_transition_like_cpp: false,
+                    #[cfg(test)]
+                    represented_mover_fixed_position_vehicle_like_cpp: false,
+                    #[cfg(test)]
+                    player_movement_time_like_cpp: 0,
+                    #[cfg(test)]
+                    player_movement_jump_like_cpp: wow_packet::packets::movement::JumpInfo::default(
+                    ),
+                    #[cfg(test)]
+                    last_fall_time_like_cpp: 0,
+                    #[cfg(test)]
+                    last_fall_z_like_cpp: 0.0,
+                    #[cfg(test)]
+                    fall_damage_events_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    player_out_of_bounds_like_cpp: false,
+                    #[cfg(test)]
+                    under_map_damage_events_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    movement_jump_proc_requests_like_cpp: 0,
+
+                    #[cfg(test)]
+                    player_moved_unit_guid_like_cpp: ObjectGuid::EMPTY,
+
+                    #[cfg(test)]
+                    movement_ack_events_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    represented_vehicle_dismiss_movements_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    represented_vehicle_base_movements_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    movement_counter_like_cpp: 0,
+                    #[cfg(test)]
+                    player_collision_height_like_cpp: 1.0,
+                    #[cfg(test)]
+                    delayed_operations_processed_like_cpp: 0,
+                    #[cfg(test)]
+                    forced_speed_changes_like_cpp: [0; UnitMoveTypeLikeCpp::COUNT],
+                    #[cfg(test)]
+                    movement_speed_rates_like_cpp: [1.0; UnitMoveTypeLikeCpp::COUNT],
+                    #[cfg(test)]
+                    movement_force_mod_magnitude_changes_like_cpp: 0,
+                    #[cfg(test)]
+                    movement_force_mod_magnitude_like_cpp: 1.0,
+                    #[cfg(test)]
+                    movement_speed_ack_events_like_cpp: Vec::new(),
+                },
                 #[cfg(test)]
-                player_scale_duration_like_cpp: 0,
+                teleport: TeleportState {
+                    #[cfg(test)]
+                    move_spline_done_taxi_events_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    represented_can_delay_teleport_like_cpp: false,
+                    #[cfg(test)]
+                    represented_has_delayed_teleport_like_cpp: false,
+                    #[cfg(test)]
+                    near_teleport_pending_like_cpp: false,
+                    #[cfg(test)]
+                    represented_far_teleport_pending_like_cpp: false,
+                    #[cfg(test)]
+                    near_teleport_destination_like_cpp: None,
+                    #[cfg(test)]
+                    represented_delayed_teleport_like_cpp: None,
+                    #[cfg(test)]
+                    near_teleport_destination_zone_area_like_cpp: None,
+                    #[cfg(test)]
+                    represented_homebind_like_cpp: None,
+                    #[cfg(test)]
+                    move_teleport_ack_events_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    pending_teleport: None,
+                },
                 #[cfg(test)]
-                player_faction_template_like_cpp: None,
+                vehicles: TaxiVehicleState {
+                    #[cfg(test)]
+                    taxi_destinations_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    represented_activate_taxi_requests_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    taxi_flight_state_like_cpp: None,
+                    #[cfg(test)]
+                    taxi_unit_flags_like_cpp: UnitFlags::empty(),
+                    #[cfg(test)]
+                    taxi_mounted_like_cpp: false,
+                    #[cfg(test)]
+                    player_mount_display_id_like_cpp: 0,
+                    #[cfg(test)]
+                    player_mount_vehicle_id_like_cpp: 0,
+                    #[cfg(test)]
+                    player_mount_vehicle_kit_like_cpp: None,
+                    #[cfg(test)]
+                    player_mount_vehicle_accessories_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    player_mount_vehicle_seat_count_like_cpp: 0,
+                    #[cfg(test)]
+                    player_mount_vehicle_usable_seat_count_like_cpp: 0,
+                    #[cfg(test)]
+                    player_vehicle_seat_flags_like_cpp: None,
+                    #[cfg(test)]
+                    player_vehicle_seat_id_like_cpp: None,
+                    #[cfg(test)]
+                    represented_vehicle_seat_change_requests_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    represented_vehicle_seat_spell_click_requests_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    represented_vehicle_enter_requests_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    mount_vehicle_create_requests_like_cpp: 0,
+                    #[cfg(test)]
+                    mount_vehicle_remove_requests_like_cpp: 0,
+                    #[cfg(test)]
+                    mount_cancel_expected_vehicle_aura_packets_like_cpp: 0,
+                    #[cfg(test)]
+                    mount_collision_height_update_requests_like_cpp: 0,
+                    #[cfg(test)]
+                    player_mounted_like_cpp: false,
+                    #[cfg(test)]
+                    player_on_transport_like_cpp: false,
+                    #[cfg(test)]
+                    player_transport_login_state_like_cpp: None,
+                },
                 #[cfg(test)]
-                player_zone_id_like_cpp: 0,
+                pets: PetState {
+                    #[cfg(test)]
+                    temporary_pet_unsummon_requests_like_cpp: 0,
+                    #[cfg(test)]
+                    represented_pet_guid_like_cpp: None,
+                    #[cfg(test)]
+                    represented_temporary_unsummoned_pet_number_like_cpp: 0,
+                    #[cfg(test)]
+                    represented_old_pet_spell_like_cpp: 0,
+                    #[cfg(test)]
+                    represented_pet_stable_like_cpp: PetStable::default(),
+                    #[cfg(test)]
+                    represented_character_pet_rows_empty_authority_complete_like_cpp: false,
+
+                    #[cfg(test)]
+                    represented_pet_created_by_spell_like_cpp: 0,
+                    #[cfg(test)]
+                    represented_pet_react_state_like_cpp:
+                        wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
+                    #[cfg(test)]
+                    represented_pet_command_state_like_cpp:
+                        wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
+                    #[cfg(test)]
+                    temporary_mount_pet_react_state_like_cpp: None,
+                    #[cfg(test)]
+                    mount_pet_control_disable_requests_like_cpp: 0,
+                    #[cfg(test)]
+                    mount_pet_control_enable_requests_like_cpp: 0,
+                    #[cfg(test)]
+                    mount_pet_resummon_requests_like_cpp: 0,
+                    #[cfg(test)]
+                    temporary_pet_resummon_requests_like_cpp: 0,
+                    #[cfg(test)]
+                    represented_pet_movement_speed_rates_like_cpp: [1.0;
+                        UnitMoveTypeLikeCpp::COUNT],
+                    #[cfg(test)]
+                    represented_pet_speed_propagations_like_cpp: 0,
+                    #[cfg(test)]
+                    battle_pet_test_fixture_like_cpp: BattlePetTestFixtureLikeCpp::default(),
+                },
                 #[cfg(test)]
-                player_area_id_like_cpp: 0,
+                battleground: BattlegroundState {
+                    #[cfg(test)]
+                    represented_arena_team_id_invited_like_cpp: 0,
+                    #[cfg(test)]
+                    represented_wargame_invite_acceptances_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    player_battleground_type_id_like_cpp: None,
+                    #[cfg(test)]
+                    player_battleground_map_id_like_cpp: None,
+                    #[cfg(test)]
+                    represented_battleground_status_like_cpp: None,
+                    #[cfg(test)]
+                    represented_battleground_leave_requests_like_cpp: 0,
+                    #[cfg(test)]
+                    represented_battlemaster_hellos_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    represented_battlefield_lists_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    represented_battlemaster_joins_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    represented_battlemaster_join_arenas_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    represented_battlemaster_join_skirmishes_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    represented_battleground_queue_slots_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    represented_battlefield_ports_like_cpp: Vec::new(),
+                },
                 #[cfg(test)]
-                player_zone_area_authority_complete_like_cpp: false,
-                #[cfg(test)]
-                represented_is_outdoors_like_cpp: None,
+                presentation: PlayerPresentationState {
+                    #[cfg(test)]
+                    cuf_profiles_like_cpp: vec![
+                        None;
+                        wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP
+                    ],
+                    #[cfg(test)]
+                    cuf_profiles_loaded_like_cpp: false,
+                    #[cfg(test)]
+                    player_stand_state_like_cpp: UnitStandStateType::Stand,
+                    #[cfg(test)]
+                    represented_live_applications_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    player_emote_state_like_cpp: 0,
+                    #[cfg(test)]
+                    active_player_local_flags_like_cpp: 0,
+                    #[cfg(test)]
+                    active_player_transport_server_time_like_cpp: 0,
+                    #[cfg(test)]
+                    active_player_multi_action_bars_like_cpp: 0,
+                    #[cfg(test)]
+                    represented_action_buttons_like_cpp: [0;
+                        wow_packet::packets::misc::MAX_ACTION_BUTTONS],
+                    #[cfg(test)]
+                    represented_action_buttons_loaded_like_cpp: false,
+                    #[cfg(test)]
+                    represented_alter_appearance_requests_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    represented_confirm_barbers_choice_requests_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    player_object_scale_like_cpp: 1.0,
+                    #[cfg(test)]
+                    player_unit_flags_like_cpp: UnitFlags::PLAYER_CONTROLLED,
+                    #[cfg(test)]
+                    represented_cinematic_state_like_cpp:
+                        wow_entities::PlayerCinematicStateLikeCpp::default(),
+                    #[cfg(test)]
+                    #[cfg(test)]
+                    #[cfg(test)]
+                    represented_cinematic_next_camera_events_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    represented_cinematic_end_events_like_cpp: Vec::new(),
+                    #[cfg(test)]
+                    #[cfg(test)]
+                    represented_movie_complete_events_like_cpp: Vec::new(),
+                },
             },
             inventory: InventoryState {
                 #[cfg(test)]
@@ -558,28 +950,6 @@ impl WorldSession {
                 #[cfg(test)]
                 represented_transmog_criteria_events: Vec::new(),
             },
-            #[cfg(test)]
-            collections: CollectionsState {
-                #[cfg(test)]
-                account_mounts_like_cpp: HashMap::new(),
-                #[cfg(test)]
-                represented_account_heirlooms_like_cpp: BTreeMap::new(),
-                #[cfg(test)]
-                represented_account_toys_like_cpp: BTreeMap::new(),
-                #[cfg(test)]
-                represented_item_appearances_like_cpp: HashSet::new(),
-                #[cfg(test)]
-                represented_item_appearance_blocks_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_temporary_item_appearances_like_cpp: HashMap::new(),
-                #[cfg(test)]
-                represented_favorite_item_appearances_like_cpp: HashMap::new(),
-                #[cfg(test)]
-                represented_transmog_illusions_like_cpp: HashSet::new(),
-
-                #[cfg(test)]
-                represented_completed_achievements_like_cpp: HashSet::new(),
-            },
             spell_state: SessionSpellState {
                 legacy_spell_script_spell_ids_like_cpp: None,
                 spell_linked_rejected_trigger_spell_ids_like_cpp: None,
@@ -619,291 +989,6 @@ impl WorldSession {
                 #[cfg(test)]
                 represented_character_spell_charges_loaded_like_cpp: false,
             },
-            #[cfg(test)]
-            auras: AuraState {
-                #[cfg(test)]
-                represented_shapeshift_form_like_cpp: 0,
-                #[cfg(test)]
-                player_spell_hit_aura_authority_tombstoned_like_cpp: false,
-                #[cfg(test)]
-                visible_auras: HashMap::new(),
-                #[cfg(test)]
-                player_aura_authority_complete_like_cpp: false,
-                #[cfg(test)]
-                canonical_threat_aura_snapshots_like_cpp: HashMap::new(),
-            },
-            #[cfg(test)]
-            progression: ProgressionState {
-                #[cfg(test)]
-                championing_faction_like_cpp: 0,
-                #[cfg(test)]
-                represented_enchanting_skill: 0,
-                #[cfg(test)]
-                player_skill_test_fixture_like_cpp: PlayerSkillTestFixtureLikeCpp::default(),
-                #[cfg(test)]
-                represented_gray_level_script_overrides_like_cpp: HashMap::new(),
-                #[cfg(test)]
-                rest_mgr_test_fixture_like_cpp: RestMgrTestFixtureLikeCpp::default(),
-                #[cfg(test)]
-                represented_talent_reset_cost_like_cpp: 0,
-                #[cfg(test)]
-                represented_talent_reset_time_secs_like_cpp: 0,
-                #[cfg(test)]
-                player_character_points_like_cpp: 0,
-                #[cfg(test)]
-                player_xp: 0,
-                #[cfg(test)]
-                player_next_level_xp: 400,
-                #[cfg(test)]
-                represented_primary_specialization_id_like_cpp: 0,
-                #[cfg(test)]
-                represented_weapon_proficiency_like_cpp: 0,
-                #[cfg(test)]
-                represented_armor_proficiency_like_cpp: 0,
-                #[cfg(test)]
-                represented_confirm_respec_wipe_requests_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_talent_reset_script_hooks_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_talent_respec_visual_spell_casts_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_talent_respec_criteria_events_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_active_talent_group_like_cpp: 0,
-                #[cfg(test)]
-                represented_bonus_talent_groups_like_cpp: 0,
-                #[cfg(test)]
-                represented_talents_like_cpp: std::array::from_fn(|_| BTreeMap::new()),
-                #[cfg(test)]
-                represented_talents_loaded_like_cpp: false,
-                #[cfg(test)]
-                represented_glyphs_like_cpp: [[0;
-                    wow_packet::packets::misc::MAX_GLYPH_SLOT_INDEX_LIKE_CPP];
-                    MAX_SPECIALIZATIONS_LIKE_CPP],
-                #[cfg(test)]
-                represented_glyphs_loaded_like_cpp: false,
-                #[cfg(test)]
-                #[cfg(test)]
-                reputation_state_like_cpp: wow_entities::PlayerReputationStateLikeCpp::default(),
-                #[cfg(test)]
-                watched_faction_index_like_cpp: -1,
-            },
-            #[cfg(test)]
-            combat: CombatState {
-                #[cfg(test)]
-                represented_player_powers_like_cpp: empty_character_power_snapshot_like_cpp(),
-                #[cfg(test)]
-                represented_player_max_powers_like_cpp: empty_character_power_snapshot_like_cpp(),
-                #[cfg(test)]
-                represented_player_base_mana_like_cpp: 0,
-                #[cfg(test)]
-                selection_guid: None,
-                #[cfg(test)]
-                combat_target: None,
-                #[cfg(test)]
-                in_combat: false,
-                #[cfg(test)]
-                player_alive_like_cpp: true,
-                #[cfg(test)]
-                player_game_master_like_cpp: false,
-                #[cfg(test)]
-                player_cheat_god_like_cpp: false,
-                #[cfg(test)]
-                player_normal_damage_immune_like_cpp: false,
-                #[cfg(test)]
-                player_environmental_damage_immune_like_cpp: false,
-                #[cfg(test)]
-                player_health_like_cpp: 100,
-                #[cfg(test)]
-                player_max_health_like_cpp: 100,
-                #[cfg(test)]
-                area_spirit_healer_guid_like_cpp: ObjectGuid::EMPTY,
-                #[cfg(test)]
-                player_pvp_hostile_like_cpp: false,
-                #[cfg(test)]
-                player_pvp_enabled_like_cpp: false,
-                #[cfg(test)]
-                player_in_pvp_flag_like_cpp: false,
-                #[cfg(test)]
-                player_pvp_end_timer_like_cpp: None,
-                #[cfg(test)]
-                player_contested_pvp_timer_like_cpp: 0,
-                #[cfg(test)]
-                represented_resurrection_request_like_cpp: None,
-                #[cfg(test)]
-                represented_delayed_resurrection_after_teleport_like_cpp: None,
-                #[cfg(test)]
-                represented_death_timer_active_like_cpp: false,
-                #[cfg(test)]
-                represented_repop_at_graveyard_count: 0,
-            },
-            #[cfg(test)]
-            movement: MovementState {
-                #[cfg(test)]
-                player_position: None,
-                #[cfg(test)]
-                player_movement_flags_like_cpp: MovementFlag::NONE,
-                #[cfg(test)]
-                represented_can_swim_to_fly_transition_like_cpp: false,
-                #[cfg(test)]
-                represented_mover_fixed_position_vehicle_like_cpp: false,
-                #[cfg(test)]
-                player_movement_time_like_cpp: 0,
-                #[cfg(test)]
-                player_movement_jump_like_cpp: wow_packet::packets::movement::JumpInfo::default(),
-                #[cfg(test)]
-                last_fall_time_like_cpp: 0,
-                #[cfg(test)]
-                last_fall_z_like_cpp: 0.0,
-                #[cfg(test)]
-                fall_damage_events_like_cpp: Vec::new(),
-                #[cfg(test)]
-                player_out_of_bounds_like_cpp: false,
-                #[cfg(test)]
-                under_map_damage_events_like_cpp: Vec::new(),
-                #[cfg(test)]
-                movement_jump_proc_requests_like_cpp: 0,
-
-                #[cfg(test)]
-                player_moved_unit_guid_like_cpp: ObjectGuid::EMPTY,
-
-                #[cfg(test)]
-                movement_ack_events_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_vehicle_dismiss_movements_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_vehicle_base_movements_like_cpp: Vec::new(),
-                #[cfg(test)]
-                movement_counter_like_cpp: 0,
-                #[cfg(test)]
-                player_collision_height_like_cpp: 1.0,
-                #[cfg(test)]
-                delayed_operations_processed_like_cpp: 0,
-                #[cfg(test)]
-                forced_speed_changes_like_cpp: [0; UnitMoveTypeLikeCpp::COUNT],
-                #[cfg(test)]
-                movement_speed_rates_like_cpp: [1.0; UnitMoveTypeLikeCpp::COUNT],
-                #[cfg(test)]
-                movement_force_mod_magnitude_changes_like_cpp: 0,
-                #[cfg(test)]
-                movement_force_mod_magnitude_like_cpp: 1.0,
-                #[cfg(test)]
-                movement_speed_ack_events_like_cpp: Vec::new(),
-            },
-            #[cfg(test)]
-            teleport: TeleportState {
-                #[cfg(test)]
-                move_spline_done_taxi_events_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_can_delay_teleport_like_cpp: false,
-                #[cfg(test)]
-                represented_has_delayed_teleport_like_cpp: false,
-                #[cfg(test)]
-                near_teleport_pending_like_cpp: false,
-                #[cfg(test)]
-                represented_far_teleport_pending_like_cpp: false,
-                #[cfg(test)]
-                near_teleport_destination_like_cpp: None,
-                #[cfg(test)]
-                represented_delayed_teleport_like_cpp: None,
-                #[cfg(test)]
-                near_teleport_destination_zone_area_like_cpp: None,
-                #[cfg(test)]
-                represented_homebind_like_cpp: None,
-                #[cfg(test)]
-                move_teleport_ack_events_like_cpp: Vec::new(),
-                #[cfg(test)]
-                pending_teleport: None,
-            },
-            #[cfg(test)]
-            vehicles: TaxiVehicleState {
-                #[cfg(test)]
-                taxi_destinations_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_activate_taxi_requests_like_cpp: Vec::new(),
-                #[cfg(test)]
-                taxi_flight_state_like_cpp: None,
-                #[cfg(test)]
-                taxi_unit_flags_like_cpp: UnitFlags::empty(),
-                #[cfg(test)]
-                taxi_mounted_like_cpp: false,
-                #[cfg(test)]
-                player_mount_display_id_like_cpp: 0,
-                #[cfg(test)]
-                player_mount_vehicle_id_like_cpp: 0,
-                #[cfg(test)]
-                player_mount_vehicle_kit_like_cpp: None,
-                #[cfg(test)]
-                player_mount_vehicle_accessories_like_cpp: Vec::new(),
-                #[cfg(test)]
-                player_mount_vehicle_seat_count_like_cpp: 0,
-                #[cfg(test)]
-                player_mount_vehicle_usable_seat_count_like_cpp: 0,
-                #[cfg(test)]
-                player_vehicle_seat_flags_like_cpp: None,
-                #[cfg(test)]
-                player_vehicle_seat_id_like_cpp: None,
-                #[cfg(test)]
-                represented_vehicle_seat_change_requests_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_vehicle_seat_spell_click_requests_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_vehicle_enter_requests_like_cpp: Vec::new(),
-                #[cfg(test)]
-                mount_vehicle_create_requests_like_cpp: 0,
-                #[cfg(test)]
-                mount_vehicle_remove_requests_like_cpp: 0,
-                #[cfg(test)]
-                mount_cancel_expected_vehicle_aura_packets_like_cpp: 0,
-                #[cfg(test)]
-                mount_collision_height_update_requests_like_cpp: 0,
-                #[cfg(test)]
-                player_mounted_like_cpp: false,
-                #[cfg(test)]
-                player_on_transport_like_cpp: false,
-                #[cfg(test)]
-                player_transport_login_state_like_cpp: None,
-            },
-            #[cfg(test)]
-            pets: PetState {
-                #[cfg(test)]
-                temporary_pet_unsummon_requests_like_cpp: 0,
-                #[cfg(test)]
-                represented_pet_guid_like_cpp: None,
-                #[cfg(test)]
-                represented_temporary_unsummoned_pet_number_like_cpp: 0,
-                #[cfg(test)]
-                represented_old_pet_spell_like_cpp: 0,
-                #[cfg(test)]
-                represented_pet_stable_like_cpp: PetStable::default(),
-                #[cfg(test)]
-                represented_character_pet_rows_empty_authority_complete_like_cpp: false,
-
-                #[cfg(test)]
-                represented_pet_created_by_spell_like_cpp: 0,
-                #[cfg(test)]
-                represented_pet_react_state_like_cpp:
-                    wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
-                #[cfg(test)]
-                represented_pet_command_state_like_cpp:
-                    wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
-                #[cfg(test)]
-                temporary_mount_pet_react_state_like_cpp: None,
-                #[cfg(test)]
-                mount_pet_control_disable_requests_like_cpp: 0,
-                #[cfg(test)]
-                mount_pet_control_enable_requests_like_cpp: 0,
-                #[cfg(test)]
-                mount_pet_resummon_requests_like_cpp: 0,
-                #[cfg(test)]
-                temporary_pet_resummon_requests_like_cpp: 0,
-                #[cfg(test)]
-                represented_pet_movement_speed_rates_like_cpp: [1.0; UnitMoveTypeLikeCpp::COUNT],
-                #[cfg(test)]
-                represented_pet_speed_propagations_like_cpp: 0,
-                #[cfg(test)]
-                battle_pet_test_fixture_like_cpp: BattlePetTestFixtureLikeCpp::default(),
-            },
             social: SessionSocialLimits {
                 max_recruit_a_friend_bonus_player_level_like_cpp: 85,
                 max_recruit_a_friend_bonus_player_level_difference_like_cpp: 4,
@@ -933,35 +1018,6 @@ impl WorldSession {
                 represented_silence_party_talker_like_cpp: Vec::new(),
                 #[cfg(test)]
                 duel_test_fixture_like_cpp: DuelTestFixtureLikeCpp::default(),
-            },
-            #[cfg(test)]
-            battleground: BattlegroundState {
-                #[cfg(test)]
-                represented_arena_team_id_invited_like_cpp: 0,
-                #[cfg(test)]
-                represented_wargame_invite_acceptances_like_cpp: Vec::new(),
-                #[cfg(test)]
-                player_battleground_type_id_like_cpp: None,
-                #[cfg(test)]
-                player_battleground_map_id_like_cpp: None,
-                #[cfg(test)]
-                represented_battleground_status_like_cpp: None,
-                #[cfg(test)]
-                represented_battleground_leave_requests_like_cpp: 0,
-                #[cfg(test)]
-                represented_battlemaster_hellos_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_battlefield_lists_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_battlemaster_joins_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_battlemaster_join_arenas_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_battlemaster_join_skirmishes_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_battleground_queue_slots_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_battlefield_ports_like_cpp: Vec::new(),
             },
             instances: InstanceState {
                 #[cfg(test)]
@@ -1011,53 +1067,6 @@ impl WorldSession {
                 represented_capture_point_removed_delivered_like_cpp:
                     std::collections::HashSet::new(),
                 last_visibility_pos: None,
-            },
-            #[cfg(test)]
-            presentation: PlayerPresentationState {
-                #[cfg(test)]
-                cuf_profiles_like_cpp: vec![
-                    None;
-                    wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP
-                ],
-                #[cfg(test)]
-                cuf_profiles_loaded_like_cpp: false,
-                #[cfg(test)]
-                player_stand_state_like_cpp: UnitStandStateType::Stand,
-                #[cfg(test)]
-                represented_live_applications_like_cpp: Vec::new(),
-                #[cfg(test)]
-                player_emote_state_like_cpp: 0,
-                #[cfg(test)]
-                active_player_local_flags_like_cpp: 0,
-                #[cfg(test)]
-                active_player_transport_server_time_like_cpp: 0,
-                #[cfg(test)]
-                active_player_multi_action_bars_like_cpp: 0,
-                #[cfg(test)]
-                represented_action_buttons_like_cpp: [0;
-                    wow_packet::packets::misc::MAX_ACTION_BUTTONS],
-                #[cfg(test)]
-                represented_action_buttons_loaded_like_cpp: false,
-                #[cfg(test)]
-                represented_alter_appearance_requests_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_confirm_barbers_choice_requests_like_cpp: Vec::new(),
-                #[cfg(test)]
-                player_object_scale_like_cpp: 1.0,
-                #[cfg(test)]
-                player_unit_flags_like_cpp: UnitFlags::PLAYER_CONTROLLED,
-                #[cfg(test)]
-                represented_cinematic_state_like_cpp:
-                    wow_entities::PlayerCinematicStateLikeCpp::default(),
-                #[cfg(test)]
-                #[cfg(test)]
-                #[cfg(test)]
-                represented_cinematic_next_camera_events_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_cinematic_end_events_like_cpp: Vec::new(),
-                #[cfg(test)]
-                #[cfg(test)]
-                represented_movie_complete_events_like_cpp: Vec::new(),
             },
             interaction: InteractionState {
                 vendor_item_counts: HashMap::new(),

@@ -41,7 +41,7 @@ async fn full_save_reads_native_map_and_level_despite_stale_session_staging() {
             .with_owned_player_mut_like_cpp(|player| player.unit_mut().set_level(73))
             .unwrap();
         session.core.current_map_id = 1;
-        session.identity.player_level = 11;
+        session.fixtures.identity.player_level = 11;
         let prepared = session.prepare_player_save_like_cpp(123).unwrap();
         assert_eq!((prepared.header.map_id, prepared.header.level), (571, 73));
         assert_eq!(prepared.request.character.position.map_id, 571);

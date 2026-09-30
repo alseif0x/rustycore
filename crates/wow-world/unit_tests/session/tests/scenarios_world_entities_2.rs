@@ -552,7 +552,7 @@ fn update_visible_gameobjects_adds_no_interact_for_failed_player_condition_like_
         description: String::new(),
     });
 
-    session.identity.player_class = 1;
+    session.fixtures.identity.player_class = 1;
     session.set_player_guid(Some(player_guid));
     session.set_player_condition_store(Arc::new(wow_data::PlayerConditionStore::from_entries([
         wow_data::PlayerConditionEntry {

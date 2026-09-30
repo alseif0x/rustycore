@@ -8,7 +8,7 @@ use super::*;
 #[test]
 fn represented_failed_map_difficulty_x_condition_matches_cpp_first_failed_order() {
     let (mut session, _, _) = make_session();
-    session.identity.player_class = 1;
+    session.fixtures.identity.player_class = 1;
     session.set_player_condition_store(Arc::new(wow_data::PlayerConditionStore::from_entries([
         wow_data::PlayerConditionEntry {
             id: 42,

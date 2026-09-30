@@ -151,17 +151,18 @@ fn initial_equipped_item_equip_auras_apply_on_equip_effects_like_cpp() {
         session.apply_initial_equipped_item_equip_auras_like_cpp(),
         Some(2)
     );
-    assert!(session.auras.visible_auras.values().any(|aura| {
+    assert!(session.fixtures.auras.visible_auras.values().any(|aura| {
         aura.spell_id == 30_100
             && aura.caster_guid == chest_guid
             && aura.aura_flags == AFLAG_NOCASTER_LIKE_CPP | 0x0000_0100 | 0x0000_0200
             && aura.effect_mask == 1
     }));
-    assert!(session.auras.visible_auras.values().any(|aura| {
+    assert!(session.fixtures.auras.visible_auras.values().any(|aura| {
         aura.spell_id == 30_102 && aura.caster_guid == hands_guid && aura.effect_mask == 1
     }));
     assert!(
         !session
+            .fixtures
             .auras
             .visible_auras
             .values()
@@ -496,6 +497,7 @@ fn login_passive_known_spell_auras_apply_like_cpp_addspell() {
         "C++ AddSpell recursively adds/casts previous passive ranks during load"
     );
     let visible: Vec<_> = session
+        .fixtures
         .auras
         .visible_auras
         .values()
@@ -521,6 +523,7 @@ fn login_passive_known_spell_auras_apply_like_cpp_addspell() {
     )));
     assert!(
         !session
+            .fixtures
             .auras
             .visible_auras
             .values()
@@ -573,6 +576,7 @@ fn login_total_stat_percentage_aura_records_cpp_multiplier_and_misc_b_mask() {
         [1.0, 1.0, 1.0, 1.0, 1.03]
     );
     let aura = session
+        .fixtures
         .auras
         .visible_auras
         .values()

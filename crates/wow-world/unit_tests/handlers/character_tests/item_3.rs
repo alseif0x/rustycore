@@ -674,7 +674,13 @@ async fn banker_activate_removes_feign_after_validation_before_open_like_cpp() {
         ],
         "C++ removes feign death before SendShowBank"
     );
-    assert!(!session.auras.visible_auras.contains_key(&FEIGN_SLOT));
+    assert!(
+        !session
+            .fixtures
+            .auras
+            .visible_auras
+            .contains_key(&FEIGN_SLOT)
+    );
     assert!(!canonical_player_has_died_state_like_cpp(&mut session));
     assert_eq!(
         session.player_interaction_source_guid_like_cpp(),
@@ -701,7 +707,13 @@ async fn banker_activate_invalid_source_preserves_feign_and_provenance_like_cpp(
         .await;
 
     assert!(send_rx.try_recv().is_err());
-    assert!(session.auras.visible_auras.contains_key(&FEIGN_SLOT));
+    assert!(
+        session
+            .fixtures
+            .auras
+            .visible_auras
+            .contains_key(&FEIGN_SLOT)
+    );
     assert!(canonical_player_has_died_state_like_cpp(&mut session));
     assert!(
         session.player_trainer_interaction_matches_like_cpp(active_source, 77),

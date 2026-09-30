@@ -420,7 +420,7 @@ fn gameobject_use_capture_point_respects_team_state_gate_like_cpp() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 43);
     session.set_player_battleground_type_id_like_cpp(BATTLEGROUND_AB_LIKE_CPP);
-    session.identity.player_race = 1;
+    session.fixtures.identity.player_race = 1;
     session
         .world_entities
         .represented_gameobject_use_states
@@ -446,7 +446,7 @@ fn gameobject_use_capture_point_respects_team_state_gate_like_cpp() {
             .is_empty()
     );
 
-    session.identity.player_race = 2;
+    session.fixtures.identity.player_race = 2;
     assert!(session.use_represented_gameobject_capture_point_like_cpp(
         gameobject_guid,
         player_guid,
@@ -500,7 +500,7 @@ fn gameobject_use_flagstand_rejects_vehicle_before_bg_click_like_cpp() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 40);
     session.set_player_battleground_type_id_like_cpp(BATTLEGROUND_WS_LIKE_CPP);
-    session.vehicles.player_vehicle_seat_flags_like_cpp = Some(0);
+    session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp = Some(0);
 
     assert!(!session.use_represented_gameobject_flagstand_like_cpp(
         gameobject_guid,
@@ -561,12 +561,14 @@ fn gameobject_use_flagstand_removes_stealth_and_invisibility_auras_like_cpp() {
     session.apply_aura(1001, player_guid, 30_000, 0).unwrap();
     session.apply_aura(1002, player_guid, 30_000, 0).unwrap();
     session
+        .fixtures
         .auras
         .visible_auras
         .get_mut(&0)
         .unwrap()
         .represented_effect = Some(RepresentedAuraEffectLikeCpp::Stealth);
     session
+        .fixtures
         .auras
         .visible_auras
         .get_mut(&1)
@@ -584,11 +586,18 @@ fn gameobject_use_flagstand_removes_stealth_and_invisibility_auras_like_cpp() {
         },
     ));
 
-    assert!(session.auras.visible_auras.values().all(|aura| !matches!(
-        aura.represented_effect,
-        Some(RepresentedAuraEffectLikeCpp::Stealth)
-            | Some(RepresentedAuraEffectLikeCpp::Invisibility)
-    )));
+    assert!(
+        session
+            .fixtures
+            .auras
+            .visible_auras
+            .values()
+            .all(|aura| !matches!(
+                aura.represented_effect,
+                Some(RepresentedAuraEffectLikeCpp::Stealth)
+                    | Some(RepresentedAuraEffectLikeCpp::Invisibility)
+            ))
+    );
     assert!(send_rx.try_recv().is_ok());
     assert!(send_rx.try_recv().is_ok());
 }
@@ -725,7 +734,7 @@ fn gameobject_use_flagdrop_rejects_vehicle_before_delete_like_cpp() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 41);
     session.set_player_battleground_type_id_like_cpp(BATTLEGROUND_WS_LIKE_CPP);
-    session.vehicles.player_vehicle_seat_flags_like_cpp = Some(0);
+    session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp = Some(0);
 
     assert!(!session.use_represented_gameobject_flagdrop_like_cpp(
         gameobject_guid,

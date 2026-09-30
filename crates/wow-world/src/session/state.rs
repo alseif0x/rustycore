@@ -147,6 +147,10 @@ use super::{VehicleTemplateStoreLikeCpp, VendorBuyItemTestOverrideLikeCpp};
 use super::{WaypointPathResolverLikeCpp, WorldMMapPathfinderWorkerLikeCpp, WorldPacket};
 use super::{WorldSafeLocStore, driver, lifecycle};
 
+#[cfg(test)]
+mod fixtures;
+#[cfg(test)]
+pub(in crate::session) use fixtures::SessionFixtures;
 mod session_core;
 pub(in crate::session) use session_core::SessionCore;
 mod loot;
@@ -601,54 +605,19 @@ pub struct WorldSession {
     /// Immutable world configuration and rate values (C++ `sWorld` config subsets) and the script
     /// dispatchers injected at composition.
     pub(in crate::session) config: SessionWorldConfig,
-    /// Player identity fixtures: race, class, level, gender, name, create mode, faction template,
-    /// scale and zone/area state.
+    /// Test-only fixture groups (#1241 F3-0): the 11 cfg(test) domain groups, nested unchanged so
+    /// an F3 context borrows one member instead of eleven.
     #[cfg(test)]
-    pub(in crate::session) identity: PlayerIdentityState,
+    pub(crate) fixtures: SessionFixtures,
     /// Player items, bank and equipment sets, money and currencies, and the represented bank,
     /// guild-bank and auction request sinks.
     pub(in crate::session) inventory: InventoryState,
-    /// Account collections: mounts, heirlooms, toys, item appearances, transmog illusions and
-    /// completed achievements.
-    #[cfg(test)]
-    pub(crate) collections: CollectionsState,
 
     /// Spell-side represented state shared with the spell and acquisition adapters.
     pub(crate) spell_state: SessionSpellState,
-    /// Player aura fixtures: visible auras, aura authority, the spell-hit tombstone, threat-aura
-    /// snapshots and the shapeshift form.
-    #[cfg(test)]
-    pub(crate) auras: AuraState,
-    /// XP, talents, glyphs and respec, skills and proficiencies, reputation and rest fixtures.
-    #[cfg(test)]
-    pub(crate) progression: ProgressionState,
-    /// Combat target and flags, vitals and powers, GM and immunity flags, PvP flags and timers,
-    /// death and resurrection.
-    #[cfg(test)]
-    pub(crate) combat: CombatState,
-    /// Player movement fixtures: position, flags, jump and fall, acks, speeds and force mods, and
-    /// vehicle movement sinks.
-    #[cfg(test)]
-    pub(in crate::session) movement: MovementState,
-    /// Near, far and delayed teleport state and acks, the pending teleport, the homebind and
-    /// spline-done taxi events.
-    #[cfg(test)]
-    pub(in crate::session) teleport: TeleportState,
-    /// Taxi flight and mount/vehicle kit state: destinations, seat state, vehicle requests,
-    /// transport attach and mount counters.
-    #[cfg(test)]
-    pub(crate) vehicles: TaxiVehicleState,
-    /// Represented pet state, pet stable, react and command state, pet speeds, temporary (un)summon
-    /// and mount pet-control counters.
-    #[cfg(test)]
-    pub(crate) pets: PetState,
 
     /// Social admission limits and chat anti-flood throttle state.
     pub(crate) social: SessionSocialLimits,
-    /// Battleground and arena membership and the represented battlemaster, battlefield and wargame
-    /// request sinks.
-    #[cfg(test)]
-    pub(in crate::session) battleground: BattlegroundState,
     /// Instance binds and reset times, the instance fixture, exploration and area-zone criteria and
     /// adventure-map quest starts.
     pub(crate) instances: InstanceState,
@@ -658,10 +627,6 @@ pub struct WorldSession {
     /// Per-client visibility and publication fences: visible transports, last visibility position
     /// and farsight, delivered-update guards.
     pub(crate) visibility: VisibilityState,
-    /// Player presentation fixtures: unit flags and scale, stand state and emote, action bars,
-    /// cinematics, CUF profiles and barber requests.
-    #[cfg(test)]
-    pub(in crate::session) presentation: PlayerPresentationState,
     /// NPC interaction: C++ `PlayerInteractionData`, gossip options, vendor stock and the support-
     /// feature fixture.
     pub(crate) interaction: InteractionState,

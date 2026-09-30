@@ -6,7 +6,7 @@ use super::*;
 fn quest_reputation_gain_respects_no_quest_bonus_aura_gate_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
-    session.auras.visible_auras.insert(
+    session.fixtures.auras.visible_auras.insert(
         1,
         reputation_aura_for_test(1, RepresentedAuraEffectLikeCpp::ModReputationGain, 25, None),
     );

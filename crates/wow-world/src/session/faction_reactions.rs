@@ -69,7 +69,7 @@ impl WorldSession {
             self.with_owned_player_like_cpp(|player| player.watched_faction_index_like_cpp());
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.progression.watched_faction_index_like_cpp);
+            return Some(self.fixtures.progression.watched_faction_index_like_cpp);
         }
         canonical
     }
@@ -88,7 +88,7 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if !_canonical && self.core.player_handle_like_cpp.is_none() {
-            self.progression.watched_faction_index_like_cpp = index;
+            self.fixtures.progression.watched_faction_index_like_cpp = index;
         }
     }
 

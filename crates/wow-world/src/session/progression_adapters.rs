@@ -26,7 +26,7 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if !_canonical && self.core.player_handle_like_cpp.is_none() {
-            self.progression.championing_faction_like_cpp = faction_id;
+            self.fixtures.progression.championing_faction_like_cpp = faction_id;
         }
     }
 
@@ -35,7 +35,7 @@ impl WorldSession {
             .with_owned_player_like_cpp(|player| player.gameplay_state().championing_faction_id);
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.progression.championing_faction_like_cpp);
+            return Some(self.fixtures.progression.championing_faction_like_cpp);
         }
         canonical
     }
@@ -52,6 +52,7 @@ impl WorldSession {
         };
         #[cfg(test)]
         let level = self
+            .fixtures
             .progression
             .represented_gray_level_script_overrides_like_cpp
             .get(&pl)
@@ -66,7 +67,8 @@ impl WorldSession {
         player_level: u8,
         gray_level: u8,
     ) {
-        self.progression
+        self.fixtures
+            .progression
             .represented_gray_level_script_overrides_like_cpp
             .insert(player_level, gray_level);
         if self.player_level_like_cpp() == player_level {
@@ -212,7 +214,8 @@ impl WorldSession {
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
                 if self.player_level_like_cpp() < WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP
-                    && self.progression.player_xp < self.progression.player_next_level_xp / 2
+                    && self.fixtures.progression.player_xp
+                        < self.fixtures.progression.player_next_level_xp / 2
                 {
                     -1
                 } else {
@@ -249,7 +252,7 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.progression.player_xp = xp;
+            self.fixtures.progression.player_xp = xp;
         }
         canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
@@ -276,7 +279,7 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.progression.player_next_level_xp = xp;
+            self.fixtures.progression.player_next_level_xp = xp;
         }
         canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
@@ -287,7 +290,7 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if _canonical || self.core.player_handle_like_cpp.is_none() {
-            self.combat.selection_guid = guid;
+            self.fixtures.combat.selection_guid = guid;
         }
     }
 
@@ -308,7 +311,7 @@ impl WorldSession {
             self.with_owned_player_like_cpp(|player| player.active_data().character_points);
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.progression.player_character_points_like_cpp);
+            return Some(self.fixtures.progression.player_character_points_like_cpp);
         }
         canonical
     }
@@ -318,7 +321,7 @@ impl WorldSession {
             self.with_owned_player_like_cpp(|player| player.active_data().xp.max(0) as u32);
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.progression.player_xp);
+            return Some(self.fixtures.progression.player_xp);
         }
         canonical
     }
@@ -347,7 +350,7 @@ impl WorldSession {
             .with_owned_player_like_cpp(|player| player.active_data().next_level_xp.max(0) as u32);
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.progression.player_next_level_xp);
+            return Some(self.fixtures.progression.player_next_level_xp);
         }
         canonical
     }
@@ -359,7 +362,7 @@ impl WorldSession {
                 self.core
                     .player_handle_like_cpp
                     .is_none()
-                    .then_some(self.progression.player_character_points_like_cpp)
+                    .then_some(self.fixtures.progression.player_character_points_like_cpp)
             })
             .expect("test Player progression owner must resolve")
     }
@@ -371,7 +374,7 @@ impl WorldSession {
                 self.core
                     .player_handle_like_cpp
                     .is_none()
-                    .then_some(self.progression.player_xp)
+                    .then_some(self.fixtures.progression.player_xp)
             })
             .expect("test Player progression owner must resolve")
     }
@@ -383,7 +386,7 @@ impl WorldSession {
                 self.core
                     .player_handle_like_cpp
                     .is_none()
-                    .then_some(self.progression.player_next_level_xp)
+                    .then_some(self.fixtures.progression.player_next_level_xp)
             })
             .expect("test Player progression owner must resolve")
     }
@@ -393,7 +396,7 @@ impl WorldSession {
         let canonical = self.with_owned_player_like_cpp(|player| player.unit().data().target);
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return self.combat.selection_guid;
+            return self.fixtures.combat.selection_guid;
         }
         canonical.filter(|guid| !guid.is_empty())
     }

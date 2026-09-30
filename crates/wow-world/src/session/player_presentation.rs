@@ -21,7 +21,7 @@ impl WorldSession {
         let canonical = self.with_owned_player_like_cpp(Player::is_game_master_like_cpp);
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.combat.player_game_master_like_cpp);
+            return Some(self.fixtures.combat.player_game_master_like_cpp);
         }
         canonical
     }
@@ -39,9 +39,9 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some((
-                self.presentation.player_unit_flags_like_cpp,
-                self.vehicles.player_mount_display_id_like_cpp,
-                self.presentation.player_object_scale_like_cpp,
+                self.fixtures.presentation.player_unit_flags_like_cpp,
+                self.fixtures.vehicles.player_mount_display_id_like_cpp,
+                self.fixtures.presentation.player_object_scale_like_cpp,
             ));
         }
         canonical
@@ -76,14 +76,16 @@ impl WorldSession {
         }
         #[cfg(test)]
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.vehicles.player_mount_display_id_like_cpp = display_id;
-            self.vehicles.player_mounted_like_cpp = mounted;
+            self.fixtures.vehicles.player_mount_display_id_like_cpp = display_id;
+            self.fixtures.vehicles.player_mounted_like_cpp = mounted;
             if mounted {
-                self.presentation
+                self.fixtures
+                    .presentation
                     .player_unit_flags_like_cpp
                     .insert(UnitFlags::MOUNT);
             } else {
-                self.presentation
+                self.fixtures
+                    .presentation
                     .player_unit_flags_like_cpp
                     .remove(UnitFlags::MOUNT);
             }
@@ -131,7 +133,7 @@ impl WorldSession {
         if let Some(height) = _canonical_height.or(computed_height)
             && (_canonical_height.is_some() || self.core.player_handle_like_cpp.is_none())
         {
-            self.movement.player_collision_height_like_cpp = height;
+            self.fixtures.movement.player_collision_height_like_cpp = height;
         }
     }
 
@@ -149,7 +151,7 @@ impl WorldSession {
         });
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.auras.represented_shapeshift_form_like_cpp);
+            return Some(self.fixtures.auras.represented_shapeshift_form_like_cpp);
         }
         canonical
     }
@@ -168,7 +170,7 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.auras.represented_shapeshift_form_like_cpp = form_id;
+            self.fixtures.auras.represented_shapeshift_form_like_cpp = form_id;
             return true;
         }
         canonical
@@ -179,7 +181,8 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.progression
+                self.fixtures
+                    .progression
                     .represented_primary_specialization_id_like_cpp,
             );
         }
@@ -195,7 +198,8 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.progression
+            self.fixtures
+                .progression
                 .represented_primary_specialization_id_like_cpp = spec_id;
             return true;
         }

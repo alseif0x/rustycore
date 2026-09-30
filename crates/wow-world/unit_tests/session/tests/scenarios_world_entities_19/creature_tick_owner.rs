@@ -109,8 +109,8 @@ fn global_legacy_owner_skips_creature_tick_but_keeps_player_combat_tick_like_cpp
     let guid = test_creature_guid(90_003);
     let player = ObjectGuid::create_player(1, 90_003);
     session.core.player_guid = Some(player);
-    session.combat.combat_target = Some(guid);
-    session.combat.in_combat = true;
+    session.fixtures.combat.combat_target = Some(guid);
+    session.fixtures.combat.in_combat = true;
     session.core.client_visible_guids_like_cpp.insert(guid);
     register_test_creature(&mut session, manager.clone(), guid, 40);
     session

@@ -49,8 +49,8 @@ async fn teleport_to_same_map_delays_when_can_delay_teleport_is_set_like_cpp() {
         wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
         wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
     );
-    session.combat.combat_target = Some(creature_guid);
-    session.combat.in_combat = true;
+    session.fixtures.combat.combat_target = Some(creature_guid);
+    session.fixtures.combat.in_combat = true;
     session.set_represented_can_delay_teleport_like_cpp(true);
 
     session.teleport_to(571, destination).await;
@@ -71,7 +71,7 @@ async fn teleport_to_same_map_delays_when_can_delay_teleport_is_set_like_cpp() {
         "C++ returns before the same-map pet distance branch while delayed"
     );
     assert!(
-        session.combat.in_combat,
+        session.fixtures.combat.in_combat,
         "C++ returns before CombatStop while delayed"
     );
 }
@@ -244,8 +244,8 @@ async fn teleport_to_same_map_not_leave_combat_preserves_combat_like_cpp() {
             .ensure_canonical_world_map_for_current_player_like_cpp()
             .is_some()
     );
-    session.combat.combat_target = Some(creature_guid);
-    session.combat.in_combat = true;
+    session.fixtures.combat.combat_target = Some(creature_guid);
+    session.fixtures.combat.in_combat = true;
 
     session
         .teleport_to_with_options(571, destination, TELE_TO_NOT_LEAVE_COMBAT_LIKE_CPP)
@@ -256,8 +256,8 @@ async fn teleport_to_same_map_not_leave_combat_preserves_combat_like_cpp() {
         vec![ServerOpcodes::MoveTeleport],
         "C++ same-map TeleportTo skips CombatStop when TELE_TO_NOT_LEAVE_COMBAT is set"
     );
-    assert_eq!(session.combat.combat_target, Some(creature_guid));
-    assert!(session.combat.in_combat);
+    assert_eq!(session.fixtures.combat.combat_target, Some(creature_guid));
+    assert!(session.fixtures.combat.in_combat);
     assert!(session.near_teleport_pending_like_cpp());
 }
 #[tokio::test]

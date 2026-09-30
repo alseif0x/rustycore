@@ -320,6 +320,7 @@ async fn generic_apply_aura_single_effect_row_applies_like_cpp() {
         .expect("single represented generic apply-aura effect row should execute");
 
     let aura = session
+        .fixtures
         .auras
         .visible_auras
         .values()
@@ -540,6 +541,7 @@ async fn generic_owned_aura_cancel_removes_single_effect_row_like_cpp() {
     assert_eq!(removed, 1);
     assert!(
         !session
+            .fixtures
             .auras
             .visible_auras
             .values()
@@ -604,6 +606,7 @@ async fn generic_owned_aura_cancel_preserves_passive_spell_like_cpp() {
     assert_eq!(removed, 0);
     assert!(
         session
+            .fixtures
             .auras
             .visible_auras
             .values()
@@ -673,7 +676,7 @@ async fn generic_apply_aura_multi_row_waits_for_effect_mask_grouping_like_cpp() 
         "special represented aura row still executes"
     );
     assert_eq!(
-        session.auras.visible_auras.len(),
+        session.fixtures.auras.visible_auras.len(),
         1,
         "C++ groups apply-aura rows through one AuraApplication effect mask; Rust must not fabricate a second generic slot"
     );
@@ -734,6 +737,7 @@ async fn battle_pet_xp_pct_aura_registers_cpp_multiplier_like_cpp() {
         .expect("represented battle-pet XP aura should execute");
 
     let aura = session
+        .fixtures
         .auras
         .visible_auras
         .values()

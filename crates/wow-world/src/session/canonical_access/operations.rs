@@ -151,14 +151,17 @@ impl WorldSession {
                 .player_world_local_state_like_cpp()
                 .expect("handle-less fixture world-local state");
             let result = mutate.take().expect("world-local mutation runs once")(&mut state);
-            self.identity.player_zone_id_like_cpp = state.zone_id_like_cpp();
-            self.identity.player_area_id_like_cpp = state.area_id_like_cpp();
-            self.identity.player_zone_area_authority_complete_like_cpp =
+            self.fixtures.identity.player_zone_id_like_cpp = state.zone_id_like_cpp();
+            self.fixtures.identity.player_area_id_like_cpp = state.area_id_like_cpp();
+            self.fixtures
+                .identity
+                .player_zone_area_authority_complete_like_cpp =
                 state.has_zone_area_authority_like_cpp();
-            self.combat.player_pvp_hostile_like_cpp = state.is_pvp_hostile_like_cpp();
-            self.combat.player_pvp_end_timer_like_cpp = state.pvp_end_timer_like_cpp();
-            self.combat.player_contested_pvp_timer_like_cpp = state.contested_pvp_timer_like_cpp();
-            self.identity.represented_is_outdoors_like_cpp = state.is_outdoors_like_cpp();
+            self.fixtures.combat.player_pvp_hostile_like_cpp = state.is_pvp_hostile_like_cpp();
+            self.fixtures.combat.player_pvp_end_timer_like_cpp = state.pvp_end_timer_like_cpp();
+            self.fixtures.combat.player_contested_pvp_timer_like_cpp =
+                state.contested_pvp_timer_like_cpp();
+            self.fixtures.identity.represented_is_outdoors_like_cpp = state.is_outdoors_like_cpp();
             return Some(result);
         }
         canonical
@@ -447,7 +450,12 @@ impl WorldSession {
         }
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
-            let result = apply(&mut self.presentation.represented_cinematic_state_like_cpp);
+            let result = apply(
+                &mut self
+                    .fixtures
+                    .presentation
+                    .represented_cinematic_state_like_cpp,
+            );
             return Some(result);
         }
         None
@@ -643,13 +651,13 @@ impl WorldSession {
         });
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            let max_health = self.combat.player_max_health_like_cpp.max(1);
-            let before = self.combat.player_health_like_cpp.min(max_health);
-            if !self.combat.player_alive_like_cpp || before == 0 {
+            let max_health = self.fixtures.combat.player_max_health_like_cpp.max(1);
+            let before = self.fixtures.combat.player_health_like_cpp.min(max_health);
+            if !self.fixtures.combat.player_alive_like_cpp || before == 0 {
                 return Some((before, before, max_health, 0));
             }
             let after = before.saturating_add(requested_heal).min(max_health);
-            self.combat.player_health_like_cpp = after;
+            self.fixtures.combat.player_health_like_cpp = after;
             return Some((before, after, max_health, after.saturating_sub(before)));
         }
         canonical
@@ -661,16 +669,21 @@ impl WorldSession {
     ) -> Option<R> {
         let mut state = self.player_battleground_state_snapshot_like_cpp()?;
         let result = mutate(&mut state);
-        self.battleground.player_battleground_type_id_like_cpp =
-            state.battleground_type_id_like_cpp();
-        self.battleground.player_battleground_map_id_like_cpp =
-            state.battleground_map_id_like_cpp();
-        self.battleground.represented_battleground_status_like_cpp =
-            state.battleground_status_like_cpp();
-        self.battleground
+        self.fixtures
+            .battleground
+            .player_battleground_type_id_like_cpp = state.battleground_type_id_like_cpp();
+        self.fixtures
+            .battleground
+            .player_battleground_map_id_like_cpp = state.battleground_map_id_like_cpp();
+        self.fixtures
+            .battleground
+            .represented_battleground_status_like_cpp = state.battleground_status_like_cpp();
+        self.fixtures
+            .battleground
             .represented_battleground_queue_slots_like_cpp = state.queue_slots_like_cpp().to_vec();
-        self.battleground.represented_arena_team_id_invited_like_cpp =
-            state.arena_team_id_invited_like_cpp();
+        self.fixtures
+            .battleground
+            .represented_arena_team_id_invited_like_cpp = state.arena_team_id_invited_like_cpp();
         Some(result)
     }
     pub(crate) fn owned_player_cuf_profiles_like_cpp(
@@ -687,12 +700,13 @@ impl WorldSession {
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
             return Some((
-                self.presentation
+                self.fixtures
+                    .presentation
                     .cuf_profiles_like_cpp
                     .iter()
                     .map(|profile| profile.clone().map(player_cuf_profile_from_packet_like_cpp))
                     .collect(),
-                self.presentation.cuf_profiles_loaded_like_cpp,
+                self.fixtures.presentation.cuf_profiles_loaded_like_cpp,
             ));
         }
         None

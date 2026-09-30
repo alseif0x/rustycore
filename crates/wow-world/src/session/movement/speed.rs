@@ -16,7 +16,7 @@ impl WorldSession {
             .flatten();
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.movement.movement_speed_rates_like_cpp[index]);
+            return Some(self.fixtures.movement.movement_speed_rates_like_cpp[index]);
         }
         canonical
     }
@@ -33,7 +33,7 @@ impl WorldSession {
             .unwrap_or(false);
         #[cfg(test)]
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.movement.movement_speed_rates_like_cpp[index] = rate;
+            self.fixtures.movement.movement_speed_rates_like_cpp[index] = rate;
         }
         canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
@@ -391,7 +391,10 @@ impl WorldSession {
         event: MovementSpeedAckEventLikeCpp,
     ) {
         #[cfg(test)]
-        self.movement.movement_speed_ack_events_like_cpp.push(event);
+        self.fixtures
+            .movement
+            .movement_speed_ack_events_like_cpp
+            .push(event);
         #[cfg(not(test))]
         let _ = event;
     }
@@ -405,7 +408,7 @@ impl WorldSession {
             .flatten();
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.movement.forced_speed_changes_like_cpp[index]);
+            return Some(self.fixtures.movement.forced_speed_changes_like_cpp[index]);
         }
         canonical
     }
@@ -421,7 +424,7 @@ impl WorldSession {
             .flatten();
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            let count = &mut self.movement.forced_speed_changes_like_cpp[index];
+            let count = &mut self.fixtures.movement.forced_speed_changes_like_cpp[index];
             *count = count.saturating_add(1);
             return Some(*count);
         }
@@ -439,7 +442,7 @@ impl WorldSession {
             .flatten();
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            let count = &mut self.movement.forced_speed_changes_like_cpp[index];
+            let count = &mut self.fixtures.movement.forced_speed_changes_like_cpp[index];
             if *count > 0 {
                 *count = count.saturating_sub(1);
             }
@@ -460,7 +463,7 @@ impl WorldSession {
             })
             .unwrap_or(false);
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.movement.forced_speed_changes_like_cpp[index] = count;
+            self.fixtures.movement.forced_speed_changes_like_cpp[index] = count;
         }
     }
     #[cfg(test)]
@@ -478,6 +481,6 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn movement_speed_ack_events_like_cpp(&self) -> &[MovementSpeedAckEventLikeCpp] {
-        &self.movement.movement_speed_ack_events_like_cpp
+        &self.fixtures.movement.movement_speed_ack_events_like_cpp
     }
 }

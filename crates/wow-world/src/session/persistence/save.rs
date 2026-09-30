@@ -413,10 +413,10 @@ impl WorldSession {
 
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
-            self.presentation.cuf_profiles_like_cpp =
+            self.fixtures.presentation.cuf_profiles_like_cpp =
                 vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
             for (slot, profile) in fixture_profiles.into_iter().enumerate() {
-                self.presentation.cuf_profiles_like_cpp[slot] = Some(profile);
+                self.fixtures.presentation.cuf_profiles_like_cpp[slot] = Some(profile);
             }
             return true;
         }

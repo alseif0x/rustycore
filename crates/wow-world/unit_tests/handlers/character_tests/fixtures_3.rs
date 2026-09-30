@@ -13,7 +13,7 @@ pub(super) fn seed_represented_feign_death_like_cpp(session: &mut WorldSession, 
                 .add_unit_state(wow_constants::unit::UnitState::DIED.bits());
         })
         .expect("canonical player");
-    session.auras.visible_auras.insert(
+    session.fixtures.auras.visible_auras.insert(
         slot,
         AuraApplication {
             spell_id: 5384,

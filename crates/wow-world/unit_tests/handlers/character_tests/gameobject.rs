@@ -60,7 +60,13 @@ async fn gossip_select_accepts_represented_goober_menu_and_removes_feign_like_cp
         vec![ServerOpcodes::AuraUpdate],
         "a valid GOOBER follows the C++ generic GameObject interaction path"
     );
-    assert!(!session.auras.visible_auras.contains_key(&FEIGN_SLOT));
+    assert!(
+        !session
+            .fixtures
+            .auras
+            .visible_auras
+            .contains_key(&FEIGN_SLOT)
+    );
     assert!(!canonical_player_has_died_state_like_cpp(&mut session));
 }
 #[tokio::test]
@@ -202,7 +208,11 @@ async fn gossip_select_gameobject_revalidates_cpp_interaction_boundaries() {
             "{case}: rejection must precede fake-death removal and action routing"
         );
         assert!(
-            session.auras.visible_auras.contains_key(&FEIGN_SLOT),
+            session
+                .fixtures
+                .auras
+                .visible_auras
+                .contains_key(&FEIGN_SLOT),
             "{case}: rejected source must preserve fake death"
         );
         assert!(
@@ -274,7 +284,13 @@ async fn gossip_select_gameobject_rejects_npc_service_option_after_feign_like_cp
         session.player_interaction_source_guid_like_cpp(),
         Some(goober)
     );
-    assert!(!session.auras.visible_auras.contains_key(&FEIGN_SLOT));
+    assert!(
+        !session
+            .fixtures
+            .auras
+            .visible_auras
+            .contains_key(&FEIGN_SLOT)
+    );
     assert!(!canonical_player_has_died_state_like_cpp(&mut session));
 }
 #[tokio::test]

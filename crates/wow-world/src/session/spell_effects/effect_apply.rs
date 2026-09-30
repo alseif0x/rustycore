@@ -333,7 +333,8 @@ impl WorldSession {
                     self.set_player_ghost_flag_like_cpp(true);
                     #[cfg(test)]
                     {
-                        self.combat.represented_repop_at_graveyard_count = self
+                        self.fixtures.combat.represented_repop_at_graveyard_count = self
+                            .fixtures
                             .combat
                             .represented_repop_at_graveyard_count
                             .saturating_add(1);

@@ -27,8 +27,8 @@ fn represented_mounted_aura_toggles_mount_flag_like_cpp() {
         wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
         wow_packet::packets::pet::COMMAND_STAY_LIKE_CPP,
     );
-    session.identity.player_race = 1;
-    session.identity.player_gender = 0;
+    session.fixtures.identity.player_race = 1;
+    session.fixtures.identity.player_gender = 0;
     registry.register_or_replace(
         player_guid,
         broadcast_info(player_guid, flume::bounded(1).0),
@@ -166,16 +166,30 @@ fn represented_mounted_aura_toggles_mount_flag_like_cpp() {
         .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)
         .unwrap();
 
-    assert_eq!(session.vehicles.player_mount_display_id_like_cpp, 4321);
-    assert_eq!(session.vehicles.player_mount_vehicle_id_like_cpp, 55);
-    assert_eq!(session.vehicles.player_mount_vehicle_seat_count_like_cpp, 2);
+    assert_eq!(
+        session.fixtures.vehicles.player_mount_display_id_like_cpp,
+        4321
+    );
+    assert_eq!(
+        session.fixtures.vehicles.player_mount_vehicle_id_like_cpp,
+        55
+    );
     assert_eq!(
         session
+            .fixtures
+            .vehicles
+            .player_mount_vehicle_seat_count_like_cpp,
+        2
+    );
+    assert_eq!(
+        session
+            .fixtures
             .vehicles
             .player_mount_vehicle_usable_seat_count_like_cpp,
         1
     );
     let vehicle_kit = session
+        .fixtures
         .vehicles
         .player_mount_vehicle_kit_like_cpp
         .as_ref()
@@ -186,46 +200,80 @@ fn represented_mounted_aura_toggles_mount_flag_like_cpp() {
     assert_eq!(vehicle_kit.seats().len(), 2);
     assert_eq!(
         session
+            .fixtures
             .vehicles
             .player_mount_vehicle_accessories_like_cpp
             .len(),
         2
     );
     assert_eq!(
-        session.vehicles.player_mount_vehicle_accessories_like_cpp[0].accessory_entry,
+        session
+            .fixtures
+            .vehicles
+            .player_mount_vehicle_accessories_like_cpp[0]
+            .accessory_entry,
         7001
     );
     assert_eq!(
         session.player_mount_vehicle_despawn_delay_ms_like_cpp(),
         2500
     );
-    assert!(session.vehicles.player_mounted_like_cpp);
-    assert_eq!(session.vehicles.mount_vehicle_create_requests_like_cpp, 1);
-    assert_eq!(session.vehicles.mount_vehicle_remove_requests_like_cpp, 0);
+    assert!(session.fixtures.vehicles.player_mounted_like_cpp);
     assert_eq!(
         session
+            .fixtures
+            .vehicles
+            .mount_vehicle_create_requests_like_cpp,
+        1
+    );
+    assert_eq!(
+        session
+            .fixtures
+            .vehicles
+            .mount_vehicle_remove_requests_like_cpp,
+        0
+    );
+    assert_eq!(
+        session
+            .fixtures
             .vehicles
             .mount_cancel_expected_vehicle_aura_packets_like_cpp,
         1
     );
-    assert_eq!(session.pets.mount_pet_control_disable_requests_like_cpp, 1);
-    assert_eq!(session.pets.mount_pet_control_enable_requests_like_cpp, 0);
-    assert_eq!(session.pets.mount_pet_resummon_requests_like_cpp, 0);
     assert_eq!(
         session
+            .fixtures
+            .pets
+            .mount_pet_control_disable_requests_like_cpp,
+        1
+    );
+    assert_eq!(
+        session
+            .fixtures
+            .pets
+            .mount_pet_control_enable_requests_like_cpp,
+        0
+    );
+    assert_eq!(
+        session.fixtures.pets.mount_pet_resummon_requests_like_cpp,
+        0
+    );
+    assert_eq!(
+        session
+            .fixtures
             .vehicles
             .mount_collision_height_update_requests_like_cpp,
         1
     );
     assert_eq!(
-        session.pets.represented_pet_react_state_like_cpp,
+        session.fixtures.pets.represented_pet_react_state_like_cpp,
         wow_packet::packets::pet::REACT_PASSIVE_LIKE_CPP
     );
     assert_eq!(
-        session.pets.represented_pet_command_state_like_cpp,
+        session.fixtures.pets.represented_pet_command_state_like_cpp,
         wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP
     );
-    assert!((session.movement.player_collision_height_like_cpp - 7.32).abs() < 0.0001);
+    assert!((session.fixtures.movement.player_collision_height_like_cpp - 7.32).abs() < 0.0001);
     let opcodes = drain_server_opcodes(&send_rx);
     assert!(opcodes.contains(&wow_constants::ServerOpcodes::MoveSetVehicleRecId));
     assert!(opcodes.contains(&wow_constants::ServerOpcodes::SetVehicleRecId));
@@ -247,12 +295,14 @@ fn represented_mounted_aura_toggles_mount_flag_like_cpp() {
     );
     assert!(
         session
+            .fixtures
             .presentation
             .player_unit_flags_like_cpp
             .contains(UnitFlags::PLAYER_CONTROLLED | UnitFlags::MOUNT)
     );
 
     let slot = session
+        .fixtures
         .auras
         .visible_auras
         .iter()
@@ -260,45 +310,99 @@ fn represented_mounted_aura_toggles_mount_flag_like_cpp() {
         .unwrap();
     session.remove_aura(slot).unwrap();
 
-    assert_eq!(session.vehicles.player_mount_display_id_like_cpp, 0);
-    assert_eq!(session.vehicles.player_mount_vehicle_id_like_cpp, 0);
-    assert!(session.vehicles.player_mount_vehicle_kit_like_cpp.is_none());
+    assert_eq!(
+        session.fixtures.vehicles.player_mount_display_id_like_cpp,
+        0
+    );
+    assert_eq!(
+        session.fixtures.vehicles.player_mount_vehicle_id_like_cpp,
+        0
+    );
     assert!(
         session
+            .fixtures
+            .vehicles
+            .player_mount_vehicle_kit_like_cpp
+            .is_none()
+    );
+    assert!(
+        session
+            .fixtures
             .vehicles
             .player_mount_vehicle_accessories_like_cpp
             .is_empty()
     );
     assert_eq!(session.player_mount_vehicle_despawn_delay_ms_like_cpp(), 1);
-    assert_eq!(session.vehicles.player_mount_vehicle_seat_count_like_cpp, 0);
     assert_eq!(
         session
+            .fixtures
+            .vehicles
+            .player_mount_vehicle_seat_count_like_cpp,
+        0
+    );
+    assert_eq!(
+        session
+            .fixtures
             .vehicles
             .player_mount_vehicle_usable_seat_count_like_cpp,
         0
     );
-    assert!(!session.vehicles.player_mounted_like_cpp);
-    assert_eq!(session.vehicles.mount_vehicle_create_requests_like_cpp, 1);
-    assert_eq!(session.vehicles.mount_vehicle_remove_requests_like_cpp, 1);
-    assert_eq!(session.pets.mount_pet_control_disable_requests_like_cpp, 1);
-    assert_eq!(session.pets.mount_pet_control_enable_requests_like_cpp, 1);
-    assert_eq!(session.pets.mount_pet_resummon_requests_like_cpp, 1);
+    assert!(!session.fixtures.vehicles.player_mounted_like_cpp);
     assert_eq!(
         session
+            .fixtures
+            .vehicles
+            .mount_vehicle_create_requests_like_cpp,
+        1
+    );
+    assert_eq!(
+        session
+            .fixtures
+            .vehicles
+            .mount_vehicle_remove_requests_like_cpp,
+        1
+    );
+    assert_eq!(
+        session
+            .fixtures
+            .pets
+            .mount_pet_control_disable_requests_like_cpp,
+        1
+    );
+    assert_eq!(
+        session
+            .fixtures
+            .pets
+            .mount_pet_control_enable_requests_like_cpp,
+        1
+    );
+    assert_eq!(
+        session.fixtures.pets.mount_pet_resummon_requests_like_cpp,
+        1
+    );
+    assert_eq!(
+        session
+            .fixtures
             .vehicles
             .mount_collision_height_update_requests_like_cpp,
         2
     );
     assert_eq!(
-        session.pets.represented_pet_react_state_like_cpp,
+        session.fixtures.pets.represented_pet_react_state_like_cpp,
         wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP
     );
     assert_eq!(
-        session.pets.represented_pet_command_state_like_cpp,
+        session.fixtures.pets.represented_pet_command_state_like_cpp,
         wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP
     );
-    assert_eq!(session.pets.temporary_mount_pet_react_state_like_cpp, None);
-    assert!((session.movement.player_collision_height_like_cpp - 2.64).abs() < 0.0001);
+    assert_eq!(
+        session
+            .fixtures
+            .pets
+            .temporary_mount_pet_react_state_like_cpp,
+        None
+    );
+    assert!((session.fixtures.movement.player_collision_height_like_cpp - 2.64).abs() < 0.0001);
     let opcodes = drain_server_opcodes(&send_rx);
     assert!(opcodes.contains(&wow_constants::ServerOpcodes::MoveSetVehicleRecId));
     assert!(opcodes.contains(&wow_constants::ServerOpcodes::SetVehicleRecId));
@@ -319,12 +423,14 @@ fn represented_mounted_aura_toggles_mount_flag_like_cpp() {
     );
     assert!(
         session
+            .fixtures
             .presentation
             .player_unit_flags_like_cpp
             .contains(UnitFlags::PLAYER_CONTROLLED)
     );
     assert!(
         !session
+            .fixtures
             .presentation
             .player_unit_flags_like_cpp
             .contains(UnitFlags::MOUNT)
@@ -382,7 +488,7 @@ fn represented_mount_capability_applies_mounted_speed_aura_like_cpp() {
         .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)
         .unwrap();
 
-    assert!(session.auras.visible_auras.values().any(|aura| {
+    assert!(session.fixtures.auras.visible_auras.values().any(|aura| {
         aura.spell_id == 12_346
             && aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::MountedSpeed)
             && aura.represented_amount == 100
@@ -664,6 +770,7 @@ fn represented_fly_aura_removal_unsets_can_fly_and_resets_fall_info_like_cpp() {
         .unwrap();
     session.update_represented_flight_flags_for_flight_aura_like_cpp(true);
     let slot = session
+        .fixtures
         .auras
         .visible_auras
         .iter()
@@ -725,6 +832,7 @@ fn represented_fly_aura_removal_skips_move_fall_when_gravity_disabled_like_cpp()
         .unwrap();
     session.update_represented_flight_flags_for_flight_aura_like_cpp(true);
     let slot = session
+        .fixtures
         .auras
         .visible_auras
         .iter()
@@ -793,6 +901,7 @@ fn represented_fly_aura_removal_preserves_flags_when_mounted_flight_remains_like
         .unwrap();
     session.update_represented_flight_flags_for_flight_aura_like_cpp(true);
     let fly_slot = session
+        .fixtures
         .auras
         .visible_auras
         .iter()
@@ -874,6 +983,7 @@ fn represented_mount_removal_removes_capability_speed_aura_like_cpp() {
         .unwrap();
     let _ = drain_server_opcodes(&send_rx);
     let mounted_slot = session
+        .fixtures
         .auras
         .visible_auras
         .values()
@@ -885,7 +995,7 @@ fn represented_mount_removal_removes_capability_speed_aura_like_cpp() {
 
     session.remove_aura(mounted_slot).unwrap();
 
-    assert!(!session.auras.visible_auras.values().any(|aura| {
+    assert!(!session.fixtures.auras.visible_auras.values().any(|aura| {
         aura.spell_id == 12_346
             || aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::MountedSpeed)
     }));

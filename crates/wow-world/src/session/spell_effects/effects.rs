@@ -300,7 +300,7 @@ impl WorldSession {
         }
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
-            return self.teleport.represented_homebind_like_cpp;
+            return self.fixtures.teleport.represented_homebind_like_cpp;
         }
         None
     }
@@ -316,7 +316,7 @@ impl WorldSession {
         }
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
-            self.teleport.represented_homebind_like_cpp = Some(homebind);
+            self.fixtures.teleport.represented_homebind_like_cpp = Some(homebind);
             return true;
         }
         false
@@ -620,9 +620,9 @@ impl WorldSession {
         let _ = self.set_player_pet_guid_like_cpp(None);
         #[cfg(test)]
         {
-            self.pets.represented_pet_react_state_like_cpp =
+            self.fixtures.pets.represented_pet_react_state_like_cpp =
                 wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
-            self.pets.represented_pet_command_state_like_cpp =
+            self.fixtures.pets.represented_pet_command_state_like_cpp =
                 wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
         }
         true

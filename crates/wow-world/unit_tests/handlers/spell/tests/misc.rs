@@ -184,7 +184,7 @@ async fn cancel_mod_speed_no_control_ignores_non_mover_guid_like_cpp() {
             .await
     );
 
-    assert!(session.auras.visible_auras.values().any(|aura| {
+    assert!(session.fixtures.auras.visible_auras.values().any(|aura| {
         aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModSpeedNoControl)
     }));
 }

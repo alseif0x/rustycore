@@ -585,16 +585,29 @@ fn represented_mount_aura_keeps_creature_vehicle_with_mount_display_like_cpp() {
         .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)
         .unwrap();
 
-    assert_eq!(session.vehicles.player_mount_display_id_like_cpp, 1000);
-    assert_eq!(session.vehicles.player_mount_vehicle_id_like_cpp, 55);
-    assert!(session.vehicles.player_mounted_like_cpp);
+    assert_eq!(
+        session.fixtures.vehicles.player_mount_display_id_like_cpp,
+        1000
+    );
+    assert_eq!(
+        session.fixtures.vehicles.player_mount_vehicle_id_like_cpp,
+        55
+    );
+    assert!(session.fixtures.vehicles.player_mounted_like_cpp);
     assert!(
         session
+            .fixtures
             .presentation
             .player_unit_flags_like_cpp
             .contains(UnitFlags::PLAYER_CONTROLLED | UnitFlags::MOUNT)
     );
-    assert_eq!(session.vehicles.mount_vehicle_create_requests_like_cpp, 1);
+    assert_eq!(
+        session
+            .fixtures
+            .vehicles
+            .mount_vehicle_create_requests_like_cpp,
+        1
+    );
 }
 #[tokio::test]
 async fn dynamic_object_values_snapshot_creature_shared_vision_sends_like_cpp() {
@@ -739,8 +752,8 @@ async fn gameobject_visibility_on_destroy_includes_dead_player_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 50_565);
     let gameobject_guid = test_gameobject_guid(605_065, 50_566);
 
-    session.combat.player_alive_like_cpp = false;
-    session.combat.player_health_like_cpp = 0;
+    session.fixtures.combat.player_alive_like_cpp = false;
+    session.fixtures.combat.player_health_like_cpp = 0;
     configure_dynamic_object_values_snapshot_session_like_cpp(
         &mut session,
         &canonical,

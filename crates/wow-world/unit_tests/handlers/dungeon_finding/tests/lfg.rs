@@ -179,6 +179,7 @@ fn lfg_lock_status_applies_access_requirement_order_like_cpp() {
     );
 
     session
+        .fixtures
         .collections
         .represented_completed_achievements_like_cpp
         .insert(9001);

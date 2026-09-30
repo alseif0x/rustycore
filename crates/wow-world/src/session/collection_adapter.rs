@@ -110,24 +110,33 @@ impl WorldSession {
         &self,
     ) -> wow_entities::PlayerCollectionStateLikeCpp {
         wow_entities::PlayerCollectionStateLikeCpp::from_loaded_account_parts_like_cpp(
-            self.collections.account_mounts_like_cpp.clone(),
-            self.collections
+            self.fixtures.collections.account_mounts_like_cpp.clone(),
+            self.fixtures
+                .collections
                 .represented_account_heirlooms_like_cpp
                 .clone(),
-            self.collections.represented_account_toys_like_cpp.clone(),
-            self.collections
+            self.fixtures
+                .collections
+                .represented_account_toys_like_cpp
+                .clone(),
+            self.fixtures
+                .collections
                 .represented_item_appearances_like_cpp
                 .clone(),
-            self.collections
+            self.fixtures
+                .collections
                 .represented_item_appearance_blocks_like_cpp
                 .clone(),
-            self.collections
+            self.fixtures
+                .collections
                 .represented_temporary_item_appearances_like_cpp
                 .clone(),
-            self.collections
+            self.fixtures
+                .collections
                 .represented_favorite_item_appearances_like_cpp
                 .clone(),
-            self.collections
+            self.fixtures
+                .collections
                 .represented_transmog_illusions_like_cpp
                 .clone(),
         )
@@ -144,21 +153,30 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         {
-            self.collections.account_mounts_like_cpp = state.mounts_like_cpp().clone();
-            self.collections.represented_account_heirlooms_like_cpp =
-                state.heirlooms_like_cpp().clone();
-            self.collections.represented_account_toys_like_cpp = state.toys_like_cpp().clone();
-            self.collections.represented_item_appearances_like_cpp =
-                state.item_appearances_like_cpp().clone();
-            self.collections.represented_item_appearance_blocks_like_cpp =
+            self.fixtures.collections.account_mounts_like_cpp = state.mounts_like_cpp().clone();
+            self.fixtures
+                .collections
+                .represented_account_heirlooms_like_cpp = state.heirlooms_like_cpp().clone();
+            self.fixtures.collections.represented_account_toys_like_cpp =
+                state.toys_like_cpp().clone();
+            self.fixtures
+                .collections
+                .represented_item_appearances_like_cpp = state.item_appearances_like_cpp().clone();
+            self.fixtures
+                .collections
+                .represented_item_appearance_blocks_like_cpp =
                 state.item_appearance_blocks_snapshot_like_cpp();
-            self.collections
+            self.fixtures
+                .collections
                 .represented_temporary_item_appearances_like_cpp =
                 state.temporary_item_appearances_like_cpp().clone();
-            self.collections
+            self.fixtures
+                .collections
                 .represented_favorite_item_appearances_like_cpp =
                 state.favorite_item_appearances_like_cpp().clone();
-            self.collections.represented_transmog_illusions_like_cpp =
+            self.fixtures
+                .collections
+                .represented_transmog_illusions_like_cpp =
                 state.transmog_illusions_like_cpp().clone();
             if self.core.player_handle_like_cpp.is_none() {
                 return true;

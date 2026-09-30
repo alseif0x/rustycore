@@ -420,6 +420,7 @@ fn resummon_pet_validates_action_bar_spells_like_cpp() {
     ));
     add_canonical_test_player_on_map(&canonical, player_guid, position, 571, 0);
     session
+        .fixtures
         .pets
         .represented_temporary_unsummoned_pet_number_like_cpp = 42;
     let mut stable = represented_hunter_pet_stable_like_cpp(42, 500);

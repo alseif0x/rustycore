@@ -271,7 +271,8 @@ impl crate::session::WorldSession {
         } else {
             #[cfg(test)]
             {
-                self.combat.represented_repop_at_graveyard_count = self
+                self.fixtures.combat.represented_repop_at_graveyard_count = self
+                    .fixtures
                     .combat
                     .represented_repop_at_graveyard_count
                     .saturating_add(1);

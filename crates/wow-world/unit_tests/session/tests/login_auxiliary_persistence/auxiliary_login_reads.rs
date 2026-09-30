@@ -59,6 +59,7 @@ async fn auxiliary_login_reads_preserve_cpp_row_and_publication_rules() {
     );
     assert_eq!(
         session
+            .fixtures
             .collections
             .represented_completed_achievements_like_cpp,
         HashSet::from([9001, 9002])
@@ -95,6 +96,7 @@ async fn empty_auxiliary_login_rows_clear_stale_represented_state() {
     let guid = ObjectGuid::create_player(1, 43);
     session.set_player_guid(Some(guid));
     session
+        .fixtures
         .collections
         .represented_completed_achievements_like_cpp
         .insert(7);
@@ -114,6 +116,7 @@ async fn empty_auxiliary_login_rows_clear_stale_represented_state() {
 
     assert!(
         session
+            .fixtures
             .collections
             .represented_completed_achievements_like_cpp
             .is_empty()
@@ -137,6 +140,7 @@ async fn failed_auxiliary_login_reads_do_not_publish_or_preserve_stale_values() 
     let guid = ObjectGuid::create_player(1, 44);
     session.set_player_guid(Some(guid));
     session
+        .fixtures
         .collections
         .represented_completed_achievements_like_cpp
         .insert(7);
@@ -156,6 +160,7 @@ async fn failed_auxiliary_login_reads_do_not_publish_or_preserve_stale_values() 
 
     assert!(
         session
+            .fixtures
             .collections
             .represented_completed_achievements_like_cpp
             .is_empty()
@@ -174,6 +179,7 @@ async fn missing_auxiliary_login_port_means_unknown_and_clears_session_caches() 
     let guid = ObjectGuid::create_player(1, 45);
     session.set_player_guid(Some(guid));
     session
+        .fixtures
         .collections
         .represented_completed_achievements_like_cpp
         .insert(7);
@@ -193,6 +199,7 @@ async fn missing_auxiliary_login_port_means_unknown_and_clears_session_caches() 
 
     assert!(
         session
+            .fixtures
             .collections
             .represented_completed_achievements_like_cpp
             .is_empty()

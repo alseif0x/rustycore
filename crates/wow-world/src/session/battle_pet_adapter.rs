@@ -358,7 +358,8 @@ impl WorldSession {
         }
         #[cfg(test)]
         {
-            self.pets
+            self.fixtures
+                .pets
                 .battle_pet_test_fixture_like_cpp
                 .represented_critter_guid_like_cpp = guid;
         }
@@ -372,7 +373,8 @@ impl WorldSession {
         }
         #[cfg(test)]
         {
-            self.pets
+            self.fixtures
+                .pets
                 .battle_pet_test_fixture_like_cpp
                 .represented_critter_guid_like_cpp
         }
@@ -405,7 +407,8 @@ impl WorldSession {
 
         self.set_represented_critter_guid_like_cpp(None);
         #[cfg(test)]
-        self.pets
+        self.fixtures
+            .pets
             .battle_pet_test_fixture_like_cpp
             .represented_dismissed_critter_guids_like_cpp
             .push(critter_guid);
@@ -415,6 +418,7 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_dismissed_critter_guids_like_cpp(&self) -> &[ObjectGuid] {
         &self
+            .fixtures
             .pets
             .battle_pet_test_fixture_like_cpp
             .represented_dismissed_critter_guids_like_cpp

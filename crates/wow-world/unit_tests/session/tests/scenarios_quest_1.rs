@@ -410,10 +410,10 @@ fn represented_request_vehicle_exit_accepts_control_seat_like_cpp() {
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
-    session.identity.player_name = Some("VehicleControlExitTester".to_string());
-    session.vehicles.player_vehicle_seat_flags_like_cpp =
+    session.fixtures.identity.player_name = Some("VehicleControlExitTester".to_string());
+    session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp =
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_CONTROL);
-    session.vehicles.player_vehicle_seat_id_like_cpp = Some(1003);
+    session.fixtures.vehicles.player_vehicle_seat_id_like_cpp = Some(1003);
     session.set_player_registry(Arc::clone(&registry));
     session.register_in_player_registry();
 
@@ -434,7 +434,7 @@ fn represented_adjacent_vehicle_seat_request_records_cpp_change_seat_plan() {
             .is_empty()
     );
 
-    session.vehicles.player_vehicle_seat_flags_like_cpp =
+    session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp =
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
     assert!(!session.represented_request_adjacent_vehicle_seat_like_cpp(true));
     assert!(
@@ -443,7 +443,7 @@ fn represented_adjacent_vehicle_seat_request_records_cpp_change_seat_plan() {
             .is_empty()
     );
 
-    session.vehicles.player_vehicle_seat_flags_like_cpp =
+    session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp =
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
     assert!(session.represented_request_adjacent_vehicle_seat_like_cpp(false));
     assert!(session.represented_request_adjacent_vehicle_seat_like_cpp(true));
@@ -464,7 +464,7 @@ fn represented_adjacent_vehicle_seat_request_records_cpp_change_seat_plan() {
 #[tokio::test]
 async fn request_vehicle_prev_next_handlers_record_represented_change_seat_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.vehicles.player_vehicle_seat_flags_like_cpp =
+    session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp =
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
 
     session
@@ -497,20 +497,23 @@ fn represented_request_vehicle_exit_rejects_non_exit_seat_like_cpp() {
     let position = Position::new(1.0, 2.0, 3.0, 0.0);
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
-    session.identity.player_name = Some("VehicleExitRejectTester".to_string());
-    session.vehicles.player_vehicle_seat_flags_like_cpp =
+    session.fixtures.identity.player_name = Some("VehicleExitRejectTester".to_string());
+    session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp =
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
-    session.vehicles.player_vehicle_seat_id_like_cpp = Some(1002);
+    session.fixtures.vehicles.player_vehicle_seat_id_like_cpp = Some(1002);
     session.set_player_registry(Arc::clone(&registry));
     session.register_in_player_registry();
 
     assert!(!session.represented_request_vehicle_exit_like_cpp());
 
     assert_eq!(
-        session.vehicles.player_vehicle_seat_flags_like_cpp,
+        session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp,
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK)
     );
-    assert_eq!(session.vehicles.player_vehicle_seat_id_like_cpp, Some(1002));
+    assert_eq!(
+        session.fixtures.vehicles.player_vehicle_seat_id_like_cpp,
+        Some(1002)
+    );
     let info = registry.party_member(guid).expect("registered player");
     assert!(info.in_vehicle);
     assert_eq!(info.party_member_vehicle_seat, 1002);

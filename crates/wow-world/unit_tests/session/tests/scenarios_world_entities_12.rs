@@ -83,8 +83,8 @@ fn player_attack_creature_reputation_without_at_war_is_rejected_like_cpp() {
             .unit()
             .has_attacker_like_cpp(player)
     );
-    assert_eq!(session.combat.combat_target, None);
-    assert!(!session.combat.in_combat);
+    assert_eq!(session.fixtures.combat.combat_target, None);
+    assert!(!session.fixtures.combat.in_combat);
 }
 #[test]
 fn player_attack_creature_reputation_at_war_is_accepted_like_cpp() {
@@ -391,8 +391,8 @@ fn player_attack_evading_typed_creature_is_rejected_like_cpp() {
             .unit()
             .has_attacker_like_cpp(player)
     );
-    assert_eq!(session.combat.combat_target, None);
-    assert!(!session.combat.in_combat);
+    assert_eq!(session.fixtures.combat.combat_target, None);
+    assert!(!session.fixtures.combat.in_combat);
 }
 #[test]
 fn corpse_despawn_syncs_canonical_corpse_timer() {
@@ -513,8 +513,8 @@ fn far_sight_enable_gameobject_viewpoint_keeps_previous_seer_like_cpp() {
 
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_player_guid(Some(player_guid));
-    session.identity.player_name = Some("FarSightGameObject".into());
-    session.movement.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
+    session.fixtures.identity.player_name = Some("FarSightGameObject".into());
+    session.fixtures.movement.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
     session.core.current_map_id = 571;
     session
         .visibility
@@ -566,7 +566,7 @@ fn gameobject_use_mover_guard_matches_cpp_remote_control_branch() {
     assert!(session.represented_gameobject_use_allowed_by_mover_like_cpp(false));
 
     session.set_player_mounted_like_cpp(false);
-    session.vehicles.player_vehicle_seat_flags_like_cpp = Some(0);
+    session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp = Some(0);
     assert!(session.represented_gameobject_use_allowed_by_mover_like_cpp(false));
 }
 #[test]
@@ -622,9 +622,10 @@ fn gameobject_use_preamble_matches_cpp_player_branch() {
             false,
         )
     );
-    assert!(!session.vehicles.player_mounted_like_cpp);
+    assert!(!session.fixtures.vehicles.player_mounted_like_cpp);
     assert!(
         !session
+            .fixtures
             .presentation
             .player_unit_flags_like_cpp
             .contains(UnitFlags::MOUNT)
@@ -690,6 +691,7 @@ fn gameobject_use_preamble_rejects_damage_immune_player_like_cpp() {
 
     session.set_player_guid(Some(player_guid));
     session
+        .fixtures
         .presentation
         .player_unit_flags_like_cpp
         .insert(UnitFlags::IMMUNE);

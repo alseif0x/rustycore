@@ -255,6 +255,7 @@ fn rested_xp_uses_configured_rest_rates_like_cpp() {
     online.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
     assert!(online.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0));
     online
+        .fixtures
         .progression
         .rest_mgr_test_fixture_like_cpp
         .represented_rest_time_secs_like_cpp = 1_000;
@@ -587,6 +588,7 @@ fn zero_integer_rest_award_normalizes_raf_state_without_touching_rest_flags_like
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RAF_LINKED_LIKE_CPP, 0.0);
     assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP, 42));
     let rest_time = session
+        .fixtures
         .progression
         .rest_mgr_test_fixture_like_cpp
         .represented_rest_time_secs_like_cpp;
@@ -603,6 +605,7 @@ fn zero_integer_rest_award_normalizes_raf_state_without_touching_rest_flags_like
     );
     assert_eq!(
         session
+            .fixtures
             .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_rest_flag_mask_like_cpp,
@@ -610,6 +613,7 @@ fn zero_integer_rest_award_normalizes_raf_state_without_touching_rest_flags_like
     );
     assert_eq!(
         session
+            .fixtures
             .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_rest_time_secs_like_cpp,
@@ -617,6 +621,7 @@ fn zero_integer_rest_award_normalizes_raf_state_without_touching_rest_flags_like
     );
     assert_eq!(
         session
+            .fixtures
             .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_inn_area_trigger_id_like_cpp,
@@ -638,6 +643,7 @@ fn online_rest_update_adds_rested_xp_after_ten_seconds_like_cpp() {
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
     assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0));
     session
+        .fixtures
         .progression
         .rest_mgr_test_fixture_like_cpp
         .represented_rest_time_secs_like_cpp = 1_000;
@@ -654,6 +660,7 @@ fn online_rest_update_adds_rested_xp_after_ten_seconds_like_cpp() {
     assert_eq!(nested_mask, 0x07);
     assert_eq!(
         session
+            .fixtures
             .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_rest_time_secs_like_cpp,
@@ -673,6 +680,7 @@ fn online_rest_tick_only_accrues_when_cpp_three_percent_gate_passes() {
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
     assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0));
     session
+        .fixtures
         .progression
         .rest_mgr_test_fixture_like_cpp
         .represented_rest_time_secs_like_cpp = 1_000;
@@ -680,6 +688,7 @@ fn online_rest_tick_only_accrues_when_cpp_three_percent_gate_passes() {
     session.tick_represented_online_xp_rest_bonus_with_roll_like_cpp(1_010, false);
     assert_eq!(
         session
+            .fixtures
             .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_rest_time_secs_like_cpp,
@@ -690,6 +699,7 @@ fn online_rest_tick_only_accrues_when_cpp_three_percent_gate_passes() {
     session.tick_represented_online_xp_rest_bonus_with_roll_like_cpp(1_010, true);
     assert_eq!(
         session
+            .fixtures
             .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_rest_time_secs_like_cpp,

@@ -425,7 +425,8 @@ impl WorldSession {
         cast: RepresentedTalentRespecVisualSpellCastLikeCpp,
     ) {
         #[cfg(test)]
-        self.progression
+        self.fixtures
+            .progression
             .represented_talent_respec_visual_spell_casts_like_cpp
             .push(cast);
     }
@@ -434,6 +435,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedTalentRespecVisualSpellCastLikeCpp] {
         &self
+            .fixtures
             .progression
             .represented_talent_respec_visual_spell_casts_like_cpp
     }

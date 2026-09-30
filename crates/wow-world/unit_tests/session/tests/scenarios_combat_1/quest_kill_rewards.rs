@@ -99,7 +99,7 @@ async fn player_kill_same_faction_objective_skips_opposite_team_victim_like_cpp(
         progress_bar_weight: 0.0,
         description: String::new(),
     });
-    session.identity.player_race = 1;
+    session.fixtures.identity.player_race = 1;
     session.set_player_guid(Some(player_guid));
     session.set_player_registry(registry);
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(

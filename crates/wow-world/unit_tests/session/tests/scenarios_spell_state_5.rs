@@ -396,7 +396,7 @@ async fn leave_group_triggers_visible_spellclick_refresh_like_cpp() {
 #[test]
 fn represented_mount_aura_display_candidates_match_cpp_filter() {
     let (mut session, _, _) = make_session();
-    session.identity.player_class = 1;
+    session.fixtures.identity.player_class = 1;
     session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
         wow_data::MountEntry {
             id: 7,
