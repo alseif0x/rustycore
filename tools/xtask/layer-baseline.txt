@@ -1,4 +1,4 @@
-# Known layer violations (plan wave C). This list may only shrink: check-layers fails on new or stale entries.
+# Historical snapshot retained for dated context; current dependency policy is enforced by tools/architecture/check_architecture.py dependencies.
 L1 rustycore-db -> L1 wow-database
 L1 wow-data -> L2 wow-entities
 L1 wow-data -> L2 wow-movement

@@ -181,7 +181,3 @@ impl WorldSession {
             .await;
     }
 }
-
-#[cfg(test)]
-#[path = "enumeration/tests.rs"]
-mod tests;

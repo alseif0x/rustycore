@@ -866,3 +866,7 @@ impl WorldSession {
         self.publish_player_effective_combat_stats_like_cpp(level, projection, gear);
     }
 }
+
+#[cfg(test)]
+#[path = "stats_projection_tests.rs"]
+mod tests;

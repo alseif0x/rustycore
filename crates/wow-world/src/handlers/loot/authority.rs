@@ -15,41 +15,18 @@ impl WorldSession {
         loot: CreatureLoot,
         personal: bool,
     ) -> Option<(Option<CreatureLoot>, HashMap<ObjectGuid, CreatureLoot>)> {
-        if !personal {
-            return Some((Some(loot), HashMap::new()));
-        }
-
-        let mut looters = loot.allowed_looters.clone();
-        if looters.is_empty() && !player_guid.is_empty() {
-            looters.push(player_guid);
-        }
-        looters.sort_unstable_by_key(|guid| (guid.high_value(), guid.low_value()));
-        looters.dedup();
-
-        let mut personal_loot = HashMap::new();
-        for (index, looter) in looters.into_iter().enumerate() {
-            let mut pool = loot.clone();
-            if index != 0 {
-                pool.loot_guid = self.next_represented_loot_object_guid_like_cpp(owner_guid)?;
-            }
-            pool.coins = self
+        wow_loot::materialize_loot_pools(loot, player_guid, personal, |looter, existing_guid| {
+            let loot_guid = match existing_guid {
+                Some(guid) => guid,
+                None => self.next_represented_loot_object_guid_like_cpp(owner_guid)?,
+            };
+            let coins = self
                 .represented_personal_loot_money
                 .get(&(owner_guid, looter))
                 .copied()
                 .unwrap_or(0);
-            pool.allowed_looters = vec![looter];
-            pool.players_looting.retain(|viewer| *viewer == looter);
-            pool.items.retain(|entry| {
-                entry.allowed_looters.is_empty() || entry.allowed_looters.contains(&looter)
-            });
-            for entry in &mut pool.items {
-                entry.allowed_looters = vec![looter];
-            }
-            rebuild_represented_personal_loot_counts_preserving_consumed_like_cpp(&mut pool);
-            personal_loot.insert(looter, pool);
-        }
-
-        Some((None, personal_loot))
+            Some((loot_guid, coins))
+        })
     }
 
     pub(super) fn represented_loot_can_be_opened_by_player_like_cpp(

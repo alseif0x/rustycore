@@ -19,28 +19,11 @@ pub(crate) fn write_absorbed_shield_amount_like_cpp(
     effect_index: u8,
     remaining: i32,
 ) {
-    let Some(aura) = player
+    player
         .unit_mut()
         .subsystems_mut()
         .auras
-        .runtime_application_mut_like_cpp(slot)
-    else {
-        return;
-    };
-    match aura
-        .represented_effect_amounts
-        .iter_mut()
-        .find(|represented| represented.effect_index == effect_index)
-    {
-        Some(represented) => represented.amount = remaining.max(0),
-        None => {
-            aura.represented_effect_amounts
-                .push(wow_entities::RepresentedAuraEffectAmountLikeCpp {
-                    effect_index,
-                    amount: remaining.max(0),
-                })
-        }
-    }
+        .set_runtime_absorb_amount(slot, effect_index, remaining);
 }
 
 impl WorldSession {
@@ -194,23 +177,7 @@ impl WorldSession {
         lethal_death_state: wow_constants::DeathState,
     ) -> Option<(u32, u32, u32, u32, bool)> {
         let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            let max_health = player
-                .unit()
-                .data()
-                .max_health
-                .clamp(1, u64::from(u32::MAX)) as u32;
-            let before = player.unit().data().health.min(u64::from(max_health)) as u32;
-            if !player.unit().is_alive() || before == 0 {
-                return (before, before, max_health, 0, false);
-            }
-            let applied = requested_damage.min(before);
-            let after = before.saturating_sub(applied);
-            let killed = applied > 0 && after == 0;
-            if killed {
-                player.unit_mut().set_death_state(lethal_death_state);
-            }
-            player.unit_mut().set_health(u64::from(after));
-            (before, after, max_health, applied, killed)
+            player.apply_represented_damage(requested_damage, lethal_death_state)
         });
         #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.player_handle_like_cpp.is_none() {

@@ -13,6 +13,8 @@ mod extra_attacks;
 mod inebriate;
 #[path = "scenarios_spell_state_12/player_power_effects.rs"]
 mod player_power_effects;
+#[path = "scenarios_spell_state_12/power_owner_boundary.rs"]
+mod power_owner_boundary;
 #[path = "scenarios_spell_state_12/reputation.rs"]
 mod reputation;
 

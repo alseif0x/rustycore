@@ -485,29 +485,7 @@ impl WorldSession {
     }
     fn resurrect_player_percent_for_teleport_like_cpp(&mut self, restore_percent: f32) {
         let restored = self.with_owned_player_mut_like_cpp(|player| {
-            let max_health = player
-                .unit()
-                .data()
-                .max_health
-                .clamp(1, u64::from(u32::MAX)) as u32;
-            let health = ((max_health as f32) * restore_percent)
-                .max(0.0)
-                .min(max_health as f32) as u32;
-            player
-                .unit_mut()
-                .set_death_state(wow_constants::DeathState::Alive);
-            player.unit_mut().set_health(u64::from(health));
-            let mana = ((player.get_max_power(PowerType::Mana).max(0) as f32) * restore_percent)
-                .max(0.0) as i32;
-            let energy = ((player.get_max_power(PowerType::Energy).max(0) as f32) * restore_percent)
-                .max(0.0) as i32;
-            let focus = ((player.get_max_power(PowerType::Focus).max(0) as f32) * restore_percent)
-                .max(0.0) as i32;
-            player.unit_mut().set_power(PowerType::Mana, mana);
-            player.unit_mut().set_power(PowerType::Rage, 0);
-            player.unit_mut().set_power(PowerType::Energy, energy);
-            player.unit_mut().set_power(PowerType::Focus, focus);
-            health
+            player.apply_percentage_resurrection(restore_percent)
         });
         if restored.is_none() {
             return;

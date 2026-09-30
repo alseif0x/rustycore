@@ -4,16 +4,30 @@
 //! reach crate-level fixtures. The suite migration is still pending; this module is
 //! available only in the `test-fixtures` build.
 
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use crate::handlers::character::lifecycle_fixture_access::*;
+
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use crate::session::lifecycle_fixture_access::insert_character_fixture_player_into_canonical_map;
+
 mod quest;
 mod player;
 mod equipment_sets;
 mod gameobject;
+#[cfg(any(test, feature = "test-fixtures"))]
+mod character;
+pub mod loot;
 mod reputation;
 mod lifecycle_port;
+pub mod creature_lifecycle;
+pub mod creature_kill;
 pub use quest::*;
+pub use crate::quest_template_fixture::quest_template_row_for_test;
 pub use player::*;
 pub use equipment_sets::*;
 pub use gameobject::*;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use character::*;
 pub use reputation::*;
 pub use lifecycle_port::CollectionLoadPortLikeCpp;
 
@@ -95,25 +109,6 @@ pub fn represented_quest_push_result_sender_mismatch_count_for_test(
     session.represented_quest_push_result_sender_mismatch_count_like_cpp()
 }
 
-pub fn read_quest_choice_item_for_test(
-    pkt: &mut wow_packet::WorldPacket,
-) -> Result<(u8, u32, i32), wow_packet::PacketError> {
-    crate::handlers::quest::read_quest_choice_item_tuple_for_test(pkt)
-}
-
-pub fn represented_reward_choice_matches_loaded_type_for_test(
-    quest: &wow_data::quest::QuestTemplate,
-    loot_item_type: u8,
-    item_id: u32,
-    quantity: i32,
-) -> bool {
-    crate::handlers::quest::represented_reward_choice_matches_loaded_type_tuple_for_test(
-        quest,
-        loot_item_type,
-        item_id,
-        quantity,
-    )
-}
 
 pub async fn quest_poi_store_for_test(
     session: &mut crate::session::WorldSession,
@@ -139,6 +134,7 @@ pub fn quest_log_create_entries_for_test(
 }
 
 pub use crate::handlers::group::state::PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP;
+pub use crate::handlers::group::test_support::group_target_ignores_inviter_for_test;
 pub use crate::handlers::group::state::current_group_guid_like_cpp;
 pub use crate::handlers::group::state::first_connected_group_member_like_cpp;
 pub use crate::handlers::group::state::group_persistence_command_like_cpp;
@@ -342,11 +338,21 @@ pub fn adopt_registered_canonical_player_fixture_like_cpp(
 }
 
 pub fn sync_player_registry_state_for_test(session: &crate::session::WorldSession) {
-    session.sync_player_registry_state_like_cpp();
+    session.sync_player_registry_state_with_fixture_hydration();
 }
 
 pub fn register_in_player_registry_for_test(session: &crate::session::WorldSession) {
+    session.register_in_player_registry_with_fixture_hydration();
+}
+
+/// Exercise the ordinary binding wrapper in an external, feature-enabled build.
+pub fn register_in_player_registry_production_for_test(session: &crate::session::WorldSession) {
     session.register_in_player_registry();
+}
+
+/// Exercise the ordinary synchronization wrapper without opting into fixtures.
+pub fn sync_player_registry_state_production_for_test(session: &crate::session::WorldSession) {
+    session.sync_player_registry_state_like_cpp();
 }
 
 pub fn set_represented_dungeon_difficulty_id_for_test_like_cpp(

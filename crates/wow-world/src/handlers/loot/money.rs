@@ -121,13 +121,8 @@ impl WorldSession {
         authority_generation: u64,
     ) -> bool {
         if !self
-            .active_loot_view_authorities_like_cpp
-            .get(&owner_guid)
-            .is_some_and(|active| active.shares_storage_like_cpp(expected_authority))
-            || !self
-                .active_loot_view_generations_like_cpp
-                .get(&owner_guid)
-                .is_some_and(|active| *active == authority_generation)
+            .loot_views
+            .matches_authority(owner_guid, expected_authority, Some(authority_generation))
         {
             return false;
         }
@@ -244,8 +239,7 @@ impl WorldSession {
         if !stale_looters.is_empty()
             && let Some(loot) = self.loot_table.get_mut(&owner_guid)
         {
-            loot.players_looting
-                .retain(|looter| !stale_looters.contains(looter));
+            loot.remove_viewers(&stale_looters);
         }
         if !stale_looters.is_empty()
             && let Some(authority) = self.represented_owned_loot_authority_like_cpp(owner_guid)

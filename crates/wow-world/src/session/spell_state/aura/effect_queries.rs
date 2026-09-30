@@ -8,9 +8,7 @@ impl WorldSession {
         effect: RepresentedAuraEffectLikeCpp,
     ) -> Option<bool> {
         self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .any(|aura| aura.represented_effect == Some(effect))
+            wow_entities::AuraSubsystem::has_represented_effect(&auras, effect)
         })
     }
 
@@ -26,10 +24,7 @@ impl WorldSession {
         misc_value: i32,
     ) -> Option<bool> {
         self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras.values().any(|aura| {
-                aura.represented_effect == Some(effect)
-                    && aura.represented_misc_value == Some(misc_value)
-            })
+            wow_entities::AuraSubsystem::has_represented_effect_with_misc(&auras, effect, misc_value)
         })
     }
 
@@ -48,11 +43,7 @@ impl WorldSession {
         effect: RepresentedAuraEffectLikeCpp,
     ) -> Option<i32> {
         self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .filter(|aura| aura.represented_effect == Some(effect))
-                .map(|aura| aura.represented_amount)
-                .sum()
+            wow_entities::AuraSubsystem::represented_modifier(&auras, effect)
         })
     }
 
@@ -71,14 +62,7 @@ impl WorldSession {
         misc_value: i32,
     ) -> Option<i32> {
         self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .filter(|aura| {
-                    aura.represented_effect == Some(effect)
-                        && aura.represented_misc_value == Some(misc_value)
-                })
-                .map(|aura| aura.represented_amount)
-                .sum()
+            wow_entities::AuraSubsystem::represented_modifier_by_misc(&auras, effect, misc_value)
         })
     }
 
@@ -87,10 +71,7 @@ impl WorldSession {
         effect: RepresentedAuraEffectLikeCpp,
     ) -> Option<f32> {
         self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .filter(|aura| aura.represented_effect == Some(effect))
-                .fold(1.0, |acc, aura| acc * aura.represented_multiplier)
+            wow_entities::AuraSubsystem::represented_multiplier(&auras, effect)
         })
     }
 
@@ -127,29 +108,16 @@ impl WorldSession {
     ) -> Option<Vec<(i32, i32)>> {
         let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
         let spell_store = self.spell_store()?;
-        let mut effects = Vec::new();
-        for aura in visible_auras.values() {
-            let Some(spell) = spell_store.get(aura.spell_id) else {
-                continue;
-            };
-            for effect in spell.effects().iter().filter(|effect| {
-                effect.effect_aura == aura_type
-                    && 1u32
-                        .checked_shl(effect.effect_index)
-                        .is_some_and(|bit| aura.effect_mask & bit != 0)
-            }) {
-                let amount = aura
-                    .represented_effect_amounts
-                    .iter()
-                    .find(|represented| {
-                        u8::try_from(effect.effect_index).ok() == Some(represented.effect_index)
-                    })
-                    .map(|represented| represented.amount)
-                    .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
-                effects.push((aura.spell_id, amount));
-            }
-        }
-        Some(effects)
+        Some(wow_entities::AuraSubsystem::player_effects_in_map_order(
+            &visible_auras, aura_type,
+            |spell_id| spell_store.get(spell_id).map(|spell| spell.effects()),
+            |effect| (
+                effect.effect_index, effect.effect, effect.effect_aura,
+                effect.effect_misc_value_1, effect.effect_misc_value_2,
+            ),
+            wow_data::SpellEffectInfo::calc_value_no_caster_like_cpp,
+            |effect| (effect.spell_id, effect.amount),
+        ))
     }
 
     /// Resolve active aura effects of `aura_type` with the owning spell id, the
@@ -164,29 +132,16 @@ impl WorldSession {
     ) -> Option<Vec<(i32, i32, i32)>> {
         let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
         let spell_store = self.spell_store()?;
-        let mut effects = Vec::new();
-        for aura in visible_auras.values() {
-            let Some(spell) = spell_store.get(aura.spell_id) else {
-                continue;
-            };
-            for effect in spell.effects().iter().filter(|effect| {
-                effect.effect_aura == aura_type
-                    && 1u32
-                        .checked_shl(effect.effect_index)
-                        .is_some_and(|bit| aura.effect_mask & bit != 0)
-            }) {
-                let amount = aura
-                    .represented_effect_amounts
-                    .iter()
-                    .find(|represented| {
-                        u8::try_from(effect.effect_index).ok() == Some(represented.effect_index)
-                    })
-                    .map(|represented| represented.amount)
-                    .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
-                effects.push((aura.spell_id, effect.effect_misc_value_1, amount));
-            }
-        }
-        Some(effects)
+        Some(wow_entities::AuraSubsystem::player_effects_in_map_order(
+            &visible_auras, aura_type,
+            |spell_id| spell_store.get(spell_id).map(|spell| spell.effects()),
+            |effect| (
+                effect.effect_index, effect.effect, effect.effect_aura,
+                effect.effect_misc_value_1, effect.effect_misc_value_2,
+            ),
+            wow_data::SpellEffectInfo::calc_value_no_caster_like_cpp,
+            |effect| (effect.spell_id, effect.misc_value, effect.amount),
+        ))
     }
 
     /// Resolve active aura effects of `aura_type` with both C++ misc values and
@@ -199,33 +154,16 @@ impl WorldSession {
     ) -> Option<Vec<(i32, i32, i32)>> {
         let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
         let spell_store = self.spell_store()?;
-        let mut effects = Vec::new();
-        for aura in visible_auras.values() {
-            let Some(spell) = spell_store.get(aura.spell_id) else {
-                continue;
-            };
-            for effect in spell.effects().iter().filter(|effect| {
-                effect.effect_aura == aura_type
-                    && 1u32
-                        .checked_shl(effect.effect_index)
-                        .is_some_and(|bit| aura.effect_mask & bit != 0)
-            }) {
-                let amount = aura
-                    .represented_effect_amounts
-                    .iter()
-                    .find(|represented| {
-                        u8::try_from(effect.effect_index).ok() == Some(represented.effect_index)
-                    })
-                    .map(|represented| represented.amount)
-                    .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
-                effects.push((
-                    effect.effect_misc_value_1,
-                    effect.effect_misc_value_2,
-                    amount,
-                ));
-            }
-        }
-        Some(effects)
+        Some(wow_entities::AuraSubsystem::player_effects_in_map_order(
+            &visible_auras, aura_type,
+            |spell_id| spell_store.get(spell_id).map(|spell| spell.effects()),
+            |effect| (
+                effect.effect_index, effect.effect, effect.effect_aura,
+                effect.effect_misc_value_1, effect.effect_misc_value_2,
+            ),
+            wow_data::SpellEffectInfo::calc_value_no_caster_like_cpp,
+            |effect| (effect.misc_value, effect.misc_value_b, effect.amount),
+        ))
     }
 
     /// Resolve a C++ `GetTotalAuraMultiplierByMiscValue` family from the
@@ -236,12 +174,7 @@ impl WorldSession {
         misc_value: i32,
     ) -> Option<f32> {
         self.resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
-            .map(|effects| {
-                effects
-                    .into_iter()
-                    .filter(|(effect_misc_value, _)| *effect_misc_value == misc_value)
-                    .fold(1.0, |acc, (_, amount)| acc * (1.0 + amount as f32 / 100.0))
-            })
+            .map(|effects| wow_entities::AuraSubsystem::effect_multiplier_by_misc(effects, misc_value))
     }
 
     /// Resolve a C++ `GetTotalAuraModifierByMiscValue` family from the
@@ -252,13 +185,7 @@ impl WorldSession {
         misc_value: i32,
     ) -> Option<i32> {
         self.resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
-            .map(|effects| {
-                effects
-                    .into_iter()
-                    .filter(|(effect_misc_value, _)| *effect_misc_value == misc_value)
-                    .map(|(_, amount)| amount)
-                    .sum()
-            })
+            .map(|effects| wow_entities::AuraSubsystem::effect_modifier_by_misc(effects, misc_value))
     }
 
     #[cfg(test)]
@@ -275,14 +202,14 @@ impl WorldSession {
         aura: &AuraApplication,
     ) -> bool {
         self.spell_store().is_some_and(|store| {
-            store.get(aura.spell_id).is_some_and(|spell| {
-                spell.effects().iter().any(|effect| {
-                    1u32.checked_shl(effect.effect_index)
-                        .is_some_and(|bit| aura.effect_mask & bit != 0)
-                        && effect.effect_aura
-                            == wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE
-                })
-            })
+            wow_entities::AuraSubsystem::has_total_stat_percentage(
+                aura,
+                |spell_id| store.get(spell_id).map(|spell| spell.effects()),
+                |effect| (
+                    effect.effect_index, effect.effect, effect.effect_aura,
+                    effect.effect_misc_value_1, effect.effect_misc_value_2,
+                ),
+            )
         })
     }
 
@@ -291,19 +218,17 @@ impl WorldSession {
         aura: &AuraApplication,
     ) -> bool {
         self.spell_store().is_some_and(|store| {
-            store.has_attribute0_like_cpp(
-                aura.spell_id,
-                wow_data::spell::attributes::SPELL_ATTR0_IS_ABILITY,
-            ) && store.get(aura.spell_id).is_some_and(|spell| {
-                spell.effects().iter().any(|effect| {
-                    1u32.checked_shl(effect.effect_index)
-                        .is_some_and(|bit| aura.effect_mask & bit != 0)
-                        && effect.effect_aura
-                            == wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE
-                        && (effect.effect_misc_value_2 == 0
-                            || effect.effect_misc_value_2 & (1 << 2) != 0)
-                })
-            })
+            wow_entities::AuraSubsystem::total_stat_percentage_preserves_health(
+                aura,
+                |spell_id| store.has_attribute0_like_cpp(
+                    spell_id, wow_data::spell::attributes::SPELL_ATTR0_IS_ABILITY,
+                ),
+                |spell_id| store.get(spell_id).map(|spell| spell.effects()),
+                |effect| (
+                    effect.effect_index, effect.effect, effect.effect_aura,
+                    effect.effect_misc_value_1, effect.effect_misc_value_2,
+                ),
+            )
         })
     }
 
@@ -312,13 +237,7 @@ impl WorldSession {
         effect: RepresentedAuraEffectLikeCpp,
     ) -> Option<i32> {
         self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .filter(|aura| aura.represented_effect == Some(effect))
-                .map(|aura| aura.represented_amount)
-                .filter(|amount| *amount > 0)
-                .max()
-                .unwrap_or(0)
+            wow_entities::AuraSubsystem::maximum_represented_amount(&auras, effect)
         })
     }
 
@@ -327,13 +246,7 @@ impl WorldSession {
         effect: RepresentedAuraEffectLikeCpp,
     ) -> Option<i32> {
         self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .filter(|aura| aura.represented_effect == Some(effect))
-                .map(|aura| aura.represented_amount)
-                .filter(|amount| *amount < 0)
-                .min()
-                .unwrap_or(0)
+            wow_entities::AuraSubsystem::minimum_represented_amount(&auras, effect)
         })
     }
 
@@ -342,12 +255,7 @@ impl WorldSession {
         effect: RepresentedAuraEffectLikeCpp,
     ) -> Option<f32> {
         self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .filter(|aura| aura.represented_effect == Some(effect))
-                .fold(1.0, |multiplier, aura| {
-                    multiplier * (1.0 + aura.represented_amount.max(0) as f32 / 100.0)
-                })
+            wow_entities::AuraSubsystem::represented_amount_multiplier(&auras, effect)
         })
     }
 
@@ -356,11 +264,7 @@ impl WorldSession {
         effect: RepresentedAuraEffectLikeCpp,
     ) -> Option<i32> {
         self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .filter(|aura| aura.represented_effect == Some(effect))
-                .map(|aura| aura.represented_amount)
-                .sum()
+            wow_entities::AuraSubsystem::represented_modifier(&auras, effect)
         })
     }
 }

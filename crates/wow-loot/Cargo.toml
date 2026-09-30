@@ -8,8 +8,8 @@ license.workspace = true
 [dependencies]
 wow-core = { workspace = true }
 wow-constants = { workspace = true }
+wow-entities = { workspace = true }
 rand = { workspace = true }
-tokio = { workspace = true }
 
 [lints]
 workspace = true

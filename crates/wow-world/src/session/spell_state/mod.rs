@@ -5,7 +5,7 @@
 use super::*;
 
 /// Handle-less test fixture for Player spellbook and trait-configuration state.
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(super) struct PlayerSpellAndTraitTestFixtureLikeCpp {
     pub(super) known_spells: Vec<i32>,
     pub(super) represented_player_spell_rows_like_cpp: BTreeMap<i32, RepresentedPlayerSpellLikeCpp>,
@@ -25,7 +25,7 @@ pub(super) struct PlayerSpellAndTraitTestFixtureLikeCpp {
     pub(super) represented_trait_entry_rows_empty_like_cpp: bool,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl Default for PlayerSpellAndTraitTestFixtureLikeCpp {
     fn default() -> Self {
         Self {

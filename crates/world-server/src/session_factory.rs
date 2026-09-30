@@ -209,7 +209,9 @@ async fn run_world_session_phase_loop_like_cpp(
     ready_for_phases_like_cpp: &AtomicBool,
 ) -> WorldSessionRunOutcomeLikeCpp {
     loop {
-        if active_session_registry.should_stop_sessions_like_cpp() {
+        if active_session_registry.should_stop_sessions_like_cpp()
+            && active_session_registry.session_drain_authorized()
+        {
             info!(
                 account_id,
                 "World session observed shutdown gate; disconnecting cooperatively"
@@ -226,6 +228,17 @@ async fn run_world_session_phase_loop_like_cpp(
             // because readiness is withdrawn before it and never raised again.
             ready_for_phases_like_cpp.store(false, Ordering::Release);
             session.refuse_pending_phase_requests_like_cpp();
+            if !active_session_registry.session_drain_authorized() {
+                // Closing admission refuses unclaimed work, but does not
+                // authorize mailbox effects while object work remains owned.
+                tokio::select! {
+                    _ = cancellation.cancelled_like_cpp() => {
+                        return WorldSessionRunOutcomeLikeCpp::ForceCancelled;
+                    }
+                    () = tokio::time::sleep(SHUTDOWN_GATE_RECHECK_INTERVAL_LIKE_CPP) => {}
+                }
+                continue;
+            }
             let disconnecting = warn_about_sync_queries_scope_like_cpp(async {
                 session
                     .process_pending_with_catalogs_like_cpp(handler_catalogs)

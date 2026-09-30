@@ -5,15 +5,16 @@
 
 //! DB2/record-backed bridge for TrinityCore `Player::GetPowerIndexByClass`.
 //!
-//! `wow-entities` owns only the `PlayerPowerIndexResolver` trait so entities stay independent
-//! from DB2 stores. This module provides a small injectable row store that can be populated from
-//! future `ChrClasses`/`ChrPowerTypes` DB2 readers without hardcoding class power layouts in
-//! `Player`.
+//! The canonical read-only `PlayerPowerIndexResolver` contract lives in
+//! `wow-data-model::power` and is re-exported here to preserve the existing
+//! `wow_data::player::power` API. This module owns the concrete injectable row store and DB2
+//! resolver adapter, which can be populated from future `ChrClasses`/`ChrPowerTypes` readers
+//! without hardcoding class power layouts in `Player`.
 
 use std::collections::HashMap;
 
 use wow_constants::PowerType;
-use wow_entities::PlayerPowerIndexResolver;
+pub use wow_data_model::power::PlayerPowerIndexResolver;
 
 /// Minimal row shape needed to answer `GetPowerIndexByClass(power, class)`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -66,7 +67,7 @@ impl PlayerClassPowerIndexStore {
     }
 }
 
-/// Resolver adapter passed to `wow_entities::Player` lifecycle/configuration code.
+/// Resolver adapter passed to entity-owned Player lifecycle/configuration code.
 #[derive(Debug, Clone, Default)]
 pub struct Db2PlayerPowerIndexResolver {
     store: PlayerClassPowerIndexStore,
@@ -95,8 +96,7 @@ impl PlayerPowerIndexResolver for Db2PlayerPowerIndexResolver {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use wow_constants::Gender;
-    use wow_entities::{CLASS_PALADIN, MAX_POWERS_PER_CLASS, Player};
+    const CLASS_PALADIN: u8 = 2;
 
     #[test]
     fn db2_player_power_index_resolver_returns_record_backed_indices() {
@@ -118,28 +118,5 @@ mod tests {
             None
         );
         assert_eq!(resolver.store().len(), 2);
-    }
-
-    #[test]
-    fn db2_player_power_index_resolver_feeds_player_and_entity_ignores_out_of_range_indices() {
-        let resolver = Db2PlayerPowerIndexResolver::from_records([
-            ClassPowerIndexRecord::new(CLASS_PALADIN, PowerType::Mana, 0),
-            ClassPowerIndexRecord::new(CLASS_PALADIN, PowerType::ComboPoints, 9),
-            ClassPowerIndexRecord::new(
-                CLASS_PALADIN,
-                PowerType::AlternateMount,
-                MAX_POWERS_PER_CLASS,
-            ),
-        ]);
-        let mut player = Player::new(None, false);
-        player.set_race_class_gender(1, CLASS_PALADIN, Gender::Male);
-        player.clear_data_changes();
-
-        player.configure_power_indices_for_class(&resolver);
-
-        assert_eq!(player.get_power_index(PowerType::Mana), Some(0));
-        assert_eq!(player.get_power_index(PowerType::ComboPoints), Some(9));
-        assert_eq!(player.get_power_index(PowerType::AlternateMount), None);
-        assert!(!player.unit().unit_data_changes_mask().is_any_set());
     }
 }

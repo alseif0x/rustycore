@@ -11,20 +11,20 @@ test-fixtures = ["wow-recastdetour/test-fixtures"]
 
 [dependencies]
 wow-core = { workspace = true }
+wow-combat = { workspace = true }
 wow-entities = { workspace = true }
 rand = { workspace = true }
 tracing = { workspace = true }
 wow-constants = { workspace = true }
-wow-data = { workspace = true }
 wow-movement = { workspace = true }
 wow-persistence = { workspace = true }
 wow-recastdetour = { workspace = true }
 
 [dev-dependencies]
 wow-constants = { workspace = true }
-wow-loot = { workspace = true }
 wow-packet = { workspace = true }
 wow-recastdetour = { workspace = true, features = ["test-fixtures"] }
+wow-data = { workspace = true }
 
 [lints]
 workspace = true

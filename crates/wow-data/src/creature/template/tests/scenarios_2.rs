@@ -157,7 +157,7 @@ fn creature_addon_store_normalizes_auras_like_cpp() {
         |spell_id| if spell_id == 300 { 5_000 } else { 0 },
         |spell_id| {
             matches!(spell_id, 100 | 200 | 400)
-                .then(|| wow_entities::CreatureAddonAuraEffectLikeCpp {
+                .then(|| crate::creature::template::CreatureAddonAuraEffectLikeCpp {
                     aura_type: 91,
                     amount: 7,
                     misc_value: 0,
@@ -181,42 +181,42 @@ fn creature_addon_store_normalizes_auras_like_cpp() {
             .get_for_creature_like_cpp(44, 1001)
             .map(|addon| addon.aura_applications),
         Some(vec![
-            wow_entities::CreatureAddonAuraApplicationLikeCpp {
+            crate::creature::template::CreatureAddonAuraApplicationLikeCpp {
                 spell_id: 100,
                 spell_visual_id: 0,
                 effect_mask: 0x1,
                 flags: AFLAG_NOCASTER_LIKE_CPP
                     | AFLAG_POSITIVE_LIKE_CPP
                     | AFLAG_CANCELABLE_LIKE_CPP,
-                effects: vec![wow_entities::CreatureAddonAuraEffectLikeCpp {
+                effects: vec![crate::creature::template::CreatureAddonAuraEffectLikeCpp {
                     aura_type: 91,
                     amount: 7,
                     misc_value: 0,
                     effect_index: 0,
                 }],
             },
-            wow_entities::CreatureAddonAuraApplicationLikeCpp {
+            crate::creature::template::CreatureAddonAuraApplicationLikeCpp {
                 spell_id: 200,
                 spell_visual_id: 0,
                 effect_mask: 0x1,
                 flags: AFLAG_NOCASTER_LIKE_CPP
                     | AFLAG_POSITIVE_LIKE_CPP
                     | AFLAG_CANCELABLE_LIKE_CPP,
-                effects: vec![wow_entities::CreatureAddonAuraEffectLikeCpp {
+                effects: vec![crate::creature::template::CreatureAddonAuraEffectLikeCpp {
                     aura_type: 91,
                     amount: 7,
                     misc_value: 0,
                     effect_index: 0,
                 }],
             },
-            wow_entities::CreatureAddonAuraApplicationLikeCpp {
+            crate::creature::template::CreatureAddonAuraApplicationLikeCpp {
                 spell_id: 400,
                 spell_visual_id: 0,
                 effect_mask: 0x1,
                 flags: AFLAG_NOCASTER_LIKE_CPP
                     | AFLAG_POSITIVE_LIKE_CPP
                     | AFLAG_CANCELABLE_LIKE_CPP,
-                effects: vec![wow_entities::CreatureAddonAuraEffectLikeCpp {
+                crate::creature::template::CreatureAddonAuraEffectLikeCpp {
                     aura_type: 91,
                     amount: 7,
                     misc_value: 0,

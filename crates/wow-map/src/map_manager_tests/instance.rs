@@ -39,13 +39,71 @@ fn terrain_grid_area_map_decodes_cpp_area_cell_and_zone_parent() {
         test_area_entry(4395, 0, 0),
         test_area_entry(4613, 4395, 0x4000_0000),
     ]);
+    let subzone_parent = |store: &wow_data::AreaTableStore, area_id| {
+        store
+            .get(area_id)
+            .filter(|area| area.parent_area_id != 0 && area.is_subzone_like_cpp())
+            .map(|area| u32::from(area.parent_area_id))
+    };
 
     assert_eq!(
-        zone_and_area_for_position_like_cpp(&data_dir, map_id, x, y, Some(&area_store), |_| {
-            9999
-        },)
+        zone_and_area_for_position_like_cpp(
+            &data_dir,
+            map_id,
+            x,
+            y,
+            |area_id| subzone_parent(&area_store, area_id),
+            |_| 9999,
+        )
         .expect("resolve terrain zone area"),
         (4395, 4613)
+    );
+
+    let no_parent_store = wow_data::AreaTableStore::from_entries([test_area_entry(
+        4613,
+        0,
+        0x4000_0000,
+    )]);
+    assert_eq!(
+        zone_and_area_for_position_like_cpp(
+            &data_dir,
+            map_id,
+            x,
+            y,
+            |area_id| subzone_parent(&no_parent_store, area_id),
+            |_| 9999,
+        )
+        .expect("keep terrain area without a parent"),
+        (4613, 4613)
+    );
+
+    let non_subzone_store =
+        wow_data::AreaTableStore::from_entries([test_area_entry(4613, 4395, 0)]);
+    assert_eq!(
+        zone_and_area_for_position_like_cpp(
+            &data_dir,
+            map_id,
+            x,
+            y,
+            |area_id| subzone_parent(&non_subzone_store, area_id),
+            |_| 9999,
+        )
+        .expect("keep terrain area when entry is not a subzone"),
+        (4613, 4613)
+    );
+
+    let missing_area_store = wow_data::AreaTableStore::default();
+    assert_eq!(
+        zone_and_area_for_position_like_cpp(
+            &data_dir,
+            map_id,
+            x,
+            y,
+            |area_id| subzone_parent(&missing_area_store, area_id),
+            |_| 9999,
+        )
+        .expect("keep terrain area when AreaTable has no entry"),
+        (4613, 4613)
     );
 }
 #[test]
@@ -81,7 +139,7 @@ fn terrain_area_file_uses_cpp_reversed_grid_coordinates_like_cpp() {
 fn terrain_zone_area_falls_back_to_map_area_when_grid_missing_like_cpp() {
     let data_dir = unique_temp_data_dir("terrain-area-fallback");
     assert_eq!(
-        zone_and_area_for_position_like_cpp(&data_dir, 571, 0.0, 0.0, None, |_| 4395)
+        zone_and_area_for_position_like_cpp(&data_dir, 571, 0.0, 0.0, |_| None, |_| 4395)
             .expect("resolve fallback terrain zone area"),
         (4395, 4395)
     );

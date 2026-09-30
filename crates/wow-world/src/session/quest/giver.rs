@@ -138,115 +138,40 @@ impl WorldSession {
             })
             .is_none()
         {
-            return ResetSeasonalQuestStatusOutcomeLikeCpp {
+            return ResetSeasonalQuestStatusOutcomeLikeCpp::missing_event(
                 event_id,
                 event_start_time,
-                reason: ResetSeasonalQuestStatusReasonLikeCpp::MissingEvent,
-                removed_quest_ids: Vec::new(),
-                completed_bit_cleared: 0,
-                completed_bit_skipped_no_quest_v2_store: 0,
-                completed_bit_skipped_zero_unique_bit: 0,
-                completed_bit_no_change_or_noop: 0,
-                completed_bit_clear_unrepresented: 0,
-                event_bucket_erased: false,
-                seasonal_quest_changed: false,
-            };
+            );
         }
-        let Some(mut recurrence) = self.player_quest_gameplay_snapshot_like_cpp() else {
-            return ResetSeasonalQuestStatusOutcomeLikeCpp {
+        let Some(recurrence) = self.player_quest_gameplay_snapshot_like_cpp() else {
+            return ResetSeasonalQuestStatusOutcomeLikeCpp::missing_event(
                 event_id,
                 event_start_time,
-                reason: ResetSeasonalQuestStatusReasonLikeCpp::MissingEvent,
-                removed_quest_ids: Vec::new(),
-                completed_bit_cleared: 0,
-                completed_bit_skipped_no_quest_v2_store: 0,
-                completed_bit_skipped_zero_unique_bit: 0,
-                completed_bit_no_change_or_noop: 0,
-                completed_bit_clear_unrepresented: 0,
-                event_bucket_erased: false,
-                seasonal_quest_changed: false,
-            };
+            );
         };
-        let Some(bucket) = recurrence.seasonal_event_quests_like_cpp(event_id) else {
-            return ResetSeasonalQuestStatusOutcomeLikeCpp {
-                event_id,
-                event_start_time,
-                reason: ResetSeasonalQuestStatusReasonLikeCpp::MissingEvent,
-                removed_quest_ids: Vec::new(),
-                completed_bit_cleared: 0,
-                completed_bit_skipped_no_quest_v2_store: 0,
-                completed_bit_skipped_zero_unique_bit: 0,
-                completed_bit_no_change_or_noop: 0,
-                completed_bit_clear_unrepresented: 0,
-                event_bucket_erased: false,
-                seasonal_quest_changed: false,
-            };
-        };
-
-        if bucket.is_empty() {
-            return ResetSeasonalQuestStatusOutcomeLikeCpp {
-                event_id,
-                event_start_time,
-                reason: ResetSeasonalQuestStatusReasonLikeCpp::EmptyEvent,
-                removed_quest_ids: Vec::new(),
-                completed_bit_cleared: 0,
-                completed_bit_skipped_no_quest_v2_store: 0,
-                completed_bit_skipped_zero_unique_bit: 0,
-                completed_bit_no_change_or_noop: 0,
-                completed_bit_clear_unrepresented: 0,
-                event_bucket_erased: false,
-                seasonal_quest_changed: false,
-            };
+        let mut plan = recurrence.plan_seasonal_reset(event_id, event_start_time);
+        if let Some(seasonal_quests) = plan.take_updated_seasonal_quests() {
+            let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
+                state.replace_seasonal_quests_like_cpp(seasonal_quests, false);
+            });
         }
 
-        let reset = recurrence.reset_seasonal_event_like_cpp(event_id, event_start_time);
-        let removed_quest_ids = reset.removed_quest_ids;
-        let event_bucket_erased = reset.event_bucket_erased;
-        let seasonal_quests = recurrence.seasonal_quests_snapshot_like_cpp();
-        let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
-            state.replace_seasonal_quests_like_cpp(seasonal_quests, false);
-        });
-
-        let mut completed_bit_cleared = 0;
-        let mut completed_bit_skipped_no_quest_v2_store = 0;
-        let mut completed_bit_skipped_zero_unique_bit = 0;
-        let mut completed_bit_no_change_or_noop = 0;
-        for quest_id in &removed_quest_ids {
+        plan.finish(|quest_id| {
             let Some(quest_v2_store) = self.quests.v2_store.as_ref().map(Arc::clone) else {
-                completed_bit_skipped_no_quest_v2_store += 1;
-                continue;
+                return wow_entities::SeasonalQuestBitReset::MissingCatalog;
             };
 
-            let quest_bit = quest_v2_store.get_quest_unique_bit_flag_like_cpp(*quest_id);
+            let quest_bit = quest_v2_store.get_quest_unique_bit_flag_like_cpp(quest_id);
             if quest_bit == 0 {
-                completed_bit_skipped_zero_unique_bit += 1;
-                continue;
+                return wow_entities::SeasonalQuestBitReset::ZeroUniqueBit;
             }
 
             if self.clear_loaded_quest_completed_bit_like_cpp(quest_bit) {
-                completed_bit_cleared += 1;
+                wow_entities::SeasonalQuestBitReset::Cleared
             } else {
-                completed_bit_no_change_or_noop += 1;
+                wow_entities::SeasonalQuestBitReset::NoChangeOrNoop
             }
-        }
-
-        ResetSeasonalQuestStatusOutcomeLikeCpp {
-            event_id,
-            event_start_time,
-            reason: if removed_quest_ids.is_empty() {
-                ResetSeasonalQuestStatusReasonLikeCpp::NoOlderCompletions
-            } else {
-                ResetSeasonalQuestStatusReasonLikeCpp::RemovedOlderCompletions
-            },
-            removed_quest_ids,
-            completed_bit_cleared,
-            completed_bit_skipped_no_quest_v2_store,
-            completed_bit_skipped_zero_unique_bit,
-            completed_bit_no_change_or_noop,
-            completed_bit_clear_unrepresented: 0,
-            event_bucket_erased,
-            seasonal_quest_changed: false,
-        }
+        })
     }
     #[cfg(test)]
     pub(crate) fn seed_seasonal_quest_status_like_cpp(

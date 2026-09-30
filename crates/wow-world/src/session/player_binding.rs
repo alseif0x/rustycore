@@ -8,6 +8,8 @@ use super::PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP;
 use super::{Arc, DurableLootMoneyPersistenceTrackerLikeCpp, ObjectGuid};
 use super::{PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP, Player, WorldSession};
 
+mod controller;
+
 #[derive(Debug, Clone)]
 pub(crate) struct SessionPlayerController {
     pub(in crate::session) guid: ObjectGuid,
@@ -117,8 +119,8 @@ impl WorldSession {
     ) -> Option<wow_entities::PlayerWorldLocalState> {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.gameplay_state().world_local);
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.character_lifecycle_handleless_fixture() {
             return Some(
                 wow_entities::PlayerWorldLocalState::from_represented_parts_like_cpp(
                     self.player_zone_id_like_cpp,
@@ -293,7 +295,7 @@ impl WorldSession {
         }
         if let Some(guid) = guid {
             self.account_state.recent_player_guid_low_like_cpp = guid.counter() as u64;
-            self.last_observed_farsight_object_like_cpp = wow_core::ObjectGuid::EMPTY;
+            self.visibility_publication.last_observed_farsight_object_like_cpp = wow_core::ObjectGuid::EMPTY;
             #[cfg(test)]
             {
                 self.visibility_test_fixture_like_cpp
@@ -311,7 +313,7 @@ impl WorldSession {
                 self.visibility_test_fixture_like_cpp
                     .represented_seer_guid_like_cpp = None;
             }
-            self.last_observed_farsight_object_like_cpp = wow_core::ObjectGuid::EMPTY;
+            self.visibility_publication.last_observed_farsight_object_like_cpp = wow_core::ObjectGuid::EMPTY;
             // Old registry clones remain permanently closed; a later character
             // selected on this authenticated session receives a fresh fence.
             self.lifecycle.durable_loot_money_persistence_like_cpp =
@@ -341,53 +343,7 @@ impl WorldSession {
         }
     }
 
-    pub(crate) fn attach_player_controller_like_cpp(
-        &mut self,
-        controller: SessionPlayerController,
-    ) {
-        let controller_position = controller.position();
-        self.set_player_guid(Some(controller.guid()));
-        self.player_identity_bootstrap_like_cpp = Some(PlayerIdentityBootstrapLikeCpp {
-            name: Some(controller.name().to_string()),
-            race: controller.race(),
-            class: controller.class(),
-            level: controller.level(),
-            gender: controller.gender(),
-        });
-        #[cfg(test)]
-        {
-            self.player_name = Some(controller.name().to_string());
-            self.player_position = Some(controller_position);
-        }
-        self.current_map_id = controller.map_id();
-        #[cfg(test)]
-        {
-            self.player_race = controller.race();
-            self.player_class = controller.class();
-            self.player_level = controller.level();
-            self.player_gender = controller.gender();
-        }
-        #[cfg(test)]
-        {
-            self.visibility_test_fixture_like_cpp
-                .represented_seer_guid_like_cpp = Some(controller.guid());
-        }
-        self.last_observed_farsight_object_like_cpp = wow_core::ObjectGuid::EMPTY;
-        #[cfg(test)]
-        {
-            self.player_bootstrap_attached_like_cpp = true;
-        }
-        self.initialize_reputation_mgr_like_cpp();
-        self.set_fall_information_like_cpp(0, controller_position.z);
-        // Production receives MapManager at session construction, so consume
-        // the login bootstrap immediately. Unit fixtures historically inject
-        // or replace their synthetic manager after attachment; they exercise
-        // the same ownership transition through
-        // `ensure_canonical_player_owner_for_map_like_cpp` instead.
-        #[cfg(not(test))]
-        let _ = self.install_detached_canonical_player_from_session_like_cpp(controller_position);
-        self.set_player_moved_unit_guid_like_cpp(controller.guid());
-    }
+
 
     pub(crate) fn set_player_liquid_status_like_cpp(&mut self, status: u32) {
         crate::canonical_player_sync::sync_player_liquid_status_like_cpp(self, status);
@@ -481,8 +437,8 @@ impl WorldSession {
         {
             return Some(name);
         }
-        #[cfg(test)]
-        {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             return self.player_name.clone();
         }
         if self.player_handle_like_cpp.is_some() {
@@ -545,11 +501,10 @@ impl WorldSession {
         if let Some(race) = self.with_owned_player_like_cpp(|player| player.race_like_cpp()) {
             return race;
         }
-        #[cfg(test)]
-        {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             return self.player_race;
         }
-        #[cfg(not(test))]
         if self.player_handle_like_cpp.is_some() {
             return 0;
         }
@@ -563,11 +518,10 @@ impl WorldSession {
         if let Some(class) = self.with_owned_player_like_cpp(|player| player.class_like_cpp()) {
             return class;
         }
-        #[cfg(test)]
-        {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             return self.player_class;
         }
-        #[cfg(not(test))]
         if self.player_handle_like_cpp.is_some() {
             return 0;
         }
@@ -590,11 +544,10 @@ impl WorldSession {
         if let Some(level) = self.with_owned_player_like_cpp(|player| player.level_like_cpp()) {
             return level;
         }
-        #[cfg(test)]
-        {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             return self.player_level;
         }
-        #[cfg(not(test))]
         if self.player_handle_like_cpp.is_some() {
             return 0;
         }
@@ -608,11 +561,10 @@ impl WorldSession {
         if let Some(gender) = self.with_owned_player_like_cpp(|player| player.gender_like_cpp()) {
             return gender;
         }
-        #[cfg(test)]
-        {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             return self.player_gender;
         }
-        #[cfg(not(test))]
         if self.player_handle_like_cpp.is_some() {
             return 0;
         }

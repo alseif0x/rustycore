@@ -1,3 +1,12 @@
+mod eligibility;
+mod reputation;
+mod objectives;
+mod rewards;
+pub use objectives::*;
+pub use rewards::*;
+pub use eligibility::*;
+pub use reputation::*;
+
 pub use crate::player::quest_persistence_test_fixture::{
     PlayerQuestLoadStageFixtureLikeCpp, PlayerQuestPersistencePortFixtureLikeCpp,
     PlayerQuestRewardPersistencePortFixtureLikeCpp,
@@ -103,6 +112,20 @@ pub fn set_player_quest_gameplay_rewarded_for_test(
             quests.set_rewarded_like_cpp(quest_id, true);
         })
         .expect("test Player quest owner");
+}
+
+/// Read the existing quest owner, including rewarded-row and load authority state.
+pub fn player_quest_gameplay_snapshot_for_test(
+    session: &crate::session::WorldSession,
+) -> Option<wow_entities::PlayerQuestGameplayState> {
+    session.player_quest_gameplay_snapshot_like_cpp()
+}
+
+pub fn mutate_player_quest_gameplay_for_test<R>(
+    session: &mut crate::session::WorldSession,
+    mutate: impl FnOnce(&mut wow_entities::PlayerQuestGameplayState) -> R,
+) -> Option<R> {
+    session.mutate_player_quest_gameplay_like_cpp(mutate)
 }
 
 pub fn faction_store_for_test(
@@ -285,4 +308,17 @@ pub fn plan_quest_source_item_bound_objective_statuses_for_test(
             count,
         )
         .map(|plan| plan.statuses)
+}
+
+pub fn quest_giver_creature_entry_for_test(source_guid: wow_core::ObjectGuid) -> i32 {
+    crate::handlers::quest::quest_giver_creature_id_from_source_like_cpp(source_guid)
+}
+
+pub fn quest_completion_npc_response_for_test(
+    quest_store: &wow_data::quest::QuestStore,
+    raw_quest_ids: &[i32],
+) -> Vec<wow_packet::packets::query::QuestCompletionNpc> {
+    crate::handlers::quest::represented_quest_completion_npc_response_like_cpp(
+        quest_store, raw_quest_ids,
+    )
 }

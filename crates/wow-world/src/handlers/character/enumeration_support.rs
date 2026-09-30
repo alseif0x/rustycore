@@ -101,7 +101,3 @@ pub(super) fn enum_character_pet_data_like_cpp(
         .map(|template| (pet_display_id, pet_level, template.family))
         .unwrap_or((0, 0, 0))
 }
-
-#[cfg(test)]
-#[path = "enumeration_support_tests.rs"]
-mod rule_tests;

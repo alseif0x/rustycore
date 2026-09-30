@@ -30,8 +30,6 @@ use wow_core::guid::TypeId;
 
 use wow_core::{ObjectGuid, Position};
 
-use wow_movement::{MonsterMoveType, MoveSpline, MoveSplineFlag};
-
 use crate::packets::movement::TransportInfo;
 
 use crate::{ServerPacket, WorldPacket};

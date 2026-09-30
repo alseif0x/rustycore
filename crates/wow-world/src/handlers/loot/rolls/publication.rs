@@ -54,7 +54,7 @@ impl WorldSession {
         _player_guid: ObjectGuid,
         _quantity: u32,
     ) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         self.represented_loot_roll_criteria_events.push(
             crate::session::RepresentedLootRollCriteriaEvent::RollAnyNeed {
                 player_guid: _player_guid,
@@ -68,7 +68,7 @@ impl WorldSession {
         _player_guid: ObjectGuid,
         _quantity: u32,
     ) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         self.represented_loot_roll_criteria_events.push(
             crate::session::RepresentedLootRollCriteriaEvent::RollAnyGreed {
                 player_guid: _player_guid,
@@ -83,7 +83,7 @@ impl WorldSession {
         _item_id: u32,
         _roll_number: u8,
     ) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         self.represented_loot_roll_criteria_events.push(
             crate::session::RepresentedLootRollCriteriaEvent::RollNeed {
                 player_guid: _player_guid,
@@ -99,7 +99,7 @@ impl WorldSession {
         _item_id: u32,
         _roll_number: u8,
     ) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         self.represented_loot_roll_criteria_events.push(
             crate::session::RepresentedLootRollCriteriaEvent::RollGreed {
                 player_guid: _player_guid,
@@ -117,7 +117,7 @@ impl WorldSession {
         state: &RepresentedLootRollState,
         dungeon_encounter_id: i32,
     ) {
-        for (player_guid, vote) in &state.voters {
+        for (player_guid, vote) in state.ballots.votes() {
             let (roll, roll_type) = match vote.vote {
                 ROLL_VOTE_PASS_LIKE_CPP => continue,
                 ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP | ROLL_VOTE_NOT_VALID_LIKE_CPP => {
@@ -234,7 +234,7 @@ impl WorldSession {
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
-        for (player_guid, vote) in &state.voters {
+        for (player_guid, vote) in state.ballots.votes() {
             if vote.vote == ROLL_VOTE_NOT_VALID_LIKE_CPP {
                 continue;
             }

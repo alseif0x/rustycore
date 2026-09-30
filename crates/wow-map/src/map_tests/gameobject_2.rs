@@ -40,7 +40,7 @@ fn world_object_summon_gameobject_player_owner_branch_like_cpp() {
 
     let owner = map
         .map_object_record(owner_guid)
-        .and_then(MapObjectRecord::player)
+        .and_then(|record| record.player())
         .unwrap();
     assert_eq!(
         owner.unit().subsystems().control.owned_gameobjects,
@@ -48,7 +48,7 @@ fn world_object_summon_gameobject_player_owner_branch_like_cpp() {
     );
     let gameobject = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(gameobject.owner_guid(), owner_guid);
     assert_eq!(gameobject.respawn_time(), 45);
@@ -83,7 +83,7 @@ fn world_object_summon_gameobject_unit_timed_despawn_forces_non_default_like_cpp
     let guid = outcome.guid.unwrap();
     let owner = map
         .map_object_record(owner_guid)
-        .and_then(MapObjectRecord::creature)
+        .and_then(|record| record.creature())
         .unwrap();
     assert!(
         owner
@@ -95,7 +95,7 @@ fn world_object_summon_gameobject_unit_timed_despawn_forces_non_default_like_cpp
     );
     let gameobject = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(gameobject.owner_guid(), ObjectGuid::EMPTY);
     assert!(!gameobject.spawned_by_default());
@@ -179,7 +179,7 @@ fn unit_remove_gameobjects_by_spell_filters_owner_list_without_slot_cleanup_like
 
     let owner = map
         .map_object_record(owner_guid)
-        .and_then(MapObjectRecord::player)
+        .and_then(|record| record.player())
         .unwrap();
     assert_eq!(
         owner.unit().subsystems().control.owned_gameobjects,
@@ -191,12 +191,12 @@ fn unit_remove_gameobjects_by_spell_filters_owner_list_without_slot_cleanup_like
     );
     let matched = map
         .map_object_record(matched_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(matched.owner_guid(), ObjectGuid::EMPTY);
     let kept = map
         .map_object_record(kept_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(kept.owner_guid(), owner_guid);
 }
@@ -232,13 +232,13 @@ fn unit_remove_gameobjects_by_spell_delete_path_sets_respawn_zero_and_delete_lik
 
     let gameobject = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(gameobject.owner_guid(), ObjectGuid::EMPTY);
     assert_eq!(gameobject.respawn_time(), 0);
     let owner = map
         .map_object_record(owner_guid)
-        .and_then(MapObjectRecord::player)
+        .and_then(|record| record.player())
         .unwrap();
     assert!(
         owner
@@ -320,7 +320,7 @@ fn gameobject_remove_from_owner_clears_owner_before_model_remove_like_cpp() {
     assert!(!map.contains_gameobject_model_like_cpp(key));
     let owner = map
         .map_object_record(owner_guid)
-        .and_then(MapObjectRecord::player)
+        .and_then(|record| record.player())
         .unwrap();
     assert!(
         owner
@@ -813,7 +813,7 @@ fn dynamic_tree_gameobject_update_model_removes_old_and_inserts_new_without_coll
     assert!(map.contains_gameobject_model_like_cpp(key));
     let gameobject = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert!(gameobject.has_represented_gameobject_model_like_cpp());
     assert!(!gameobject.has_represented_gameobject_model_map_object_like_cpp());
@@ -847,7 +847,7 @@ fn dynamic_tree_gameobject_update_model_to_no_model_removes_old_without_insert_l
     assert!(!map.contains_gameobject_model_like_cpp(key));
     let gameobject = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert!(!gameobject.has_represented_gameobject_model_like_cpp());
     assert!(!gameobject.has_represented_gameobject_model_map_object_like_cpp());

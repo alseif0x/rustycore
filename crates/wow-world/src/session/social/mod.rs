@@ -7,6 +7,8 @@ use super::*;
 mod contacts;
 mod duel;
 mod group;
+#[cfg(any(test, feature = "test-fixtures"))]
+mod group_fixture_access;
 mod guild;
 #[cfg(test)]
 pub(crate) mod test_fixtures;

@@ -19,7 +19,7 @@ use tracing::{debug, warn};
 use wow_constants::{BagFamilyMask, ClientOpcodes, InventoryResult, ItemFlags, TypeId};
 use wow_core::ObjectGuid;
 use wow_data::{DISABLE_TYPE_SPELL, DisableWorldObjectRefLikeCpp};
-use wow_entities::INVENTORY_SLOT_BAG_0;
+use wow_entities::{CreatureLoot, INVENTORY_SLOT_BAG_0, LootEntry, LootEntryFlags};
 use wow_handler::{PacketProcessing, SessionStatus};
 
 use crate::session::registry::PacketHandlerEntry;
@@ -32,7 +32,7 @@ use wow_loot::{
 use wow_packet::ClientPacket;
 use wow_packet::packets::item::{ItemExpirePurchaseRefund, ItemInstance};
 use wow_packet::packets::loot::{
-    CreatureLoot, LOOT_TYPE_ITEM_LIKE_CPP, LootEntry, LootEntryFlags, LootItemData, LootResponse,
+    LOOT_TYPE_ITEM_LIKE_CPP, LootItemData, LootResponse,
 };
 use wow_packet::packets::pet::PetCancelAura;
 use wow_packet::packets::spell::{

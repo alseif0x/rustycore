@@ -15,12 +15,8 @@ use std::collections::HashMap;
 use std::collections::HashSet;
 use wow_core::ObjectGuid;
 use wow_core::guid::HighGuid;
-use wow_entities::AccessorObjectKind;
 use wow_entities::Creature;
 use wow_entities::GameObject;
-use wow_entities::MapObjectRecord;
-use wow_entities::Player;
-use wow_entities::Unit;
 
 pub(crate) fn decrement_pool_counter_like_cpp(spawned_pools: &mut HashMap<u32, u32>, pool_id: u32) {
     let counter = spawned_pools.entry(pool_id).or_insert(0);
@@ -63,31 +59,6 @@ pub(crate) fn gameobject_is_spawned_like_cpp(gameobject: &GameObject) -> bool {
     gameobject.respawn_delay_time() == 0
         || (gameobject.respawn_time() > 0 && !gameobject.spawned_by_default())
         || (gameobject.respawn_time() == 0 && gameobject.spawned_by_default())
-}
-
-pub(crate) fn map_record_is_unit_like_gameobject_owner_like_cpp(record: &MapObjectRecord) -> bool {
-    matches!(
-        record.kind(),
-        AccessorObjectKind::Player | AccessorObjectKind::Creature | AccessorObjectKind::Pet
-    ) && (record.player().is_some() || record.creature().is_some() || record.pet().is_some())
-}
-
-pub(crate) fn map_record_unit_like_cpp(record: &MapObjectRecord) -> Option<&Unit> {
-    match record.kind() {
-        AccessorObjectKind::Player => record.player().map(Player::unit),
-        AccessorObjectKind::Creature => record.creature().map(Creature::unit),
-        AccessorObjectKind::Pet => record.pet().map(|pet| pet.creature().unit()),
-        _ => None,
-    }
-}
-
-pub(crate) fn map_record_unit_mut_like_cpp(record: &mut MapObjectRecord) -> Option<&mut Unit> {
-    match record.kind() {
-        AccessorObjectKind::Player => record.player_mut().map(Player::unit_mut),
-        AccessorObjectKind::Creature => record.creature_mut().map(Creature::unit_mut),
-        AccessorObjectKind::Pet => record.pet_mut().map(|pet| pet.creature_mut().unit_mut()),
-        _ => None,
-    }
 }
 
 pub(crate) fn player_set_viewpoint_outcome_like_cpp(

@@ -148,14 +148,11 @@ impl WorldSession {
         &mut self,
         route: &DurableLootItemFanoutLikeCpp,
     ) {
-        let same_view_still_open = self
-            .active_loot_view_authorities_like_cpp
-            .get(&route.owner_guid)
-            .is_some_and(|authority| authority.shares_storage_like_cpp(&route.authority))
-            && self
-                .active_loot_view_generations_like_cpp
-                .get(&route.owner_guid)
-                .is_some_and(|generation| *generation == route.authority_generation);
+        let same_view_still_open = self.loot_views.matches_authority(
+            route.owner_guid,
+            &route.authority,
+            Some(route.authority_generation),
+        );
         if same_view_still_open {
             return;
         }
@@ -239,34 +236,13 @@ impl WorldSession {
 
         let corpse_decay_looted_rate = self.loot_drop_rates_like_cpp().corpse_decay_looted;
         let whole_object_fully_skinned = observation.whole_object_fully_skinned;
-        let lifecycle_update = self
-            .mutate_world_creature_if_unviewed_fully_looted_observation_like_cpp(
-                route.owner_guid,
-                &route.authority,
-                observation.object_generation,
-                observation.lifecycle_revision,
-                |creature| {
-                    creature.force_dynamic_flags_update_like_cpp();
-                    creature.remove_lootable_dynamic_flag_like_cpp();
-                    let marked = if creature.is_alive() {
-                        None
-                    } else {
-                        let corpse_decay_secs = looted_corpse_decay_secs_like_cpp(
-                            whole_object_fully_skinned,
-                            creature.corpse_delay_secs_like_cpp(),
-                            creature.ignore_corpse_decay_ratio_like_cpp(),
-                            corpse_decay_looted_rate,
-                        );
-                        creature
-                            .all_loot_removed_from_corpse_like_cpp(
-                                corpse_decay_looted_rate,
-                                whole_object_fully_skinned,
-                            )
-                            .then_some((creature.entry(), corpse_decay_secs))
-                    };
-                    (marked, creature.creature.unit().values_update())
-                },
-            );
+        let creature_owner = self.capture_creature_loot_owner(route.owner_guid);
+        let lifecycle_update = self.release_creature_loot_corpse(
+            &creature_owner, route.owner_guid, Some(&route.authority),
+            observation.object_generation, observation.lifecycle_revision,
+            whole_object_fully_skinned, corpse_decay_looted_rate,
+            wow_map::map_manager::CreatureLootReleasePhase::Detached,
+        );
         self.loot_table.remove(&route.owner_guid);
         if let Some((_, values_update)) = lifecycle_update.as_ref() {
             self.send_creature_loot_release_dynamic_flags_update_like_cpp(
@@ -544,7 +520,7 @@ impl WorldSession {
         item_guid_generator: &wow_core::ObjectGuidGenerator,
     ) {
         let mut authorities = Vec::<OwnedLootAuthority>::new();
-        for authority in self.active_loot_view_authorities_like_cpp.values() {
+        for authority in self.loot_views.bound_authorities() {
             if authorities
                 .iter()
                 .any(|existing| existing.shares_storage_like_cpp(authority))
@@ -580,7 +556,7 @@ impl WorldSession {
         item_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) {
-        if self.active_loot_view_owners.contains(&item_guid) || self.is_active_loot_guid(item_guid)
+        if self.loot_views.contains_owner(&item_guid) || self.is_active_loot_guid(item_guid)
         {
             self.close_stale_active_loot_view_like_cpp(item_guid, player_guid);
         }

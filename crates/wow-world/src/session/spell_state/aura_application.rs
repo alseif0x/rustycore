@@ -15,8 +15,8 @@ impl WorldSession {
                 player.remove_player_visible_aura_like_cpp(slot)
             })
             .flatten();
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.gossip_handleless_fixture() {
             return self
                 .mutate_player_aura_subsystem_like_cpp(|auras| {
                     auras.remove_runtime_application_like_cpp(slot)
@@ -62,10 +62,7 @@ impl WorldSession {
         let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
             return 0;
         };
-        let slots = visible_auras
-            .values()
-            .filter_map(|aura| (aura.spell_id == spell_id).then_some(aura.slot))
-            .collect::<Vec<_>>();
+        let slots = wow_entities::AuraSubsystem::runtime_slots_for_spell(&visible_auras, spell_id);
         let removed = slots.len();
         for slot in slots {
             let _ = self.remove_aura(slot);
@@ -177,98 +174,24 @@ impl WorldSession {
             .next_player_visible_aura_slot_like_cpp()
             .ok_or("No free aura slots or missing Player aura owner")?;
 
-        // Preserve the represented StatSystem-relevant multiplier on the same
-        // AuraApplication. C++ AuraEffect::HandleModTotalPercentStat uses
-        // MiscValueB as a per-stat bitmask (zero means all stats), while the
-        // generic AuraApplication continues to own the visible slot.
-        let (is_ability, total_stat_percentage_effects) = self
-            .spell_store()
-            .map(|store| {
-                let effects = store
-                    .get(spell_id)
-                    .map(|spell| {
-                        spell
-                            .effects()
-                            .iter()
-                            .filter(|effect| {
-                                1u32.checked_shl(effect.effect_index)
-                                    .is_some_and(|bit| effect_mask & bit != 0)
-                                    && effect.effect_aura
-                                        == wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE
-                            })
-                            .map(|effect| {
-                                (
-                                    effect.effect_index,
-                                    effect.calc_value_no_caster_like_cpp(),
-                                    effect.effect_misc_value_1,
-                                    effect.effect_misc_value_2,
-                                )
-                            })
-                            .collect::<Vec<_>>()
-                    })
-                    .unwrap_or_default();
-                (
-                    store.has_attribute0_like_cpp(
-                        spell_id,
-                        wow_data::spell::attributes::SPELL_ATTR0_IS_ABILITY,
-                    ),
-                    effects,
-                )
-            })
-            .unwrap_or_default();
-        let modifies_total_stats = !total_stat_percentage_effects.is_empty();
-        let preserve_health_pct = is_ability
-            && total_stat_percentage_effects
-                .iter()
-                .any(|(_, _, _, stat_mask)| *stat_mask == 0 || *stat_mask & (1 << 2) != 0);
-        let first_total_stat_percentage = total_stat_percentage_effects.first().copied();
-        let (
-            represented_effect,
-            represented_amount,
-            represented_misc_value,
-            represented_multiplier,
-        ) = if let Some((_, amount, _, stat_mask)) = first_total_stat_percentage {
-            (
-                Some(RepresentedAuraEffectLikeCpp::ModTotalStatPercentage),
-                amount,
-                Some(stat_mask),
-                1.0 + amount as f32 / 100.0,
-            )
-        } else {
-            (None, 0, None, 1.0)
-        };
-        let represented_effect_amounts: Vec<_> = total_stat_percentage_effects
-            .iter()
-            .filter_map(|(effect_index, amount, _, _)| {
-                u8::try_from(*effect_index).ok().map(|effect_index| {
-                    RepresentedAuraEffectAmountLikeCpp {
-                        effect_index,
-                        amount: *amount,
-                    }
-                })
-            })
-            .collect();
-
-        // Create aura
-        let aura = AuraApplication {
-            spell_id,
-            difficulty_id: self.current_map_difficulty_id_like_cpp(),
-            caster_guid,
-            slot,
-            duration_total: duration_ms,
-            duration_remaining: duration_ms,
-            stack_count: 1,
-            aura_flags,
-            effect_mask,
-            aura_interrupt_flags: 0,
-            aura_interrupt_flags2: 0,
-            represented_effect,
-            represented_amount,
-            represented_effect_amounts: represented_effect_amounts.clone(),
-            represented_misc_value,
-            represented_multiplier,
-            applied_at: Instant::now(),
-        };
+        // Catalog selection and calculation precede attribute selection and
+        // runtime construction; installation remains a separate phase.
+        let spell_store = self.spell_store();
+        let (aura, represented_effect_amounts, modifies_total_stats, preserve_health_pct) =
+            wow_entities::AuraSubsystem::build_stat_runtime_application(
+                spell_id, caster_guid, slot, duration_ms, aura_flags, effect_mask,
+                |id| spell_store.and_then(|store| store.get(id)).map(|spell| spell.effects()),
+                |effect| (
+                    effect.effect_index, effect.effect_aura,
+                    effect.effect_misc_value_1, effect.effect_misc_value_2,
+                ),
+                wow_data::SpellEffectInfo::calc_value_no_caster_like_cpp,
+                |id| spell_store.is_some_and(|store| store.has_attribute0_like_cpp(
+                    id, wow_data::spell::attributes::SPELL_ATTR0_IS_ABILITY,
+                )),
+                || self.current_map_difficulty_id_like_cpp(),
+                Instant::now,
+            );
 
         if !self.insert_player_visible_aura_with_provenance_like_cpp(aura, provenance) {
             return Err("Missing Player aura owner");
@@ -437,25 +360,12 @@ impl WorldSession {
             .next_player_visible_aura_slot_like_cpp()
             .ok_or("No free aura slots or missing Player aura owner")?;
 
-        let aura = AuraApplication {
-            spell_id,
-            difficulty_id: self.current_map_difficulty_id_like_cpp(),
-            caster_guid,
-            slot,
-            duration_total: 30_000,
-            duration_remaining: 30_000,
-            stack_count: 1,
-            aura_flags: 0x0000_0001,
-            effect_mask: 1u32 << effect.effect_index,
-            aura_interrupt_flags: 0,
-            aura_interrupt_flags2: 0,
-            represented_effect: Some(RepresentedAuraEffectLikeCpp::ProvideSpellFocus),
-            represented_amount: effect.effect_base_points,
-            represented_effect_amounts: represented_aura_effect_amounts_like_cpp(effect),
-            represented_misc_value: Some(effect.effect_misc_value_1),
-            represented_multiplier: 1.0,
-            applied_at: Instant::now(),
-        };
+        let aura = wow_entities::AuraSubsystem::build_focus_runtime_application(
+            spell_id, caster_guid, slot, effect, 
+            |effect| (effect.effect_index, effect.effect_base_points, effect.effect_misc_value_1),
+            || self.current_map_difficulty_id_like_cpp(),
+            Instant::now,
+        );
 
         if !self.insert_player_visible_aura_like_cpp(aura) {
             return Err("Missing Player aura owner");
@@ -476,25 +386,12 @@ impl WorldSession {
             .next_player_visible_aura_slot_like_cpp()
             .ok_or("No free aura slots or missing Player aura owner")?;
 
-        let aura = AuraApplication {
-            spell_id,
-            difficulty_id: self.current_map_difficulty_id_like_cpp(),
-            caster_guid,
-            slot,
-            duration_total: duration_ms,
-            duration_remaining: duration_ms,
-            stack_count: 1,
-            aura_flags: 0x0000_0001,
-            effect_mask: 1u32 << effect.effect_index,
-            aura_interrupt_flags: 0,
-            aura_interrupt_flags2: 0,
-            represented_effect: Some(represented_effect),
-            represented_amount: effect.effect_base_points,
-            represented_effect_amounts: represented_aura_effect_amounts_like_cpp(effect),
-            represented_misc_value: None,
-            represented_multiplier: 1.0,
-            applied_at: Instant::now(),
-        };
+        let aura = wow_entities::AuraSubsystem::build_modifier_runtime_application(
+            spell_id, caster_guid, slot, effect, represented_effect, duration_ms, 
+            |effect| (effect.effect_index, effect.effect_base_points, effect.effect_misc_value_1),
+            || self.current_map_difficulty_id_like_cpp(),
+            Instant::now,
+        );
 
         if !self.insert_player_visible_aura_like_cpp(aura) {
             return Err("Missing Player aura owner");
@@ -695,14 +592,10 @@ impl WorldSession {
             return 0;
         };
 
-        let slots: Vec<u8> = visible_auras
-            .values()
-            .filter_map(|aura| {
-                spell_store
-                    .has_attribute0_like_cpp(aura.spell_id, attribute)
-                    .then_some(aura.slot)
-            })
-            .collect();
+        let slots = wow_entities::AuraSubsystem::runtime_slots_with_attribute(
+            &visible_auras, attribute,
+            |spell_id, attribute| spell_store.has_attribute0_like_cpp(spell_id, attribute),
+        );
 
         let removed = slots.len();
         for slot in slots {
@@ -753,27 +646,12 @@ impl WorldSession {
         let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
             return 0;
         };
-        let slots: Vec<u8> = visible_auras
-            .values()
-            .filter_map(|aura| {
-                // C++ removes SPELL_AURA_MOUNTED only when its SpellInfo is
-                // cancelable, positive, and non-passive; the same predicate is
-                // used for SPELL_AURA_MOD_SCALE in CancelGrowthAura. These
-                // represented effects model positive player-cancelable paths;
-                // SpellMisc attributes preserve the C++ no-player-cancel gate.
-                if self
-                    .spell_catalogs
-                    .spell_store
-                    .as_ref()
-                    .is_some_and(|store| {
-                        store.has_attribute0_like_cpp(aura.spell_id, no_aura_cancel)
-                    })
-                {
-                    return None;
-                }
-                (aura.represented_effect == Some(represented_effect)).then_some(aura.slot)
-            })
-            .collect();
+        let slots = wow_entities::AuraSubsystem::runtime_cancelable_slots_for_effect(
+            &visible_auras, represented_effect,
+            |spell_id| self.spell_catalogs.spell_store.as_ref().is_some_and(|store| {
+                store.has_attribute0_like_cpp(spell_id, no_aura_cancel)
+            }),
+        );
 
         let removed = slots.len();
         for slot in slots {
@@ -789,13 +667,15 @@ impl WorldSession {
         let Some(spell_store) = self.spell_catalogs.spell_store.as_ref() else {
             return 0;
         };
-        if spell_store.get(spell_id).is_none()
-            || spell_store.has_attribute0_like_cpp(
-                spell_id,
-                wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL,
-            )
-            || spell_store.is_channeled_like_cpp(spell_id)
-            || spell_store.is_passive_like_cpp(spell_id)
+        if !wow_entities::AuraSubsystem::owned_spell_is_cancelable(
+            spell_id,
+            |id| spell_store.get(id).is_some(),
+            |id| spell_store.has_attribute0_like_cpp(
+                id, wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL,
+            ),
+            |id| spell_store.is_channeled_like_cpp(id),
+            |id| spell_store.is_passive_like_cpp(id),
+        )
         {
             return 0;
         }
@@ -803,32 +683,9 @@ impl WorldSession {
         let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
             return 0;
         };
-        let slots: Vec<u8> = visible_auras
-            .values()
-            .filter_map(|aura| {
-                if aura.spell_id != spell_id {
-                    return None;
-                }
-                if !caster_guid.is_empty() && aura.caster_guid != caster_guid {
-                    return None;
-                }
-                // C++ checks SpellInfo before RemoveOwnedAura: no
-                // SPELL_ATTR0_NO_AURA_CANCEL, positive, and non-passive.
-                // Full SpellInfo::IsPositive is not represented yet; allow
-                // the locally materialized positive/cancelable aura shapes,
-                // including the single-effect generic represented aura.
-                (aura.represented_effect.is_none()
-                    || matches!(
-                        aura.represented_effect,
-                        Some(
-                            RepresentedAuraEffectLikeCpp::Mounted
-                                | RepresentedAuraEffectLikeCpp::ModScale
-                                | RepresentedAuraEffectLikeCpp::ModSpeedNoControl
-                        )
-                    ))
-                .then_some(aura.slot)
-            })
-            .collect();
+        let slots = wow_entities::AuraSubsystem::runtime_cancelable_owned_slots(
+            &visible_auras, spell_id, caster_guid,
+        );
 
         let removed = slots.len();
         for slot in slots {
@@ -844,14 +701,9 @@ impl WorldSession {
         let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
             return 0;
         };
-        let slots: Vec<u8> = visible_auras
-            .values()
-            .filter(|aura| {
-                (flags != 0 && aura.aura_interrupt_flags & flags != 0)
-                    || (flags2 != 0 && aura.aura_interrupt_flags2 & flags2 != 0)
-            })
-            .map(|aura| aura.slot)
-            .collect();
+        let slots = wow_entities::AuraSubsystem::runtime_slots_with_interrupt_flags(
+            &visible_auras, flags, flags2,
+        );
 
         let removed = slots.len();
         for slot in slots {
@@ -874,15 +726,9 @@ impl WorldSession {
         }
 
         // Collect expired slots (avoid borrow conflict)
-        let expired: Vec<u8> = visible_auras
-            .values()
-            .filter(|a| {
-                // Permanent auras (duration_total == 0) never expire
-                a.duration_total > 0
-                    && a.applied_at.elapsed().as_millis() as u32 >= a.duration_total
-            })
-            .map(|a| a.slot)
-            .collect();
+        let expired = wow_entities::AuraSubsystem::expired_runtime_slots(
+            &visible_auras, |applied_at| applied_at.elapsed().as_millis(),
+        );
 
         for slot in expired {
             let spell_id = visible_auras.get(&slot).map(|a| a.spell_id).unwrap_or(0);
@@ -912,17 +758,9 @@ impl WorldSession {
         &mut self,
     ) -> Option<usize> {
         let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
-        let slots: Vec<u8> = visible_auras
-            .iter()
-            .filter_map(|(slot, aura)| {
-                matches!(
-                    aura.represented_effect,
-                    Some(RepresentedAuraEffectLikeCpp::Stealth)
-                        | Some(RepresentedAuraEffectLikeCpp::Invisibility)
-                )
-                .then_some(*slot)
-            })
-            .collect();
+        let slots = wow_entities::AuraSubsystem::runtime_stealth_or_invisibility_slots(
+            &visible_auras,
+        );
         let removed = slots.len();
         for slot in slots {
             let _ = self.remove_aura(slot);
@@ -930,3 +768,7 @@ impl WorldSession {
         Some(removed)
     }
 }
+
+#[cfg(test)]
+#[path = "aura_application_tests.rs"]
+mod tests;

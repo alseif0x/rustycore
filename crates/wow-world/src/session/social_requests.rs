@@ -6,6 +6,8 @@
 
 use super::{ObjectGuid, PowerType, WorldSession};
 
+mod petition_trace;
+
 pub(in crate::session) fn party_member_power_kind_from_u8_like_cpp(power: u8) -> PowerType {
     match power {
         1 => PowerType::Rage,

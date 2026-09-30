@@ -6,7 +6,12 @@ validación final). **Autoridad:** macro #1233 bajo #584; el plan técnico gener
 presupuestos y la secuencia de esta rebanada. **No reclama** paridad, ahorro de build ni cierre
 de issue.
 
-Base medida: `3.4.3` @ `9daa13f6`. Trabajo en la rama `584-wow-world-distribution`.
+Base histórica medida: `3.4.3` @ `9daa13f6`; la rama de aquella medición fue
+`584-wow-world-distribution`. La continuación vigente de #1233/#584 está en
+`584-map-manager-domain`; su estado y límites se mantienen en
+[workspace-structure-programme.md](workspace-structure-programme.md#estado-de-continuacion).
+Las cifras y el estado de §7 son históricos; los objetivos de distribución
+siguen abiertos hasta demostrar su cumplimiento en el candidato actual.
 
 El estándar estructural que gobierna estos cortes —capas, nombres, visibilidad, colocación de
 tests, presupuestos y checklist de cambios— es
@@ -116,8 +121,9 @@ wow-<dominio>/src/
 
 ## 4. Fases
 
-Cada fase es un commit coherente en la misma rama, con el compilador como feedback
-(`cargo check -p <crate>`, `CARGO_BUILD_JOBS=1`) y sin campañas intermedias.
+Cada fase conserva un checkpoint coherente en la misma rama. Durante la barrida
+completa autorizada también se difiere el feedback del compilador de los workers;
+se escriben las pruebas y se migran los consumidores antes de la campaña final única.
 
 | fase | alcance | salida verificable | tipo |
 |---|---|---|---|

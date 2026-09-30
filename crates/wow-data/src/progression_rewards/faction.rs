@@ -1,59 +1,18 @@
-//! Faction packets.
+//! Faction schemas and DB2 loaders.
 //!
 //! Separated from progression_rewards.rs under #691.
 
 use super::*;
+
+pub use wow_data_model::reputation::{
+    FactionEntry, FriendshipRepReactionEntry, ParagonReputationEntry,
+};
 
 pub const FACTION_TEMPLATE_FLAG_CONTESTED_GUARD_LIKE_CPP: u16 = 0x0000_1000;
 
 pub const FACTION_TEMPLATE_FLAG_HOSTILE_BY_DEFAULT_LIKE_CPP: u16 = 0x0000_2000;
 
 pub const FACTION_MASK_PLAYER_LIKE_CPP: u8 = 0x01;
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct FactionEntry {
-    pub id: u32,
-    pub reputation_race_mask: [i64; 4],
-    pub reputation_index: i16,
-    pub parent_faction_id: u16,
-    pub friendship_rep_id: u8,
-    pub flags: i32,
-    pub paragon_faction_id: u16,
-    pub renown_faction_id: i32,
-    pub renown_currency_id: i32,
-    pub reputation_class_mask: [i16; 4],
-    pub reputation_flags: [u16; 4],
-    pub reputation_base: [i32; 4],
-    pub reputation_max: [i32; 4],
-    pub parent_faction_mod: [f32; 2],
-    pub parent_faction_cap: [u8; 2],
-}
-
-impl FactionEntry {
-    pub const fn for_test_like_cpp(id: u32, reputation_index: i16) -> Self {
-        Self {
-            id,
-            reputation_race_mask: [0; 4],
-            reputation_index,
-            parent_faction_id: 0,
-            friendship_rep_id: 0,
-            flags: 0,
-            paragon_faction_id: 0,
-            renown_faction_id: 0,
-            renown_currency_id: 0,
-            reputation_class_mask: [0; 4],
-            reputation_flags: [0; 4],
-            reputation_base: [0; 4],
-            reputation_max: [0; 4],
-            parent_faction_mod: [0.0; 2],
-            parent_faction_cap: [0; 2],
-        }
-    }
-
-    pub const fn can_have_reputation_like_cpp(&self) -> bool {
-        self.reputation_index >= 0
-    }
-}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FactionTemplateEntry {
@@ -119,27 +78,11 @@ impl FactionTemplateEntry {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct FriendshipRepReactionEntry {
-    pub id: u32,
-    pub reaction: String,
-    pub friendship_rep_id: u8,
-    pub reaction_threshold: u16,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct FriendshipReputationEntry {
     pub id: u32,
     pub description: String,
     pub field_34146722002: i32,
     pub field_34146722003: i32,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ParagonReputationEntry {
-    pub id: u32,
-    pub faction_id: i32,
-    pub level_threshold: i32,
-    pub quest_id: i32,
 }
 
 impl FactionStore {

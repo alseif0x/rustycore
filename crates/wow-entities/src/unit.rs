@@ -19,7 +19,11 @@ use crate::{
 mod ops_1;
 mod ops_2;
 mod ops_3;
+mod power_effects;
 mod state;
+mod visibility;
+pub use visibility::UnitVisibilityTargetFacts;
+pub use power_effects::{SpellPowerAmount, SpellPowerGain};
 #[allow(unused_imports)]
 pub use ops_1::*;
 #[allow(unused_imports)]

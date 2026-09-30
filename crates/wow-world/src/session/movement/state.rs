@@ -234,6 +234,13 @@ impl WorldSession {
         map_id: u16,
         position: wow_core::Position,
     ) {
+        if self.character_lifecycle_fixture_mode()
+            && self.player_handle_like_cpp.is_some()
+            && self.with_owned_player_like_cpp(|_| ()).is_none()
+        {
+            return;
+        }
+
         if self.player_map_id_like_cpp() != map_id {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
@@ -742,8 +749,9 @@ impl WorldSession {
         &self,
         movement_info: &mut wow_packet::packets::movement::MovementInfo,
     ) -> wow_anticheat::ValidationResult {
-        wow_anticheat::validate_movement_info(
-            movement_info,
+        wow_anticheat::validate_movement_flags(
+            &mut movement_info.flags,
+            movement_info.step_up_start_elevation,
             &wow_anticheat::PlayerState {
                 // Fixed-position is an authorization proof. An unresolved
                 // Player must not preserve a client-supplied ROOT flag.

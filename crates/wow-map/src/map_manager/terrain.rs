@@ -360,18 +360,14 @@ pub fn zone_and_area_for_position_like_cpp(
     map_id: u32,
     x: f32,
     y: f32,
-    area_store: Option<&wow_data::AreaTableStore>,
+    subzone_parent_lookup: impl FnOnce(u32) -> Option<u32>,
     map_area_id_fallback: impl FnOnce(u32) -> u32,
 ) -> io::Result<(u32, u32)> {
     let area_id = terrain_grid_area_id_for_position_like_cpp(data_dir, map_id, x, y)?
         .filter(|area_id| *area_id != 0)
         .unwrap_or_else(|| map_area_id_fallback(map_id));
 
-    let zone_id = area_store
-        .and_then(|store| store.get(area_id))
-        .filter(|area| area.parent_area_id != 0 && area.is_subzone_like_cpp())
-        .map(|area| u32::from(area.parent_area_id))
-        .unwrap_or(area_id);
+    let zone_id = subzone_parent_lookup(area_id).unwrap_or(area_id);
 
     Ok((zone_id, area_id))
 }
@@ -468,6 +464,19 @@ impl LiveTerrainHeights {
                 wow_entities::LineOfSightOptions::default(),
             ),
         )
+    }
+
+    /// Resolve the original Aggro object-query endpoints outside the map guard.
+    /// Only the already-owned caller facts accompany the two shaped endpoints.
+    pub(crate) fn resolve_aggro_los(
+        &self, map_id: u32, source: &wow_entities::WorldObject,
+        from: wow_entities::LineOfSightEndpoint, to: wow_entities::LineOfSightEndpoint,
+    ) -> bool {
+        let mut query = wow_entities::LineOfSightQuery::to_position_like_cpp(
+            source, to.position, wow_entities::LineOfSightOptions::default());
+        query.from = from;
+        query.to = to;
+        self.terrain_for_map(map_id).line_of_sight(query)
     }
 }
 

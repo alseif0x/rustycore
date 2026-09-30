@@ -103,7 +103,3 @@ pub(super) fn default_character_power1_like_cpp(class: u8, mana: u32) -> u32 {
         _ => mana,
     }
 }
-
-#[cfg(test)]
-#[path = "creation_support_tests.rs"]
-mod rule_tests;

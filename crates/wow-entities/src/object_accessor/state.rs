@@ -266,6 +266,18 @@ pub(super) enum MapObjectBody {
 
 impl MapObjectRecord {
     pub fn new(kind: AccessorObjectKind, object: WorldObject) -> Result<Self, ObjectAccessorError> {
+        Self::validate_world_object(kind, &object)?;
+        Ok(Self {
+            kind,
+            body: MapObjectBody::WorldObject(object),
+        })
+    }
+
+    /// Validate an existing owned object's borrowed identity before admission.
+    pub fn validate_world_object(
+        kind: AccessorObjectKind,
+        object: &WorldObject,
+    ) -> Result<(), ObjectAccessorError> {
         if !object.has_current_map() {
             return Err(ObjectAccessorError::ObjectHasNoMap {
                 guid: object.guid(),
@@ -284,10 +296,7 @@ impl MapObjectRecord {
             });
         }
 
-        Ok(Self {
-            kind,
-            body: MapObjectBody::WorldObject(object),
-        })
+        Ok(())
     }
 
     pub fn new_game_object(game_object: GameObject) -> Result<Self, ObjectAccessorError> {
@@ -566,6 +575,17 @@ impl MapObjectRecord {
     pub fn into_player(self) -> Result<Box<Player>, Self> {
         match self.body {
             MapObjectBody::Player(player) => Ok(player),
+            body => Err(Self {
+                kind: self.kind,
+                body,
+            }),
+        }
+    }
+
+    /// Move the complete Creature out of its owned record without cloning it.
+    pub fn into_creature(self) -> Result<Creature, Self> {
+        match self.body {
+            MapObjectBody::Creature(creature) => Ok(*creature),
             body => Err(Self {
                 kind: self.kind,
                 body,

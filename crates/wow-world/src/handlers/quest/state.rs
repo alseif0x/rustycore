@@ -15,8 +15,6 @@ impl WorldSession {
         self.invalidate_player_quest_status_authority_like_cpp();
         let Some(old_status) = self.complete_represented_quest_status_like_cpp(
             quest.id,
-            QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            QUEST_STATUS_COMPLETE_LIKE_CPP,
         ) else {
             return false;
         };
@@ -93,15 +91,10 @@ impl WorldSession {
         let Some(state) = self.player_quest_gameplay_snapshot_like_cpp() else {
             return false;
         };
-        let Some(status) = state.statuses_like_cpp().get(&quest.id) else {
-            return false;
-        };
-        let quest_already_rewarded = state.rewarded_quest_ids_like_cpp().contains(&quest.id);
-        if !wow_entities::represented_can_complete_quest_after_objective_like_cpp(
-            status,
-            &quest.objective_rules_like_cpp(),
+        if !state.can_complete_started_quest(
+            quest.id,
             ignored_objective_id,
-            quest_already_rewarded,
+            || quest.objective_rules_like_cpp(),
         ) {
             return false;
         }
@@ -153,20 +146,11 @@ impl WorldSession {
         let Some(state) = self.player_quest_gameplay_snapshot_like_cpp() else {
             return Vec::new();
         };
-        let mut duplicate_quest_ids = state
-            .statuses_like_cpp()
-            .keys()
-            .filter(|quest_id| {
-                let store = self.quests.store.as_ref();
-                state.rewarded_quest_ids_like_cpp().contains(quest_id)
-                    && store
-                        .and_then(|store| store.get(**quest_id))
-                        .is_some_and(|quest| !quest.is_repeatable())
-            })
-            .copied()
-            .collect::<Vec<_>>();
-        duplicate_quest_ids.sort_unstable();
-        duplicate_quest_ids.dedup();
+        let duplicate_quest_ids = state.plan_rewarded_active_duplicates(|quest_id| {
+            self.quests.store.as_ref()
+                .and_then(|store| store.get(quest_id))
+                .map(|quest| quest.is_repeatable())
+        });
 
         if !duplicate_quest_ids.is_empty() {
             self.invalidate_player_quest_status_authority_like_cpp();
@@ -175,21 +159,7 @@ impl WorldSession {
         if !duplicate_quest_ids.is_empty() {
             let duplicate_ids = duplicate_quest_ids.clone();
             let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
-                for quest_id in &duplicate_ids {
-                    state.remove_status_like_cpp(*quest_id);
-                }
-                let mut remaining_slots = state
-                    .statuses_like_cpp()
-                    .iter()
-                    .map(|(quest_id, status)| (*quest_id, status.slot))
-                    .collect::<Vec<_>>();
-                remaining_slots.sort_by_key(|(_, slot)| *slot);
-                for (slot, (quest_id, _)) in remaining_slots.into_iter().enumerate() {
-                    if let Some(status) = state.status_mut_like_cpp(quest_id) {
-                        status.slot = u8::try_from(slot)
-                            .unwrap_or(MAX_QUEST_LOG_SIZE_LIKE_CPP.saturating_sub(1));
-                    }
-                }
+                state.remove_rewarded_active_duplicates(&duplicate_ids);
             });
         }
 
@@ -243,15 +213,9 @@ impl WorldSession {
             quest.accepted_and_end_time_like_cpp(wow_core::GameTime::now().as_secs() as i64);
 
         self.invalidate_player_quest_status_authority_like_cpp();
-        let status = PlayerQuestStatus {
-            quest_id: quest.id,
-            status: QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs,
-            end_time_secs,
-            objective_counts: vec![0; quest.objectives.len()],
-            slot,
-        };
+        let status = wow_entities::PlayerQuestGameplayState::prepare_quest_start(
+            quest.id, slot, accept_time_secs, end_time_secs, quest.objectives.len(),
+        );
         if self.insert_represented_quest_status_like_cpp(quest.id, status) == false {
             return false;
         }
@@ -283,22 +247,9 @@ impl WorldSession {
     }
 
     fn quest_slot_has_active_entry_like_cpp(&self, slot: u8) -> bool {
-        // C++ `QuestSlotOffset` stores the quest id independently from the status fields;
-        // represented active slots are INCOMPLETE, COMPLETE, or FAILED.
         slot < MAX_QUEST_LOG_SIZE_LIKE_CPP
-            && self
-                .player_quest_gameplay_snapshot_like_cpp()
-                .is_some_and(|state| {
-                    state.statuses_like_cpp().values().any(|status| {
-                        status.slot == slot
-                            && matches!(
-                                status.status,
-                                QUEST_STATUS_INCOMPLETE_LIKE_CPP
-                                    | QUEST_STATUS_COMPLETE_LIKE_CPP
-                                    | QUEST_STATUS_FAILED_LIKE_CPP
-                            )
-                    })
-                })
+            && self.player_quest_gameplay_snapshot_like_cpp()
+                .is_some_and(|state| state.slot_has_active_entry(slot))
     }
 
     pub(crate) fn get_quest_slot_quest_id_like_cpp(&self, slot: u8) -> Option<u32> {
@@ -306,41 +257,11 @@ impl WorldSession {
             return None;
         }
 
-        let state = self.player_quest_gameplay_snapshot_like_cpp()?;
-        let mut matching_quest_id = None;
-        for status in state.statuses_like_cpp().values().filter(|status| {
-            status.slot == slot
-                && matches!(
-                    status.status,
-                    QUEST_STATUS_INCOMPLETE_LIKE_CPP
-                        | QUEST_STATUS_COMPLETE_LIKE_CPP
-                        | QUEST_STATUS_FAILED_LIKE_CPP
-                )
-        }) {
-            if matching_quest_id.is_some() {
-                return None;
-            }
-
-            matching_quest_id = Some(status.quest_id);
-        }
-
-        matching_quest_id
+        self.player_quest_gameplay_snapshot_like_cpp()?.quest_id_at_slot(slot)
     }
 
     pub(crate) fn find_quest_slot_like_cpp(&self, quest_id: u32) -> Option<u8> {
-        self.player_quest_gameplay_snapshot_like_cpp()?
-            .statuses_like_cpp()
-            .get(&quest_id)
-            .and_then(|status| {
-                (status.slot < MAX_QUEST_LOG_SIZE_LIKE_CPP
-                    && matches!(
-                        status.status,
-                        QUEST_STATUS_INCOMPLETE_LIKE_CPP
-                            | QUEST_STATUS_COMPLETE_LIKE_CPP
-                            | QUEST_STATUS_FAILED_LIKE_CPP
-                    ))
-                .then_some(status.slot)
-            })
+        self.player_quest_gameplay_snapshot_like_cpp()?.slot_for_quest(quest_id)
     }
 
     pub(crate) fn quest_log_create_entries_like_cpp(&self) -> Vec<(u32, u32, i64, [u16; 24])> {
@@ -352,35 +273,11 @@ impl WorldSession {
                 let Some(quest_id) = self.get_quest_slot_quest_id_like_cpp(slot) else {
                     return (0, 0, 0, [0; 24]);
                 };
-                let Some(qs) = state.statuses_like_cpp().get(&quest_id) else {
-                    return (0, 0, 0, [0; 24]);
-                };
-
-                let store = self.quests.store.as_ref();
-                let quest = store.and_then(|store| store.get(qs.quest_id));
-                let mut state_flags: u32 = match qs.status {
-                    QUEST_STATUS_COMPLETE_LIKE_CPP => QUEST_STATE_COMPLETE_LIKE_CPP,
-                    QUEST_STATUS_FAILED_LIKE_CPP => QUEST_STATE_FAIL_LIKE_CPP,
-                    _ => 0,
-                };
-                let mut obj_progress = [0u16; 24];
-                for (i, slot_progress) in obj_progress.iter_mut().enumerate() {
-                    let count = qs.objective_counts.get(i).copied().unwrap_or(0);
-                    let stores_flag = quest.is_some_and(|quest| {
-                        quest.objectives.iter().any(|objective| {
-                            objective.storage_index == i as i8
-                                && objective.is_storing_flag_like_cpp()
-                        })
-                    });
-                    if stores_flag {
-                        if count != 0 {
-                            state_flags |= QUEST_STATE_OBJECTIVE_FLAG_BASE_LIKE_CPP << i;
-                        }
-                        continue;
-                    }
-                    *slot_progress = count.min(u16::MAX as i32) as u16;
-                }
-                (qs.quest_id, state_flags, qs.end_time_secs, obj_progress)
+                state.quest_log_entry(quest_id, |id| {
+                    self.quests.store.as_ref()
+                        .and_then(|store| store.get(id))
+                        .map(|quest| quest.objective_rules_like_cpp())
+                })
             })
             .collect()
     }

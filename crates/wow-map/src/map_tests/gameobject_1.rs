@@ -67,7 +67,7 @@ fn add_to_map_exact_gameobject_preinserts_canonical_store_and_spawn_index_like_c
     assert!(outcome.add_to_map_tail.is_some());
     assert!(
         map.map_object_record(guid)
-            .and_then(MapObjectRecord::game_object)
+            .and_then(|record| record.game_object())
             .is_some()
     );
     assert!(
@@ -92,7 +92,7 @@ fn add_to_map_exact_gameobject_model_collision_and_world_state_mutate_canonical_
 
     let canonical = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert!(canonical.world().object().is_in_world());
     assert!(!canonical.world().object().is_new_object());
@@ -229,7 +229,7 @@ fn gameobject_zone_script_create_precedes_store_insert_like_cpp() {
     );
     assert!(
         map.map_object_record(guid)
-            .and_then(MapObjectRecord::game_object)
+            .and_then(|record| record.game_object())
             .is_some()
     );
     assert!(
@@ -371,7 +371,7 @@ fn gameobject_add_to_owner_registers_owner_list_and_guid_like_cpp() {
 
     let owner = map
         .map_object_record(owner_guid)
-        .and_then(MapObjectRecord::player)
+        .and_then(|record| record.player())
         .unwrap();
     assert_eq!(
         owner.unit().subsystems().control.owned_gameobjects,
@@ -379,7 +379,7 @@ fn gameobject_add_to_owner_registers_owner_list_and_guid_like_cpp() {
     );
     let gameobject = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(gameobject.owner_guid(), owner_guid);
 }
@@ -444,7 +444,7 @@ fn gameobject_add_to_owner_slot_sets_effect_summon_slot_tail_like_cpp() {
     assert!(add_slot.slot_set);
     let owner = map
         .map_object_record(owner_guid)
-        .and_then(MapObjectRecord::player)
+        .and_then(|record| record.player())
         .unwrap();
     assert_eq!(owner.unit().subsystems().control.gameobject_slots[2], guid);
 }
@@ -467,7 +467,7 @@ fn gameobject_add_to_owner_slot_keeps_cpp_guards_visible() {
     assert!(!invalid_slot.slot_set);
     let owner = invalid_slot_map
         .map_object_record(owner_guid)
-        .and_then(MapObjectRecord::player)
+        .and_then(|record| record.player())
         .unwrap();
     assert!(
         owner
@@ -498,7 +498,7 @@ fn gameobject_add_to_owner_slot_keeps_cpp_guards_visible() {
     assert!(!preowned_slot.slot_set);
     let owner = preowned_map
         .map_object_record(owner_guid)
-        .and_then(MapObjectRecord::player)
+        .and_then(|record| record.player())
         .unwrap();
     assert_eq!(
         owner.unit().subsystems().control.gameobject_slots[1],
@@ -554,7 +554,7 @@ fn gameobject_prepare_owner_slot_for_summon_recast_preserves_owner_auras_like_cp
 
     let owner = map
         .map_object_record(owner_guid)
-        .and_then(MapObjectRecord::player)
+        .and_then(|record| record.player())
         .unwrap();
     assert!(
         owner
@@ -571,7 +571,7 @@ fn gameobject_prepare_owner_slot_for_summon_recast_preserves_owner_auras_like_cp
     assert!(owner.unit().subsystems().auras.has_applied(recast_aura));
     let gameobject = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(gameobject.owner_guid(), ObjectGuid::EMPTY);
     assert_eq!(gameobject.spell_id(), 0);
@@ -617,7 +617,7 @@ fn gameobject_prepare_owner_slot_for_summon_different_spell_removes_old_aura_lik
 
     let owner = map
         .map_object_record(owner_guid)
-        .and_then(MapObjectRecord::player)
+        .and_then(|record| record.player())
         .unwrap();
     assert!(!owner.unit().subsystems().auras.has_applied(old_aura));
     assert_eq!(
@@ -656,7 +656,7 @@ fn gameobject_prepare_owner_slot_for_summon_clears_missing_guid_without_delete_l
     assert_eq!(map.objects_to_remove_count_like_cpp(), 0);
     let owner = map
         .map_object_record(owner_guid)
-        .and_then(MapObjectRecord::player)
+        .and_then(|record| record.player())
         .unwrap();
     assert_eq!(
         owner.unit().subsystems().control.gameobject_slots[3],
@@ -708,14 +708,14 @@ fn gameobject_prepare_owner_slot_for_summon_owner_mismatch_keeps_object_like_cpp
 
     let gameobject = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(gameobject.owner_guid(), other_owner_guid);
     assert_eq!(gameobject.spell_id(), 0);
     assert_eq!(gameobject.respawn_time(), 90);
     let owner = map
         .map_object_record(owner_guid)
-        .and_then(MapObjectRecord::player)
+        .and_then(|record| record.player())
         .unwrap();
     assert_eq!(
         owner.unit().subsystems().control.gameobject_slots[2],
@@ -767,7 +767,7 @@ fn gameobject_summon_object_for_owner_slot_creates_adds_and_slots_like_cpp() {
 
     let owner = map
         .map_object_record(owner_guid)
-        .and_then(MapObjectRecord::player)
+        .and_then(|record| record.player())
         .unwrap();
     assert_eq!(owner.unit().subsystems().control.gameobject_slots[1], guid);
     assert_eq!(
@@ -776,7 +776,7 @@ fn gameobject_summon_object_for_owner_slot_creates_adds_and_slots_like_cpp() {
     );
     let gameobject = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(gameobject.owner_guid(), owner_guid);
     assert_eq!(gameobject.spell_id(), 4822010);

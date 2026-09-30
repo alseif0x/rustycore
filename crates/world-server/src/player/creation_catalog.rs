@@ -378,20 +378,39 @@ mod tests {
 
     #[test]
     fn app_composes_one_adapter_and_keeps_the_three_existing_publication_points() {
-        let source = include_str!("../app.rs");
+        let app_source = include_str!("../app.rs");
+        let startup_source = include_str!("../app/player_creation_startup.rs");
+        let continuation = include_str!("../app/world_startup.rs");
+        let delegation = "world_startup::run_world_startup(";
+        assert_eq!(app_source.matches(delegation).count(), 1);
+        assert!(app_source.find("MariaDbPlayerCreationCatalogPersistenceAdapterLikeCpp::new").unwrap()
+            < app_source.find(delegation).unwrap());
+        assert_eq!(app_source[app_source.find(delegation).unwrap()..]
+            .split_once(".await").unwrap().0.matches("&player_creation_catalog_persistence,").count(), 1);
+        let phase = "player_creation_startup::load_player_creation_startup(";
+        assert_eq!(continuation.matches(phase).count(), 1);
+        assert_eq!(continuation[continuation.find(phase).unwrap()..]
+            .split_once(".await").unwrap().0.matches("player_creation_catalog_persistence,").count(), 1);
+
         assert_eq!(
-            source
+            app_source
                 .matches("MariaDbPlayerCreationCatalogPersistenceAdapterLikeCpp::new")
                 .count(),
             1
         );
-        let base = source
+        assert_eq!(
+            continuation
+                .matches("load_player_creation_startup")
+                .count(),
+            1
+        );
+        let base = startup_source
             .find("load_player_create_info_store_like_cpp")
             .unwrap();
-        let cast = source
+        let cast = startup_source
             .find("load_player_create_cast_spell_store_like_cpp")
             .unwrap();
-        let custom = source
+        let custom = startup_source
             .find("load_player_create_custom_spell_store_like_cpp")
             .unwrap();
         assert!(base < cast && cast < custom);

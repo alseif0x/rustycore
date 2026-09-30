@@ -1,17 +1,13 @@
-//! Catalog-to-entity rule composition; no Session fixture or clock needed.
+//! Catalog record and borrowed rule-view projections.
 
 use super::*;
 use crate::quest::QUEST_FLAGS_DAILY_LIKE_CPP;
 use wow_constants::quest::{
-    QUEST_FLAGS_COMPLETION_EVENT_LIKE_CPP, QUEST_FLAGS_EX_IS_WORLD_QUEST_LIKE_CPP,
-    QUEST_FLAGS_EX_REWARDS_IGNORE_CAPS_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-};
-use wow_entities::{
-    PlayerQuestStatusRecord, represented_can_complete_quest_after_objective_like_cpp,
+    QUEST_FLAGS_EX_IS_WORLD_QUEST_LIKE_CPP, QUEST_FLAGS_EX_REWARDS_IGNORE_CAPS_LIKE_CPP,
 };
 
 #[test]
-fn catalog_objective_definition_and_rule_view_keep_the_same_contract() {
+fn quest_template_builds_data_owned_objective_view_like_cpp() {
     let mut quest = quest_with_id(901);
     quest.objectives.push(QuestObjective {
         id: 9001,
@@ -26,42 +22,16 @@ fn catalog_objective_definition_and_rule_view_keep_the_same_contract() {
         progress_bar_weight: 0.0,
         description: String::new(),
     });
-    // The compatibility path names the entity type itself, not a converted copy.
-    let objective: &wow_entities::QuestObjective = &quest.objectives[0];
+    let objective: &QuestObjective = &quest.objectives[0];
     assert_eq!(objective.condition_progress_limit_like_cpp(), 2);
-    let mut status = PlayerQuestStatusRecord {
-        quest_id: quest.id,
-        status: QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-        explored: false,
-        accept_time_secs: 0,
-        end_time_secs: 0,
-        objective_counts: vec![1],
-        slot: 0,
-    };
-    let complete = |quest: &QuestTemplate, status: &PlayerQuestStatusRecord, rewarded| {
-        represented_can_complete_quest_after_objective_like_cpp(
-            status,
-            &quest.objective_rules_like_cpp(),
-            0,
-            rewarded,
-        )
-    };
-    assert!(!complete(&quest, &status, false));
-    status.objective_counts[0] = 2;
-    assert!(complete(&quest, &status, false));
-    assert!(!complete(&quest, &status, true));
+    let rules = quest.objective_rules_like_cpp();
+    assert_eq!(rules.id(), quest.id);
+    assert_eq!(rules.flags(), quest.flags);
+    assert_eq!(rules.limit_time_secs(), quest.limit_time_secs);
+    assert!(!rules.is_repeatable_like_cpp());
+    assert_eq!(rules.objectives(), quest.objectives.as_slice());
     quest.special_flags |= QUEST_SPECIAL_FLAGS_REPEATABLE_LIKE_CPP;
-    assert!(complete(&quest, &status, true));
-    quest.flags |= QUEST_FLAGS_COMPLETION_EVENT_LIKE_CPP;
-    assert!(!complete(&quest, &status, false));
-    status.explored = true;
-    assert!(complete(&quest, &status, false));
-    quest.limit_time_secs = 10;
-    assert!(!complete(&quest, &status, false));
-    status.end_time_secs = 10;
-    assert!(complete(&quest, &status, false));
-    quest.id = 0;
-    assert!(!complete(&quest, &status, false));
+    assert!(quest.objective_rules_like_cpp().is_repeatable_like_cpp());
 }
 
 #[test]

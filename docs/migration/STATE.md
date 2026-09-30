@@ -1,6 +1,6 @@
 # RustyCore — Honest Current State (single source of truth)
 
-**Continuación del trabajo estructural:** el [estado vigente del programa de workspace](../architecture/workspace-structure-programme.md#31-estado-de-continuacion-2026-09-28)
+**Continuación del trabajo estructural:** el [estado vigente del programa de workspace](../architecture/workspace-structure-programme.md#estado-de-continuacion)
 registra la rama de trabajo, revisión B5/B6, límites de evidencia y siguiente paso. Consultarlo
 antes de retomar; las entradas fechadas de integración siguientes conservan su alcance histórico.
 

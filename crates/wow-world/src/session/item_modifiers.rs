@@ -183,7 +183,7 @@ pub(in crate::session) struct RepresentedScalingStatContextLikeCpp {
     pub(in crate::session) is_two_hand: bool,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedCombatStatRecalculationLikeCpp {
     Expertise { attack: WeaponAttackType },
@@ -227,11 +227,7 @@ pub(in crate::session) fn is_represented_bag_slot(slot: u8) -> bool {
 }
 
 pub(in crate::session) fn player_class_mask_for_transmog_like_cpp(class_id: u8) -> u32 {
-    if class_id == 0 || class_id > 32 {
-        0
-    } else {
-        1_u32 << u32::from(class_id - 1)
-    }
+    wow_entities::PlayerCollectionStateLikeCpp::appearance_class_mask(class_id)
 }
 
 pub(in crate::session) fn player_class_mask_for_talent_like_cpp(class_id: u8) -> Option<u32> {
@@ -243,31 +239,7 @@ pub(in crate::session) fn player_class_mask_for_talent_like_cpp(class_id: u8) ->
 }
 
 pub(in crate::session) fn player_class_by_armor_subclass_like_cpp(subclass: u32) -> u32 {
-    match subclass {
-        x if x == ItemSubClassArmor::Miscellaneous as u32 => 0x0FFF,
-        x if x == ItemSubClassArmor::Cloth as u32 => {
-            (1 << (5 - 1)) | (1 << (8 - 1)) | (1 << (9 - 1))
-        }
-        x if x == ItemSubClassArmor::Leather as u32 => {
-            (1 << (4 - 1)) | (1 << (10 - 1)) | (1 << (11 - 1)) | (1 << (12 - 1))
-        }
-        x if x == ItemSubClassArmor::Mail as u32 => (1 << (3 - 1)) | (1 << (7 - 1)),
-        x if x == ItemSubClassArmor::Plate as u32 => {
-            (1 << (1 - 1)) | (1 << (2 - 1)) | (1 << (6 - 1))
-        }
-        x if x == ItemSubClassArmor::Cosmetic as u32 => 0x0FFF,
-        x if x == ItemSubClassArmor::Shield as u32 => {
-            (1 << (1 - 1)) | (1 << (2 - 1)) | (1 << (7 - 1))
-        }
-        x if x == ItemSubClassArmor::Libram as u32 => 1 << (2 - 1),
-        x if x == ItemSubClassArmor::Idol as u32 => 1 << (11 - 1),
-        x if x == ItemSubClassArmor::Totem as u32 => 1 << (7 - 1),
-        x if x == ItemSubClassArmor::Sigil as u32 => 1 << (6 - 1),
-        x if x == ItemSubClassArmor::Relic as u32 => {
-            (1 << (2 - 1)) | (1 << (6 - 1)) | (1 << (7 - 1)) | (1 << (11 - 1))
-        }
-        _ => 0,
-    }
+    wow_entities::PlayerCollectionStateLikeCpp::appearance_armor_class_mask(subclass)
 }
 
 impl WorldSession {

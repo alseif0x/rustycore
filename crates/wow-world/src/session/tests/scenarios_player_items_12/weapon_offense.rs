@@ -30,18 +30,12 @@ async fn expertise_aura_modifiers_filter_by_weapon_fit_like_cpp() {
     ));
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
     session.set_loaded_player_identity_like_cpp(571, 1, 5, 80, 0);
-    session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
-        id: weapon_id,
-        class_id: ItemClass::Weapon as u8,
-        subclass_id: ItemSubClassWeapon::Axe as u8,
-        material: 0,
-        inventory_type: InventoryType::WeaponMainhand as i8,
-        sheathe_type: 0,
-        random_select: 0,
-        random_suffix_group_id: 0,
-        scaling_stat_distribution_id: 0,
-        scaling_stat_value: 0,
-    }])));
+    session.set_item_store(Arc::new(ItemStore::from_records([represented_test_item_record_like_cpp(
+        weapon_id,
+        InventoryType::WeaponMainhand,
+        ItemClass::Weapon,
+        ItemSubClassWeapon::Axe as u8,
+    )])));
     session.set_item_stats_store(Arc::new(ItemStatsStore::from_parts(
         [(
             weapon_id,
@@ -192,30 +186,18 @@ async fn weapon_damage_pct_follows_update_damage_pct_done_mods_like_cpp() {
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
     session.set_item_store(Arc::new(ItemStore::from_records([
-        ItemRecord {
-            id: mainhand_id,
-            class_id: ItemClass::Weapon as u8,
-            subclass_id: ItemSubClassWeapon::Sword as u8,
-            material: 0,
-            inventory_type: InventoryType::WeaponMainhand as i8,
-            sheathe_type: 0,
-            random_select: 0,
-            random_suffix_group_id: 0,
-            scaling_stat_distribution_id: 0,
-            scaling_stat_value: 0,
-        },
-        ItemRecord {
-            id: offhand_id,
-            class_id: ItemClass::Weapon as u8,
-            subclass_id: ItemSubClassWeapon::Dagger as u8,
-            material: 0,
-            inventory_type: InventoryType::WeaponOffhand as i8,
-            sheathe_type: 0,
-            random_select: 0,
-            random_suffix_group_id: 0,
-            scaling_stat_distribution_id: 0,
-            scaling_stat_value: 0,
-        },
+        represented_test_item_record_like_cpp(
+            mainhand_id,
+            InventoryType::WeaponMainhand,
+            ItemClass::Weapon,
+            ItemSubClassWeapon::Sword as u8,
+        ),
+        represented_test_item_record_like_cpp(
+            offhand_id,
+            InventoryType::WeaponOffhand,
+            ItemClass::Weapon,
+            ItemSubClassWeapon::Dagger as u8,
+        ),
     ])));
     session.set_item_stats_store(Arc::new(ItemStatsStore::from_parts(
         [
@@ -397,18 +379,12 @@ async fn weapon_fit_resolves_the_ranged_weapon_like_cpp() {
     ));
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
     session.set_loaded_player_identity_like_cpp(571, 1, 3, 80, 0);
-    session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
-        id: bow_id,
-        class_id: ItemClass::Weapon as u8,
-        subclass_id: ItemSubClassWeapon::Bow as u8,
-        material: 0,
-        inventory_type: InventoryType::Ranged as i8,
-        sheathe_type: 0,
-        random_select: 0,
-        random_suffix_group_id: 0,
-        scaling_stat_distribution_id: 0,
-        scaling_stat_value: 0,
-    }])));
+    session.set_item_store(Arc::new(ItemStore::from_records([represented_test_item_record_like_cpp(
+        bow_id,
+        InventoryType::Ranged,
+        ItemClass::Weapon,
+        ItemSubClassWeapon::Bow as u8,
+    )])));
     session.set_item_stats_store(Arc::new(ItemStatsStore::from_parts(
         [(
             bow_id,
@@ -557,18 +533,12 @@ async fn weapon_enchant_damage_adds_flat_and_shaman_totem_scaling_like_cpp() {
             0,
         );
         session.set_loaded_player_identity_like_cpp(571, 1, class, 80, 0);
-        session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
-            id: weapon_id,
-            class_id: ItemClass::Weapon as u8,
-            subclass_id: ItemSubClassWeapon::Sword as u8,
-            material: 0,
-            inventory_type: InventoryType::WeaponMainhand as i8,
-            sheathe_type: 0,
-            random_select: 0,
-            random_suffix_group_id: 0,
-            scaling_stat_distribution_id: 0,
-            scaling_stat_value: 0,
-        }])));
+        session.set_item_store(Arc::new(ItemStore::from_records([represented_test_item_record_like_cpp(
+            weapon_id,
+            InventoryType::WeaponMainhand,
+            ItemClass::Weapon,
+            ItemSubClassWeapon::Sword as u8,
+        )])));
         session.set_item_stats_store(Arc::new(ItemStatsStore::from_weapon_templates([(
             weapon_id,
             wow_data::ItemWeaponTemplateEntry {

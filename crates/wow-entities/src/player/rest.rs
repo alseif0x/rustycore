@@ -22,6 +22,8 @@
 //! location was never established", a distinction C++ does not need because it
 //! only reads the mask while the Player is in world.
 
+use super::Player;
+
 #[derive(Debug, Clone, PartialEq, Default)]
 pub struct PlayerRestState {
     pub(super) rest_xp: u32,
@@ -296,3 +298,234 @@ impl PlayerRestState {
         self.rest_honor_bonus = rest_honor_bonus;
     }
 }
+
+impl Player {
+    pub fn rest_state_like_cpp(&self) -> &PlayerRestState {
+        &self.gameplay_state().rest
+    }
+
+    pub fn replace_rest_state_like_cpp(&mut self, state: PlayerRestState) {
+        self.gameplay_state_mut().rest = state;
+    }
+
+    /// C++ `RestMgr::SetRestFlag` (`RestMgr.cpp:95-109`) through the
+    /// Player-owned RestMgr state.
+    pub fn set_rest_flag_like_cpp(
+        &mut self,
+        rest_flag: u32,
+        trigger_id: u32,
+        now: impl FnOnce() -> u64,
+    ) -> bool {
+        self.mutate_rest_state_like_cpp(|state| state.set_flag_like_cpp(rest_flag, trigger_id, now))
+    }
+
+    /// C++ `RestMgr::RemoveRestFlag` (`RestMgr.cpp:112-122`) through the
+    /// Player-owned RestMgr state.
+    pub fn remove_rest_flag_like_cpp(&mut self, rest_flag: u32) -> bool {
+        self.mutate_rest_state_like_cpp(|state| state.remove_flag_like_cpp(rest_flag))
+    }
+
+    /// Hold the C++ resting-flag publication until world entry finishes.
+    pub fn defer_rest_flag_sync_like_cpp(&mut self) {
+        self.mutate_rest_state_like_cpp(|state| state.defer_flag_sync_like_cpp());
+    }
+
+    /// Release deferred resting-flag publication and report whether an update
+    /// is owed to the client.
+    pub fn end_deferred_rest_flag_sync_like_cpp(&mut self) -> bool {
+        self.mutate_rest_state_like_cpp(|state| state.end_deferred_flag_sync_like_cpp())
+    }
+
+    /// Record that the deferred resting-flag update was sent.
+    pub fn clear_deferred_rest_flag_update_like_cpp(&mut self) {
+        self.mutate_rest_state_like_cpp(|state| state.clear_deferred_flag_update_like_cpp());
+    }
+
+    /// Take the deferred resting-flag update marker exactly once.
+    pub fn take_deferred_rest_flag_update_dirty_like_cpp(&mut self) -> bool {
+        self.mutate_rest_state_like_cpp(|state| state.take_deferred_flag_update_like_cpp())
+    }
+
+    /// Set the Player-owned RestMgr clock used by online rest accrual.
+    pub fn set_rest_time_secs_like_cpp(&mut self, rest_time_secs: u64) {
+        self.mutate_rest_state_like_cpp(|state| state.set_rest_time_secs_like_cpp(rest_time_secs));
+    }
+
+    /// C++ RestMgr constructor (RestMgr.cpp:26-30) and LoadRestBonus
+    /// (Player.cpp:17693). The caller supplies its validated persisted state.
+    /// Reset transient location state without replacing loaded Player flags or
+    /// unrelated XP/honor/logout state; offline accumulation happens afterward.
+    pub fn load_xp_rest_bonus_like_cpp(&mut self, state_id: u8, bonus: f32) {
+        self.mutate_rest_state_like_cpp(|state| {
+            state.rest_flag_mask = 0;
+            state.location_initialized = false;
+            state.defer_flag_sync = false;
+            state.deferred_flag_update_dirty = false;
+            state.inn_area_trigger_id = 0;
+            state.rest_time_secs = 0;
+            state.rest_state = state_id;
+            state.rest_bonus = bonus;
+        });
+    }
+
+    /// C++ RestMgr::SetRestBonus (RestMgr.cpp:33-80), with the existing
+    /// represented non-finite input and unavailable-next-level-XP guards.
+    /// Policy is borrowed; previous/new rest values and NextLevelXP are local.
+    pub fn set_xp_rest_bonus_like_cpp(
+        &mut self,
+        bonus: f32,
+        at_configured_max_level: bool,
+        raf_linked: bool,
+    ) -> u8 {
+        let next_level_xp = self.active_data().next_level_xp.max(0) as u32;
+        let old = self.rest_state_like_cpp();
+        let old_threshold = old.rest_bonus.clamp(0.0, u32::MAX as f32) as u32;
+        let old_state = old.rest_state;
+        let mut bonus = if bonus.is_finite() { bonus } else { 0.0 };
+        if at_configured_max_level || next_level_xp == 0 || next_level_xp == u32::MAX {
+            bonus = 0.0;
+        }
+        bonus = bonus.clamp(0.0, next_level_xp as f32 * (1.5 / 2.0));
+        let state_id = if raf_linked {
+            6
+        } else if bonus >= 1.0 {
+            1
+        } else {
+            2
+        };
+        self.mutate_rest_state_like_cpp(|state| {
+            state.rest_bonus = bonus;
+            state.rest_state = state_id;
+        });
+        let new_threshold = bonus.clamp(0.0, u32::MAX as f32) as u32;
+        // Both nested fields are published whenever either value changes.
+        if old_threshold != new_threshold || old_state != state_id {
+            0x07
+        } else {
+            0
+        }
+    }
+
+    pub fn add_xp_rest_bonus_like_cpp(
+        &mut self,
+        bonus: f32,
+        at_configured_max_level: bool,
+        raf_linked: bool,
+    ) -> u8 {
+        let total = self.rest_state_like_cpp().rest_bonus + bonus;
+        self.set_xp_rest_bonus_like_cpp(total, at_configured_max_level, raf_linked)
+    }
+
+    /// C++ RestMgr::GetRestBonusFor (RestMgr.cpp:125-138). Preserve Rust's
+    /// represented signed-integer percentage and saturation, not C++ Util.h's
+    /// float CalculatePct conversion for extreme/negative modifiers.
+    pub fn take_xp_rest_bonus_like_cpp(
+        &mut self,
+        xp: u32,
+        consumption_pct: i32,
+        at_configured_max_level: bool,
+        raf_linked: bool,
+    ) -> (u32, u8) {
+        let current = self.rest_state_like_cpp().rest_bonus;
+        let award = (current as u32).min(xp);
+        let adjusted = i64::from(award) + (i64::from(award) * i64::from(consumption_pct)) / 100;
+        let loss = adjusted.clamp(0, i64::from(u32::MAX)) as u32;
+        // Normalize even when the integer award is zero, like SetRestBonus.
+        let mask = self.set_xp_rest_bonus_like_cpp(
+            current - loss as f32,
+            at_configured_max_level,
+            raf_linked,
+        );
+        (award, mask)
+    }
+
+    /// C++ RestMgr::CalcExtraPerSec (RestMgr.cpp:162-174), retaining the
+    /// represented unavailable-next-level and configured-maximum guards.
+    fn xp_rest_extra_per_sec_like_cpp(&self, bubble: f32, at_max: bool) -> f32 {
+        let next = self.active_data().next_level_xp.max(0) as u32;
+        if at_max || next == 0 || next == u32::MAX {
+            return 0.0;
+        }
+        next as f32 / 72_000.0 * bubble
+    }
+
+    /// C++ Player.cpp:17892-17901. Preserve #81's rejection of zero/future
+    /// logout timestamps and return the computed extra, not the capped balance.
+    pub fn apply_offline_xp_rest_bonus_like_cpp(
+        &mut self,
+        logout: u64,
+        now: u64,
+        bubble: f32,
+        at_max: bool,
+        raf: bool,
+    ) -> f32 {
+        if logout == 0 {
+            return 0.0;
+        }
+        let Some(diff) = now.checked_sub(logout) else {
+            return 0.0;
+        };
+        if diff == 0 {
+            return 0.0;
+        }
+        let extra = diff as f32 * self.xp_rest_extra_per_sec_like_cpp(bubble, at_max);
+        self.add_xp_rest_bonus_like_cpp(extra, at_max, raf);
+        extra
+    }
+
+    /// C++ RestMgr::Update (RestMgr.cpp:141-153), after the caller's existing
+    /// random gate. Timer and bonus belong to this same Player mutation.
+    pub fn update_online_xp_rest_bonus_like_cpp(
+        &mut self,
+        now: u64,
+        bubble: f32,
+        at_max: bool,
+        raf: bool,
+    ) -> (f32, u8) {
+        let rest_time = self.rest_state_like_cpp().rest_time_secs;
+        if rest_time == 0 {
+            return (0.0, 0);
+        }
+        let Some(diff) = now.checked_sub(rest_time) else {
+            return (0.0, 0);
+        };
+        if diff < 10 {
+            return (0.0, 0);
+        }
+        self.mutate_rest_state_like_cpp(|state| state.rest_time_secs = now);
+        let extra = diff as f32 * self.xp_rest_extra_per_sec_like_cpp(bubble, at_max);
+        let mask = self.add_xp_rest_bonus_like_cpp(extra, at_max, raf);
+        (extra, mask)
+    }
+
+    /// Mutate this Player's RestMgr state and refresh its represented fields.
+    /// C++ RestMgr.cpp:65-80,95-122 keeps rest values and flags on one Player.
+    /// Preserve the Rust load boundary: do not normalize flags until location
+    /// initialization, and keep the existing threshold clamp/update-mask rules.
+    pub fn mutate_rest_state_like_cpp<R>(
+        &mut self,
+        f: impl FnOnce(&mut PlayerRestState) -> R,
+    ) -> R {
+        let state = &mut self.gameplay_state_mut().rest;
+        let result = f(state);
+        let threshold = state.rest_bonus.clamp(0.0, u32::MAX as f32) as u32;
+        let state_id = state.rest_state;
+        let resting = state
+            .location_initialized
+            .then_some(state.rest_flag_mask != 0);
+        self.set_xp_rest_info_like_cpp(threshold, state_id);
+        if let Some(resting) = resting {
+            let resting_flag = 0x0000_0020; // C++ PLAYER_FLAGS_RESTING.
+            if resting {
+                self.set_player_flag(resting_flag);
+            } else {
+                self.remove_player_flag(resting_flag);
+            }
+        }
+        result
+    }
+}
+
+#[cfg(test)]
+#[path = "rest/tests.rs"]
+mod rest_flag_tests;

@@ -14,12 +14,18 @@ pub use crate::player_directory as directory;
 mod dispatch;
 mod driver;
 mod lifecycle;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub(crate) mod lifecycle_fixture_access;
+mod character_lifecycle_fixture_mode;
 pub use lifecycle::PlayerSaveOutcomeLikeCpp;
 mod combat;
 pub(crate) use combat::{CR_ARMOR_PENETRATION_LIKE_CPP, CR_HIT_MELEE_LIKE_CPP};
 mod effect_learning;
 mod instances;
+pub mod canonical_runtime;
 mod legacy_runtime;
+#[cfg(feature = "test-fixtures")]
+pub use legacy_runtime::creature_melee_fixtures;
 use legacy_runtime::*;
 // The legacy tick entry points are called from world-server as
 // `wow_world::session::run_legacy_*`. `legacy_runtime` is private, so the
@@ -144,7 +150,7 @@ mod collection_adapter;
 pub(crate) use collection_adapter::AccountHeirloomSaveRowLikeCpp;
 pub(crate) use collection_adapter::AccountItemAppearanceSavePlanLikeCpp;
 pub(crate) use collection_adapter::AccountTransmogIllusionSavePlanLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use collection_adapter::RepresentedTransmogCriteriaEvent;
 pub(crate) use collection_adapter::{AccountMountSaveRowLikeCpp, AccountToySaveRowLikeCpp};
 use collection_adapter::{DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP, heirloom_bonus_for_flags_like_cpp};
@@ -178,6 +184,8 @@ use creature_aggro_contracts::check_no_gray_aggro_config_like_cpp;
 use creature_aggro_contracts::creature_ai_spell_disable_decision_like_cpp;
 use creature_aggro_contracts::spell_has_no_unrepresented_runtime_hooks_from_authority_like_cpp;
 mod creature_canonical_adapter;
+pub use creature_canonical_adapter::RespawnOwnerTransferError;
+pub use creature_canonical_adapter::CreatureOwnershipTransferError;
 pub(crate) use creature_canonical_adapter::add_canonical_creature_respawn_info_and_remove_map_object_on_map_like_cpp;
 pub(crate) use creature_canonical_adapter::reconcile_creature_loot_authority_mirrors_like_cpp;
 pub(crate) use creature_canonical_adapter::relocate_canonical_creature_map_object_on_map_like_cpp;
@@ -186,8 +194,10 @@ pub(crate) use creature_canonical_adapter::remove_canonical_respawn_time_on_map_
 pub(crate) use creature_canonical_adapter::sync_canonical_creature_entity_on_map_like_cpp;
 mod creature_kill_contracts;
 use creature_kill_contracts::PendingCreatureKillRewardLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use creature_kill_contracts::RepresentedCreatureKillEventLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub(crate) mod creature_kill_fixtures;
 mod creature_movement_adapter;
 use creature_movement_adapter::creature_path_request_like_cpp;
 use creature_movement_adapter::resolve_creature_detour_path_like_cpp;
@@ -302,7 +312,7 @@ mod item_modifiers;
 use item_modifiers::ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP;
 pub(crate) use item_modifiers::InitialLoadedItemModsOutcomeLikeCpp;
 pub(crate) use item_modifiers::LoadedEquippedItemEnchantmentsOutcomeLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use item_modifiers::RepresentedCombatStatRecalculationLikeCpp;
 pub(crate) use item_modifiers::RepresentedItemBonusActionLikeCpp;
 pub(crate) use item_modifiers::RepresentedItemBonusStateLikeCpp;
@@ -327,7 +337,7 @@ pub(crate) use loot_delivery_contracts::DurableItemLootPersistenceTrackerLikeCpp
 pub(crate) use loot_delivery_contracts::DurableLootItemFanoutLikeCpp;
 pub(crate) use loot_delivery_contracts::LootMoneyDeliveryAddressLikeCpp;
 pub(crate) use loot_delivery_contracts::LootMoneyViewerFanoutLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use loot_delivery_contracts::RepresentedLootRollCriteriaEvent;
 pub(crate) use loot_delivery_contracts::loot_money_durable_outcome_like_cpp;
 pub(crate) use loot_delivery_contracts::{RepresentedLootRollState, RepresentedLootRollVote};
@@ -347,15 +357,15 @@ use money_persistence_contracts::RepresentedTalentResetStatePlanLikeCpp;
 use money_persistence_contracts::reconcile_absolute_player_money_commit_like_cpp;
 mod movement_protocol;
 use movement_protocol::PLAYER_BASE_MOVE_SPEED_LIKE_CPP;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use movement_protocol::RepresentedAreaZoneCriteriaLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use movement_protocol::RepresentedTaxiFlightNodeLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use movement_protocol::canonical_taxi_flight_state_like_cpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use movement_protocol::represented_taxi_flight_node_like_cpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use movement_protocol::represented_taxi_flight_state_like_cpp;
 pub(crate) use movement_protocol::{MoveSplineDoneTaxiActionLikeCpp, MovementAckEventLikeCpp};
 #[cfg(test)]
@@ -367,7 +377,7 @@ pub(crate) use movement_protocol::{
     creature_movement_spline_speed_opcode_like_cpp, movement_speed_ack_move_type_like_cpp,
     player_movement_speed_opcodes_like_cpp,
 };
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use movement_protocol::{RepresentedTaxiFlightStateLikeCpp, canonical_taxi_flight_node_like_cpp};
 mod npc_interaction;
 mod persistence_capabilities;
@@ -379,7 +389,7 @@ pub use persistence_capabilities::SessionAdmissionPersistenceLikeCpp;
 pub use persistence_capabilities::SessionPersistencePortsLikeCpp;
 pub use persistence_capabilities::WorldPersistenceCapabilitiesLikeCpp;
 use persistence_capabilities::character_power_snapshot_values_like_cpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use persistence_capabilities::empty_character_power_snapshot_like_cpp;
 use persistence_capabilities::loaded_character_power_snapshot_like_cpp;
 mod pet_dismissal;
@@ -433,7 +443,7 @@ use player_spell_records::RepresentedPlayerSpellRuntimeLikeCpp;
 pub(crate) use player_spell_records::RepresentedPlayerSpellStateLikeCpp;
 use player_spell_records::canonical_player_skill_record_like_cpp;
 use player_spell_records::canonical_player_spell_record_like_cpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use player_spell_records::canonical_player_spell_runtime_like_cpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use player_spell_records::is_non_durable_skill_tombstone_like_cpp;
@@ -471,8 +481,6 @@ pub(crate) use quest_dialog::RepresentedQuestRewardTalentPointsLikeCpp;
 pub(crate) use quest_dialog::ResetSeasonalQuestStatusOutcomeLikeCpp;
 pub(crate) use quest_dialog::ResetSeasonalQuestStatusReasonLikeCpp;
 pub(crate) use quest_dialog::SeasonalQuestStatusDbRowLikeCpp;
-#[cfg(test)]
-use quest_dialog::primary_power_type_for_player_class_like_cpp;
 #[cfg(test)]
 pub(crate) use quest_dialog::RepresentedForceDeselectLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -852,66 +860,38 @@ pub type AreaTriggerScriptDispatcherLikeCpp =
 type GivePlayerXpScriptDispatcherLikeCpp =
     Arc<dyn Fn(wow_script::player::GivePlayerXpContextLikeCpp, &mut u32) + Send + Sync>;
 
-const REST_FLAG_IN_TAVERN_LIKE_CPP: u32 = 0x1;
-const REST_FLAG_IN_CITY_LIKE_CPP: u32 = 0x2;
-const REST_FLAG_IN_FACTION_AREA_LIKE_CPP: u32 = 0x4;
-// C++ `RestMgr::SetRestBonus`: `float(next_level_xp) * 1.5f / 2`.
-#[cfg(test)]
-const REST_BONUS_MAX_NEXT_LEVEL_XP_FACTOR_LIKE_CPP: f32 = 1.5 / 2.0;
-const REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP: f32 = 0.031;
-const REST_OFFLINE_TAVERN_OR_CITY_BUBBLE_LIKE_CPP: f32 = 0.125;
-const REST_ONLINE_INGAME_BUBBLE_LIKE_CPP: f32 = 0.125;
-const DIFFICULTY_NORMAL_LIKE_CPP: u32 = 1;
-const DIFFICULTY_NORMAL_RAID_LIKE_CPP: u32 = 14;
-const DIFFICULTY_10_N_LIKE_CPP: u32 = 3;
-const MAP_INSTANCE_LIKE_CPP: u8 = 1;
-const MAP_RAID_LIKE_CPP: u8 = 2;
-pub(crate) const PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP: u32 = 0x0000_0100;
-const PLAYER_FLAGS_IN_PVP_LIKE_CPP: u32 = 0x0000_0200;
-const PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP: u32 = 0x0002_0000;
-const PLAYER_FLAGS_PVP_TIMER_LIKE_CPP: u32 = 0x0004_0000;
-const PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP: u32 = 0x0800_0000;
-const SPELL_PVP_RULES_ENABLED_LIKE_CPP: i32 = 134_735;
-const LANG_RESET_SPELLS_LIKE_CPP: u32 = 215;
-const LANG_RESET_TALENTS_LIKE_CPP: u32 = 216;
-const LANG_RESET_SPELLS_TEXT_LIKE_CPP: &str = "Your spells have been reset.";
-const LANG_RESET_TALENTS_TEXT_LIKE_CPP: &str = "Your talents have been reset.";
-pub(crate) const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
-const PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP: u32 = 0x0000_0800;
-const AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP: u32 = 0x0000_0010;
-const AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP: u32 = 0x0000_0080;
-const AREA_FLAG_CONTESTED_LIKE_CPP: u32 = 0x0004_0000;
-const AREA_FLAG_COMBAT_ZONE_LIKE_CPP: u32 = 0x0100_0000;
-const CURRENCY_DB_UNUSED_FLAGS_LIKE_CPP: u8 = 0x13;
-pub(crate) type TeleportToOptionsLikeCpp = u32;
-pub(crate) const TELE_TO_NONE_LIKE_CPP: TeleportToOptionsLikeCpp = 0x00;
-#[allow(dead_code)]
-pub(crate) const TELE_TO_GM_MODE_LIKE_CPP: TeleportToOptionsLikeCpp = 0x01;
-#[allow(dead_code)]
-pub(crate) const TELE_TO_NOT_LEAVE_TRANSPORT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x02;
-#[allow(dead_code)]
-pub(crate) const TELE_TO_NOT_LEAVE_COMBAT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x04;
-#[allow(dead_code)]
-pub(crate) const TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP: TeleportToOptionsLikeCpp = 0x08;
-pub(crate) const TELE_TO_SPELL_LIKE_CPP: TeleportToOptionsLikeCpp = 0x10;
-#[allow(dead_code)]
-pub(crate) const TELE_TO_TRANSPORT_TELEPORT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x20;
-#[allow(dead_code)]
-pub(crate) const TELE_REVIVE_AT_TELEPORT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x40;
-pub(crate) const TELE_TO_SEAMLESS_LIKE_CPP: TeleportToOptionsLikeCpp = 0x80;
-const ATTACK_DISPLAY_DELAY_LIKE_CPP_MS: u32 = 200;
-const DEFAULT_PLAYER_COMBAT_REACH_LIKE_CPP: f32 = 1.5;
-const MIN_MELEE_REACH_LIKE_CPP: f32 = 2.0;
-const NOMINAL_MELEE_RANGE_LIKE_CPP: f32 = 5.0;
-const SUMMON_PROPERTIES_ONLY_VISIBLE_TO_SUMMONER_LIKE_CPP: u32 = 0x0000_0010;
-const SUMMON_PROPERTIES_ONLY_VISIBLE_TO_SUMMONER_GROUP_LIKE_CPP: u32 = 0x0001_0000;
-
-const QUEST_MENU_ICON_TURN_IN_LIKE_CPP: u8 = 0;
-const QUEST_MENU_ICON_AVAILABLE_LIKE_CPP: u8 = 2;
-const QUEST_MENU_ICON_COMPLETE_LIKE_CPP: u8 = 4;
-
-const PACKET_SPOOF_BAN_REASON_LIKE_CPP: &str = "DOS (Packet Flooding/Spoofing";
-const PACKET_SPOOF_BAN_AUTHOR_LIKE_CPP: &str = "Server: AutoDOS";
+mod constants;
+use constants::{
+    AREA_FLAG_COMBAT_ZONE_LIKE_CPP, AREA_FLAG_CONTESTED_LIKE_CPP,
+    AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP, AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP,
+    ATTACK_DISPLAY_DELAY_LIKE_CPP_MS, CURRENCY_DB_UNUSED_FLAGS_LIKE_CPP,
+    DEFAULT_PLAYER_COMBAT_REACH_LIKE_CPP, DIFFICULTY_10_N_LIKE_CPP,
+    FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP,
+    FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP,
+    FIRST_LOGIN_START_REPUTATION_HORDE_FACTIONS_LIKE_CPP,
+    FIRST_LOGIN_START_REPUTATION_STANDING_LIKE_CPP,
+    DIFFICULTY_NORMAL_LIKE_CPP, DIFFICULTY_NORMAL_RAID_LIKE_CPP, LANG_RESET_SPELLS_LIKE_CPP,
+    LANG_RESET_SPELLS_TEXT_LIKE_CPP, LANG_RESET_TALENTS_LIKE_CPP,
+    LANG_RESET_TALENTS_TEXT_LIKE_CPP, MAP_INSTANCE_LIKE_CPP, MAP_RAID_LIKE_CPP,
+    MIN_MELEE_REACH_LIKE_CPP, NOMINAL_MELEE_RANGE_LIKE_CPP,
+    PACKET_SPOOF_BAN_AUTHOR_LIKE_CPP, PACKET_SPOOF_BAN_REASON_LIKE_CPP,
+    PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP, PLAYER_FLAGS_IN_PVP_LIKE_CPP,
+    PLAYER_FLAGS_PVP_TIMER_LIKE_CPP, PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP,
+    PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP, QUEST_MENU_ICON_AVAILABLE_LIKE_CPP,
+    QUEST_MENU_ICON_COMPLETE_LIKE_CPP, QUEST_MENU_ICON_TURN_IN_LIKE_CPP,
+    REST_FLAG_IN_CITY_LIKE_CPP, REST_FLAG_IN_FACTION_AREA_LIKE_CPP, REST_FLAG_IN_TAVERN_LIKE_CPP,
+    REST_OFFLINE_TAVERN_OR_CITY_BUBBLE_LIKE_CPP, REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP,
+    REST_ONLINE_INGAME_BUBBLE_LIKE_CPP, SPELL_PVP_RULES_ENABLED_LIKE_CPP,
+    SUMMON_PROPERTIES_ONLY_VISIBLE_TO_SUMMONER_GROUP_LIKE_CPP,
+    SUMMON_PROPERTIES_ONLY_VISIBLE_TO_SUMMONER_LIKE_CPP,
+};
+pub(crate) use constants::{
+    PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP, TELE_REVIVE_AT_TELEPORT_LIKE_CPP,
+    TELE_TO_GM_MODE_LIKE_CPP, TELE_TO_NONE_LIKE_CPP, TELE_TO_NOT_LEAVE_COMBAT_LIKE_CPP,
+    TELE_TO_NOT_LEAVE_TRANSPORT_LIKE_CPP, TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP,
+    TELE_TO_SEAMLESS_LIKE_CPP, TELE_TO_SPELL_LIKE_CPP, TELE_TO_TRANSPORT_TELEPORT_LIKE_CPP,
+    TRADE_STATUS_PLAYER_BUSY_LIKE_CPP, TeleportToOptionsLikeCpp,
+};
 
 use wow_packet::WorldPacket;
 
@@ -996,18 +976,6 @@ pub(crate) use wow_entities::{
     PlayerEquipmentSetUpdateStateLikeCpp as RepresentedEquipmentSetUpdateStateLikeCpp,
     PlayerVoidStorageItemLikeCpp as RepresentedVoidStorageItemLikeCpp,
 };
-
-const FIRST_LOGIN_START_REPUTATION_STANDING_LIKE_CPP: i32 = 42_999;
-const FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP: &[u32] = &[
-    942, 935, 936, 1011, 970, 967, 989, 932, 934, 1038, 1077, 1106, 1104, 1090, 1098, 1156, 1073,
-    1105, 1119, 1091,
-];
-const FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP: &[u32] = &[
-    72, 47, 69, 930, 730, 978, 54, 946, 1037, 1068, 1126, 1094, 1050,
-];
-const FIRST_LOGIN_START_REPUTATION_HORDE_FACTIONS_LIKE_CPP: &[u32] = &[
-    76, 68, 81, 911, 729, 941, 530, 947, 1052, 1067, 1124, 1064, 1085,
-];
 
 const WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP: u8 = 80;
 

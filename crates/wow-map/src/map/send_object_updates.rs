@@ -129,7 +129,7 @@ where
         };
 
         for guid in updated_guids {
-            let Some(record) = self.entity_world.get_mut(&guid) else {
+            let Some(mut record) = self.entity_world.get_mut(&guid) else {
                 summary.missing_or_stale += 1;
                 continue;
             };
@@ -140,7 +140,7 @@ where
 
             match record.kind() {
                 AccessorObjectKind::Player => {
-                    let player = record.player_mut().expect("typed Player record");
+                    let player = record.reborrow().player_mut().expect("typed Player record");
                     let values_update = player.values_update(true);
                     if values_update.has_data() {
                         summary
@@ -153,7 +153,7 @@ where
                     player.clear_data_changes();
                 }
                 AccessorObjectKind::Creature => {
-                    let creature = record.creature_mut().expect("typed Creature record");
+                    let creature = record.reborrow().creature_mut().expect("typed Creature record");
                     let values_update = creature.unit().values_update();
                     if values_update.has_data() {
                         summary
@@ -167,7 +167,7 @@ where
                     creature.clear_data_changes();
                 }
                 AccessorObjectKind::Pet => {
-                    let pet = record.pet_mut().expect("typed Pet record");
+                    let pet = record.reborrow().pet_mut().expect("typed Pet record");
                     let values_update = pet.creature().unit().values_update();
                     if values_update.has_data() {
                         summary
@@ -181,7 +181,7 @@ where
                     pet.creature_mut().clear_data_changes();
                 }
                 AccessorObjectKind::GameObject | AccessorObjectKind::Transport => {
-                    let game_object = record.game_object_mut().expect("typed GameObject record");
+                    let game_object = record.reborrow().game_object_mut().expect("typed GameObject record");
                     let values_update = game_object.values_update();
                     if values_update.has_data() {
                         summary.game_object_values_updates.push(
@@ -194,7 +194,7 @@ where
                     game_object.clear_game_object_data_changes();
                 }
                 AccessorObjectKind::Corpse => {
-                    let corpse = record.corpse_mut().expect("typed Corpse record");
+                    let corpse = record.reborrow().corpse_mut().expect("typed Corpse record");
                     let values_update = corpse.values_update();
                     if values_update.has_data() {
                         summary
@@ -207,7 +207,7 @@ where
                     corpse.clear_corpse_data_changes();
                 }
                 AccessorObjectKind::AreaTrigger => {
-                    let area_trigger = record.area_trigger_mut().expect("typed AreaTrigger record");
+                    let area_trigger = record.reborrow().area_trigger_mut().expect("typed AreaTrigger record");
                     let values_update = area_trigger.values_update();
                     if values_update.has_data() {
                         summary.area_trigger_values_updates.push(
@@ -220,7 +220,7 @@ where
                     area_trigger.clear_area_trigger_data_changes();
                 }
                 AccessorObjectKind::SceneObject => {
-                    let scene_object = record.scene_object_mut().expect("typed SceneObject record");
+                    let scene_object = record.reborrow().scene_object_mut().expect("typed SceneObject record");
                     let values_update = scene_object.values_update();
                     if values_update.has_data() {
                         summary.scene_object_values_updates.push(
@@ -234,6 +234,7 @@ where
                 }
                 AccessorObjectKind::Conversation => {
                     let conversation = record
+                        .reborrow()
                         .conversation_mut()
                         .expect("typed Conversation record");
                     let values_update = conversation.values_update();
@@ -248,7 +249,7 @@ where
                     conversation.clear_conversation_data_changes();
                 }
                 AccessorObjectKind::DynamicObject => {
-                    if let Some(dynamic_object) = record.dynamic_object_mut() {
+                    if let Some(dynamic_object) = record.reborrow().dynamic_object_mut() {
                         let values_update = dynamic_object.values_update();
                         if values_update.has_data() {
                             summary.dynamic_object_values_updates.push(

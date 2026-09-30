@@ -7,25 +7,13 @@
 
 use super::*;
 
-#[cfg(test)]
-#[path = "lifecycle_corpse_tests.rs"]
-mod corpse_tests;
 
-#[cfg(test)]
-#[path = "lifecycle_rename_tests.rs"]
-mod rename_tests;
 
-#[cfg(test)]
-#[path = "lifecycle_customize_tests.rs"]
-mod customize_tests;
 
 #[cfg(test)]
 #[path = "lifecycle_profile_tests.rs"]
 mod profile_tests;
 
-#[cfg(test)]
-#[path = "lifecycle_hearth_tests.rs"]
-mod hearth_tests;
 
 impl WorldSession {
     /// Update the realmcharacters count in the login database.
@@ -865,7 +853,3 @@ impl WorldSession {
         outcome
     }
 }
-
-#[cfg(test)]
-#[path = "lifecycle_map_corpse_tests.rs"]
-mod map_corpse_tests;

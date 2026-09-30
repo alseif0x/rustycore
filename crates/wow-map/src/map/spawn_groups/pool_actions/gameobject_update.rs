@@ -366,7 +366,7 @@ where
             (None, false, false, false)
         } else {
             self.map_object_record(game_object_guid)
-                .and_then(MapObjectRecord::game_object)
+                .and_then(|record| record.game_object())
                 .filter(|game_object| game_object.loot_state() == LootState::JustDeactivated)
                 .map(|game_object| game_object.linked_trap_guid_like_cpp())
                 .map_or((None, false, false, false), |linked_guid| {
@@ -382,7 +382,7 @@ where
                     let linked_trap_exists = self
                         .map_object_record(linked_guid)
                         .filter(|record| record.kind() == AccessorObjectKind::GameObject)
-                        .and_then(MapObjectRecord::game_object)
+                        .and_then(|record| record.game_object())
                         .is_some();
                     if !linked_trap_exists {
                         return (Some(linked_guid), false, false, true);
@@ -444,7 +444,7 @@ where
             if let Some(game_object) = self
                 .entity_world
                 .get_mut(&game_object_guid)
-                .and_then(MapObjectRecord::game_object_mut)
+                .and_then(ObjectMut::game_object_mut)
                 .filter(|game_object| game_object.loot_state() == LootState::JustDeactivated)
                 .filter(|game_object| game_object.data().type_id == GAMEOBJECT_TYPE_GOOBER as i8)
             {
@@ -475,7 +475,7 @@ where
         } else if let Some(game_object) = self
             .entity_world
             .get_mut(&game_object_guid)
-            .and_then(MapObjectRecord::game_object_mut)
+            .and_then(ObjectMut::game_object_mut)
             .filter(|game_object| game_object.loot_state() == LootState::JustDeactivated)
         {
             game_object.clear_loot_like_cpp();
@@ -488,7 +488,7 @@ where
             if let Some(game_object) = self
                 .entity_world
                 .get_mut(&game_object_guid)
-                .and_then(MapObjectRecord::game_object_mut)
+                .and_then(ObjectMut::game_object_mut)
             {
                 let go_type = game_object.data().type_id as u32;
                 let despawn_at_action = match go_type {
@@ -549,7 +549,7 @@ where
         if loot_cleared && !non_consumed_chest_or_goober_return {
             let summoned_snapshot = self
                 .map_object_record(game_object_guid)
-                .and_then(MapObjectRecord::game_object)
+                .and_then(|record| record.game_object())
                 .filter(|game_object| game_object.loot_state() == LootState::JustDeactivated)
                 .map(|game_object| {
                     (
@@ -567,7 +567,7 @@ where
                     if let Some(game_object) = self
                         .entity_world
                         .get_mut(&game_object_guid)
-                        .and_then(MapObjectRecord::game_object_mut)
+                        .and_then(ObjectMut::game_object_mut)
                     {
                         game_object.set_respawn_time(0);
                         game_object.set_loot_state(LootState::NotReady, None);
@@ -626,7 +626,7 @@ where
             if let Some(game_object) = self
                 .entity_world
                 .get_mut(&game_object_guid)
-                .and_then(MapObjectRecord::game_object_mut)
+                .and_then(ObjectMut::game_object_mut)
                 .filter(|game_object| game_object.loot_state() == LootState::JustDeactivated)
             {
                 // C++ anchor: GameObject.cpp:1639-1651. This represented seam
@@ -661,7 +661,7 @@ where
         if generic_not_ready && !generic_zero_respawn_delay_return {
             let generic_respawn_snapshot = self
                 .map_object_record(game_object_guid)
-                .and_then(MapObjectRecord::game_object)
+                .and_then(|record| record.game_object())
                 .map(|game_object| {
                     (
                         game_object.spawned_by_default(),
@@ -690,7 +690,7 @@ where
                     if let Some(game_object) = self
                         .entity_world
                         .get_mut(&game_object_guid)
-                        .and_then(MapObjectRecord::game_object_mut)
+                        .and_then(ObjectMut::game_object_mut)
                     {
                         game_object.set_respawn_time(scheduled_respawn_time);
                     }
@@ -731,7 +731,7 @@ where
                     if let Some(game_object) = self
                         .entity_world
                         .get_mut(&game_object_guid)
-                        .and_then(MapObjectRecord::game_object_mut)
+                        .and_then(ObjectMut::game_object_mut)
                     {
                         game_object.set_respawn_time(0);
                     }

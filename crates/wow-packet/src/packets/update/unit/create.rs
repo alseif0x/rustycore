@@ -6,7 +6,7 @@ use super::*;
 
 // ── CreatureCreateData ──────────────────────────────────────────────
 
-pub use wow_entities::creature_create::CreatureCreateData;
+pub use wow_data_model::creature_create::CreatureCreateData;
 
 /// Wire encoding for the creature CREATE values block; it lives here because the
 /// domain crate must not know about packets. The two value-block helpers are part of

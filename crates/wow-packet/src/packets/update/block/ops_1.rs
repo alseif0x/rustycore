@@ -126,12 +126,9 @@ impl UpdateObject {
                     let has_anim_kit = create_data.ai_anim_kit_id != 0
                         || create_data.movement_anim_kit_id != 0
                         || create_data.melee_anim_kit_id != 0;
-                    let active_spline = movement
-                        .create_object_spline
-                        .as_ref()
-                        .filter(|spline| create_object_spline_enabled_like_cpp(spline));
+                    let active_spline = movement.create_object_spline.as_ref();
                     let spline_points = active_spline
-                        .map(|spline| spline.create_object_path_points_like_cpp().len())
+                        .map(|spline| spline.points.len())
                         .unwrap_or(0);
                     lines.push(format!(
                         "#{index:03} creature guid={guid:?} entry={} updateType={} typeId={} display={} native_display={} level={} bytes={} movementBytes={} valuesBytes={} flags(noBirth=0 portals=0 hover={} move=1 transport=0 stationary=0 combatVictim=0 serverTime=0 vehicle={} animKit={} rotation=0 areaTrigger=0 gameObject=0 smooth=0 thisIsYou=0 scene=0 activePlayer=0 conversation=0) hasSpline={} splinePoints={} pos=({:.3},{:.3},{:.3},{:.3}) hp={}/{} npc_flags=0x{:X} unit_flags=0x{:X}/0x{:X}/0x{:X} move_flags=0x{:X}/0x{:X}/0x{:X} speeds=({:.5},{:.5}) power0={}/{} vehicle_id={} virtual_items={:?} hover={} hover_h={:.3} animkits=({},{},{})",
@@ -443,7 +440,7 @@ impl UpdateObject {
     pub fn create_creature_block_with_spline(
         create_data: CreatureCreateData,
         position: &Position,
-        active_spline: Option<MoveSpline>,
+        active_spline: Option<CreateObjectSplineDataLikeCpp>,
     ) -> UpdateBlock {
         let walk_speed = create_data.speed_walk_rate * 2.5;
         let run_speed = create_data.speed_run_rate * 7.0;

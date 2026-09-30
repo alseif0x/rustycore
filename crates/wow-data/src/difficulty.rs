@@ -15,20 +15,13 @@ use wow_constants::shared::DifficultyFlags;
 use crate::Db2HotfixRemovalStoreLikeCpp;
 use crate::wdc4::Wdc4Reader;
 
+pub use wow_data_model::difficulty::DifficultyEntry;
+
 const MAP_INSTANCE_LIKE_CPP: u8 = 1;
 const MAP_RAID_LIKE_CPP: u8 = 2;
 const DIFFICULTY_NORMAL_LIKE_CPP: u32 = 1;
 const DIFFICULTY_NORMAL_RAID_LIKE_CPP: u32 = 14;
 const DIFFICULTY_10_N_LIKE_CPP: u32 = 3;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DifficultyEntry {
-    pub id: u32,
-    pub instance_type: u8,
-    pub flags: u8,
-    pub fallback_difficulty_id: u8,
-    pub toggle_difficulty_id: u8,
-}
 
 /// Minimal C++ `DifficultyEntry` store for `sDifficultyStore.LookupEntry`.
 pub struct DifficultyStore {
@@ -148,7 +141,7 @@ impl DifficultyStore {
         match self.get(difficulty) {
             Some(entry)
                 if entry.instance_type == MAP_INSTANCE_LIKE_CPP
-                    && difficulty_can_select_like_cpp(entry) =>
+                    && entry.can_select_like_cpp() =>
             {
                 difficulty
             }
@@ -160,8 +153,8 @@ impl DifficultyStore {
         match self.get(difficulty) {
             Some(entry)
                 if entry.instance_type == MAP_RAID_LIKE_CPP
-                    && difficulty_can_select_like_cpp(entry)
-                    && !difficulty_is_legacy_like_cpp(entry) =>
+                    && entry.can_select_like_cpp()
+                    && !entry.is_legacy_like_cpp() =>
             {
                 difficulty
             }
@@ -173,8 +166,8 @@ impl DifficultyStore {
         match self.get(difficulty) {
             Some(entry)
                 if entry.instance_type == MAP_RAID_LIKE_CPP
-                    && difficulty_can_select_like_cpp(entry)
-                    && difficulty_is_legacy_like_cpp(entry) =>
+                    && entry.can_select_like_cpp()
+                    && entry.is_legacy_like_cpp() =>
             {
                 difficulty
             }
@@ -205,14 +198,6 @@ fn compose_effective_difficulty_entries_like_cpp(
     effective_entries
         .retain(|record_id, _| !removals.contains_like_cpp(table_hash, *record_id as i32));
     effective_entries
-}
-
-fn difficulty_can_select_like_cpp(entry: &DifficultyEntry) -> bool {
-    DifficultyFlags::from_bits_truncate(entry.flags).contains(DifficultyFlags::CAN_SELECT)
-}
-
-fn difficulty_is_legacy_like_cpp(entry: &DifficultyEntry) -> bool {
-    DifficultyFlags::from_bits_truncate(entry.flags).contains(DifficultyFlags::LEGACY)
 }
 
 #[cfg(test)]

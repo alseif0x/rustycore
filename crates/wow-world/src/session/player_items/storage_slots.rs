@@ -190,31 +190,4 @@ impl WorldSession {
                 .collect(),
         )
     }
-    pub(crate) fn set_player_inventory_slot_count_like_cpp(&mut self, count: u8) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| player.set_inventory_slot_count(count))
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.player_item_test_fixture_like_cpp
-                .player_inventory_slot_count_like_cpp = count;
-        }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
-    }
-    pub(crate) fn resolved_player_inventory_slot_count_like_cpp(&self) -> Option<u8> {
-        let canonical = self.with_owned_player_like_cpp(Player::inventory_slot_count);
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(
-                self.player_item_test_fixture_like_cpp
-                    .player_inventory_slot_count_like_cpp,
-            );
-        }
-        canonical
-    }
-    #[cfg(test)]
-    pub(crate) fn player_inventory_slot_count_like_cpp(&self) -> u8 {
-        self.resolved_player_inventory_slot_count_like_cpp()
-            .expect("test Player inventory-slot owner must resolve")
-    }
 }

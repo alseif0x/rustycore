@@ -4,6 +4,7 @@ members = [
     # Foundation
     "crates/wow-core",
     "crates/wow-constants",
+    "crates/wow-data-model",
     "crates/wow-config",
     "crates/wow-logging",
     "crates/wow-crypto",
@@ -177,6 +178,7 @@ wow-loot = { path = "crates/wow-loot" }
 wow-instances = { path = "crates/wow-instances" }
 wow-anticheat = { path = "crates/wow-anticheat" }
 wow-data = { path = "crates/wow-data" }
+wow-data-model = { path = "crates/wow-data-model" }
 wow-script = { path = "crates/wow-script" }
 wow-recastdetour = { path = "crates/wow-recastdetour" }
 

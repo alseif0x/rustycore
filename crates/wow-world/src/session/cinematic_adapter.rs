@@ -14,8 +14,8 @@ impl WorldSession {
         if canonical.is_some() {
             return canonical;
         }
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             return Some(self.represented_cinematic_state_like_cpp);
         }
         None

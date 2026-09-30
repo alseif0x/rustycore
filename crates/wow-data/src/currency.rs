@@ -14,86 +14,7 @@ use wow_constants::{CurrencyTypesFlags, CurrencyTypesFlagsB};
 
 use crate::wdc4::Wdc4Reader;
 
-/// C++ `CurrencyTypesEntry`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct CurrencyTypesEntry {
-    pub id: u32,
-    pub category_id: u8,
-    pub inventory_icon_file_id: i32,
-    pub spell_weight: u32,
-    pub spell_category: u8,
-    pub max_qty: u32,
-    pub max_earnable_per_week: u32,
-    pub quality: i8,
-    pub faction_id: i32,
-    pub award_condition_id: i32,
-    pub flags: CurrencyTypesFlags,
-    pub flags_b: CurrencyTypesFlagsB,
-}
-
-impl CurrencyTypesEntry {
-    pub fn scaler(&self) -> i32 {
-        if self.flags.contains(CurrencyTypesFlags::SCALER_100) {
-            100
-        } else {
-            1
-        }
-    }
-
-    pub fn has_max_earnable_per_week(&self) -> bool {
-        self.max_earnable_per_week != 0
-            || self
-                .flags
-                .contains(CurrencyTypesFlags::COMPUTED_WEEKLY_MAXIMUM)
-    }
-
-    pub fn has_max_quantity(&self, on_load: bool, on_update_version: bool) -> bool {
-        if on_load
-            && self
-                .flags
-                .contains(CurrencyTypesFlags::IGNORE_MAX_QTY_ON_LOAD)
-        {
-            return false;
-        }
-
-        if on_update_version
-            && self
-                .flags
-                .contains(CurrencyTypesFlags::UPDATE_VERSION_IGNORE_MAX)
-        {
-            return false;
-        }
-
-        self.max_qty != 0 || self.flags.contains(CurrencyTypesFlags::DYNAMIC_MAXIMUM)
-    }
-
-    pub fn has_total_earned(&self) -> bool {
-        self.flags_b
-            .contains(CurrencyTypesFlagsB::USE_TOTAL_EARNED_FOR_EARNED)
-    }
-
-    pub fn is_alliance(&self) -> bool {
-        self.flags.contains(CurrencyTypesFlags::IS_ALLIANCE_ONLY)
-    }
-
-    pub fn is_horde(&self) -> bool {
-        self.flags.contains(CurrencyTypesFlags::IS_HORDE_ONLY)
-    }
-
-    pub fn is_suppressing_chat_log(&self, on_update_version: bool) -> bool {
-        (on_update_version
-            && self
-                .flags
-                .contains(CurrencyTypesFlags::SUPPRESS_CHAT_MESSAGE_ON_VERSION_CHANGE))
-            || self
-                .flags
-                .contains(CurrencyTypesFlags::SUPPRESS_CHAT_MESSAGES)
-    }
-
-    pub fn is_tracking_quantity(&self) -> bool {
-        self.flags.contains(CurrencyTypesFlags::TRACK_QUANTITY)
-    }
-}
+pub use wow_data_model::currency::CurrencyTypesEntry;
 
 /// In-memory store for `CurrencyTypes.db2`.
 pub struct CurrencyTypesStore {
@@ -172,34 +93,6 @@ impl CurrencyTypesStore {
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    #[test]
-    fn currency_type_helpers_match_cpp_flags() {
-        let entry = CurrencyTypesEntry {
-            id: 1,
-            category_id: 0,
-            inventory_icon_file_id: 0,
-            spell_weight: 0,
-            spell_category: 0,
-            max_qty: 0,
-            max_earnable_per_week: 0,
-            quality: 0,
-            faction_id: 0,
-            award_condition_id: 0,
-            flags: CurrencyTypesFlags::SCALER_100
-                | CurrencyTypesFlags::DYNAMIC_MAXIMUM
-                | CurrencyTypesFlags::IS_ALLIANCE_ONLY
-                | CurrencyTypesFlags::TRACK_QUANTITY,
-            flags_b: CurrencyTypesFlagsB::USE_TOTAL_EARNED_FOR_EARNED,
-        };
-
-        assert_eq!(entry.scaler(), 100);
-        assert!(entry.has_max_quantity(false, false));
-        assert!(entry.has_total_earned());
-        assert!(entry.is_alliance());
-        assert!(!entry.is_horde());
-        assert!(entry.is_tracking_quantity());
-    }
 
     #[test]
     fn load_currency_types_store() {

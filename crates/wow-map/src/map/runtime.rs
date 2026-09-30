@@ -136,6 +136,14 @@ pub(crate) enum MapRuntimePlayerRelocationErrorLikeCpp {
 }
 
 impl MapRuntime {
+    /// Private secondary access order from the one GUID table. This is not
+    /// the primary ObjectUpdater selection and never admits a replacement.
+    pub(crate) fn aggro_actor_witnesses(&self) -> Vec<(ObjectGuid, super::CreatureActorWitness)> {
+        self.map.entity_world.iter().filter_map(|(guid, _)| {
+            self.map.creature_actor_witness(*guid).map(|witness| (*guid, witness))
+        }).collect()
+    }
+
     pub(crate) fn new(map: Map<NoopTerrainGridLoader, NoopGridLifecycle>) -> Self {
         Self { map }
     }

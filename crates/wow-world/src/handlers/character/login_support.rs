@@ -279,7 +279,3 @@ pub(super) fn apply_pvp_season_world_states_like_cpp(
         }
     }
 }
-
-#[cfg(test)]
-#[path = "login_support_tests.rs"]
-mod rule_tests;

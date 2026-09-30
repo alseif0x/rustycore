@@ -27,6 +27,8 @@ mod creature_3;
 mod creature_4;
 #[path = "map_manager_tests/creature_5.rs"]
 mod creature_5;
+#[path = "map_manager_tests/creature_runtime.rs"]
+mod creature_runtime;
 #[path = "map_manager_tests/gameobject.rs"]
 mod gameobject;
 #[path = "map_manager_tests/instance.rs"]

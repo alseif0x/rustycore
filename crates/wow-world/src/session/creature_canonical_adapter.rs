@@ -7,6 +7,11 @@
 use super::{HashSet, ObjectGuid, OwnedLootAuthority, OwnedLootAuthorityLifecycle};
 use super::{OwnedLootAuthorityStamp, Position, SharedCanonicalMapManager};
 
+mod respawn_transport;
+pub use respawn_transport::RespawnOwnerTransferError;
+mod actor_transport;
+pub use actor_transport::CreatureOwnershipTransferError;
+
 pub(crate) fn relocate_canonical_creature_map_object_on_map_like_cpp(
     manager: &SharedCanonicalMapManager,
     map_id: u32,
@@ -121,7 +126,7 @@ pub(crate) fn sync_canonical_creature_entity_on_map_like_cpp(
     let authority = record
         .creature()
         .map(|creature| creature.loot_authority_like_cpp().clone())?;
-    map.map_mut().insert_map_object_record(record).ok()?;
+    map.map_mut().replace_creature_snapshot(record).ok()?;
     for added_guid in mirrored_threat_guids {
         let threat_ref = map
             .map()

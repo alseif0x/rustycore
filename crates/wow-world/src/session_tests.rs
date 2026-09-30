@@ -1,5 +1,8 @@
 #![cfg(test)]
 
+#[path = "session/canonical_runtime/spell/tests.rs"]
+mod canonical_spell;
+
 #[path = "session/tests/active_cast_owner.rs"]
 mod active_cast_owner;
 #[path = "session/tests/admission.rs"]
@@ -60,8 +63,6 @@ mod scenarios_combat_2;
 mod scenarios_combat_3;
 #[path = "session/tests/scenarios_combat_4.rs"]
 mod scenarios_combat_4;
-#[path = "session/tests/scenarios_combat_5.rs"]
-mod scenarios_combat_5;
 #[path = "session/tests/scenarios_instances_1.rs"]
 mod scenarios_instances_1;
 #[path = "session/tests/scenarios_instances_2.rs"]
@@ -146,8 +147,6 @@ mod scenarios_player_items_2;
 mod scenarios_player_items_3;
 #[path = "session/tests/scenarios_player_items_4.rs"]
 mod scenarios_player_items_4;
-#[path = "session/tests/scenarios_player_items_5.rs"]
-mod scenarios_player_items_5;
 #[path = "session/tests/scenarios_player_items_6.rs"]
 mod scenarios_player_items_6;
 #[path = "session/tests/scenarios_player_items_7.rs"]
@@ -266,20 +265,12 @@ mod scenarios_world_entities_26;
 mod scenarios_world_entities_27;
 #[path = "session/tests/scenarios_world_entities_28.rs"]
 mod scenarios_world_entities_28;
-#[path = "session/tests/scenarios_world_entities_29.rs"]
-mod scenarios_world_entities_29;
 #[path = "session/tests/scenarios_world_entities_3.rs"]
 mod scenarios_world_entities_3;
 #[path = "session/tests/scenarios_world_entities_30.rs"]
 mod scenarios_world_entities_30;
 #[path = "session/tests/scenarios_world_entities_31.rs"]
 mod scenarios_world_entities_31;
-#[path = "session/tests/scenarios_world_entities_32.rs"]
-mod scenarios_world_entities_32;
-#[path = "session/tests/scenarios_world_entities_33.rs"]
-mod scenarios_world_entities_33;
-#[path = "session/tests/scenarios_world_entities_34.rs"]
-mod scenarios_world_entities_34;
 #[path = "session/tests/scenarios_world_entities_4.rs"]
 mod scenarios_world_entities_4;
 #[path = "session/tests/scenarios_world_entities_5.rs"]
@@ -307,7 +298,6 @@ mod talent_owner;
 #[path = "session/tests/taxi_owner.rs"]
 mod taxi_owner;
 
-use routing::assert_destroyed_party_update_like_cpp;
 
 use super::*;
 use crate::canonical_player_access::{
@@ -371,15 +361,15 @@ use wow_data::{
 use wow_data::{ItemStatEntry, PvpItemEntry};
 use wow_entities::{
     ApplyEnchantmentDurationAction, ApplyEnchantmentResult, ApplyEnchantmentSkipReason,
-    BANK_SLOT_BAG_START, BANK_SLOT_ITEM_START, CharmType, EQUIPMENT_SLOT_CHEST,
+    BANK_SLOT_BAG_START, BANK_SLOT_ITEM_START, CharmType, CreatureLoot, EQUIPMENT_SLOT_CHEST,
     EQUIPMENT_SLOT_HANDS, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START, ItemBonusKey,
-    PlayerEnchantDuration, REAGENT_BAG_SLOT_START, SendNewItemInstancePlan, SendNewItemModifier,
-    SocketedGem, TYPEID_UNIT, UNIT_DATA_BITS, UnitDataUpdate, UnitDataValues, UnitValuesUpdate,
-    UpdateMask,
+    LootEntry, LootEntryFlags, PlayerEnchantDuration, REAGENT_BAG_SLOT_START,
+    SendNewItemInstancePlan, SendNewItemModifier, SocketedGem, TYPEID_UNIT, UNIT_DATA_BITS,
+    UnitDataUpdate, UnitDataValues, UnitValuesUpdate, UpdateMask,
 };
 use wow_packet::ServerPacket;
 use wow_packet::packets::loot::{
-    CreatureLoot, LOOT_TYPE_CORPSE_LIKE_CPP, LOOT_TYPE_ITEM_LIKE_CPP, LootEntry, LootEntryFlags,
+    LOOT_TYPE_CORPSE_LIKE_CPP, LOOT_TYPE_ITEM_LIKE_CPP,
 };
 use wow_social::group::{
     GroupInfo, GroupInstanceResetMethodLikeCpp, GroupInstanceResetResultLikeCpp, GroupRegistry,

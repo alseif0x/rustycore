@@ -8,6 +8,25 @@
 use super::*;
 
 impl WorldSession {
+    pub(in crate::handlers::loot) fn next_loot_guid_operation(&mut self, owner: ObjectGuid, policy: LootOperationPolicy) -> Option<ObjectGuid> {
+        match policy {
+            LootOperationPolicy::Production => self.next_represented_loot_object_guid_like_cpp(owner),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            LootOperationPolicy::PersonalMoneyFixture | LootOperationPolicy::LocalRequestFixture => self.next_represented_loot_object_guid_like_cpp(owner),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            LootOperationPolicy::GameObjectFixture => {
+                let canonical = self.next_canonical_loot_object_guid_like_cpp(owner);
+                canonical.or_else(|| {
+                    if owner.is_empty()
+                        || self.represented_gameobject_loot_install_observation_result_like_cpp(owner).is_some()
+                    {
+                        return None;
+                    }
+                    Some(represented_loot_object_guid_like_cpp(owner))
+                })
+            }
+        }
+    }
     /// Refresh the session-local window from the object-owned source of truth.
     /// The local table remains a packet-building cache only.
     pub(super) fn reconcile_represented_loot_cache_like_cpp(
@@ -111,7 +130,7 @@ impl WorldSession {
         _player_guid: ObjectGuid,
         _spell_id: u32,
     ) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         self.represented_loot_roll_criteria_events.push(
             crate::session::RepresentedLootRollCriteriaEvent::Disenchant {
                 player_guid: _player_guid,

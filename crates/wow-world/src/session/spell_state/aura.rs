@@ -418,25 +418,14 @@ impl WorldSession {
             } else {
                 row.caster_guid
             };
-            let represented_effect_amounts: Vec<_> = effects
-                .iter()
-                .filter(|effect| {
-                    let effect_caster_guid = if effect.caster_guid.is_empty() {
-                        player_guid
-                    } else {
-                        effect.caster_guid
-                    };
-                    effect_caster_guid == caster_guid
-                        && effect.spell_id == row.spell_id
-                        && effect.effect_mask == row.effect_mask
-                })
-                .map(|effect| RepresentedAuraEffectAmountLikeCpp {
-                    effect_index: effect.effect_index,
-                    amount: effect.amount,
-                })
-                .collect();
-            let duration_total = u32::try_from(row.max_duration_ms).unwrap_or(0);
-            let duration_remaining = u32::try_from(row.remain_time_ms).unwrap_or(0);
+            let represented_effect_amounts =
+                wow_entities::AuraSubsystem::collect_loaded_effect_amounts(
+                    caster_guid, row.spell_id, row.effect_mask, &effects,
+                    |effect| (
+                        if effect.caster_guid.is_empty() { player_guid } else { effect.caster_guid },
+                        effect.spell_id, effect.effect_mask, effect.effect_index, effect.amount,
+                    ),
+                );
             let spell_id = i32::try_from(row.spell_id).unwrap_or(i32::MAX);
             // C++ `Player::_LoadAuras` allocates a fresh `HighGuid::Cast` for
             // every restored Aura base. With no live caster pointer,
@@ -461,35 +450,23 @@ impl WorldSession {
                 row.effect_mask,
                 &represented_effect_amounts,
             );
-            let aura = AuraApplication {
-                spell_id,
-                difficulty_id: row.difficulty,
-                caster_guid,
-                slot,
-                duration_total,
-                duration_remaining,
-                stack_count: row.stack_count.max(1),
-                aura_flags,
-                effect_mask: row.effect_mask,
-                aura_interrupt_flags: 0,
-                aura_interrupt_flags2: 0,
-                represented_effect: None,
-                represented_amount: 0,
-                represented_effect_amounts,
-                represented_misc_value: None,
-                represented_multiplier: 1.0,
-                applied_at: Instant::now(),
-            };
+            let aura = wow_entities::AuraSubsystem::build_loaded_runtime_application(
+                spell_id, row.difficulty, caster_guid, slot,
+                wow_entities::LoadedAuraStateLikeCpp::new(
+                    row.max_duration_ms, row.remain_time_ms, row.remain_charges,
+                    row.stack_count, row.recalculate_mask,
+                ),
+                aura_flags, row.effect_mask, represented_effect_amounts,
+                Instant::now,
+            );
+            let duration_total = aura.duration_total;
             let _fallback_snapshot = canonical_snapshot.clone();
             let _fallback_aura = aura.clone();
             let _canonical = self
                 .with_owned_player_mut_like_cpp(|player| {
-                    player.install_player_threat_aura_like_cpp(slot, canonical_snapshot, aura);
-                    player
-                        .unit_mut()
-                        .subsystems_mut()
-                        .auras
-                        .set_aura_cast_provenance_like_cpp(slot, provenance);
+                    player.install_loaded_player_threat_aura(
+                        slot, canonical_snapshot, aura, provenance,
+                    );
                 })
                 .is_some();
             #[cfg(test)]
@@ -497,9 +474,9 @@ impl WorldSession {
                 Some(())
             } else if self.player_handle_like_cpp.is_none() {
                 self.mutate_player_aura_subsystem_like_cpp(|auras| {
-                    auras.insert_threat_snapshot_like_cpp(slot, _fallback_snapshot);
-                    auras.insert_runtime_application_like_cpp(_fallback_aura);
-                    auras.set_aura_cast_provenance_like_cpp(slot, provenance);
+                    auras.install_loaded_runtime_application(
+                        slot, _fallback_snapshot, _fallback_aura, provenance,
+                    );
                 })
             } else {
                 None

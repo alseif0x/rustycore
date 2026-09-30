@@ -111,7 +111,7 @@ Use implemented, production-integrated and parity-proven as distinct evidence le
 ## Architecture and skills
 
 Use [orchestrate-rustycore](.agents/skills/orchestrate-rustycore/SKILL.md) for development
-coordination. The native Codex parent uses GPT-6 Sol at medium effort and owns decisions,
+coordination. The native Codex parent uses GPT-6.1 Sol at high effort and owns decisions,
 review and integration; it does not implement. GPT-6 Luna at max effort implements assigned
 work. Claude-compatible sessions use `ocx claude`, `.claude/settings.json` and
 `.claude/agents/rustycore-worker.md` for the same roles. These settings are defaults: confirm

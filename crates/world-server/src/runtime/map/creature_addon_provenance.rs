@@ -47,19 +47,35 @@ pub(super) fn resolve_addon_visuals_like_cpp(
     }
 }
 
-pub(super) fn settle_resolved_loaded_grid_creature_like_cpp(
+/// Owns the same rejected Record, including any completed provenance installs.
+/// CastGUID sequence changes remain on Map; rejection never retries or rolls back.
+#[derive(Debug)]
+pub(crate) enum LoadedGridCreaturePreparationError {
+    NotCreature(wow_map::map::LoadedGridRespawnRecordsLikeCpp),
+    AddonProvenance {
+        error: wow_map::MapGuidSequenceErrorLikeCpp,
+        records: wow_map::map::LoadedGridRespawnRecordsLikeCpp,
+    },
+}
+
+pub(super) fn settle_creature_record(
     map: &mut wow_map::Map,
     resolved: Result<
-        creature_loaded_grid::CreatureLoadedGridResolvedLikeCpp,
+        Option<wow_entities::MapObjectRecord>,
         creature_loaded_grid::CreatureLoadedGridResolveErrorLikeCpp,
     >,
     spawn_id: wow_map::SpawnId,
     entry: u32,
     map_object_guid: ObjectGuid,
-) -> Option<wow_map::map::LoadedGridRespawnRecordsLikeCpp> {
+) -> Result<
+    Option<wow_map::map::LoadedGridRespawnRecordsLikeCpp>,
+    LoadedGridCreaturePreparationError,
+> {
     match resolved {
-        Ok(resolved) => {
-            let mut primary_record = resolved.map_object_record?;
+        Ok(record) => {
+            let Some(mut primary_record) = record else {
+                return Ok(None);
+            };
             let Some(creature) = primary_record.creature_mut() else {
                 warn!(
                     spawn_id,
@@ -67,9 +83,12 @@ pub(super) fn settle_resolved_loaded_grid_creature_like_cpp(
                     guid = ?map_object_guid,
                     "C++ loaded-grid Creature DoRespawn blocked: resolver returned a non-Creature primary record"
                 );
-                return None;
+                return Err(LoadedGridCreaturePreparationError::NotCreature(
+                    wow_map::map::LoadedGridRespawnRecordsLikeCpp::primary_only(primary_record),
+                ));
             };
-            if let Err(error) = map.settle_creature_addon_aura_provenance_like_cpp(creature) {
+            let settlement = map.settle_creature_addon_aura_provenance_like_cpp(creature);
+            if let Err(error) = settlement {
                 warn!(
                     ?error,
                     spawn_id,
@@ -77,11 +96,8 @@ pub(super) fn settle_resolved_loaded_grid_creature_like_cpp(
                     guid = ?map_object_guid,
                     "C++ loaded-grid Creature DoRespawn blocked: map-owned addon Aura CastGUID allocation failed"
                 );
-                return None;
             }
-            Some(wow_map::map::LoadedGridRespawnRecordsLikeCpp::primary_only(
-                primary_record,
-            ))
+            project_settlement(primary_record, settlement)
         }
         Err(error) => {
             debug!(
@@ -91,7 +107,27 @@ pub(super) fn settle_resolved_loaded_grid_creature_like_cpp(
                 guid = ?map_object_guid,
                 "C++ loaded-grid Creature DoRespawn blocked: resolver rejected loaded Creature record"
             );
-            None
+            Ok(None)
         }
     }
 }
+
+// Allocation errors for HighGuid::Cast are currently unreachable; overflow
+// panics in ObjectGuidGenerator. This projection owns a returned Result only,
+// without converting panic or inventing a recoverable allocator failure.
+fn project_settlement(
+    primary_record: wow_entities::MapObjectRecord,
+    settlement: Result<usize, wow_map::MapGuidSequenceErrorLikeCpp>,
+) -> Result<
+    Option<wow_map::map::LoadedGridRespawnRecordsLikeCpp>,
+    LoadedGridCreaturePreparationError,
+> {
+    let records = wow_map::map::LoadedGridRespawnRecordsLikeCpp::primary_only(primary_record);
+    match settlement {
+        Ok(_) => Ok(Some(records)),
+        Err(error) => Err(LoadedGridCreaturePreparationError::AddonProvenance { error, records }),
+    }
+}
+
+#[cfg(test)]
+mod tests;

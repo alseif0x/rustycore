@@ -169,39 +169,7 @@ impl WorldSession {
 
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| {
-                if player.unit().is_alive() {
-                    return None;
-                }
-                let max_health = player
-                    .unit()
-                    .data()
-                    .max_health
-                    .clamp(1, u64::from(u32::MAX)) as u32;
-                let (health, mana) = if damage < 0 {
-                    (damage.saturating_abs() as u32, misc_value.max(0))
-                } else {
-                    let pct = damage.max(0);
-                    (
-                        max_health
-                            .saturating_mul(u32::try_from(pct).unwrap_or(u32::MAX))
-                            .saturating_div(100),
-                        player
-                            .get_max_power(PowerType::Mana)
-                            .max(0)
-                            .saturating_mul(pct)
-                            / 100,
-                    )
-                };
-                let health = health.min(max_health);
-                player
-                    .unit_mut()
-                    .set_death_state(wow_constants::DeathState::Alive);
-                player.unit_mut().set_health(u64::from(health));
-                player.unit_mut().set_power(PowerType::Mana, mana);
-                player.unit_mut().set_power(PowerType::Rage, 0);
-                let max_energy = player.get_max_power(PowerType::Energy);
-                player.unit_mut().set_power(PowerType::Energy, max_energy);
-                player.unit_mut().set_power(PowerType::Focus, 0);
+                let health = player.apply_self_resurrection(damage, misc_value)?;
                 Some((health, Some(player.values_update(true))))
             })
             .flatten();

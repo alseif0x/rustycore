@@ -12,19 +12,21 @@ mod damage_and_combat_application;
 mod healing_application;
 
 impl WorldSession {
-    /// C++ `Unit::SpellDamageBonusDone` (`Unit.cpp:6623-6680`) for the
-    /// represented player-caster `SPELL_DIRECT_DAMAGE`:
+    /// The represented player's flat and percentage damage-bonus stages from
+    /// C++ `Unit::SpellDamageBonusDone` (`Unit.cpp:6592-6681`):
     /// `int32(max((pdamage + int32(SpellBaseDamageBonusDone(schoolMask) *
     /// BonusCoefficient) + int32(BonusCoefficientFromAP * AP)) * DoneTotalMod,
     /// 0))`.
     ///
-    /// Boundaries: the family-scripted damage terms are not modelled yet; the
-    /// represented model stores one `BonusCoefficient` per spell rather than per
-    /// `SpellEffectInfo`; creature casters keep the raw value. A spell whose
-    /// `SpellMisc.SchoolMask` is unavailable also keeps the raw value. The
-    /// `effect_index` carries the C++ `SpellEffectInfo` whose mechanic feeds the
-    /// `MOD_DAMAGE_DONE_FOR_MECHANIC` term, and `coefficient_from_ap` its
-    /// `BonusCoefficientFromAP` table value.
+    /// Boundaries: this existing represented Session caller applies the stages
+    /// to its `SPELL_DIRECT_DAMAGE` input, while C++ returns from that damage
+    /// type before these stages (`Unit.cpp:6608-6612`); this extraction retains
+    /// the Rust caller behavior. Ice Lance and Drain Soul factors remain in the
+    /// world adapter, while other family-specific damage terms are unmodeled.
+    /// The represented model stores one `BonusCoefficient` per spell rather
+    /// than per `SpellEffectInfo`; creature casters and spells without a
+    /// `SpellMisc.SchoolMask` keep the raw value. `effect_index` selects the
+    /// C++ effect mechanic and `coefficient_from_ap` supplies its table value.
     pub(in crate::session) fn represented_spell_damage_bonus_done_like_cpp(
         &self,
         spell_id: i32,
@@ -38,7 +40,7 @@ impl WorldSession {
         if caster_guid != self.player_guid().unwrap_or(ObjectGuid::EMPTY) {
             return base_damage;
         }
-        // C++ `SpellDamageBonusDone` (`Unit.cpp:6607-6612`) returns before both
+        // C++ `SpellDamageBonusDone` (`Unit.cpp:6608-6612`) returns before both
         // the flat advertised benefit and the percentage chain.
         if self.represented_spell_has_attribute_like_cpp(
             spell_id,
@@ -62,10 +64,15 @@ impl WorldSession {
         ) else {
             return base_damage;
         };
-        let done_total = (benefit as f32 * coefficient) as i32
-            + self.represented_spell_bonus_coefficient_from_ap_like_cpp(coefficient_from_ap);
-        let damage = (base_damage as f32 + done_total as f32) * done_total_mod;
-        u32::try_from(damage.max(0.0).min(u32::MAX as f32) as u32).unwrap_or(u32::MAX)
+        let coefficient_benefit =
+            wow_combat::spell_advertised_coefficient_benefit_like_cpp(benefit, coefficient);
+        let attack_power_benefit =
+            self.represented_spell_bonus_coefficient_from_ap_like_cpp(coefficient_from_ap);
+        let done_total = wow_combat::spell_done_flat_benefit_add_ap_like_cpp(
+            coefficient_benefit,
+            attack_power_benefit,
+        );
+        wow_combat::spell_damage_bonus_done_like_cpp(base_damage, done_total, done_total_mod)
     }
 
     /// C++ `SpellDamageBonusDone`/`SpellHealingBonusDone` "Check for table
@@ -90,7 +97,7 @@ impl WorldSession {
         let Some(attack_power) = self.canonical_player_total_attack_power_like_cpp() else {
             return 0;
         };
-        (coefficient_from_ap * attack_power) as i32
+        wow_combat::spell_bonus_coefficient_from_ap_like_cpp(coefficient_from_ap, attack_power)
     }
 
     /// C++ `SpellInfo::HasAttribute` for the represented spell, resolved through
@@ -115,7 +122,7 @@ impl WorldSession {
         )
     }
 
-    /// C++ `Unit::SpellDamagePctDone` (`Unit.cpp:6683-6772`) player branch: the
+    /// C++ `Unit::SpellDamagePctDone` (`Unit.cpp:6683-6773`) player branch: the
     /// `maxModDamagePercentSchool` term (the highest published
     /// `ActivePlayerData::ModDamageDonePercent` among the spell's schools) times
     /// the `SPELL_AURA_MOD_DAMAGE_DONE_VERSUS` (168) multiplier for the victim's
@@ -142,7 +149,7 @@ impl WorldSession {
         school_mask: u8,
         target_guid: ObjectGuid,
     ) -> Option<f32> {
-        // C++ `SpellDamagePctDone` early-outs (`Unit.cpp:6690-6698`).
+        // C++ `SpellDamagePctDone` attribute early-outs (`Unit.cpp:6688-6694`).
         if self.represented_spell_has_attribute_like_cpp(
             spell_id,
             3,
@@ -155,86 +162,57 @@ impl WorldSession {
             return Some(1.0);
         }
         let snapshot = self.canonical_player_effective_combat_stats_like_cpp()?;
-        let mask = u32::from(school_mask);
-        let mut max_mod = 0.0_f32;
-        for (school, percent) in snapshot.mod_damage_done_percent.iter().enumerate() {
-            if mask & (1_u32 << school) != 0 {
-                max_mod = max_mod.max(*percent);
-            }
-        }
         let creature_type_mask = self.represented_target_creature_type_mask_like_cpp(target_guid);
-        if creature_type_mask != 0 {
-            for (misc_value, amount) in self
-                .resolved_aura_effects_by_spell_aura_type_like_cpp(
-                    wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS,
-                )
-                .unwrap_or_default()
-            {
-                if misc_value & creature_type_mask as i32 != 0 {
-                    max_mod *= 1.0 + amount as f32 / 100.0;
-                }
-            }
-        }
+        let damage_done_versus = if creature_type_mask != 0 {
+            self.resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS,
+            )
+            .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         let aura_state_mask = self.represented_target_aura_state_mask_like_cpp(target_guid);
-        if aura_state_mask != 0 {
-            for (misc_value, amount) in self
-                .resolved_aura_effects_by_spell_aura_type_like_cpp(
-                    wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE,
-                )
-                .unwrap_or_default()
-            {
-                if represented_aura_state_bit_like_cpp(misc_value)
-                    .is_some_and(|bit| aura_state_mask & bit != 0)
-                {
-                    max_mod *= 1.0 + amount as f32 / 100.0;
-                }
-            }
-        }
+        let damage_done_versus_aura_state = if aura_state_mask != 0 {
+            self.resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE,
+            )
+            .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
         let target_mechanic_mask = self.represented_target_mechanic_mask_like_cpp(target_guid);
-        if target_mechanic_mask != 0 {
-            for (misc_value, amount) in self
-                .resolved_aura_effects_by_spell_aura_type_like_cpp(
-                    wow_data::spell::aura_types::
-                        SPELL_AURA_MOD_DAMAGE_PERCENT_DONE_BY_TARGET_AURA_MECHANIC,
-                )
-                .unwrap_or_default()
-            {
-                if represented_mechanic_bit_like_cpp(misc_value)
-                    .is_some_and(|bit| target_mechanic_mask & bit != 0)
-                {
-                    max_mod *= 1.0 + amount as f32 / 100.0;
-                }
-            }
-        }
-        if let Some(mechanic) =
-            self.represented_spell_damage_mechanic_like_cpp(spell_id, effect_index)
-        {
-            let pct = self
-                .resolved_aura_effects_by_spell_aura_type_like_cpp(
-                    wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_FOR_MECHANIC,
-                )
-                .unwrap_or_default()
-                .into_iter()
-                .filter(|(misc_value, _)| *misc_value == mechanic)
-                .map(|(_, amount)| amount)
-                .sum::<i32>();
-            if pct != 0 {
-                max_mod *= 1.0 + pct as f32 / 100.0;
-            }
-        }
-        // Custom scripted damage (`Unit.cpp:6748-6770`). The represented
+        let damage_percent_done_by_target_aura_mechanic = if target_mechanic_mask != 0 {
+            self.resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::
+                    SPELL_AURA_MOD_DAMAGE_PERCENT_DONE_BY_TARGET_AURA_MECHANIC,
+            )
+            .unwrap_or_default()
+        } else {
+            Vec::new()
+        };
+        let spell_mechanic =
+            self.represented_spell_damage_mechanic_like_cpp(spell_id, effect_index);
+        let damage_done_for_mechanic = spell_mechanic.map(|_| {
+            self.resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_FOR_MECHANIC,
+            )
+            .unwrap_or_default()
+        });
+        // Custom scripted damage (`Unit.cpp:6750-6770`). The represented
         // `SpellInfo` has no `SpellFamilyName`, so the family switch is keyed by
         // the globally unique spell id and the `SPELLFAMILY_MAGE` /
         // `SPELLFAMILY_WARLOCK` guard is implied rather than read.
         const ICE_LANCE_LIKE_CPP: i32 = 228598;
         const DRAIN_SOUL_LIKE_CPP: i32 = 198590;
-        if spell_id == ICE_LANCE_LIKE_CPP {
+        let scripted_factor = if spell_id == ICE_LANCE_LIKE_CPP {
             // C++ `victim->HasAuraState(AURA_STATE_FROZEN, spellProto, this)`.
             // Boundary: the `SPELL_AURA_ABILITY_IGNORE_AURASTATE` caster
             // shortcut in `Unit::HasAuraState` is not represented.
             let frozen = 1_u32 << (wow_entities::AURA_STATE_FROZEN - 1);
             if self.represented_target_aura_state_mask_like_cpp(target_guid) & frozen != 0 {
-                max_mod *= 3.0;
+                3.0
+            } else {
+                1.0
             }
         } else if spell_id == DRAIN_SOUL_LIKE_CPP {
             // C++ `HasAuraState(AURA_STATE_WOUNDED_20_PERCENT)` reads the caster.
@@ -245,10 +223,29 @@ impl WorldSession {
                 & wounded
                 != 0
             {
-                max_mod *= 2.0;
+                2.0
+            } else {
+                1.0
             }
-        }
-        Some(max_mod)
+        } else {
+            1.0
+        };
+        Some(wow_combat::spell_damage_pct_done_like_cpp(
+            wow_combat::SpellDamagePctDoneInputsLikeCpp {
+                school_mask,
+                school_percentages: &snapshot.mod_damage_done_percent,
+                creature_type_mask,
+                damage_done_versus: &damage_done_versus,
+                target_aura_state_mask: aura_state_mask,
+                damage_done_versus_aura_state: &damage_done_versus_aura_state,
+                target_mechanic_mask,
+                damage_percent_done_by_target_aura_mechanic:
+                    &damage_percent_done_by_target_aura_mechanic,
+                spell_mechanic,
+                damage_done_for_mechanic: damage_done_for_mechanic.as_deref(),
+                scripted_factor,
+            },
+        ))
     }
 
     /// C++ `SpellEffectInfo::Mechanic` with `SpellInfo::Mechanic` as the
@@ -404,7 +401,7 @@ impl WorldSession {
             .unwrap_or(0)
     }
 
-    /// C++ `Unit::SpellHealingBonusDone` (`Unit.cpp:7100-7183`) for the
+    /// C++ `Unit::SpellHealingBonusDone` (`Unit.cpp:7089-7183`) for the
     /// represented player-caster `SPELL_DIRECT_DAMAGE`-style direct heal:
     /// `int32(max(float(healamount + int32(SpellBaseHealingBonusDone(schoolMask)
     /// * BonusCoefficient) + int32(BonusCoefficientFromAP * AP)) * DoneTotalMod,
@@ -444,23 +441,29 @@ impl WorldSession {
             // C++ `DoneAdvertisedBenefit += victim->
             // GetTotalAuraModifierByMiscMask(SPELL_AURA_MOD_HEALING,
             // spellProto->GetSchoolMask())`.
-            benefit = benefit.saturating_add(
-                self.resolved_aura_effects_by_spell_aura_type_like_cpp(
+            let victim_effects = self
+                .resolved_aura_effects_by_spell_aura_type_like_cpp(
                     wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING,
                 )
-                .unwrap_or_default()
-                .into_iter()
-                .filter(|(misc_value, _)| misc_value & i32::from(school_mask) != 0)
-                .map(|(_, amount)| amount)
-                .sum::<i32>(),
+                .unwrap_or_default();
+            benefit = wow_combat::spell_healing_bonus_from_victim_aura_effects_like_cpp(
+                benefit,
+                school_mask,
+                &victim_effects,
             );
         }
         let Some(snapshot) = self.canonical_player_effective_combat_stats_like_cpp() else {
             return base_heal;
         };
-        let done_total = (benefit as f32 * coefficient) as i32
-            + self.represented_spell_bonus_coefficient_from_ap_like_cpp(coefficient_from_ap);
-        // C++ `Unit::SpellHealingPctDone` (`Unit.cpp:7185-7229`): the two
+        let coefficient_benefit =
+            wow_combat::spell_advertised_coefficient_benefit_like_cpp(benefit, coefficient);
+        let attack_power_benefit =
+            self.represented_spell_bonus_coefficient_from_ap_like_cpp(coefficient_from_ap);
+        let done_total = wow_combat::spell_done_flat_benefit_add_ap_like_cpp(
+            coefficient_benefit,
+            attack_power_benefit,
+        );
+        // C++ `Unit::SpellHealingPctDone` (`Unit.cpp:7185-7227`): the two
         // attribute early-outs return `1.0f`, otherwise the healing done
         // percentage times the versus-aurastate multiplier plus the
         // missing-health scaling auras. The aura's `IsAffectingSpell`
@@ -468,44 +471,55 @@ impl WorldSession {
         // represented, so both terms apply to any represented heal the aura
         // owner casts.
         let done_total_mod = if self.represented_healing_pct_done_gated_like_cpp(spell_id) {
-            1.0
+            wow_combat::spell_healing_pct_done_like_cpp(
+                wow_combat::SpellHealingPctDoneInputsLikeCpp {
+                    gated: true,
+                    healing_done_percent: snapshot.mod_healing_done_percent,
+                    target_aura_state_mask: 0,
+                    damage_done_versus_aura_state: &[],
+                    healing_done_pct_versus_target_health: &[],
+                    target_health_pct: None,
+                },
+            )
         } else {
-            let mut modifier = snapshot.mod_healing_done_percent;
             let aura_state_mask = self.represented_target_aura_state_mask_like_cpp(target_guid);
-            if aura_state_mask != 0 {
-                for (misc_value, amount) in self
-                    .resolved_aura_effects_by_spell_aura_type_like_cpp(
-                        wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE,
-                    )
-                    .unwrap_or_default()
-                {
-                    if represented_aura_state_bit_like_cpp(misc_value)
-                        .is_some_and(|bit| aura_state_mask & bit != 0)
-                    {
-                        modifier *= 1.0 + amount as f32 / 100.0;
-                    }
-                }
-            }
-            let effects = self
+            let aura_state_effects = if aura_state_mask != 0 {
+                self.resolved_aura_effects_by_spell_aura_type_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE,
+                )
+                .unwrap_or_default()
+            } else {
+                Vec::new()
+            };
+            let healing_pct_versus_target_health = self
                 .resolved_aura_effects_by_spell_aura_type_like_cpp(
                     wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_DONE_PCT_VERSUS_TARGET_HEALTH,
                 )
                 .unwrap_or_default();
-            if !effects.is_empty()
-                && let Some(health_pct) = self.represented_target_health_pct_like_cpp(target_guid)
-            {
-                let health_pct_diff = (100.0 - health_pct).max(0.0);
-                for (_, amount) in effects {
-                    modifier *= 1.0 + (amount as f32 * health_pct_diff / 100.0) / 100.0;
-                }
-            }
-            modifier
+            let healing_pct_amounts = healing_pct_versus_target_health
+                .iter()
+                .map(|(_, amount)| *amount)
+                .collect::<Vec<_>>();
+            let target_health_pct = if healing_pct_versus_target_health.is_empty() {
+                None
+            } else {
+                self.represented_target_health_pct_like_cpp(target_guid)
+            };
+            wow_combat::spell_healing_pct_done_like_cpp(
+                wow_combat::SpellHealingPctDoneInputsLikeCpp {
+                    gated: false,
+                    healing_done_percent: snapshot.mod_healing_done_percent,
+                    target_aura_state_mask: aura_state_mask,
+                    damage_done_versus_aura_state: &aura_state_effects,
+                    healing_done_pct_versus_target_health: &healing_pct_amounts,
+                    target_health_pct,
+                },
+            )
         };
-        let heal = (base_heal as f32 + done_total as f32) * done_total_mod;
-        u32::try_from(heal.max(0.0).min(u32::MAX as f32) as u32).unwrap_or(u32::MAX)
+        wow_combat::spell_healing_bonus_done_like_cpp(base_heal, done_total, done_total_mod)
     }
 
-    /// C++ `Unit::SpellHealingPctDone` (`Unit.cpp:7189-7198`) early-outs:
+    /// C++ `Unit::SpellHealingPctDone` (`Unit.cpp:7185-7227`) early-outs:
     /// `SPELL_ATTR3_IGNORE_CASTER_MODIFIERS` and
     /// `SPELL_ATTR6_IGNORE_HEALING_MODIFIERS` gate the whole healing percentage
     /// chain while `SpellBaseHealingBonusDone` still contributes the flat
@@ -522,57 +536,44 @@ impl WorldSession {
         )
     }
 
-    /// C++ `Unit::SpellBaseHealingBonusDone` (`Unit.cpp:7282-7315`): the
+    /// C++ `Unit::SpellBaseHealingBonusDone` (`Unit.cpp:7282-7318`): the
     /// `SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT` short circuit, otherwise the
     /// `SPELL_AURA_MOD_HEALING_DONE` sum whose misc is zero or intersects the
     /// school mask, plus `GetBaseSpellPowerBonus()`, the mana-class intellect
     /// term and the `SPELL_AURA_MOD_SPELL_HEALING_OF_STAT_PERCENT` percentages.
     fn represented_spell_base_healing_bonus_done_like_cpp(&self, school_mask: u8) -> Option<i32> {
         let snapshot = self.canonical_player_effective_combat_stats_like_cpp()?;
-        let mask = i32::from(school_mask);
         if snapshot.override_spell_power_by_ap_percent > 0.0 {
-            let total_attack_power = snapshot
-                .attack_power
-                .saturating_add(snapshot.attack_power_mod_pos)
-                .max(0) as f32
-                * (1.0 + snapshot.attack_power_multiplier);
-            return Some(
-                (total_attack_power * snapshot.override_spell_power_by_ap_percent / 100.0 + 0.5)
-                    as i32,
-            );
+            return Some(wow_combat::spell_power_override_from_ap_like_cpp(
+                snapshot.attack_power,
+                snapshot.attack_power_mod_pos,
+                snapshot.attack_power_multiplier,
+                snapshot.override_spell_power_by_ap_percent,
+            ));
         }
-        let mut benefit = self
+        let healing_done_effects = self
             .resolved_aura_effects_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_DONE,
             )
-            .unwrap_or_default()
-            .into_iter()
-            .filter(|(misc_value, _)| *misc_value == 0 || misc_value & mask != 0)
-            .map(|(_, amount)| amount)
-            .sum::<i32>()
-            .saturating_add(snapshot.spell_power);
-        if snapshot.base_mana > 0 {
-            // C++ `GetPowerIndex(POWER_MANA) != MAX_POWERS` adds the intellect
-            // term; the class base-mana row represents that mana slot.
-            benefit = benefit.saturating_add(snapshot.stats[3].max(0));
-        }
-        for (stat_index, _, amount) in self
+            .unwrap_or_default();
+        let healing_stat_effects = self
             .resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_SPELL_HEALING_OF_STAT_PERCENT,
             )
-            .unwrap_or_default()
-        {
-            if let Some(stat) = usize::try_from(stat_index)
-                .ok()
-                .and_then(|index| snapshot.stats.get(index))
-            {
-                benefit = benefit.saturating_add((*stat as f32 * amount as f32 / 100.0) as i32);
-            }
-        }
-        Some(benefit)
+            .unwrap_or_default();
+        // C++ `GetPowerIndex(POWER_MANA) != MAX_POWERS` adds intellect only
+        // for the mana class represented by a positive base-mana row.
+        Some(wow_combat::spell_base_healing_bonus_fallback_like_cpp(
+            school_mask,
+            snapshot.spell_power,
+            snapshot.base_mana,
+            &snapshot.stats,
+            &healing_done_effects,
+            &healing_stat_effects,
+        ))
     }
 
-    /// C++ `Unit::SpellHealingBonusTaken` (`Unit.cpp:7231-7239`): the most
+    /// C++ `Unit::SpellHealingBonusTaken` (`Unit.cpp:7229-7280`): the most
     /// positive and most negative active `SPELL_AURA_MOD_HEALING_PCT` (118)
     /// amounts, each applied with `AddPct`, to healing the unit receives.
     ///
@@ -592,22 +593,9 @@ impl WorldSession {
             )
             .unwrap_or_default()
             .into_iter()
-            .map(|(_, amount)| amount);
-        let mut taken_total_mod = 1.0_f32;
-        let mut min_negative = 0i32;
-        let mut max_positive = 0i32;
-        for amount in amounts {
-            min_negative = min_negative.min(amount);
-            max_positive = max_positive.max(amount);
-        }
-        if min_negative != 0 {
-            taken_total_mod *= 1.0 + min_negative as f32 / 100.0;
-        }
-        if max_positive != 0 {
-            taken_total_mod *= 1.0 + max_positive as f32 / 100.0;
-        }
-        let taken = heal_amount as f32 * taken_total_mod;
-        u32::try_from(taken.max(0.0).min(u32::MAX as f32) as u32).unwrap_or(u32::MAX)
+            .map(|(_, amount)| amount)
+            .collect::<Vec<_>>();
+        wow_combat::spell_healing_bonus_taken_like_cpp(heal_amount, &amounts)
     }
 
     /// C++ `SpellInfo::GetSchoolMask()` as loaded from the spell's
@@ -621,68 +609,37 @@ impl WorldSession {
         (entry.school_mask != 0).then_some(entry.school_mask)
     }
 
-    /// C++ `Unit::SpellBaseDamageBonusDone` (`Unit.cpp:6860-6890`): the
+    /// C++ `Unit::SpellBaseDamageBonusDone` (`Unit.cpp:6860-6891`): the
     /// `SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT` short circuit, otherwise
     /// `GetTotalAuraModifierByMiscMask(SPELL_AURA_MOD_DAMAGE_DONE, schoolMask)`
     /// plus `GetBaseSpellPowerBonus()` plus the
     /// `SPELL_AURA_MOD_SPELL_DAMAGE_OF_STAT_PERCENT` terms.
     fn represented_spell_base_damage_bonus_done_like_cpp(&self, school_mask: u8) -> Option<i32> {
         let snapshot = self.canonical_player_effective_combat_stats_like_cpp()?;
-        let mask = i32::from(school_mask);
         if snapshot.override_spell_power_by_ap_percent > 0.0 {
-            let total_attack_power = snapshot
-                .attack_power
-                .saturating_add(snapshot.attack_power_mod_pos)
-                .max(0) as f32
-                * (1.0 + snapshot.attack_power_multiplier);
-            return Some(
-                (total_attack_power * snapshot.override_spell_power_by_ap_percent / 100.0 + 0.5)
-                    as i32,
-            );
+            return Some(wow_combat::spell_power_override_from_ap_like_cpp(
+                snapshot.attack_power,
+                snapshot.attack_power_mod_pos,
+                snapshot.attack_power_multiplier,
+                snapshot.override_spell_power_by_ap_percent,
+            ));
         }
-        let mut benefit = self
+        let damage_done_effects = self
             .resolved_aura_effects_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE,
             )
-            .unwrap_or_default()
-            .into_iter()
-            .filter(|(misc_value, _)| misc_value & mask != 0)
-            .map(|(_, amount)| amount)
-            .sum::<i32>()
-            .saturating_add(snapshot.spell_power);
-        for (aura_mask, stat_index, amount) in self
+            .unwrap_or_default();
+        let damage_stat_effects = self
             .resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_SPELL_DAMAGE_OF_STAT_PERCENT,
             )
-            .unwrap_or_default()
-        {
-            if aura_mask & mask == 0 {
-                continue;
-            }
-            if let Some(stat) = usize::try_from(stat_index)
-                .ok()
-                .and_then(|index| snapshot.stats.get(index))
-            {
-                benefit = benefit.saturating_add((*stat as f32 * amount as f32 / 100.0) as i32);
-            }
-        }
-        Some(benefit)
+            .unwrap_or_default();
+        Some(wow_combat::spell_base_damage_bonus_fallback_like_cpp(
+            school_mask,
+            snapshot.spell_power,
+            &snapshot.stats,
+            &damage_done_effects,
+            &damage_stat_effects,
+        ))
     }
-}
-
-/// C++ `UI64LIT(1) << mechanic`: the bit a positive mechanic occupies in a
-/// `Unit::HasAuraWithMechanic` mask. `None` for the unset or out-of-range
-/// mechanic values the represented runtime must fail closed on.
-fn represented_mechanic_bit_like_cpp(mechanic: i32) -> Option<u64> {
-    (1..64).contains(&mechanic).then(|| 1_u64 << mechanic)
-}
-
-/// C++ `1 << (flag - 1)` for a positive `AuraStateType`. `None` for the unset
-/// or out-of-range state a malformed aura row could carry, so a consumer fails
-/// closed instead of shifting out of range.
-fn represented_aura_state_bit_like_cpp(aura_state: i32) -> Option<u32> {
-    u32::try_from(aura_state)
-        .ok()
-        .and_then(|state| state.checked_sub(1))
-        .and_then(|bit| 1_u32.checked_shl(bit))
 }

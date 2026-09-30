@@ -26,7 +26,7 @@ pub(crate) fn prepare_player_spell_acquisition_like_cpp(
     current_snapshot: &PlayerSpellAcquisitionSnapshotLikeCpp,
 ) -> Result<PreparedPlayerSpellAcquisitionOutcomeLikeCpp, PlayerSpellAcquisitionPrepareErrorLikeCpp>
 {
-    validate_plan_replay_like_cpp(plan)?;
+    validate_acquisition_plan(plan)?;
     validate_profession_plan_like_cpp(plan, profession_plan)?;
     let prepared = translate_plan_like_cpp(plan, profession_plan)?;
 

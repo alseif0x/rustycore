@@ -23,11 +23,11 @@ impl WorldCreature {
     }
 
     pub fn active_waypoint_generator_like_cpp(&self) -> Option<&WaypointMovementGenerator> {
-        self.active_waypoint_generator.as_ref()
+        self.runtime.active_waypoint_generator.as_ref()
     }
 
     pub fn active_waypoint_random_at_path_end_like_cpp(&self) -> Option<WaypointRandomAtPathEnd> {
-        self.active_waypoint_random_at_path_end
+        self.runtime.active_waypoint_random_at_path_end
     }
 
     pub fn position(&self) -> Position {
@@ -58,7 +58,7 @@ impl WorldCreature {
     }
 
     pub fn active_move_spline_like_cpp(&self) -> Option<&MoveSpline> {
-        self.active_move_spline.as_ref()
+        self.runtime.active_move_spline.as_ref()
     }
 
     pub fn spline_id(&self) -> u32 {
@@ -72,11 +72,11 @@ impl WorldCreature {
             MovementGeneratorType::Waypoint => RuntimeMovementGeneratorType::Waypoint,
         };
         if self
-            .runtime_motion_master
+            .runtime.runtime_motion_master
             .current_kind_for_slot(RuntimeMovementSlot::Default)
             != Some(expected_default)
         {
-            self.runtime_motion_master.add(
+            self.runtime.runtime_motion_master.add(
                 Self::runtime_default_generator_like_cpp(&self.creature),
                 RuntimeMovementSlot::Default,
             );
@@ -85,8 +85,8 @@ impl WorldCreature {
         let expected_chase_target = self.creature.ai_ownership().combat_target.filter(|_| {
             self.creature.ai_state() == CreatureAiState::InCombat && self.creature.is_alive()
         });
-        if self.runtime_chase_target != expected_chase_target {
-            self.runtime_motion_master.remove_kind(
+        if self.runtime.runtime_chase_target != expected_chase_target {
+            self.runtime.runtime_motion_master.remove_kind(
                 RuntimeMovementGeneratorType::Chase,
                 RuntimeMovementSlot::Active,
             );
@@ -96,7 +96,7 @@ impl WorldCreature {
                 .motion
                 .remove_generator_kind(MovementGeneratorKind::Chase, MovementSlot::Active);
             if let Some(target) = expected_chase_target {
-                self.runtime_motion_master.add(
+                self.runtime.runtime_motion_master.add(
                     Box::new(ChaseMovementGenerator::new(target, None, None)),
                     RuntimeMovementSlot::Active,
                 );
@@ -106,7 +106,7 @@ impl WorldCreature {
                     .motion
                     .move_chase_like_cpp(target);
             }
-            self.runtime_chase_target = expected_chase_target;
+            self.runtime.runtime_chase_target = expected_chase_target;
         }
 
         // The represented subsystem already owns concrete Point/Distract/
@@ -126,25 +126,25 @@ impl WorldCreature {
             .map(RuntimeRepresentedActiveGeneratorLikeCpp::key);
         let runtime_proxy_missing = expected_key.is_some_and(|key| {
             !self
-                .runtime_motion_master
+                .runtime.runtime_motion_master
                 .has_generator_kind(key.kind, RuntimeMovementSlot::Active)
         });
-        if self.runtime_represented_active != expected_key || runtime_proxy_missing {
-            if let Some(previous) = self.runtime_represented_active {
-                self.runtime_motion_master
+        if self.runtime.runtime_represented_active != expected_key || runtime_proxy_missing {
+            if let Some(previous) = self.runtime.runtime_represented_active {
+                self.runtime.runtime_motion_master
                     .remove_kind(previous.kind, RuntimeMovementSlot::Active);
             }
             if let Some(generator) = expected_represented_active {
-                self.runtime_motion_master
+                self.runtime.runtime_motion_master
                     .add(Box::new(generator), RuntimeMovementSlot::Active);
             }
-            self.runtime_represented_active = expected_key;
+            self.runtime.runtime_represented_active = expected_key;
         }
     }
 
     fn tick_runtime_represented_motion_like_cpp(&mut self, diff_ms: u32) {
         let unit = self.creature.unit();
-        let active_spline = self.active_move_spline.as_ref();
+        let active_spline = self.runtime.active_move_spline.as_ref();
         let context = MotionMasterUpdateContext {
             diff_ms,
             can_move: !unit.has_unit_state(UnitState::NOT_MOVE.bits()),
@@ -178,36 +178,36 @@ impl WorldCreature {
         self.sync_runtime_motion_master_like_cpp();
         self.tick_runtime_represented_motion_like_cpp(diff_ms);
         self.sync_runtime_motion_master_like_cpp();
-        self.runtime_motion_master.update(diff_ms);
-        self.runtime_motion_master_ticks = self.runtime_motion_master_ticks.saturating_add(1);
-        self.runtime_motion_master.current_kind()
+        self.runtime.runtime_motion_master.update(diff_ms);
+        self.runtime.runtime_motion_master_ticks = self.runtime.runtime_motion_master_ticks.saturating_add(1);
+        self.runtime.runtime_motion_master.current_kind()
     }
 
     pub fn runtime_motion_master_current_kind_like_cpp(
         &self,
     ) -> Option<RuntimeMovementGeneratorType> {
-        self.runtime_motion_master.current_kind()
+        self.runtime.runtime_motion_master.current_kind()
     }
 
     pub const fn runtime_motion_master_ticks_like_cpp(&self) -> u64 {
-        self.runtime_motion_master_ticks
+        self.runtime.runtime_motion_master_ticks
     }
 
     /// The chase generator currently selected for this creature, kept alongside
     /// the random/waypoint ones so its C++ state (`_lastTargetPosition`,
     /// `_rangeCheckTimer`, `_movingTowards`, `_path`) survives between ticks.
     pub fn active_chase_generator_like_cpp(&self) -> Option<&ChaseMovementGenerator> {
-        self.active_chase_generator.as_ref()
+        self.runtime.active_chase_generator.as_ref()
     }
 
     /// The corridor the random generator's `PathGenerator` still holds, for
     /// callers that build its next path request.
     pub fn active_random_path_poly_refs_like_cpp(&self) -> &[u64] {
-        &self.active_random_path_poly_refs
+        &self.runtime.active_random_path_poly_refs
     }
 
     /// Same, for the chase generator.
     pub fn active_chase_path_poly_refs_like_cpp(&self) -> &[u64] {
-        &self.active_chase_path_poly_refs
+        &self.runtime.active_chase_path_poly_refs
     }
 }

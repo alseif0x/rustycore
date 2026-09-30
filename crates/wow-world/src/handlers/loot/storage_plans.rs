@@ -7,7 +7,7 @@
 
 use super::LootStoreRandomProperties;
 use wow_core::ObjectGuid;
-use wow_packet::packets::loot::LootEntry;
+use wow_entities::LootEntry;
 
 #[derive(Debug, Clone)]
 pub(super) struct PlannedLootNewStack {

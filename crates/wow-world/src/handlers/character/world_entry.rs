@@ -7,9 +7,7 @@
 
 use super::*;
 
-#[cfg(test)]
-#[path = "world_entry_cinematic_tests.rs"]
-mod cinematic_tests;
+
 
 mod initial_packets;
 mod login;
@@ -130,7 +128,7 @@ impl WorldSession {
             req.idle_logout, self.account_id
         );
 
-        if !self.active_loot_guid.is_empty() {
+        if !self.loot_views.primary_guid().is_empty() {
             self.send_packet(&LootReleaseAll);
         }
 

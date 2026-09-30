@@ -13,7 +13,8 @@
 //! pending, and finally emits the independent five-second food/drink visual.
 //! RustyCore keeps a session-owned player tick (the same boundary already used
 //! for `DoMeleeAttackIfReady`), driven with the canonical world/map tick diff,
-//! and owns the single writer for all three transitions.
+//! and runs all three transitions through one canonical mutable Player closure
+//! on the Unit owner.
 //!
 //! The already-published `PlayerEffectiveCombatStatsLikeCpp` is the sole
 //! source for `PowerRegenFlatModifier`/`PowerRegenInterruptedFlatModifier` and
@@ -35,12 +36,6 @@ struct HealthRegenAuraInputsLikeCpp {
     mod_regen_during_combat: i32,
     has_mod_health_regen_in_combat: bool,
     mod_health_regen_in_combat: i32,
-}
-
-/// One represented power prepared for the C++ `RegenerateAll` power loop.
-struct RepresentedPowerRegenLikeCpp {
-    power: PowerType,
-    input: wow_entities::UnitPowerRegenInputLikeCpp,
 }
 
 /// Resolve the C++ `Player::RegenerateHealth` aura and game-table inputs from
@@ -268,7 +263,7 @@ impl WorldSession {
             })
             .unwrap_or_default();
 
-        let mut prepared = Vec::new();
+        let mut prepared: Vec<(PowerType, wow_entities::UnitPowerRegenInputLikeCpp)> = Vec::new();
         for power in represented_powers {
             let power_value = i32::from(power as i8);
             if prevented_powers
@@ -300,9 +295,9 @@ impl WorldSession {
                 .filter(|(misc_value, _)| *misc_value == power_value)
                 .map(|(_, amount)| *amount)
                 .sum();
-            prepared.push(RepresentedPowerRegenLikeCpp {
+            prepared.push((
                 power,
-                input: wow_entities::UnitPowerRegenInputLikeCpp {
+                wow_entities::UnitPowerRegenInputLikeCpp {
                     diff_ms,
                     regen_peace: power_entry.regen_peace,
                     regen_combat: power_entry.regen_combat,
@@ -319,71 +314,25 @@ impl WorldSession {
                     power_regen_flat_aura,
                     now_ms,
                 },
-            });
+            ));
         }
 
         let outcome = self.with_owned_player_mut_for_power_like_cpp(|player| {
-            // C++ `m_regenTimer += p_time; m_regenTimerCount += m_regenTimer;
-            // m_foodEmoteTimerCount += m_regenTimer`.
-            player
-                .unit_mut()
-                .accumulate_power_regen_timer_like_cpp(diff_ms);
-
-            let mut published = Vec::new();
-            for represented in &prepared {
-                let mut input = represented.input;
-                input.interrupted_by_mp5_rule = represented.power == PowerType::Mana
-                    && player
-                        .unit()
-                        .is_power_regen_interrupted_by_mp5_rule_like_cpp(now_ms);
-                if let wow_entities::UnitPowerRegenOutcomeLikeCpp::Applied {
-                    power: new_power,
-                    publish: true,
-                } = player
-                    .unit_mut()
-                    .regenerate_power_like_cpp(represented.power, input)
-                {
-                    published.push((represented.power, new_power));
-                }
-            }
-
-            // C++ `if (m_regenTimerCount >= 2000)` health branch. The gate is
-            // kept explicit so the `RegenerateHealth` call sites match
-            // `Player::RegenerateAll`; the inner function would otherwise
-            // compute the same no-op.
-            if player.unit().power_regen_timer_ready_like_cpp()
-                && let Some(input) = health_input
-            {
-                let passes_gate = !input.is_in_combat
-                    || input.is_polymorphed
-                    || input.base_health_regen != 0
-                    || input.has_mod_regen_during_combat
-                    || input.has_mod_health_regen_in_combat;
-                if passes_gate {
-                    let _ = player.unit_mut().regenerate_health_like_cpp(input);
-                }
-            }
-
-            player.unit_mut().finish_power_regen_tick_like_cpp();
-
-            // C++ `if (m_foodEmoteTimerCount >= 5000)` block. The accumulator
-            // and its one-window subtraction live on the canonical Unit; the
-            // aura-driven kit selection and publication run after the mutation
-            // boundary, like the power updates.
-            let food_emote_ready = player.unit().food_emote_timer_ready_like_cpp();
-            if food_emote_ready {
-                player.unit_mut().finish_food_emote_tick_like_cpp();
-            }
-            (published, food_emote_ready)
+            player.unit_mut().regenerate_all(
+                diff_ms,
+                now_ms,
+                &prepared,
+                health_input,
+            )
         });
 
-        let Some((published, food_emote_ready)) = outcome else {
+        let Some(outcome) = outcome else {
             return;
         };
         let Some(guid) = self.player_guid() else {
             return;
         };
-        for (power, new_power) in published {
+        for (power, new_power) in outcome.published_power_changes {
             // C++ `Unit::SetPower` sends one `SMSG_POWER_UPDATE` per changed
             // power on the publication boundary.
             self.send_player_power_update_like_cpp(guid, power, new_power);
@@ -392,7 +341,9 @@ impl WorldSession {
         // C++ `SendPlaySpellVisualKit` for the food/drink emote. The visual is
         // emitted only on the five-second boundary and only when a Standing
         // regen aura is still active.
-        if food_emote_ready && let Some(kit_record_id) = represented_food_emote_kit_like_cpp(self) {
+        if outcome.food_emote_ready
+            && let Some(kit_record_id) = represented_food_emote_kit_like_cpp(self)
+        {
             self.send_player_food_emote_visual_like_cpp(guid, kit_record_id);
         }
     }
@@ -410,3 +361,7 @@ impl WorldSession {
         .unwrap_or(false)
     }
 }
+
+#[cfg(test)]
+#[path = "regeneration_tests.rs"]
+mod tests;

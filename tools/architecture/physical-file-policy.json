@@ -176,7 +176,7 @@
       "path": "crates/wow-database/src/statements/character.rs",
       "observed_lines": 3429,
       "ceiling_lines": 27,
-      "split": "Separate the character-database statement identities, their `StatementDef` impl and the generated-statement constructors. #652 decomposes the 3,429-line root into three modules, dropping it to 27 lines and tightening the ceiling to that figure. Two justified exceptions, both indivisible items: character/identities.rs is 1,788 lines because `enum CharStatements` is one variant list whose identities a persistence golden freezes, and character/statement_def.rs is 1,626 lines because a trait impl cannot be split. Their exit is the semantic separation of the statement catalogue by database operation, owned by 584:C4. Item-for-item with the crate's 358 tests unchanged.",
+      "split": "Separate the character-database statement identities, their StatementDef implementation and generated-statement constructors. #652 reduced the 3,429-line root to 27 lines with its then-current 358 tests preserved. The earlier claim that a trait implementation cannot be decomposed is incorrect: #1233 moves exact SQL expressions into private operation-family modules and retains one exhaustive dispatch. The single CharStatements enum has a separate path-specific cohesion review; neither child receives a blanket exemption from this root's migration row. Numeric retirement remains subject to completed-delivery acceptance under 584:C4.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -719,6 +719,18 @@
       "review_checkpoint": "584:C4"
     }
   ],
-  "exceptions": [],
+  "exceptions": [
+    {
+      "path": "crates/wow-database/src/statements/character/identities.rs",
+      "observed_lines": 1791,
+      "ceiling_lines": 1791,
+      "responsibility": "The single canonical CharStatements enum: 600 static statement identities and the named GENERATED_CPP carrier, with source SQL/C++ documentation retained.",
+      "reason": "Splitting this one enum into family enums changes public identity, pattern matching and exhaustive dispatch; hiding it behind macros changes source analysis and loses the current directly inspectable identity list. SQL implementations are independently decomposed by operation family, so this exception covers only the enum and does not excuse unrelated implementation growth. Parent static review found no second responsibility; this is not compilation or persistence acceptance evidence.",
+      "tracking_issue": 1233,
+      "review_checkpoint": "1233:D4-terminal-identity-review",
+      "reviewed_at": "2026-09-29",
+      "expires_on": "2026-10-29"
+    }
+  ],
   "generated": []
 }

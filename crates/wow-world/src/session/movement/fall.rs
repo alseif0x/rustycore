@@ -20,8 +20,8 @@ impl WorldSession {
     pub(in crate::session) fn resolved_fall_information_like_cpp(&self) -> Option<(u32, f32)> {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.fall_information_like_cpp());
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.character_lifecycle_handleless_fixture() {
             return Some((self.last_fall_time_like_cpp, self.last_fall_z_like_cpp));
         }
         canonical
@@ -32,12 +32,14 @@ impl WorldSession {
                 player.set_fall_information_like_cpp(time, z);
             })
             .is_some();
-        #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode()
+            && (canonical || self.character_lifecycle_handleless_fixture())
+        {
             self.last_fall_time_like_cpp = time;
             self.last_fall_z_like_cpp = z;
         }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+        canonical || self.character_lifecycle_handleless_fixture()
     }
     pub(crate) fn update_fall_information_if_needed_like_cpp(
         &mut self,

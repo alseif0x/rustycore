@@ -213,6 +213,21 @@ impl WorldSession {
 mod tests {
     use super::*;
     use std::future::Future;
+    #[cfg(feature = "test-fixtures")]
+    use crate::canonical_player_access::install_canonical_player_owner_for_test;
+    #[cfg(feature = "test-fixtures")]
+    use std::sync::Arc;
+    #[cfg(feature = "test-fixtures")]
+    use crate::test_fixtures::CollectionLoadPortLikeCpp;
+    #[cfg(feature = "test-fixtures")]
+    use wow_core::{Position, guid::HighGuid};
+    #[cfg(feature = "test-fixtures")]
+    use wow_loot::{CreatureLoot, LootEntry, LootEntryFlags};
+    #[cfg(feature = "test-fixtures")]
+    use wow_packet::{
+        WorldPacket, packets::loot::LOOT_TYPE_CORPSE_LIKE_CPP,
+        packets::misc::LogoutRequest,
+    };
 
     #[tokio::test]
     async fn logout_publication_uses_realm_and_preserves_backpressure_and_failure() {
@@ -293,5 +308,178 @@ mod tests {
                 .await,
             FinalizationOutcome::Unavailable
         );
+    }
+
+    #[cfg(feature = "test-fixtures")]
+    fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Receiver<Vec<u8>>) {
+        let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(1);
+        let (send_tx, send_rx) = flume::bounded::<Vec<u8>>(capacity);
+        let mut session = WorldSession::new(
+            1,
+            "TestAccount".into(),
+            0,
+            2,
+            9,
+            54261,
+            vec![0u8; 40],
+            "esES".into(),
+            pkt_rx,
+            send_tx,
+        );
+        session.set_item_guid_generator_like_cpp(Arc::new(
+            wow_core::ObjectGuidGenerator::new(HighGuid::Item, 1),
+        ));
+        session.set_equipment_set_guid_generator_like_cpp(Arc::new(
+            wow_core::EquipmentSetGuidGeneratorLikeCpp::new(1),
+        ));
+        (session, send_rx)
+    }
+
+    #[cfg(feature = "test-fixtures")]
+    fn ensure_login_player_controller_for_test(
+        session: &mut WorldSession,
+        guid: ObjectGuid,
+        name: String,
+        position: Position,
+        map_id: u16,
+        race: u8,
+        class: u8,
+        level: u8,
+        gender: u8,
+    ) -> bool {
+        session.ensure_login_player_controller_like_cpp(
+            guid, name, position, map_id, race, class, level, gender,
+        )
+    }
+
+    #[cfg(feature = "test-fixtures")]
+    #[tokio::test]
+    async fn logout_releases_active_loot_views_like_cpp_remove_from_world() {
+        let (mut session, send_rx) = make_session_with_send_capacity(4);
+        session.set_player_lifecycle_port_like_cpp(CollectionLoadPortLikeCpp::new([]));
+        let player_guid = ObjectGuid::create_player(1, 42);
+        let loot_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 19_030);
+        let canonical: crate::session::SharedCanonicalMapManager =
+            Arc::new(std::sync::Mutex::new(wow_map::MapManager::default()));
+        session.set_canonical_map_manager(Arc::clone(&canonical));
+        session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+            wow_data::MapEntry {
+                id: 1,
+                instance_type: wow_data::map::MAP_COMMON,
+                expansion_id: 0,
+                parent_map_id: -1,
+                cosmetic_parent_map_id: -1,
+                flags1: 0,
+                flags2: 0,
+            },
+        ])));
+        assert!(ensure_login_player_controller_for_test(
+            &mut session,
+            player_guid,
+            "LogoutOwner".to_string(),
+            Position::ZERO,
+            1,
+            1,
+            1,
+            10,
+            0,
+        ));
+        let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
+        assert_eq!(
+            session.current_canonical_player_map_key_like_cpp(),
+            Some(wow_map::MapKey::new(1, 0))
+        );
+        assert!(session.try_claim_character_login_like_cpp(player_guid));
+        session.set_active_loot_guid(loot_guid);
+        session.loot_table.insert(
+            loot_guid,
+            CreatureLoot {
+                loot_guid,
+                coins: 0,
+                unlooted_count: 0,
+                loot_type: LOOT_TYPE_CORPSE_LIKE_CPP,
+                dungeon_encounter_id: 0,
+                loot_method: 0,
+                loot_master: ObjectGuid::EMPTY,
+                round_robin_player: ObjectGuid::EMPTY,
+                player_ffa_items: Vec::new(),
+                players_looting: Vec::new(),
+                allowed_looters: Vec::new(),
+                items: vec![LootEntry {
+                    loot_list_id: 0,
+                    item_id: 25,
+                    quantity: 1,
+                    random_properties_id: 0,
+                    random_properties_seed: 0,
+                    item_context: 0,
+                    flags: LootEntryFlags::default(),
+                    allowed_looters: vec![player_guid],
+                    roll_winner: ObjectGuid::EMPTY,
+                    ffa_looted_by: Vec::new(),
+                    taken: false,
+                }],
+                looted_by_player: false,
+            },
+        );
+
+        session
+            .handle_logout_request(LogoutRequest { idle_logout: false })
+            .await;
+
+        let sent = send_rx.try_recv().unwrap();
+        let mut sent = WorldPacket::from_bytes(&sent);
+        assert_eq!(
+            sent.read_uint16().unwrap(),
+            wow_constants::ServerOpcodes::LootReleaseAll as u16
+        );
+        assert_eq!(sent.remaining(), 0);
+
+        let sent = send_rx.try_recv().unwrap();
+        let mut sent = WorldPacket::from_bytes(&sent);
+        assert_eq!(
+            sent.read_uint16().unwrap(),
+            wow_constants::ServerOpcodes::LogoutResponse as u16
+        );
+
+        let sent = send_rx.try_recv().unwrap();
+        let mut sent = WorldPacket::from_bytes(&sent);
+        assert_eq!(
+            sent.read_uint16().unwrap(),
+            wow_constants::ServerOpcodes::LootRelease as u16
+        );
+        assert_eq!(sent.read_packed_guid().unwrap(), loot_guid);
+        assert_eq!(sent.read_packed_guid().unwrap(), player_guid);
+
+        assert!(
+            send_rx.try_recv().is_err(),
+            "failed persistence must not publish LogoutComplete"
+        );
+        assert!(!session.is_active_loot_guid(loot_guid));
+        assert!(
+            !session.loot_table.contains_key(&loot_guid),
+            "loot release retires the packet-cache copy before persistence"
+        );
+        assert_eq!(session.player_guid(), Some(player_guid));
+        assert_eq!(
+            session.finalization_report_like_cpp().unwrap().disposition,
+            crate::FinalizationDisposition::RetainAndEscalate
+        );
+        assert!(
+            canonical
+                .lock()
+                .unwrap()
+                .find_map(1, 0)
+                .unwrap()
+                .map()
+                .get_typed_player(player_guid)
+                .is_some(),
+            "failed persistence retains the canonical Player"
+        );
+        let (mut replacement, _) = make_session_with_send_capacity(1);
+        assert!(
+            !replacement.try_claim_character_login_like_cpp(player_guid),
+            "failed finalization retains its claim"
+        );
+        replacement.release_character_login_claim_like_cpp();
     }
 }

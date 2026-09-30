@@ -23,6 +23,9 @@ use wow_packet::packets::update::{
     UnitDataValuesDeltaUpdate, UpdateObject, VisibleItemValuesUpdate, VisualAnimValuesUpdate,
 };
 
+mod create_spline;
+pub(crate) use create_spline::create_object_spline_data_like_cpp;
+
 mod state_1;
 mod state_2;
 #[allow(unused_imports)]

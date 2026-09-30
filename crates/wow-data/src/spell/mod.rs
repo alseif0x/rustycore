@@ -18,7 +18,7 @@ pub use catalog::*;
 pub use corrections::*;
 pub use stores::*;
 
-use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 use std::f32::consts::TAU;
 
@@ -27,8 +27,7 @@ use anyhow::Result;
 use tracing::info;
 
 use wow_constants::{PowerType, SpellCastResult};
-
-use wow_entities::PetAuraLikeCpp;
+pub use wow_data_model::pet::PetAuraLikeCpp;
 
 use crate::{
     ConditionEntriesByTypeStore, ConditionsReference,

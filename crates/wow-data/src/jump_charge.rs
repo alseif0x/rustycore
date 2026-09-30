@@ -7,10 +7,9 @@
 
 use std::collections::HashMap;
 
-use wow_movement::{JumpChargeParams, JumpChargeSpec};
-
 pub const SPEED_CHARGE_LIKE_CPP: f32 = 42.0;
 pub const MOVEMENT_GRAVITY_LIKE_CPP: f32 = 19.291_105_270_385_74_f32;
+pub use wow_data_model::jump_charge::{JumpChargeParams, JumpChargeSpec};
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct JumpChargeParamsRowLikeCpp {

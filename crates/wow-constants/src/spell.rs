@@ -5,6 +5,8 @@
 
 //! Spell-related enums: cast results, schools, mechanics, aura interrupts, etc.
 
+pub mod aura_types;
+
 use bitflags::bitflags;
 use num_derive::{FromPrimitive, ToPrimitive};
 

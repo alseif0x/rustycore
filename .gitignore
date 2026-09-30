@@ -46,6 +46,10 @@ Thumbs.db
 
 # OpenClaw agent internal dirs (not for public repo)
 .codex/
+# Local refactor snapshots, scratch diffs and agent handoff artifacts.
+/.codex-*
+/.agent-artifacts/
+/.luna-source-snapshots/
 .agent/
 .agents/*
 .claude/*
@@ -53,7 +57,6 @@ Thumbs.db
 !.claude/agents/
 .claude/agents/*
 !.claude/agents/rustycore-worker.md
-!.claude/agents/deepseek-worker.md
 .openclaw/
 .trae/
 memory/

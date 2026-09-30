@@ -10,6 +10,7 @@ license.workspace = true
 bitflags = { workspace = true }
 wow-constants = { workspace = true }
 wow-core = { workspace = true }
+wow-data-model = { workspace = true }
 
 [lints]
 workspace = true

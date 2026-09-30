@@ -5,62 +5,6 @@
 use super::*;
 
 impl MovementMonsterSpline {
-    #[must_use]
-    pub fn from_move_spline(move_spline: &MoveSpline) -> Self {
-        let mut flags = move_spline.flags();
-        if move_spline.is_cyclic() {
-            flags.insert(MoveSplineFlag::ENTER_CYCLE);
-        }
-        flags.remove(MoveSplineFlag::MASK_NO_MONSTER_MOVE);
-
-        let path_data = move_spline.monster_move_path_data();
-        Self {
-            id: move_spline.id(),
-            // C++ `MonsterMove::InitializeSplineData` leaves
-            // `MovementMonsterSpline::Destination` at its default value for
-            // SMSG_ON_MONSTER_MOVE; only the nested MovementSpline path carries
-            // the destination.
-            destination: Position::ZERO,
-            movement: MovementSpline {
-                flags: flags.bits(),
-                face: MonsterMoveFace::from_move_spline(move_spline),
-                move_time: move_spline.duration_ms().max(0) as u32,
-                fade_object_time: if flags.contains(MoveSplineFlag::FADE_OBJECT) {
-                    move_spline.effect_start_time_ms().max(0) as u32
-                } else {
-                    0
-                },
-                points: path_data.points,
-                packed_deltas: path_data.packed_deltas,
-                spell_effect_extra: move_spline.spell_effect_extra().map(|data| {
-                    MonsterSplineSpellEffectExtraData::from_move_data(
-                        data,
-                        move_spline.vertical_acceleration(),
-                    )
-                }),
-                jump_extra: (flags.contains(MoveSplineFlag::PARABOLIC)
-                    && (move_spline.spell_effect_extra().is_none()
-                        || move_spline.effect_start_time_ms() != 0))
-                    .then(|| MonsterSplineJumpExtraData {
-                        jump_gravity: move_spline.vertical_acceleration(),
-                        start_time: move_spline.effect_start_time_ms().max(0) as u32,
-                        duration: 0,
-                    }),
-                anim_tier_transition: (flags.contains(MoveSplineFlag::ANIMATION))
-                    .then_some(move_spline.anim_tier())
-                    .flatten()
-                    .map(|anim_tier| {
-                        MonsterSplineAnimTierTransition::from_move_data(
-                            anim_tier,
-                            move_spline.effect_start_time_ms().max(0) as u32,
-                        )
-                    }),
-                ..MovementSpline::default()
-            },
-            ..Self::default()
-        }
-    }
-
     pub fn write(&self, pkt: &mut WorldPacket) {
         pkt.write_uint32(self.id);
         write_xyz(pkt, self.destination);
@@ -191,19 +135,6 @@ pub enum MonsterMoveFace {
 }
 
 impl MonsterMoveFace {
-    pub(super) fn from_move_spline(move_spline: &MoveSpline) -> Self {
-        let facing = move_spline.facing();
-        match facing.kind {
-            MonsterMoveType::Normal => Self::Normal,
-            MonsterMoveType::FacingSpot => Self::FacingSpot(facing.spot),
-            MonsterMoveType::FacingTarget => Self::FacingTarget {
-                direction: facing.angle,
-                target_guid: facing.target,
-            },
-            MonsterMoveType::FacingAngle => Self::FacingAngle(facing.angle),
-        }
-    }
-
     pub(super) fn kind(self) -> u8 {
         match self {
             MonsterMoveFace::Normal => 0,
@@ -262,16 +193,6 @@ pub struct MonsterSplineSpellEffectExtraData {
 }
 
 impl MonsterSplineSpellEffectExtraData {
-    pub(super) fn from_move_data(data: MoveSpellEffectExtraData, jump_gravity: f32) -> Self {
-        Self {
-            target_guid: data.target,
-            spell_visual_id: data.spell_visual_id,
-            progress_curve_id: data.progress_curve_id,
-            parabolic_curve_id: data.parabolic_curve_id,
-            jump_gravity,
-        }
-    }
-
     pub(super) fn write(self, pkt: &mut WorldPacket) {
         pkt.write_packed_guid(&self.target_guid);
         pkt.write_uint32(self.spell_visual_id);
@@ -305,15 +226,6 @@ pub struct MonsterSplineAnimTierTransition {
 }
 
 impl MonsterSplineAnimTierTransition {
-    pub(super) fn from_move_data(data: MoveAnimTierTransition, start_time: u32) -> Self {
-        Self {
-            tier_transition_id: data.tier_transition_id as i32,
-            start_time,
-            end_time: 0,
-            anim_tier: data.anim_tier,
-        }
-    }
-
     pub(super) fn write(self, pkt: &mut WorldPacket) {
         pkt.write_int32(self.tier_transition_id);
         pkt.write_uint32(self.start_time);

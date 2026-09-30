@@ -12,7 +12,7 @@
 
 mod account;
 mod bank;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 mod bank_test_support;
 mod condition_objects;
 mod corpse_loading;
@@ -21,11 +21,17 @@ mod creature_spawn;
 mod entry_zone;
 mod enumeration_support;
 mod gossip;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub(crate) use self::gossip::fixture_access as gossip_fixture_access;
 mod inventory_plan;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub(crate) mod inventory_fixture_access;
 mod item_actions;
 mod item_load_support;
 mod items;
 mod lifecycle;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub(crate) mod lifecycle_fixture_access;
 mod login_context;
 mod login_support;
 mod login_transport_support;
@@ -79,9 +85,10 @@ use wow_data::{
     ItemExtendedCostStore, PlayerConditionContextLikeCpp, PlayerConditionStore,
     PlayerCreateInfoLikeCpp, PlayerSpellBonusInputLikeCpp, PlayerStatSystemInputLikeCpp,
     PlayerStatSystemProjectionLikeCpp, TaxiPathNodeEntry, TaxiPathNodeStore,
-    calculate_player_stat_system_like_cpp, hotfix_locale_mask,
+    hotfix_locale_mask,
     is_player_meeting_condition_like_cpp,
 };
+use wow_entities::player_rules::calculate_derived_stats as calculate_player_stat_system_like_cpp;
 use wow_entities::{
     BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_START, Corpse, CorpseCustomizationChoice,
     CorpseType, CreatureAddonLifecycleRecordLikeCpp, GAMEOBJECT_TYPE_FISHING_HOLE,
@@ -123,7 +130,7 @@ use wow_persistence::{
 };
 
 use crate::handlers::quest::RepresentedQuestGiverStatusSourceLikeCpp;
-use crate::map_manager::zone_and_area_for_position_like_cpp;
+use crate::terrain_catalog_adapter::zone_and_area_for_position_like_cpp;
 use crate::session::{
     ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, CharacterPetAuraEffectRowLikeCpp,
     CharacterPetAuraRowLikeCpp, CharacterPetDeclinedNamesRowLikeCpp,
@@ -239,7 +246,3 @@ const MAX_CHARACTERS_PER_ACCOUNT: u32 = 10;
 #[cfg(test)]
 #[path = "../character_vendor_atomicity_tests.rs"]
 mod vendor_atomicity_tests;
-
-#[cfg(test)]
-#[path = "../character_tests.rs"]
-pub(crate) mod tests;

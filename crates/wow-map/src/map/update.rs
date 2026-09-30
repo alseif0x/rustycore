@@ -7,6 +7,22 @@
 
 use super::*;
 
+fn push_in_world_guids<Terrain, Lifecycle>(
+    map: &Map<Terrain, Lifecycle>,
+    target: &mut Vec<ObjectGuid>,
+    guids: impl IntoIterator<Item = ObjectGuid>,
+) where
+    Terrain: TerrainGridLoader,
+    Lifecycle: GridLifecycle,
+{
+    target.extend(
+        guids
+            .into_iter()
+            .filter(|guid| map.object_is_in_world(*guid)),
+    );
+}
+
+
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
 where
     Terrain: TerrainGridLoader,
@@ -731,4 +747,98 @@ where
             false
         }
     }
+    pub fn map_update_visit_plan_like_cpp(
+        &self,
+        sources: impl IntoIterator<Item = MapUpdatePlayerSources>,
+        active_non_player_guids: impl IntoIterator<Item = ObjectGuid>,
+        transport_guids: impl IntoIterator<Item = ObjectGuid>,
+        diff_ms: u32,
+    ) -> MapUpdateVisitPlan {
+        let mut session_update_players = Vec::new();
+        let mut player_update_guids = Vec::new();
+        let mut nearby_visit_centers = Vec::new();
+        let mut saw_player_source = false;
+
+        for source in sources {
+            saw_player_source = true;
+            if !self.object_is_in_world(source.player_guid) {
+                continue;
+            }
+
+            session_update_players.push(source.player_guid);
+            player_update_guids.push(source.player_guid);
+            nearby_visit_centers.push(source.player_guid);
+
+            if let Some(viewpoint) = source.viewpoint_guid
+                && self.object_is_in_world(viewpoint)
+            {
+                nearby_visit_centers.push(viewpoint);
+            }
+
+            push_in_world_guids(
+                self,
+                &mut nearby_visit_centers,
+                source.far_combat_unit_guids,
+            );
+            push_in_world_guids(
+                self,
+                &mut nearby_visit_centers,
+                source.far_aura_caster_guids,
+            );
+            push_in_world_guids(self, &mut nearby_visit_centers, source.far_summon_guids);
+        }
+
+        let mut saw_active_non_player_source = false;
+        for guid in active_non_player_guids {
+            saw_active_non_player_source = true;
+            if self.object_is_in_world(guid) {
+                nearby_visit_centers.push(guid);
+            }
+        }
+
+        let mut transport_update_guids = Vec::new();
+        for guid in transport_guids {
+            if self.map_object(guid).is_some() {
+                transport_update_guids.push(guid);
+            }
+        }
+
+        sort_dedup(&mut session_update_players);
+        sort_dedup(&mut player_update_guids);
+        sort_dedup(&mut nearby_visit_centers);
+        sort_dedup(&mut transport_update_guids);
+        let process_relocation_notifies = saw_player_source || saw_active_non_player_source;
+
+        MapUpdateVisitPlan {
+            diff_ms,
+            session_update_players,
+            player_update_guids,
+            nearby_visit_centers,
+            transport_update_guids,
+            process_relocation_notifies,
+        }
+    }
+
+    pub fn map_update_metrics_like_cpp(&self) -> MapUpdateMetricsSummaryLikeCpp {
+        let mut summary = MapUpdateMetricsSummaryLikeCpp {
+            map_id: self.map_id,
+            instance_id: self.instance_id,
+            ..MapUpdateMetricsSummaryLikeCpp::default()
+        };
+
+        for record in self.entity_world.values() {
+            match record.kind() {
+                AccessorObjectKind::Creature if record.creature().is_some() => {
+                    summary.creature_count += 1;
+                }
+                AccessorObjectKind::GameObject if record.game_object().is_some() => {
+                    summary.gameobject_count += 1;
+                }
+                _ => {}
+            }
+        }
+
+        summary
+    }
+
 }

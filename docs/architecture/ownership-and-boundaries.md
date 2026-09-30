@@ -149,8 +149,11 @@ Every workspace package has one dominant category:
 | `composition` | all production layers; owns process wiring |
 | `tooling` | may consume production layers but production must not consume tooling |
 
-Four packages have a stricter exact direct-dependency allowlist: `wow-network`, `wow-packet`,
-`wow-data` and `wow-session`. For the first three this prevents mixed boundary surfaces from
+The packages `wow-network`, `wow-packet`, `wow-data`, `wow-data-model`, `wow-conditions`,
+`wow-spell-acquisition` and `wow-session` have a stricter exact direct-dependency allowlist.
+`wow-data-model` contains shared immutable schema and read contracts and depends only on
+`wow-core` and `wow-constants`; loaders and concrete catalogs remain in `wow-data`.
+For the network, packet and data adapters this prevents mixed boundary surfaces from
 growing while responsibilities are extracted. `wow-session` is there for the opposite reason
 (#297): it was extracted precisely so a transport decision cannot reach gameplay, a map or a
 query, and without the exact allowlist that isolation would hold only by accident — its
@@ -166,7 +169,11 @@ This is deliberately not a global taxonomy of crates.io: Cargo metadata cannot s
 arbitrary package is SQL, networking, configuration, process, or runtime infrastructure.
 Instead, every new direct external dependency on a protected surface requires a reviewed policy
 change. Existing utility libraries such as `rand` and adapter-owned infrastructure such as
-`wow-network → tokio` remain explicitly allowed, while current inward `sqlx`/`tokio` leaks are
+`wow-network → tokio` remain explicitly allowed. The reviewed `wow-entities → tokio`
+allowance preserves the canonical loot authority's `sync::watch` notification of claim
+generation changes: it owns no task, timer, I/O or additional update clock, and its state
+guard is released before waiting. This package-specific allowance does not authorize
+moving infrastructure from other owners into entities. Current inward `sqlx`/`tokio` leaks are
 issue-linked exceptions. Other adapter and composition packages may integrate concrete
 infrastructure; the workspace-edge policy still constrains which RustyCore layers they consume.
 Development-only dependencies are outside this production boundary. The checker uses Cargo's

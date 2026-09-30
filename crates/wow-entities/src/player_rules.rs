@@ -9,6 +9,10 @@
 //! so it cannot read or write the owner's state: these are rules, not owner
 //! behaviour. Bodies and signatures are unchanged.
 
+mod stats;
+
+pub use stats::calculate_derived_stats;
+
 use crate::*;
 use wow_constants::item::InventoryType;
 use wow_constants::rest::{

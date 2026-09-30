@@ -1,5 +1,15 @@
 # Plan técnico para completar la arquitectura de RustyCore
 
+**Continuación vigente, 2026-09-29:** el estado de la barrida completa de
+#1233/#584, su rama `584-map-manager-domain` y las fronteras B3/B6/B7/C/D/E
+se mantienen en el [programa de workspace](workspace-structure-programme.md#estado-de-continuacion),
+enlazado también desde `STATE.md`. Las entradas fechadas de esta sección
+conservan evidencia histórica y criterios semánticos; no seleccionan la antigua
+rama ni prueban aceptación de la punta actual. La instrucción explícita del
+usuario es terminar la barrida autorizada antes de compilar, ejecutar toda la
+aceptación y corregir los hallazgos. Se mantienen los tests al implementar,
+pero no se ejecuta el feedback Cargo de workers entre cortes.
+
 **Sincronización de la entrega #748, F1/#61/#63 y PR #933/#931/#929/#927/#925/#924/#923/#922/#921/#919/#918/#917/#916/#915/#913/#911/#909/#907/#906/#904/#902/#901/#899/#897/#895/#893/#891/#889/#887/#885/#881/#878 — 2026-09-15; actualización #524 genérico, SQL hotfix, locale y P2/P3.13/P3.12/P3.11/P3.10/Transport VALUES/VehicleKit/Battleground/persistent-capabilities/world-local/taxi/item-object/item-modifier/void-storage — 2026-09-14.** Este documento detalla los
 límites técnicos de la dirección general que mantienen `docs/migration/PORT_PLAN.md`
 y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y sus
@@ -13,7 +23,7 @@ plan técnico general y aquel no lo sustituye.
 
 ## #1233 — descomposición de Session y reglas independientes, 2026-09-22
 
-Estado: **implementación local en curso, no validada ni publicada** sobre
+Estado registrado el 2026-09-22 (histórico): **implementación local en curso, no validada ni publicada** sobre
 `9daa13f663bd1e863a3efed06721c3fcb3b6cd66`, en la rama
 `1233-archcore-modularize-wow-world-session-and-isolate-ruletest-boundaries`.
 La petición explícita mantiene nivel 1 para la aceptación: no se han ejecutado

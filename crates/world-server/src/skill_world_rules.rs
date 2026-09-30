@@ -140,6 +140,13 @@ mod tests {
     #[test]
     fn app_keeps_fishing_before_skill_tiers_with_one_adapter() {
         let source = include_str!("app.rs");
+        let startup_source = include_str!("app/player_catalog_startup.rs");
+        let continuation = include_str!("app/world_startup.rs");
+        let delegation = "world_startup::run_world_startup(";
+        assert_eq!(source.matches(delegation).count(), 1);
+        let delegation_position = source.find(delegation).unwrap();
+        assert_eq!(source[delegation_position..].split_once(".await").unwrap().0
+            .matches("&skill_world_rules_persistence,").count(), 1);
         assert_eq!(
             source
                 .matches("MariaDbSkillWorldRulesPersistenceAdapterLikeCpp::new")
@@ -149,9 +156,41 @@ mod tests {
         let fishing = source
             .find("load_fishing_base_skill_store_like_cpp")
             .expect("fishing skill rules must remain composed");
-        let tiers = source
-            .find("load_skill_tiers_store_like_cpp")
-            .expect("skill tiers must remain composed");
-        assert!(fishing < tiers);
+        assert_eq!(
+            continuation
+                .matches("player_catalog_startup::load_player_catalogs(")
+                .count(),
+            1
+        );
+        let tiers = continuation
+            .find("player_catalog_startup::load_player_catalogs(")
+            .expect("skill tiers must remain composed through the Player catalog startup phase");
+        assert!(fishing < delegation_position);
+        assert!(tiers < continuation.find("spell_pet_startup::load_spell_pet_startup(").unwrap());
+        assert!(
+            continuation.contains(
+                "player_catalog_startup::load_player_catalogs(\n        data_dir,\n        locale,\n        skill_world_rules_persistence,\n        static_data_overlay_persistence,\n    )"
+            ),
+            "the Player catalog phase must borrow the original skill rules and overlay adapters"
+        );
+        assert_eq!(
+            source.matches("load_skill_tiers_store_like_cpp(").count()
+                + continuation.matches("load_skill_tiers_store_like_cpp(").count(),
+            0,
+            "skill tiers must not be loaded again inline in the root"
+        );
+        assert_eq!(
+            startup_source
+                .matches("load_skill_tiers_store_like_cpp(")
+                .count(),
+            1
+        );
+        assert_eq!(
+            startup_source
+                .matches("crate::skill_world_rules::load_skill_tiers_store_like_cpp(skill_world_rules_persistence)")
+                .count(),
+            1,
+            "the production child must forward the borrowed skill rules port unchanged"
+        );
     }
 }

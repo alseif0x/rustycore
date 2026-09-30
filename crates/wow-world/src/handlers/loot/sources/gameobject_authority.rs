@@ -6,9 +6,27 @@ impl WorldSession {
         gameobject_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) -> Option<()> {
+        self.sync_gameobject_loot_with_policy(gameobject_guid, player_guid, LootCyclePolicy::Production)
+    }
+
+    pub(in crate::handlers::loot) fn sync_gameobject_loot_with_policy(
+        &mut self,
+        gameobject_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+        policy: LootCyclePolicy,
+    ) -> Option<()> {
+        self.sync_gameobject_loot_operation(gameobject_guid, player_guid, policy.operation_policy())
+    }
+
+    pub(in crate::handlers::loot) fn sync_gameobject_loot_operation(
+        &mut self,
+        gameobject_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+        policy: LootOperationPolicy,
+    ) -> Option<()> {
         let Some(authority) = self.represented_owned_loot_authority_like_cpp(gameobject_guid)
         else {
-            return (represented_local_loot_fixture_allowed_like_cpp()
+            return (policy.permits_local_cache(false)
                 && self.loot_table.contains_key(&gameobject_guid))
             .then_some(());
         };
@@ -68,7 +86,7 @@ impl WorldSession {
     /// Preserves the distinction between a missing canonical owner (`None`)
     /// and an owner whose current lifecycle rejects generation (`Some(None)`).
     /// Test-only packet fixtures may fall back only for the former.
-    pub(super) fn represented_gameobject_loot_install_observation_result_like_cpp(
+    pub(in crate::handlers::loot) fn represented_gameobject_loot_install_observation_result_like_cpp(
         &mut self,
         gameobject_guid: ObjectGuid,
     ) -> Option<Option<RepresentedGameObjectLootInstallObservationLikeCpp>> {

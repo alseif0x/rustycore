@@ -18,9 +18,12 @@ use wow_data::{
     ItemRandomSuffixStore, ItemRecord, ItemSearchNameEntry, ItemSearchNameStore,
     ItemSparseTemplateEntry, ItemStatsStore, ItemStore,
 };
-use wow_entities::{INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START};
+use wow_entities::{
+    CreatureLoot, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_START,
+    LootEntry, LootEntryFlags,
+};
 use wow_packet::ServerPacket;
-use wow_packet::packets::loot::{CreatureLoot, LOOT_TYPE_ITEM_LIKE_CPP, LootEntry, LootEntryFlags};
+use wow_packet::packets::loot::LOOT_TYPE_ITEM_LIKE_CPP;
 
 #[derive(Debug)]
 struct RecordingVoidStoragePersistencePortLikeCpp {

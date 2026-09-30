@@ -5,69 +5,10 @@
 
 use super::*;
 
-/// One resolved white swing: the damage after every C++
-/// `Unit::CalculateMeleeDamage` stage the represented model implements, plus the
-/// hit outcome `SMSG_ATTACKERSTATEUPDATE` publishes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::session) struct RepresentedMeleeSwingLikeCpp {
-    pub damage: u32,
-    /// C++ `CalcDamageInfo::OriginalDamage`.
-    pub original_damage: u32,
-    /// C++ `CalcDamageInfo::Blocked`.
-    pub blocked: u32,
-    /// C++ `CalcDamageInfo::HitInfo`.
-    pub hit_info: u32,
-    /// C++ `CalcDamageInfo::TargetState`.
-    pub victim_state: u8,
-}
+// Keep the consumed World path while the shared creature motor owns its DTO.
+pub(in crate::session) use wow_map::PlayerMeleeSwing as RepresentedMeleeSwingLikeCpp;
 
-impl RepresentedMeleeSwingLikeCpp {
-    /// A plain landed hit, for the paths that resolve their own damage without
-    /// the represented attack table (the creature-owned swing).
-    pub(in crate::session) fn hit_like_cpp(damage: u32) -> Self {
-        let (hit_info, victim_state) = crate::session_rules::melee_outcome_presentation_like_cpp(
-            crate::session_rules::RepresentedMeleeOutcomeLikeCpp::Hit,
-            false,
-        );
-        Self {
-            damage,
-            original_damage: damage,
-            blocked: 0,
-            hit_info,
-            victim_state,
-        }
-    }
-}
-
-/// C++ `Unit::CalcArmorReducedDamage` inputs the swing owner resolves once per
-/// victim. `NONE` means "no represented armour": every field is zero, so the
-/// reduction is zero and the swing damage is unchanged.
-#[derive(Debug, Clone, Copy, Default, PartialEq)]
-pub(in crate::session) struct RepresentedArmorMitigationLikeCpp {
-    pub attacker_level: u8,
-    pub victim_level: u8,
-    pub victim_armor: i32,
-    pub armor_penetration_pct: f32,
-    pub target_resistance_normal_aura: i32,
-    /// The attacker's `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` (269) sum for
-    /// `SPELL_SCHOOL_MASK_NORMAL`.
-    pub ignore_target_resist_normal_pct: f32,
-    /// The victim's `SPELL_AURA_BYPASS_ARMOR_FOR_CASTER` (345) sum for effects
-    /// this attacker cast.
-    pub bypass_armor_pct_by_caster: f32,
-}
-
-impl RepresentedArmorMitigationLikeCpp {
-    pub(in crate::session) const NONE: Self = Self {
-        attacker_level: 0,
-        victim_level: 0,
-        victim_armor: 0,
-        armor_penetration_pct: 0.0,
-        target_resistance_normal_aura: 0,
-        ignore_target_resist_normal_pct: 0.0,
-        bypass_armor_pct_by_caster: 0.0,
-    };
-}
+pub(in crate::session) use wow_combat::ArmorMitigation as RepresentedArmorMitigationLikeCpp;
 
 impl WorldSession {
     pub(in crate::session) fn canonical_player_attack_state_like_cpp(

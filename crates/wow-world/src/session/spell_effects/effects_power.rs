@@ -57,25 +57,19 @@ impl WorldSession {
 
         let outcome = self
             .mutate_canonical_player_like_cpp(|player| {
-                let max_power = player.get_max_power(power);
-                if max_power <= 0 {
-                    return None;
-                }
-                let requested = if percent {
-                    ((i64::from(max_power) * i64::from(damage)) / 100)
-                        .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
+                let amount = if percent {
+                    wow_entities::SpellPowerAmount::Percent(damage)
                 } else {
-                    damage
+                    wow_entities::SpellPowerAmount::Flat(damage)
                 };
-                let current = player.get_power(power);
-                let after = current.saturating_add(requested).clamp(0, max_power);
-                player.unit_mut().set_power(power, after);
-                Some((requested, after - current))
+                player.unit_mut().energize_spell_power(power, amount)
             })
             .flatten();
-        let Some((requested, applied)) = outcome else {
+        let Some(outcome) = outcome else {
             return false;
         };
+        let requested = outcome.requested;
+        let applied = outcome.applied;
         // C++ `Unit::EnergizeBySpell` (`Unit.cpp:6586`) forwards `damage / 2`
         // assisting threat before the log, with `ignoreModifiers = true`.
         self.forward_assisting_threat_like_cpp(
@@ -130,23 +124,13 @@ impl WorldSession {
         } else {
             0
         };
-        let mut damage = match spell_id {
-            // Blood Fury: `damage -= 10 * max(0, min(30, level - 60))`.
-            24_571 => damage - 10 * i32::from(caster_level.saturating_sub(60).min(30)),
-            // Burst of Energy: `damage -= 4 * max(0, min(15, level - 60))`.
-            24_532 => damage - 4 * i32::from(caster_level.saturating_sub(60).min(15)),
-            _ => damage,
-        };
-        // Runic Mana Injector: engineers gain 25% more.
-        if spell_id == 67_490
-            && caster_is_player
-            && self
-                .resolved_player_skill_value_like_cpp(wow_entities::SKILL_ENGINEERING_LIKE_CPP)
-                .is_some_and(|value| value != 0)
-        {
-            damage += (damage as f32 * 25.0 / 100.0) as i32;
-        }
-        damage
+        wow_spell::energize_spell_amount(
+            spell_id,
+            damage,
+            caster_is_player,
+            caster_level,
+            || self.resolved_player_skill_value_like_cpp(wow_entities::SKILL_ENGINEERING_LIKE_CPP),
+        )
     }
     /// C++ `Spell::GetExecuteLogEffect` (`Spell.cpp:5062-5074`): the cast's log
     /// entry for one `SpellEffectName`, created on first use.
@@ -264,11 +248,13 @@ impl WorldSession {
         });
     }
 
-    /// C++ `Spell::EffectPowerDrain`/`EffectPowerBurn` pre-scale the effect
+    /// C++ `Spell::EffectPowerDrain` pre-scales the effect
     /// amount with `Unit::SpellDamageBonusDone(..., SPELL_DIRECT_DAMAGE, ...)`
     /// (`SpellEffects.cpp:1082-1088`) before draining or burning. The
     /// `damage < 0` gate runs before that call, so a negative base keeps its
-    /// value for the effect's own refusal.
+    /// value for the effect's own refusal. The existing Rust execution chain
+    /// also calls this for burn; C++ `EffectPowerBurn` (1142-1165) does not
+    /// contain that pre-scaling block. This refactor retains that gap.
     ///
     /// C++ passes `SPELL_DIRECT_DAMAGE` to `SpellDamageBonusTaken`, whose first
     /// guard returns the amount unchanged for direct damage
@@ -310,11 +296,10 @@ impl WorldSession {
     /// and both effects publish `ExecuteLogEffectTakeTargetPower`
     /// (`SpellEffects.cpp:1101`, `1160`).
     ///
-    /// Represented boundaries: `EffectPowerBurn` on a creature target is a
-    /// no-op because C++ accumulates that damage into the spell's damage
-    /// pipeline, which the represented chain applies to player victims only;
-    /// and a creature power change is not published to observers yet (no
-    /// represented creature power update field writer).
+    /// Represented boundary: creature power changes publish their Unit values
+    /// before the execute log; creature burn then applies damage asynchronously.
+    /// C++ instead accumulates burn into `m_damage` (SpellEffects.cpp:1164).
+    /// These are existing Rust paths, including their partial-failure behavior.
     pub(in crate::session) async fn apply_power_drain_effect_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
@@ -346,23 +331,18 @@ impl WorldSession {
         let power = party_member_power_kind_from_u8_like_cpp(power_id);
 
         // C++ accepts any living target whose `GetPowerType()` matches the
-        // effect (`SpellEffects.cpp:1078`, `1151`). Only the drain branch is
-        // represented for a creature target: C++ `EffectPowerBurn` accumulates
-        // its damage into the spell's damage pipeline, which the represented
-        // chain applies only to player victims.
+        // effect (`SpellEffects.cpp:1078`, `1151`). Both represented creature
+        // branches mutate power before publication and any awaited burn damage.
         if target_guid.is_creature() {
             let drained = self
                 .mutate_canonical_creature_by_guid_like_cpp(target_guid, |creature| {
-                    if !creature.is_alive()
-                        || party_member_power_kind_from_u8_like_cpp(
-                            creature.unit().data().display_power,
-                        ) != power
-                    {
+                    if !creature.is_alive() {
                         return None;
                     }
-                    let current = creature.unit().get_power(power).max(0);
-                    let drain = current.min(damage);
-                    creature.unit_mut().set_power(power, current - drain);
+                    let active_power = party_member_power_kind_from_u8_like_cpp(
+                        creature.unit().data().display_power,
+                    );
+                    let drain = creature.unit_mut().drain_spell_power(power, active_power, damage)?;
                     Some((drain, creature.unit().values_update()))
                 })
                 .flatten();
@@ -429,15 +409,10 @@ impl WorldSession {
 
         let drained = self
             .mutate_canonical_player_like_cpp(|player| {
-                if party_member_power_kind_from_u8_like_cpp(player.unit().data().display_power)
-                    != power
-                {
-                    return None;
-                }
-                let current = player.get_power(power).max(0);
-                let drain = current.min(damage);
-                player.unit_mut().set_power(power, current - drain);
-                Some(drain)
+                let active_power = party_member_power_kind_from_u8_like_cpp(
+                    player.unit().data().display_power,
+                );
+                player.unit_mut().drain_spell_power(power, active_power, damage)
             })
             .flatten();
         let Some(drained) = drained else {
@@ -504,13 +479,7 @@ impl WorldSession {
         let restored = self
             .mutate_canonical_player_like_cpp(|player| {
                 let history = &mut player.unit_mut().subsystems_mut().spells.history;
-                let mut restored = 0;
-                for _ in 0..damage {
-                    if history.restore_charge(charge_category_id) {
-                        restored += 1;
-                    }
-                }
-                restored
+                history.restore_charges(charge_category_id, damage)
             })
             .unwrap_or(0);
 

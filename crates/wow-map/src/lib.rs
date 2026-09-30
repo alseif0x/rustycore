@@ -32,17 +32,37 @@ pub use grid_unload::{
     object_grid_cleaner, object_grid_evacuator, object_grid_stoper, object_grid_unloader,
 };
 pub use manager::{
-    CreateMapDecision, CreateMapDifficultyContext, CreateMapEntryContext, CreateMapEntryKind,
+    ActorAggroContinuation, ActorAggroError, ActorAggroLosQuery, ActorAggroLosRequest,
+    ActorAggroPrepareFailure, ActorAggroProgress, ActorAggroResumeFailure,
+    ActorSpellContinuation, ActorSpellError, ActorSpellLosQuery, ActorSpellLosRequest,
+    ActorSpellPrepareFailure, ActorSpellProgress, ActorSpellResumeFailure,
+    ActorSpellPublicationContinuation, ActorSpellPublicationFailure,
+    FreshCreatureActorMapAdmissionError,
+    ActorGridHeightContinuation, ActorGridHeightQuery, ActorGridHeightRequest,
+    ActorMovementCompletion, ActorMovementError, ActorMovementPending, ActorMovementProgress,
+    ActorMovementResumeFailure, ActorMovementTraceFacts, ActorPathContinuation, ActorPathRequest,
+    ActorStaticHeightContinuation, ActorStaticHeightQuery, ActorStaticHeightRequest,
+    ActorTickAccessError, CreateMapDecision, CreateMapDifficultyContext, CreateMapEntryContext, CreateMapEntryKind,
     CreateMapGroupContext, CreateMapInstanceLockContext, CreateMapPlayerContext,
     CreateMapSideEffect, ExistingInstanceMapContext, InstanceIdAllocator, MIN_GRID_DELAY_MS,
     MIN_MAP_UPDATE_DELAY_MS, ManagedMap, ManagedMapInnerLikeCpp, ManagedMapKind,
-    MapCreatureUpdateOwnerLikeCpp, MapManager, MapObjectUpdateSelectionLikeCpp,
+    MapCreatureUpdateOwnerLikeCpp, MapManager, MapObjectTickContinuation,
+    MapObjectUpdateSelectionLikeCpp, ObjectMapFinishOutcome, ObjectMapTickError,
+    ObjectMapUpdateToken,
     MapSessionPassParticipantLikeCpp, MapTickBeginLikeCpp, MapTickCoordinationStateLikeCpp,
     MapTickParticipantLikeCpp, MapTickPlanLikeCpp, MapTickResumeLikeCpp, MapUnloadBlockedLikeCpp,
     MapUpdater, PlayerHandle, PlayerOwnerError, PlayerResidenceLikeCpp,
     PlayerVisibilityRefreshIntentLikeCpp,
 };
 pub use map::{
+    CreatureAuraSlotFacts, CreatureCreateFacts, CreatureInitialAuraFacts,
+    CreatureMessageSourceFacts, CreatureVisibilityCandidate,
+    FreshCreatureActorAdmission, FreshCreatureActorAdmissionError,
+    LoadedGridAdmission, LoadedGridMaterialization, LoadedGridPrimaryAdmission,
+    LoadedGridRespawnOutcome,
+    LoadedGridAttemptPlan, LoadedGridPoolOutcome,
+    LoadedGridConditionOutcome, LoadedGridSpawnAttempt,
+    LoadedGridSpawnAttemptResult, LoadedGridSpawnOutcome,
     AIRelocationPlan, ActiveObjectKind, AddToMapError, AddToMapOutcome,
     CheckRespawnCompositeOutcomeLikeCpp, CheckRespawnLinkedRespawnGuardOutcomeLikeCpp,
     CreatureDelayedRelocationVisibilityPlan, CreatureRelocationVisibilityPlan,
@@ -53,6 +73,8 @@ pub use map::{
     MapCommandKindLikeCpp, MapCommandLikeCpp, MapCommandOutcomeLikeCpp, MapCommandStatusLikeCpp,
     MapObjectCellMoveState, MapObjectMoveListEntry, MapObjectMoveListPlan,
     MapObjectRelocationError, MapObjectRelocationOutcome, MapObjectStoreError,
+    CreatureSnapshotReplaceError, OwnedMapObject,
+    CreatureActorTransportError, CreatureActorTransportSummary,
     MapUpdatePlayerSources, MapUpdateVisitPlan, NearbyCellGuids, NearbyCellVisitCenter,
     NearbyCellVisitPlan, NoopGridLifecycle, NoopTerrainGridLoader, ObjectUpdatePlan,
     ObjectVisibilityDestroyRecipientsLikeCpp, PlayerDelayedRelocationVisibilityPlan,
@@ -150,3 +172,5 @@ mod tests {
     }
 }
 pub mod map_manager;
+pub use map_manager::{CreatureMovementSource, CreatureMovementStep};
+pub use map_manager::{PlayerMeleeCreatureHit, PlayerMeleeSwing};

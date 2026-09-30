@@ -11,6 +11,7 @@ pub mod canonical_player_access;
 mod canonical_player_sync;
 mod character_administration;
 mod finalization;
+mod terrain_catalog_adapter;
 pub use finalization::{
     FinalizationDisposition, FinalizationMode, FinalizationOutcome, FinalizationReport,
     FinalizationStep,
@@ -32,6 +33,7 @@ pub mod session;
 mod session_commands;
 mod session_persistence_capabilities;
 mod session_policy;
+mod reputation_catalog_adapter;
 #[allow(dead_code)] // Private prerequisite seam consumed by trainer issue #157.
 pub(crate) mod spell_acquisition;
 mod spell_cast_adapter;
@@ -59,6 +61,10 @@ pub use session_policy::{
 };
 
 pub use battle_pet_account::{BattlePetAccountAttachmentLikeCpp, BattlePetAccountRegistryLikeCpp};
+
+#[cfg(any(test, feature = "test-fixtures"))]
+#[path = "test_fixtures/quest_template.rs"]
+mod quest_template_fixture;
 
 /// Fixture re-exports for the crate's integration tests (#584 B3).
 #[cfg(feature = "test-fixtures")]

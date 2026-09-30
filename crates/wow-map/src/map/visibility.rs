@@ -232,7 +232,7 @@ where
         {
             return Vec::new();
         }
-        let charmer_guid = record.charmer_guid_like_cpp();
+        let charmer_guid = record.charmer_guid();
         self.nearby_and_mark_player_visibility_guids_like_cpp(source_guid)
             .into_iter()
             .filter(|player_guid| Some(*player_guid) != charmer_guid)

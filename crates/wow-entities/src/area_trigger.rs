@@ -4,8 +4,48 @@ use wow_constants::{TypeId, TypeMask};
 use wow_core::{ObjectGuid, Position};
 
 use crate::{
-    CreateObjectFlags, ObjectDataUpdate, UpdateMask, WorldObject,
+    CreateObjectFlags, UpdateMask, WorldObject,
     update_fields::{AREA_TRIGGER_DATA_BITS, TYPEID_AREA_TRIGGER},
+};
+
+mod models;
+#[cfg(test)]
+mod tests;
+
+pub use models::{
+    AREA_TRIGGER_DATA_BOUNDS_RADIUS_2D_BIT,
+    AREA_TRIGGER_DATA_CASTER_BIT,
+    AREA_TRIGGER_DATA_CREATING_EFFECT_GUID_BIT,
+    AREA_TRIGGER_DATA_DECAL_PROPERTIES_ID_BIT,
+    AREA_TRIGGER_DATA_DURATION_BIT,
+    AREA_TRIGGER_DATA_EXTRA_SCALE_CURVE_BIT,
+    AREA_TRIGGER_DATA_ORBIT_PATH_TARGET_BIT,
+    AREA_TRIGGER_DATA_OVERRIDE_MOVE_CURVE_X_BIT,
+    AREA_TRIGGER_DATA_OVERRIDE_MOVE_CURVE_Y_BIT,
+    AREA_TRIGGER_DATA_OVERRIDE_MOVE_CURVE_Z_BIT,
+    AREA_TRIGGER_DATA_OVERRIDE_SCALE_CURVE_BIT,
+    AREA_TRIGGER_DATA_PARENT_BIT,
+    AREA_TRIGGER_DATA_SPELL_FOR_VISUALS_BIT,
+    AREA_TRIGGER_DATA_SPELL_ID_BIT,
+    AREA_TRIGGER_DATA_SPELL_VISUAL_ID_BIT,
+    AREA_TRIGGER_DATA_TIME_TO_TARGET_BIT,
+    AREA_TRIGGER_DATA_TIME_TO_TARGET_EXTRA_SCALE_BIT,
+    AREA_TRIGGER_DATA_TIME_TO_TARGET_POS_BIT,
+    AREA_TRIGGER_DATA_TIME_TO_TARGET_SCALE_BIT,
+    AREA_TRIGGER_DATA_VISUAL_ANIM_BIT,
+    AREA_TRIGGER_FLAG_IS_SERVER_SIDE,
+    AreaTriggerCreatePropertiesFlags,
+    AreaTriggerDataUpdate,
+    AreaTriggerDataValues,
+    AreaTriggerId,
+    AreaTriggerOrbitInfo,
+    AreaTriggerPosition2,
+    AreaTriggerPosition3,
+    AreaTriggerShapeInfo,
+    AreaTriggerShapeType,
+    AreaTriggerValuesUpdate,
+    ScaleCurveValues,
+    VisualAnimValues,
 };
 
 /// C++ box-shape containment used by area-trigger admission.
@@ -26,194 +66,6 @@ pub fn position_is_within_area_trigger_box_like_cpp(
     rel_x.abs() <= half_length
         && rel_y.abs() <= half_width
         && (pos.z - center.z).abs() <= half_height
-}
-
-pub const AREA_TRIGGER_DATA_PARENT_BIT: usize = 0;
-pub const AREA_TRIGGER_DATA_OVERRIDE_SCALE_CURVE_BIT: usize = 1;
-pub const AREA_TRIGGER_DATA_EXTRA_SCALE_CURVE_BIT: usize = 2;
-pub const AREA_TRIGGER_DATA_OVERRIDE_MOVE_CURVE_X_BIT: usize = 3;
-pub const AREA_TRIGGER_DATA_OVERRIDE_MOVE_CURVE_Y_BIT: usize = 4;
-pub const AREA_TRIGGER_DATA_OVERRIDE_MOVE_CURVE_Z_BIT: usize = 5;
-pub const AREA_TRIGGER_DATA_CASTER_BIT: usize = 6;
-pub const AREA_TRIGGER_DATA_DURATION_BIT: usize = 7;
-pub const AREA_TRIGGER_DATA_TIME_TO_TARGET_BIT: usize = 8;
-pub const AREA_TRIGGER_DATA_TIME_TO_TARGET_SCALE_BIT: usize = 9;
-pub const AREA_TRIGGER_DATA_TIME_TO_TARGET_EXTRA_SCALE_BIT: usize = 10;
-pub const AREA_TRIGGER_DATA_TIME_TO_TARGET_POS_BIT: usize = 11;
-pub const AREA_TRIGGER_DATA_SPELL_ID_BIT: usize = 12;
-pub const AREA_TRIGGER_DATA_SPELL_FOR_VISUALS_BIT: usize = 13;
-pub const AREA_TRIGGER_DATA_SPELL_VISUAL_ID_BIT: usize = 14;
-pub const AREA_TRIGGER_DATA_BOUNDS_RADIUS_2D_BIT: usize = 15;
-pub const AREA_TRIGGER_DATA_DECAL_PROPERTIES_ID_BIT: usize = 16;
-pub const AREA_TRIGGER_DATA_CREATING_EFFECT_GUID_BIT: usize = 17;
-pub const AREA_TRIGGER_DATA_ORBIT_PATH_TARGET_BIT: usize = 18;
-pub const AREA_TRIGGER_DATA_VISUAL_ANIM_BIT: usize = 19;
-
-pub const AREA_TRIGGER_FLAG_IS_SERVER_SIDE: u32 = 0x01;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum AreaTriggerShapeType {
-    Sphere = 0,
-    Box = 1,
-    Unknown = 2,
-    Polygon = 3,
-    Cylinder = 4,
-    Disk = 5,
-    BoundedPlane = 6,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct AreaTriggerId {
-    pub id: u32,
-    pub is_custom: bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct ScaleCurveValues {
-    pub override_active: bool,
-    pub start_time_offset: u32,
-    pub parameter_curve: u32,
-}
-
-impl Default for ScaleCurveValues {
-    fn default() -> Self {
-        Self {
-            override_active: false,
-            start_time_offset: 0,
-            parameter_curve: 1.0f32.to_bits() | 1,
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct VisualAnimValues {
-    pub field_c: bool,
-    pub animation_data_id: u32,
-    pub anim_kit_id: u32,
-    pub anim_progress: u32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct AreaTriggerDataValues {
-    pub override_scale_curve: ScaleCurveValues,
-    pub extra_scale_curve: ScaleCurveValues,
-    pub override_move_curve_x: ScaleCurveValues,
-    pub override_move_curve_y: ScaleCurveValues,
-    pub override_move_curve_z: ScaleCurveValues,
-    pub caster: ObjectGuid,
-    pub duration: u32,
-    pub time_to_target: u32,
-    pub time_to_target_scale: u32,
-    pub time_to_target_extra_scale: u32,
-    pub time_to_target_pos: u32,
-    pub spell_id: i32,
-    pub spell_for_visuals: i32,
-    pub spell_visual_id: i32,
-    pub bounds_radius_2d: f32,
-    pub decal_properties_id: u32,
-    pub creating_effect_guid: ObjectGuid,
-    pub orbit_path_target: ObjectGuid,
-    pub visual_anim: VisualAnimValues,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct AreaTriggerPosition2 {
-    pub x: f32,
-    pub y: f32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Default)]
-pub struct AreaTriggerPosition3 {
-    pub x: f32,
-    pub y: f32,
-    pub z: f32,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct AreaTriggerShapeInfo {
-    pub shape_type: AreaTriggerShapeType,
-    pub data: [f32; 8],
-    pub polygon_vertices: Vec<AreaTriggerPosition2>,
-    pub polygon_vertices_target: Vec<AreaTriggerPosition2>,
-}
-
-impl Default for AreaTriggerShapeInfo {
-    fn default() -> Self {
-        Self {
-            shape_type: AreaTriggerShapeType::Sphere,
-            data: [0.0; 8],
-            polygon_vertices: Vec::new(),
-            polygon_vertices_target: Vec::new(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct AreaTriggerCreatePropertiesFlags {
-    pub flags: u32,
-    pub scale_curve_id: u32,
-    pub morph_curve_id: u32,
-    pub facing_curve_id: u32,
-    pub move_curve_id: u32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub struct AreaTriggerOrbitInfo {
-    pub counter_clockwise: bool,
-    pub can_loop: bool,
-    pub time_to_target: u32,
-    pub elapsed_time_for_movement: i32,
-    pub start_delay: u32,
-    pub radius: f32,
-    pub blend_from_radius: f32,
-    pub initial_angle: f32,
-    pub z_offset: f32,
-}
-
-impl Default for AreaTriggerDataValues {
-    fn default() -> Self {
-        Self {
-            override_scale_curve: ScaleCurveValues::default(),
-            extra_scale_curve: ScaleCurveValues::default(),
-            override_move_curve_x: ScaleCurveValues::default(),
-            override_move_curve_y: ScaleCurveValues::default(),
-            override_move_curve_z: ScaleCurveValues::default(),
-            caster: ObjectGuid::EMPTY,
-            duration: 0,
-            time_to_target: 0,
-            time_to_target_scale: 0,
-            time_to_target_extra_scale: 0,
-            time_to_target_pos: 0,
-            spell_id: 0,
-            spell_for_visuals: 0,
-            spell_visual_id: 0,
-            bounds_radius_2d: 0.0,
-            decal_properties_id: 0,
-            creating_effect_guid: ObjectGuid::EMPTY,
-            orbit_path_target: ObjectGuid::EMPTY,
-            visual_anim: VisualAnimValues::default(),
-        }
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct AreaTriggerDataUpdate {
-    pub mask: UpdateMask,
-    pub values: AreaTriggerDataValues,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct AreaTriggerValuesUpdate {
-    pub changed_object_type_mask: u32,
-    pub object_data: Option<ObjectDataUpdate>,
-    pub area_trigger_data: Option<AreaTriggerDataUpdate>,
-}
-
-impl AreaTriggerValuesUpdate {
-    pub const fn has_data(&self) -> bool {
-        self.changed_object_type_mask != 0
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]
@@ -849,163 +701,5 @@ impl AreaTrigger {
 impl Default for AreaTrigger {
     fn default() -> Self {
         Self::new()
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use wow_core::guid::HighGuid;
-
-    fn caster_guid() -> ObjectGuid {
-        ObjectGuid::create_global(HighGuid::Player, 0, 1)
-    }
-
-    fn spell_guid() -> ObjectGuid {
-        ObjectGuid::create_world_object(HighGuid::DynamicObject, 0, 1, 530, 123, 0, 99)
-    }
-
-    #[test]
-    fn box_containment_rotates_into_trigger_local_axes() {
-        let center = Position::new(10.0, 20.0, 3.0, std::f32::consts::FRAC_PI_2);
-        assert!(position_is_within_area_trigger_box_like_cpp(
-            &Position::new(10.0, 20.5, 3.0, 0.0),
-            &center,
-            1.0,
-            0.5,
-            1.0,
-        ));
-        assert!(!position_is_within_area_trigger_box_like_cpp(
-            &Position::new(11.0, 20.0, 3.0, 0.0),
-            &center,
-            1.0,
-            0.5,
-            1.0,
-        ));
-    }
-
-    #[test]
-    fn areatrigger_constructor_matches_cpp_base_state() {
-        let area_trigger = AreaTrigger::new();
-
-        assert!(!area_trigger.world().is_world_object());
-        assert_eq!(area_trigger.world().object().type_id(), TypeId::AreaTrigger);
-        assert_eq!(
-            area_trigger.world().object().type_mask(),
-            TypeMask::OBJECT | TypeMask::AREA_TRIGGER
-        );
-        assert!(
-            area_trigger
-                .world()
-                .object()
-                .create_flags()
-                .contains(CreateObjectFlags::STATIONARY | CreateObjectFlags::AREA_TRIGGER)
-        );
-        assert_eq!(area_trigger.spawn_id(), 0);
-        assert!(!area_trigger.is_static_spawn());
-        assert_eq!(area_trigger.duration_ms(), 0);
-        assert_eq!(area_trigger.total_duration_ms(), 0);
-        assert_eq!(area_trigger.time_since_created_ms(), 0);
-        assert!(
-            area_trigger
-                .vertices_update_previous_orientation()
-                .is_infinite()
-        );
-        assert!(!area_trigger.is_removed());
-        assert!(area_trigger.reached_destination());
-        assert_eq!(area_trigger.last_spline_index(), 0);
-        assert_eq!(area_trigger.movement_time_ms(), 0);
-        assert_eq!(area_trigger.create_properties_id(), None);
-        assert_eq!(area_trigger.template_id(), None);
-        assert!(!area_trigger.is_custom());
-        assert!(!area_trigger.is_server_side());
-        assert!(!area_trigger.is_aura_effect_bound());
-        assert!(!area_trigger.is_ai_initialized());
-        assert!(area_trigger.inside_units().is_empty());
-    }
-
-    #[test]
-    fn areatrigger_data_setters_mark_cpp_bits() {
-        let mut area_trigger = AreaTrigger::new();
-        area_trigger.set_caster_guid(caster_guid());
-        area_trigger.set_duration(1_500);
-        area_trigger.set_time_to_target(11);
-        area_trigger.set_time_to_target_scale(12);
-        area_trigger.set_time_to_target_extra_scale(13);
-        area_trigger.set_time_to_target_pos(14);
-        area_trigger.set_spell_id(123);
-        area_trigger.set_spell_for_visuals(124);
-        area_trigger.set_spell_visual_id(125);
-        area_trigger.set_bounds_radius_2d(10.5);
-        area_trigger.set_decal_properties_id(24);
-        area_trigger.set_creating_effect_guid(spell_guid());
-        area_trigger.set_orbit_path_target(caster_guid());
-        area_trigger.set_visual_anim(VisualAnimValues {
-            field_c: true,
-            animation_data_id: 1,
-            anim_kit_id: 2,
-            anim_progress: 3,
-        });
-        area_trigger.set_override_scale_constant(2.0);
-        area_trigger.set_extra_scale_constant(3.0);
-        area_trigger.set_override_move_constant(1.0, 2.0, 3.0);
-
-        let mask = area_trigger.area_trigger_data_changes_mask();
-        for bit in 0..AREA_TRIGGER_DATA_BITS {
-            assert!(mask.is_set(bit), "bit {bit} should be set");
-        }
-        assert_eq!(area_trigger.caster_guid(), caster_guid());
-        assert_eq!(area_trigger.creator_guid(), caster_guid());
-        assert_eq!(area_trigger.owner_guid(), caster_guid());
-        assert_eq!(area_trigger.spell_id(), 123);
-        assert_eq!(area_trigger.data().duration, 1_500);
-        assert!(area_trigger.data().override_scale_curve.override_active);
-        assert_eq!(
-            area_trigger.data().override_scale_curve.parameter_curve,
-            2.0f32.to_bits() | 1
-        );
-    }
-
-    #[test]
-    fn areatrigger_duration_and_static_state_follow_cpp_shape() {
-        let mut area_trigger = AreaTrigger::new();
-        area_trigger.set_duration(-1);
-        assert_eq!(area_trigger.duration_ms(), -1);
-        assert_eq!(area_trigger.total_duration_ms(), -1);
-        assert_eq!(area_trigger.data().duration, 0);
-        assert!(!area_trigger.update_time_and_duration(10_000));
-        assert_eq!(area_trigger.time_since_created_ms(), 10_000);
-
-        area_trigger.set_duration(100);
-        area_trigger.clear_area_trigger_data_changes();
-        assert!(!area_trigger.update_time_and_duration(40));
-        assert_eq!(area_trigger.duration_ms(), 60);
-        assert_eq!(area_trigger.data().duration, 60);
-        assert!(!area_trigger.area_trigger_data_changes_mask().is_any_set());
-        assert!(area_trigger.update_time_and_duration(60));
-        assert!(area_trigger.is_removed());
-
-        area_trigger.set_spawn_id(42);
-        assert!(area_trigger.is_static_spawn());
-        area_trigger.set_template(
-            AreaTriggerId {
-                id: 7,
-                is_custom: true,
-            },
-            AREA_TRIGGER_FLAG_IS_SERVER_SIDE,
-        );
-        assert!(area_trigger.is_custom());
-        assert!(area_trigger.is_server_side());
-    }
-
-    #[test]
-    fn areatrigger_values_update_sets_type_bit() {
-        let mut area_trigger = AreaTrigger::new();
-        area_trigger.set_spell_id(1);
-
-        let update = area_trigger.values_update();
-        assert_eq!(update.changed_object_type_mask, 1 << TYPEID_AREA_TRIGGER);
-        assert!(update.object_data.is_none());
-        assert!(update.area_trigger_data.is_some());
     }
 }

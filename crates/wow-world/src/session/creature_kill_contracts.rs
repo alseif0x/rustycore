@@ -14,9 +14,9 @@ pub(in crate::session) struct PendingCreatureKillRewardLikeCpp {
     pub(in crate::session) creature_level: u8,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedCreatureKillEventLikeCpp {
+pub enum RepresentedCreatureKillEventLikeCpp {
     KillerProc {
         attacker_guid: ObjectGuid,
         victim_guid: ObjectGuid,

@@ -110,16 +110,16 @@ impl WorldSession {
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn chat_policy_catalogs_for_test_like_cpp(&self) -> ChatPolicyCatalogsLikeCpp {
         ChatPolicyCatalogsLikeCpp {
-            addon_channel: self.addon_channel_like_cpp,
-            fake_message_preventing: self.chat_fake_message_preventing_like_cpp,
-            strict_link_checking_kick: self.chat_strict_link_checking_kick_like_cpp,
-            level_requirements: self.chat_level_requirements_like_cpp,
-            listen_ranges: self.chat_listen_ranges_like_cpp,
-            flood: self.chat_flood_config_like_cpp,
-            party_raid_warnings: self.party_raid_warnings_like_cpp,
+            addon_channel: self.social.addon_channel_like_cpp,
+            fake_message_preventing: self.social.chat_fake_message_preventing_like_cpp,
+            strict_link_checking_kick: self.social.chat_strict_link_checking_kick_like_cpp,
+            level_requirements: self.social.chat_level_requirements_like_cpp,
+            listen_ranges: self.social.chat_listen_ranges_like_cpp,
+            flood: self.social.chat_flood_config_like_cpp,
+            party_raid_warnings: self.social.party_raid_warnings_like_cpp,
         }
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn tact_key_store_for_test_like_cpp(&self) -> Option<&Arc<TactKeyStore>> {
         self.tact_key_store.as_ref()
     }
@@ -210,7 +210,7 @@ impl WorldSession {
             None
         }
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn fixture_set_xp_rest_bonus_like_cpp(&mut self, rest_bonus: f32) -> u8 {
         let Some(old_threshold) = self.resolved_xp_rest_threshold_like_cpp() else {
             return 0;
@@ -263,7 +263,7 @@ impl WorldSession {
         };
         nested_mask
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn fixture_apply_offline_xp_rest_bonus_like_cpp(
         &mut self,
         policy: &PlayerRestRatePolicyLikeCpp,
@@ -298,7 +298,7 @@ impl WorldSession {
         let _ = self.add_represented_xp_rest_bonus_like_cpp(extra);
         extra
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn fixture_update_online_xp_rest_bonus_like_cpp(
         &mut self,
         policy: &PlayerRestRatePolicyLikeCpp,
@@ -382,14 +382,11 @@ impl WorldSession {
         catalogs
     }
     pub(in crate::session) fn player_bootstrap_attached_for_test_like_cpp(&self) -> bool {
-        #[cfg(test)]
-        {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode() {
             return self.player_bootstrap_attached_like_cpp;
         }
-        #[cfg(not(test))]
-        {
-            false
-        }
+        false
     }
     #[cfg(test)]
     pub(crate) fn install_detached_canonical_player_for_test_like_cpp(&mut self) -> bool {

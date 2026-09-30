@@ -170,16 +170,16 @@ impl WorldSession {
         if let Some(store) = &self.import_price_stores {
             catalogs.import_prices = Arc::clone(store);
         }
-        if let Some(store) = &self.item_price_base_store {
+        if let Some(store) = self.items.item_price_base_store() {
             catalogs.price_base = Arc::clone(store);
         }
-        if let Some(store) = &self.item_class_store {
+        if let Some(store) = self.items.item_class_store() {
             catalogs.item_classes = Arc::clone(store);
         }
-        if let Some(store) = &self.item_currency_cost_store {
+        if let Some(store) = self.items.item_currency_cost_store() {
             catalogs.currency_costs = Arc::clone(store);
         }
-        if let Some(store) = &self.item_disenchant_loot_store {
+        if let Some(store) = self.items.item_disenchant_loot_store() {
             catalogs.disenchant_loot = Arc::clone(store);
         }
         catalogs
@@ -592,8 +592,8 @@ impl WorldSession {
             .sum()
     }
     fn represented_pvp_item_level_bonus_like_cpp(&self, entry_id: u32) -> u8 {
-        self.pvp_item_store
-            .as_ref()
+        self.items
+            .pvp_item_store()
             .map(|store| store.item_level_bonus_like_cpp(entry_id))
             .unwrap_or(0)
     }

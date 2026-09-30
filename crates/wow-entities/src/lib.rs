@@ -11,10 +11,12 @@ mod character_rules;
 mod conversation;
 mod corpse;
 mod creature;
+pub use creature::looted_corpse_decay_seconds;
 pub mod creature_create;
 mod dynamic_object;
 mod game_object;
 mod item;
+mod loot_authority;
 mod object;
 mod object_accessor;
 mod pet;
@@ -31,9 +33,14 @@ mod unit_subsystems;
 mod update_fields;
 mod vehicle;
 mod world_object;
+mod world_state;
 
 pub use character_rules::represented_character_rename_name_result_like_cpp;
 pub use player::{
+    AccountItemAppearanceSavePlanLikeCpp, AccountTransmogIllusionSavePlanLikeCpp,
+    AppearanceAcquisitionSource, AppearanceAdmissionSource, AppearanceModifiedFacts, AppearanceSearchFacts,
+    AppearanceSparseFacts, AppearanceStorageFacts, DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP,
+    RuntimeAppearanceRoute,
     QuestBoundItemObjectiveProgressLikeCpp, QuestItemObjectiveProgressLikeCpp, is_buyback_slot,
 };
 pub use player_rules::{
@@ -56,6 +63,9 @@ pub use spell_cast::{
     CastExecutionStateLikeCpp, PendingSpellCastRequestLikeCpp,
     SpellCastBattlePetItemModifiersLikeCpp, SpellCastLocationLikeCpp, SpellCastMetadata,
     SpellCastState, SpellCastTargetsLikeCpp, SpellCastVisualLikeCpp, bind_area_id_like_cpp,
+};
+pub use world_state::{
+    WorldStateMgrLikeCpp, WorldStateSetValueOutcomeLikeCpp, WorldStateTemplateLikeCpp,
 };
 
 pub use area_trigger::{
@@ -122,6 +132,8 @@ pub use dynamic_object::{
     DynamicObjectType, DynamicObjectValuesUpdate,
 };
 pub use game_object::{
+    ChairPlacement, CooldownOutcome, GameObjectUseValues, TrapUseEffect,
+    gameobject_interaction_distance, gameobject_display_box_contains,
     BarberChairUseSource, CameraUseSource, CapturePointUseSource, ChairUseSource,
     DEFAULT_GAMEOBJECT_RESPAWN_DELAY_SECS, FlagDropUseSource, FlagStandUseSource,
     GAME_OBJECT_DATA_ART_KIT_BIT, GAME_OBJECT_DATA_CREATED_BY_BIT,
@@ -189,6 +201,13 @@ pub use item::{
     PROFESSION_SLOT_PROFESSION2_GEAR1, PROFESSION_SLOT_PROFESSION2_GEAR2,
     PROFESSION_SLOT_PROFESSION2_TOOL, PROFESSION_SLOT_START,
     SECONDARY_APPEARANCE_MODIFIER_SLOT_BY_SPEC, SocketedGem, item_can_go_into_bag,
+};
+pub use loot_authority::{
+    CreatureLoot, LootClaimCommitError, LootClaimError, LootClaimLease, LootClaimPayload,
+    LootClaimPersistenceGuard, LootEntry, LootEntryFlags, LootFullyLootedLifecycleObservation,
+    LootInstallOutcome, LootItemClaimKey, LootRoundRobinReleaseOutcome, LootViewerCloseOutcome,
+    LootViewerOpenOutcome, NotNormalLootItem, OwnedLootAuthority, OwnedLootAuthorityLifecycle,
+    OwnedLootAuthorityStamp, OwnedLootScope, OwnedLootSnapshot,
 };
 pub use object::{
     CreateObjectFlags, EntityObject, EntityObjectState, ObjectChangedFields, ObjectNotifyFlags,
@@ -275,11 +294,18 @@ pub use player::{
     PlayerItemTimeUpdate, PlayerKnownSpellRecord, PlayerLifecycleMetadata, PlayerLifecyclePower,
     PlayerLoginLifecyclePlan, PlayerLoginLifecycleStep, PlayerMailRecord,
     PlayerPersistentCapabilityStateLikeCpp, PlayerPowerIndexResolver, PlayerQuestGameplayState,
+    SeasonalQuestBitReset, SeasonalQuestResetOutcome,
+    SeasonalQuestResetPlan, SeasonalQuestResetReason,
     PlayerQuestStatusRecord, PlayerRandomBattlegroundState, PlayerReputationStateLikeCpp,
     PlayerRestState, PlayerSaveAcknowledgementLikeCpp, PlayerSavedGroupsLikeCpp,
     PlayerSkillLoadState, PlayerSkillRecord, PlayerSocialState,
     PlayerSpellAcquisitionSnapshotLikeCpp, PlayerSpellChargeRecord, PlayerSpellCooldownRecord,
     PlayerSpellLoadState, PlayerSpellRuntimeState, PlayerStorageError, PlayerTalentRuntimeState,
+    LoadedSpellDependency, LoadedSpellInput, LoadedSpellReconstruction, LoadedSpellStep,
+    LearnedSkillInput, LearnedSkillLookup, LearnedSkillNode, LearnedSkillOperation,
+    LearnedSkillRange, LearnedSkillStep, LearnedSkillWrite,
+    SpellUnlearnEdge, SpellUnlearnInput, SpellUnlearnOperation,
+    SpellUnlearnOwnerOutcome, SpellUnlearnOwnerStep, SpellUnlearnStep,
     PlayerTaxiFlightNodeLikeCpp, PlayerTaxiFlightStateLikeCpp, PlayerTaxiState,
     PlayerTradeStateLikeCpp, PlayerTraitConfigDetails, PlayerTraitConfigState, PlayerTraitEntry,
     PlayerTransportState, PlayerValuesUpdate, PlayerVoidStorageItemLikeCpp,
@@ -313,6 +339,7 @@ pub use player::{
     represented_total_avg_equipment_slot_candidates_like_cpp,
 };
 pub use player_gameplay_state::{
+    SkillWritePlan,
     PlayerAccountHeirloomDataLikeCpp, PlayerCollectionStateLikeCpp, PlayerCurrency,
     PlayerCurrencyState, PlayerDamageControlStateLikeCpp, PlayerFavoriteAppearanceStateLikeCpp,
     PlayerGameplayState, PlayerGossipOptionLikeCpp, PlayerHomebindLikeCpp,
@@ -341,6 +368,7 @@ pub use transport::{
     TransportPathSegment, TransportTemplate, TransportUpdateLikeCpp,
 };
 pub use unit::{
+    SpellPowerAmount, SpellPowerGain,
     AUTO_SHOT_SPELL_ID, BASE_MAXDAMAGE, BASE_MINDAMAGE, BASE_MOVE_SPEED,
     DEFAULT_PLAYER_DISPLAY_SCALE, HealthStateRevisionAuthorityLikeCpp, MAX_ATTACK, MAX_MOVE_TYPE,
     MAX_POWERS, MAX_POWERS_PER_CLASS, SPELL_AURA_DISABLE_ATTACKING_EXCEPT_ABILITIES_LIKE_CPP,
@@ -365,8 +393,10 @@ pub use unit::{
     UnitAddToWorldOutcomeLikeCpp, UnitAttackContextLikeCpp, UnitAttackStartOutcome,
     UnitAttackStopOutcome, UnitDataUpdate, UnitDataValues, UnitHealthRegenInputLikeCpp,
     UnitPowerRegenInputLikeCpp, UnitPowerRegenOutcomeLikeCpp, UnitPowerRegenStateLikeCpp,
+    UnitRegenerationOutcome,
     UnitRemoveFromWorldOutcomeLikeCpp, UnitSharedVisionSetWorldObjectRequestLikeCpp,
-    UnitValuesUpdate, UnitVisibilityDetectionStateLikeCpp, represented_power_type_from_u8_like_cpp,
+    UnitValuesUpdate, UnitVisibilityDetectionStateLikeCpp, UnitVisibilityTargetFacts,
+    represented_power_type_from_u8_like_cpp,
 };
 pub use unit_subsystems::{
     ACT_COMMAND_LIKE_CPP, ACT_DISABLED_LIKE_CPP, ACT_ENABLED_LIKE_CPP, ACT_PASSIVE_LIKE_CPP,

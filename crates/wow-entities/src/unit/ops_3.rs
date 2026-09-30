@@ -332,8 +332,8 @@ pub struct UnitHealthRegenInputLikeCpp {
     pub aura_mod_health_regen_in_combat: i32,
     /// C++ `Player::m_baseHealthRegen`.
     pub base_health_regen: i32,
-    /// C++ `Unit::IsPolymorphed()`. Always false until the transform spell is
-    /// represented on the canonical `Unit`.
+    /// C++ `Unit::IsPolymorphed()`, supplied from the caller's canonical Unit
+    /// snapshot; the Session adapter defaults an unresolved snapshot to false.
     pub is_polymorphed: bool,
 }
 
@@ -412,6 +412,75 @@ impl Unit {
         }
 
         gain
+    }
+}
+
+/// The application-facing result of one C++ `Player::RegenerateAll` tick.
+/// Published powers stay ordered as supplied by the caller; Session sends them
+/// after its canonical mutable Player closure has returned.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UnitRegenerationOutcome {
+    pub published_power_changes: Vec<(PowerType, i32)>,
+    pub food_emote_ready: bool,
+}
+
+impl Unit {
+    /// C++ `Player::RegenerateAll` (`Player.cpp:1609-1678`) sequencer.
+    ///
+    /// The caller resolves represented powers, their aura/DB2/stat facts, and
+    /// the optional health inputs before entering its canonical mutable Player
+    /// closure. This operation owns the Unit timer updates, ordered per-power
+    /// calls (including the MP5 decision), gated health call, and independent
+    /// food timer consumption. Packet and aura-catalog work stays with Session.
+    pub fn regenerate_all(
+        &mut self,
+        diff_ms: u32,
+        now_ms: u32,
+        prepared_powers: &[(PowerType, UnitPowerRegenInputLikeCpp)],
+        health_input: Option<UnitHealthRegenInputLikeCpp>,
+    ) -> UnitRegenerationOutcome {
+        self.accumulate_power_regen_timer_like_cpp(diff_ms);
+
+        let mut published_power_changes = Vec::new();
+        for &(power, mut input) in prepared_powers {
+            input.diff_ms = diff_ms;
+            input.now_ms = now_ms;
+            input.interrupted_by_mp5_rule = power == PowerType::Mana
+                && self.is_power_regen_interrupted_by_mp5_rule_like_cpp(now_ms);
+
+            if let UnitPowerRegenOutcomeLikeCpp::Applied {
+                power: new_power,
+                publish: true,
+            } = self.regenerate_power_like_cpp(power, input)
+            {
+                published_power_changes.push((power, new_power));
+            }
+        }
+
+        if self.power_regen_timer_ready_like_cpp()
+            && let Some(input) = health_input
+        {
+            let passes_gate = !input.is_in_combat
+                || input.is_polymorphed
+                || input.base_health_regen != 0
+                || input.has_mod_regen_during_combat
+                || input.has_mod_health_regen_in_combat;
+            if passes_gate {
+                let _ = self.regenerate_health_like_cpp(input);
+            }
+        }
+
+        self.finish_power_regen_tick_like_cpp();
+
+        let food_emote_ready = self.food_emote_timer_ready_like_cpp();
+        if food_emote_ready {
+            self.finish_food_emote_tick_like_cpp();
+        }
+
+        UnitRegenerationOutcome {
+            published_power_changes,
+            food_emote_ready,
+        }
     }
 }
 
@@ -828,5 +897,72 @@ mod tests {
                 publish: false
             }
         );
+    }
+
+    #[test]
+    fn regenerate_all_preserves_power_order_mp5_health_and_food_boundaries_like_cpp() {
+        let mut unit = health_unit(100, 1_000);
+        unit.set_power_index(PowerType::Energy, Some(0));
+        unit.set_max_power(PowerType::Energy, 100);
+        unit.set_power(PowerType::Energy, 50);
+        unit.set_power_index(PowerType::Mana, Some(1));
+        unit.set_max_power(PowerType::Mana, 1_000);
+        unit.set_power(PowerType::Mana, 100);
+        unit.clear_unit_data_changes();
+        unit.set_mp5_regeneration_interrupt_start_like_cpp(10_000);
+
+        let energy_input = non_mana_input(2.0, 5_000);
+        let mut mana_input = mana_input(1.0, 5_000);
+        mana_input.regen_peace = 2.0;
+        mana_input.regen_combat = 4.0;
+        mana_input.power_regen_interrupted = 6.0;
+        let prepared = [
+            (PowerType::Energy, energy_input),
+            (PowerType::Mana, mana_input),
+        ];
+
+        let outcome = unit.regenerate_all(
+            5_000,
+            14_999,
+            &prepared,
+            Some(health_input(10.0)),
+        );
+
+        assert_eq!(
+            outcome.published_power_changes,
+            vec![(PowerType::Energy, 60), (PowerType::Mana, 150)]
+        );
+        assert!(outcome.food_emote_ready);
+        assert_eq!(unit.get_power(PowerType::Energy), 60);
+        assert_eq!(unit.get_power(PowerType::Mana), 150);
+        assert_eq!(unit.data().health, 110);
+        assert_eq!(unit.power_regen.timer_ms, 0);
+        assert_eq!(unit.power_regen.timer_count_ms, 3_000);
+        assert_eq!(unit.power_regen.food_emote_timer_ms, 0);
+    }
+
+    #[test]
+    fn regenerate_all_gates_health_and_consumes_one_two_second_window_like_cpp() {
+        let mut unit = health_unit(100, 1_000);
+        let mut combat_input = health_input(10.0);
+        combat_input.is_in_combat = true;
+
+        let first = unit.regenerate_all(1_000, 0, &[], Some(combat_input));
+        assert!(first.published_power_changes.is_empty());
+        assert!(!first.food_emote_ready);
+        assert_eq!(unit.data().health, 100);
+        assert_eq!(unit.power_regen.timer_count_ms, 1_000);
+
+        let second = unit.regenerate_all(1_000, 0, &[], Some(combat_input));
+        assert!(!second.food_emote_ready);
+        assert_eq!(unit.data().health, 100);
+        assert_eq!(unit.power_regen.timer_count_ms, 0);
+
+        combat_input.base_health_regen = 25;
+        let third = unit.regenerate_all(3_000, 0, &[], Some(combat_input));
+        assert!(third.food_emote_ready);
+        assert_eq!(unit.data().health, 110);
+        assert_eq!(unit.power_regen.timer_count_ms, 1_000);
+        assert_eq!(unit.power_regen.food_emote_timer_ms, 0);
     }
 }

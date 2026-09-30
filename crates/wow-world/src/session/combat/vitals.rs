@@ -14,8 +14,8 @@ impl WorldSession {
         &self,
         f: impl FnOnce(&mut Player) -> R,
     ) -> Option<R> {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             return self.mutate_canonical_player_like_cpp(f);
         }
         self.with_owned_player_mut_like_cpp(f)
@@ -122,28 +122,11 @@ impl WorldSession {
         let max_health = max_health.max(1);
         let health = health.min(max_health);
         let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            if health == 0 {
-                player
-                    .unit_mut()
-                    .set_death_state(wow_constants::DeathState::Corpse);
-            } else if matches!(
-                player.unit().death_state(),
-                wow_constants::DeathState::JustDied | wow_constants::DeathState::Corpse
-            ) {
-                player
-                    .unit_mut()
-                    .set_death_state(wow_constants::DeathState::Alive);
-            }
-            player.unit_mut().set_max_health(u64::from(max_health));
-            player.unit_mut().set_health(u64::from(health));
-            (
-                player.unit().data().health.min(u64::from(u32::MAX)) as u32,
-                player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
-            )
+            player.apply_represented_health_snapshot(health, max_health)
         });
         #[cfg(any(test, feature = "test-fixtures"))]
         let result = canonical.or_else(|| {
-            if self.player_handle_like_cpp.is_some() {
+            if !self.character_lifecycle_handleless_fixture() {
                 return None;
             }
             self.mutate_canonical_player_like_cpp(|player| {
@@ -163,7 +146,7 @@ impl WorldSession {
         #[cfg(not(any(test, feature = "test-fixtures")))]
         let result = canonical;
         #[cfg(any(test, feature = "test-fixtures"))]
-        {
+        if result.is_some() || self.character_lifecycle_handleless_fixture() {
             let (current, max) = result.unwrap_or((health, max_health));
             self.player_health_like_cpp = current;
             self.player_max_health_like_cpp = max;
@@ -277,8 +260,8 @@ impl WorldSession {
         &self,
     ) -> Option<[i32; MAX_POWERS_PER_CLASS]> {
         let canonical = self.resolved_player_power_values_like_cpp();
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.character_lifecycle_handleless_fixture() {
             return character_power_snapshot_values_like_cpp(
                 &self.represented_player_powers_like_cpp,
             );
@@ -287,8 +270,8 @@ impl WorldSession {
     }
     fn resolved_player_power_values_like_cpp(&self) -> Option<[i32; MAX_POWERS_PER_CLASS]> {
         let canonical = self.with_owned_player_like_cpp(|player| player.unit().data().power);
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.character_lifecycle_handleless_fixture() {
             return self.mutate_canonical_player_like_cpp(|player| player.unit().data().power);
         }
         canonical
@@ -299,8 +282,8 @@ impl WorldSession {
         let canonical = self
             .resolved_player_power_values_like_cpp()
             .map(loaded_character_power_snapshot_like_cpp);
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.character_lifecycle_handleless_fixture() {
             return Some(self.represented_player_powers_like_cpp);
         }
         canonical

@@ -22,7 +22,7 @@
 //! the command rails now do, which is loot's own work and not this issue's.
 
 use super::protocol::*;
-use crate::session::{SessionHandlerCatalogsLikeCpp, SessionState, WorldSession};
+use crate::session::{SessionHandlerCatalogsLikeCpp, WorldSession};
 
 impl WorldSession {
     /// Clone the C++-style cross-session command channel for this active

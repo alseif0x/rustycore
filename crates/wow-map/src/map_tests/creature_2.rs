@@ -165,7 +165,7 @@ fn add_map_object_record_to_map_like_cpp_preserves_typed_creature_spawn_index() 
     assert!(map.get_creature_by_spawn_id_like_cpp(396).is_some());
     assert!(
         map.map_object_record(guid)
-            .and_then(MapObjectRecord::creature)
+            .and_then(|record| record.creature())
             .is_some()
     );
 
@@ -436,7 +436,7 @@ fn creature_search_formation_remove_from_map_no_formation_or_not_in_world_noops_
         .unwrap();
     map.entity_world
         .get_mut(&not_in_world_guid)
-        .and_then(MapObjectRecord::creature_mut)
+        .and_then(ObjectMut::creature_mut)
         .unwrap()
         .unit_mut()
         .world_mut()
@@ -529,7 +529,7 @@ fn creature_add_to_world_unit_seam_only_for_exact_typed_creature_like_cpp() {
     assert!(outcome.creature_zone_script_create.is_some());
     assert!(
         map.map_object_record(guid)
-            .and_then(MapObjectRecord::creature)
+            .and_then(|record| record.creature())
             .is_some_and(|creature| !creature
                 .unit()
                 .subsystems()
@@ -738,7 +738,7 @@ fn creature_zone_script_remove_from_map_missing_not_in_world_and_non_creature_no
         .unwrap();
     map.entity_world
         .get_mut(&not_in_world_guid)
-        .and_then(MapObjectRecord::creature_mut)
+        .and_then(ObjectMut::creature_mut)
         .unwrap()
         .unit_mut()
         .world_mut()
@@ -812,7 +812,7 @@ fn creature_vehicle_add_to_map_resets_then_installs_vehicle_kit_like_cpp() {
     assert!(outcome.creature_vehicle_install.is_some());
     let stored = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::creature)
+        .and_then(|record| record.creature())
         .unwrap();
     let kit = stored.unit().subsystems().vehicle.kit.as_ref().unwrap();
     assert_eq!(kit.kit_id(), 9003);

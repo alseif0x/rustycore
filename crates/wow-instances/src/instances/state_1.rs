@@ -3,6 +3,7 @@
 //! Separated from the lib.rs root under #658. Behaviour is preserved.
 
 use super::*;
+use wow_data_model::map::{MapDifficultyEntry, MapEntry};
 
 pub(crate) const INSTANCE_SCRIPT_HEADER_KEY: &str = "Header";
 
@@ -174,42 +175,13 @@ pub struct MapDb2Entries {
 }
 
 impl MapDb2Entries {
-    pub fn from_stores_like_cpp(
-        map_store: &wow_data::MapStore,
-        map_difficulty_store: &wow_data::MapDifficultyStore,
+    pub fn from_resolved_entries_like_cpp(
         map_id: u32,
-        difficulty_id: u8,
-    ) -> Option<Self> {
-        let map = map_store.get(map_id)?;
-        let map_difficulty = map_difficulty_store.get(map_id, difficulty_id)?;
-
-        Some(Self {
-            map_id,
-            difficulty_id,
-            lock_id: u32::from(map_difficulty.lock_id),
-            reset_interval: match map_difficulty.reset_interval {
-                1 => MapDifficultyResetInterval::Daily,
-                2 => MapDifficultyResetInterval::Weekly,
-                _ => MapDifficultyResetInterval::Anytime,
-            },
-            max_players: map_difficulty.max_players,
-            is_flex_locking: map.is_flex_locking(),
-            is_using_encounter_locks: map_difficulty.is_using_encounter_locks(),
-        })
-    }
-
-    pub fn from_downscaled_stores_like_cpp(
-        map_store: &wow_data::MapStore,
-        map_difficulty_store: &wow_data::MapDifficultyStore,
-        difficulty_store: &wow_data::DifficultyStore,
-        map_id: u32,
-        difficulty_id: u8,
-    ) -> Option<Self> {
-        let map = map_store.get(map_id)?;
-        let (map_difficulty, effective_difficulty_id) = map_difficulty_store
-            .downscaled_for_map_like_cpp(map_id, difficulty_id, difficulty_store)?;
-
-        Some(Self {
+        effective_difficulty_id: u8,
+        map: &MapEntry,
+        map_difficulty: &MapDifficultyEntry,
+    ) -> Self {
+        Self {
             map_id,
             difficulty_id: effective_difficulty_id,
             lock_id: u32::from(map_difficulty.lock_id),
@@ -221,7 +193,7 @@ impl MapDb2Entries {
             max_players: map_difficulty.max_players,
             is_flex_locking: map.is_flex_locking(),
             is_using_encounter_locks: map_difficulty.is_using_encounter_locks(),
-        })
+        }
     }
 
     /// C++ null-guarded `MapDb2Entries::GetKey`.
@@ -572,13 +544,13 @@ impl BossInfo {
     /// C++ `BossInfo::GetDungeonEncounterForDifficulty`.
     pub fn dungeon_encounter_for_difficulty<'a>(
         &self,
-        store: &'a DungeonEncounterStore,
+        resolve_encounter: &impl Fn(u32) -> Option<&'a DungeonEncounterEntry>,
         difficulty_id: u32,
     ) -> Option<&'a DungeonEncounterEntry> {
         self.dungeon_encounters
             .iter()
             .flatten()
-            .filter_map(|encounter_id| store.get(*encounter_id))
+            .filter_map(|encounter_id| resolve_encounter(*encounter_id))
             .find(|encounter| {
                 encounter.difficulty_id == 0
                     || u32::try_from(encounter.difficulty_id).ok() == Some(difficulty_id)

@@ -16,7 +16,7 @@ use std::time::Instant;
 
 use wow_core::ObjectGuid;
 use wow_loot::{LootClaimLease, OwnedLootAuthority};
-use wow_packet::packets::loot::LootEntry;
+use wow_entities::LootEntry;
 use wow_packet::packets::party::PartyUpdate;
 pub use wow_social::group::GroupDifficultyKindLikeCpp;
 

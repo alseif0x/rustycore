@@ -6,15 +6,16 @@ use wow_constants::{
     CreatureGroundMovementType, CreatureRandomMovementType, SheathState, UnitPvpFlags,
     UnitStandStateType,
 };
-use wow_entities::{
-    CreatureAddonAuraApplicationLikeCpp, CreatureAddonAuraEffectLikeCpp,
-    CreatureAddonLifecycleRecordLikeCpp, VisibilityDistanceTypeLikeCpp,
-};
-
 use crate::creature::model_info::CreatureModelInfoStoreLikeCpp;
 use crate::{
     AnimKitStore, CreatureDisplayInfoStore, EmotesStore, SpellDurationStore, SpellMiscStore,
     SpellStore, spell::aura_types, spell_duration_ms_like_cpp,
+};
+pub use wow_data_model::creature::{
+    CreatureAddonAuraApplicationLikeCpp, CreatureAddonAuraEffectLikeCpp,
+    CreatureAddonLifecycleRecordLikeCpp, DEFAULT_VISIBILITY_DISTANCE,
+    MAX_VISIBILITY_DISTANCE, VISIBILITY_DISTANCE_GIGANTIC, VISIBILITY_DISTANCE_LARGE,
+    VISIBILITY_DISTANCE_SMALL, VISIBILITY_DISTANCE_TINY, VisibilityDistanceTypeLikeCpp,
 };
 
 mod state_1;

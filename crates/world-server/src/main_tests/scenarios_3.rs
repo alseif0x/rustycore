@@ -846,27 +846,221 @@ fn library_composition_preserves_cpp_startup_and_shutdown_order() {
 
     let mut cursor = 0;
     for stage in [
-        "let config_report = load_world_config(&cli)?;",
-        "LoginDatabase::open_with_pool_size(",
-        "CharacterDatabase::open_with_pool_size(",
-        "WorldDatabase::open_with_pool_size(",
-        "HotfixDatabase::open_with_pool_size(",
-        "let migration_manifest = wow_database::migration::bundled_manifest()?;",
-        "wow_database::migration::validate_runtime_schema(",
-        "clear_online_accounts_like_cpp(&login_db, &char_db, realm_id).await?;",
-        "set_realm_offline(&login_db, realm_id).await?;",
-        "load_realm_info_from_snapshot_like_cpp(&realm_list, realm_id)?;",
-        "wow_network::start_world_listener(",
-        "set_realm_online(&login_db, realm_id).await",
-        "shutdown_signal()",
-        "active_session_registry.begin_shutdown_like_cpp();",
-        "stop_world_network_like_cpp([",
-        "drain_respawn_db_writer_like_cpp(",
-        "set_realm_offline(&login_db, realm_id).await",
+        "process_startup::initialize(args)",
+        "database_startup::open_primary_databases().await?;",
+        "database_startup::compose_world_catalog_ports(",
+        "database_startup::open_hotfix_database().await?;",
+        "database_startup::validate_runtime_schemas(",
+        "realm_startup::initialize_availability(",
+        "guid_allocator_startup::initialize_guid_allocators(",
+        "world_startup::run_world_startup(",
     ] {
         let offset = source[cursor..]
             .find(stage)
             .unwrap_or_else(|| panic!("missing or reordered composition stage: {stage}"));
+        cursor += offset + stage.len();
+    }
+    for call in [
+        "process_startup::initialize(",
+        "database_startup::open_primary_databases(",
+        "database_startup::compose_world_catalog_ports(",
+        "database_startup::open_hotfix_database(",
+        "database_startup::validate_runtime_schemas(",
+        "realm_startup::initialize_availability(",
+        "world_startup::run_world_startup(",
+    ] {
+        assert_eq!(source.matches(call).count(), 1, "the root must invoke {call} exactly once");
+    }
+    let continuation = include_str!("../app/world_startup.rs");
+    let mut cursor = 0;
+    for stage in [
+        "world_template_startup::load(", "hotfix_delivery_startup::load(",
+        "account_admission_startup::load(",
+        "condition_startup::load_world_conditions(", "let graveyard_store = Arc::new(",
+        "npc_service_catalogs::load_spell_click(", "spell_world_startup::load_world_spell_catalogs(",
+        "let spell_store = Arc::new(", "group_startup::load_group_startup(",
+        "world_instance_startup::load_world_instance_managers(",
+        "world_instance_startup::build_loaded_grid_caches(", "game_event_startup::start_system(",
+        "let (game_event_quest_complete_tx, game_event_quest_complete_rx)",
+        "tokio::spawn(run_game_event_quest_complete_processor_like_cpp(",
+        "wow_database::build_player_name_query_port_like_cpp(",
+        "session_persistence::build_session_persistence_ports(",
+        "let session_resources = SessionResources {",
+        "let session_resources = Arc::new(session_resources);", "serve::serve(",
+    ] {
+        assert_eq!(continuation.matches(stage).count(), 1,
+                   "continuation must invoke {stage} exactly once");
+        let offset = continuation[cursor..].find(stage)
+            .unwrap_or_else(|| panic!("missing or reordered continuation stage: {stage}"));
+        cursor += offset + stage.len();
+    }
+    let account_admission = include_str!("../app/account_admission_startup.rs");
+    for stage in ["realm_startup::load_identity(", "let login_db = Arc::new(",
+                  "wow_world::session::registry::build_dispatch_table();"] {
+        assert_eq!(account_admission.matches(stage).count(), 1);
+        assert!(!continuation.contains(stage));
+    }
+    let admission_call = continuation
+        .find("account_admission_startup::load(").unwrap();
+    let admission_arguments = continuation[admission_call..]
+        .split_once(".await").unwrap().0;
+    for argument in ["login_db_slot,", "realm_availability,", "&stat_tables,"] {
+        assert_eq!(admission_arguments.matches(argument).count(), 1);
+    }
+    // Follow each production delegation separately; concatenating sources would
+    // accidentally impose file layout instead of the effective call order.
+    for (phase, stages) in [
+        (include_str!("../app/account_admission_startup.rs"), &[
+            "realm_startup::load_identity(", "let login_db = Arc::new(",
+            "let battle_pet_account_registry = Arc::new(",
+            "wow_world::session::registry::build_dispatch_table();",
+            "info!(\"Loaded {} packet handlers\", table.len());",
+            "let account_lookup: Arc<dyn AccountLookup> = Arc::new(",
+            "Ok((", "realm_identity,", "login_db,", "battle_pet_account_registry,",
+            "table,", "account_lookup,",
+        ][..]),
+        (include_str!("../app/process_startup.rs"), &[
+            "let cli = WorldServerCliLikeCpp::parse_from(args);",
+            "if cli.show_help", "if cli.show_version",
+            "let world_runtime_state = Arc::new(",
+            "let config_report = load_world_config(&cli)?;",
+            "log_startup_banner_like_cpp(&config_report);",
+            "let world_configs = wow_config::load_world_config_values();",
+            "create_pid_file_from_config_like_cpp()?;",
+            "let ip_location_store = Arc::new(",
+        ][..]),
+        (include_str!("../app/realm_startup.rs"), &[
+            "pub(super) async fn initialize_availability(",
+            "clear_online_accounts_like_cpp(login_db, char_db, realm_id).await?;",
+            "verify_world_db_version_like_cpp(world_db).await?;",
+            "set_realm_offline(login_db, realm_id).await?;",
+            "update_realm_list_once_like_cpp(login_db, &realm_list)",
+            "spawn_realm_list_update_loop_like_cpp(",
+            "pub(super) async fn load_identity(",
+            "load_realm_info_from_snapshot_like_cpp(realm_list, realm_id)?;",
+            "realm_name_records_from_snapshot_like_cpp(realm_list);",
+            "load_realm_win64_auth_seed_like_cpp(login_db, realm_build).await?;",
+            "let realm_external_address =", "let realm_local_address =",
+        ][..]),
+        (include_str!("../app/serve.rs"), &[
+            "let session_mgr =", "network_configuration::load(",
+            "listener_startup::load(", "listener_startup::publish_realm_online(",
+            "runtime_launch::load(", "runtime_supervision::supervise_and_shutdown(",
+        ][..]),
+        (include_str!("../app/listener_startup.rs"), &[
+            "let (realm_listener_ready_tx, realm_listener_ready_rx)",
+            "let (instance_listener_ready_tx, instance_listener_ready_rx)",
+            "let mut realm_handle = tokio::spawn(", "wow_network::start_world_listener(",
+            "let mut instance_handle = tokio::spawn(", "wow_network::start_instance_listener(",
+            "let realm_network_abort_handle =", "let instance_network_abort_handle =",
+            "tokio::join!(realm_listener_ready_rx, instance_listener_ready_rx)",
+            "let listener_start_error = match", "if let Some(error) = listener_start_error",
+            "pub(super) async fn publish_realm_online(",
+            "if let Err(error) = crate::set_realm_online(login_db, realm_id).await",
+            "stop_world_network_like_cpp([", "return Err(error);",
+        ][..]),
+        (include_str!("../app/runtime_launch.rs"), &[
+            "let map_update_interval_ms =", "let legacy_creature_global_runtime_enabled =",
+            "manager.set_tick_owner(", "let respawn_condition_interval_ms =",
+            "let respawn_db_mutation_order =", "let respawn_db_producer_stop =",
+            "spawn_respawn_db_writer_like_cpp(", "spawn_canonical_map_update_loop(",
+            "spawn_legacy_creature_runtime_update_loop_like_cpp(",
+            "spawn_group_ready_check_tick_loop(", "spawn_db_keepalive_loop_like_cpp(",
+        ][..]),
+    ] {
+        let mut cursor = 0;
+        for stage in stages {
+            let offset = phase[cursor..].find(stage)
+                .unwrap_or_else(|| panic!("missing or reordered delegated startup stage: {stage}"));
+            cursor += offset + stage.len();
+        }
+    }
+    let serving_source = include_str!("../app/serve.rs");
+    for call in ["listener_startup::load(", "listener_startup::publish_realm_online(",
+                 "runtime_launch::load(", "runtime_supervision::supervise_and_shutdown("] {
+        assert_eq!(serving_source.matches(call).count(), 1,
+                   "the serving phase must invoke {call} exactly once");
+        assert!(!source.contains(call), "the root must delegate {call} to its serving phase");
+    }
+    let database_source = include_str!("../app/database_startup.rs");
+    let mut cursor = 0;
+    for stage in [
+        "pub(super) async fn open_primary_databases(",
+        "LoginDatabase::open_with_pool_size(",
+        "CharacterDatabase::open_with_pool_size(",
+        "WorldDatabase::open_with_pool_size(",
+        "pub(super) async fn open_hotfix_database(",
+        "HotfixDatabase::open_with_pool_size(",
+        "pub(super) async fn validate_runtime_schemas(",
+        "let migration_manifest = wow_database::migration::bundled_manifest()?;",
+        "wow_database::migration::DatabaseKind::Auth",
+        "wow_database::migration::DatabaseKind::Characters",
+        "wow_database::migration::DatabaseKind::World",
+        "wow_database::migration::DatabaseKind::Hotfixes",
+        "wow_database::migration::validate_runtime_schema(",
+    ] {
+        let offset = database_source[cursor..]
+            .find(stage)
+            .unwrap_or_else(|| panic!("missing or reordered database startup stage: {stage}"));
+        cursor += offset + stage.len();
+    }
+    for call in [
+        "LoginDatabase::open_with_pool_size(",
+        "CharacterDatabase::open_with_pool_size(",
+        "WorldDatabase::open_with_pool_size(",
+        "HotfixDatabase::open_with_pool_size(",
+        "wow_database::migration::validate_runtime_schema(",
+    ] {
+        assert_eq!(database_source.matches(call).count(), 1, "the database child must retain one {call}");
+        assert!(!source.contains(call), "the root must delegate {call} to its database child");
+    }
+
+    assert_eq!(
+        serving_source.matches("runtime_supervision::supervise_and_shutdown(").count(),
+        1,
+        "the serving phase must invoke the production supervisor exactly once"
+    );
+    let supervision_source = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app/runtime_supervision.rs"),
+    )
+    .expect("world-server supervision source should be readable");
+    let mut cursor = 0;
+    for stage in [
+        "pub(super) async fn supervise_and_shutdown(",
+        "wow_script::lifecycle::on_startup_like_cpp()",
+        "shutdown_signal()",
+        "active_session_registry.begin_shutdown_like_cpp();",
+        "active_session_registry.close_tick_admission()",
+        "active_session_registry.wait_for_quiescence(",
+        "active_session_registry.enable_session_drain(receipt)",
+        "kick_all_sessions_like_cpp(active_session_registry)",
+        "update_sessions_shutdown_flush_once_like_cpp(",
+        "stop_world_network_like_cpp([",
+        "active_session_registry.request_session_stop_like_cpp();",
+        "let sessions_drained = active_session_registry",
+        "cancel_all_sessions_like_cpp()",
+        "let battle_pet_operations_drained = battle_pet_account_registry",
+        "active_session_registry.wait_for_terminal_settlement(",
+        "active_session_registry.authorize_final_respawn_tick(receipt)",
+        "respawn_db_producer_stop.store(true, Ordering::Release);",
+        "stop_respawn_db_producer_like_cpp(",
+        "active_session_registry.close_final_tick_admission();",
+        "active_session_registry.wait_for_terminal_settlement(",
+        "respawn_db_writer_tx.close_like_cpp();",
+        "drop(respawn_db_writer_tx);",
+        "drain_respawn_db_writer_like_cpp(",
+        "game_event_quest_complete_handle.abort();",
+        "db_keepalive_handle.abort();",
+        "realm_list_update_handle.abort();",
+        "clear_online_accounts_like_cpp(login_db, char_db, realm_id).await",
+        "wow_script::lifecycle::on_shutdown_like_cpp()",
+        "set_realm_offline(login_db, realm_id).await",
+        "item_guid_allocator_advisory_lock.release_like_cpp().await",
+        "Ok(process_exit_code_like_cpp(",
+    ] {
+        let offset = supervision_source[cursor..]
+            .find(stage)
+            .unwrap_or_else(|| panic!("missing or reordered supervision stage: {stage}"));
         cursor += offset + stage.len();
     }
 }

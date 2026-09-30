@@ -1,12 +1,11 @@
 # Programa maestro de estructura del workspace
 
-**Para qué sirve:** es el **índice y el orden de ejecución** de todo el trabajo estructural del
-workspace. No duplica detalle: fija qué va antes de qué, qué evidencia cierra cada fase y en qué
-estado está cada una, para que cualquier agente pueda retomar sin perderse.
+**Para qué sirve:** índice, orden de ejecución y estado del trabajo estructural.
+Fija dependencias y evidencia de cierre para retomar sin perder contexto.
 
-**Para retomar:** leer primero el [estado de continuación](#31-estado-de-continuacion-2026-09-28).
-Las notas fechadas posteriores conservan el historial de intentos y resultados; no acreditan por
-sí solas aceptación de la punta actual.
+**Para retomar:** leer primero el [estado de continuación](#estado-de-continuacion).
+El [historial separado](workspace-structure-history.md) conserva intentos y resultados;
+no acredita aceptación de la punta actual.
 
 **Autoridades (no compiten entre sí):**
 
@@ -17,8 +16,7 @@ sí solas aceptación de la punta actual.
 | este documento | el **orden, dependencias y estado** de todo el workspace |
 | [refactor-completion-plan.md](refactor-completion-plan.md) | el plan técnico general del port (no lo sustituimos) |
 
-**Regla de los dos planos:** la lógica se contrasta con la referencia C++ 3.4.3; la estructura la
-decide este programa. Ninguna decisión estructural se justifica con "en C++ es así".
+**Dos planos:** C++ 3.4.3 fija comportamiento; este programa decide la estructura.
 
 ## 1. Estado de partida (auditoría medida, `3.4.3` + rama de distribución)
 
@@ -42,10 +40,8 @@ laterales `ai→instances`, `conditions→loot`, `scripts→script`.
 
 ## 2. Secuencia maestra
 
-Orden por **dependencias reales**: primero lo que quita ruido, después lo que quita tamaño, después
-lo que cambia contratos, y al final la aceptación. Una fase espera a las dependencias de su fila,
-no al cierre de todas las fases de una ola anterior (ver §4). Los trabajos con propietarios y
-archivos distintos pueden avanzar en paralelo; la aceptación pesada conserva un solo ejecutor.
+Orden por dependencias reales: cada fase espera su fila, no toda la ola anterior (§4).
+Owners y archivos distintos avanzan en paralelo; la aceptación conserva un solo ejecutor.
 
 ### Ola A0 — endurecer el estándar antes de tocar crates
 Contraste con proyectos grandes de Rust (`rustc`, `rust-analyzer`, `bevy`, `polars`, `tokio`,
@@ -88,10 +84,10 @@ que hay que justificar con números.
 ### Ola C — inversiones de capa (cada una es un movimiento pequeño)
 | id | objetivo | depende de |
 |---|---|---|
-| C1 | tipos de registro de `wow-data` bajan a `wow-data`; se invierten `data→entities` y `data→movement` | A1 |
+| C1 | modelos inmutables compartidos a `wow-data-model`; loaders/stores quedan en `wow-data`; retirar `data→entities/movement` sin introducir `entities/movement→data` productivo | A1 |
 | C2 | los tipos que `entities`/`map`/`packet` necesitan de loot suben a su dueño; se rompen `entities→loot`, `map→loot`, `packet→loot` | C1 |
-| C3 | `packet→movement` y `database→persistence` corregidas a su dirección natural | C2 |
-| C4 | laterales de L3 (`ai→instances`, `conditions→loot`, `scripts→script`): fijar dirección por dominio y documentarla | C3 |
+| C3 | retirar `packet→movement` trasladando su conversión al adaptador de aplicación; preservar `database→persistence` como adaptador que implementa el puerto | C2 |
+| C4 | decidir las laterales vigentes (`ai→instances`, `conditions→loot`) por sus consumidores; retirar del baseline la histórica `scripts→script` ya inexistente | C3 |
 
 ### Ola D — los siguientes monolitos (mismos presupuestos del estándar)
 | id | objetivo | prioridad | depende de |
@@ -101,20 +97,19 @@ que hay que justificar con números.
 | D3 | **`wow-map`**: ficheros 5 133 → ≤1 000; separar runtime de grillas de la fachada | alta; adelantar con B6 | dueño y contrato de B6 fijados; cierre en paralelo |
 | D4 | **`wow-data`** y **`wow-database`**: techos de fichero y organización por catálogo/tabla | media | C1 |
 | D5 | **`wow-packet`** y **`wow-social`**: techos de fichero; packet solo wire | media | C3 |
-| D6 | **Ecosistema de módulos (ADR-002)**: contrato de datos versionado en `wow-module-api`, adaptador nativo in-process y adaptador Wasm (host) sobre el mismo contrato, `wasm-runtime` como feature opcional apagada por defecto, con versión de contrato, lista blanca de host functions, límite de ejecución (fuel) y aislamiento de fallos | media | A0.1 |
+| D6 | **Producto de módulos (ADR-002), asignado a #583**: contrato de datos versionado en `wow-module-api`, adaptadores nativo y Wasm sobre el mismo contrato, `wasm-runtime` opcional, límites de ejecución y aislamiento de fallos; incluye la entrega Rust/Wasm/C exigida por el plan de módulos | tras el núcleo #584 | requisitos core de #584 y A0.1 |
 
 ### Ola E — cierre
 | id | objetivo | depende de |
 |---|---|---|
-| E1 | auditoría del estándar en todo el workspace (mismo script): 0 stubs, 0 sin consumidor, 0 inversiones, 0 fichero > 1 000 | A-D |
+| E1 | auditoría del estándar en todo el workspace existente (mismo script): 0 stubs, 0 sin consumidor, 0 inversiones, 0 fichero > 1 000 o excepciones específicas revisadas según la política | A-D del núcleo #584; D6 se acepta en #583 |
 | E2 | ledger y política físicas consistentes con el árbol (delta revisado) | E1 |
 | E3 | **validación final única** (`./tools/validation-v2 final --architecture`) y evidencia publicada | E2 |
 | E4 | medición de build y latencia de herramientas antes/después (#1231); se publica tal cual, incluso si es negativa | E1 |
 
 ## 3. Registro de estado
 
-Se actualiza **en el mismo commit** que cierra cada fase. Convención: `[ ]` pendiente, `[~]` en
-curso, `[x]` cerrada con commit.
+Se actualiza en el commit de cada cierre: `[ ]` pendiente, `[~]` en curso, `[x]` cerrada con commit.
 
 ```
 A0.1 [x]  A0.2 [x]  A0.3 [x]  A0.4 [~]  A0.5 [x]  A0.6 [x]  A0.7 [x]   <- ola A: PUERTA VERDE
@@ -125,380 +120,1094 @@ D1 [ ]  D2 [ ]  D3 [ ]  D4 [ ]  D5 [ ]
 E1 [ ]  E2 [ ]  E3 [ ]  E4 [ ]
 ```
 
-### 3.1 Estado de continuacion (actualizado 2026-09-29)
+<a id="estado-de-continuacion"></a>
+
+### 3.1 Estado de continuacion (actualizado 2026-09-30)
 
 Esta entrada se mantiene al avanzar; sustituye las conclusiones contradictorias de las notas
 históricas para seleccionar el siguiente trabajo. Los SHA antiguos se conservan como evidencia
 histórica: la reescritura de mensajes cambió los identificadores, no autoriza a relabelar pruebas.
 
-**Punto de partida comprobado:** worktree `/home/server/rustycore-world-refactor`, rama
-`584-map-manager-domain`, punta `bfeb33e829334b4172dbddd73ec0d53a25f0e104`; base
-`3.4.3` en `e786ece1a554724351307bfd4e05e63a89962b60`. Local y remoto coincidían:
-15 commits por delante, 64 archivos, +2130/-1692, sin PR abierta. Dos worktrees registrados,
-sin entradas eliminables ni stashes. Reconsultar Git al retomar; estos son datos fechados.
+**Árbol activo observado el 2026-09-30:** worktree `/home/server/rustycore-world-refactor`,
+rama `584-map-manager-domain`, HEAD `d6c92488`; base `3.4.3` en `e786ece1`.
+Hay 213 commits por delante del remoto de la rama y una barrida sin commitear ni validar.
+El [punto de partida](workspace-structure-history.md#estado-de-git-al-iniciar-el-programa)
+conserva el contexto anterior. Reconsultar Git/procesos al retomar; no hay autorización de push.
 
 | pieza | estado comprobado y límite |
 |---|---|
-| B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Se estrecharon exports internos revisados de terrain, grid, pathfinder, respawn y runtime_state; el manager legado sigue requerido por `wow-world`/`world-server`. `map/mod.rs` medía 5 133 líneas en la base y mide 4 136 en el árbol D3 local aún no aceptado. La división física no retira los dos managers ni sus puentes. Faltan los demás exports, features/composición y aceptación del candidato. |
+| B6 | `map_manager` y su suite están en `wow-map`; comparación estática conserva 136 anotaciones de test. Se estrecharon exports internos revisados de terrain, grid, pathfinder, respawn y runtime_state; el manager legado sigue requerido por `wow-world`/`world-server`. La barrida D3 deja `map/mod.rs` en 714 líneas, con children privados menores de 1 000, sin aceptación. La división física no retira los dos managers, productores de ticks ni sus puentes. Faltan el cierre semántico, features/composición y aceptación del candidato. |
 | B5 | Raíces de loot y character miden 243/239 líneas y todos sus hijos extraídos menos de 600. Se estrecharon rutas heredadas de visibilidad de ambos adaptadores, incluido el plan de inventario test-only tras mover sus dos tests privados. Faltan el resto de exports y la aceptación del candidato. |
-| B3 | `group_tests` ya es target de integración. `quest_tests` existe como target provisional; `character_tests` se distribuye por owners, con **303** nombres originales presentes sin duplicados y **107** aún montados en la raíz provisional del árbol local. La suite externa de character aún no compila completa; la migración de quest y loot tampoco está aceptada. |
+| B3 | `group_tests` ya es target de integración. Quest: referencia histórica 198; 16 originales state/persistence/objectives externos conservan nombres y secuencia de 62 macros assert frente a HEAD. Los tres nuevos de hydration están externos. Otros once originales/36 assertions: Packet cinco, Model uno, Progression dos y APP tres; parent confirma nueve cuerpos literales y dos con tokens/literales idénticos ignorando whitespace, y los 16 métodos Template literales frente a PRE íntegro. Fixture mutable/party opt-in y cuatro casos de wiring conservan la vía productiva normal con feature. Residuales handlers Quest entregados: 21/74, 14 cuerpos idénticos frente a PRE íntegro y siete con acceso adaptado; mismos nombres/recuentos, tres assertions usan la observación del mismo owner. Controller opt-in 72/tres nuevos13 conserva attach normal con feature; PRE de state es parcial y no prueba todos sus campos. Quest físico y última suite entregados: 65 archivos ≤600 (máximo545), 14 originales/86 assertions trasladados; parent confirma sus nombres/recuentos, lee los 14 casos y las fachadas. No quedan casos/montajes directos en las dos familias Quest; reconciliación histórica y aceptación pendientes. Character: montaje previo observado 41 externos, 253 privados y uno vendor separado; 303/107 históricos requieren reconciliación por nombre. Entregada catalog-query completa: once originales/33 assertions, child productivo 261 y fixture 55 revisados en fuente; secuencia de 33 macros assert idéntica frente a HEAD; RawCache conserva dispatch registrado y TactKey instala el mismo Arc. Inventario: 15 originales/34 assertions entregados y fachadas/admisión revisadas en fuente; quedan 49 asignados. Opt-in privado explícito para snapshots ownerless aprobado, default deshabilitado con feature y siempre fail-closed ante handle observado/rechazado; cfg(test) conserva su fallback previo. Loot: referencia 266/1 372; 151 privados, 102 externos y 13 de dominio tras money19; APP suma 817/489 assertions (privados/externos); parent confirma ledger residual 151/817. Traslados de 14/62 y 15 durable-claim/64; parent conserva los 15 nombres y recuentos de assertions contra HEAD, fachada usa JoinHandle original. Restaurados nombres/assertions/input cap; revisión completa/features pendientes. Cuatro fixtures conservan 36 llamadas externas/una interna; money19 completo 19/66; 17 nombres/recuentos contra HEAD y dos personales/11 revisados contra PRE, conserva 999 global/123→0 owner/456 otro. Ciclo open/sync/consume usa opt-in por llamada; parent revisa guards y wrappers normales contra PRE. Negativos funcionales de feature normal y autoridad observada/rechazada, más barrida residual151, asignados; sin ensanchar fallback productivo. Sin compilación ni aceptación. |
 | B7 | Hay limpieza parcial local, incluidos siete imports sin uso retirados el 2026-09-29; los consumidores restantes de fixtures dependen de B3. No está cerrado. |
 | Talentos #578 | La rama `recover/578-talent-catalog`, `0845f5b3`, conserva `docs/migration/recovered/578-talent-catalog-2026-09-04.patch`; el archivo solo existe en esa rama, no en este checkout. No está aplicado; preservar la rama y adaptar por consumidores actuales cuando corresponda. |
-| Orquestación | Sol medium / Luna max copiado a este worktree. Cambios compartidos aún locales, y `.codex/config.toml` ignorado. Iniciar sesión nueva y comprobar runtime efectivo; preservar estos cambios al continuar. |
+| Orquestación | GPT-6.1 Sol high / GPT-6 Luna max configurados en este worktree y el checkout principal por petición del usuario. Los workers nativos se lanzan con modelo y esfuerzo explícitos; el fichero de configuración por sí solo no demuestra el runtime de una sesión ya abierta. Cambios compartidos aún locales y `.codex/config.toml` ignorado. Preservar estos cambios al continuar. |
 
-**C1, análisis sin implementación (2026-09-29):** la única importación
-productiva de `wow-movement` en `wow-data` localizada está en
-`jump_charge.rs`. El corte propuesto conserva fila, normalización, informe y
-catálogo en `wow-data`, y traslada allí el valor normalizado
-`JumpChargeSpec`/`JumpChargeParams`. Los consumidores actuales del getter son
-solo tests de datos y composición; `world-server/app.rs` guarda el catálogo
-sin conectarlo todavía a `Spell::EffectJumpCharge`. Por eso no hace falta
-crear una conversión a `wow-movement` al arrancar: la conversión de tiempo de
-movimiento a velocidad depende de la distancia en el efecto futuro, como en
-`SpellEffects.cpp:5730` de C++ 3.4.3. Antes de quitar la dependencia del
-manifiesto hay que preservar los cuatro tests de datos, tres de composición,
-contrato SQL y valorar las rutas públicas actuales de esos tipos en
-`wow-movement`. Es preflight, no una arista corregida ni aceptación de C1.
+**Actualización de inventario (2026-09-30, posterior a la fila B3):** Pauli entrega
+64/64 originales externos y retirada de nueve archivos/montajes privados. Parent
+compara PRE íntegro en `.agent-artifacts/character-inventory-pre-64`: 64 nombres
+únicos, sin faltantes/duplicados, 203 assertions de escenario con la misma secuencia
+de macros; 20 cuerpos literales y 44 adaptados. Los otros tres macros pertenecen
+a helpers (206 total); los cinco nuevos/26 quedan aparte. Parent lee fachadas,
+forwards de handlers, opt-in/capacidades, gates de equipo/modificadores/diagnóstico
+y cinco casos de frontera. Feature normal mantiene opt-in deshabilitado; cualquier
+handle impide fallback. El PRE se materializó del snapshot anterior, sin SHA
+capturado. Parent lee el diff completo de los 44 adaptados y sus fachadas;
+aceptación pendiente. Barrida física de ocho hotspots player_items y cinco
+Character asignada, sin mudar autoridad ni acreditar reducción global;
+esta entrega sustituye «quedan 49 asignados», no acredita verde.
 
-**Avance local posterior, pendiente de aceptación:** commits locales `8f162870`,
-`9df13460` y `dc73db43`. La feature de fixtures de `wow-map`
-ya no se activa en la dependencia de producción de `wow-world`, ni la de
-`wow-recastdetour` en la dependencia de producción de `wow-map`; las features
-explícitas y las dependencias de desarrollo conservan el acceso de tests. El worker
-obtuvo `cargo check -p wow-map`, `cargo check -p wow-world` y un test focalizado de
-pathfinder con salida 0. En loot se restringieron los exports de los seis hijos
-extraídos al módulo dueño, salvo la ruta `pub(crate)` preexistente de la distancia
-de interacción; `cargo check -p wow-world --tests` y el filtro `loot` pasaron
-(326 tests). En character se restringieron tres hijos y se conservó la ruta
-`pub(crate)` de `ExtendedCostItemTurninChange`; `cargo check -p wow-world --tests`
-pasó; los otros tres hijos de character también quedaron restringidos y el filtro
-`character` ejecutó 381 tests (379 unitarios y 2 de integración) sin fallos. Se
-conservó la ruta `pub(crate)` de `CreatureAddonCreateFieldsLikeCpp`.
-`dc73db43` devuelve a visibilidad privada los imports de implementación de
-`map_manager`; los checks de targets de test de `wow-map` y `wow-world` salieron
-con código 0, sin ejecutar los tests. Siguen pendientes la revisión de sus
-exports propios, la composición final y la aceptación de toda la macro.
-Estos checks son feedback del worker, no campaña final ni evidencia de publicación.
+**Retirada de hechizos entregada (2026-09-30, posterior a la fila B4/combat):**
+la operación completa frames/seen pertenece a PlayerSpellRuntimeState; APP
+conserva catálogos lazy, guards/invalidaciones, skills/equipo y publicación. Parent
+lee PRE y operación/protocolo/owner/adaptador completos, nueve tests de contrato,
+los nueve originales adaptados y sus fixtures, y los dos nuevos APP. Comparación
+independiente: 70 métodos anteriores del runtime y 29 restantes del spellbook
+literales; nueve originales Domain/21 assertions; 19 APP/77 assertions literales
+y archivos scenario2/3 enteros idénticos. Runtime/root 528, traits 168, operación
+266 y APP adapter 141; nueve Domain/40 y dos APP/13 nuevos sin ejecutar. PRE íntegro
+en `.codex/spell-unlearn-presnapshot-20260930`; sin aceptación. La suite amplia de
+spell-state y su distribución siguen pendientes; se explora su siguiente barrida.
 
-**Piloto B3 localmente verde, B3 todavía abierto:** `a0df47b3` mueve
-`group_tests` a `crates/wow-world/tests/` como target de integración: 130 tests
-externos y el test de regla privada conservado en `handlers/group/state.rs`.
-La comparación de nombres de funciones antes/después conserva los 172 del árbol
-de la suite; no sustituye su ejecución. Los commits locales `f54a98e3` a
-`746b2616` preparan wrappers estrechos bajo `test-fixtures`, incluido el
-bombeo con el **constructor original** de catálogos de sesión. El primer
-diagnóstico del target tuvo 124 errores; los siguientes aislaron campos,
-invitaciones, registro de silencio y bombeo. No se usaron catálogos por
-defecto para reemplazar los de la sesión. La feature conserva también las
-rutas de fixture para grupo, loot y el envío bloqueante al despachador de
-prueba; sin la feature, la ruta normal mantiene sus ramas de producción.
-`cargo check -p wow-world` sin feature salió 0 y
-`cargo test -p wow-world --test group_tests` ejecutó **130/130** en paralelo
-(log `target/b3-group-dispatcher-parallel.log`); la ejecución en serie también
-pasó 130/130 (`target/b3-group-uninvite-serialized-final.log`). Son checks de
-desarrollo del worker en aarch64 sobre el árbol que se comprometió como
-`a0df47b3`, no manifiesto final ni aceptación de la macro. `character_tests`
-y `loot_tests` aún viven en la lib; el movimiento diagnóstico de `quest_tests`
-se detalla abajo. B7 y los consumidores pendientes no están cerrados.
+**Retirada B4 entregada, sin aceptación:** validación causal completa de adquisición
+pasa a `wow-spell-acquisition`, incluidos replay/identity/provenance, publicaciones
+y evidencia por ocurrencia. Parent compara independientemente los once cuerpos
+trasladados: idénticos salvo nombres/error de dominio; lee la conversión de los
+24 errores y los 21 casos nuevos. Siete originales/nueve assertions pasan a Domain;
+cuatro APP/catorce assertions permanecen en World. APP conserva profesión, autoridad
+actual, durabilidad/COMMIT, instalación y publicación. Reducción de esta familia:
+837 líneas de producción y 324 de tests, 1 161 netas de World. PRE y entrega íntegros
+en `.codex/spell-acquisition-validation-presnapshot-20260930`. Parent confirma
+además cinco cuerpos de prepare, dos de translate y profesión idénticos salvo
+el callee trasladado, cuatro originales APP literales (7/1/4/2 assertions) y
+model/fixture/montajes de tests anteriores byte-idénticos. Falta aceptación final.
 
-**Hallazgos abiertos antes de aceptar B5/B6:**
+D2 compositor tenía raíz 792 natural/48 children ≤453; la continuación entregada
+reduce app.rs a 250 y world_startup.rs a 627 tras extraer account admission
+(69 líneas, tres referencias/cinco resultados existentes). Parent lee el diff
+completo de account admission y su locator, y confirma independientemente el
+cuerpo trasladado y la función completa de continuación al expandir la llamada:
+son literales, incluido whitespace, en
+`/tmp/sol-account-admission-source-comparison-20260930.json`. El child sigue 27
+líneas sobre 600; no se acredita cierre del presupuesto. Entregas/source-only en
+`/tmp/luna-d2-continuation-94c4jf1w/` y
+`/tmp/luna-d2-account-admission-0vodt6au/`; aceptación pendiente.
+Banach corrige los dos locators hotfix y el helper de localized strings
+que tenía await sin declaración async. Su comparación de operaciones usa children
+actuales en ambos lados cuando no hay PRE de esos children: no prueba equivalencia
+independiente de todos sus cuerpos. Parent lee ambos locators pendientes de
+DungeonEncounter/Gossip, ya corregidos, y sus child callers: conserva los seis/tres
+hechos originales y añade unicidad/orden en cada fuente real. El locator Gossip
+ya fallaba en ambos PRE. No aceptar el viejo root600 comprimido
+ni crear una fábrica universal para cumplir la cifra. Informe de revisión de fuente
+en `/tmp/luna-d2-closure-source-review.md`, sin pruebas ejecutadas.
 
-1. La feature de fixtures de `wow-map` y `wow-recastdetour` estaba activada en dependencias
-   normales. `9df13460` separa producción y pruebas; comprobar la composición final sin que
-   la unificación de features oculte otra dependencia accidental.
-2. Los `pub use self::<hijo>::*` y los `pub` añadidos en loot/character ampliaban la API.
-   `8f162870` los restringe preservando las rutas `pub(crate)` originales. `dc73db43`
-   restringe imports de implementación de `map_manager`; revisar todavía sus exports de
-   submódulos y consumidores de toda la macro. El movimiento por sí solo no justifica
-   visibilidad pública.
-3. La sesión DeepSeek ocultó al menos un fallo de arquitectura con `grep | head; echo $?`;
-   `845cc02d` corrigió aquella afirmación. La pauta del worker ya está corregida localmente
-   para conservar salida completa y código real del comando; falta integrar esa configuración.
-4. El baseline de `tools/xtask/layer-baseline.txt` contiene 11 aristas; el recuento estático
-   con su regla actual encuentra 13 en esta rama, incluyendo `wow-packet -> wow-entities` y
-   `wow-map -> wow-movement`. Reconciliar su contrato con `dependency-policy.json` y sus
-   excepciones; no elevar el baseline ni retirar una arista legítima para obtener verde.
+El corte adicional propuesto de formación del mundo (20 referencias/nueve
+resultados existentes, root565–621) sólo ahorra 23 líneas; no se implementa para
+cumplir una cifra que seguiría abierta. WorldStartup627 sigue pendiente de un límite/corte
+semántico aplicable; no relajar el estándar ni inventar contexto universal.
+Banach termina la preparación de B3 Character lifecycle/account enumeration/
+world-entry y recibe implementación conjunta de 86 nombres APP: 64 Character/
+240 assertions y 22 consumidores Session/113. PRE y contrato íntegros en
+`/tmp/luna-b3-character-map-1_3netnq/`; target propio `character_lifecycle` y
+fixture child separado, sin tocar los mounts Character de Pauli. Conserva
+helpers/negativos/fences, rename12 y source guards; excluye inventory/catalogs,
+collections y Spell/Skill. Parent recupera el baseline nominal 303 desde
+origin/3.4.3=e786ece1a554724351307bfd4e05e63a89962b60: 33 fuentes completas y
+303 nombres únicos en `/tmp/sol-character-reference-origin-20260930/`.
+Snapshot concurrente de definiciones actuales: 239 tienen un locator y 64 tienen
+dos (original Character y copia de la entrega lifecycle en curso); ninguno
+ausente. Esto resuelve la falta del baseline nominal, no acredita mounts activos,
+assertions ni aceptación; reconciliar cada destino y el significado histórico
+de 107 sigue pendiente. No compilación ni tests ejecutados.
 
-La revisión estática posterior confirma que ambas aristas de diferencia son
-dependencias declaradas en los `Cargo.toml`, no falsos positivos del lector de
-manifiestos. `wow-map -> wow-movement` une dos crates `domain-runtime`, categoría
-que `dependency-policy.json` permite depender de sí misma. La arista
-`wow-packet -> wow-entities` tiene una excepción explícita entre crates en esa
-política, justificada por la proyección de CREATE de criatura. El checker de
-`xtask` aplica en cambio `target >= source` a todos los pares de su misma capa
-numérica y por eso detecta ambas. Antes de modificar la herramienta, contrastar
-sus 11 filas históricas con la política completa: alinear la clasificación no
-debe ocultar inversiones reales ni convertir esas dos aristas en deuda de C.
+**Character lifecycle86, seam de fixture pendiente de implementar:** los 86
+destinos y helpers están preparados, originales aún retenidos. Informe completo
+`/tmp/luna-b3-character-map-1_3netnq/IMPLEMENTATION-WIP.md`: 85 cuerpos declarados
+con tokens conservados tras rutas explícitas; uno mueve su arrange canónico y
+observa la proyección después de soltar el guard, sin await. Las 358 observaciones
+incluyen `matches!`, por lo que no sustituyen el anterior recuento de asserts.
+La librería de un target externo no tiene `cfg(test)`; wrappers por sí solos no
+reproducen los antiguos fixtures handleless. Banach recibe implementación del
+modo CharacterLifecycle privado, opt-in explícito/default false, que reutiliza
+las ramas/estado originales sólo en los casos seleccionados. Some handle, incluso
+stale/rechazado, impide fallback; construcción normal con feature sigue igual.
+Sin owner automático, gameplay duplicado ni zeros/Vec vacíos de sustitución.
+ACK explícito recibido de Pauli, Einstein y Loot: state/construction libres, sin
+patches en vuelo. Banach recibe turno exclusivo para integrar los dos roots y
+completar helpers/delegates propios. La migración no se cuenta terminada hasta completar
+este rail y retirar los 86 registros originales. Ninguna aceptación ejecutada.
 
-**B6 feedback acotado de terrain (2026-09-29):** la comparación de
-`crates/wow-map/src/map_manager/terrain.rs` con
-`origin/3.4.3:crates/wow-world/src/map_manager/terrain.rs` encontró ocho
-constantes que el movimiento había ensanchado de `pub(super)` a `pub`:
-`MAP_MAGIC_LIKE_CPP`, `MAP_AREA_MAGIC_LIKE_CPP`,
-`MAP_VERSION_MAGIC_LIKE_CPP`, `MAP_FILE_HEADER_SIZE_LIKE_CPP`,
-`MAP_AREA_HEADER_SIZE_LIKE_CPP`, `MAP_AREA_HEADER_FLAG_NO_AREA_LIKE_CPP`,
-`MAP_AREA_CELLS_PER_GRID_LIKE_CPP` y `TERRAIN_GRID_COUNT_LIKE_CPP`. Sus usos
-externos al archivo son la implementación de `terrain` y los tests montados bajo
-`map_manager`; no hay consumidores de producción en otros crates. Se limitaron
-a `pub(crate)` y se añadieron reexports crate-only para los tests en
-`map_manager/mod.rs` y `map_manager_tests/fixtures.rs`. Los valores y el parser
-no cambiaron. En ese corte, `grid.rs` y sus funciones ensanchadas quedaron fuera;
-se auditan en el siguiente corte anotado aquí.
+**Character86 entregado después de integrar el rail:** Banach confirma libres
+state/construction y entrega `/tmp/luna-b3-character-map-1_3netnq/DELIVERY.md`.
+Parent lee el informe: 86 originales externos y cuatro negativos adicionales,
+19 suites/19 mounts retirados y seis suites mixtas editadas, 19 excluidos
+conservados. Conserva PRE íntegros antes del turno compartido y retirada; declara
+85 cuerpos equivalentes bajo rutas explícitas y un arrange/save extraído.
+Las 358 observaciones incluyen matches; la comparación independiente del rail,
+campos/initializer, helpers y retirada queda pendiente. Flag privado opt-in
+defaultfalse observado en construcción/state; no se declara aceptación.
+Parent aplica después el snippet exacto Loot criteria en los roots liberados:
+import/type/field/default disponibles sólo con cfg(test) o test-fixtures.
+No ensancha grant stubs/encounter fallback ni cambia política productiva.
+Banach implementa el corte semántico pendiente de app.rs D2 (792), después de
+la lectura completa parental del compositor y la propuesta: continuación desde
+world_templates hasta serve, con referencias concretas y owners anteriores
+retenidos en root. LoginDatabase y Graveyard usan slots Option tomados sólo en
+sus puntos originales de conversión Arc; se conserva el orden de drop ante error.
+Hotfix delivery se extrae como loader secuencial completo. El presupuesto del
+child sigue pendiente: no se comprime ni se acepta otro contexto universal.
+Parent contrasta independientemente los 86 casos con PRE: 85 cuerpos coinciden
+tras las rutas explícitas de símbolos, attachment, namespaces y seis observaciones
+de fields. Lee el caso save completo, su arrange trasladado y la proyección
+inmutable de cuatro valores; conserva los tres outcomes y assertions originales.
+Las 353 macros assert y cinco matches se conservan por caso. No quedan los 86
+nombres en los originales ni las 19 suites retiradas; imports/montajes de destinos
+observados, con test-fixtures habilitado por la dev-dependency de World.
+State/construction conservan tokens de fields/initializers tras excluir cfg,
+flag privado/defaultfalse y agrupación de imports; ese contraste no demuestra
+los gates ni typing. Parent lee los cuatro negativos nuevos completos. Informes
+independientes `/tmp/sol-character-86-case-source-comparison-20260930.json`,
+`/tmp/sol-character-86-retirement-source-comparison-20260930.json` y
+`/tmp/sol-character-shared-root-source-comparison-20260930.json`. Revisión completa
+de los forwards/rail y reconciliación303/107 aún pendientes, sin ejecución.
 
-Los checks secuenciales con `CARGO_BUILD_JOBS=1`, `PROTOC` local y target de este
-worktree pasaron: `cargo check -p wow-map`,
-`cargo test -p wow-map --lib terrain_` (18/18) y
-`cargo check -p wow-world`; logs
-`target/b6-map-terrain-constants-check.log`,
-`target/b6-map-terrain-constants-focused-test.log` y
-`target/b6-map-terrain-consumer-check.log`. Se ejecutaron en el worktree sobre
-`221b6e36` con el diff B6 de tres archivos aplicado, luego comprometido sin
-cambios como `8622c89c`. Es feedback local, no aceptación de B6: siguen
-pendientes el resto de visibilidades de terrain/grid, la revisión de features,
-la composición y la aceptación final.
+**Respawn entregado (2026-09-30, corrección Route A entregada sin aceptar):**
+Huygens entrega store tagueado común, transporte move-only, lifecycle Actor y
+consumidor APP preparados; inventario en `/tmp/luna-respawn-delivery-20260930.tsv`
+y PRE sustantivos en `/tmp/luna-respawn-pre-20260930`. Escribe 33 pruebas nuevas
+sin ejecutarlas. Parent confirma 17/18 cuerpos Map literales y el selector
+Catalog como único delta restante; ocho cuerpos Pending, lifecycle Session y
+siete funciones APP literales. Lee store/transport completo, pipeline Actor,
+APP y 33 casos nuevos. Permanecen dos instancias temporales
+del mismo tipo hasta transportar bajo quiescencia y retirar writers/borrowers
+legacy. No hay activación ni autoridad productiva única acreditada. La vista
+de rows pasa del orden HashMap no especificado a orden por key; Actor conserva
+Instant/ordinal. El baseline de `session/mod.rs` es reconstruido quitando el
+reexport nuevo, no un PRE original. Hallazgo abierto: APP ground-snap llama
+`static_height_like_cpp` bajo guard canónico; `terrain.rs:107/with_tile` puede
+leer tiles con `std::fs::read`; la factory también inicializa RNG. Parent fija la
+continuación owned ligada al MapTickPlan real, con query/factory fuera del guard,
+orden por mapa/ordinal y gates de lifetime/tail/transfer. Huygens entrega Route A;
+admission canónica usa el loader Noop. Parent lee manager/request/reply/dispose,
+Map prefix/guards, reservas checked, transferencia, gates de lifetime/tick y APP
+driver, más sus 19 casos nuevos (7 manager, 8 ownership, 4 APP query). Compara
+independientemente las 78 assertions literales de los 15 casos adaptados; los 18
+restantes se declaran conservados. PRE específico de la corrección en
+`/tmp/luna-respawn-io-pre-20260930`, inventario de 20 rutas en
+`/tmp/luna-respawn-io-delivery-20260930.tsv`. Módulos productivos nuevos ≤246;
+state compartidos existentes 783/937 antes del último fixture.
 
-**B6 feedback acotado de grid (2026-09-29):** al comparar
-`crates/wow-map/src/map_manager/grid.rs` con
-`origin/3.4.3:crates/wow-world/src/map_manager/grid.rs`, se confirmó que las
-visibilidades ensanchadas partían de `pub(super)`. Las cinco constantes
-`MAX_NUMBER_OF_CELLS_LIKE_CPP`, `TOTAL_NUMBER_OF_CELLS_PER_MAP_LIKE_CPP`,
-`SIZE_OF_GRID_CELL_LIKE_CPP`, `CENTER_GRID_CELL_ID_LIKE_CPP` y
-`CENTER_GRID_CELL_OFFSET_LIKE_CPP`, además de `compute_cell_coord_like_cpp`,
-solo se usan dentro de `grid.rs`; ahora son privadas. `CellCoordLikeCpp` y sus
-campos siguen `pub(super)` porque `runtime/manager.rs` consume el resultado y
-ordena por `x/y`. `calculate_cell_area_like_cpp` y
-`cell_area_contains_position_like_cpp` son usados por ese runtime; el conversor
-`position_to_i32_tuple` lo usa `movement/spline.rs`. Estos tres helpers
-permanecen `pub(super)`. Sus imports explícitos en `map_manager/mod.rs` ahora
-son privados; la API pública de `GridCoord`, `Grid` y las conversiones de
-coordenadas no cambió. En particular, `wow_map::calculate_cell_area_like_cpp`
-continúa siendo la función distinta de `crate::cell`, usada por producción.
-Ningún test de `map_manager_tests` referencia directamente los helpers
-restringidos.
+Hallazgo adicional corregido: el helper APP del original stale devolvía Vec vacío
+antes de pasar por el driver real; assertions intactas no preservan esa cobertura.
+Parent lee la corrección limitada: fixture feature-only cambia sólo incarnation
+de un participante existente en un plan realmente admitido, conservando origin,
+epoch, diff, keys y orden; el helper debe llamar siempre al mismo driver y su skip
+stale productivo. Método 12 líneas en state_2 (949), APP tests177; original stale
+mantiene seis assertions y se añade un caso que atraviesa directamente el driver
+y observa cola, reservas, timer, resumption y abandono. PRE adicional íntegro en
+`/tmp/luna-respawn-stale-fixture-pre-20260930`. No amplía normal API, fields o
+fallback. Contrato completo en
+`workspace-structure-b6-execution.md`; Melee se prepara en lectura, sin ejecutar
+checks ni activar productores. La retirada legacy y aceptación siguen pendientes.
 
-Los checks secuenciales con `CARGO_BUILD_JOBS=1`, `PROTOC` local y target del
-worktree pasaron: `cargo check -p wow-map`, `cargo check -p wow-world` y
-`cargo test -p wow-map --lib grid` (140/140). Logs
-`target/b6-map-grid-visibility-check.log`,
-`target/b6-map-grid-world-check.log` y
-`target/b6-map-grid-focused-test.log`. Corrieron sobre `c7d269be` con el diff
-grid aplicado, luego comprometido sin cambios como `e714fe79`. Es feedback
-local, no aceptación de B6: siguen pendientes las visibilidades ensanchadas de
-funciones en `terrain.rs`, la revisión de features, la composición y la
-aceptación final.
+**Loot B3 residual entregado parcialmente:** Zeno entrega 87/151 originales,
+494/817 assertions (81 APP/470 y seis Domain/24); 64/323 siguen privados con
+cuerpos declarados byte-idénticos al PRE. Money19 conserva 19/66 y añade siete
+regresiones funcionales/44 sin ejecutar. Parent lee el informe completo
+`.codex-loot-residual-report.md` y los 64 contratos individuales; los body diffs
+de las 87 adaptaciones quedan leídos en los siete `part-*.diff`, incluida
+preparación, inputs, llamadas y observaciones, no sólo recuentos. Parent lee
+además las fachadas de lifecycle, metadata/store item y sus observers; la fixture
+de cast conserva su preparación anterior completa. Los valores esperados de
+random properties conservan 9001/0 y -7001/123 a través del wrapper opaco; geometry
+conserva ContactDistance 0.5. Empty encounter catalog sólo sostiene los casos
+previos de encuentro sin metadata; no prueba jugadores bloqueados por un lock
+real, exigido en la familia residual asignada. Equivalencia de todas las fachadas,
+gates y montaje/aceptación aún pendiente. Parent lee los siete
+Money negatives/44 assertions y sus forwards de apertura/consumo: normales sin
+Loot authority, owner retirado/deactivado, ausencia de snapshot de Player,
+generación stale y aplicación positiva al Player residente. Son casos escritos,
+sin ejecución. Comparación independiente de los seis children físicos contra
+PRE íntegro confirma 37 firmas y 37 cuerpos literales; informe source-only
+`/tmp/sol-loot-physical-37-source-comparison-20260930.json`. No prueba imports,
+montajes, visibilidad efectiva, compilación ni aceptación.
+En el snapshot concurrente posterior, el ledger de destinos anterior tiene
+58 rutas sin su cuerpo nominal: la familia está en traslado, no son 58 tests
+demostrados ausentes. Navegación independiente de las firmas actuales localiza
+los 151 nombres una sola vez, sin ausentes; informe
+`/tmp/sol-loot-151-current-name-navigation-20260930.json`. El primer informe por
+ruta `/tmp/sol-loot-151-body-source-comparison-20260930.json` conserva ocho cuerpos
+literales en sus destinos anteriores; sus 58 misses no prueban pérdida ni
+equivalencia de nuevos destinos. Reconciliar cuerpos/mounts al terminar el worker.
+Referencia reconciliada declarada 266/1 372, sin incluir casos nuevos ni reemplazos.
+La preparación completa64 termina y se asigna implementación de 62/316 con
+ports/futuros reales para storage/COMMIT, observadores de callbacks, encounter
+real con InstanceLockMgr/full GUID, policy GO completa opt-in, autoridad
+local/cast y facades Quest existentes. Dos originales/7 assertions quedan
+intactos y pendientes: direct claim exige exactamente Removed→Push y batch
+disenchant Push→Push→Removed en el antiguo rail cfg(test); producción también
+publica objetos/valores. Se añaden dos casos APP con secuencia productiva
+completa, sin filtrar opcodes ni sustituir igualdad global por subsecuencia;
+no acreditan retirada de los dos originales. El handoff antiguo de Quest no
+bloquea. No ensanchar cfg(test), sanar owner observado, sustituir grant por
+stub ni crear otro mirror. Mounts Session compartidos requieren turno entre
+workers; no validación durante la barrida.
 
-**B6 feedback acotado de pathfinder (2026-09-29):** seis declaraciones de
-`map_manager/pathfinder.rs` se habían ampliado de `pub(super)` a `pub` al mover
-el módulo. `SMOOTH_PATH_STEP_SIZE_LIKE_CPP`, las dos conversiones de posición y
-`WorldMMapPathfinderMessageLikeCpp` solo se usan en el archivo y ahora son
-privadas. `point_path_limit_for_distance_like_cpp` y
-`random_path_result_from_path_type_like_cpp` los usa también el módulo hermano
-de movimiento y quedan `pub(super)`. El test de movimiento importa el último
-por su ruta anidada privada, sin reexport público; se retiró su import del
-fixture común. No se cambiaron reglas ni datos.
+**Loot62 entregado, revisión e integración aún abiertas:** Zeno entrega los
+62 originales/316 macros APP externos, dos casos adicionales de wire completo
+y locators actualizados. En esa entrega declara referencia266 única y
+residual151 con 149 externos/810 macros y dos privados históricos/7.
+Parent lee ambos casos wire completos y los dos históricos, los ports/futuros
+reales de storage, los tres escenarios encounter y su preparación mediante
+InstanceLockMgr/full GUID/reset futuro. Lee también el diff completo de los
+cores de aplicación (678 líneas), policy transitoria, fixtures de cast y sus
+observaciones de los owners reales. Tres familias de diff leídas: encounter,
+cast y lifecycle; las otras ocho adaptaciones siguen pendientes de revisión.
+El snippet de imports/field/default de criteria espera el fin del turno
+exclusivo de Banach en state/construction. Cast/Aura queda libre para Gossip.
+Parent asigna sustituir los dos oracles históricos incompletos por los casos
+productivos completos conservando sus nombres: qty1/2 y toda la cola, sin
+filtros, incluyendo Create/Values y commit/reclaim de batch. Registrar esa
+revisión explícita de oracle (2→4 y 5→7 macros, más asserts del parser),
+separando baseline y current; no declararlos literales ni contarlos como dos
+nuevos además de originales. Retirada y reconciliación de esa unidad pendientes;
+no hay compilación, aceptación ni prueba real de durabilidad DB.
+La revisión de los dos oracles queda implementada después: Zeno conserva sus
+nombres históricos únicos en storage_wire, retira ambos archivos/mounts privados
+y registra baseline266/1 372 frente a current266/1 376; residual151 pasa de
+817 a 821 macros actuales y todos sus destinos son externos. Parent lee el diff
+exacto y el lineage/operands; no son cuerpos literales ni dos nuevos adicionales.
+Los otros 264 cuerpos quedan declarados sin cambio en esa revisión bounded.
+Zeno prepara el consumidor CreatureLoot para el retiro del owner legado, sin
+activar ni editar shared roots; falta revisar ocho familias de adaptación62.
 
-Los checks secuenciales con un job, `PROTOC` local y target del worktree
-pasaron: `cargo check -p wow-map`, `cargo test -p wow-map --lib path` (37/37,
-854 filtrados) y `cargo check -p wow-world`; logs
-`target/b6-pathfinder-wow-map-check.log`,
-`target/b6-pathfinder-wow-map-test-path.log` y
-`target/b6-pathfinder-wow-world-check.log`. También pasó `git diff --check`.
-Es feedback de desarrollo, no aceptación final de B6 ni de la macro.
+**PlayerItems físico entregado parcialmente:** doce hotspots partidos, según
+PRE íntegro `.agent-artifacts/player-items-physical-pre-13`; parent compara las
+288 definiciones: cuerpos literales, trece ajustes de visibilidad conservando el
+acceso anterior. Lee también los cuatro source guards adaptados. Compra tenía
+una función de 938 líneas; parent lee la operación completa y
+fija currency / item purchase / publication privados. COMMIT, aplicación runtime
+síncrona y liberación money guard quedan en item purchase; publicación conserva
+quest drain, currency losses, creates/counts y fences instance→realm→instance.
+Parent lee los cuatro archivos actuales y compara directamente contra PRE:
+currency literal, item hasta drop del money guard literal salvo retornos Option,
+publicación literal. Raíz 178 y children 244/553/131; el bundle privado contiene
+sólo los resultados movidos de esa compra, sin clone/context nuevo. La partición
+no cambia ownership ni reduce por sí misma el total de World.
 
-**Evidencia disponible:** revisión de código, Git, manifiestos y sesión DeepSeek
-`51439d45-bfa1-4f1a-8538-38729d3f7c0d`, más los checks de desarrollo indicados arriba.
-El último manifiesto final encontrado, `20260927T140832.222423Z-3887452-final.json`, pasó
-en 423.853 s sobre `ee49c8ea`, anterior a este incremento. No existe aceptación final
-acreditada de `a0df47b3`. Los recuentos y verdes de las notas históricas no la sustituyen.
-El rollback del piloto borró temporalmente tests preexistentes; se restauraron y están presentes.
+**Familia completa PlayerItems/apariencias asignada tras compra:** parent lee
+raíz/siete children, owner `PlayerCollectionStateLikeCpp`, los 26 originales y
+consumidores de login/teleport, account load/save, handlers favoritos y spell
+AddSet. Contrasta `CollectionMgr.cpp:461–950`, `Player.cpp:11069–11125/18747–18804`
+en `a5f8da2e`. Doce originales/51 assertions pasan a Domain (Has, cinco admisiones,
+load/save appearances/illusions y dos completitud de sets); catorce APP/67 pasan
+al target de integración. Los dos handlers Favorite y dos casos de puerto/fallo/
+orden de cuenta siguen APP; sus tests no prueban ausencia de owner si adaptan
+construcción con uno válido. Capturar PRE íntegro antes de la nueva migración.
 
-**Secuencia propuesta para la próxima ejecución:**
+El owner actual recibe admisión completa, favoritos, Has/providers y proyecciones
+de load/save/sets, con módulos privados; sin otro CollectionState ni dependencia
+normal Entities→Data. Un puerto específico de filas/facts y lecturas Player
+mantiene el orden lazy de los 241 renglones actuales. Colección/permanente se
+consulta al final, temporal no bloquea; calidad baja exige ambos flags. CanUseItem
+parcial, holiday/artifact specialization ausentes y ItemSpecStats fallback siguen
+gaps explícitos. No convertirlos en reparación dentro del refactor.
 
-El objetivo vigente es completar la macro de modularización de `wow-world` de #1233 en esta
-rama, con sus consumidores y evidencia. B5/B6 son un bloque interno; su corrección por sí sola
-no cierra la macro ni justifica una PR parcial.
+APP mantiene writers separados y sus fallos: permanente lee temporal, escribe
+flags/conditional/values en Player, sólo si añadió flag escribe Collections y
+después criteria. Temporal muta Collections antes del writer Player; no agrupar
+closures ni sanar el fallo parcial. AddSet no llama CanAdd, mantiene ID cero,
+duplicados, skips y último update. Set completion preserva slots -1/0/1,
+primer slot completado y resultado true para set sin piezas resolubles.
+Favorites mantienen New/Removed/Unchanged y el reapply/unapply actual, incluido
+republish al unapply de Removed. Opcode 0xBADD conserva state sin packet.
 
-1. Revisar los exports propios restantes de `map_manager`, la composición de features y el
-   contrato entre los dos checkers de capas. Adelantar D3 en paralelo con los propietarios B3
-   distintos: `map/mod.rs` sigue en 5 133 líneas, mientras el subárbol de producción
-   `map_manager/` suma 6 811 con un máximo de 675 por archivo. Cortar `Map` por
-   responsabilidades, sin segunda autoridad ni estado espejo, y registrar el descenso real de
-   los ficheros mayores antes de cerrar el destino B6. Mantener movimiento y comportamiento
-   separados; el piloto verde todavía no cierra B3.
-2. Extender B3 desde el piloto verde a `quest_tests`, `character_tests` y `loot_tests`, una
-   suite por responsabilidad comprobada, con fixtures mínimas, consumidores y recuentos
-   conservados. `validation-v2 final` usa `cargo test --lib`; ejecutar los nuevos targets
-   de integración explícitamente o adaptar su cobertura en el runner. Medir antes/después.
-   El inventario de partida de las cuatro suites era 48429 líneas y 925 anotaciones de test
-   incluyendo raíces; los 44665 históricos no eran el total actual.
-3. Terminar B7 y las demás responsabilidades de `wow-world` de #1233, incluidos consumidores,
-   ownership, módulos y tests; comprobar ambos criterios semántico y físico. La arquitectura
-   restante de #584 y C/D/E sigue su orden por dependencias; mantener #584 → #583 → #153.
-4. Al completar la macro, ejecutar la aceptación del candidato comprometido:
-   `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings`, más la integración
-   aplicable no cubierta. Un ejecutor, `VALIDATION_V2_CARGO_JOBS=1`, target propio y `PROTOC`
-   según AGENTS.md. Registrar SHA, comandos, salidas y tiempo completo; superar 600 s incumple
-   el objetivo ordinario. PR/publicación/merge conservan sus autoridades.
+Load preserva filtros de cero, orden BTree/dense y favoritos Unchanged; flags
+Player preceden install Collections. Active-create prefiere collection blocks,
+luego canonical Some incluso vacío, y sólo None usa proyección por IDs. Save
+opera sobre el snapshot clonado, settle favorites antes de persistence y conserva
+replace ignorado/plan Some y retención para retry/finalization actuales. Illusions
+conservan defaults 3/13/22/23/34/43/44 y los bloques no vacíos, sin nuevo clamp.
+Outfits pertenecen a EquipmentSets y su load se conserva literal; no llevarlos
+a CollectionState. Criterios continúan representados en tests; no añadir motor.
 
-Al retomar, leer esta entrada, inspeccionar el diff local y procesos activos y actualizar aquí
-el estado real, evidencia y siguiente paso. No crear otro plan o handoff paralelo. El piloto B3
-está comprometido y verde en feedback local; las demás suites, B7, la macro y su aceptación
-siguen pendientes.
+Los catorce APP originales conservan nombres, inputs, assertions y packets/fallos;
+fachadas feature-only expresan operaciones/observaciones completas. Fixture
+ownerless, si imprescindible, requiere opt-in explícito default false; Some
+handle, incluso stale, nunca permite fallback. No crear mirror mutable ni fixture
+siempre válida que sustituya pruebas negativas. Escribir límites default/no GUID/
+stale/prioridad canónica/fallos parciales; no ejecutar. Archivos producción/tests/
+fixtures ≤600 naturales, DTOs únicos con aliases de compatibilidad cuando proceda.
 
-**Migración de quest compilable, aún sin aceptación:** `1a5ea280` traslada
-`quest_tests` al target externo y deja seis pruebas de reglas privadas en
-`handlers/quest/rule_tests.rs`. La comparación de nombres con los 19 archivos
-anteriores conserva exactamente 225 tests: 219 externos + 6 privados, sin
-nombres perdidos, añadidos ni duplicados. Los puentes bajo `test-fixtures`
-mantienen los fallbacks existentes sin `Player`, las rutas canónicas de quest,
-reputación, habilidad y moneda, los planes de persistencia y las respuestas de
-handler; los tipos de plan y los mapas mutables no se exponen al test externo.
+**Appearance entregada, revisión/aceptación pendientes:** Pauli entrega 53 rutas
+(19 modificadas, 29 nuevas, cinco shells retirados), owner anterior con children
+privados y una fachada World de 72 líneas. Declara 26 originales únicos: 12 de
+dominio/51 assertions y 14 externos/67; cuatro APP adicionales/15 assertions
+permanecen internos cfg(test), no contarlos externos. Escribe 14 casos nuevos/65
+sin ejecutarlos. PRE íntegro y mapas/diffs en `.agent-artifacts/appearance-family-pre/`;
+Parent compara los 30 métodos anteriores de CollectionState literalmente con
+el PRE íntegro. Confirma 30 nombres originales en sus destinos, incluidos los
+cuatro internos; sólo esos cuatro cuerpos siguen literales. Los otros 26
+requieren revisar sus adaptaciones, no inferir equivalencia de sus recuentos.
+Lee los 14 casos nuevos completos y sus fixtures/default gates; no se ejecutan.
+Doce funciones anteriores de CollectionAdapter siguen literales; sus dos métodos
+is_empty se conservan literalmente en los DTO del owner. Informe independiente en
+`/tmp/sol-appearance-original-source-comparison-20260930.json`. Parent lee los
+26 originales adaptados completos y sus diffs/fixtures: doce Domain usan Player
+y los catálogos reales; los catorce APP adoptan sólo el Player ya registrado y
+restauran su identidad original. Los negativos de owners son casos adicionales.
+Compara las 133 macros originales/current de los treinta casos: diez secuencias
+de assertions siguen literales en tokens; las veinte restantes coinciden tras
+proyectar únicamente los accesos owner/fachada revisados, con mensajes intactos.
+La equivalencia de esos accesos se contrasta con los helpers y owners, no se
+deduce del recuento. Los dos builders APP de rows Item y el loader de outfits
+EquipmentSets conservan cuerpos literales frente al PRE. Informe de operands
+en `/tmp/sol-appearance-assertion-operands-20260930.json`; el extractor concreto
+resuelve las firmas con semicolons de arrays que el navegador genérico omite.
+Admisión/fixtures, catálogo/publicación y loaders se revisan en fuente; no hay
+ejecución ni cierre de presupuesto global o aceptación de la familia.
+Los roots state/construction quedan libres por ACK de Pauli y Einstein, pendiente
+turno con Loot. Pauli termina la preparación de B3 Gossip/Trainer y recibe la
+implementación completa: 23 APP originales/111 macros más tres macros de helpers,
+con PRE íntegro, helpers/mounts y consumers en
+`.agent-artifacts/character-gossip-trainer-pre/`. Parent lee gossip completo,
+trainer helpers, NPC/taxi/feign/Aura gates y las funciones Gossip/Select/Binder
+del C++ a5f8da2e. Todos los escenarios permanecen APP externos: no acredita pureza
+de dominio. Binder, conditions, catalog_menu y selection pasan a hijos privados.
+El opt-in Gossip es privado/defaultfalse; la reconstrucción NPC/taxi/Aura debe
+usar los campos/algoritmos previos sólo sin handle, nunca curar un Some rechazado.
+Feign conserva DIED lookup→snapshot→slots→remove_aura→clear separado. Shared
+roots/Aura se integran mediante snippets y turno con Character/Loot, sin habilitar
+automáticamente el fixture Lifecycle ni cambiar registry/gaps. Retirada de los 23
+montajes y revisión completa pendientes, sin validación.
 
-El diagnóstico inicial del target tuvo 1 497 errores. El check de desarrollo
-`cargo check -p wow-world --test quest_tests` terminó con código 0 en aarch64
-(`target/b3-quest-item-persistence-planner-check.log`), sobre el árbol previo
-al commit de movimiento; el delta posterior fue solo retirar espacios finales.
-Los filtros de reglas privadas pasaron 5/5 y 1/1 por separado, y un test
-focalizado del target externo pasó 1/1 (218 filtrados;
-`target/b3-quest-item-persistence-planner-focused-test.log`). No se ejecutaron
-las 219 pruebas externas completas ni se revalidó el modo sin feature tras los
-últimos gates. Estos son checks de implementación, no aceptación final del SHA
-`1a5ea280` ni de la macro. `character_tests`, `loot_tests`, B7 y el resto de
-`wow-world` siguen pendientes.
+Pauli entrega la implementación Gossip23 con PRE/diff íntegros y patch compartido
+`.codex/character-gossip-complete-integration.patch`: los cinco originales siguen
+montados hasta integrar/retirar en turno parental. Declara 111 macros originales
+más tres de helpers conservadas y seis negativos nuevos/29 macros escritos.
+Parent lee el patch, los cambios de NPC/taxi/Aura/vitals/phase, facade de 178 líneas
+y cinco negativos de fixture_modes; la comparación independiente de los 23 casos
+y helpers sigue pendiente. El predicate mantiene cfg(test) histórico implícito,
+pero requiere opt-in y GUID sólo en consumidores feature sin handle; Some nunca
+permite reconstrucción. Pauli recibe el corte privado por responsabilidades de
+taxi/operations.rs (818), conservando cuerpos y consumers, sin validación.
 
-**Historial de cortes internos de character:** la suite original de 303 tests
-(13 280 líneas con fixtures) se copió a un target externo y se retiró su montaje
-antiguo en el árbol de trabajo. Antes de mover las pruebas de transport, el check
-de 647 errores (`target/b3-character-creation-context-external-check.log`, exit
-101) había bajado desde 656 al trasladar pruebas puras de defaults/salud a
-`creation_support_tests.rs` y de rest-state a `login_context_tests.rs`. Un corte
-anterior de 681 errores (`target/b3-character-enumeration-support-external-check.log`)
-bajó 25 al trasladar reglas puras de homebind/graveyard y battleground a
-`login_support_tests.rs`. Los filtros de creation-support y login-context pasaron
-3/3 y 1/1 en sus logs focalizados. `default_homebind_reads_primary_then_neutral_pandaren_from_startup_store_like_cpp`
-permanece externa porque configura una `WorldSession`; los casos dependientes de
-sesión o puertos tampoco se trasladan. Los módulos privados de login-support,
-enumeration, creation-support y login-context quedaron comprometidos por separado;
-los puentes de interaction source, trainer, gossip, canonical owner y regeneración
-constan en checkpoints anteriores. Estos registros son históricos y el corte vigente
-se describe a continuación.
+**Gossip23 integrado en fuente:** parent aplica el patch compartido completo y
+retira las cinco suites privadas. Contraste independiente de los seis métodos
+productivos trasladados: fn/signature/body byte-idénticos. Los 23 casos conservan
+111 macros por caso y sus operands tras sólo los forwards explícitos; los
+mensajes son literales. Informes `/tmp/sol-gossip-6-production-functions-source-comparison-20260930.json`
+y `/tmp/sol-gossip-23-assertion-operands-source-comparison-20260930.json`.
+Parent lee también el sexto negativo de catálogo stale y los cinco de modos,
+29 macros nuevos escritos. La revisión completa de arrange/helpers todavía no
+se sustituye por estos contrastes; ninguna ejecución ni aceptación.
 
-En este slice se trasladaron, sin cambiar cuerpo ni nombre, las tres pruebas
-`persisted_transport_login_*` de offsets válidos/corruptos y ruta de mapa desde
-`tests/character_tests/persistence.rs` a `login_transport_support_tests.rs`. Solo usan
-GUIDs, posiciones, valores y rutas locales; no dependen de sesión, DB ni puertos. El
-ancla 3.4.3 es `Player::LoadFromDB` en `src/server/game/Entities/Player/Player.cpp`
-(búsqueda del transporte en el mapa, cálculo del punto de pasajero y validación de
-coordenadas y límite ±250); no se cambió esa regla. El módulo dueño quedó comprometido
-en `d5b53874`, mientras el target externo sigue sin commit.
+**Taxi, corte físico integrado:** operations 818 pasa a root12 y cinco hijos
+privados de 256/222/94/155/112 líneas (vehicle/admission/protocol/flight/transport).
+Parent contrasta independientemente las 50 funciones y todos los fragments con
+PRE íntegro: firmas/cuerpos y los raw ranges con cfg/comments/visibility son
+literales. Aplica sólo los dos locators de política al child admission_routes;
+no regenera inventario/baseline. `/tmp/sol-taxi-50-source-comparison-20260930.json`
+es comparación de fuente, no aceptación ni reducción del logical owner Session.
+Pauli prepara ahora una familia cohesiva de subestado operativo Session y su
+construcción/consumidores, con roots reservados hasta fijar el contrato.
 
-Evidencia posterior: `cargo test -p wow-world --lib persisted_transport_login` pasó
-3/3 (`target/b3-character-transport-focused-test.log`). El corte de equipment sets
-de 589 errores (`target/b3-character-equipment-set-external-check.log`, exit 101)
-bajó desde los 637 previos mediante el puente comprometido en `822774c3` y las
-adaptaciones consumidoras: 28 E0599 y 20 E0603 menos. Sus wrappers bajo
-`test-fixtures` delegan a la colección canónica del `Player` o conservan el fallback
-sin `Player`; los consumidores usan los tipos públicos `wow_entities::PlayerEquipmentSet*`
-sin publicar aliases privados de `session`. Después, el puente faction de `32c01e18`
-y sus seis consumidores redujeron otros seis E0599. El último check externo,
-`CARGO_BUILD_JOBS=1 PROTOC=/home/ubuntu/.local/protoc/bin/protoc
-CARGO_TARGET_DIR=/home/server/rustycore-world-refactor/target cargo check -p wow-world
---features test-fixtures --test character_tests`, terminó con exit 101 y **583 errores**
-(`target/b3-character-faction-template-external-check.log`): E0277=10, E0422=30,
-E0425=58, E0432=2, E0433=30, E0599=114, E0603=35, E0609=11, E0616=14 y E0624=279.
-Después, el snapshot read-only de item bonus de `b505aaa7` resolvió siete E0599,
-usando el tipo canónico `wow_entities::PlayerItemBonusStateLikeCpp` y el fallback
-existente sin `Player`. El último check externo terminó con exit 101 y **576 errores**
-(`target/b3-character-item-bonus-external-check.log`): E0277=10, E0422=30, E0425=58,
-E0432=2, E0433=30, E0599=107, E0603=35, E0609=11, E0616=14 y E0624=279. El check
-default `cargo check -p wow-world` pasó con exit 0 después de ambos slices
-(`target/b3-character-item-bonus-default-check.log`). Los dos filtros focalizados
-de equipment sets (`equipment_set` y
-`canonical_player_saved_equipment_and_void_storage_follow_handle_generation_like_cpp`)
-pasaron 1/1 cada uno en sus logs; no se ejecutaron tests para faction ni item bonus. El censo conserva
-exactamente los 303 nombres originales: 268 externos y 35 privados en sus módulos dueños,
-sin ausentes, añadidos ni duplicados. El target externo aún no compila; no se ejecutaron
-los 268 tests externos completos ni aceptación final. El traslado y las adaptaciones
-consumidoras siguen sin commit; esta evidencia es de desarrollo, no aceptación de la suite
-ni de la macro.
+**Subestados Session, contrato fijado para implementación:** tras la preparación
+acotada y lectura parental de los 14 tipos actuales, Pauli recibe turno exclusivo
+de state/construction. Traslada las definiciones completas sin cambiar nombres,
+cfg, visibilidad o campos a cinco hijos privados: conexión/admisión/cuenta/realm,
+coordinación runtime, spell/quest, lifecycle y social. Son subestados ya existentes;
+la división física no acredita retirada de gameplay del logical owner.
+Agrupa además sólo cinco campos contiguos de publicación (farsight observado y
+cuatro sets de deduplicación) en un subestado privado en el mismo sitio y orden
+de fields/defaults. Cutoff, fixture de visibilidad, fase GO, última posición y
+client-visible aliases permanecen fuera para preservar intercalación/drop.
+Actualiza todos los accesos de esos cinco campos, sin nuevas API públicas,
+espejos, locks o getters por escenario. Session-root imports/policy quedan como
+snippets parent. State1811/construction984 son el PRE de esta unidad: no promete
+30% ni cierre del presupuesto por la mera agrupación; la reducción restante
+requiere retirar familias completas de catálogos/configuración. Sin validación.
 
-El corte de inventario posterior mantiene las ocho mutaciones de test que antes
-llamaban a `update_inventory_item_object_like_cpp`: seis casos CHILD/creator usan
-`mark_inventory_child_for_test`; los dos casos de encantamientos usan fixtures
-acotadas que conservan expiración, `EQUIPPED`, slots y valores. Los métodos de
-producción no ganan visibilidad pública; el fallback sin `Player` y su espejo
-quedan bajo `any(test, feature = "test-fixtures")`. El check normal de
-`wow-world` pasó (`target/b3-character-item-enchantment-default-check.log`).
-El check externo terminó con exit 101 y **568 errores**
-(`target/b3-character-item-enchantment-external-check.log`), frente a 576
-antes del corte: E0599=99 y E0624=279, sin categorías nuevas. No se pudo
-ejecutar un test focalizado de esos dos casos porque el target externo todavía
-no compila y no existe uno equivalente bajo el módulo dueño. El productor de
-fixtures se conserva como checkpoint local; los consumidores externos y la
-suite completa siguen sin commit ni aceptación.
+**Subestados Session entregados e integrados, sin aceptación:** state.rs queda
+en 1 532 líneas y construction/world_session.rs en 987. Parent compara las 14
+definiciones completas (una ocurrencia literal cada una), los once consumidores
+como archivos completos tras quitar sólo el prefijo nuevo, la declaración entera
+WorldSession al expandir el grupo y el constructor entero al deshacer defaults/import.
+Integra los dos locators SessionDirectory; session/mod.rs no cambia. Comparación
+independiente de fuente en `/tmp/sol-session-private-state-source-comparison-20260930.json`.
+Esto no acredita aceptación ni retiro del logical owner; ambos budgets siguen abiertos.
 
-La fixture `ensure_login_player_controller_for_test` reenvía sin alterar los
-ocho argumentos del método existente y cubre las 13 llamadas de
-`character_tests` en cinco archivos. El método conserva su visibilidad interna;
-el wrapper solo existe bajo `test-fixtures`. `cargo check -p wow-world` pasó
-(`target/b3-character-login-controller-default-check.log`). El target externo
-continúa con exit 101, ahora **555 errores**
-(`target/b3-character-login-controller-external-check.log`): E0624 bajó de
-279 a 266 y las demás categorías permanecieron iguales. El test unitario
-`ensure_login_player_controller_is_idempotent_like_cpp` pasó 1/1, con 3145
-filtrados (`target/b3-character-login-controller-focused-test.log`). Sigue
-pendiente compilar y ejecutar los 268 casos externos y la aceptación de B3.
+**B3 CreatureMelee, integración fuente:** parent integra los cinco mounts de la
+entrega y compara independientemente los 48 cuerpos originales/535 assertions:
+idénticos después de los aliases explícitos de fixture, sin cambiar expectativas
+ni mensajes. 47 casos APP y uno Domain; 21 archivos privados retirados por la
+entrega. Comparación en `/tmp/sol-creature-melee-48-source-comparison-20260930.json`.
+No se ejecutaron pruebas; helpers/cfg y composición necesitan aceptación final.
 
-Un corte posterior añadió en los consumidores externos el import público
-`wow_packet::packets::query::NameCacheLookupResult` (seis usos) y
-`std::collections::HashMap` (cinco usos), sin cambiar cuerpos de test ni APIs de
-producción. El único check externo del corte terminó con exit 101 y **544
-errores** (`target/b3-character-namecache-hashmap-import-check.log`): E0422 bajó
-de 30 a 24 y E0433 de 30 a 25; las demás categorías no cambiaron. Son once
-errores de nombres resueltos, no aceptación de la suite. Los consumidores
-siguen sin commit.
+Recuento fuente concurrente del 2026-09-30 12:44 UTC: wow-world src 356 357 y
+tests 54 381, total 410 738 líneas Rust. No es aceptación ni una reducción frente
+al recuento anterior: los originales Gossip aún coexistían con sus destinos.
+Mover suites dentro de wow-world no reduce su masa total; el límite 200 000 y
+la retirada del doble owner/productor de Creature permanecen abiertos.
 
-Las ocho lecturas de `game_time_ms_like_cpp` en la suite externa usan ahora
-`game_time_ms_for_test`, que delega en el reloj monotónico original sin
-duplicarlo; los `wrapping_sub` y las aserciones permanecen. El check default
-pasó (`target/b3-character-clock-fixture-default-check.log`) y el externo
-terminó con exit 101 y **536 errores**
-(`target/b3-character-clock-fixture-external-check.log`): E0603 bajó de 35 a
-27, sin cambio en las otras categorías. La suite sigue sin compilar ni ser
-aceptada; sus consumidores permanecen sin commit.
+Recuento fuente concurrente del 2026-09-30 14:02 UTC: wow-world src 347 752 y
+tests 61 150, total 408 902 líneas Rust: 1 836 menos que el corte 12:44.
+Es masa del checkout en implementación, no evidencia verde ni cierre del límite.
+CreatureLoot entrega motor y adapters (raíces World 753→472 y 643→260), 14 nuevos
+casos/55 assertions escritos; kill entrega motor compartido y entrada selected
+dormante, World −34 y 15 casos/81 assertions escritos. Parent integra los cuatro
+mounts Loot y los dos Kill, lee motores/adapters/casos nuevos y los diffs de
+consumidores. Confirma independientemente 23 cuerpos Loot literales y cinco
+archivos originales Kill byte-idénticos; APP fuera de sus dos closures sustituidas
+es literal. Evidencia de fuente en `/tmp/sol-creature-loot-23-source-comparison-20260930.json`
+y `/tmp/sol-creature-kill-source-comparison-20260930.json`. El pipeline único, retiro de productores y de
+rebind siguen abiertos; no se activan paths preparados por la mera entrega.
 
-El siguiente grupo de cuatro llamadas externas a
-`SessionPlayerController::new`/`attach_player_controller_like_cpp` **no admite
-un mero wrapper**: `session/player_binding.rs` escribe bootstrap y seer solo
-bajo `cfg(test)`, pero bajo `cfg(not(test))` instala inmediatamente el Player
-desacoplado. Los cuatro consumidores son fixtures de área/banco/observador y
-la consulta de nombre conectado. `session/state.rs` y
-`session/construction.rs` conservan nombre, raza/clase/género, marca de
-bootstrap y visibilidad con gates de test; posición y nivel ya admiten
-`test-fixtures`. Antes de mover estas llamadas, trazar qué campos y lectores
-necesita cada escenario y extender únicamente el contrato de fixture que
-reproduzca la ruta unitaria, incluido el momento de instalación y seer. No
-usar la rama de producción en el target externo para reducir errores de
-compilación si altera la prueba. Este grupo permanece sin implementación ni
-evidencia de ejecución.
+**Continuación 2026-09-30 15:01 UTC, barrida sin validación:** parent integra los
+dos mounts Unit visibility y los tres children Collection. Unit conserva el
+archivo completo fuera de sus tres delegados y sus 24 tests originales literales;
+facts/kernel315 y diecisiete casos nuevos/294 líneas revisados en fuente. Su
+adapter ops695 sigue por encima de 600; esta entrega no cierra el presupuesto.
+Colecciones transfiere preparación/proyección/mejoras a Entities (172 líneas de
+reglas, 271 de tests nuevos), con reducción real de 67 líneas World. Parent lee
+el diff completo y confirma independientemente siete archivos originales de
+tests, catorce funciones de caso y 95 funciones restantes literales. Comparaciones
+en `/tmp/sol-unit-visibility-source-comparison-20260930.json` y
+`/tmp/sol-account-collection-complete-source-comparison-20260930.json`.
 
-El puerto fallido de persistencia de inventario permanece como tipo privado:
-su módulo de fixture admite `test-fixtures` y una operación pública de fixture
-instala el mismo `failed()` mediante el setter existente. Cuatro consumidores
-externos de item llaman a esa operación. El check default pasó
-(`target/b3-character-inventory-port-wow-world-check.log`); el target externo
-terminó con exit 101 y **534 errores**
-(`target/b3-character-inventory-port-external-check.log`): E0432 bajó de 2 a
-1 y E0603 de 27 a 26, sin cambios en las demás categorías. Un test unitario
-del mismo puerto fallido,
-`failed_existing_stack_store_publishes_neither_count_nor_binding`, pasó 1/1
-con 3145 filtrados (`target/b3-character-inventory-port-lib-test.log`). Los
-cuatro escenarios externos aún no se han ejecutado y siguen sin commit.
+Admisión compartida loaded-grid107 y diez casos nuevos revisados y montados:
+los cuatro archivos consumidores son literales fuera de sus respectivos bloques
+sustituidos, y los tres archivos/15 casos prepared previos siguen byte-idénticos.
+Prueba fuente independiente en `/tmp/sol-shared-loaded-grid-source-comparison-20260930.json`.
+Timers/planners/counters y firmas Record siguen en su punto anterior; no se activa
+la factory Actor.
+
+**Integración posterior 2026-09-30 16:30 UTC, fuente sin validar:** los tres
+mounts Group y el getter privado reserved Loot ya están integrados. Parent lee
+los doce casos Group, sus once helpers y tres casos de wiring; confirma los
+cuerpos completos tras los aliases revisados (literales de strings conservados),
+diecisiete funciones mixtas restantes y los dos decodificadores literales en
+`/tmp/sol-group-session-12-source-comparison-20260930.json`. Reserved108 y diez
+casos/50 assertions revisados completos; cuatro inputs anteriores byte-idénticos
+y manager literal fuera de mount/provenance en
+`/tmp/sol-reserved-loot-source-comparison-20260930.json`.
+
+Los seis mounts Kill están integrados: cinco casos completos revisados, sus 27
+assertions conservan operands/messages/orden tras aliases; prehook/Pet y dos
+constructores son literales retirando sólo el guard opt-in; post-success conserva
+la secuencia entera. Nueve funciones Kill y 25 casos mixtos restantes son
+literales, con comparación independiente en
+`/tmp/sol-kill-app-external-source-comparison-20260930.json`. La corrección del
+input Pet handleless con feature está revisada e integrada: tres ramas opt-in y
+seis gates de disponibilidad en dos roots, sin modificar cfg(test), habilitar
+fallback normal ni reparar Some(stale). Parent lee los tres casos nuevos/25
+assertions; los cinco originales permanecen byte-idénticos, así como el prefix
+con helpers/tres casos de wiring previos. Los archivos completos Pet/mode y los
+dos roots son literales al retirar sólo esas ramas/gates, respectivamente, en
+`/tmp/sol-kill-pet-input-source-comparison-20260930.json`. Pet613 sigue pendiente
+del presupuesto físico; ninguna prueba se ha ejecutado.
+
+Toys transfiere tres originales/11 assertions y dos transiciones/proyección a
+Entities, retira 52 líneas World (9 de adapters y 43 de tests) y parent integra
+mount/retirada de cuatro operaciones canónicas literales. Once APP originales y
+93 funciones ajenas permanecen literales en
+`/tmp/sol-toy-transitions-source-comparison-20260930.json`; tres casos nuevos/14
+assertions escritos y revisados, ninguno ejecutado.
+
+Map/Legacy visibility facts378 y diecisiete casos/359 líneas están revisados y
+montados; una enumeración Legacy común conserva su cuerpo al restaurar sólo
+capture→clone, y el archivo entero fuera del bloque extraído es literal. Los
+cuatro originales World/14 assertions y Unit facts previos siguen intactos en
+`/tmp/sol-map-creature-visibility-source-comparison-20260930.json`. La adaptación
+de los dos loops World y sus queries/publicación está implementada y revisada:
+misma ventana, precedencia Legacy, spline canónico None y Player/CanSee posterior
+al guard. Parent lee el diff717 y cuatro casos APP nuevos; confirma archivos
+query/handler literales fuera de dos funciones cada uno, los trece casos/archivo
+World literal tras dos aliases de getters, seis broadcast y dos tests inline
+originales literales. Flags/points y payload Aura conservan sus cuerpos completos
+en `/tmp/sol-world-creature-facts-consumers-source-comparison-20260930.json`.
+CREATE y auras comparten la captura inmutable; no se clona Creature/MotionMaster
+en estos lectores. El split físico está revisado e integrado: handler978→root89
+con children185/440/318, escenarios891→root10 con children427/364/105. Parent
+reconstruye el refresh completo desde children reales y facade y obtiene fuente
+literal tras sólo aliases de argumentos/return/import. Nearby, viewer y dos
+wrappers cfg(test), y los trece cuerpos originales, siguen literales en
+`/tmp/sol-visibility-physical-source-comparison-20260930.json`. No retiro adicional
+de owner por este split ni aceptación ejecutada; los roots reales son byte-idénticos
+a los candidates revisados.
+
+Recuento concurrente 16:41 UTC: World src346472/tests62898, total409370. Incluye
+tests privados y entregas aún pendientes de integración; no es aceptación ni
+cierre del presupuesto200000. No se presentan
+las capturas preparadas ni los traslados internos de suites como retiro de owner.
+
+Group/Conditions owned está revisado e integrado con sus cuatro exports en dos
+roots: core266/routing127/shared112, doce casos nuevos y oracle201 leídos completos.
+Parent confirma firmas públicas, archivo Group fuera de dos métodos/mount,
+motor shared y prefix de gates literales (sólo dos returns envueltos en DTO);
+el match/counters/push Record sigue literal en su punto original. Dos funciones
+oracle completas son literales tras aliases de nombre, y trece inputs anteriores,
+incluidos los quince casos prepared y diez shared-admission, quedan byte-idénticos
+en `/tmp/sol-group-owned-loader-source-comparison-20260930.json`. Los resultados
+Actor conservan incoming completo; sus duplicados bloquean Add bajo el contrato
+dormante aprobado, sin afirmar equivalencia con el refresh Record ni activarlo.
+
+Reset seasonal está revisado e integrado en cuatro roots: Domain134 consume el
+mismo snapshot y APP458 conserva fence, writeback ignorado antes de metadata,
+clones Arc por ID y bit writer. Parent lee seis originales Domain218, cuatro
+stages85, cuatro originales admission y tres bridges APP131; los diez nombres/44
+assertions conservan operands/messages/orden tras mappings explícitos. Cuarenta
+funciones mixtas restantes, prefix de eligibility y archivo giver fuera de una
+función son literales en `/tmp/sol-seasonal-quest-source-comparison-20260930.json`.
+No se afirma cuerpo literal de los casos adaptados ni interleaving fallido probado.
+
+DependentPrevious está revisado e integrado con un mount: Domain52 tiene todo el
+algoritmo y callbacks lazy de catálogo, World sólo delega. Un original puro/cuatro
+macros conserva sus operands tras alias; ocho casos Domain nuevos y bridge APP
+real están escritos. Parent confirma ambos World fuera de una función/caso y
+seis inputs/callers completos literales en
+`/tmp/sol-dependent-previous-quest-source-comparison-20260930.json`. Los cinco APP
+reales permanecen en APP; CPP ASSERT versus Rust fail-closed y HashMap versus
+índice exclusivo siguen como gaps existentes, sin reparación.
+
+Los diez literales Item activos en Character están revisados e integrados con un
+mount de tres líneas: builder57 totalmente explícito, sin Default. Parent expande
+arguments/overrides de POST y confirma 175 fields y 33 funciones completas tras
+sólo esa expansión (28 literales), fixtures_3 intacto, en
+`/tmp/sol-item-row-fixtures-source-comparison-20260930.json`. Reducción neta World79;
+no se presenta como retiro de gameplay. Los treinta literales Session también están
+revisados: parent lee diff837, el builder explícito y los overrides, expande los
+argumentos POST reales y confirma los cuatro archivos completos equivalentes,
+510 valores de campos/30 instancias y prefix del fixture literal en
+`/tmp/sol-session-item30-source-comparison-20260930.json`. Reducción neta World352;
+los dos archivos mixtos657/804 aún requieren división física. Se asigna consolidar
+cuatro constructores QuestTemplate/68 campos explícitos, conservando cuatro helpers
+y las variantes type/title; las longitudes de arrays son valores equivalentes de
+los mismos constants, no identidad de tokens. Esa segunda entrega está revisada
+e integrada en los dos roots: diff401 y constructor78, cuatro archivos completos
+fuera de helper literales y 272 valores POST equivalentes en
+`/tmp/sol-quest-template-fixture-source-comparison-20260930.json`. Conserva la
+feature del facade y módulo privado cfg(test/feature), sin Default ni dependencia
+nueva. Reducción neta World195 después de las cinco líneas de integración.
+
+Otros cinco constructores QuestTemplate están implementados y revisados en fuente:
+eligibility471→402, projection187→118, remote-loot206→137, handler-support621→552
+y Talent575→506. Parent lee diff400 completo, expande el builder actual y los
+arguments POST y confirma 340 valores equivalentes y cinco archivos completos
+fuera del cuerpo del helper literales en
+`/tmp/sol-quest-template-five-additional-source-comparison-20260930.json`.
+Reducción neta World345; no nuevas API, mounts, dependencias ni cambios de gates.
+Sin compilación ni aceptación.
+
+Otros 18 literales Item Session (12 Record/seis Sparse) están consolidados y
+revisados: diff482 completo, cuatro builders anteriores íntegros, 270 valores
+conservados. Parent confirma los cuatro archivos completos tras únicamente las
+18 sustituciones de expresión revisadas y cinco consumidores adicionales
+literales en `/tmp/sol-session-item18-post-source-comparison-20260930.json`.
+Items1 queda857 y fixture274; reducción neta World192 antes de sus splits.
+Scaling77/0x200, precios, arrays, clases, durabilidad, slots de bolsas y orden
+de instalación mantienen valores explícitos. Los tres archivos mixtos siguen
+fuera de presupuesto en esa entrega. Items7/8 ya están físicamente integrados:
+Items8 raíz9/children205 y515; parent reconstruye las723 líneas originales y
+cuatro funciones literalmente, ocho inputs completos intactos en
+`/tmp/sol-items8-physical-source-comparison-20260930.json`.
+Items7 raíz18/children117,246,150,246; parent reconstruye las758 líneas originales,
+siete funciones/38 macros y seis inputs completos literales en
+`/tmp/sol-items7-physical-source-comparison-20260930.json`.
+Ambos son organización física, sin reducción de responsabilidades o gameplay.
+
+El cierre final del tick está implementado y revisado: try_finalize devuelve la
+continuación original en preflight y try_complete conserva work/summary; Ok(None)
+es finalizado, sin replay. Parent lee once casos nuevos/62 macros por caso y siete
+compartidas, conserva el suffix completo de efectos, trece métodos manager,
+cuatro APP y siete inputs previos literales en
+`/tmp/sol-final-object-tick-source-comparison-20260930.json`. Los wrappers anteriores
+conservan descarte/Option. La composición tipada del consumidor está implementada
+y revisada: seis paths, ocho casos nuevos/64 macros escritos, Failure y la misma
+TickAdmission retenidos antes de soltar guards. El guard tras el interval impide
+otro clock/admission/pass mientras existe fallo; no retry automático. Ok(None)
+continúa PostTail y FullyFinished, reparando el None→break introducido en este WIP
+que HEAD no tenía. Parent lee diff672 completo y confirma ocho inputs anteriores,
+diez funciones completas, closure GameObject y todo el suffix de publicación,
+PostTail/shutdown literales en
+`/tmp/sol-object-consumer-source-comparison-20260930.json`. La prueba escrita del
+productor vacío usa su spawn real; el fallo retenido prueba work/ledger reales,
+sin afirmar inyección de un fallo inalcanzable en el productor. Begin recuperable
+está implementado y revisado: diff624 completo, diez casos nuevos/105 assertions
+escritos, BeforePrefix conserva plan y AfterPrefix error/plan/summary originales;
+retry devuelve el fallo íntegro sin replay. Parent confirma trece inputs completos,
+catorce funciones Manager, seis APP y siete casos del consumidor literales, el
+suffix BEGIN de éxito completo y el prefix completo con orden efectivo original
+en `/tmp/sol-object-begin-source-comparison-20260930.json`.
+AfterPrefix se prueba como empaquetado de frontera: no se afirma alcanzable bajo
+el flujo normal de préstamo exclusivo. Abort transfer y settlement siguen abiertos.
+Nada ejecutado ni quiescencia atribuida a abort.
+
+Pool owned está revisado e integrado con dos exports parent: root571,
+materialized282, routing216 y despawn139; ocho casos nuevos en children≤247.
+Parent lee diff1887 completo y confirma cuatro motores recursivos completos tras
+aliases/receipt args, cinco operaciones despawn, seis oracles, trece funciones
+restantes y 23 inputs completos literales en
+`/tmp/sol-pool-owned-source-comparison-20260930.json`. NoLoader sigue siendo la
+ausencia real de callback; Unavailable y PreparationRejected conservan contratos
+distintos. Un solo planner, mismo orden Pool/GO/Creature, despawn antes de RespawnOne,
+match/counters/push Record en su sitio; incoming Actor permanece íntegro.
+Catalog está implementado, revisado e integrado con dos exports parent: raíz338,
+routing270 y doce casos nuevos escritos en children≤191. Parent lee diff1154
+completo y confirma 36 inputs completos, dos wrappers y nueve funciones routing
+literales, oracle original íntegro, cola íntegra fuera de los tres bloques de
+receipts revisados y match anterior Pool compartido íntegro salvo metadatos de
+plan en `/tmp/sol-catalog-owned-source-comparison-20260930.json`.
+Usa el mismo core/sink, conservando timers después de acciones
+pooled y antes de admisión no pooled, loader antes de delete y políticas de fallo.
+Los callers productivos/factory/mirrors siguen Record, sin activar owned.
+
+Unit ops_1 también está revisado e integrado: root695→12, children de presencia175,
+estado de visibilidad140, revisions88 y control de combate307. Parent reconstruye
+el archivo original completo desde los children actuales: 76 métodos/cuerpos y
+docs literales al restaurar sólo dos spellings de visibilidad efectiva equivalente;
+cinco otros inputs completos/57 tests intactos en
+`/tmp/sol-unit-ops1-physical-source-comparison-20260930.json`. Sin nuevo owner ni
+reducción World atribuida a esta división.
+
+Los seis workers continúan con cortes físicos Items7/8, unificación signed-Previous
+Quest, retorno propietario por stop cooperativo, retirada del par Creature/Record
+clonado del factory productivo y contrato de driver del productor original Kill.
+Los ocho tests puros cooldown ya son Domain; sus
+nueve APP quedan allí. La decisión daily/DF duplicada de sharing ya está retirada
+y revisada; Domain30/tests71, mismo quest_id en callbacks lazy y prioridad DF.
+Cuatro casos lazy y un bridge registrado/mailbox están escritos; parent lee el
+diff completo y confirma diecisiete funciones originales, catorce otros inputs,
+sharing entero fuera de la decisión y prefix íntegro quest_4 literales en
+`/tmp/sol-quest-periodic-cooldown-source-comparison-20260930.json`. Mount/delegate
+del root Domain integrados; Week/Month/recurrence y gates/publicación conservados,
+sin inventar masa pura retirada. Quest_4 crece842→887; su split físico ya está
+integrado: raíz9, pool-admission102, receiver-admission312 y requirements495.
+Parent compara independientemente las 21 funciones completas y sus atributos
+tokio, sin duplicados ni cambios de nombres/cuerpos, y aplica el patch del worker;
+`/tmp/sol-quest-sharing-physical-source-comparison-20260930.json` conserva esa
+evidencia estática. El split no retira responsabilidades ni reduce el total World.
+El melee actual no tiene slot que continuar: no se
+fabrica identidad desde GUID ni se reutiliza el slot Spell de otro primario.
+La alternativa B se selecciona para diseñar el productor: primer killed real bajo
+el guard original, root del atacante seleccionado y targets realmente dañados
+sin ampliar el workset de update. Tras leer completos engine/commit/split/share,
+gates y tipos actuales, collector/fuente/primer slot están implementados, revisados
+e integrados exclusivamente en Map: entry100, collector165 y cinco archivos del
+motor≤417. Parent lee los cuerpos nuevos, cinco diffs completos y los 14 casos
+nuevos/113 assertions escritos, y compara independientemente catorce funciones
+originales completas tras retirar sólo threading/capture y variables del mismo
+lookup; cinco cuerpos incluyendo la entrada anterior son literales, cuatro
+inputs previos íntegros en
+`/tmp/sol-original-melee-kill-capture-source-comparison-20260930.json`.
+Integra el único reexport crate-private. Captura Split→Share→Primary sólo tras
+killed real; primera muerte reserva una ROOT del atacante seleccionado, target
+real puede estar fuera del update workset, fuente/authority/revisiones conservadas
+bajo el guard original. Sin alive gate tardío, dedup ni retry de slot rechazado;
+Record conserva NoActor y sus efectos. Batch retiene token original y outcome
+parcial completo; source es postcommit, no posthooks. No consumer completo
+Kill ni activación. Instalar/finalizar/settle/dispose esperan su contrato de driver.
+La regla completa signed-Previous está implementada, revisada e integrada en
+Player: Domain31/tests86, Worldrequirements407 y APPprerequisites433. Parent lee
+diff222 completo y confirma World entero fuera de comentario corregido/decisión,
+prefix APP íntegro con ocho funciones originales y diez inputs completos literales
+en `/tmp/sol-quest-previous-policy-source-comparison-20260930.json`.
+Cuatro casos lazy y un bridge registrado COMPLETE/FAILED escritos, sin ejecutar;
+mount/delegación parent integrados. Conserva cero/signo/INCOMPLETE/unsigned_abs y
+no mueve tests de mailbox/paquetes a Domain ni cambia gates posteriores.
+El driver
+reserved generation-origin está implementado y revisado; los roots
+compartidos quedan parent; ningún
+worker ejecuta Cargo/fmt/metadata/tests/QA ni activa productores Actor. Los contratos
+concretos son los PRE/propuestas de cada familia, no nuevas macros.
+
+Recuento concurrente posterior 17:15 UTC: World src346415/tests62805,
+total409220; incluye trabajo escrito, no aceptación ni attribution de producción.
+La consolidación baja líneas y las pruebas nuevas pueden aumentarlas; un split
+interno no acredita reducción. Disco observado17:06: 38GiB libres/193G81%,
+sin nuevas compilaciones ni limpieza y con la caché activa preservada.
+
+Recuento concurrente posterior a integrar Quest_4, 17:32 UTC: World src346208,
+tests62698, total408906. Incluye código y tests; no es una cifra de producción
+ni aceptación. Catalog owned y BEGIN recuperable ya tienen revisión parental de
+diff completo y comparación independiente de fuente; sus casos no están ejecutados.
+Pet ya está revisado e integrado: raíz613→11; canonical236, lifecycle102,
+action-bar50, kill-fixture34 y movement151; petition-trace55 bajo Session
+social_requests existente, cuyos tipos y fields mantienen su owner. Parent lee
+los seis children completos y reconstruye las 613 líneas originales literalmente
+restaurando sólo cinco spellings de visibilidad efectiva; 36 inputs previos
+íntegros en `/tmp/sol-pet-physical-source-comparison-20260930.json`.
+Conserva las tres ramas feature y la excepción stale existente sólo cfg(test).
+Quest_5 ya está integrado: raíz862→9, prerequisites374, gates307 y delivery200.
+Parent confirma las 17 funciones completas, nombres únicos y atributos tokio
+literales en `/tmp/sol-quest5-physical-source-comparison-20260930.json`.
+No hay movimiento a Domain ni reducción global atribuida a estos splits.
+Productor original Kill continúa en
+implementación. Factory loaded-grid y disposición/shutdown de fallos Objects
+están en preparación acotada para resolver sus fronteras pendientes.
+Se mantiene la barrida completa antes de compilar/probar.
+
+Continuación 18:05 UTC, implementaciones aún sin aceptación: el constructor
+Session conserva 429 campos/987 líneas; extraer Admission a un helper de17 no
+resuelve el presupuesto y no está aprobado. Su agrupación requiere responsabilidades
+reales, no otro bag/macro/Default. Items8 tiene corte contratado en dos children
+205/515 y Items7 en cuatro117/246/150/246, roots parent reservados.
+PreviousQuest comparte su regla completa cero/signo/INCOMPLETE/unsigned_abs entre
+Player y sharing, con callbacks lazy; cinco APP existentes permanecen APP.
+El factory real retirará sólo el par Creature/Record clonado mediante un creador
+único y MOVE en el consumidor productivo; el resolver compatible mantiene su DTO
+actual. Settlement Option, CastGUID parciales y temporización constructor/mirror
+permanecen abiertos para el siguiente contrato owned; no existe un algoritmo
+World de factory pendiente de trasladar y no se atribuye retiro World al alias.
+El stop cooperativo devolverá failure y la misma TickAdmission por el JoinHandle
+existente, también cuando supervisión haya consumido su resultado; no equivale
+a FullyFinished, disposición, quiescencia ni settlement. Mantiene gates y orden
+de shutdown; abort/timeout/drop continúan sin receipt probado.
+Recuento escrito concurrente18:05: src346757/tests62785, total409542; incluye
+children nuevos todavía sin montar y sus donors originales, por lo que no es
+medida de retiro integrado. Último recuento con los splits Quest/Pet integrados
+antes de estos children: src346044/tests62726,total408770 (17:47).
+Parent vuelve a leer Unit::Kill10457–10763 completo en a5f8da2e: Loot precede
+KillRewarder y procs Kill/Death; AI/ScriptMgr van después. No usar "after hooks"
+como un único punto previo a generación: invertiría ese orden. El batch actual
+conserva hechos postcommit/before-hook; falta executor real y continuidad,
+y las trazas opt-in no ejecutan hooks. El siguiente contrato Map de ledger
+ROOT/TARGET permanece en preparación; no hay receipt ficticio de completion.
+Sin Cargo/check/build/test/fmt/runner/QA. Disco observado17:40:38GiB libres;
+caché activa preservada y sin compilaciones en marcha en esa observación.
+
+Checkpoint local18:18 UTC, HEADd6c92488/584-map-manager-domain, sin mutación Git:
+Items7/8 y signed-Previous montados; World src346062/tests62785, total408847.
+Todos los recuentos incluyen tests/fixtures; fuente revisada no significa verde
+ni aceptación. Continúa abierto el objetivo World≤200000/owner≤20000 y la macro.
+Scopes siguientes: Items1 físico (Huygens), familia duplicada de fixtures restante
+(Pauli), próxima regla Quest realmente equivalente (Banach), pending ledger
+original ROOT/TARGET (Einstein), factory Creature move-only (Russell) y retorno
+propietario de stop cooperativo (Zeno). El pending valida la primera ocurrencia
+sin hooks/avance/disposición/cleanup; no ofrece completion artificial ni nuevo
+slot. Sus errores deben conservar pending/token/outcome/batch originales.
+En este checkpoint Factory CreatedCreature y stop cooperativo estaban pendientes;
+su revisión e integración posteriores quedan registradas a continuación.
+
+Checkpoint local18:38 UTC, mismo HEAD y sin mutación Git: World src346071,
+tests62785, total408856. Items1 está montado: donor857→raíz10 y children
+201/398/257; reconstrucción literal completa, quince funciones y seis inputs
+conservados en `/tmp/sol-items1-physical-source-comparison-20260930.json`.
+Es división física, no retiro de responsabilidad ni reducción global.
+CreatedCreature está revisado e integrado: diff386 completo, seis casos nuevos
+escritos, core privado131 y proyección Record que mueve la Creature original;
+el resolver compatible conserva su DTO/clone. Parent compara algoritmo completo,
+proyección, caller real y provenance, más21 inputs íntegros en
+`/tmp/sol-created-creature-source-comparison-20260930.json`. Ambos mounts aplicados;
+la raíz717 sigue excediendo el presupuesto y Option/efectos parciales se preservan.
+Stop cooperativo está revisado e integrado: diff515, siete casos nuevos/55 macros
+escritos y facade montada. El mismo task devuelve failure y TickAdmission originales;
+supervisión conserva ese resultado y el rechazo de shutdown incompleto.
+Cuatro archivos completos fuera de los cambios explícitos y quince inputs
+literales en `/tmp/sol-cooperative-stop-source-comparison-20260930.json`.
+Sin nueva quiescencia, disposición, cleanup ni bypass de gates.
+Pending melee original ROOT/TARGET entregado; su revisión posterior queda abajo.
+Los seis scopes continúan: familia real de estado Session/Player (Huygens,
+preparación), once literals equippedItem (Pauli, implementación;140 campos
+contrastados con builders actuales), Min/MaxLevel en QuestTemplate (Banach,
+implementación), consumo Loot desde pending original (Einstein, preparación),
+rechazo owned de provenance tras materialización (Russell, preparación) y
+conservación de owners tras rechazo de quiescencia (Zeno, preparación).
+Sin Cargo/check/build/test/fmt/metadata/runner/QA; ninguna entrega es aceptación.
+Disco observado18:38:38GiB libres, caché activa preservada. El objetivo completo
+sigue abierto: World≤200000/owner≤20000, retiro real B6 y aceptación terminal.
+
+Continuación18:58, sin Git ni aceptación: parent termina la revisión completa
+de Pending melee (raíz171, motor125 y tres children de pruebas), catorce casos/57
+macros escritos; ocho inputs completos y raíz fuera de mount/conversión literales
+en `/tmp/sol-melee-original-pending-source-comparison-20260930.json`.
+ROOT valida antes de TARGET, ambos originales; outcome/token/batch/cursor0 se
+conservan, sin hooks, nueva reserva, avance, disposición ni activación del driver.
+Min/MaxLevel está integrado en QuestTemplate existente: owner14/seis casos106,
+los dos consumidores World conservan el resto de sus archivos completos; cinco
+casos APP/18 assertions/8 matches intactos y dos mounts parent aplicados.
+La comparación independiente incluye raíces Model tras esos mounts en
+`/tmp/sol-quest-level-policy-source-comparison-20260930.json`; World−8 líneas.
+EquippedItem11 revisado: diff286 completo, 140 campos contrastados con los builders
+actuales y seis archivos completos idénticos salvo las once sustituciones
+en `/tmp/sol-equipped-item11-post-source-comparison-20260930.json`; World−93,
+38 casos/215 macros preservados, incluyendo nueve afectados/69. Builder intacto.
+Recuento18:53: src345970/tests62785,total408755, anterior a los nuevos cortes.
+Los scopes activos pasan a unidades completas: Loot original→generación APP real→
+instalación sobre TARGET (Einstein, implementación, sin nuevo slot ni driver);
+fábrica común con rechazo propietario tras materialización y ambos preparadores
+typed (Russell, implementación; Option/logs/efectos parciales compatibles);
+abandono recuperable del plan y consumidor BeforePrefix (Zeno, implementación,
+AfterPrefix retenido, éxito sólo MapIdle sin settlement del ticket);
+familia amplia restante de requisitos Quest (Banach, preparación);
+familia completa de literals de fixtures con builders existentes (Pauli,
+preparación); y motor de estado representado de GameObject (Huygens, preparación).
+Este último conserva el estado per-Session actual: no unifica ocultamente sus
+cooldowns/defaults/chair slots con la autoridad canónica compartida.
+El contraste completo de shutdown corrige la hipótesis anterior: fallo de
+quiescencia marca ERROR y continúa hasta stop; no retorna antes. Su resultado
+retenido se pierde al devolver sólo ExitCode, y falta settlement real de Objects.
+No se implementa un outcome privado que termine igualmente descartando owners.
+Continúa la barrida; no compilación/check/test/fmt/metadata/runner/QA ni publicación.
+
+Continuación19:47 UTC, mismo HEADd6c92488 y sin aceptación: factory/provenance
+move-only revisado e integrado; un motor privado222 sirve los tres builders y
+ambos preparadores. Los rechazos conservan Records completos y efectos parciales
+previos; no rollback/retry ni otra Creature. Raíz runtime/map942→791, aún sobre
+presupuesto. Diez casos nuevos escritos y18 inputs completos conservados en
+`/tmp/sol-owned-provenance-source-comparison-20260930.json`.
+Abandono recuperable montado: Map conserva el plan rechazado y APP BeforePrefix
+lo devuelve; AfterPrefix devuelve failure original intacto. Seis casos nuevos/127
+macros escritos, diez inputs completos y dos raíces fuera de mounts literales en
+`/tmp/sol-recoverable-abandon-source-comparison-20260930.json`.
+El siguiente consumidor conserva los puntos terminales actuales: los dos rechazos
+BeforeObjects hacen break, sin completar ticket. La implementación asignada
+devolverá directamente plan/participants/TickAdmission/permisos originales en esos
+mismos puntos; no introduce espera por stop, held cell, retry ni receipt.
+Sharing acceptance completo montado en Player: motor63/doce casos236, World
+prerequisites340→298. Conserva explícitamente la política parcial actual distinta
+de CanTakeQuest local; cuatro inputs APP nuevos exponen esas diferencias. Tres
+APP/seis Domain originales y veinte inputs completos conservados en
+`/tmp/sol-quest-sharing-acceptance-source-comparison-20260930.json`; ningún test APP
+se presenta como retirado hacia Domain.
+Lote físico de cinco escenarios montado: raíces18/18/16/18/15 y dieciocho children
+≤575,52 funciones completas/296 macros literales;14 inputs completos conservados
+en `/tmp/sol-five-scenario-splits-projection-source-comparison-20260930.json`.
+Esto añade85 líneas físicas y no retira responsabilidad World. Recuento concurrente
+posterior19:45: src346173/tests63365,total409538; incluye implementación y pruebas
+en curso, no retirada integrada estable ni producción atribuida. La reducción
+global sigue insuficiente frente al objetivo200000/owner20000.
+La siguiente coordinación prioriza entregas completas y retiro de caminos
+duplicados: Loot original→generación APP→TARGET (Einstein), motor completo
+GameObject prestado per-Session (Huygens), retorno terminal BeforeObjects (Zeno),
+birth canónico en el punto de construcción real (Russell, diseño acotado), rail
+Character86 completo (Banach) y revisión conjunta del resto de Loot62 (Pauli).
+La revisión de timing demuestra que construir antes de Fresh no equivale al
+mirror actual: snapshot Creature es pre-Add, wrapper se construye después. El
+futuro owner es el canónico post-Add; evitar repetir Add/Motion/índices/loot o
+adelantar RNG/waypoint. No se activa el nuevo backend ni se retira aún el productor
+legado. CPP completo y propuesta en
+`/tmp/rustycore-b6-loaded-grid-construction-timing-proposal.txt`.
+Petición del usuario de reducir demora: agrupar revisiones y cortes físicos,
+evitar nuevos ciclos de comparación/documentación por helper y priorizar cierre
+de responsabilidades completas. Mantener los contratos ya fijados y la barrida
+íntegra antes de compilar/probar; source comparisons no son aceptación.
+Disco observado19:25:38GiB libres/193G81%, caché activa preservada. Ningún
+Cargo/check/build/test/fmt/metadata/runner/QA/publicación en esta continuación.
+
+Checkpoint de publicación solicitado por el usuario2026-09-30: commit y push de
+todo el trabajo actual, sin declarar terminada la macro. Workers congelados;
+artifacts/PRE locales preservados y excluidos de fuente publicada. Exports de
+melee original y GameObjectUseValues integrados por el parent; estos últimos
+conservan los nueve préstamos sobre el estado per-Session. BeforeObjects conserva
+plan/admisión/permisos en los mismos puntos terminales; seis casos nuevos escritos.
+Loot original dispone de seis casos Map y diecinueve APP escritos; conserva ROOT,
+TARGET, outcome/batch/cursor0 y usa el algoritmo de generación APP compartido.
+No activa el driver ni resuelve hooks/tail/disposición/segundo productor.
+La revisión integral Character86/Loot62 y el finalizador birth canónico continúan
+pendientes. Se actualiza Cargo.lock offline: sólo paquetes/aristas locales,
+sin cambios de versiones de dependencias de registro. La campaña de publicación
+se registra sobre el candidato commiteado; implementación escrita no equivale
+a aceptación. Este checkpoint no reduce el objetivo global ni cierra#1233/#584.
+
+El recuento por nombres de paths distingue 234 541 líneas en rutas denominadas
+tests/fixtures y 174 353 en las restantes; éstas pueden contener tests inline.
+Es una clasificación de navegación concurrente, no atribución semántica de
+producción/pruebas. `src` incluye tests privados: no presentar sus 347 752 líneas
+como código productivo. B3 preserva escenarios APP; la reducción global requiere
+llevar las reglas y sus pruebas al owner real, no cambiarles sólo el directorio.
+
+**Power effects, contrato completo fijado e implementación asignada:** parent
+lee propuesta, APP energize/drain/burn/charges y los dos writers de carga actuales.
+Contrasta EffectDrain/Burn/Energize/Pct, Unit::EnergizeBySpell/ModifyPower y
+SpellHistory::RestoreCharge en a5f8da2e. PRE completo, 16 fuentes Rust, y ledger
+28 APP originales/101 assertions en `.codex/power-effects-presnapshot-20260930/`.
+Unit asume max→requested→current→clamp→write/applied y raw drain; wow-spell asume
+spell-ID valuation con engineering lazy; SpellHistory asume loaded/pop/remove y
+loop de restore sin cambiar su owner. APP conserva consultas, clocks, amenaza,
+execute-log, packets, async damage y las dos rondas de cargas separadas/max.
+Mantener interrupción/envío antes del rechazo de max, requested threat frente
+a applied log, zero-drain Creature true/energize0 frente a Player false y
+Creature values→log→burn await. No fusionar closures ni reparar los gaps C++.
+Einstein entrega consumidores/tests completos; parent integra el snippet concreto
+de export SpellPowerAmount/SpellPowerGain y dependencia World→wow-spell. Lee los
+tres owners, effects_power completo y los 28 casos nuevos completos: 17 Domain/72
+macros y once APP/52, escritos sin ejecución. Compara independientemente los 28
+originales literalmente, las 43 funciones anteriores de SpellHistory literalmente
+y cinco fuentes completas sin cambios, contra PRE íntegro. Informe en
+`/tmp/sol-power-original-source-comparison-20260930.json`. Root real Unit es
+`unit.rs`, wrapper World `spell_state/catalog.rs`; el delivery conserva sus gaps.
+No state/construction, aceptación ni activación. Los 28 originales permanecen APP;
+los nuevos owner/lazy/negativos son adicionales. Einstein prepara el lifecycle
+completo de Creature seleccionado para la retirada del segundo productor B6.
+
+**Reconstrucción completa Spell/Skill entregada e integrada, sin aceptar:** PRE íntegro en
+`.codex/spell-skill-login-presnapshot-20260930`, con 22 fuentes Rust y ocho
+funciones C++ según inventario de Einstein. Parent lee los algoritmos de
+dependencies/ranks/gain/downgrade, setter row/slot y los doce originales/27
+assertions. Fija tres cortes privados: cursor específico de reconstrucción en
+PlayerSpellRuntimeState (buffer conocido prestado, sin nuevo owner), operación
+LearnedSkill de gain/downgrade y transición row/slot en PlayerGameplayState.
+Los lookups y writers APP conservan sus puntos y fallos; no fusionar closures.
+Gain mantiene cobertura estricta y writes anteriores ante fallo; downgrade
+mantiene búsqueda previous→node→previous→first→node y clamps, incluso value300
+con max75 o máximo cero ante facts ausentes. Flags dependent/favorite preceden
+membership/append/enqueue; overrides siguen después, incluidos auto/alreadyknown.
+No seen/gate cero/cycle repair ni adquisición de autoridad nueva. Login mantiene
+autoridad/finalización/publicación después del pase de skills. Los doce casos
+pasan al owner y los nueve Remove siguen atravesando la operación de unlearn
+existente; tests APP wire/equipo/fallo/invalidation y scenario23 siguen completos.
+CPP `a5f8da2e`: AddSpell3038–3083/3100–3119, Remove3296–3363, SetSkill5635–5852.
+La expansión antes de skills y la proyección de ranks son gaps actuales respecto
+a C++, no reparación autorizada. Einstein entrega los tres cortes, adapters,
+doce originales/27 assertions y veinte nuevos (doce Domain/ocho APP). Saldo
+declarado World: −56 producción/−316 tests; Domain producción 569, sin contar
+el traslado físico de los dos casos equipment como retirement adicional.
+Parent lee los cuatro children Domain completos, adapters recon84/learned132,
+setter/instalación row-slot, soporte con UnlearnOperation real, los doce casos
+trasladados y los veinte nuevos. Comparación literal independiente de los
+63 métodos y 40 otros casos/131 assertions declarados aún pendiente.
+Tras ACK explícito de Pauli (cuatro roots libres, sin edición en vuelo), parent
+integra el parche concreto de Einstein en spell_runtime.rs,
+player_gameplay_state.rs, player/mod.rs y lib.rs. Montajes/reexports presentes;
+turno devuelto a Appearance. No compilación, typing ni pruebas ejecutadas.
+
+**Límite global aún abierto (recuento estático de archivos `.rs`,
+2026-09-30, durante la barrida):** `wow-world/src` y `wow-world/tests` suman 409 294 líneas;
+123 545 pertenecen a `src/session/tests`. El árbol tiene ediciones concurrentes;
+el recuento es una instantánea de navegación. Mover escenarios entre esos dos
+directorios no reduce el total del crate. No se ha alcanzado el objetivo de
+200 000 líneas ni el de owners lógicos: además de B3/C/D, B4 debe retirar
+responsabilidades completas de Session y llevar reglas y sus pruebas al
+owner correspondiente. Estos números son navegación, no aceptación ni
+medición de rendimiento. No cerrar la macro por cumplir solo techos físicos.
+
+**B4, reglas trasladadas y siguiente familia:** `wow-combat` ya contiene
+absorción física/maná/curación, armadura y bonus melee hecho/recibido, con sus
+modelos resueltos y pruebas puras. La aplicación conserva selección de
+catálogos/auras, writes canónicos, RNG y publicación. Los IDs de aura tienen
+una sola definición en constantes, reexportada desde datos. Se preservan los
+gaps heredados de truncado separado de AP y cheat-death 45182 ausente; no se
+reparan dentro del movimiento. Contraste `a5f8da2e`, `Unit.cpp:1810-1934`,
+`:2024-2069`, `:7558-7777`; `SpellAuraEffects.h:365-407`.
+Bonus de spell y regla de hostilidad trasladados, sin aceptar. Zona/área aplica cada etapa en una
+mutación de Player; conserva muestra espacial, caché, setters y contraparte
+del snapshot. Delta explícito: desaparece la ventana entre closures de Session,
+sin acreditar paridad de movimiento. Once slots de items pasan al holder existente; Unit ya secuencia regeneración con la misma closure y publicación posterior, sin aceptar (`Player.cpp:1609-1678`).
+Diez policies sociales de fixtures trasladadas. Elegibilidad de quests pasa al estado canónico: 12 tests originales de dominio y nueve de aplicación; se conserva prioridad DF sobre daily y checks independientes de peers exclusivos. CalculateReputationGain y sus stages compartidos con quests pasan a progression, conservando consultas lazy, guards y casts; diez casos nuevos escritos. Revisión de fuente terminada, sin aceptación. Contraste de zona: `Object.h:527`, `Object.cpp:999`, `Player.cpp:1016/7298/7356`, `Player.h:3010`, mismo checkout.
+
+**C1/C2, implementación provisional (2026-09-29, sin aceptar):**
+`wow-data-model` reúne esquemas inmutables de GameObject, Creature, Quest,
+Pet, Power, Vehicle, JumpCharge, facción/amistad/paragon/currency y spillover.
+Las rutas antiguas reexportan una sola definición; los stores/loaders quedan
+en datos. El dominio ya no necesita `entities/movement→data` productivo y datos
+no declara `data→entities/movement`. Los 28 tests puros de GameObject y los de
+CurrencyTypes acompañan al modelo; el contraste DB2/Player usa dev-dependency.
+La autoridad completa de loot y su coordinación `sync::watch` residen en
+entidades; no se autorizan nuevos tasks, timers o I/O por esa dependencia.
+Los escenarios privados permanecen con el owner. Lockfile, targets, concurrencia
+y paridad se comprobarán en la campaña final; estos movimientos no cierran C1/C2.
+
+**C3/C4, integración provisional (sin aceptar):** MonsterMove y CreateObject
+reciben valores preparados por los adaptadores de `wow-world`; `wow-packet`
+ya no declara `wow-movement`. El writer conserva la secuencia de campos y
+bits revisada; la proyección de CreateObject mantiene el clamp del tiempo
+antes de decidir JumpExtra, incluida la prueba nueva de tiempo negativo.
+Esa excepción y `anticheat→packet` se retiran tras revisar consumidores; anticheat recibe flags/elevación, conserva nueve tests y los gaps de seguridad GM/fuzzyEq (`Player.cpp:28412-28509`, `a5f8da2e`), sin aceptación. CreatureCreateData pasa a Model con 44 campos idénticos; Packet sólo cambia reexport, writer/ocho casos conservados. Dependencia y excepción Packet→Entities retiradas tras revisar fuente.
+`xtask check-layers` y `check-deps` delegan en la ruta `dependencies` de la
+política canónica, con propagación de errores; los baselines numéricos quedan
+como historial, no como una segunda autoridad. Las pruebas de routing y
+fallos están escritas, pero no ejecutadas. No aceptar C3 por revisión estática
+de bytes ni C4 por el mero retiro del evaluador antiguo.
+
+**Siguientes cortes semánticos de capa, contratos fijados (sin aceptar):**
+`wow-map` conserva lectura de terreno y fallback de área; recibe un callback
+estrecho de padre de subzona, evaluado una vez después de resolver el área.
+El adapter privado de aplicación conserva el lookup DB2 y exactamente el filtro
+de `ParentAreaID`/`IsSubzone` (`TerrainMgr.cpp:671-677`, `a5f8da2e`). El único
+otro consumo normal de datos es el ID de taunt, trasladado a constantes con la
+familia de aura; el test de integración DB2 permanece con dependencia de
+desarrollo. Esto permite retirar `map→data` sin mover ni duplicar el catálogo.
+En reputación, `wow-progression` produce valores de publicación y conserva
+las mutaciones de `need_send` y `send_faction_increased`; el adapter de
+aplicación construye los tres paquetes después de liberar el acceso canónico.
+Se preservan el orden de facciones, prioridad de la principal, standing visual,
+defaults, los 1 000 índices y el orden actual de reset y envío. Contraste:
+`ReputationMgr.cpp:324-384` y `ReputationPackets.h:29`, mismo checkout. Retirar
+`progression→packet` no cierra su dependencia restante hacia catálogos concretos.
+Ambas unidades tienen implementación provisional y revisión estática de los
+consumidores: el mapa conserva `wow-data` sólo como dependencia de desarrollo;
+reputación ya no declara ni consume `wow-packet` ni `wow-data`. Tras revisar
+sus ocho consumidores y el view prestado, se retiran las tres aristas obsoletas. El mapa conserva casos negativos
+de padre cero, entrada ausente y fila no subzona; los tres converters de
+reputación tienen contrastes de bytes escritos y no ejecutados. No se afirma
+compilación, aceptación ni paridad a partir del retiro de aristas.
+
+**D1/D2/D4/D5, continuación física provisional:** Player mantiene un solo
+owner; lifecycle, descanso, construcción, inventario y update fields tienen
+módulos privados. AreaTrigger conserva transiciones en su raíz de 705 líneas.
+Los catálogos de arranque retienen Arc, orden y diagnósticos en fases privadas;
+la app mide 3 018 líneas; ConditionMgr/PlayerChoice quedan en fases de 205/453, SpellWorldStartup en 297, SpellPetStartup en 248, WorldObjectStartup en 302, WorldStateStartup en 75, progresión en 200, criaturas en 225 y AreaTrigger SQL en 212. Supervisión/apagado queda en 352, con owners y orden actuales. El adapter DB de lifecycle delega sus dos
+cargas al mismo owner: raíz 851 y child 775, sin cambiar SQL/resultados.
+Su aceptación terminal exige revisar el inventario exhaustivo de persistencia;
+`--syntax-only` no lo sustituye. `character/identities.rs` conserva un enum
+canónico de 1 791 líneas, 600 identidades estáticas y `GENERATED_CPP`.
+Su excepción específica tiene techo sin crecimiento de 1 791, checkpoint
+`1233:D4-terminal-identity-review` y vencimiento 2026-10-29; no cubre dispatch
+ni SQL. Loot fixtures: fachada 42 y children de 354/285/165/194, misma feature.
+El [detalle fechado](workspace-structure-history.md#detalle-de-cortes-revisados-el-2026-09-29-sin-aceptación)
+conserva fuentes y medidas. Ninguno de estos recuentos acredita aceptación.
+
+**Reparto de implementación activo (2026-09-30, sin validaciones intermedias):**
+el parent integra y revisa; seis workers Luna max tienen scopes separados.
+Retomar por los archivos reales y reconciliar los procesos antes de reasignar.
+
+| scope | unidad en curso y siguiente límite |
+|---|---|
+| B4/combat | Player posee readiness (13 casos) y lote de daño (ocho); Map posee refs bilaterales (10) y limpieza CombatStop (ocho). LootViews (nueve), ItemAccess (diez), ResponseView (dos originales más cinco nuevos), construcción/partición de pools (dos originales/10 assertions más ocho nuevos) y viewer state (ocho) revisados. Currency gain (ocho más cuatro de wiring), reputación de quest (13 más seis de wiring/nueve externos), white swing (ocho), health transitions (12) y commit de absorción (siete) revisados. Aura queries: 14 funciones/21 métodos, cuatro schemas idénticos y únicos en Model, un original/ocho assertions más diez nuevos. Créditos NO-item/threshold: seis APIs/12 casos/siete de wiring, 19 originales intactos. Quest lifecycle 162/391: seis originales/16 assertions más diez nuevos, 12 operaciones/13 bindings revisados. Ingress 357/493: tabla original más nueve casos. Ballots 111/276: nueve nuevos, originales 6/9/14 conservados. Resurrection vitals 76/259: 13 nuevos/cinco integraciones conservadas. Aura installation 496/463: 18 nuevos/un original trasladado y 282 líneas de producción retiradas de World, source revisado. Aura removal 145/253: ocho operaciones/12 nuevos revisados, originales APP conservados. Derived stats 297: cuatro schemas/Defaults/métodos idénticos en Model y 11 originales/76 assertions idénticos tras redirección de llamada; sin Data→Entities. Quest hydration 133/270: 16 nuevos/tres APP nuevos/siete originales APP conservados, source revisado. Disenchant 233/492: tres originales/11 assertions y 12 nuevos/105 assertions; builder, RNG lazy, referencias/cap/orden y APP revisados en fuente. Retirada completa de spells contratada/asignada al PlayerSpellRuntimeState: cursor específico frames/seen, catálogos lazy y escritores/publicaciones APP en sus puntos actuales; nueve Domain/21 assertions migran y 19 APP/77 permanecen. Conserva fallo por frame, closures e invalidaciones separadas de prev-rank, sin snapshot del runtime ni nuevos tasks/locks. C++ RemoveSpell:3236–3462, a5f8da2e; gaps heredados preservados. Sin aceptación ni cierre global. |
+| D1/Player | Player 845, Aura 964, runtime/map 940 y fixtures 304/418/497/117/344; mismos 63 nombres/mounts. RealmList 248, respawn bootstrap 290, writer DB 291 y supervisión de sesiones 196 separados; lib 949, fields privados conservados. Retry/mailbox, flags Acquire/Release, wakeups y shutdown revisados. El timeout de blocking sigue siendo un gap; sin aceptación. |
+| D2/app | Loot 264 conserva nueve cuerpos; factory 200 devuelve los 27 slots. Creación 119/SpellInfo 142 conservan cuatro/nueve Arc. ConditionMgr 205 y PlayerChoice 453 preservan loads/logs/contextos/informes. App 2 519 tras DatabaseStartup 138: cuatro aperturas/cuatro validaciones ordenadas, nueve adapters World entre World y Hotfix y guards de esquema/orden preservados en fuente; compositor completo asignado con raíz/children ≤600. SpellWorldStartup 297, supervisión 352 y AreaTrigger SQL 212 revisados. SpellPetStartup 248/WorldObjectStartup 302 mantienen ports/reports; WorldStateStartup 75 mantiene dos llamadas/tres awaits/cuatro Arc/dos clones DB. Progresión 200 mantiene cinco awaits/15 Arc/dos clones DB e informes completos. CreatureCatalogStartup 225 conserva dos fases/10 awaits/11 Arc/dos clones Hotfix DB y dos source guards migrados. GeographyStartup 187 conserva seis awaits/11 Arc/dos clones DB e informes. GUID bootstrap 152 conserva seis awaits/cuatro Arc/guard hasta shutdown y cleanup COMMIT antes de Item. GroupStartup 52/WorldInstanceStartup 112 conservan dos awaits/ocho Arc/siete clones e informes completos; caches posterior intacto. Handler policies 159 conserva 28 getters/tres Arc/cero clones/cero awaits y guard adaptado al child real. PlayerCatalogStartup 104 conserva diez bindings/dos awaits/ocho Arc/cero clones/cuatro logs/10 contextos y fishing-before-tiers. Sin compilación ni aceptación. |
+| D4/database | 600 expresiones SQL originales idénticas. B6 conserva un mapa en vuelo y plan/diff/epoch/incarnation/origen; consumidor mantiene fases adyacentes bajo guard. WorldCreature agrupa 24 campos runtime (dos casos). ObjectRef/ObjectMut revisados (cinco); ObjectEntry transporta Record completo (siete). OwnedMapObject/snapshots y ActorStorage revisados (diez/once casos). Familias movement y terreno comparten motor pending (15 nuevos); Step 254/172/339 y witness/admisión 84/290/459 revisados (diez nuevos cada unidad). ObjectWork 117/280 conserva wrapper/seis nuevos. Barrera tick/finalizers y 21 casos nuevos revisados en fuente; receipt terminal exige sesiones/ticks/finalizers vacíos antes del tick final/mailbox. Acceso token/slot y Actor movement revisados, 15 casos cada uno y exports integrados. APP movement 405/360 y once casos revisados; disposición owned entregada con siete casos Map/nueve APP nuevos escritos. Cuerpos Map 77/APP 74, exports y 16 casos revisados en fuente, sin ejecución. Admisión Fresh 84/manager 33 y 14 casos nuevos revisados en fuente; mantiene incoming en errores/duplicados y mueve motor intacto. AddToMap 778 byte-idéntico frente a PRE íntegro; preflight cubre los gates actuales antes de efectos. Partición física Map entregada: raíces inserción/removal/relocation/storage 125/351/223/107, 14 children (máximo399). Parent compara 122 funciones originales: 121 cuerpos literales; coordinador reconstruido desde tres stages equivale ignorando whitespace. ObjectEntry byte-idéntico frente a PRE íntegro. Transferencia viva/promoción separadas. Respawn contratado/asignado: store común con slots SavedOnly/Catalog/Actor, un ejecutor por clave, INFO e índices derivados, Instant/ordinal y namespace GUID-low conservados. Preparar transferencia move-only bajo quiescencia; dos instancias temporales quedan explícitas hasta retirar legacy. Delta de carrera y semánticas de startup/remove/load/fallo en B6-execution; sin activación ni reparación oculta. Aggro completo contratado y en implementación: queries/facts de catálogos en APP, mutaciones seleccionadas/recíprocas en Map y LOS owned fuera del guard; sin avance de clock/RNG ni activación. Contrato por fases/mapa y deltas de scheduling en B6-execution. Retirada de segunda entidad/productor y aceptación pendientes. |
+| C1/modelos | GameEvent 41/827/112/467 conserva 69 métodos; Hotfix 367/313/567 conserva 13 loaders/19 converters/cuatro tests. WorldStateMgr global puro 192 en entidades; adapter 162 conserva SQL/CSV/reportes y siete tests. POI revisado en fuente: tres schemas idénticos en Model, agrupamiento Data con cuatro casos, conversión/caché World y writer Packet idéntico. Packet→Model permitido expresamente, sin excepción; gaps SQL/clone conservados. Sin aceptación. |
+| C/progression | Reputación conserva ocho consumidores/37 tests con view prestado y sin datos/packet normales. Instances usa cuatro esquemas compartidos y lookups perezosos detrás de guards; downscale sigue en datos y sus pruebas pasan al adapter real. Arista instances→data retirada tras revisión estática; gaps/orden conservados, sin aceptación. |
+
+Este reparto no acredita cierre de B3/B7, reducción global a 200 000 líneas,
+retirada de los dos productores/managers de B6 ni aceptación de la macro.
+
+**B6, frontera de ejecución pendiente (revisión estática 2026-09-29):**
+`world-server/app.rs` inicia el loop canónico y el global legado con intervalos,
+`Instant`/diff y epochs independientes. La barrera World/Map pertenece al loop
+canónico; no ordena por sí sola el bridge legado. Su orden interno es
+PlayerMelee → Lifecycle → Movement → Aggro → Spell → Melee. El envelope legado
+captura mapas, incarnations y GUIDs del manager canónico, pero las fases aún
+enumeran el manager legado; el envelope no es una autorización de trabajo.
+El mismatch de incarnation se calcula después de publicar y sólo se informa.
+El resume canónico mantiene respawns antes de ObjectUpdater y termina con
+SendObjectUpdates/DelayedUpdate bajo su propio plan. Unificar los productores
+requiere una frontera que libere los guards antes de ejecutar trabajo externo
+y retenga el mismo plan hasta su tail, con workset e incarnations efectivos,
+fences DB y cancelación/shutdown resueltos. Añadir la llamada al final del tick
+o borrar el loop legado no satisface ese contrato. Contraste:
+`World.cpp:2701/2748`, `MapManager.cpp:287-318`, `Map.cpp:666-785/2191` y
+`Creature.cpp:696`, checkout `a5f8da2e`. No se ha cambiado scheduling ni
+retirado ningún bridge. El respawn legado inserta antes de intentar su contraparte
+canónica; evento unspawn y unload no limpian ambas caras. El [contrato B6](workspace-structure-b6-execution.md)
+fija continuación, gaps y vida de closures antes de filtros; no acredita paridad o aceptación.
+
+**Recursos del host (2026-09-29):** se retiraron únicamente los directorios
+inspeccionados de compilación inactiva de `target/{debug,release}` del checkout
+principal (`deps`, `build`, `incremental`, `.fingerprint`), recuperando unos
+12 GiB; quedan unos 39 GiB libres. Se preservó íntegra la caché activa del
+worktree, además de binarios de despliegue, capturas y logs. Los dos procesos
+vivos siguen usando `target/deploy/live`; no hubo reinicio ni cambios de runtime.
+Estas cifras son una observación fechada, no una reserva de espacio.
 
 ## 4. Qué significa "verde" en cada nivel (no confundir niveles)
 
-1. **Compila**: `cargo check -p <crate>` (y sus consumidores). Es el bucle de trabajo, no evidencia
-   de entrega.
+1. **Compila**: evidencia de `cargo check -p <crate>` y consumidores cuando comienza
+   la campaña autorizada. Durante esta barrida también se difiere el feedback de
+   workers: no se lanza por helper, módulo o entrega local. Un check solo no acepta la macro.
 2. **Suite**: los tests del crate afectado, y si se movieron tests, los invariantes contados
    (`#[test]`/`#[tokio::test]`, `inventory::submit!`, lista de escenarios).
 3. **Composición**: `cargo check -p world-server --tests` y los targets de integración.
@@ -515,3045 +1224,8 @@ Ninguna fase se declara cerrada con el nivel 1; la tabla de estado registra el n
 5. Al cerrar cada ola, se reejecuta la auditoría y se actualiza §1 y §3.
 6. Nada se publica (push/PR/merge) sin autorización explícita.
 
-## 6. Decisiones arquitectónicas (ADR-001…008)
-
-Estado: **aprobadas** el 2026-09-24 salvo donde se indique. Cada una se implementa dentro de la
-fase que la referencia.
-
-**ADR-001 — Entrega por olas (aprobada).** Una PR por ola en el programa general;
-la macro de modularización de `wow-world` se entrega completa bajo #1233 en una
-sola rama/PR conforme al alcance vigente, aunque atraviese varias fases B. Cada entrega es
-auto-contenida (nunca se
-cierra con el árbol rojo) y revertible como un merge. Al abrir cada ola: rebase sobre
-`origin/3.4.3` y comprobación de que nadie más tiene trabajo abierto en los mismos paths. La
-campaña `final --architecture` se corre **una vez por ola**, no por fase; dentro de la ola solo
-`cargo check`. Como los checks hospedados se saltan en PRs de `alseif0x`, la campaña local es la
-única puerta real y su evidencia va en el cuerpo de la PR.
-
-**ADR-002 — Módulos: nativo por defecto, Wasm opcional (aprobada).** Todo lo de primera parte se
-compila nativo (subsistemas opcionales por *features*, apagadas por defecto). El **mismo contrato**
-sirve para ambos planos y por eso es **de datos**, no de traits: `wow-module-api` expone hooks
-versionados con payloads propios (nada de referencias prestadas) y un `MODULE_API_VERSION`. Un
-módulo nativo se enlaza in-process mediante un adaptador fino (sin serialización); un módulo Wasm
-se sirve por el adaptador host (con serialización en la frontera). Se elige **wasmtime con
-Component Model/WIT** (interfaz tipada y versionada; extism queda como alternativa si queremos
-atajos de PDK, ya que se apoya en wasmtime). Reglas del sandbox: lista blanca de host functions,
-sin handles de BD, sin escritores de paquetes, sin accesso a storage interno, límite de ejecución
-(fuel/epoch) para que un módulo no cuelgue el servidor, y fallo de módulo **aislado** (se registra
-y se desactiva; el servidor no cae). Versión distinta ⇒ se rechaza al instalar. `world-modules`
-depende solo de `wow-module-api`, nunca de `world-server`. Coherente con el proyecto: el producto
-Rust/Wasm/C es obligatorio, la activación por operador es opcional.
-
-**ADR-003 — Núcleo funcional, cáscara imperativa (aprobada).** Crates L0-L3 síncronos y puros:
-prohibido `tokio`, `parking_lot`, `sqlx`, `rand` en `[dependencies]`, verificado por
-`cargo xtask check-deps`. Todo `await`, lock y fence vive en la app, con orden de lock documentado
-por crate. `#![forbid(unsafe_code)]` en dominio y app; las **intenciones** llevan `#[must_use]`.
-
-**ADR-004 — Datos, tiempo y azar inyectados (aprobada).** Catálogos como parámetros prestados
-(`&ItemStore`), nunca pool ni `Arc<dyn Store>`. Tiempo como valor (`GameTime`, `diff_ms: u32`);
-prohibido `Instant::now()`/`SystemTime` en dominio. Azar por generador determinista inyectado con
-semilla registrada en el test, para que una tirada sea reproducible y contrastable con C++.
-
-**ADR-005 — Errores (aprobada).** `thiserror` en librerías con un `enum <Dominio>Error`
-`#[non_exhaustive]` por crate; `anyhow` solo en binarios y nunca en API pública de librería. Los
-errores de dominio no contienen tipos de la app ni de infraestructura: la app decide el efecto en
-un único sitio por familia y es la única que loguea.
-
-**ADR-006 — Código generado (aprobada).** Generado **versionado** en el repo (patrón `cargo
-xtask`), con cabecera `// @generated by xtask codegen — do not edit`, exento de presupuestos y
-techos pero no de sintaxis; `cargo xtask check-generated` regenera y compara; prohibido generar
-desde `build.rs` hacia `src/`.
-
-**ADR-007 — Arranque y alcance de un agente (aprobada).** `cargo xtask context <fase>` imprime el
-slice activo (≤150 líneas) desde la tabla de estado; `cargo xtask check-scope` **falla si hay
-cambios fuera de los paths declarados por la fase activa**. Es la barrera contra el fallo que
-produjo el megarefactor roto que hubo que rescatar.
-
-**ADR-008 — Superficie pública (aprobada).** Ningún `pub` sin consumidor identificado;
-`#[non_exhaustive]` y traits sellados en puntos de extensión; `#[doc(hidden)]` para puentes;
-snapshot con `cargo-public-api` de `wow-entities`, `wow-map` y `wow-packet` al cerrar cada ola con
-diff revisado. `adapter.rs` es temporal y se retira con su migración.
-
-**Adiciones del estudio (van a A0):** `cargo-deny` debe vigilar **licencias incompatibles** (el
-proyecto es GPL v3), no solo avisos y duplicados; verificar y documentar el resolver de features
-(edition 2024 ⇒ resolver 3) por la unificación de features entre dependencias normales; política
-de `unsafe` (forbid en dominio/app, permitido solo en crates justificados con
-`deny(unsafe_op_in_unsafe_fn)`); y ejecutar **`cargo-machete` antes de A1** para no arreglar crates
-que A1 va a retirar.
-
-**ADR-009 — Nomenclatura de paridad (aprobada 2026-09-24, decisión del usuario).** El sufijo
-`_like_cpp` y los tipos `...LikeCpp` son legado y **no se usan en código nuevo ni en refactors**; el
-nombre dice el dominio y la procedencia C++ vive en el comentario/ancla, el mensaje de commit y el
-ADR/checkpoint. **No hay renombrado en masa del legado** en este programa: cambiaría miles de
-identificadores, todas las baselines y las superficies registradas, y su riesgo no compensa. Sí hay
-**renombrado oportunista** al extraer un dominio a su crate o al reescribir un fichero, dejando un
-alias o `adapter.rs` temporal si hace falta compatibilidad. Un renombrado masivo, si se quiere,
-será una campaña propia con su aceptación.
-
-## 7. Primeros resultados de las comprobaciones (A0.2)
-
-`tools/xtask` (sin dependencias externas) con `structure-audit`, `check-layers`, `check-deps`,
-`context <fase>` y `check-scope <fase>`. Los dos primeros usan **ratchets con baseline**: fallan si
-aparece una violación nueva **o si una entrada del baseline ya no existe** (la lista solo puede
-encoger).
-
-- `check-layers`: **PASS** con 13 violaciones conocidas (`tools/xtask/layer-baseline.txt`).
-- `check-deps`: **PASS** con 4 dependencias prohibidas conocidas
-  (`tools/xtask/deps-baseline.txt`): `wow-ai` y `wow-loot` declaran `rand`; `wow-loot` declara
-  `tokio`; `wow-conditions` declara `parking_lot`. Son exactamente los dominios que deben pasar a
-  entradas inyectadas (ADR-004) y a núcleo síncrono (ADR-003); se retiran en la ola C/D.
-- La regla se afinó al medir: `sqlx` es legítimo en `wow-database`/`wow-persistence` y `tokio` en
-  la capa de red; la prohibición estricta es para los crates de **reglas** (L3).
-- A0.3: `[workspace.lints]` ya existía y **13 crates ya optaban** a él; se añadió el opt-in a los
-  28 restantes (41/41, incluido `tools/xtask`). Medición de ruido con la política actual
-  (`all` + `pedantic` en warn): `wow-loot` 2 warnings, `wow-map` 15, `wow-world` 350. La política
-  es usable; los 350 de `wow-world` son deuda de F13 y no bloquean. Corrección: una nota anterior
-  de este documento decía "0 de 40" por un grep con el patrón equivocado.
-- `cargo-machete`, `cargo-deny`, `cargo-nextest`, `cargo-public-api` y `cargo-hakari` **no están
-  instalados** en el host; A0.4 y A0.7 quedan parcialmente cubiertos por `structure-audit` y
-  pendientes de esas herramientas.
-- El baseline de capas refleja las inversiones que la ola C debe retirar; el de dependencias, lo
-  que ADR-003/004 exige retirar de los dominios.
-- Los techos físicos hicieron su trabajo en la puerta de la ola A: `chat.rs` (312 > 311) y
-  `trainer.rs` (855 > 846) habían crecido por los movimientos. En vez de subir el techo se sacaron
-  sus registros de opcode a `chat/registrations.rs` y `trainer/registrations.rs` (movimiento puro);
-  `chat.rs` queda en 84 líneas y el ratchet físico pasa con 102 techos legacy.
-
-## 8. Decisiones de A0
-
-**A0.1 — Mapa de features (decidido).** Subsistemas **opcionales**, apagados por defecto y nunca
-requeridos por el build base: `modules`/`wasm-runtime` (módulos de operador, ADR-002),
-`scripts` (scripting) y `anticheat`. El build base (`cargo check -p world-server`) no puede
-depender de ellos; la dirección es `world-modules → wow-module-api` y nunca hacia `world-server`.
-Los crates reservados (`wow-spell`, `wow-pvp`, `wow-achievement`, `wow-items`, `wow-quest`,
-`wow-economy`, `wow-progression`, `wow-battlegrounds`, `wow-dungeon-finding`,
-`wow-account-collections`) **no** son features: son dominios a crear/llenar o a retirar en A1.
-
-**Resolver (decidido): se mantiene `resolver = "2"`.** Ya evita la unificación de features entre
-build-dependencies y dependencias específicas de target, que es el riesgo real; el resolver 3 solo
-añade resolución consciente de MSRV y aquí el toolchain está fijado, así que cambiarlo traería
-churn de `Cargo.lock` sin beneficio. Documentado para que nadie lo "actualice" sin argumento.
-
-**A0.4 — Higiene de grafo (parcial).** `cargo-machete`, `cargo-deny`, `cargo-nextest`,
-`cargo-public-api` y `cargo-hakari` **no están instalados** en este host. Cobertura actual:
-`xtask structure-audit` (stubs, sin consumidor, tamaños, capas) y los ratchets de `check-layers` /
-`check-deps`. Pendiente: ejecutar `cargo-deny` con política de **licencias** (el proyecto es GPL v3)
-y `cargo-machete` cuando estén disponibles; no se finge que se han pasado.
-
-**A0.6 — Presupuesto de documentación (decidido).** Los documentos de arquitectura se mantienen
-**≤300 líneas** cada uno; el histórico y las decisiones van a ADRs, no a un plan que crece.
-
-**A0.7 — Herramientas opcionales (decidido).** `cargo-nextest`: adoptar cuando esté disponible, no
-es requisito. `cargo-public-api`: el snapshot de `wow-entities`/`wow-map`/`wow-packet` queda
-pendiente de la herramienta; la regla de ADR-008 se aplica igual. `cargo-hakari`: **no** se adopta;
-solo si una medición de build demuestra duplicación de features.
-
-## 9. Lecciones de la ola A (apuntadas antes de seguir)
-
-- **Las categorías de `dependency-policy.json` son más estrictas que el mapa de capas de este
-  plan.** `domain-runtime` solo puede depender de `foundation` y `domain-runtime`; el mapa del plan
-  situaba `wow-data` (categoría `adapter-platform`) por debajo de `wow-map`, pero el proyecto lo
-  prohíbe. Consecuencia: el movimiento de `phasing` a `wow-map` **se revirtió** (commit de revert) y
-  `phasing` necesita su **propio crate de categoría `application`** (`wow-phasing`) con una
-  excepción justificada hacia `adapter-platform`, que se hará en la ola C/D. Regla para el futuro:
-  **antes de mover código entre crates, comprobar la categoría de ambos en
-  `tools/architecture/dependency-policy.json`**, no solo la capa del plan.
-- **`tools/xtask` se clasificó como `tooling`** en el mismo fichero; sin clasificar, el checker
-  rechaza el paquete.
-- **El ratchet de hotspots puede encoger sin tocar la baseline**: tras el revert, `loot` y `quest`
-  quedan por debajo de lo registrado, que es aceptable (la baseline es cota superior, no espejo).
-- **Trabajo de #1233 traído adelante por la puerta**: las familias de campos de `WorldSession` del
-  ledger estaban sin actualizar desde el refactor (139 nombres obsoletos, 21 campos nuevos sin
-  dueño). Se reclasificaron con regla explícita: los 15 `*_test_fixture_like_cpp` a
-  `test_only_fixtures`, y los 6 de producción por palabra clave (durabilidad→inventario/economía,
-  límites de stats y regeneración de tablas→catálogos, auras de criatura→mapa/runtime, log de
-  ejecución de hechizo→hechizos/progresión, sincronización de tiempo→driver/timers). Conteos:
-  531 campos (225 producción, 306 fixtures).
-
-## 10. Trabajo no previsto detectado por la puerta de la ola A (2026-09-24)
-
-La puerta `final --architecture` ya no encuentra errores de compilación (el barrido
-`cargo check --workspace --all-targets` sale 0) pero al ejecutar las suites aparecen **19 tests
-fallando en `wow-world --lib`** (3919 pasan) y 1 corregido en `wow-data`. Son fallos que estaban
-**ocultos**: los ficheros no compilaban, así que nunca se ejecutaron en esta rama. Cada uno se
-diagnostica por separado y se arregla con evidencia (ancla C++ o ruta movida), nunca debilitando
-la aserción. Ficheros con el fallo registrado:
-
-- `crates/wow-world/src/handlers/character/../character_tests/item_1.rs:12`
-- `crates/wow-world/src/handlers/character/../character_tests/item_1.rs:30`
-- `crates/wow-world/src/handlers/economy/tests/trade/session.rs:164`
-- `crates/wow-world/src/handlers/economy/tests/trade/session.rs:198`
-- `crates/wow-world/src/handlers/void_storage_tests/scenarios_1.rs:213`
-- `crates/wow-world/src/handlers/void_storage_tests/scenarios_1.rs:240`
-- `crates/wow-world/src/handlers/void_storage_tests/scenarios_2.rs:348`
-- `crates/wow-world/src/handlers/void_storage_tests/scenarios_2.rs:389`
-- `crates/wow-world/src/handlers/void_storage_tests/scenarios_2.rs:460`
-- `crates/wow-world/src/handlers/void_storage_tests/scenarios_2.rs:489`
-- `crates/wow-world/src/handlers/void_storage_tests/scenarios_2.rs:530`
-- `crates/wow-world/src/handlers/void_storage_tests/scenarios_2.rs:559`
-- `crates/wow-world/src/handlers/void_storage_tests/scenarios_2.rs:658`
-- `crates/wow-world/src/handlers/void_storage_tests/scenarios_2.rs:768`
-- `crates/wow-world/src/session/../session/tests/player_spell_hit_source/trait_glyph_and_zone_gates.rs:97`
-- `crates/wow-world/src/session/../session/tests/scenarios_instances_1.rs:617`
-- `crates/wow-world/src/session/../session/tests/scenarios_instances_1.rs:646`
-- `crates/wow-world/src/session/../session/tests/scenarios_misc_8.rs:522`
-- `crates/wow-world/src/session/../session/tests/scenarios_persistence_3.rs:680`
-
-Tests afectados:
-
-- `GroupInstanceResetMethodLikeCpp::Manual)`
-- `GroupInstanceResetMethodLikeCpp::OnChangeDifficulty)`
-- `GroupInstanceResetResultLikeCpp::NotEmpty,`
-- `GroupInstanceResetResultLikeCpp::Success,`
-- `handlers::character::tests::item_1::continue_login_inventory_reads_cross_the_typed_lifecycle_port`
-- `handlers::character::tests::item_1::continue_login_item_repairs_cross_the_typed_lifecycle_port`
-- `handlers::economy::tests::trade::session::accept_trade_records_acceptance_and_notifies_partner_like_cpp`
-- `handlers::economy::tests::trade::session::unaccept_trade_clears_acceptance_and_notifies_partner_like_cpp`
-- `handlers::void_storage::tests::scenarios_1::locked_login_discards_residual_void_rows_and_initializes_empty_storage_like_cpp`
-- `handlers::void_storage::tests::scenarios_1::unlock_submits_one_semantic_write_before_runtime_publication_like_cpp`
-- `handlers::void_storage::tests::scenarios_2::deposit_commits_typed_plan_before_runtime_publication_like_cpp`
-- `handlers::void_storage::tests::scenarios_2::deposit_definite_rollback_keeps_money_inventory_and_void_state_unchanged`
-- `handlers::void_storage::tests::scenarios_2::deposit_definite_rollback_retains_active_item_loot_view_atomically`
-- `handlers::void_storage::tests::scenarios_2::deposit_indeterminate_commit_quarantines_without_runtime_publication_like_cpp`
-- `handlers::void_storage::tests::scenarios_2::deposit_unknown_commit_reconciles_from_durable_money_like_cpp`
-- `handlers::void_storage::tests::scenarios_2::mixed_transfer_validation_failure_publishes_no_partial_deposit`
-- `handlers::void_storage::tests::scenarios_2::swap_definite_rollback_keeps_void_slots_unchanged`
-- `handlers::void_storage::tests::scenarios_2::swap_unknown_commit_with_unchanged_money_quarantines_session`
-- `session::tests::player_spell_hit_source::trait_glyph_and_zone_gates::player_spell_hit_source_authority_gates_update_zone_aura_producers_like_cpp`
-- `session::tests::scenarios_instances_1::represented_player_reset_not_empty_forgets_only_on_change_difficulty_like_cpp`
-- `session::tests::scenarios_instances_1::represented_player_reset_success_forgets_recent_instance_like_cpp`
-- `session::tests::scenarios_misc_8::give_xp_runtime_rejects_no_xp_gain_player_flag_like_cpp`
-- `session::tests::scenarios_persistence_3::player_create_flags_use_loaded_and_canonical_bits_like_cpp`
-
-### Cierre de la ola A (2026-09-25)
-
-`./tools/validation-v2 final --base origin/3.4.3 --architecture --timings` -> **exit 0, status
-passed, 568 s** (manifiesto `20260925T024412.450111Z-2914971-final.json`), dentro del presupuesto
-de 600 s. Antes de esta puerta la rama tenia 898 errores de compilacion y 19 tests fallando; el
-camino completo esta en los commits de la rama, cada uno con su evidencia.
-
-Publicacion: PR creada como draft al abrir la ola y fusionada al cerrarla (ADR-001). La ola A deja
-`handlers/misc` desmontado, tres fronteras movidas (personal-phase retirado, `phasing` de vuelta a
-`wow-world` por politica de categorias, fixtures compartidos extraidos), el `xtask` con ratchets,
-los lints opt-in en 41 paquetes, el ADR-009 de nomenclatura y las baselines revisadas. A1 empieza
-despues de esta fusion.
-
-### A1 cerrada (2026-09-25)
-
-- `wow-pvp` y `wow-achievement` (1 linea cada uno) retirados del workspace. Su reserva **sale** de
-  `dependency-policy.json` porque el checker exige que un paquete reservado exista y este
-  clasificado; la intencion se conserva aqui: ambos nombres quedan para las entregas de paridad de
-  Part 2 (#48), que los recreara con su contenido.
-- `wow-scripts` (44 lineas, fachada de `wow-script`) consolidado: `world-server` llama directamente
-  a `wow_script::lifecycle::on_startup_like_cpp()/on_shutdown_like_cpp()` y su asercion se conserva
-  como test de integracion de `wow-script` (`tests/lifecycle_facade.rs`).
-- La utilidad `wow-collections` renombrada a `wow-util-collections` para liberar el nombre del
-  dominio de colecciones (`wow-account-collections`).
-- Decisiones registradas: `rustycore-db` **se queda** (es un binario de administracion de BD, y la
-  bandera "sin consumidor" es lo normal en un binario); `wow-session` **se queda** (kernel de
-  transporte ganado en #297, consumido por `wow-world`); `wow-chat` **se queda** (dominio de reglas
-  de chat: hipervinculos y validacion); `world-modules` **no se toca aqui** (es generado y su
-  inversion es el objeto de A2).
-- Baseline de capas depurada de las entradas que quedaron obsoletas con la retirada.
-
-### A2 y A3 verificadas: no habia inversion real (2026-09-25)
-
-**A2 — `world-modules`.** La "inversion" venia de mi auditoria en Python, que marcaba toda arista
-lateral como violacion. Verificado contra la politica y el codigo: `world-modules` es categoria
-**composition**, `world-server` tambien, y `composition` puede depender de `composition`
-(`allowed_category_dependencies`); ademas `world-modules` usa `world_server::run_with_modules`, la
-API de libreria prevista para componer. `xtask check-layers` ya excluia las fuentes de capa 5, asi
-que nunca la marco. **No hay nada que invertir**; el generador `tools/modules/compose.py` y su
-salida se quedan como estan hasta D6 (contrato Wasm), que es donde cambia el modelo de modulos.
-
-**A3 — tooling y vendor.** `capture-diff` ya esta clasificado como **tooling** en
-`dependency-policy.json` (mis notas anteriores hablaban de "capas de juego" por prosa, no por
-politica), y `xtask` tambien. Lo unico que faltaba era dejar explicito el criterio de **codigo
-vendido**: `wow-recastdetour` es un port de terceros y queda exento de presupuestos de tamano y de
-convenciones de nomenclatura, conservando su clasificacion de dependencia.
-
-Leccion registrada: **la auditoria en Python y `xtask check-layers` deben coincidir**; cuando
-discrepen, manda la politica (`dependency-policy.json`) y se corrige la herramienta que se
-desvie.
-
-### B2: segundo slice verificado-negativo y preparacion de B4 (2026-09-25)
-
-**`entity_update_bridge` se queda en la aplicacion.** El plan lo enviaba a `wow-entities`, pero
-importa `wow_packet` (3 usos): moverlo alli crearia la arista `domain-runtime -> adapter-platform`
-que la politica prohibe. Es una **frontera entidad -> wire**, asi que su sitio es la app (o, mas
-adelante, un crate de categoria `adapter-platform` con contrato propio). Igual criterio para
-`profession` y `trainer_offer`, que ademas tocan `session`: van despues de B4.
-
-**B4 (partir el tipo Dios): analisis previo, con datos.** `WorldSession` tiene **221 campos de
-produccion** repartidos en las familias del ledger. Tamanos (produccion):
-
-| campos | familia |
-|---:|---|
-| 1 | `player_identity_login_bootstrap` |
-| 1 | `session_selected_player_binding` |
-| 1 | `test_only_fixtures` |
-| 3 | `player_social_chat_calendar_and_group_views` |
-| 3 | `session_driver_timers_and_transitional_misc` |
-| 4 | `directory_group_and_social_coordination` |
-| 4 | `transport_and_physical_connections` |
-| 6 | `player_movement_combat_and_visibility` |
-| 9 | `mailbox_and_cross_session_delivery` |
-| 11 | `packet_admission_dispatch` |
-| 15 | `player_spells_quests_and_progression` |
-| 16 | `player_inventory_loot_and_economy` |
-| 22 | `session_identity_account_and_realm_policy` |
-| 23 | `persistence_and_session_lifecycle` |
-| 25 | `map_runtime_creature_gameobject_and_visibility` |
-| 77 | `immutable_catalogs_configuration_and_services` |
-
-**Primer corte recomendado**: la familia mas pequena con cohesión real y sin ser el nucleo de
-identidad/conexion, es decir **`directory_group_and_social_coordination`** (4 campos:
-`group_registry`, `pending_invites`, `game_event_quest_complete_tx`), seguida de
-`session_driver_timers_and_transitional_misc` (3) y `player_social_chat_calendar_and_group_views`
-(3). No se empieza por `transport_and_physical_connections` ni
-`session_identity_account_and_realm_policy`: son centrales y su radio de llamadas es enorme.
-
-**Metodo para cada sub-estado** (sin romper nada):
-1. Declarar el sub-estructo en `session/state.rs` y mover alli SOLO los campos de la familia.
-2. Exponer dos accesores estrechos: `pub(in crate::session) fn <nombre>(&mut self) -> &mut SubEstado`
-   y su version de lectura. Un dueño, ningun espejo.
-3. Mover a `impl SubEstado` los metodos que solo tocan esa familia; el resto de llamadores se
-   repunta con `cargo check -p wow-world` como guia.
-4. Cuando el sub-estado tenga contrato completo y ningun `&mut WorldSession` haga falta, se puede
-   convertir en crate de dominio; hasta entonces es un modulo privado de la app.
-5. Cualquier cambio de comportamiento va en su propio commit, con ancla C++.
-
-### B4, primer intento: revertido y pitfall registrado (2026-09-25)
-
-Intente sacar a `SessionDirectory` los tres campos de directorio social de la familia
-`directory_group_and_social_coordination` (dejando `player_registry`, que tiene 58 ficheros de radio,
-para su propio slice). El movimiento de campos y el inicializador anidado funcionan, pero la
-**reescritura de puntos de uso es mas delicada de lo que asumi**:
-
-- **Existen metodos accesores con el mismo nombre que los campos** (`fn pending_invites(&self)`).
-  Una sustitucion global de `.<campo>` convierte tambien las *llamadas* `self.pending_invites()` en
-  `self.directory.pending_invites()`, que el compilador rechaza. La reescritura debe distinguir
-  acceso a campo de llamada a metodo (p. ej. por el parentesis siguiente) o, mejor, mover primero
-  los metodos al `impl` del sub-estructo y dejar que los llamadores usen el accesor.
-- La visibilidad efectiva de los tres campos era `pub(crate)`, no `pub(in crate::session)`: hay
-  consumidores en `crates/wow-world/src/handlers/**`. El sub-estructo y su campo contenedor deben
-  nacer con esa visibilidad, no ensancharla despues.
-- Hay un `use` que debe acompanar al tipo en cada fichero que lo nombre (`construction.rs`), y el
-  chequeo de propiedades de campos de `WorldSession` deja de contar los campos anidados: al mover
-  la familia, la census de `session-ownership-policy.json` baja de 221 campos de produccion y hay
-  que regenerarla con delta revisado.
-
-El intento se revirtio sin dejar el arbol sucio; la rama sigue verde. Se retoma con el metodo
-corregido: mover campos, mover metodos al `impl` del sub-estructo, y repuntar solo accesos (no
-llamadas), con `cargo check` entre pasos.
-
-### B4, primer slice ejecutado: `SessionDirectory` (2026-09-25)
-
-`WorldSession` pierde tres declaraciones de campo (`game_event_quest_complete_tx`, `group_registry`,
-`pending_invites`) hacia el sub-estado nombrado `SessionDirectory`, declarado junto a su dueno con la
-visibilidad mas estrecha (`pub(in crate::session)`, la que ya tenian los campos: no se ensancha
-nada). Los tres accesores (`set_group_registry`, `group_registry`, `pending_invites`) y sus 39
-llamadores en `handlers/**` conservan la frontera, asi que no cambia ningun paquete, ninguna
-persistencia ni ninguna autoridad; la construccion usa el `Default` derivado. `player_registry`
-queda para su propio slice por radio de llamadas.
-
-Lo que el intento anterior no habia visto, ahora medido:
-
-- **El ledger de hotspot es un ratchet de crecimiento, no una medida libre.** Mover una familia a un
-  sub-estado *anade* lineas de produccion al agregado logico (`session/mod.rs`), y el unico modo de
-  que el slice cierre es registrar el crecimiento revisado en `runtime-ownership-ledger.json`
-  (`latest_growth_review`) o retirar lineas equivalentes. Este slice cuesta **+3 lineas** de
-  produccion (227862 -> 227865 totales) y se registro con la revision completa: sin segunda
-  autoridad, espejo, cerrojo, reloj ni tarea. Las lineas bajan a cero cuando el sub-estado tenga
-  contrato y salga del arbol.
-- **Retirar imports "muertos" no es un atajo valido.** Los 9 imports que el chequeo de produccion
-  marca como no usados en `session/{state,construction}.rs` los usa codigo `#[cfg(test)]` del mismo
-  fichero; borrarlos rompe los tests, y marcarlos `#[cfg(test)]` solo traslada lineas de produccion a
-  lineas de test, que el mismo ratchet tambien limita. Se revirtio.
-- **La familia tambien se declara en el ledger de runtime**, no solo en la census: hay que mover los
-  nombres a `directory` en `world_session_responsibility_families` y ajustar los contadores globales
-  (525/219/306) o `check_architecture` falla por campos ausentes/obsoletos.
-- **Repuntar accesos, no llamadas, con cuidado en los fixtures.** Los fixtures de test que tienen
-  campos homonimos (`GroupReconciliationFixtureLikeCpp.group_registry`) no se repuntan; el compilador
-  los senala uno a uno. Y un `use` nuevo debe insertarse fuera del grupo `#[cfg(test)]`, no entre el
-  atributo y su import.
-- **Conservar la procedencia al mover.** Los comentarios C++ de cada campo viajan con el campo al
-  sub-estado; dejarlos atras pierde la ancla y deja comentarios huerfanos en el dueno.
-
-Evidencia del slice: `cargo check -p wow-world` (0 errores), `cargo check -p wow-world --tests`
-(0 errores), `cargo test -p wow-world --lib` (3901 pasan), census de sintaxis PASS (219 campos de
-produccion), `check_architecture.py check` PASS y `self-test` PASS (20 fixtures). `cargo check
---workspace --all-targets` sigue en 0 errores.
-
-### B4, segundo slice ejecutado: `SessionSocialLimits` (2026-09-25)
-
-La familia `player_social_chat_calendar_and_group_views` (los dos topes de XP de Recruit-A-Friend y el
-estado anti-flood de chat) pasa al sub-estado nombrado `SessionSocialLimits`, alcanzado por un unico
-campo `social`. Misma visibilidad estrecha y mismos valores de construccion (85/4 y el par de
-acumuladores por defecto); los cinco puntos de lectura/escritura (`session/social/contacts.rs`,
-`session/catalogs/operations.rs`) conservan su comportamiento. Census: 219 -> 217 campos de produccion.
-
-Leccion nueva de este slice: **el nombre del campo contenedor se paga en lineas**. Con
-`social_limits`, tres de las cinco expresiones repuntadas superaban las 100 columnas y `rustfmt` las
-partia, anadiendo 13 lineas de mas al agregado; con `social` solo quedan dos particiones inevitables
-(los nombres `..._difference_like_cpp` de 58 caracteres) y el slice cuesta +16 lineas en vez de +26.
-Antes de elegir el nombre de un sub-estado conviene medir el punto de uso mas largo.
-
-### B4, tercer slice ejecutado: `SessionDriverServices` (2026-09-25)
-
-El estado de sincronizacion de tiempo y el RNG de gameplay representado pasan al sub-estado nombrado
-`SessionDriverServices`, alcanzado por un unico campo `driver`; valores de construccion identicos
-(`TimeSynchronizationStateLikeCpp::default()` y `StdRng::from_entropy()`). Census: 217 -> 216 campos
-de produccion. `pending_bind` **no** se mueve en este slice: sus lectores incluyen
-`handlers/instances`, que dependen del `pub(crate)` mas ancho que el campo ya tenia, y su dueno real
-es la confirmacion de bind de Player/InstanceMap; la familia conserva su nombre transitorio hasta que
-ese ultimo miembro salga.
-
-Segunda leccion medida sobre el coste de un sub-estado: **los nombres de campo largos mas el prefijo
-del contenedor se pagan en re-envoltura de `rustfmt`**. Aqui el diff inserta 111 lineas y borra 62
-(+29 produccion, +20 test) sin cambiar una sola llamada ni comportamiento: `time_synchronization`
-tiene 19 caracteres y, detras de `self.driver.`, empuja condiciones de `session/time_synchronization.rs`
-y de los tests de driver/movimiento/publicacion por encima de 100 columnas. Antes de mover una familia
-conviene contar las lineas que quedarian entre 94 y 100 columnas: ese es el coste real, no el numero de
-campos. Cuando ese coste domine, el siguiente paso no es ensanchar el contenedor sino mover los
-*metodos* de esa familia al `impl` del sub-estado, donde `self.<campo>` no lleva prefijo.
-
-### B4, cuarto slice ejecutado: `SessionWorldView` (2026-09-25)
-
-Los seis miembros restantes de `player_movement_combat_and_visibility` (area trigger activo, lookup de
-mapas de taxi, instante del ultimo tick de combate, revision de salud melee presentada y los dos flags
-de reino PvP) pasan al sub-estado nombrado `SessionWorldView`, alcanzado por un unico campo `view`.
-Comentarios de procedencia C++ movidos con sus campos; valores de construccion identicos. Census:
-216 -> 211 campos de produccion. Coste: +14 produccion/+7 test (solo una envoltura nueva).
-
-Este slice ademas **estrecha** visibilidad: `active_area_trigger` era `pub(crate)` y pasa a
-`pub(in crate::session)` porque sus seis lectores viven dentro del arbol de `session`; la visibilidad
-ancha estaba sin usar. Es el sentido correcto de la escalera de visibilidad: el sub-estado no
-ensancha, y aprovecha para apretar lo que sobraba.
-
-### B4, quinto slice ejecutado: `SessionAddonFilter` (2026-09-25)
-
-El filtro de addons del chat (`registered_addon_prefixes`, `filter_addon_messages`, C++
-`WorldSession::_registeredAddonPrefixes` y `_filterAddonMessages`) pasa al sub-estado nombrado
-`SessionAddonFilter`, alcanzado por un unico campo `addon_filter`. Census: 211 -> 210 campos de
-produccion; coste +8 produccion, 0 test.
-
-Tercer patron aprendido, y el que gobernara casi todas las familias que quedan: **si la familia se lee
-desde `handlers/**`, el sub-estado no puede ser privado al arbol de `session`**. Estos dos campos eran
-`pub(crate)` porque `handlers/chat/*` los lee; el sub-estado y su contenedor nacen con esa misma
-visibilidad, y el comentario del tipo lo dice explicitamente para que nadie lo "arregle" estrechandolo.
-Es la excepcion legitima a la escalera: no se ensancha nada nuevo, se conserva lo que los consumidores
-ya necesitaban, y se documenta quien lo justifica.
-
-**Frontera economica de B4**: la reduccion de campos se paga en accesos repuntados, y ese precio no es
-uniforme. Medido por familia: `player_social_*` y `player_movement_*` costaron +16 y +14 produccion por
-3 y 6 campos; `mailbox_and_cross_session_delivery` tiene 9 campos pero **196 accesos**, y
-`immutable_catalogs_configuration_and_services` acumula 77 campos leidos por todo el arbol. Para esas
-dos, el metodo de mover solo campos no escala: hay que mover *metodos* al `impl` del sub-estado (donde
-`self.<campo>` no lleva prefijo) o extraer primero los subgrupos cohesivos y baratos, que es lo que se
-hizo aqui con el filtro de addons.
-
-### B4, sexto slice ejecutado: `SessionPhaseRail` (2026-09-25)
-
-El rail de fase #787 (`session_phase_tx`, `session_phase_rx`) pasa al sub-estado nombrado
-`SessionPhaseRail`, alcanzado por un unico campo `phase` con `tx`/`rx` dentro. El `bounded(2)` de
-construccion, los dos accesores (`session_phase_sender_like_cpp`, `session_phase_receiver_like_cpp`),
-las entradas del directorio que clonan el emisor y el consumidor del driver conservan su
-comportamiento. Census: 210 -> 209 campos de produccion; coste +7 produccion, 0 test.
-
-Cuarto patron aprendido, y aviso para los slices que quedan: **el nombre de campo puede existir en otros
-tipos del mismo arbol**. `SessionPhaseAddressLikeCpp` y las entradas del directorio tienen su *propio*
-`session_phase_tx`, y hay 8 literales de test que lo rellenan con
-`detached_session_phase_rail_like_cpp()`. Una reescritura global de `.session_phase_tx` habria roto
-tipos ajenos; aqui se repunto solo `self.session_phase_tx` en los dos ficheros de `WorldSession`
-(`driver/phase_consumer.rs` y `player_registry_binding.rs`). Regla: cuando el nombre del campo es
-generico, repuntar por fichero y con el receptor `self.`, nunca con regex global; y comprobar antes
-cuantos literales ajenos comparten el nombre.
-
-### B4, septimo slice ejecutado: `SessionSpellState` + `SessionQuestState` (2026-09-25)
-
-La familia `player_spells_quests_and_progression` (15 campos) se parte en dos sub-estados cohesivos:
-`SessionSpellState` (los cuatro sets de ids de spell-script, las dos autoridades de adquisicion, los
-efectos de execute-log y el switch de offhand) y `SessionQuestState` (los umbrales de visibilidad de
-quest por diferencia de nivel, las actualizaciones de estado de quest completada, la cola de progreso
-de objetivos y los refrescos de visibilidad que esas transiciones piden), alcanzados por `spell_state`
-y `quest_state`. **Census: 209 -> 196 campos de produccion** (el mayor salto de la ola). Coste: +83
-produccion/+4 test, el mas caro hasta ahora, porque los nombres de campo llegan a 55 caracteres
-(`represented_quest_objective_progress_events_like_cpp`) y el prefijo los re-envuelve; se paga a cambio
-de 13 campos menos de tipo Dios. Los cuatro accesores homonimos se quedan en `WorldSession` y sus
-llamadores no se tocan.
-
-**Quinto patron, y el metodo que conviene usar de aqui en adelante.** Cuatro de esos nombres existen
-*tambien* en un struct ajeno (`LegacyCreatureAggroConfigLikeCpp` en `creature_aggro_contracts.rs`) y hay
-mas literales ajenos en `world-server`, asi que una sustitucion textual es corrupcion segura. El metodo
-que funciono: mover primero la estructura (declaraciones + inicializadores) y despues **repuntar guiado
-por el compilador**, parseando sus errores y reescribiendo exactamente esas lineas. Dos codigos hay que
-cubrir: `E0609` (`no field ... on type WorldSession`) para los accesos normales y **`E0615`
-(`attempted to take value of method ...`) para los campos que tienen un accesor homonimo**, porque al
-quitar el campo el uso sin parentesis pasa a resolver al metodo. Con eso, un ciclo de repunte basto en
-la lib y otro en `--tests`; el struct ajeno quedo intacto (0 sustituciones alli). El mismo slice hizo
-crecer `handlers/quest/mod.rs` (+3 por re-envoltura), registro que el ledger tambien recoge: los
-hotspots auditados son varios y no solo `session/mod.rs`.
-
-### B4, octavo slice ejecutado: `SessionLifecycleState` (2026-09-25)
-
-La familia completa `persistence_and_session_lifecycle` (23 campos) pasa al sub-estado nombrado
-`SessionLifecycleState`, alcanzado por un unico campo `lifecycle`: instantes de login/logout y
-calendario de guardado periodico, reclamaciones de carga y logout, tutoriales y datos de cuenta, los
-puertos de persistencia, el rail de finalizacion, las filas de carga de mascotas y los trackers
-durables de loot. Mismos valores de construccion y misma visibilidad de crate que sus handlers ya
-necesitaban. **Census: 196 -> 174 campos de produccion** (segunda mayor reduccion de la ola). Coste:
-+196 produccion/+27 test, el mayor hasta ahora, sobre 343 accesos repartidos por los modulos de
-lifecycle, persistencia, driver, items y mascotas (620 inserciones, 352 borrados, casi todo
-re-envoltura de `rustfmt`). Ningun otro owner auditado crecio: el ratchet solo exigio actualizar la
-fila de `session/mod.rs`.
-
-Balance acumulado de B4 (produccion): 221 -> 174 campos en ocho slices; el coste en lineas esta
-registrado como deuda transitoria en `latest_growth_review`, y se retira cuando los sub-estados salgan
-del agregado (olas D/E). La ganancia que persigue B4 es la superficie del tipo, no el LOC del arbol:
-`WorldSession` ya no declara estado de transporte social, social limits, driver, vista de mundo,
-filtro de addons, rail de fase, hechizos/quests ni persistencia/ciclo de vida.
-
-### B4, noveno slice ejecutado: `SessionTransport` (2026-09-25)
-
-La familia `transport_and_physical_connections` (4 campos) pasa al sub-estado nombrado
-`SessionTransport`, alcanzado por un unico campo `transport`: el kernel de transporte de
-`wow-session` (#297), la direccion remota fisica, la clave de sesion y el handle compartido del
-`SessionManager`. Dos de los cuatro se inicializaban en forma abreviada (`connection`, `session_key`) y
-siguen abreviados dentro del literal anidado; `session_key` se estrecha de `pub` a `pub(crate)` porque
-la pasada de workspace demuestra que ningun otro crate lo leia. Census: 174 -> 171 campos de
-produccion. Coste: +29 produccion/+1 test.
-
-Sexto patron aprendido (y bug real de mi propio script, corregido): **el nombre de un campo puede
-aparecer antes en el fichero como parametro de la funcion constructora**. El recogedor de
-inicializadores tomo `session_key: Vec<u8>` de la firma de `create_session` en vez del `session_key,`
-del literal `Self {`. Ademas, `connection` no tiene forma `campo: expr` sino solo la abreviada. Reglas:
-soportar ambas formas y **buscar solo dentro del literal del constructor** (`Self {`), y validar TODO
-antes de escribir: la primera version escribio `state.rs` y aborto en `construction.rs`, dejando el
-arbol a medio mover (revertido con `git checkout -- crates/`). El script generalizado queda en
-`/tmp/b4gen2.py` con esas dos reglas; en este slice repunto 23 lineas en la lib, 9 en `--tests` y 0 en
-el workspace.
-
-### B4: que familias siguen con sub-estado y cuales no (decision, 2026-09-25)
-
-Leidos los `target_owner` del ledger, el resto de familias de B4 se parte en dos grupos y no conviene
-tratarlas igual:
-
-- **Sub-estado correcto** (el dueno final es la propia sesion de aplicacion, asi que nombrar el estado
-  es el paso intermedio): `transport_and_physical_connections` (hecho),
-  `packet_admission_dispatch` (11 campos, "private wow_world::session admission/dispatch adapters") y la
-  parte de identidad de `session_identity_account_and_realm_policy` (22 campos, "cohesive application
-  Session identity plus typed immutable realm/account policy supplied by composition").
-- **Sub-estado no es el paso** (el dueno final es composicion u otro crate, y anidar solo maquilla el
-  localizador de servicios que el ledger quiere retirar): `immutable_catalogs_configuration_and_services`
-  (77 campos; su retiro exige *capability-specific immutable views* desde el bootstrap de world-server,
-  no un `catalogs` dentro de `WorldSession`), `map_runtime_creature_gameobject_and_visibility` (25; el
-  trabajo es retirar el puente legacy hacia `wow-map`/`wow-entities`) y
-  `player_inventory_loot_and_economy` (16; el trabajo es que el dueno sea `wow-entities`/`wow-loot`). Las
-  familias de un solo campo (`player_identity_login_bootstrap`, `session_selected_player_binding`) y las
-  de fixtures (`test_only_fixtures` con 302, `player_identity_test_fixtures` con 5) esperan a la
-  migracion de tests a un `Player` canonico, que es B3.
-
-Consecuencia para la ola: tras cerrar `packet_admission_dispatch` y la identidad, lo que queda de B4 no
-se resuelve moviendo campos. La siguiente palanca real es B3 (migrar los tests de dominio y retirar las
-302 observaciones de fixture) y despues B5/B6 (adaptadores y `map_manager` -> `wow-map`), que es donde
-el LOC del agregado empieza a bajar de verdad.
-
-### B4, decimo slice ejecutado: `SessionAdmissionState` (2026-09-25)
-
-Todo el mecanismo de admision y despacho de paquetes (tabla de opcodes, throttle y spoof-ban, cola de
-paquetes pendientes, fences de timeout de socket y de autoridad de fase) pasa al sub-estado nombrado
-`SessionAdmissionState`, alcanzado por un unico campo `admission`. `state: SessionState` **se queda** en
-`WorldSession`: es un unico valor con 919 accesos, donde un prefijo de contenedor no agruparia nada.
-Census: 171 -> 162 campos de produccion. Coste: +21 produccion/+36 test (el crecimiento de test es el
-mismo prefijo en las suites de admision, throttling y spoof).
-
-Septimo patron aprendido (bug de script otra vez): **los tipos genericos llevan comas dentro de los
-angulos**. El capturador equilibraba `()[]{}` pero no `<>`, asi que `HashMap<ClientOpcodes, &'static
-PacketHandle>` se trunco en su primera coma y `state.rs` dejo de parsear; revertido y corregido contando
-angulos solo cuando `<` sigue a un identificador (para no confundir `->` ni comparaciones). El script
-generalizado hace ya las tres cosas: validar antes de escribir, buscar inicializadores solo dentro del
-literal `Self {` y equilibrar parentesis, corchetes, llaves y angulos.
-
-### B4, undecimo slice ejecutado: `SessionRealmPolicy` + `SessionAccountState` (2026-09-25)
-
-La familia `session_identity_account_and_realm_policy` (22 campos) se parte en dos sub-estados
-cohesivos: `SessionRealmPolicy` (region, battlegroup, tabla y secreto de nombres de reino, tope de
-expansion del servidor, presupuesto horario de instancias y los dos switches de instance-ignore) y
-`SessionAccountState` (id de Battle.net, aristas de recruit-a-friend, personajes legitimos, low guid
-reciente y expiracion de mute), tras los campos `realm_policy` y `account_state`. Census: 162 -> **150**
-campos de produccion. Coste: +39 produccion, 0 test (barato: solo 14 campos y ~60 accesos).
-
-Los **ocho escalares de identidad que otros crates leen** (`account_id`, `expansion`, `locale`, `build`,
-`security`, `account_name`, `account_expansion`, `realm_id`) se quedan en `WorldSession`: declararlos
-`pub` los lee composicion y bnet, y su destino segun el ledger es "cohesive application Session identity
-plus typed immutable realm/account policy supplied by composition", no un contenedor mas. Ese slice
-necesita decidir si la identidad es un agregado publico o un valor tipado que llega de composicion, y
-por eso va aparte y despues.
-
-Balance acumulado de B4 (produccion): **221 -> 150 campos** en once slices. El LOC del agregado sube
-(~+640 lineas registradas como deuda transitoria) y baja cuando los sub-estados salgan del arbol.
-
-### B4, duodecimo slice ejecutado: `SessionSharedFlags` (2026-09-25)
-
-Los dos `Arc<AtomicBool>` compartidos (`advanced_combat_logging_enabled_like_cpp`,
-`visibility_refresh_pending_like_cpp`) pasan al sub-estado nombrado `SessionSharedFlags`, alcanzado por
-el campo `flags`: son el mismo tipo de valor (un booleano que la sesion publica a sus tareas de
-publicacion), que es lo que los hace cohesionados y no un cajon. Census: 150 -> **149** campos de
-produccion; coste +19 produccion/+2 test. Balance B4: **221 -> 149** en doce slices.
-
-### B3: hallazgo con datos -- los tests de dominio son suites de integracion de la app (2026-09-25)
-
-Medidos los cuatro modulos que B3 nombra antes de mover nada: `loot_tests` (15 610 lineas, 29
-ficheros), `quest_tests` (10 079, 18), `character_tests` (13 146, 29) y `group_tests` (5 830, 14) =
-**44 665 lineas y 90 ficheros**, con solo 92 referencias a `WorldSession` y 290 a crates de dominio.
-El desglose parecia prometedor (70 de 90 ficheros sin `WorldSession`), pero al abrir uno se ve el
-patron real: `use super::*;`, fixtures del padre y llamadas del tipo
-`session.process_represented_session_commands_like_cpp()`, `session.session_command_tx()`,
-`SessionCommand::...`, `crate::conditions::...`. **Son suites de integracion de la aplicacion**, no
-tests de reglas de dominio: importan constantes de `wow_loot`, pero ejercitan el adaptador y el
-runtime de la sesion. No pueden cruzar a `wow-loot`/`wow-social`/`wow-entities` porque la direccion de
-dependencias lo prohibe (los crates de dominio no pueden depender de `wow-world`).
-
-B3 queda reformulado, con lo que si es accionable: (i) cada crate de dominio debe tener sus propias
-pruebas de regla (auditar cobertura, no mover); (ii) las suites de app son candidatas a **target de
-integracion** (`crates/wow-world/tests/`) consumiendo una feature `test-fixtures`, lo que saca ~44k
-lineas de la masa de test de la lib y es un trabajo por modulo con re-exportacion de fixtures; (iii)
-los **306 campos de fixture** de `WorldSession` se retiran fichero a fichero cuando cada test construye
-un `Player` canonico, que es la parte de B3 con ganancia directa de superficie.
-
-### B7: la limpieza de avisos esta bloqueada por el ratchet de lineas de test (2026-09-25)
-
-Medido antes de tocar: `cargo check -p wow-world` reporta **167 imports sin usar** en 53 ficheros (172
-en la lib, 224 con `--tests`). Intente retirarlos y la compilacion de tests demostro que **todos** los
-avisos son codigo vivo para los modulos `#[cfg(test)]` del mismo crate: quitar los 151 imports privados
-rompe 206 compilaciones y quitar los 16 `pub(crate) use` (re-exports) rompe 301. La correccion honesta
-es `#[cfg(test)]` en cada uno, pero eso **mueve lineas de produccion a lineas de test**, y el ratchet
-de hotspot limita las tres cifras (produccion, test y total): no se puede. Conclusion: B7 no se
-desbloquea hasta que la migracion de B3 retire los consumidores de test, o hasta que exista una
-decision explicita que permita esa reclasificacion. Queda registrado, no forzado.
-
-### B5: correccion de medida y costura real (2026-09-25)
-
-Mi primera medida de "masa de test" en los ficheros grandes de handlers era un **artefacto**: conte
-llaves desde cada `#[cfg(test)]` sin parser y conclui que `handlers/loot/mod.rs` tenia un `mod tests` de
-945 lineas. No existe tal modulo: lo que hay son **items `#[cfg(test)]` sueltos intercalados** con el
-codigo de produccion (imports, helpers y funciones gated una a una), el mismo patron que bloquea B7. La
-costura "extrae el modulo de test" **no existe**, y el script no movio nada (arbol limpio, tres builds
-verdes). B5 necesita diseno por fichero: decidir que item gated es fixture y debe vivir en un modulo de
-test, y en que orden, sabiendo que cada extraccion que reclasifique lineas de produccion a test choca
-con el ratchet de hotspot. Se hara junto con B3.
-
-### B7, primer slice ejecutado: techos fisicos obsoletos endurecidos (2026-09-25)
-
-Medido antes de tocar: **31 filas** de `physical-file-policy.json` tenian el techo por encima del
-tamano vivo, es decir, el ratchet **no vigilaba** esos ficheros (entre ellas
-`world-server/src/spawn_store_loader.rs` 3427 -> 730 y `handlers/character/items.rs` 3904 -> 793, de
-particiones anteriores que nunca se apretaron). Se endurecieron las 31 a la cifra observada, con nota
-de revision en cada `split`: **51 801 lineas de holgura retiradas** del ratchet, sin tocar una linea de
-codigo. `check_architecture.py check`, `self-test` y `test_physical_files.py` verdes.
-
-### B6: analisis medido y contrato necesario (2026-09-25)
-
-`crates/wow-world/src/map_manager/` son **6 721 lineas en 11 ficheros**, con solo dos menciones a tipos
-de app (`WorldSession`) y ambas en comentarios de documentacion: es dominio puro y el mejor candidato a
-salir del arbol de la aplicacion. Pero **no es un `git mv`**: `wow-map` es `domain-runtime` y la politica
-solo le permite depender de `foundation` y `domain-runtime`, mientras que `map_manager` usa dos crates
-`adapter-platform`. Las aristas que el movimiento crearia, comprobadas contra
-`dependency-policy.json`:
-
-- `domain-runtime -> adapter-platform` via **`wow-packet`** (5 usos, los dos ficheros de abajo);
-- `domain-runtime -> adapter-platform` via **`wow-recastdetour`** (1 uso).
-
-Es exactamente el error que ya se revirtio una vez con `phasing -> wow-map`, asi que B6 empieza por el
-**contrato**, no por el movimiento. El acoplamiento esta confinado y medido:
-
-| fichero | lineas | usos | que es |
-|---|---:|---:|---|
-| `map_manager/mod.rs` | 251 | 2 | `use wow_packet::packets::update::CreatureCreateData` y los tipos de `wow_recastdetour` del pathfinder |
-| `map_manager/runtime/manager.rs` | 532 | 4 | `ServerPacket` y tres literales `Set{Ai,Movement,Melee}AnimKit` |
-
-Contrato en tres piezas, en este orden:
-
-1. **Anim kits (la mas limpia)**: el manager deja de construir paquetes y emite una intencion
-   (`CreatureAnimKitUpdateLikeCpp { guid, slot, kit_id }`) que el adaptador de `wow-world` codifica y
-   envia. Es la regla del ledger ya aplicada en otras familias: el dominio devuelve la intencion, la app
-   la aplica. Elimina 4 de los 6 usos y no necesita porta nueva, solo un tipo de intencion.
-2. **`CreatureCreateData`**: la proyeccion que lo usa deja de nombrar el tipo de wire; el contrato es una
-   proyeccion de dominio (o un tipo generico) y el adaptador compone el `CreatureCreateData`.
-3. **`wow_recastdetour`**: el pathfinder necesita los tipos de detour. Opciones: (a) porta en `wow-map`
-   con implementacion en un crate adaptador, (b) dejar el pathfinder en `wow-world` y mover solo el
-   resto. La decision depende de cuanto del manager lo use (hoy: un `use`), asi que se resuelve al
-   implementar 1 y 2.
-
-### B6, pieza 1 del contrato ejecutada: codificador inyectado (2026-09-25)
-
-`MapManager::set_creature_anim_kit_id_like_cpp` ya no construye paquetes: recibe un puerto por
-parametro, `encode_anim_kit: impl Fn(CreatureAnimKitSlotLikeCpp, ObjectGuid, u16) -> Vec<u8>`, igual que
-ya recibia `anim_kit_exists: impl Fn(u16) -> bool`. El manager muta el estado y devuelve su
-`RuntimeEvent` con los bytes que el adaptador codifique; **`runtime/manager.rs` deja de nombrar
-`wow_packet`** (0 usos, eran 4). Los tres unicos llamadores eran de test, asi que el codificador vive
-ahora en `map_manager_tests/creature_5.rs` como helper y las aserciones de opcode no cambian. Queda **1
-uso de `wow_packet`** en `map_manager/` (`CreatureCreateData` en `mod.rs`) y el de `wow_recastdetour`.
-Evidencia: `cargo check` lib y tests 0 errores, 3901 tests pasan, `check_architecture.py check` y
-`self-test` verdes. Coste: +11 lineas.
-
-### B6, pieza 2 dimensionada: `create_data` es un puente de 56 usos (2026-09-25)
-
-Antes de tocar `CreatureCreateData` se midio su radio: **56 usos de `.create_data`** repartidos en 10+
-ficheros (`map_manager/pending_respawn.rs` 9, `map_manager_tests/persistence.rs` 9, `creature_1.rs` 7,
-`session/spell_effects/ticks.rs` 4, `runtime/creature.rs` 4, `runtime/manager.rs` 3, ...), mas los
-puntos que *construyen* el tipo (`session/world_entities/creature_registry.rs` 4, fixtures y tests de
-handlers). No es una arista que se inyecte como el codificador de anim-kit: el contrato exige
-
-1. una **proyeccion de dominio** (`CreatureCreateProjectionLikeCpp` o equivalente) con los mismos
-   datos que hoy lleva el tipo de wire, declarada en un crate `domain-runtime`;
-2. que `WorldCreature.create_data` pase a ser esa proyeccion;
-3. que el **adaptador** de `wow-world` componga `CreatureCreateData` al construir el paquete
-   (`session/world_entities/creature_registry.rs` y los fixtures que hoy lo construyen a mano).
-
-Es un slice propio, no una pieza suelta: se hara con el mismo metodo probado (mover el tipo, repuntar
-guiado por el compilador, regenerar census/ledger con delta revisado) y despues de la pieza 3, porque el
-movimiento de `map_manager` a un crate `domain-runtime` necesita las dos. Queda dimensionado y no
-iniciado a medias.
-
-### B6, pieza 3 resuelta por reclasificacion: `wow-recastdetour` es `foundation` (2026-09-25)
-
-La pieza 3 no necesitaba porta: `wow-recastdetour` estaba mal clasificado como `adapter-platform`. Es un
-**port vendido de terceros** (el propio estandar lo exime de presupuestos de tamano y de la regla de
-nombres `_like_cpp`) que **no depende de ningun crate del workspace** — solo de `bitflags` y `thiserror`,
-mas `cc` en build-dependencies para compilar el C++ vendido. Eso es una libreria de base, no un adaptador
-de plataforma, y la politica ya permite `domain-runtime -> foundation`.
-
-Cambios: `wow-recastdetour` pasa a `foundation`; se declara su superficie externa
-(`normal: [bitflags, thiserror]`, `build: [cc]`), y se **retira la excepcion obsoleta**
-`wow-world -> wow-recastdetour` que ya no hace falta. El recuento pasa de 17 a **16 excepciones de
-workspace** y de 60 a 63 dependencias externas vigiladas. `check_architecture.py check` y `self-test`
-verdes. Efecto sobre B6: de las dos aristas prohibidas que bloqueaban el movimiento de `map_manager`,
-**queda una** — `wow-packet` via `create_data` (la pieza 2, ya dimensionada en 56 usos) — asi que el
-movimiento de las 6 721 lineas depende ya solo de esa proyeccion.
-
-Criterio de cierre de B6: `map_manager` vive en `wow-map` (o en un crate `domain-runtime` propio),
-`wow-world` conserva solo el adaptador, y `check-deps` no necesita ninguna excepcion nueva.
-
-### B7, segundo slice ejecutado: superficie de dependencias recortada (2026-09-25)
-
-Auditoria manual (no hay `cargo-machete` en el host) de dependencias declaradas con **cero referencias**
-en el codigo del crate, con el compilador como juez: **28 declaraciones retiradas** de
-`[dependencies]` y el workspace compila limpio a la primera (`--workspace --all-targets`). Incluye
-`serde`/`thiserror`/`num-derive`/`strum` en crates donde ya no se derivaban, `parking_lot` y
-`smallvec`/`bumpalo` en `wow-map`, `dashmap`/`hyper-util` en `bnet-server`, `bytes`/`prost-types` en
-`wow-proto`, `wow-constants`/`wow-core`/`wow-math`/`wow-config`/`wow-logging`/`wow-crypto` en quien ya
-no los usaba.
-
-Politica regenerada con el delta exacto que el checker exigio: **14 entradas obsoletas** de superficie
-externa retiradas y **1 excepcion obsoleta** (`wow-world -> wow-logging`). Recuentos:
-**aristas de workspace 112 -> 102**, **dependencias externas vigiladas 63 -> 49**, **excepciones 16 ->
-15**. `check_architecture.py check` y `self-test` verdes; la suite de `wow-world` (3901 tests) pasa.
-
-### B7, tercer slice ejecutado: `[workspace.dependencies]` sin uso (2026-09-25)
-
-De las 9 entradas de `[workspace.dependencies]` que ningun miembro referencia, se retiran las **6
-externas** (`prost-types`, `strum`, `bumpalo`, `hyper-util`, `reqwest`, `cfg-if`) y se **conservan las
-3 internas** (`wow-math`, `wow-util-collections`, `wow-spell`) por decision explicita: `wow-spell` es el
-paquete reservado documentado y las otras dos son miembros con consumidores planificados; el coste de
-mantenerlas es una linea y su retirada seria churn sin ganancia. `dev-dependencies` y
-`build-dependencies`: **0 candidatos** (ninguna declaracion sin referencia). `cargo check --workspace
---all-targets` 0 errores; `check_architecture.py check` y `self-test` verdes.
-
-### Puerta de la ola medida en el tip de 15 rondas (2026-09-26)
-
-`./tools/validation-v2 final --base origin/3.4.3 --architecture --timings` sobre `0f5ccdd5`:
-
-- **En frio: 1011,98 s y `exit_code 143`** (terminada por el limite de tiempo durante la compilacion).
-  El manifiesto queda `failed` con el tiempo agotado, no por un fallo de validacion: el coste lo domina
-  la recompilacion que provocan los cambios de `Cargo.lock` de los slices de dependencias.
-- **En caliente, mismo comando sin trocear: 122 s y `exit 0`**, manifiesto
-  `20260926T233514.027935Z-3621532-final.json` con estado `passed`, y la suite completa de `wow-world`
-  (3901 tests) dentro de la misma campana.
-
-Leccion operativa: con el presupuesto de 600 s, la puerta hay que correrla **despues** de un build del
-mismo tip; una corrida en frio de esta rama no cabe en el limite (y el ejecutor mata los trabajos de
-fondo alrededor de los 1000 s, asi que una campana en frio no puede completarse en un solo trabajo).
-No se trocea la campana para declararla verde: la corrida verde es el mismo comando entero, en caliente.
-
-### B4: un sub-estado de un solo campo no reduce nada (revertido, con regla) (2026-09-26)
-
-Intente cerrar el ultimo item barato de B4 moviendo `pending_bind` a un `SessionBindState`. El
-movimiento funciono (14 accesos repuntados, lib/tests/workspace limpios) pero al medir el censo se vio
-el error de juicio: **un sub-estado de un campo deja el recuento igual** (uno sale, uno entra) y solo
-anade indireccion — el mismo olor que el estandar prohibe ("ninguna crate/trait por helper... solo para
-reubicar codigo"). Revertido con `git checkout -- crates/`, arbol limpio y lib a 0 errores.
-
-Regla que queda: **un contenedor solo se justifica cuando agrupa dos o mas campos** de la misma
-responsabilidad. Los campos solos (`pending_bind`, `player_guid`, `player_identity_bootstrap_like_cpp`)
-no se anidan: esperan a que su dueno real se los lleve (Player/InstanceMap, el binding de la sesion,
-`wow-entities::Player`). Con esto **la lista barata de B4 esta agotada**: lo que queda exige la
-proyeccion de `create_data` (B6) o cambio de dueno, no otro sub-estado.
-
-### B7, cuarto/quinto slice: defectos y hallazgos de avisos (2026-09-26)
-
-Arreglado: un **`#[test]` duplicado** en `wow-packet/src/packets/combat.rs` (el compilador avisaba
-`duplicated attribute`; ahora el test se registra una sola vez). `wow-packet` sigue con 754 tests
-verdes.
-
-Hallazgos registrados, **no silenciados**:
-
-- **Cluster de variables sin usar en `session/legacy_runtime/creature_movement_tick.rs`** (11+ avisos:
-  `filter_context`, `owner_capabilities`, `previous_poly_refs`, `avoided`). Prefijarlas con `_`
-  apagaria el aviso sin decidir nada; que el runtime legacy reciba contextos de pathfinding y no los use
-  es candidato a **defecto o a codigo transitorio deliberado**, y se investiga antes de tocar. Es el
-  siguiente trabajo real de B7 en wow-world.
-- **Falso positivo de `mut` entre cfg**: `handlers/loot/money.rs:48` avisa "variable does not need to be
-  mutable" en la pasada de lib y sin embargo la pasada de test **si** asigna dos veces; quitar el `mut`
-  rompe el build de test (`E0384`). Revertido: el aviso no es accionable sin reestructurar el flujo, y
-  silenciarlo o romper el test serian peores. Queda anotado como advertencia de metodo: los avisos de
-  `--all-targets` pueden venir de una sola de las dos configuraciones.
-
-### B7 en wow-world: el bloqueo es global, no de los owners auditados (2026-09-26)
-
-Comprobada la hipotesis optimista de que fuera de los cuatro agregados auditados de `wow-world`
-(`session/`, `handlers/{character,loot,quest}/`) si hubiera margen para retirar los imports sin usar
-(39 avisos en 20+ ficheros). **No lo hay**: la pasada de lib queda limpia, pero la de test falla con 8
-errores que muestran el mismo patron —
-`handlers/trainer/tests/failures.rs` necesita `PacketHandlerEntry`, `ClientOpcodes`, `SessionStatus` y
-`PacketProcessing` que `handlers/trainer.rs` re-exporta; `spell_acquisition/tests/planner_application.rs`
-necesita `SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP`; `handlers/spell/state.rs` necesita
-`ItemFieldFlags` y `ItemUpdateState`. Es decir: **los imports "sin usar" de wow-world son, en todo el
-crate, la superficie que consumen los modulos `tests/` del propio modulo**, no deuda muerta.
-
-Conclusion registrada: en `wow-world` la limpieza de avisos de imports **no se desbloquea fichero a
-fichero**; necesita la migracion de tests de B3 (mover cada `tests/` a un target de integracion tras la
-feature `test-fixtures`) o una decision explicita que permita reclasificar lineas de produccion a test.
-El arbol se revirtio (`git checkout -- crates/`) y queda limpio, con la lib a 0 errores.
-
-### B7 en wow-world: la superficie de imports del modulo es compartida (conclusion, 2026-09-26)
-
-Segundo intento, mas preciso: en vez de borrar los imports "sin usar", moverlos al modulo `tests/` del
-propio modulo (donde la pasada de test los necesitaba). Resultado medido: **8 movimientos, y la lib cae
-con 23 errores** — `spell_acquisition/adapter.rs` necesita `SpellAcquisitionEffectLikeCpp`,
-`SpellAcquisitionCatalogLikeCpp`, `SpellChainStoreLikeCpp`, `SpellRequiredStoreLikeCpp` y
-`SKILL_RIDING_LIKE_CPP` que importa `spell_acquisition/mod.rs`; `handlers/chat/ops_1.rs` necesita
-`UnitState` que importa `handlers/chat.rs`. Revertido entero (automatico), arbol limpio.
-
-Conclusion definitiva, con las dos clases de error ya identificadas:
-
-- los imports que el compilador llama "sin usar" en los ficheros raiz de modulo de `wow-world` son la
-  **superficie compartida** que consumen (a) los submodulos de produccion del mismo modulo y (b) su
-  modulo `tests/` via `use super::*`;
-- por tanto **no son deuda muerta y no se retiran**: ni borrandolos (rompe tests) ni moviendolos a
-  `tests/` (rompe produccion). Los 167 avisos de `wow-world` quedan **fuera del alcance de B7** por
-  decision, no por pereza: tocarlos exige primero cambiar como se organizan los imports de cada modulo
-  (por ejemplo, que cada hijo importe lo suyo en vez de heredarlo del padre), y eso es un refactor de
-  imports por modulo, no una limpieza.
-
-Lo que si queda hecho de B7: 31 techos fisicos endurecidos, 34 declaraciones de dependencia y 10
-imports retirados **fuera** de wow-world, 1 defecto arreglado y 3 bloqueos documentados con evidencia.
-
-### B7, piloto por modulo: `handlers/chat` limpio (2026-09-26)
-
-La conclusion anterior era demasiado amplia y el piloto la corrige. Clave medida: **un nombre que usa
-un modulo hijo NO genera aviso** (por eso `UnitState`, usado por `handlers/chat/ops_1.rs`, nunca se
-marco). Por tanto los avisos que quedan **si** son muertos dentro de todo el subarbol del modulo, y se
-retiran con la operacion quirurgica correcta: borrar **solo los nombres avisados** de su `use`, nunca la
-sentencia entera (que puede llevar nombres vivos al lado).
-
-Aplicado a `handlers/chat.rs`: retirados `ClientOpcodes` (de `use wow_constants::{ClientOpcodes,
-UnitState};`, que queda `use wow_constants::UnitState;`), y las sentencias completas
-`use wow_handler::{PacketProcessing, SessionStatus};` y
-`use crate::session::registry::PacketHandlerEntry;`, restos del traslado de registraciones de la ola A.
-Resultado: **4 nombres muertos menos, 0 avisos en ese fichero**, lib/tests/workspace a 0 errores.
-
-Regla afinada para el resto de wow-world: (1) borrar solo los nombres avisados; (2) si el unico usuario
-es el modulo `tests/`, envolver el import en `#[cfg(test)]` en lugar de borrarlo — permitido en los
-modulos **no auditados** por el ratchet, que es donde quedan avisos; (3) nunca mover sentencias enteras
-al modulo `tests/`, porque arrastran los nombres vivos que comparten.
-
-### B7: lotes de imports, leccion de proceso y veredictos por fichero (2026-09-26)
-
-Intente extender el piloto a los 19 avisos restantes en 15 ficheros no auditados con un solo lote
-automatizado. **Fallo por proceso, no por diseno**, y conviene dejarlo escrito:
-
-1. el script restauraba el fichero que fallaba y **seguia** al siguiente modo de build sin volver a
-   verificar, asi que termino con el arbol a medio limpiar;
-2. mi filtro de ficheros fallidos (`grep -oE '^crates/[^:]+'`) capturo tambien **lineas de aviso**, no
-   solo errores, y restauro de mas. Todo lo anterior estaba commiteado, asi que la recuperacion fue
-   `git checkout -- .` y el tip verde quedo intacto (`ccd3d205`, workspace a 0 errores).
-
-Reglas de proceso para el proximo intento: filtrar **solo** lineas con `: error`, restaurar por fichero
-y **volver a verificar tras cada restauracion**, y commitear el resultado parcial en cuanto pase.
-
-Veredictos medidos (ficheros cuyos `tests/` necesitan los nombres, y que por tanto piden `#[cfg(test)]`
-en lugar de borrado, permitido al no ser owners auditados): `handlers/trainer.rs` (`PacketHandlerEntry`,
-`ClientOpcodes`, `SessionStatus`, `PacketProcessing`), `spell_acquisition/mod.rs`
-(`SpellLearnSkillNodeLikeCpp`, `SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP`) y
-`handlers/spell.rs` (`ItemFieldFlags`, `ItemUpdateState`). Los demas ficheros del lote no fallaron: son
-candidatos directos a borrado con la operacion quirurgica ya probada en `handlers/chat.rs`.
-
-### B7: piloto por modulo completado en los tres veredictos (2026-09-26)
-
-Con las reglas de proceso corregidas, el patron "cada hijo importa lo que usa" se aplico **fichero a
-fichero con verificacion** en los tres veredictos, y los tres quedaron verdes:
-
-- `handlers/spell.rs` -> `spell/state.rs` (produccion) y `spell/tests/` (tests) importan
-  `ItemFieldFlags` e `ItemUpdateState`.
-- `handlers/trainer.rs` -> `trainer/tests/failures.rs` importa `PacketHandlerEntry`, `ClientOpcodes`,
-  `PacketProcessing` y `SessionStatus`.
-- `spell_acquisition/mod.rs` -> `spell_acquisition/tests/planner_application.rs` importa
-  `SpellAcquisitionMiscLikeCpp`, `SpellLearnSkillNodeLikeCpp` y
-  `SKILL_LINE_ABILITY_LEARNED_ON_SKILL_LEARN_LIKE_CPP`.
-
-Resultado: 9 avisos menos, 0 errores en lib/tests/workspace en cada paso, y los 3901 tests de
-`wow-world` verdes. Quedan **31 avisos** en modulos no auditados (de 39 al empezar): el resto son del
-mismo tipo y se limpian repitiendo el patron, ahora que esta probado tres veces y con reglas de proceso
-escritas.
-
-### B7: lote mecanico completado en los modulos no auditados (2026-09-26)
-
-Con el bucle corregido (borrar solo los nombres avisados; restaurar **unicamente** los ficheros que el
-build de test nombra en lineas `: error`; **re-verificar tras cada restauracion**) el lote edito **29
-sentencias en 25 ficheros** en dos ciclos: dos ficheros conservaban nombres que sus propios tests
-consumen y se restauraron intactos. Resultado: lib/tests/workspace limpios, 3901 tests verdes,
-`check_architecture.py check` PASS, **23 ficheros con 7 inserciones y 32 borrados** (neto -25 lineas) y
-los avisos de imports en modulos no auditados bajan de **29 a 5**.
-
-B7 queda practicamente cerrado: los avisos restantes de `wow-world` estan en los cuatro agregados
-auditados (donde el ratchet impide reclasificar lineas) y quedan documentados como fuera de alcance.
-
-### La puerta de la ola caza una regresion real de formato (2026-09-26)
-
-Corrida de la puerta en el tip de 27 rondas: **fallo con `exit 1` en `cargo fmt --check`**. Causa real:
-el slice B7 que retiro imports **fuera** de wow-world edito ficheros de `wow-database`, `wow-entities`,
-`wow-spell-acquisition` y otros, pero el script solo formateaba `wow-world`; quedaron lineas en blanco
-dobles y una llave sin formatear. Arreglado con `cargo fmt --all` (10 ficheros, 3 inserciones / 18
-borrados, sin cambios de codigo) en `6e8b2e11`.
-
-Dos lecciones operativas:
-
-1. **Cada slice que edite Rust debe formatear los paquetes que toca**, no solo `wow-world`; el linter de
-   la puerta es la red de seguridad, pero llega al final.
-2. **Un `cargo fmt --all` invalida la cache de varios crates**: la puerta siguiente tardo 900 s (tope
-   agotado) porque reconstruia todo el grafo afectado, y la siguiente ya en caliente **paso en 195,5 s**
-   (`exit 0`, manifiesto `passed`). El presupuesto de 600 s se cumple **despues** de que el rebuild de un
-   cambio transversal haya ocurrido; un cambio de formato global es un cambio transversal.
-
-Estado de la puerta: **verde en el tip actual**, con la suite completa de `wow-world` dentro de la
-misma campana.
-
-### Incidente de rama: base obsoleta y correccion (2026-09-27)
-
-La primera version de la rama de continuacion (\`584-wave-b2-map-manager\`) se creo desde la \`3.4.3\`
-**local**, que estaba en una linea antigua y divergente (punta \`d35f385a\`, 19-sep, de otro autor) sin
-la ola B ni los commits ajenos de \`.codex/\`/\`.agents/\`. El diff contra \`origin/3.4.3\` habria
-**revertido** trabajo ajeno y toda la ola B.
-
-Detectado al intentar actualizar este mismo programa: el fichero no existia en la rama. Correccion:
-rama recreada con \`git checkout -B 584-wave-b2-map-manager origin/3.4.3\`, retiradas de B7 reaplicadas
-sobre la base real (solo quedaba una), puntero local \`3.4.3\` forzado a \`origin/3.4.3\` y fuerza de
-push con \`--force-with-lease\`.
-
-Regla que queda: **antes de crear una rama de ola, verificar que la base es la de \`origin\`**
-(\`git fetch origin && git log --oneline origin/3.4.3 -1\`), nunca la copia local, y comprobar que el
-programa existe en la base (\`git cat-file -e <base>:docs/architecture/workspace-structure-programme.md\`).
-
-### B6 `create_data`: plano exacto para el siguiente intento (2026-09-27)
-
-Dos intentos, ambos revertidos sin dejar el arbol sucio, dejan el trabajo medido al detalle:
-
-- el tipo vive en `crates/wow-packet/src/packets/update/unit/create.rs` precedido de **comentario doc y
-  `#[derive(Debug, Clone)]`** (hay que moverlos con el struct, no solo el `pub struct`);
-- su `impl` tiene **tres** metodos: `pub fn write_values_create`, y los ayudantes privados
-  `fn write_object_data` y `fn write_unit_data` (un trait no puede declarar solo uno y dejar los otros
-  en el mismo `impl`; la salida limpia es declarar `write_values_create` en el trait y convertir los dos
-  ayudantes en **funciones libres** `write_object_data_like_cpp(data, buf)`, con dos puntos de llamada
-  internos que pasan `self`);
-- `wow-packet` **no** depende hoy de `wow-entities`: el movimiento exige la arista nueva
-  (`adapter-platform -> domain-runtime`, permitida) y declararla en su `Cargo.toml`;
-- el trait debe importarse donde se llama al metodo; el bucle guiado por compilador (errores `E0599` con
-  `write_values_create`) los localiza, y el resto de llamadas son de **otros** tipos que tambien tienen
-  ese metodo, asi que no se tocan.
-
-Error de proceso propio, para no repetirlo: el script de movimiento invocaba `cargo` antes de fijar
-`PATH`, aborto a mitad de edicion y dejo cuatro ficheros tocados (revertidos con `git checkout -- .`).
-Regla: en cualquier script que edite y compile, **exportar `PATH`/`CARGO_TARGET_DIR` en el mismo shell
-antes de la primera edicion**, o validar la fase de recoleccion sin tocar nada.
-
-### B6 `create_data`: cuarto intento y por que se para aqui (2026-09-27)
-
-Con el plano anterior el movimiento llego a compilar casi entero y fallo en dos detalles que cierran el
-diagnostico: (1) los dos ayudantes privados usan **`self.` en su cuerpo** (mas de siete puntos), asi que
-convertirlos en funciones libres exige renombrar `self` -> `data` en ~150 lineas cada uno; (2) el
-`impl` original tenia un metodo con **`pub`**, que no es legal dentro de un `impl Trait for`. Cuatro
-intentos, todos revertidos con el arbol limpio y verde.
-
-Conclusion registrada: esta migracion **no es scripting mecanico**, es un refactor con atencion. El
-camino mas corto y seguro, para una sesion con contexto fresco, es:
-
-1. declarar el trait con **`write_values_create` + los dos ayudantes** (evita el renombrado de `self`),
-   aceptando que la superficie del trait crezca; o
-2. hacer el renombrado `self` -> `data` con revision, en su propio commit de movimiento.
-
-Se prefiere (1) por seguridad; el ensanchamiento es de un trait interno del crate de wire y queda
-documentado. Con eso el struct viaja a `wow-entities`, `wow-packet` gana la arista `wow-entities` y la
-ultima arista prohibida `domain-runtime -> adapter-platform` desaparece, que es lo que desbloquea mover
-`map_manager` (6 721 lineas) a un crate `domain-runtime`.
-
-### B6 `map_manager`: primer intento de trasvase y obstaculos exactos (2026-09-27)
-
-Con las dos aristas prohibidas ya eliminadas, movi `crates/wow-world/src/map_manager/` a
-`wow-map` con re-export desde `wow-world`. El intento fallo en tres puntos concretos y se revirtio
-solo, dejando el arbol a 0 errores:
-
-1. **Autoreferencias por nombre de crate**: los ficheros movidos usan `wow_map::...` (correcto desde
-   `wow-world`, invalido dentro del propio crate). Son **2** referencias; se reescriben a `crate::`.
-2. **El montaje de tests**: `map_manager/mod.rs:226-227` hace
-   `#[path = "../map_manager_tests.rs"] mod tests;`, apuntando a un fichero que se queda en `wow-world`.
-   La solucion limpia es quitar ese `mod tests;` del modulo movido y montar los tests en `wow-world`
-   (`#[cfg(test)] mod map_manager_tests;`), porque las suites usan fixtures de la aplicacion.
-3. **Dependencias**: `wow-map` necesita declarar `wow-constants`, `wow-data`, `wow-movement`,
-   `wow-persistence`, `wow-recastdetour` (todas `foundation`/`domain-runtime`, permitidas) y
-   **`tracing`**, que es externa: exige anadir `tracing` a la superficie externa de `wow-map` en
-   `dependency-policy.json`. Ademas las filas fisicas de los ficheros movidos cambian de ruta y el
-   chequeo de tamano pedira el repunte (no un techo nuevo: solo el mismo fichero en su ruta nueva).
-
-El resto del modulo es **autoreferencial** (`pub(in crate::map_manager)`, `crate::map_manager::...`),
-asi que conserva sus rutas tal cual en el crate nuevo. Con esos tres arreglos el trasvase de las
-**6 721 lineas** es mecanico.
-
-### B6 `map_manager`: segundo intento y los dos ultimos detalles (2026-09-27)
-
-Aplicados los tres arreglos anteriores, el intento bajo de **30 a 8 errores** y se revirtio solo otra
-vez (arbol limpio). Los dos detalles que faltan quedan medidos:
-
-1. **Resolucion de dependencias**: aunque el script anadia las seis a `[dependencies]` de `wow-map`,
-   la compilacion seguia diciendo `cannot find module or crate \`wow_constants\``. Hay que **verificar el
-   `Cargo.toml` resultante** (que las lineas entren en la seccion correcta y que el nombre de paquete
-   coincida) antes de culpar al codigo; es lo primero a comprobar en el proximo intento.
-2. **Los `pub use X::*;` del modulo movido**: `map_manager/mod.rs` reexporta sus hijos con
-   `pub use grid::*;`, `pub use pathfinder::*;`, etc. En `wow-world` resuelven por el arbol del crate;
-   dentro de `wow-map` hay que hacerlas explicitas como **`pub use self::grid::*;`** (y las otras
-   cuatro). Son cinco lineas, mecanicas.
-
-Con esos dos arreglos el trasvase de las **6 721 lineas** cierra: el resto (visibilidades
-`pub(in crate::map_manager)`, rutas `crate::map_manager::...`, montaje de tests en `wow-world` y las
-dependencias) ya esta resuelto o identificado.
-
-### B6 `map_manager`: tercer intento, a cuatro errores (2026-09-27)
-
-Con los dos arreglos (deps escritas y verificadas por impresion de la seccion, y `pub use self::X::*;`
-para los hijos) el trasvase bajo a **4 errores, todos sobre `grid`**:
-
-```
-crates/wow-map/src/map_manager/mod.rs:232:15: error[E0432]: unresolved import `self::grid`: could not find `grid` in `self`
-crates/wow-map/src/map_manager/mod.rs:238:5:  error[E0432]: unresolved import `grid`
-```
-
-Dato util para el ultimo intento: el fichero **si existe** (`crates/wow-world/src/map_manager/grid.rs`) y
-`mod grid;` esta declarado; por tanto lo que falla es la **resolucion de las dos sentencias de import**
-que nombran `grid` (una ya con `self::`, otra sin el), no la declaracion del modulo. Plan focalizado:
-movido el modulo, revisar esas dos lineas de `mod.rs` a mano (probablemente una escribe
-`use grid::...` y la otra `pub use grid::*;`) y resolverlas a `self::grid`/`crate::map_manager::grid`,
-comprobando despues que no hay otro `grid` en el crate (`wow-map` tiene su propio `crates/wow-map/src/grid.rs`)
-que pueda confundir la ruta.
-
-El resto del trasvase (dependencias, autoreferencias, montaje de tests en `wow-world`, visibilidades y
-rutas `crate::map_manager::...`) ya esta resuelto; el intento se revirtio solo y el arbol quedo a 0 errores.
-
-### B6 `map_manager`: quinto intento, el ultimo metodo vive fuera del modulo (2026-09-27)
-
-Repetido el trasvase con un regex de visibilidad **generico** (`pub(...) fn NOMBRE`, cualquier ambito):
-otra vez **14 metodos ensanchados en 4 ficheros** y **1 sin encontrar** en el segundo ciclo. Como el
-bucle solo recorre el directorio movido, la conclusion es que **ese metodo esta definido fuera de
-`map_manager`** — en otro modulo de `wow-map` que implementa algo sobre un tipo movido, o sobre un tipo
-que ya vivia en `wow-map`. El script se revirtio solo; arbol limpio y workspace a 0 errores
-(`6671e70b`).
-
-Tarea exacta para el ultimo intento: **imprimir el nombre** del error `E0624` que queda (el script
-actual solo cuenta) y ensanchar su definicion **donde este** (buscar el nombre en todo `crates/wow-map`,
-no solo en el directorio movido), y despues repuntar las filas fisicas de los ficheros movidos. Todo lo
-demas del trasvase esta resuelto y verificado en los intentos anteriores.
-
-### B6 `map_manager`: el ultimo metodo no esta en wow-map (2026-09-27)
-
-Ampliado el ensanchado a **todo `crates/wow-map/src`** e imprimiendo los nombres, el ultimo error es
-siempre **`runtime_elapsed_ms_like_cpp`** y su definicion no aparece en `wow-map`: vive en **otro crate**
-(se comprueba con `grep -rn 'fn runtime_elapsed_ms_like_cpp' crates/`), probablemente una implementacion
-sobre el tipo movido que quedo en `wow-world`. Tarea exacta del siguiente intento: localizarla con ese
-grep, ensancharla a `pub` **en su crate** y, si esta en `wow-world`, decidir si el impl pertenece al
-modulo movido (moverlo) o si el metodo debe exponerse desde `wow-map`. Despues, repuntar las filas
-fisicas de los ficheros movidos.
-
-Resumen del trasvase (6 intentos, todos revertidos limpios): 30 -> 8 -> 4 -> **1** error; resueltos el
-montaje de tests con su `#[cfg(test)]` colgante, las autoreferencias `wow_map::`, los re-exports de
-hijos, las seis dependencias, 14 de 15 visibilidades y cuatro ficheros ensanchados. La distancia que
-queda es **un grep y una visibilidad**.
-
-### B6 `map_manager`: el trasvase llega al workspace (ultimo estado, 2026-09-27)
-
-El sexto intento dejo **`wow-map` y `wow-world` compilando limpios** y bajo al **workspace**: solo tres
-errores, todos `E0599 no method named seed_runtime_rng_like_cpp ... for struct WorldCreature` en las
-pruebas de `world-server`. El metodo existe en el modulo movido pero es **`#[cfg(test)]`**, asi que no
-es visible desde las pruebas de otro crate; no es un problema de visibilidad (`E0624`) sino de **gate de
-test**.
-
-Arreglo exacto para el siguiente intento: aplicar el patron ya establecido en el proyecto
-(`#[cfg(any(test, feature = "test-fixtures"))]` en la definicion y habilitar esa feature en la
-dependencia de `wow-map` que usan las pruebas de `world-server`), y despues repuntar las filas fisicas
-de los ficheros movidos. Es el mismo trabajo de B3 (test-fixtures) aplicado a un helper.
-
-Resumen del trasvase (6 intentos, todos revertidos con el arbol limpio y verde): 30 -> 8 -> 4 -> 1 -> 3
-(ya solo de gate de test); resueltos montaje de tests con su `#[cfg(test)]` colgante, autoreferencias,
-re-exports de hijos, seis dependencias, **15 visibilidades** (incluido el `pub(crate) const fn` que
-rompia el patron) y cuatro ficheros ensanchados a `pub`. La distancia que queda es **una feature**.
-
-### B6 `map_manager`: el trasvase llega al workspace desde la base limpia (2026-09-27)
-
-Reanudado desde la base unica `350d01bc` (rama `584-map-manager-domain`). Con el cableado de features que
-faltaba — `wow-map` gana `[features] test-fixtures` y `wow-world` propaga
-`test-fixtures = ["wow-map/test-fixtures"]` — el movimiento compila **`wow-map` y `wow-world` limpios** y
-solo falla en el **workspace**, en `wow-world/src/map_manager_tests.rs`: la suite vivia dentro del modulo
-movido y heredaba por `use super::*` siete nombres que ya no estan en su ambito.
-
-Proveedores exactos, ya localizados:
-
-| nombre | de donde debe importarlo el test |
-|---|---|
-| `PathBuf` | `std::path::PathBuf` |
-| `ObjectGuid` | `wow_core::ObjectGuid` |
-| `DetourPolyPath` | `wow_recastdetour::DetourPolyPath` |
-| `MAP_MAGIC_LIKE_CPP`, `MAP_VERSION_MAGIC_LIKE_CPP`, `MAP_FILE_HEADER_SIZE_LIKE_CPP` | definidas `pub(super)` en `map_manager/terrain.rs`: hay que **ensancharlas a `pub`** (como el resto de visibilidades del modulo movido) e importarlas desde `wow_map::map_manager::terrain::...` |
-
-Es decir: el trasvase de las **6 721 lineas** queda a **3 `pub(super)` -> `pub` + 4 lineas de import**.
-Todo lo demas (montaje de tests con su `#[cfg(test)]` colgante, autoreferencias `wow_map::` -> `crate::`,
-re-exports de hijos, seis dependencias, 15 visibilidades, el `pub(crate) const fn` y el gate
-`test-fixtures`) esta resuelto y verificado.
-
-### B6 `map_manager`: el movimiento compila; quedan dos items de politica y un sintoma (2026-09-27)
-
-Con el cableado de features y los imports/visibilidades resueltos, el modulo movido **compila**:
-`cargo check -p wow-map --features test-fixtures` da **0 errores**, y en la pasada en que la feature no
-estaba activa el workspace tambien compilaba. Al reactivarla, `check_architecture` y el workspace
-destapan tres cosas concretas, que son el trabajo real que queda:
-
-1. **`wow-map -> tracing`** sin declarar: es una externa y `wow-map` tiene superficie externa explicita,
-   asi que hay que anadir `tracing` a `external_dependencies.allowed["wow-map"]` (una linea de politica).
-2. **`wow-map -> wow-data` es una arista prohibida** (`domain-runtime -> adapter-platform`): el modulo usa
-   tipos de `wow-data`. Necesita contrato (porta/vista inmutable) o una excepcion revisada con issue,
-   igual que se hizo con `wow-packet`.
-3. **Sintoma a diagnosticar**: activar `wow-map/test-fixtures` **en todo el workspace**
-   (`cargo check --workspace --all-targets`) produce **581 errores**, mientras que
-   `-p wow-map --features test-fixtures` esta limpio. Apunta a la unificacion de features del workspace
-   (la feature se propaga a crates que no la esperan), no al codigo movido.
-
-El arbol quedo revertido y verde (workspace 0 errores) en la rama `584-map-manager-domain`, con el
-movimiento y su diagnostico documentados. La distancia restante es **una linea de politica de externas**,
-**una decision de contrato o excepcion para `wow-data`** y **un diagnostico de feature unification**.
-
-### B6 `map_manager`: estado exacto del trasvase al cerrar esta sesion (2026-09-27)
-
-Tras varias iteraciones automatizadas, el movimiento queda a **tres nombres** de compilar el workspace:
-`PendingRespawn` y `Position` (tipos) y `BASE_ATTACK_TIME_LIKE_CPP` (constante) que el test
-`map_manager_tests.rs` y su submodulo `combat.rs` heredaban del padre movido y que ya no encuentran en su
-ambito. Todo lo demas esta resuelto y verificado en los intentos: montaje de tests con su `#[cfg(test)]`
-colgante, autoreferencias `wow_map::` -> `crate::`, re-exports de hijos, seis dependencias, el gate
-`test-fixtures` (con el cableado `wow-map`/`wow-world`/`world-server`), 15 visibilidades de metodos y las
-tres constantes `MAP_*`, y el fichero de tests vuelve a caber en su techo (337/333 <= 339).
-
-Ademas quedan dos items de politica ya medidos: declarar `tracing` en la superficie externa de `wow-map`,
-y la decision sobre la arista `wow-map -> wow-data` (contrato o excepcion revisada).
-
-Metodo recomendado para el siguiente intento, en este orden: (1) mover el modulo con el script y **no**
-tocar el fichero de tests despues; (2) dejar que el compilador diga los nombres que faltan y anadirlos
-**uno a uno** al test con su ruta real (`grep -rn "struct NAME\|const NAME" crates/wow-map crates/wow-core
-crates/wow-entities`), ensanchando a `pub` lo que proceda; (3) declarar `tracing`; (4) decidir
-`wow-data`; (5) `cargo fmt --all`, puerta y PR. El trasvase son 6 721 lineas y cada paso esta acotado; el
-arbol queda verde y la base intacta.
-
-### B6 `map_manager`: el metodo correcto es preparar el test ANTES de mover (2026-09-27)
-
-Los intentos automatizados tropiezan siempre en lo mismo: `map_manager_tests.rs` (y sus submodulos)
-heredan del padre movido una **superficie implicita grande** (`use super::*` les daba tipos, constantes
-y helpers del modulo). Al mover, cada pasada revela 2-4 nombres nuevos — `PendingRespawn`, `Position`,
-`Instant`, `TERRAIN_GRID_COUNT_LIKE_CPP`, `BASE_ATTACK_TIME_LIKE_CPP` — y el script revierte al no
-reconocer esos errores como parte de su bucle de visibilidades.
-
-Metodo correcto, deterministico y de una sola pasada:
-
-1. **Antes de mover nada**, hacer autocontenido el fichero de tests *dentro de wow-world*: sustituir el
-   `use super::*` implicito por los imports explicitos de todo lo que usa (el compilador los pide uno a
-   uno), comprobando que sigue compilando. Es trabajo acotado y verificable, y de paso es exactamente el
-   patron de B3 ("cada hijo importa lo que usa").
-2. Despues, mover el modulo con el script actual (que ya resuelve montaje de tests, autoreferencias,
-   re-exports, dependencias, gate `test-fixtures` y visibilidades de metodos).
-3. Completar con los dos items de politica medidos: declarar `tracing` en `wow-map` y decidir la arista
-   `wow-data` (contrato o excepcion).
-
-El arbol queda verde y la base intacta; el trasvase sigue siendo el trabajo que mas valor anade (saca
-6 721 lineas del arbol de la aplicacion) y esta a un paso preparatorio + el movimiento mecanico.
-
-### B6 `map_manager`: la superficie implicita del test, medida (2026-09-27)
-
-Ejecutada la simulacion registrada (montar `map_manager_tests.rs` en la raiz de `wow-world` y quitar el
-montaje del padre, sin mover el modulo), el compilador da **de una sola pasada** la lista completa de lo
-que la suite heredaba: **mas de 40 nombres** repartidos por sus submodulos — `Position`, `ObjectGuid`,
-`WaypointMovementAction`, `MovementGeneratorKind`, `RuntimeMovementGeneratorType`, `ChaseTickOutcomeLikeCpp`,
-`Instant`, `Duration`, `SpawnObjectType`, `PhaseShift`, `DetourPathType`, `MovementFlag`,
-`CreatureAnimKitSlotLikeCpp`, `WaypointPath`, `world_to_grid_x`, `map_manager::WorldCreature`, etc.
-
-Eso explica los tropiezos: no son 2-4 nombres, son decenas, y por eso cada pasada descubria unos pocos mas.
-Comando que reproduce la lista completa en un paso (desde la base):
-
-```
-# quitar el montaje del padre y montar el fichero en la raiz de wow-world
-cargo check -q -p wow-world --tests --message-format short 2>&1 | grep ': error' \
-  | sed -E 's/:[0-9]+:[0-9]+: error.*`([^`]+)`.*/\1/' | sort | uniq -c | sort -rn
-```
-
-Plan determinista, ya sin incognitas:
-
-1. **Ensanchar a `pub`** los tipos y constantes de `map_manager` que la suite usa (los `pub(super)` que
-   el bucle de visibilidades no cubre) y asegurar que `mod.rs` los reexporta con `pub use self::X::*;`.
-2. Anadir en la **raiz** del fichero de tests (`map_manager_tests.rs`, cuyo `use super::*` lo heredan sus
-   submodulos) los imports de std y de los crates de terceros que falten: `std::time::{Duration, Instant}`,
-   `std::path::PathBuf`, `wow_core::{ObjectGuid, Position}`, mas los de `wow_constants`, `wow_movement`,
-   `wow_entities` y `wow_recastdetour` que pida el compilador.
-3. Verificar `-p wow-world --tests` limpio **sin** el montaje del padre (prueba de autosuficiencia).
-4. Mover el modulo con el script y cerrar los dos items de politica (`tracing`, `wow-data`).
-
-El arbol queda verde y la base intacta.
-
-**Siguiente trabajo de la ola**: con B4 en 149 campos y las familias restantes dependiendo de
-capability views o de cambio de dueno, la palanca pasa a **B5** (partir los adaptadores de handler que
-superan el presupuesto: `handlers/loot/mod.rs`, `handlers/character/mod.rs` y `handlers/quest/mod.rs`
-son los mayores) y **B6** (`map_manager` + `map_manager_tests` -> `wow-map` con contrato), que son las
-dos que sacan lineas del agregado. El rail de comandos (`session_command_tx`, 136 accesos en 112
-funciones) sigue pendiente del helper de envio que hoy no existe.
-
-Metodo ya probado: (1) mover campos con su visibilidad efectiva y
-sus comentarios de procedencia al sub-estado, (2) repuntar solo accesos con `cargo check -p wow-world`
-entre pasos, (3) regenerar census y ledger de runtime con delta revisado -- incluida la entrada de
-crecimiento del hotspot y los nombres de familia --, (4) `check_architecture.py check` + `self-test`,
-(5) commit.
-
-### B6 `map_manager`: trasvase completado a `wow-map` (2026-09-27)
-
-Ejecutado el plan determinista de la seccion anterior, sin tocar comportamiento. La secuencia real
-fue: (1) preparar el test, (2) mover, (3) ensanchar solo lo que el compilador pide, (4) cerrar los
-dos items de politica.
-
-1. **Preparacion del test, dentro de wow-world** (`3303dba8`). El raiz de la suite y sus catorce
-   submodulos heredaban **129 nombres** por el glob del padre y sus re-exports. Con el glob quitado
-   el compilador da 832 errores de una sola pasada; el raiz los importa ahora de su dueno real
-   (std, rand, `wow-constants`, `wow-core`, `wow-entities`, `wow-movement`, `wow-persistence`,
-   `wow-recastdetour`) y solo `crate::map_manager` para lo propio del modulo. `puede compilar en
-   cualquiera de las dos cajas`.
-2. **Trasvase**: `map_manager/` (6.701 lineas) y `map_manager_tests.rs` + `map_manager_tests/`
-   (5.894 lineas) pasan a `crates/wow-map/src/`. `wow-world` cambia `pub mod map_manager;` por
-   `pub use wow_map::map_manager;`, de modo que sus **382 accesos** `crate::map_manager::...`
-   siguen resolviendo y no se tocan; el modulo sigue siendo dueno de su propia suite (montaje
-   `#[path = "../map_manager_tests.rs"]`), que es lo que conserva el acceso a los campos privados
-   de `WorldCreature` que los escenarios afirman.
-3. **Ensanchado guiado por el compilador**, en dos ciclos y solo sobre lo que cruza la frontera:
-   17 items `pub(crate)`/`pub(super)` que pasan a `pub`, y dos helpers `#[cfg(test)]`
-   (`backdate_runtime_clock_for_test`, `creature_spell_due_in_ms_for_test`) que pasan a
-   `#[cfg(any(test, feature = "test-fixtures"))]` con `wow-map/test-fixtures` habilitado desde
-   `wow-world`, el mismo patron que ya usaba `seed_runtime_rng_like_cpp`. Los usos
-   `wow_map::` de los ficheros movidos pasan a `crate::`.
-4. **Politica**: `tracing` se declara en la superficie externa de `wow-map`, y la arista
-   `wow-map -> wow-data` queda como excepcion revisada con issue 584 (el gestor resuelve su area
-   table por el store concreto y lee una constante de aura; sustituirlo por una vista propia es
-   trabajo de 584:C4).
-5. **Ratchet fisico**: tres filas reapuntadas a su nueva ruta. Las dos heredadas conservan su
-   tamano (`mod.rs` 251, `movement.rs` 112). La suite de tests baja de 339 a 43 porque sus
-   imports y fixtures compartidos se separan a `map_manager_tests/fixtures.rs` (352 lineas), que
-   es ademas la forma de que el raiz no crezca al hacerse explicito.
-6. **Evidencia**: `cargo check --workspace --all-targets` 0 errores; `cargo test -p wow-map`
-   897 pasan / 0 fallan / 1 ignorado; `check_architecture.py check` PASS con el ratchet fisico
-   intacto. El trasvase saca **12.595 lineas** del arbol de la aplicacion sin mover una sola
-   invariante de comportamiento.
-
-### Trabajo recuperado: la vista de catalogos de talentos del #578 (2026-09-27)
-
-La limpieza de ramas e historial habia dejado fuera del almacen de objetos un stash del
-2026-09-04 ("wip: preserve incomplete talent catalog propagation before #133 ECS architecture
-spike", 683+/128- en 29 ficheros) de la rama `578-archcloseowner-...`, cuya linea aterrizo como
-el squash #579. El parche se conservo antes de soltar el stash y hoy vive en git, no en /tmp:
-rama `recover/578-talent-catalog` (commit `0845f5b3`, base `f746060f`, ancestro de la 3.4.3),
-con el parche completo en `docs/migration/recovered/578-talent-catalog-2026-09-04.patch`.
-
-Que contiene: la **vista de capacidad `TalentCatalogsLikeCpp`** (stores de talentos, pestanas y
-puntos por nivel) enhebrada por la composicion de `world-server` y por los puntos de entrada de
-sesion y handlers (character, quest, loot, trainer, talent, spell, movement, void storage),
-sustituyendo lecturas directas del store. No esta integrado.
-
-Aplicabilidad medida con `git apply --check`: 17 de 29 ficheros aplican en la base del squash
-#579 y 6 en la punta actual de la 3.4.3. Un forward-port es un paso de diseno, no un rebase
-mecanico: las olas A y B repartieron de nuevo el material de sesion que el parche edita, y la
-vista pertenece al trabajo de capability views de 584.
-
-### B5, primer slice ejecutado: `handlers/loot/mod.rs` de 977 a 246 lineas (2026-09-27)
-
-La nota de B5 dejo claro que la costura "extrae el modulo de test" no existia: lo que hay son items
-`#[cfg(test)]` sueltos intercalados con produccion. Este slice no toca esa cuestion: parte el
-adaptador por **familias de items**, que es lo que el presupuesto de 600 lineas exige para un
-adaptador, y deja los items gated donde estan.
-
-Seis hijos por familia, cada uno con `use super::*` (el raiz es quien expone la superficie) y
-`pub use self::X::*;` en el raiz para que ninguna ruta externa cambie:
-
-| hijo | lineas | items |
-|---|---|---|
-| `player_view.rs` | 145 | vista representada del jugador (clase, raza, equipo, quest status, faction, encantamiento) |
-| `object_state.rs` | 201 | estado de objeto de criatura y gameobject, release, conversion de items generados, decaimiento |
-| `release_and_rolls.rs` | 136 | comandos de release y ciclo de roll |
-| `reply_items.rs` | 106 | montaje de items de respuesta |
-| `disenchant.rs` | 61 | plantillas de disenchant y su elegibilidad |
-| `persistence_workers.rs` | 139 | workers de persistencia de loot |
-
-El raiz baja de **977 a 246 lineas** y conserva documentacion, imports, constantes y los helpers
-compartidos. El ensanchado que el compilador pidio fue exactamente el de la frontera de modulo: 45
-campos y 5 metodos de los structs movidos pasan a `pub`, porque un modulo hermano ya no ve lo
-privado del raiz. Ningun item cambio de texto ni de orden.
-
-Evidencia: `cargo check -p wow-world --all-targets` 0 errores; `cargo test -p wow-world loot`
-**326 pasan / 0 fallan**; `cargo fmt --all --check` limpio; `check_architecture.py check` PASS en
-los cuatro. Queda `handlers/character/mod.rs` (980 lineas) como siguiente slice con el mismo
-metodo; `handlers/quest/mod.rs` (551) ya cumple el presupuesto.
-
-### B5, segundo slice: `handlers/character/mod.rs` de 980 a 244 lineas (2026-09-27)
-
-Mismo metodo que el slice de loot, ahora sobre el adaptador mayor del arbol. Seis hijos por
-familia, cada uno con `use super::*` y reexportado con `pub use self::X::*;`:
-
-| hijo | lineas | items |
-|---|---|---|
-| `corpse_loading.rs` | 149 | carga y materializacion de cadaveres de mapa |
-| `inventory_plan.rs` | 271 | decisiones de inventario y banco: swaps, autostore, cache de equipo, vistas de persistencia |
-| `trainer_gossip.rs` | 75 | gossip de entrenador y los hechos de clase que lo describen |
-| `login_context.rs` | 31 | MOTD, contexto de void storage y estado de descanso inicial |
-| `creature_spawn.rs` | 196 | materializacion de spawn: normalizacion de plantilla, flags, addon, equipo y hechos de creacion |
-| `item_actions.rs` | 69 | turn-in, destroy y cargas de item, con los helpers de clase/equipo |
-
-El raiz baja de **980 a 244 lineas** (documentacion, veintidos `mod`, imports, constantes y dos
-helpers) y el unico ensanchado pedido por el compilador fueron **76 campos** de los structs
-movidos: ningun metodo, ningun cambio de texto ni de orden. Los items `#[cfg(test)]` siguen
-intercalados donde estaban; su reclasificacion es B3.
-
-Evidencia: `cargo check -p wow-world --all-targets` 0 errores; `cargo test -p wow-world character`
-**381 pasan / 0 fallan**; `cargo fmt --all --check` limpio; `check_architecture.py check` PASS en los
-cuatro informes. El owner logico crece **+31 lineas** (los encabezados de los seis hijos), asi que
-el ledger de hotspots lleva la entrada de revision de crecimiento correspondiente: es la unica
-forma sancionada de crecer y no se toca ningun techo sin ella. Con esto los tres adaptadores de
-handler mayores estan dentro del presupuesto de 600 lineas.
-
-### B6 `wow-map`: visibilidad minima del indice de bitset de terreno (2026-09-29)
-
-En este slice se redujo solo la superficie del indice de bitset y su parser:
-`terrain_grid_bitset_index_like_cpp` pasa de `pub` a `pub(super)`, que cubre sus llamadas internas
-y cinco usos de pruebas descendientes de `map_manager` (movement: 1, instance: 2, visibility: 2).
-La suite lo importa ahora desde el raiz de pruebas y deja de reexportarlo por
-`map_manager_tests/fixtures.rs`. `terrain_grid_bitset_from_cpp_string_like_cpp` pasa a privado de
-`terrain.rs`, donde tiene un unico llamador (`discover_grid_map_files_like_cpp`). No cambiaron
-implementaciones ni aserciones; ambos helpers conservan los mismos datos y orden.
-
-Evidencia secuencial con `CARGO_BUILD_JOBS=1`, `PROTOC=/home/ubuntu/.local/protoc/bin/protoc` y
-`CARGO_TARGET_DIR=/home/server/rustycore-world-refactor/target`: `cargo check -p wow-map` y
-`cargo check -p wow-world` terminaron con exit 0; `cargo test -p wow-map terrain` dio 28 aprobadas,
-0 fallidas y 1 ignorada (862 filtradas). Logs completos: `target/b6-terrain-bitset-map-check.log`,
-`target/b6-terrain-bitset-world-check.log` y `target/b6-terrain-bitset-focused-test.log`.
-
-Este delta no completa B6: `discover_grid_map_files_like_cpp`, `exist_map_like_cpp` y
-`LiveTerrainHeights::terrain_for_map` quedan fuera de este slice, junto con la aceptacion final del
-trasvase.
-
-### B6 `wow-map`: superficie interna del pathfinder y del estado runtime (2026-09-29)
-
-Cuatro helpers exclusivos del pathfinder quedaron en su modulo o con visibilidad
-`pub(super)`; se retiro su reexport de `map_manager` y las pruebas importan el helper
-privado por su ruta. `cargo check -p wow-map`, `cargo check -p wow-world` y
-`cargo test -p wow-map --lib path` pasaron (37/37); commit `7d836140`.
-
-En `runtime_state.rs`, `BASE_ATTACK_TIME_LIKE_CPP`, `NOMINAL_MELEE_RANGE_LIKE_CPP`,
-`absolute_angle_like_cpp` y `power_type_from_u8_like_cpp` vuelven de `pub` a
-`pub(super)`. Sus usos estan dentro de `map_manager`; se retiraron los reexports
-publicos y el test de combate importa la constante desde el modulo privado. Sin
-cambios en cuerpos ni aserciones. Con un solo job y el target de este worktree,
-`cargo check -p wow-map` y `cargo check -p wow-world` pasaron; el test focal
-`cargo test -p wow-map --lib combat` dio 7/7. Logs:
-`target/b6-runtime-primitives-wow-map-check.log`,
-`target/b6-runtime-primitives-wow-world-check.log` y
-`target/b6-runtime-primitives-wow-map-test-combat.log`. Quedan los tipos y campos
-de `runtime_state`, otros reexports de B6 y la aceptacion final.
-
-### B3 `character_tests`: frontera del fixture de taxi (2026-09-29)
-
-La suite externa aun no compila; el ultimo inventario de diagnosticos despues del
-puente de persistencia tiene 534 errores. Dos pruebas invocan
-`WorldSession::set_taxi_flight_state_like_cpp` con un nodo representado. Un intento
-de exponer ese setter bajo `test-fixtures` dejo `cargo check -p wow-world` por defecto
-verde, pero `cargo check -p wow-world --features test-fixtures --test character_tests`
-fallo antes de compilar la suite: el setter depende de
-`mutate_player_taxi_state_like_cpp`, exclusivo de `cfg(test)`. Ese helper tiene una
-rama de respaldo para sesiones sin `Player` canonico y campos tambien exclusivos
-de `cfg(test)`. Se retiro el intento parcial; no hay fixture de taxi aceptado ni
-tests externos ejecutados. El siguiente corte requiere demostrar la instalacion
-del dueno canonico en ambas pruebas y fijar un puente que preserve la rama interna
-existente sin exportar el nodo representado.
-
-### B6 `wow-map`: tipos internos del estado runtime (2026-09-29)
-
-`RuntimeRepresentedActiveKeyLikeCpp`, `RuntimeRepresentedActiveGeneratorLikeCpp` y
-`ActiveTauntLikeCpp`, junto con sus miembros antes publicos, vuelven a
-`pub(super)`. Solo los consume `map_manager` y sus hijos; se elimina el reexport
-del raiz. Los cuerpos, el orden y las aserciones permanecen intactos. Con el target
-de este worktree y un job, `cargo check -p wow-map`, `cargo check -p wow-world` y
-`cargo test -p wow-map --lib combat` pasaron (7/7). Logs:
-`target/b6-runtime-types-wow-map-check.log`,
-`target/b6-runtime-types-wow-world-check.log` y
-`target/b6-runtime-types-wow-map-test-combat.log`. No es aceptacion final de B6.
-
-### B3 `character_tests`: acceso canonico para la regeneracion (2026-09-29)
-
-`test_fixtures::mutate_canonical_player_for_test` delega sin otra rama ni estado a
-`WorldSession::mutate_canonical_player_like_cpp`. Diez llamadas de
-`health_and_power_regeneration.rs` en la suite externa usan ese puente; sus
-closures y aserciones permanecen iguales. `cargo check -p wow-world` paso;
-`cargo check -p wow-world --features test-fixtures --test character_tests`
-termino con los otros errores aun pendientes y bajo de **534 a 524** diagnosticos.
-Logs: `target/b3-character-canonical-access-default-check.log` y
-`target/b3-character-canonical-access-external-check.log`. El fichero de prueba
-sigue dentro del traslado B3 provisional; este resultado no es suite verde.
-
-### B6 `wow-map`: visibilidad de dos metodos de movimiento (2026-09-29)
-
-`WorldCreature::launch_move_spline_init_like_cpp` y
-`WorldCreature::path_generator_from_detour_for_creature_like_cpp` vuelven a
-`pub(super)` en sus modulos `movement/spline.rs` y `movement/terrain.rs`.
-Los llamadores pertenecen a `movement`; no se modificaron cuerpos ni llamadas.
-Con un job y el target del worktree pasaron `cargo check -p wow-map`,
-`cargo check -p wow-world` y `cargo test -p wow-map --lib movement` (52/52).
-Logs: `target/b6-movement-visibility-wow-map-check.log`,
-`target/b6-movement-visibility-wow-world-check.log` y
-`target/b6-movement-visibility-movement-test.log`. La aceptacion final sigue pendiente.
-
-### B6 `wow-map`: visibilidad interna de respawn (2026-09-29)
-
-`spawn_object_type_raw_like_cpp` y
-`WorldCreature::restore_respawn_aura_source_authority_like_cpp` vuelven a
-`pub(super)`; el primer helper deja de reexportarse desde `map_manager`.
-Solo hay consumidores dentro de ese modulo. Cuerpos y llamadas no cambiaron.
-Con un job y el target del worktree, `cargo check -p wow-map`,
-`cargo check -p wow-world` y `cargo test -p wow-map --lib respawn` pasaron
-(104/104). Logs: `target/b6-respawn-visibility-wow-map-check.log`,
-`target/b6-respawn-visibility-wow-world-check.log` y
-`target/b6-respawn-visibility-respawn-test.log`.
-
-### B6 `wow-map`: visibilidad del cache de terreno (2026-09-29)
-
-`exist_map_like_cpp` queda privado de `terrain.rs`, su unico consumidor.
-`LiveTerrainHeights::terrain_for_map` queda `pub(crate)`: ademas de los metodos
-de terreno, solo lo usa `map_manager_tests/instance.rs`, hermano dentro de
-`wow-map`. No cambian cuerpos ni llamadas. Con un job y el target del worktree
-pasaron `cargo check -p wow-map`, `cargo check -p wow-world` y
-`cargo test -p wow-map --lib instance` (56/56). Logs:
-`target/b6-terrain-visibility-wow-map-check.log`,
-`target/b6-terrain-visibility-wow-world-check.log` y
-`target/b6-terrain-visibility-instance-test.log`. Sigue pendiente la aceptacion
-final de la ola.
-
-### B3 `character_tests`: revision de la costura de integracion (2026-09-29)
-
-La migracion provisional de toda la suite a `tests/character_tests.rs` no es aun
-una entrega: con la feature `test-fixtures`, el diagnostico externo sobre el
-worktree anterior al commit `d8bef3dc` (incluido su diff de fixture)
-acaba con **524 errores** en 29 hijos, pese a haber retirado las primeras llamadas
-privadas. De ellos, 256 son E0624 (123 nombres distintos), 99 son E0599 (43
-nombres), 58 son E0425 y el resto incluye tipos/campos privados. La suite se
-compone de 13.205 lineas en los hijos trasladados; el fichero mayor tiene
-1.064. Comando y log: `cargo check -p wow-world --features test-fixtures --test
-character_tests`, `target/b3-character-canonical-access-external-check.log`.
-
-La clasificacion de 2026-09-25 como una unica suite de integracion de app era
-demasiado amplia. `item_3.rs` mezcla planes privados de banco/inventario con
-respuestas de handlers; `visibility.rs` comprueba directamente el materializador
-de cadaveres y sus detalles de mapa; `pet.rs` comprueba bytes de respuesta y el
-registro del handler. Mover todos por igual exigiria exponer centenares de
-metodos, tipos y campos internos solo para compilar pruebas, contra la regla de
-modulos de no publicar internals para reubicar tests. El setter de taxi confirma
-otro riesgo: su ruta `cfg(test)` incluye un respaldo de sesion representada que
-no existe en la compilacion de una suite externa.
-
-**Corte corregido para B3:** clasificar por escenario, no por fichero heredado.
-Conservar las pruebas de reglas/planes y estado privado como unitarias junto a
-su owner, en ficheros fisicos pequenos; llevar a `tests/` solo escenarios que
-ejercen un contrato publico de aplicacion, dispatch o composicion y darles
-builders de fixture por operacion. Si un escenario de handler requiere acceso
-privado, primero decidir si debe probar el dispatch publico o seguir siendo
-unitario. Preservar todos los nombres/registraciones mientras se reclasifica,
-retirar los puentes temporales que dejen de tener consumidores, y medir B7
-despues de cada familia consolidada. El traslado provisional no se publica ni
-se usa como evidencia de suite verde. Esta revision no reduce el objetivo de
-eliminar la deuda fisica y de imports de B3/B7; cambia la costura tecnica con
-la que se alcanzara sin ensanchar la API de produccion.
-
-### B3 `character_tests`: primer escenario devuelto al owner (2026-09-29)
-
-`map_corpse_loader_applies_persisted_phases_and_customizations_once_like_cpp`
-prueba directamente `materialize_loaded_map_corpses_like_cpp`, sus filas privadas
-y el mapa cargado; ahora vive junto a `handlers/character/corpse_loading.rs` en
-su hijo `tests.rs`. El cuerpo y las aserciones se conservaron literalmente;
-dejo de montarse en el target externo. `cargo check -p wow-world` paso y el
-filtro `cargo test -p wow-world --lib
-map_corpse_loader_applies_persisted_phases_and_customizations_once_like_cpp`
-ejecuto **1/1**. El diagnostico externo bajo de 524 a 521 errores restantes,
-sin nuevas correcciones de fixture. Logs:
-`target/b3-character-corpse-owner-default-check.log`,
-`target/b3-character-corpse-owner-focused-test.log` y
-`target/b3-character-corpse-owner-external-check.log`. Los demas escenarios de
-`character_tests` siguen en clasificacion provisional.
-
-### B3 `character_tests`: consulta de mascota en target independiente (2026-09-29)
-
-Los tres escenarios de `QueryPetName` que usan el metodo publico de Session y
-el registro `PacketHandlerEntry` estan en `tests/character_pet.rs`, con sus
-nombres, cuerpos y aserciones conservados. El target reproduce los dos builders
-pequenos que usaba la suite heredada. El cuarto test del antiguo `pet.rs`, sobre
-`enum_character_pet_data_like_cpp`, ya estaba preservado como unitario en
-`handlers/character/enumeration_support_tests.rs`; no se duplico. El modulo
-provisional `pet` dejo de montarse en el target externo grande.
-
-`cargo check -p wow-world` paso y `cargo test -p wow-world --test character_pet`
-ejecuto **3/3**. El inventario del target provisional bajo de 521 a 520 errores.
-Logs: `target/b3-character-pet-default-check.log`,
-`target/b3-character-pet-focused-test.log` y
-`target/b3-character-pet-external-check.log`. Este target pequeno si esta verde;
-el resto de `character_tests` todavia no.
-
-### B3 `character_tests`: guardia de publicacion independiente (2026-09-29)
-
-El test `committed_money_callers_publish_all_runtime_state_before_reopening_admission`
-se monta desde `tests/character_publication_order.rs`, conservando su fichero
-de source scan en `tests/character_tests/loot.rs` para mantener los `include_str!`
-relativos. No usa Session ni fixtures; se retiro el import de padre innecesario
-y el montaje del target provisional. `cargo check -p wow-world` paso y
-`cargo test -p wow-world --test character_publication_order` ejecuto **1/1**.
-Logs: `target/b3-character-publication-default-check.log` y
-`target/b3-character-publication-focused-test.log`.
-
-### B3 `character_tests`: fuente y trade skill en target independiente (2026-09-29)
-
-`tests/character_group.rs` monta los dos escenarios de `group.rs`: el guardia
-de referencias de admision de login y la respuesta vacia de `ShowTradeSkill`.
-El primer test conserva sus `include_str!` relativos; el segundo recibe el mismo
-builder de Session, ahora local al target. Ambos cuerpos y nombres permanecen
-iguales y dejaron de montarse en el target provisional. `cargo check -p
-wow-world` paso; `cargo test -p wow-world --test character_group` ejecuto
-**2/2**. Logs: `target/b3-character-group-default-check.log` y
-`target/b3-character-group-focused-test.log`.
-
-Un censo por atributos `#[test]` y `#[tokio::test]` contra los 33 ficheros de
-la suite original en `HEAD` encontro los **303 nombres** una sola vez cada uno
-en el arbol de trabajo actual (tests privados y targets externos combinados):
-0 perdidos, 0 duplicados. Esto comprueba el montaje provisional, no sustituye
-la compilacion/ejecucion completa de los 303 escenarios.
-
-### B3 `item_1`: source scans de login separados (2026-09-29)
-
-Los dos guardias `continue_login_inventory_reads_cross_the_typed_lifecycle_port`
-y `continue_login_item_repairs_cross_the_typed_lifecycle_port` viven en
-`tests/character_tests/item_login_source.rs`, montado por
-`tests/character_item_login_source.rs`. Sus aserciones y fuente inspeccionada
-son iguales; el resto de `item_1.rs` conserva 18 tests. `cargo check -p
-wow-world` paso y el target independiente ejecuto **2/2**. Logs:
-`target/b3-character-item-login-source-check.log` y
-`target/b3-character-item-login-source-test.log`. El censo tras el corte sigue
-en **303/303** nombres, sin perdida ni duplicacion en el worktree.
-
-De los 18 restantes en `item_1`, cuatro escenarios concentran seis errores
-privados en el diagnostico externo: carga de apariencias (dos metodos), estado
-mutable de almacenamiento (dos helpers), gemas engarzadas (un helper), y el
-limite privado `MAX_EQUIPMENT_SET_INDEX_LIKE_CPP` en un caso de asignacion.
-Los escenarios de save/assign/delete/use de equipment sets son candidatos a
-target independiente por operacion, con builders existentes en `fixtures_2.rs`
-y la superficie acotada de `test_fixtures/equipment_sets.rs`; los cuatro casos
-privados deben permanecer junto a sus owners o probar un contrato publico real.
-
-### B3 `item_1`: familia de guardado de equipment sets (2026-09-29)
-
-Seis escenarios de `SaveEquipmentSet`, incluido el GUID compartido con conjuntos
-de transfiguracion y los rechazos de identificador/tipo, viven en
-`tests/character_tests/equipment_set_save.rs`, montado por
-`tests/character_equipment_set_save.rs`. Los builders locales reproducen los
-de `fixtures_2.rs`; se usan las operaciones acotadas de
-`test_fixtures/equipment_sets.rs`. Ninguna visibilidad de produccion se amplio.
-`cargo check -p wow-world` paso y el target independiente ejecuto **6/6**.
-Logs: `target/b3-character-equipment-save-check.log` y
-`target/b3-character-equipment-save-test.log`. Quedan 12 escenarios en el
-`item_1` provisional; el censo global de la suite sigue **303/303** sin
-perdidas ni duplicados. La suite grande aun no compila.
-
-### B3 `item_1`: asignacion de especializacion (2026-09-29)
-
-Dos escenarios que asignan especializacion a un equipment set existente viven
-en `tests/character_tests/equipment_set_assign.rs`, montados por
-`tests/character_equipment_set_assign.rs`; los builders reproducen los de
-`fixtures_2.rs` y los cuerpos/aserciones no cambiaron. El tercer escenario
-de asignacion, que menciona el limite privado
-`MAX_EQUIPMENT_SET_INDEX_LIKE_CPP`, sigue provisional hasta reubicarlo junto
-al owner. `cargo check -p wow-world` paso y el target ejecuto **2/2**.
-Logs: `target/b3-character-equipment-assign-check.log` y
-`target/b3-character-equipment-assign-test.log`. No se amplio API productiva.
-
-### B3 `item_1`: borrado de equipment sets (2026-09-29)
-
-Los tres escenarios `DeleteEquipmentSet` viven en
-`tests/character_tests/equipment_set_delete.rs`, montados por
-`tests/character_equipment_set_delete.rs`. Se conservaron nombres, cuerpos y
-aserciones; el builder y el codificador local siguen los de `fixtures_2.rs`.
-`cargo check -p wow-world` paso y el target ejecuto **3/3**. Logs:
-`target/b3-character-equipment-delete-check.log` y
-`target/b3-character-equipment-delete-test.log`. No hubo API nueva.
-
-### B3 `item_1`: `UseEquipmentSet` revela frontera `cfg(test)` (2026-09-29)
-
-El escenario que mueve un item directo paso como test externo independiente
-en `tests/character_tests/equipment_set_use.rs`, montado por
-`tests/character_equipment_set_use.rs` (**1/1** tras el corte); su cuerpo y
-aserciones permanecen iguales. El intento inicial de mover juntos los tres
-escenarios compilo pero dio **1 aprobado / 2 fallidos**: el caso de ranura vacia
-conservo el item en la ranura y el de mods obtuvo 0 en vez de 11. No se
-modificaron aserciones ni gameplay para ocultarlo. Los dos escenarios volvieron
-al `item_1` provisional para reubicarse como unitarios o reconstruirse con un
-fixture de `Player` canonico demostrado.
-
-Frontera encontrada por lectura: `resolved_player_inventory_slot_count_like_cpp`
-(`session/player_items/storage_slots.rs`) solo ofrece su respaldo representado
-bajo `cfg(test)`; varios mutadores de `session/player_items/modifiers.rs` tienen
-la misma puerta. La compilacion externa con `test-fixtures` no prueba el mismo
-estado representado de esos escenarios. Logs del intento y del corte validado:
-`target/b3-character-equipment-use-test.log` y
-`target/b3-character-equipment-use-reduced-test.log`.
-
-### B3 `item_1`: carga mutable y gemas junto al owner (2026-09-29)
-
-Los dos tests de `apply_loaded_item_storage_mutable_fields_like_cpp` y
-`loaded_socketed_gems_like_cpp` pasaron de `item_1` provisional a
-`src/handlers/character/item_load_support_tests.rs`, junto a las reglas que
-ejercen. Cuerpos y aserciones permanecen iguales; no se amplio visibilidad ni
-se cambio produccion. `cargo check -p wow-world` paso y los dos filtros
-`cargo test -p wow-world --lib` ejecutaron **1/1** cada uno. Logs:
-`target/b3-item-load-support-check.log`,
-`target/b3-item-load-support-bank-test.log` y
-`target/b3-item-load-support-gems-test.log`. El censo de nombres de la suite
-original sigue en **303/303**, sin perdidas ni duplicados; cuatro tests siguen
-en el `item_1` provisional y la suite externa grande aun no compila.
-
-### B3 `item_1`: limite privado de asignacion de especializacion (2026-09-29)
-
-`assign_equipment_set_spec_ignores_transmog_missing_and_out_of_range_like_cpp`
-vive ahora en `src/session/tests/scenarios_player_items_4.rs`, usando el harness
-privado existente de sesion y la constante privada del contrato de inventario.
-Conserva las tres solicitudes y las dos aserciones; el fixture se adapto al
-harness local sin copiar el port amplio de `character_tests`. No se amplio API
-ni se cambio gameplay. `cargo check -p wow-world` paso y el filtro unitario
-ejecuto **1/1**; logs `target/b3-equipment-set-assign-private-check.log` y
-`target/b3-equipment-set-assign-private-resume-test.log`. El primer intento de
-test fue interrumpido y no cuenta como evidencia. El censo global permanece
-**303/303** sin duplicados; quedan tres tests en `item_1` provisional.
-
-### B3 `item_1`: usos representados de equipment sets (2026-09-29)
-
-Los dos escenarios de `UseEquipmentSet` que dependen de los respaldos
-`cfg(test)` de inventario y mods viven ahora en el hijo privado
-`src/session/tests/scenarios_player_items_4/equipment_set_use.rs`. El montaje
-deja el fichero padre en **942 lineas** y el hijo en **132**. Se conservaron
-las expectativas y el codec de packet del fixture anterior; la preparacion
-usa el harness privado de Session. No se cambio produccion ni visibilidad.
-`cargo check -p wow-world` paso y `cargo test -p wow-world --lib
-use_equipment_set_` ejecuto **2/2**; logs
-`target/b3-equipment-set-use-private-final-check.log` y
-`target/b3-equipment-set-use-private-final-test.log`. El censo de la suite
-original sigue **303/303** sin duplicados. En `item_1` provisional solo queda
-el caso de fallo parcial al cargar apariencias de cuenta; la suite externa
-grande todavia no compila.
-
-### B3 `item_4`: parser de equipo y guard de loot (2026-09-29)
-
-Tres pruebas puras (`parse_equipment_cache_empty`,
-`parse_equipment_cache_real_data` y
-`item_currently_looted_guard_uses_runtime_loot_generated_state`) pasaron del
-`item_4` provisional a `handlers/character/inventory_plan_tests.rs`, hijo ya
-montado junto a las reglas que ejercen. Los cuerpos y aserciones permanecen
-iguales; no hubo cambio productivo ni de visibilidad. `cargo check -p
-wow-world` paso; los filtros unitarios ejecutaron **2/2** y **1/1**.
-Logs: `target/b3-inventory-plan-pure-rehome-check.log`,
-`target/b3-inventory-plan-equipment-cache-test.log` y
-`target/b3-inventory-plan-looted-guard-test.log`. Censo de la suite original:
-**303/303** sin duplicados; los demas escenarios de `item_4` siguen
-provisionales.
-
-### B3 `item_4`: consultas de texto de item (2026-09-29)
-
-Los dos casos de `handle_item_text_query` pasan al target independiente
-`tests/character_item_text.rs`, con fixture acotado de sesion y el puente
-existente para insertar el objeto de item. Se conservaron las aserciones de
-bytes para la respuesta invalida y el texto `abc`; la operacion de referencia
-es `QueryHandler.cpp::HandleItemTextQuery` (linea 305 en la fuente 3.4.3),
-con escritura en `QueryPackets.cpp::QueryItemTextResponse::Write` (linea 510).
-No se cambio produccion ni visibilidad. `cargo check -p wow-world` paso y el
-target ejecuto **2/2**; logs `target/b3-character-item-text-check.log` y
-`target/b3-character-item-text-test.log`. Censo original **303/303** sin
-duplicados; la suite provisional grande sigue sin compilar.
-
-### B3 `item_4`: cuenta de existencias del vendedor (2026-09-29)
-
-`vendor_item_current_count_updates_like_cpp` vive junto a
-`handlers/character/vendor_admission.rs` en su hijo privado de pruebas. Usa
-el harness de sesion existente; conserva las aserciones de consumo, reposicion
-tras 120 segundos y retirada del contador completo. Referencias 3.4.3:
-`Creature.cpp::GetVendorItemCurrentCount` (3038) y
-`Creature.cpp::UpdateVendorItemCurrentCount` (3072). Sin cambios productivos o
-de visibilidad, `cargo check -p wow-world` paso y el filtro unitario ejecuto
-**1/1**. Logs `target/b3-vendor-admission-check.log` y
-`target/b3-vendor-admission-current-count-test.log`. Censo **303/303** sin
-duplicados; quedan **234** pruebas montadas por la raiz provisional de
-`character_tests` al cierre de este corte.
-
-### B3 `login`: guardias de fuente de las fases (2026-09-29)
-
-Las quince pruebas de orden y delegacion de las fases de login, desde
-`continue_login_no_longer_names_the_core_character_statement` hasta
-`action_button_login_phase_keeps_active_configuration_and_packet_projection`,
-viven en `tests/character_login_source.rs` (**532 lineas**). La comparacion
-con el bloque original de `handlers/character_tests/login.rs` coincide
-literalmente tras adaptar las rutas de los 30 `include_str!`; las pruebas
-restantes de login conservan su montaje provisional. `cargo check -p
-wow-world` paso y el target ejecuto **15/15**. Logs:
-`target/b3-character-login-source-check.log` y
-`target/b3-character-login-source-test.log`. El censo global sigue
-**303/303** sin duplicados; **219** pruebas permanecen montadas por la raiz
-provisional de `character_tests`. El recuento excluye 19 pruebas que ya se
-ejecutan desde targets independientes aunque sus hijos fisicos sigan bajo
-`tests/character_tests/`.
-
-### B3 `item_4`: cancelacion de encantamiento temporal (2026-09-29)
-
-Los dos escenarios de `CancelTempEnchantment` viven en el hijo privado
-`handlers/character/items/handlers_tests.rs`, con fixture de item local y
-los mismos slots, IDs, aserciones de encantamiento y ausencia de packet. La
-fuente 3.4.3 `ItemHandler.cpp::HandleCancelTempEnchantmentOpcode` (1100)
-confirma la admision solo para equipo y el borrado del encantamiento temporal.
-No se cambio produccion ni visibilidad. `cargo check -p wow-world` paso y el
-filtro unitario ejecuto **2/2**; logs
-`target/b3-cancel-temp-enchantment-check.log` y
-`target/b3-cancel-temp-enchantment-test.log`. Censo **303/303**, sin
-duplicados; quedan **217** tests montados por la raiz provisional.
-
-### B3: costura del port compartido de colecciones (decision 2026-09-29)
-
-`CollectionLoadPortLikeCpp` ocupa unas 365 lineas en `fixtures_1.rs` y sirve
-tambien a login, estados iniciales, transportes, compra de ranura bancaria y
-persistencia. Mover solo el test de apariencias copiaria ese trait y sus
-respuestas stub. Se trasladara una sola implementacion a un hijo de
-`test_fixtures`, compilado solo con la feature de pruebas; los consumidores
-externos mantendran el mismo tipo via reexport. Los pocos accesos directos a
-la cola de futuros de estados iniciales se sustituiran por un metodo de
-encolado del fixture. El primer consumidor privado sera el caso de fallo
-parcial de apariencias, junto a `account/collections.rs`; el test debe pasar
-sin ampliar ninguna API productiva. La retirada de la copia provisional y
-el resto de consumidores se verificaran antes de dar esta costura por cerrada.
-
-### B3: port compartido y fallo parcial de apariencias (2026-09-29)
-
-`CollectionLoadPortLikeCpp` vive ahora una sola vez en
-`src/test_fixtures/lifecycle_port.rs` (**377 lineas**, feature `test-fixtures`),
-reexportado desde `test_fixtures.rs`. Su implementacion del trait conserva
-literalmente los metodos originales; los campos internos son privados.
-`post_add_rest` y `post_add_scaling` encolan el mismo futuro por
-`enqueue_initial_world_state_outcome`. La copia de `fixtures_1` provisional
-se retiro. El ultimo caso de `item_1`, fallo de la lectura de bloques de
-apariencias con favoritos cargados, vive junto a
-`handlers/character/account/collections.rs` y conserva sus aserciones; el
-montaje y fichero provisional `item_1` se retiraron.
-
-`cargo check -p wow-world` paso. El filtro unitario de apariencias ejecuto
-**1/1** tanto con `--features test-fixtures` como sin feature explicita
-(self dev-dependency); logs `target/b3-lifecycle-port-seam-check.log`,
-`target/b3-lifecycle-port-account-appearance-test.log` y
-`target/b3-lifecycle-port-account-appearance-default-test.log`.
-El diagnostico adicional de `--test character_tests` sigue fallando (exit
-101, 502 errores residuales), sin errores que nombren el port trasladado;
-log `target/b3-lifecycle-port-external-consumers-check.log`. Esto **no** es
-aceptacion de la suite externa. Censo **303/303** sin duplicados; **216**
-pruebas siguen montadas por la raiz provisional.
-
-### B3 `item_4`: discrepancia de admision del opcode bancario (2026-09-29)
-
-Los tres tests de `ChangeBankBagSlotFlag` no se aprueban como evidencia de
-paridad ni se trasladan todavia: la fuente 3.4.3 registra el opcode como
-`STATUS_UNHANDLED`/`Handle_NULL`, mientras Rust lo registra `LoggedIn` y
-ejecuta un handler que cambia estado y publica update. El contraste exacto,
-SHA y limites de evidencia estan en
-`docs/migration/EXISTING-CODE-DEFECTS.md`. Esta es una discrepancia previa,
-no un resultado del traslado B3; no se cambia gameplay dentro del movimiento
-estructural. Los otros escenarios de `item_4` y las demas suites pueden seguir.
-
-### B3 `item_4`: plan de consumo de items de coste extendido (2026-09-29)
-
-`extended_cost_item_turnin_plan_matches_cpp_destroy_order` vive en
-`handlers/character/items/turnin_plan_tests.rs`, montado por `items.rs` sin
-pasar de **797 lineas**. El fixture privado conserva dos stacks en slots
-35/36, sus cuentas y las aserciones de borrar el primero y reducir el
-segundo. La referencia 3.4.3 `Player.cpp::DestroyItemCount` (11784) recorre
-inventario directo en orden; el vendedor lo invoca en `Player.cpp:22136`.
-Sin cambio productivo ni de visibilidad, `cargo check -p wow-world` paso y el
-filtro unitario ejecuto **1/1**; logs `target/b3-extended-cost-turnin-check.log`
-y `target/b3-extended-cost-turnin-test.log`. Censo **303/303** sin duplicados;
-**215** pruebas siguen montadas por la raiz provisional. En `item_4` quedan
-gossip bancario y las tres pruebas del opcode con discrepancia registrada.
-
-### B3: orden de colecciones de cuenta no probado por el test antiguo (2026-09-29)
-
-El test provisional `account_collection_loads_cross_the_typed_port_in_login_order_like_cpp`
-invoca manualmente toys, heirlooms, apariencias, ilusiones y monturas. El
-coordinador Rust usa ese orden, pero `WorldSession.cpp:1187-1191` de 3.4.3
-carga monturas antes de apariencias e ilusiones. El contraste y su limite
-estan en `EXISTING-CODE-DEFECTS.md`. No se traslada ese test como evidencia
-de orden C++ ni se reordena gameplay dentro de B3; las otras familias de
-prueba siguen disponibles para migracion.
-
-### B3 `item_2`/`item_3`: reglas de autostore e inventario antiguo (2026-09-29)
-
-Tres pruebas puras (`autostore_bank_target_depends_on_source_domain_like_cpp`,
-`bank_move_quest_removal_follows_opcode_not_direction_like_cpp` y
-`legacy_zero_inventory_slots_loads_base_backpack_capacity`) viven ahora junto
-a las reglas en `handlers/character/inventory_plan_tests.rs`. Se conservaron
-cuerpos y aserciones; la tercera prueba esta rotulada como compatibilidad Rust.
-`BankHandler.cpp::HandleAutoStoreBankItemOpcode` (78-119) confirma que banco a
-inventario aplica `ItemAddedQuestCheck` y la direccion inversa no. Sin
-cambio productivo ni de visibilidad, `cargo check -p wow-world` paso y los
-tres filtros unitarios ejecutaron **1/1** cada uno. Logs:
-`target/b3-inventory-plan-pure-tests-check.log`,
-`target/b3-inventory-plan-autostore-target-test.log`,
-`target/b3-inventory-plan-bank-move-quest-test.log` y
-`target/b3-inventory-plan-legacy-zero-slots-test.log`. Censo **303/303** sin
-duplicados; **212** siguen montadas por la raiz provisional.
-
-### B3 `item_2`: dos pruebas no demuestran un productor real (2026-09-29)
-
-`direct_inventory_swap_persistence_plan_*` llama solo a
-`plan_direct_inventory_swap_persistence_like_cpp`, definido con `#[cfg(test)]`
-en `inventory_plan.rs` y sin llamadores de produccion. Por separado,
-`bag_exchange_child_updates_runtime_container_and_wire_field_like_cpp`
-llama a `relocate_bag_exchange_child_like_cpp`, helper definido dentro del
-propio `item_2.rs` provisional. Estos nombres se conservan en el censo, pero
-sus aprobaciones actuales no prueban el plan o movimiento productivo. Antes
-de reclasificarlos como evidencia B3 hay que identificar el productor real
-y enlazar los mismos escenarios a el, sin cambiar gameplay en un movimiento
-de fichero.
-
-### B3 `persistence`: guardia de ausencia de SQL concreto en login (2026-09-29)
-
-`continue_login_has_no_concrete_persistence_after_remaining_writes_move`
-vive en el target independiente `tests/character_persistence_source.rs`.
-Los 16 `include_str!` y las aserciones positivas/negativas se conservaron;
-solo cambiaron sus rutas relativas. `cargo check -p wow-world` paso y el
-target ejecuto **1/1**; logs
-`target/b3-character-persistence-source-check.log` y
-`target/b3-character-persistence-source-test.log`. Sin cambios productivos
-ni de visibilidad. Censo **303/303** sin duplicados; **211** pruebas siguen
-montadas por la raiz provisional.
-
-### B3 `persistence`: overlay de estados iniciales junto al owner (2026-09-29)
-
-`initial_world_state_port_applies_saved_overlay_after_templates_like_cpp`
-se movio de `tests/character_tests/persistence.rs` al modulo privado
-`handlers/character/world_entry/initial_packets_tests.rs`. Usa el cargador
-productivo `load_initial_world_states_for_login_like_cpp` a traves de su
-delegado de test preexistente; solo cambia el fixture de sesion al harness
-privado. En la referencia 3.4.3 `WorldStateMgr::LoadFromDB`
-(`WorldStateMgr.cpp:39`) carga los defaults de `world_state` antes del overlay
-de `world_state_value`; `Player::SendInitWorldStates` (`Player.cpp:8789`)
-publica los valores desde `FillInitialWorldStates` (`WorldStateMgr.cpp:259`).
-`cargo check -p wow-world` paso y el filtro unitario ejecuto **1/1**;
-logs `target/b3-initial-world-state-overlay-check.log` y
-`target/b3-initial-world-state-overlay-test.log`. Sin cambios de produccion
-ni visibilidad. Censo **303/303** sin duplicados; **210** pruebas siguen
-montadas por la raiz provisional. Esto no equivale a la aceptacion completa
-de `character_tests`.
-
-### B3 `persistence`: ajuste de Fist Weapons junto a `spell_rules` (2026-09-29)
-
-`loaded_fist_weapons_mirrors_unarmed_after_all_skill_rows_like_cpp` y
-`loaded_fist_weapons_without_unarmed_is_cleared_like_cpp_set_skill_zero`
-se movieron al hijo privado `handlers/character/spell_rules_tests.rs`.
-`world_entry/login.rs:456` llama al productor real; en la referencia 3.4.3,
-`Player::_LoadSkills` (`Player.cpp:25849-25850`) aplica `SetSkill` despues de
-cargar las filas. Las aserciones permanecen iguales y no cambia codigo
-productivo ni visibilidad. `cargo check -p wow-world` paso y ambos filtros
-unitarios ejecutaron **1/1**; logs `target/b3-fist-weapons-owner-check.log`,
-`target/b3-fist-weapons-mirror-test.log` y
-`target/b3-fist-weapons-clear-test.log`.
-
-**Correccion de recuento:** los recuentos anteriores de pruebas "montadas por
-la raiz" omitian `transfer_routing.rs` y `reputation_retention.rs`, ambos
-hijos de `finalization.rs`. El censo de nombres **303/303** sigue correcto.
-Actualmente hay **227** nombres en ficheros del armazon provisional, de los
-cuales **17** ya no estan montados por su raiz (tienen otros destinos); por
-tanto **210** siguen montados por `tests/character_tests.rs`. Los recuentos
-historicos de montadas en las entradas previas deben leerse con **+2**.
-
-### B3 `persistence`: metadata de reembolso junto a reglas del vendedor (2026-09-29)
-
-`loaded_refund_metadata_matches_cpp_load_cleanup` se movio al hijo privado
-existente `handlers/character/vendor/rules_tests.rs` (687 lineas tras el
-cambio). `items/login_load.rs` llama a la regla productiva. La referencia
-3.4.3 `Player::_LoadInventory` (`Player.cpp:18415-18442`) retira la marca
-`REFUNDABLE` al superar dos horas o al faltar `item_refund_instance`, y
-carga los importes cuando existe el registro. El caso defensivo de un solo
-importe ausente queda preservado como guardia de Rust; la consulta C++
-devuelve los dos campos juntos. Sin cambios productivos ni de visibilidad.
-`cargo check -p wow-world` paso y el filtro unitario ejecuto **1/1**; logs
-`target/b3-refund-metadata-check.log` y `target/b3-refund-metadata-test.log`.
-Censo **303/303** sin duplicados; **209** pruebas siguen montadas por la
-raiz provisional. `character_tests` externa aun no compila completa.
-
-### B3 `spell`: nueve reglas de login e historial junto a `spell_rules` (2026-09-29)
-
-Se trasladaron a `handlers/character/spell_rules_tests.rs` cuatro casos de
-filtrado/efectos de hechizos de login y cinco de historial/cargas. Sus
-productores se usan en `world_entry/login/spell_loading.rs`,
-`world_entry/login.rs` y `session_state/login_data.rs`; las nueve aserciones
-y nombres se conservaron. La referencia 3.4.3 es `Player::_LoadSpells`
-(`Player.cpp:18924`), `Player::SendKnownSpells` (`Player.cpp:2536`),
-`Player::LearnSkillRewardedSpells`/`_LoadSkills` (`Player.cpp:23930,25812`)
-y `SpellHistory::WritePacket` (`SpellHistory.cpp:302-357`). El test
-`account_mount_spells_are_dependent_and_not_saved_to_character_spell_like_cpp`
-solo contiene `assert!(true)` y permanece en el armazon; no se contabiliza
-como prueba de comportamiento productivo.
-
-Sin cambios de produccion ni visibilidad. `cargo check -p wow-world` paso;
-el filtro privado `handlers::character::spell_rules::tests::` ejecuto **11/11**,
-incluidos los nueve movidos y los dos Fist Weapons anteriores. Logs
-`target/b3-spell-owner-check.log` y `target/b3-spell-owner-tests.log`.
-Censo **303/303** nombres unicos, **200** montados por la raiz provisional;
-la suite externa completa sigue sin aceptacion.
-
-### B3 `misc_1`: cinco escenarios de estadisticas junto a `stats_update` (2026-09-29)
-
-Los cuatro casos de conservacion/limite de salud y mana y el de aura
-`SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE` se movieron a
-`handlers/character/stats_update_tests.rs` (274 lineas). Las cinco
-aserciones y nombres se conservaron. El fixture privado usa el constructor
-de sesion existente, instala el Player canonico y configura sus valores
-vitales mediante helpers `#[cfg(test)]`; los datos de Priest/regen y aura
-quedan locales al test, sin ensanchar la API de produccion. La referencia
-3.4.3 es `Player.cpp:17792-17800` para restauracion/limite tras login,
-`Unit/StatSystem.cpp:298-315` para los maximos y
-`SpellAuraEffects.cpp:3685-3700` para la excepcion de salud del aura.
-
-`cargo check -p wow-world` paso y el filtro
-`handlers::character::stats_update::tests::` ejecuto **5/5**; logs
-`target/b3-stats-owner-check.log` y `target/b3-stats-owner-tests.log`.
-Sin cambios de produccion ni visibilidad. Censo **303/303** nombres unicos,
-**195** montados por la raiz provisional. La suite externa completa sigue
-pendiente.
-
-### B3 `misc_1`: estados iniciales y MOTD junto a sus owners (2026-09-29)
-
-`pvp_season_world_states_match_cpp_world_state_mgr` se movio a
-`login_support_tests.rs`, `motd_split_preserves_cpp_empty_and_trailing_lines`
-a `login_context_tests.rs` y
-`initial_world_state_port_preserves_independent_read_failures_like_cpp` a
-`world_entry/initial_packets_tests.rs`. Se conservaron nombres y aserciones;
-solo el ultimo cambia al constructor de sesion privado. C++
-`World::SetMotd` (`World.cpp:263-269`) separa por `@`; `World.cpp:1363-1364`
-siembra los ids PvP 3191/3901. El caso de fallo del port es **sintetico**:
-comprueba el manejo defensivo de resultados independientes en Rust y no
-demuestra paridad de fallo de DB con `WorldStateMgr::LoadFromDB`, que retorna
-si falla la consulta de templates.
-
-`cargo check -p wow-world` paso; los filtros ejecutaron PvP **1/1**,
-MOTD **1/1** y estados iniciales **2/2** (incluido el overlay anterior).
-Logs `target/b3-misc-owner-check.log`,
-`target/b3-misc-owner-pvp-test.log`,
-`target/b3-misc-owner-motd-test.log` y
-`target/b3-misc-owner-world-state-tests.log`. Sin cambios productivos ni
-visibilidad. Censo **303/303** nombres unicos, **192** montados por la raiz
-provisional; la suite externa completa sigue pendiente.
-
-### B3 `misc_3`: seis consultas DB2 y PageText junto a `query` (2026-09-29)
-
-Tres escenarios de `DBQueryBulk` (TACT hit/miss y rechazo del blob raw) y
-tres de `QueryPageText` se movieron al hijo privado
-`handlers/character/query_tests.rs` (227 lineas). `query.rs` queda en
-787 lineas con el montaje de test. Se conservaron nombres y aserciones;
-el test usa los builders privados de sesion y un catalogo local minimo de
-PageText. El C++ fijado hace `DB2StorageBase::WriteRecord` solo con registro
-tipado (`HotfixHandler.cpp:27-54`) y construye la cadena de paginas estatica
-con `Allow = !Pages.empty()` (`QueryHandler.cpp:202-232`). El rechazo de un
-blob raw sin almacenamiento tipado es una defensa del contrato Rust; su test
-no demuestra por si solo paridad de una ruta C++ de blob arbitrario.
-
-Sin cambios de produccion ni visibilidad. `cargo check -p wow-world` paso;
-`cargo test -p wow-world --lib handlers::character::query::tests::` ejecuto
-**6/6**. Logs `target/b3-query-check.log` y `target/b3-query-tests.log`.
-Censo **303/303** nombres unicos, **186** montados por la raiz provisional;
-`character_tests` externa y la aceptacion global siguen pendientes.
-
-### B3 `misc_3`: consultas de nombres/cadaver y retirada del hijo (2026-09-29)
-
-Los tres `query_player_names_*` se movieron a `handlers/character/query_tests.rs`
-(454 lineas), junto con su fixture exclusivo
-`PlayerNameQueryPortFixtureLikeCpp`; el fixture se retiro del provisional
-`fixtures_1.rs`. Los dos `query_corpse_*` se movieron a
-`handlers/character/lifecycle_corpse_tests.rs`, montado desde
-`lifecycle.rs` (851 lineas). Los dos casos restantes de `misc_3.rs`
-se trasladaron a `creation_support_tests.rs` (`start_zones_are_valid`) y
-`items/handlers_tests.rs` (encantamiento ausente); el hijo provisional y
-su montaje se retiraron. No cambian las aserciones ni la logica productiva.
-
-En C++ `QueryHandler.cpp:36-57` construye nombres desde `ObjectAccessor`,
-`:126+` responde localizacion de cadaver invalida y `:235+` deja el transporte
-por defecto si no hay cadaver coincidente. Los fallos del port de nombres son
-estados sinteticos de Rust; los tests de cadaver cubren solo la ruta negativa.
-`ItemHandler.cpp:1100-1117` confirma retorno temprano sin encantamiento
-temporal. `start_zones_are_valid` es una comprobacion de la tabla Rust, no
-prueba de paridad de datos C++.
-
-`cargo check -p wow-world` paso. El primer filtro de query fallo por un import
-de `HighGuid`; corregida la ruta, el rerun ejecuto **9/9**. Cadaver ejecuto
-**2/2**; las pruebas finales de zona y encantamiento **1/1** cada una.
-Logs `target/b3-query-corpse-check.log`,
-`target/b3-query-player-name-tests.log` (fallo),
-`target/b3-query-player-name-tests-retry.log`,
-`target/b3-lifecycle-corpse-tests.log`,
-`target/b3-misc3-final-check-rerun.log`,
-`target/b3-start-zones-test-rerun.log` y
-`target/b3-cancel-temp-enchant-missing-test-rerun.log`.
-Censo **303/303** nombres unicos, **179** montados por la raiz provisional;
-la suite externa completa sigue pendiente.
-
-### B6 `wow-map`: cache de terreno privado y test LOS junto al owner (2026-09-29)
-
-La revision de usos encontro `discover_grid_map_files_like_cpp` solo en
-`TerrainGridFilesLikeCpp::load_root_like_cpp` y
-`LiveTerrainHeights::terrain_for_map` solo en sus metodos y un test hermano.
-Ambas funciones quedaron privadas de `map_manager/terrain.rs`; no cambiaron
-sus cuerpos. El test `live_terrain_wires_static_vmap_los_provider_into_map_cache_like_cpp`
-se movio a `map_manager/terrain/tests.rs` con la misma consulta y aserciones,
-y su fixture `RecordingLiveStaticVMapLos` salio de
-`map_manager_tests/fixtures.rs`. `exist_map_like_cpp` ya era privado.
-La referencia 3.4.3 de descubrimiento/validacion de mapas es
-`TerrainMgr.cpp:49-75` (`TerrainInfo::DiscoverGridMapFiles`) y `:77+`
-(`ExistMap`); este delta solo reduce visibilidad Rust.
-
-Con un job y el target del worktree, `cargo check -p wow-map` y
-`cargo check -p wow-world` pasaron; el test LOS ejecuto **1/1** y el filtro
-`terrain` dio **28 aprobados, 1 ignorado** (requiere DataDir real).
-Logs `target/b6-terrain-live-visibility-map-check.log`,
-`target/b6-terrain-live-visibility-world-check.log`,
-`target/b6-terrain-live-visibility-focused-test-final.log` y
-`target/b6-terrain-live-visibility-terrain-suite.log`. El resto de
-visibilidades de `map_manager` y la aceptacion final B6 siguen pendientes.
-
-### B3 `misc_4`: enumeracion de personajes junto a `account` (2026-09-29)
-
-Los dos casos `character_enumeration_*` y sus fixtures exclusivos de port y fila
-se movieron al hijo privado `handlers/character/account/enumeration/tests.rs`.
-El hijo provisional `misc_4.rs` y su montaje se retiraron del worktree. No
-cambian las aserciones, la logica productiva ni su visibilidad. El C++ fijado,
-`CharacterHandler.cpp:326-424`, publica la lista y registra GUIDs legitimos,
-y ejecuta la limpieza de bans expirados antes de consultar. El caso de fallo
-del port comprueba una respuesta defensiva del adaptador Rust: no es prueba de
-paridad C++. En particular, `HandleCharEnum` inicia `Success = true` aun cuando
-falla `EnumCharactersQueryHolder::Initialize`; esa diferencia de contrato
-queda pendiente de analisis separado, fuera de este movimiento estructural.
-
-`cargo check -p wow-world` paso y el filtro
-`handlers::character::account::enumeration::tests::` ejecuto **2/2** con
-`CARGO_BUILD_JOBS=1` y el target del worktree. Logs
-`target/b3-misc4-character-enumeration-check.log` y
-`target/b3-misc4-character-enumeration-test.log`. Censo **303/303** nombres
-unicos, **177** montados por la raiz provisional; `character_tests` externa,
-el resto de B3 y la aceptacion global siguen pendientes.
-
-### B3: carga de cadaveres de mapa junto a `lifecycle` (2026-09-29)
-
-Los tres `typed_map_corpse_*` de los hijos provisionales `instance.rs` y
-`persistence.rs`, junto con su port, constructor de sesion y fila de prueba
-compartidos, se reunieron en `handlers/character/lifecycle_map_corpse_tests.rs`.
-Sus nombres y aserciones permanecen; no hay cambio de produccion ni de
-visibilidad. En el C++ fijado `Map::LoadCorpseData`
-(`src/server/game/Maps/Map.cpp:3623-3712`) retorna cuando no hay resultado de
-la consulta base y tolera resultados auxiliares vacios. Los outcomes `Failed`
-del port y la marca Rust `corpse_data_loaded_like_cpp` del caso vacio son
-comportamientos internos del adaptador; estos tests no acreditan por si solos
-paridad de fallo DB ni una marca C++ equivalente.
-
-`cargo check -p wow-world` paso y el filtro
-`handlers::character::lifecycle::map_corpse_tests::` ejecuto **3/3** con un
-job y el target del worktree. Logs `target/b3-character-map-corpse-check.log`
-y `target/b3-character-map-corpse-tests.log`. El censo mantiene **303/303**
-nombres unicos, **174** montados por la raiz provisional. Sigue pendiente la
-suite externa completa, el resto de B3 y la aceptacion global.
-
-### B3: escalado de items tras add-to-map (2026-09-29)
-
-Los seis casos `post_add_scaling` y su helper compartido se movieron al hijo
-privado `handlers/character/world_entry/initial_packets_post_add_scaling_tests.rs`
-(303 lineas); se retiro el hijo y montaje provisionales. Se conservaron
-nombres, aserciones y capacidad del canal de prueba. No hay cambio productivo
-ni de visibilidad. `Player::SendInitialPacketsAfterAddToMap` llama a
-`UpdateItemLevelAreaBasedScaling` (`Player.cpp:23650,28715-28725`); login y
-worldport llegan a esta fase (`CharacterHandler.cpp:1202`,
-`MovementHandler.cpp:49-154`). Los escenarios de cierre/cancelacion comprueban
-garantias del flujo Rust y no acreditan por si solos la misma semantica C++.
-
-`cargo check -p wow-world` paso. El primer intento del filtro focal fallo al
-compilar por dos imports del fixture (exit 101); corregidos, el reintento
-ejecuto **6/6** con un job y target del worktree. Logs
-`target/b3-character-post-add-scaling-check.log`,
-`target/b3-character-post-add-scaling-tests.log` y
-`target/b3-character-post-add-scaling-tests-retry.log`. Censo **303/303**
-nombres unicos, **168** montados por la raiz provisional. Siguen pendientes
-la suite externa completa, el resto de B3 y la aceptacion global.
-
-### B3: descanso aplazado tras cancelar post-add (2026-09-29)
-
-`cancelled_post_add_retains_rest_update_through_reentry` se movio al hijo
-privado `handlers/character/world_entry/initial_packets_post_add_rest_tests.rs`
-con el mismo montaje `cfg(test)`, nombre, aserciones y limpieza del directorio
-temporal. Se retiro el hijo provisional. No cambia logica productiva ni
-visibilidad. En el C++ fijado, `Player::SendInitialPacketsAfterAddToMap`
-llama a `UpdateZone` (`Player.cpp:23568-23575`) y `UpdateZone` ajusta descanso
-y envia estados al cambiar de zona (`Player.cpp:7356-7430`). La cancelacion,
-reentrada y marca diferida verificadas son defensas Rust, sin contrato C++ de
-cancelacion acreditado por este caso.
-
-`cargo check -p wow-world` paso; el filtro focal ejecuto **1/1** con un job y
-target del worktree. Logs `target/b3-character-post-add-rest-check.log` y
-`target/b3-character-post-add-rest-test.log`. Censo **303/303** nombres unicos,
-**167** montados por la raiz provisional. La suite externa completa, el resto
-de B3 y la aceptacion global siguen pendientes.
-
-### B3 `skill`: deltas y recarga de subida de nivel (2026-09-29)
-
-`level_up_deltas_use_cpp_class_race_stats_and_base_mp` se movio al hijo
-privado `handlers/character/stats_queries_tests.rs` y
-`level_up_stat_update_refills_health_and_mana_like_cpp` a
-`handlers/character/stats_update_tests.rs`, que ya tenia sus fixtures de
-jugador y estadisticas. El hijo provisional `skill.rs` conserva solo el caso
-de cinematica. Se preservan nombres y aserciones, sin cambio productivo ni
-de visibilidad. `Player::GiveLevel` consulta las estadisticas de raza/clase y
-mana base, calcula deltas, actualiza estadisticas y repone salud y los powers
-marcados para recarga (`Player.cpp:2247-2314`). Estos dos tests cubren solo
-las proyecciones y la publicacion Rust que afirman sus aserciones.
-
-`cargo check -p wow-world` paso; cada filtro focal ejecuto **1/1** con un job
-y target del worktree. Logs `target/b3-character-level-up-check.log`,
-`target/b3-character-level-up-deltas-test.log` y
-`target/b3-character-level-up-refill-test.log`. Censo **303/303** nombres
-unicos, **165** montados por la raiz provisional; la suite externa, B3
-restante y la aceptacion global siguen pendientes.
-
-### B3 `skill`: cinematica inicial y retirada del hijo (2026-09-29)
-
-El ultimo caso de `skill.rs`,
-`opening_cinematic_requires_zero_xp_and_prefers_class_like_cpp`, se movio
-con su constructor exclusivo de bytes a
-`handlers/character/world_entry_cinematic_tests.rs`; se retiraron el hijo
-provisional y su montaje. Los helpers de raza/clase que usan otros casos
-siguen en `fixtures_3.rs`. No cambia logica productiva ni visibilidad. El C++
-fijado `WorldSession::HandleOpeningCinematic`
-(`CharacterHandler.cpp:2597-2609`) retorna con XP distinto de cero y prefiere
-la secuencia de clase antes de la de raza, como comprueban las aserciones.
-
-`cargo check -p wow-world` paso. El primer intento del filtro fallo al
-compilar por un campo omitido en el fixture local (exit 101); corregido,
-el reintento ejecuto **1/1**. Logs
-`target/b3-character-opening-cinematic-check.log`,
-`target/b3-character-opening-cinematic-test.log` y
-`target/b3-character-opening-cinematic-test-retry.log`. Censo **303/303**
-nombres unicos, **164** montados por la raiz provisional. Sigue pendiente
-la suite externa completa, B3 restante y la aceptacion global.
-
-### B3 `creature`: reglas de spawn junto a su owner (2026-09-29)
-
-Los cuatro casos iniciales de `tests/character_tests/creature.rs` (hover,
-root, flags y movimiento random/wander) se movieron sin cambiar aserciones a
-`handlers/character/creature_spawn_tests.rs`. Los cuatro escenarios de
-handler/query restantes siguen en el hijo provisional. No hay cambio de
-produccion ni de visibilidad. El C++ fijado confirma normalizacion de
-movimiento random sin distancia (`Creature.cpp:559`, `ObjectMgr.cpp:2296-2314`),
-flags de spawn (`ObjectMgr.cpp:1683+`) y el offset hover despues del addon
-(`Creature.cpp:1140-1144`). La suite privada prueba las proyecciones Rust de
-esas reglas, no toda la creacion de criaturas en runtime.
-
-`cargo check -p wow-world` paso; el filtro
-`handlers::character::creature_spawn::rule_tests::` ejecuto **7/7** (cuatro
-trasladados y tres previos), con un job y target del worktree. Logs
-`target/b3-character-creature-rules-check.log` y
-`target/b3-character-creature-rules-test.log`. Censo **303/303** nombres
-unicos, **160** montados por la raiz provisional. Siguen pendientes la
-suite externa completa, el resto de B3 y la aceptacion global.
-
-### B3 `creature`: consultas tipadas junto a `query` (2026-09-29)
-
-Los tres `creature_query_*` pasaron del hijo provisional `creature.rs` a
-`handlers/character/query_tests.rs` con su fila de catalogo exclusiva y un
-instalador privado minimo. Se conservaron nombres, aserciones y capacidades
-de envio 1/2/1; el helper general de catalogos sigue en el provisional para
-los consumidores de `GameObject`. Queda en `creature.rs` el caso de estado de
-quest. No hay cambio productivo ni de visibilidad. C++
-`WorldSession::HandleCreatureQuery` (`QueryHandler.cpp:71-100`) envia la
-proyeccion del template o una respuesta disallowed si falta; la variante
-sin capacidad de catalogo es defensiva de Rust y no demuestra fallo de DB
-equivalente en C++.
-
-`cargo check -p wow-world` paso; el filtro
-`handlers::character::query::tests::creature_query_` ejecuto **3/3** con un
-job y target del worktree. Logs
-`target/b3-character-creature-query-check.log` y
-`target/b3-character-creature-query-test.log`. Censo **303/303** nombres
-unicos, **157** montados por la raiz provisional. Siguen pendientes la suite
-externa completa, B3 restante y la aceptacion global.
-
-### B3 `creature`: estado de quest por GUID suministrado (2026-09-29)
-
-El ultimo caso de `creature.rs`,
-`quest_giver_status_tracked_supplied_creature_not_visible_sends_available_like_cpp`,
-se movio a `handlers/character/query_quest_status_tests.rs`, hijo privado de
-`query.rs`. Se retiro el fichero y montaje provisional; el fixture local
-conserva capacidad del canal, configuracion de sesion, criatura canonica y
-aserciones. Los helpers compartidos siguen donde tienen otros consumidores.
-El C++ `HandleQuestgiverStatusTrackedQueryOpcode`
-(`QuestHandler.cpp:775-778`) pasa los GUIDs del cliente directamente a
-`Player::SendQuestGiverStatusMultiple` (`Player.cpp:16803-16829`), que busca
-la criatura en el mapa. El test comprueba que la cache de visibilidad del
-cliente no sustituye esos GUIDs. No cambia produccion ni visibilidad Rust.
-
-`cargo check -p wow-world` paso y el filtro focal ejecuto **1/1** con un job
-y target del worktree. Logs `target/b3-character-quest-status-check.log` y
-`target/b3-character-quest-status-test.log`. Censo **303/303** nombres
-unicos, **156** montados por la raiz provisional. La suite externa completa,
-B3 restante y la aceptacion global siguen pendientes.
-
-### B3 `gameobject`: consultas tipadas junto a `query` (2026-09-29)
-
-Los dos `gameobject_query_*` se movieron a
-`handlers/character/query_gameobject_tests.rs`, hijo privado de `query.rs`,
-con la fila exclusiva de catalogo, sus dos items de quest y un instalador
-tipado minimo. Se conservaron nombres, GUIDs, bytes esperados y capacidad
-de envio; los otros cuatro casos siguen en `gameobject.rs` provisional.
-El instalador general mantiene sus otros consumidores. No hay cambio de
-produccion ni de visibilidad. C++ `HandleGameObjectQueryOpcode`
-(`QueryHandler.cpp:101-123`) responde desde el template o devuelve respuesta
-disallowed con el ID y GUID pedidos. La ausencia de capacidad de catalogo
-es una defensa Rust, no una prueba de fallo DB equivalente en C++.
-
-`cargo check -p wow-world` paso y el filtro
-`handlers::character::query::gameobject_tests::` ejecuto **2/2** con un job
-y target del worktree. Logs `target/b3-character-gameobject-query-check.log`
-y `target/b3-character-gameobject-query-test.log`. `query.rs` mide 795 lineas.
-Censo **303/303** nombres unicos, **154** montados por la raiz provisional;
-suite externa completa, B3 restante y aceptacion global siguen pendientes.
-
-### B3 `gameobject`: estado de quest por GUID (2026-09-29)
-
-`quest_giver_status_tracked_supplied_gameobject_uses_uint64_status_like_cpp`
-paso del hijo provisional `gameobject.rs` al hijo privado existente
-`handlers/character/query_quest_status_tests.rs`, junto al caso de criatura.
-Reutiliza la sesion, paquete y decodificacion comunes; los helpers locales
-de gameobject conservan el setup del fixture provisional. Nombres, aserciones
-y `u64` del estado no cambian. C++ `QuestHandler.cpp:775-778` pasa los GUIDs
-del cliente a `Player::SendQuestGiverStatusMultiple`; la rama GameObject de
-`Player.cpp:16803-16829` consulta el objeto del mapa. Los tres tests de
-gossip siguen provisionales. No cambia produccion ni visibilidad Rust.
-
-`cargo check -p wow-world` paso; el filtro
-`handlers::character::query::quest_status_tests::` ejecuto **2/2** con un
-job y target del worktree. Logs
-`target/b3-character-quest-status-gameobject-check.log` y
-`target/b3-character-quest-status-gameobject-test.log`. Censo **303/303**
-nombres unicos, **153** montados por la raiz provisional; suite externa,
-B3 restante y aceptacion global siguen pendientes.
-
-### B3 `gameobject`: primer caso de gossip junto al handler (2026-09-29)
-
-`gossip_select_accepts_represented_goober_menu_and_removes_feign_like_cpp`
-paso del hijo provisional `gameobject.rs` al hijo privado
-`handlers/character/gossip_gameobject_tests.rs`. El setup necesario se copio
-localmente sin ampliar visibilidad ni modificar el handler productivo. Los dos
-casos de rechazo de GameObject siguen provisionales; los helpers de feign
-death permanecen alli porque tambien sirven a `item_3` y `misc_2`.
-`WorldSession::HandleGossipSelectOptionOpcode` (`NPCHandler.cpp:250-330`)
-comprueba opcion, fuente y `GetGameObjectIfCanInteractWith` antes de retirar
-fake death; `Player::GetGameObjectIfCanInteractWith` (`Player.cpp:1983-2007`)
-exige un objeto del mapa, interaccion permitida y distancia. Las aserciones
-del caso movido no cambiaron; el estado representado sigue siendo un fixture
-Rust, no evidencia de ejecucion de C++.
-
-`cargo check -p wow-world` paso y `cargo test -p wow-world --lib
-gossip_select_accepts_represented_goober_menu_and_removes_feign_like_cpp`
-ejecuto **1/1** con un job y target del worktree. Logs
-`target/584-map-manager-domain-b3-gossip-check-69fff1f8.log` y
-`target/584-map-manager-domain-b3-gossip-lib-test-69fff1f8.log`. La primera
-invocacion sin `--lib` no midio este caso: el target de integracion provisional
-`character_tests` fallo al compilar con 371 errores de la migracion B3;
-`target/584-map-manager-domain-b3-gossip-test-69fff1f8.log` conserva ese
-resultado. Censo de nombres originales **303/303** sin duplicados, **152**
-montados por la raiz provisional. La suite externa completa, B3 restante y
-la aceptacion global siguen pendientes.
-
-### B3 `gameobject`: gossip completo en el owner (2026-09-29)
-
-Los dos casos restantes, `gossip_select_gameobject_revalidates_cpp_interaction_boundaries`
-y `gossip_select_gameobject_rejects_npc_service_option_after_feign_like_cpp`,
-se movieron al hijo privado `handlers/character/gossip_gameobject_tests.rs`.
-Se reutilizaron los fixtures locales del primer caso y se retiraron el fichero
-y montaje provisionales `tests/character_tests/gameobject.rs`. El modulo privado
-tiene 445 lineas y `gossip.rs` 766. Nombres, GUIDs, filas y aserciones se
-conservaron; no cambia produccion ni visibilidad. `NPCHandler.cpp:250-330`
-valida fuente/objeto antes de quitar feign death y `Player.cpp:1983-2007`
-ancla los rechazos por estado de mundo, vuelo, icono y distancia. Los casos
-de ausencia de evidencia representada de icono/tipo son defensas propias de
-Rust, sin rama equivalente de cache ausente en C++.
-
-`cargo check -p wow-world` paso y `cargo test -p wow-world --lib
-handlers::character::gossip::gossip_gameobject_tests::` ejecuto **3/3** con
-un job y target del worktree. Logs
-`target/584-map-manager-domain-b3-gossip-gameobject-check-b253f0df.log` y
-`target/584-map-manager-domain-b3-gossip-gameobject-test-b253f0df.log`.
-Censo **303/303** nombres originales sin duplicados, **150** montados por
-la raiz provisional. La suite externa completa, B3 restante y aceptacion
-global siguen pendientes.
-
-### B3 `instance`: constructor de estados iniciales en `login_support` (2026-09-29)
-
-`init_world_states_builder_orders_realm_then_map_and_filters_area_like_cpp`
-paso de `tests/character_tests/instance.rs` al hijo privado existente
-`handlers/character/login_support_tests.rs`, junto a la funcion que prueba.
-El caso de `binder_activate` permanece provisional. Se preservaron templates,
-valores guardados, area y orden esperado; no cambio produccion ni visibilidad.
-`WorldStateMgr::FillInitialWorldStates` (`WorldStateMgr.cpp:259-278`) emite
-primero valores de reino y luego los de mapa aplicando el filtro de area;
-`Player::SendInitWorldStates` (`Player.cpp:8789-8800`) le pasa el area actual.
-
-`cargo check -p wow-world` paso y el filtro exacto de `cargo test -p
-wow-world --lib` ejecuto **1/1** con un job y target del worktree. Logs
-`target/584-map-manager-domain-b3-world-state-check-1984f7e8.log` y
-`target/584-map-manager-domain-b3-world-state-test-1984f7e8.log`. Censo
-**303/303** nombres originales sin duplicados, **149** montados por la raiz
-provisional. La suite externa completa, B3 restante y aceptacion global
-siguen pendientes.
-
-### B3 `instance`: rechazo de binder junto a `gossip` (2026-09-29)
-
-El ultimo caso `binder_activate_rejects_instanceable_map_like_cpp` salio de
-`tests/character_tests/instance.rs`, que quedo sin montaje. El hijo privado
-de `gossip.rs` se renombro de `gossip_gameobject_tests.rs` a `gossip_tests.rs`
-para alojar este caso junto a los tres de GameObject; ahora mide 558 lineas.
-El fixture local de innkeeper conserva la criatura canonica del caso antiguo;
-el fixture provisional compartido sigue para otros consumidores. No cambia
-produccion ni visibilidad. `HandleBinderActivateOpcode` y `SendBindPoint`
-(`NPCHandler.cpp:373-404`) retiran feign death despues de validar al
-innkeeper y antes de rechazar un mapa instanciable.
-
-`cargo check -p wow-world` paso y el filtro
-`cargo test -p wow-world --lib handlers::character::gossip::` ejecuto **4/4**
-con un job y target del worktree. Logs
-`target/584-map-manager-domain-b3-binder-check-57ef290d.log` y
-`target/584-map-manager-domain-b3-binder-test-57ef290d.log`. Censo
-**303/303** nombres originales sin duplicados, **148** montados por la raiz
-provisional. La suite externa completa, B3 restante y aceptacion global
-siguen pendientes.
-
-### B3 `misc_2`: tres rechazos de binder junto al owner (2026-09-29)
-
-`binder_activate_rejects_non_innkeeper_like_cpp`,
-`binder_activate_rejects_player_outside_world_like_cpp` y
-`binder_activate_rejects_player_missing_from_canonical_world_like_cpp`
-pasaron de `tests/character_tests/misc_2.rs` al hijo privado
-`handlers/character/gossip_tests.rs`. Se reutilizo el fixture local de
-Player canonico y se parametrizaron solo los flags del fixture de criatura;
-el binder positivo y los otros consumidores del fixture compartido siguen
-provisionales. Aserciones, GUIDs y respuestas esperadas se conservan, sin
-cambio productivo ni de visibilidad. `HandleBinderActivateOpcode`
-(`NPCHandler.cpp:373-390`) comprueba Player en mundo y vivo antes de validar
-el flag de innkeeper.
-
-`cargo check -p wow-world` paso y el filtro
-`cargo test -p wow-world --lib handlers::character::gossip::gossip_tests::`
-ejecuto **7/7** con un job y target del worktree. Logs
-`target/584-map-manager-domain-b3-binder-negatives-check-274bc316.log` y
-`target/584-map-manager-domain-b3-binder-negatives-test-274bc316.log`.
-La suite externa completa, B3 restante y aceptacion global siguen
-pendientes; el censo global se recontara tras integrar las ediciones B3
-paralelas en sus archivos disjuntos.
-
-### B3 `quest`: cuatro estados tracked junto a `query` (2026-09-29)
-
-Los cuatro casos `quest_giver_status_tracked_*` sobre GUID duplicado, cuenta
-superior al maximo, payload corto y GUID ausente/no soportado se movieron de
-`tests/character_tests/quest.rs` al hijo privado
-`handlers/character/query_quest_status_tests.rs`. Reutilizan la sesion,
-criatura y decodificador del hijo existente; conservan nombres, bytes y
-aserciones, sin modificar produccion ni visibilidad. `QuestHandler.cpp:775-778`
-entrega los GUIDs a `Player::SendQuestGiverStatusMultiple`
-(`Player.cpp:16803-16829`), que consulta los objetos del mapa y deduplica
-mediante el conjunto C++. Los tests de limite/payload truncado son defensas
-de admision Rust; no se atribuyen a una rama C++ no demostrada.
-
-`cargo check -p wow-world` paso y el filtro
-`cargo test -p wow-world --lib handlers::character::query::quest_status_tests::`
-ejecuto **6/6** con un job y target del worktree; los logs
-`target/b3-quest-status-extra-check.log` y
-`target/b3-quest-status-extra-test.log` registran `CARGO_EXIT_CODE=0`.
-La suite externa completa, B3 restante y aceptacion global siguen
-pendientes.
-
-### B3 `misc_1`: rechazos de renombrado junto a `lifecycle` (2026-09-29)
-
-`character_rename_invalid_name_sends_cpp_result_without_guid` y
-`character_rename_non_owned_guid_kicks_like_cpp` se movieron de
-`tests/character_tests/misc_1.rs` al hijo privado
-`handlers/character/lifecycle_rename_tests.rs`. Conservan el paquete,
-GUIDs y aserciones; solo se sustituyo el constructor compartido de sesion
-por el minimo local. El test puro de validacion de nombres sigue pendiente
-de migrar al dominio `wow-entities`; los demas casos de `misc_1` siguen
-provisionales. No hay cambio productivo ni de visibilidad.
-`HandleCharRenameOpcode` (`CharacterHandler.cpp:1520-1540`) rechaza una
-identidad no propiedad de la cuenta y devuelve el error de nombre antes
-de la consulta de renombrado.
-
-`cargo check -p wow-world` paso y el filtro
-`cargo test -p wow-world --lib handlers::character::lifecycle::rename_tests::`
-ejecuto **2/2** con un job y target del worktree. Logs
-`target/b3-character-rename-check.log` y
-`target/b3-character-rename-test.log`. Con las tres migraciones B3
-paralelas, el censo del arbol es **303/303** nombres originales sin duplicados
-y **139** montados por la raiz provisional. La suite externa completa,
-B3 restante y aceptacion global siguen pendientes.
-
-### B3 `misc_1`: personalizacion junto a `lifecycle` (2026-09-29)
-
-`char_customize_without_character_db_sends_cpp_failure` y
-`char_customize_non_owned_guid_kicks_like_cpp` pasaron al hijo privado
-`handlers/character/lifecycle_customize_tests.rs`. Se conservaron nombre,
-GUID, bytes esperados y aserciones; el constructor de sesion es local. El
-resto de `misc_1` permanece provisional. `HandleCharCustomizeOpcode`
-(`CharacterHandler.cpp:1737-1755`) rechaza un personaje ajeno antes de la
-consulta; el fallo sin puerto DB ejercita la ruta defensiva Rust, no demuestra
-un fallo de DB equivalente en C++.
-
-El primer build focal fallo por importar la constante de error desde el
-modulo equivocado; se corrigio hacia el owner del handler. Tras la correccion,
-`cargo check -p wow-world` paso y `cargo test -p wow-world --lib
-handlers::character::lifecycle::customize_tests::` ejecuto **2/2** con un
-job y target del worktree. Logs finales
-`target/b3-character-customize-check-fix.log` y
-`target/b3-character-customize-test-fix.log`; los logs sin `-fix` conservan
-el primer intento fallido. Censo **303/303** nombres originales sin
-duplicados, **137** montados por la raiz provisional. La suite externa
-completa, B3 restante y aceptacion global siguen pendientes.
-
-### B3 `misc_2`: binder positivo junto a `gossip` (2026-09-29)
-
-`binder_activate_sets_current_homebind_and_sends_bind_packets_like_cpp`
-paso del provisional `misc_2.rs` al hijo privado `gossip_tests.rs`. Conserva
-el homebind (571/34), los paquetes `SpellGo` y `BindPointUpdate` del canal
-de instancia, `PlayerBound` y `GossipComplete` del canal de realm, el caster
-innkeeper, spell 3286, flags, ventana de timestamp y la peticion `UpdateLive`.
-El fixture local compartido `CollectionLoadPortLikeCpp` ahora registra las
-solicitudes de homebind y sigue devolviendo `Failed`; el fixture original
-permanece donde tiene otros consumidores. No cambia produccion ni visibilidad.
-`HandleBinderActivateOpcode`/`SendBindPoint` (`NPCHandler.cpp:373-404`),
-efecto de bind (`SpellEffects.cpp:5213+`) y guardado de homebind
-(`Player.cpp:17023+`) anclan la secuencia. El test comprueba orden dentro
-de cada canal, no un orden total entre canales; el fallo sintetico no
-demuestra durabilidad ni recuperacion DB.
-
-`cargo check -p wow-world` paso y el filtro
-`cargo test -p wow-world --lib handlers::character::gossip::gossip_tests::`
-ejecuto **8/8** con un job y target del worktree. Logs
-`target/b3-binder-positive-check-b9d584a0.log` y
-`target/b3-binder-positive-test-b9d584a0.log`. Censo **303/303** nombres
-originales sin duplicados, **136** montados por la raiz provisional. La suite
-externa completa, B3 restante y aceptacion global siguen pendientes.
-
-### B3 `misc_1`: perfil y payloads junto a `lifecycle` (2026-09-29)
-
-Tres casos pasaron al hijo privado `lifecycle_profile_tests.rs`: rechazo de
-`AlterAppearance` sin silla, error de nombres declinados sin runtime y
-payload corto de nombres declinados. Se conservaron nombres, bytes,
-aserciones, locale `esES` y capacidad de envio; los helpers de apariencia
-siguen en el provisional por otros consumidores. No cambia produccion ni
-visibilidad. `HandleAlterAppearance` (`CharacterHandler.cpp:1671+`) valida
-apariencia antes de comprobar la silla real; que el input representado del
-test supere esas validaciones C++ sigue sin probarse. La ruta de nombres
-declinados (`CharacterHandler.cpp:1611+`) puede tener exito con datos
-validos; el caso movido solo prueba el error sin runtime. El paquete corto
-es defensa del parser Rust, sin rama equivalente del handler C++.
-
-`cargo check -p wow-world` paso y el filtro
-`cargo test -p wow-world --lib handlers::character::lifecycle::profile_tests::`
-ejecuto **3/3** con un job y target del worktree. Logs
-`target/b3-lifecycle-profile-check.log` y
-`target/b3-lifecycle-profile-test.log`. Censo **303/303** nombres originales
-sin duplicados, **133** montados por la raiz provisional. La suite externa
-completa, B3 restante y aceptacion global siguen pendientes.
-
-### B5: distancia de interaccion de loot limitada a handlers (2026-09-29)
-
-`represented_gameobject_interaction_distance_like_cpp` y su reexport en
-`loot/mod.rs` pasaron de `pub(crate)` a `pub(in crate::handlers)`. Los
-consumidores localizados estan en loot, su suite y
-`handlers/entities/gameobject.rs`; ningun consumidor localizado queda fuera
-de ese ancestro. Solo cambia visibilidad, no calculo de radio ni bytes.
-`cargo check -p wow-world` paso y
-`cargo test -p wow-world --lib gameobject_interaction_distance_uses_cpp_type_branches`
-ejecuto **1/1** con un job y target del worktree. Logs
-`target/b5-loot-distance-check.log` y `target/b5-loot-distance-test.log`.
-Quedan las otras rutas B5, el consumidor B3 de inventario y la aceptacion
-del candidato; este check focal no cierra B5 ni demuestra composicion final.
-
-### B5: contratos internos de character estrechados (2026-09-29)
-
-`ExtendedCostItemTurninChange` y su reexport se limitaron a
-`crate::handlers`: los consumidores de item y quest estan bajo ese ancestro.
-`CreatureAddonCreateFieldsLikeCpp` y su reexport se limitaron a
-`crate::handlers::character`, donde esta su consumidor de visibilidad.
-Ambas rutas ya eran `pub(crate)` antes de la extraccion; solo cambia su
-alcance, sin alterar plan, addon ni publicacion. La retirada provisional del
-montaje `character_tests` al final de `character/mod.rs` pertenece a B3 y
-permanece fuera de este commit mediante staging de hunk.
-
-`cargo check -p wow-world` paso. Los filtros de
-`turnin_plan_tests::` y `creature_create_hover_offset_matches_cpp_after_addon`
-ejecutaron **1/1** cada uno con un job y target del worktree. Logs
-`target/b5-character-visibility-check.log`,
-`target/b5-character-visibility-turnin.log` y
-`target/b5-character-visibility-creature.log`. El segundo caso es cobertura
-adyacente, no prueba directa del DTO. La suite externa de inventario aun
-consume rutas de test privadas; B3 y la aceptacion global siguen pendientes.
-
-### B3 `misc_1`: rechazo de sanador espiritual junto a `query` (2026-09-29)
-
-El caso `spirit_healer_activate_without_interactable_healer_is_silent_like_cpp`
-paso del provisional `misc_1.rs` al modulo privado `query_tests.rs`, sin
-cambiar produccion ni visibilidad. `NPCHandler.cpp:331-344` retorna sin
-respuesta si no hay sanador interactuable; el test conserva el GUID y comprueba
-que no se emite paquete. No demuestra la resurreccion satisfactoria.
-
-`cargo check -p wow-world` y el filtro exacto
-`handlers::character::query::tests::spirit_healer_activate_without_interactable_healer_is_silent_like_cpp`
-con `--lib` pasaron (1/1, un job, target del worktree). Logs
-`target/b3-spirit-healer-negative-check-28134119.log` y
-`target/b3-spirit-healer-negative-test-28134119.log`. El censo conserva los
-**303** nombres originales sin ausencias ni duplicados, con **132** montados
-por la raiz provisional. La suite externa completa y la aceptacion global
-siguen pendientes.
-
-### B3 `misc_1`: homebind por defecto junto a `login_support` (2026-09-29)
-
-`default_homebind_reads_primary_then_neutral_pandaren_from_startup_store_like_cpp`
-paso al test privado de `login_support`, con las mismas filas de mapa y
-ubicacion y las mismas aserciones. `Player::_LoadHomeBind` en
-`Player.cpp:19228-19300` consulta primero el cementerio de faccion y usa la
-ubicacion 3295 para pandaren neutral solo si falta aquel; `ObjectMgr.cpp:6828-6841`
-fija los ids 4 y 10. El test comprueba seleccion sobre un store sintetico, no
-la carga completa desde la base de datos.
-
-`cargo check -p wow-world` y el filtro exacto `--lib` del test pasaron (1/1,
-un job, target del worktree); logs `target/b3-homebind-default-check.log` y
-`target/b3-homebind-default-test.log`. El censo mantiene **303** nombres sin
-ausencias ni duplicados y deja **131** montados en la raiz provisional. B3 y
-la aceptacion global siguen pendientes.
-
-### B3/B5 `item_2`: plan de swap privado (2026-09-29)
-
-Los dos tests `direct_inventory_swap_persistence_plan_*` pasaron del
-provisional `item_2.rs` al hijo privado `inventory_plan_tests.rs`. El tipo
-`DirectInventoryPositionUpdateLikeCpp`, sus campos y la funcion de planificacion
-quedaron privados al modulo de inventario; no se altero produccion. En C++
-`ItemHandler.cpp:69-111` delega a `Player::SwapItem`
-(`Player.cpp:12271-12315,12575-12595`) y `_SaveInventory` encola las posiciones
-finales en una transaccion (`Player.cpp:19977-19999`). Los tests comprueban solo
-la proyeccion del plan para dos casos, no la persistencia ni la paridad del swap.
-
-`cargo check -p wow-world` y el filtro `--lib`
-`inventory_plan::rule_tests::direct_inventory_swap_persistence_plan_` pasaron
-(2/2, un job, target del worktree); logs
-`target/b3-inventory-swap-plan-check.log` y
-`target/b3-inventory-swap-plan-test.log`. El censo conserva **303** nombres sin
-ausencias ni duplicados, con **129** en la raiz provisional. B3/B5 y la
-aceptacion global siguen abiertos.
-
-### B6 `grid`: reexports explicitos y constantes internas (2026-09-29)
-
-`wow-map::map_manager` sustituye el glob de `grid` por reexports explicitos.
-`GRID_SIZE` y `DEFAULT_GRID_UNLOAD_TIME` vuelven a `pub(crate)`; el primero se
-reexporta solo para los tests. Los fixtures de `map_manager_tests` dejan de
-reexportar publicamente sus imports. `Grid`, el `GridCoord` heredado y los
-helpers publicos de coordenadas conservan sus rutas: `MapInstance` expone los
-tipos en firmas, y no se elimina una API externa por ausencia de consumidores
-en el workspace. No cambian valores ni conversiones.
-
-`cargo check -p wow-map` paso tras eliminar un aviso nuevo por reexport sin
-uso, y `cargo test -p wow-map --lib grid` paso **140/140**. Los cinco casos
-de contenedor de criaturas/jugadores y descarga de grid pasaron 1/1 cada uno.
-`cargo check -p wow-world` paso como consumidor, sobre este diff y el B3 de
-transporte aun sin commit. Un job y target del worktree en todos los comandos;
-logs `target/b6-grid-visibility-check.log`,
-`target/b6-grid-visibility-test-grid.log` y
-`target/b3-login-transport-check.log`. Persisten avisos de tests preexistentes;
-B6, consumidores completos y aceptacion global siguen pendientes.
-
-### B3 `misc_1`: orden de INIT_SELF junto a `login_transport_support` (2026-09-29)
-
-`init_self_orders_transport_attached_player_and_fellow_passenger_like_cpp`
-paso del provisional `misc_1.rs` al hijo privado de
-`login_transport_support.rs`, con datos y aserciones conservados. El orden
-corresponde a `Map::SendInitSelf` (`Map.cpp:1826-1852`): transporte,
-jugador propio y pasajeros visibles. El caso verifica el compositor de
-bloques, no el envio real del paquete ni visibilidad de cliente.
-
-El primer test focal fallo por faltar el import `TransportInfo` en el nuevo
-scope; se corrigio sin ampliar la API. Sobre el arbol corregido pasaron
-`cargo check -p wow-world` y el filtro exacto `--lib` (1/1, un job y target
-del worktree); logs `target/b3-login-transport-final-check.log` y
-`target/b3-login-transport-final-test.log`. El censo conserva **303** nombres
-sin ausencias ni duplicados y deja **128** en la raiz provisional. B3 y la
-aceptacion global siguen pendientes.
-
-### B7: import sin uso en el driver de sesion (2026-09-29)
-
-Se retiro `use wow_packet::WorldPacket` de `session/driver/mod.rs` tras
-confirmar que ese archivo usa nombres plenamente cualificados y no consume
-el import. `cargo check -p wow-world` paso (un job, target del worktree),
-log `target/b7-driver-import-check.log`. El resumen del crate bajo este
-arbol bajo de 273 a 272 avisos; sigue pendiente la limpieza B7 restante y
-la aceptacion global.
-
-### B3: bank, loot reply y elegibilidad junto a sus owners (2026-09-29)
-
-Cuatro `buy_bank_slot_*` salieron del provisional `character_tests/item_3.rs`
-al hijo privado de `bank.rs`; sus tres fixtures comunes viven ahora en
-`bank_test_support.rs` bajo `cfg(test)` y tambien sirven a `gossip_tests.rs`,
-que baja a 712 lineas. El wrapper bancario solo de test se hizo privado; el
-helper productivo y su registro no cambiaron. `BankHandler.cpp:122-150`
-respalda compra y rechazos; el caso de rollback definitivo cubre el contrato
-de persistencia Rust y no una transaccion inmediata equivalente en C++.
-
-Dos casos de respuesta de loot salieron de `loot_tests/item_1.rs` al hijo
-privado de `loot/reply_items.rs`; un fixture local conserva sus defaults.
-`Loot.cpp:140,915,995,1024` respalda las reglas de UI, FFA y proyeccion de
-items, no serializacion ni apertura completa del loot. Cinco casos de
-recurrencia salieron de `tests/quest_tests/quest_7.rs` al hijo privado de
-`quest/eligibility.rs`; el resto de escenarios de flujo sigue externo.
-`Player.cpp:14087-14096,15387-15410,15439-15446` respalda las puertas diaria,
-DF, semanal y mensual. Los tests siembran estado sintetico sin Player cargado;
-no prueban hidratacion, resets ni persistencia.
-
-El censo mantiene los **303** nombres originales de character sin ausencias
-ni duplicados, con **124** en su raiz provisional. Cada uno de los dos nombres
-movidos de loot y los cinco de quest aparece una vez. `cargo check -p wow-world`
-y `cargo check -p wow-world --test quest_tests` pasaron; los filtros `--lib`
-pasaron bank **4/4**, gossip **8/8**, loot reply **2/2** y elegibilidad **5/5**.
-Un job, target del worktree; logs `target/584-b3-01-cargo-check-wow-world.log`
-a `target/584-b3-06-check-quest-tests.log`. Los 272 avisos de la lib no
-aumentaron. La suite externa de character, B3 total y aceptacion global
-siguen pendientes.
-
-### B3/B5: matriz privada de elegibilidad y visibilidad character (2026-09-29)
-
-Los 16 tests `can_take_quest_*` restantes de `tests/quest_tests/quest_7.rs`
-pasaron al hijo privado de `quest/eligibility.rs`. Con los cinco anteriores,
-son **21** casos en `eligibility_tests.rs` (**599 lineas**). El target externo
-conserva sus escenarios de packet, reward y puertos. Los nombres, entradas y
-aserciones se conservaron; el par de archivos tiene **30** tests antes y
-despues, sin ausencias ni extras. `Player::CanTakeQuest` y sus gates
-`SatisfyQuest*` en `Player.cpp:14087-15446` son las referencias; la sesion
-sintetica sin Player no acredita hidratacion, resets, quests temporizadas,
-persistencia ni composicion productiva.
-
-El test de recuento de prospecting/milling paso del agregado de loot al hijo
-privado de `reply_items.rs`, conservando sus cuatro aserciones. El par de
-archivos de loot mantiene **23** tests antes y despues. `DoLootRelease` en
-`LootHandler.cpp:342-354` limita el consumo a cinco; el test cubre solo la
-aritmetica del helper, no mutacion de inventario ni dispatch de release.
-
-B5 estrecho doce firmas en `character/items.rs`, `condition_objects.rs`,
-`query.rs` y `stats.rs` a `pub(super)`, `pub(in crate::handlers)` o privado,
-segun consumidores actuales. Se conservaron las rutas que usan Session,
-quest, void storage y los tests provisionales. No cambia ningun cuerpo.
-
-En el mismo arbol, `cargo check -p wow-world`, el filtro `--lib` de
-elegibilidad (**21/21**), el de loot reply (**3/3**) y
-`cargo check -p wow-world --test quest_tests` pasaron con un job y target del
-worktree. Logs `target/b3-cargo-check-wow-world.log`,
-`target/b3-cargo-test-quest-eligibility.log`,
-`target/b3-cargo-test-loot-reply-items.log` y
-`target/b3-cargo-check-quest-tests.log`. El check productivo informa 270
-avisos; este feedback local no cierra B3/B5 ni la aceptacion global.
-
-### B3 hearth, B5 loot y B6 pathfinder: cortes internos (2026-09-29)
-
-Tres tests de hearth/resurrect y su fixture exclusivo pasaron de la raiz
-provisional de `character_tests` al hijo privado
-`character/lifecycle_hearth_tests.rs` (**120 lineas**). Se mantuvieron mapa,
-area, flags, taxi y canal de envio. `BattleGroundHandler.cpp:703-720`
-delega primero al campo de batalla; estos tests cubren solo la rama
-representada de area/homebind y el rechazo en vuelo. El censo de character
-conserva **303** nombres sin ausencias ni duplicados y deja **121** montados
-en la raiz provisional.
-
-En loot, `open_represented_gameobject_chest_like_cpp` (solo de test) se limito
-a `crate::handlers`; sus llamadas siguen en `handlers::loot_tests`.
-`represented_creature_is_dead_for_loot_visibility_like_cpp` se limito a
-`crate::handlers::loot`, que contiene su consumidor productivo `claims.rs`.
-No cambio ningun cuerpo. En `wow-map`, el glob de `pathfinder` se reemplazo
-por reexports explicitos, conservando los demas `pub` anteriores. Solo
-`path_type_from_detour_like_cpp` y
-`path_generator_from_detour_with_normalizer_like_cpp` quedaron en
-`pub(super)` para sus consumidores internos de movimiento. No cambian datos
-ni calculos de rutas.
-
-Pasaron `cargo check -p wow-map`, el filtro `cargo test -p wow-map --lib
-pathfinder` (**5/5**), `cargo check -p wow-world`, el filtro privado de
-hearth (**3/3**) y `cargo check -p world-server` como consumidor B6. Un job,
-`PROTOC` local y target del worktree; logs
-`target/b6-pathfinder-check-wow-map.log`,
-`target/b6-pathfinder-test.log`,
-`target/b3-hearth-b5-loot-b6-pathfinder-check-wow-world.log`,
-`target/b3-hearth-focused-test.log` y
-`target/b6-pathfinder-check-world-server.log`. El ultimo check tardo **4m56s**
-y el test de hearth **2m40s**; son costes de feedback local, no una campaña
-final medida. B3/B5/B6 y aceptacion global siguen pendientes.
-
-### B3: tablas de creacion y dinero almacenado; B5 loot (2026-09-29)
-
-`start_positions_are_valid` y `display_ids_are_valid` pasaron de
-`character_tests/misc_2.rs` al test privado de `creation_support.rs`, junto
-a `start_zones_are_valid`. Conservan datos y aserciones; comprueban sanidad de
-tablas Rust, no igualdad por raza/clase con `ObjectMgr::LoadPlayerInfo` o
-`Player::Create` de C++. El censo de character mantiene **303** nombres sin
-ausencias ni duplicados, con **119** en la raiz provisional.
-
-Se retiraron tres tests puros duplicados de `loot_tests/item_1.rs` tras
-revisar su cobertura en `wow-persistence/src/tests.rs`: se añadio el caso
-`after balance + source presente -> Indeterminate` al test de reconciliacion
-y un caso de saldo estable/consumo de fuente con valor sintetico. El test
-existente de fuente ausente con importe cero conserva exactamente esa
-asercion; la aritmetica del tope real queda en el test del adaptador de
-`wow-database`. El worker de sesion permanece en loot. La transaccion
-conjunta y lectura tras COMMIT desconocido son contrato Rust; el C++
-`HandleLootMoneyOpcode` y `StoredLootContainer::RemoveMoney` no los hacen
-como una unidad atomica.
-
-B5 limito a `crate::handlers` tres helpers de loot: los wrappers test-only
-de tick de rolls y espera de persistencia, y el retiro de loot destruido
-consumido por void storage. No cambian sus cuerpos. Pasaron
-`cargo test -p wow-persistence --lib stored_item_money` (**3/3**),
-`cargo check -p wow-world`, el filtro privado de `creation_support`
-(**6/6**) y el worker de dinero almacenado (**1/1**), con un job y target del
-worktree. Logs `target/b3-stored-money-persistence-test.log`,
-`target/b3-creation-b5-loot-check-wow-world.log`,
-`target/b3-creation-support-focused-test.log` y
-`target/b3-stored-money-worker-focused-test.log`. B3/B5 y aceptacion global
-siguen pendientes.
-
-### B3 sanador de area, B6 respawn y B7 imports (2026-09-29)
-
-Tres tests de consulta/cola de sanador de area y sus fixtures exclusivos
-pasaron de `character_tests/misc_2.rs` al hijo privado
-`character/query_area_healer_tests.rs` (**145 lineas**); `query.rs` queda en
-**799**. Se conservaron nombres, datos, respuestas y comprobaciones. El censo
-de character mantiene **303** nombres sin ausencias ni duplicados, con
-**116** en la raiz provisional. `BattleGroundHandler.cpp:658-700` y
-`Player.cpp:28984-29014` son los anclajes: Rust responde con tiempo cero y
-registra el sanador sin el aura `SPELL_WAITING_FOR_RESURRECT`, por lo que
-estos tests no acreditan temporizacion ni resurreccion completa.
-
-En `wow-map`, el glob de `pending_respawn` se sustituyo por nueve reexports
-publicos explicitos, preservando DTOs y helpers usados entre crates.
-`instant_from_respawn_time_like_cpp` y `respawn_delete_mutation_like_cpp`
-quedaron en `pub(super)` para los consumidores internos. El primer check
-detecto que `spawn_object_type_raw_like_cpp` dependia tambien del glob; se
-añadio su import privado. El primer test detecto que el fixture reexportaba
-`instant_from_respawn_time_like_cpp` con alcance excesivo; se limito al padre
-de tests y se hizo privado su glob. No cambiaron cuerpos ni formatos.
-
-B7 retiro tres imports sin uso de
-`session/creature_canonical_adapter.rs`, `instance_bind_contracts.rs` y
-`void_storage_adapter.rs`, conservando el parametro `info`, la variante
-`GameObject` y los helpers de test. Tras corregir las dos importaciones B6,
-pasaron `cargo check -p wow-map`, `cargo test -p wow-map --lib respawn`
-(**104/104**), `cargo check -p wow-world` y el filtro privado del sanador
-(**3/3**). Un job y target del worktree; logs
-`target/b6-respawn-check-wow-map-final.log`,
-`target/b6-respawn-focused-test-final.log`,
-`target/b3-area-healer-b7-imports-b6-respawn-check-wow-world.log` y
-`target/b3-area-healer-focused-test.log`. El check de `wow-world` informa
-**267** avisos (270 antes). B3/B6/B7 y aceptacion global siguen pendientes.
-
-### B3 banco y catálogo gossip; B6 runtime; B7 imports (2026-09-29)
-
-Dos pruebas de banco y tres de catálogo gossip pasaron de la suite provisional de
-`character_tests` a módulos privados de sus handlers. El censo estático compara
-los 303 nombres originales de `character_tests` con todo el árbol actual y no
-encuentra ausencias ni duplicados; 111 permanecen montados en la raíz provisional
-del target externo. Siete archivos externos ya montados por targets propios no
-entran en esa cifra. El test de banco sin apertura comprueba un caso sin item
-origen: no demuestra por sí solo el guard `CanUseBank`. El catálogo conserva orden
-de lecturas, locale y fallbacks del puerto Rust; no acredita SQL ni igualdad
-completa con `ObjectMgr::LoadGossipMenu`, `LoadGossipMenuItems` y
-`LoadGossipMenuItemsLocales` de C++. Para los handlers,
-contrastar `BankHandler.cpp:27-39,78-90`, `ItemHandler.cpp` (`CanUseBank`) y
-`NPCHandler.cpp:204-329` antes de afirmar más paridad.
-
-El glob de `map_manager/runtime_state` se cambió por nueve reexports públicos
-explícitos y siete imports internos; no se quitaron DTOs públicos ni se
-modificaron cuerpos. B7 retiró tres imports sin uso en los adaptadores de
-colecciones, interacción NPC y registro de jugador. Pasaron `cargo check -p
-wow-map`, dos tests de `into_owning_session_plan`, `cargo check -p wow-world`
-(264 avisos, frente a 267), seis tests privados de banco y tres de catálogo
-gossip, con un job, `PROTOC` local y target del worktree. El primer filtro de
-`runtime_state` seleccionó cero tests; se corrigió y solo el filtro de dos
-casos cuenta como evidencia. Logs `target/batch-gossip-bank-runtime-map-check.log`,
-`target/batch-runtime-state-focused-test.log`,
-`target/batch-gossip-bank-runtime-world-check.log`,
-`target/batch-bank-focused-test.log` y
-`target/batch-gossip-catalog-focused-test.log`. Es feedback local de implementación,
-no aceptación de B3/B6/B7 ni del candidato final.
-
-La objeción de tamaño se midió en el mismo árbol: `wow-map/src/map/mod.rs`
-tiene 5 133 líneas, `map/spawn_groups.rs` 2 384,
-`map/game_object.rs` 2 311 y `map/relocation.rs` 2 176;
-`wow-map/src` suma 66 312. La raíz de `Map` ya mide 5 133 en la base
-`origin/3.4.3`. D3 se adelanta con el contrato B6 fijado: el movimiento de
-`map_manager` no retira estos monolitos y su aceptación física sigue abierta.
-El inventario completo de archivos Rust de `wow-map/src` por encima de 1 000
-incluye además `map/storage.rs` (1 578), `manager/state_2.rs` (1 308),
-`manager/state_1.rs` (1 126), `map_tests/creature_1.rs` (1 084) y
-`map_tests/visibility.rs` (1 072): **nueve archivos** en total. La salida de D3
-requiere revisar cada uno contra el presupuesto de la guía de módulos, con
-contrato público, autoridad, lectores/escritores y tests preservados; una caída
-del máximo sin retirar los otros ocho no lo cierra. Los primeros cortes
-cohesivos seleccionados son el estado map-local de pools y el cálculo puro de
-respawn desde `map/mod.rs`, y las actualizaciones de Transport, AreaTrigger,
-Conversation y SceneObject desde `map/game_object.rs`. Son trabajo en curso,
-no aceptación de D3 todavía.
-
-**Primer corte D3 aplicado, feedback local:** `map/mod.rs` 5 133 → 4 830
-(pool map-local y escala pura de respawn en `pool_data.rs` 134 y
-`respawn_scaling.rs` 184); `map/game_object.rs` 2 311 → 1 567
-(updates de otros tipos en `other_object_updates.rs` 758);
-`map/relocation.rs` 2 176 → 1 732 (colas de movimiento en `move_list.rs`
-458). Los cuerpos de los métodos extraídos de `game_object.rs` y
-`relocation.rs` se compararon con la versión anterior; el único delta de
-texto fuera del cuerpo son sus cierres de `impl`. `Map` conserva el único campo
-de pools y las colas/locks. `Map.cpp:1163-1416` fija la familia y orden de las
-colas; el movimiento físico no cambia esa secuencia. Pasaron
-`cargo check -p wow-map` y filtros `--lib` de `spawned_pool_data` (3),
-`dynamic_respawn` (9), `move_list` (27) y `area_trigger_update` (5), con
-`PROTOC` local, un job y target del worktree. Logs bajo
-`target/d3-map-feedback/`. No hay aceptación final ni check downstream del
-candidato; los tres ficheros de origen siguen por encima de 1 000 y D3 sigue
-abierto.
-
-Los métodos de otros tipos movidos también tienen feedback focal en ese
-directorio: `transport_update` 5/5, `conversation_update` 4/4 y
-`scene_object_update` 5/5, sin tests cero. La suma de los siete filtros es
-58 ejecuciones, no una suite completa ni prueba de paridad del tick.
-
-**Segundo corte D3 en el árbol local, aún sin aceptación:** se extrajeron
-viewpoint, summon/slots de GameObject, retirada de objetos, inserción,
-acciones de pool y sus actualizaciones, fases de manager y dos grupos de tests
-de criatura/visibilidad. `map/mod.rs` quedó en 4 253 líneas;
-`game_object.rs` 900, `relocation.rs` 916, `storage.rs` 985,
-`spawn_groups.rs` 571, `manager/state_1.rs` 780,
-`manager/state_2.rs` 988, `map_tests/creature_1.rs` 835 y
-`map_tests/visibility.rs` 916. De los nueve archivos D3 inicialmente
-mayores de 1 000, solo la raíz de `Map` sigue por encima; los archivos
-nuevos también están por debajo. El estado `Map` continúa canónico y privado;
-los cuerpos trasladados se compararon byte a byte. Tras corregir tres imports
-de producción/tests, pasó `cargo check -p wow-map` y pasaron los siete filtros
-`spawn_group` (47), `pool_update` (3), `add_to_map` (29),
-`remove_from_map` (30), `guid_sequence` (10), `farsight` (8) y
-`map_manager` (179), cada uno con coincidencias no nulas. Hay solapamiento
-entre filtros: no son 306 tests distintos. Exits y recuentos en
-`target/d3-second-feedback/`. Faltan consumidores completos y aceptación
-final; estas extracciones no retiran el segundo manager ni sus puentes.
-
-**Tercer corte D3 local:** los dos resolvers puros de posición de invocación y
-sus resultados pasaron a `map/summon_position.rs` (133 líneas), con los mismos
-reexports públicos y cuerpos comparados byte a byte. `map/mod.rs` mide ahora
-4 136 líneas. Pasó `cargo check -p wow-map` y los filtros de posición
-`world_object_summon_gameobject_position` y
-`summon_object_wild_position` ejecutaron 2/2 casos cada uno (logs
-`target/b3-summon-position-*.log`). Este corte mejora navegación física; no
-traslada autoridad de estado ni cierra D3/B6. La auditoría posterior midió
-`wow-map` en 66 497 líneas `src` + 252 `tests` = 66 749, 135 ficheros y
-máximo 4 136 (`target/structure-audit-after-summon.log`): la masa total subió
-16 líneas de wiring/reexports aunque bajó el fichero mayor.
-
-Para responder al tamaño del destino con una base comparable, se contaron líneas
-físicas de todos los `.rs` bajo `src/` y `tests/` mediante
-`git archive` en `origin/3.4.3` y en `f32ca7d7`, sin incluir el WIP externo
-sin montar. `wow-world` pasa de 411 872 líneas en `src` + 3 016 en `tests`
-(414 888) a 390 864 + 21 400 (412 264): la caída combinada comprometida es
-2 624 líneas, mientras la mayor reducción de `src` refleja en parte tests
-trasladados. `wow-map` pasa de 53 264 + 252 (53 516) a 66 312 + 252
-(66 564). Estas cifras son tamaño físico por crate, no prueba de retiro de
-autoridad ni de menor coste de compilación; el árbol provisional de character
-todavía necesita compilar y ejecutar sus targets.
-El `xtask structure-audit` anterior a este ajuste (`tools/xtask/src/main.rs`) medía
-solo `src/`: mover tests a `<crate>/tests/` reduce su columna `lines` sin
-reducir por ello el total físico del crate ni retirar lógica de aplicación.
-Para la aceptación de E1 se deben conservar las tres medidas (`src`, `tests`,
-total) y revisar ficheros de ambos árboles; no usar la caída de `src` por B3
-como prueba de distribución semántica o de cumplimiento del techo total.
-
-El ajuste local de `xtask structure-audit` ya imprime esas tres columnas y
-calcula el mayor fichero entre ambos árboles. Su ejecución devolvió 0:
-`wow-world` 377 126 + 28 534 = 405 660 líneas y máximo 1 842;
-`wow-map` 66 481 + 252 = 66 733 y máximo 4 253. El árbol de
-`character_tests` aún es provisional y no compiló como target externo; la
-medida precede al tercer corte D3, que bajó el máximo a 4 136. Estas cifras
-describen ese worktree, no un candidato aceptado. Log
-`target/structure-audit-src-tests-total.log`.
-
-El límite semántico también sigue abierto. `world-server/app.rs:4126-4170`
-construye un manager legacy (`wow_map::map_manager::MapManager`) y otro canónico
-(`wow_map::manager::MapManager`), y
-`runtime/map/update_loop.rs:28-31` recibe ambos en el productor de ticks.
-La [traza de relojes](runtime-clock-phase-trace.md) fija que la configuración
-normal selecciona el tick legacy global de criaturas mientras la visita
-canónica no ejecuta su AI/combat; también advierte que los puentes de
-spawn/respawn y sincronización no quedan probados por esa división. Por tanto
-D3 reduce archivos y B6 debe seguir retirando/justificando cada puente según
-su dueño y contrato: no llamar a un `Map` repartido en archivos una autoridad
-única demostrada para todas las transiciones.
-
-**Corrección de criterio para los siguientes cortes (2026-09-29):** antes de
-dar por distribuida una responsabilidad, registrar la operación completa, su
-estado canónico, lectores y escritores, dueño del tick, efectos de persistencia y
-publicación, consumidores migrados y el puente retirado o su condición concreta
-de retiro. Exigir además el presupuesto físico de producción, tests y fixtures.
-Un `impl Map` movido a otro archivo conserva la autoridad y cuenta solo como
-avance físico; una caída de `wow-world/src` causada por trasladar tests tampoco
-cuenta como reducción de masa del crate. El siguiente corte de `Map` debe dejar
-una raíz navegable por familias de operación sin ensanchar visibilidad para mover
-código; el cierre semántico B6 exige tratar el par de managers en la composición
-y en los productores de ticks según el ledger de ownership. Mantener ambas
-medidas separadas en el estado de B6/D3 hasta superar sus dos pruebas de salida.
-
-El feedback local de los dos tests privados de gossip y los dos de validación
-de redirección de inventario fue **2/2** en cada filtro, después de un primer
-filtro que seleccionó cero tests y no cuenta como evidencia. `cargo check -p
-wow-world` pasó con 261 avisos; son checks de implementación sobre el árbol
-provisional, no aceptación de B3/B6/B7. Los imports B7 restantes y las suites
-externas de character/quest/loot siguen pendientes.
-
-En el mismo árbol `wow-world` aún tiene cuatro ficheros de producción por
-encima de 1 000 líneas: `session/state.rs` (1 842),
-`session/pets/battle_pet.rs` (1 056), `session/mod.rs` (1 034) y
-`session/construction.rs` (1 024). B5 bajó las raíces de los handlers,
-pero no resuelve esos ficheros ni las familias que `WorldSession` aún retiene.
-La decisión B4 de 2026-09-25 ya separó los subestados legítimos de las
-familias cuyo dueño final es composición, Player/loot o Map. No anidar estas
-últimas en otro struct de Session para bajar el contador: completar la
-operación con sus consumidores y retirar el campo/puente antes de atribuir
-modularidad semántica; revisar además cada fichero contra el presupuesto físico.
-
-**Corte semántico B6 local, feedback de implementación:**
-`world-server/runtime/game_events/bootstrap.rs::register_loaded_instance_ids`
-escribía las reservas de ID de instancia en ambos managers, aunque el camino
-productivo de creación de mapas de instancia localizado usa el canónico. El
-arranque conserva en el mismo punto la inicialización y reserva canónicas y
-retira la escritura y lock del allocator legacy. Sus métodos públicos siguen
-existiendo; este corte no retira el manager legacy ni declara cerrado su
-contrato externo. El nuevo test de composición de IDs `[1, 3]` y entrada vacía
-pasó **1/1** con `cargo test -p world-server --lib
-persisted_instance_ids_reserve_canonical_allocator_and_empty_input_is_noop`;
-`cargo check -p world-server` también pasó, con `PROTOC` local, un job y el
-target del worktree. Logs `target/b6-instance-id-bootstrap-lib-test.log` y
-`target/b6-instance-id-world-server-check.log`. El primer intento de test
-`--bin` se interrumpió al constatar que la prueba vive en la librería; no
-cuenta como evidencia. No hay aceptación final ni QA de persistencia/reinicio.
-El puente de criaturas cargadas/spawn/respawn sí alimenta el tick legacy que
-hoy ejecuta AI y combate, por lo que no puede retirarse hasta que la transición
-completa tenga un único dueño probado. C++ 3.4.3 usa un solo allocator:
-`World.cpp:1901`, `MapManager.cpp:139,374` e `InstanceLockMgr.cpp:124`;
-el orden y las entradas de inicialización Rust siguen requiriendo contraste de
-paridad. Las pruebas locales verifican el contrato de la composición actual,
-no esa paridad completa ni los posibles usuarios externos de `wow-map`.
-
-**Retiro local del allocator duplicado de `wow_map::map_manager::MapManager`
-(2026-09-29; implementación sin validar sobre `0e9070c9`):** se quitaron los
-campos `free_instance_ids`/`next_instance_id`, los métodos públicos
-`init_instance_ids_from_max`, `register_instance_id`, `generate_instance_id` y
-`free_instance_id`, y sus tres pruebas antiguas. La búsqueda completa del repo
-encontró las apariciones restantes en el allocator canónico (composición,
-wrappers y tests); no encontró callers de la API legacy fuera de su constructor
-ni de las pruebas retiradas. El módulo `wow_map::map_manager` es público, así que
-esta retirada rompe esa API fuente y cambia el `Debug` derivado para consumidores
-externos al workspace, que no se pudieron auditar. El
-allocator canónico, la composición/bootstrap y sus pruebas permanecen intactos;
-también permanecen el tick `GlobalLegacy` y los puentes de criaturas cargadas,
-spawn y respawn. No cambia el orden ni los datos de bootstrap, y este corte no
-afirma paridad completa con `World.cpp:1901`, `MapManager.cpp:139,374-432` ni
-`InstanceLockMgr.cpp:124`. Feedback del corte: `cargo test -p wow-map --lib
-instance_id` pasó **4/4** y `cargo test -p world-server --lib
-persisted_instance_ids_reserve_canonical_allocator_and_empty_input_is_noop`
-pasó **1/1** con `PROTOC` local, un job y el target de este worktree. Logs
-`target/b6-retire-legacy-allocator-map-test.log` y
-`target/b6-retire-legacy-allocator-bootstrap-test.log`. La aceptación final
-de arquitectura e integración sigue pendiente.
-
-**D3, planes de reubicación (2026-09-29):** los tipos y cálculos puros de
-visibilidad/avisos AI tras una reubicación viven ahora en
-`wow-map/src/map/relocation_plans.rs`; `Map` conserva su estado y el módulo de
-ejecución `relocation.rs` mantiene la transición. La raíz `map/mod.rs` baja de
-4 136 a 3 887 líneas, pero la masa de `wow-map` crece por el cableado y este
-corte no retira ningún escritor, reloj ni puente. `cargo test -p wow-map
-relocation` pasó con 28 tests seleccionados (y los targets de integración
-filtrados a cero no cuentan). Log `target/d3-relocation-plan-test.log`. Es
-feedback del corte local, no aceptación final de D3 ni de B6.
-
-**B3, diagnóstico del piloto `character_tests` (2026-09-29):** el árbol
-provisional que intenta montar parte de la suite como target externo sigue
-sin compilar: `cargo test -p wow-world --test character_tests --no-run`
-terminó con 283 errores (log `target/b3-character-current-no-run.log`).
-Predominan llamadas y tipos `pub(crate)`/privados de `WorldSession`, junto
-con fixtures bajo `cfg(test)` de la librería que el target externo no ve.
-No se debe hacer pública la producción para satisfacer estos tests. Separar
-por dueño: mantener en módulos privados las pruebas que ejercen interiores y
-dejar en integración solo contratos accesibles desde fuera, conservando los
-nombres y aserciones originales. Las eliminaciones y nuevos archivos de esta
-suite siguen sin commit; ni su cifra de líneas ni el target fallido constituyen
-aceptación de B3.
-
-El primer retorno al dueño privado movió
-`pending_worldport_uses_separate_cpp_connections` al módulo de transferencia
-de `WorldSession`, conservando el nombre y las aserciones de paquetes/orden;
-el filtro de librería pasó **1/1** (`target/b3-private-transfer-test.log`).
-Cinco pruebas de planificación de movimientos bancarios se trasladaron al
-child privado de `handlers::character::items` con fixtures locales mínimos;
-todavía no hay resultado ejecutado de ese lote. Estos son avances de B3
-provisionales y la suite externa sigue sin compilar.
-
-**Checkpoint estratégico del refactor #1233:** completar primero todas las
-responsabilidades autorizadas del programa, incluidas las suites B3, los
-dueños/puentes B6, las violaciones de capa y los monolitos pendientes. En
-`character_tests`, mantener cada prueba privada junto a su dueño, conservar
-exactamente nombres y aserciones y montar fuera de la librería solo contratos
-públicos; después continuar las demás suites sin campaña intermedia. Trabajar
-en nivel 1 sin compilaciones ni pruebas automáticas por lote, suite o helper.
-Al terminar la implementación completa, ejecutar una campaña de aceptación,
-corregir sus hallazgos juntos y repetir solo la evidencia afectada.
-La ejecución interrumpida de `cargo test -p wow-world --lib bank_move_plan`
-salió con código 130 por este cambio de cadencia; no aporta evidencia de esos
-cinco tests.
+## 6. Decisiones arquitectónicas
+
+Los [ADR aprobados](workspace-structure-decisions.md) conservan sus contratos y fechas; ADR-009 rige los símbolos nuevos de esta barrida, cuya corrección está asignada, sin renombrado masivo del legado.
+Los [diagnósticos y resultados anteriores](workspace-structure-history.md) son evidencia histórica;
+la continuación se mantiene exclusivamente en §3.1 de este programa.

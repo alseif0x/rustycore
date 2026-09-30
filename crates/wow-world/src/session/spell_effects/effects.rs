@@ -3,6 +3,7 @@
 //! Moved out of the Session root under #621. Behaviour is preserved; the
 //! canonical owner of this state is unchanged.
 
+use super::super::creature_movement_adapter::movement_monster_spline_from_move_spline_like_cpp;
 use super::*;
 
 impl WorldSession {
@@ -519,7 +520,7 @@ impl WorldSession {
         // before the next visibility read derives the seer from canonical
         // Player state.
         self.send_set_viewpoint_target_visibility_like_cpp(dynamic_object_guid);
-        self.last_observed_farsight_object_like_cpp = dynamic_object_guid;
+        self.visibility_publication.last_observed_farsight_object_like_cpp = dynamic_object_guid;
         #[cfg(test)]
         {
             self.visibility_test_fixture_like_cpp
@@ -789,7 +790,7 @@ impl WorldSession {
         target_data: &SpellTargetData,
     ) -> Result<(), &'static str> {
         use wow_packet::ServerPacket;
-        use wow_packet::packets::movement::{MonsterMove, MovementMonsterSpline};
+        use wow_packet::packets::movement::MonsterMove;
 
         let Some(destination) = target_data.dst_location.map(|location| location.position) else {
             return Ok(());
@@ -816,7 +817,7 @@ impl WorldSession {
                     MonsterMove {
                         mover_guid: target_guid,
                         current_pos: from,
-                        spline: MovementMonsterSpline::from_move_spline(&spline),
+                        spline: movement_monster_spline_from_move_spline_like_cpp(&spline),
                     }
                     .to_bytes(),
                 )

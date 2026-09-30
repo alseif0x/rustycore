@@ -56,6 +56,10 @@ def main() -> int:
         "hotspot-ratchet",
         help="enforce only the curated hotspot LOC ceilings",
     )
+    subparsers.add_parser(
+        "dependencies",
+        help="validate dependency policy and issue-owned debt, then check workspace edges",
+    )
     refresh_parser = subparsers.add_parser(
         "refresh-issue-state",
         help="derive the mirrored issue state/title fields from GitHub (networked)",
@@ -101,6 +105,24 @@ def main() -> int:
             if args.command == "physical-files":
                 return 0
         policy = validate_policy(load_json(args.policy))
+        if args.command == "dependencies":
+            ledger = validate_issue_ledger(load_json(args.ledger))
+            validate_debt_ownership(policy, ledger)
+            (
+                packages,
+                workspace_edges,
+                workspace_exceptions,
+                guarded_external_edges,
+                external_exceptions,
+            ) = check_dependencies(policy, cargo_metadata())
+            print(
+                "Architecture dependencies: "
+                f"PASS ({packages} packages, {workspace_edges} workspace edges, "
+                f"{guarded_external_edges} guarded external dependencies, "
+                f"{workspace_exceptions} workspace baseline exceptions, "
+                f"{external_exceptions} external baseline exceptions)"
+            )
+            return 0
         if args.command == "hotspot-ratchet":
             # The one ceiling an ordinary Rust diff can move. Kept separate from
             # `check` so the pre-merge gate does not pull the whole scanner into

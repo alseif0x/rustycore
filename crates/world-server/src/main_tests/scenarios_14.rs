@@ -102,6 +102,7 @@ async fn legacy_creature_runtime_loop_smoke_delivers_visible_work_like_cpp() {
         Arc::new(std::sync::atomic::AtomicBool::new(false)),
         None,
         Arc::clone(&registry),
+        Arc::new(ActiveWorldSessionRegistryLikeCpp::new()),
     );
 
     let command = tokio::time::timeout(std::time::Duration::from_secs(2), player_rx.recv_async())
@@ -172,6 +173,13 @@ async fn legacy_respawn_producer_stop_runs_final_lifecycle_flush_like_cpp() {
     }
 
     let producer_stop = Arc::new(std::sync::atomic::AtomicBool::new(true));
+    let active_registry = Arc::new(ActiveWorldSessionRegistryLikeCpp::new());
+    let request = active_registry.close_tick_admission();
+    let receipt = active_registry.wait_for_quiescence(request, Duration::from_secs(1)).await.unwrap();
+    active_registry.enable_session_drain(receipt).unwrap();
+    let request = active_registry.close_tick_admission();
+    let terminal = active_registry.wait_for_terminal_settlement(request, Duration::from_secs(1)).await.unwrap();
+    active_registry.authorize_final_respawn_tick(terminal).unwrap();
     let writer_tx = RespawnDbWriterSenderLikeCpp::new_like_cpp();
     let writer_probe = writer_tx.clone();
     let handle = spawn_legacy_creature_runtime_update_loop_like_cpp(
@@ -191,6 +199,7 @@ async fn legacy_respawn_producer_stop_runs_final_lifecycle_flush_like_cpp() {
         producer_stop,
         None,
         Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp()),
+        active_registry,
     );
 
     tokio::time::timeout(Duration::from_secs(2), handle)

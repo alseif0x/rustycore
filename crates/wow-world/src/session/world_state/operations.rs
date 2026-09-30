@@ -104,43 +104,35 @@ impl WorldSession {
     }
     fn update_represented_hostile_area_state_like_cpp(&mut self, zone: &wow_data::AreaTableEntry) {
         let war_mode_active = self.player_war_mode_local_active_like_cpp();
-        let zone_hostile = if zone.is_sanctuary_like_cpp() {
-            false
-        } else if (zone.flags
-            & (AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP | AREA_FLAG_COMBAT_ZONE_LIKE_CPP))
-            != 0
-        {
-            true
-        } else if (zone.flags & AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP) != 0 {
-            if (zone.flags & AREA_FLAG_CONTESTED_LIKE_CPP) != 0 {
-                war_mode_active
-            } else {
+        let hostile = wow_entities::Player::represented_hostile_area_state_like_cpp(
+            zone.is_sanctuary_like_cpp(),
+            (zone.flags & AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP) != 0,
+            (zone.flags & AREA_FLAG_COMBAT_ZONE_LIKE_CPP) != 0,
+            (zone.flags & AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP) != 0,
+            (zone.flags & AREA_FLAG_CONTESTED_LIKE_CPP) != 0,
+            war_mode_active,
+            self.view.is_pvp_realm_like_cpp,
+            || {
                 let faction_group_mask = self
                     .area_table_store
                     .as_ref()
                     .map(|store| store.faction_group_mask_like_cpp(zone.id))
                     .unwrap_or(0);
-                self.player_faction_template_id_like_cpp()
+                let faction_template_groups = self
+                    .player_faction_template_id_like_cpp()
                     .and_then(|id| {
                         self.factions
                             .template_store
                             .as_ref()
                             .and_then(|store| store.get(id))
                     })
-                    .is_some_and(|faction_template| {
-                        if (faction_template.friend_group & faction_group_mask) != 0 {
-                            false
-                        } else if (faction_template.enemy_group & faction_group_mask) != 0 {
-                            true
-                        } else {
-                            self.view.is_pvp_realm_like_cpp
-                        }
-                    })
-            }
-        } else {
-            false
-        };
-        let _ = self.set_player_pvp_hostile_like_cpp(zone_hostile || war_mode_active);
+                    .map(|faction_template| {
+                        (faction_template.friend_group, faction_template.enemy_group)
+                    });
+                (faction_group_mask, faction_template_groups)
+            },
+        );
+        let _ = self.set_player_pvp_hostile_like_cpp(hostile);
     }
     pub(crate) fn handle_represented_tavern_area_trigger_with_catalog_like_cpp(
         &mut self,
@@ -185,8 +177,8 @@ impl WorldSession {
     ) -> Option<[u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP]> {
         let canonical =
             self.with_owned_player_like_cpp(|player| *player.explored_zones_blocks_like_cpp());
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.character_lifecycle_handleless_fixture() {
             return Some(self.represented_explored_zones_like_cpp);
         }
         canonical
@@ -217,16 +209,9 @@ impl WorldSession {
         if old_area != new_area {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
-        if !self.set_player_area_id_like_cpp(new_area) {
+        if !self.set_player_area_id_like_cpp(new_area, world_local.zone_id_like_cpp()) {
             return false;
         }
-        let zone_id = world_local.zone_id_like_cpp();
-        let _ = self.with_owned_player_mut_like_cpp(|player| {
-            player
-                .unit_mut()
-                .world_mut()
-                .set_zone_and_area(zone_id, new_area);
-        });
 
         let mut rest_changed = false;
         let area_resting = self.area_table_store.as_ref().and_then(|store| {
@@ -250,8 +235,8 @@ impl WorldSession {
             return false;
         }
 
-        #[cfg(test)]
-        {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode() {
             self.represented_area_zone_criteria_like_cpp
                 .push(RepresentedAreaZoneCriteriaLikeCpp::EnterArea(new_area));
             self.represented_area_zone_criteria_like_cpp
@@ -296,16 +281,9 @@ impl WorldSession {
         if old_zone != new_zone {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
-        if !self.set_player_zone_id_like_cpp(new_zone) {
+        if !self.set_player_zone_id_like_cpp(new_zone, world_local.area_id_like_cpp()) {
             return false;
         }
-        let area_id = world_local.area_id_like_cpp();
-        let _ = self.with_owned_player_mut_like_cpp(|player| {
-            player
-                .unit_mut()
-                .world_mut()
-                .set_zone_and_area(new_zone, area_id);
-        });
         // Pending publication survives same-zone reentry after a cancelled post-add.
         if !self.defer_player_rest_flag_sync_like_cpp() {
             return false;
@@ -353,8 +331,8 @@ impl WorldSession {
             return false;
         }
 
-        #[cfg(test)]
-        {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode() {
             self.represented_area_zone_criteria_like_cpp.push(
                 RepresentedAreaZoneCriteriaLikeCpp::EnterTopLevelArea(new_zone),
             );
@@ -464,7 +442,7 @@ impl WorldSession {
         )
         .await
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_area_zone_criteria_like_cpp(
         &self,
     ) -> &[RepresentedAreaZoneCriteriaLikeCpp] {
@@ -495,8 +473,8 @@ impl WorldSession {
             return 0;
         };
 
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             self.represented_explored_zones_like_cpp =
                 [u64::MAX; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP];
         }
@@ -621,6 +599,8 @@ impl WorldSession {
         }
         canonical
     }
+    /// Set the represented Player cache pair and its separate `Unit::World`
+    /// projection through one canonical Player writer.
     pub(crate) fn set_player_zone_area_like_cpp(&mut self, zone_id: u32, area_id: u32) {
         let changed = self
             .player_zone_area_like_cpp()
@@ -629,12 +609,6 @@ impl WorldSession {
             self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
         let _ = self.set_player_world_local_zone_area_like_cpp(zone_id, area_id);
-        let _ = self.with_owned_player_mut_like_cpp(|player| {
-            player
-                .unit_mut()
-                .world_mut()
-                .set_zone_and_area(zone_id, area_id);
-        });
     }
     pub(crate) fn set_player_zone_area_authority_complete_like_cpp(&mut self, complete: bool) {
         let _ = self.set_player_zone_area_authority_like_cpp(complete);

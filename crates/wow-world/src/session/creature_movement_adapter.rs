@@ -6,6 +6,88 @@
 
 use super::info;
 
+/// Converts the authoritative movement spline into the `MonsterMove` wire
+/// representation. Packet serialization stays in `wow-packet`; this adapter
+/// owns the boundary from the movement runtime model to that packet model.
+pub(in crate::session) fn movement_monster_spline_from_move_spline_like_cpp(
+    move_spline: &wow_movement::MoveSpline,
+) -> wow_packet::packets::movement::MovementMonsterSpline {
+    use wow_movement::MoveSplineFlag;
+    use wow_packet::packets::movement::{
+        MonsterMoveFace, MonsterSplineAnimTierTransition, MonsterSplineJumpExtraData,
+        MonsterSplineSpellEffectExtraData, MovementMonsterSpline, MovementSpline,
+    };
+
+    let mut flags = move_spline.flags();
+    if move_spline.is_cyclic() {
+        flags.insert(MoveSplineFlag::ENTER_CYCLE);
+    }
+    flags.remove(MoveSplineFlag::MASK_NO_MONSTER_MOVE);
+
+    let path_data = move_spline.monster_move_path_data();
+    let facing = move_spline.facing();
+    MovementMonsterSpline {
+        id: move_spline.id(),
+        // C++ `MonsterMove::InitializeSplineData` leaves
+        // `MovementMonsterSpline::Destination` at its default value for
+        // SMSG_ON_MONSTER_MOVE; only the nested MovementSpline path carries
+        // the destination.
+        destination: wow_core::Position::ZERO,
+        movement: MovementSpline {
+            flags: flags.bits(),
+            face: match facing.kind {
+                wow_movement::MonsterMoveType::Normal => MonsterMoveFace::Normal,
+                wow_movement::MonsterMoveType::FacingSpot => {
+                    MonsterMoveFace::FacingSpot(facing.spot)
+                }
+                wow_movement::MonsterMoveType::FacingTarget => MonsterMoveFace::FacingTarget {
+                    direction: facing.angle,
+                    target_guid: facing.target,
+                },
+                wow_movement::MonsterMoveType::FacingAngle => {
+                    MonsterMoveFace::FacingAngle(facing.angle)
+                }
+            },
+            move_time: move_spline.duration_ms().max(0) as u32,
+            fade_object_time: if flags.contains(MoveSplineFlag::FADE_OBJECT) {
+                move_spline.effect_start_time_ms().max(0) as u32
+            } else {
+                0
+            },
+            points: path_data.points,
+            packed_deltas: path_data.packed_deltas,
+            spell_effect_extra: move_spline.spell_effect_extra().map(|data| {
+                MonsterSplineSpellEffectExtraData {
+                    target_guid: data.target,
+                    spell_visual_id: data.spell_visual_id,
+                    progress_curve_id: data.progress_curve_id,
+                    parabolic_curve_id: data.parabolic_curve_id,
+                    jump_gravity: move_spline.vertical_acceleration(),
+                }
+            }),
+            jump_extra: (flags.contains(MoveSplineFlag::PARABOLIC)
+                && (move_spline.spell_effect_extra().is_none()
+                    || move_spline.effect_start_time_ms() != 0))
+                .then(|| MonsterSplineJumpExtraData {
+                    jump_gravity: move_spline.vertical_acceleration(),
+                    start_time: move_spline.effect_start_time_ms().max(0) as u32,
+                    duration: 0,
+                }),
+            anim_tier_transition: (flags.contains(MoveSplineFlag::ANIMATION))
+                .then_some(move_spline.anim_tier())
+                .flatten()
+                .map(|anim_tier| MonsterSplineAnimTierTransition {
+                    tier_transition_id: anim_tier.tier_transition_id as i32,
+                    start_time: move_spline.effect_start_time_ms().max(0) as u32,
+                    end_time: 0,
+                    anim_tier: anim_tier.anim_tier,
+                }),
+            ..MovementSpline::default()
+        },
+        ..MovementMonsterSpline::default()
+    }
+}
+
 // ── Creature movement step helper ────────────────────────────────
 
 /// Maps a bridge-built [`CreaturePathQueryLikeCpp`] onto a worker request.
@@ -136,4 +218,122 @@ pub(in crate::session) fn trace_monster_move_packet_like_cpp(
         packet_hex = format!("{hex}{suffix}"),
         "RUST_MONSTER_MOVE"
     );
+}
+
+#[cfg(test)]
+mod tests {
+    use super::movement_monster_spline_from_move_spline_like_cpp;
+    use wow_core::{ObjectGuid, Position};
+    use wow_movement::{
+        AnimTierTransition, FacingInfo, MonsterMoveType, MoveSpline, MoveSplineFlag,
+        MoveSplineInitArgs, SpellEffectExtraData,
+    };
+    use wow_packet::packets::movement::{
+        MonsterMoveFace, MonsterSplineAnimTierTransition, MonsterSplineJumpExtraData,
+        MonsterSplineSpellEffectExtraData,
+    };
+
+    #[test]
+    fn movement_monster_spline_from_move_spline_matches_cpp_mapping() {
+        let target = ObjectGuid::create_player(1, 55);
+        let args = MoveSplineInitArgs {
+            path: vec![
+                Position::xyz(0.0, 0.0, 0.0),
+                Position::xyz(10.0, 0.0, 0.0),
+                Position::xyz(20.0, 0.0, 0.0),
+            ],
+            facing: FacingInfo {
+                kind: MonsterMoveType::FacingTarget,
+                target,
+                angle: 1.75,
+                ..FacingInfo::default()
+            },
+            flags: MoveSplineFlag::UNCOMPRESSED_PATH | MoveSplineFlag::PARABOLIC,
+            velocity: 10.0,
+            vertical_acceleration: 12.5,
+            effect_start_time_ms: 250,
+            spline_id: 123,
+            spell_effect_extra: Some(SpellEffectExtraData {
+                target,
+                spell_visual_id: 777,
+                progress_curve_id: 888,
+                parabolic_curve_id: 999,
+            }),
+            ..MoveSplineInitArgs::default()
+        };
+        let mut move_spline = MoveSpline::new();
+        move_spline.initialize(&args).unwrap();
+        move_spline.finalize();
+
+        let packet_spline = movement_monster_spline_from_move_spline_like_cpp(&move_spline);
+
+        assert_eq!(packet_spline.id, 123);
+        assert_eq!(packet_spline.destination, Position::ZERO);
+        assert_eq!(
+            packet_spline.movement.flags,
+            (MoveSplineFlag::UNCOMPRESSED_PATH | MoveSplineFlag::PARABOLIC).bits()
+        );
+        assert_eq!(
+            packet_spline.movement.face,
+            MonsterMoveFace::FacingTarget {
+                direction: 1.75,
+                target_guid: target,
+            }
+        );
+        assert_eq!(
+            packet_spline.movement.points,
+            vec![Position::xyz(10.0, 0.0, 0.0), Position::xyz(20.0, 0.0, 0.0)]
+        );
+        assert!(packet_spline.movement.packed_deltas.is_empty());
+        assert_eq!(
+            packet_spline.movement.spell_effect_extra,
+            Some(MonsterSplineSpellEffectExtraData {
+                target_guid: target,
+                spell_visual_id: 777,
+                progress_curve_id: 888,
+                parabolic_curve_id: 999,
+                jump_gravity: 12.5,
+            })
+        );
+        assert_eq!(
+            packet_spline.movement.jump_extra,
+            Some(MonsterSplineJumpExtraData {
+                jump_gravity: 12.5,
+                start_time: 250,
+                duration: 0,
+            })
+        );
+    }
+
+    #[test]
+    fn movement_monster_spline_from_move_spline_maps_animation_tier_like_cpp() {
+        let mut flags = MoveSplineFlag::empty();
+        flags.enable_animation();
+        let args = MoveSplineInitArgs {
+            path: vec![Position::xyz(0.0, 0.0, 0.0), Position::xyz(10.0, 0.0, 0.0)],
+            flags,
+            velocity: 10.0,
+            effect_start_time_ms: 125,
+            anim_tier: Some(AnimTierTransition {
+                tier_transition_id: 44,
+                anim_tier: 2,
+            }),
+            ..MoveSplineInitArgs::default()
+        };
+        let mut move_spline = MoveSpline::new();
+        move_spline.initialize(&args).unwrap();
+
+        let packet_spline = movement_monster_spline_from_move_spline_like_cpp(&move_spline);
+
+        assert_eq!(
+            packet_spline.movement.anim_tier_transition,
+            Some(MonsterSplineAnimTierTransition {
+                tier_transition_id: 44,
+                start_time: 125,
+                end_time: 0,
+                anim_tier: 2,
+            })
+        );
+        assert!(packet_spline.movement.jump_extra.is_none());
+    }
 }

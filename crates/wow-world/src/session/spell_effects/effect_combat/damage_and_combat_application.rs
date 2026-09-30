@@ -323,7 +323,7 @@ impl WorldSession {
         // Si target es otra criatura — mutate canonical shared map state.
         let damage_outcome = self
             .mutate_world_creature(target_guid, |creature| {
-                if !creature.is_alive() {
+                let Some(damage) = creature.begin_represented_damage() else {
                     debug!(
                         account = account_id,
                         creature = ?target_guid,
@@ -331,7 +331,7 @@ impl WorldSession {
                         "Skipping spell damage because C++ EffectSchoolDMG requires alive target"
                     );
                     return None;
-                }
+                };
                 info!(
                     account = account_id,
                     creature = ?target_guid,
@@ -339,55 +339,22 @@ impl WorldSession {
                     "Dealt damage to creature"
                 );
 
-                if caster_rewards_session_player {
-                    creature
-                        .creature
-                        .set_tapped_by_player(player_guid, &tap_group_guids);
-                }
-                // C++ `SpellNonMeleeDamage::preHitHealth`, read before
-                // `DealDamage` so the log can report the overkill.
-                let pre_hit_health = creature.current_hp();
-                let died = creature.take_damage_before_death_state_like_cpp(damage_amount);
-                let newly_engaged = !died
-                    && damage_amount > 0
-                    && !suppress_harmful_threat
-                    && !(no_initial_threat && !creature.creature.is_in_combat())
-                    && creature.creature.ai_ownership().combat_target.is_none();
-                let threat_value = if !died
-                    && damage_amount > 0
-                    && !suppress_harmful_threat
-                    && !(no_initial_threat && !creature.creature.is_in_combat())
-                {
-                    // C++ `Spell::DoAllEffectOnTarget` calls `Unit::AtTargetAttacked`, then
-                    // `Unit::DealDamage` adds threat for non-player hostile victims.
-                    if creature.creature.ai_ownership().combat_target.is_none() {
-                        creature.enter_combat(caster_guid);
-                    }
-                    creature
-                        .creature
-                        .unit_mut()
-                        .subsystems_mut()
-                        .combat
-                        .add_threat(
-                            caster_guid,
-                            damage_amount as f32 * spell_threat_pct_mod * caster_school_threat_mod,
-                        );
-                    creature
-                        .creature
-                        .unit()
-                        .subsystems()
-                        .combat
-                        .threat_value(caster_guid)
-                } else {
-                    None
-                };
-                let kill_info = if died {
+                let mut damage = damage.apply(
+                    damage_amount,
+                    caster_guid,
+                    caster_rewards_session_player.then_some((player_guid, tap_group_guids.as_slice())),
+                    suppress_harmful_threat,
+                    no_initial_threat,
+                    spell_threat_pct_mod,
+                    caster_school_threat_mod,
+                );
+                let kill_info = if damage.died() {
                     info!(
                         "Creature {} (entry={}) killed",
                         target_guid,
-                        creature.entry()
+                        damage.entry()
                     );
-                    let move_stop = creature.stop_move_spline_like_cpp().map(|stop| {
+                    let move_stop = damage.stop_after_kill().map(|stop| {
                         MonsterMoveStop {
                             mover_guid: target_guid,
                             current_pos: stop.position,
@@ -395,16 +362,17 @@ impl WorldSession {
                         }
                         .to_bytes()
                     });
-                    Some((creature.entry(), target_guid, move_stop))
+                    Some((damage.entry(), target_guid, move_stop))
                 } else {
                     None
                 };
+                let damage = damage.finish();
                 Some((
                     kill_info,
-                    creature.creature.unit().values_update(),
-                    threat_value,
-                    newly_engaged,
-                    pre_hit_health,
+                    damage.values_update,
+                    damage.threat_value,
+                    damage.newly_engaged,
+                    damage.pre_hit_health,
                 ))
             })
             .ok_or("Target creature not found")?;
@@ -489,7 +457,7 @@ impl WorldSession {
                 );
                 self.on_creature_killed_with_generator_like_cpp(item_guid_generator, entry, guid)
                     .await;
-                #[cfg(test)]
+                #[cfg(any(test, feature = "test-fixtures"))]
                 self.record_represented_creature_kill_hooks_like_cpp(player_guid, guid);
             }
             if let Some(death_values_update) = self

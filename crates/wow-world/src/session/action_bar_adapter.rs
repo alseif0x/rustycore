@@ -88,8 +88,8 @@ impl WorldSession {
                 state.multi_action_bars,
             )
         });
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.character_lifecycle_handleless_fixture() {
             return Some((
                 self.active_player_local_flags_like_cpp,
                 self.active_player_transport_server_time_like_cpp,
@@ -103,8 +103,8 @@ impl WorldSession {
         &mut self,
         mutate: impl FnOnce(&mut wow_entities::PlayerGameplayState) -> R,
     ) -> Option<R> {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             let mut state =
                 wow_entities::PlayerGameplayState::with_active_player_update_fields_like_cpp(
                     self.active_player_local_flags_like_cpp,

@@ -6,6 +6,28 @@
 //! Movement update blocks.
 
 use super::*;
+use crate::packets::movement::{
+    MonsterMoveFace, MonsterSplineAnimTierTransition, MonsterSplineJumpExtraData,
+    MonsterSplineSpellEffectExtraData,
+};
+
+/// Packet-ready spline data embedded in a creature CreateObject movement block.
+/// Runtime spline selection and conversion belong to the world boundary.
+#[derive(Debug, Clone)]
+pub struct CreateObjectSplineDataLikeCpp {
+    pub id: u32,
+    pub destination: Position,
+    pub has_spline_move: bool,
+    pub flags: u32,
+    pub elapsed_ms: i32,
+    pub duration_ms: u32,
+    pub face: MonsterMoveFace,
+    pub fade_object_time: Option<u32>,
+    pub points: Vec<Position>,
+    pub spell_effect_extra: Option<MonsterSplineSpellEffectExtraData>,
+    pub jump_extra: Option<MonsterSplineJumpExtraData>,
+    pub anim_tier_transition: Option<MonsterSplineAnimTierTransition>,
+}
 
 /// Movement data included in a CreateObject block.
 #[derive(Debug, Clone)]
@@ -19,7 +41,7 @@ pub struct MovementBlock {
     /// `CreateObjectBits::MovementTransport` fallback used by world objects
     /// without a normal movement block.
     pub transport: Option<Box<TransportInfo>>,
-    pub create_object_spline: Option<MoveSpline>,
+    pub create_object_spline: Option<CreateObjectSplineDataLikeCpp>,
     pub walk_speed: f32,
     pub run_speed: f32,
     pub run_back_speed: f32,
@@ -60,10 +82,7 @@ impl Default for MovementBlock {
 
 /// Write the movement update block (when bit 3 = true).
 pub(super) fn write_movement_update(buf: &mut WorldPacket, guid: &ObjectGuid, mv: &MovementBlock) {
-    let active_create_spline = mv
-        .create_object_spline
-        .as_ref()
-        .filter(|spline| create_object_spline_enabled_like_cpp(spline));
+    let active_create_spline = mv.create_object_spline.as_ref();
 
     // MoverGUID
     buf.write_packed_guid(guid);
@@ -177,95 +196,85 @@ pub(super) fn write_movement_update(buf: &mut WorldPacket, guid: &ObjectGuid, mv
     }
 }
 
-pub(super) fn create_object_spline_enabled_like_cpp(spline: &MoveSpline) -> bool {
-    spline.initialized() && !spline.finalized()
-}
-
 pub(super) fn write_position_xyz_like_cpp(buf: &mut WorldPacket, position: Position) {
     buf.write_float(position.x);
     buf.write_float(position.y);
     buf.write_float(position.z);
 }
 
-fn write_create_object_spline_data_block_like_cpp(buf: &mut WorldPacket, spline: &MoveSpline) {
-    buf.write_uint32(spline.id());
+fn write_create_object_spline_data_block_like_cpp(
+    buf: &mut WorldPacket,
+    spline: &CreateObjectSplineDataLikeCpp,
+) {
+    buf.write_uint32(spline.id);
+    write_position_xyz_like_cpp(buf, spline.destination);
 
-    let destination = if !spline.is_cyclic() {
-        spline.final_destination().unwrap_or(Position::ZERO)
-    } else {
-        Position::ZERO
-    };
-    write_position_xyz_like_cpp(buf, destination);
-
-    let has_spline_move = !spline.finalized() && !spline.spline_is_facing_only_like_cpp();
-    buf.write_bit(has_spline_move);
+    buf.write_bit(spline.has_spline_move);
     buf.flush_bits();
 
-    if !has_spline_move {
+    if !spline.has_spline_move {
         return;
     }
 
-    let flags = spline.flags();
-    let flags_bits = flags.bits();
-    let effect_start_time = spline.effect_start_time_ms().max(0) as u32;
-    let duration = spline.duration_ms().max(0) as u32;
-    let has_fade_object_time =
-        flags.contains(MoveSplineFlag::FADE_OBJECT) && effect_start_time < duration;
-    let has_spell_effect_extra = spline.spell_effect_extra().is_some();
-    let has_jump_extra = flags.contains(MoveSplineFlag::PARABOLIC)
-        && (spline.spell_effect_extra().is_none() || effect_start_time != 0);
-    let has_anim_tier_transition = spline.anim_tier().is_some();
-    let path_points = spline.create_object_path_points_like_cpp();
-    let facing = spline.facing();
-
-    buf.write_uint32(flags_bits);
-    buf.write_int32(spline.time_passed_ms());
-    buf.write_uint32(duration);
+    buf.write_uint32(spline.flags);
+    buf.write_int32(spline.elapsed_ms);
+    buf.write_uint32(spline.duration_ms);
     buf.write_float(1.0);
     buf.write_float(1.0);
-    buf.write_bits(u32::from(facing.kind as u8), 2);
-    buf.write_bit(has_fade_object_time);
-    buf.write_bits(path_points.len() as u32, 16);
+    buf.write_bits(u32::from(monster_move_face_kind_like_cpp(spline.face)), 2);
+    buf.write_bit(spline.fade_object_time.is_some());
+    buf.write_bits(spline.points.len() as u32, 16);
     buf.write_bit(false); // HasSplineFilter
-    buf.write_bit(has_spell_effect_extra);
-    buf.write_bit(has_jump_extra);
-    buf.write_bit(has_anim_tier_transition);
+    buf.write_bit(spline.spell_effect_extra.is_some());
+    buf.write_bit(spline.jump_extra.is_some());
+    buf.write_bit(spline.anim_tier_transition.is_some());
     buf.write_bit(false); // HasUnknown901
     buf.flush_bits();
 
-    match facing.kind {
-        MonsterMoveType::FacingSpot => write_position_xyz_like_cpp(buf, facing.spot),
-        MonsterMoveType::FacingTarget => buf.write_packed_guid(&facing.target),
-        MonsterMoveType::FacingAngle => buf.write_float(facing.angle),
-        MonsterMoveType::Normal => {}
+    match spline.face {
+        MonsterMoveFace::FacingSpot(position) => write_position_xyz_like_cpp(buf, position),
+        MonsterMoveFace::FacingTarget { target_guid, .. } => {
+            buf.write_packed_guid(&target_guid);
+        }
+        MonsterMoveFace::FacingAngle(angle) => buf.write_float(angle),
+        MonsterMoveFace::Normal => {}
     }
 
-    if has_fade_object_time {
-        buf.write_uint32(effect_start_time);
+    if let Some(fade_object_time) = spline.fade_object_time {
+        buf.write_uint32(fade_object_time);
     }
 
-    for point in path_points {
+    for point in &spline.points {
         write_position_xyz_like_cpp(buf, *point);
     }
 
-    if let Some(extra) = spline.spell_effect_extra() {
-        buf.write_packed_guid(&extra.target);
+    if let Some(extra) = spline.spell_effect_extra {
+        buf.write_packed_guid(&extra.target_guid);
         buf.write_uint32(extra.spell_visual_id);
         buf.write_uint32(extra.progress_curve_id);
         buf.write_uint32(extra.parabolic_curve_id);
-        buf.write_float(spline.vertical_acceleration());
+        buf.write_float(extra.jump_gravity);
     }
 
-    if has_jump_extra {
-        buf.write_float(spline.vertical_acceleration());
-        buf.write_uint32(effect_start_time);
-        buf.write_uint32(0);
+    if let Some(extra) = spline.jump_extra {
+        buf.write_float(extra.jump_gravity);
+        buf.write_uint32(extra.start_time);
+        buf.write_uint32(extra.duration);
     }
 
-    if let Some(anim_tier) = spline.anim_tier() {
-        buf.write_int32(anim_tier.tier_transition_id as i32);
-        buf.write_uint32(effect_start_time);
-        buf.write_uint32(0);
+    if let Some(anim_tier) = spline.anim_tier_transition {
+        buf.write_int32(anim_tier.tier_transition_id);
+        buf.write_uint32(anim_tier.start_time);
+        buf.write_uint32(anim_tier.end_time);
         buf.write_uint8(anim_tier.anim_tier);
+    }
+}
+
+fn monster_move_face_kind_like_cpp(face: MonsterMoveFace) -> u8 {
+    match face {
+        MonsterMoveFace::Normal => 0,
+        MonsterMoveFace::FacingSpot(_) => 1,
+        MonsterMoveFace::FacingTarget { .. } => 2,
+        MonsterMoveFace::FacingAngle(_) => 3,
     }
 }

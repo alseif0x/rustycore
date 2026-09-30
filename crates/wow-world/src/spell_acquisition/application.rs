@@ -5,9 +5,9 @@
 
 //! Validated application boundary for a deterministic acquisition plan.
 //!
-//! The planner is the sole semantic owner.  This module only proves that its
-//! causal stream is internally coherent, pins it to the exact current player
-//! authority, and translates the final snapshot into durable/runtime rows.
+//! The planner owns causal validation. This module checks application profession
+//! capacity, pins the plan to the exact current player authority, and translates
+//! the final snapshot into durable/runtime rows.
 
 use super::*;
 use crate::profession::{
@@ -125,15 +125,11 @@ mod tests;
 mod prepare;
 mod translate;
 mod validate_plan;
-mod validate_post_commit;
+mod error_conversion;
 
-use validate_plan::{validate_plan_replay_like_cpp, validate_profession_plan_like_cpp};
+use validate_plan::validate_profession_plan_like_cpp;
 
-use validate_post_commit::validate_post_commit_actions_like_cpp;
-
-use translate::{
-    override_set_like_cpp, skill_map_like_cpp, spell_map_like_cpp, translate_plan_like_cpp,
-};
+use translate::translate_plan_like_cpp;
 
 pub(crate) use prepare::{
     persist_player_spell_acquisition_through_port_like_cpp,

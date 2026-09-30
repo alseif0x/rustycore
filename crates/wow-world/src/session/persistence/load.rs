@@ -146,19 +146,16 @@ impl WorldSession {
         &mut self,
         heirloom_rows: impl IntoIterator<Item = (u32, u32)>,
     ) {
-        let mut heirlooms = BTreeMap::new();
-        for (item_id, flags) in heirloom_rows {
-            let bonus_id = match self.heirloom_store.as_ref() {
+        let heirlooms = wow_entities::PlayerCollectionStateLikeCpp::prepare_heirlooms(
+            heirloom_rows,
+            |item_id, flags| match self.heirloom_store.as_ref() {
                 Some(store) => {
-                    let Some(heirloom) = store.get_by_item_id_like_cpp(item_id) else {
-                        continue;
-                    };
-                    heirloom_bonus_for_flags_like_cpp(heirloom, flags)
+                    let heirloom = store.get_by_item_id_like_cpp(item_id)?;
+                    Some(heirloom_bonus_for_flags_like_cpp(heirloom, flags))
                 }
-                None => 0,
-            };
-            heirlooms.insert(item_id, AccountHeirloomDataLikeCpp { flags, bonus_id });
-        }
+                None => Some(0),
+            },
+        );
         let _ = self.mutate_player_collection_state_like_cpp(|collections| {
             collections.replace_heirlooms_like_cpp(heirlooms);
         });
@@ -168,17 +165,7 @@ impl WorldSession {
         &mut self,
         toy_rows: impl IntoIterator<Item = (u32, bool, bool)>,
     ) {
-        let mut toys = BTreeMap::new();
-        for (item_id, is_favorite, has_fanfare) in toy_rows {
-            let mut flags = 0_u32;
-            if is_favorite {
-                flags |= TOY_FLAG_FAVORITE_LIKE_CPP;
-            }
-            if has_fanfare {
-                flags |= TOY_FLAG_HAS_FANFARE_LIKE_CPP;
-            }
-            toys.insert(item_id, flags);
-        }
+        let toys = wow_entities::PlayerCollectionStateLikeCpp::prepare_toys(toy_rows);
         let _ = self.mutate_player_collection_state_like_cpp(|collections| {
             collections.replace_toys_like_cpp(toys);
         });
@@ -192,15 +179,19 @@ impl WorldSession {
         };
         let friendship_rep_reaction_store = self.friendship_rep_reaction_store().cloned();
         let paragon_reputation_store = self.paragon_reputation_store.as_ref().cloned();
+        let catalogs = crate::reputation_catalog_adapter::ReputationCatalogViewLikeCpp::new(
+            Some(faction_store.as_ref()),
+            friendship_rep_reaction_store.as_deref(),
+            paragon_reputation_store.as_deref(),
+            None,
+        );
         let race = self.player_race_like_cpp();
         let class = self.player_class_like_cpp();
 
         self.mutate_reputation_mgr_like_cpp(|mgr| {
             mgr.load_from_db_like_cpp(
                 rows,
-                faction_store.as_ref(),
-                friendship_rep_reaction_store.as_deref(),
-                paragon_reputation_store.as_deref(),
+                &catalogs,
                 race,
                 class,
             );
@@ -339,8 +330,8 @@ impl WorldSession {
         } else {
             REST_STATE_NORMAL_LIKE_CPP
         };
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             self.clear_represented_rest_flags_for_character_load_like_cpp();
             let _ = self.mutate_player_rest_state_like_cpp(|state| {
                 state.install_loaded_rest_like_cpp(rest_state, rest_bonus);
@@ -351,7 +342,7 @@ impl WorldSession {
             player.load_xp_rest_bonus_like_cpp(rest_state, rest_bonus);
         });
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     fn clear_represented_rest_flags_for_character_load_like_cpp(&mut self) {
         let loaded_resting = self
             .canonical_player_snapshot_like_cpp(|player| player.data().player_flags)
@@ -366,8 +357,8 @@ impl WorldSession {
                 player.remove_player_flag(PLAYER_FLAGS_RESTING_LIKE_CPP);
             }
         });
-        #[cfg(test)]
-        if _canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if _canonical.is_none() && self.character_lifecycle_handleless_fixture() {
             self.rest_mgr_test_fixture_like_cpp
                 .represented_rest_flag_mask_like_cpp = 0;
             self.rest_mgr_test_fixture_like_cpp
@@ -649,15 +640,14 @@ impl WorldSession {
             self.player_identity_bootstrap_like_cpp = None;
             return;
         }
-        #[cfg(not(test))]
         if self.player_handle_like_cpp.is_some() {
             return;
         }
         self.player_identity_bootstrap_like_cpp
             .get_or_insert_default()
             .name = Some(name.clone());
-        #[cfg(test)]
-        {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode() {
             self.player_name = Some(name);
         }
     }
@@ -669,6 +659,13 @@ impl WorldSession {
         level: u8,
         gender: u8,
     ) {
+        if self.character_lifecycle_fixture_mode()
+            && self.player_handle_like_cpp.is_some()
+            && self.with_owned_player_like_cpp(|_| ()).is_none()
+        {
+            return;
+        }
+
         let initialize_reputation = self.player_race_like_cpp() != race
             || self.player_class_like_cpp() != class
             || self
@@ -694,7 +691,6 @@ impl WorldSession {
         if canonical {
             self.player_identity_bootstrap_like_cpp = None;
         } else {
-            #[cfg(not(test))]
             if self.player_handle_like_cpp.is_some() {
                 return;
             }
@@ -705,8 +701,8 @@ impl WorldSession {
                 level,
                 gender,
             });
-            #[cfg(test)]
-            {
+            #[cfg(any(test, feature = "test-fixtures"))]
+            if self.character_lifecycle_fixture_mode() {
                 self.player_race = race;
                 self.player_class = class;
                 self.player_level = level;
@@ -785,8 +781,10 @@ impl WorldSession {
                 .unit_mut()
                 .replace_create_power_arrays_like_cpp(powers.map(|value| value.max(0)), max_power);
         });
-        #[cfg(test)]
-        if _canonical.is_some() || self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode()
+            && (_canonical.is_some() || self.character_lifecycle_handleless_fixture())
+        {
             self.represented_player_powers_like_cpp =
                 loaded_character_power_snapshot_like_cpp(powers);
         }

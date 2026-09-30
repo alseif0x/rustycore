@@ -1,8 +1,50 @@
 //! Instance lifecycle state regression scenarios, part 2 of 2.
 //!
-//! Moved out of the lib.rs root under #658; every test is unchanged.
+//! Moved out of the lib.rs root under #658; encounter fixtures use model rows.
 
 use super::*;
+
+#[test]
+fn encounter_resolver_preserves_guard_timing_and_slot_order_like_cpp() {
+    use std::cell::RefCell;
+
+    let store = encounter_store([encounter(11, 3), encounter(12, 4)]);
+    let reads = RefCell::new(Vec::new());
+    let resolve_encounter = |id| {
+        reads.borrow_mut().push(id);
+        store.get(&id)
+    };
+    let mut script = InstanceScriptBase::new(4, 1);
+
+    assert!(script
+        .set_boss_state_planned_like_cpp(&resolve_encounter, 0, EncounterState::NotStarted, false)
+        .is_none());
+    assert!(script
+        .set_boss_state_planned_like_cpp(&resolve_encounter, 99, EncounterState::Done, false)
+        .is_none());
+    assert!(script
+        .set_boss_state_planned_like_cpp(&resolve_encounter, 0, EncounterState::NotStarted, false)
+        .is_none());
+    assert!(script
+        .set_boss_state_planned_like_cpp(&resolve_encounter, 0, EncounterState::Done, true)
+        .is_none());
+    assert!(reads.borrow().is_empty());
+
+    script.load_dungeon_encounter_data(&resolve_encounter, 0, [11, 12, 0, 0]);
+    reads.borrow_mut().clear();
+    let plan = script
+        .set_boss_state_planned_like_cpp(&resolve_encounter, 0, EncounterState::Done, false)
+        .unwrap();
+
+    assert_eq!(*reads.borrow(), vec![11, 12]);
+    assert_eq!(plan.dungeon_encounter_id, Some(12));
+
+    reads.borrow_mut().clear();
+    assert!(script
+        .set_boss_state_planned_like_cpp(&resolve_encounter, 0, EncounterState::Fail, false)
+        .is_none());
+    assert!(reads.borrow().is_empty());
+}
 
 #[test]
 fn instance_script_load_persistent_values_like_cpp() {
@@ -108,43 +150,51 @@ fn instance_script_encounter_progress_helpers_match_cpp() {
 
 #[test]
 fn instance_script_encounter_completed_by_dungeon_encounter_id_matches_cpp() {
-    let store = DungeonEncounterStore::from_entries([
+    let store = encounter_store([
         encounter_with_bit(10, 4, 1),
         encounter_with_bit(20, 4, 2),
     ]);
+    let resolve_encounter = |id| store.get(&id);
     let mut script = InstanceScriptBase::new(4, 2);
-    script.load_dungeon_encounter_data(&store, 0, [10, 0, 0, 0]);
-    script.load_dungeon_encounter_data(&store, 1, [20, 0, 0, 0]);
+    script.load_dungeon_encounter_data(&resolve_encounter, 0, [10, 0, 0, 0]);
+    script.load_dungeon_encounter_data(&resolve_encounter, 1, [20, 0, 0, 0]);
 
-    assert!(!script.is_encounter_completed_like_cpp(&store, 10));
+    assert!(!script.is_encounter_completed_like_cpp(&resolve_encounter, 10));
     script.set_boss_state_like_cpp(0, EncounterState::Done);
-    assert!(script.is_encounter_completed_like_cpp(&store, 10));
-    assert!(!script.is_encounter_completed_like_cpp(&store, 20));
-    assert!(!script.is_encounter_completed_like_cpp(&store, 99));
+    assert!(script.is_encounter_completed_like_cpp(&resolve_encounter, 10));
+    assert!(!script.is_encounter_completed_like_cpp(&resolve_encounter, 20));
+    assert!(!script.is_encounter_completed_like_cpp(&resolve_encounter, 99));
 }
 
 #[test]
 fn instance_script_encounter_completed_mask_by_boss_id_matches_cpp() {
-    let store = DungeonEncounterStore::from_entries([encounter_with_bit(10, 4, 3)]);
+    let store = encounter_store([encounter_with_bit(10, 4, 3)]);
+    let resolve_encounter = |id| store.get(&id);
     let mut script = InstanceScriptBase::new(4, 1);
-    script.load_dungeon_encounter_data(&store, 0, [10, 0, 0, 0]);
+    script.load_dungeon_encounter_data(&resolve_encounter, 0, [10, 0, 0, 0]);
 
     script.set_boss_state_like_cpp(0, EncounterState::InProgress);
-    assert!(!script.is_encounter_completed_in_mask_by_boss_id_like_cpp(&store, 1 << 3, 0));
+    assert!(!script.is_encounter_completed_in_mask_by_boss_id_like_cpp(&resolve_encounter, 1 << 3, 0));
 
     script.set_boss_state_like_cpp(0, EncounterState::Done);
-    assert!(script.is_encounter_completed_in_mask_by_boss_id_like_cpp(&store, 1 << 3, 0));
-    assert!(!script.is_encounter_completed_in_mask_by_boss_id_like_cpp(&store, 1 << 2, 0));
-    assert!(!script.is_encounter_completed_in_mask_by_boss_id_like_cpp(&store, 1 << 3, 99));
+    assert!(script.is_encounter_completed_in_mask_by_boss_id_like_cpp(&resolve_encounter, 1 << 3, 0));
+    assert!(!script.is_encounter_completed_in_mask_by_boss_id_like_cpp(&resolve_encounter, 1 << 2, 0));
+    assert!(!script.is_encounter_completed_in_mask_by_boss_id_like_cpp(&resolve_encounter, 1 << 3, 99));
 }
 
 #[test]
 fn set_boss_state_loading_initializes_without_effects_like_cpp() {
-    let store = DungeonEncounterStore::from_entries([encounter_with_bit(10, 4, 3)]);
+    let store = encounter_store([encounter_with_bit(10, 4, 3)]);
+    let resolve_encounter = |id| store.get(&id);
     let mut script = InstanceScriptBase::new(4, 1);
-    script.load_dungeon_encounter_data(&store, 0, [10, 0, 0, 0]);
+    script.load_dungeon_encounter_data(&resolve_encounter, 0, [10, 0, 0, 0]);
 
-    let plan = script.set_boss_state_planned_like_cpp(&store, 0, EncounterState::NotStarted, false);
+    let plan = script.set_boss_state_planned_like_cpp(
+        &resolve_encounter,
+        0,
+        EncounterState::NotStarted,
+        false,
+    );
 
     assert!(plan.is_none());
     assert_eq!(script.boss_state(0), EncounterState::NotStarted);
@@ -152,13 +202,14 @@ fn set_boss_state_loading_initializes_without_effects_like_cpp() {
 
 #[test]
 fn set_boss_state_in_progress_plans_cpp_start_effects() {
-    let store = DungeonEncounterStore::from_entries([encounter_with_bit(10, 4, 3)]);
+    let store = encounter_store([encounter_with_bit(10, 4, 3)]);
+    let resolve_encounter = |id| store.get(&id);
     let mut script = InstanceScriptBase::new(4, 1);
     script.create_like_cpp();
-    script.load_dungeon_encounter_data(&store, 0, [10, 0, 0, 0]);
+    script.load_dungeon_encounter_data(&resolve_encounter, 0, [10, 0, 0, 0]);
 
     let plan = script
-        .set_boss_state_planned_like_cpp(&store, 0, EncounterState::InProgress, false)
+        .set_boss_state_planned_like_cpp(&resolve_encounter, 0, EncounterState::InProgress, false)
         .unwrap();
 
     assert_eq!(plan.previous_state, EncounterState::NotStarted);
@@ -174,13 +225,14 @@ fn set_boss_state_in_progress_plans_cpp_start_effects() {
 
 #[test]
 fn set_boss_state_done_plans_cpp_completion_effects() {
-    let store = DungeonEncounterStore::from_entries([encounter_with_bit(10, 4, 3)]);
+    let store = encounter_store([encounter_with_bit(10, 4, 3)]);
+    let resolve_encounter = |id| store.get(&id);
     let mut script = InstanceScriptBase::new(4, 1);
     script.create_like_cpp();
-    script.load_dungeon_encounter_data(&store, 0, [10, 0, 0, 0]);
+    script.load_dungeon_encounter_data(&resolve_encounter, 0, [10, 0, 0, 0]);
 
     let plan = script
-        .set_boss_state_planned_like_cpp(&store, 0, EncounterState::Done, false)
+        .set_boss_state_planned_like_cpp(&resolve_encounter, 0, EncounterState::Done, false)
         .unwrap();
 
     assert_eq!(script.boss_state(0), EncounterState::Done);
@@ -197,34 +249,35 @@ fn set_boss_state_done_plans_cpp_completion_effects() {
 
 #[test]
 fn set_boss_state_blocks_cpp_invalid_transitions() {
-    let store = DungeonEncounterStore::from_entries([encounter_with_bit(10, 4, 3)]);
+    let store = encounter_store([encounter_with_bit(10, 4, 3)]);
+    let resolve_encounter = |id| store.get(&id);
     let mut script = InstanceScriptBase::new(4, 1);
     script.create_like_cpp();
-    script.load_dungeon_encounter_data(&store, 0, [10, 0, 0, 0]);
+    script.load_dungeon_encounter_data(&resolve_encounter, 0, [10, 0, 0, 0]);
 
     assert!(
         script
-            .set_boss_state_planned_like_cpp(&store, 99, EncounterState::Done, false)
+            .set_boss_state_planned_like_cpp(&resolve_encounter, 99, EncounterState::Done, false)
             .is_none()
     );
     assert!(
         script
-            .set_boss_state_planned_like_cpp(&store, 0, EncounterState::NotStarted, false)
+            .set_boss_state_planned_like_cpp(&resolve_encounter, 0, EncounterState::NotStarted, false)
             .is_none()
     );
     assert!(
         script
-            .set_boss_state_planned_like_cpp(&store, 0, EncounterState::Done, true)
+            .set_boss_state_planned_like_cpp(&resolve_encounter, 0, EncounterState::Done, true)
             .is_none()
     );
     assert_eq!(script.boss_state(0), EncounterState::NotStarted);
 
     script
-        .set_boss_state_planned_like_cpp(&store, 0, EncounterState::Done, false)
+        .set_boss_state_planned_like_cpp(&resolve_encounter, 0, EncounterState::Done, false)
         .unwrap();
     assert!(
         script
-            .set_boss_state_planned_like_cpp(&store, 0, EncounterState::Fail, false)
+            .set_boss_state_planned_like_cpp(&resolve_encounter, 0, EncounterState::Fail, false)
             .is_none()
     );
     assert_eq!(script.boss_state(0), EncounterState::Done);
@@ -349,47 +402,51 @@ fn area_trigger_done_set_matches_cpp_mark_reset_query() {
 
 #[test]
 fn boss_info_selects_first_any_or_matching_difficulty_like_cpp() {
-    let store = DungeonEncounterStore::from_entries([encounter(1, 0), encounter(2, 4)]);
+    let store = encounter_store([encounter(1, 0), encounter(2, 4)]);
+    let resolve_encounter = |id| store.get(&id);
     let mut script = InstanceScriptBase::new(4, 1);
 
-    script.load_dungeon_encounter_data(&store, 0, [1, 2, 0, 0]);
+    script.load_dungeon_encounter_data(&resolve_encounter, 0, [1, 2, 0, 0]);
 
-    assert_eq!(script.boss_dungeon_encounter(&store, 0).unwrap().id, 1);
+    assert_eq!(script.boss_dungeon_encounter(&resolve_encounter, 0).unwrap().id, 1);
 }
 
 #[test]
 fn boss_info_skips_non_matching_difficulty_like_cpp() {
-    let store = DungeonEncounterStore::from_entries([encounter(1, 3), encounter(2, 4)]);
+    let store = encounter_store([encounter(1, 3), encounter(2, 4)]);
+    let resolve_encounter = |id| store.get(&id);
     let mut script = InstanceScriptBase::new(4, 1);
 
-    script.load_dungeon_encounter_data(&store, 0, [1, 2, 0, 0]);
+    script.load_dungeon_encounter_data(&resolve_encounter, 0, [1, 2, 0, 0]);
 
-    assert_eq!(script.boss_dungeon_encounter(&store, 0).unwrap().id, 2);
+    assert_eq!(script.boss_dungeon_encounter(&resolve_encounter, 0).unwrap().id, 2);
 }
 
 #[test]
 fn load_dungeon_encounter_data_ignores_invalid_boss_or_missing_rows_like_cpp() {
-    let store = DungeonEncounterStore::from_entries([encounter(2, 4)]);
+    let store = encounter_store([encounter(2, 4)]);
+    let resolve_encounter = |id| store.get(&id);
     let mut script = InstanceScriptBase::new(4, 1);
 
-    script.load_dungeon_encounter_data(&store, 99, [2, 0, 0, 0]);
-    assert!(script.boss_dungeon_encounter(&store, 0).is_none());
+    script.load_dungeon_encounter_data(&resolve_encounter, 99, [2, 0, 0, 0]);
+    assert!(script.boss_dungeon_encounter(&resolve_encounter, 0).is_none());
 
-    script.load_dungeon_encounter_data(&store, 0, [1, 0, 0, 0]);
-    assert!(script.boss_dungeon_encounter(&store, 0).is_none());
+    script.load_dungeon_encounter_data(&resolve_encounter, 0, [1, 0, 0, 0]);
+    assert!(script.boss_dungeon_encounter(&resolve_encounter, 0).is_none());
 }
 
 #[test]
 fn creature_overload_uses_boss_ai_boss_id_like_cpp() {
-    let store = DungeonEncounterStore::from_entries([encounter(2, 4)]);
+    let store = encounter_store([encounter(2, 4)]);
+    let resolve_encounter = |id| store.get(&id);
     let mut script = InstanceScriptBase::new(4, 2);
     let boss_ai = BossAiRef::new(1);
 
-    script.load_dungeon_encounter_data(&store, 1, [2, 0, 0, 0]);
+    script.load_dungeon_encounter_data(&resolve_encounter, 1, [2, 0, 0, 0]);
 
     assert_eq!(
         script
-            .boss_dungeon_encounter_for_boss_ai(&store, Some(&boss_ai))
+            .boss_dungeon_encounter_for_boss_ai(&resolve_encounter, Some(&boss_ai))
             .unwrap()
             .id,
         2
@@ -398,14 +455,15 @@ fn creature_overload_uses_boss_ai_boss_id_like_cpp() {
 
 #[test]
 fn creature_overload_returns_none_when_dynamic_cast_fails_like_cpp() {
-    let store = DungeonEncounterStore::from_entries([encounter(2, 4)]);
+    let store = encounter_store([encounter(2, 4)]);
+    let resolve_encounter = |id| store.get(&id);
     let mut script = InstanceScriptBase::new(4, 2);
 
-    script.load_dungeon_encounter_data(&store, 1, [2, 0, 0, 0]);
+    script.load_dungeon_encounter_data(&resolve_encounter, 1, [2, 0, 0, 0]);
 
     assert!(
         script
-            .boss_dungeon_encounter_for_boss_ai::<BossAiRef>(&store, None)
+            .boss_dungeon_encounter_for_boss_ai::<BossAiRef>(&resolve_encounter, None)
             .is_none()
     );
 }

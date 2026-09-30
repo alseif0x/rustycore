@@ -115,7 +115,7 @@ pub(in crate::session) const fn power_type_from_u8_like_cpp(power: u8) -> PowerT
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) const fn primary_power_type_for_player_class_like_cpp(
     class_id: u8,
 ) -> PowerType {
@@ -159,28 +159,10 @@ pub(in crate::session) struct RepresentedPreparedQuestMenuItemLikeCpp {
     pub(in crate::session) has_involved_relation: bool,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum ResetSeasonalQuestStatusReasonLikeCpp {
-    MissingEvent,
-    EmptyEvent,
-    RemovedOlderCompletions,
-    NoOlderCompletions,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct ResetSeasonalQuestStatusOutcomeLikeCpp {
-    pub event_id: u16,
-    pub event_start_time: u64,
-    pub reason: ResetSeasonalQuestStatusReasonLikeCpp,
-    pub removed_quest_ids: Vec<u32>,
-    pub completed_bit_cleared: usize,
-    pub completed_bit_skipped_no_quest_v2_store: usize,
-    pub completed_bit_skipped_zero_unique_bit: usize,
-    pub completed_bit_no_change_or_noop: usize,
-    pub completed_bit_clear_unrepresented: usize,
-    pub event_bucket_erased: bool,
-    pub seasonal_quest_changed: bool,
-}
+pub(crate) use wow_entities::{
+    SeasonalQuestResetReason as ResetSeasonalQuestStatusReasonLikeCpp,
+    SeasonalQuestResetOutcome as ResetSeasonalQuestStatusOutcomeLikeCpp,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct SeasonalQuestStatusDbRowLikeCpp {
@@ -374,14 +356,7 @@ pub struct RepresentedQuestRewardMailLikeCpp {
     pub character_db_transaction_unrepresented: bool,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum RepresentedQuestRewardReputationSourceLikeCpp {
-    Quest,
-    DailyQuest,
-    WeeklyQuest,
-    MonthlyQuest,
-    RepeatableQuest,
-}
+pub use wow_progression::QuestReputationSource as RepresentedQuestRewardReputationSourceLikeCpp;
 
 #[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

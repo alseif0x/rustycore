@@ -12,6 +12,7 @@ use super::*;
 
 mod login_data;
 
+
 impl WorldSession {
     /// Resolve C++ `Player::LoadFromDB`'s persisted transport passenger state
     /// against the currently materialized MO-transport path.

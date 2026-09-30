@@ -7,6 +7,7 @@
 
 use super::*;
 
+
 impl WorldSession {
     /// Pure post-move quest snapshot used to persist the item move and its
     /// `ItemAddedQuestCheck` / `ItemRemovedQuestCheck` result atomically.

@@ -6,7 +6,9 @@ use std::path::Path;
 use anyhow::{Context, Result};
 use tracing::info;
 use wow_core::Position;
-use wow_entities::{VehicleAccessory, VehicleSeatAddon, VehicleSeatInfo, VehicleTemplate};
+pub use wow_data_model::vehicle::{
+    VehicleAccessory, VehicleSeatAddon, VehicleSeatInfo, VehicleTemplate,
+};
 
 use crate::wdc4::Wdc4Reader;
 

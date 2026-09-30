@@ -18,14 +18,7 @@ pub struct QuestFactionRewardEntry {
     pub difficulty: [i16; 10],
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct QuestInfoEntry {
-    pub id: u32,
-    pub info_name: String,
-    pub quest_type: i8,
-    pub modifiers: i32,
-    pub profession: u16,
-}
+pub use wow_data_model::quest::QuestInfoEntry;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct QuestLineXQuestEntry {

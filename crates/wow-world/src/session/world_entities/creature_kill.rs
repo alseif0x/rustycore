@@ -5,6 +5,9 @@
 
 use super::*;
 
+#[cfg(any(test, feature = "test-fixtures"))]
+mod trace;
+
 impl WorldSession {
     /// Queue one creature kill for the loot and reward phases, deduplicated.
     ///
@@ -183,11 +186,16 @@ impl WorldSession {
         // canonical manager lock held by the closure and would self-deadlock.
         let player_race = self.player_race_like_cpp();
         let player_class = self.player_class_like_cpp();
-        let friendship_rep_reaction_store = self.friendship_rep_reaction_store.as_deref();
+        let rank_catalogs = crate::reputation_catalog_adapter::ReputationCatalogViewLikeCpp::new(
+            None,
+            self.friendship_rep_reaction_store.as_deref(),
+            None,
+            None,
+        );
         let Some(current_rank) = self.with_reputation_mgr_like_cpp(|mgr| {
             mgr.rank_for_faction_entry_like_cpp(
                 &faction_entry,
-                friendship_rep_reaction_store,
+                &rank_catalogs,
                 player_race,
                 player_class,
             )
@@ -201,6 +209,12 @@ impl WorldSession {
         let friendship_rep_reaction_store = self.friendship_rep_reaction_store().map(Arc::clone);
         let paragon_reputation_store = self.paragon_reputation_store().map(Arc::clone);
         let currency_types_store = self.currency_types_store().map(Arc::clone);
+        let catalogs = crate::reputation_catalog_adapter::ReputationCatalogViewLikeCpp::new(
+            Some(faction_store.as_ref()),
+            friendship_rep_reaction_store.as_deref(),
+            paragon_reputation_store.as_deref(),
+            currency_types_store.as_deref(),
+        );
         let db_spillover_template = reputation_spillover_template_store
             .as_deref()
             .and_then(|store| store.get(effective_faction_id));
@@ -215,25 +229,26 @@ impl WorldSession {
             player_race: self.player_race_like_cpp(),
             player_class: self.player_class_like_cpp(),
         };
-        let Some((outcome, packet)) = self.mutate_reputation_mgr_like_cpp(|mgr| {
+        let Some((outcome, update)) = self.mutate_reputation_mgr_like_cpp(|mgr| {
             let outcome = mgr.set_reputation_like_cpp(
                 &faction_entry,
                 reputation,
                 options,
-                &faction_store,
+                &catalogs,
                 db_spillover_template,
-                friendship_rep_reaction_store.as_deref(),
-                paragon_reputation_store.as_deref(),
-                currency_types_store.as_deref(),
             );
-            let packet = outcome
+            let update = outcome
                 .send_state_rep_list_id
-                .map(|rep_list_id| mgr.set_faction_standing_packet_like_cpp(Some(rep_list_id)));
-            (outcome, packet)
+                .map(|rep_list_id| mgr.faction_standing_update_like_cpp(Some(rep_list_id)));
+            (outcome, update)
         }) else {
             return;
         };
-        if let Some(packet) = packet {
+        if let Some(update) = update {
+            let packet =
+                crate::handlers::progression::presentation::set_faction_standing_packet_like_cpp(
+                    update,
+                );
             self.send_packet(&packet);
         }
         #[cfg(not(test))]
@@ -381,7 +396,7 @@ impl WorldSession {
                 reward.creature_guid,
             )
             .await;
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             self.record_represented_creature_kill_hooks_like_cpp(
                 reward.killer_guid,
                 reward.creature_guid,
@@ -404,74 +419,6 @@ impl WorldSession {
             }
         }
     }
-    #[cfg(test)]
-    pub(in crate::session) fn record_represented_creature_kill_hooks_like_cpp(
-        &mut self,
-        attacker_guid: ObjectGuid,
-        creature_guid: ObjectGuid,
-    ) {
-        let reward_source = self
-            .mutate_world_creature(creature_guid, |creature| {
-                (creature.map_id() as u16, creature.position())
-            })
-            .or_else(|| {
-                self.player_position_like_cpp()
-                    .map(|position| (self.player_map_id_like_cpp(), position))
-            });
-        let Some(reward_source) = reward_source else {
-            return;
-        };
-        let mut tappers = self
-            .mutate_world_creature(creature_guid, |creature| {
-                creature.creature.tap_list().to_vec()
-            })
-            .unwrap_or_default();
-        if tappers.is_empty() {
-            tappers.push(attacker_guid);
-        }
-        let mut unique_tappers = Vec::with_capacity(tappers.len());
-        for tapper in tappers {
-            if !unique_tappers.contains(&tapper) {
-                unique_tappers.push(tapper);
-            }
-        }
-
-        self.represented_creature_kill_events_like_cpp.push(
-            RepresentedCreatureKillEventLikeCpp::KillerProc {
-                attacker_guid,
-                victim_guid: creature_guid,
-            },
-        );
-
-        for tapper_guid in unique_tappers {
-            if !self.represented_player_at_group_reward_distance_like_cpp(
-                tapper_guid,
-                reward_source.0,
-                reward_source.1,
-            ) {
-                continue;
-            }
-            self.represented_creature_kill_events_like_cpp.push(
-                RepresentedCreatureKillEventLikeCpp::TapperTargetDiesProc {
-                    tapper_guid,
-                    victim_guid: creature_guid,
-                },
-            );
-        }
-
-        self.represented_creature_kill_events_like_cpp.push(
-            RepresentedCreatureKillEventLikeCpp::VictimDeathProc {
-                victim_guid: creature_guid,
-            },
-        );
-        self.represented_creature_kill_events_like_cpp.push(
-            RepresentedCreatureKillEventLikeCpp::DeliveredKillingBlowCriteria {
-                player_guid: attacker_guid,
-                victim_guid: creature_guid,
-                quantity: 1,
-            },
-        );
-    }
     fn represented_creature_can_skin_after_death_state_like_cpp(
         &mut self,
         creature_guid: ObjectGuid,
@@ -489,7 +436,7 @@ impl WorldSession {
             .and_then(|stores| stores.get(&LootStoreKind::Skinning))
             .is_some_and(|store| store.collect_loot_ids_like_cpp().contains(&skin_loot_id))
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_creature_kill_events_like_cpp(
         &self,
     ) -> &[RepresentedCreatureKillEventLikeCpp] {
@@ -500,7 +447,7 @@ impl WorldSession {
         attacker_guid: ObjectGuid,
         creature_guid: ObjectGuid,
     ) -> Option<wow_entities::UnitValuesUpdate> {
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         let _ = attacker_guid;
         let lootable = self
             .loot_table
@@ -508,57 +455,10 @@ impl WorldSession {
             .is_some_and(|loot| loot.coins != 0 || loot.unlooted_count != 0);
         let can_skin = self.represented_creature_can_skin_after_death_state_like_cpp(creature_guid);
         let values_update = self.mutate_world_creature(creature_guid, |creature| {
-            creature.complete_death_state_after_kill_hooks_like_cpp();
-            creature.apply_corpse_loot_flags_after_death_state_like_cpp(lootable, can_skin);
-            creature.creature.unit().values_update()
+            creature.finalize_represented_kill(lootable, can_skin)
         })?;
-        #[cfg(test)]
-        self.represented_creature_kill_events_like_cpp.push(
-            RepresentedCreatureKillEventLikeCpp::DeathStateJustDied {
-                victim_guid: creature_guid,
-            },
-        );
-        #[cfg(test)]
-        self.represented_creature_kill_events_like_cpp.push(
-            RepresentedCreatureKillEventLikeCpp::ZoneScriptUnitDeath {
-                unit_guid: creature_guid,
-            },
-        );
-        #[cfg(test)]
-        self.record_represented_tapper_pet_killed_unit_hooks_like_cpp(creature_guid);
-        #[cfg(test)]
-        self.represented_creature_kill_events_like_cpp.push(
-            RepresentedCreatureKillEventLikeCpp::LootFlagsApplied {
-                creature_guid,
-                lootable,
-                can_skin,
-                skinnable: can_skin,
-            },
-        );
-        #[cfg(test)]
-        self.represented_creature_kill_events_like_cpp.push(
-            RepresentedCreatureKillEventLikeCpp::CreatureOnHealthDepletedAi {
-                creature_guid,
-                attacker_guid,
-                is_kill: true,
-            },
-        );
-        #[cfg(test)]
-        self.represented_creature_kill_events_like_cpp.push(
-            RepresentedCreatureKillEventLikeCpp::CreatureJustDiedAi {
-                creature_guid,
-                killer_guid: attacker_guid,
-            },
-        );
-        #[cfg(test)]
-        if attacker_guid.is_player() {
-            self.represented_creature_kill_events_like_cpp.push(
-                RepresentedCreatureKillEventLikeCpp::ScriptMgrOnCreatureKill {
-                    killer_guid: attacker_guid,
-                    creature_guid,
-                },
-            );
-        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        self.record_creature_kill_post_state(attacker_guid, creature_guid, lootable, can_skin);
         Some(values_update)
     }
 }

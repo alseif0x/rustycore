@@ -10,18 +10,12 @@ pub(in crate::session::tests) fn install_remove_spell_offhand_templates_like_cpp
     items: &[(u32, InventoryType, u32, ItemClass, u8)],
 ) {
     session.set_item_store(Arc::new(ItemStore::from_records(items.iter().map(
-        |&(item_id, inventory_type, _, class_id, subclass_id)| ItemRecord {
-            id: item_id,
-            class_id: class_id as u8,
+        |&(item_id, inventory_type, _, class_id, subclass_id)| represented_test_item_record_like_cpp(
+            item_id,
+            inventory_type,
+            class_id,
             subclass_id,
-            material: 0,
-            inventory_type: inventory_type as i8,
-            sheathe_type: 0,
-            random_select: 0,
-            random_suffix_group_id: 0,
-            scaling_stat_distribution_id: 0,
-            scaling_stat_value: 0,
-        },
+        ),
     ))));
     session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates(
         items
@@ -29,37 +23,10 @@ pub(in crate::session::tests) fn install_remove_spell_offhand_templates_like_cpp
             .map(|&(item_id, inventory_type, flags3, _, _)| {
                 (
                     item_id,
-                    ItemSparseTemplateEntry {
-                        flags: [0, 0, flags3, 0],
-                        bag_family: 0,
-                        start_quest_id: 0,
-                        stackable: 1,
-                        max_count: 0,
-                        lock_id: 0,
-                        required_reputation_rank: 0,
-                        sell_price: 0,
-                        buy_price: 0,
-                        vendor_stack_count: 1,
-                        price_variance: 0.0,
-                        price_random_value: 0.0,
-                        max_durability: 0,
-                        other_faction_item_id: 0,
-                        content_tuning_id: 0,
-                        player_level_to_item_level_curve_id: 0,
-                        limit_category: 0,
-                        instance_bound: 0,
-                        zone_bound: [0, 0],
-                        required_reputation_faction: 0,
-                        allowable_class: -1,
-                        required_expansion: 0,
-                        bonding: ItemBondingType::None as u8,
-                        container_slots: if inventory_type == InventoryType::Bag {
-                            4
-                        } else {
-                            0
-                        },
-                        inventory_type: inventory_type as i8,
-                    },
+                    sparse_template_for_inventory_type_like_cpp(
+                        inventory_type,
+                        flags3,
+                    ),
                 )
             }),
     )));
@@ -259,46 +226,49 @@ pub(in crate::session::tests) fn install_stackable_test_item_template(
     entry: u32,
     max_stack_size: i32,
 ) {
-    session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
-        id: entry,
-        class_id: ItemClass::Consumable as u8,
-        subclass_id: 0,
-        material: 0,
-        inventory_type: InventoryType::NonEquip as i8,
-        sheathe_type: 0,
-        random_select: 0,
-        random_suffix_group_id: 0,
-        scaling_stat_distribution_id: 0,
-        scaling_stat_value: 0,
-    }])));
+    session.set_item_store(Arc::new(ItemStore::from_records([represented_test_item_record_like_cpp(
+        entry,
+        InventoryType::NonEquip,
+        ItemClass::Consumable,
+        0,
+    )])));
     session.set_item_stats_store(Arc::new(ItemStatsStore::from_sparse_templates([(
         entry,
         ItemSparseTemplateEntry {
-            flags: [0, 0, 0, 0],
-            bag_family: 0,
-            start_quest_id: 0,
             stackable: max_stack_size,
-            max_count: 0,
-            lock_id: 0,
-            required_reputation_rank: 0,
-            sell_price: 0,
-            buy_price: 0,
-            vendor_stack_count: 1,
-            price_variance: 1.0,
-            price_random_value: 1.0,
-            max_durability: 0,
-            other_faction_item_id: 0,
-            content_tuning_id: 0,
-            player_level_to_item_level_curve_id: 0,
-            limit_category: 0,
-            instance_bound: 0,
-            zone_bound: [0, 0],
-            required_reputation_faction: 0,
-            allowable_class: -1,
-            required_expansion: 0,
-            bonding: ItemBondingType::None as u8,
-            container_slots: 0,
-            inventory_type: InventoryType::NonEquip as i8,
+            ..inventory_sparse_template_for_test(InventoryType::NonEquip as i8)
         },
     )])));
+}
+
+pub(in crate::session::tests) fn inventory_sparse_template_for_test(
+    inventory_type: i8,
+) -> ItemSparseTemplateEntry {
+    ItemSparseTemplateEntry {
+        flags: [0, 0, 0, 0],
+        bag_family: 0,
+        start_quest_id: 0,
+        stackable: 1,
+        max_count: 0,
+        lock_id: 0,
+        required_reputation_rank: 0,
+        sell_price: 0,
+        buy_price: 0,
+        vendor_stack_count: 1,
+        price_variance: 1.0,
+        price_random_value: 1.0,
+        max_durability: 0,
+        other_faction_item_id: 0,
+        content_tuning_id: 0,
+        player_level_to_item_level_curve_id: 0,
+        limit_category: 0,
+        instance_bound: 0,
+        zone_bound: [0, 0],
+        required_reputation_faction: 0,
+        allowable_class: -1,
+        required_expansion: 0,
+        bonding: ItemBondingType::None as u8,
+        container_slots: 0,
+        inventory_type: inventory_type,
+    }
 }

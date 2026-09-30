@@ -8,8 +8,8 @@ impl WorldSession {
     ) -> Option<wow_entities::AuraSubsystem> {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.unit().subsystems().auras.clone());
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.gossip_handleless_fixture() {
             let mut auras = wow_entities::AuraSubsystem::default();
             auras.set_persisted_player_aura_authority_complete_like_cpp(
                 self.player_aura_authority_complete_like_cpp,
@@ -28,14 +28,14 @@ impl WorldSession {
         canonical
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn mutate_player_aura_subsystem_like_cpp<R>(
         &mut self,
         mutate: impl FnOnce(&mut wow_entities::AuraSubsystem) -> R,
     ) -> Option<R> {
         let mut mutate = Some(mutate);
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.gossip_handleless_fixture() {
             let mut auras = self.player_aura_subsystem_snapshot_like_cpp()?;
             let result =
                 mutate

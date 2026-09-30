@@ -84,7 +84,7 @@ fn add_to_map_typed_gameobject_tail_initializes_and_clears_move_like_cpp() {
     assert_eq!(drain.relocated, 0);
     let stored = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert!(stored.world().object().is_in_world());
     assert!(!stored.world().object().is_new_object());
@@ -109,7 +109,7 @@ fn add_map_object_record_to_map_like_cpp_preserves_typed_gameobject_spawn_index(
     assert!(map.get_gameobject_by_spawn_id_like_cpp(396).is_some());
     assert!(
         map.map_object_record(guid)
-            .and_then(MapObjectRecord::game_object)
+            .and_then(|record| record.game_object())
             .is_some()
     );
 
@@ -195,6 +195,8 @@ fn insert_map_object_record_detaches_displaced_gameobject_authority_for_same_gui
     );
     assert!(
         displaced
+            .record()
+            .unwrap()
             .game_object()
             .unwrap()
             .loot_authority_like_cpp()
@@ -202,7 +204,7 @@ fn insert_map_object_record_detaches_displaced_gameobject_authority_for_same_gui
     );
     assert!(
         map.map_object_record(guid)
-            .and_then(MapObjectRecord::game_object)
+            .and_then(|record| record.game_object())
             .unwrap()
             .loot_authority_like_cpp()
             .shares_storage_like_cpp(&replacement_authority)
@@ -280,7 +282,7 @@ fn gameobject_update_just_deactivated_queues_linked_trap_delete_like_cpp() {
     assert!(outcome.loot_cleared);
     let trap_after_update = map
         .map_object_record(trap_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .expect("linked trap should stay in map until remove-list drain");
     assert_eq!(trap_after_update.loot_state(), LootState::NotReady);
     assert_eq!(trap_after_update.data().state, GoState::Ready as i8);
@@ -316,7 +318,7 @@ fn gameobject_update_just_deactivated_clears_owned_loot_like_cpp() {
     let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 1_000);
     let canonical = map
         .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
 
     assert_eq!(outcome.status, GameObjectUpdateStatusLikeCpp::Updated);
@@ -356,7 +358,7 @@ fn gameobject_update_just_deactivated_goober_spell_represents_casts_and_clears_l
     let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 1_000);
     let canonical = map
         .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
 
     assert_eq!(outcome.status, GameObjectUpdateStatusLikeCpp::Updated);
@@ -396,7 +398,7 @@ fn gameobject_update_just_deactivated_goober_lock_resets_state_and_clears_loot_l
     let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 1_000);
     let canonical = map
         .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
 
     assert_eq!(outcome.status, GameObjectUpdateStatusLikeCpp::Updated);
@@ -431,7 +433,7 @@ fn gameobject_update_just_deactivated_goober_nodespawn_returns_before_clearloot_
     let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 1_000);
     let canonical = map
         .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
 
     assert_eq!(outcome.status, GameObjectUpdateStatusLikeCpp::Updated);
@@ -475,7 +477,7 @@ fn gameobject_update_just_deactivated_goober_nodespawn_without_source_returns_be
     let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 1_000);
     let canonical = map
         .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
 
     assert_eq!(outcome.status, GameObjectUpdateStatusLikeCpp::Updated);
@@ -512,7 +514,7 @@ fn gameobject_update_just_deactivated_goober_without_spell_clears_loot_like_cpp(
     let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 1_000);
     let canonical = map
         .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
 
     assert_eq!(outcome.status, GameObjectUpdateStatusLikeCpp::Updated);
@@ -548,7 +550,7 @@ fn gameobject_update_non_consumed_chest_restock_returns_after_clearloot_like_cpp
     let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 1_000);
     let canonical = map
         .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
 
     assert_eq!(outcome.status, GameObjectUpdateStatusLikeCpp::Updated);
@@ -586,7 +588,7 @@ fn gameobject_update_non_consumed_chest_without_restock_sets_ready_like_cpp() {
     let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 1_000);
     let canonical = map
         .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
 
     assert!(outcome.loot_cleared);
@@ -622,7 +624,7 @@ fn gameobject_update_non_consumed_goober_sets_ready_after_prebranch_and_clearloo
     let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 1_000);
     let canonical = map
         .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
 
     assert!(outcome.goober_state_reset);
@@ -692,7 +694,7 @@ fn gameobject_update_spell_created_expired_deletes_after_clearloot_like_cpp() {
     let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 1_000);
     let canonical = map
         .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
 
     assert_eq!(
@@ -738,7 +740,7 @@ fn gameobject_update_owner_created_expired_deletes_after_clearloot_like_cpp() {
     let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 1_000);
     let canonical = map
         .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
 
     assert_eq!(

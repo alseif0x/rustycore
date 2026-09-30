@@ -1,7 +1,6 @@
 //! Terrain operations of movement.
 //!
-//! Divided out of the single inherent impl under #705; every method keeps
-//! its name, signature and body.
+//! Height normalization shares the private engine's lazy scalar stages.
 
 use super::*;
 
@@ -44,7 +43,7 @@ impl WorldCreature {
         )
     }
 
-    fn allowed_position_z_caps_like_cpp(&self) -> AllowedPositionZCaps {
+    pub(super) fn allowed_position_z_caps_like_cpp(&self) -> AllowedPositionZCaps {
         let hover_offset = if self
             .creature
             .movement_flags_like_cpp()
@@ -67,38 +66,7 @@ impl WorldCreature {
         point: Position,
         terrain: Option<&LiveTerrainHeights>,
     ) -> Position {
-        let Some(terrain) = terrain else {
-            return point;
-        };
-        let probe_z = point.z + Z_OFFSET_FIND_HEIGHT;
-        let static_ground =
-            terrain.static_height_like_cpp(self.map_id(), point.x, point.y, probe_z);
-        // C++ GetMapHeight combines terrain and VMap before
-        // UpdateAllowedPositionZ clamps the point. Rust does not yet have the
-        // VMap half, so lowering a valid elevated Detour point to terrain
-        // destroys bridge/platform paths. Preserve elevations; the branch
-        // below still raises points that are under known terrain.
-        let mut ground = if static_ground >= point.z {
-            static_ground
-        } else {
-            INVALID_HEIGHT
-        };
-        if ground <= INVALID_HEIGHT {
-            let grid_ground = terrain.grid_height_like_cpp(self.map_id(), point.x, point.y);
-            if grid_ground > INVALID_HEIGHT
-                && point.z < grid_ground
-                && grid_ground - point.z <= DEFAULT_HEIGHT_SEARCH
-            {
-                ground = grid_ground;
-            }
-        }
-        let z = allowed_position_z_from_ground_like_cpp(
-            true,
-            ground,
-            point.z,
-            self.allowed_position_z_caps_like_cpp(),
-        );
-        Position::new(point.x, point.y, z, point.orientation)
+        pending::normalize_position_sync(self, point, terrain)
     }
 
     pub(super) fn path_generator_from_detour_for_creature_like_cpp(

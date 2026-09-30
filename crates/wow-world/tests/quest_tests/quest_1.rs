@@ -213,45 +213,6 @@ async fn quest_poi_query_filters_to_active_quest_slots_like_cpp() {
     assert_eq!(packet.read_int32().unwrap(), 1);
 }
 #[tokio::test]
-async fn quest_poi_cache_consumes_typed_port_rows_and_caches_the_result() {
-    let (mut session, _) = make_session();
-    session.set_quest_poi_persistence_port_like_cpp(Arc::new(QuestPoiPortFixtureLikeCpp(
-        QuestPoiLoadOutcomeLikeCpp::Loaded {
-            points: vec![QuestPoiPointLoadRowLikeCpp {
-                quest_id: 77,
-                idx1: 3,
-                x: 10,
-                y: 11,
-                z: 12,
-            }],
-            blobs: vec![quest_poi_blob_row_like_cpp(77, 3)],
-        },
-    )));
-
-    let first = quest_poi_store_for_test(&mut session).await;
-    let second = quest_poi_store_for_test(&mut session).await;
-    assert_eq!(first[&77].blobs.len(), 1);
-    assert!(Arc::ptr_eq(&first, &second));
-}
-#[tokio::test]
-async fn missing_or_failed_quest_poi_port_caches_the_existing_empty_result() {
-    let (mut missing, _) = make_session();
-    let missing_first = quest_poi_store_for_test(&mut missing).await;
-    let missing_second = quest_poi_store_for_test(&mut missing).await;
-    assert!(missing_first.is_empty());
-    assert!(Arc::ptr_eq(&missing_first, &missing_second));
-
-    let (mut failed, _) = make_session();
-    failed.set_quest_poi_persistence_port_like_cpp(Arc::new(QuestPoiPortFixtureLikeCpp(
-        QuestPoiLoadOutcomeLikeCpp::Failed {
-            stage: QuestPoiLoadStageLikeCpp::Points,
-            reason: "world DB unavailable".to_owned(),
-        },
-    )));
-    let failed_store = quest_poi_store_for_test(&mut failed).await;
-    assert!(failed_store.is_empty());
-}
-#[tokio::test]
 async fn quest_giver_status_queries_borrow_process_metadata_not_session_catalog() {
     use wow_world::session::SessionHandlerCatalogsLikeCpp;
     use wow_constants::ClientOpcodes;
@@ -321,47 +282,6 @@ async fn quest_giver_status_queries_borrow_process_metadata_not_session_catalog(
             assert_eq!(Arc::strong_count(&catalogs.quest_info), 1);
         }
     }
-}
-#[test]
-fn quest_giver_choose_reward_choice_parser_rejects_truncated_cpp_wire() {
-    let mut pkt = WorldPacket::new_empty();
-    pkt.write_bits(u32::from(QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP), 2);
-    write_cpp_item_instance_like_cpp(&mut pkt, 19019, 0, 0, &[], None);
-
-    assert!(read_quest_choice_item_for_test(&mut pkt).is_err());
-}
-#[test]
-fn quest_giver_choose_reward_choice_validation_matches_loaded_cpp_type() {
-    let mut quest = quest_template(7002);
-    quest.reward_choice_items[0] = (19019, 1);
-    quest.reward_choice_item_types[0] = QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP;
-    quest.reward_choice_items[1] = (392, 5);
-    quest.reward_choice_item_types[1] = QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP;
-
-    assert!(
-        represented_reward_choice_matches_loaded_type_for_test(
-            &quest,
-            QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
-            19019,
-            1,
-        )
-    );
-    assert!(
-        represented_reward_choice_matches_loaded_type_for_test(
-            &quest,
-            QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP,
-            392,
-            5,
-        )
-    );
-    assert!(
-        !represented_reward_choice_matches_loaded_type_for_test(
-            &quest,
-            QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
-            392,
-            5,
-        )
-    );
 }
 #[tokio::test]
 async fn quest_giver_choose_reward_accepts_existing_reward_currency_like_cpp() {

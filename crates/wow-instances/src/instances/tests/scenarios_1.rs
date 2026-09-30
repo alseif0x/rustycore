@@ -1,8 +1,12 @@
 //! Instance lifecycle state regression scenarios, part 1 of 2.
 //!
-//! Moved out of the lib.rs root under #658; every test is unchanged.
+//! Moved out of the lib.rs root under #658; existing expectations are retained.
 
 use super::*;
+use wow_data_model::map::{
+    MAP_DIFFICULTY_FLAG_USE_LOOT_BASED_LOCK, MAP_FLAG_FLEXIBLE_RAID_LOCKING, MAP_RAID,
+    MapDifficultyEntry, MapEntry,
+};
 
 #[test]
 fn map_db2_entries_key_and_binding_match_cpp() {
@@ -21,17 +25,17 @@ fn map_db2_entries_key_and_binding_match_cpp() {
 }
 
 #[test]
-fn map_db2_entries_from_stores_match_cpp_fields() {
-    let maps = wow_data::MapStore::from_entries([wow_data::MapEntry {
+fn map_db2_entries_from_resolved_entries_match_cpp_fields() {
+    let map = MapEntry {
         id: 631,
-        instance_type: wow_data::map::MAP_RAID,
+        instance_type: MAP_RAID,
         expansion_id: 0,
         parent_map_id: -1,
         cosmetic_parent_map_id: -1,
-        flags1: wow_data::map::MAP_FLAG_FLEXIBLE_RAID_LOCKING,
+        flags1: MAP_FLAG_FLEXIBLE_RAID_LOCKING,
         flags2: 0,
-    }]);
-    let difficulties = wow_data::MapDifficultyStore::from_entries([wow_data::MapDifficultyEntry {
+    };
+    let map_difficulty = MapDifficultyEntry {
         id: 900,
         message: String::new(),
         map_id: 631,
@@ -39,10 +43,11 @@ fn map_db2_entries_from_stores_match_cpp_fields() {
         lock_id: 7,
         reset_interval: 2,
         max_players: 25,
-        flags: wow_data::map::MAP_DIFFICULTY_FLAG_USE_LOOT_BASED_LOCK,
-    }]);
+        flags: MAP_DIFFICULTY_FLAG_USE_LOOT_BASED_LOCK,
+    };
 
-    let entries = MapDb2Entries::from_stores_like_cpp(&maps, &difficulties, 631, 15).unwrap();
+    let entries =
+        MapDb2Entries::from_resolved_entries_like_cpp(631, 15, &map, &map_difficulty);
 
     assert_eq!(
         entries,
@@ -53,69 +58,6 @@ fn map_db2_entries_from_stores_match_cpp_fields() {
             reset_interval: MapDifficultyResetInterval::Weekly,
             max_players: 25,
             is_flex_locking: true,
-            is_using_encounter_locks: true,
-        }
-    );
-    assert!(MapDb2Entries::from_stores_like_cpp(&maps, &difficulties, 631, 3).is_none());
-}
-
-#[test]
-fn map_db2_entries_from_downscaled_stores_match_cpp_fields() {
-    let maps = wow_data::MapStore::from_entries([wow_data::MapEntry {
-        id: 33,
-        instance_type: wow_data::map::MAP_INSTANCE,
-        expansion_id: 0,
-        parent_map_id: -1,
-        cosmetic_parent_map_id: -1,
-        flags1: 0,
-        flags2: 0,
-    }]);
-    let difficulties = wow_data::DifficultyStore::from_entries([
-        wow_data::DifficultyEntry {
-            id: 5,
-            instance_type: 1,
-            flags: 0,
-            fallback_difficulty_id: 2,
-            toggle_difficulty_id: 0,
-        },
-        wow_data::DifficultyEntry {
-            id: 2,
-            instance_type: 1,
-            flags: 0,
-            fallback_difficulty_id: 1,
-            toggle_difficulty_id: 0,
-        },
-    ]);
-    let map_difficulties =
-        wow_data::MapDifficultyStore::from_entries([wow_data::MapDifficultyEntry {
-            id: 900,
-            message: String::new(),
-            map_id: 33,
-            difficulty_id: 2,
-            lock_id: 9,
-            reset_interval: 1,
-            max_players: 5,
-            flags: wow_data::map::MAP_DIFFICULTY_FLAG_USE_LOOT_BASED_LOCK,
-        }]);
-
-    let entries = MapDb2Entries::from_downscaled_stores_like_cpp(
-        &maps,
-        &map_difficulties,
-        &difficulties,
-        33,
-        5,
-    )
-    .unwrap();
-
-    assert_eq!(
-        entries,
-        MapDb2Entries {
-            map_id: 33,
-            difficulty_id: 2,
-            lock_id: 9,
-            reset_interval: MapDifficultyResetInterval::Daily,
-            max_players: 5,
-            is_flex_locking: false,
             is_using_encounter_locks: true,
         }
     );

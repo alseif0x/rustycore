@@ -6,4 +6,8 @@ use super::*;
 
 mod operations;
 #[cfg(any(test, feature = "test-fixtures"))]
+mod loot_cast;
+#[cfg(any(test, feature = "test-fixtures"))]
+mod loot_allocation;
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) mod test_fixtures;

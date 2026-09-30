@@ -6,8 +6,11 @@
 //! Pool planning and map-local pool actions.
 
 mod gameobject_update;
+mod materialized;
+mod despawn;
 
 use super::*;
+use super::super::loaded_grid_admission::{LoadedGridPoolOutcome, LoadedGridReceipts};
 
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
 where
@@ -43,315 +46,15 @@ where
     ) where
         L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
     {
-        if let Some(object_plan) = plan.object_plan.as_ref() {
-            self.apply_pool_spawn_object_plan_loaded_grid_records_like_cpp(
-                object_plan,
-                spawn_store,
-                summary,
-                load_record.as_deref_mut(),
-            );
-        }
-    }
-
-    fn apply_pool_spawn_pool_plan_loaded_grid_records_like_cpp<L>(
-        &mut self,
-        plan: &PoolSpawnPoolPlanLikeCpp,
-        spawn_store: &SpawnStore,
-        summary: &mut ProcessRespawnsSafeSideEffectsSummaryLikeCpp,
-        mut load_record: Option<&mut L>,
-    ) where
-        L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
-    {
-        for subplan in &plan.subplans {
-            self.apply_pool_typed_spawn_plan_loaded_grid_records_like_cpp(
-                subplan,
-                spawn_store,
-                summary,
-                load_record.as_deref_mut(),
-            );
-        }
-    }
-
-    fn apply_pool_despawn_pool_plan_safe_map_actions_like_cpp(
-        &mut self,
-        plan: &PoolDespawnPoolPlanLikeCpp,
-        summary: &mut ProcessRespawnsSafeSideEffectsSummaryLikeCpp,
-    ) {
-        for subplan in &plan.subplans {
-            self.apply_pool_typed_despawn_plan_safe_map_actions_like_cpp(subplan, summary);
-        }
-    }
-
-    fn apply_pool_typed_despawn_plan_safe_map_actions_like_cpp(
-        &mut self,
-        plan: &PoolTypedDespawnPlanLikeCpp,
-        summary: &mut ProcessRespawnsSafeSideEffectsSummaryLikeCpp,
-    ) {
-        if let Some(object_plan) = plan.object_plan.as_ref() {
-            self.apply_pool_despawn_object_plan_safe_map_actions_like_cpp(object_plan, summary);
-        }
-    }
-
-    fn apply_pool_despawn_object_plan_safe_map_actions_like_cpp(
-        &mut self,
-        plan: &PoolDespawnObjectPlanLikeCpp,
-        summary: &mut ProcessRespawnsSafeSideEffectsSummaryLikeCpp,
-    ) {
-        let mut child_pool_plans = plan.child_pool_plans.iter();
-        for action in &plan.actions {
-            match *action {
-                PoolSpawnObjectActionLikeCpp::DespawnOne {
-                    kind: PoolMemberKindLikeCpp::Pool,
-                    ..
-                } => {
-                    if let Some(child_plan) = child_pool_plans.next() {
-                        self.apply_pool_despawn_pool_plan_safe_map_actions_like_cpp(
-                            child_plan, summary,
-                        );
-                    } else {
-                        summary.pool_unsupported_action_kind += 1;
-                    }
-                }
-                other => match other {
-                    PoolSpawnObjectActionLikeCpp::DespawnOne { kind, guid } => {
-                        self.apply_pool_despawn_one_safe_map_action_like_cpp(kind, guid, summary);
-                    }
-                    PoolSpawnObjectActionLikeCpp::RemoveRespawnTime { kind, guid } => {
-                        let Some(object_type) =
-                            pool_member_kind_to_spawn_object_type_like_cpp(kind)
-                        else {
-                            return;
-                        };
-                        if self
-                            .remove_respawn_time_like_cpp(object_type, guid as SpawnId)
-                            .is_some()
-                        {
-                            summary.pool_respawn_timers_removed += 1;
-                        } else {
-                            summary.pool_respawn_timers_missing += 1;
-                        }
-                    }
-                    PoolSpawnObjectActionLikeCpp::SpawnOne { .. }
-                    | PoolSpawnObjectActionLikeCpp::RespawnOne { .. } => {}
-                },
-            }
-        }
-    }
-
-    fn apply_pool_spawn_object_plan_loaded_grid_records_like_cpp<L>(
-        &mut self,
-        plan: &PoolSpawnObjectPlanLikeCpp,
-        spawn_store: &SpawnStore,
-        summary: &mut ProcessRespawnsSafeSideEffectsSummaryLikeCpp,
-        mut load_record: Option<&mut L>,
-    ) where
-        L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
-    {
-        let mut child_spawn_plans = plan.child_pool_spawn_plans.iter();
-        let mut child_despawn_plans = plan.child_pool_despawn_plans.iter();
-        for action in &plan.actions {
-            match *action {
-                PoolSpawnObjectActionLikeCpp::SpawnOne {
-                    kind: PoolMemberKindLikeCpp::Pool,
-                    ..
-                } => {
-                    if let Some(child_plan) = child_spawn_plans.next() {
-                        self.apply_pool_spawn_pool_plan_loaded_grid_records_like_cpp(
-                            child_plan,
-                            spawn_store,
-                            summary,
-                            load_record.as_deref_mut(),
-                        );
-                    } else {
-                        summary.pool_unsupported_action_kind += 1;
-                    }
-                }
-                PoolSpawnObjectActionLikeCpp::DespawnOne {
-                    kind: PoolMemberKindLikeCpp::Pool,
-                    ..
-                } => {
-                    if let Some(child_plan) = child_despawn_plans.next() {
-                        self.apply_pool_despawn_pool_plan_safe_map_actions_like_cpp(
-                            child_plan, summary,
-                        );
-                    } else {
-                        summary.pool_unsupported_action_kind += 1;
-                    }
-                }
-                PoolSpawnObjectActionLikeCpp::RespawnOne {
-                    kind: PoolMemberKindLikeCpp::Pool,
-                    ..
-                }
-                | PoolSpawnObjectActionLikeCpp::RemoveRespawnTime {
-                    kind: PoolMemberKindLikeCpp::Pool,
-                    ..
-                } => {}
-                other => self.apply_pool_spawn_object_action_loaded_grid_records_like_cpp(
-                    other,
-                    spawn_store,
-                    summary,
-                    load_record.as_deref_mut(),
-                ),
-            }
-        }
-    }
-
-    fn apply_pool_spawn_object_action_loaded_grid_records_like_cpp<L>(
-        &mut self,
-        action: PoolSpawnObjectActionLikeCpp,
-        spawn_store: &SpawnStore,
-        summary: &mut ProcessRespawnsSafeSideEffectsSummaryLikeCpp,
-        load_record: Option<&mut L>,
-    ) where
-        L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
-    {
-        match action {
-            PoolSpawnObjectActionLikeCpp::DespawnOne { kind, guid } => {
-                self.apply_pool_despawn_one_safe_map_action_like_cpp(kind, guid, summary);
-            }
-            PoolSpawnObjectActionLikeCpp::RespawnOne { kind, guid } => {
-                self.apply_pool_despawn_one_safe_map_action_like_cpp(kind, guid, summary);
-                self.report_pool_spawn_one_action_like_cpp(
-                    kind,
-                    guid,
-                    true,
-                    spawn_store,
-                    summary,
-                    load_record,
-                );
-            }
-            PoolSpawnObjectActionLikeCpp::RemoveRespawnTime { kind, guid } => {
-                let Some(object_type) = pool_member_kind_to_spawn_object_type_like_cpp(kind) else {
-                    return;
-                };
-                if self
-                    .remove_respawn_time_like_cpp(object_type, guid as SpawnId)
-                    .is_some()
-                {
-                    summary.pool_respawn_timers_removed += 1;
-                } else {
-                    summary.pool_respawn_timers_missing += 1;
-                }
-            }
-            PoolSpawnObjectActionLikeCpp::SpawnOne { kind, guid } => {
-                self.report_pool_spawn_one_action_like_cpp(
-                    kind,
-                    guid,
-                    false,
-                    spawn_store,
-                    summary,
-                    load_record,
-                );
-            }
-        }
-    }
-
-    fn apply_pool_despawn_one_safe_map_action_like_cpp(
-        &mut self,
-        kind: PoolMemberKindLikeCpp,
-        spawn_id: u64,
-        summary: &mut ProcessRespawnsSafeSideEffectsSummaryLikeCpp,
-    ) {
-        let spawn_id = spawn_id as SpawnId;
-        let guids = match kind {
-            PoolMemberKindLikeCpp::Creature => {
-                self.creature_spawn_id_store_guids_like_cpp(spawn_id)
-            }
-            PoolMemberKindLikeCpp::GameObject => {
-                self.gameobject_spawn_id_store_guids_like_cpp(spawn_id)
-            }
-            PoolMemberKindLikeCpp::Pool => {
-                summary.pool_unsupported_action_kind += 1;
-                return;
-            }
-        };
-
-        for guid in guids {
-            if self.map_object_record(guid).is_none() {
-                summary.pool_stale_index_entries += 1;
-                continue;
-            }
-            match self.remove_from_map_like_cpp(guid, true) {
-                Ok(_removed) => {
-                    summary.pool_objects_removed += 1;
-                }
-                Err(RemoveFromMapError::ObjectNotFound { .. }) => {
-                    summary.pool_stale_index_entries += 1;
-                }
-                Err(_error) => {
-                    summary.pool_remove_errors += 1;
-                }
-            }
-        }
-    }
-
-    fn report_pool_spawn_one_action_like_cpp<L>(
-        &mut self,
-        kind: PoolMemberKindLikeCpp,
-        spawn_id: u64,
-        respawn: bool,
-        spawn_store: &SpawnStore,
-        summary: &mut ProcessRespawnsSafeSideEffectsSummaryLikeCpp,
-        load_record: Option<&mut L>,
-    ) where
-        L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
-    {
-        let Some(object_type) = pool_member_kind_to_spawn_object_type_like_cpp(kind) else {
-            summary.pool_unsupported_action_kind += 1;
-            return;
-        };
-        let spawn_id = spawn_id as SpawnId;
-        let Some(spawn_data) = spawn_store.spawn_data(object_type, spawn_id) else {
-            summary.pool_spawn_actions_missing_spawn_data += 1;
-            return;
-        };
-        let cell = cell_from_world(spawn_data.spawn_point.x, spawn_data.spawn_point.y);
-        let grid = GridCoord::new(cell.grid_x(), cell.grid_y());
-        if !self.is_grid_loaded(grid) {
-            summary.pool_spawn_actions_skipped_unloaded_grid += 1;
-            return;
-        }
-
-        let Some(load_record) = load_record else {
-            summary.pool_spawn_actions_blocked_loaded_grid += 1;
-            summary
-                .pool_spawn_action_load_plans
-                .push(PoolSpawnActionLoadPlanLikeCpp {
-                    object_type,
-                    spawn_id,
-                    respawn,
-                });
-            return;
-        };
-
-        let Some(records) = load_record(self, object_type, spawn_id) else {
-            summary.pool_spawn_actions_blocked_loaded_grid += 1;
-            summary
-                .pool_spawn_action_load_plans
-                .push(PoolSpawnActionLoadPlanLikeCpp {
-                    object_type,
-                    spawn_id,
-                    respawn,
-                });
-            return;
-        };
-
-        for pre_add_record in records.pre_add_records {
-            let _ = self.add_map_object_record_to_map_like_cpp(pre_add_record);
-        }
-        let primary_record = records.primary_record;
-        let loaded_grid_primary_record = primary_record.clone();
-        match self.add_map_object_record_to_map_like_cpp(primary_record) {
-            Ok(_outcome) => {
-                summary.executed_loaded_grid_respawns += 1;
-                summary
-                    .loaded_grid_primary_records
-                    .push(loaded_grid_primary_record);
-            }
-            Err(_error) => {
-                summary.blocked_loaded_grid_respawn_add_to_map += 1;
-            }
-        }
+        // A genuinely absent optional loader remains None through recursion.
+        let mut materialized = load_record.as_deref_mut().map(|loader| {
+            move |map: &mut Self, kind, spawn_id| Ok(loader(map, kind, spawn_id)
+                .map(LoadedGridMaterialization::records))
+        });
+        let mut receipts = LoadedGridReceipts::RecordCompatibility;
+        self.apply_pool_typed_materialized(
+            plan, spawn_store, summary, materialized.as_mut(), &mut receipts,
+        );
     }
 
     pub const fn pool_data_like_cpp(&self) -> &SpawnedPoolDataLikeCpp {
@@ -360,30 +63,6 @@ where
 
     pub const fn pool_data_mut_like_cpp(&mut self) -> &mut SpawnedPoolDataLikeCpp {
         &mut self.pool_data
-    }
-
-    /// Map-owned facade for a direct C++ `PoolMgr::DespawnPool(spawns, pool_id,
-    /// alwaysDeleteRespawnTime)` call.
-    ///
-    /// Ownership stays one-way: `PoolMgrLikeCpp` plans and mutates only this
-    /// map's canonical `SpawnedPoolDataLikeCpp`; `Map` then applies only safe
-    /// map-local Creature/GameObject removal and respawn-timer deletion actions
-    /// already represented by the plan. It does not fabricate live records,
-    /// persist DB state, or fan out packets/scripts/AI.
-    pub fn despawn_pool_safe_map_actions_like_cpp(
-        &mut self,
-        pool_mgr: &PoolMgrLikeCpp,
-        pool_id: u32,
-        always_delete_respawn_time: bool,
-    ) -> Result<ProcessRespawnsSafeSideEffectsSummaryLikeCpp, PoolMgrPlanErrorLikeCpp> {
-        let plan = pool_mgr.despawn_pool_plan_like_cpp(
-            &mut self.pool_data,
-            pool_id,
-            always_delete_respawn_time,
-        )?;
-        let mut summary = ProcessRespawnsSafeSideEffectsSummaryLikeCpp::default();
-        self.apply_pool_despawn_pool_plan_safe_map_actions_like_cpp(&plan, &mut summary);
-        Ok(summary)
     }
 
     /// Map-owned facade for a direct C++ `PoolMgr::SpawnPool(spawns, pool_id)`
@@ -407,20 +86,12 @@ where
     where
         L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
     {
-        let plan = pool_mgr.spawn_pool_plan_like_cpp(
-            &mut self.pool_data,
-            pool_id,
-            explicit_roll_for,
-            choose_equal,
-        )?;
-        let mut summary = ProcessRespawnsSafeSideEffectsSummaryLikeCpp::default();
-        self.apply_pool_spawn_pool_plan_loaded_grid_records_like_cpp(
-            &plan,
-            spawn_store,
-            &mut summary,
-            Some(&mut load_record),
-        );
-        Ok(summary)
+        self.spawn_pool_materialized_core(
+            pool_mgr, pool_id, spawn_store, explicit_roll_for, choose_equal,
+            |map, kind, spawn_id| Ok(load_record(map, kind, spawn_id)
+                .map(LoadedGridMaterialization::records)),
+            LoadedGridReceipts::RecordCompatibility,
+        ).map(|outcome| outcome.summary)
     }
 
     /// C++ `Map` constructor calls `sPoolMgr->InitPoolsForMap(this)` before
@@ -673,7 +344,7 @@ where
                 && let (Some(respawn_time), Some(game_object)) = (
                     outcome.generic_respawn_scheduled_time,
                     self.map_object_record(outcome.game_object_guid)
-                        .and_then(MapObjectRecord::game_object),
+                        .and_then(|record| record.game_object()),
                 )
             {
                 let position = game_object.world().position();
@@ -786,7 +457,7 @@ where
         let (go_type, spawn_id, respawn_compatibility_mode, represented_gameobject_data_present) =
             self.map_object_record(guid)
                 .filter(|record| record.kind() == AccessorObjectKind::GameObject)
-                .and_then(MapObjectRecord::game_object)
+                .and_then(|record| record.game_object())
                 .map(|game_object| {
                     (
                         game_object.data().type_id as u32,
@@ -799,7 +470,7 @@ where
         if let Some(game_object) = self
             .entity_world
             .get_mut(&guid)
-            .and_then(MapObjectRecord::game_object_mut)
+            .and_then(ObjectMut::game_object_mut)
         {
             game_object.loot_authority_like_cpp().detach_like_cpp();
             game_object.set_loot_state(LootState::NotReady, None);
@@ -811,7 +482,7 @@ where
         let (go_state_ready, flags_restored) = self
             .entity_world
             .get_mut(&guid)
-            .and_then(MapObjectRecord::game_object_mut)
+            .and_then(ObjectMut::game_object_mut)
             .map(|game_object| {
                 let go_state_ready = go_type != GAMEOBJECT_TYPE_TRANSPORT;
                 if go_state_ready {
@@ -886,5 +557,15 @@ where
             pool_update_summary,
             remove_list,
         })
+    }
+}
+
+fn pool_member_kind_to_spawn_object_type_like_cpp(
+    kind: PoolMemberKindLikeCpp,
+) -> Option<SpawnObjectType> {
+    match kind {
+        PoolMemberKindLikeCpp::Creature => Some(SpawnObjectType::Creature),
+        PoolMemberKindLikeCpp::GameObject => Some(SpawnObjectType::GameObject),
+        PoolMemberKindLikeCpp::Pool => None,
     }
 }

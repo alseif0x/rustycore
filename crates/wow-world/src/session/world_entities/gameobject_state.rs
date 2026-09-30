@@ -388,7 +388,7 @@ impl WorldSession {
                 continue;
             }
             if !self
-                .represented_gameobject_visual_despawns_delivered_like_cpp
+                .visibility_publication.represented_gameobject_visual_despawns_delivered_like_cpp
                 .insert((key.map_id, key.instance_id, update_generation, guid))
             {
                 continue;

@@ -23,7 +23,7 @@ impl WorldSession {
         ae_looting: bool,
     ) -> Option<LootResponse> {
         let creature = self.represented_creature_loot_state_like_cpp(owner_guid)?;
-        if !creature.tappers.is_empty() && !creature.tappers.contains(&player_guid) {
+        if !creature.tappers().is_empty() && !creature.tappers().contains(&player_guid) {
             return None;
         }
         // `Player::isAllowedToLoot` reads `Creature::GetLootForPlayer`; the
@@ -59,15 +59,38 @@ impl WorldSession {
         item_valuation: &ItemValuationCatalogsLikeCpp,
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,
+        response: LootResponse,
+    ) {
+        self.open_loot_view_with_policy(item_valuation, owner_guid, player_guid, response, LootCyclePolicy::Production);
+    }
+
+    pub(super) fn open_loot_view_with_policy(
+        &mut self,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
+        owner_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+        response: LootResponse,
+        policy: LootCyclePolicy,
+    ) {
+        self.open_loot_view_operation(item_valuation, owner_guid, player_guid, response, policy.operation_policy());
+    }
+
+    pub(in crate::handlers::loot) fn open_loot_view_operation(
+        &mut self,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
+        owner_guid: ObjectGuid,
+        player_guid: ObjectGuid,
         mut response: LootResponse,
+        policy: LootOperationPolicy,
     ) {
         let authority = self
-            .prepare_owned_loot_authority_for_active_request_like_cpp(owner_guid, player_guid)
-            .filter(|authority| {
-                authority
-                    .snapshot_for_player_like_cpp(player_guid)
-                    .is_some()
-            });
+            .prepare_loot_authority_operation(owner_guid, player_guid, policy);
+        let authority_observed = authority.is_some();
+        let authority = authority.filter(|authority| {
+            authority
+                .snapshot_for_player_like_cpp(player_guid)
+                .is_some()
+        });
         let authoritative_open = if let Some(authority) = authority.as_ref() {
             match authority.try_open_view_with_snapshot_like_cpp(
                 player_guid,
@@ -97,10 +120,8 @@ impl WorldSession {
                     self.loot_table.insert(owner_guid, snapshot.loot.clone());
                     self.represented_loot_cache_generations_like_cpp
                         .insert(owner_guid, snapshot.generation);
-                    self.active_loot_view_generations_like_cpp
-                        .insert(owner_guid, outcome.generation);
-                    self.active_loot_view_authorities_like_cpp
-                        .insert(owner_guid, authority.clone());
+                    self.loot_views
+                        .bind_opened(owner_guid, outcome.generation, authority);
                     Some(())
                 },
             ) {
@@ -123,7 +144,7 @@ impl WorldSession {
         };
         if authoritative_open.is_none() {
             if (owner_guid.is_creature_or_vehicle() || owner_guid.is_game_object())
-                && !represented_local_loot_fixture_allowed_like_cpp()
+                && !policy.permits_local_cache(authority_observed)
             {
                 self.close_stale_active_loot_view_like_cpp(owner_guid, player_guid);
                 return;
@@ -131,14 +152,8 @@ impl WorldSession {
             self.send_packet(&response);
             self.ensure_represented_player_looting_like_cpp(owner_guid, player_guid);
         } else if let Some(authority) = authority.as_ref() {
-            if !self
-                .active_loot_view_authorities_like_cpp
-                .get(&owner_guid)
-                .is_some_and(|opened| opened.shares_storage_like_cpp(authority))
-            {
-                self.active_loot_view_authorities_like_cpp
-                    .insert(owner_guid, authority.clone());
-            }
+            self.loot_views
+                .bind_authority_if_changed(owner_guid, authority);
         }
 
         self.represented_notify_loot_list_like_cpp(owner_guid);
@@ -146,10 +161,7 @@ impl WorldSession {
         let first_open = match authoritative_open {
             Some(outcome) => outcome.first_viewer,
             None => match self.loot_table.get_mut(&owner_guid) {
-                Some(loot) if !loot.looted_by_player => {
-                    loot.looted_by_player = true;
-                    true
-                }
+                Some(loot) => loot.mark_first_open(),
                 _ => false,
             },
         };
@@ -194,13 +206,8 @@ impl WorldSession {
         let current_generation = authority
             .snapshot_for_player_like_cpp(player_guid)
             .map(|snapshot| snapshot.generation);
-        self.active_loot_view_authorities_like_cpp
-            .get(&owner_guid)
-            .is_some_and(|opened| opened.shares_storage_like_cpp(authority))
-            && self
-                .active_loot_view_generations_like_cpp
-                .get(&owner_guid)
-                .is_some_and(|opened| Some(*opened) == current_generation)
+        self.loot_views
+            .matches_authority(owner_guid, authority, current_generation)
     }
 
     pub(super) fn ensure_represented_player_looting_like_cpp(
@@ -208,10 +215,8 @@ impl WorldSession {
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) {
-        if let Some(loot) = self.loot_table.get_mut(&owner_guid)
-            && !loot.players_looting.contains(&player_guid)
-        {
-            loot.players_looting.push(player_guid);
+        if let Some(loot) = self.loot_table.get_mut(&owner_guid) {
+            loot.add_viewer(player_guid);
         }
     }
 
@@ -255,11 +260,7 @@ impl WorldSession {
         &self,
         loot_object: ObjectGuid,
     ) -> Option<ObjectGuid> {
-        let active_owners: Vec<ObjectGuid> = if self.active_loot_view_owners.is_empty() {
-            vec![self.active_loot_guid]
-        } else {
-            self.active_loot_view_owners.iter().copied().collect()
-        };
+        let active_owners: Vec<ObjectGuid> = self.loot_views.owner_selection();
 
         active_owners.into_iter().find(|owner_guid| {
             !owner_guid.is_empty()
@@ -302,13 +303,10 @@ impl WorldSession {
     /// out cooperatively without holding a map lock across network work.
     pub(crate) fn close_retired_active_loot_windows_like_cpp(&mut self, player_guid: ObjectGuid) {
         let mut stale_owners = self
-            .active_loot_view_authorities_like_cpp
-            .iter()
+            .loot_views
+            .authority_bindings()
             .filter_map(|(owner_guid, authority)| {
-                let generation = self
-                    .active_loot_view_generations_like_cpp
-                    .get(owner_guid)
-                    .copied();
+                let generation = self.loot_views.generation(owner_guid);
                 let still_open = generation.is_some_and(|generation| {
                     authority
                         .snapshot_for_player_like_cpp(player_guid)

@@ -34,6 +34,8 @@ impl WorldSession {
             )
         });
         #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode()
+            && (resolved.is_some() || self.character_lifecycle_handleless_fixture())
         {
             let (health, max_health, is_alive) = resolved.unwrap_or_else(|| {
                 let max_health = self.player_max_health_like_cpp.max(1);
@@ -50,7 +52,7 @@ impl WorldSession {
         }
         if resolved.is_some()
             || cfg!(any(test, feature = "test-fixtures"))
-                && self.player_handle_like_cpp.is_none()
+                && self.character_lifecycle_handleless_fixture()
         {
             self.sync_player_registry_state_like_cpp();
         }
@@ -67,7 +69,9 @@ impl WorldSession {
             (health, max_health, player.unit().is_alive() && health > 0)
         });
         #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        if canonical.is_none()
+            && (self.character_lifecycle_handleless_fixture() || self.gossip_handleless_fixture())
+        {
             return Some((
                 self.player_health_like_cpp,
                 self.player_max_health_like_cpp.max(1),
@@ -108,7 +112,7 @@ impl WorldSession {
         self.sync_player_registry_state_like_cpp();
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_player_game_master_like_cpp(&mut self, is_game_master: bool) {
         let mut canonical = self
             .with_owned_player_mut_like_cpp(|player| {
@@ -116,7 +120,7 @@ impl WorldSession {
             })
             .is_some();
         if !canonical
-            && self.player_handle_like_cpp.is_none()
+            && self.character_lifecycle_handleless_fixture()
             && let Some(guid) = self.player_guid()
         {
             canonical = self
@@ -125,7 +129,9 @@ impl WorldSession {
                 })
                 .is_some();
         }
-        if canonical || self.player_handle_like_cpp.is_none() {
+        if self.character_lifecycle_fixture_mode()
+            && (canonical || self.character_lifecycle_handleless_fixture())
+        {
             self.player_game_master_like_cpp = is_game_master;
         }
     }

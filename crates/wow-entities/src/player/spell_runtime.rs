@@ -23,6 +23,26 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::{PlayerKnownSpellRecord, PlayerTraitConfigDetails, PlayerTraitConfigState};
 
+mod traits;
+mod unlearn;
+mod reconstruction;
+mod learned_skills;
+pub use reconstruction::{
+    LoadedSpellDependency, LoadedSpellInput, LoadedSpellReconstruction, LoadedSpellStep,
+};
+pub use learned_skills::{
+    LearnedSkillInput, LearnedSkillLookup, LearnedSkillNode, LearnedSkillOperation,
+    LearnedSkillRange, LearnedSkillStep, LearnedSkillWrite,
+};
+
+#[cfg(test)]
+mod reconstruction_tests;
+
+pub use unlearn::{
+    SpellUnlearnEdge, SpellUnlearnInput, SpellUnlearnOperation,
+    SpellUnlearnOwnerOutcome, SpellUnlearnOwnerStep, SpellUnlearnStep,
+};
+
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct PlayerSpellRuntimeState {
     pub(super) known_spells: Vec<i32>,
@@ -247,14 +267,6 @@ impl PlayerSpellRuntimeState {
         }
     }
 
-    /// Drop the loaded trait-config headers and return them to unhydrated.
-    pub fn clear_trait_config_rows_like_cpp(&mut self) {
-        self.trait_config_rows.clear();
-        self.trait_config_rows_complete = false;
-        self.trait_entry_rows_complete = false;
-        self.trait_entry_rows_empty = false;
-    }
-
     /// Rebuild the known list and its authoritative rows together, as a
     /// fixture that installs one coherent spellbook snapshot does.
     pub fn replace_known_spells_and_rows_like_cpp(
@@ -264,36 +276,6 @@ impl PlayerSpellRuntimeState {
     ) {
         self.known_spells = known_spells;
         self.rows = rows;
-    }
-
-    /// Drop every trait definition, config header and entry flag, as the
-    /// trait-config load does before replacing them.
-    pub fn begin_trait_authority_load_like_cpp(&mut self) {
-        self.trait_definition_ids.clear();
-        self.trait_definition_ids_complete = false;
-        self.trait_config_rows.clear();
-        self.trait_config_rows_complete = false;
-        self.trait_entry_rows_complete = false;
-        self.trait_entry_rows_empty = false;
-    }
-
-    /// Set the three trait-config authority facts exactly, for a fixture that
-    /// must reproduce a recorded owner state including its incoherent
-    /// combinations.
-    pub fn set_trait_config_authority_for_fixture_like_cpp(
-        &mut self,
-        rows_complete: bool,
-        entries_complete: bool,
-        entries_empty: bool,
-    ) {
-        self.trait_config_rows_complete = rows_complete;
-        self.trait_entry_rows_complete = entries_complete;
-        self.trait_entry_rows_empty = entries_empty;
-    }
-
-    /// Mark the loaded trait-config entries authoritative on their own.
-    pub fn mark_trait_entry_rows_complete_like_cpp(&mut self) {
-        self.trait_entry_rows_complete = true;
     }
 
     /// C++ `Player::AddSpell` marking one spell dependent and no longer a
@@ -313,11 +295,6 @@ impl PlayerSpellRuntimeState {
     /// authoritative load keeps them.
     pub fn retain_rows_as_fallback_like_cpp(&mut self) {
         self.fallback_rows = self.rows.clone();
-    }
-
-    /// Mark the trait-definition snapshot authoritative on its own.
-    pub fn mark_trait_definition_ids_complete_like_cpp(&mut self) {
-        self.trait_definition_ids_complete = true;
     }
 
     /// Mark the rows authoritative without changing whether they were loaded.
@@ -352,14 +329,6 @@ impl PlayerSpellRuntimeState {
         self.rows_complete = complete;
     }
 
-    /// Mark the loaded trait-config headers and their entries authoritative,
-    /// as the trait-config load's completion does.
-    pub fn mark_trait_authority_complete_like_cpp(&mut self, entries_empty: bool) {
-        self.trait_config_rows_complete = true;
-        self.trait_entry_rows_complete = true;
-        self.trait_entry_rows_empty = entries_empty;
-    }
-
     /// Replace the known list and drop every derived entry the Player no
     /// longer knows, as a fixture installing a fresh spellbook does.
     pub fn replace_known_spells_and_prune_derived_like_cpp(&mut self, known_spells: Vec<i32>) {
@@ -381,13 +350,6 @@ impl PlayerSpellRuntimeState {
             self.known_spells.push(spell_id);
         }
         self.removed_known_spells.remove(&spell_id);
-    }
-
-    /// Drop every trait definition id and mark the snapshot stale, as a
-    /// rejected load does.
-    pub fn clear_trait_definition_ids_like_cpp(&mut self) {
-        self.trait_definition_ids.clear();
-        self.trait_definition_ids_complete = false;
     }
 
     /// Install one validated post-login acquisition snapshot.
@@ -448,24 +410,6 @@ impl PlayerSpellRuntimeState {
             .filter(|spell| !spell.disabled)
             .map(|spell| spell.spell_id)
             .collect();
-    }
-
-    /// Install the authoritative trait-config headers and their entry flags.
-    pub fn complete_trait_authority_load_like_cpp(
-        &mut self,
-        rows: BTreeMap<i32, PlayerTraitConfigState>,
-        entries_empty: bool,
-    ) {
-        self.trait_config_rows = rows;
-        self.trait_config_rows_complete = true;
-        self.trait_entry_rows_complete = true;
-        self.trait_entry_rows_empty = entries_empty;
-    }
-
-    /// Take one spell's trait definition id, as `Player::RemoveSpell` does
-    /// before dropping its override.
-    pub fn take_trait_definition_id_like_cpp(&mut self, spell_id: i32) -> Option<i32> {
-        self.trait_definition_ids.remove(&spell_id)
     }
 
     /// Drop every override registered under one overridden spell id.
@@ -572,92 +516,6 @@ impl PlayerSpellRuntimeState {
                 self.trait_definition_ids.remove(&spell_id);
             }
         }
-    }
-
-    pub fn replace_trait_definition_ids_like_cpp(
-        &mut self,
-        definition_ids: BTreeMap<i32, i32>,
-        complete: bool,
-    ) {
-        self.trait_definition_ids = definition_ids;
-        self.trait_definition_ids_complete = complete;
-    }
-
-    pub fn replace_trait_config_rows_like_cpp(
-        &mut self,
-        rows: BTreeMap<i32, PlayerTraitConfigState>,
-        complete: bool,
-    ) {
-        self.trait_config_rows = rows;
-        self.trait_config_rows_complete = complete;
-    }
-
-    pub fn insert_trait_config_row_like_cpp(
-        &mut self,
-        config_id: i32,
-        row: PlayerTraitConfigState,
-    ) {
-        self.trait_config_rows.insert(config_id, row);
-    }
-
-    /// Install the loaded detail payload of every trait config at once, as the
-    /// login path hands the Player the configs it read (C++
-    /// `Player::AddTraitConfig`, `Player.h:1836`, with `GetTraitConfig` at
-    /// `:1837` reading them back).
-    ///
-    /// The hydration is refused whole unless it describes exactly the rows this
-    /// owner holds: both row sets must be authoritative, the incoming configs
-    /// must match the stored rows one for one with unique ids, and each stored
-    /// header — config type, specialization and combat flags — must equal the
-    /// incoming one. A partial install would leave details describing rows that
-    /// were never loaded.
-    pub fn install_loaded_trait_config_details_like_cpp(
-        &mut self,
-        configs: &[(i32, (i32, i32, i32), PlayerTraitConfigDetails)],
-    ) -> bool {
-        if !self.trait_config_rows_complete || !self.trait_entry_rows_complete {
-            return false;
-        }
-        if self.trait_config_rows.len() != configs.len() {
-            return false;
-        }
-        let unique_ids = configs
-            .iter()
-            .map(|(config_id, _, _)| *config_id)
-            .collect::<BTreeSet<_>>();
-        if unique_ids.len() != configs.len() {
-            return false;
-        }
-        if configs.iter().any(|(config_id, header, _)| {
-            self.trait_config_rows
-                .get(config_id)
-                .is_none_or(|state| state.header != *header)
-        }) {
-            return false;
-        }
-        for (config_id, _, details) in configs {
-            let Some(state) = self.trait_config_rows.get_mut(config_id) else {
-                return false;
-            };
-            state.details = Some(details.clone());
-        }
-        true
-    }
-
-    pub fn set_trait_entry_rows_state_like_cpp(&mut self, complete: bool, empty: bool) {
-        self.trait_entry_rows_complete = complete;
-        self.trait_entry_rows_empty = empty;
-    }
-
-    /// Login rebuilds a fresh C++ Player: drop the trait and override edges so
-    /// they cannot contaminate a coincident spell id on the next character.
-    pub fn clear_trait_and_override_state_like_cpp(&mut self) {
-        self.override_spells.clear();
-        self.trait_definition_ids.clear();
-        self.trait_config_rows.clear();
-        self.trait_config_rows_complete = false;
-        self.trait_entry_rows_complete = false;
-        self.trait_entry_rows_empty = false;
     }
 }
 

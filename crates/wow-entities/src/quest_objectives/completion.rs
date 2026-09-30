@@ -28,11 +28,11 @@ pub fn represented_can_complete_quest_after_objective_like_cpp(
     ignored_objective_id: u32,
     quest_already_rewarded: bool,
 ) -> bool {
-    if quest.id == 0 {
+    if quest.id() == 0 {
         return false;
     }
 
-    if !quest.is_repeatable() && quest_already_rewarded {
+    if !quest.is_repeatable_like_cpp() && quest_already_rewarded {
         return false;
     }
 
@@ -40,7 +40,7 @@ pub fn represented_can_complete_quest_after_objective_like_cpp(
         return false;
     }
 
-    for objective in quest.objectives {
+    for objective in quest.objectives() {
         if ignored_objective_id != 0 && objective.id == ignored_objective_id {
             continue;
         }
@@ -58,7 +58,7 @@ pub fn represented_can_complete_quest_after_objective_like_cpp(
         }
     }
 
-    if (quest.flags
+    if (quest.flags()
         & (QUEST_FLAGS_COMPLETION_EVENT_LIKE_CPP | QUEST_FLAGS_COMPLETION_AREA_TRIGGER_LIKE_CPP))
         != 0
         && !status.explored
@@ -66,7 +66,7 @@ pub fn represented_can_complete_quest_after_objective_like_cpp(
         return false;
     }
 
-    if quest.limit_time_secs > 0 && status.end_time_secs == 0 {
+    if quest.limit_time_secs() > 0 && status.end_time_secs == 0 {
         return false;
     }
 
@@ -78,13 +78,13 @@ pub fn represented_quest_objective_completable_like_cpp(
     quest: &QuestObjectiveRulesLikeCpp<'_>,
     objective_index: usize,
 ) -> bool {
-    let Some(objective) = quest.objectives.get(objective_index) else {
+    let Some(objective) = quest.objectives().get(objective_index) else {
         return false;
     };
 
     if (objective.flags & QUEST_OBJECTIVE_FLAG_PART_OF_PROGRESS_BAR_LIKE_CPP) != 0 {
         let Some((progress_bar_index, progress_bar_objective)) =
-            quest.objectives.iter().enumerate().find(|(_, other)| {
+            quest.objectives().iter().enumerate().find(|(_, other)| {
                 other.obj_type == QUEST_OBJECTIVE_PROGRESS_BAR_LIKE_CPP
                     && (other.flags & QUEST_OBJECTIVE_FLAG_PART_OF_PROGRESS_BAR_LIKE_CPP) == 0
             })
@@ -110,7 +110,7 @@ pub fn represented_quest_objective_completable_like_cpp(
     let mut previous_sequenced_objective_index = None;
 
     loop {
-        let previous_objective = &quest.objectives[previous_index];
+        let previous_objective = &quest.objectives()[previous_index];
         if (previous_objective.flags & QUEST_OBJECTIVE_FLAG_SEQUENCED_LIKE_CPP) != 0 {
             previous_sequenced_objective_index = Some(previous_index);
             previous_sequenced_objective_complete =
@@ -195,7 +195,7 @@ pub(super) fn represented_quest_objective_progress_bar_complete_like_cpp(
     quest: &QuestObjectiveRulesLikeCpp<'_>,
 ) -> bool {
     let mut progress = 0.0_f32;
-    for objective in quest.objectives {
+    for objective in quest.objectives() {
         if (objective.flags & QUEST_OBJECTIVE_FLAG_PART_OF_PROGRESS_BAR_LIKE_CPP) == 0 {
             continue;
         }

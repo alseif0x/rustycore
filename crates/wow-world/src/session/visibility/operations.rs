@@ -164,8 +164,8 @@ impl WorldSession {
     pub(crate) fn represented_player_phase_shift_like_cpp(&self) -> Option<PhaseShift> {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.unit().world().phase_shift().clone());
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.gossip_handleless_fixture() {
             return Some(
                 self.visibility_test_fixture_like_cpp
                     .represented_player_phase_shift
@@ -188,8 +188,8 @@ impl WorldSession {
         if canonical {
             return true;
         }
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.gossip_handleless_fixture() {
             self.visibility_test_fixture_like_cpp
                 .represented_player_phase_shift =
                 phase_shift.take().expect("fixture phase remains available");
@@ -330,7 +330,7 @@ impl WorldSession {
             return false;
         };
         if !canonical_farsight_object.is_empty() {
-            self.last_observed_farsight_object_like_cpp = canonical_farsight_object;
+            self.visibility_publication.last_observed_farsight_object_like_cpp = canonical_farsight_object;
             return false;
         }
 
@@ -339,7 +339,7 @@ impl WorldSession {
             .represented_seer_guid_like_cpp()
             .is_some_and(|seer_guid| !seer_guid.is_empty() && seer_guid != player_guid);
         #[cfg(not(test))]
-        let had_non_player_seer = !self.last_observed_farsight_object_like_cpp.is_empty();
+        let had_non_player_seer = !self.visibility_publication.last_observed_farsight_object_like_cpp.is_empty();
         if !had_non_player_seer {
             return false;
         }
@@ -349,7 +349,7 @@ impl WorldSession {
             self.visibility_test_fixture_like_cpp
                 .represented_seer_guid_like_cpp = Some(player_guid);
         }
-        self.last_observed_farsight_object_like_cpp = ObjectGuid::EMPTY;
+        self.visibility_publication.last_observed_farsight_object_like_cpp = ObjectGuid::EMPTY;
         self.send_active_player_farsight_object_values_update_like_cpp(
             player_guid,
             ObjectGuid::EMPTY,

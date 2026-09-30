@@ -6,11 +6,10 @@
 //! C++-anchored movement anticheat helpers.
 //!
 //! This crate starts with `Player::ValidateMovementInfo` from the legacy C++
-//! tree. The function mutates the incoming `MovementInfo` in place like C++:
-//! it strips impossible flags and never rejects the packet.
+//! tree. It mutates the represented movement flags in place like C++: it strips
+//! impossible flags and never rejects the packet.
 
 use wow_constants::movement::MovementFlag;
-use wow_packet::packets::movement::MovementInfo;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct PlayerState {
@@ -108,8 +107,9 @@ impl ValidationResult {
     }
 }
 
-pub fn validate_movement_info(
-    movement_info: &mut MovementInfo,
+pub fn validate_movement_flags(
+    flags: &mut MovementFlag,
+    step_up_start_elevation: f32,
     player_state: &PlayerState,
 ) -> ValidationResult {
     let mut result = ValidationResult {
@@ -118,136 +118,141 @@ pub fn validate_movement_info(
         stripped_rules: Vec::new(),
     };
 
+    let should_remove = flags.contains(MovementFlag::ROOT)
+        && !player_state.mover_fixed_position_vehicle;
     remove_if(
-        movement_info,
+        flags,
         &mut result,
-        movement_info.flags.contains(MovementFlag::ROOT)
-            && !player_state.mover_fixed_position_vehicle,
+        should_remove,
         MovementFlag::ROOT,
         MovementSanitizerRule::RootWithoutFixedVehicle,
     );
 
+    let should_remove = flags.contains(MovementFlag::ROOT)
+        && flags.intersects(MovementFlag::MASK_MOVING);
     remove_if(
-        movement_info,
+        flags,
         &mut result,
-        movement_info.flags.contains(MovementFlag::ROOT)
-            && movement_info.flags.intersects(MovementFlag::MASK_MOVING),
+        should_remove,
         MovementFlag::MASK_MOVING,
         MovementSanitizerRule::RootWithMovingFlags,
     );
 
+    let should_remove =
+        flags.contains(MovementFlag::HOVER) && !player_state.has_hover_aura;
     remove_if(
-        movement_info,
+        flags,
         &mut result,
-        movement_info.flags.contains(MovementFlag::HOVER) && !player_state.has_hover_aura,
+        should_remove,
         MovementFlag::HOVER,
         MovementSanitizerRule::HoverWithoutAura,
     );
 
+    let should_remove =
+        flags.contains(MovementFlag::ASCENDING | MovementFlag::DESCENDING);
     remove_if(
-        movement_info,
+        flags,
         &mut result,
-        movement_info
-            .flags
-            .contains(MovementFlag::ASCENDING | MovementFlag::DESCENDING),
+        should_remove,
         MovementFlag::ASCENDING | MovementFlag::DESCENDING,
         MovementSanitizerRule::AscendingAndDescending,
     );
 
+    let should_remove = flags.contains(MovementFlag::LEFT | MovementFlag::RIGHT);
     remove_if(
-        movement_info,
+        flags,
         &mut result,
-        movement_info
-            .flags
-            .contains(MovementFlag::LEFT | MovementFlag::RIGHT),
+        should_remove,
         MovementFlag::LEFT | MovementFlag::RIGHT,
         MovementSanitizerRule::LeftAndRight,
     );
 
+    let should_remove =
+        flags.contains(MovementFlag::STRAFE_LEFT | MovementFlag::STRAFE_RIGHT);
     remove_if(
-        movement_info,
+        flags,
         &mut result,
-        movement_info
-            .flags
-            .contains(MovementFlag::STRAFE_LEFT | MovementFlag::STRAFE_RIGHT),
+        should_remove,
         MovementFlag::STRAFE_LEFT | MovementFlag::STRAFE_RIGHT,
         MovementSanitizerRule::StrafeLeftAndRight,
     );
 
+    let should_remove =
+        flags.contains(MovementFlag::PITCH_UP | MovementFlag::PITCH_DOWN);
     remove_if(
-        movement_info,
+        flags,
         &mut result,
-        movement_info
-            .flags
-            .contains(MovementFlag::PITCH_UP | MovementFlag::PITCH_DOWN),
+        should_remove,
         MovementFlag::PITCH_UP | MovementFlag::PITCH_DOWN,
         MovementSanitizerRule::PitchUpAndDown,
     );
 
+    let should_remove =
+        flags.contains(MovementFlag::FORWARD | MovementFlag::BACKWARD);
     remove_if(
-        movement_info,
+        flags,
         &mut result,
-        movement_info
-            .flags
-            .contains(MovementFlag::FORWARD | MovementFlag::BACKWARD),
+        should_remove,
         MovementFlag::FORWARD | MovementFlag::BACKWARD,
         MovementSanitizerRule::ForwardAndBackward,
     );
 
+    let should_remove = flags.contains(MovementFlag::WATER_WALK)
+        && !player_state.has_water_walk_aura
+        && !player_state.has_ghost_aura;
     remove_if(
-        movement_info,
+        flags,
         &mut result,
-        movement_info.flags.contains(MovementFlag::WATER_WALK)
-            && !player_state.has_water_walk_aura
-            && !player_state.has_ghost_aura,
+        should_remove,
         MovementFlag::WATER_WALK,
         MovementSanitizerRule::WaterWalkWithoutAuraOrGhost,
     );
 
+    let should_remove = flags.contains(MovementFlag::FALLING_SLOW)
+        && !player_state.has_feather_fall_aura;
     remove_if(
-        movement_info,
+        flags,
         &mut result,
-        movement_info.flags.contains(MovementFlag::FALLING_SLOW)
-            && !player_state.has_feather_fall_aura,
+        should_remove,
         MovementFlag::FALLING_SLOW,
         MovementSanitizerRule::FallingSlowWithoutAura,
     );
 
+    let should_remove = flags.intersects(MovementFlag::FLYING | MovementFlag::CAN_FLY)
+        && player_state.is_player_security
+        && !player_state.has_fly_aura
+        && !player_state.has_mounted_flight_speed_aura;
     remove_if(
-        movement_info,
+        flags,
         &mut result,
-        movement_info
-            .flags
-            .intersects(MovementFlag::FLYING | MovementFlag::CAN_FLY)
-            && player_state.is_player_security
-            && !player_state.has_fly_aura
-            && !player_state.has_mounted_flight_speed_aura,
+        should_remove,
         MovementFlag::FLYING | MovementFlag::CAN_FLY,
         MovementSanitizerRule::FlyWithoutAuraOrSecurity,
     );
 
+    let should_remove = flags
+        .intersects(MovementFlag::DISABLE_GRAVITY | MovementFlag::CAN_FLY)
+        && flags.contains(MovementFlag::FALLING);
     remove_if(
-        movement_info,
+        flags,
         &mut result,
-        movement_info
-            .flags
-            .intersects(MovementFlag::DISABLE_GRAVITY | MovementFlag::CAN_FLY)
-            && movement_info.flags.contains(MovementFlag::FALLING),
+        should_remove,
         MovementFlag::FALLING,
         MovementSanitizerRule::FallingWithGravityDisabledOrCanFly,
     );
 
-    let has_step_up_elevation = movement_info.step_up_start_elevation.abs() > f32::EPSILON;
+    let has_step_up_elevation = step_up_start_elevation.abs() > f32::EPSILON;
+    let should_remove = flags.contains(MovementFlag::SPLINE_ELEVATION) && !has_step_up_elevation;
     remove_if(
-        movement_info,
+        flags,
         &mut result,
-        movement_info.flags.contains(MovementFlag::SPLINE_ELEVATION) && !has_step_up_elevation,
+        should_remove,
         MovementFlag::SPLINE_ELEVATION,
         MovementSanitizerRule::SplineElevationWithZeroStep,
     );
 
-    if has_step_up_elevation && !movement_info.flags.contains(MovementFlag::SPLINE_ELEVATION) {
-        movement_info.flags.insert(MovementFlag::SPLINE_ELEVATION);
+    if has_step_up_elevation && !flags.contains(MovementFlag::SPLINE_ELEVATION) {
+        flags.insert(MovementFlag::SPLINE_ELEVATION);
         result.added_flags |= MovementFlag::SPLINE_ELEVATION;
         result
             .stripped_rules
@@ -258,15 +263,15 @@ pub fn validate_movement_info(
 }
 
 fn remove_if(
-    movement_info: &mut MovementInfo,
+    current_flags: &mut MovementFlag,
     result: &mut ValidationResult,
     condition: bool,
-    flags: MovementFlag,
+    flags_to_remove: MovementFlag,
     rule: MovementSanitizerRule,
 ) {
     if condition {
-        movement_info.flags.remove(flags);
-        result.removed_flags |= flags;
+        current_flags.remove(flags_to_remove);
+        result.removed_flags |= flags_to_remove;
         result.stripped_rules.push(rule);
     }
 }
@@ -275,20 +280,17 @@ fn remove_if(
 mod tests {
     use super::*;
 
-    fn movement(flags: MovementFlag) -> MovementInfo {
-        MovementInfo {
-            flags,
-            ..MovementInfo::default()
-        }
+    fn movement(flags: MovementFlag) -> MovementFlag {
+        flags
     }
 
     #[test]
     fn root_order_matches_cpp_for_non_fixed_vehicle() {
-        let mut info = movement(MovementFlag::ROOT | MovementFlag::FORWARD);
+        let mut flags = movement(MovementFlag::ROOT | MovementFlag::FORWARD);
 
-        let result = validate_movement_info(&mut info, &PlayerState::default());
+        let result = validate_movement_flags(&mut flags, 0.0, &PlayerState::default());
 
-        assert_eq!(info.flags, MovementFlag::FORWARD);
+        assert_eq!(flags, MovementFlag::FORWARD);
         assert!(result.removed_flags.contains(MovementFlag::ROOT));
         assert!(!result.removed_flags.contains(MovementFlag::FORWARD));
         assert_eq!(
@@ -299,15 +301,15 @@ mod tests {
 
     #[test]
     fn root_on_fixed_vehicle_strips_moving_flags_like_cpp() {
-        let mut info = movement(MovementFlag::ROOT | MovementFlag::FORWARD);
+        let mut flags = movement(MovementFlag::ROOT | MovementFlag::FORWARD);
         let state = PlayerState {
             mover_fixed_position_vehicle: true,
             ..PlayerState::default()
         };
 
-        let result = validate_movement_info(&mut info, &state);
+        let result = validate_movement_flags(&mut flags, 0.0, &state);
 
-        assert_eq!(info.flags, MovementFlag::ROOT);
+        assert_eq!(flags, MovementFlag::ROOT);
         assert!(result.removed_flags.contains(MovementFlag::FORWARD));
         assert!(!result.removed_flags.contains(MovementFlag::ROOT));
         assert_eq!(
@@ -329,10 +331,11 @@ mod tests {
                 MovementSanitizerRule::FallingSlowWithoutAura,
             ),
         ] {
-            let mut info = movement(flag);
-            let result = validate_movement_info(&mut info, &PlayerState::default());
+            let mut flags = movement(flag);
+            let result =
+                validate_movement_flags(&mut flags, 0.0, &PlayerState::default());
 
-            assert!(info.flags.is_empty(), "{flag:?}");
+            assert!(flags.is_empty(), "{flag:?}");
             assert_eq!(result.stripped_rules, vec![rule], "{flag:?}");
         }
     }
@@ -346,7 +349,7 @@ mod tests {
             has_fly_aura: true,
             ..PlayerState::default()
         };
-        let mut info = movement(
+        let mut flags = movement(
             MovementFlag::HOVER
                 | MovementFlag::WATER_WALK
                 | MovementFlag::FALLING_SLOW
@@ -354,18 +357,15 @@ mod tests {
                 | MovementFlag::CAN_FLY,
         );
 
-        let result = validate_movement_info(&mut info, &state);
+        let result = validate_movement_flags(&mut flags, 0.0, &state);
 
         assert!(result.clean());
         assert!(
-            info.flags.contains(
+            flags.contains(
                 MovementFlag::HOVER | MovementFlag::WATER_WALK | MovementFlag::FALLING_SLOW
             )
         );
-        assert!(
-            info.flags
-                .contains(MovementFlag::FLYING | MovementFlag::CAN_FLY)
-        );
+        assert!(flags.contains(MovementFlag::FLYING | MovementFlag::CAN_FLY));
     }
 
     #[test]
@@ -374,39 +374,36 @@ mod tests {
             has_ghost_aura: true,
             ..PlayerState::default()
         };
-        let mut info = movement(MovementFlag::WATER_WALK);
+        let mut flags = movement(MovementFlag::WATER_WALK);
 
-        let result = validate_movement_info(&mut info, &state);
+        let result = validate_movement_flags(&mut flags, 0.0, &state);
 
         assert!(result.clean());
-        assert_eq!(info.flags, MovementFlag::WATER_WALK);
+        assert_eq!(flags, MovementFlag::WATER_WALK);
     }
 
     #[test]
     fn gm_and_mounted_flight_speed_keep_flying_like_cpp() {
-        let mut gm_info = movement(MovementFlag::FLYING | MovementFlag::CAN_FLY);
+        let mut gm_flags = movement(MovementFlag::FLYING | MovementFlag::CAN_FLY);
         let gm_state = PlayerState {
             is_player_security: false,
             ..PlayerState::default()
         };
-        assert!(validate_movement_info(&mut gm_info, &gm_state).clean());
-        assert!(
-            gm_info
-                .flags
-                .contains(MovementFlag::FLYING | MovementFlag::CAN_FLY)
-        );
+        assert!(validate_movement_flags(&mut gm_flags, 0.0, &gm_state).clean());
+        assert!(gm_flags.contains(MovementFlag::FLYING | MovementFlag::CAN_FLY));
 
-        let mut mounted_flight_info = movement(MovementFlag::FLYING | MovementFlag::CAN_FLY);
+        let mut mounted_flight_flags = movement(MovementFlag::FLYING | MovementFlag::CAN_FLY);
         let mounted_flight_state = PlayerState {
             has_mounted_flight_speed_aura: true,
             ..PlayerState::default()
         };
-        assert!(validate_movement_info(&mut mounted_flight_info, &mounted_flight_state).clean());
-        assert!(
-            mounted_flight_info
-                .flags
-                .contains(MovementFlag::FLYING | MovementFlag::CAN_FLY)
-        );
+        assert!(validate_movement_flags(
+            &mut mounted_flight_flags,
+            0.0,
+            &mounted_flight_state
+        )
+        .clean());
+        assert!(mounted_flight_flags.contains(MovementFlag::FLYING | MovementFlag::CAN_FLY));
     }
 
     #[test]
@@ -438,11 +435,12 @@ mod tests {
                 MovementSanitizerRule::ForwardAndBackward,
             ),
         ] {
-            let mut info = movement(left | right);
+            let mut flags = movement(left | right);
 
-            let result = validate_movement_info(&mut info, &PlayerState::default());
+            let result =
+                validate_movement_flags(&mut flags, 0.0, &PlayerState::default());
 
-            assert!(info.flags.is_empty(), "{left:?} | {right:?}");
+            assert!(flags.is_empty(), "{left:?} | {right:?}");
             assert!(
                 result.removed_flags.contains(left | right),
                 "{left:?} | {right:?}"
@@ -454,16 +452,18 @@ mod tests {
     #[test]
     fn flying_and_falling_rules_match_cpp() {
         let mut flying = movement(MovementFlag::FLYING | MovementFlag::CAN_FLY);
-        let flying_result = validate_movement_info(&mut flying, &PlayerState::default());
-        assert!(flying.flags.is_empty());
+        let flying_result =
+            validate_movement_flags(&mut flying, 0.0, &PlayerState::default());
+        assert!(flying.is_empty());
         assert_eq!(
             flying_result.stripped_rules,
             vec![MovementSanitizerRule::FlyWithoutAuraOrSecurity]
         );
 
         let mut falling = movement(MovementFlag::DISABLE_GRAVITY | MovementFlag::FALLING);
-        let falling_result = validate_movement_info(&mut falling, &PlayerState::default());
-        assert_eq!(falling.flags, MovementFlag::DISABLE_GRAVITY);
+        let falling_result =
+            validate_movement_flags(&mut falling, 0.0, &PlayerState::default());
+        assert_eq!(falling, MovementFlag::DISABLE_GRAVITY);
         assert_eq!(
             falling_result.stripped_rules,
             vec![MovementSanitizerRule::FallingWithGravityDisabledOrCanFly]
@@ -473,21 +473,55 @@ mod tests {
     #[test]
     fn spline_elevation_rules_match_cpp() {
         let mut zero = movement(MovementFlag::SPLINE_ELEVATION);
-        let zero_result = validate_movement_info(&mut zero, &PlayerState::default());
-        assert!(zero.flags.is_empty());
+        let zero_result =
+            validate_movement_flags(&mut zero, 0.0, &PlayerState::default());
+        assert!(zero.is_empty());
         assert_eq!(
             zero_result.stripped_rules,
             vec![MovementSanitizerRule::SplineElevationWithZeroStep]
         );
 
         let mut non_zero = movement(MovementFlag::empty());
-        non_zero.step_up_start_elevation = 1.0;
-        let non_zero_result = validate_movement_info(&mut non_zero, &PlayerState::default());
-        assert!(non_zero.flags.contains(MovementFlag::SPLINE_ELEVATION));
+        let non_zero_result =
+            validate_movement_flags(&mut non_zero, 1.0, &PlayerState::default());
+        assert!(non_zero.contains(MovementFlag::SPLINE_ELEVATION));
         assert_eq!(non_zero_result.added_flags, MovementFlag::SPLINE_ELEVATION);
         assert_eq!(
             non_zero_result.stripped_rules,
             vec![MovementSanitizerRule::SplineElevationAddedForNonZeroStep]
+        );
+
+        let mut negative_step = movement(MovementFlag::empty());
+        let negative_step_result = validate_movement_flags(
+            &mut negative_step,
+            -1.0,
+            &PlayerState::default(),
+        );
+        assert!(negative_step.contains(MovementFlag::SPLINE_ELEVATION));
+        assert_eq!(negative_step_result.added_flags, MovementFlag::SPLINE_ELEVATION);
+
+        let mut epsilon_step = movement(MovementFlag::SPLINE_ELEVATION);
+        let epsilon_result = validate_movement_flags(
+            &mut epsilon_step,
+            f32::EPSILON,
+            &PlayerState::default(),
+        );
+        assert!(epsilon_step.is_empty());
+        assert_eq!(
+            epsilon_result.stripped_rules,
+            vec![MovementSanitizerRule::SplineElevationWithZeroStep]
+        );
+
+        let mut nan_step = movement(MovementFlag::SPLINE_ELEVATION);
+        let nan_result = validate_movement_flags(
+            &mut nan_step,
+            f32::NAN,
+            &PlayerState::default(),
+        );
+        assert!(nan_step.is_empty());
+        assert_eq!(
+            nan_result.stripped_rules,
+            vec![MovementSanitizerRule::SplineElevationWithZeroStep]
         );
     }
 }

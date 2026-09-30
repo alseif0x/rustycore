@@ -6,10 +6,11 @@
 //! GameObject, transport, scene object and area-trigger lifecycle.
 
 use super::*;
-use crate::map_rules::{
-    gameobject_is_spawned_like_cpp, map_record_is_unit_like_gameobject_owner_like_cpp,
-    map_record_unit_mut_like_cpp,
-};
+use crate::map_rules::gameobject_is_spawned_like_cpp;
+
+fn gameobject_type_is_transport_like_cpp(type_id: i8) -> bool {
+    type_id == GAMEOBJECT_TYPE_TRANSPORT as i8 || type_id == GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT as i8
+}
 
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
 where
@@ -93,7 +94,7 @@ where
         let Some(game_object) = self
             .entity_world
             .get_mut(&guid)
-            .and_then(MapObjectRecord::game_object_mut)
+            .and_then(ObjectMut::game_object_mut)
         else {
             return GameObjectSetDisplayIdOutcomeLikeCpp {
                 guid,
@@ -161,7 +162,7 @@ where
         let Some(game_object) = self
             .entity_world
             .get_mut(&guid)
-            .and_then(MapObjectRecord::game_object_mut)
+            .and_then(ObjectMut::game_object_mut)
         else {
             return GameObjectSetGoStateOutcomeLikeCpp {
                 guid,
@@ -270,7 +271,7 @@ where
         let Some(game_object) = self
             .entity_world
             .get_mut(&guid)
-            .and_then(MapObjectRecord::game_object_mut)
+            .and_then(ObjectMut::game_object_mut)
         else {
             return GameObjectSetLootStateOutcomeLikeCpp {
                 guid,
@@ -407,7 +408,7 @@ where
         if let Some(game_object) = self
             .entity_world
             .get_mut(&guid)
-            .and_then(MapObjectRecord::game_object_mut)
+            .and_then(ObjectMut::game_object_mut)
         {
             // C++ removes `GO_FLAG_MAP_OBJECT`, deletes/nulls `m_model`, then
             // calls `CreateModel()`. The first call clears old map-object and
@@ -535,7 +536,7 @@ where
         for guid in self.gameobject_spawn_id_store_guids_like_cpp(spawn_id) {
             let Some(gameobject) = self
                 .map_object_record(guid)
-                .and_then(MapObjectRecord::game_object)
+                .and_then(|record| record.game_object())
             else {
                 continue;
             };
@@ -581,11 +582,11 @@ where
     ) -> GameObjectAddToOwnerOutcomeLikeCpp {
         let owner_found_as_unit_like = self
             .map_object_record(owner_guid)
-            .is_some_and(map_record_is_unit_like_gameobject_owner_like_cpp);
+            .is_some_and(|record| record.is_unit_owner());
         let (gameobject_found, owner_guid_before) = self
             .map_object_record(guid)
             .filter(|record| record.kind() == AccessorObjectKind::GameObject)
-            .and_then(MapObjectRecord::game_object)
+            .and_then(|record| record.game_object())
             .map(|game_object| (true, game_object.owner_guid()))
             .unwrap_or((false, ObjectGuid::EMPTY));
         let gameobject_owner_empty_before = gameobject_found && owner_guid_before.is_empty();
@@ -596,7 +597,7 @@ where
 
         if owner_found_as_unit_like && gameobject_owner_empty_before {
             if let Some(record) = self.entity_world.get_mut(&owner_guid) {
-                if let Some(owner) = map_record_unit_mut_like_cpp(record) {
+                if let Some(owner) = record.unit_mut() {
                     owner
                         .subsystems_mut()
                         .control
@@ -609,7 +610,7 @@ where
                 if let Some(game_object) = self
                     .entity_world
                     .get_mut(&guid)
-                    .and_then(MapObjectRecord::game_object_mut)
+                    .and_then(ObjectMut::game_object_mut)
                 {
                     game_object.set_owner_guid_like_cpp(owner_guid);
                     owner_guid_after = game_object.owner_guid();
@@ -687,7 +688,7 @@ where
             if let Some(owner) = self
                 .entity_world
                 .get_mut(&owner_guid)
-                .and_then(map_record_unit_mut_like_cpp)
+                .and_then(|record| record.unit_mut())
             {
                 if let Some(previous) = owner
                     .subsystems()

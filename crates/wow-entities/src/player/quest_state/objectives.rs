@@ -17,6 +17,8 @@ use wow_constants::quest::{
 #[cfg(test)]
 mod tests;
 
+mod credit;
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct QuestItemObjectiveProgressLikeCpp {
     pub changed_quest_ids: Vec<u32>,
@@ -53,7 +55,7 @@ impl PlayerQuestGameplayState {
                 continue;
             };
 
-            for (objective_index, objective) in quest.objectives_like_cpp().iter().enumerate() {
+            for (objective_index, objective) in quest.objectives().iter().enumerate() {
                 if objective.obj_type != QUEST_OBJECTIVE_ITEM_LIKE_CPP {
                     continue;
                 }
@@ -139,7 +141,7 @@ impl PlayerQuestGameplayState {
                 continue;
             };
 
-            for (objective_index, objective) in quest.objectives_like_cpp().iter().enumerate() {
+            for (objective_index, objective) in quest.objectives().iter().enumerate() {
                 if objective.obj_type != QUEST_OBJECTIVE_ITEM_LIKE_CPP {
                     continue;
                 }

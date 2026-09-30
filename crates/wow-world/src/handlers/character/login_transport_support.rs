@@ -409,7 +409,3 @@ pub(super) fn transport_position_for_login_like_cpp(
 
     None
 }
-
-#[cfg(test)]
-#[path = "login_transport_support_tests.rs"]
-mod rule_tests;

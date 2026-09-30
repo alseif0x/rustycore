@@ -28,8 +28,6 @@ pub const LOOT_SLOT_TYPE_LOCKED_LIKE_CPP: u8 = 2;
 
 pub const LOOT_SLOT_TYPE_MASTER_LIKE_CPP: u8 = 3;
 
-pub const LOOT_SLOT_TYPE_OWNER_LIKE_CPP: u8 = 4;
-
 pub(super) const CONDITION_MAX_LIKE_CPP: i32 = 59;
 
 pub(super) const CONDITION_SPAWNMASK_DEPRECATED_LIKE_CPP: i32 = 19;

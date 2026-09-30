@@ -207,7 +207,3 @@ pub(in crate::handlers::character) fn loaded_item_enchantments_like_cpp(
 
     Some(values)
 }
-
-#[cfg(test)]
-#[path = "item_load_support_tests.rs"]
-mod rule_tests;

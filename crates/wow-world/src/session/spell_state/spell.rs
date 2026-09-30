@@ -745,8 +745,8 @@ impl WorldSession {
         let canonical = self.with_owned_player_like_cpp(|player| {
             represented_player_spell_runtime_like_cpp(player.spell_runtime_like_cpp())
         });
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.character_lifecycle_handleless_fixture() {
             return Some(RepresentedPlayerSpellRuntimeLikeCpp {
                 known_spells: self.player_spell_test_fixture_like_cpp.known_spells.clone(),
                 rows: self
@@ -805,8 +805,8 @@ impl WorldSession {
         &self,
         query: impl FnOnce(&wow_entities::PlayerSpellRuntimeState) -> R,
     ) -> Option<R> {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             let runtime = canonical_player_spell_runtime_like_cpp(
                 self.player_spell_runtime_snapshot_like_cpp()?,
             );
@@ -824,8 +824,8 @@ impl WorldSession {
         &mut self,
         f: impl FnOnce(&mut wow_entities::PlayerSpellRuntimeState) -> R,
     ) -> Option<R> {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             let mut runtime = canonical_player_spell_runtime_like_cpp(
                 self.player_spell_runtime_snapshot_like_cpp()?,
             );
@@ -986,3 +986,7 @@ impl WorldSession {
         interrupted
     }
 }
+
+#[cfg(test)]
+#[path = "spell_tests.rs"]
+mod tests;

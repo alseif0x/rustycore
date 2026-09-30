@@ -1,5 +1,9 @@
 use super::Player;
 
+mod health_transitions;
+mod melee_damage;
+mod ready_attacks;
+
 impl Player {
     /// C++ `Player::SetAttackSwingError` (`Player.cpp:20625-20631`).
     ///

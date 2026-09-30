@@ -792,7 +792,7 @@ fn creature_rebind_retires_displaced_authority_and_its_lease() {
     );
     assert_eq!(
         lease.commit_like_cpp(),
-        Err(wow_loot::LootClaimCommitError::StaleGeneration),
+        Err(crate::LootClaimCommitError::StaleGeneration),
         "a lease against the displaced Arc must not commit after rebind"
     );
     assert_eq!(

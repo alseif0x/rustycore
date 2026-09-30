@@ -57,28 +57,28 @@ impl WorldSession {
                     canonical_fail_closed_like_cpp = true;
                     return None;
                 }
-                #[cfg(test)]
+                #[cfg(any(test, feature = "test-fixtures"))]
                 let is_alive = if canonical_player.unit().data().max_health == 0
-                    && self.player_handle_like_cpp.is_none()
+                    && self.gossip_handleless_fixture()
                 {
                     self.player_alive_like_cpp && self.player_health_like_cpp > 0
                 } else {
                     canonical_player.unit().is_alive() && canonical_player.unit().data().health > 0
                 };
-                #[cfg(not(test))]
+                #[cfg(not(any(test, feature = "test-fixtures")))]
                 let is_alive =
                     canonical_player.unit().is_alive() && canonical_player.unit().data().health > 0;
                 is_alive
             } else {
-                #[cfg(test)]
+                #[cfg(any(test, feature = "test-fixtures"))]
                 {
-                    if self.player_handle_like_cpp.is_some() {
+                    if !self.gossip_handleless_fixture() {
                         canonical_fail_closed_like_cpp = true;
                         return None;
                     }
                     self.player_alive_like_cpp && self.player_health_like_cpp > 0
                 }
-                #[cfg(not(test))]
+                #[cfg(not(any(test, feature = "test-fixtures")))]
                 {
                     canonical_fail_closed_like_cpp = true;
                     return None;
@@ -394,5 +394,43 @@ impl WorldSession {
     ) -> bool {
         self.resolved_player_interaction_data_like_cpp()
             .is_some_and(|interaction| interaction.trainer_matches(source_guid, trainer_id))
+    }
+}
+
+impl WorldSession {
+    /// Historical unit reconstruction remains implicit only in cfg(test).
+    /// A feature consumer must select this fixture, and a handle always forbids it.
+    pub(in crate::session) fn gossip_handleless_fixture(&self) -> bool {
+        #[cfg(test)]
+        {
+            self.player_handle_like_cpp.is_none()
+        }
+        #[cfg(all(not(test), feature = "test-fixtures"))]
+        {
+            self.gossip_fixture_enabled
+                && self.player_handle_like_cpp.is_none()
+                && self.player_guid().is_some()
+        }
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        {
+            false
+        }
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub(crate) fn enable_gossip_fixture_for_test(&mut self) {
+        self.gossip_fixture_enabled = true;
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub(crate) fn install_gossip_taxi_flight_for_test(
+        &mut self,
+        current_node: wow_entities::PlayerTaxiFlightNodeLikeCpp,
+        node_after_teleport: Option<wow_entities::PlayerTaxiFlightNodeLikeCpp>,
+    ) {
+        self.set_taxi_flight_state_like_cpp(
+            super::represented_taxi_flight_node_like_cpp(current_node),
+            node_after_teleport.map(super::represented_taxi_flight_node_like_cpp),
+        );
     }
 }

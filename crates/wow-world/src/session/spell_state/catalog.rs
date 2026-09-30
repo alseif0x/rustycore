@@ -11,19 +11,7 @@ impl WorldSession {
         category_id: u32,
     ) -> bool {
         self.mutate_player_spell_history_like_cpp(|history| {
-            if !history.charges_loaded {
-                return false;
-            }
-            let Some(charges) = history.charges.get_mut(&category_id) else {
-                return false;
-            };
-            if charges.pop_back().is_none() {
-                return false;
-            }
-            if charges.is_empty() {
-                history.charges.remove(&category_id);
-            }
-            true
+            history.restore_loaded_charge(category_id)
         })
         .unwrap_or(false)
     }
@@ -52,12 +40,12 @@ impl WorldSession {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.spell_catalogs.spell_area_store = Some(store);
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn store_player_spell_runtime_fixture_like_cpp(
         &mut self,
         runtime: RepresentedPlayerSpellRuntimeLikeCpp,
     ) -> bool {
-        if self.player_handle_like_cpp.is_none() {
+        if self.character_lifecycle_handleless_fixture() {
             self.player_spell_test_fixture_like_cpp.known_spells = runtime.known_spells;
             self.player_spell_test_fixture_like_cpp
                 .represented_player_spell_rows_like_cpp = runtime.rows;

@@ -31,7 +31,7 @@ fn dynamic_tree_gameobject_update_model_not_in_world_is_no_mutation_like_cpp() {
     assert!(map.contains_gameobject_model_like_cpp(key));
     let gameobject = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert!(gameobject.has_represented_gameobject_model_like_cpp());
     assert!(gameobject.has_represented_gameobject_model_map_object_like_cpp());
@@ -112,7 +112,7 @@ fn gameobject_display_set_in_world_writes_field_then_updates_model_like_cpp() {
     assert!(map.contains_gameobject_model_like_cpp(key));
     let gameobject = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(gameobject.data().display_id, 777);
     assert!(gameobject.has_represented_gameobject_model_like_cpp());
@@ -154,7 +154,7 @@ fn gameobject_display_set_not_in_world_preserves_old_model_evidence_like_cpp() {
     assert!(map.contains_gameobject_model_like_cpp(key));
     let gameobject = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(gameobject.data().display_id, 888);
     assert!(gameobject.has_represented_gameobject_model_like_cpp());
@@ -227,7 +227,7 @@ fn gameobject_display_set_does_not_infer_model_from_nonzero_display_id_like_cpp(
     assert!(!map.contains_gameobject_model_like_cpp(key));
     let gameobject = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(gameobject.data().display_id, 999);
     assert!(!gameobject.has_represented_gameobject_model_like_cpp());
@@ -256,7 +256,7 @@ fn gameobject_set_go_state_ready_enables_collision_like_cpp() {
     assert_eq!(collision.new_collision_enabled, Some(true));
     let gameobject = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(gameobject.data().state, GoState::Ready as i8);
     assert_eq!(
@@ -287,7 +287,7 @@ fn gameobject_set_go_state_active_disables_collision_like_cpp() {
     assert_eq!(collision.new_collision_enabled, Some(false));
     let gameobject = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(gameobject.data().state, GoState::Active as i8);
     assert_eq!(
@@ -317,7 +317,7 @@ fn gameobject_set_go_state_not_in_world_writes_state_without_collision_like_cpp(
     assert!(outcome.collision_enable.is_none());
     let gameobject = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(gameobject.data().state, GoState::Ready as i8);
     assert_eq!(
@@ -347,7 +347,7 @@ fn gameobject_set_go_state_transport_type_writes_state_without_collision_like_cp
     assert!(outcome.collision_enable.is_none());
     let gameobject = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(gameobject.data().state, GoState::Ready as i8);
     assert_eq!(
@@ -377,7 +377,7 @@ fn gameobject_set_go_state_map_obj_transport_writes_state_without_collision_like
     assert!(outcome.collision_enable.is_none());
     let gameobject = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(gameobject.data().state, GoState::Ready as i8);
     assert_eq!(
@@ -457,7 +457,7 @@ fn gameobject_set_loot_state_chest_activated_arms_restock_and_collision_like_cpp
     assert_eq!(collision.new_collision_enabled, Some(true));
     let gameobject = map
         .map_object_record(go_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(gameobject.restock_time(), 1_030);
     assert_eq!(gameobject.loot_state_unit_guid(), unit);
@@ -521,7 +521,7 @@ fn gameobject_set_loot_state_door_writes_loot_but_preserves_collision_like_cpp()
     assert!(outcome.collision_enable.is_none());
     let gameobject = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(gameobject.loot_state(), LootState::Ready);
     assert_eq!(

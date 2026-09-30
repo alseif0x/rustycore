@@ -1,4 +1,5 @@
 use super::*;
+use wow_loot::{direct_item_rejection, find_unlooted_item};
 
 impl WorldSession {
     #[cfg(test)]
@@ -12,7 +13,16 @@ impl WorldSession {
     pub async fn handle_loot_item_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        pkt: wow_packet::WorldPacket,
+    ) {
+        self.handle_loot_item_operation(item_guid_generator, pkt, LootOperationPolicy::Production).await;
+    }
+
+    pub(in crate::handlers::loot) async fn handle_loot_item_operation(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         mut pkt: wow_packet::WorldPacket,
+        policy: LootOperationPolicy,
     ) {
         let req = match LootItemPkt::read(&mut pkt) {
             Ok(r) => r,
@@ -79,7 +89,7 @@ impl WorldSession {
             }
 
             let owned_authority = self
-                .prepare_owned_loot_authority_for_active_request_like_cpp(owner_guid, player_guid);
+                .prepare_loot_authority_operation(owner_guid, player_guid, policy);
             let authority = owned_authority
                 .as_ref()
                 .filter(|authority| {
@@ -90,7 +100,7 @@ impl WorldSession {
                 .cloned();
             if authority.is_none()
                 && (owner_guid.is_creature_or_vehicle() || owner_guid.is_game_object())
-                && (owned_authority.is_some() || !represented_local_loot_fixture_allowed_like_cpp())
+                && (owned_authority.is_some() || !policy.permits_local_cache(owned_authority.is_some()))
             {
                 self.send_equip_error(InventoryResult::LootGone, None, None, 0, 0);
                 continue;
@@ -107,16 +117,7 @@ impl WorldSession {
 
             let Some((cached_entry, dungeon_encounter_id)) =
                 self.loot_table.get(&owner_guid).and_then(|loot| {
-                    loot.items
-                        .iter()
-                        .find(|entry| {
-                            entry.loot_list_id == loot_req.loot_list_id
-                                && !loot_item_is_looted_for_player_like_cpp(
-                                    loot,
-                                    entry,
-                                    player_guid,
-                                )
-                        })
+                    find_unlooted_item(loot, loot_req.loot_list_id, player_guid)
                         .cloned()
                         .map(|entry| (entry, loot.dungeon_encounter_id))
                 })
@@ -125,26 +126,13 @@ impl WorldSession {
                 continue;
             };
 
-            if !cached_entry.has_allowed_looter_like_cpp(player_guid) {
-                self.send_packet(&LootReleaseAll);
-                continue;
-            }
-
-            if cached_entry.flags.blocked {
-                self.send_packet(&LootReleaseAll);
-                continue;
-            }
-
-            if !cached_entry.roll_winner_allows_like_cpp(player_guid) {
+            if direct_item_rejection(&cached_entry, player_guid).is_some() {
                 self.send_packet(&LootReleaseAll);
                 continue;
             }
 
             let (entry, claim) = if let Some(authority) = authority {
-                let Some(expected_generation) = self
-                    .active_loot_view_generations_like_cpp
-                    .get(&owner_guid)
-                    .copied()
+                let Some(expected_generation) = self.loot_views.generation(&owner_guid)
                 else {
                     self.send_equip_error(InventoryResult::LootGone, None, None, 0, 0);
                     continue;

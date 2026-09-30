@@ -3129,7 +3129,6 @@ name = "wow-anticheat"
 version = "0.1.0"
 dependencies = [
  "wow-constants",
- "wow-packet",
 ]
 
 [[package]]
@@ -3139,6 +3138,11 @@ version = "0.1.0"
 [[package]]
 name = "wow-combat"
 version = "0.1.0"
+dependencies = [
+ "wow-constants",
+ "wow-core",
+ "wow-data-model",
+]
 
 [[package]]
 name = "wow-conditions"
@@ -3212,8 +3216,15 @@ dependencies = [
  "tracing",
  "wow-constants",
  "wow-core",
- "wow-entities",
- "wow-movement",
+ "wow-data-model",
+]
+
+[[package]]
+name = "wow-data-model"
+version = "0.1.0"
+dependencies = [
+ "wow-constants",
+ "wow-core",
 ]
 
 [[package]]
@@ -3239,9 +3250,11 @@ version = "0.1.0"
 dependencies = [
  "bitflags",
  "num-traits",
+ "tokio",
  "wow-constants",
  "wow-core",
- "wow-loot",
+ "wow-data",
+ "wow-data-model",
 ]
 
 [[package]]
@@ -3254,7 +3267,7 @@ version = "0.1.0"
 dependencies = [
  "serde_json",
  "wow-core",
- "wow-data",
+ "wow-data-model",
  "wow-persistence",
 ]
 
@@ -3271,9 +3284,9 @@ name = "wow-loot"
 version = "0.1.0"
 dependencies = [
  "rand",
- "tokio",
  "wow-constants",
  "wow-core",
+ "wow-entities",
 ]
 
 [[package]]
@@ -3282,11 +3295,11 @@ version = "0.1.0"
 dependencies = [
  "rand",
  "tracing",
+ "wow-combat",
  "wow-constants",
  "wow-core",
  "wow-data",
  "wow-entities",
- "wow-loot",
  "wow-movement",
  "wow-packet",
  "wow-persistence",
@@ -3314,6 +3327,7 @@ dependencies = [
  "bitflags",
  "wow-constants",
  "wow-core",
+ "wow-data-model",
 ]
 
 [[package]]
@@ -3346,9 +3360,7 @@ dependencies = [
  "thiserror",
  "wow-constants",
  "wow-core",
- "wow-entities",
- "wow-loot",
- "wow-movement",
+ "wow-data-model",
 ]
 
 [[package]]
@@ -3360,9 +3372,8 @@ name = "wow-progression"
 version = "0.1.0"
 dependencies = [
  "wow-constants",
- "wow-data",
+ "wow-data-model",
  "wow-entities",
- "wow-packet",
 ]
 
 [[package]]
@@ -3453,6 +3464,7 @@ dependencies = [
  "wow-core",
  "wow-crypto",
  "wow-data",
+ "wow-data-model",
  "wow-entities",
  "wow-handler",
  "wow-instances",
@@ -3468,6 +3480,7 @@ dependencies = [
  "wow-script",
  "wow-session",
  "wow-social",
+ "wow-spell",
  "wow-spell-acquisition",
  "wow-world",
 ]

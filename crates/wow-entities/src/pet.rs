@@ -12,6 +12,8 @@ use crate::{
     unit_action_button_type_like_cpp,
 };
 
+pub use wow_data_model::pet::PetAuraLikeCpp;
+
 mod ops_1;
 mod ops_2;
 mod state;

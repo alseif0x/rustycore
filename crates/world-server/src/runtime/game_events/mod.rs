@@ -6,4 +6,5 @@ pub(crate) mod grid;
 pub(crate) mod live;
 pub(crate) mod scheduler;
 pub(crate) mod spawn;
+pub(crate) mod spawn_helpers;
 pub(crate) mod unspawn;

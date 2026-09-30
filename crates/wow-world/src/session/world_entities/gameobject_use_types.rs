@@ -17,29 +17,22 @@ impl WorldSession {
             .represented_gameobject_use_states
             .entry(gameobject_guid)
             .or_default();
-        if state
-            .loot_state
-            .is_some_and(|loot_state| loot_state != wow_entities::LootState::Ready)
-        {
+        let Some(next_go_state) = wow_entities::GameObjectUseValues::borrow(
+            &mut state.loot_state,
+            &mut state.loot_state_unit_guid,
+            &mut state.go_state,
+            &mut state.prev_go_state,
+            &mut state.gameobject_flags,
+            &mut state.cooldown_until,
+            &mut state.go_type,
+            &mut state.trap_use_source,
+            &mut state.chair_slots,
+        ).use_door_or_button(user_guid, restore_time_ms, now) else {
             self.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::DoorOrButtonRejectedNotReady { gameobject_guid },
             );
             return false;
-        }
-
-        let current_go_state = state.go_state.unwrap_or(wow_entities::GoState::Ready);
-        let next_go_state = if current_go_state == wow_entities::GoState::Ready {
-            wow_entities::GoState::Active
-        } else {
-            wow_entities::GoState::Ready
         };
-        state.prev_go_state = Some(current_go_state);
-        state.go_state = Some(next_go_state);
-        state.loot_state = Some(wow_entities::LootState::Activated);
-        state.loot_state_unit_guid = user_guid;
-        state.gameobject_flags |= wow_entities::GO_FLAG_IN_USE;
-        state.cooldown_until = (restore_time_ms != 0)
-            .then_some(now + Duration::from_millis(u64::from(restore_time_ms)));
         self.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::DoorOrButtonUsed {
                 gameobject_guid,
@@ -61,18 +54,19 @@ impl WorldSession {
         else {
             return false;
         };
-        if matches!(
-            state.loot_state,
-            Some(wow_entities::LootState::Ready | wow_entities::LootState::JustDeactivated)
-        ) {
+        let Some(restored_go_state) = wow_entities::GameObjectUseValues::borrow(
+            &mut state.loot_state,
+            &mut state.loot_state_unit_guid,
+            &mut state.go_state,
+            &mut state.prev_go_state,
+            &mut state.gameobject_flags,
+            &mut state.cooldown_until,
+            &mut state.go_type,
+            &mut state.trap_use_source,
+            &mut state.chair_slots,
+        ).reset_door_or_button() else {
             return false;
-        }
-
-        state.gameobject_flags &= !wow_entities::GO_FLAG_IN_USE;
-        let restored_go_state = state.prev_go_state.unwrap_or(wow_entities::GoState::Ready);
-        state.go_state = Some(restored_go_state);
-        state.loot_state = Some(wow_entities::LootState::JustDeactivated);
-        state.cooldown_until = None;
+        };
         self.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::DoorOrButtonReset {
                 gameobject_guid,
@@ -87,15 +81,32 @@ impl WorldSession {
         gameobject_guid: ObjectGuid,
     ) -> bool {
         let now = Instant::now();
-        let expired = self
+        let Some(state) = self
             .represented_gameobject_use_states
-            .get(&gameobject_guid)
-            .and_then(|state| state.cooldown_until)
-            .is_some_and(|cooldown_until| cooldown_until <= now);
-        if !expired {
+            .get_mut(&gameobject_guid)
+        else {
             return false;
-        }
-        self.reset_represented_gameobject_door_or_button_like_cpp(gameobject_guid)
+        };
+        let Some(restored_go_state) = wow_entities::GameObjectUseValues::borrow(
+            &mut state.loot_state,
+            &mut state.loot_state_unit_guid,
+            &mut state.go_state,
+            &mut state.prev_go_state,
+            &mut state.gameobject_flags,
+            &mut state.cooldown_until,
+            &mut state.go_type,
+            &mut state.trap_use_source,
+            &mut state.chair_slots,
+        ).tick_door_or_button(now) else {
+            return false;
+        };
+        self.represented_gameobject_use_effects.push(
+            RepresentedGameObjectUseEffect::DoorOrButtonReset {
+                gameobject_guid,
+                go_state: restored_go_state,
+            },
+        );
+        true
     }
     pub(crate) fn use_represented_gameobject_trap_like_cpp(
         &mut self,
@@ -108,46 +119,35 @@ impl WorldSession {
             .represented_gameobject_use_states
             .entry(gameobject_guid)
             .or_default();
-        if state
-            .cooldown_until
-            .is_some_and(|cooldown_until| cooldown_until > now)
-        {
-            self.represented_gameobject_use_effects
-                .push(RepresentedGameObjectUseEffect::CooldownRejected { gameobject_guid });
-            return false;
-        }
-        state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_TRAP as u8);
-        state.trap_use_source = Some(source);
-
-        if source.spell_id != 0 {
-            self.represented_gameobject_use_effects.push(
+        let effects = &mut self.represented_gameobject_use_effects;
+        wow_entities::GameObjectUseValues::borrow(
+            &mut state.loot_state,
+            &mut state.loot_state_unit_guid,
+            &mut state.go_state,
+            &mut state.prev_go_state,
+            &mut state.gameobject_flags,
+            &mut state.cooldown_until,
+            &mut state.go_type,
+            &mut state.trap_use_source,
+            &mut state.chair_slots,
+        ).use_trap(source, now, |effect| match effect {
+            wow_entities::TrapUseEffect::CooldownRejected => effects.push(
+                RepresentedGameObjectUseEffect::CooldownRejected { gameobject_guid },
+            ),
+            wow_entities::TrapUseEffect::CastSpell { spell_id } => effects.push(
                 RepresentedGameObjectUseEffect::CastSpell {
                     gameobject_guid,
                     player_guid: user_guid,
-                    spell_id: source.spell_id,
+                    spell_id,
                 },
-            );
-        }
-
-        let cooldown_secs = if source.cooldown_secs != 0 {
-            source.cooldown_secs
-        } else {
-            4
-        };
-        state.cooldown_until =
-            Some(now + Duration::from_millis(u64::from(cooldown_secs).saturating_mul(1000)));
-        self.represented_gameobject_use_effects.push(
-            RepresentedGameObjectUseEffect::CooldownStarted {
-                gameobject_guid,
-                cooldown_secs,
-            },
-        );
-
-        if source.charges == 1 {
-            state.loot_state = Some(wow_entities::LootState::JustDeactivated);
-        }
-
-        true
+            ),
+            wow_entities::TrapUseEffect::CooldownStarted { cooldown_secs } => effects.push(
+                RepresentedGameObjectUseEffect::CooldownStarted {
+                    gameobject_guid,
+                    cooldown_secs,
+                },
+            ),
+        })
     }
     pub(crate) fn use_represented_gameobject_chair_like_cpp(
         &mut self,
@@ -158,41 +158,31 @@ impl WorldSession {
         gameobject_size: f32,
         source: wow_entities::ChairUseSource,
     ) -> bool {
-        let slot_count = source.chair_slots.max(1).min(5);
-        let state = self
-            .represented_gameobject_use_states
-            .entry(gameobject_guid)
-            .or_default();
-        if state.chair_slots.is_empty() {
-            state.chair_slots = vec![None; slot_count as usize];
-        }
-
-        let orthogonal_orientation = gameobject_position.orientation + std::f32::consts::PI * 0.5;
-        let mut nearest_slot = None;
-        let mut lowest_dist = f32::MAX;
-        let mut nearest_position = gameobject_position;
-        for slot in 0..state.chair_slots.len() {
-            if state.chair_slots[slot].is_some() {
-                continue;
-            }
-
-            let relative_distance =
-                (gameobject_size * slot as f32) - (gameobject_size * (slot_count - 1) as f32 / 2.0);
-            let candidate = Position::new(
-                gameobject_position.x + relative_distance * orthogonal_orientation.cos(),
-                gameobject_position.y + relative_distance * orthogonal_orientation.sin(),
-                gameobject_position.z,
-                gameobject_position.orientation,
-            );
-            let dist = player_position.distance_2d(&candidate);
-            if dist <= lowest_dist {
-                nearest_slot = Some(slot);
-                lowest_dist = dist;
-                nearest_position = candidate;
-            }
-        }
-
-        let Some(slot) = nearest_slot else {
+        let placement = wow_entities::GameObjectUseValues::use_chair(
+            player_guid,
+            player_position,
+            gameobject_position,
+            gameobject_size,
+            source,
+            || {
+                let state = self
+                    .represented_gameobject_use_states
+                    .entry(gameobject_guid)
+                    .or_default();
+                wow_entities::GameObjectUseValues::borrow(
+                    &mut state.loot_state,
+                    &mut state.loot_state_unit_guid,
+                    &mut state.go_state,
+                    &mut state.prev_go_state,
+                    &mut state.gameobject_flags,
+                    &mut state.cooldown_until,
+                    &mut state.go_type,
+                    &mut state.trap_use_source,
+                    &mut state.chair_slots,
+                )
+            },
+        );
+        let Some(placement) = placement else {
             self.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::ChairNoFreeSlot {
                     gameobject_guid,
@@ -201,10 +191,7 @@ impl WorldSession {
             );
             return false;
         };
-
-        state.chair_slots[slot] = Some(player_guid);
-        let stand_state = 4_u32.saturating_add(source.chair_height);
-        self.set_player_position_like_cpp(nearest_position);
+        self.set_player_position_like_cpp(placement.teleport_position());
         self.set_player_stand_state_like_cpp(wow_entities::chair_stand_state_like_cpp(
             source.chair_height,
         ));
@@ -212,16 +199,16 @@ impl WorldSession {
             .push(RepresentedGameObjectUseEffect::ChairUsed {
                 gameobject_guid,
                 player_guid,
-                slot: slot as u32,
-                teleport_position: nearest_position,
-                stand_state,
+                slot: placement.slot(),
+                teleport_position: placement.teleport_position(),
+                stand_state: placement.raw_stand_state(),
             });
-        if source.triggered_event_id != 0 {
+        if let Some(event_id) = placement.trigger_event() {
             self.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::TriggerGameEvent {
                     gameobject_guid,
                     player_guid,
-                    event_id: source.triggered_event_id,
+                    event_id,
                 },
             );
         }

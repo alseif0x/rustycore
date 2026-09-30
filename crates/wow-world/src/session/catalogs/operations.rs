@@ -117,11 +117,11 @@ impl WorldSession {
     }
     /// Set the random property points store for this session.
     pub fn set_rand_prop_points_store(&mut self, store: Arc<RandPropPointsStore>) {
-        self.rand_prop_points_store = Some(store);
+        self.items.install_rand_prop_points_store(store);
     }
     /// Get the random property points store reference.
     pub fn rand_prop_points_store(&self) -> Option<&Arc<RandPropPointsStore>> {
-        self.rand_prop_points_store.as_ref()
+        self.items.rand_prop_points_store()
     }
     /// Set the C++ ConditionMgr store loaded from the `conditions` table.
     pub fn set_condition_store(&mut self, store: Arc<ConditionEntriesByTypeStore>) {
@@ -168,7 +168,7 @@ impl WorldSession {
         self.gem_properties_store = Some(store);
     }
     /// Set the TactKey.db2 store for typed SMSG_DB_REPLY serialization.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_tact_key_store(&mut self, store: Arc<TactKeyStore>) {
         self.tact_key_store = Some(store);
     }
@@ -341,11 +341,11 @@ impl WorldSession {
             i32::from(self.realm_policy.server_expansion_like_cpp),
         )
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_object_mgr_catalogs_like_cpp(&mut self, catalogs: Arc<ObjectMgrCatalogsLikeCpp>) {
         self.object_mgr_catalogs_like_cpp = Some(catalogs);
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn world_query_catalogs_like_cpp(&self) -> Option<&ObjectMgrCatalogsLikeCpp> {
         self.object_mgr_catalogs_like_cpp.as_deref()
     }
@@ -360,8 +360,8 @@ impl WorldSession {
         now_secs: u64,
         was_logout_resting: bool,
     ) -> f32 {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             return self.fixture_apply_offline_xp_rest_bonus_like_cpp(
                 policy,
                 logout_time_secs,
@@ -392,8 +392,8 @@ impl WorldSession {
         policy: &PlayerRestRatePolicyLikeCpp,
         now_secs: u64,
     ) -> (f32, u8) {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             return self.fixture_update_online_xp_rest_bonus_like_cpp(policy, now_secs);
         }
         let bubble = REST_ONLINE_INGAME_BUBBLE_LIKE_CPP * policy.ingame;

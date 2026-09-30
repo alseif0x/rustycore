@@ -17,164 +17,42 @@ impl WorldSession {
         disenchant_id: u32,
         winner_guid: ObjectGuid,
     ) -> Vec<LootEntry> {
-        let mut loot_items = Vec::new();
-        let mut frames = vec![disenchant_loot_template_frame_like_cpp(
-            self.load_represented_disenchant_loot_template_rows_like_cpp(
+        let rows = self
+            .load_represented_disenchant_loot_template_rows_like_cpp(
                 DisenchantLootTemplateTable::Disenchant,
                 disenchant_id,
             )
-            .await,
-            0,
-        )];
-
+            .await;
+        let mut builder = wow_loot::DisenchantLootBuilder::new(rows);
         let mut rng = self.represented_runtime_subrng_like_cpp();
-        let mut processed_frames = 0u32;
-        while let Some(mut frame) = frames.pop() {
-            if frame.requested_group_id > 0 {
-                let group_index = usize::from(frame.requested_group_id - 1);
-                if let Some(group) = frame.template.groups().get(group_index) {
-                    if let Some(row) =
-                        group.roll_like_cpp(LOOT_MODE_DEFAULT_LIKE_CPP, &mut rng, |item| {
-                            self.item_storage_template(item.item_id).is_some()
-                        })
-                    {
-                        let count =
-                            rng.gen_range(u32::from(row.min_count)..=u32::from(row.max_count));
-                        add_loot_item_stacks_like_cpp(
-                            &mut loot_items,
-                            row.item_id,
-                            count,
-                            self.item_storage_template(row.item_id)
-                                .map(|template| template.max_stack_size)
-                                .unwrap_or(1)
-                                .max(1),
-                            LootEntryFlags {
-                                follow_loot_rules: true,
-                                ..Default::default()
-                            },
-                        );
-                    }
-                }
-                continue;
-            }
-
-            if frame.entry_index >= frame.template.entries().len() {
-                if frame.group_index >= frame.template.groups().len() {
-                    continue;
-                }
-
-                let group_index = frame.group_index;
-                frame.group_index += 1;
-                frames.push(frame.clone());
-
-                if let Some(row) = frame.template.groups()[group_index].roll_like_cpp(
-                    LOOT_MODE_DEFAULT_LIKE_CPP,
-                    &mut rng,
-                    |item| self.item_storage_template(item.item_id).is_some(),
-                ) {
-                    let count = rng.gen_range(u32::from(row.min_count)..=u32::from(row.max_count));
-                    add_loot_item_stacks_like_cpp(
-                        &mut loot_items,
-                        row.item_id,
-                        count,
-                        self.item_storage_template(row.item_id)
-                            .map(|template| template.max_stack_size)
-                            .unwrap_or(1)
-                            .max(1),
-                        LootEntryFlags {
-                            follow_loot_rules: true,
-                            ..Default::default()
-                        },
-                    );
-                }
-                continue;
-            }
-
-            let row = frame.template.entries()[frame.entry_index];
-            frame.entry_index += 1;
-            frames.push(frame);
-
-            if row.reference > 0 {
-                if !represented_disenchant_loot_reference_row_can_roll_like_cpp(&row) {
-                    continue;
-                }
-                if row.chance < 100.0
-                    && !roll_chance_with_rate_like_cpp(
-                        row.chance,
-                        self.loot_drop_rates_like_cpp().item_referenced,
-                        &mut rng,
-                    )
-                {
-                    continue;
-                }
-
-                let reference_rows = self
-                    .load_represented_disenchant_loot_template_rows_like_cpp(
-                        DisenchantLootTemplateTable::Reference,
-                        row.reference,
-                    )
-                    .await;
-                let max_count = referenced_loot_max_count_like_cpp(
-                    row.max_count,
-                    self.loot_drop_rates_like_cpp().item_referenced_amount,
-                );
-                for _ in 0..max_count {
-                    frames.push(disenchant_loot_template_frame_like_cpp(
-                        reference_rows.clone(),
-                        row.group_id,
-                    ));
-                }
-                processed_frames = processed_frames.saturating_add(1);
-                if processed_frames > MAX_LOOT_REFERENCE_FRAMES_LIKE_CPP {
-                    warn!(
-                        disenchant_id,
-                        reference = row.reference,
-                        "stopped represented disenchant loot reference processing after safety cap"
-                    );
-                    break;
-                }
-                continue;
-            }
-
-            if !represented_disenchant_loot_plain_row_can_roll_like_cpp(
-                &row,
-                self.item_storage_template(row.item_id).is_some(),
-            ) {
-                continue;
-            }
-            if row.chance < 100.0
-                && !roll_chance_with_rate_like_cpp(
-                    row.chance,
-                    self.item_drop_rate_like_cpp(row.item_id),
-                    &mut rng,
-                )
-            {
-                continue;
-            }
-
-            let count = rng.gen_range(u32::from(row.min_count)..=u32::from(row.max_count));
-            add_loot_item_stacks_like_cpp(
-                &mut loot_items,
-                row.item_id,
-                count,
-                self.item_storage_template(row.item_id)
+        while let Some(reference_id) = builder.next_reference(
+            &mut rng,
+            |item_id| {
+                self.item_storage_template(item_id)
                     .map(|template| template.max_stack_size)
-                    .unwrap_or(1)
-                    .max(1),
-                LootEntryFlags {
-                    follow_loot_rules: true,
-                    ..Default::default()
-                },
-            );
+            },
+            |item_id| self.item_drop_rate_like_cpp(item_id),
+            || self.loot_drop_rates_like_cpp().item_referenced,
+        ) {
+            let reference_rows = self
+                .load_represented_disenchant_loot_template_rows_like_cpp(
+                    DisenchantLootTemplateTable::Reference,
+                    reference_id,
+                )
+                .await;
+            if !builder.resume_reference(
+                reference_rows,
+                self.loot_drop_rates_like_cpp().item_referenced_amount,
+            ) {
+                warn!(
+                    disenchant_id,
+                    reference = reference_id,
+                    "stopped represented disenchant loot reference processing after safety cap"
+                );
+                break;
+            }
         }
-
-        for (index, loot_entry) in loot_items.iter_mut().enumerate() {
-            loot_entry.loot_list_id = index as u8;
-            loot_entry.allowed_looters = vec![winner_guid];
-            loot_entry.roll_winner = winner_guid;
-        }
-
-        loot_items
+        builder.into_entries(winner_guid)
     }
 
     async fn load_represented_disenchant_loot_template_rows_like_cpp(

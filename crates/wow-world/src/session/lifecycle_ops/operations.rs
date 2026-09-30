@@ -5,6 +5,10 @@
 
 use super::*;
 
+#[cfg(test)]
+#[path = "reputation_retention_tests.rs"]
+mod reputation_retention_tests;
+
 fn account_heirloom_update_opcode_resolved_like_cpp() -> bool {
     <wow_packet::packets::misc::AccountHeirloomUpdate as wow_packet::ServerPacket>::OPCODE
         != ServerOpcodes::UpdateCapturePoint
@@ -30,11 +34,7 @@ impl WorldSession {
     pub(crate) fn account_heirloom_rows_like_cpp(&self) -> Vec<(u32, u32)> {
         self.player_collection_state_snapshot_like_cpp()
             .map(|collections| {
-                collections
-                    .heirlooms_like_cpp()
-                    .iter()
-                    .map(|(item_id, data)| (*item_id, data.flags))
-                    .collect()
+                collections.project_heirlooms(|item_id, flags, _bonus_id| Some((item_id, flags)))
             })
             .unwrap_or_default()
     }
@@ -50,16 +50,12 @@ impl WorldSession {
     pub(crate) fn account_heirloom_packet_rows_like_cpp(&self) -> Vec<AccountHeirloom> {
         self.player_collection_state_snapshot_like_cpp()
             .map(|collections| {
-                collections
-                    .heirlooms_like_cpp()
-                    .iter()
-                    .filter_map(|(item_id, data)| {
-                        Some(AccountHeirloom {
-                            item_id: i32::try_from(*item_id).ok()?,
-                            flags: data.flags,
-                        })
+                collections.project_heirlooms(|item_id, flags, _bonus_id| {
+                    Some(AccountHeirloom {
+                        item_id: i32::try_from(item_id).ok()?,
+                        flags,
                     })
-                    .collect()
+                })
             })
             .unwrap_or_default()
     }
@@ -67,11 +63,9 @@ impl WorldSession {
     pub(crate) fn account_heirloom_active_player_rows_like_cpp(&self) -> Vec<(i32, u32)> {
         self.player_collection_state_snapshot_like_cpp()
             .map(|collections| {
-                collections
-                    .heirlooms_like_cpp()
-                    .iter()
-                    .filter_map(|(item_id, data)| Some((i32::try_from(*item_id).ok()?, data.flags)))
-                    .collect()
+                collections.project_heirlooms(|item_id, flags, _bonus_id| {
+                    Some((i32::try_from(item_id).ok()?, flags))
+                })
             })
             .unwrap_or_default()
     }
@@ -120,14 +114,12 @@ impl WorldSession {
                 .position(|&heirloom_item_id| heirloom_item_id == active_item_id)
         })??;
 
-        let mut flags = current_flags;
-        let mut bonus_id = 0_u32;
-        for (upgrade_level, &upgrade_item_id) in heirloom.upgrade_item_id.iter().enumerate() {
-            if upgrade_item_id == cast_item {
-                flags |= 1_u32 << upgrade_level;
-                bonus_id = u32::from(heirloom.upgrade_item_bonus_list_id[upgrade_level]);
-            }
-        }
+        let (flags, bonus_id) = wow_entities::PlayerCollectionStateLikeCpp::heirloom_upgrade(
+            &heirloom.upgrade_item_id,
+            &heirloom.upgrade_item_bonus_list_id,
+            current_flags,
+            cast_item,
+        );
 
         let update = self.mutate_canonical_player_like_cpp(|player| {
             player
@@ -153,30 +145,13 @@ impl WorldSession {
             .heirlooms_like_cpp()
             .get(&item_id)?;
 
-        let mut heirloom_item_id = u32::try_from(heirloom.static_upgraded_item_id).ok()?;
-        let mut new_item_id = 0_u32;
-        while let Some(heirloom_diff) = heirloom_store.get_by_item_id_like_cpp(heirloom_item_id) {
-            let diff_item_id = u32::try_from(heirloom_diff.item_id).ok()?;
-            if self.represented_player_has_default_item_entry_like_cpp(diff_item_id) {
-                new_item_id = diff_item_id;
-            }
-
-            let Some(heirloom_sub_item_id) = u32::try_from(heirloom_diff.static_upgraded_item_id)
-                .ok()
-                .and_then(|static_item_id| {
-                    heirloom_store
-                        .get_by_item_id_like_cpp(static_item_id)
-                        .and_then(|heirloom_sub| u32::try_from(heirloom_sub.item_id).ok())
-                })
-            else {
-                break;
-            };
-            heirloom_item_id = heirloom_sub_item_id;
-        }
-
-        if new_item_id == 0 {
-            return None;
-        }
+        let new_item_id = wow_entities::PlayerCollectionStateLikeCpp::static_heirloom_upgrade(
+            heirloom.static_upgraded_item_id,
+            |lookup_item_id| heirloom_store.get_by_item_id_like_cpp(lookup_item_id),
+            |row| row.item_id,
+            |row| row.static_upgraded_item_id,
+            |diff_item_id| self.represented_player_has_default_item_entry_like_cpp(diff_item_id),
+        )?;
 
         let active_item_id = i32::try_from(item_id).ok()?;
         let active_new_item_id = i32::try_from(new_item_id).ok()?;
@@ -202,17 +177,9 @@ impl WorldSession {
     pub(crate) fn account_toy_rows_like_cpp(&self) -> Vec<(u32, bool, bool)> {
         self.player_collection_state_snapshot_like_cpp()
             .map(|collections| {
-                collections
-                    .toys_like_cpp()
-                    .iter()
-                    .map(|(item_id, flags)| {
-                        (
-                            *item_id,
-                            (*flags & TOY_FLAG_FAVORITE_LIKE_CPP) != 0,
-                            (*flags & TOY_FLAG_HAS_FANFARE_LIKE_CPP) != 0,
-                        )
-                    })
-                    .collect()
+                collections.project_toy_status(|item_id, is_favorite, has_fanfare| {
+                    Some((item_id, is_favorite, has_fanfare))
+                })
             })
             .unwrap_or_default()
     }
@@ -220,15 +187,13 @@ impl WorldSession {
     pub(crate) fn account_toy_packet_rows_like_cpp(&self) -> Vec<AccountToy> {
         self.player_collection_state_snapshot_like_cpp()
             .map(|collections| {
-                collections
-                    .toys_like_cpp()
-                    .iter()
-                    .map(|(item_id, flags)| AccountToy {
-                        item_id: *item_id,
-                        is_favorite: (flags & TOY_FLAG_FAVORITE_LIKE_CPP) != 0,
-                        has_fanfare: (flags & TOY_FLAG_HAS_FANFARE_LIKE_CPP) != 0,
+                collections.project_toy_status(|item_id, is_favorite, has_fanfare| {
+                    Some(AccountToy {
+                        item_id,
+                        is_favorite,
+                        has_fanfare,
                     })
-                    .collect()
+                })
             })
             .unwrap_or_default()
     }
@@ -236,11 +201,7 @@ impl WorldSession {
     pub(crate) fn account_toy_active_player_rows_like_cpp(&self) -> Vec<i32> {
         self.player_collection_state_snapshot_like_cpp()
             .map(|collections| {
-                collections
-                    .toys_like_cpp()
-                    .keys()
-                    .filter_map(|item_id| i32::try_from(*item_id).ok())
-                    .collect()
+                collections.project_toys(|item_id, _flags| i32::try_from(item_id).ok())
             })
             .unwrap_or_default()
     }
@@ -262,13 +223,7 @@ impl WorldSession {
         is_favorite: bool,
         has_fanfare: bool,
     ) -> bool {
-        let mut flags = 0_u32;
-        if is_favorite {
-            flags |= TOY_FLAG_FAVORITE_LIKE_CPP;
-        }
-        if has_fanfare {
-            flags |= TOY_FLAG_HAS_FANFARE_LIKE_CPP;
-        }
+        let flags = wow_entities::PlayerCollectionStateLikeCpp::toy_flags(is_favorite, has_fanfare);
         self.mutate_player_collection_state_like_cpp(|collections| {
             collections.add_toy_like_cpp(item_id, flags)
         })
@@ -417,12 +372,25 @@ impl WorldSession {
         level: u8,
         gender: u8,
     ) -> bool {
+        if self.character_lifecycle_fixture_mode()
+            && self.player_handle_like_cpp.is_some()
+            && self.with_owned_player_like_cpp(|_| ()).is_none()
+        {
+            return false;
+        }
+
         if self.player_handle_like_cpp.is_none()
             && !self.player_bootstrap_attached_for_test_like_cpp()
         {
-            self.attach_player_controller_like_cpp(SessionPlayerController::new(
+            let controller = SessionPlayerController::new(
                 guid, name, position, map_id, race, class, level, gender,
-            ));
+            );
+            #[cfg(any(test, feature = "test-fixtures"))]
+            if self.character_lifecycle_handleless_fixture() {
+                self.attach_player_controller_for_fixture(controller);
+                return true;
+            }
+            self.attach_player_controller_like_cpp(controller);
             true
         } else {
             self.set_player_guid(Some(guid));
@@ -507,14 +475,12 @@ impl WorldSession {
         let Some(mut mounts) =
             self.player_collection_state_snapshot_like_cpp()
                 .map(|collections| {
-                    collections
-                        .mounts_like_cpp()
-                        .iter()
-                        .map(|(spell_id, flags)| AccountMount {
-                            spell_id: *spell_id,
-                            flags: *flags,
+                    collections.project_mounts(|spell_id, flags| {
+                        Some(AccountMount {
+                            spell_id,
+                            flags,
                         })
-                        .collect::<Vec<_>>()
+                    })
                 })
         else {
             return Vec::new();

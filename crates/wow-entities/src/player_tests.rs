@@ -481,6 +481,8 @@ mod movement;
 mod pending_spell_cast;
 #[path = "player_tests/persistence.rs"]
 mod persistence;
+#[path = "player_tests/power_data.rs"]
+mod power_data;
 #[path = "player_tests/pet.rs"]
 mod pet;
 #[path = "player_tests/quest.rs"]

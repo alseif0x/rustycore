@@ -27,6 +27,7 @@ class ArchitectureCommandTests(unittest.TestCase):
             }
         }
         payloads = {
+            checker.DEFAULT_POLICY: policy,
             checker.DEFAULT_PHYSICAL_POLICY: policy,
             checker.DEFAULT_ISSUE_LEDGER: ledger,
             checker.DEFAULT_RUNTIME_OWNERSHIP_LEDGER: runtime,
@@ -39,14 +40,16 @@ class ArchitectureCommandTests(unittest.TestCase):
             stack.enter_context(redirect_stdout(output))
             stack.enter_context(redirect_stderr(output))
             stack.enter_context(patch.object(checker, "load_json", side_effect=lambda path: payloads.get(path, {})))
-            stack.enter_context(patch.object(checker.physical_files, "inventory", return_value=[]))
+            calls["physical_inventory"] = stack.enter_context(
+                patch.object(checker.physical_files, "inventory", return_value=[])
+            )
             physical = stack.enter_context(patch.object(checker.physical_files, "evaluate", return_value={
                 "files": [], "legacy_files": 0, "generated_files": 0,
                 "review_required": 0, "mode": "migration",
             }))
             calls["physical"] = physical
             for name, value in {
-                "validate_policy": {}, "validate_issue_ledger": ledger,
+                "validate_policy": policy, "validate_issue_ledger": ledger,
                 "validate_handler_module_policy": {}, "validate_debt_ownership": None,
                 "validate_runtime_ownership_ledger": runtime,
                 "validate_hotspot_non_growth": 8, "validate_runtime_syntax_coverage": None,
@@ -87,6 +90,54 @@ class ArchitectureCommandTests(unittest.TestCase):
                 self.assertEqual(calls["check_dependencies"].call_count, int(command == "check"))
                 self.assertEqual(calls["print_hotspots"].call_count, int(command == "check"))
                 self.assertEqual(calls["physical_fixtures"].call_count, int(command == "self-test"))
+
+    def test_dependencies_runs_only_the_policy_and_workspace_edge_path(self):
+        result, calls, output = self.invoke(["dependencies"])
+        self.assertEqual(result, 0, output)
+        policy = {"migration_issue": 584, "exceptions": []}
+        ledger = {"issues": [{"number": 584}]}
+        calls["validate_policy"].assert_called_once_with(policy)
+        calls["validate_issue_ledger"].assert_called_once_with(ledger)
+        calls["validate_debt_ownership"].assert_called_once_with(policy, ledger)
+        calls["cargo_metadata"].assert_called_once_with()
+        calls["check_dependencies"].assert_called_once_with(policy, {})
+        for name in (
+            "physical_inventory",
+            "physical",
+            "validate_handler_module_policy",
+            "validate_runtime_ownership_ledger",
+            "validate_hotspot_non_growth",
+            "validate_runtime_syntax_coverage",
+            "validate_runtime_clock_phase_trace",
+            "validate_documented_sequence",
+            "run_fixture_self_tests",
+            "run_handler_module_policy_self_tests",
+            "run_debt_ownership_fixture_tests",
+            "run_runtime_ownership_self_tests",
+            "run_path_module_scanner_self_tests",
+            "run_hotspot_classifier_self_tests",
+            "run_hotspot_view_self_tests",
+            "run_hotspot_ratchet_self_tests",
+            "physical_fixtures",
+            "print_hotspots",
+        ):
+            self.assertEqual(calls[name].call_count, 0, name)
+        self.assertIn("Architecture dependencies: PASS", output)
+        self.assertNotIn("Architecture self-test:", output)
+
+    def test_dependencies_fails_on_debt_metadata_and_edge_errors(self):
+        for failure in (
+            "validate_debt_ownership",
+            "cargo_metadata",
+            "check_dependencies",
+        ):
+            with self.subTest(failure=failure):
+                result, calls, output = self.invoke(["dependencies"], failure)
+                self.assertEqual(result, 1, output)
+                self.assertIn("architecture check failed", output)
+                self.assertNotIn("Architecture dependencies: PASS", output)
+                self.assertEqual(calls["physical"].call_count, 0)
+                self.assertEqual(calls["print_hotspots"].call_count, 0)
 
     def test_combined_fails_closed_in_each_phase(self):
         for failure in ("physical", "validate_hotspot_non_growth", "physical_fixtures",

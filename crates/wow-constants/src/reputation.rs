@@ -3,17 +3,19 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Reputation value types shared by the canonical Player and its catalogs.
+//! Reputation values and the faction count shared by Player, catalogs and packet presentation.
 //!
-//! C++ declares these in `SharedDefines.h` (`ReputationRank`) and
-//! `ReputationMgr.h` (`FactionFlags`, the rank thresholds and the standing
-//! caps). They carry no catalog, packet or database dependency, which is why
-//! they live beside the other shared enums and flags rather than in the DB2
-//! catalog crate: the canonical Player owns reputation state and cannot depend
-//! on `wow-data` (#735).
+//! C++ declares the values in `SharedDefines.h` (`ReputationRank`) and
+//! `ReputationMgr.h` (`FactionFlags`, rank thresholds and standing caps), and
+//! the wire-level `FactionCount` in `ReputationPackets.h`. They carry no
+//! catalog, packet or database dependency, so they can be shared without
+//! changing canonical Player ownership or adding an upward dependency.
 //!
 //! `wow_data::reputation` re-exports them, so catalog-side consumers are
 //! unchanged.
+
+/// C++ `WorldPackets::Reputation::FactionCount` (`ReputationPackets.h:29`).
+pub const FACTION_COUNT_LIKE_CPP: usize = 1000;
 
 /// C++ `ReputationMgr::Reputation_Cap`.
 pub const REPUTATION_CAP_LIKE_CPP: i32 = 42_000;

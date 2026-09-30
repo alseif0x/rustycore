@@ -30,7 +30,7 @@ pub(crate) enum MoveSplineDoneTaxiActionLikeCpp {
     IgnoredUnexpectedFinalPath,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct RepresentedTaxiFlightNodeLikeCpp {
     pub map_id: u16,
@@ -76,7 +76,7 @@ pub(crate) struct MoveTeleportAckEventLikeCpp {
     pub delayed_operations_processed: bool,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedAreaZoneCriteriaLikeCpp {
     EnterArea(u32),
@@ -85,14 +85,14 @@ pub(crate) enum RepresentedAreaZoneCriteriaLikeCpp {
     LeaveTopLevelArea(u32),
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(in crate::session) struct RepresentedTaxiFlightStateLikeCpp {
     pub(in crate::session) current_node: RepresentedTaxiFlightNodeLikeCpp,
     pub(in crate::session) node_after_teleport: Option<RepresentedTaxiFlightNodeLikeCpp>,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) fn canonical_taxi_flight_node_like_cpp(
     node: RepresentedTaxiFlightNodeLikeCpp,
 ) -> wow_entities::PlayerTaxiFlightNodeLikeCpp {
@@ -103,7 +103,7 @@ pub(in crate::session) fn canonical_taxi_flight_node_like_cpp(
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) fn represented_taxi_flight_node_like_cpp(
     node: wow_entities::PlayerTaxiFlightNodeLikeCpp,
 ) -> RepresentedTaxiFlightNodeLikeCpp {
@@ -114,7 +114,7 @@ pub(in crate::session) fn represented_taxi_flight_node_like_cpp(
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) fn canonical_taxi_flight_state_like_cpp(
     flight: RepresentedTaxiFlightStateLikeCpp,
 ) -> wow_entities::PlayerTaxiFlightStateLikeCpp {
@@ -126,7 +126,7 @@ pub(in crate::session) fn canonical_taxi_flight_state_like_cpp(
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) fn represented_taxi_flight_state_like_cpp(
     flight: wow_entities::PlayerTaxiFlightStateLikeCpp,
 ) -> RepresentedTaxiFlightStateLikeCpp {

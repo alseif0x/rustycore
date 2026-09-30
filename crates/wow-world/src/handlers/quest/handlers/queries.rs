@@ -121,7 +121,7 @@ impl WorldSession {
     /// Legacy non-canonical note: QuestHandler.HandleQuestGiverQueryQuest
     pub async fn handle_quest_giver_query_quest(&mut self, mut pkt: wow_packet::WorldPacket) {
         let (guid, quest_id, respond_to_giver) =
-            match read_quest_giver_query_quest_like_cpp(&mut pkt) {
+            match wow_packet::packets::quest::read_quest_giver_query_quest(&mut pkt) {
                 Ok(packet) => packet,
                 Err(_) => {
                     warn!("QuestGiverQueryQuest: failed to read packet");

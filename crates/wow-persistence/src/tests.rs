@@ -503,7 +503,7 @@ fn an_unknown_outcome_is_neither_applied_nor_a_plain_failure_like_cpp() {
 }
 
 #[test]
-fn stored_item_money_reconciliation_requires_joint_money_and_source_evidence_like_cpp() {
+fn stored_item_money_commit_unknown_requires_joint_balance_and_source_evidence_like_cpp() {
     // Rust-specific durability protocol: the database adapter updates character
     // money and deletes stored Item money in one transaction, then reconciles
     // both rows after an unknown COMMIT. Pinned C++ HandleLootMoneyOpcode
@@ -530,42 +530,38 @@ fn stored_item_money_reconciliation_requires_joint_money_and_source_evidence_lik
     );
     assert_eq!(
         classify_stored_item_money_reconciliation_like_cpp(outcome, 107, Some(7)),
-        StoredItemMoneyReconciliationLikeCpp::Indeterminate { reason: None },
-        "an after-balance with the source still present is contradictory evidence"
+        StoredItemMoneyReconciliationLikeCpp::Indeterminate { reason: None }
     );
 }
 
 #[test]
 fn stored_item_money_cap_noop_still_reconciles_source_consumption_like_cpp() {
-    // Synthetic unchanged balance: cap arithmetic is covered by the database
-    // adapter test, while this SQLx-free contract checks source reconciliation.
+    // The original Player cap boundary, from wow_entities::MAX_MONEY_AMOUNT.
+    // Keep this dependency-free persistence contract on the same input.
+    const MAX_MONEY_AMOUNT: u64 = 99_999_999_999;
     let outcome = StoredItemMoneyPersistenceOutcomeLikeCpp {
-        before: 100,
-        after: 100,
+        before: MAX_MONEY_AMOUNT - 1,
+        after: MAX_MONEY_AMOUNT - 1,
         applied_delta: 0,
         notified_amount: 2,
     };
     assert_eq!(
-        classify_stored_item_money_reconciliation_like_cpp(outcome, 100, None),
+        classify_stored_item_money_reconciliation_like_cpp(outcome, MAX_MONEY_AMOUNT - 1, None,),
         StoredItemMoneyReconciliationLikeCpp::Committed
     );
     assert_eq!(
-        classify_stored_item_money_reconciliation_like_cpp(outcome, 100, Some(2)),
+        classify_stored_item_money_reconciliation_like_cpp(outcome, MAX_MONEY_AMOUNT - 1, Some(2),),
         StoredItemMoneyReconciliationLikeCpp::RolledBack
     );
 }
 
 #[test]
-fn zero_cached_stored_item_money_is_the_only_absent_source_noop_like_cpp() {
-    assert_eq!(
-        stored_item_money_zero_without_source_outcome_like_cpp(41, 0),
-        Some(StoredItemMoneyPersistenceOutcomeLikeCpp {
-            before: 41,
-            after: 41,
-            applied_delta: 0,
-            notified_amount: 0,
-        })
-    );
+fn stored_item_money_zero_without_db_source_is_success_but_positive_is_consumed() {
+    let zero = stored_item_money_zero_without_source_outcome_like_cpp(41, 0).unwrap();
+    assert_eq!(zero.before, 41);
+    assert_eq!(zero.after, 41);
+    assert_eq!(zero.applied_delta, 0);
+    assert_eq!(zero.notified_amount, 0);
     assert!(stored_item_money_zero_without_source_outcome_like_cpp(41, 1).is_none());
 }
 

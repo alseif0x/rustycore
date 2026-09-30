@@ -1,14 +1,34 @@
 //! Canonical map respawn persistence, periodic work, and update loops.
 
-use wow_persistence::{
-    GameEventPersistenceMutationLikeCpp, GameEventPersistenceMutationOutcomeLikeCpp,
-    GameEventPersistencePortLikeCpp,
-};
-
 use super::map_tick::{canonical_map_tick_begin_like_cpp, canonical_map_tick_resume_like_cpp};
 use super::*;
 mod creature_addon_provenance;
+mod creature_record_builder;
+pub(crate) use creature_record_builder::{
+    build_creature_respawn_records, build_creature_spawn_records,
+    build_creature_records_with_respawn_time,
+};
+pub(crate) use creature_addon_provenance::LoadedGridCreaturePreparationError;
 pub(crate) use creature_addon_provenance::creature_addon_spell_x_spell_visual_id_like_cpp;
+mod game_event_persistence_bridge;
+pub(crate) use game_event_persistence_bridge::{
+    execute_game_event_quest_complete_condition_save_db_bridge_like_cpp,
+    execute_game_event_world_event_state_db_bridge_like_cpp,
+    game_event_world_event_state_db_delete_operation_like_cpp,
+    game_event_world_event_state_db_save_operation_like_cpp,
+    materialize_game_event_quest_complete_db_bridge_like_cpp,
+    materialize_game_event_world_event_state_db_bridge_like_cpp,
+    GameEventQuestCompleteConditionSaveDbOperationLikeCpp,
+    GameEventQuestCompleteDbBridgeSummaryLikeCpp,
+    GameEventWorldEventStateDbBridgeSummaryLikeCpp,
+    GameEventWorldEventStateDbOperationKindLikeCpp,
+    GameEventWorldEventStateDbOperationLikeCpp,
+};
+mod respawn_projection;
+pub(crate) use respawn_projection::{
+    queue_respawn_db_delete_like_cpp,
+    queue_respawn_db_save_like_cpp,
+};
 
 /// Supply the Group owner's loaded-difficulty port from the DB2 store.
 ///
@@ -101,134 +121,6 @@ pub(crate) enum RespawnDbSaveQueueOutcomeLikeCpp {
     SkippedInvalidMapId,
 }
 
-pub(crate) fn queue_respawn_db_delete_like_cpp(
-    map_kind: wow_map::ManagedMapKind,
-    map_is_instanceable: bool,
-    map_id: u32,
-    instance_id: u32,
-    object_type: wow_map::SpawnObjectType,
-    spawn_id: wow_map::SpawnId,
-) -> RespawnDbDeleteQueueOutcomeLikeCpp {
-    if !matches!(map_kind, wow_map::ManagedMapKind::World) {
-        return RespawnDbDeleteQueueOutcomeLikeCpp::SkippedNonWorldMap;
-    }
-    if map_is_instanceable {
-        return RespawnDbDeleteQueueOutcomeLikeCpp::SkippedInstanceableMap;
-    }
-
-    let Ok(map_id) = u16::try_from(map_id) else {
-        return RespawnDbDeleteQueueOutcomeLikeCpp::SkippedInvalidMapId;
-    };
-
-    let mutation = RespawnPersistenceMutationLikeCpp::Delete {
-        key: RespawnPersistenceKeyLikeCpp {
-            object_type_raw: u16::from(object_type as u8),
-            spawn_id,
-            map_id,
-            instance_id,
-        },
-    };
-    RespawnDbDeleteQueueOutcomeLikeCpp::Queued(RespawnDbDeleteLikeCpp {
-        object_type,
-        spawn_id,
-        map_id,
-        instance_id,
-        mutation,
-    })
-}
-
-pub(crate) fn queue_respawn_db_save_like_cpp(
-    map_kind: wow_map::ManagedMapKind,
-    map_is_instanceable: bool,
-    map_id: u32,
-    instance_id: u32,
-    info: wow_map::RespawnInfoLikeCpp,
-) -> RespawnDbSaveQueueOutcomeLikeCpp {
-    if !matches!(map_kind, wow_map::ManagedMapKind::World) {
-        return RespawnDbSaveQueueOutcomeLikeCpp::SkippedNonWorldMap;
-    }
-    if map_is_instanceable {
-        return RespawnDbSaveQueueOutcomeLikeCpp::SkippedInstanceableMap;
-    }
-
-    let Ok(map_id) = u16::try_from(map_id) else {
-        return RespawnDbSaveQueueOutcomeLikeCpp::SkippedInvalidMapId;
-    };
-
-    let mutation = RespawnPersistenceMutationLikeCpp::Save {
-        key: RespawnPersistenceKeyLikeCpp {
-            object_type_raw: u16::from(info.object_type as u8),
-            spawn_id: info.spawn_id,
-            map_id,
-            instance_id,
-        },
-        respawn_time: info.respawn_time,
-    };
-    RespawnDbSaveQueueOutcomeLikeCpp::Queued(RespawnDbSaveLikeCpp {
-        object_type: info.object_type,
-        spawn_id: info.spawn_id,
-        respawn_time: info.respawn_time,
-        map_id,
-        instance_id,
-        mutation,
-    })
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum GameEventWorldEventStateDbOperationKindLikeCpp {
-    Save,
-    Delete,
-}
-
-#[derive(Debug, Clone)]
-pub(crate) struct GameEventWorldEventStateDbOperationLikeCpp {
-    pub(crate) event_id: u8,
-    pub(crate) kind: GameEventWorldEventStateDbOperationKindLikeCpp,
-    pub(crate) delete_condition_saves: bool,
-    pub(crate) delete_world_event_state: bool,
-    pub(crate) mutation: GameEventPersistenceMutationLikeCpp,
-}
-
-#[derive(Debug, Default, Clone)]
-pub(crate) struct GameEventWorldEventStateDbBridgeSummaryLikeCpp {
-    pub(crate) saves_queued: usize,
-    pub(crate) saves_executed: usize,
-    pub(crate) saves_failed: usize,
-    pub(crate) saves_skipped_event_id_out_of_range: usize,
-    pub(crate) saves_skipped_missing_event: usize,
-    pub(crate) deletes_queued: usize,
-    pub(crate) deletes_executed: usize,
-    pub(crate) deletes_failed: usize,
-    pub(crate) deletes_skipped_event_id_out_of_range: usize,
-    pub(crate) condition_delete_rows_queued: usize,
-    pub(crate) condition_delete_rows_executed: usize,
-    pub(crate) condition_delete_rows_failed: usize,
-    pub(crate) operations: Vec<GameEventWorldEventStateDbOperationLikeCpp>,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Clone)]
-pub(crate) struct GameEventQuestCompleteConditionSaveDbOperationLikeCpp {
-    pub(crate) event_id: u8,
-    pub(crate) condition_id: u32,
-    pub(crate) mutation: GameEventPersistenceMutationLikeCpp,
-}
-
-#[allow(dead_code)]
-#[derive(Debug, Default, Clone)]
-pub(crate) struct GameEventQuestCompleteDbBridgeSummaryLikeCpp {
-    pub(crate) condition_save_updates_queued: usize,
-    pub(crate) condition_save_updates_executed: usize,
-    pub(crate) condition_save_updates_failed: usize,
-    pub(crate) condition_save_updates_skipped_non_progress: usize,
-    pub(crate) world_event_state_save_requested: usize,
-    pub(crate) force_game_event_update_requested: usize,
-    pub(crate) save_world_event_state_requested: bool,
-    pub(crate) force_game_event_update_requested_flag: bool,
-    pub(crate) world_event_state_summary: GameEventWorldEventStateDbBridgeSummaryLikeCpp,
-    pub(crate) operations: Vec<GameEventQuestCompleteConditionSaveDbOperationLikeCpp>,
-}
-
 pub(crate) async fn load_groups_from_character_database_like_cpp(
     persistence: &dyn wow_persistence::RepresentedGroupStartupLoadPortLikeCpp,
     group_registry: &GroupRegistry,
@@ -288,247 +180,6 @@ pub(crate) async fn load_groups_from_character_database_like_cpp(
         &character_cache,
         &GroupDifficultyStorePortLikeCpp(difficulty_store),
     ))
-}
-
-#[allow(dead_code)]
-pub(crate) fn materialize_game_event_quest_complete_db_bridge_like_cpp(
-    outcome: &spawn_store_loader::GameEventQuestCompleteOutcomeLikeCpp,
-    metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
-) -> GameEventQuestCompleteDbBridgeSummaryLikeCpp {
-    let mut summary = GameEventQuestCompleteDbBridgeSummaryLikeCpp::default();
-    let spawn_store_loader::GameEventQuestCompleteOutcomeLikeCpp::Progress(
-        spawn_store_loader::GameEventConditionProgressOutcomeLikeCpp::Progressed(progress),
-    ) = outcome
-    else {
-        summary.condition_save_updates_skipped_non_progress += 1;
-        return summary;
-    };
-
-    if progress.save_world_event_state_requested {
-        summary.world_event_state_save_requested += 1;
-        summary.save_world_event_state_requested = true;
-    }
-    if progress.force_game_event_update_requested {
-        summary.force_game_event_update_requested += 1;
-        summary.force_game_event_update_requested_flag = true;
-    }
-
-    summary.condition_save_updates_queued += 1;
-    summary
-        .operations
-        .push(GameEventQuestCompleteConditionSaveDbOperationLikeCpp {
-            event_id: progress.persistence_event_id,
-            condition_id: progress.condition_id,
-            mutation: GameEventPersistenceMutationLikeCpp::ReplaceConditionSave {
-                event_id: progress.persistence_event_id,
-                condition_id: progress.condition_id,
-                done: progress.done_after,
-            },
-        });
-
-    if progress.save_world_event_state_requested {
-        game_event_world_event_state_db_save_operation_like_cpp(
-            progress.event_id,
-            metadata,
-            &mut summary.world_event_state_summary,
-        );
-    }
-
-    summary
-}
-
-#[allow(dead_code)]
-pub(crate) async fn execute_game_event_quest_complete_condition_save_db_bridge_like_cpp(
-    persistence: &dyn GameEventPersistencePortLikeCpp,
-    summary: &mut GameEventQuestCompleteDbBridgeSummaryLikeCpp,
-) {
-    let operation_total = summary.operations.len();
-    for (operation_index, operation) in summary.operations.drain(..).enumerate() {
-        match persistence
-            .execute_mutation_like_cpp(operation.mutation)
-            .await
-        {
-            GameEventPersistenceMutationOutcomeLikeCpp::Applied => {
-                summary.condition_save_updates_executed += 1
-            }
-            GameEventPersistenceMutationOutcomeLikeCpp::Failed { reason } => {
-                summary.condition_save_updates_failed += 1;
-                tracing::error!(
-                    error = %reason,
-                    operation_index = operation_index + 1,
-                    operation_total,
-                    event_id = operation.event_id,
-                    condition_id = operation.condition_id,
-                    "Failed to execute C++ GameEventMgr quest-complete condition-save DB transaction; continuing live update loop"
-                );
-            }
-        }
-    }
-}
-
-pub(crate) fn game_event_world_event_state_db_save_operation_like_cpp(
-    event_id: u16,
-    metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
-    summary: &mut GameEventWorldEventStateDbBridgeSummaryLikeCpp,
-) {
-    let Ok(event_id_u8) = u8::try_from(event_id) else {
-        summary.saves_skipped_event_id_out_of_range += 1;
-        return;
-    };
-    let Some(event) = metadata.game_event_like_cpp(event_id) else {
-        summary.saves_skipped_missing_event += 1;
-        return;
-    };
-    let Ok(next_start) = i64::try_from(event.next_start) else {
-        summary.saves_skipped_missing_event += 1;
-        return;
-    };
-
-    summary.saves_queued += 1;
-    summary
-        .operations
-        .push(GameEventWorldEventStateDbOperationLikeCpp {
-            event_id: event_id_u8,
-            kind: GameEventWorldEventStateDbOperationKindLikeCpp::Save,
-            delete_condition_saves: false,
-            delete_world_event_state: false,
-            mutation: GameEventPersistenceMutationLikeCpp::SaveWorldEventState {
-                event_id: event_id_u8,
-                state: event.state_raw,
-                next_start,
-            },
-        });
-}
-
-pub(crate) fn game_event_world_event_state_db_delete_operation_like_cpp(
-    event_id: u16,
-    delete_condition_saves_requested: bool,
-    delete_world_event_state_requested: bool,
-    summary: &mut GameEventWorldEventStateDbBridgeSummaryLikeCpp,
-) {
-    if !delete_condition_saves_requested && !delete_world_event_state_requested {
-        return;
-    }
-    let Ok(event_id_u8) = u8::try_from(event_id) else {
-        summary.deletes_skipped_event_id_out_of_range += 1;
-        return;
-    };
-
-    if delete_condition_saves_requested {
-        summary.condition_delete_rows_queued += 1;
-    }
-    if delete_world_event_state_requested {
-        summary.deletes_queued += 1;
-    }
-
-    summary
-        .operations
-        .push(GameEventWorldEventStateDbOperationLikeCpp {
-            event_id: event_id_u8,
-            kind: GameEventWorldEventStateDbOperationKindLikeCpp::Delete,
-            delete_condition_saves: delete_condition_saves_requested,
-            delete_world_event_state: delete_world_event_state_requested,
-            mutation: GameEventPersistenceMutationLikeCpp::DeleteWorldEventState {
-                event_id: event_id_u8,
-                delete_condition_saves: delete_condition_saves_requested,
-                delete_world_event_state: delete_world_event_state_requested,
-            },
-        });
-}
-
-pub(crate) fn materialize_game_event_world_event_state_db_bridge_like_cpp(
-    outcome: &spawn_store_loader::GameEventUpdateOutcomeLikeCpp,
-    metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
-) -> GameEventWorldEventStateDbBridgeSummaryLikeCpp {
-    let mut summary = GameEventWorldEventStateDbBridgeSummaryLikeCpp::default();
-
-    for save in &outcome.world_nextphase_finished {
-        if save.save_state_requested {
-            game_event_world_event_state_db_save_operation_like_cpp(
-                save.event_id,
-                metadata,
-                &mut summary,
-            );
-        }
-    }
-    for save in &outcome.world_conditions_save_requested {
-        game_event_world_event_state_db_save_operation_like_cpp(
-            save.event_id,
-            metadata,
-            &mut summary,
-        );
-    }
-    for start_outcome in &outcome.start_outcomes {
-        if let spawn_store_loader::GameEventStartOutcomeLikeCpp::Started(start) = start_outcome {
-            if start.save_world_event_state_requested {
-                game_event_world_event_state_db_save_operation_like_cpp(
-                    start.event_id,
-                    metadata,
-                    &mut summary,
-                );
-            }
-        }
-    }
-    for stop_outcome in &outcome.stop_outcomes {
-        if let spawn_store_loader::GameEventStopOutcomeLikeCpp::Stopped(stop) = stop_outcome {
-            game_event_world_event_state_db_delete_operation_like_cpp(
-                stop.event_id,
-                stop.delete_condition_saves_requested,
-                stop.delete_world_event_state_requested,
-                &mut summary,
-            );
-        }
-    }
-
-    summary
-}
-
-pub(crate) async fn execute_game_event_world_event_state_db_bridge_like_cpp(
-    persistence: &dyn GameEventPersistencePortLikeCpp,
-    summary: &mut GameEventWorldEventStateDbBridgeSummaryLikeCpp,
-) {
-    let operation_total = summary.operations.len();
-    for (operation_index, operation) in summary.operations.drain(..).enumerate() {
-        match persistence
-            .execute_mutation_like_cpp(operation.mutation)
-            .await
-        {
-            GameEventPersistenceMutationOutcomeLikeCpp::Applied => match operation.kind {
-                GameEventWorldEventStateDbOperationKindLikeCpp::Save => summary.saves_executed += 1,
-                GameEventWorldEventStateDbOperationKindLikeCpp::Delete => {
-                    if operation.delete_world_event_state {
-                        summary.deletes_executed += 1;
-                    }
-                    if operation.delete_condition_saves {
-                        summary.condition_delete_rows_executed += 1;
-                    }
-                }
-            },
-            GameEventPersistenceMutationOutcomeLikeCpp::Failed { reason } => {
-                match operation.kind {
-                    GameEventWorldEventStateDbOperationKindLikeCpp::Save => {
-                        summary.saves_failed += 1;
-                    }
-                    GameEventWorldEventStateDbOperationKindLikeCpp::Delete => {
-                        if operation.delete_world_event_state {
-                            summary.deletes_failed += 1;
-                        }
-                        if operation.delete_condition_saves {
-                            summary.condition_delete_rows_failed += 1;
-                        }
-                    }
-                }
-                tracing::error!(
-                    error = %reason,
-                    operation_index = operation_index + 1,
-                    operation_total,
-                    event_id = operation.event_id,
-                    operation_kind = ?operation.kind,
-                    "Failed to execute C++ GameEventMgr world-event state DB transaction; continuing live update loop"
-                );
-            }
-        }
-    }
 }
 
 #[derive(Clone)]
@@ -596,25 +247,13 @@ pub(crate) fn build_loaded_grid_creature_respawn_record_like_cpp(
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     caches: &LoadedGridCreatureRespawnCachesLikeCpp,
 ) -> Option<wow_map::map::LoadedGridRespawnRecordsLikeCpp> {
-    let Some(respawn_time) = map
-        .get_respawn_info_like_cpp(object_type, spawn_id)
-        .map(|info| info.respawn_time)
-    else {
-        debug!(
-            spawn_id,
-            respawn_type = object_type as u8,
-            "C++ loaded-grid Creature DoRespawn blocked: missing map-owned respawn timer before LoadFromDB"
-        );
-        return None;
-    };
-    build_loaded_grid_creature_record_with_respawn_time_like_cpp(
+    build_creature_respawn_records(
         map,
         object_type,
         spawn_id,
         canonical_spawn_metadata,
         caches,
-        respawn_time,
-    )
+    ).ok().flatten()
 }
 
 pub(crate) fn build_loaded_grid_creature_spawn_group_spawn_record_like_cpp(
@@ -624,14 +263,13 @@ pub(crate) fn build_loaded_grid_creature_spawn_group_spawn_record_like_cpp(
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     caches: &LoadedGridCreatureRespawnCachesLikeCpp,
 ) -> Option<wow_map::map::LoadedGridRespawnRecordsLikeCpp> {
-    build_loaded_grid_creature_record_with_respawn_time_like_cpp(
+    build_creature_spawn_records(
         map,
         object_type,
         spawn_id,
         canonical_spawn_metadata,
         caches,
-        0,
-    )
+    ).ok().flatten()
 }
 
 pub(crate) fn build_loaded_grid_creature_record_with_respawn_time_like_cpp(
@@ -642,158 +280,14 @@ pub(crate) fn build_loaded_grid_creature_record_with_respawn_time_like_cpp(
     caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     respawn_time: i64,
 ) -> Option<wow_map::map::LoadedGridRespawnRecordsLikeCpp> {
-    if object_type != wow_map::SpawnObjectType::Creature {
-        return None;
-    }
-
-    let Some(spawn) = canonical_spawn_metadata
-        .spawn_store()
-        .spawn_data(object_type, spawn_id)
-    else {
-        debug!(
-            respawn_type = object_type as u8,
-            spawn_id, "C++ loaded-grid Creature DoRespawn blocked: missing canonical SpawnData"
-        );
-        return None;
-    };
-    let Some(runtime_row) = canonical_spawn_metadata.creature_runtime_row_like_cpp(spawn_id) else {
-        debug!(
-            spawn_id,
-            entry = spawn.id,
-            "C++ loaded-grid Creature DoRespawn blocked: missing DB-backed creature runtime row"
-        );
-        return None;
-    };
-    let Ok(map_id) = u16::try_from(map.map_id()) else {
-        warn!(
-            map_id = map.map_id(),
-            spawn_id,
-            entry = spawn.id,
-            "C++ loaded-grid Creature DoRespawn blocked: map id does not fit ObjectGuid world-object map field"
-        );
-        return None;
-    };
-    let difficulty_id = map.spawn_mode();
-    let instance_id = map.instance_id();
-    let formation_info = canonical_spawn_metadata
-        .creature_formation_info_like_cpp(spawn_id)
-        .copied();
-    let mut random = MapCreatureModelSelectionRandomLikeCpp { map };
-    let inputs =
-        creature_loaded_grid::build_loaded_grid_creature_inputs_with_power_stores_from_db_like_cpp(
-            spawn,
-            runtime_row,
-            caches.template_store.as_ref(),
-            caches.difficulty_store.as_ref(),
-            caches.base_stats_store.as_ref(),
-            &caches.health_rates,
-            caches.display_store.as_ref(),
-            caches.model_store.as_ref(),
-            caches.model_info_store.as_ref(),
-            Some(caches.creature_equipment_store.as_ref()),
-            caches.creature_addon_store.as_ref(),
-            Some(caches.chr_classes_store.as_ref()),
-            Some(caches.power_type_store.as_ref()),
-            difficulty_id,
-            instance_id,
-            respawn_time,
-            true,
-            formation_info,
-            &mut random,
-        );
-    let (template, resolved_spawn, runtime_selection) = match inputs {
-        Ok(inputs) => inputs,
-        Err(error) => {
-            debug!(
-                ?error,
-                spawn_id,
-                entry = spawn.id,
-                "C++ loaded-grid Creature DoRespawn blocked: failed to compose DB-backed LoadFromDB inputs"
-            );
-            return None;
-        }
-    };
-
-    let low = match map.generate_low_guid_like_cpp(HighGuid::Creature) {
-        Ok(low) => low,
-        Err(error) => {
-            debug!(
-                ?error,
-                spawn_id,
-                entry = spawn.id,
-                "C++ loaded-grid Creature DoRespawn blocked: map-owned Creature low-guid generation failed"
-            );
-            return None;
-        }
-    };
-    let mut template = template;
-    creature_addon_provenance::resolve_addon_visuals_like_cpp(
-        template.addon.as_mut(),
-        caches.spell_x_spell_visual_store.as_ref(),
-        difficulty_id,
-    );
-    template.sparring_health_pct = caches
-        .sparring_store
-        .values_for_entry_like_cpp(template.entry)
-        .and_then(|values| {
-            if values.is_empty() {
-                None
-            } else {
-                let max = u32::try_from(values.len().saturating_sub(1)).unwrap_or(0);
-                let index = map.urand_inclusive_like_cpp(0, max) as usize;
-                values.get(index).copied()
-            }
-        });
-    if let Some(vehicle_id) = template.vehicle_id {
-        if let Some(vehicle_entry) = caches.vehicle_store.get(vehicle_id) {
-            template.vehicle_kit_create_input = Some(wow_entities::VehicleKitCreateInputLikeCpp {
-                vehicle_id,
-                creature_entry: template.entry,
-                loading: true,
-                seat_defs: caches
-                    .vehicle_seat_store
-                    .seat_defs_for_vehicle_like_cpp(vehicle_entry),
-            });
-            template.add_to_world_vehicle_reset_context =
-                Some(wow_entities::CreatureAddToWorldVehicleResetContextLikeCpp {
-                    is_mechanical_creature: template.creature_type
-                        == CREATURE_TYPE_MECHANICAL_LIKE_CPP,
-                    is_world_boss: template.type_flags & CREATURE_TYPE_FLAG_BOSS_MOB_LIKE_CPP != 0,
-                    accessories: caches
-                        .vehicle_accessory_store
-                        .accessories_for_vehicle_like_cpp(Some(spawn_id), template.entry)
-                        .map(ToOwned::to_owned)
-                        .unwrap_or_default(),
-                });
-        }
-    }
-
-    let map_object_high = if template.vehicle_id.is_some() {
-        HighGuid::Vehicle
-    } else {
-        HighGuid::Creature
-    };
-    let map_object_guid = match map_object_high {
-        HighGuid::Vehicle => {
-            ObjectGuid::create_vehicle_like_cpp(caches.realm_id, map_id, template.entry, low)
-        }
-        HighGuid::Creature => {
-            ObjectGuid::create_creature_like_cpp(caches.realm_id, map_id, template.entry, low)
-        }
-        _ => unreachable!("loaded-grid creature records only create Creature or Vehicle GUIDs"),
-    };
-    let resolver = creature_loaded_grid::CreatureLoadedGridLifecycleResolverLikeCpp::new(
-        [template],
-        [resolved_spawn],
-        [(spawn.id, runtime_selection)],
-    );
-    creature_addon_provenance::settle_resolved_loaded_grid_creature_like_cpp(
+    build_creature_records_with_respawn_time(
         map,
-        resolver.resolve_loaded_grid_creature_like_cpp(spawn_id, map_object_guid),
+        object_type,
         spawn_id,
-        spawn.id,
-        map_object_guid,
-    )
+        canonical_spawn_metadata,
+        caches,
+        respawn_time,
+    ).ok().flatten()
 }
 
 pub(crate) fn build_loaded_grid_gameobject_respawn_record_like_cpp(
@@ -1234,6 +728,8 @@ pub(crate) fn spawn_group_ready_check_tick_loop(
 }
 
 mod update_loop;
+mod producer_exit;
+pub(crate) use producer_exit::{CanonicalMapProducerExit, stop_canonical_map_producer};
 pub(crate) use update_loop::spawn_canonical_map_update_loop;
 
 #[cfg(test)]

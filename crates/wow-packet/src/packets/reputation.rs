@@ -7,10 +7,9 @@
 
 use wow_constants::{ClientOpcodes, ServerOpcodes};
 
-use crate::{ClientPacket, PacketError, ServerPacket, WorldPacket};
+pub use wow_constants::reputation::FACTION_COUNT_LIKE_CPP;
 
-/// C++ `WorldPackets::Reputation::FactionCount`.
-pub const FACTION_COUNT_LIKE_CPP: usize = 1000;
+use crate::{ClientPacket, PacketError, ServerPacket, WorldPacket};
 
 /// SMSG_INITIALIZE_FACTIONS.
 ///

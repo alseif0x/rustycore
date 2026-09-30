@@ -6,10 +6,10 @@ pub mod path_generator;
 pub mod spline;
 
 pub use defines::{
-    CONTACT_DISTANCE_LIKE_CPP, ChaseAngle, ChaseRange, JumpArrivalCastArgs, JumpChargeParams,
-    JumpChargeSpec, MovementWalkRunSpeedSelectionMode, RotateDirection,
-    normalize_orientation_like_cpp,
+    CONTACT_DISTANCE_LIKE_CPP, ChaseAngle, ChaseRange, JumpArrivalCastArgs,
+    MovementWalkRunSpeedSelectionMode, RotateDirection, normalize_orientation_like_cpp,
 };
+pub use wow_data_model::jump_charge::{JumpChargeParams, JumpChargeSpec};
 pub use generator::{
     MovementGenerator, MovementGeneratorFlags, MovementGeneratorMode, MovementGeneratorPriority,
     MovementGeneratorState, MovementGeneratorType, MovementSlot,

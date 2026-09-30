@@ -253,6 +253,21 @@ impl MapUpdater {
         debug_assert_eq!(self.pending_requests, 0);
     }
 
+    pub(super) fn begin_staged_object_map(&mut self) -> bool {
+        if !self.activated() {
+            return false;
+        }
+        self.pending_requests += 1;
+        self.scheduled_updates += 1;
+        true
+    }
+
+    pub(super) fn finish_staged_object_map(&mut self, accounting_started: bool) {
+        if accounting_started {
+            self.update_finished();
+        }
+    }
+
     pub const fn scheduled_updates(&self) -> usize {
         self.scheduled_updates
     }

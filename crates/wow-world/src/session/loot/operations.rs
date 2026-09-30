@@ -19,399 +19,6 @@ impl WorldSession {
             &mut self.driver.represented_runtime_rng_like_cpp,
         )
     }
-    pub(crate) fn canonical_gameobject_is_fully_looted_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-    ) -> Option<bool> {
-        self.mutate_canonical_gameobject_by_guid_like_cpp(guid, |gameobject| {
-            gameobject.is_fully_looted_like_cpp()
-        })
-    }
-    pub(crate) fn set_canonical_gameobject_loot_state_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        state: wow_entities::LootState,
-        unit_guid: Option<ObjectGuid>,
-        chest_restock_time_secs: u32,
-        shared_loot_is_changed_like_cpp: bool,
-    ) -> Option<wow_map::map::GameObjectSetLootStateOutcomeLikeCpp> {
-        let map_key = self
-            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
-        let game_time_secs = i64::try_from(wow_core::GameTime::now().as_secs()).unwrap_or(i64::MAX);
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
-        let mut manager = manager.lock().ok()?;
-        let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
-        Some(managed.map_mut().set_gameobject_loot_state_like_cpp(
-            guid,
-            state,
-            unit_guid,
-            game_time_secs,
-            chest_restock_time_secs,
-            shared_loot_is_changed_like_cpp,
-        ))
-    }
-    /// Applies the global fully-looted transition only if the exact authority
-    /// generation and pool topology observed by `DoLootRelease` are still
-    /// current. The canonical map lock is acquired before the authority lock,
-    /// matching personal-loot upsert order and making check+state mutation one
-    /// C++-serialized operation.
-    pub(crate) fn set_canonical_gameobject_loot_state_if_fully_looted_observation_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        authority: &OwnedLootAuthority,
-        object_generation: u64,
-        lifecycle_revision: u64,
-        state: wow_entities::LootState,
-        unit_guid: Option<ObjectGuid>,
-        chest_restock_time_secs: u32,
-        shared_loot_is_changed_like_cpp: bool,
-    ) -> Option<wow_map::map::GameObjectSetLootStateOutcomeLikeCpp> {
-        let map_key = self
-            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
-        let game_time_secs = i64::try_from(wow_core::GameTime::now().as_secs()).unwrap_or(i64::MAX);
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
-        let mut manager = manager.lock().ok()?;
-        let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
-        let object_authority = managed
-            .map()
-            .get_typed_game_object(guid)?
-            .loot_authority_like_cpp()
-            .clone();
-        if !object_authority.shares_storage_like_cpp(authority) {
-            return None;
-        }
-
-        authority.with_fully_looted_lifecycle_observation_like_cpp(
-            object_generation,
-            lifecycle_revision,
-            || {
-                managed.map_mut().set_gameobject_loot_state_like_cpp(
-                    guid,
-                    state,
-                    unit_guid,
-                    game_time_secs,
-                    chest_restock_time_secs,
-                    shared_loot_is_changed_like_cpp,
-                )
-            },
-        )
-    }
-    /// Detached durable-claim completion may transition the object only when
-    /// no client still has any shared or personal loot pool open. The final
-    /// viewer check and map mutation are serialized under the authority lock.
-    pub(crate) fn set_canonical_gameobject_loot_state_if_unviewed_fully_looted_observation_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        authority: &OwnedLootAuthority,
-        object_generation: u64,
-        lifecycle_revision: u64,
-        state: wow_entities::LootState,
-        unit_guid: Option<ObjectGuid>,
-        chest_restock_time_secs: u32,
-        shared_loot_is_changed_like_cpp: bool,
-    ) -> Option<wow_map::map::GameObjectSetLootStateOutcomeLikeCpp> {
-        let map_key = self
-            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
-        let game_time_secs = i64::try_from(wow_core::GameTime::now().as_secs()).unwrap_or(i64::MAX);
-        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
-        let mut manager = manager.lock().ok()?;
-        let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
-        let object_authority = managed
-            .map()
-            .get_typed_game_object(guid)?
-            .loot_authority_like_cpp()
-            .clone();
-        if !object_authority.shares_storage_like_cpp(authority) {
-            return None;
-        }
-
-        authority.with_unviewed_fully_looted_lifecycle_observation_like_cpp(
-            object_generation,
-            lifecycle_revision,
-            || {
-                managed.map_mut().set_gameobject_loot_state_like_cpp(
-                    guid,
-                    state,
-                    unit_guid,
-                    game_time_secs,
-                    chest_restock_time_secs,
-                    shared_loot_is_changed_like_cpp,
-                )
-            },
-        )
-    }
-    pub(in crate::session) fn represented_gameobject_loot_ids_have_quest_loot_like_cpp(
-        &self,
-        loot_ids: impl IntoIterator<Item = u32>,
-    ) -> bool {
-        let Some(stores) = self.loot_stores.as_ref() else {
-            return false;
-        };
-        let Some(store) = stores.get(&LootStoreKind::Gameobject) else {
-            return false;
-        };
-        loot_ids
-            .into_iter()
-            .filter(|id| *id != 0)
-            .any(|loot_id| store.have_quest_loot_for_like_cpp(loot_id, stores.as_ref()))
-    }
-    pub(in crate::session) fn represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp(
-        &self,
-        loot_ids: impl IntoIterator<Item = u32>,
-    ) -> bool {
-        let Some(stores) = self.loot_stores.as_ref() else {
-            return false;
-        };
-        let Some(store) = stores.get(&LootStoreKind::Gameobject) else {
-            return false;
-        };
-        loot_ids.into_iter().filter(|id| *id != 0).any(|loot_id| {
-            store.have_quest_loot_for_player_like_cpp(loot_id, stores.as_ref(), |item_id| {
-                self.represented_player_has_quest_for_loot_item_like_cpp(item_id)
-            })
-        })
-    }
-    pub(crate) fn read_legacy_creature_loot_authority_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) -> Option<OwnedLootAuthority> {
-        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        self.read_legacy_creature_loot_authority_on_map_like_cpp(
-            guid,
-            wow_map::MapKey::new(u32::from(map_id), instance_id),
-        )
-    }
-    pub(crate) fn read_legacy_creature_loot_authority_on_map_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        map_key: wow_map::MapKey,
-    ) -> Option<OwnedLootAuthority> {
-        let map_id = u16::try_from(map_key.map_id).ok()?;
-        let manager = self.map_manager.as_ref()?;
-        manager
-            .read()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .find_creature(map_id, map_key.instance_id, guid)
-            .map(|world_creature| world_creature.creature.loot_authority_like_cpp().clone())
-    }
-    pub(crate) fn rebind_legacy_creature_loot_authority_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        expected: &OwnedLootAuthority,
-        expected_stamp: OwnedLootAuthorityStamp,
-        authority: OwnedLootAuthority,
-    ) -> Option<bool> {
-        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        self.rebind_legacy_creature_loot_authority_on_map_like_cpp(
-            guid,
-            wow_map::MapKey::new(u32::from(map_id), instance_id),
-            expected,
-            expected_stamp,
-            authority,
-        )
-    }
-    pub(crate) fn rebind_legacy_creature_loot_authority_on_map_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        map_key: wow_map::MapKey,
-        expected: &OwnedLootAuthority,
-        expected_stamp: OwnedLootAuthorityStamp,
-        authority: OwnedLootAuthority,
-    ) -> Option<bool> {
-        let map_id = u16::try_from(map_key.map_id).ok()?;
-        let manager = self.map_manager.as_ref()?;
-        manager
-            .write()
-            .unwrap_or_else(|poisoned| poisoned.into_inner())
-            .find_creature_mut(map_id, map_key.instance_id, guid)
-            .and_then(|world_creature| {
-                world_creature
-                    .creature
-                    .rebind_loot_authority_if_current_like_cpp(expected, expected_stamp, authority)
-            })
-    }
-    pub(crate) fn read_canonical_creature_loot_authority_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) -> Option<OwnedLootAuthority> {
-        let map_key = self
-            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
-        self.read_canonical_creature_loot_authority_on_map_like_cpp(guid, map_key)
-    }
-    pub(crate) fn read_canonical_creature_loot_authority_on_map_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        map_key: wow_map::MapKey,
-    ) -> Option<OwnedLootAuthority> {
-        let manager = self.canonical_map_manager.as_ref()?;
-        let manager = manager.lock().ok()?;
-        manager
-            .find_map(map_key.map_id, map_key.instance_id)?
-            .map()
-            .with_creature_like_cpp(guid, |creature| creature.loot_authority_like_cpp().clone())
-    }
-    pub(crate) fn rebind_canonical_creature_loot_authority_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        expected: &OwnedLootAuthority,
-        expected_stamp: OwnedLootAuthorityStamp,
-        authority: OwnedLootAuthority,
-    ) -> Option<bool> {
-        let map_key = self
-            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
-        self.rebind_canonical_creature_loot_authority_on_map_like_cpp(
-            guid,
-            map_key,
-            expected,
-            expected_stamp,
-            authority,
-        )
-    }
-    pub(crate) fn rebind_canonical_creature_loot_authority_on_map_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        map_key: wow_map::MapKey,
-        expected: &OwnedLootAuthority,
-        expected_stamp: OwnedLootAuthorityStamp,
-        authority: OwnedLootAuthority,
-    ) -> Option<bool> {
-        let manager = self.canonical_map_manager.as_ref()?;
-        let mut manager = manager.lock().ok()?;
-        manager
-            .find_map_mut(map_key.map_id, map_key.instance_id)?
-            .map_mut()
-            .get_typed_creature_mut(guid)
-            .and_then(|creature| {
-                creature.rebind_loot_authority_if_current_like_cpp(
-                    expected,
-                    expected_stamp,
-                    authority,
-                )
-            })
-    }
-    pub(crate) fn read_canonical_gameobject_loot_authority_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) -> Option<OwnedLootAuthority> {
-        let map_key = self
-            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
-        self.read_canonical_gameobject_loot_authority_on_map_like_cpp(guid, map_key)
-    }
-    pub(crate) fn read_canonical_gameobject_loot_authority_on_map_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        map_key: wow_map::MapKey,
-    ) -> Option<OwnedLootAuthority> {
-        let manager = self.canonical_map_manager.as_ref()?;
-        let manager = manager.lock().ok()?;
-        manager
-            .find_map(map_key.map_id, map_key.instance_id)?
-            .map()
-            .get_typed_game_object(guid)
-            .map(|gameobject| gameobject.loot_authority_like_cpp().clone())
-    }
-    pub(crate) fn rebind_canonical_gameobject_loot_authority_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        expected: &OwnedLootAuthority,
-        expected_stamp: OwnedLootAuthorityStamp,
-        authority: OwnedLootAuthority,
-    ) -> Option<bool> {
-        let map_key = self
-            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
-        let manager = self.canonical_map_manager.as_ref()?;
-        let mut manager = manager.lock().ok()?;
-        manager
-            .find_map_mut(map_key.map_id, map_key.instance_id)?
-            .map_mut()
-            .get_typed_game_object_mut(guid)
-            .and_then(|gameobject| {
-                gameobject.rebind_loot_authority_if_current_like_cpp(
-                    expected,
-                    expected_stamp,
-                    authority,
-                )
-            })
-    }
-    pub(crate) fn mutate_world_creature_if_fully_looted_observation_like_cpp<F, R>(
-        &mut self,
-        guid: ObjectGuid,
-        authority: &OwnedLootAuthority,
-        object_generation: u64,
-        lifecycle_revision: u64,
-        f: F,
-    ) -> Option<R>
-    where
-        F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
-    {
-        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        let manager = self.map_manager.as_ref().cloned()?;
-        let guarded_result = {
-            let mut manager = manager
-                .write()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            let creature = manager.find_creature_mut(map_id, instance_id, guid)?;
-            if !creature
-                .creature
-                .loot_authority_like_cpp()
-                .shares_storage_like_cpp(authority)
-            {
-                return None;
-            }
-            authority.with_fully_looted_lifecycle_observation_like_cpp(
-                object_generation,
-                lifecycle_revision,
-                || {
-                    let result = f(creature);
-                    (result, creature.creature.clone())
-                },
-            )
-        }?;
-        let (result, creature) = guarded_result;
-        self.sync_canonical_creature_entity_like_cpp(creature);
-        Some(result)
-    }
-    /// Detached durable-claim completion variant of the guarded creature
-    /// mutation. It additionally requires every authoritative loot viewer set
-    /// to remain empty through the map mutation.
-    pub(crate) fn mutate_world_creature_if_unviewed_fully_looted_observation_like_cpp<F, R>(
-        &mut self,
-        guid: ObjectGuid,
-        authority: &OwnedLootAuthority,
-        object_generation: u64,
-        lifecycle_revision: u64,
-        f: F,
-    ) -> Option<R>
-    where
-        F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
-    {
-        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        let manager = self.map_manager.as_ref().cloned()?;
-        let guarded_result = {
-            let mut manager = manager
-                .write()
-                .unwrap_or_else(|poisoned| poisoned.into_inner());
-            let creature = manager.find_creature_mut(map_id, instance_id, guid)?;
-            if !creature
-                .creature
-                .loot_authority_like_cpp()
-                .shares_storage_like_cpp(authority)
-            {
-                return None;
-            }
-            authority.with_unviewed_fully_looted_lifecycle_observation_like_cpp(
-                object_generation,
-                lifecycle_revision,
-                || {
-                    let result = f(creature);
-                    (result, creature.creature.clone())
-                },
-            )
-        }?;
-        let (result, creature) = guarded_result;
-        self.sync_canonical_creature_entity_like_cpp(creature);
-        Some(result)
-    }
     pub fn set_group_loot_money_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>,
@@ -443,44 +50,40 @@ impl WorldSession {
         self.loot_drop_rates
     }
     pub(crate) fn set_active_loot_guid(&mut self, guid: ObjectGuid) {
-        self.active_loot_guid = ObjectGuid::EMPTY;
-        self.active_loot_view_owners.clear();
-        self.active_loot_view_generations_like_cpp.clear();
-        self.active_loot_view_authorities_like_cpp.clear();
-        self.add_active_loot_view_owner_like_cpp(guid);
+        self.loot_views.set_primary(guid);
+        if guid.is_empty() {
+            return;
+        }
+        if let Some(generation) = self
+            .represented_loot_cache_generations_like_cpp
+            .get(&guid)
+            .copied()
+        {
+            self.loot_views.record_generation(guid, generation);
+        }
     }
     pub(crate) fn has_active_loot_views_like_cpp(&self) -> bool {
-        !self.active_loot_guid.is_empty() || !self.active_loot_view_owners.is_empty()
+        self.loot_views.has_views()
     }
     pub(crate) fn add_active_loot_view_owner_like_cpp(&mut self, guid: ObjectGuid) {
         if guid.is_empty() {
             return;
         }
 
-        if self.active_loot_guid.is_empty() {
-            self.active_loot_guid = guid;
-        }
-
-        self.active_loot_view_owners.insert(guid);
+        self.loot_views.add_owner(guid);
         if let Some(generation) = self
             .represented_loot_cache_generations_like_cpp
             .get(&guid)
             .copied()
         {
-            self.active_loot_view_generations_like_cpp
-                .insert(guid, generation);
+            self.loot_views.record_generation(guid, generation);
         }
     }
     pub(crate) fn clear_active_loot_guid_if(&mut self, guid: ObjectGuid) {
-        self.active_loot_view_owners.remove(&guid);
-        self.active_loot_view_generations_like_cpp.remove(&guid);
-        self.active_loot_view_authorities_like_cpp.remove(&guid);
-        if self.active_loot_guid == guid {
-            self.active_loot_guid = ObjectGuid::EMPTY;
-        }
+        self.loot_views.remove_owner(guid);
     }
     pub(crate) fn is_active_loot_guid(&self, guid: ObjectGuid) -> bool {
-        !guid.is_empty() && self.active_loot_guid == guid
+        self.loot_views.is_primary(guid)
     }
     /// Set the C++ LootTemplates_* foundation stores for this session.
     pub fn set_loot_stores(&mut self, stores: Arc<LootStores>) {
@@ -576,6 +179,16 @@ impl WorldSession {
         &self,
         creature_guid: wow_core::ObjectGuid,
     ) -> Option<bool> {
+        match self.capture_creature_loot_owner(creature_guid) {
+            wow_map::manager::CreatureLootAccess::Rejected(_) => return None,
+            wow_map::manager::CreatureLootAccess::Ready(handle) => {
+                let mut manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+                return match manager.idle_creature_has_loot_recipient(&handle) {
+                    wow_map::manager::CreatureLootAccess::Ready(value) => Some(value), _ => None,
+                };
+            }
+            wow_map::manager::CreatureLootAccess::NoActor => {}
+        }
         if let Some(manager) = self.map_manager.as_ref() {
             let manager = manager
                 .read()

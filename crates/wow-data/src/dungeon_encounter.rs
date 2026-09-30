@@ -13,20 +13,7 @@ use tracing::info;
 
 use crate::wdc4::Wdc4Reader;
 
-/// C++ `DungeonEncounterEntry`.
-///
-/// The localized `Name` field is intentionally not loaded yet because current
-/// runtime parity only needs IDs, map/difficulty matching and lockout bit data.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct DungeonEncounterEntry {
-    pub id: u32,
-    pub map_id: i16,
-    pub difficulty_id: i32,
-    pub order_index: i32,
-    pub bit: i8,
-    pub flags: i32,
-    pub faction: i32,
-}
+pub use wow_data_model::dungeon_encounter::DungeonEncounterEntry;
 
 /// In-memory store for `DungeonEncounter.db2`.
 pub struct DungeonEncounterStore {

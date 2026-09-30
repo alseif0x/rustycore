@@ -62,7 +62,7 @@ impl WorldSession {
         &self,
         map_id: u16,
         position: &wow_core::Position,
-    ) -> Vec<crate::map_manager::WorldCreature> {
+    ) -> Vec<wow_map::CreatureVisibilityCandidate> {
         if self
             .current_canonical_player_map_key_like_cpp()
             .is_some_and(|key| key.map_id != u32::from(map_id))
@@ -89,7 +89,7 @@ impl WorldSession {
                 manager
                     .read()
                     .unwrap_or_else(|poisoned| poisoned.into_inner())
-                    .get_visible_creatures_in_phase(
+                    .get_visible_creature_facts_in_phase(
                         map_id,
                         instance_id,
                         position.x,
@@ -110,13 +110,13 @@ impl WorldSession {
                         wow_core::visibility_distance_allows_like_cpp(
                             position,
                             source_combat_reach,
-                            &creature.position(),
-                            creature.creature.unit().world().combat_reach(),
+                            &creature.create().position(),
+                            creature.create().world_combat_reach(),
                             visibility_range,
                         )
                     })
                     .filter(|creature| {
-                        self.represented_can_see_or_detect_world_creature_like_cpp(creature)
+                        self.represented_can_see_or_detect_creature_facts(creature)
                     })
                     .filter(|creature| seen.insert(creature.guid())),
             );
@@ -138,7 +138,7 @@ impl WorldSession {
         &self,
         map_id: u16,
         position: &wow_core::Position,
-    ) -> Option<Vec<crate::map_manager::WorldCreature>> {
+    ) -> Option<Vec<wow_map::CreatureVisibilityCandidate>> {
         let requested_map_id = u32::from(map_id);
         let player_map_key = self.current_canonical_player_map_key_like_cpp();
         let player_map_key = player_map_key?;
@@ -154,64 +154,24 @@ impl WorldSession {
         };
         let map = manager.find_map(player_map_key.map_id, player_map_key.instance_id)?;
         let visibility_range = self.player_map_visibility_range_like_cpp(map_id);
-        let nearby = map.map().nearby_cell_guids_like_cpp(
-            position.x,
-            position.y,
-            visibility_range + source_combat_reach,
+        let candidates = map.map().capture_compatible_creature_visibility(
+            position,
+            visibility_range,
+            source_combat_reach,
+            &player_phase_shift,
         );
-
-        let mut candidates = Vec::new();
-        for guid in nearby
-            .world
-            .creatures
-            .into_iter()
-            .chain(nearby.grid.creatures)
-        {
-            let Some(creature) = map
-                .map()
-                .with_creature_or_pet_like_cpp(guid, |creature, _owner| creature.clone())
-            else {
-                continue;
-            };
-            let world = creature.unit().world();
-            if !world.object().is_in_world()
-                || world.map_id() != requested_map_id
-                // C++ visibility is a horizontal (XY) range test: CanSeeOrDetect ->
-                // IsWithinDist(obj, GetSightRange, is3D=false) (Object.cpp:1587-1609).
-                // #NEXT.R8.ENTITIES.1223 — use 2D so vertically-separated objects (e.g. ICC
-                // layered floors) within horizontal range are not dropped.
-                || !wow_core::visibility_distance_allows_like_cpp(
-                    position,
-                    source_combat_reach,
-                    &world.position(),
-                    world.combat_reach(),
-                    visibility_range,
-                )
-                || !player_phase_shift.can_see(world.phase_shift())
-            {
-                continue;
-            }
-            candidates.push(creature.clone());
-        }
         drop(manager);
 
         self.with_owned_player_like_cpp(move |player| {
             candidates
                 .into_iter()
                 .filter(|creature| {
-                    player.unit().can_see_or_detect_unit_like_cpp(
-                        creature.unit(),
+                    player.unit().can_see_or_detect_target(
+                        creature.visibility_target(),
                         false,
                         true,
                         false,
                     )
-                })
-                .map(|creature| {
-                    let create_data =
-                        crate::map_manager::WorldCreature::create_data_from_canonical_like_cpp(
-                            &creature,
-                        );
-                    crate::map_manager::WorldCreature::from_canonical(creature, create_data)
                 })
                 .collect()
         })

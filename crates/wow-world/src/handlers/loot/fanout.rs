@@ -280,8 +280,7 @@ impl WorldSession {
         if !stale_looters.is_empty()
             && let Some(loot) = self.loot_table.get_mut(&owner_guid)
         {
-            loot.players_looting
-                .retain(|looter| !stale_looters.contains(looter));
+            loot.remove_viewers(&stale_looters);
         }
         if !stale_looters.is_empty() {
             if let Some(authority) = authority {

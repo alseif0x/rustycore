@@ -271,7 +271,7 @@ fn map_manager_transport_update_visits_live_transport_like_cpp() {
     let transport = managed_map
         .map()
         .map_object_record(transport_guid)
-        .and_then(MapObjectRecord::transport)
+        .and_then(|record| record.transport())
         .unwrap();
     assert_eq!(transport.path_progress_ms(), 101);
 }
@@ -301,7 +301,7 @@ fn map_manager_transport_update_visits_not_in_world_transport_like_cpp() {
     let transport = managed_map
         .map()
         .map_object_record(transport_guid)
-        .and_then(MapObjectRecord::transport)
+        .and_then(|record| record.transport())
         .unwrap();
     assert_eq!(transport.path_progress_ms(), 101);
 }

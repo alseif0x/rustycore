@@ -281,12 +281,30 @@ impl WorldSession {
         owner_guid: ObjectGuid,
         scope_player: ObjectGuid,
     ) -> Option<OwnedLootAuthority> {
+        self.prepare_active_loot_authority_with_policy(owner_guid, scope_player, LootCyclePolicy::Production)
+    }
+
+    pub(super) fn prepare_active_loot_authority_with_policy(
+        &mut self,
+        owner_guid: ObjectGuid,
+        scope_player: ObjectGuid,
+        policy: LootCyclePolicy,
+    ) -> Option<OwnedLootAuthority> {
+        self.prepare_loot_authority_operation(owner_guid, scope_player, policy.operation_policy())
+    }
+
+    pub(in crate::handlers::loot) fn prepare_loot_authority_operation(
+        &mut self,
+        owner_guid: ObjectGuid,
+        scope_player: ObjectGuid,
+        policy: LootOperationPolicy,
+    ) -> Option<OwnedLootAuthority> {
         let authority = self.represented_owned_loot_authority_like_cpp(owner_guid)?;
-        let can_install_first_generation = represented_local_loot_fixture_allowed_like_cpp()
+        let can_install_first_generation = policy.permits_initial_binding()
             && authority.is_retired_like_cpp()
             && authority.generation_like_cpp() == 0
             && self.loot_table.contains_key(&owner_guid)
-            && (self.active_loot_view_owners.contains(&owner_guid)
+            && (self.loot_views.contains_owner(&owner_guid)
                 || self.is_active_loot_guid(owner_guid));
         if !can_install_first_generation {
             return Some(authority);
@@ -294,7 +312,7 @@ impl WorldSession {
 
         if owner_guid.is_game_object() {
             let _ = self
-                .sync_represented_gameobject_loot_to_canonical_like_cpp(owner_guid, scope_player);
+                .sync_gameobject_loot_operation(owner_guid, scope_player, policy);
         } else if owner_guid.is_creature_or_vehicle() {
             let _ =
                 self.sync_represented_creature_loot_to_canonical_like_cpp(owner_guid, scope_player);
@@ -302,12 +320,8 @@ impl WorldSession {
 
         let authority = self.represented_owned_loot_authority_like_cpp(owner_guid)?;
         if let Some(snapshot) = authority.snapshot_for_player_like_cpp(scope_player) {
-            self.active_loot_view_generations_like_cpp
-                .entry(owner_guid)
-                .or_insert(snapshot.generation);
-            self.active_loot_view_authorities_like_cpp
-                .entry(owner_guid)
-                .or_insert_with(|| authority.clone());
+            self.loot_views
+                .bootstrap_binding(owner_guid, snapshot.generation, &authority);
         }
         Some(authority)
     }
@@ -382,13 +396,7 @@ impl WorldSession {
         owner_guid: ObjectGuid,
         claim: &LootClaimLease,
     ) -> bool {
-        self.active_loot_view_authorities_like_cpp
-            .get(&owner_guid)
-            .is_some_and(|opened| claim.shares_authority_like_cpp(opened))
-            && self
-                .active_loot_view_generations_like_cpp
-                .get(&owner_guid)
-                .is_some_and(|opened| *opened == claim.generation_like_cpp())
+        self.loot_views.matches_claim(owner_guid, claim)
     }
 
     #[cfg(test)]

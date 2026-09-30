@@ -3,6 +3,13 @@
 //! Separated from the lib.rs root under #658.
 
 use super::*;
+use std::collections::HashMap;
+
+fn encounter_store(
+    entries: impl IntoIterator<Item = DungeonEncounterEntry>,
+) -> HashMap<u32, DungeonEncounterEntry> {
+    entries.into_iter().map(|entry| (entry.id, entry)).collect()
+}
 
 fn player(counter: i64) -> ObjectGuid {
     ObjectGuid::new(0x10, counter)

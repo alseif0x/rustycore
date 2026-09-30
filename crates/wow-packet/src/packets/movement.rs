@@ -11,10 +11,6 @@
 use wow_constants::movement::{MovementFlag, MovementFlag2, MovementFlags3};
 use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::{ObjectGuid, Position};
-use wow_movement::{
-    AnimTierTransition as MoveAnimTierTransition, MonsterMoveType, MoveSpline, MoveSplineFlag,
-    SpellEffectExtraData as MoveSpellEffectExtraData,
-};
 
 use crate::world_packet::{PacketError, WorldPacket};
 use crate::{ClientPacket, ServerPacket};

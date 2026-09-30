@@ -43,7 +43,7 @@ fn initialize_factions_packet_like_cpp_uses_rep_list_indices_and_clears_need_sen
     state.need_send = true;
     mgr.insert_state_for_test_like_cpp(state);
 
-    let packet = mgr.initialize_factions_packet_like_cpp();
+    let packet = mgr.initialize_factions_state_like_cpp();
 
     assert_eq!(
         packet.faction_flags[4],
@@ -69,18 +69,18 @@ fn set_faction_standing_packet_like_cpp_matches_send_state_order_and_clears_flag
     mgr.insert_state_for_test_like_cpp(secondary);
     mgr.set_send_faction_increased_like_cpp(true);
 
-    let packet = mgr.set_faction_standing_packet_like_cpp(Some(4));
+    let packet = mgr.faction_standing_update_like_cpp(Some(4));
 
     assert_eq!(packet.bonus_from_achievement_system, 0.0);
     assert!(packet.show_visual);
     assert_eq!(
         packet.faction,
         vec![
-            FactionStandingDataPacketLikeCpp {
+            FactionStandingStateLikeCpp {
                 index: 4,
                 standing: 100,
             },
-            FactionStandingDataPacketLikeCpp {
+            FactionStandingStateLikeCpp {
                 index: 7,
                 standing: 25,
             },
@@ -97,16 +97,16 @@ fn set_forced_reactions_packet_like_cpp_matches_cpp_map_order() {
     mgr.apply_force_reaction_like_cpp(930, ReputationRankLikeCpp::Hated, true);
     mgr.apply_force_reaction_like_cpp(72, ReputationRankLikeCpp::Exalted, true);
 
-    let packet = mgr.set_forced_reactions_packet_like_cpp();
+    let packet = mgr.forced_reactions_state_like_cpp();
 
     assert_eq!(
         packet.reactions,
         vec![
-            ForcedReactionPacketLikeCpp {
+            ForcedReactionStateLikeCpp {
                 faction: 72,
                 reaction: 7,
             },
-            ForcedReactionPacketLikeCpp {
+            ForcedReactionStateLikeCpp {
                 faction: 930,
                 reaction: 0,
             },
@@ -163,10 +163,10 @@ fn initialize_like_cpp_creates_state_for_reputation_factions_only() {
     visible.reputation_race_mask[0] = 1;
     visible.reputation_flags[0] = ReputationFlagsLikeCpp::VISIBLE.bits();
     let hidden = FactionEntry::for_test_like_cpp(73, -1);
-    let faction_store = FactionStore::from_entries([visible, hidden]);
+    let faction_store = TestReputationCatalogLikeCpp::from_factions([visible, hidden]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
 
-    mgr.initialize_like_cpp(&faction_store, None, 1, 1);
+    mgr.initialize_like_cpp(&faction_store, 1, 1);
 
     assert_eq!(mgr.factions().count(), 1);
     assert!(mgr.get_state(3).is_some());
@@ -185,10 +185,10 @@ fn initialize_like_cpp_selects_first_matching_race_class_slot() {
     faction.reputation_flags[1] =
         (ReputationFlagsLikeCpp::VISIBLE | ReputationFlagsLikeCpp::PEACEFUL).bits();
     faction.reputation_base[1] = 9_000;
-    let faction_store = FactionStore::from_entries([faction]);
+    let faction_store = TestReputationCatalogLikeCpp::from_factions([faction]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
 
-    mgr.initialize_like_cpp(&faction_store, None, 1, 1);
+    mgr.initialize_like_cpp(&faction_store, 1, 1);
 
     let state = mgr.get_state(5).expect("reputation state");
     assert_eq!(
@@ -206,10 +206,10 @@ fn initialize_like_cpp_uses_class_only_slot_when_race_mask_is_empty() {
     let mut faction = FactionEntry::for_test_like_cpp(77, 6);
     faction.reputation_class_mask[0] = 1 << 1;
     faction.reputation_flags[0] = ReputationFlagsLikeCpp::HIDDEN.bits();
-    let faction_store = FactionStore::from_entries([faction]);
+    let faction_store = TestReputationCatalogLikeCpp::from_factions([faction]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
 
-    mgr.initialize_like_cpp(&faction_store, None, 1, 2);
+    mgr.initialize_like_cpp(&faction_store, 1, 2);
 
     assert_eq!(
         mgr.get_state(6).map(|state| state.flags),
@@ -222,10 +222,10 @@ fn initialize_like_cpp_skips_rank_counters_for_friendship_factions() {
     let mut faction = FactionEntry::for_test_like_cpp(78, 7);
     faction.friendship_rep_id = 4;
     faction.reputation_base[0] = 42_000;
-    let faction_store = FactionStore::from_entries([faction]);
+    let faction_store = TestReputationCatalogLikeCpp::from_factions([faction]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
 
-    mgr.initialize_like_cpp(&faction_store, None, 1, 1);
+    mgr.initialize_like_cpp(&faction_store, 1, 1);
 
     assert_eq!(mgr.rank_counters().honored, 0);
     assert_eq!(mgr.rank_counters().revered, 0);
@@ -235,16 +235,16 @@ fn initialize_like_cpp_skips_rank_counters_for_friendship_factions() {
 #[test]
 fn initialize_like_cpp_adds_show_propagated_for_paragon_factions() {
     let faction = FactionEntry::for_test_like_cpp(79, 8);
-    let faction_store = FactionStore::from_entries([faction]);
-    let paragon_store = ParagonReputationStore::from_entries([ParagonReputationEntry {
-        id: 1,
-        faction_id: 79,
-        level_threshold: 10_000,
-        quest_id: 100,
-    }]);
+    let faction_store = TestReputationCatalogLikeCpp::from_factions([faction])
+        .with_paragon_entries([ParagonReputationEntry {
+            id: 1,
+            faction_id: 79,
+            level_threshold: 10_000,
+            quest_id: 100,
+        }]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
 
-    mgr.initialize_like_cpp(&faction_store, Some(&paragon_store), 1, 1);
+    mgr.initialize_like_cpp(&faction_store, 1, 1);
 
     assert_eq!(
         mgr.get_state(8).map(|state| state.flags),
@@ -255,13 +255,14 @@ fn initialize_like_cpp_adds_show_propagated_for_paragon_factions() {
 #[test]
 fn reputation_to_rank_like_cpp_uses_stock_thresholds_without_friendship_reactions() {
     let faction = FactionEntry::for_test_like_cpp(80, 9);
+    let catalogs = TestReputationCatalogLikeCpp::default();
 
     assert_eq!(
-        reputation_to_rank_like_cpp(&faction, 8_999, None),
+        reputation_to_rank_like_cpp(&faction, 8_999, &catalogs),
         ReputationRankLikeCpp::Friendly
     );
     assert_eq!(
-        reputation_to_rank_like_cpp(&faction, 9_000, None),
+        reputation_to_rank_like_cpp(&faction, 9_000, &catalogs),
         ReputationRankLikeCpp::Honored
     );
 }
@@ -270,7 +271,7 @@ fn reputation_to_rank_like_cpp_uses_stock_thresholds_without_friendship_reaction
 fn reputation_to_rank_like_cpp_uses_friendship_thresholds_ordered_by_reaction_threshold() {
     let mut faction = FactionEntry::for_test_like_cpp(81, 10);
     faction.friendship_rep_id = 7;
-    let store = FriendshipRepReactionStore::from_entries([
+    let catalogs = TestReputationCatalogLikeCpp::default().with_friendship_reactions([
         FriendshipRepReactionEntry {
             id: 3,
             reaction: "three".to_string(),
@@ -298,15 +299,15 @@ fn reputation_to_rank_like_cpp_uses_friendship_thresholds_ordered_by_reaction_th
     ]);
 
     assert_eq!(
-        reputation_to_rank_like_cpp(&faction, 199, Some(&store)),
+        reputation_to_rank_like_cpp(&faction, 199, &catalogs),
         ReputationRankLikeCpp::Hated
     );
     assert_eq!(
-        reputation_to_rank_like_cpp(&faction, 200, Some(&store)),
+        reputation_to_rank_like_cpp(&faction, 200, &catalogs),
         ReputationRankLikeCpp::Hostile
     );
     assert_eq!(
-        reputation_to_rank_like_cpp(&faction, 300, Some(&store)),
+        reputation_to_rank_like_cpp(&faction, 300, &catalogs),
         ReputationRankLikeCpp::Unfriendly
     );
 }
@@ -315,10 +316,29 @@ fn reputation_to_rank_like_cpp_uses_friendship_thresholds_ordered_by_reaction_th
 fn reputation_to_rank_like_cpp_falls_back_when_friendship_store_is_missing() {
     let mut faction = FactionEntry::for_test_like_cpp(82, 11);
     faction.friendship_rep_id = 9;
+    let catalogs = TestReputationCatalogLikeCpp::default();
 
     assert_eq!(
-        reputation_to_rank_like_cpp(&faction, 21_000, None),
+        reputation_to_rank_like_cpp(&faction, 21_000, &catalogs),
         ReputationRankLikeCpp::Revered
+    );
+}
+
+#[test]
+fn reputation_to_rank_like_cpp_preserves_present_empty_friendship_store() {
+    let mut faction = FactionEntry::for_test_like_cpp(87, 16);
+    faction.friendship_rep_id = 10;
+    let absent = TestReputationCatalogLikeCpp::default();
+    let present_empty =
+        TestReputationCatalogLikeCpp::default().with_friendship_reactions([]);
+
+    assert_eq!(
+        reputation_to_rank_like_cpp(&faction, 0, &absent),
+        ReputationRankLikeCpp::Neutral
+    );
+    assert_eq!(
+        reputation_to_rank_like_cpp(&faction, 0, &present_empty),
+        ReputationRankLikeCpp::Hated
     );
 }
 
@@ -328,7 +348,7 @@ fn load_from_db_like_cpp_merges_standing_flags_and_clears_clean_rows() {
     faction.reputation_race_mask[0] = 1;
     faction.reputation_flags[0] = ReputationFlagsLikeCpp::VISIBLE.bits();
     faction.reputation_base[0] = 3_000;
-    let faction_store = FactionStore::from_entries([faction]);
+    let faction_store = TestReputationCatalogLikeCpp::from_factions([faction]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
 
     mgr.load_from_db_like_cpp(
@@ -338,8 +358,6 @@ fn load_from_db_like_cpp_merges_standing_flags_and_clears_clean_rows() {
             flags: ReputationFlagsLikeCpp::VISIBLE.bits(),
         }],
         &faction_store,
-        None,
-        None,
         1,
         1,
     );
@@ -358,7 +376,7 @@ fn load_from_db_like_cpp_applies_hostile_at_war_even_when_db_flag_is_clear() {
     let mut faction = FactionEntry::for_test_like_cpp(84, 13);
     faction.reputation_race_mask[0] = 1;
     faction.reputation_flags[0] = ReputationFlagsLikeCpp::VISIBLE.bits();
-    let faction_store = FactionStore::from_entries([faction]);
+    let faction_store = TestReputationCatalogLikeCpp::from_factions([faction]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
 
     mgr.load_from_db_like_cpp(
@@ -368,8 +386,6 @@ fn load_from_db_like_cpp_applies_hostile_at_war_even_when_db_flag_is_clear() {
             flags: ReputationFlagsLikeCpp::VISIBLE.bits(),
         }],
         &faction_store,
-        None,
-        None,
         1,
         1,
     );
@@ -438,12 +454,12 @@ fn set_one_faction_reputation_like_cpp_applies_incremental_rate_and_marks_visibl
     let mut faction = FactionEntry::for_test_like_cpp(86, 15);
     faction.reputation_race_mask[0] = 1;
     faction.reputation_max[0] = 42_000;
-    let faction_store = FactionStore::from_entries([faction.clone()]);
+    let faction_store = TestReputationCatalogLikeCpp::from_factions([faction.clone()]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
-    mgr.initialize_like_cpp(&faction_store, None, 1, 1);
+    mgr.initialize_like_cpp(&faction_store, 1, 1);
 
     let outcome = mgr.set_one_faction_reputation_like_cpp(
-        &faction, 4_000, true, 1.5, None, None, true, None, 0, 0, 1, 1,
+        &faction, 4_000, true, 1.5, &faction_store, true, 0, 0, 1, 1,
     );
 
     assert!(outcome.applied);
@@ -464,9 +480,9 @@ fn set_reputation_like_cpp_applies_reputation_gain_rate_to_primary_incremental_g
     let mut faction = FactionEntry::for_test_like_cpp(860, 150);
     faction.reputation_race_mask[0] = 1;
     faction.reputation_max[0] = 42_000;
-    let faction_store = FactionStore::from_entries([faction.clone()]);
+    let faction_store = TestReputationCatalogLikeCpp::from_factions([faction.clone()]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
-    mgr.initialize_like_cpp(&faction_store, None, 1, 1);
+    mgr.initialize_like_cpp(&faction_store, 1, 1);
     let mut options = set_reputation_options_for_test_like_cpp(true);
     options.reputation_gain_rate = 2.0;
 
@@ -475,9 +491,6 @@ fn set_reputation_like_cpp_applies_reputation_gain_rate_to_primary_incremental_g
         500,
         options,
         &faction_store,
-        None,
-        None,
-        None,
         None,
     );
 
@@ -493,12 +506,12 @@ fn set_one_faction_reputation_like_cpp_clamps_to_slot_max() {
     let mut faction = FactionEntry::for_test_like_cpp(87, 16);
     faction.reputation_race_mask[0] = 1;
     faction.reputation_max[0] = 9_000;
-    let faction_store = FactionStore::from_entries([faction.clone()]);
+    let faction_store = TestReputationCatalogLikeCpp::from_factions([faction.clone()]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
-    mgr.initialize_like_cpp(&faction_store, None, 1, 1);
+    mgr.initialize_like_cpp(&faction_store, 1, 1);
 
     let outcome = mgr.set_one_faction_reputation_like_cpp(
-        &faction, 42_000, false, 1.0, None, None, true, None, 0, 0, 1, 1,
+        &faction, 42_000, false, 1.0, &faction_store, true, 0, 0, 1, 1,
     );
 
     assert!(outcome.applied);
@@ -511,12 +524,12 @@ fn set_one_faction_reputation_like_cpp_forces_at_war_for_hostile_rank() {
     let mut faction = FactionEntry::for_test_like_cpp(88, 17);
     faction.reputation_race_mask[0] = 1;
     faction.reputation_max[0] = 42_000;
-    let faction_store = FactionStore::from_entries([faction.clone()]);
+    let faction_store = TestReputationCatalogLikeCpp::from_factions([faction.clone()]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
-    mgr.initialize_like_cpp(&faction_store, None, 1, 1);
+    mgr.initialize_like_cpp(&faction_store, 1, 1);
 
     let outcome = mgr.set_one_faction_reputation_like_cpp(
-        &faction, -6_000, false, 1.0, None, None, true, None, 0, 0, 1, 1,
+        &faction, -6_000, false, 1.0, &faction_store, true, 0, 0, 1, 1,
     );
 
     assert!(outcome.applied);
@@ -535,12 +548,12 @@ fn set_one_faction_reputation_like_cpp_updates_honored_revered_exalted_counters(
     let mut faction = FactionEntry::for_test_like_cpp(89, 18);
     faction.reputation_race_mask[0] = 1;
     faction.reputation_max[0] = 42_000;
-    let faction_store = FactionStore::from_entries([faction.clone()]);
+    let faction_store = TestReputationCatalogLikeCpp::from_factions([faction.clone()]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
-    mgr.initialize_like_cpp(&faction_store, None, 1, 1);
+    mgr.initialize_like_cpp(&faction_store, 1, 1);
 
     mgr.set_one_faction_reputation_like_cpp(
-        &faction, 21_000, false, 1.0, None, None, true, None, 0, 0, 1, 1,
+        &faction, 21_000, false, 1.0, &faction_store, true, 0, 0, 1, 1,
     );
 
     assert_eq!(mgr.rank_counters().honored, 1);
@@ -554,18 +567,18 @@ fn criteria_progress_like_cpp_exposes_reputation_counters_and_positive_reputatio
     faction.reputation_race_mask[0] = 1;
     faction.reputation_base[0] = 500;
     faction.reputation_max[0] = 42_000;
-    let faction_store = FactionStore::from_entries([faction.clone()]);
+    let faction_store = TestReputationCatalogLikeCpp::from_factions([faction.clone()]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
-    mgr.initialize_like_cpp(&faction_store, None, 1, 1);
+    mgr.initialize_like_cpp(&faction_store, 1, 1);
 
     mgr.set_one_faction_reputation_like_cpp(
-        &faction, 21_000, false, 1.0, None, None, true, None, 0, 0, 1, 1,
+        &faction, 21_000, false, 1.0, &faction_store, true, 0, 0, 1, 1,
     );
 
     assert_eq!(
         mgr.criteria_progress_like_cpp(
             ReputationCriteriaProgressKindLikeCpp::ReputationGained { faction_id: 91 },
-            Some(&faction_store),
+            &faction_store,
             1,
             1,
         ),
@@ -574,7 +587,7 @@ fn criteria_progress_like_cpp_exposes_reputation_counters_and_positive_reputatio
     assert_eq!(
         mgr.criteria_progress_like_cpp(
             ReputationCriteriaProgressKindLikeCpp::TotalFactionsEncountered,
-            Some(&faction_store),
+            &faction_store,
             1,
             1,
         ),
@@ -583,7 +596,7 @@ fn criteria_progress_like_cpp_exposes_reputation_counters_and_positive_reputatio
     assert_eq!(
         mgr.criteria_progress_like_cpp(
             ReputationCriteriaProgressKindLikeCpp::TotalHonoredFactions,
-            Some(&faction_store),
+            &faction_store,
             1,
             1,
         ),
@@ -592,7 +605,7 @@ fn criteria_progress_like_cpp_exposes_reputation_counters_and_positive_reputatio
     assert_eq!(
         mgr.criteria_progress_like_cpp(
             ReputationCriteriaProgressKindLikeCpp::TotalReveredFactions,
-            Some(&faction_store),
+            &faction_store,
             1,
             1,
         ),
@@ -601,7 +614,7 @@ fn criteria_progress_like_cpp_exposes_reputation_counters_and_positive_reputatio
     assert_eq!(
         mgr.criteria_progress_like_cpp(
             ReputationCriteriaProgressKindLikeCpp::TotalExaltedFactions,
-            Some(&faction_store),
+            &faction_store,
             1,
             1,
         ),
@@ -613,14 +626,14 @@ fn criteria_progress_like_cpp_exposes_reputation_counters_and_positive_reputatio
 fn criteria_progress_like_cpp_skips_non_positive_reputation_gained_like_cpp() {
     let mut faction = FactionEntry::for_test_like_cpp(92, 22);
     faction.reputation_race_mask[0] = 1;
-    let faction_store = FactionStore::from_entries([faction]);
+    let faction_store = TestReputationCatalogLikeCpp::from_factions([faction]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
-    mgr.initialize_like_cpp(&faction_store, None, 1, 1);
+    mgr.initialize_like_cpp(&faction_store, 1, 1);
 
     assert_eq!(
         mgr.criteria_progress_like_cpp(
             ReputationCriteriaProgressKindLikeCpp::ReputationGained { faction_id: 92 },
-            Some(&faction_store),
+            &faction_store,
             1,
             1,
         ),
@@ -633,25 +646,23 @@ fn set_one_faction_reputation_like_cpp_uses_paragon_cap_with_no_unclaimed_reward
     let mut faction = FactionEntry::for_test_like_cpp(90, 19);
     faction.reputation_race_mask[0] = 1;
     faction.reputation_max[0] = 42_000;
-    let faction_store = FactionStore::from_entries([faction.clone()]);
-    let paragon_store = ParagonReputationStore::from_entries([ParagonReputationEntry {
-        id: 2,
-        faction_id: 90,
-        level_threshold: 10_000,
-        quest_id: 700,
-    }]);
+    let faction_store = TestReputationCatalogLikeCpp::from_factions([faction.clone()])
+        .with_paragon_entries([ParagonReputationEntry {
+            id: 2,
+            faction_id: 90,
+            level_threshold: 10_000,
+            quest_id: 700,
+        }]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
-    mgr.initialize_like_cpp(&faction_store, Some(&paragon_store), 1, 1);
+    mgr.initialize_like_cpp(&faction_store, 1, 1);
 
     let outcome = mgr.set_one_faction_reputation_like_cpp(
         &faction,
         99_999,
         false,
         1.0,
-        None,
-        Some(&paragon_store),
+        &faction_store,
         true,
-        None,
         0,
         0,
         1,
@@ -673,25 +684,23 @@ fn set_one_faction_reputation_like_cpp_uses_paragon_cap_when_reward_is_unclaimed
     let mut faction = FactionEntry::for_test_like_cpp(91, 20);
     faction.reputation_race_mask[0] = 1;
     faction.reputation_max[0] = 42_000;
-    let faction_store = FactionStore::from_entries([faction.clone()]);
-    let paragon_store = ParagonReputationStore::from_entries([ParagonReputationEntry {
-        id: 3,
-        faction_id: 91,
-        level_threshold: 10_000,
-        quest_id: 701,
-    }]);
+    let faction_store = TestReputationCatalogLikeCpp::from_factions([faction.clone()])
+        .with_paragon_entries([ParagonReputationEntry {
+            id: 3,
+            faction_id: 91,
+            level_threshold: 10_000,
+            quest_id: 701,
+        }]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
-    mgr.initialize_like_cpp(&faction_store, Some(&paragon_store), 1, 1);
+    mgr.initialize_like_cpp(&faction_store, 1, 1);
 
     let outcome = mgr.set_one_faction_reputation_like_cpp(
         &faction,
         99_999,
         false,
         1.0,
-        None,
-        Some(&paragon_store),
+        &faction_store,
         false,
-        None,
         0,
         0,
         1,
@@ -714,21 +723,18 @@ fn set_one_faction_reputation_like_cpp_applies_renown_level_remainder_and_curren
     faction.reputation_race_mask[0] = 1;
     faction.reputation_max[0] = 2_500;
     faction.renown_currency_id = 77;
-    let faction_store = FactionStore::from_entries([faction.clone()]);
-    let currency_store =
-        CurrencyTypesStore::from_entries([currency_entry_for_test_like_cpp(77, 5)]);
+    let faction_store = TestReputationCatalogLikeCpp::from_factions([faction.clone()])
+        .with_currency_entries([currency_entry_for_test_like_cpp(77, 5)]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
-    mgr.initialize_like_cpp(&faction_store, None, 1, 1);
+    mgr.initialize_like_cpp(&faction_store, 1, 1);
 
     let outcome = mgr.set_one_faction_reputation_like_cpp(
         &faction,
         3_000,
         false,
         1.0,
-        None,
-        None,
+        &faction_store,
         true,
-        Some(&currency_store),
         1,
         0,
         1,
@@ -750,21 +756,18 @@ fn set_one_faction_reputation_like_cpp_caps_renown_at_max_level_and_clears_remai
     faction.reputation_race_mask[0] = 1;
     faction.reputation_max[0] = 2_500;
     faction.renown_currency_id = 78;
-    let faction_store = FactionStore::from_entries([faction.clone()]);
-    let currency_store =
-        CurrencyTypesStore::from_entries([currency_entry_for_test_like_cpp(78, 3)]);
+    let faction_store = TestReputationCatalogLikeCpp::from_factions([faction.clone()])
+        .with_currency_entries([currency_entry_for_test_like_cpp(78, 3)]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
-    mgr.initialize_like_cpp(&faction_store, None, 1, 1);
+    mgr.initialize_like_cpp(&faction_store, 1, 1);
 
     let outcome = mgr.set_one_faction_reputation_like_cpp(
         &faction,
         9_000,
         false,
         1.0,
-        None,
-        None,
+        &faction_store,
         true,
-        Some(&currency_store),
         2,
         0,
         1,
@@ -785,11 +788,10 @@ fn set_one_faction_reputation_like_cpp_ignores_positive_renown_when_maxed() {
     faction.reputation_race_mask[0] = 1;
     faction.reputation_max[0] = 2_500;
     faction.renown_currency_id = 79;
-    let faction_store = FactionStore::from_entries([faction.clone()]);
-    let currency_store =
-        CurrencyTypesStore::from_entries([currency_entry_for_test_like_cpp(79, 3)]);
+    let faction_store = TestReputationCatalogLikeCpp::from_factions([faction.clone()])
+        .with_currency_entries([currency_entry_for_test_like_cpp(79, 3)]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
-    mgr.initialize_like_cpp(&faction_store, None, 1, 1);
+    mgr.initialize_like_cpp(&faction_store, 1, 1);
     mgr.get_state_mut(23).expect("state").need_send = true;
     mgr.get_state_mut(23).expect("state").need_save = true;
 
@@ -798,10 +800,8 @@ fn set_one_faction_reputation_like_cpp_ignores_positive_renown_when_maxed() {
         1,
         false,
         1.0,
-        None,
-        None,
+        &faction_store,
         true,
-        Some(&currency_store),
         3,
         0,
         1,
@@ -822,9 +822,9 @@ fn set_reputation_like_cpp_applies_db_template_spillover_then_primary_and_send_s
     let mut spill = FactionEntry::for_test_like_cpp(101, 25);
     spill.reputation_race_mask[0] = 1;
     spill.reputation_max[0] = 42_000;
-    let faction_store = FactionStore::from_entries([source.clone(), spill.clone()]);
+    let faction_store = TestReputationCatalogLikeCpp::from_factions([source.clone(), spill.clone()]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
-    mgr.initialize_like_cpp(&faction_store, None, 1, 1);
+    mgr.initialize_like_cpp(&faction_store, 1, 1);
     let mut template = RepSpilloverTemplateLikeCpp::empty_like_cpp();
     template.faction[0] = 101;
     template.faction_rate[0] = 0.5;
@@ -836,9 +836,6 @@ fn set_reputation_like_cpp_applies_db_template_spillover_then_primary_and_send_s
         set_reputation_options_for_test_like_cpp(false),
         &faction_store,
         Some(&template),
-        None,
-        None,
-        None,
     );
 
     assert!(outcome.applied);

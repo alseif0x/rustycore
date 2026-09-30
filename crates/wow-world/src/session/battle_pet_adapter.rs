@@ -4,8 +4,8 @@
 //! Battle pet adapter: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{AuraApplication, Instant, ObjectGuid, RepresentedAuraEffectLikeCpp, WorldSession};
-use super::{represented_aura_effect_amounts_like_cpp, warn};
+use super::{Instant, ObjectGuid, RepresentedAuraEffectLikeCpp, WorldSession};
+use super::warn;
 
 #[cfg(test)]
 use std::sync::atomic::{AtomicI64, Ordering};
@@ -240,26 +240,12 @@ impl WorldSession {
             .next_player_visible_aura_slot_like_cpp()
             .ok_or("No free aura slots or missing Player aura owner")?;
 
-        let multiplier = 1.0 + (effect.effect_base_points as f32 / 100.0);
-        let aura = AuraApplication {
-            spell_id,
-            difficulty_id: self.current_map_difficulty_id_like_cpp(),
-            caster_guid,
-            slot,
-            duration_total: 30_000,
-            duration_remaining: 30_000,
-            stack_count: 1,
-            aura_flags: 0x0000_0001,
-            effect_mask: 1u32 << effect.effect_index,
-            aura_interrupt_flags: 0,
-            aura_interrupt_flags2: 0,
-            represented_effect: Some(RepresentedAuraEffectLikeCpp::ModBattlePetXpPct),
-            represented_amount: effect.effect_base_points,
-            represented_effect_amounts: represented_aura_effect_amounts_like_cpp(effect),
-            represented_misc_value: None,
-            represented_multiplier: multiplier,
-            applied_at: Instant::now(),
-        };
+        let aura = wow_entities::AuraSubsystem::build_xp_runtime_application(
+            spell_id, caster_guid, slot, effect, 
+            |effect| (effect.effect_index, effect.effect_base_points, effect.effect_misc_value_1),
+            || self.current_map_difficulty_id_like_cpp(),
+            Instant::now,
+        );
 
         if !self.insert_player_visible_aura_like_cpp(aura) {
             return Err("Missing Player aura owner");

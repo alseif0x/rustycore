@@ -50,7 +50,7 @@ fn creature_vehicle_add_to_map_installs_local_vehicle_kit_like_cpp() {
     assert!(install.script_on_install_represented);
     let stored = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::creature)
+        .and_then(|record| record.creature())
         .unwrap();
     assert!(stored.unit().world().object().is_in_world());
     let kit = stored.unit().subsystems().vehicle.kit.as_ref().unwrap();
@@ -94,7 +94,7 @@ fn creature_vehicle_add_to_map_already_in_world_does_not_install_like_cpp() {
     assert!(outcome.creature_vehicle_install.is_none());
     let stored = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::creature)
+        .and_then(|record| record.creature())
         .unwrap();
     let kit = stored.unit().subsystems().vehicle.kit.as_ref().unwrap();
     assert_eq!(kit.kit_id, 9002);
@@ -171,7 +171,7 @@ fn creature_add_to_world_add_to_map_tail_initializes_clears_move_and_visibility_
     assert_eq!(drain.relocated, 0);
     let stored = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::creature)
+        .and_then(|record| record.creature())
         .unwrap();
     assert!(stored.unit().world().object().is_in_world());
     assert!(!stored.unit().world().object().is_new_object());
@@ -226,7 +226,7 @@ fn add_to_map_generic_creature_and_already_in_world_do_not_overclaim_tail_like_c
     assert!(already.add_to_map_tail.is_none());
     let stored = map
         .map_object_record(already_guid)
-        .and_then(MapObjectRecord::creature)
+        .and_then(|record| record.creature())
         .unwrap();
     assert!(stored.unit().world().object().is_in_world());
     assert!(!stored.unit().world().object().is_new_object());
@@ -319,7 +319,7 @@ fn creature_vehicle_remove_from_map_not_in_world_does_not_consume_kit_like_cpp()
     let stored = map
         .entity_world
         .get_mut(&guid)
-        .and_then(MapObjectRecord::creature_mut)
+        .and_then(ObjectMut::creature_mut)
         .unwrap();
     stored
         .unit_mut()
@@ -424,6 +424,8 @@ fn insert_map_object_record_detaches_displaced_creature_authority_for_same_guid(
     );
     assert!(
         displaced
+            .record()
+            .unwrap()
             .creature()
             .unwrap()
             .loot_authority_like_cpp()
@@ -431,7 +433,7 @@ fn insert_map_object_record_detaches_displaced_creature_authority_for_same_guid(
     );
     assert!(
         map.map_object_record(guid)
-            .and_then(MapObjectRecord::creature)
+            .and_then(|record| record.creature())
             .unwrap()
             .loot_authority_like_cpp()
             .shares_storage_like_cpp(&replacement_authority)
@@ -645,7 +647,7 @@ fn creature_update_settles_addon_provenance_after_runtime_mutation_like_cpp() {
     assert_eq!(outcome.status, CreatureUpdateStatusLikeCpp::Updated);
     let canonical = map
         .map_object_record(creature_guid)
-        .and_then(MapObjectRecord::creature)
+        .and_then(|record| record.creature())
         .expect("canonical Creature must remain present after update");
     let slot = *canonical
         .unit()

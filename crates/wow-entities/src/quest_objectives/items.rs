@@ -49,7 +49,7 @@ pub fn apply_quest_item_added_bound_to_statuses_like_cpp<'a>(
             let Some(quest) = quest_by_id(status.quest_id) else {
                 continue;
             };
-            for (objective_index, objective) in quest.objectives.iter().enumerate() {
+            for (objective_index, objective) in quest.objectives().iter().enumerate() {
                 if objective.obj_type != QUEST_OBJECTIVE_ITEM_LIKE_CPP
                     || (objective.flags2 & QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP) == 0
                     || objective.object_id != object_id
@@ -114,7 +114,7 @@ pub fn apply_quest_item_added_non_bound_to_statuses_like_cpp<'a>(
         let Some(quest) = quest_by_id(status.quest_id) else {
             continue;
         };
-        for (objective_index, objective) in quest.objectives.iter().enumerate() {
+        for (objective_index, objective) in quest.objectives().iter().enumerate() {
             if objective.obj_type != QUEST_OBJECTIVE_ITEM_LIKE_CPP
                 || (objective.flags2 & QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP) != 0
                 || !objective_ids.contains(&objective.object_id)
@@ -177,7 +177,7 @@ pub fn apply_quest_item_removed_to_statuses_like_cpp<'a>(
         let Some(quest) = quest_by_id(status.quest_id) else {
             continue;
         };
-        for (objective_index, objective) in quest.objectives.iter().enumerate() {
+        for (objective_index, objective) in quest.objectives().iter().enumerate() {
             if objective.obj_type != QUEST_OBJECTIVE_ITEM_LIKE_CPP
                 || objective.object_id != object_id
                 || !represented_quest_objective_completable_like_cpp(

@@ -29,7 +29,7 @@ fn gameobject_update_owner_or_spell_with_future_respawn_does_not_delete_like_cpp
     let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 1_000);
     let canonical = map
         .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
 
     assert_eq!(outcome.status, GameObjectUpdateStatusLikeCpp::Updated);
@@ -64,7 +64,7 @@ fn gameobject_update_generic_spawned_default_noncompat_schedules_respawn_and_rem
     let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 1_000);
     let canonical = map
         .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     let respawn_info = map
         .get_respawn_info_like_cpp(SpawnObjectType::GameObject, 4640101)
@@ -338,7 +338,7 @@ fn gameobject_update_generic_spawned_default_compat_saves_db_only_and_visibility
     let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 2_000);
     let canonical = map
         .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
 
     assert_eq!(outcome.status, GameObjectUpdateStatusLikeCpp::Updated);
@@ -438,7 +438,7 @@ fn gameobject_update_generic_spawned_default_noncompat_missing_godata_does_not_i
     let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 2_500);
     let canonical = map
         .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
 
     assert_eq!(
@@ -482,7 +482,7 @@ fn gameobject_update_generic_temporary_noncompat_spawn_id_visibility_no_remove_l
     let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 3_000);
     let canonical = map
         .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
 
     assert_eq!(outcome.status, GameObjectUpdateStatusLikeCpp::Updated);
@@ -521,7 +521,7 @@ fn gameobject_update_generic_temporary_zero_spawn_id_deletes_remove_like_cpp() {
     let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 3_100);
     let canonical = map
         .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
 
     assert_eq!(
@@ -552,7 +552,7 @@ fn gameobject_update_generic_zero_respawn_sets_not_ready_without_remove_like_cpp
     let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 1_000);
     let canonical = map
         .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
 
     assert_eq!(outcome.status, GameObjectUpdateStatusLikeCpp::Updated);
@@ -587,7 +587,7 @@ fn gameobject_update_generic_chest_consumable_visual_despawn_restores_flags_like
     let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 1_000);
     let canonical = map
         .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
 
     assert!(outcome.generic_not_ready);
@@ -618,7 +618,7 @@ fn gameobject_update_generic_anim_progress_visual_despawn_without_despawn_source
     let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 1_000);
     let canonical = map
         .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
 
     assert!(outcome.generic_not_ready);
@@ -646,7 +646,7 @@ fn gameobject_update_generic_chest_missing_source_does_not_assume_despawn_at_act
     let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 1_000);
     let canonical = map
         .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
 
     assert!(outcome.non_consumed_source_missing);
@@ -796,7 +796,7 @@ fn gameobject_update_despawn_requested_does_not_consume_just_deactivated_linked_
     assert_eq!(map.objects_to_remove_count_like_cpp(), 1);
     let owner_after = map
         .map_object_record(owner_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(owner_after.loot_state(), LootState::NotReady);
     assert!(owner_after.shared_loot_like_cpp().is_some());
@@ -836,7 +836,7 @@ fn gameobject_update_non_just_deactivated_keeps_linked_trap_like_cpp() {
     assert!(!outcome.loot_cleared);
     let owner_after = map
         .map_object_record(owner_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(owner_after.loot_state(), LootState::Ready);
     assert!(owner_after.shared_loot_like_cpp().is_some());
@@ -865,7 +865,7 @@ fn gameobject_update_not_in_world_does_not_clear_owned_loot_like_cpp() {
     let outcome = map.update_game_object_like_cpp(gameobject_guid, 1, 1_000);
     let canonical = map
         .map_object_record(gameobject_guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
 
     assert_eq!(outcome.status, GameObjectUpdateStatusLikeCpp::NotInWorld);

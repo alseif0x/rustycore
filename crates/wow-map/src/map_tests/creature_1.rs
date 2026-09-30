@@ -92,7 +92,7 @@ fn gameobject_add_to_owner_dispatches_creature_ai_summon_boundary_like_cpp() {
     assert!(add_owner.creature_ai_callback_represented);
     let owner = map
         .map_object_record(owner_guid)
-        .and_then(MapObjectRecord::creature)
+        .and_then(|record| record.creature())
         .unwrap();
     assert_eq!(
         owner.unit().subsystems().ai.just_summoned_gameobject_count,
@@ -151,7 +151,7 @@ fn gameobject_remove_from_owner_dispatches_creature_ai_despawn_boundary_like_cpp
     assert!(remove_owner.creature_ai_callback_represented);
     let owner = map
         .map_object_record(owner_guid)
-        .and_then(MapObjectRecord::creature)
+        .and_then(|record| record.creature())
         .unwrap();
     assert_eq!(
         owner
@@ -648,7 +648,7 @@ fn game_event_change_equip_or_model_two_live_creatures_same_spawn_mutates_equipm
     for guid in map.creature_spawn_id_store_guids_like_cpp(157) {
         let creature = map
             .map_object_record(guid)
-            .and_then(MapObjectRecord::creature)
+            .and_then(|record| record.creature())
             .unwrap();
         assert_eq!(creature.equipment_id(), 9);
     }

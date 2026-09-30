@@ -134,9 +134,16 @@ impl WorldSession {
                     faction_store.get(u32::from(source_faction_template.faction))
                 && source_faction_entry.can_have_reputation_like_cpp()
             {
+                let catalogs =
+                    crate::reputation_catalog_adapter::ReputationCatalogViewLikeCpp::new(
+                        None,
+                        self.friendship_rep_reaction_store.as_deref(),
+                        None,
+                        None,
+                    );
                 let mut rank = reputation_mgr.rank_for_faction_entry_like_cpp(
                     source_faction_entry,
-                    self.friendship_rep_reaction_store.as_deref(),
+                    &catalogs,
                     self.player_race_like_cpp(),
                     self.player_class_like_cpp(),
                 );

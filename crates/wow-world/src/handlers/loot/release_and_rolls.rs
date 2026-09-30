@@ -1,46 +1,10 @@
 //! Loot release commands and roll lifecycle: reliable release queuing, connected
-//! rollers, roll packets and roll chance.
+//! rollers and roll packets.
 //!
 //! Split out of `loot/mod.rs` under #584 (B5); items are unchanged.
 
 use super::*;
 
-#[cfg(test)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::handlers::loot) enum CreatureLootReleaseCommandQueueOutcomeLikeCpp {
-    Queued,
-    Retrying,
-    Disconnected,
-}
-
-#[cfg(test)]
-pub(in crate::handlers::loot) fn queue_creature_loot_release_command_reliably_like_cpp(
-    command_tx: &flume::Sender<SessionCommand>,
-    command: SessionCommand,
-) -> CreatureLootReleaseCommandQueueOutcomeLikeCpp {
-    match command_tx.try_send(command) {
-        Ok(()) => CreatureLootReleaseCommandQueueOutcomeLikeCpp::Queued,
-        Err(flume::TrySendError::Disconnected(_)) => {
-            CreatureLootReleaseCommandQueueOutcomeLikeCpp::Disconnected
-        }
-        Err(flume::TrySendError::Full(command)) => {
-            let command_tx = command_tx.clone();
-            // Never await another session from the source session loop: two
-            // full queues could otherwise wait on each other forever. The
-            // detached retry retains the exact command until capacity opens;
-            // receiver-side authority/lifecycle gates coalesce its meaning to
-            // the current corpse generation and reject stale respawn reuse.
-            tokio::spawn(async move {
-                if command_tx.send_async(command).await.is_err() {
-                    tracing::debug!(
-                        "loot-release DynamicFlags retry ended after target session disconnected"
-                    );
-                }
-            });
-            CreatureLootReleaseCommandQueueOutcomeLikeCpp::Retrying
-        }
-    }
-}
 
 pub(in crate::handlers::loot) fn connected_roll_looters_like_cpp(
     entry: &LootEntry,
@@ -121,19 +85,4 @@ pub(in crate::handlers::loot) fn loot_roll_broadcast_item_like_cpp(entry: &LootE
         quantity: entry.quantity,
         loot_item_type: 0,
     }
-}
-
-pub(in crate::handlers::loot) fn roll_chance_with_rate_like_cpp<R: Rng + ?Sized>(
-    chance: f32,
-    rate: f32,
-    rng: &mut R,
-) -> bool {
-    if chance >= 100.0 {
-        return true;
-    }
-    rng.gen_range(0.0f32..100.0f32) < chance * rate
-}
-
-pub(in crate::handlers::loot) fn referenced_loot_max_count_like_cpp(max_count: u8, rate: f32) -> u32 {
-    ((max_count as f32) * rate) as u32
 }

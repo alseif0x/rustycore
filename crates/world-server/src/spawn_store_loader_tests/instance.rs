@@ -7,7 +7,7 @@ use super::*;
 
 #[test]
 fn game_event_world_state_invalid_map_and_area_lists_skip_rows_like_cpp() {
-    let (mgr, report) = WorldStateMgrLikeCpp::from_db_rows_like_cpp(
+    let (mgr, report) = from_db_rows_like_cpp(
         [
             world_state_row(103, 1, "bogus,99", ""),
             world_state_row(104, 2, "1", "bogus,999"),
@@ -34,7 +34,7 @@ fn game_event_world_state_invalid_map_and_area_lists_skip_rows_like_cpp() {
 #[test]
 fn game_event_world_state_area_continent_must_match_required_maps_like_cpp() {
     let areas = area_store(&[(20, 2), (21, 1)]);
-    let (mgr, report) = WorldStateMgrLikeCpp::from_db_rows_like_cpp(
+    let (mgr, report) = from_db_rows_like_cpp(
         [world_state_row(106, 4, "1", "20,21")],
         [],
         |map_id| map_id == 1,

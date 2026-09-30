@@ -193,7 +193,7 @@ impl WorldSession {
                 continue;
             }
             if !self
-                .represented_capture_point_removed_delivered_like_cpp
+                .visibility_publication.represented_capture_point_removed_delivered_like_cpp
                 .insert((map_id, instance_id, update_generation, guid))
             {
                 continue;

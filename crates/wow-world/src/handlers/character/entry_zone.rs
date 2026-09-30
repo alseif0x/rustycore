@@ -1,9 +1,8 @@
 use tracing::{info, warn};
 use wow_core::Position;
 
-use crate::map_manager::{
-    terrain_grid_area_id_for_position_like_cpp, zone_and_area_for_position_like_cpp,
-};
+use crate::map_manager::terrain_grid_area_id_for_position_like_cpp;
+use crate::terrain_catalog_adapter::zone_and_area_for_position_like_cpp;
 use crate::session::WorldSession;
 
 impl WorldSession {

@@ -6,11 +6,11 @@
 use super::*;
 mod creature_aggro_tick;
 mod creature_lifecycle_tick;
-mod creature_melee_share;
-mod creature_melee_split;
 mod creature_melee_sync;
 mod creature_melee_threat;
 mod creature_melee_tick;
+#[cfg(feature = "test-fixtures")]
+pub mod creature_melee_fixtures;
 mod creature_movement_tick;
 mod creature_spell_tick;
 mod creature_spell_validation;
@@ -25,7 +25,7 @@ pub(in crate::session) use creature_aggro_tick::*;
 #[allow(unused_imports)]
 pub(in crate::session) use creature_lifecycle_tick::*;
 pub(in crate::session) use creature_melee_sync::{
-    CreatureMeleeApplyResultLikeCpp, CreatureMeleeVictimSyncIdentityLikeCpp,
+    CreatureMeleeVictimSyncIdentityLikeCpp,
     CreatureMeleeVictimSyncStateLikeCpp,
 };
 pub(in crate::session) use creature_melee_threat::CreatureDamageThreatOutcomeLikeCpp;

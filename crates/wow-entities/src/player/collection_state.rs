@@ -40,6 +40,30 @@ pub struct PlayerCollectionStateLikeCpp {
     pub(super) transmog_illusions: HashSet<u32>,
 }
 
+#[cfg(test)]
+mod tests;
+
+mod appearance;
+mod account_load;
+mod account_projection;
+mod heirloom_upgrades;
+mod toys;
+pub use appearance::RuntimeAppearanceRoute;
+mod favorites;
+mod load_save;
+mod sets;
+mod admission;
+pub use sets::AppearanceAcquisitionSource;
+
+pub use admission::{
+    AppearanceAdmissionSource, AppearanceModifiedFacts, AppearanceSearchFacts,
+    AppearanceSparseFacts, AppearanceStorageFacts,
+};
+pub use load_save::{
+    AccountItemAppearanceSavePlanLikeCpp, AccountTransmogIllusionSavePlanLikeCpp,
+    DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP,
+};
+
 impl PlayerCollectionStateLikeCpp {
     // ---- reads -------------------------------------------------------------
 
@@ -138,39 +162,6 @@ impl PlayerCollectionStateLikeCpp {
     #[must_use]
     pub fn mounts_snapshot_like_cpp(&self) -> HashMap<i32, u8> {
         self.mounts.clone()
-    }
-
-    /// C++ `CollectionMgr::AddToy` (`:102`) through `UpdateAccountToys`
-    /// (`:140`), whose `_toys.insert` leaves an already collected toy alone;
-    /// the caller learns that from the result, as C++ does from `.second`.
-    pub fn add_toy_like_cpp(&mut self, item_id: u32, flags: u32) -> bool {
-        if self.toys.contains_key(&item_id) {
-            return false;
-        }
-        self.toys.insert(item_id, flags);
-        true
-    }
-
-    /// Forget one toy, as the represented removal does.
-    pub fn remove_toy_like_cpp(&mut self, item_id: u32) -> bool {
-        self.toys.remove(&item_id).is_some()
-    }
-
-    /// Set and clear flag bits on one collected toy
-    /// (C++ `ToySetFavorite` `:145` and `ToyClearFanfare` `:157`).
-    pub fn update_toy_flags_like_cpp(&mut self, item_id: u32, set: u32, clear: u32) -> bool {
-        let Some(flags) = self.toys.get_mut(&item_id) else {
-            return false;
-        };
-        *flags |= set;
-        *flags &= !clear;
-        true
-    }
-
-    /// Install the authoritative loaded toys
-    /// (`CollectionMgr::LoadAccountToys` `:113`).
-    pub fn replace_toys_like_cpp(&mut self, toys: BTreeMap<u32, u32>) {
-        self.toys = toys;
     }
 
     /// C++ `CollectionMgr::AddHeirloom` (`:237`) through

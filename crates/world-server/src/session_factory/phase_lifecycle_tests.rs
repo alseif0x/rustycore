@@ -14,6 +14,55 @@ use wow_world::session::mailbox::{
 mod fixtures;
 
 #[tokio::test]
+async fn world_finalizer_settles_legacy_without_waiting_for_its_own_world_permit() {
+    use crate::session_supervision::{ProducerKind, TickDisposition, TickPhase};
+    let (mut harness, _packets, _sent) = fixtures::session();
+    let (entered, release, destroyed) = fixtures::offline_port(&mut harness.session);
+    let registry = Arc::clone(&harness.registry);
+    let canonical = registry.register_producer(ProducerKind::Canonical);
+    let legacy = registry.register_producer(ProducerKind::Legacy);
+    let canonical_tick = registry.try_admit_tick(canonical, 1, false).unwrap();
+    let legacy_tick = registry.try_admit_tick(legacy, 1, false).unwrap();
+    legacy_tick.enter_phase(TickPhase::Legacy);
+    harness.session.kick("controlled World disconnect");
+    let catalogs = SessionHandlerCatalogsLikeCpp::default();
+    let (request, permit, reply) = world_request();
+    let pending = harness.session.run_requested_session_phase_like_cpp(request, &catalogs)
+        .await.unwrap();
+    registry.begin_shutdown_like_cpp();
+    let runtime = WorldRuntimeStateLikeCpp::new();
+    let mut finalizer = Box::pin(finalization::finalize_owned_world_session_like_cpp(
+        harness.session,
+        WorldSessionRunOutcomeLikeCpp::FinalizeWorldPass(pending),
+        787,
+        harness.registration,
+        &runtime,
+        catalogs.id_generators.item.as_ref(),
+        Duration::from_secs(2),
+    ));
+    assert_pending(finalizer.as_mut()).await;
+    assert!(entered.is_empty(), "legacy must settle before the first finalization write");
+    assert!(registry.try_admit_tick(legacy, 2, false).is_none());
+    assert!(legacy_tick.complete(TickDisposition::FullyFinished));
+    assert_pending(finalizer.as_mut()).await;
+    assert!(entered.try_recv().is_ok(), "the owned World permit must not wait for itself");
+    assert_eq!(permit.state_like_cpp(), SessionPhasePermitStateLikeCpp::Running);
+    assert_eq!(reply.try_recv(), Err(flume::TryRecvError::Empty));
+    let request = registry.close_tick_admission();
+    let mut receipt = Box::pin(registry.wait_for_quiescence(request, Duration::from_secs(2)));
+    assert_pending(receipt.as_mut()).await;
+    release.send(PersistenceOutcomeLikeCpp::Applied { rows: 1 }).unwrap();
+    finalizer.await;
+    assert!(destroyed.load(Ordering::Acquire));
+    assert_eq!(registry.len_like_cpp(), 0);
+    assert_eq!(permit.state_like_cpp(), SessionPhasePermitStateLikeCpp::Completed);
+    assert!(reply.try_recv().is_ok());
+    assert_pending(receipt.as_mut()).await;
+    assert!(canonical_tick.complete(TickDisposition::AbandonedAfterAccounting));
+    registry.enable_session_drain(receipt.await.unwrap()).unwrap();
+}
+
+#[tokio::test]
 async fn a_disconnecting_session_refuses_stale_map_work_and_waits_for_world_retirement() {
     let (mut harness, _packets, _sent) = fixtures::session();
     let (entered, _release, _destroyed) = fixtures::offline_port(&mut harness.session);
@@ -203,6 +252,8 @@ async fn shutdown_drains_kick_and_flush_after_the_phase_producer_disappears() {
     let (mut harness, _packets, _sent) = fixtures::session();
     let (entered, release, destroyed) = fixtures::offline_port(&mut harness.session);
     let registry = Arc::clone(&harness.registry);
+    let origin = registry.register_producer(crate::session_supervision::ProducerKind::Canonical);
+    let tick = registry.try_admit_tick(origin, 1, false).unwrap();
     let ready = Arc::clone(&harness.ready);
     let phase_tx = harness.session.session_phase_sender_like_cpp();
     let rail = harness.session.session_phase_receiver_like_cpp();
@@ -241,6 +292,13 @@ async fn shutdown_drains_kick_and_flush_after_the_phase_producer_disappears() {
         SessionPhasePermitStateLikeCpp::RefusedBeforeStart
     );
     assert!(!ready.load(Ordering::Acquire));
+    // This cancelled producer had only an unclaimed request. Its explicit
+    // refusal accounts for the prefix; dropping the producer proved nothing.
+    assert!(tick.complete(crate::session_supervision::TickDisposition::AbandonedAfterAccounting));
+    let request = registry.close_tick_admission();
+    let receipt = registry.wait_for_quiescence(request, Duration::from_secs(1)).await.unwrap();
+    registry.enable_session_drain(receipt).unwrap();
+    assert_pending(consumer.as_mut()).await;
     assert_eq!(
         entered.try_recv().unwrap(),
         PlayerOfflineMarkLikeCpp::LoginAccount { account_id: 787 }

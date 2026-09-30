@@ -123,7 +123,7 @@ fn map_settles_canonical_creature_pending_addon_records_without_overlapping_borr
     );
     let canonical = map
         .map_object_record(creature_guid)
-        .and_then(MapObjectRecord::creature)
+        .and_then(|record| record.creature())
         .expect("canonical Creature must remain the one aura owner");
     let slot = *canonical
         .unit()

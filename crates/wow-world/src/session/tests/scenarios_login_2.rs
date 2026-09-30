@@ -148,52 +148,7 @@ fn account_toy_rows_preserve_cpp_flags_like_cpp() {
         vec![30_000, 30_001]
     );
 }
-#[test]
-fn add_account_toy_inserts_once_like_cpp() {
-    let (mut session, _, _) = make_session();
 
-    assert!(session.add_account_toy_like_cpp(30_000, false, false));
-    assert!(!session.add_account_toy_like_cpp(30_000, true, true));
-
-    assert_eq!(
-        session.account_toy_rows_like_cpp(),
-        vec![(30_000, false, false)]
-    );
-}
-#[test]
-fn canonical_player_logout_retires_detached_handle_like_cpp() {
-    run_canonical_player_owner_test(|| {
-        let (mut session, _, _) = make_session();
-        let canonical = shared_canonical_map_manager();
-        let player_guid = ObjectGuid::create_player(1, 56);
-
-        session.set_canonical_map_manager(Arc::clone(&canonical));
-        session.set_map_store(canonical_player_transfer_test_map_store_like_cpp());
-        session.attach_player_controller_like_cpp(SessionPlayerController::new(
-            player_guid,
-            "LogoutDetached".to_string(),
-            Position::new(3700.0, 1500.0, 120.0, 0.0),
-            571,
-            1,
-            1,
-            80,
-            0,
-        ));
-        session
-            .ensure_canonical_world_map_for_current_player_like_cpp()
-            .expect("initial world map");
-        let handle = session.player_handle_like_cpp.expect("canonical handle");
-        assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
-
-        session.cleanup_shared_runtime_state();
-
-        assert_eq!(session.player_handle_like_cpp, None);
-        assert_eq!(
-            canonical.lock().unwrap().player_residence_like_cpp(handle),
-            None
-        );
-    });
-}
 #[tokio::test]
 async fn disconnect_cleanup_releases_active_loot_views_like_cpp_logout_player() {
     let (mut session, _, send_rx) = make_session();

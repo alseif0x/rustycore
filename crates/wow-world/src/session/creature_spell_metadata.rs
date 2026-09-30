@@ -38,55 +38,15 @@ pub(in crate::session) fn creature_ai_spell_target_like_cpp(
     difficulty_id: u8,
     config: &LegacyCreatureAggroConfigLikeCpp,
 ) -> CreatureAiSpellTargetLikeCpp {
-    const TARGET_UNIT_TARGET_ENEMY_LIKE_CPP: u32 = 6;
-    const TARGET_UNIT_DEST_AREA_ENEMY_LIKE_CPP: u32 = 16;
-    const TARGET_DEST_TARGET_ENEMY_LIKE_CPP: u32 = 53;
-
-    // C++ does not inspect implicit targets when hostile max range is zero.
-    let has_max_range = config
-        .spell_misc_store
-        .as_ref()
-        .and_then(|store| {
-            store.entry_for_spell_difficulty_with_fallback_like_cpp(
-                spell_id,
-                difficulty_id,
-                config.difficulty_store.as_deref(),
-            )
-        })
-        .and_then(|misc| {
-            config
-                .spell_range_store
-                .as_ref()
-                .and_then(|store| store.get(u32::from(misc.range_index)))
-        })
-        .is_some_and(|range| range.range_max[0] != 0.0);
-    if !has_max_range {
-        return CreatureAiSpellTargetLikeCpp::SelfTarget;
+    use wow_map::map_manager::SpellTarget;
+    let facts = super::canonical_runtime::spell::projection::spell_info(spell);
+    match super::canonical_runtime::spell::catalogs::target_facts(spell_id, &facts, difficulty_id, config) {
+        SpellTarget::SelfTarget => CreatureAiSpellTargetLikeCpp::SelfTarget,
+        SpellTarget::Victim => CreatureAiSpellTargetLikeCpp::Victim,
+        SpellTarget::Enemy => CreatureAiSpellTargetLikeCpp::Enemy,
+        SpellTarget::Buff => CreatureAiSpellTargetLikeCpp::Buff,
+        SpellTarget::Debuff => CreatureAiSpellTargetLikeCpp::Debuff,
     }
-
-    let positive = wow_data::represented_spell_is_positive_like_cpp(spell);
-    spell.effects().iter().fold(
-        CreatureAiSpellTargetLikeCpp::SelfTarget,
-        |selected, effect| {
-            // C++ `FillAISpellInfo` intentionally considers TargetA only.
-            let target_a = effect.implicit_target_1;
-            let mut candidate = match target_a {
-                TARGET_UNIT_TARGET_ENEMY_LIKE_CPP | TARGET_DEST_TARGET_ENEMY_LIKE_CPP => {
-                    CreatureAiSpellTargetLikeCpp::Victim
-                }
-                TARGET_UNIT_DEST_AREA_ENEMY_LIKE_CPP => CreatureAiSpellTargetLikeCpp::Enemy,
-                _ => CreatureAiSpellTargetLikeCpp::SelfTarget,
-            };
-            if effect.effect == wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA {
-                if target_a == TARGET_UNIT_TARGET_ENEMY_LIKE_CPP {
-                    candidate = CreatureAiSpellTargetLikeCpp::Debuff;
-                } else if positive {
-                    candidate = CreatureAiSpellTargetLikeCpp::Buff;
-                }
-            }
-            selected.max(candidate)
-        },
-    )
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -334,33 +294,10 @@ pub(in crate::session) fn creature_ai_has_temporally_unrepresented_noninstant_sp
     difficulty_id: u8,
     config: &LegacyCreatureAggroConfigLikeCpp,
 ) -> bool {
-    // M2.6 has no cast-completion/cancellation state. If one template slot
-    // could start a non-instant Aggro/Combat cast, merely dropping that slot
-    // would leave Rust free to emit another slot while C++ still owns
-    // UNIT_STATE_CASTING. Suppress this creature's whole spell surface until
-    // M3.1 can represent that temporal state.
-    spells
-        .iter()
-        .copied()
-        .filter(|spell_id| *spell_id != 0)
-        .any(|spell_id| {
-            let Some(spell_store) = config.spell_store.as_ref() else {
-                return false;
-            };
-            let Ok(spell_id_i32) = i32::try_from(spell_id) else {
-                return false;
-            };
-            let Some(spell) = spell_store.get(spell_id_i32) else {
-                return false;
-            };
-            let spell = creature_ai_effective_spell_info_like_cpp(spell, difficulty_id, config);
-            spell.cast_time_ms != 0
-                && matches!(
-                    creature_ai_spell_condition_like_cpp(spell_id, difficulty_id, config),
-                    CreatureAiSpellConditionLikeCpp::Aggro
-                        | CreatureAiSpellConditionLikeCpp::Combat
-                )
-        })
+    // Share the temporal gate with both execution backends, retaining lazy
+    // metadata reads and suppressing the whole surface until cast completion.
+    super::canonical_runtime::spell::catalogs::with_policies(config, |policies|
+        wow_map::map_manager::has_noninstant_spell(spells, difficulty_id, policies))
 }
 
 pub(in crate::session) fn creature_ai_spell_initial_cooldown_like_cpp(
@@ -369,14 +306,7 @@ pub(in crate::session) fn creature_ai_spell_initial_cooldown_like_cpp(
     difficulty_id: u8,
     config: &LegacyCreatureAggroConfigLikeCpp,
 ) -> u64 {
-    // C++ `AISpellInfoType` starts at AI_DEFAULT_COOLDOWN=5000 and
-    // `FillAISpellInfo` raises it with raw `RecoveryTime`, deliberately not
-    // `GetRecoveryTime()`/CategoryRecoveryTime.
-    let recovery_time_ms =
-        creature_ai_spell_cooldowns_entry_like_cpp(spell_id, difficulty_id, config)
-            .and_then(|entry| u64::try_from(entry.recovery_time).ok())
-            .unwrap_or(0);
-    recovery_time_ms.max(5_000)
+    super::canonical_runtime::spell::catalogs::initial_delay(spell_id, difficulty_id, config)
 }
 
 pub(in crate::session) fn creature_ai_spell_repeat_cooldown_like_cpp(

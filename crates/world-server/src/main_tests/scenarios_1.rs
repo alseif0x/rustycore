@@ -10,12 +10,67 @@ use wow_world::session::directory::detached_session_phase_rail_like_cpp;
 fn dungeon_encounter_catalog_is_loaded_as_an_immutable_session_capability() {
     let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let app = fs::read_to_string(root.join("src/app.rs")).unwrap();
+    let continuation = include_str!("../app/world_startup.rs");
+    let delegation = "world_startup::run_world_startup(";
+    assert_eq!(app.matches(delegation).count(), 1);
+    let delegation_position = app.find(delegation).unwrap();
+    assert!(app[delegation_position..].split_once(".await").unwrap().0
+        .contains("&dungeon_encounter_store,"));
+    let startup = include_str!("../app/world_instance_startup.rs");
+    let catalogs = include_str!("../app/session_catalog_capabilities.rs");
     let resources = fs::read_to_string(root.join("src/session_resources.rs")).unwrap();
     // The #1233 decomposition moved the WorldSession definition to session/state.rs.
     let session = fs::read_to_string(root.join("../wow-world/src/session/state.rs")).unwrap();
-    assert!(app.contains("wow_data::DungeonEncounterStore::load(&data_dir, &locale)"));
-    assert!(app.contains("Failed to load DungeonEncounter.db2"));
-    assert!(app.contains("dungeon_encounter_store: Arc::clone(&dungeon_encounter_store)"));
+    let load_call = "world_instance_startup::load_dungeon_encounters(";
+    let world_call = "world: session_catalog_capabilities::build_world(";
+    assert_eq!(app.matches(load_call).count(), 1);
+    assert_eq!(
+        app.matches("let dungeon_encounter_store = world_instance_startup::load_dungeon_encounters(")
+            .count(),
+        1
+    );
+    assert_eq!(continuation.matches(world_call).count(), 1);
+    let load_position = app.find(load_call).unwrap();
+    let world_position = continuation.find(world_call).unwrap();
+    assert!(load_position < delegation_position);
+    assert!(
+        world_position
+            < continuation.find("let session_resources = Arc::new(session_resources);")
+                .unwrap()
+    );
+    let load_arguments = app[load_position..].split_once(")?;").unwrap().0;
+    assert!(load_arguments.contains("&data_dir,"));
+    assert!(load_arguments.contains("&locale,"));
+    let world_arguments = continuation[world_position..]
+        .split_once("        progression:")
+        .unwrap()
+        .0;
+    assert_eq!(
+        world_arguments.matches("dungeon_encounter_store,").count(),
+        1
+    );
+    let loader = startup
+        .split_once("pub(super) fn load_dungeon_encounters(")
+        .unwrap()
+        .1;
+    let world_catalogs = catalogs
+        .split_once("pub(super) fn build_world(")
+        .unwrap()
+        .1
+        .split_once("pub(super) fn build_progression(")
+        .unwrap()
+        .0;
+    assert_eq!(
+        startup.matches("wow_data::DungeonEncounterStore::load(").count(),
+        1
+    );
+    assert_eq!(
+        world_catalogs.matches("dungeon_encounter_store: Arc::clone(").count(),
+        1
+    );
+    assert!(loader.contains("wow_data::DungeonEncounterStore::load(data_dir, locale)"));
+    assert!(loader.contains("Failed to load DungeonEncounter.db2"));
+    assert!(world_catalogs.contains("dungeon_encounter_store: Arc::clone(dungeon_encounter_store)"));
     assert!(resources.contains("dungeon_encounter_store: Arc<wow_data::DungeonEncounterStore>"));
     assert!(resources.contains("set_dungeon_encounter_store"));
     assert!(session.contains("dungeon_encounter_store: Option<Arc<DungeonEncounterStore>>"));

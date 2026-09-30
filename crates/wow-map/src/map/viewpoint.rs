@@ -6,9 +6,7 @@
 //! Map-owned shared-vision, player-viewpoint and farsight operations.
 
 use super::*;
-use crate::map_rules::{
-    map_record_unit_mut_like_cpp, player_set_viewpoint_outcome_like_cpp,
-};
+use crate::map_rules::player_set_viewpoint_outcome_like_cpp;
 use wow_entities::{DynamicObjectType, UnitSharedVisionSetWorldObjectRequestLikeCpp};
 
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
@@ -175,7 +173,7 @@ where
                     false,
                 );
             };
-            if map_record_unit_mut_like_cpp(target_record).is_none() {
+            if target_record.unit_mut().is_none() {
                 return player_set_viewpoint_outcome_like_cpp(
                     player_guid,
                     target_guid,
@@ -233,7 +231,7 @@ where
                     false,
                 );
             };
-            let Some(target_unit) = map_record_unit_mut_like_cpp(target_record) else {
+            let Some(target_unit) = target_record.unit_mut() else {
                 return player_set_viewpoint_outcome_like_cpp(
                     player_guid,
                     target_guid,
@@ -495,7 +493,7 @@ where
 
         let Some(dynamic_object) = self
             .map_object_record(dynamic_object_guid)
-            .and_then(MapObjectRecord::dynamic_object)
+            .and_then(|record| record.dynamic_object())
         else {
             return outcome(
                 ObjectGuid::EMPTY,

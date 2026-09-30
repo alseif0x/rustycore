@@ -7,15 +7,15 @@ use super::*;
 
 impl WorldSession {
     /// Set the C++ BankBagSlotPrices.db2 store for this session.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_bank_bag_slot_prices_store(&mut self, store: Arc<BankBagSlotPricesStore>) {
-        self.bank_bag_slot_prices_store = Some(store);
+        self.items.install_bank_bag_slot_prices_store(store);
     }
     #[cfg(test)]
     pub(crate) fn bank_bag_slot_prices_store_for_test_like_cpp(
         &self,
     ) -> Option<&Arc<BankBagSlotPricesStore>> {
-        self.bank_bag_slot_prices_store.as_ref()
+        self.items.bank_bag_slot_prices_store()
     }
     /// C++ `Player::DurabilityRepairAll(takeCost=true, guildBank=true)` for represented items.
     pub(crate) async fn repair_all_inventory_item_durability_with_guild_bank_and_generator_like_cpp(
@@ -266,17 +266,6 @@ impl WorldSession {
         );
 
         Some((result, dest))
-    }
-    pub(crate) fn set_player_bank_bag_slot_count_like_cpp(&mut self, count: u8) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| player.set_bank_bag_slot_count(count))
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
-            self.player_item_test_fixture_like_cpp
-                .player_bank_bag_slot_count_like_cpp = count;
-        }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
     }
     pub(crate) fn represented_can_use_current_bank_like_cpp(&self) -> bool {
         let Some(banker_guid) = self.player_interaction_source_guid_like_cpp() else {
@@ -567,22 +556,6 @@ impl WorldSession {
             return true;
         }
         canonical
-    }
-    pub(crate) fn resolved_player_bank_bag_slot_count_like_cpp(&self) -> Option<u8> {
-        let canonical = self.with_owned_player_like_cpp(Player::bank_bag_slot_count);
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
-            return Some(
-                self.player_item_test_fixture_like_cpp
-                    .player_bank_bag_slot_count_like_cpp,
-            );
-        }
-        canonical
-    }
-    #[cfg(test)]
-    pub(crate) fn player_bank_bag_slot_count_like_cpp(&self) -> u8 {
-        self.resolved_player_bank_bag_slot_count_like_cpp()
-            .expect("test Player bank-bag-slot owner must resolve")
     }
     #[cfg(test)]
     pub(crate) fn set_represented_guild_repair_bank_state_like_cpp(

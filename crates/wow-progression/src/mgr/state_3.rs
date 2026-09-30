@@ -6,7 +6,7 @@ use super::*;
 
 pub(super) fn default_state_flags_like_cpp(
     faction_entry: &FactionEntry,
-    paragon_reputation_store: Option<&ParagonReputationStore>,
+    catalogs: &impl ReputationCatalogReadLikeCpp,
     player_race: u8,
     player_class: u8,
 ) -> ReputationFlagsLikeCpp {
@@ -17,8 +17,9 @@ pub(super) fn default_state_flags_like_cpp(
             })
             .unwrap_or(ReputationFlagsLikeCpp::NONE);
 
-    if paragon_reputation_store
-        .is_some_and(|store| store.get_by_faction_id_like_cpp(faction_entry.id).is_some())
+    if catalogs
+        .paragon_for_faction_like_cpp(faction_entry.id)
+        .is_some()
     {
         flags |= ReputationFlagsLikeCpp::SHOW_PROPAGATED;
     }
@@ -41,41 +42,41 @@ pub(super) fn base_rank_like_cpp(
     player_race: u8,
     player_class: u8,
 ) -> ReputationRankLikeCpp {
-    reputation_to_rank_like_cpp(
+    // C++'s existing base-rank path has no friendship catalog. Keep its pure
+    // standing thresholds instead of consulting any application catalog.
+    reputation_rank_from_standing_like_cpp(base_reputation_like_cpp(
         faction_entry,
-        base_reputation_like_cpp(faction_entry, player_race, player_class),
-        None,
-    )
+        player_race,
+        player_class,
+    ))
 }
 
 pub(super) fn min_reputation_like_cpp(
     faction_entry: &FactionEntry,
-    friendship_rep_reaction_store: Option<&FriendshipRepReactionStore>,
+    catalogs: &impl ReputationCatalogReadLikeCpp,
 ) -> i32 {
-    friendship_rep_reaction_store
-        .filter(|_| faction_entry.friendship_rep_id != 0)
-        .and_then(|store| {
-            store
-                .reactions_for_friendship_rep_like_cpp(faction_entry.friendship_rep_id)
+    (faction_entry.friendship_rep_id != 0)
+        .then(|| catalogs.friendship_reactions_like_cpp(faction_entry.friendship_rep_id))
+        .flatten()
+        .and_then(|reactions| {
+            reactions
                 .first()
                 .map(|entry| i32::from(entry.reaction_threshold))
         })
-        .unwrap_or(wow_data::reputation::REPUTATION_BOTTOM_LIKE_CPP)
+        .unwrap_or(REPUTATION_BOTTOM_LIKE_CPP)
 }
 
 pub(super) fn max_reputation_like_cpp(
     faction_entry: &FactionEntry,
-    friendship_rep_reaction_store: Option<&FriendshipRepReactionStore>,
-    paragon_reputation_store: Option<&ParagonReputationStore>,
+    catalogs: &impl ReputationCatalogReadLikeCpp,
     current_reputation: i32,
     paragon_reward_quest_status_none_like_cpp: bool,
-    currency_types_store: Option<&CurrencyTypesStore>,
     renown_currency_increased_cap_quantity_like_cpp: u32,
     player_race: u8,
     player_class: u8,
 ) -> i32 {
-    if let Some(paragon_reputation) = paragon_reputation_store
-        .and_then(|store| store.get_by_faction_id_like_cpp(faction_entry.id))
+    if let Some(paragon_reputation) = catalogs
+        .paragon_for_faction_like_cpp(faction_entry.id)
         .filter(|entry| entry.level_threshold > 0)
     {
         let threshold = paragon_reputation.level_threshold;
@@ -89,16 +90,16 @@ pub(super) fn max_reputation_like_cpp(
     if faction_entry.renown_currency_id > 0 {
         return renown_max_level_like_cpp(
             faction_entry,
-            currency_types_store,
+            catalogs,
             renown_currency_increased_cap_quantity_like_cpp,
         ) * renown_level_threshold_like_cpp(faction_entry, player_race, player_class);
     }
 
-    if let Some(max) = friendship_rep_reaction_store
-        .filter(|_| faction_entry.friendship_rep_id != 0)
-        .and_then(|store| {
-            store
-                .reactions_for_friendship_rep_like_cpp(faction_entry.friendship_rep_id)
+    if let Some(max) = (faction_entry.friendship_rep_id != 0)
+        .then(|| catalogs.friendship_reactions_like_cpp(faction_entry.friendship_rep_id))
+        .flatten()
+        .and_then(|reactions| {
+            reactions
                 .last()
                 .map(|entry| i32::from(entry.reaction_threshold))
         })
@@ -108,7 +109,7 @@ pub(super) fn max_reputation_like_cpp(
 
     faction_data_index_for_race_and_class_like_cpp(faction_entry, player_race, player_class)
         .map(|index| faction_entry.reputation_max[index])
-        .unwrap_or(wow_data::reputation::REPUTATION_CAP_LIKE_CPP)
+        .unwrap_or(REPUTATION_CAP_LIKE_CPP)
 }
 
 pub(super) fn renown_level_threshold_like_cpp(
@@ -127,15 +128,15 @@ pub(super) fn renown_level_threshold_like_cpp(
 
 pub(super) fn renown_max_level_like_cpp(
     faction_entry: &FactionEntry,
-    currency_types_store: Option<&CurrencyTypesStore>,
+    catalogs: &impl ReputationCatalogReadLikeCpp,
     renown_currency_increased_cap_quantity_like_cpp: u32,
 ) -> i32 {
     if faction_entry.renown_currency_id <= 0 {
         return 0;
     }
 
-    currency_types_store
-        .and_then(|store| store.get(faction_entry.renown_currency_id as u32))
+    catalogs
+        .currency_types_like_cpp(faction_entry.renown_currency_id as u32)
         .filter(|currency| currency.has_max_quantity(false, false))
         .map(|currency| {
             currency
@@ -148,15 +149,14 @@ pub(super) fn renown_max_level_like_cpp(
 pub fn reputation_to_rank_like_cpp(
     faction_entry: &FactionEntry,
     standing: i32,
-    friendship_rep_reaction_store: Option<&FriendshipRepReactionStore>,
+    catalogs: &impl ReputationCatalogReadLikeCpp,
 ) -> ReputationRankLikeCpp {
     if let Some(friendship_rep_id) =
         (faction_entry.friendship_rep_id != 0).then_some(faction_entry.friendship_rep_id)
     {
-        if let Some(store) = friendship_rep_reaction_store {
+        if let Some(reactions) = catalogs.friendship_reactions_like_cpp(friendship_rep_id) {
             let rank = rank_from_thresholds_like_cpp(
-                store
-                    .reactions_for_friendship_rep_like_cpp(friendship_rep_id)
+                reactions
                     .into_iter()
                     .map(|entry| i32::from(entry.reaction_threshold)),
                 standing,
@@ -167,7 +167,7 @@ pub fn reputation_to_rank_like_cpp(
         }
     }
 
-    wow_data::reputation::reputation_rank_from_standing_like_cpp(standing)
+    reputation_rank_from_standing_like_cpp(standing)
 }
 
 pub(super) fn rank_from_thresholds_like_cpp(

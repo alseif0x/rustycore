@@ -4,6 +4,7 @@ use super::{
     apply_quest_item_added_non_bound_to_statuses_like_cpp,
     apply_quest_item_removed_to_statuses_like_cpp, plan_threshold_quest_objective_changes_like_cpp,
     player_has_incomplete_quest_objective_for_object_id_like_cpp,
+    represented_can_complete_quest_after_objective_like_cpp,
     represented_quest_objective_completable_like_cpp,
     represented_quest_objective_complete_like_cpp,
 };
@@ -11,12 +12,70 @@ use crate::PlayerQuestStatusRecord;
 use std::collections::BTreeMap;
 use std::collections::{HashMap, HashSet};
 use wow_constants::quest::{
+    QUEST_FLAGS_COMPLETION_EVENT_LIKE_CPP,
     QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP,
     QUEST_OBJECTIVE_FLAG_PART_OF_PROGRESS_BAR_LIKE_CPP, QUEST_OBJECTIVE_FLAG_SEQUENCED_LIKE_CPP,
     QUEST_OBJECTIVE_ITEM_LIKE_CPP, QUEST_OBJECTIVE_MONSTER_LIKE_CPP,
     QUEST_OBJECTIVE_PROGRESS_BAR_LIKE_CPP, QUEST_STATUS_COMPLETE_LIKE_CPP,
     QUEST_STATUS_INCOMPLETE_LIKE_CPP,
 };
+
+#[test]
+fn catalog_objective_definition_and_rule_view_keep_the_same_contract() {
+    let quest_id = 901;
+    let objectives = vec![objective(
+        9001,
+        quest_id,
+        QUEST_OBJECTIVE_ITEM_LIKE_CPP,
+        0,
+        25,
+        2,
+        0,
+        0,
+        0.0,
+    )];
+    assert_eq!(objectives[0].condition_progress_limit_like_cpp(), 2);
+
+    let mut state = status(quest_id, 0, QUEST_STATUS_INCOMPLETE_LIKE_CPP, vec![1]);
+    let mut quest_id_view = quest_id;
+    let mut quest_flags = 0;
+    let mut limit_time_secs = 0;
+    let mut repeatable = false;
+    macro_rules! can_complete {
+        ($status:expr, $rewarded:expr) => {{
+            let rules = QuestObjectiveRulesLikeCpp::new(
+                quest_id_view,
+                quest_flags,
+                limit_time_secs,
+                repeatable,
+                &objectives,
+            );
+            represented_can_complete_quest_after_objective_like_cpp(
+                $status,
+                &rules,
+                0,
+                $rewarded,
+            )
+        }};
+    }
+
+    assert!(!can_complete!(&state, false));
+    state.objective_counts[0] = 2;
+    assert!(can_complete!(&state, false));
+    assert!(!can_complete!(&state, true));
+    repeatable = true;
+    assert!(can_complete!(&state, true));
+    quest_flags |= QUEST_FLAGS_COMPLETION_EVENT_LIKE_CPP;
+    assert!(!can_complete!(&state, false));
+    state.explored = true;
+    assert!(can_complete!(&state, false));
+    limit_time_secs = 10;
+    assert!(!can_complete!(&state, false));
+    state.end_time_secs = 10;
+    assert!(can_complete!(&state, false));
+    quest_id_view = 0;
+    assert!(!can_complete!(&state, false));
+}
 
 fn objective(
     id: u32,
@@ -68,9 +127,9 @@ fn definition_view_borrows_the_original_objectives_in_the_original_order() {
         objective(91, 9, QUEST_OBJECTIVE_ITEM_LIKE_CPP, 1, 21, 2, 0, 0, 0.0),
     ];
     let view = QuestObjectiveRulesLikeCpp::new(9, 0, 0, false, &objectives);
-    assert!(std::ptr::eq(view.objectives.as_ptr(), objectives.as_ptr()));
-    assert_eq!(view.objectives[0].id, 90);
-    assert_eq!(view.objectives[1].id, 91);
+    assert!(std::ptr::eq(view.objectives().as_ptr(), objectives.as_ptr()));
+    assert_eq!(view.objectives()[0].id, 90);
+    assert_eq!(view.objectives()[1].id, 91);
 }
 
 #[test]

@@ -279,51 +279,10 @@ impl WorldSession {
                 return self.finish_combat_stop_like_cpp(player_guid, stopped_target, Vec::new());
             };
             let map = managed.map_mut();
-            let Some(player) = map.get_typed_player_mut(player_guid) else {
+            let Some(owner_guids) = map.clear_player_combat(player_guid) else {
                 drop(manager);
                 return self.finish_combat_stop_like_cpp(player_guid, stopped_target, Vec::new());
             };
-
-            let mut owner_guids: Vec<ObjectGuid> = player
-                .unit()
-                .subsystems()
-                .combat
-                .pve_refs
-                .keys()
-                .chain(player.unit().subsystems().combat.pvp_refs.keys())
-                .chain(player.unit().subsystems().combat.attackers.iter())
-                .copied()
-                .collect();
-            owner_guids.sort_unstable();
-            owner_guids.dedup();
-
-            player.unit_mut().subsystems_mut().combat.end_all_combat();
-            player.unit_mut().subsystems_mut().combat.clear_attackers();
-
-            for owner_guid in &owner_guids {
-                if let Some(owner) = map.get_typed_player_mut(*owner_guid) {
-                    if owner.unit().attacking() == Some(player_guid) {
-                        let _ = owner.unit_mut().attack_stop_like_cpp();
-                    }
-                    owner
-                        .unit_mut()
-                        .subsystems_mut()
-                        .combat
-                        .purge_combat_ref_like_cpp(player_guid);
-                    owner.unit_mut().remove_attacker_like_cpp(player_guid);
-                } else if let Some(owner) = map.get_typed_creature_mut(*owner_guid) {
-                    if owner.unit().attacking() == Some(player_guid) {
-                        let _ = owner.unit_mut().attack_stop_like_cpp();
-                    }
-                    owner
-                        .unit_mut()
-                        .subsystems_mut()
-                        .combat
-                        .purge_combat_ref_like_cpp(player_guid);
-                    owner.unit_mut().remove_attacker_like_cpp(player_guid);
-                }
-            }
-
             owner_guids
         };
 

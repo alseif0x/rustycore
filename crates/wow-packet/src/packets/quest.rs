@@ -13,11 +13,13 @@ use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::ObjectGuid;
 
 // Constants matching C# SharedConst
-const QUEST_REWARD_ITEM_COUNT: usize = 4;
-const QUEST_REWARD_CHOICES_COUNT: usize = 6;
-const QUEST_REWARD_REPUTATIONS_COUNT: usize = 5;
-const QUEST_REWARD_CURRENCY_COUNT: usize = 4;
-const QUEST_REWARD_DISPLAY_SPELL_COUNT: usize = 3;
+use wow_constants::quest::{
+    QUEST_REWARD_ITEM_COUNT, QUEST_REWARD_CHOICES_COUNT, QUEST_REWARD_REPUTATIONS_COUNT,
+    QUEST_REWARD_CURRENCY_COUNT, QUEST_REWARD_DISPLAY_SPELL_COUNT,
+};
+
+mod requests;
+pub use requests::{QuestChoiceItem, read_quest_choice_item, read_quest_giver_accept_quest, read_quest_giver_query_quest};
 const QUEST_EMOTE_COUNT: usize = 4;
 
 /// Client request to start an Adventure Map quest.
@@ -217,45 +219,7 @@ impl ServerPacket for WorldQuestUpdateResponse {
 }
 
 // ── Quest giver status constants ──────────────────────────────────────────────
-pub mod quest_giver_status {
-    pub const NONE: u64 = 0;
-    pub const FUTURE: u64 = 0x0000_0002;
-    pub const TRIVIAL: u64 = 0x0000_0004;
-    pub const TRIVIAL_REPEATABLE_TURNIN: u64 = 0x0000_0008;
-    pub const TRIVIAL_DAILY_QUEST: u64 = 0x0000_0010;
-    pub const REWARD: u64 = 0x0000_0020;
-    pub const JOURNEY_REWARD: u64 = 0x0000_0040;
-    pub const COVENANT_CALLING_REWARD: u64 = 0x0000_0080;
-    pub const REPEATABLE_TURNIN: u64 = 0x0000_0100;
-    pub const DAILY_QUEST: u64 = 0x0000_0200;
-    pub const QUEST: u64 = 0x0000_0400;
-    pub const REWARD_COMPLETE_NO_POI: u64 = 0x0000_0800;
-    pub const REWARD_COMPLETE_POI: u64 = 0x0000_1000;
-    pub const LEGENDARY_QUEST: u64 = 0x0000_2000;
-    pub const LEGENDARY_REWARD_COMPLETE_NO_POI: u64 = 0x0000_4000;
-    pub const LEGENDARY_REWARD_COMPLETE_POI: u64 = 0x0000_8000;
-    pub const JOURNEY_QUEST: u64 = 0x0001_0000;
-    pub const JOURNEY_REWARD_COMPLETE_NO_POI: u64 = 0x0002_0000;
-    pub const JOURNEY_REWARD_COMPLETE_POI: u64 = 0x0004_0000;
-    pub const COVENANT_CALLING_QUEST: u64 = 0x0008_0000;
-    pub const COVENANT_CALLING_REWARD_COMPLETE_NO_POI: u64 = 0x0010_0000;
-    pub const COVENANT_CALLING_REWARD_COMPLETE_POI: u64 = 0x0020_0000;
-    pub const TRIVIAL_LEGENDARY_QUEST: u64 = 0x0040_0000;
-    pub const FUTURE_LEGENDARY_QUEST: u64 = 0x0080_0000;
-    pub const LEGENDARY_REWARD: u64 = 0x0100_0000;
-    pub const IMPORTANT_QUEST: u64 = 0x0200_0000;
-    pub const IMPORTANT_REWARD: u64 = 0x0400_0000;
-    pub const TRIVIAL_IMPORTANT_QUEST: u64 = 0x0800_0000;
-    pub const FUTURE_IMPORTANT_QUEST: u64 = 0x1000_0000;
-    pub const IMPORTANT_QUEST_REWARD_COMPLETE_NO_POI: u64 = 0x2000_0000;
-    pub const IMPORTANT_QUEST_REWARD_COMPLETE_POI: u64 = 0x4000_0000;
-    pub const TRIVIAL_JOURNEY_QUEST: u64 = 0x8000_0000;
-    pub const FUTURE_JOURNEY_QUEST: u64 = 0x1_0000_0000;
-
-    pub const AVAILABLE: u64 = QUEST;
-    pub const AVAILABLE_DAILY: u64 = DAILY_QUEST;
-    pub const CAN_REWARD: u64 = REWARD_COMPLETE_POI;
-}
+pub use wow_constants::quest::quest_giver_status;
 
 // ── SMSG_QUEST_GIVER_QUEST_LIST_MESSAGE ──────────────────────────────────────
 

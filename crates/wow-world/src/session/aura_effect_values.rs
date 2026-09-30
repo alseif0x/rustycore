@@ -12,13 +12,7 @@ pub(in crate::session) type CanonicalThreatAuraSnapshotLikeCpp =
 pub(in crate::session) fn represented_aura_effect_amounts_like_cpp(
     effect: &wow_data::SpellEffectInfo,
 ) -> Vec<RepresentedAuraEffectAmountLikeCpp> {
-    let Some(effect_index) = u8::try_from(effect.effect_index).ok() else {
-        return Vec::new();
-    };
-    vec![RepresentedAuraEffectAmountLikeCpp {
-        effect_index,
-        amount: effect.effect_base_points,
-    }]
+    wow_entities::AuraSubsystem::single_effect_amounts(effect.effect_index, effect.effect_base_points)
 }
 
 pub(in crate::session) fn unit_owned_apply_aura_effect_mask_like_cpp(

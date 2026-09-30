@@ -5,6 +5,16 @@ use wow_persistence::{
     SocialPersistencePortLikeCpp, SocialRelationshipKindLikeCpp, SocialRelationshipStateLikeCpp,
 };
 
+/// Exercise the original failed/resolved social lookup, including its warning.
+pub async fn group_target_ignores_inviter_for_test(
+    port: Option<Arc<dyn SocialPersistencePortLikeCpp>>,
+    target: wow_core::ObjectGuid,
+    inviter: wow_core::ObjectGuid,
+    account: u32,
+) -> bool {
+    super::state::target_social_ignores_inviter_like_cpp(port, target, inviter, account).await
+}
+
 pub async fn persist_group_intents_like_cpp(
     session: &super::WorldSession,
     group_guid: u64,

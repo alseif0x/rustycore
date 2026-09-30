@@ -81,20 +81,12 @@ impl crate::session::WorldSession {
                                 let map = map_store?.get(map_id)?;
                                 let map_difficulty =
                                     map_difficulty_store?.get(map_id, difficulty_id)?;
-                                Some(wow_instances::MapDb2Entries {
+                                Some(wow_instances::MapDb2Entries::from_resolved_entries_like_cpp(
                                     map_id,
                                     difficulty_id,
-                                    lock_id: u32::from(map_difficulty.lock_id),
-                                    reset_interval: match map_difficulty.reset_interval {
-                                        1 => wow_instances::MapDifficultyResetInterval::Daily,
-                                        2 => wow_instances::MapDifficultyResetInterval::Weekly,
-                                        _ => wow_instances::MapDifficultyResetInterval::Anytime,
-                                    },
-                                    max_players: map_difficulty.max_players,
-                                    is_flex_locking: map.is_flex_locking(),
-                                    is_using_encounter_locks: map_difficulty
-                                        .is_using_encounter_locks(),
-                                })
+                                    map,
+                                    map_difficulty,
+                                ))
                             },
                         )
                     })
@@ -181,19 +173,12 @@ impl crate::session::WorldSession {
                 .filter_map(|(map_id, difficulty_id)| {
                     let map = self.map_store()?.get(map_id)?;
                     let map_difficulty = self.map_difficulty_store()?.get(map_id, difficulty_id)?;
-                    let entries = wow_instances::MapDb2Entries {
+                    let entries = wow_instances::MapDb2Entries::from_resolved_entries_like_cpp(
                         map_id,
                         difficulty_id,
-                        lock_id: u32::from(map_difficulty.lock_id),
-                        reset_interval: match map_difficulty.reset_interval {
-                            1 => wow_instances::MapDifficultyResetInterval::Daily,
-                            2 => wow_instances::MapDifficultyResetInterval::Weekly,
-                            _ => wow_instances::MapDifficultyResetInterval::Anytime,
-                        },
-                        max_players: map_difficulty.max_players,
-                        is_flex_locking: map.is_flex_locking(),
-                        is_using_encounter_locks: map_difficulty.is_using_encounter_locks(),
-                    };
+                        map,
+                        map_difficulty,
+                    );
                     Some((entries.key(), entries))
                 })
                 .collect::<std::collections::HashMap<_, _>>();

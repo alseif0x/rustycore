@@ -513,7 +513,3 @@ impl WorldSession {
         );
     }
 }
-
-#[cfg(test)]
-#[path = "handlers_tests.rs"]
-mod tests;

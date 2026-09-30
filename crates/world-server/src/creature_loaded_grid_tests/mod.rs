@@ -2,6 +2,7 @@
 
 mod builder;
 mod resolver;
+mod created;
 
 use super::*;
 use wow_constants::PowerType;

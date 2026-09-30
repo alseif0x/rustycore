@@ -148,59 +148,6 @@ fn reset_seasonal_clears_quest_v2_completed_bit_from_canonical_player_like_cpp()
     assert_eq!(player.quest_completed_block_like_cpp(1), Some(0));
 }
 #[test]
-fn reset_seasonal_missing_quest_v2_store_removes_without_inventing_bit_like_cpp() {
-    let (mut session, _, _) = make_session();
-    session.seed_seasonal_quest_status_like_cpp(7, 1001, 99);
-
-    let outcome = session.reset_seasonal_quest_status_like_cpp(7, 100);
-
-    assert_eq!(outcome.removed_quest_ids, vec![1001]);
-    assert_eq!(outcome.completed_bit_cleared, 0);
-    assert_eq!(outcome.completed_bit_skipped_no_quest_v2_store, 1);
-    assert_eq!(outcome.completed_bit_clear_unrepresented, 0);
-    assert_eq!(session.seasonal_quest_bucket_like_cpp(7), None);
-    assert!(
-        session
-            .quest_test_fixture_like_cpp
-            .represented_quest_completed_bits_like_cpp
-            .is_empty()
-    );
-}
-#[test]
-fn can_take_quest_rejects_completed_seasonal_bucket_quest_like_cpp() {
-    let (mut session, _, _) = make_session();
-    let quest = seasonal_test_quest_template(12_345, -376, 9);
-    session.seed_seasonal_quest_status_like_cpp(9, 12_345, 100);
-
-    assert!(!session.can_take_quest(&quest));
-}
-#[test]
-fn can_take_quest_allows_seasonal_when_only_other_event_bucket_has_quest_like_cpp() {
-    let (mut session, _, _) = make_session();
-    let quest = seasonal_test_quest_template(12_345, -376, 9);
-    session.seed_seasonal_quest_status_like_cpp(10, 12_345, 100);
-
-    assert!(session.can_take_quest(&quest));
-}
-#[test]
-fn can_take_quest_allows_seasonal_when_bucket_missing_or_empty_like_cpp() {
-    let (mut session, _, _) = make_session();
-    let quest = seasonal_test_quest_template(12_345, -376, 9);
-
-    assert!(session.can_take_quest(&quest));
-
-    session.seed_empty_seasonal_event_bucket_like_cpp(9);
-    assert!(session.can_take_quest(&quest));
-}
-#[test]
-fn can_take_quest_allows_non_seasonal_even_when_same_bucket_has_quest_like_cpp() {
-    let (mut session, _, _) = make_session();
-    let quest = seasonal_test_quest_template(12_345, -101, 9);
-    session.seed_seasonal_quest_status_like_cpp(9, 12_345, 100);
-
-    assert!(session.can_take_quest(&quest));
-}
-#[test]
 fn canonical_player_quest_rewarded_talent_points_follow_detached_and_stale_ownership_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
     let canonical = shared_canonical_map_manager();
@@ -451,6 +398,9 @@ fn represented_adjacent_vehicle_seat_request_records_cpp_change_seat_plan() {
         ]
     );
 }
+
+#[path = "quest_seasonal_bridge.rs"]
+mod seasonal_bridge;
 #[tokio::test]
 async fn request_vehicle_prev_next_handlers_record_represented_change_seat_like_cpp() {
     let (mut session, _, _) = make_session();

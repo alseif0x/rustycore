@@ -5,11 +5,18 @@
 
 use super::*;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-struct DirectInventoryPositionUpdateLikeCpp {
+pub(in crate::handlers::character) struct DirectInventoryPositionUpdateLikeCpp {
     slot: u8,
     item_db_guid: u64,
+}
+
+#[cfg(any(test, feature = "test-fixtures"))]
+impl DirectInventoryPositionUpdateLikeCpp {
+    pub(in crate::handlers::character) fn from_fixture_fields(slot: u8, item_db_guid: u64) -> Self {
+        Self { slot, item_db_guid }
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -74,8 +81,8 @@ pub(in crate::handlers::character) enum InventorySwapStepLikeCpp {
     },
 }
 
-#[cfg(test)]
-fn plan_direct_inventory_swap_persistence_like_cpp(
+#[cfg(any(test, feature = "test-fixtures"))]
+pub(in crate::handlers::character) fn plan_direct_inventory_swap_persistence_like_cpp(
     src: u8,
     dst: u8,
     src_item: Option<&InventoryItem>,
@@ -272,7 +279,3 @@ pub(in crate::handlers::character) fn item_is_not_empty_bag_like_cpp(
 ) -> bool {
     matches!(inventory_type, Some(InventoryType::Bag)) && contains_items
 }
-
-#[cfg(test)]
-#[path = "inventory_plan_tests.rs"]
-mod rule_tests;

@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 wow-core = { workspace = true }
-wow-data = { workspace = true }
+wow-data-model = { workspace = true }
 wow-persistence = { workspace = true }
 serde_json = { workspace = true }
 

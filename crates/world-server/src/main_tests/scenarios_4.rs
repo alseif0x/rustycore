@@ -9,16 +9,23 @@ use super::*;
 fn world_listener_captures_application_resources_outside_transport_boundary() {
     let source = fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app.rs"))
         .expect("world-server composition source should be readable");
-    let listener_start = source
+    let serving_source = include_str!("../app/serve.rs");
+    let listener_source = include_str!("../app/listener_startup.rs");
+    let continuation = include_str!("../app/world_startup.rs");
+    assert_eq!(source.matches("world_startup::run_world_startup(").count(), 1);
+    assert_eq!(continuation.matches("serve::serve(").count(), 1);
+    assert_eq!(serving_source.matches("listener_startup::load(").count(), 1);
+    assert_eq!(listener_source.matches("wow_network::start_world_listener(").count(), 1);
+    let listener_start = listener_source
         .find("wow_network::start_world_listener(")
         .expect("world listener call must exist");
     let listener_end = listener_start
-        + source[listener_start..]
+        + listener_source[listener_start..]
             .find("realm_listener_ready_tx,")
             .expect("world listener readiness argument must exist");
-    let listener_call = &source[listener_start..listener_end];
+    let listener_call = &listener_source[listener_start..listener_end];
 
-    assert!(source[..listener_start].contains("let resources = Arc::clone(&session_resources);"));
+    assert!(listener_source[..listener_start].contains("let resources = Arc::clone(session_resources);"));
     assert!(
         listener_call.contains(
             "move |account, pkt_rx, send_tx, send_write_fence_like_cpp, socket_timeouts|"
@@ -57,15 +64,19 @@ fn primary_profession_capacity_config_and_session_resource_wiring_are_pinned() {
     }
 
     let composition_source =
-        fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app.rs"))
-            .expect("world-server composition source should be readable");
+        fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app/world_startup.rs"))
+            .expect("world-server continuation source should be readable");
+    let root_source = include_str!("../app.rs");
+    assert_eq!(root_source.matches("world_startup::run_world_startup(").count(), 1);
     let resources_source = fs::read_to_string(
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_resources.rs"),
     )
     .expect("world-server session resources source should be readable");
+    let catalog_source = include_str!("../app/session_catalog_capabilities.rs");
+    assert_eq!(composition_source.matches("session_catalog_capabilities::build_progression(").count(), 1);
     let materialization_needle = [
         "max_primary_trade_skills:",
-        " max_primary_trade_skills_like_cpp(&world_configs),",
+        " max_primary_trade_skills_like_cpp(world_configs),",
     ]
     .concat();
     let propagation_needle = [
@@ -74,7 +85,7 @@ fn primary_profession_capacity_config_and_session_resource_wiring_are_pinned() {
     ]
     .concat();
     assert!(
-        composition_source.contains(&materialization_needle),
+        catalog_source.contains(&materialization_needle),
         "SessionResources must materialize the validated configuration"
     );
     assert!(
@@ -85,8 +96,10 @@ fn primary_profession_capacity_config_and_session_resource_wiring_are_pinned() {
 #[test]
 fn production_persistence_capabilities_are_required_and_installed_atomically() {
     let composition_source =
-        fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app.rs"))
-            .expect("world-server composition source should be readable");
+        fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app/world_startup.rs"))
+            .expect("world-server continuation source should be readable");
+    let root_source = include_str!("../app.rs");
+    assert_eq!(root_source.matches("world_startup::run_world_startup(").count(), 1);
     let resources_source = fs::read_to_string(
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_resources.rs"),
     )
@@ -96,16 +109,23 @@ fn production_persistence_capabilities_are_required_and_installed_atomically() {
     )
     .expect("world-server session factory source should be readable");
 
+    let persistence_source = include_str!("../app/session_persistence.rs");
+    let core_source = include_str!("../app/session_core_capabilities.rs");
+    assert_eq!(composition_source.matches("session_persistence::build_session_persistence_ports(").count(), 1);
+    assert_eq!(composition_source.matches("core: session_core_capabilities::build(").count(), 1);
+    assert_eq!(core_source.matches("            persistence,").count(), 1);
+    let mut cursor = 0;
     for constructor in [
         "SessionAdmissionPersistenceLikeCpp::required_like_cpp(",
         "PlayerPersistenceCapabilitiesLikeCpp::required_like_cpp(",
         "WorldPersistenceCapabilitiesLikeCpp::required_like_cpp(",
         "CatalogPersistenceCapabilitiesLikeCpp::required_like_cpp(",
     ] {
-        assert!(
-            composition_source.contains(constructor),
-            "the composition root must construct required capability {constructor}"
-        );
+        assert_eq!(persistence_source.matches(constructor).count(), 1,
+                   "the graph builder must construct required capability {constructor} exactly once");
+        let offset = persistence_source[cursor..].find(constructor)
+            .expect("required capability construction order must be retained");
+        cursor += offset + constructor.len();
     }
     assert!(
         resources_source.contains("core: SessionCoreCapabilitiesLikeCpp"),
@@ -135,8 +155,18 @@ fn production_persistence_capabilities_are_required_and_installed_atomically() {
 #[test]
 fn session_resources_requires_named_capability_bundles() {
     let composition_source =
-        fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app.rs"))
-            .expect("world-server composition source should be readable");
+        fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app/world_startup.rs"))
+            .expect("world-server continuation source should be readable");
+    let root_source = include_str!("../app.rs");
+    assert_eq!(root_source.matches("world_startup::run_world_startup(").count(), 1);
+    let core_source = include_str!("../app/session_core_capabilities.rs");
+    let serving_source = include_str!("../app/serve.rs");
+    let listener_source = include_str!("../app/listener_startup.rs");
+    assert_eq!(composition_source.matches("core: session_core_capabilities::build(").count(), 1);
+    let handler_policy_source = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app/session_handler_policies.rs"),
+    )
+    .expect("production handler policy composition source should be readable");
     let resources_source = fs::read_to_string(
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_resources.rs"),
     )
@@ -244,12 +274,12 @@ fn session_resources_requires_named_capability_bundles() {
         );
     }
     assert!(
-        composition_source
+        core_source
             .contains("id_generators: Arc::new(wow_world::session::SessionIdGeneratorsLikeCpp"),
         "the composition root must group process-owned generators in the borrowed handler capabilities"
     );
     assert!(
-        composition_source
+        core_source
             .contains("item_valuation: Arc::new(wow_world::session::ItemValuationCatalogsLikeCpp"),
         "the composition root must group process-owned item valuation stores in borrowed handler capabilities"
     );
@@ -258,7 +288,7 @@ fn session_resources_requires_named_capability_bundles() {
         "item valuation catalogs must be borrowed by loot handlers instead of installed into WorldSession"
     );
     assert!(
-        composition_source.contains(
+        core_source.contains(
             "player_bootstrap: Arc::new(wow_world::session::PlayerBootstrapCatalogsLikeCpp"
         ),
         "the composition root must group ObjectMgr PlayerInfo data in borrowed login capabilities"
@@ -278,7 +308,7 @@ fn session_resources_requires_named_capability_bundles() {
         );
     }
     assert!(
-        composition_source.contains(
+        core_source.contains(
             "player_rest_rates: Arc::new(wow_world::session::PlayerRestRatePolicyLikeCpp"
         ),
         "the composition root must group C++ World rest rates in one borrowed Player policy"
@@ -290,7 +320,7 @@ fn session_resources_requires_named_capability_bundles() {
         "C++ World rest rates must not remain in the SessionResources installation graph"
     );
     assert!(
-        composition_source
+        core_source
             .contains("creature_spawns: Arc::new(wow_world::session::CreatureSpawnCatalogsLikeCpp"),
         "the composition root must group ObjectMgr/World creature materialization catalogs"
     );
@@ -306,29 +336,77 @@ fn session_resources_requires_named_capability_bundles() {
             "process-owned creature catalog {retired_creature_catalog_copy} must be borrowed during materialization"
         );
     }
-    assert!(
-        composition_source
-            .contains("chat_policy: Arc::new(wow_world::session::ChatPolicyCatalogsLikeCpp"),
+    assert_eq!(
+        handler_policy_source
+            .matches("Arc::new(wow_world::session::ChatPolicyCatalogsLikeCpp {")
+            .count(),
+        1,
         "the composition root must group process-owned C++ World chat policy for dispatch"
     );
+    assert_eq!(
+        core_source
+            .matches("session_handler_policies::build_chat_policy(")
+            .count(),
+        1,
+        "the composition root must construct chat_policy exactly once"
+    );
+    let chat_policy_position = core_source
+        .find("chat_policy: session_handler_policies::build_chat_policy(")
+        .expect("chat_policy must be built in its original handler catalog field");
     assert!(
         !resources_source.contains("session.set_chat_flood_config_like_cpp("),
         "C++ World chat policy must be borrowed by handlers instead of copied into WorldSession"
     );
-    assert!(
-        composition_source
-            .contains("group_invite_policy: Arc::new(wow_world::session::GroupInvitePolicyLikeCpp"),
+    assert_eq!(
+        handler_policy_source
+            .matches("Arc::new(wow_world::session::GroupInvitePolicyLikeCpp {")
+            .count(),
+        1,
         "the composition root must group process-owned C++ World party-invite policy"
     );
+    assert_eq!(
+        core_source
+            .matches("session_handler_policies::build_group_invite_policy(")
+            .count(),
+        1,
+        "the composition root must construct group_invite_policy exactly once"
+    );
+    let group_invite_policy_position = core_source
+        .find("group_invite_policy: session_handler_policies::build_group_invite_policy(")
+        .expect("group_invite_policy must be built in its original handler catalog field");
     assert!(
         !resources_source.contains("session.set_party_level_req_like_cpp("),
         "C++ World party policy must be borrowed by handlers instead of copied into WorldSession"
     );
-    assert!(
-        composition_source.contains(
-            "support_feature_policy: Arc::new(wow_world::session::SupportFeaturePolicyLikeCpp"
-        ),
+    assert_eq!(
+        handler_policy_source
+            .matches("Arc::new(wow_world::session::SupportFeaturePolicyLikeCpp {")
+            .count(),
+        1,
         "the composition root must group C++ SupportMgr and feature-system process policy"
+    );
+    assert_eq!(
+        core_source
+            .matches("session_handler_policies::build_support_feature_policy(")
+            .count(),
+        1,
+        "the composition root must construct support_feature_policy exactly once"
+    );
+    let support_feature_policy_position = core_source
+        .find("support_feature_policy: session_handler_policies::build_support_feature_policy(")
+        .expect("support_feature_policy must be built in its original handler catalog field");
+    let quest_info_position = core_source
+        .find("quest_info: Arc::clone(&quest_rewards.quest_info_store)")
+        .expect("handler quest info must precede handler policies");
+    let regeneration_position = core_source
+        .find("player_regeneration_rates: Arc::new(")
+        .expect("handler regeneration policy must follow handler policies");
+    assert!(
+        quest_info_position < chat_policy_position
+            && chat_policy_position < group_invite_policy_position
+            && group_invite_policy_position < support_feature_policy_position
+            && support_feature_policy_position < regeneration_position,
+        "handler policies must retain their original field order between quest info and regeneration"
     );
     assert!(
         !resources_source.contains("session.set_represented_support_enabled_like_cpp("),
@@ -402,9 +480,26 @@ fn session_resources_requires_named_capability_bundles() {
         .find("let session_resources = Arc::new(session_resources);")
         .expect("fully constructed resources should be published through Arc");
     let listener = composition_source
-        .find("wow_network::start_world_listener(")
+        .find("serve::serve(")
         .expect("world listener should exist");
     assert!(construction < publication && publication < listener);
+    assert_eq!(composition_source.matches("serve::serve(").count(), 1);
+    assert_eq!(serving_source.matches("listener_startup::load(").count(), 1);
+    assert_eq!(listener_source.matches("wow_network::start_world_listener(").count(), 1);
+    let mut cursor = construction;
+    for field in ["core: session_core_capabilities::build(",
+                  "inventory: session_catalog_capabilities::build_inventory(",
+                  "player: session_catalog_capabilities::build_player(",
+                  "spells: session_catalog_capabilities::build_spells(",
+                  "world: session_catalog_capabilities::build_world(",
+                  "progression: session_catalog_capabilities::build_progression(",
+                  "runtime: session_runtime_policy::build(", "realm: SessionRealmCapabilitiesLikeCpp {"] {
+        assert_eq!(composition_source.matches(field).count(), 1);
+        let offset = composition_source[cursor..].find(field)
+            .expect("named bundles must retain their construction order");
+        cursor += offset + field.len();
+    }
+    assert!(cursor < publication);
 }
 #[test]
 fn realm_id_config_is_required_and_non_zero_like_cpp() {
@@ -564,16 +659,26 @@ fn sessionless_tap_group_index_matches_the_session_answer_like_cpp() {
 #[test]
 fn set_tick_owner_has_exactly_one_production_call_site_before_the_loop_spawns() {
     let app = include_str!("../app.rs");
-    let calls: Vec<_> = app.match_indices("set_tick_owner(").collect();
+    let launch = include_str!("../app/runtime_launch.rs");
+    let serving = include_str!("../app/serve.rs");
+    let continuation = include_str!("../app/world_startup.rs");
+    assert_eq!(app.matches("world_startup::run_world_startup(").count(), 1);
+    assert_eq!(continuation.matches("serve::serve(").count(), 1);
+    assert!(!continuation.contains("set_tick_owner("));
+    assert_eq!(serving.matches("runtime_launch::load(").count(), 1);
+    assert!(serving.find("listener_startup::publish_realm_online(").unwrap()
+        < serving.find("runtime_launch::load(").unwrap());
+    assert!(!app.contains("set_tick_owner("));
+    let calls: Vec<_> = launch.match_indices("set_tick_owner(").collect();
     assert_eq!(
         calls.len(),
         1,
         "production must decide the tick owner exactly once, found {}",
         calls.len()
     );
-    let spawn = app
+    let spawn = launch
         .find("spawn_legacy_creature_runtime_update_loop_like_cpp(")
-        .expect("the global legacy creature loop is spawned in app.rs");
+        .expect("the global legacy creature loop is spawned by the application runtime launch");
     assert!(
         calls[0].0 < spawn,
         "the owner must be set before the loop that reads it is spawned"
@@ -587,21 +692,37 @@ fn set_tick_owner_has_exactly_one_production_call_site_before_the_loop_spawns() 
     ] {
         assert!(
             !source.contains("set_tick_owner("),
-            "only app.rs may decide the tick owner"
+            "only the private application runtime launch may decide the tick owner"
         );
     }
 }
 #[test]
 fn startup_has_no_schema_mutation_and_validates_before_runtime_writes() {
     let app = include_str!("../app.rs");
-    assert!(!app.contains(&["populate_typed_", "database_like_cpp"].concat()));
-    assert!(!app.contains(&["update_typed_", "database_like_cpp"].concat()));
-    assert!(!app.contains("Updates.SourcePath"));
-    assert!(!app.contains(&["update-databases", "-only"].concat()));
-    assert!(!app.contains("auto_create"));
-    assert_eq!(app.matches("validate_runtime_schema(").count(), 1);
-    let validation = app.find("validate_runtime_schema(").unwrap();
-    let first_runtime_write = app.find("clear_online_accounts_like_cpp(").unwrap();
+    let databases = include_str!("../app/database_startup.rs");
+    let realms = include_str!("../app/realm_startup.rs");
+    let continuation = include_str!("../app/world_startup.rs");
+    let hotfix_delivery = include_str!("../app/hotfix_delivery_startup.rs");
+    for source in [app, databases, realms, continuation, hotfix_delivery] {
+        assert!(!source.contains(&["populate_typed_", "database_like_cpp"].concat()));
+        assert!(!source.contains(&["update_typed_", "database_like_cpp"].concat()));
+        assert!(!source.contains("Updates.SourcePath"));
+        assert!(!source.contains(&["update-databases", "-only"].concat()));
+        assert!(!source.contains("auto_create"));
+    }
+    assert!(!app.contains("validate_runtime_schema("));
+    assert_eq!(databases.matches("validate_runtime_schema(").count(), 1);
+    let validation_call = "database_startup::validate_runtime_schemas(";
+    assert_eq!(app.matches(validation_call).count(), 1);
+    let validation = app.find(validation_call).unwrap();
+    let availability_call = "realm_startup::initialize_availability(";
+    assert_eq!(app.matches(availability_call).count(), 1);
+    let first_runtime_write = app.find(availability_call).unwrap();
+    assert_eq!(realms.matches("clear_online_accounts_like_cpp(").count(), 1);
+    assert!(realms.find("pub(super) async fn initialize_availability(").unwrap()
+        < realms.find("clear_online_accounts_like_cpp(").unwrap());
+    assert!(realms.find("clear_online_accounts_like_cpp(").unwrap()
+        < realms.find("set_realm_offline(").unwrap());
     assert!(validation < first_runtime_write);
 }
 #[test]

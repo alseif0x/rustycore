@@ -19,8 +19,8 @@ pub(in crate::session) enum RepresentedMountSpellCheckOutcomeLikeCpp {
 impl WorldSession {
     pub(crate) fn player_is_game_master_like_cpp(&self) -> Option<bool> {
         let canonical = self.with_owned_player_like_cpp(Player::is_game_master_like_cpp);
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.character_lifecycle_handleless_fixture() {
             return Some(self.player_game_master_like_cpp);
         }
         canonical

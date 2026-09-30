@@ -10,15 +10,14 @@ use wow_constants::{
 };
 use wow_core::{ObjectGuid, Position, guid::HighGuid};
 use wow_entities::{
-    AppliedAuraRef, Creature, Item, ItemCreateInfo, MAX_ITEM_SPELLS, Pet, PetType, Player,
-    UNIT_MASK_TOTEM,
+    AppliedAuraRef, Creature, Item, ItemCreateInfo, LootEntry, LootEntryFlags, MAX_ITEM_SPELLS,
+    Pet, PetType, Player, UNIT_MASK_TOTEM,
 };
 use wow_loot::{
     LootConditionRowLikeCpp, condition_compare_values_like_cpp,
     loot_conditions_allow_player_like_cpp_representable,
 };
 use wow_packet::WorldPacket;
-use wow_packet::packets::loot::{LootEntry, LootEntryFlags};
 use wow_packet::packets::movement::MovementInfo;
 use wow_packet::packets::spell::{SpellCastVisual, SpellTargetData};
 use wow_persistence::{

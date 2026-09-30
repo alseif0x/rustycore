@@ -7,6 +7,10 @@
 use super::{Arc, PendingInvites, PlayerRegistry, PlayerSessionRegistrationLikeCpp, UnitState};
 use super::{WorldSession, debug};
 
+#[cfg(test)]
+#[path = "player_registry_binding_tests.rs"]
+mod tests;
+
 impl WorldSession {
     /// Set the shared player registry (used for broadcast).
     pub fn set_player_registry(&mut self, registry: Arc<PlayerRegistry>) {
@@ -85,7 +89,24 @@ impl WorldSession {
     /// Called after player login is complete (player_guid + position both set).
     pub(crate) fn register_in_player_registry(&self) {
         #[cfg(test)]
-        crate::canonical_player_sync::hydrate_player_directory_fixture_like_cpp(self);
+        let hydrate = crate::canonical_player_sync::hydrate_player_directory_fixture_like_cpp;
+        #[cfg(not(test))]
+        let hydrate = |_: &WorldSession| {};
+        self.register_in_player_registry_with_hydration(&hydrate);
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub(crate) fn register_in_player_registry_with_fixture_hydration(&self) {
+        self.register_in_player_registry_with_hydration(
+            &crate::canonical_player_sync::hydrate_player_directory_fixture_like_cpp,
+        );
+    }
+
+    fn register_in_player_registry_with_hydration(
+        &self,
+        hydrate: &impl Fn(&WorldSession),
+    ) {
+        hydrate(self);
         let (Some(guid), Some(pos), Some(name), Some(reg)) = (
             self.player_guid(),
             self.player_position_like_cpp(),
@@ -156,8 +177,7 @@ impl WorldSession {
         // Production already has the canonical Player before publication. The
         // explicit owner-installing test harness creates it while registering,
         // so repeat the one-way hydration after that seam as well.
-        #[cfg(test)]
-        crate::canonical_player_sync::hydrate_player_directory_fixture_like_cpp(self);
+        hydrate(self);
         self.sync_player_registry_party_member_party_type_like_cpp();
         debug!(
             "Registered player {:?} ({}) in broadcast registry (map {})",
@@ -166,12 +186,29 @@ impl WorldSession {
     }
 
     pub(crate) fn sync_player_registry_state_like_cpp(&self) {
+        #[cfg(test)]
+        let hydrate = crate::canonical_player_sync::hydrate_player_directory_fixture_like_cpp;
+        #[cfg(not(test))]
+        let hydrate = |_: &WorldSession| {};
+        self.sync_player_registry_state_with_hydration(&hydrate);
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub(crate) fn sync_player_registry_state_with_fixture_hydration(&self) {
+        self.sync_player_registry_state_with_hydration(
+            &crate::canonical_player_sync::hydrate_player_directory_fixture_like_cpp,
+        );
+    }
+
+    fn sync_player_registry_state_with_hydration(
+        &self,
+        hydrate: &impl Fn(&WorldSession),
+    ) {
         let (Some(guid), Some(registry)) = (self.player_guid(), &self.player_registry) else {
             return;
         };
         self.update_registry_position();
-        #[cfg(test)]
-        crate::canonical_player_sync::hydrate_player_directory_fixture_like_cpp(self);
+        hydrate(self);
         registry.replace_loot_rolls_for_control_channel(
             guid,
             &self.session_command_tx,

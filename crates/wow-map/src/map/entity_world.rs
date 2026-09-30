@@ -7,36 +7,51 @@
 //!
 //! C++ keeps the corresponding ownership in `Map::_objectsStore`
 //! (`Map.h:418,793`). This facade deliberately preserves the current
-//! `HashMap<ObjectGuid, MapObjectRecord>` behavior while removing that concrete
+//! `HashMap<ObjectGuid, ObjectEntry>` behavior while removing that concrete
 //! storage choice from `Map`. It exposes no `Deref`, so callers cannot acquire a
-//! new dependency on `HashMap` while borrowed-record APIs are retired ahead of
-//! the selected `hecs` backend.
+//! new dependency on `HashMap` while borrowed views and owned transport keep
+//! the concrete entry representation inside this module.
 
 use crate::map_rules::snapshot_from_creature;
 use std::collections::HashMap;
-use std::collections::hash_map::{Iter, Values};
 
 use wow_core::ObjectGuid;
 use wow_entities::{AccessorObjectKind, Creature, MapObjectRecord};
 
-use super::CreatureTransformVitalsSnapshotLikeCpp;
+use super::{CreatureTransformVitalsSnapshotLikeCpp, ObjectEntry, ObjectMut, ObjectRef};
+use super::creature_snapshot::{CreatureSnapshotReplaceError, PreparedCreatureSnapshot};
+use super::object_entry::CreatureActorEntry;
 
 #[derive(Debug, Default)]
 pub(super) struct EntityWorld {
-    records_by_guid: HashMap<ObjectGuid, MapObjectRecord>,
+    entries_by_guid: HashMap<ObjectGuid, ObjectEntry>,
 }
 
 impl EntityWorld {
-    pub(super) fn get(&self, guid: &ObjectGuid) -> Option<&MapObjectRecord> {
-        self.records_by_guid.get(guid)
+    pub(super) fn get(&self, guid: &ObjectGuid) -> Option<ObjectRef<'_>> {
+        self.entries_by_guid.get(guid).map(ObjectEntry::as_ref)
     }
 
-    pub(super) fn get_mut(&mut self, guid: &ObjectGuid) -> Option<&mut MapObjectRecord> {
-        self.records_by_guid.get_mut(guid)
+    pub(super) fn get_mut(&mut self, guid: &ObjectGuid) -> Option<ObjectMut<'_>> {
+        self.entries_by_guid.get_mut(guid).map(ObjectEntry::as_mut)
     }
 
     pub(super) fn kind(&self, guid: ObjectGuid) -> Option<AccessorObjectKind> {
-        self.records_by_guid.get(&guid).map(MapObjectRecord::kind)
+        self.entries_by_guid.get(&guid).map(|entry| entry.as_ref().kind())
+    }
+
+    pub(super) fn creature_actor(&self, guid: ObjectGuid) -> Option<&CreatureActorEntry> {
+        match self.entries_by_guid.get(&guid)? {
+            ObjectEntry::CreatureActor(actor) => Some(actor),
+            ObjectEntry::Record(_) => None,
+        }
+    }
+
+    pub(super) fn creature_actor_mut(&mut self, guid: ObjectGuid) -> Option<&mut CreatureActorEntry> {
+        match self.entries_by_guid.get_mut(&guid)? {
+            ObjectEntry::CreatureActor(actor) => Some(actor),
+            ObjectEntry::Record(_) => None,
+        }
     }
 
     pub(super) fn with_creature<R>(
@@ -44,7 +59,7 @@ impl EntityWorld {
         guid: ObjectGuid,
         read: impl FnOnce(&Creature) -> R,
     ) -> Option<R> {
-        let record = self.records_by_guid.get(&guid)?;
+        let record = self.entries_by_guid.get(&guid)?.as_ref();
         (record.kind() == AccessorObjectKind::Creature)
             .then(|| record.creature())
             .flatten()
@@ -56,7 +71,7 @@ impl EntityWorld {
         guid: ObjectGuid,
         write: impl FnOnce(&mut Creature) -> R,
     ) -> Option<R> {
-        let record = self.records_by_guid.get_mut(&guid)?;
+        let record = self.entries_by_guid.get_mut(&guid)?.as_mut();
         (record.kind() == AccessorObjectKind::Creature)
             .then(|| record.creature_mut())
             .flatten()
@@ -82,24 +97,80 @@ impl EntityWorld {
         lookups
     }
 
-    pub(super) fn iter(&self) -> Iter<'_, ObjectGuid, MapObjectRecord> {
-        self.records_by_guid.iter()
+    pub(super) fn iter(&self) -> impl Iterator<Item = (&ObjectGuid, ObjectRef<'_>)> {
+        self.entries_by_guid.iter().map(|(guid, record)| (guid, record.as_ref()))
     }
 
-    pub(super) fn values(&self) -> Values<'_, ObjectGuid, MapObjectRecord> {
-        self.records_by_guid.values()
+    pub(super) fn values(&self) -> impl Iterator<Item = ObjectRef<'_>> {
+        self.entries_by_guid.values().map(ObjectEntry::as_ref)
     }
 
     pub(super) fn len(&self) -> usize {
-        self.records_by_guid.len()
+        self.entries_by_guid.len()
     }
 
-    pub(super) fn insert(&mut self, record: MapObjectRecord) -> Option<MapObjectRecord> {
-        self.records_by_guid.insert(record.object().guid(), record)
+    pub(super) fn insert(&mut self, entry: ObjectEntry) -> Option<ObjectEntry> {
+        self.entries_by_guid.insert(entry.as_ref().object().guid(), entry)
     }
 
-    pub(super) fn remove(&mut self, guid: &ObjectGuid) -> Option<MapObjectRecord> {
-        self.records_by_guid.remove(guid)
+    pub(super) fn take(&mut self, guid: &ObjectGuid) -> Option<ObjectEntry> {
+        self.entries_by_guid.remove(guid)
+    }
+
+    /// Borrow-only admission classification for quiescent ownership transport.
+    pub(super) fn creature_transport_counterpart(
+        &self,
+        guid: ObjectGuid,
+    ) -> Result<&Creature, super::actor_transport::CreatureActorTransportError> {
+        use super::actor_transport::CreatureActorTransportError as Error;
+        let entry = self.entries_by_guid.get(&guid)
+            .ok_or(Error::MissingCounterpart { guid })?;
+        if entry.as_ref().object().guid() != guid {
+            return Err(Error::GuidMismatch { guid });
+        }
+        match entry {
+            ObjectEntry::CreatureActor(_) => Err(Error::ExistingActor { guid }),
+            ObjectEntry::Record(record) => {
+                if record.kind() != AccessorObjectKind::Creature {
+                    return Err(Error::NotExactCreature { guid });
+                }
+                record.creature().ok_or(Error::NotExactCreature { guid })
+            }
+        }
+    }
+
+    /// Raw vacant restoration retains every rejected owned value. It does not
+    /// detach loot or touch any Map index, membership or lifecycle hook.
+    pub(super) fn restore_transport_entry(
+        &mut self,
+        guid: ObjectGuid,
+        entry: ObjectEntry,
+    ) -> Result<(), ObjectEntry> {
+        use std::collections::hash_map::Entry;
+        if entry.as_ref().object().guid() != guid {
+            return Err(entry);
+        }
+        match self.entries_by_guid.entry(guid) {
+            Entry::Occupied(_) => Err(entry),
+            Entry::Vacant(slot) => {
+                slot.insert(entry);
+                Ok(())
+            }
+        }
+    }
+
+    pub(super) fn prepare_creature_snapshot(
+        &self,
+        record: MapObjectRecord,
+    ) -> Result<PreparedCreatureSnapshot, CreatureSnapshotReplaceError> {
+        let guid = record.object().guid();
+        match self.entries_by_guid.get(&guid) {
+            Some(ObjectEntry::Record(_)) => Ok(PreparedCreatureSnapshot::Record(record)),
+            Some(ObjectEntry::CreatureActor(_)) => record.into_creature()
+                .map(PreparedCreatureSnapshot::Actor)
+                .map_err(|_| CreatureSnapshotReplaceError::NotExactCreature { guid }),
+            None => Err(CreatureSnapshotReplaceError::NotExactCreature { guid }),
+        }
     }
 }
 
@@ -107,7 +178,7 @@ impl EntityWorld {
 mod tests {
     use super::*;
     use wow_core::guid::HighGuid;
-    use wow_entities::{Creature, GameObject};
+    use wow_entities::{Creature, GameObject, MapObjectRecord};
 
     fn creature_record(guid: ObjectGuid, health: u64) -> MapObjectRecord {
         let mut creature = Creature::new(false);
@@ -129,12 +200,12 @@ mod tests {
         let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 7, 100, 42);
         let mut world = EntityWorld::default();
 
-        assert!(world.insert(creature_record(guid, 25)).is_none());
+        assert!(world.insert(ObjectEntry::Record(creature_record(guid, 25))).is_none());
         let displaced = world
-            .insert(creature_record(guid, 75))
+            .insert(ObjectEntry::Record(creature_record(guid, 75)))
             .expect("same GUID should displace exactly one canonical record");
 
-        assert_eq!(displaced.creature().unwrap().current_health(), 25);
+        assert_eq!(displaced.as_ref().creature().unwrap().current_health(), 25);
         assert_eq!(world.len(), 1);
         assert_eq!(
             world
@@ -152,8 +223,9 @@ mod tests {
         assert_eq!(world.values().count(), 1);
         assert_eq!(
             world
-                .remove(&guid)
+                .take(&guid)
                 .unwrap()
+                .as_ref()
                 .creature()
                 .unwrap()
                 .current_health(),
@@ -185,14 +257,14 @@ mod tests {
             .unit_mut()
             .world_mut()
             .relocate(wow_core::Position::new(10.0, 11.0, 12.0, 0.5));
-        assert!(world.insert(second_record).is_none());
-        assert!(world.insert(first_record).is_none());
+        assert!(world.insert(ObjectEntry::Record(second_record)).is_none());
+        assert!(world.insert(ObjectEntry::Record(first_record)).is_none());
         let mut game_object = GameObject::new();
         game_object.world_mut().object_mut().create(wrong_kind);
         game_object.world_mut().set_map(571, 7).unwrap();
         assert!(
             world
-                .insert(MapObjectRecord::new_game_object(game_object).unwrap())
+                .insert(ObjectEntry::Record(MapObjectRecord::new_game_object(game_object).unwrap()))
                 .is_none()
         );
 

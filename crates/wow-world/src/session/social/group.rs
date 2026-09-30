@@ -99,42 +99,42 @@ impl WorldSession {
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn group_invite_policy_for_test_like_cpp(&self) -> GroupInvitePolicyLikeCpp {
         GroupInvitePolicyLikeCpp {
-            allow_gm_group: self.allow_gm_group_like_cpp,
-            allow_two_side_interaction: self.allow_two_side_interaction_group_like_cpp,
-            minimum_level: self.party_level_req_like_cpp,
+            allow_gm_group: self.social.allow_gm_group_like_cpp,
+            allow_two_side_interaction: self.social.allow_two_side_interaction_group_like_cpp,
+            minimum_level: self.social.party_level_req_like_cpp,
         }
     }
     #[cfg(test)]
     pub fn set_party_raid_warnings_like_cpp(&mut self, enabled: bool) {
-        self.party_raid_warnings_like_cpp = enabled;
+        self.social.party_raid_warnings_like_cpp = enabled;
     }
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_allow_gm_group_like_cpp(&mut self, enabled: bool) {
-        self.allow_gm_group_like_cpp = enabled;
+        self.social.allow_gm_group_like_cpp = enabled;
     }
     #[cfg(test)]
     pub fn set_allow_two_side_interaction_group_like_cpp(&mut self, enabled: bool) {
-        self.allow_two_side_interaction_group_like_cpp = enabled;
+        self.social.allow_two_side_interaction_group_like_cpp = enabled;
     }
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_party_level_req_like_cpp(&mut self, level: u32) {
-        self.party_level_req_like_cpp = level;
+        self.social.party_level_req_like_cpp = level;
     }
     #[cfg(test)]
     pub(crate) fn party_raid_warnings_like_cpp(&self) -> bool {
-        self.party_raid_warnings_like_cpp
+        self.social.party_raid_warnings_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn allow_gm_group_like_cpp(&self) -> bool {
-        self.allow_gm_group_like_cpp
+        self.social.allow_gm_group_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn allow_two_side_interaction_group_like_cpp(&self) -> bool {
-        self.allow_two_side_interaction_group_like_cpp
+        self.social.allow_two_side_interaction_group_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn party_level_req_like_cpp(&self) -> u32 {
-        self.party_level_req_like_cpp
+        self.social.party_level_req_like_cpp
     }
     pub(crate) fn canonical_player_party_power_snapshot_like_cpp(&self) -> Option<(u8, u16, u16)> {
         self.canonical_player_snapshot_like_cpp(|player| {

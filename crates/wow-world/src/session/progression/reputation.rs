@@ -76,11 +76,16 @@ impl WorldSession {
         // manager lock; the session accessors re-enter it.
         let player_race = self.player_race_like_cpp();
         let player_class = self.player_class_like_cpp();
-        let friendship_rep_reaction_store = self.friendship_rep_reaction_store.as_deref();
+        let catalogs = crate::reputation_catalog_adapter::ReputationCatalogViewLikeCpp::new(
+            None,
+            self.friendship_rep_reaction_store.as_deref(),
+            None,
+            None,
+        );
         let Some(rank) = self.with_reputation_mgr_like_cpp(|mgr| {
             mgr.rank_for_faction_entry_like_cpp(
                 faction_entry,
-                friendship_rep_reaction_store,
+                &catalogs,
                 player_race,
                 player_class,
             )
@@ -122,11 +127,16 @@ impl WorldSession {
         };
         let player_race = self.player_race_like_cpp();
         let player_class = self.player_class_like_cpp();
-        let friendship_rep_reaction_store = self.friendship_rep_reaction_store.as_deref();
+        let catalogs = crate::reputation_catalog_adapter::ReputationCatalogViewLikeCpp::new(
+            None,
+            self.friendship_rep_reaction_store.as_deref(),
+            None,
+            None,
+        );
         self.with_reputation_mgr_like_cpp(|mgr| {
             mgr.rank_for_faction_entry_like_cpp(
                 faction_entry,
-                friendship_rep_reaction_store,
+                &catalogs,
                 player_race,
                 player_class,
             )
@@ -209,10 +219,16 @@ impl WorldSession {
         faction_entry: &FactionEntry,
         standing: i32,
     ) -> wow_data::reputation::ReputationRankLikeCpp {
+        let catalogs = crate::reputation_catalog_adapter::ReputationCatalogViewLikeCpp::new(
+            None,
+            self.friendship_rep_reaction_store.as_deref(),
+            None,
+            None,
+        );
         reputation_to_rank_like_cpp(
             faction_entry,
             standing,
-            self.friendship_rep_reaction_store.as_deref(),
+            &catalogs,
         )
     }
     pub(crate) fn canonical_player_reputation_standing_like_cpp(
@@ -239,12 +255,17 @@ impl WorldSession {
             return;
         };
         let paragon_reputation_store = self.paragon_reputation_store.clone();
+        let catalogs = crate::reputation_catalog_adapter::ReputationCatalogViewLikeCpp::new(
+            Some(faction_store.as_ref()),
+            None,
+            paragon_reputation_store.as_deref(),
+            None,
+        );
         let race = self.player_race_like_cpp();
         let class = self.player_class_like_cpp();
         let _ = self.mutate_reputation_mgr_like_cpp(|mgr| {
             mgr.initialize_like_cpp(
-                faction_store.as_ref(),
-                paragon_reputation_store.as_deref(),
+                &catalogs,
                 race,
                 class,
             );
@@ -286,6 +307,12 @@ impl WorldSession {
         let friendship_rep_reaction_store = self.friendship_rep_reaction_store().map(Arc::clone);
         let paragon_reputation_store = self.paragon_reputation_store().map(Arc::clone);
         let currency_types_store = self.currency_types_store().map(Arc::clone);
+        let catalogs = crate::reputation_catalog_adapter::ReputationCatalogViewLikeCpp::new(
+            Some(faction_store.as_ref()),
+            friendship_rep_reaction_store.as_deref(),
+            paragon_reputation_store.as_deref(),
+            currency_types_store.as_deref(),
+        );
         let player_race = self.player_race_like_cpp();
         let player_class = self.player_class_like_cpp();
         let team_factions = match player_team_for_race_cpp(player_race) {
@@ -293,7 +320,7 @@ impl WorldSession {
             _ => FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP,
         };
 
-        let Some((applied, packet)) = self.mutate_reputation_mgr_like_cpp(|mgr| {
+        let Some((applied, update)) = self.mutate_reputation_mgr_like_cpp(|mgr| {
             let mut applied = 0usize;
             for faction_id in FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP
                 .iter()
@@ -307,10 +334,8 @@ impl WorldSession {
                     FIRST_LOGIN_START_REPUTATION_STANDING_LIKE_CPP,
                     false,
                     1.0,
-                    friendship_rep_reaction_store.as_deref(),
-                    paragon_reputation_store.as_deref(),
+                    &catalogs,
                     true,
-                    currency_types_store.as_deref(),
                     0,
                     0,
                     player_race,
@@ -320,12 +345,16 @@ impl WorldSession {
                     applied += 1;
                 }
             }
-            let packet = (applied > 0).then(|| mgr.set_faction_standing_packet_like_cpp(None));
-            (applied, packet)
+            let update = (applied > 0).then(|| mgr.faction_standing_update_like_cpp(None));
+            (applied, update)
         }) else {
             return 0;
         };
-        if let Some(packet) = packet {
+        if let Some(update) = update {
+            let packet =
+                crate::handlers::progression::presentation::set_faction_standing_packet_like_cpp(
+                    update,
+                );
             self.send_packet(&packet);
         }
 
@@ -358,8 +387,7 @@ impl WorldSession {
         faction_id: u32,
         no_quest_bonus: bool,
     ) -> Option<f32> {
-        let mut percent = 100.0f32;
-        let mut rep_mod = if no_quest_bonus {
+        let generic_aura_modifier = if no_quest_bonus {
             0.0
         } else {
             self.resolved_total_represented_aura_modifier_like_cpp(
@@ -367,32 +395,40 @@ impl WorldSession {
             )? as f32
         };
 
-        if source == ReputationGainSourceLikeCpp::Kill {
-            rep_mod += self.resolved_total_represented_aura_modifier_by_misc_value_like_cpp(
+        let faction_aura_modifier = if source == ReputationGainSourceLikeCpp::Kill {
+            Some(self.resolved_total_represented_aura_modifier_by_misc_value_like_cpp(
                 RepresentedAuraEffectLikeCpp::ModFactionReputationGain,
                 faction_id as i32,
-            )? as f32;
-        }
-
-        percent += if rep > 0 { rep_mod } else { -rep_mod };
-
-        let reputation_rates = self.reputation_rates_like_cpp();
-        let low_level_rate = match source {
-            ReputationGainSourceLikeCpp::Kill => reputation_rates.low_level_kill,
-            ReputationGainSourceLikeCpp::Quest
-            | ReputationGainSourceLikeCpp::DailyQuest
-            | ReputationGainSourceLikeCpp::WeeklyQuest
-            | ReputationGainSourceLikeCpp::MonthlyQuest
-            | ReputationGainSourceLikeCpp::RepeatableQuest => reputation_rates.low_level_quest,
-            ReputationGainSourceLikeCpp::Spell => 1.0,
+            )? as f32)
+        } else {
+            None
         };
-        if low_level_rate != 1.0
-            && creature_or_quest_level < u32::from(self.gray_level(self.player_level_like_cpp()))
-        {
-            percent *= low_level_rate;
-        }
 
-        (percent > 0.0).then_some(percent)
+        wow_progression::reputation_gain_percent_before_reward_rate(
+            rep,
+            generic_aura_modifier,
+            faction_aura_modifier,
+            || {
+                let reputation_rates = self.reputation_rates_like_cpp();
+                let low_level_rate = match source {
+                    ReputationGainSourceLikeCpp::Kill => reputation_rates.low_level_kill,
+                    ReputationGainSourceLikeCpp::Quest
+                    | ReputationGainSourceLikeCpp::DailyQuest
+                    | ReputationGainSourceLikeCpp::WeeklyQuest
+                    | ReputationGainSourceLikeCpp::MonthlyQuest
+                    | ReputationGainSourceLikeCpp::RepeatableQuest => reputation_rates.low_level_quest,
+                    ReputationGainSourceLikeCpp::Spell => 1.0,
+                };
+                if low_level_rate != 1.0
+                    && creature_or_quest_level
+                        < u32::from(self.gray_level(self.player_level_like_cpp()))
+                {
+                    Some(low_level_rate)
+                } else {
+                    None
+                }
+            },
+        )
     }
     pub(crate) fn reputation_reward_rate_for_source_like_cpp(
         &self,
@@ -421,39 +457,40 @@ impl WorldSession {
         faction_id: u32,
         no_quest_bonus: bool,
     ) -> i32 {
-        let Some(mut percent) = self.reputation_gain_percent_before_reward_rate_like_cpp(
-            source,
-            creature_or_quest_level,
+        wow_progression::calculate_reputation_gain(
             rep,
-            faction_id,
-            no_quest_bonus,
-        ) else {
-            return 0;
-        };
-
-        if let Some(rep_rate) = self.reputation_reward_rate_for_source_like_cpp(source, faction_id)
-        {
-            if rep_rate <= 0.0 {
-                return 0;
-            }
-            percent *= rep_rate;
-        }
-
-        percent = self.apply_recruit_a_friend_reputation_bonus_like_cpp(source, percent);
-
-        (rep as f32 * percent / 100.0) as i32
+            || self.reputation_gain_percent_before_reward_rate_like_cpp(
+                source,
+                creature_or_quest_level,
+                rep,
+                faction_id,
+                no_quest_bonus,
+            ),
+            || self.reputation_reward_rate_for_source_like_cpp(source, faction_id),
+            || self.resolve_recruit_a_friend_reputation_bonus(source),
+        )
     }
     pub(crate) fn apply_recruit_a_friend_reputation_bonus_like_cpp(
         &self,
         source: ReputationGainSourceLikeCpp,
-        mut percent: f32,
+        percent: f32,
     ) -> f32 {
+        wow_progression::apply_recruit_a_friend_reputation_bonus(
+            percent,
+            self.resolve_recruit_a_friend_reputation_bonus(source),
+        )
+    }
+    fn resolve_recruit_a_friend_reputation_bonus(
+        &self,
+        source: ReputationGainSourceLikeCpp,
+    ) -> Option<f32> {
         if source != ReputationGainSourceLikeCpp::Spell
             && self.gets_recruit_a_friend_reputation_bonus_like_cpp()
         {
-            percent *= 1.0 + self.reputation_rates_like_cpp().recruit_a_friend_bonus;
+            Some(self.reputation_rates_like_cpp().recruit_a_friend_bonus)
+        } else {
+            None
         }
-        percent
     }
     fn gets_recruit_a_friend_reputation_bonus_like_cpp(&self) -> bool {
         self.gets_recruit_a_friend_bonus_like_cpp(false)

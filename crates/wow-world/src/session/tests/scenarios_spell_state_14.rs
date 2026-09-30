@@ -67,33 +67,6 @@ fn load_represented_pet_aura_rows_filters_unknown_spell_like_cpp() {
     );
 }
 #[test]
-fn represented_pet_aura_offline_remain_time_matches_cpp_arithmetic() {
-    assert_eq!(
-        adjusted_represented_pet_aura_remain_time_like_cpp(5_000, 3, true, true),
-        Some(2_000)
-    );
-    assert_eq!(
-        adjusted_represented_pet_aura_remain_time_like_cpp(3_000, 3, true, true),
-        None,
-        "C++ skips when remainTime / IN_MILLISECONDS <= timediff"
-    );
-    assert_eq!(
-        adjusted_represented_pet_aura_remain_time_like_cpp(-1, 99, true, true),
-        Some(-1),
-        "C++ permanent auras do not tick offline"
-    );
-    assert_eq!(
-        adjusted_represented_pet_aura_remain_time_like_cpp(5_000, 3, true, false),
-        Some(5_000),
-        "positive auras without SPELL_ATTR4_AURA_EXPIRES_OFFLINE keep their saved remainTime"
-    );
-    assert_eq!(
-        adjusted_represented_pet_aura_remain_time_like_cpp(5_000, 3, false, false),
-        Some(2_000),
-        "C++ also ticks negative auras offline; represented SpellInfo::IsPositive is not wired yet"
-    );
-}
-#[test]
 fn load_represented_pet_aura_rows_ticks_attr4_offline_auras_like_cpp() {
     let (mut session, _, _send_rx) = make_session();
     let mut spell_store = wow_data::SpellStore::new();

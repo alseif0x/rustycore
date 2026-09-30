@@ -475,7 +475,7 @@ fn first_login_start_all_reputation_applies_cpp_common_and_alliance_lists() {
     session.set_faction_store(Arc::new(first_login_reputation_faction_store_like_cpp()));
     let _ = session
         .reputation_mgr_like_cpp_mut()
-        .initialize_factions_packet_like_cpp();
+        .initialize_factions_state_like_cpp();
     session.set_start_all_reputation_like_cpp(true);
 
     let applied = session.apply_represented_first_login_reputation_like_cpp();
@@ -531,7 +531,7 @@ fn first_login_start_all_reputation_is_config_gated_and_uses_horde_branch() {
     session.set_faction_store(Arc::new(first_login_reputation_faction_store_like_cpp()));
     let _ = session
         .reputation_mgr_like_cpp_mut()
-        .initialize_factions_packet_like_cpp();
+        .initialize_factions_state_like_cpp();
 
     assert_eq!(
         session.apply_represented_first_login_reputation_like_cpp(),

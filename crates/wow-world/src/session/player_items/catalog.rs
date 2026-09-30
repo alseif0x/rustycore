@@ -9,12 +9,12 @@ impl WorldSession {
     /// Set the C++ ItemPriceBase.db2 store for this session.
     #[cfg(test)]
     pub fn set_item_price_base_store(&mut self, store: Arc<ItemPriceBaseStore>) {
-        self.item_price_base_store = Some(store);
+        self.items.install_item_price_base_store(store);
     }
     /// Set the item class store for this session.
     #[cfg(test)]
     pub fn set_item_class_store(&mut self, store: Arc<ItemClassStore>) {
-        self.item_class_store = Some(store);
+        self.items.install_item_class_store(store);
     }
     /// Set the item extended cost store for this session.
     pub fn set_item_extended_cost_store(&mut self, store: Arc<ItemExtendedCostStore>) {
@@ -82,7 +82,7 @@ impl WorldSession {
         found
     }
     pub fn set_pvp_item_store(&mut self, store: Arc<PvpItemStore>) {
-        self.pvp_item_store = Some(store);
+        self.items.install_pvp_item_store(store);
     }
     pub fn set_item_stats_store(&mut self, store: Arc<ItemStatsStore>) {
         self.items.stats_store = Some(store);
@@ -120,9 +120,8 @@ impl WorldSession {
         &self,
         item_id: u32,
     ) -> Option<u32> {
-        self.item_template_addon_quest_log_item_ids_like_cpp
-            .get(&item_id)
-            .copied()
+        self.items
+            .item_template_addon_quest_log_item_id(item_id)
     }
     /// Cache C++ `ItemTemplate::QuestLogItemId` from `item_template_addon`.
     pub(crate) fn cache_item_template_addon_quest_log_item_id_like_cpp(
@@ -130,8 +129,8 @@ impl WorldSession {
         item_id: u32,
         quest_log_item_id: u32,
     ) {
-        self.item_template_addon_quest_log_item_ids_like_cpp
-            .insert(item_id, quest_log_item_id);
+        self.items
+            .cache_item_template_addon_quest_log_item_id(item_id, quest_log_item_id);
     }
     /// Resolve C++ `ItemTemplate::ExtendedData->Flags[0]`.
     pub fn item_template_flags(&self, item_id: u32) -> Option<ItemFlags> {

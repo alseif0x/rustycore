@@ -1788,7 +1788,10 @@ pub(crate) fn spawn_legacy_creature_runtime_update_loop_like_cpp(
     respawn_db_producer_stop: SharedRespawnDbProducerStopLikeCpp,
     group_registry: Option<Arc<wow_social::group::GroupRegistry>>,
     player_registry: Arc<PlayerRegistry>,
+    active_session_registry: Arc<crate::ActiveWorldSessionRegistryLikeCpp>,
 ) -> tokio::task::JoinHandle<()> {
+    use crate::session_supervision::{ProducerKind, TickDisposition, TickPhase};
+    let producer_origin = active_session_registry.register_producer(ProducerKind::Legacy);
     // Per-map accumulated time for the melee phase's combat-reference sweep.
     // Owned by the loop task, cloned into each `spawn_blocking`, never held
     // across a map guard.
@@ -1827,6 +1830,12 @@ pub(crate) fn spawn_legacy_creature_runtime_update_loop_like_cpp(
         loop {
             interval.tick().await;
             let stop_after_tick = respawn_db_producer_stop.load(Ordering::Acquire);
+            if stop_after_tick && !active_session_registry.final_respawn_tick_authorized() {
+                break;
+            }
+            let Some(tick_admission) = active_session_registry.try_admit_tick(
+                producer_origin, tick_epoch, stop_after_tick,
+            ) else { continue; };
             let now = Instant::now();
             let diff_ms = now
                 .duration_since(last_tick)
@@ -1834,8 +1843,10 @@ pub(crate) fn spawn_legacy_creature_runtime_update_loop_like_cpp(
                 .min(u128::from(u32::MAX)) as u32;
             last_tick = now;
             if diff_ms == 0 {
+                tick_admission.complete(TickDisposition::AbandonedAfterAccounting);
                 continue;
             }
+            tick_admission.enter_phase(TickPhase::Legacy);
             let tick_input = CreatureRuntimeTickInputLikeCpp::capture_like_cpp(
                 tick_epoch,
                 diff_ms,
@@ -1855,7 +1866,7 @@ pub(crate) fn spawn_legacy_creature_runtime_update_loop_like_cpp(
             let player_melee_phase_state_for_tick = Arc::clone(&player_melee_phase_state);
 
             let tick_result = tokio::task::spawn_blocking(move || {
-                run_legacy_creature_runtime_tick_with_input_and_deliver_once_like_cpp(
+                let outcome = run_legacy_creature_runtime_tick_with_input_and_deliver_once_like_cpp(
                     tick_input,
                     &legacy_for_tick,
                     Some(&canonical_for_tick),
@@ -1869,7 +1880,11 @@ pub(crate) fn spawn_legacy_creature_runtime_update_loop_like_cpp(
                     respawn_db_writer_tx_for_tick.as_ref(),
                     group_registry_for_tick.as_ref(),
                     &player_melee_phase_state_for_tick,
-                )
+                );
+                // The blocking owner acknowledges after all effects, submits
+                // and fanout. Aborting the outer JoinHandle cannot do this.
+                tick_admission.complete(TickDisposition::FullyFinished);
+                outcome
             })
             .await;
 

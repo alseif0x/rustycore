@@ -312,9 +312,11 @@ invalidate the exception; merely leaving its issue open does not renew it.
 
 `check` and `self-test` enforce physical and logical guards. `validation-v2 final` includes
 the cheap physical scan for every nonempty diff, including tooling-only or generation-input
-changes; workspace Rust additionally retains its independent logical ratchet. Changes to
-the physical module/policy run its adversarial unit suite during `quick`; changes to the
-shared checker/scanner run the existing architecture self-test. Macro closeout must also
+changes; workspace Rust additionally retains its independent logical ratchet. At completed
+delivery acceptance, changes to the physical module/policy require its adversarial unit
+suite, and shared checker/scanner changes require the architecture self-test. Level-2
+`quick` runs hygiene only; the current whole-sweep instruction defers worker feedback too.
+Macro closeout must also
 run `physical-files --terminal`; it is deliberately not the daily migration gate. All
 remaining core physical splits belong to #584; #583 applies the policy to its own
 product and #153 verifies both without inheriting implementation.

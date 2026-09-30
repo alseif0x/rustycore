@@ -4,8 +4,11 @@
 
 use super::*;
 use wow_constants::{CurrencyTypesFlags, CurrencyTypesFlagsB};
-use wow_data::CurrencyTypesEntry;
-use wow_data::progression_rewards::{FriendshipRepReactionEntry, ParagonReputationEntry};
+use wow_data_model::currency::CurrencyTypesEntry;
+use wow_data_model::reputation::{FriendshipRepReactionEntry, ParagonReputationEntry};
+
+mod support;
+use support::*;
 
 fn currency_entry_for_test_like_cpp(id: u32, max_qty: u32) -> CurrencyTypesEntry {
     CurrencyTypesEntry {

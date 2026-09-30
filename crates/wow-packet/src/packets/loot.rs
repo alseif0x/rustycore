@@ -7,8 +7,7 @@
 
 use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::ObjectGuid;
-pub use wow_loot::{CreatureLoot, LootEntry, LootEntryFlags, NotNormalLootItem};
-
+pub use wow_constants::LOOT_SLOT_TYPE_OWNER_LIKE_CPP;
 use crate::packets::item::ItemInstance;
 use crate::world_packet::{PacketError, WorldPacket};
 use crate::{ClientPacket, ServerPacket};
@@ -583,8 +582,6 @@ impl ServerPacket for MasterLootCandidateList {
 }
 
 // ── In-memory loot tracking ──────────────────────────────────────
-
-pub const LOOT_SLOT_TYPE_OWNER_LIKE_CPP: u8 = 4;
 
 #[cfg(test)]
 #[path = "loot/tests/mod.rs"]

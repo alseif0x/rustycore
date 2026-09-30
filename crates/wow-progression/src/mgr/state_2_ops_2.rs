@@ -9,36 +9,33 @@ impl<S: std::borrow::Borrow<PlayerReputationStateLikeCpp>> ReputationMgrLikeCpp<
     pub(super) fn get_reputation_rank_by_faction_id_like_cpp(
         &self,
         faction_id: u32,
-        faction_store: &FactionStore,
-        friendship_rep_reaction_store: Option<&FriendshipRepReactionStore>,
+        catalogs: &impl ReputationCatalogReadLikeCpp,
         player_race: u8,
         player_class: u8,
     ) -> ReputationRankLikeCpp {
-        faction_store
-            .get(faction_id)
+        catalogs
+            .faction_like_cpp(faction_id)
             .map(|faction| {
                 let standing = self
                     .get_state(faction.reputation_index as RepListIdLikeCpp)
                     .map(|state| state.standing)
                     .unwrap_or(0)
                     + base_reputation_like_cpp(faction, player_race, player_class);
-                reputation_to_rank_like_cpp(faction, standing, friendship_rep_reaction_store)
+                reputation_to_rank_like_cpp(faction, standing, catalogs)
             })
             .unwrap_or(ReputationRankLikeCpp::Neutral)
     }
     pub(super) fn can_gain_paragon_reputation_for_faction_like_cpp(
         &self,
         faction_entry: &FactionEntry,
-        faction_store: &FactionStore,
-        paragon_reputation_store: Option<&ParagonReputationStore>,
+        catalogs: &impl ReputationCatalogReadLikeCpp,
         renown_current_level_like_cpp: i32,
         renown_currency_increased_cap_quantity_like_cpp: u32,
-        currency_types_store: Option<&CurrencyTypesStore>,
         player_race: u8,
         player_class: u8,
     ) -> bool {
-        if faction_store
-            .get(u32::from(faction_entry.paragon_faction_id))
+        if catalogs
+            .faction_like_cpp(u32::from(faction_entry.paragon_faction_id))
             .is_none()
         {
             return false;
@@ -47,28 +44,26 @@ impl<S: std::borrow::Borrow<PlayerReputationStateLikeCpp>> ReputationMgrLikeCpp<
         let rank = self
             .get_state(faction_entry.reputation_index as RepListIdLikeCpp)
             .map(|state| {
-                reputation_to_rank_like_cpp(
-                    faction_entry,
+                // Preserve the existing paragon-gate rank lookup, which
+                // deliberately ignored the optional friendship catalog.
+                reputation_rank_from_standing_like_cpp(
                     base_reputation_like_cpp(faction_entry, player_race, player_class)
                         + state.standing,
-                    None,
                 )
             });
         if rank != Some(ReputationRankLikeCpp::Exalted)
             && renown_current_level_like_cpp
                 < renown_max_level_like_cpp(
                     faction_entry,
-                    currency_types_store,
+                    catalogs,
                     renown_currency_increased_cap_quantity_like_cpp,
                 )
         {
             return false;
         }
 
-        paragon_reputation_store
-            .and_then(|store| {
-                store.get_by_faction_id_like_cpp(u32::from(faction_entry.paragon_faction_id))
-            })
+        catalogs
+            .paragon_for_faction_like_cpp(u32::from(faction_entry.paragon_faction_id))
             .is_some()
     }
 }
@@ -86,10 +81,8 @@ impl<S: std::borrow::BorrowMut<PlayerReputationStateLikeCpp>> ReputationMgrLikeC
         standing: i32,
         incremental: bool,
         reputation_gain_rate: f32,
-        friendship_rep_reaction_store: Option<&FriendshipRepReactionStore>,
-        paragon_reputation_store: Option<&ParagonReputationStore>,
+        catalogs: &impl ReputationCatalogReadLikeCpp,
         paragon_reward_quest_status_none_like_cpp: bool,
-        currency_types_store: Option<&CurrencyTypesStore>,
         renown_current_level_like_cpp: i32,
         renown_currency_increased_cap_quantity_like_cpp: u32,
         player_race: u8,
@@ -117,7 +110,7 @@ impl<S: std::borrow::BorrowMut<PlayerReputationStateLikeCpp>> ReputationMgrLikeC
             && renown_current_level_like_cpp
                 >= renown_max_level_like_cpp(
                     faction_entry,
-                    currency_types_store,
+                    catalogs,
                     renown_currency_increased_cap_quantity_like_cpp,
                 )
         {
@@ -144,18 +137,15 @@ impl<S: std::borrow::BorrowMut<PlayerReputationStateLikeCpp>> ReputationMgrLikeC
             target_standing += old_standing;
         }
 
-        let paragon_reputation = paragon_reputation_store
-            .and_then(|store| store.get_by_faction_id_like_cpp(faction_entry.id));
+        let paragon_reputation = catalogs.paragon_for_faction_like_cpp(faction_entry.id);
         let is_paragon = paragon_reputation.is_some();
         let is_renown = faction_entry.renown_currency_id > 0;
-        let min_reputation = min_reputation_like_cpp(faction_entry, friendship_rep_reaction_store);
+        let min_reputation = min_reputation_like_cpp(faction_entry, catalogs);
         let max_reputation = max_reputation_like_cpp(
             faction_entry,
-            friendship_rep_reaction_store,
-            paragon_reputation_store,
+            catalogs,
             old_standing,
             paragon_reward_quest_status_none_like_cpp,
-            currency_types_store,
             renown_currency_increased_cap_quantity_like_cpp,
             player_race,
             player_class,
@@ -169,12 +159,12 @@ impl<S: std::borrow::BorrowMut<PlayerReputationStateLikeCpp>> ReputationMgrLikeC
             let old = reputation_to_rank_like_cpp(
                 faction_entry,
                 old_standing,
-                friendship_rep_reaction_store,
+                catalogs,
             );
             let new = reputation_to_rank_like_cpp(
                 faction_entry,
                 target_standing,
-                friendship_rep_reaction_store,
+                catalogs,
             );
             old_rank = Some(old);
             new_rank = Some(new);
@@ -184,7 +174,7 @@ impl<S: std::borrow::BorrowMut<PlayerReputationStateLikeCpp>> ReputationMgrLikeC
                     rep_list_id,
                     true,
                     faction_entry,
-                    friendship_rep_reaction_store,
+                    catalogs,
                     player_race,
                     player_class,
                 );
@@ -204,14 +194,14 @@ impl<S: std::borrow::BorrowMut<PlayerReputationStateLikeCpp>> ReputationMgrLikeC
         let mut reputation_change = target_standing - old_standing;
         let mut renown_currency_delta_like_cpp = None;
         if is_renown {
-            if let Some(currency) = currency_types_store
-                .and_then(|store| store.get(faction_entry.renown_currency_id as u32))
+            if let Some(currency) =
+                catalogs.currency_types_like_cpp(faction_entry.renown_currency_id as u32)
             {
                 let renown_level_threshold =
                     renown_level_threshold_like_cpp(faction_entry, player_race, player_class);
                 let renown_max_level = renown_max_level_like_cpp(
                     faction_entry,
-                    currency_types_store,
+                    catalogs,
                     renown_currency_increased_cap_quantity_like_cpp,
                 );
                 if renown_level_threshold > 0 {
@@ -247,7 +237,7 @@ impl<S: std::borrow::BorrowMut<PlayerReputationStateLikeCpp>> ReputationMgrLikeC
         let was_visible = self
             .get_state(rep_list_id)
             .is_some_and(|state| state.flags.contains(ReputationFlagsLikeCpp::VISIBLE));
-        self.set_visible_like_cpp(rep_list_id, paragon_reputation_store);
+        self.set_visible_like_cpp(rep_list_id, catalogs);
         let became_visible = !was_visible
             && self
                 .get_state(rep_list_id)
@@ -273,7 +263,7 @@ impl<S: std::borrow::BorrowMut<PlayerReputationStateLikeCpp>> ReputationMgrLikeC
     pub(super) fn set_visible_like_cpp(
         &mut self,
         rep_list_id: RepListIdLikeCpp,
-        paragon_reputation_store: Option<&ParagonReputationStore>,
+        catalogs: &impl ReputationCatalogReadLikeCpp,
     ) {
         let Some(faction) = self.state_mut().faction_mut_like_cpp(rep_list_id) else {
             return;
@@ -288,11 +278,10 @@ impl<S: std::borrow::BorrowMut<PlayerReputationStateLikeCpp>> ReputationMgrLikeC
         {
             return;
         }
-        if paragon_reputation_store.is_some_and(|store| {
-            store
-                .get_by_faction_id_like_cpp(faction.faction_id)
-                .is_some()
-        }) {
+        if catalogs
+            .paragon_for_faction_like_cpp(faction.faction_id)
+            .is_some()
+        {
             return;
         }
         if faction.flags.contains(ReputationFlagsLikeCpp::VISIBLE) {
@@ -332,7 +321,7 @@ impl<S: std::borrow::BorrowMut<PlayerReputationStateLikeCpp>> ReputationMgrLikeC
         rep_list_id: RepListIdLikeCpp,
         at_war: bool,
         faction_entry: &FactionEntry,
-        friendship_rep_reaction_store: Option<&FriendshipRepReactionStore>,
+        catalogs: &impl ReputationCatalogReadLikeCpp,
         player_race: u8,
         player_class: u8,
     ) {
@@ -344,7 +333,7 @@ impl<S: std::borrow::BorrowMut<PlayerReputationStateLikeCpp>> ReputationMgrLikeC
                     faction_entry,
                     base_reputation_like_cpp(faction_entry, player_race, player_class)
                         + faction.standing,
-                    friendship_rep_reaction_store,
+                    catalogs,
                 )
             })
             .unwrap_or(ReputationRankLikeCpp::Neutral);

@@ -1,0 +1,407 @@
+use super::*;
+
+/// Creature victims use the same canonical split stage. Its secondary log is
+/// ordered after any absorb publications and before the primary
+/// `AttackerStateUpdate` in the map runtime plan.
+#[test]
+fn legacy_creature_melee_tick_once_splits_creature_victim_damage_like_cpp() {
+    use wow_world::map_manager::RuntimeTickOwner;
+    use wow_constants::ServerOpcodes;
+
+    let manager = shared_map_manager();
+    let canonical = shared_canonical_map_manager();
+    canonical.lock().unwrap().create_world_map(0, 0);
+    let attacker_guid = test_creature_guid(91_370);
+    let victim_guid = test_creature_guid(91_371);
+    let split_target_guid = test_creature_guid(91_372);
+    let (mut session, _, _) = make_session();
+    session.set_canonical_map_manager(Arc::clone(&canonical));
+    for guid in [attacker_guid, victim_guid, split_target_guid] {
+        register_test_creature(&mut session, manager.clone(), guid, 100);
+    }
+    {
+        let mut guard = canonical.lock().unwrap();
+        let map = guard.find_map_mut(0, 0).unwrap().map_mut();
+        for guid in [victim_guid, split_target_guid] {
+            map.get_typed_creature_mut(guid)
+                .unwrap()
+                .set_avoidance_like_cpp(wow_entities::CreatureAvoidanceLikeCpp::default());
+        }
+    }
+    session
+        .fixture_melee_mutate_creature(attacker_guid, |creature| {
+            creature.creature.unit_mut().set_level(80);
+            creature.creature.ai_ownership_mut().min_damage = 10;
+            creature.creature.ai_ownership_mut().max_damage = 10;
+            creature.creature.set_flags_extra_runtime_like_cpp(
+                wow_constants::CreatureFlagsExtra::NO_CRIT.bits(),
+            );
+            creature.enter_combat(victim_guid);
+            creature.creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+        })
+        .unwrap();
+
+    let mut spell_store = wow_data::SpellStore::new();
+    for (spell_id, aura_type, amount, misc_value) in [
+        (
+            91_373_i32,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_HIT_CHANCE,
+            100,
+            0,
+        ),
+        (
+            91_374,
+            wow_data::spell::aura_types::SPELL_AURA_SPLIT_DAMAGE_PCT,
+            50,
+            0x01,
+        ),
+    ] {
+        spell_store.insert(
+            spell_id,
+            wow_data::SpellInfo {
+                spell_id,
+                cast_time_ms: 0,
+                cooldown_ms: 0,
+                recovery_time_ms: 0,
+                effect_type: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                effect_base_points: amount,
+                effect_bonus_coefficient: 0.0,
+                aura_type: Some(aura_type),
+                display_flags: 0,
+                requires_spell_focus: 0,
+                power_costs: Vec::new(),
+                effects: vec![wow_data::SpellEffectInfo {
+                    effect_index: 0,
+                    effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
+                    effect_aura: aura_type,
+                    effect_misc_value_1: misc_value,
+                    effect_base_points: amount,
+                    ..Default::default()
+                }],
+            },
+        );
+    }
+    let spell_store = Arc::new(spell_store);
+    session.set_spell_store(Arc::clone(&spell_store));
+    session
+        .fixture_melee_mutate_creature(attacker_guid, |creature| {
+            creature
+                .creature
+                .unit_mut()
+                .subsystems_mut()
+                .auras
+                .add_applied(wow_entities::AppliedAuraRef::new(
+                    91_373,
+                    attacker_guid,
+                    0,
+                    1,
+                ));
+        })
+        .unwrap();
+    let split_cast_id = ObjectGuid::new(6, 91_374);
+    {
+        let mut manager = canonical.lock().unwrap();
+        let auras = &mut manager
+            .find_map_mut(0, 0)
+            .unwrap()
+            .map_mut()
+            .get_typed_creature_mut(victim_guid)
+            .unwrap()
+            .unit_mut()
+            .subsystems_mut()
+            .auras;
+        auras.add_applied(wow_entities::AppliedAuraRef::new(
+            91_374,
+            split_target_guid,
+            0,
+            1,
+        ));
+        auras.set_aura_cast_provenance_like_cpp(
+            0,
+            wow_entities::AuraCastProvenanceLikeCpp {
+                cast_id: split_cast_id,
+                spell_visual_id: 7_374,
+            },
+        );
+    }
+
+    let config = wow_world::session::LegacyCreatureAggroConfigLikeCpp {
+        spell_store: Some(spell_store),
+        ..Default::default()
+    };
+    manager
+        .write()
+        .unwrap()
+        .set_tick_owner(RuntimeTickOwner::GlobalLegacy);
+    let outcome = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    {
+        let manager = canonical.lock().unwrap();
+        let map = manager.find_map(0, 0).unwrap().map();
+        assert_eq!(
+            map.creature_transform_vitals_snapshot_like_cpp(victim_guid)
+                .unwrap()
+                .health,
+            95
+        );
+        assert_eq!(
+            map.creature_transform_vitals_snapshot_like_cpp(split_target_guid)
+                .unwrap()
+                .health,
+            95
+        );
+        assert_eq!(
+            map.with_creature_like_cpp(victim_guid, |victim| victim
+                .unit()
+                .subsystems()
+                .combat
+                .threat_value(attacker_guid))
+                .flatten(),
+            Some(5.0),
+            "the primary call settles threat from its post-split damage"
+        );
+        assert_eq!(
+            map.with_creature_like_cpp(split_target_guid, |victim| victim
+                .unit()
+                .subsystems()
+                .combat
+                .threat_value(attacker_guid))
+                .flatten(),
+            Some(5.0),
+            "the recursive split call settles its own threat"
+        );
+        let threatened_by = map
+            .with_creature_like_cpp(attacker_guid, |attacker| {
+                attacker
+                    .unit()
+                    .subsystems()
+                    .combat
+                    .threatened_by_me_owner_guids()
+            })
+            .unwrap();
+        assert!(threatened_by.contains(&victim_guid));
+        assert!(threatened_by.contains(&split_target_guid));
+    }
+    {
+        let manager = manager.read().unwrap();
+        for target_guid in [victim_guid, split_target_guid] {
+            assert_eq!(
+                manager
+                    .find_creature(0, 0, target_guid)
+                    .unwrap()
+                    .creature
+                    .unit()
+                    .subsystems()
+                    .combat
+                    .threat_value(attacker_guid),
+                Some(5.0),
+                "the compatibility mirror replays each damage call's threat"
+            );
+        }
+        let threatened_by = manager
+            .find_creature(0, 0, attacker_guid)
+            .unwrap()
+            .creature
+            .unit()
+            .subsystems()
+            .combat
+            .threatened_by_me_owner_guids();
+        assert!(threatened_by.contains(&victim_guid));
+        assert!(threatened_by.contains(&split_target_guid));
+    }
+    let opcodes = outcome
+        .plan
+        .events
+        .iter()
+        .filter_map(|event| {
+            (event.packet_bytes.len() >= 2)
+                .then(|| u16::from_le_bytes([event.packet_bytes[0], event.packet_bytes[1]]))
+        })
+        .collect::<Vec<_>>();
+    let split_log = opcodes
+        .iter()
+        .position(|opcode| *opcode == ServerOpcodes::SpellNonMeleeDamageLog as u16)
+        .expect("secondary split log");
+    let split_log_bytes = &outcome.plan.events[split_log].packet_bytes;
+    assert_eq!(
+        split_log_bytes,
+        &wow_packet::packets::combat::SpellNonMeleeDamageLog {
+            target: split_target_guid,
+            caster: attacker_guid,
+            cast_id: split_cast_id,
+            spell_id: 91_374,
+            visual_id: 7_374,
+            damage: 5,
+            original_damage: 5,
+            overkill: -1,
+            school_mask: 1,
+            absorbed: 0,
+            resisted: 0,
+            shield_block: 0,
+            periodic: false,
+            flags: 0,
+        }
+        .to_bytes()
+    );
+    let primary = opcodes
+        .iter()
+        .position(|opcode| *opcode == ServerOpcodes::AttackerStateUpdate as u16)
+        .expect("primary attacker state");
+    assert!(split_log < primary);
+    assert_eq!(outcome.legacy_creature_victim_syncs, 2);
+
+    // `DealDamageMods` runs after the split has been absorbed from the
+    // primary victim. An evading secondary creature therefore takes no health
+    // damage, while the primary still loses only the unsplit remainder.
+    canonical
+        .lock()
+        .unwrap()
+        .find_map_mut(0, 0)
+        .unwrap()
+        .map_mut()
+        .get_typed_creature_mut(split_target_guid)
+        .unwrap()
+        .set_in_evade_mode_like_cpp(true);
+    session
+        .fixture_melee_mutate_creature(attacker_guid, |creature| {
+            creature.creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+        })
+        .unwrap();
+    let evading = run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    {
+        let manager = canonical.lock().unwrap();
+        let map = manager.find_map(0, 0).unwrap().map();
+        assert_eq!(
+            map.creature_transform_vitals_snapshot_like_cpp(victim_guid)
+                .unwrap()
+                .health,
+            90
+        );
+        assert_eq!(
+            map.creature_transform_vitals_snapshot_like_cpp(split_target_guid)
+                .unwrap()
+                .health,
+            95
+        );
+    }
+    assert_eq!(evading.legacy_creature_victim_syncs, 1);
+    assert!(evading.plan.events.iter().any(|event| {
+        wow_packet::WorldPacket::from_bytes(&event.packet_bytes).server_opcode()
+            == Some(ServerOpcodes::SpellNonMeleeDamageLog)
+    }));
+
+    // The unusual C++ split tail also zeroes the primary Creature's remaining
+    // wire damage when it is already at its sparring threshold, after a
+    // non-immune secondary reaches `DealDamageMods` (`Unit.cpp:2000-2003`).
+    {
+        let mut manager = canonical.lock().unwrap();
+        let map = manager.find_map_mut(0, 0).unwrap().map_mut();
+        map.get_typed_creature_mut(split_target_guid)
+            .unwrap()
+            .set_in_evade_mode_like_cpp(false);
+        map.get_typed_creature_mut(victim_guid)
+            .unwrap()
+            .set_sparring_health_pct_like_cpp(100.0);
+    }
+    session
+        .fixture_melee_mutate_creature(attacker_guid, |creature| {
+            creature.creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+        })
+        .unwrap();
+    let sparring =
+        run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    {
+        let manager = canonical.lock().unwrap();
+        let map = manager.find_map(0, 0).unwrap().map();
+        assert_eq!(
+            map.creature_transform_vitals_snapshot_like_cpp(victim_guid)
+                .unwrap()
+                .health,
+            90
+        );
+        assert_eq!(
+            map.creature_transform_vitals_snapshot_like_cpp(split_target_guid)
+                .unwrap()
+                .health,
+            90
+        );
+    }
+    let attacker_state = sparring
+        .plan
+        .events
+        .iter()
+        .find(|event| {
+            wow_packet::WorldPacket::from_bytes(&event.packet_bytes).server_opcode()
+                == Some(ServerOpcodes::AttackerStateUpdate)
+        })
+        .expect("primary attacker state after split sparring");
+    let mut packet = wow_packet::WorldPacket::from_bytes(&attacker_state.packet_bytes);
+    packet.read_uint16().expect("opcode");
+    assert!(!packet.read_bit().expect("has log data"));
+    let info_len = packet.read_uint32().expect("attack round size") as usize;
+    let info_bytes = packet.read_bytes(info_len).expect("attack round bytes");
+    let mut info = wow_packet::WorldPacket::from_bytes(&info_bytes);
+    info.read_uint32().expect("hit info");
+    info.read_packed_guid().expect("attacker");
+    info.read_packed_guid().expect("victim");
+    assert_eq!(info.read_int32().expect("primary wire damage"), 0);
+
+    // The secondary `DealDamage` still applies Creature unkillable semantics.
+    // Its non-melee log retains the five-point split calculated before the
+    // health clamp, while the canonical target remains alive at one HP.
+    session
+        .fixture_melee_mutate_creature(split_target_guid, |creature| {
+            creature.creature.unit_mut().set_health(4);
+        })
+        .unwrap();
+    {
+        let mut manager = canonical.lock().unwrap();
+        let map = manager.find_map_mut(0, 0).unwrap().map_mut();
+        map.get_typed_creature_mut(victim_guid)
+            .unwrap()
+            .set_sparring_health_pct_like_cpp(0.0);
+        let split_target = map.get_typed_creature_mut(split_target_guid).unwrap();
+        split_target.set_sparring_health_pct_like_cpp(0.0);
+        split_target.unit_mut().set_health(4);
+        let mut static_flags = [0; 8];
+        static_flags[0] = wow_constants::creature::CreatureStaticFlags::UNKILLABLE.bits();
+        split_target.set_static_flags_runtime_like_cpp(static_flags);
+    }
+    session
+        .fixture_melee_mutate_creature(attacker_guid, |creature| {
+            creature.creature.ai_ownership_mut().last_swing_ms = 0;
+            creature.creature.ai_ownership_mut().swing_timer_ms = 0;
+        })
+        .unwrap();
+    let unkillable =
+        run_legacy_creature_melee_tick_once_like_cpp(&manager, Some(&canonical), &config);
+    {
+        let manager = canonical.lock().unwrap();
+        let map = manager.find_map(0, 0).unwrap().map();
+        assert_eq!(
+            map.creature_transform_vitals_snapshot_like_cpp(victim_guid)
+                .unwrap()
+                .health,
+            85
+        );
+        let (health, alive, ai_state) = map
+            .with_creature_like_cpp(split_target_guid, |split_target| {
+                (
+                    split_target.unit().data().health,
+                    split_target.is_alive(),
+                    split_target.ai_ownership().state,
+                )
+            })
+            .unwrap();
+        assert_eq!(health, 1);
+        assert!(alive);
+        assert_ne!(ai_state, wow_entities::CreatureAiState::Dead);
+    }
+    assert_eq!(unkillable.legacy_creature_victim_syncs, 2);
+    assert!(unkillable.plan.events.iter().any(|event| {
+        wow_packet::WorldPacket::from_bytes(&event.packet_bytes).server_opcode()
+            == Some(ServerOpcodes::SpellNonMeleeDamageLog)
+    }));
+}

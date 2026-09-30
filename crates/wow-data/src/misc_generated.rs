@@ -51,8 +51,6 @@ macro_rules! db2_store {
     };
 }
 
-db2_store!(AdventureJournalStore, AdventureJournalEntry);
-db2_store!(AdventureMapPoiStore, AdventureMapPoiEntry);
 db2_store!(BannedAddonsStore, BannedAddonsEntry);
 db2_store!(BroadcastTextStore, BroadcastTextEntry);
 db2_store!(CfgCategoriesStore, CfgCategoriesEntry);
@@ -159,8 +157,6 @@ macro_rules! impl_from_entries {
     };
 }
 
-impl_from_entries!(AdventureJournalStore, AdventureJournalEntry);
-impl_from_entries!(AdventureMapPoiStore, AdventureMapPoiEntry);
 impl_from_entries!(BannedAddonsStore, BannedAddonsEntry);
 impl_from_entries!(BroadcastTextStore, BroadcastTextEntry);
 impl_from_entries!(CfgCategoriesStore, CfgCategoriesEntry);
@@ -217,3 +213,9 @@ impl_from_entries!(SpecializationSpellsStore, SpecializationSpellsEntry);
 impl_from_entries!(SummonPropertiesStore, SummonPropertiesEntry);
 impl_from_entries!(TactKeyStore, TactKeyEntry);
 impl_from_entries!(TotemCategoryStore, TotemCategoryEntry);
+
+mod adventure;
+
+pub use adventure::{
+    AdventureJournalEntry, AdventureJournalStore, AdventureMapPoiEntry, AdventureMapPoiStore,
+};

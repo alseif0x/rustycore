@@ -329,10 +329,10 @@ pub(crate) struct RepresentedLootRollState {
     /// authority allocation, and authority generation.
     pub command_identity: LootRollCommandIdentityLikeCpp,
     pub end_time: Instant,
-    pub voters: HashMap<ObjectGuid, RepresentedLootRollVote>,
+    pub ballots: wow_loot::RollBallots,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedLootRollCriteriaEvent {
     RollAnyNeed {

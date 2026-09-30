@@ -99,16 +99,9 @@ pub(crate) fn adjusted_represented_pet_aura_remain_time_like_cpp(
     is_positive: bool,
     aura_expires_offline: bool,
 ) -> Option<i32> {
-    if remain_time_ms != -1 && (!is_positive || aura_expires_offline) {
-        let timediff_secs = i32::try_from(timediff_secs).unwrap_or(i32::MAX);
-        if remain_time_ms / 1_000 <= timediff_secs {
-            return None;
-        }
-
-        return Some(remain_time_ms.saturating_sub(timediff_secs.saturating_mul(1_000)));
-    }
-
-    Some(remain_time_ms)
+    wow_entities::AuraSubsystem::offline_remaining_duration(
+        remain_time_ms, timediff_secs, is_positive, aura_expires_offline,
+    )
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -164,6 +157,12 @@ impl WorldSession {
         });
         #[cfg(test)]
         if !canonical {
+            self.represented_pet_created_by_spell_like_cpp = created_by_spell;
+            self.represented_pet_react_state_like_cpp = react_state;
+            self.represented_pet_command_state_like_cpp = command_state;
+        }
+        #[cfg(all(not(test), feature = "test-fixtures"))]
+        if !canonical && self.character_lifecycle_handleless_fixture() {
             self.represented_pet_created_by_spell_like_cpp = created_by_spell;
             self.represented_pet_react_state_like_cpp = react_state;
             self.represented_pet_command_state_like_cpp = command_state;

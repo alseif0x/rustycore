@@ -46,6 +46,12 @@ impl WorldSession {
         let friendship_rep_reaction_store = self.friendship_rep_reaction_store().map(Arc::clone);
         let paragon_reputation_store = self.paragon_reputation_store().map(Arc::clone);
         let currency_types_store = self.currency_types_store().map(Arc::clone);
+        let catalogs = crate::reputation_catalog_adapter::ReputationCatalogViewLikeCpp::new(
+            Some(faction_store.as_ref()),
+            friendship_rep_reaction_store.as_deref(),
+            paragon_reputation_store.as_deref(),
+            currency_types_store.as_deref(),
+        );
         let db_spillover_template = reputation_spillover_template_store
             .as_deref()
             .and_then(|store| store.get(faction_id));
@@ -60,25 +66,26 @@ impl WorldSession {
             player_race: self.player_race_like_cpp(),
             player_class: self.player_class_like_cpp(),
         };
-        let Some((outcome, packet)) = self.mutate_reputation_mgr_like_cpp(|mgr| {
+        let Some((outcome, update)) = self.mutate_reputation_mgr_like_cpp(|mgr| {
             let outcome = mgr.set_reputation_like_cpp(
                 &faction_entry,
                 reputation,
                 options,
-                &faction_store,
+                &catalogs,
                 db_spillover_template,
-                friendship_rep_reaction_store.as_deref(),
-                paragon_reputation_store.as_deref(),
-                currency_types_store.as_deref(),
             );
-            let packet = outcome
+            let update = outcome
                 .send_state_rep_list_id
-                .map(|rep_list_id| mgr.set_faction_standing_packet_like_cpp(Some(rep_list_id)));
-            (outcome, packet)
+                .map(|rep_list_id| mgr.faction_standing_update_like_cpp(Some(rep_list_id)));
+            (outcome, update)
         }) else {
             return false;
         };
-        if let Some(packet) = packet {
+        if let Some(update) = update {
+            let packet =
+                crate::handlers::progression::presentation::set_faction_standing_packet_like_cpp(
+                    update,
+                );
             self.send_packet(&packet);
         }
         outcome.applied
@@ -272,7 +279,6 @@ impl WorldSession {
         let Some((quest_is_in_log, should_send_event_complete)) = self
             .mark_represented_quest_explored_like_cpp(
                 quest_id,
-                wow_conditions::QUEST_STATUS_FAILED_LIKE_CPP,
             )
         else {
             return Ok(());

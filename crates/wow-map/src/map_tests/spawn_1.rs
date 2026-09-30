@@ -286,7 +286,7 @@ fn game_event_npc_flag_live_consumer_mutates_exact_spawn_low_bits_like_cpp() {
     for guid in map.creature_spawn_id_store_guids_like_cpp(547) {
         let creature = map
             .map_object_record(guid)
-            .and_then(MapObjectRecord::creature)
+            .and_then(|record| record.creature())
             .unwrap();
         assert_eq!(creature.ai_ownership().npc_flags, 0xA5);
         assert_eq!(creature.ai_ownership().npc_flags2, 0x1);
@@ -334,7 +334,7 @@ fn game_event_npc_flag_live_consumer_wrong_kind_or_mismatched_spawn_no_mutation_
     assert_eq!(outcome.stale_index_or_wrong_kind, 1);
     let creature = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::creature)
+        .and_then(|record| record.creature())
         .unwrap();
     assert_eq!(creature.ai_ownership().npc_flags, 0x11);
     assert_eq!(creature.ai_ownership().npc_flags2, 0);

@@ -11,6 +11,10 @@ use super::super::spell_rules::{
 };
 use super::*;
 
+#[cfg(test)]
+#[path = "login_data_tests.rs"]
+mod tests;
+
 impl WorldSession {
     pub(in crate::handlers::character) fn skill_rewarded_quest_fallback_allowed_like_cpp(
         &self,

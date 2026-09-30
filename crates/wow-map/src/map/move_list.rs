@@ -7,6 +7,117 @@
 
 use super::*;
 
+/// C++ `MapObjectCellMoveState` (`MapObject.h:28-33`) represented for
+/// map-owned delayed cell/grid move-list state.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MapObjectCellMoveStateLikeCpp {
+    None,
+    Active,
+    Inactive,
+}
+
+pub type MapObjectCellMoveState = MapObjectCellMoveStateLikeCpp;
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum MapObjectMoveListFamilyLikeCpp {
+    Creature,
+    GameObject,
+    DynamicObject,
+    AreaTrigger,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct PendingCellMoveLikeCpp {
+    pub state: MapObjectCellMoveStateLikeCpp,
+    pub new_position: Position,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum AddObjectToMoveListOutcomeLikeCpp {
+    Queued,
+    UpdatedExisting,
+    LockedIgnored,
+    MissingOrStale,
+    WrongKind { actual: AccessorObjectKind },
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RemoveObjectFromMoveListOutcomeLikeCpp {
+    MarkedInactive,
+    AlreadyInactive,
+    NotQueued,
+    LockedIgnored,
+    MissingOrStale,
+    WrongKind { actual: AccessorObjectKind },
+}
+
+/// Drain summary for C++ `Map::MoveAll*InMoveList` (`Map.cpp:1239-1416`).
+/// This is a map-owned seam only: it does not claim UpdatePositionData,
+/// visibility fanout, AfterRelocation, respawn relocation, Pet::Remove,
+/// dynamic tree, scripts/AI, ObjectAccessor, or session packet runtime.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MoveListDrainSummaryLikeCpp {
+    pub family: Option<MapObjectMoveListFamilyLikeCpp>,
+    pub processed: usize,
+    pub relocated: usize,
+    pub inactive_reset: usize,
+    pub not_in_world: usize,
+    pub missing_or_stale: usize,
+    pub wrong_kind: usize,
+    pub blocked_by_unloaded_grid: usize,
+    pub remove_list_queued: usize,
+    pub pet_remove_requested: usize,
+    pub respawn_relocation_unsupported: usize,
+    pub failed_invalid_position: usize,
+    pub failed_store: usize,
+    pub locked_ignored: usize,
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub struct MapObjectMoveListEntry {
+    pub guid: ObjectGuid,
+    pub kind: AccessorObjectKind,
+    pub move_state: MapObjectCellMoveState,
+    pub new_position: Position,
+    pub respawn_position: Option<Position>,
+    pub is_pet: bool,
+}
+
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct MapObjectMoveListPlan {
+    pub relocated: Vec<ObjectGuid>,
+    pub respawn_relocated: Vec<ObjectGuid>,
+    pub remove_from_world: Vec<ObjectGuid>,
+    pub pet_removed: Vec<ObjectGuid>,
+    pub blocked_unloaded_grid: Vec<ObjectGuid>,
+    pub reset_inactive_or_none: Vec<ObjectGuid>,
+    pub skipped_not_in_world: Vec<ObjectGuid>,
+    pub skipped_other_map_or_missing: Vec<ObjectGuid>,
+    pub skipped_kind_mismatch: Vec<ObjectGuid>,
+    pub failed_invalid_position: Vec<ObjectGuid>,
+    pub failed_store: Vec<ObjectGuid>,
+    pub unsupported_kind: Vec<ObjectGuid>,
+}
+
+fn move_list_family_accepts_kind_like_cpp(
+    family: MapObjectMoveListFamilyLikeCpp,
+    kind: AccessorObjectKind,
+) -> bool {
+    match family {
+        MapObjectMoveListFamilyLikeCpp::Creature => {
+            matches!(kind, AccessorObjectKind::Creature | AccessorObjectKind::Pet)
+        }
+        MapObjectMoveListFamilyLikeCpp::GameObject => {
+            matches!(
+                kind,
+                AccessorObjectKind::GameObject | AccessorObjectKind::Transport
+            )
+        }
+        MapObjectMoveListFamilyLikeCpp::DynamicObject => kind == AccessorObjectKind::DynamicObject,
+        MapObjectMoveListFamilyLikeCpp::AreaTrigger => kind == AccessorObjectKind::AreaTrigger,
+    }
+}
+
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
 where
     Terrain: TerrainGridLoader,

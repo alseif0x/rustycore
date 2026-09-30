@@ -2,67 +2,13 @@
 
 use super::*;
 
-pub(in crate::session) struct CreatureMeleeVictimSyncIdentityLikeCpp {
-    pub(in crate::session) authority: OwnedLootAuthority,
-    pub(in crate::session) health_state_revision_authority:
-        wow_entities::HealthStateRevisionAuthorityLikeCpp,
-    pub(in crate::session) spawn_id: u64,
-    pub(in crate::session) loot_lifecycle_revision_before: u64,
-    pub(in crate::session) loot_lifecycle_revision_after: u64,
-    pub(in crate::session) death_state_before: wow_constants::DeathState,
-    pub(in crate::session) death_state_after: wow_constants::DeathState,
-    pub(in crate::session) ai_state_before: wow_entities::CreatureAiState,
-    pub(in crate::session) ai_state_after: wow_entities::CreatureAiState,
-}
-
-pub(in crate::session) struct CreatureMeleeVictimSyncStateLikeCpp {
-    pub(in crate::session) applied_damage: u32,
-    pub(in crate::session) threat: Option<CreatureDamageThreatOutcomeLikeCpp>,
-    pub(in crate::session) victim_health_before: u64,
-    pub(in crate::session) victim_health_after: u64,
-    pub(in crate::session) victim_health_state_revision_before: u64,
-    pub(in crate::session) victim_health_state_revision_after: u64,
-    pub(in crate::session) identity: CreatureMeleeVictimSyncIdentityLikeCpp,
-}
-
-pub(in crate::session) enum CreatureMeleeApplyResultLikeCpp {
-    Ready,
-    Hit {
-        victim_applied_damage: u32,
-        victim_threat: Option<CreatureDamageThreatOutcomeLikeCpp>,
-        victim_health_before: u64,
-        victim_health_after: u64,
-        victim_health_state_revision_before: u64,
-        victim_health_state_revision_after: u64,
-        victim_creature_sync_identity: Option<CreatureMeleeVictimSyncIdentityLikeCpp>,
-        over_damage: i32,
-        target_level: u8,
-        events: Vec<RuntimeEvent>,
-    },
-    OutOfRange,
-    BadFacing,
-    AttackerStateRejected,
-    LosRejected,
-    AttackerUnavailable,
-    VictimNotAlive,
-    MissingVictim,
-}
-
-#[derive(Clone, Copy)]
-pub(super) struct PendingCreatureSwingLikeCpp {
-    pub(super) map_id: u16,
-    pub(super) instance_id: u32,
-    pub(super) attacker_guid: ObjectGuid,
-    pub(super) attacker_position: Position,
-    pub(super) attacker_combat_reach: f32,
-    pub(super) attacker_can_state_update: bool,
-    pub(super) victim_guid: ObjectGuid,
-}
-
-pub(super) struct CreatureVictimCompatibilitySyncLikeCpp {
-    pub(super) swing: PendingCreatureSwingLikeCpp,
-    pub(super) state: CreatureMeleeVictimSyncStateLikeCpp,
-}
+pub(in crate::session) use wow_map::map::{
+    CreatureMeleeVictimSyncIdentityLikeCpp,
+    CreatureMeleeVictimSyncStateLikeCpp,
+};
+pub(super) use wow_map::map::{
+    CreatureVictimCompatibilitySyncLikeCpp, PendingCreatureSwingLikeCpp,
+};
 
 struct CreatureVictimCompatibilitySyncChainLikeCpp {
     swing: PendingCreatureSwingLikeCpp,

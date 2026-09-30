@@ -112,7 +112,7 @@ pub(crate) struct RepresentedPlayerSpellLikeCpp {
 pub(in crate::session) struct RepresentedPlayerSpellRuntimeLikeCpp {
     pub(in crate::session) known_spells: Vec<i32>,
     pub(in crate::session) rows: BTreeMap<i32, RepresentedPlayerSpellLikeCpp>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) rows_loaded: bool,
     pub(in crate::session) rows_complete: bool,
     pub(in crate::session) fallback_rows: BTreeMap<i32, RepresentedPlayerSpellLikeCpp>,
@@ -125,7 +125,7 @@ pub(in crate::session) struct RepresentedPlayerSpellRuntimeLikeCpp {
     pub(in crate::session) trait_config_rows_complete: bool,
     pub(in crate::session) trait_entry_rows_complete: bool,
     pub(in crate::session) trait_entry_rows_empty: bool,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) override_spells: HashMap<i32, BTreeSet<i32>>,
     pub(in crate::session) override_spells_complete: bool,
 }
@@ -184,7 +184,7 @@ pub(in crate::session) fn represented_player_spell_record_like_cpp(
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) fn canonical_player_spell_runtime_like_cpp(
     runtime: RepresentedPlayerSpellRuntimeLikeCpp,
 ) -> wow_entities::PlayerSpellRuntimeState {
@@ -238,7 +238,7 @@ pub(in crate::session) fn represented_player_spell_runtime_like_cpp(
             .iter()
             .map(|(&spell_id, row)| (spell_id, represented_player_spell_record_like_cpp(row)))
             .collect(),
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         rows_loaded: runtime.rows_loaded_like_cpp(),
         rows_complete: runtime.rows_complete_like_cpp(),
         fallback_rows: runtime
@@ -271,7 +271,7 @@ pub(in crate::session) fn represented_player_spell_runtime_like_cpp(
         trait_config_rows_complete: runtime.trait_config_rows_complete_like_cpp(),
         trait_entry_rows_complete: runtime.trait_entry_rows_complete_like_cpp(),
         trait_entry_rows_empty: runtime.trait_entry_rows_empty_like_cpp(),
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         override_spells: runtime
             .override_spells_like_cpp()
             .iter()

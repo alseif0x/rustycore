@@ -7,6 +7,10 @@
 
 use crate::{WorldSession, handlers::quest::PlayerQuestStatus};
 
+#[cfg(all(test, feature = "test-fixtures"))]
+#[path = "quest_persistence_projection_tests.rs"]
+mod tests;
+
 impl WorldSession {
     pub(crate) fn represented_quest_status_persistence_like_cpp(
         &self,

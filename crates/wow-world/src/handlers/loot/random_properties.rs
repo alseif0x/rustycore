@@ -5,14 +5,10 @@
 
 //! Random item-property generation and stack compatibility for loot items.
 
-use rand::{
-    Rng,
-    distributions::{Distribution, WeightedIndex},
-};
+use rand::Rng;
 use wow_constants::{InventoryType, ItemQuality};
 use wow_data::{ItemRandomEnchantmentTemplateEntry, ItemRandomPropertyTemplateEntry};
-use wow_entities::Item;
-use wow_packet::packets::loot::LootEntry;
+use wow_entities::{Item, LootEntry};
 
 use crate::session::WorldSession;
 
@@ -27,10 +23,7 @@ pub(super) fn loot_store_data_can_stack_with_item(
     random_properties: LootStoreRandomProperties,
     item: &Item,
 ) -> bool {
-    let data = item.data();
-    data.random_properties_id == random_properties.id
-        && data.property_seed == random_properties.seed
-        && u8::try_from(data.context).unwrap_or(0) == loot_entry.item_context
+    wow_loot::loot_store_item_matches(loot_entry, random_properties.id, random_properties.seed, item)
 }
 
 impl WorldSession {
@@ -163,11 +156,5 @@ pub(super) fn select_weighted_random_enchantment_like_cpp<R: Rng + ?Sized>(
     group: &[ItemRandomEnchantmentTemplateEntry],
     rng: &mut R,
 ) -> Option<u32> {
-    let valid_rows = group
-        .iter()
-        .filter(|row| (0.000001..=100.0).contains(&row.chance))
-        .collect::<Vec<_>>();
-    let weights = valid_rows.iter().map(|row| row.chance).collect::<Vec<_>>();
-    let distribution = WeightedIndex::new(weights).ok()?;
-    Some(valid_rows[distribution.sample(rng)].enchantment_id)
+    wow_loot::select_random_enchantment(group.iter().map(|row| (row.enchantment_id, row.chance)), rng)
 }

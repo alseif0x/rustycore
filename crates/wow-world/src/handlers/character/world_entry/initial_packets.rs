@@ -112,11 +112,15 @@ impl WorldSession {
         });
 
         // 16. InitializeFactions (1000 factions, all neutral)
-        let Some(initialize_factions) =
-            self.mutate_reputation_mgr_like_cpp(|mgr| mgr.initialize_factions_packet_like_cpp())
+        let Some(faction_state) =
+            self.mutate_reputation_mgr_like_cpp(|mgr| mgr.initialize_factions_state_like_cpp())
         else {
             return false;
         };
+        let initialize_factions =
+            crate::handlers::progression::presentation::initialize_factions_packet_like_cpp(
+                faction_state,
+            );
         self.send_packet(&initialize_factions);
 
         // 17. SetupCurrency (empty)
@@ -375,7 +379,7 @@ impl WorldSession {
         states
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::handlers::character) async fn test_load_initial_world_states_for_login_like_cpp(
         &self,
         map_id: i32,
@@ -386,14 +390,8 @@ impl WorldSession {
     }
 }
 
-#[cfg(test)]
-#[path = "initial_packets_tests.rs"]
-mod tests;
+
 
 #[cfg(test)]
 #[path = "initial_packets_post_add_scaling_tests.rs"]
 mod post_add_scaling_tests;
-
-#[cfg(test)]
-#[path = "initial_packets_post_add_rest_tests.rs"]
-mod post_add_rest_tests;

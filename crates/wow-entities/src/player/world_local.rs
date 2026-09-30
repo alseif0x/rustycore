@@ -206,6 +206,54 @@ impl Player {
             .set_zone_area_like_cpp(zone_id, area_id);
     }
 
+    // B4 coherence delta: each stage writes both Rust representations inside
+    // one canonical Player mutation, removing the old inter-closure visibility
+    // window. The cache and terrain projection remain distinct C++ stages; this
+    // does not claim shared authority or movement-parity proof.
+    /// Apply the represented `UpdateZone` cache stage and its supplied
+    /// `WorldObject` zone/area projection together. The Player cache and
+    /// `Unit::World` remain distinct state; the caller provides the area from
+    /// the snapshot used by this stage rather than having it reread here.
+    pub fn apply_represented_zone_stage_like_cpp(
+        &mut self,
+        zone_id: u32,
+        projection_area_id: u32,
+    ) {
+        self.set_zone_id_like_cpp(zone_id);
+        self.unit_mut()
+            .world_mut()
+            .set_zone_and_area(zone_id, projection_area_id);
+    }
+
+    /// Apply the represented `UpdateArea` cache stage and its supplied
+    /// `WorldObject` zone/area projection together. The Player cache and
+    /// `Unit::World` remain distinct state; the caller provides the zone from
+    /// the snapshot used by this stage rather than having it reread here.
+    pub fn apply_represented_area_stage_like_cpp(
+        &mut self,
+        area_id: u32,
+        projection_zone_id: u32,
+    ) {
+        self.set_area_id_like_cpp(area_id);
+        self.unit_mut()
+            .world_mut()
+            .set_zone_and_area(projection_zone_id, area_id);
+    }
+
+    /// Apply a resolved zone/area pair to the Player cache and its
+    /// `WorldObject` projection in one Player mutation. The underlying stores
+    /// stay separate and the cache setter retains its authority semantics.
+    pub fn apply_represented_zone_area_stage_like_cpp(
+        &mut self,
+        zone_id: u32,
+        area_id: u32,
+    ) {
+        self.set_zone_area_like_cpp(zone_id, area_id);
+        self.unit_mut()
+            .world_mut()
+            .set_zone_and_area(zone_id, area_id);
+    }
+
     /// Record terrain authority for the Player's current zone/area pair.
     pub fn set_zone_area_authority_like_cpp(&mut self, complete: bool) {
         self.gameplay_state_mut()

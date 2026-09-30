@@ -1,14 +1,17 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Roll eligibility and winner selection from caller-owned vote values.
+//! Loot roll ballots, eligibility and winner selection.
 //!
-//! No random draw, timer, Session, authority handle or packet is retained here.
-//! Ties deliberately preserve the caller HashMap's existing iteration order.
+//! No random source, timer, Session, authority handle or packet is retained here.
+//! Ties deliberately preserve the vote HashMap's existing iteration order.
 
 use std::collections::HashMap;
 use wow_constants::ItemFlags2;
 use wow_core::ObjectGuid;
+
+mod ballots;
+pub use ballots::RollBallots;
 
 #[cfg(test)]
 mod tests;

@@ -7,6 +7,8 @@
 
 use super::*;
 
+mod represented_kill;
+
 impl WorldCreature {
     /// C++ `Unit::Update` health-derived `UNIT_FIELD_AURASTATE` bits.
     ///
@@ -63,7 +65,7 @@ impl WorldCreature {
         if assistants.is_empty() {
             return false;
         }
-        self.pending_assistance_like_cpp.push((
+        self.runtime.pending_assistance_like_cpp.push((
             victim,
             assistants,
             self.runtime_elapsed_ms_like_cpp()
@@ -73,11 +75,11 @@ impl WorldCreature {
     }
 
     pub fn set_no_call_assistance_like_cpp(&mut self) {
-        self.assistance_called_like_cpp = true;
+        self.runtime.assistance_called_like_cpp = true;
     }
 
     pub fn take_assistance_call_like_cpp(&mut self) -> Option<ObjectGuid> {
-        if self.assistance_called_like_cpp
+        if self.runtime.assistance_called_like_cpp
             || self
                 .creature
                 .unit()
@@ -89,14 +91,14 @@ impl WorldCreature {
             return None;
         }
         let victim = self.creature.ai_ownership().combat_target?;
-        self.assistance_called_like_cpp = true;
+        self.runtime.assistance_called_like_cpp = true;
         Some(victim)
     }
 
     pub fn take_due_assistance_like_cpp(&mut self) -> Vec<(ObjectGuid, Vec<ObjectGuid>)> {
         let now_ms = self.runtime_elapsed_ms_like_cpp();
         let mut due = Vec::new();
-        self.pending_assistance_like_cpp
+        self.runtime.pending_assistance_like_cpp
             .retain(|(victim, assistants, due_at_ms)| {
                 if now_ms >= *due_at_ms {
                     due.push((*victim, assistants.clone()));
@@ -140,12 +142,12 @@ impl WorldCreature {
                 .saturating_add(duration_ms as u64)
         });
         let replaced: Vec<_> = self
-            .active_taunts_like_cpp
+            .runtime.active_taunts_like_cpp
             .iter()
             .copied()
             .filter(|active| active.caster == caster && active.spell_id == spell_id)
             .collect();
-        self.active_taunts_like_cpp
+        self.runtime.active_taunts_like_cpp
             .retain(|active| active.caster != caster || active.spell_id != spell_id);
         let auras = &mut self.creature.unit_mut().subsystems_mut().auras;
         auras.remove_auras_due_to_spell_like_cpp(spell_id, caster, effect_mask);
@@ -161,9 +163,9 @@ impl WorldCreature {
         auras.set_aura_cast_provenance_like_cpp(slot, provenance);
         auras.register_applied_aura_type_like_cpp(
             wow_entities::AppliedAuraRef::new(spell_id, caster, slot, effect_mask),
-            wow_data::spell::aura_types::SPELL_AURA_MOD_TAUNT,
+            wow_constants::spell::aura_types::SPELL_AURA_MOD_TAUNT,
         );
-        self.active_taunts_like_cpp.push(ActiveTauntLikeCpp {
+        self.runtime.active_taunts_like_cpp.push(ActiveTauntLikeCpp {
             caster,
             due_at_ms,
             spell_id,
@@ -176,7 +178,7 @@ impl WorldCreature {
 
     pub fn expire_taunt_auras_if_due_like_cpp(&mut self) -> Vec<u8> {
         let now_ms = self.runtime_elapsed_ms_like_cpp();
-        if !self.active_taunts_like_cpp.iter().any(|active| {
+        if !self.runtime.active_taunts_like_cpp.iter().any(|active| {
             active
                 .due_at_ms
                 .is_some_and(|due_at_ms| now_ms >= due_at_ms)
@@ -184,7 +186,7 @@ impl WorldCreature {
             return Vec::new();
         }
         let expired: Vec<_> = self
-            .active_taunts_like_cpp
+            .runtime.active_taunts_like_cpp
             .iter()
             .copied()
             .filter(|active| {
@@ -193,7 +195,7 @@ impl WorldCreature {
                     .is_some_and(|due_at_ms| now_ms >= due_at_ms)
             })
             .collect();
-        self.active_taunts_like_cpp
+        self.runtime.active_taunts_like_cpp
             .retain(|active| active.due_at_ms.is_none_or(|due_at_ms| now_ms < due_at_ms));
         for active in &expired {
             let auras = &mut self.creature.unit_mut().subsystems_mut().auras;
@@ -210,7 +212,7 @@ impl WorldCreature {
 
     fn refresh_active_taunt_states_like_cpp(&mut self) {
         let active_casters: Vec<_> = self
-            .active_taunts_like_cpp
+            .runtime.active_taunts_like_cpp
             .iter()
             .map(|active| active.caster)
             .collect();
@@ -232,7 +234,7 @@ impl WorldCreature {
     }
 
     pub fn reset_combat(&mut self) -> Vec<u8> {
-        let active_taunts = std::mem::take(&mut self.active_taunts_like_cpp);
+        let active_taunts = std::mem::take(&mut self.runtime.active_taunts_like_cpp);
         for active in &active_taunts {
             let auras = &mut self.creature.unit_mut().subsystems_mut().auras;
             auras.remove_auras_due_to_spell_like_cpp(
@@ -247,7 +249,7 @@ impl WorldCreature {
         // assistant's independent combat/evade reset; execution revalidates
         // `CanAssistTo` when the delay expires. A real `Unit::AttackStop`
         // resets `m_AlreadyCallAssistance` for the next engagement.
-        self.assistance_called_like_cpp = false;
+        self.runtime.assistance_called_like_cpp = false;
         self.reset_creature_spell_schedule_like_cpp();
         self.creature
             .reset_ai_combat(self.runtime_elapsed_ms_like_cpp());
@@ -314,41 +316,41 @@ impl WorldCreature {
     }
 
     pub fn creature_spell_schedule_initialized_like_cpp(&self) -> bool {
-        self.creature_spell_schedule_initialized_like_cpp
+        self.runtime.creature_spell_schedule_initialized_like_cpp
     }
 
     pub fn mark_creature_spell_schedule_initialized_like_cpp(&mut self) {
-        self.creature_spell_schedule_initialized_like_cpp = true;
+        self.runtime.creature_spell_schedule_initialized_like_cpp = true;
     }
 
     pub(crate) fn reset_creature_spell_schedule_like_cpp(&mut self) {
-        self.creature_spell_due_at_ms_like_cpp = [None; wow_entities::MAX_CREATURE_SPELLS];
-        self.creature_spell_schedule_initialized_like_cpp = false;
-        self.creature_spell_engagement_epoch_like_cpp = self
-            .creature_spell_engagement_epoch_like_cpp
+        self.runtime.creature_spell_due_at_ms_like_cpp = [None; wow_entities::MAX_CREATURE_SPELLS];
+        self.runtime.creature_spell_schedule_initialized_like_cpp = false;
+        self.runtime.creature_spell_engagement_epoch_like_cpp = self
+            .runtime.creature_spell_engagement_epoch_like_cpp
             .wrapping_add(1);
     }
 
     pub fn creature_spell_engagement_epoch_like_cpp(&self) -> u64 {
-        self.creature_spell_engagement_epoch_like_cpp
+        self.runtime.creature_spell_engagement_epoch_like_cpp
     }
 
     pub fn schedule_creature_spell_slot_after_like_cpp(&mut self, slot: usize, delay_ms: u64) {
         let due_at_ms = self.runtime_elapsed_ms_like_cpp().saturating_add(delay_ms);
-        if let Some(due_at) = self.creature_spell_due_at_ms_like_cpp.get_mut(slot) {
+        if let Some(due_at) = self.runtime.creature_spell_due_at_ms_like_cpp.get_mut(slot) {
             *due_at = Some(due_at_ms);
         }
     }
 
     pub fn clear_creature_spell_slot_like_cpp(&mut self, slot: usize) {
-        if let Some(due_at) = self.creature_spell_due_at_ms_like_cpp.get_mut(slot) {
+        if let Some(due_at) = self.runtime.creature_spell_due_at_ms_like_cpp.get_mut(slot) {
             *due_at = None;
         }
     }
 
     pub fn first_due_creature_spell_slot_like_cpp(&self) -> Option<usize> {
         let now_ms = self.runtime_elapsed_ms_like_cpp();
-        self.creature_spell_due_at_ms_like_cpp
+        self.runtime.creature_spell_due_at_ms_like_cpp
             .iter()
             .enumerate()
             .filter_map(|(slot, due_at)| due_at.map(|due_at| (slot, due_at)))
@@ -361,7 +363,7 @@ impl WorldCreature {
 
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn creature_spell_due_in_ms_for_test(&self, slot: usize) -> Option<u64> {
-        self.creature_spell_due_at_ms_like_cpp
+        self.runtime.creature_spell_due_at_ms_like_cpp
             .get(slot)
             .copied()
             .flatten()
@@ -373,7 +375,7 @@ impl WorldCreature {
         minimum_ms: u64,
         maximum_ms: u64,
     ) -> Option<u64> {
-        if !self.runtime_rng_authority_complete_like_cpp {
+        if !self.runtime.runtime_rng_authority_complete_like_cpp {
             return None;
         }
         if minimum_ms > maximum_ms {
@@ -384,15 +386,15 @@ impl WorldCreature {
             // C++ `urand(min, max)` still invokes its process-global engine
             // when both inclusive bounds are equal. Preserve that logical
             // draw in the Creature-owned represented stream.
-            let _ = self.runtime_rng_like_cpp.next_u32();
+            let _ = self.runtime.runtime_rng_like_cpp.next_u32();
             return Some(minimum_ms);
         }
-        Some(self.runtime_rng_like_cpp.gen_range(minimum_ms..=maximum_ms))
+        Some(self.runtime.runtime_rng_like_cpp.gen_range(minimum_ms..=maximum_ms))
     }
 
     pub fn random_creature_spell_hit_roll_like_cpp(&mut self) -> Option<u32> {
-        self.runtime_rng_authority_complete_like_cpp
-            .then(|| self.runtime_rng_like_cpp.gen_range(0..=9_999))
+        self.runtime.runtime_rng_authority_complete_like_cpp
+            .then(|| self.runtime.runtime_rng_like_cpp.gen_range(0..=9_999))
     }
 
     pub fn roll_damage(&mut self) -> Option<u32> {
@@ -403,9 +405,9 @@ impl WorldCreature {
             return None;
         }
         if min_dmg == max_dmg {
-            let _ = self.runtime_rng_like_cpp.next_u32();
+            let _ = self.runtime.runtime_rng_like_cpp.next_u32();
             return Some(min_dmg);
         }
-        Some(self.runtime_rng_like_cpp.gen_range(min_dmg..=max_dmg))
+        Some(self.runtime.runtime_rng_like_cpp.gen_range(min_dmg..=max_dmg))
     }
 }

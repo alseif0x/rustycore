@@ -10,73 +10,37 @@ async fn repair_all_inventory_item_durability_uses_guild_bank_limit_like_cpp() {
     session.set_player_guid(Some(player_guid));
     session.set_player_gold_like_cpp(500);
     session.set_item_store(Arc::new(ItemStore::from_records([
-        ItemRecord {
-            id: 100,
-            class_id: ItemClass::Armor as u8,
-            subclass_id: ItemSubClassArmor::Shield as u8,
-            material: 0,
-            inventory_type: InventoryType::Shield as i8,
-            sheathe_type: 0,
-            random_select: 0,
-            random_suffix_group_id: 0,
-            scaling_stat_distribution_id: 0,
-            scaling_stat_value: 0,
-        },
-        ItemRecord {
-            id: 101,
-            class_id: ItemClass::Armor as u8,
-            subclass_id: 4,
-            material: 0,
-            inventory_type: InventoryType::Chest as i8,
-            sheathe_type: 0,
-            random_select: 0,
-            random_suffix_group_id: 0,
-            scaling_stat_distribution_id: 0,
-            scaling_stat_value: 0,
-        },
-        ItemRecord {
-            id: 200,
-            class_id: ItemClass::Container as u8,
-            subclass_id: 0,
-            material: 0,
-            inventory_type: InventoryType::Bag as i8,
-            sheathe_type: 0,
-            random_select: 0,
-            random_suffix_group_id: 0,
-            scaling_stat_distribution_id: 0,
-            scaling_stat_value: 0,
-        },
+        represented_test_item_record_like_cpp(
+            100,
+            InventoryType::Shield,
+            ItemClass::Armor,
+            ItemSubClassArmor::Shield as u8,
+        ),
+        represented_test_item_record_like_cpp(
+            101,
+            InventoryType::Chest,
+            ItemClass::Armor,
+            4,
+        ),
+        represented_test_item_record_like_cpp(
+            200,
+            InventoryType::Bag,
+            ItemClass::Container,
+            0,
+        ),
     ])));
     let sparse = |inventory_type: InventoryType, max_durability: u32| ItemSparseTemplateEntry {
         flags: [0; 4],
-        bag_family: 0,
-        start_quest_id: 0,
-        stackable: 1,
-        max_count: 0,
-        lock_id: 0,
-        required_reputation_rank: 0,
-        sell_price: 0,
-        buy_price: 0,
-        vendor_stack_count: 1,
-        price_variance: 1.0,
         price_random_value: 0.0,
-        max_durability,
-        other_faction_item_id: 0,
-        content_tuning_id: 0,
-        player_level_to_item_level_curve_id: 0,
-        limit_category: 0,
-        instance_bound: 0,
+        max_durability: max_durability,
         zone_bound: [0; 2],
-        required_reputation_faction: 0,
         allowable_class: 0,
-        required_expansion: 0,
-        bonding: ItemBondingType::None as u8,
         container_slots: if inventory_type == InventoryType::Bag {
             4
         } else {
             0
         },
-        inventory_type: inventory_type as i8,
+        ..inventory_sparse_template_for_test(inventory_type as i8)
     };
     session.set_item_stats_store(Arc::new(
         ItemStatsStore::from_stats_sparse_and_random_property_templates(
@@ -324,18 +288,12 @@ fn equip_durability_test_weapon_like_cpp(
     weapon_guid: ObjectGuid,
     durability: u32,
 ) {
-    session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
-        id: 300,
-        class_id: ItemClass::Weapon as u8,
-        subclass_id: 0,
-        material: 0,
-        inventory_type: InventoryType::Weapon as i8,
-        sheathe_type: 0,
-        random_select: 0,
-        random_suffix_group_id: 0,
-        scaling_stat_distribution_id: 0,
-        scaling_stat_value: 0,
-    }])));
+    session.set_item_store(Arc::new(ItemStore::from_records([represented_test_item_record_like_cpp(
+        300,
+        InventoryType::Weapon,
+        ItemClass::Weapon,
+        0,
+    )])));
     session.set_item_stats_store(Arc::new(
         ItemStatsStore::from_stats_sparse_and_random_property_templates(
             [(
@@ -361,30 +319,11 @@ fn equip_durability_test_weapon_like_cpp(
                 300,
                 ItemSparseTemplateEntry {
                     flags: [0; 4],
-                    bag_family: 0,
-                    start_quest_id: 0,
-                    stackable: 1,
-                    max_count: 0,
-                    lock_id: 0,
-                    required_reputation_rank: 0,
-                    sell_price: 0,
-                    buy_price: 0,
-                    vendor_stack_count: 1,
-                    price_variance: 1.0,
                     price_random_value: 0.0,
                     max_durability: 50,
-                    other_faction_item_id: 0,
-                    content_tuning_id: 0,
-                    player_level_to_item_level_curve_id: 0,
-                    limit_category: 0,
-                    instance_bound: 0,
                     zone_bound: [0; 2],
-                    required_reputation_faction: 0,
                     allowable_class: 0,
-                    required_expansion: 0,
-                    bonding: ItemBondingType::None as u8,
-                    container_slots: 0,
-                    inventory_type: InventoryType::Weapon as i8,
+                    ..inventory_sparse_template_for_test(InventoryType::Weapon as i8)
                 },
             )],
             [(

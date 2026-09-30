@@ -22,7 +22,7 @@ use wow_constants::movement::MovementFlag;
 use wow_constants::unit::UnitStandStateType;
 use wow_handler::{PacketProcessing, SessionStatus};
 
-use crate::map_manager::zone_and_area_for_position_like_cpp;
+use crate::terrain_catalog_adapter::zone_and_area_for_position_like_cpp;
 use crate::session::registry::PacketHandlerEntry;
 use crate::session::{
     AreaTriggerCatalogsLikeCpp, MovementTransportMembershipLikeCpp, ProgressionCatalogsLikeCpp,

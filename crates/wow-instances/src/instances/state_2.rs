@@ -58,9 +58,9 @@ impl InstanceScriptBase {
         true
     }
 
-    pub fn set_boss_state_planned_like_cpp(
+    pub fn set_boss_state_planned_like_cpp<'a>(
         &mut self,
-        store: &DungeonEncounterStore,
+        resolve_encounter: &impl Fn(u32) -> Option<&'a DungeonEncounterEntry>,
         boss_id: u32,
         state: EncounterState,
         has_alive_world_boss_minion: bool,
@@ -80,7 +80,7 @@ impl InstanceScriptBase {
         }
 
         let dungeon_encounter_id = boss
-            .dungeon_encounter_for_difficulty(store, self.difficulty_id)
+            .dungeon_encounter_for_difficulty(resolve_encounter, self.difficulty_id)
             .map(|encounter| encounter.id)
             .filter(|_| state == EncounterState::Done);
         boss.state = state;
@@ -296,9 +296,9 @@ impl InstanceScriptBase {
     }
 
     /// C++ `InstanceScript::LoadDungeonEncounterData(uint32, array<uint32, 4>)`.
-    pub fn load_dungeon_encounter_data(
+    pub fn load_dungeon_encounter_data<'a>(
         &mut self,
-        store: &DungeonEncounterStore,
+        resolve_encounter: &impl Fn(u32) -> Option<&'a DungeonEncounterEntry>,
         boss_id: u32,
         dungeon_encounter_ids: [u32; MAX_DUNGEON_ENCOUNTERS_PER_BOSS],
     ) {
@@ -307,53 +307,58 @@ impl InstanceScriptBase {
         };
 
         for (slot, encounter_id) in dungeon_encounter_ids.into_iter().enumerate() {
-            boss.dungeon_encounters[slot] = store.get(encounter_id).map(|entry| entry.id);
+            boss.dungeon_encounters[slot] =
+                resolve_encounter(encounter_id).map(|entry| entry.id);
         }
     }
 
     /// C++ `InstanceScript::LoadDungeonEncounterData(T const&)`.
-    pub fn load_dungeon_encounter_data_rows(
+    pub fn load_dungeon_encounter_data_rows<'a>(
         &mut self,
-        store: &DungeonEncounterStore,
+        resolve_encounter: &impl Fn(u32) -> Option<&'a DungeonEncounterEntry>,
         rows: impl IntoIterator<Item = DungeonEncounterData>,
     ) {
         for row in rows {
-            self.load_dungeon_encounter_data(store, row.boss_id, row.dungeon_encounter_ids);
+            self.load_dungeon_encounter_data(
+                resolve_encounter,
+                row.boss_id,
+                row.dungeon_encounter_ids,
+            );
         }
     }
 
     /// C++ `InstanceScript::GetBossDungeonEncounter(uint32)`.
     pub fn boss_dungeon_encounter<'a>(
         &self,
-        store: &'a DungeonEncounterStore,
+        resolve_encounter: &impl Fn(u32) -> Option<&'a DungeonEncounterEntry>,
         boss_id: u32,
     ) -> Option<&'a DungeonEncounterEntry> {
         self.boss(boss_id)?
-            .dungeon_encounter_for_difficulty(store, self.difficulty_id)
+            .dungeon_encounter_for_difficulty(resolve_encounter, self.difficulty_id)
     }
 
-    pub fn is_encounter_completed_like_cpp(
+    pub fn is_encounter_completed_like_cpp<'a>(
         &self,
-        store: &DungeonEncounterStore,
+        resolve_encounter: &impl Fn(u32) -> Option<&'a DungeonEncounterEntry>,
         dungeon_encounter_id: u32,
     ) -> bool {
         self.bosses.iter().any(|boss| {
             boss.dungeon_encounters
                 .iter()
                 .flatten()
-                .filter_map(|encounter_id| store.get(*encounter_id))
+                .filter_map(|encounter_id| resolve_encounter(*encounter_id))
                 .any(|encounter| encounter.id == dungeon_encounter_id)
                 && boss.state == EncounterState::Done
         })
     }
 
-    pub fn is_encounter_completed_in_mask_by_boss_id_like_cpp(
+    pub fn is_encounter_completed_in_mask_by_boss_id_like_cpp<'a>(
         &self,
-        store: &DungeonEncounterStore,
+        resolve_encounter: &impl Fn(u32) -> Option<&'a DungeonEncounterEntry>,
         completed_encounters_mask: u32,
         boss_id: u32,
     ) -> bool {
-        let Some(encounter) = self.boss_dungeon_encounter(store, boss_id) else {
+        let Some(encounter) = self.boss_dungeon_encounter(resolve_encounter, boss_id) else {
             return false;
         };
         let Ok(bit) = u32::try_from(encounter.bit) else {
@@ -368,9 +373,9 @@ impl InstanceScriptBase {
     /// the `dynamic_cast<BossAI const*>` succeeds.
     pub fn boss_dungeon_encounter_for_boss_ai<'a, T: BossAiLikeCpp>(
         &self,
-        store: &'a DungeonEncounterStore,
+        resolve_encounter: &impl Fn(u32) -> Option<&'a DungeonEncounterEntry>,
         boss_ai: Option<&T>,
     ) -> Option<&'a DungeonEncounterEntry> {
-        self.boss_dungeon_encounter(store, boss_ai?.boss_id())
+        self.boss_dungeon_encounter(resolve_encounter, boss_ai?.boss_id())
     }
 }

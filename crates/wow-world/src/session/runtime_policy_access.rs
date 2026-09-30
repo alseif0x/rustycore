@@ -16,7 +16,7 @@ impl WorldSession {
         let _ = self.set_player_is_outdoors_like_cpp(is_outdoors);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_start_all_explored_like_cpp(&mut self, enabled: bool) {
         self.player_bootstrap_catalog_test_fixture_like_cpp
             .start_all_explored_like_cpp = enabled;
@@ -30,7 +30,7 @@ impl WorldSession {
 
     #[cfg(test)]
     pub fn set_addon_channel_like_cpp(&mut self, enabled: bool) {
-        self.addon_channel_like_cpp = enabled;
+        self.social.addon_channel_like_cpp = enabled;
     }
 
     pub fn set_socket_timeouts_like_cpp(&mut self, timeouts: SocketTimeoutsLikeCpp) {
@@ -47,7 +47,7 @@ impl WorldSession {
         self.characters_per_realm_like_cpp = characters_per_realm;
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_declined_names_used_like_cpp(&mut self, used: bool) {
         self.declined_names_used_like_cpp = used;
     }
@@ -68,12 +68,12 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn addon_channel_like_cpp(&self) -> bool {
-        self.addon_channel_like_cpp
+        self.social.addon_channel_like_cpp
     }
 
     #[cfg(test)]
     pub(crate) fn update_speak_time_like_cpp(&mut self, index: ChatFloodThrottleIndexLikeCpp) {
-        self.update_speak_time_with_policy_like_cpp(index, self.chat_flood_config_like_cpp)
+        self.update_speak_time_with_policy_like_cpp(index, self.social.chat_flood_config_like_cpp)
     }
 
     /// Set the C++ DisableMgr store loaded from the `disables` table.

@@ -42,7 +42,7 @@ fn transport_update_wrong_kind_missing_untyped_skip_but_not_in_world_updates_lik
     assert_eq!(map.map_object_count(), 3);
     let transport = map
         .map_object_record(not_in_world_guid)
-        .and_then(MapObjectRecord::transport)
+        .and_then(|record| record.transport())
         .unwrap();
     assert_eq!(transport.path_progress_ms(), 150);
 }
@@ -77,7 +77,7 @@ fn transports_update_summary_snapshots_only_typed_transports_like_cpp() {
     );
     let transport = map
         .map_object_record(typed_guid)
-        .and_then(MapObjectRecord::transport)
+        .and_then(|record| record.transport())
         .unwrap();
     assert_eq!(transport.path_progress_ms(), 350);
 }
@@ -102,7 +102,7 @@ fn transport_update_period_zero_reports_unsupported_without_mutation_like_cpp() 
     assert_eq!(outcome.timer_ms, None);
     let transport = map
         .map_object_record(transport_guid)
-        .and_then(MapObjectRecord::transport)
+        .and_then(|record| record.transport())
         .unwrap();
     assert_eq!(transport.path_progress_ms(), 333);
 }

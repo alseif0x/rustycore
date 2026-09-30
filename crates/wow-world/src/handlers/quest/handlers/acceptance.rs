@@ -18,7 +18,7 @@ impl WorldSession {
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         mut pkt: wow_packet::WorldPacket,
     ) {
-        let (guid, quest_id, start_cheat) = match read_quest_giver_accept_quest_like_cpp(&mut pkt) {
+        let (guid, quest_id, start_cheat) = match wow_packet::packets::quest::read_quest_giver_accept_quest(&mut pkt) {
             Ok(packet) => packet,
             Err(_) => {
                 warn!("QuestGiverAcceptQuest: failed to read packet");
@@ -90,15 +90,9 @@ impl WorldSession {
 
         // Add to local state
         self.invalidate_player_quest_status_authority_like_cpp();
-        let status = PlayerQuestStatus {
-            quest_id,
-            status: QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-            explored: false,
-            accept_time_secs,
-            end_time_secs,
-            objective_counts: vec![0; obj_count],
-            slot,
-        };
+        let status = wow_entities::PlayerQuestGameplayState::prepare_quest_start(
+            quest_id, slot, accept_time_secs, end_time_secs, obj_count,
+        );
         if self.insert_represented_quest_status_like_cpp(quest_id, status) == false {
             return;
         }

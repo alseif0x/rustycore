@@ -3,6 +3,8 @@
 
 //! Private reputation capability handlers extracted from the legacy misc owner.
 
+pub(crate) mod presentation;
+
 use tracing::warn;
 use wow_constants::ClientOpcodes;
 use wow_handler::{PacketProcessing, SessionStatus};
@@ -84,11 +86,12 @@ impl crate::session::WorldSession {
             return;
         }
 
-        let Some(packet) =
-            self.with_reputation_mgr_like_cpp(|mgr| mgr.set_forced_reactions_packet_like_cpp())
+        let Some(state) =
+            self.with_reputation_mgr_like_cpp(|mgr| mgr.forced_reactions_state_like_cpp())
         else {
             return;
         };
+        let packet = presentation::set_forced_reactions_packet_like_cpp(state);
         self.send_packet(&packet);
     }
 
@@ -137,6 +140,12 @@ impl crate::session::WorldSession {
             return;
         };
         let friendship_rep_reaction_store = self.friendship_rep_reaction_store().cloned();
+        let catalogs = crate::reputation_catalog_adapter::ReputationCatalogViewLikeCpp::new(
+            Some(faction_store.as_ref()),
+            friendship_rep_reaction_store.as_deref(),
+            None,
+            None,
+        );
         let race = self.player_race_like_cpp();
         let class = self.player_class_like_cpp();
 
@@ -144,8 +153,7 @@ impl crate::session::WorldSession {
             mgr.set_at_war_by_replist_like_cpp(
                 u32::from(faction_index),
                 at_war,
-                faction_store.as_ref(),
-                friendship_rep_reaction_store.as_deref(),
+                &catalogs,
                 race,
                 class,
             )

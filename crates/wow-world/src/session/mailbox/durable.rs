@@ -11,8 +11,6 @@
 //! Both survive general-queue backpressure, so they never silently drop work.
 
 use std::collections::VecDeque;
-use std::sync::{Arc, Mutex};
-
 use super::protocol::{
     ApplyCreatureMeleeDamageLikeCppCommand, ApplyPlayerMeleeResultLikeCppCommand,
     CreatureAttackStartLikeCppCommand, CreatureAttackStopLikeCppCommand,

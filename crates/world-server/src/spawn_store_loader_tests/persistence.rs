@@ -7,7 +7,7 @@ use super::*;
 
 #[test]
 fn game_event_world_state_load_inserts_realm_default_like_cpp() {
-    let (mgr, report) = WorldStateMgrLikeCpp::from_db_rows_like_cpp(
+    let (mgr, report) = from_db_rows_like_cpp(
         [world_state_row(100, 7, "", "")],
         [],
         |_| false,
@@ -25,7 +25,7 @@ fn game_event_world_state_load_inserts_realm_default_like_cpp() {
 }
 #[test]
 fn game_event_world_state_saved_value_overlays_realm_default_like_cpp() {
-    let (mgr, report) = WorldStateMgrLikeCpp::from_db_rows_like_cpp(
+    let (mgr, report) = from_db_rows_like_cpp(
         [world_state_row(101, 7, "", "")],
         [(101, 9)],
         |_| false,
@@ -38,7 +38,7 @@ fn game_event_world_state_saved_value_overlays_realm_default_like_cpp() {
 }
 #[test]
 fn game_event_world_state_map_defaults_and_saved_overlay_all_maps_like_cpp() {
-    let (mgr, report) = WorldStateMgrLikeCpp::from_db_rows_like_cpp(
+    let (mgr, report) = from_db_rows_like_cpp(
         [world_state_row(102, 3, "1,2", "")],
         [(102, 11)],
         |map_id| matches!(map_id, 1 | 2),
@@ -53,7 +53,7 @@ fn game_event_world_state_map_defaults_and_saved_overlay_all_maps_like_cpp() {
 }
 #[test]
 fn game_event_world_state_realm_row_with_area_ids_still_loads_like_cpp() {
-    let (mgr, report) = WorldStateMgrLikeCpp::from_db_rows_like_cpp(
+    let (mgr, report) = from_db_rows_like_cpp(
         [world_state_row(107, 5, "", "20")],
         [],
         |_| false,
@@ -66,7 +66,7 @@ fn game_event_world_state_realm_row_with_area_ids_still_loads_like_cpp() {
 }
 #[test]
 fn game_event_world_state_unknown_saved_value_is_skipped_like_cpp() {
-    let (mgr, report) = WorldStateMgrLikeCpp::from_db_rows_like_cpp(
+    let (mgr, report) = from_db_rows_like_cpp(
         [world_state_row(108, 5, "", "")],
         [(999, 12)],
         |_| false,

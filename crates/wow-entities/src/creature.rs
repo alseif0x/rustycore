@@ -11,7 +11,7 @@ use wow_constants::{
     UnitPvpFlags, UnitStandStateType, UnitState, WeaponAttackType, movement::MovementFlag,
 };
 use wow_core::{ObjectGuid, Position, guid::HighGuid};
-use wow_loot::{
+use crate::{
     CreatureLoot, LootInstallOutcome, OwnedLootAuthority, OwnedLootAuthorityStamp,
     OwnedLootSnapshot,
 };
@@ -23,11 +23,18 @@ use crate::{
     VisibilityDistanceTypeLikeCpp, VisibleItemValues,
 };
 
+pub use wow_data_model::creature::{
+    CreatureAddonAuraApplicationLikeCpp, CreatureAddonAuraEffectLikeCpp,
+    CreatureAddonLifecycleRecordLikeCpp,
+};
+
 mod ops_1;
 mod ops_2;
 mod ops_3;
 mod state_1;
 mod state_2;
+mod corpse_loot;
+pub use corpse_loot::looted_corpse_decay_seconds;
 #[allow(unused_imports)]
 pub use ops_1::*;
 #[allow(unused_imports)]

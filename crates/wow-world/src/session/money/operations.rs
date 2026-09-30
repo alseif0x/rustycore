@@ -17,7 +17,7 @@ impl WorldSession {
     /// Set the item currency cost store for this session.
     #[cfg(test)]
     pub fn set_item_currency_cost_store(&mut self, store: Arc<ItemCurrencyCostStore>) {
-        self.item_currency_cost_store = Some(store);
+        self.items.install_item_currency_cost_store(store);
     }
     /// C++ `Player::GetCurrencyQuantity`.
     pub(crate) fn player_currency_quantity(&self, currency_id: u32) -> Option<u32> {

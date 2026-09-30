@@ -1,9 +1,9 @@
 //! Structure automation for the RustyCore workspace.
 //!
 //! Commands:
-//!   structure-audit        sizes, files, largest file, flags and layer violations
-//!   check-layers           fail on layer edges that are not in the layer baseline
-//!   check-deps             fail when a layer 0-3 crate declares banned dependencies
+//!   structure-audit        source sizes, consumers, flags and navigation layers
+//!   check-layers           validate canonical architecture dependency policy
+//!   check-deps             compatibility alias for check-layers
 //!   context <phase>        print the active slice for an agent
 //!   check-scope <phase>    fail when the working tree touches paths outside the phase scope
 
@@ -11,8 +11,6 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, exit};
-
-const BANNED_IN_DOMAIN: &[&str] = &["tokio", "parking_lot", "sqlx", "rand"];
 
 fn layer_of(name: &str) -> Option<u8> {
     let l0 = [
@@ -22,6 +20,7 @@ fn layer_of(name: &str) -> Option<u8> {
         "wow-crypto",
         "wow-logging",
         "wow-math",
+        "wow-data-model",
         "wow-proto",
         "wow-util-collections",
         "wow-module-api",
@@ -225,41 +224,6 @@ fn consumers(crates: &[Crate]) -> BTreeMap<String, usize> {
     counts
 }
 
-fn violation(crates: &[Crate]) -> Vec<String> {
-    let layers: BTreeMap<&str, u8> = crates
-        .iter()
-        .filter_map(|c| layer_of(&c.name).map(|l| (c.name.as_str(), l)))
-        .collect();
-    let names: BTreeSet<&str> = crates.iter().map(|c| c.name.as_str()).collect();
-    let mut out = Vec::new();
-    for c in crates {
-        let Some(&source) = layers.get(c.name.as_str()) else {
-            continue;
-        };
-        for d in &c.deps {
-            if !names.contains(d.as_str()) {
-                continue;
-            }
-            let Some(&target) = layers.get(d.as_str()) else {
-                continue;
-            };
-            if target >= source && source != 5 && !(source == 0 && target == 0) {
-                out.push(format!("L{source} {} -> L{target} {d}", c.name));
-            }
-        }
-    }
-    out.sort();
-    out
-}
-
-fn baseline(root: &Path, file: &str) -> BTreeSet<String> {
-    read(&root.join(file))
-        .lines()
-        .map(|l| l.trim().to_string())
-        .filter(|l| !l.is_empty() && !l.starts_with('#'))
-        .collect()
-}
-
 fn structure_audit(root: &Path) {
     let crates = load_all(root);
     let consumers = consumers(&crates);
@@ -306,103 +270,23 @@ fn structure_audit(root: &Path) {
             flags.join(",")
         );
     }
-    let violations = violation(&crates);
-    println!("\nlayer violations: {}", violations.len());
-    for v in &violations {
-        println!("  {v}");
-    }
+    println!(
+        "Layer labels are navigation; dependency policy: tools/architecture/dependency-policy.json (check-layers/check-deps)."
+    );
 }
 
-fn check_layers(root: &Path) -> i32 {
-    let known = baseline(root, "tools/xtask/layer-baseline.txt");
-    let crates = load_all(root);
-    let current: BTreeSet<String> = violation(&crates).into_iter().collect();
-    let new: Vec<&String> = current.difference(&known).collect();
-    let fixed: Vec<&String> = known.difference(&current).collect();
-    let mut code = 0;
-    if !new.is_empty() {
-        println!("check-layers: FAIL, {} new layer violations:", new.len());
-        for v in new {
-            println!("  {v}");
-        }
-        code = 1;
-    }
-    if !fixed.is_empty() {
-        println!(
-            "check-layers: {} baseline entries are gone; remove them from tools/xtask/layer-baseline.txt",
-            fixed.len()
-        );
-        for v in fixed {
-            println!("  fixed: {v}");
-        }
-        code = 1;
-    }
-    if code == 0 {
-        println!(
-            "check-layers: PASS ({} known violations, none new, none stale)",
-            known.len()
-        );
-    }
-    code
-}
-
-fn banned_for(layer: u8, name: &str) -> Vec<&'static str> {
-    // ADR-003/004: domain rule crates are synchronous and pure; ambient randomness is injected
-    // and I/O, host locks and the async runtime belong to the application shell.
-    if layer == 3 {
-        return BANNED_IN_DOMAIN.to_vec();
-    }
-    // Below the domain layer, sqlx is only legitimate in the durability crates.
-    if layer <= 2 && !["wow-database", "wow-persistence"].contains(&name) {
-        return vec!["sqlx"];
-    }
-    Vec::new()
-}
-
-fn check_deps(root: &Path) -> i32 {
-    let known = baseline(root, "tools/xtask/deps-baseline.txt");
-    let crates = load_all(root);
-    let mut current = BTreeSet::new();
-    for c in &crates {
-        let Some(layer) = layer_of(&c.name) else {
-            continue;
-        };
-        for banned in banned_for(layer, &c.name) {
-            if c.deps.iter().any(|d| d == banned) {
-                current.insert(format!(
-                    "L{layer} {} declares `{banned}` (ADR-003/004)",
-                    c.name
-                ));
-            }
+fn run_architecture_dependencies(root: &Path) -> i32 {
+    match Command::new("python3")
+        .args(["tools/architecture/check_architecture.py", "dependencies"])
+        .current_dir(root)
+        .status()
+    {
+        Ok(status) => status.code().unwrap_or(1),
+        Err(error) => {
+            eprintln!("cannot run architecture dependency check: {error}");
+            1
         }
     }
-    let new: Vec<&String> = current.difference(&known).collect();
-    let fixed: Vec<&String> = known.difference(&current).collect();
-    let mut code = 0;
-    if !new.is_empty() {
-        println!("check-deps: FAIL, {} new banned dependencies:", new.len());
-        for f in new {
-            println!("  {f}");
-        }
-        code = 1;
-    }
-    if !fixed.is_empty() {
-        println!(
-            "check-deps: {} baseline entries are gone; remove them from tools/xtask/deps-baseline.txt",
-            fixed.len()
-        );
-        for f in fixed {
-            println!("  fixed: {f}");
-        }
-        code = 1;
-    }
-    if code == 0 {
-        println!(
-            "check-deps: PASS ({} known banned dependencies, none new, none stale)",
-            known.len()
-        );
-    }
-    code
 }
 
 fn scope_for(root: &Path, phase: &str) -> Vec<String> {
@@ -450,7 +334,7 @@ fn context(root: &Path, phase: &str) -> i32 {
     );
     println!("       unforeseen work goes into the programme before it is done.");
     println!("verify:  cargo run -p xtask -- check-scope {phase}");
-    println!("         cargo run -p xtask -- check-layers && cargo run -p xtask -- check-deps");
+    println!("         cargo run -p xtask -- check-layers (check-deps is an alias)");
     0
 }
 
@@ -514,8 +398,7 @@ fn main() {
             structure_audit(&root);
             0
         }
-        "check-layers" => check_layers(&root),
-        "check-deps" => check_deps(&root),
+        "check-layers" | "check-deps" => run_architecture_dependencies(&root),
         "context" => context(&root, args.get(1).map(String::as_str).unwrap_or("")),
         "check-scope" => check_scope(&root, args.get(1).map(String::as_str).unwrap_or("")),
         other => {

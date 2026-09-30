@@ -7,6 +7,9 @@
 
 use super::*;
 
+#[cfg(test)]
+mod tests;
+
 impl WorldSession {
     /// Returns the newly learned default skill entries, or `None` after
     /// kicking when the canonical Player skill owner is unavailable.

@@ -2,6 +2,8 @@ use super::Player;
 use crate::{PlayerResurrectionRequestLikeCpp, PlayerResurrectionStateLikeCpp};
 use wow_core::ObjectGuid;
 
+mod vitals;
+
 impl Player {
     pub fn resurrection_state_like_cpp(&self) -> &PlayerResurrectionStateLikeCpp {
         &self.gameplay_state.resurrection

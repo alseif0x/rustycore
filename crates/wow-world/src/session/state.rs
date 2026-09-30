@@ -15,7 +15,7 @@ use super::RepresentedBattlefieldListLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::battleground_adapter::RepresentedBattlegroundQueueSlotLikeCpp;
 use super::RepresentedBattlemasterJoinSkirmishLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::RepresentedCreatureKillEventLikeCpp;
 #[cfg(test)]
 use super::RepresentedGameObjectCriteriaEvent;
@@ -51,20 +51,20 @@ use super::social::test_fixtures::DuelTestFixtureLikeCpp;
 use super::social::test_fixtures::GuildTestFixtureLikeCpp;
 #[cfg(test)]
 use super::social::test_fixtures::TradeTestFixtureLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::spell_state::PlayerSpellAndTraitTestFixtureLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::support_features::test_fixtures::SupportFeatureTestFixtureLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::test_support::test_fixtures::PlayerBootstrapCatalogTestFixtureLikeCpp;
 use super::time_synchronization::TimeSynchronizationStateLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::visibility::test_fixtures::VisibilityTestFixtureLikeCpp;
 use super::{AccessRequirementStoreLikeCpp, AccountDataLikeCpp, AccountHeirloomDataLikeCpp};
 use super::{AdventureMapPoiStore, Arc, AreaTableStore, AreaTriggerDb2Store};
 use super::{AreaTriggerScriptDispatcherLikeCpp, AreaTriggerScriptStoreLikeCpp, AreaTriggerStore};
 use super::{AtomicBool, AuraApplication, BTreeMap, BTreeSet};
-use super::{BankBagSlotPricesStore, BattlePetAccountAttachmentLikeCpp};
+use super::BattlePetAccountAttachmentLikeCpp;
 use super::{BattlemasterListStore, CanonicalThreatAuraSnapshotLikeCpp};
 use super::{CharacterPowerSnapshotLikeCpp, ChatFloodConfigLikeCpp, ChatFloodThrottleDataLikeCpp};
 use super::{ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp, CinematicSequencesStore};
@@ -72,8 +72,8 @@ use super::{ClientOpcodes, CombatRatingsGameTableLikeCpp, ConditionEntriesByType
 use super::{ContentTuningStore, CreatureAddonStoreLikeCpp, CreatureBaseStatsStoreLikeCpp};
 use super::{CreatureClassificationHealthRatesLikeCpp, CreatureDifficultyStoreLikeCpp};
 use super::{CreatureEquipmentStoreLikeCpp, CurrencyTypesStore, CurvePointStore, CurveStore};
-use super::{DifficultyStore, DisableMgrLikeCpp, DungeonEncounterStore, DurabilityCostsStore};
-use super::{DurabilityQualityStore, DurableItemLootPersistenceTrackerLikeCpp};
+use super::{DifficultyStore, DisableMgrLikeCpp, DungeonEncounterStore};
+use super::DurableItemLootPersistenceTrackerLikeCpp;
 use super::{DurableLootMoneyPersistenceTrackerLikeCpp, EmotesStore, EmotesTextStore};
 use super::{EquipmentSetGuidGeneratorLikeCpp, ExplorationBaseXpStoreLikeCpp};
 use super::{FavoriteAppearanceStateLikeCpp, FishingBaseSkillStoreLikeCpp};
@@ -83,7 +83,6 @@ use super::{GameObjectTemplateLifecycleStoreLikeCpp, GemPropertiesStore, GossipO
 use super::{GivePlayerXpScriptDispatcherLikeCpp, MoveSplineDoneTaxiEventLikeCpp};
 use super::{GraveyardStore, GroupRegistry, HashMap, HashSet, HeirloomStore};
 use super::{HomebindPersistenceJobLikeCpp, ImportPriceStores, Instant, Item};
-use super::{ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore, ItemPriceBaseStore};
 use super::{
     LegacyCreatureAggroConfigLikeCpp, LfgDungeonStoreLikeCpp, LfgDungeonsStore, LockStore,
 };
@@ -95,17 +94,19 @@ use super::{MoveTeleportAckEventLikeCpp, PlayerTransportLoginStateLikeCpp};
 use super::{MovementFallDamageEvent, MovementFlag, MovementSpeedAckEventLikeCpp};
 use super::{MovementUnderMapDamageEvent, MovieStore, NUM_ACCOUNT_DATA_TYPES};
 use super::{NumTalentsAtLevelStore, ObjectGuid, ObjectGuidGenerator, ObjectMgrCatalogsLikeCpp};
-use super::{OwnedLootAuthority, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PacketCounterLikeCpp};
+use super::{PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PacketCounterLikeCpp};
 use super::{PacketHandlerEntry, PacketSpoofConfigLikeCpp, PacketSpoofPendingBanLikeCpp};
 use super::{ParagonReputationStore, PendingCreatureKillRewardLikeCpp, PendingCreatureSpawn};
 use super::{PendingInvites, PetStable, PhaseGroupStore, PhaseShift, PhaseStore};
 use super::{PlayerIdentityBootstrapLikeCpp, PlayerInteractionDataLikeCpp, PlayerRegistry};
-use super::{PlayerResurrectionRequestLikeCpp, PlayerStatsStore, PowerTypeStore, PvpItemStore};
-use super::{RandPropPointsStore, RegenGameTablesLikeCpp, RepSpilloverTemplateStoreLikeCpp};
+use super::{PlayerResurrectionRequestLikeCpp, PlayerStatsStore, PowerTypeStore};
+use super::{RegenGameTablesLikeCpp, RepSpilloverTemplateStoreLikeCpp};
 use super::{RepresentedActivateTaxiLikeCpp, RepresentedAdventureMapStartQuestLikeCpp};
 use super::{RepresentedAlterAppearanceLikeCpp, RepresentedAuctionPlaceBidLikeCpp};
+#[cfg(any(test, feature = "test-fixtures"))]
+use super::RepresentedAreaZoneCriteriaLikeCpp;
 #[cfg(test)]
-use super::{RepresentedAreaZoneCriteriaLikeCpp, RepresentedAtLoginFlagRemovalLikeCpp};
+use super::RepresentedAtLoginFlagRemovalLikeCpp;
 use super::{RepresentedAuctionRemoveItemLikeCpp, RepresentedAuctionReplicateRequestLikeCpp};
 use super::{RepresentedAuctionSellItemLikeCpp, RepresentedAutoUnequipOffhandLikeCpp};
 use super::{RepresentedBattlefieldPortLikeCpp, RepresentedBattlemasterHelloLikeCpp};
@@ -119,13 +120,17 @@ use super::{RepresentedGuildBankInventoryMoveLikeCpp, RepresentedGuildBankListRe
 #[cfg(test)]
 use super::{RepresentedGuildBankMoneyMoveLikeCpp, RepresentedGuildBankTabActionLikeCpp};
 #[cfg(test)]
-use super::{RepresentedLiveApplicationLikeCpp, RepresentedLootRollCriteriaEvent};
+use super::RepresentedLiveApplicationLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+use super::RepresentedLootRollCriteriaEvent;
 use super::{RepresentedLootRollState, RepresentedPendingBind};
 #[cfg(test)]
 use super::{RepresentedTalentResetScriptHookLikeCpp, RepresentedTalentRespecCriteriaEventLikeCpp};
 use super::{RepresentedTalentRespecVisualSpellCastLikeCpp, RepresentedVoidStorageItemLikeCpp};
+#[cfg(any(test, feature = "test-fixtures"))]
+use super::RepresentedTaxiFlightStateLikeCpp;
 #[cfg(test)]
-use super::{RepresentedTaxiFlightStateLikeCpp, RepresentedTransmogCriteriaEvent};
+use super::RepresentedTransmogCriteriaEvent;
 #[cfg(test)]
 use super::{RepresentedVehicleBaseMovementLikeCpp, RepresentedVehicleDismissMovementLikeCpp};
 #[cfg(test)]
@@ -138,264 +143,44 @@ use super::{SharedClientVisibleGuidsLikeCpp, ShieldBlockRegularGameTableLikeCpp,
 use super::{SkillStore, SkillTiersStoreLikeCpp, SocketTimeoutsLikeCpp, SpellCastState};
 use super::{SpellChargeEntry, SpellHistoryEntry, StdRng, TactKeyStore};
 use super::{TalentStore, TavernAreaTriggerStoreLikeCpp, TeleportToOptionsLikeCpp, ToyStore};
-use super::{TrainerStoreLikeCpp, TraitDefinitionStore, TransmogSetItemStore};
+use super::{TrainerStoreLikeCpp, TraitDefinitionStore};
 use super::{TrinityStringStoreLikeCpp, UnitFlags, UnitMoveTypeLikeCpp, UnitStandStateType};
 use super::{VecDeque, Vehicle, VehicleAccessory, VehicleAccessoryStoreLikeCpp, VehicleSeatStore};
 use super::{VehicleStore, VendorItemCount, VoidStorageItemIdGeneratorLikeCpp};
 #[cfg(test)]
 use super::{VehicleTemplateStoreLikeCpp, VendorBuyItemTestOverrideLikeCpp};
 use super::{WaypointPathResolverLikeCpp, WorldMMapPathfinderWorkerLikeCpp, WorldPacket};
-use super::{WorldSafeLocStore, driver, lifecycle};
+use super::{WorldSafeLocStore, driver};
 
-/// Shared registries and the game-event channel the session coordinates through.
-#[derive(Default)]
-pub(in crate::session) struct SessionDirectory {
-    /// Session -> world-server bridge for C++ GameEventMgr::HandleQuestComplete.
-    pub(in crate::session) game_event_quest_complete_tx:
-        Option<flume::Sender<GameEventQuestCompleteCommandLikeCpp>>,
-    /// Shared group registry for party management.
-    pub(in crate::session) group_registry: Option<Arc<GroupRegistry>>,
-    /// Pending party invites: invited_guid → inviter_guid.
-    pub(in crate::session) pending_invites: Option<Arc<PendingInvites>>,
-}
+mod connection_admission;
+mod runtime_coordination;
+mod spell_quest;
+mod lifecycle;
+mod social;
+mod visibility_publication;
 
-/// Social admission limits the session applies: the C++ Recruit-A-Friend XP
-/// level gates and the chat anti-flood throttle state charged per message.
-#[derive(Default)]
-pub(in crate::session) struct SessionSocialLimits {
-    /// C++ Recruit-A-Friend XP level gates used by `Player::GetsRecruitAFriendBonus(true)`.
-    pub(in crate::session) max_recruit_a_friend_bonus_player_level_like_cpp: u32,
-    pub(in crate::session) max_recruit_a_friend_bonus_player_level_difference_like_cpp: u32,
-    /// C++ `WorldSession::m_chatFloodData` accumulators.
-    pub(in crate::session) chat_flood_data_like_cpp: [ChatFloodThrottleDataLikeCpp; 2],
-}
-
-/// Session-owned services the phase driver consults: the canonical time-sync
-/// protocol state and the represented gameplay RNG.
-pub(in crate::session) struct SessionDriverServices {
-    /// Canonical per-session time-sync protocol state.
-    pub(in crate::session) time_synchronization: TimeSynchronizationStateLikeCpp,
-    /// Session-owned RNG for represented gameplay choices that C++ resolves through
-    /// `urand`/`SelectRandomContainerElement` while the owning Player/Map runtime is
-    /// still being split out of `WorldSession`.
-    pub(in crate::session) represented_runtime_rng_like_cpp: StdRng,
-}
-
-/// The session's view of the world it is in: the active area trigger, the taxi
-/// travel map lookup, the combat-tick bookkeeping and the realm PvP flags.
-pub(in crate::session) struct SessionWorldView {
-    /// C++ `World::IsPvPRealm()` classification.
-    pub(in crate::session) is_pvp_realm_like_cpp: bool,
-    /// C++ `World::IsFFAPvPRealm()` classification.
-    pub(in crate::session) is_ffa_pvp_realm_like_cpp: bool,
-    /// Last represented player melee tick used to decrement C++ `m_attackTimer`.
-    pub(in crate::session) combat_tick_last_at_like_cpp: Instant,
-    /// High-water mark for map-owned creature-melee presentation commands.
-    /// Canonical health/death authority lives on `wow-map`; this suppresses
-    /// durable FIFO replay without writing delayed values back to that owner.
-    pub(in crate::session) last_presented_creature_melee_health_state_revision_like_cpp: u64,
-    /// Minimal TaxiNodes.db2 map lookup used by represented `MoveSplineDone` taxi transitions.
-    pub(in crate::session) taxi_node_map_ids_like_cpp: HashMap<u32, u16>,
-    /// Currently active area trigger ID, set when entered and cleared when exited.
-    pub(in crate::session) active_area_trigger: Option<u32>,
-}
-
-/// Addon chat filtering: C++ `WorldSession::_registeredAddonPrefixes` and
-/// `_filterAddonMessages`. Read by the chat handlers, which is why the filter
-/// keeps crate visibility instead of narrowing to the session tree.
-#[derive(Default)]
-pub(crate) struct SessionAddonFilter {
-    pub(crate) registered_addon_prefixes: Vec<String>,
-    pub(crate) filter_addon_messages: bool,
-}
-
-/// The canonical producer's phase rail for this session (#787), separate from
-/// the command mailbox because a phase pass drains that mailbox.
-pub(in crate::session) struct SessionPhaseRail {
-    pub(in crate::session) tx: flume::Sender<crate::session::mailbox::SessionPhaseRequestLikeCpp>,
-    pub(in crate::session) rx: flume::Receiver<crate::session::mailbox::SessionPhaseRequestLikeCpp>,
-}
-
-/// The session's spell-side represented state: the cached spell-script id sets
-/// the startup audit installs, the spell-acquisition authorities, the execute-log
-/// effects and the offhand re-check switch, until the owning Player runtime and the
-/// spell-acquisition module take them over.
-pub(crate) struct SessionSpellState {
-    pub(in crate::session) legacy_spell_script_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
-    pub(in crate::session) spell_linked_rejected_trigger_spell_ids_like_cpp:
-        Option<Arc<BTreeSet<u32>>>,
-    pub(in crate::session) spell_script_all_rank_root_spell_ids_like_cpp:
-        Option<Arc<BTreeSet<u32>>>,
-    /// Effective C++ spell-script hooks. These remain optional so a session
-    /// constructed without the startup audit fails closed.
-    pub(in crate::session) spell_script_exact_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
-    /// C++ `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` represented switch.
-    pub(in crate::session) represented_offhand_check_at_spell_unlearn_like_cpp: bool,
-    pub(in crate::session) represented_spell_execute_log_effects_like_cpp:
-        Vec<wow_packet::packets::combat::SpellLogEffect>,
-    pub(crate) spell_acquisition_cast_authority_like_cpp:
-        Option<Arc<crate::spell_acquisition::SpellAcquisitionCastAuthorityLikeCpp>>,
-    pub(crate) spell_acquisition_craft_authority_like_cpp:
-        Option<Arc<crate::spell_acquisition::SpellAcquisitionCraftValidityAuthorityLikeCpp>>,
-}
-
-/// The session's quest-side represented state: the level-gap thresholds that
-/// decide quest visibility, the completed-quest status updates and objective
-/// progress the player owner drains, and the visibility refreshes those
-/// transitions request.
-pub(crate) struct SessionQuestState {
-    pub(crate) min_quest_scaled_xp_ratio_like_cpp: u32,
-    pub(crate) quest_high_level_hide_diff_like_cpp: u32,
-    pub(crate) quest_low_level_hide_diff_like_cpp: u32,
-    /// Evidence for represented `Player::CompleteQuest` status-update side effects.
-    pub(crate) represented_quest_complete_status_updates_like_cpp:
-        Vec<RepresentedQuestCompleteStatusUpdateLikeCpp>,
-    pub(in crate::session) represented_quest_objective_progress_draining_like_cpp: bool,
-    pub(in crate::session) represented_quest_objective_progress_events_like_cpp:
-        VecDeque<RepresentedQuestObjectiveProgressEventLikeCpp>,
-    /// Count of visibility refreshes requested by movement initialization.
-    pub(in crate::session) movement_visibility_refresh_requests_like_cpp: u32,
-}
-
-/// The session's persistence and lifecycle timeline: the login/logout instants
-/// and the periodic-save schedule, the player loading and logout claims, the
-/// tutorial and account-data state it persists, the persistence ports and the
-/// finalization rail it hands work to, and the pet-load and loot trackers.
-pub(crate) struct SessionLifecycleState {
-    /// C++ `WorldSession::_accountData`, represented in-memory until DB load/save is wired.
-    pub(in crate::session) account_data_like_cpp: [AccountDataLikeCpp; NUM_ACCOUNT_DATA_TYPES],
-    pub(in crate::session) battle_pet_account_attachment_like_cpp:
-        Option<BattlePetAccountAttachmentLikeCpp>,
-    pub(in crate::session) character_rename_callbacks: driver::RenameCallbacks,
-    /// Detached durable loot grants and their post-commit runtime
-    /// publications. This covers claimed world-owner items plus Item-owner
-    /// items/money; Item owners have no map-owned loot authority.
-    pub(in crate::session) durable_item_loot_persistence_like_cpp:
-        DurableItemLootPersistenceTrackerLikeCpp,
-    /// Per-character fence published to remote loot sources before they begin
-    /// mutating this character's durable balance.
-    pub(in crate::session) durable_loot_money_persistence_like_cpp:
-        Arc<DurableLootMoneyPersistenceTrackerLikeCpp>,
-    pub(in crate::session) finalization: Option<crate::finalization::SessionFinalization>,
-    pub(in crate::session) homebind_persistence_tx_like_cpp:
-        Option<tokio::sync::mpsc::UnboundedSender<HomebindPersistenceJobLikeCpp>>,
-    /// Time played at current level loaded from DB (seconds).
-    pub(crate) level_played_time: u32,
-    /// Timestamp set when the player enters the world (PlayerLogin).
-    pub(crate) login_time: Option<Instant>,
-    /// When set, the session is counting down to logout (20s timer).
-    /// `None` means no logout is pending.
-    pub(crate) logout_time: Option<Instant>,
-    /// C++ `Player::m_nextSave` countdown in milliseconds; 0 disables autosave.
-    pub(in crate::session) next_player_save_ms_like_cpp: u32,
-    /// Set by the sync update loop when the autosave countdown expires.
-    pub(in crate::session) pending_periodic_player_save_like_cpp: bool,
-    /// Typed database capabilities live behind one indirection so adding a
-    /// persistence workflow does not keep growing this already-large session;
-    /// `wow-database` supplies the concrete adapters.
-    pub(crate) persistence_ports_like_cpp: Box<SessionPersistencePortsLikeCpp>,
-    /// Per-character asynchronous C++ `PetLoadQueryHolder` result lifetime.
-    pub(in crate::session) pet_load_query_holder_rows_like_cpp:
-        lifecycle::PetLoadQueryHolderRowsLikeCpp,
-    /// GUID of the character being logged in (set during PlayerLogin).
-    pub(in crate::session) player_loading: Option<ObjectGuid>,
-    /// Strong identity for this session's process-wide live-character claim.
-    pub(in crate::session) player_login_claim_like_cpp: Option<(ObjectGuid, Arc<()>)>,
-    /// C++ `WorldSession::m_playerLogout`: true only while the logout routine is executing.
-    pub(in crate::session) player_logout_like_cpp: bool,
-    /// C++ `CONFIG_INTERVAL_SAVE` / `PlayerSaveInterval` in milliseconds.
-    pub(in crate::session) player_save_interval_ms_like_cpp: u32,
-    /// Total played time loaded from DB (seconds).
-    pub(crate) total_played_time: u32,
-    pub(in crate::session) tutorials_changed_like_cpp: bool,
-    /// C++ `WorldSession::_tutorials`, account-scoped tutorial completion flags.
-    pub(in crate::session) tutorials_like_cpp: [u32; 8],
-    pub(in crate::session) tutorials_loaded_coherently_like_cpp: bool,
-    pub(in crate::session) tutorials_loaded_from_db_like_cpp: bool,
-}
-
-/// The session's transport and connection identity: the `wow-session` transport
-/// kernel (#297), the physical remote address, the authentication session key
-/// and the shared session manager handle for the ConnectTo flow.
-pub(crate) struct SessionTransport {
-    /// The realm/instance transport, owned by `wow-session` (#297).
-    ///
-    /// The first piece of this type to earn its own crate: it compiles without
-    /// gameplay, databases or catalogs, so the compiler now prevents transport
-    /// decisions from reaching a `Player`, a `Map` or a query.
-    pub(in crate::session) connection: wow_session::SessionConnection,
-    pub(in crate::session) remote_address_like_cpp: Option<String>,
-    pub session_key: Vec<u8>,
-    /// Session manager for ConnectTo flow (shared with instance listener).
-    pub(in crate::session) session_mgr: Option<Arc<SessionManager>>,
-}
-
-/// Packet admission and dispatch state: the opcode dispatch table, the ingress
-/// throttle and spoof-ban bookkeeping, the pending packet queue and the socket
-/// timeout and phase-authority fences for the admitted traffic.
-pub(crate) struct SessionAdmissionState {
-    pub(in crate::session) dispatch_table: HashMap<ClientOpcodes, &'static PacketHandlerEntry>,
-    pub(in crate::session) last_packet_time: Instant,
-    /// The producer and step this session last accepted, per phase (#787).
-    ///
-    /// C++ has one caller and needs no such watermark. Here it is what rejects
-    /// a foreign producer, a retired step and a replay of one already served,
-    /// none of which the identity of the player can distinguish. It is kept per
-    /// phase because one step legitimately issues the world phase and then the
-    /// map phase under the same epoch (`World.cpp:2704` then `World.cpp:2748`).
-    pub(in crate::session) last_phase_authority_like_cpp: [Option<(u64, u64)>; 2],
-    /// Set by the first canonical map-phase request (#787). Until then this
-    /// session has no coordinator and keeps draining its own queue.
-    pub(in crate::session) map_phase_coordinated_like_cpp: bool,
-    pub(in crate::session) packet_spoof_config_like_cpp: PacketSpoofConfigLikeCpp,
-    pub(in crate::session) packet_throttling_like_cpp: HashMap<u16, PacketCounterLikeCpp>,
-    pub(in crate::session) pending_packet_spoof_ban_like_cpp: Option<PacketSpoofPendingBanLikeCpp>,
-    pub(in crate::session) pending_packets: VecDeque<WorldPacket>,
-    pub(in crate::session) socket_timeout_deadline_like_cpp: Instant,
-    pub(in crate::session) socket_timeouts_like_cpp: SocketTimeoutsLikeCpp,
-}
-
-/// The realm and instance policy the session admits play under: the realm's
-/// region, battlegroup, name table and secret, the server expansion cap, the
-/// hourly instance budget and the two instance-ignore switches.
-pub(crate) struct SessionRealmPolicy {
-    pub(in crate::session) realm_battlegroup: u8,
-    pub(in crate::session) realm_region: u8,
-    pub(in crate::session) realm_names_like_cpp: BTreeMap<u32, (String, String)>,
-    pub(in crate::session) realm_list_secret_like_cpp: [u8; 32],
-    pub(in crate::session) server_expansion_like_cpp: u8,
-    pub(in crate::session) max_instances_per_hour_like_cpp: u32,
-    pub(in crate::session) instance_ignore_level_like_cpp: bool,
-    pub(in crate::session) instance_ignore_raid_like_cpp: bool,
-}
-
-/// Account-level session state: the Battle.net account id, the recruit-a-friend
-/// edges, the account's legitimate characters, the recent character low guid and
-/// the mute expiry the chat handlers enforce.
-pub(crate) struct SessionAccountState {
-    pub(in crate::session) battlenet_account_id: u32,
-    pub(in crate::session) is_a_recruiter_like_cpp: bool,
-    pub(in crate::session) recruiter_id_like_cpp: u32,
-    pub(in crate::session) legit_characters: Vec<ObjectGuid>,
-    /// C++ `WorldSession::m_GUIDLow`: last logged-in character low GUID kept after logout.
-    pub(in crate::session) recent_player_guid_low_like_cpp: u64,
-    pub(in crate::session) mute_time_like_cpp: i64,
-}
-
-/// Cross-thread session flags shared with the services that publish for this
-/// session: whether advanced combat logging selects the full spell-log payload,
-/// and whether a deferred visibility refresh is still owed.
-pub(crate) struct SessionSharedFlags {
-    /// C++ `Player::_advancedCombatLoggingEnabled`; consumed when combat-log fanout selects full/basic payloads.
-    /// C++ `WorldSession::_filterAddonMessages`' sibling for
-    /// `SMSG_SPELL_GO`: shared so a producer can commit the combat-log packet
-    /// variant per recipient while distributing a cast, the way C++ selects it
-    /// synchronously inside `WorldObject::SendCombatLogMessage`.
-    pub(in crate::session) advanced_combat_logging_enabled_like_cpp: Arc<AtomicBool>,
-    pub(in crate::session) visibility_refresh_pending_like_cpp: Arc<AtomicBool>,
-}
+pub(crate) use connection_admission::{
+    SessionTransport, SessionAdmissionState, SessionRealmPolicy, SessionAccountState,
+};
+pub(in crate::session) use runtime_coordination::{
+    SessionDirectory, SessionDriverServices, SessionWorldView, SessionPhaseRail,
+};
+pub(crate) use runtime_coordination::SessionSharedFlags;
+pub(crate) use spell_quest::{SessionSpellState, SessionQuestState};
+pub(crate) use lifecycle::SessionLifecycleState;
+pub(in crate::session) use social::SessionSocialLimits;
+pub(crate) use social::SessionAddonFilter;
+pub(in crate::session) use visibility_publication::SessionVisibilityPublication;
 
 pub struct WorldSession {
+    /// Explicit Character lifecycle fixture selection; ordinary construction is disabled.
+    #[cfg(feature = "test-fixtures")]
+    pub(in crate::session) character_lifecycle_fixture_mode: bool,
+
+    /// Explicit Gossip fixture selection; ordinary feature sessions remain fail closed.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub(in crate::session) gossip_fixture_enabled: bool,
+
     // Account info
     pub account_id: u32,
 
@@ -447,10 +232,6 @@ pub struct WorldSession {
     // C++ ObjectMgr trainer definitions and creature bindings.
     pub(in crate::session) trainer_store_like_cpp: Option<Arc<TrainerStoreLikeCpp>>,
 
-    // BankBagSlotPrices.db2 store used by C++ HandleBuyBankSlotOpcode.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(in crate::session) bank_bag_slot_prices_store: Option<Arc<BankBagSlotPricesStore>>,
-
     // Currency types store (CurrencyTypes.db2 data)
     pub(in crate::session) currency_types_store: Option<Arc<CurrencyTypesStore>>,
 
@@ -463,14 +244,6 @@ pub struct WorldSession {
     pub(in crate::session) emotes_store: Option<Arc<EmotesStore>>,
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) emotes_text_store: Option<Arc<EmotesTextStore>>,
-
-    // Item class store (ItemClass.db2 data)
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(in crate::session) item_class_store: Option<Arc<ItemClassStore>>,
-
-    // Item currency cost store (ItemCurrencyCost.db2 data)
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(in crate::session) item_currency_cost_store: Option<Arc<ItemCurrencyCostStore>>,
 
     /// Item template and item-data catalogs a session reads. Owned by one type (#670).
     pub(crate) items: crate::catalogs::item::ItemCatalogsLikeCpp,
@@ -504,13 +277,6 @@ pub struct WorldSession {
     // the current cast's execute-log effects, published once by
     // `Spell::FinishTargetProcessing`.
 
-    // Transmog set item store (TransmogSetItem.db2 data)
-    pub(in crate::session) transmog_set_item_store: Option<Arc<TransmogSetItemStore>>,
-
-    // Item price base store (ItemPriceBase.db2 data)
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(in crate::session) item_price_base_store: Option<Arc<ItemPriceBaseStore>>,
-
     // Player level stats store (race/class/level → base stats)
     pub(in crate::session) player_stats: Option<Arc<PlayerStatsStore>>,
     /// Handle-less compatibility for older tests. Production C++
@@ -518,19 +284,8 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(in crate::session) represented_using_pvp_item_levels_like_cpp: bool,
 
-    pub(in crate::session) pvp_item_store: Option<Arc<PvpItemStore>>,
     /// Every spell and aura catalog slot, owned by one type (#668).
     pub(crate) spell_catalogs: crate::catalogs::spell::SpellCatalogsLikeCpp,
-    pub(in crate::session) durability_costs_store: Option<Arc<DurabilityCostsStore>>,
-    pub(in crate::session) durability_quality_store: Option<Arc<DurabilityQualityStore>>,
-    pub(in crate::session) item_template_addon_quest_log_item_ids_like_cpp: HashMap<u32, u32>,
-
-    // RandPropPoints store (RandPropPoints.db2 data)
-    pub(in crate::session) rand_prop_points_store: Option<Arc<RandPropPointsStore>>,
-
-    // ItemDisenchantLoot store (ItemDisenchantLoot.db2 data)
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(in crate::session) item_disenchant_loot_store: Option<Arc<ItemDisenchantLootStore>>,
 
     // C++ LootTemplates_* store foundation.
     pub(in crate::session) loot_stores: Option<Arc<LootStores>>,
@@ -682,7 +437,7 @@ pub struct WorldSession {
     /// Party registries and the world-event channel, grouped by the B4 split.
     pub(in crate::session) directory: SessionDirectory,
 
-    /// Social admission limits and chat anti-flood throttle state.
+    /// Social and chat policy, admission limits, and anti-flood throttle state.
     pub(in crate::session) social: SessionSocialLimits,
 
     /// Phase-driver services: time-sync state and the represented gameplay RNG.
@@ -792,19 +547,19 @@ pub struct WorldSession {
     pub(in crate::session) player_item_test_fixture_like_cpp: PlayerItemTestFixtureLikeCpp,
     /// C++ `UF::ActivePlayerData::CharacterPoints`, recalculated by InitTalentForLevel/LearnTalent.
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_character_points_like_cpp: i32,
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_player_powers_like_cpp: CharacterPowerSnapshotLikeCpp,
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_player_max_powers_like_cpp: CharacterPowerSnapshotLikeCpp,
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_player_base_mana_like_cpp: i32,
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_bank_bag_slot_flags_like_cpp: [u32; 7],
     #[cfg(test)]
     pub(in crate::session) represented_bank_item_moves_like_cpp:
@@ -837,11 +592,11 @@ pub struct WorldSession {
     pub(in crate::session) represented_auto_unequip_offhand_requests_like_cpp:
         Vec<RepresentedAutoUnequipOffhandLikeCpp>,
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_xp: u32,
     /// XP required to reach next level, cached from player_xp_for_level.
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_next_level_xp: u32,
     /// Currently selected target GUID (SetSelection).
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
@@ -854,7 +609,7 @@ pub struct WorldSession {
     /// Test fixtures may attach a Player bootstrap before injecting the
     /// production MapManager. Production attachment is represented solely by
     /// the generation-checked PlayerHandle.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_bootstrap_attached_like_cpp: bool,
 
     /// Pending creature spawn request (set during login, processed async).
@@ -863,7 +618,7 @@ pub struct WorldSession {
     pub(in crate::session) pending_creature_kill_loot_like_cpp: Vec<ObjectGuid>,
     pub(in crate::session) pending_creature_kill_rewards_like_cpp:
         Vec<PendingCreatureKillRewardLikeCpp>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_creature_kill_events_like_cpp:
         Vec<RepresentedCreatureKillEventLikeCpp>,
 
@@ -918,28 +673,28 @@ pub struct WorldSession {
         Option<PlayerIdentityBootstrapLikeCpp>,
 
     /// Detached fixture identity; production identity belongs to Player.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_race: u8,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_class: u8,
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_level: u8,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_gender: u8,
     /// C++ `Player::m_createMode`, loaded from `characters.createMode`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_create_mode_like_cpp: u8,
     /// Represented C++ `Player::GetShapeshiftForm()` until shapeshift aura state owns it.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_shapeshift_form_like_cpp: u32,
     /// C++ ActivePlayerData::LootSpecID represented session state.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) loot_specialization_id: u32,
     /// Represented C++ ActivePlayerData::CurrentSpecID / GetPrimarySpecialization.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) represented_primary_specialization_id_like_cpp: u32,
     /// Handle-less test fixture for Player spell and trait data.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_spell_test_fixture_like_cpp:
         PlayerSpellAndTraitTestFixtureLikeCpp,
     /// Test-only causal trace. Production applies every represented
@@ -955,7 +710,7 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(in crate::session) represented_armor_proficiency_like_cpp: u32,
     /// C++ `CollectionMgr::_mounts` represented account mount collection.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) account_mounts_like_cpp: HashMap<i32, u8>,
     /// Login snapshot of the player's spell history + charge packets. C++ reads these
     /// live from `Player::GetSpellHistory()` in `SendInitialPacketsBeforeAddToMap`; Rust
@@ -969,7 +724,7 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(in crate::session) cuf_profiles_like_cpp:
         Vec<Option<wow_packet::packets::misc::CufProfile>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) cuf_profiles_loaded_like_cpp: bool,
 
     // ── Dual-connection (realm + instance) ───────────────────────
@@ -995,7 +750,7 @@ pub struct WorldSession {
 
     /// Cached character name for chat messages.
     /// Detached fixture identity; production name belongs to the canonical Player.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_name: Option<String>,
 
     // ── Creature AI tracking ──────────────────────────────────────
@@ -1040,16 +795,16 @@ pub struct WorldSession {
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_alive_like_cpp: bool,
     /// Handle-less fixture for C++ `Player::IsGameMaster()`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_game_master_like_cpp: bool,
     /// Represented `CHEAT_GOD` movement/fall guard.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_cheat_god_like_cpp: bool,
     /// Represented `IsImmunedToDamage(SPELL_SCHOOL_MASK_NORMAL)` fall guard.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_normal_damage_immune_like_cpp: bool,
     /// Represented `IsImmuneToEnvironmentalDamage()` guard inside EnvironmentalDamage.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_environmental_damage_immune_like_cpp: bool,
     /// Test-only legacy health fixture for sessions without a Player handle.
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -1067,10 +822,10 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(in crate::session) player_movement_jump_like_cpp: wow_packet::packets::movement::JumpInfo,
     /// C++ `Player::m_lastFallTime`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) last_fall_time_like_cpp: u32,
     /// C++ `Player::m_lastFallZ`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) last_fall_z_like_cpp: f32,
     /// Recorded fall damage events until combat log/update packet runtime is complete.
     #[cfg(test)]
@@ -1102,13 +857,13 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(in crate::session) movement_jump_proc_requests_like_cpp: u32,
     /// Represented `ActivePlayerData::LocalFlags`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) active_player_local_flags_like_cpp: u32,
     /// Represented `ActivePlayerData::TransportServerTime`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) active_player_transport_server_time_like_cpp: i32,
     /// Represented `ActivePlayerData::MultiActionBars`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) active_player_multi_action_bars_like_cpp: u8,
     /// Test-only action-button owner for fixtures without a canonical Player.
     #[cfg(test)]
@@ -1118,14 +873,14 @@ pub struct WorldSession {
     pub(in crate::session) represented_action_buttons_loaded_like_cpp: bool,
 
     /// C++ `Player::GetUnitBeingMoved()` represented GUID.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_moved_unit_guid_like_cpp: ObjectGuid,
 
     /// ACKs accepted by represented movement handling until full Unit movement runtime/broadcasts exist.
     #[cfg(test)]
     pub(in crate::session) movement_ack_events_like_cpp: Vec<MovementAckEventLikeCpp>,
     /// Represented `PlayerTaxi::m_TaxiDestinations` until PlayerTaxi/MotionMaster runtime is canonical.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) taxi_destinations_like_cpp: Vec<u32>,
     /// Represented accepted `CMSG_ACTIVATE_TAXI` requests until TaxiPathGraph/MotionMaster are canonical.
     #[cfg(test)]
@@ -1167,33 +922,33 @@ pub struct WorldSession {
     pub(in crate::session) represented_equipment_sets_like_cpp:
         wow_entities::PlayerEquipmentSetsLikeCpp,
     /// Handle-less test fallback; production C++ `Player::_voidStorageItems` lives on canonical Player.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_void_storage_items_like_cpp:
         [Option<RepresentedVoidStorageItemLikeCpp>;
             wow_packet::packets::void_storage::VOID_STORAGE_MAX_SLOT_LIKE_CPP],
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_void_storage_loaded_like_cpp: bool,
     /// Represented accepted Adventure Map quest starts until AddQuestAndCheckCompletion is canonical.
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_adventure_map_start_quest_requests_like_cpp:
         Vec<RepresentedAdventureMapStartQuestLikeCpp>,
     /// Represented active `FlightPathMovementGenerator`, if any.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) taxi_flight_state_like_cpp: Option<RepresentedTaxiFlightStateLikeCpp>,
     /// Represented unit flags touched by `CleanupAfterTaxiFlight`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) taxi_unit_flags_like_cpp: UnitFlags,
     /// Represented mount state touched by `CleanupAfterTaxiFlight`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) taxi_mounted_like_cpp: bool,
     /// Handle-less fixture for C++ `Unit::GetMountDisplayId()`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_mount_display_id_like_cpp: i32,
     /// Represented vehicle id selected from mount creature template until VehicleKit exists.
     #[cfg(test)]
     pub(in crate::session) player_mount_vehicle_id_like_cpp: u32,
     /// Legacy handle-less test fixture for C++ `Unit::m_vehicleKit`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) player_mount_vehicle_kit_like_cpp: Option<Vehicle>,
     /// Vehicle accessory rows selected by C++ `Vehicle::InstallAllAccessories(false)`.
     #[cfg(test)]
@@ -1205,10 +960,10 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(in crate::session) player_mount_vehicle_usable_seat_count_like_cpp: u8,
     /// Legacy handle-less test fixture for current `VehicleSeatEntry::Flags`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) player_vehicle_seat_flags_like_cpp: Option<i32>,
     /// Legacy handle-less test fixture for current `VehicleSeatEntry::ID`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) player_vehicle_seat_id_like_cpp: Option<u32>,
     /// Represented `Player::ChangeSeat(seatId, next)` requests until live vehicle ownership exists.
     #[cfg(test)]
@@ -1271,19 +1026,19 @@ pub struct WorldSession {
     pub(in crate::session) represented_battlefield_ports_like_cpp:
         Vec<RepresentedBattlefieldPortLikeCpp>,
     /// C++ `Player::_areaSpiritHealerGUID`, represented until battleground/player resurrection owns it.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) area_spirit_healer_guid_like_cpp: ObjectGuid,
     /// Legacy handle-less test fixture for the current Player-owned pet GUID.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) represented_pet_guid_like_cpp: Option<ObjectGuid>,
     /// C++ `Player::m_temporaryUnsummonedPetNumber`, represented until pet DB load/resummon is live.
     #[cfg(test)]
     pub(in crate::session) represented_temporary_unsummoned_pet_number_like_cpp: u32,
     /// C++ `Player::m_oldpetspell`, used by `RemovePet(nullptr, ..., returnreagent=true)`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_old_pet_spell_like_cpp: u32,
     /// Represented `character_pet`/stable rows until `Pet::LoadPetFromDB` is wired to DB.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_pet_stable_like_cpp: PetStable,
     /// True only after the current Player's complete `character_pet` query
     /// returned no rows. Any later pet load or lifetime mutation revokes this
@@ -1292,16 +1047,16 @@ pub struct WorldSession {
     pub(in crate::session) represented_character_pet_rows_empty_authority_complete_like_cpp: bool,
 
     /// Represented `Pet::m_unitData->CreatedBySpell` for the active pet until UnitData owns it.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_pet_created_by_spell_like_cpp: u32,
     /// Represented current pet react state for C++ mount/dismount PetMode side effects.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_pet_react_state_like_cpp: u8,
     /// Represented current pet command state for C++ mount/dismount PetMode side effects.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_pet_command_state_like_cpp: u8,
     /// C++ `Player::m_temporaryPetReactState` saved by `DisablePetControlsOnMount`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) temporary_mount_pet_react_state_like_cpp: Option<u8>,
     /// Count of C++ `CreateVehicleKit` mount side effects represented until Vehicle runtime sends packets.
     #[cfg(test)]
@@ -1332,16 +1087,16 @@ pub struct WorldSession {
     pub(in crate::session) movement_counter_like_cpp: u32,
     /// Represented `Unit::GetCollisionHeight()` until model-display collision data owns it.
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_collision_height_like_cpp: f32,
     /// Handle-less fixture for C++ `Object::GetObjectScale()`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_object_scale_like_cpp: f32,
     /// Represented `UnitData::ScaleDuration` for movement collision-height packets.
     #[cfg(test)]
     pub(in crate::session) player_scale_duration_like_cpp: i32,
     /// Handle-less fixture for C++ `UnitData::Flags`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_unit_flags_like_cpp: UnitFlags,
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -1350,58 +1105,58 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(in crate::session) player_mounted_like_cpp: bool,
     /// Represented `pvpInfo.IsHostile` branch for Honorless Target after taxi landing.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_pvp_hostile_like_cpp: bool,
     /// Represented `Player::IsPvP()` branch for friendly-area near teleport handling.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_pvp_enabled_like_cpp: bool,
     /// Represented `PLAYER_FLAGS_IN_PVP` branch for friendly-area near teleport handling.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_in_pvp_flag_like_cpp: bool,
     /// Represented `pvpInfo.EndTimer` consumed by `Player::UpdatePvPFlag`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_pvp_end_timer_like_cpp: Option<i64>,
     /// C++ `Player::m_contestedPvPTimer`, reset by `Player::ResetContestedPvP`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_contested_pvp_timer_like_cpp: u32,
     /// Current represented zone/area ids until Map/Terrain runtime can calculate them.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_zone_id_like_cpp: u32,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_area_id_like_cpp: u32,
     /// True only when the current zone/area came from an extracted C++ terrain
     /// tile, rather than the DB-seeded or map-wide fallback.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_zone_area_authority_complete_like_cpp: bool,
     /// Permanent fail-closed marker for this C++ Player lifetime after a login
     /// cast closure that Rust did not retain losslessly (currently FIRST).
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_spell_hit_aura_authority_tombstoned_like_cpp: bool,
     /// `MoveSplineDone` taxi decisions recorded until full Taxi/MotionMaster runtime exists.
     #[cfg(test)]
     pub(in crate::session) move_spline_done_taxi_events_like_cpp:
         Vec<MoveSplineDoneTaxiEventLikeCpp>,
     /// C++ `Player::m_bCanDelayTeleport`, represented around update-owned work.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_can_delay_teleport_like_cpp: bool,
     /// C++ `Player::m_bHasDelayedTeleport`, represented for same-map near teleports.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_has_delayed_teleport_like_cpp: bool,
     /// C++ `Player::mSemaphoreTeleport_Near` represented state.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) near_teleport_pending_like_cpp: bool,
     /// C++ `Player::mSemaphoreTeleport_Far` represented state.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_far_teleport_pending_like_cpp: bool,
     /// C++ `Player::m_teleport_dest` represented state for near teleports.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) near_teleport_destination_like_cpp: Option<(u16, wow_core::Position)>,
     /// Saved `TeleportTo` arguments while `m_bHasDelayedTeleport` is set.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_delayed_teleport_like_cpp:
         Option<(u32, wow_core::Position, TeleportToOptionsLikeCpp)>,
     /// Represented zone/area for the pending near-teleport destination.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) near_teleport_destination_zone_area_like_cpp: Option<(u32, u32)>,
     /// Handle-less compatibility for older tests. Production C++
     /// `Player::m_homebind` lives on the canonical Player.
@@ -1409,7 +1164,7 @@ pub struct WorldSession {
     pub(in crate::session) represented_homebind_like_cpp: Option<RepresentedHomebindLikeCpp>,
     /// C++ `Player::_resurrectionData`, represented until real Player/Spell
     /// resurrection request ownership exists.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_resurrection_request_like_cpp:
         Option<PlayerResurrectionRequestLikeCpp>,
     /// C++ `DELAYED_RESURRECT_PLAYER`, represented for resurrection requests
@@ -1419,26 +1174,26 @@ pub struct WorldSession {
         Option<PlayerResurrectionRequestLikeCpp>,
     /// C++ `ActivePlayerData::SelfResSpells`, represented until update-field
     /// ownership is canonical.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_self_res_spells_like_cpp: BTreeSet<i32>,
     /// C++ `Player::m_overrideSpells`, represented until active player spell
     /// cast resolution owns override lookup.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_override_spells_like_cpp: HashMap<i32, BTreeSet<i32>>,
     /// True only when all C++ `Player::m_overrideSpells` edges were replaced
     /// from a complete source rather than accumulated opportunistically.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_override_spells_complete_like_cpp: bool,
     /// C++ `CONFIG_CAST_UNSTUCK` immutable world policy injected into spell effects.
     pub(in crate::session) represented_cast_unstuck_enabled_like_cpp: bool,
     /// C++ `Player::GetDeathTimer()` represented for `Spell::EffectStuck`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_death_timer_active_like_cpp: bool,
     /// Near teleport ACK side-effect audit events.
     #[cfg(test)]
     pub(in crate::session) move_teleport_ack_events_like_cpp: Vec<MoveTeleportAckEventLikeCpp>,
     /// Count of C++ `ResummonPetTemporaryUnSummonedIfAny` calls after near teleport ACK.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) temporary_pet_resummon_requests_like_cpp: u32,
     /// Count of C++ `ProcessDelayedOperations` calls after successful near teleport ACK.
     #[cfg(test)]
@@ -1472,11 +1227,11 @@ pub struct WorldSession {
     // ── Aura system ───────────────────────────────────────────────
     /// Legacy fixture mirror for tests that construct a Session without a
     /// canonical Player owner.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) visible_auras: HashMap<u8, AuraApplication>,
     /// True only after both persisted aura tables were read successfully for
     /// the active character. Absence is evidence only while this is complete.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_aura_authority_complete_like_cpp: bool,
     /// True only when `SEL_CHAR_EQUIPMENT` succeeded and proved that the active
     /// character has no top-level persisted item rows. Empty runtime inventory
@@ -1484,7 +1239,7 @@ pub struct WorldSession {
     #[cfg(test)]
     pub(in crate::session) player_equipment_inventory_authority_complete_like_cpp: bool,
     /// Difficulty-selected C++ `AuraEffect` identity captured when the aura is applied.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) canonical_threat_aura_snapshots_like_cpp:
         HashMap<u8, CanonicalThreatAuraSnapshotLikeCpp>,
 
@@ -1493,7 +1248,7 @@ pub struct WorldSession {
     pub(in crate::session) power_type_store: Option<Arc<PowerTypeStore>>,
     pub(in crate::session) cinematic_sequences_store: Option<Arc<CinematicSequencesStore>>,
     pub(in crate::session) movie_store: Option<Arc<MovieStore>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_cinematic_state_like_cpp:
         wow_entities::PlayerCinematicStateLikeCpp,
     #[cfg(test)]
@@ -1569,28 +1324,28 @@ pub struct WorldSession {
     pub(crate) quest_test_fixture_like_cpp: QuestTestFixtureLikeCpp,
 
     /// C++ `CollectionMgr::_heirlooms`, represented until account collection runtime is complete.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) represented_account_heirlooms_like_cpp: BTreeMap<u32, AccountHeirloomDataLikeCpp>,
     /// C++ `CollectionMgr::_toys`, represented until account collection runtime is complete.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) represented_account_toys_like_cpp: BTreeMap<u32, u32>,
     /// C++ `CollectionMgr::_appearances`, represented until account collection persistence is ported.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) represented_item_appearances_like_cpp: HashSet<u32>,
     /// C++ `CollectionMgr::LoadAccountItemAppearances` block vector used by
     /// `ActivePlayerData::Transmog`. This preserves sparse `blobIndex` rows
     /// that cannot be recovered from `_appearances` alone.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) represented_item_appearance_blocks_like_cpp: Vec<u32>,
     /// C++ `CollectionMgr::_temporaryAppearances`, represented until account collection persistence is ported.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) represented_temporary_item_appearances_like_cpp: HashMap<u32, HashSet<ObjectGuid>>,
     /// C++ `CollectionMgr::_favoriteAppearances`, represented until account collection persistence is ported.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) represented_favorite_item_appearances_like_cpp:
         HashMap<u32, FavoriteAppearanceStateLikeCpp>,
     /// C++ `CollectionMgr::_transmogIllusions`, represented until account collection runtime is complete.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) represented_transmog_illusions_like_cpp: HashSet<u32>,
     /// Handle-less battle-pet state used only by isolated Session tests.
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -1604,40 +1359,26 @@ pub struct WorldSession {
     pub(crate) represented_instance_reset_times_like_cpp: BTreeMap<u32, u64>,
 
     /// C++ `ActivePlayerData::ExploredZones`, represented before the canonical Player owns persistence.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_explored_zones_like_cpp:
         [u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP],
     /// Represented `CriteriaType::RevealWorldMapOverlay` events from area discovery.
     #[cfg(test)]
     pub(in crate::session) represented_reveal_world_map_overlay_criteria_like_cpp: Vec<u32>,
     /// Represented `Player::UpdateArea` / `Player::UpdateZone` criteria side effects.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_area_zone_criteria_like_cpp:
         Vec<RepresentedAreaZoneCriteriaLikeCpp>,
 
     // ── Loot ──────────────────────────────────────────────────────
     /// Active loot windows keyed by creature GUID.
     pub(crate) loot_table:
-        std::collections::HashMap<wow_core::ObjectGuid, wow_packet::packets::loot::CreatureLoot>,
+        std::collections::HashMap<wow_core::ObjectGuid, wow_entities::CreatureLoot>,
     /// Object-owned loot generation represented by each session-local packet cache.
     pub(crate) represented_loot_cache_generations_like_cpp:
         std::collections::HashMap<wow_core::ObjectGuid, u64>,
-    /// Mirrors C++ PlayerData::LootTargetGUID for guards that compare active loot by GUID.
-    pub(crate) active_loot_guid: wow_core::ObjectGuid,
-    /// Represented owner GUIDs currently visible through C++ `Player::m_AELootView`.
-    pub(crate) active_loot_view_owners: std::collections::HashSet<wow_core::ObjectGuid>,
-    /// Object-owned generation that was actually opened for each active loot view.
-    ///
-    /// GUIDs are reused across creature respawns and gameobject restocks.  A delayed
-    /// packet from an older window must therefore not be authorized merely because
-    /// the replacement lifetime has the same owner/loot GUID and player eligibility.
-    pub(crate) active_loot_view_generations_like_cpp:
-        std::collections::HashMap<wow_core::ObjectGuid, u64>,
-    /// Exact backing allocation opened for each view. Scope epochs restart at
-    /// one in a newly allocated authority, so the generation map alone cannot
-    /// prevent ABA when a creature GUID is recreated.
-    pub(crate) active_loot_view_authorities_like_cpp:
-        std::collections::HashMap<wow_core::ObjectGuid, OwnedLootAuthority>,
+    /// Connection-resident domain views; object-owned loot stays in its authority.
+    pub(crate) loot_views: wow_loot::LootViews,
 
     /// Test fixture for the process-owned linked-module registry. Production
     /// borrows the required registry from the session driver.
@@ -1658,7 +1399,7 @@ pub struct WorldSession {
     /// and release while the authority claim is already persistence-owned.
     #[cfg(test)]
     pub(crate) loot_item_store_test_commit_gate_like_cpp: Option<Arc<tokio::sync::Notify>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) represented_loot_roll_criteria_events: Vec<RepresentedLootRollCriteriaEvent>,
     #[cfg(test)]
     pub(crate) represented_gameobject_criteria_events: Vec<RepresentedGameObjectCriteriaEvent>,
@@ -1683,7 +1424,7 @@ pub struct WorldSession {
     /// C++ `CONFIG_VMAP_INDOOR_CHECK` represented switch.
     pub(in crate::session) vmap_indoor_check_like_cpp: bool,
     /// Represented C++ `WorldObject::IsOutdoors()` result until VMAP owns it.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_is_outdoors_like_cpp: Option<bool>,
     /// Fixture-only fallback. Production C++ `ReputationMgr` state is owned by
     /// the generation-checked canonical `Player`.
@@ -1692,40 +1433,10 @@ pub struct WorldSession {
     #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) reputation_state_like_cpp: wow_entities::PlayerReputationStateLikeCpp,
     /// C++ `ActivePlayerData::WatchedFactionIndex` represented state.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) watched_faction_index_like_cpp: i32,
     /// C++ `CONFIG_ENABLE_AE_LOOT` represented switch.
     pub(in crate::session) enable_ae_loot_like_cpp: bool,
-    /// C++ `CONFIG_ADDON_CHANNEL` represented switch.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(in crate::session) addon_channel_like_cpp: bool,
-    /// C++ `CONFIG_CHAT_FAKE_MESSAGE_PREVENTING` represented switch for chat validation.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(in crate::session) chat_fake_message_preventing_like_cpp: bool,
-    /// C++ `CONFIG_CHAT_PARTY_RAID_WARNINGS` represented switch.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(in crate::session) party_raid_warnings_like_cpp: bool,
-    /// C++ `CONFIG_ALLOW_GM_GROUP` represented switch.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(in crate::session) allow_gm_group_like_cpp: bool,
-    /// C++ `CONFIG_ALLOW_TWO_SIDE_INTERACTION_GROUP` represented switch.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(in crate::session) allow_two_side_interaction_group_like_cpp: bool,
-    /// C++ `CONFIG_PARTY_LEVEL_REQ` represented gate.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(in crate::session) party_level_req_like_cpp: u32,
-    /// C++ `CONFIG_CHAT_STRICT_LINK_CHECKING_KICK` represented switch.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(in crate::session) chat_strict_link_checking_kick_like_cpp: bool,
-    /// C++ `CONFIG_CHAT_*_LEVEL_REQ` represented chat level gates.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(in crate::session) chat_level_requirements_like_cpp: ChatLevelRequirementsLikeCpp,
-    /// C++ `CONFIG_LISTEN_RANGE_*` represented nearby-chat ranges.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(in crate::session) chat_listen_ranges_like_cpp: ChatListenRangesLikeCpp,
-    /// C++ `CONFIG_CHATFLOOD_*` represented chat spam protection.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(in crate::session) chat_flood_config_like_cpp: ChatFloodConfigLikeCpp,
     /// C++ `CONFIG_ENABLE_MMAPS` + `DataDir` represented until map lifecycle owns real mmaps.
     pub(in crate::session) mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp,
     /// C++ `sWaypointMgr->GetPath(pathId)` resolver for session-created legacy `WorldCreature`
@@ -1790,31 +1501,10 @@ pub struct WorldSession {
     /// without blocking movement generated after the player is in world.
     pub(crate) suppress_creature_movement_queued_at_or_before_like_cpp: Option<Instant>,
     /// Detached represented inputs used only by visibility tests.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) visibility_test_fixture_like_cpp: VisibilityTestFixtureLikeCpp,
-    /// Last canonical FarsightObject value observed by this Session's
-    /// publication rail. This is a delivery fence, not gameplay authority:
-    /// it lets the session emit the one explicit clear packet required when a
-    /// map-owned viewpoint disappears between map ticks.
-    pub(in crate::session) last_observed_farsight_object_like_cpp: wow_core::ObjectGuid,
-    /// Session-local delivery guard for represented DynamicObject VALUES packets
-    /// consumed from the last map-owned `Map::SendObjectUpdates` stable snapshot.
-    /// Includes the map update generation so repeated `process_pending()` calls
-    /// suppress the same snapshot without blocking later identical bytes.
-    pub(in crate::session) represented_dynamic_object_values_updates_delivered_like_cpp:
-        std::collections::HashSet<(u32, u32, u64, wow_core::ObjectGuid, u64)>,
-    /// Session-local delivery guard for Player/Creature/Pet VALUES packets
-    /// consumed from the canonical map's `Map::SendObjectUpdates` snapshot.
-    pub(in crate::session) represented_player_unit_values_updates_delivered_like_cpp:
-        std::collections::HashSet<(u32, u32, u64, wow_core::ObjectGuid, u64)>,
-    /// Session-local delivery guard for represented GameObjectDespawn packets
-    /// consumed from the last map-owned `GameObject::Update` summary.
-    pub(in crate::session) represented_gameobject_visual_despawns_delivered_like_cpp:
-        std::collections::HashSet<(u32, u32, u64, wow_core::ObjectGuid)>,
-    /// Session-local delivery guard for represented CapturePointRemoved packets
-    /// consumed from the last map-owned `GameObject::Delete` summary.
-    pub(in crate::session) represented_capture_point_removed_delivered_like_cpp:
-        std::collections::HashSet<(u32, u32, u64, wow_core::ObjectGuid)>,
+    /// Publication fences for the five contiguous session-owned observations.
+    pub(in crate::session) visibility_publication: SessionVisibilityPublication,
     /// Represented C++ `GameObject::GetPhaseShift()` for visible DB-spawned
     /// gameobjects until canonical gameobject map ownership lands.
     pub(crate) represented_gameobject_phase_shifts:
@@ -1837,6 +1527,6 @@ pub struct WorldSession {
     pub(crate) gossip_options: Vec<GossipOptionInfo>,
 
     /// Ownerless legacy fixtures only; production uses Player's teleport state.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) pending_teleport: Option<(u32, wow_core::Position)>,
 }

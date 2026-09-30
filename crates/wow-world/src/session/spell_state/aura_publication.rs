@@ -141,17 +141,12 @@ impl WorldSession {
         aura: AuraApplication,
         provenance: wow_entities::AuraCastProvenanceLikeCpp,
     ) -> bool {
-        let slot = aura.slot;
         let _fallback = aura.clone();
         let applied = aura.clone();
         let _canonical = self
             .with_owned_player_mut_like_cpp(|player| {
-                player.insert_player_visible_aura_like_cpp(aura);
-                player
-                    .unit_mut()
-                    .subsystems_mut()
-                    .auras
-                    .set_aura_cast_provenance_like_cpp(slot, provenance);
+                player.unit_mut().subsystems_mut().auras
+                    .install_runtime_application_with_provenance(aura, provenance);
             })
             .is_some();
         #[cfg(test)]
@@ -163,8 +158,7 @@ impl WorldSession {
         if self.player_handle_like_cpp.is_none() {
             let inserted = self
                 .mutate_player_aura_subsystem_like_cpp(|auras| {
-                    auras.insert_runtime_application_like_cpp(_fallback);
-                    auras.set_aura_cast_provenance_like_cpp(slot, provenance);
+                    auras.install_runtime_application_with_provenance(_fallback, provenance);
                 })
                 .is_some();
             if inserted {

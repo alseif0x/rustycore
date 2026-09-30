@@ -4,6 +4,8 @@
 
 use super::*;
 
+mod abandon;
+
 impl MapManager {
     pub fn new(grid_cleanup_delay_ms: u32, map_update_interval_ms: u32) -> Self {
         let mut manager = Self {
@@ -21,6 +23,9 @@ impl MapManager {
             next_map_incarnation_like_cpp: 1,
             tick_coordination_like_cpp: MapTickCoordinationStateLikeCpp::Idle,
             next_tick_epoch_like_cpp: 1,
+            tick_origin: Arc::new(()),
+            active_respawn: None,
+            respawn_cursor: None,
         };
         manager.set_grid_cleanup_delay(grid_cleanup_delay_ms);
         manager.set_map_update_interval(map_update_interval_ms);
@@ -543,6 +548,9 @@ impl MapManager {
     }
 
     pub fn begin_tick_like_cpp(&mut self, diff_ms: u32) -> MapTickBeginLikeCpp {
+        if let Some(operation) = &self.active_respawn {
+            return MapTickBeginLikeCpp::Busy { epoch: operation.epoch() };
+        }
         // A tick already split is not allowed to consume this diff: advancing the
         // shared timer here would give the pending resumption a foreign current
         // value and silently start a second overlapping tick.
@@ -571,7 +579,7 @@ impl MapManager {
             };
 
             if map.can_unload(diff_ms) {
-                if Self::destroy_map_inner(map, &mut self.instance_ids) {
+                if Self::destroy_map_inner(map, &mut self.instance_ids, self.active_respawn.is_some()) {
                     destroyed.push(MapTickParticipantLikeCpp { key, incarnation });
                 }
                 continue;
@@ -590,6 +598,7 @@ impl MapManager {
             effective_diff_ms: current,
             updated,
             destroyed,
+            origin: Arc::clone(&self.tick_origin),
         })
     }
 
@@ -610,6 +619,19 @@ impl MapManager {
         self.tick_coordination_like_cpp
     }
 
+    /// Whether this exact manager owns a plan that is still awaiting its
+    /// post-session phases. Runtime callers use this before any phase work.
+    #[must_use]
+    pub fn can_resume_tick(&self, plan: &MapTickPlanLikeCpp) -> bool {
+        self.respawn_ready_for_objects(plan) && self.owns_tick_plan(plan)
+            && self.tick_coordination_like_cpp
+                == MapTickCoordinationStateLikeCpp::AwaitingSessions(plan.epoch)
+    }
+
+    pub(in crate::manager) fn owns_tick_plan(&self, plan: &MapTickPlanLikeCpp) -> bool {
+        Arc::ptr_eq(&self.tick_origin, &plan.origin)
+    }
+
     /// Give up an admitted tick without running its remaining phases.
     ///
     /// Used when the coordinator is torn down between the split and the
@@ -617,16 +639,10 @@ impl MapManager {
     /// shared timer keeps the current it had, so the next tick re-decides
     /// admission from a clean state instead of inheriting a half-run one.
     pub fn abandon_tick_like_cpp(&mut self, plan: MapTickPlanLikeCpp) -> MapTickResumeLikeCpp {
-        if self.tick_coordination_like_cpp
-            != MapTickCoordinationStateLikeCpp::AwaitingSessions(plan.epoch)
-        {
-            return MapTickResumeLikeCpp::Rejected {
-                state: self.tick_coordination_like_cpp,
-                plan_epoch: plan.epoch,
-            };
+        match self.try_abandon_tick(plan) {
+            Ok(()) => MapTickResumeLikeCpp::Resumed,
+            Err((status, _original_plan)) => status,
         }
-        self.tick_coordination_like_cpp = MapTickCoordinationStateLikeCpp::Idle;
-        MapTickResumeLikeCpp::Resumed
     }
 
     /// The rest of the same canonical tick: every phase C++ `Map::Update` runs
@@ -735,125 +751,55 @@ impl MapManager {
     where
         L: FnMut(&mut Map, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
     {
-        // The plan is consumable, so a second resumption cannot even be spelled;
-        // the state still has to be checked because a plan can outlive the
-        // manager state it was admitted under.
-        if self.tick_coordination_like_cpp
-            != MapTickCoordinationStateLikeCpp::AwaitingSessions(plan.epoch)
-        {
-            return MapTickResumeLikeCpp::Rejected {
+        let plan_epoch = plan.epoch_like_cpp();
+        let mut tick = match self.begin_object_tick(plan) {
+            Ok(tick) => tick,
+            Err(_) => {
+                return MapTickResumeLikeCpp::Rejected {
+                    state: self.tick_coordination_like_cpp,
+                    plan_epoch,
+                };
+            }
+        };
+
+        loop {
+            let token = match self
+                .prepare_next_object_map(&mut tick, object_update_selection)
+            {
+                Ok(Some(token)) => token,
+                Ok(None) => break,
+                Err(_) => {
+                    return MapTickResumeLikeCpp::Rejected {
+                        state: self.tick_coordination_like_cpp,
+                        plan_epoch,
+                    };
+                }
+            };
+            let load_record_for_map = load_record.as_mut().map(|record| &mut **record);
+            if self
+                .finish_object_map(
+                    &mut tick,
+                    token,
+                    pool_update,
+                    load_record_for_map,
+                    creature_update_owner,
+                )
+                .is_err()
+            {
+                return MapTickResumeLikeCpp::Rejected {
+                    state: self.tick_coordination_like_cpp,
+                    plan_epoch,
+                };
+            }
+        }
+
+        match self.finalize_object_tick(tick) {
+            Ok(()) => MapTickResumeLikeCpp::Resumed,
+            Err(_) => MapTickResumeLikeCpp::Rejected {
                 state: self.tick_coordination_like_cpp,
-                plan_epoch: plan.epoch,
-            };
+                plan_epoch,
+            },
         }
-        self.tick_coordination_like_cpp = MapTickCoordinationStateLikeCpp::Resuming(plan.epoch);
-
-        let current = plan.effective_diff_ms;
-        let mut resumed_keys = Vec::with_capacity(plan.updated.len());
-
-        for participant in &plan.updated {
-            let key = participant.key;
-            // A map created under a reused key during the session pass is not the
-            // map this tick admitted: it has run no dynamic-tree phase and must
-            // not receive the phases that follow one.
-            if self.map_incarnation_like_cpp(key) != Some(participant.incarnation) {
-                continue;
-            }
-            let Some(map) = self.maps.get_mut(&key) else {
-                continue;
-            };
-            resumed_keys.push(key);
-
-            if self.updater.activated() {
-                match pool_update {
-                    Some((spawn_store, pool_mgr)) => {
-                        if let Some(load_record) = load_record.as_mut() {
-                            self.updater
-                                .schedule_after_sessions_with_pool_update_loaded_grid_records_context_owner_and_selection_like_cpp(
-                                    map,
-                                    current,
-                                    spawn_store,
-                                    pool_mgr,
-                                    creature_update_owner,
-                                    object_update_selection,
-                                    &mut **load_record,
-                                )
-                        } else {
-                            self.updater
-                                .schedule_after_sessions_with_pool_update_context_owner_and_selection_like_cpp(
-                                    map,
-                                    current,
-                                    spawn_store,
-                                    pool_mgr,
-                                    creature_update_owner,
-                                    object_update_selection,
-                                )
-                        }
-                    }
-                    None => self
-                        .updater
-                        .schedule_after_sessions_with_owner_and_selection_like_cpp(
-                            map,
-                            current,
-                            creature_update_owner,
-                            object_update_selection,
-                        ),
-                }
-            } else {
-                match pool_update {
-                    Some((spawn_store, pool_mgr)) => {
-                        if let Some(load_record) = load_record.as_mut() {
-                            map.update_after_sessions_with_creature_owner_and_selection_like_cpp(
-                                current,
-                                Some((spawn_store, pool_mgr)),
-                                Some(&mut **load_record),
-                                creature_update_owner,
-                                object_update_selection,
-                            );
-                        } else {
-                            map.update_after_sessions_with_creature_owner_and_selection_like_cpp(
-                                current,
-                                Some((spawn_store, pool_mgr)),
-                                None::<&mut L>,
-                                creature_update_owner,
-                                object_update_selection,
-                            );
-                        }
-                    }
-                    None => map.update_after_sessions_with_creature_owner_and_selection_like_cpp(
-                        current,
-                        None,
-                        None::<&mut L>,
-                        creature_update_owner,
-                        object_update_selection,
-                    ),
-                }
-            }
-        }
-
-        if self.updater.activated() {
-            self.updater.wait();
-        }
-
-        // Export only this tick's selected player notifiers, after every map
-        // update completes and before delayed removal can change residence.
-        self.retain_selected_player_visibility_refreshes_like_cpp(resumed_keys);
-
-        for participant in &plan.destroyed {
-            if self.map_incarnation_like_cpp(participant.key) != Some(participant.incarnation) {
-                continue;
-            }
-            self.maps.remove(&participant.key);
-            self.map_incarnations_like_cpp.remove(&participant.key);
-        }
-
-        for map in self.maps.values_mut() {
-            map.delayed_update(current);
-        }
-
-        self.timer.set_current(0);
-        self.tick_coordination_like_cpp = MapTickCoordinationStateLikeCpp::Idle;
-        MapTickResumeLikeCpp::Resumed
     }
 
     pub const fn is_script_scheduled(&self) -> bool {
@@ -878,6 +824,7 @@ pub struct MapTickPlanLikeCpp {
     effective_diff_ms: u32,
     updated: Vec<MapTickParticipantLikeCpp>,
     destroyed: Vec<MapTickParticipantLikeCpp>,
+    origin: Arc<()>,
 }
 
 /// One session a map's tick drives, with the identity frozen at admission.
@@ -960,6 +907,18 @@ impl MapTickResumeLikeCpp {
 }
 
 impl MapTickPlanLikeCpp {
+    /// Supply a stale respawn participant without changing the earned tick.
+    #[cfg(feature = "test-fixtures")]
+    pub fn fixture_set_respawn_participant_incarnation(
+        &mut self, key: MapKey, incarnation: u64,
+    ) -> bool {
+        let Some(participant) = self.updated.iter_mut().find(|item| item.key == key) else {
+            return false;
+        };
+        participant.incarnation = incarnation;
+        true
+    }
+
     /// The tick this plan belongs to; the manager refuses any other.
     #[must_use]
     pub const fn epoch_like_cpp(&self) -> u64 {

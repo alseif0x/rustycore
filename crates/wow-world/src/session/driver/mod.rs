@@ -32,7 +32,6 @@ use phases::SessionDriverPhaseLikeCpp;
 
 #[cfg(any(test, feature = "test-fixtures"))]
 use std::sync::Arc;
-use std::time::Instant;
 
 use tracing::{debug, info};
 
@@ -69,9 +68,8 @@ impl WorldSession {
                 }
             };
 
-            self.admission.last_packet_time = Instant::now();
-            self.reset_timeout_time_for_packet_like_cpp(pkt.opcode_raw());
-            if !self.evaluate_packet_spoof_like_cpp(&pkt) {
+            let observation = self.admission.observe_received_packet(&self.state, &pkt);
+            if !self.apply_packet_ingress_observation(&pkt, observation) {
                 break;
             }
             if std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some()
@@ -97,9 +95,8 @@ impl WorldSession {
             {
                 match realm_rx.try_recv() {
                     Ok(pkt) => {
-                        self.admission.last_packet_time = Instant::now();
-                        self.reset_timeout_time_for_packet_like_cpp(pkt.opcode_raw());
-                        if !self.evaluate_packet_spoof_like_cpp(&pkt) {
+                        let observation = self.admission.observe_received_packet(&self.state, &pkt);
+                        if !self.apply_packet_ingress_observation(&pkt, observation) {
                             break;
                         }
                         if std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some()
@@ -375,8 +372,9 @@ impl WorldSession {
             support_feature_policy: Arc::new(self.support_feature_policy_for_test_like_cpp()),
             player_regeneration_rates: empty_catalogs.player_regeneration_rates,
             bank_bag_slot_prices: self
-                .bank_bag_slot_prices_store
-                .clone()
+                .items
+                .bank_bag_slot_prices_store()
+                .cloned()
                 .unwrap_or(empty_catalogs.bank_bag_slot_prices),
             adventure_map_pois: self
                 .adventure_map_poi_store

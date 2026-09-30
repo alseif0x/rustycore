@@ -8,7 +8,7 @@ use super::{Arc, MAX_POWERS_PER_CLASS, ObjectGuid, Position};
 
 pub(crate) type CharacterPowerSnapshotLikeCpp = [Option<i32>; MAX_POWERS_PER_CLASS];
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) fn empty_character_power_snapshot_like_cpp() -> CharacterPowerSnapshotLikeCpp
 {
     [None; MAX_POWERS_PER_CLASS]

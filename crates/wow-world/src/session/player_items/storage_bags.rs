@@ -10,7 +10,7 @@ impl WorldSession {
         &self,
         bag_guid: ObjectGuid,
     ) -> bool {
-        if self.active_loot_view_owners.is_empty() {
+        if !self.loot_views.has_owners() {
             return false;
         }
 
@@ -18,7 +18,7 @@ impl WorldSession {
             .is_some_and(|items| {
                 items.values().any(|item| {
                     item.container_guid() == bag_guid
-                        && self.active_loot_view_owners.contains(&item.object().guid())
+                        && self.loot_views.contains_owner(&item.object().guid())
                         && self.loot_table.contains_key(&item.object().guid())
                 })
             })

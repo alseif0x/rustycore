@@ -77,6 +77,7 @@ const SPELL_ATTR0_CU_IS_TALENT_LIKE_CPP: u32 = wow_data::SPELL_ATTR0_CU_IS_TALEN
 mod authority;
 mod model;
 mod planner;
+mod validation;
 
 pub use authority::*;
 pub use model::*;
@@ -84,6 +85,8 @@ pub use planner::{
     SpellAcquisitionMetadataLikeCpp, project_effect_learn_spell_acquisition_like_cpp,
     project_spell_acquisition_like_cpp,
 };
+
+pub use validation::{AcquisitionPlanError, acquisition_skill_rows, validate_acquisition_plan};
 
 #[cfg(any(test, feature = "test-fixtures"))]
 pub mod test_fixtures;

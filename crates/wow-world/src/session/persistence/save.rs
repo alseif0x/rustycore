@@ -223,14 +223,13 @@ impl WorldSession {
         let bnet_account_id = self.battlenet_account_id();
         Some(
             self.player_collection_state_snapshot_like_cpp()?
-                .heirlooms_like_cpp()
-                .into_iter()
-                .map(|(item_id, data)| AccountHeirloomSaveRowLikeCpp {
-                    bnet_account_id,
-                    item_id: *item_id,
-                    flags: data.flags,
-                })
-                .collect(),
+                .project_heirlooms(|item_id, flags, _bonus_id| {
+                    Some(AccountHeirloomSaveRowLikeCpp {
+                        bnet_account_id,
+                        item_id,
+                        flags,
+                    })
+                }),
         )
     }
     /// C++ `CollectionMgr::SaveAccountToys`.
@@ -238,15 +237,14 @@ impl WorldSession {
         let bnet_account_id = self.battlenet_account_id();
         Some(
             self.player_collection_state_snapshot_like_cpp()?
-                .toys_like_cpp()
-                .into_iter()
-                .map(|(item_id, flags)| AccountToySaveRowLikeCpp {
-                    bnet_account_id,
-                    item_id: *item_id,
-                    is_favorite: (*flags & TOY_FLAG_FAVORITE_LIKE_CPP) != 0,
-                    has_fanfare: (*flags & TOY_FLAG_HAS_FANFARE_LIKE_CPP) != 0,
-                })
-                .collect(),
+                .project_toy_status(|item_id, is_favorite, has_fanfare| {
+                    Some(AccountToySaveRowLikeCpp {
+                        bnet_account_id,
+                        item_id,
+                        is_favorite,
+                        has_fanfare,
+                    })
+                }),
         )
     }
     pub fn set_player_save_interval_ms_like_cpp(&mut self, interval_ms: u32) {
@@ -337,16 +335,13 @@ impl WorldSession {
         let bnet_account_id = self.battlenet_account_id();
         let mut rows = self
             .player_collection_state_snapshot_like_cpp()?
-            .mounts_like_cpp()
-            .into_iter()
-            .filter_map(|(spell_id, flags)| {
+            .project_mounts(|spell_id, flags| {
                 Some(AccountMountSaveRowLikeCpp {
                     bnet_account_id,
-                    mount_spell_id: u32::try_from(*spell_id).ok()?,
-                    flags: *flags,
+                    mount_spell_id: u32::try_from(spell_id).ok()?,
+                    flags,
                 })
-            })
-            .collect::<Vec<_>>();
+            });
         rows.sort_by_key(|row| row.mount_spell_id);
         Some(rows)
     }

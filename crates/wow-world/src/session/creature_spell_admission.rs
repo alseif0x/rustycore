@@ -42,89 +42,8 @@ pub(in crate::session) fn creature_spell_target_is_valid_attack_target_like_cpp(
     spell_attributes: &[u32; 15],
     config: &LegacyCreatureAggroConfigLikeCpp,
 ) -> bool {
-    if !caster.unit().world().object().is_in_world()
-        || !victim.unit().world().object().is_in_world()
-        || !caster.unit().is_alive()
-        || !victim.unit().is_alive()
-        || victim.is_game_master_like_cpp()
-        || victim.unit().unit_state() & (UnitState::DIED | UnitState::IN_FLIGHT).bits() != 0
-        || !caster
-            .unit()
-            .can_see_or_detect_unit_like_cpp(victim.unit(), false, false, false)
-    {
-        return false;
-    }
-
-    let Some(faction_templates) = config.faction_template_store.as_deref() else {
-        return false;
-    };
-    let Ok(caster_faction_template_id) = u32::try_from(caster.unit().data().faction_template)
-    else {
-        return false;
-    };
-    let Ok(victim_faction_template_id) = u32::try_from(victim.unit().data().faction_template)
-    else {
-        return false;
-    };
-    let (Some(caster_faction_template), Some(victim_faction_template)) = (
-        faction_templates.get(caster_faction_template_id),
-        faction_templates.get(victim_faction_template_id),
-    ) else {
-        return false;
-    };
-
-    let mut victim_flags = victim.unit().unit_flags_like_cpp();
-    if spell_attributes[6] & 0x0100_0000 != 0 {
-        victim_flags.remove(UnitFlags::NON_ATTACKABLE_2);
-    }
-    let mut context = wow_entities::UnitAttackContextLikeCpp {
-        victim_is_game_master_player: victim.is_game_master_like_cpp(),
-        visibility_represented: true,
-        attacker_can_see_or_detect_target: true,
-        victim_unit_state: victim.unit().unit_state(),
-        attacker_unit_flags: caster.unit().unit_flags_like_cpp().bits(),
-        victim_unit_flags: victim_flags.bits(),
-        relation_represented: true,
-        attacker_is_hostile_to_victim: caster_faction_template
-            .is_hostile_to_like_cpp(victim_faction_template),
-        victim_is_hostile_to_attacker: victim_faction_template
-            .is_hostile_to_like_cpp(caster_faction_template),
-        attacker_is_friendly_to_victim: caster_faction_template
-            .is_friendly_to_like_cpp(victim_faction_template),
-        victim_is_friendly_to_attacker: victim_faction_template
-            .is_friendly_to_like_cpp(caster_faction_template),
-        victim_has_affecting_player: true,
-        ..Default::default()
-    };
-
-    let creature_faction_id = u32::from(caster_faction_template.faction);
-    if creature_faction_id != 0 {
-        if victim.has_forced_reputation_rank_like_cpp(creature_faction_id) {
-            // The canonical player currently retains only the presence of a
-            // forced reaction, not its rank. Its exact reaction is therefore
-            // unrepresented at this cast-time boundary.
-            return false;
-        }
-        let Some(factions) = config.faction_store.as_deref() else {
-            return false;
-        };
-        let Some(creature_faction) = factions.get(creature_faction_id) else {
-            return false;
-        };
-        if creature_faction.can_have_reputation_like_cpp()
-            && victim.has_reputation_state_like_cpp(creature_faction_id)
-        {
-            context.player_creature_reputation_represented = true;
-            context.creature_is_contested_guard =
-                caster_faction_template.is_contested_guard_faction_like_cpp();
-            context.player_has_contested_pvp_flag =
-                victim.has_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP);
-            context.player_at_war_with_creature_faction =
-                victim.is_at_war_with_faction_like_cpp(creature_faction_id);
-        }
-    }
-
-    wow_entities::Unit::is_valid_attack_target_represented_like_cpp(&context)
+    super::canonical_runtime::spell::catalogs::with_policies(config, |policies|
+        wow_map::map_manager::target_is_valid(caster, victim, spell_attributes, policies))
 }
 
 /// Resolve the effective `SpellRange` row C++ `Spell::GetMinMaxRange` reads.
@@ -179,61 +98,12 @@ pub(in crate::session) fn apply_turret_rejected_cast_attempt_like_cpp(
     attempt: &TurretRejectedCastAttemptLikeCpp,
     config: &LegacyCreatureAggroConfigLikeCpp,
 ) -> bool {
-    let Ok(manager) = canonical_map_manager.lock() else {
-        return false;
-    };
-    // Same canonical -> legacy lock order the cast validation path uses.
-    let mut legacy_guard = legacy_map_manager
-        .write()
-        .unwrap_or_else(|poisoned| poisoned.into_inner());
-    let Some(legacy_caster) =
-        legacy_guard.find_creature(attempt.map_id, attempt.instance_id, attempt.caster_guid)
-    else {
-        return false;
-    };
-    if !legacy_caster.is_alive()
-        || legacy_caster.state() != wow_entities::CreatureAiState::InCombat
-        || legacy_caster.creature.ai_ownership().combat_target != Some(attempt.target_guid)
-        || legacy_caster.creature_spell_engagement_epoch_like_cpp() != attempt.engagement_epoch
-    {
-        return false;
-    }
-    let Some(range) =
-        creature_ai_effective_spell_range_like_cpp(attempt.spell_id, attempt.difficulty_id, config)
-    else {
-        return false;
-    };
-    let Some(managed) = manager.find_map(u32::from(attempt.map_id), attempt.instance_id) else {
-        return false;
-    };
-    let within_raw_combat_range = {
-        let map = managed.map();
-        let Some(caster) = map.creature_transform_vitals_snapshot_like_cpp(attempt.caster_guid)
-        else {
-            return false;
-        };
-        let Some(victim) = map.get_typed_player(attempt.target_guid) else {
-            return false;
-        };
-        if !caster.is_alive || !victim.unit().is_alive() {
-            return false;
-        }
-        let reach_sum =
-            caster.combat_reach.max(0.0) + victim.unit().world().combat_reach().max(0.0);
-        let turret_combat_maximum = range.range_max[0].max(0.0) + reach_sum;
-        let distance_sq = caster
-            .position
-            .distance_sq(&victim.unit().world().position());
-        distance_sq < turret_combat_maximum * turret_combat_maximum
-    };
-    if !within_raw_combat_range {
-        return false;
-    }
-    let Some(creature) =
-        legacy_guard.find_creature_mut(attempt.map_id, attempt.instance_id, attempt.caster_guid)
-    else {
-        return false;
-    };
-    creature.record_swing();
-    true
+    let action = wow_map::map_manager::SpellAction::TurretRejectedAttempt(wow_map::map_manager::SpellRejectedAttempt {
+        caster_guid: attempt.caster_guid, target_guid: attempt.target_guid, map_id: attempt.map_id,
+        instance_id: attempt.instance_id, engagement_epoch: attempt.engagement_epoch,
+        spell_id: attempt.spell_id, difficulty_id: attempt.difficulty_id,
+    });
+    super::canonical_runtime::spell::legacy::consume_action(canonical_map_manager, legacy_map_manager,
+        action, config, &mut super::RuntimePlan::default())
+        .is_some_and(|outcome| outcome.turret_rejected_attempt_swings != 0)
 }

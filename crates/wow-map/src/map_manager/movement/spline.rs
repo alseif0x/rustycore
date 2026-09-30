@@ -1,7 +1,6 @@
 //! Spline operations of movement.
 //!
-//! Divided out of the single inherent impl under #705; every method keeps
-//! its name, signature and body.
+//! Spline launch operations shared by synchronous and staged movement.
 
 use super::*;
 
@@ -26,7 +25,7 @@ impl WorldCreature {
     }
 
     pub fn movement_finished(&self) -> bool {
-        if let Some(spline) = &self.active_move_spline {
+        if let Some(spline) = &self.runtime.active_move_spline {
             return spline.finalized();
         }
         self.creature
@@ -88,14 +87,14 @@ impl WorldCreature {
         }
         let spline_id = init.args.spline_id;
         let active_spline_position = self
-            .active_move_spline
+            .runtime.active_move_spline
             .as_ref()
             .filter(|spline| !spline.finalized() && !spline.on_transport)
             .and_then(MoveSpline::compute_position);
 
         let now_ms = self.runtime_elapsed_ms_like_cpp();
         let mut spline = self
-            .active_move_spline
+            .runtime.active_move_spline
             .take()
             .unwrap_or_else(MoveSpline::new);
         let launch = init
@@ -140,7 +139,7 @@ impl WorldCreature {
             .unit_mut()
             .add_unit_state(UnitState::ROAMING_MOVE.bits());
         self.apply_launch_movement_flags_like_cpp(launch.movement_flags);
-        self.active_move_spline = Some(spline.clone());
+        self.runtime.active_move_spline = Some(spline.clone());
         Some((launch.real_position, spline))
     }
 
@@ -287,6 +286,13 @@ impl WorldCreature {
             force_destination,
             terrain,
         );
+        self.begin_random_move_spline_with_path(path)
+    }
+
+    pub(super) fn begin_random_move_spline_with_path(
+        &mut self,
+        path: PathGenerator,
+    ) -> Option<(Position, MoveSpline, Option<PathGenerator>)> {
         if path
             .path_type()
             .intersects(PathType::NOPATH | PathType::SHORTCUT)
@@ -306,7 +312,7 @@ impl WorldCreature {
         let spline_id = self.spline_id().saturating_add(1);
         let current = self.position();
         let active_spline_position = self
-            .active_move_spline
+            .runtime.active_move_spline
             .as_ref()
             .filter(|spline| !spline.finalized() && !spline.on_transport)
             .and_then(MoveSpline::compute_position);
@@ -317,7 +323,7 @@ impl WorldCreature {
 
         let now_ms = self.runtime_elapsed_ms_like_cpp();
         let mut spline = self
-            .active_move_spline
+            .runtime.active_move_spline
             .take()
             .unwrap_or_else(MoveSpline::new);
         let launch = init
@@ -355,12 +361,12 @@ impl WorldCreature {
                 None,
             );
         self.apply_launch_movement_flags_like_cpp(launch.movement_flags);
-        self.active_move_spline = Some(spline.clone());
+        self.runtime.active_move_spline = Some(spline.clone());
         Some((launch.real_position, spline))
     }
 
     pub fn update_move_spline_like_cpp(&mut self) -> bool {
-        let Some(mut spline) = self.active_move_spline.take() else {
+        let Some(mut spline) = self.runtime.active_move_spline.take() else {
             return self.movement_finished();
         };
 
@@ -397,13 +403,13 @@ impl WorldCreature {
                 .unit_mut()
                 .clear_unit_state(UnitState::ROAMING_MOVE.bits());
         } else {
-            self.active_move_spline = Some(spline);
+            self.runtime.active_move_spline = Some(spline);
         }
         finalized
     }
 
     pub fn stop_move_spline_like_cpp(&mut self) -> Option<MoveSplineStopResult> {
-        let mut spline = self.active_move_spline.take()?;
+        let mut spline = self.runtime.active_move_spline.take()?;
         if spline.finalized() {
             return None;
         }
@@ -451,7 +457,7 @@ impl WorldCreature {
             self.creature.set_ai_position(dst);
         }
         self.creature.ai_ownership_mut().move_duration_ms = 0;
-        self.active_move_spline = None;
+        self.runtime.active_move_spline = None;
         self.creature
             .unit_mut()
             .subsystems_mut()

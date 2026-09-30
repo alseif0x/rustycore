@@ -735,6 +735,9 @@ pub struct MapManager {
     pub(super) next_map_incarnation_like_cpp: u64,
     pub(super) tick_coordination_like_cpp: MapTickCoordinationStateLikeCpp,
     pub(super) next_tick_epoch_like_cpp: u64,
+    pub(super) tick_origin: Arc<()>,
+    pub(super) active_respawn: Option<actor_respawn::RespawnOperation>,
+    pub(super) respawn_cursor: Option<(u64, usize)>,
 }
 
 /// Where one canonical map tick is between its split and its resumption.

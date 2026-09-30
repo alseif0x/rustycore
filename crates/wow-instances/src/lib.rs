@@ -11,7 +11,7 @@ use std::{
 };
 
 use wow_core::{ObjectGuid, guid::HighGuid};
-use wow_data::{DungeonEncounterEntry, DungeonEncounterStore};
+use wow_data_model::dungeon_encounter::DungeonEncounterEntry;
 use wow_persistence::{InstanceLockPersistenceMutationLikeCpp, InstanceLockPersistencePlanLikeCpp};
 
 pub use wow_persistence::{

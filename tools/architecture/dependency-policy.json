@@ -5,6 +5,7 @@
       "wow-util-collections",
       "wow-constants",
       "wow-core",
+      "wow-data-model",
       "wow-math",
       "wow-module-api",
       "wow-persistence",
@@ -100,6 +101,11 @@
     ],
     "wow-data": [
       "wow-constants",
+      "wow-core",
+      "wow-data-model"
+    ],
+    "wow-data-model": [
+      "wow-constants",
       "wow-core"
     ],
     "wow-network": [
@@ -110,7 +116,8 @@
     ],
     "wow-packet": [
       "wow-constants",
-      "wow-core"
+      "wow-core",
+      "wow-data-model"
     ],
     "wow-session": [
       "wow-network",
@@ -118,42 +125,6 @@
     ]
   },
   "exceptions": [
-    {
-      "from": "wow-anticheat",
-      "to": "wow-packet",
-      "tracking_issue": 584,
-      "reason": "The anticheat domain still consumes transport packet shapes directly."
-    },
-    {
-      "from": "wow-data",
-      "to": "wow-entities",
-      "tracking_issue": 584,
-      "reason": "Static-data rows still reuse mutable entity-domain types."
-    },
-    {
-      "from": "wow-data",
-      "to": "wow-movement",
-      "tracking_issue": 584,
-      "reason": "Static-data loaders still reuse movement runtime types."
-    },
-    {
-      "from": "wow-instances",
-      "to": "wow-data",
-      "tracking_issue": 584,
-      "reason": "Instance state still reads concrete static-data stores."
-    },
-    {
-      "from": "wow-packet",
-      "to": "wow-loot",
-      "tracking_issue": 584,
-      "reason": "Wire packet models still reuse loot-domain values."
-    },
-    {
-      "from": "wow-packet",
-      "to": "wow-movement",
-      "tracking_issue": 584,
-      "reason": "Wire packet models still reuse movement-domain values."
-    },
     {
       "from": "wow-world",
       "to": "wow-config",
@@ -195,32 +166,6 @@
       "to": "wow-session",
       "tracking_issue": 584,
       "reason": "#297 earned a transport-only kernel and #378 kept application/gameplay adapters outside it. wow-world consuming that kernel is an intended application-to-adapter relationship; wow-session retains its exact wow-network/wow-packet allowlist and may not gain gameplay, map, database or catalog dependencies. #584 owns the remaining kernel/application boundary decision after complete consumer migration. Concrete transport types need ports only if a real boundary requires them, not to erase this exception or force an application-layer reclassification. #153 verifies the decision without implementing a new abstraction."
-    },
-    {
-      "from": "wow-progression",
-      "to": "wow-data",
-      "tracking_issue": 584,
-      "reason": "The reputation domain still reads concrete static-data stores (reputation rank tables and progression rewards) instead of receiving them as injected DTOs. The edge exists because the catalogs are the authority for rank thresholds; retiring it belongs to the B-phase rules extraction that injects catalog views, as #584 tracks."
-    },
-    {
-      "from": "wow-progression",
-      "to": "wow-packet",
-      "tracking_issue": 584,
-      "reason": "The reputation domain still builds its reputation-list presentation packets directly. The edge is presentation debt, not state ownership: the rank math and faction state are the domain's, and the retirement condition is moving packet construction behind the application adapter (B-phase rules extraction), as #584 tracks."
-    },
-    {
-      "from": "wow-packet",
-      "to": "wow-entities",
-      "kind": "normal",
-      "tracking_issue": 584,
-      "reason": "The creature CREATE projection lives in the domain crate so the map manager can hold it without depending on the wire crate; the wire crate consumes it to encode, which is the correct direction of the dependency and removes the last domain-runtime -> adapter-platform edge of the B6 map_manager extraction. The alternative is a duplicated mirror of the struct, which the structure standard forbids."
-    },
-    {
-      "from": "wow-map",
-      "to": "wow-data",
-      "kind": "normal",
-      "tracking_issue": 584,
-      "reason": "The map manager still resolves its area table through the concrete static-data store and reads one spell-aura constant. Replacing both with a map-owned lookup view is part of the remaining 584:C4 semantic separation."
     }
   ],
   "external_dependencies": {
@@ -286,10 +231,15 @@
         ],
         "build": []
       },
+      "wow-data-model": {
+        "normal": [],
+        "build": []
+      },
       "wow-entities": {
         "normal": [
           "bitflags",
-          "num-traits"
+          "num-traits",
+          "tokio"
         ],
         "build": []
       },
@@ -415,13 +365,6 @@
       }
     },
     "exceptions": [
-      {
-        "from": "wow-loot",
-        "to": "tokio",
-        "kind": "normal",
-        "tracking_issue": 584,
-        "reason": "Loot authority still exposes Tokio watch-based asynchronous coordination from a domain/runtime crate."
-      },
       {
         "from": "wow-world",
         "to": "tokio",

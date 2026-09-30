@@ -144,7 +144,8 @@ pub fn snap_respawn_creature_to_ground_like_cpp(
 
 /// A creature waiting to respawn after its corpse despawned.
 ///
-/// Owned by `MapInstance::respawn_queue`; processed by `tick_creatures_sync`.
+/// Owned by the tagged RespawnStore Actor slot; processed by the existing
+/// legacy wrapper until prepared canonical transport is activated.
 /// C++ refs: `Creature::RemoveCorpse` / `AllLootRemovedFromCorpse` schedule a
 /// map-owned `RespawnInfo`, and `Map::ProcessRespawns` later calls
 /// `DoRespawn(SPAWN_TYPE_CREATURE, spawnId, gridId)`.
@@ -311,9 +312,9 @@ pub fn pending_respawn_from_world_creature_like_cpp(
         max_dmg: creature.max_dmg(),
         combat_log_stats: creature.creature.combat_log_stats_like_cpp(),
         spell_hit_aura_source_authority_like_cpp: creature
-            .respawn_spell_hit_aura_source_authority_like_cpp,
+            .runtime.respawn_spell_hit_aura_source_authority_like_cpp,
         spell_cast_log_aura_source_authority_like_cpp: creature
-            .respawn_spell_cast_log_aura_source_authority_like_cpp,
+            .runtime.respawn_spell_cast_log_aura_source_authority_like_cpp,
         aggro_radius: creature.creature.ai_ownership().aggro_radius,
         wander_distance: creature.creature.ai_ownership().wander_radius.max(0.0),
         flags_extra: creature.creature.lifecycle_metadata().flags_extra,

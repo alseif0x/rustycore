@@ -1,6 +1,43 @@
 use super::*;
 use wow_entities::AccessorObjectKind;
 
+pub(super) struct ObjectUpdateContinuation {
+    diff_ms: u32,
+    nearby_object_plan: Option<crate::map::ObjectUpdatePlan>,
+    now_secs: i64,
+    actor_workset: Option<Vec<(ObjectGuid, crate::map::CreatureActorWitness)>>,
+}
+
+impl ObjectUpdateContinuation {
+    pub(super) const fn effective_diff_ms(&self) -> u32 {
+        self.diff_ms
+    }
+
+    /// Start the actor family lazily. The adjacent compatibility wrapper never
+    /// reads this workset. NearbyCells retains its admitted plan's exact order;
+    /// WholeTypedStores uses the existing loaded-cell Creature selection at the
+    /// actual actor start, not a global or legacy actor enumeration.
+    pub(super) fn actor_workset(
+        &mut self,
+        map: &Map,
+    ) -> &[(ObjectGuid, crate::map::CreatureActorWitness)] {
+        if self.actor_workset.is_none() {
+            let guids = match &self.nearby_object_plan {
+                Some(plan) => plan.update_guids.iter().copied().collect(),
+                None => map.admitted_creature_guids_like_cpp(),
+            };
+            self.actor_workset = Some(guids.into_iter().filter_map(|guid| {
+                map.creature_actor_witness(guid).map(|witness| (guid, witness))
+            }).collect());
+        }
+        self.actor_workset.as_deref().expect("actor workset was initialized")
+    }
+}
+
+#[cfg(test)]
+#[path = "actor_tick_access/selection_tests.rs"]
+mod actor_selection_tests;
+
 impl ManagedMap {
     pub(super) fn update_after_sessions_with_creature_owner_and_selection_like_cpp<L>(
         &mut self,
@@ -12,6 +49,16 @@ impl ManagedMap {
     ) where
         L: FnMut(&mut Map, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
     {
+        let continuation = self.prepare_object_update(diff_ms, object_update_selection);
+        self.run_creature_phase(&continuation, creature_update_owner);
+        self.finish_object_update(continuation, pool_update, load_record);
+    }
+
+    pub(super) fn prepare_object_update(
+        &mut self,
+        diff_ms: u32,
+        object_update_selection: MapObjectUpdateSelectionLikeCpp,
+    ) -> ObjectUpdateContinuation {
         let nearby_object_plan = match object_update_selection {
             MapObjectUpdateSelectionLikeCpp::WholeTypedStores => None,
             MapObjectUpdateSelectionLikeCpp::NearbyCells => Some(
@@ -43,13 +90,29 @@ impl ManagedMap {
             self.runtime.map.update_dynamic_objects_like_cpp(diff_ms)
         };
         let now_secs = game_time_now_secs_i64();
+        ObjectUpdateContinuation {
+            diff_ms,
+            nearby_object_plan,
+            now_secs,
+            actor_workset: None,
+        }
+    }
+
+    pub(super) fn run_creature_phase(
+        &mut self,
+        continuation: &ObjectUpdateContinuation,
+        creature_update_owner: MapCreatureUpdateOwnerLikeCpp,
+    ) {
+        let diff_ms = continuation.diff_ms;
+        let nearby_object_plan = &continuation.nearby_object_plan;
+        let now_secs = continuation.now_secs;
         self.last_creature_update_owner = creature_update_owner;
         // Partial C++ ObjectUpdater seam: after DynamicObject, visit only the
         // represented map-owned Creature family in this slice. Default context is
         // honest represented runtime only: no real AI/combat/threat/fanout.
         self.last_creatures_update_summary = match creature_update_owner {
             MapCreatureUpdateOwnerLikeCpp::CanonicalMap => {
-                if let Some(plan) = &nearby_object_plan {
+                if let Some(plan) = nearby_object_plan {
                     let guids = plan
                         .update_guids
                         .iter()
@@ -88,6 +151,22 @@ impl ManagedMap {
                 CreatureUpdateSummaryLikeCpp::default()
             }
         };
+    }
+
+    pub(super) fn finish_object_update<L>(
+        &mut self,
+        continuation: ObjectUpdateContinuation,
+        pool_update: Option<(&SpawnStore, &PoolMgrLikeCpp)>,
+        load_record: Option<&mut L>,
+    ) where
+        L: FnMut(&mut Map, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
+    {
+        let ObjectUpdateContinuation {
+            diff_ms,
+            nearby_object_plan,
+            now_secs,
+            actor_workset: _,
+        } = continuation;
         // C++ Unit::Update advances timed PvP combat references for both
         // players and creatures. The canonical map owns both sides here, so
         // expire them once per map tick and purge the reciprocal relation.

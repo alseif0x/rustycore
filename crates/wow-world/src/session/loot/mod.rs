@@ -5,3 +5,6 @@
 use super::*;
 
 mod operations;
+mod creature_owner;
+mod gameobject_owner;
+mod authority_reconciliation;

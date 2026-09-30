@@ -26,15 +26,14 @@ impl MapInstance {
     // ── Respawn queue (Slice 4A.2a) ───────────────────────────────────────────
     //
     // Mirrors `Map::_respawnTimes` (Map.h:748-750) ownership model.
-    // The queue is a plain `Vec`; heap/SpawnId convergence is deferred.
+    // The shared tagged owner retains the legacy exact-Instant Actor lane.
 
     pub fn remove_persisted_respawn_time_like_cpp(
         &mut self,
         object_type: SpawnObjectType,
         spawn_id: u64,
     ) -> Option<PersistedRespawnRowLikeCpp> {
-        self.persisted_respawn_times
-            .remove(&(object_type, spawn_id))
+        self.respawn_store.remove_saved_row(object_type, spawn_id)
     }
 }
 
@@ -110,3 +109,11 @@ mod point_and_effects;
 mod random_and_waypoint;
 mod spline;
 mod terrain;
+mod step;
+mod pending;
+
+pub use self::step::{CreatureMovementSource, CreatureMovementStep};
+pub(crate) use self::pending::step_pending::{
+    StepGridHeightContinuation, StepPathContinuation, StepPending, StepProgress,
+    StepStaticHeightContinuation,
+};

@@ -4,12 +4,11 @@
 //! Collection adapter: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{AccountMount, AccountMountUpdate, HeirloomEntry, TOY_FLAG_FAVORITE_LIKE_CPP};
-use super::{TOY_FLAG_HAS_FANFARE_LIKE_CPP, WorldSession};
+use super::{AccountMount, AccountMountUpdate, HeirloomEntry, WorldSession};
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedTransmogCriteriaEvent {
+pub enum RepresentedTransmogCriteriaEvent {
     LearnAnyTransmogInSlot {
         equipment_slot: u32,
         item_modified_appearance_id: u32,
@@ -19,31 +18,9 @@ pub(crate) enum RepresentedTransmogCriteriaEvent {
     },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub(crate) struct AccountItemAppearanceSavePlanLikeCpp {
-    pub(crate) appearance_blocks: Vec<(u32, u32)>,
-    pub(crate) favorite_inserts: Vec<u32>,
-    pub(crate) favorite_deletes: Vec<u32>,
-}
-
-impl AccountItemAppearanceSavePlanLikeCpp {
-    pub(crate) fn is_empty(&self) -> bool {
-        self.appearance_blocks.is_empty()
-            && self.favorite_inserts.is_empty()
-            && self.favorite_deletes.is_empty()
-    }
-}
-
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub(crate) struct AccountTransmogIllusionSavePlanLikeCpp {
-    pub(crate) illusion_blocks: Vec<(u32, u32)>,
-}
-
-impl AccountTransmogIllusionSavePlanLikeCpp {
-    pub(crate) fn is_empty(&self) -> bool {
-        self.illusion_blocks.is_empty()
-    }
-}
+pub(crate) use wow_entities::{
+    AccountItemAppearanceSavePlanLikeCpp, AccountTransmogIllusionSavePlanLikeCpp,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct AccountMountSaveRowLikeCpp {
@@ -67,27 +44,17 @@ pub(crate) struct AccountHeirloomSaveRowLikeCpp {
     pub(crate) flags: u32,
 }
 
-pub(in crate::session) const DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP: [u32; 7] = [
-    3,  // Lifestealing
-    13, // Crusader
-    22, // Striking
-    23, // Agility
-    34, // Hide Weapon Enchant
-    43, // Beastslayer
-    44, // Titanguard
-];
+pub(in crate::session) use wow_entities::DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP;
 
 pub(in crate::session) fn heirloom_bonus_for_flags_like_cpp(
     heirloom: &HeirloomEntry,
     flags: u32,
 ) -> u32 {
-    for upgrade_level in (0..heirloom.upgrade_item_id.len()).rev() {
-        if flags & (1_u32 << upgrade_level) != 0 {
-            return u32::from(heirloom.upgrade_item_bonus_list_id[upgrade_level]);
-        }
-    }
-
-    0
+    wow_entities::PlayerCollectionStateLikeCpp::heirloom_bonus_for_flags(
+        &heirloom.upgrade_item_id,
+        &heirloom.upgrade_item_bonus_list_id,
+        flags,
+    )
 }
 
 impl WorldSession {
@@ -105,7 +72,7 @@ impl WorldSession {
 
     /// Collect the session's represented collection fields into the canonical
     /// collection state, as C++ hands the loaded `CollectionMgr` to the Player.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn represented_player_collection_state_like_cpp(
         &self,
     ) -> wow_entities::PlayerCollectionStateLikeCpp {
@@ -227,7 +194,7 @@ impl WorldSession {
     /// C++ `CollectionMgr::ToyClearFanfare`.
     pub(crate) fn toy_clear_fanfare_like_cpp(&mut self, item_id: u32) -> bool {
         self.mutate_player_collection_state_like_cpp(|collections| {
-            collections.update_toy_flags_like_cpp(item_id, 0, TOY_FLAG_HAS_FANFARE_LIKE_CPP)
+            collections.clear_toy_fanfare(item_id)
         })
         .unwrap_or(false)
     }
@@ -235,11 +202,7 @@ impl WorldSession {
     /// C++ `CollectionMgr::ToySetFavorite`.
     pub(crate) fn toy_set_favorite_like_cpp(&mut self, item_id: u32, favorite: bool) -> bool {
         self.mutate_player_collection_state_like_cpp(|collections| {
-            if favorite {
-                collections.update_toy_flags_like_cpp(item_id, TOY_FLAG_FAVORITE_LIKE_CPP, 0)
-            } else {
-                collections.update_toy_flags_like_cpp(item_id, 0, TOY_FLAG_FAVORITE_LIKE_CPP)
-            }
+            collections.set_toy_favorite(item_id, favorite)
         })
         .unwrap_or(false)
     }

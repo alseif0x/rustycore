@@ -9,8 +9,9 @@ impl WorldSession {
     /// Push a `PendingRespawn` into the shared map's respawn queue.
     ///
     /// The registration bootstrap still defaults to instance `0`; live removal/mutation
-    /// follows the canonical Player instance. The canonical respawn store
-    /// (`wow_map::RespawnStoreLikeCpp`) is a separate step.
+    /// follows the canonical Player instance. Legacy and canonical Map temporarily
+    /// hold separate instances of the same tagged store. Production ownership
+    /// remains split until quiescent transport retires the legacy instance.
     /// Lock is acquired, respawn is pushed, then lock is released before returning.
     /// No `.await` is performed under lock.
     pub(crate) fn push_map_respawn_like_cpp(

@@ -42,7 +42,7 @@ pub fn plan_threshold_quest_objective_changes_like_cpp<'a>(
         })
         .flat_map(|status| {
             let quest = quest_by_id(status.quest_id)?;
-            Some(quest.objectives.iter().filter_map(move |objective| {
+            Some(quest.objectives().iter().filter_map(move |objective| {
                 if objective.obj_type != objective_type || objective.object_id != object_id {
                     return None;
                 }

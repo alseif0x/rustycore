@@ -499,3 +499,4 @@ mod scenarios_1;
 mod scenarios_2;
 mod scenarios_3;
 mod scenarios_4;
+mod staged_object_tick;

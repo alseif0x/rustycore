@@ -42,7 +42,7 @@ fn spell_effect_summon_object_wild_creates_spell_go_without_owner_like_cpp() {
     let guid = outcome.guid.unwrap();
     let gameobject = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(gameobject.owner_guid(), ObjectGuid::EMPTY);
     assert_eq!(gameobject.spell_id(), 4822510);
@@ -52,7 +52,7 @@ fn spell_effect_summon_object_wild_creates_spell_go_without_owner_like_cpp() {
     assert!(!gameobject.spawned_by_default());
     let caster = map
         .map_object_record(caster_guid)
-        .and_then(MapObjectRecord::player)
+        .and_then(|record| record.player())
         .unwrap();
     assert!(
         caster
@@ -90,7 +90,7 @@ fn spell_effect_summon_object_wild_flagdrop_records_unrepresented_bg_branch_like
     assert_eq!(outcome.respawn_time_secs, Some(0));
     let gameobject = map
         .map_object_record(outcome.guid.unwrap())
-        .and_then(MapObjectRecord::game_object)
+        .and_then(|record| record.game_object())
         .unwrap();
     assert_eq!(gameobject.data().type_id, GAMEOBJECT_TYPE_FLAGDROP as i8);
     assert_eq!(gameobject.spell_id(), 4822610);

@@ -217,6 +217,13 @@ mod tests {
     #[test]
     fn app_composes_one_gossip_adapter_for_startup_and_runtime() {
         let source = include_str!("../app.rs");
+        let continuation = include_str!("../app/world_startup.rs");
+        let delegation = "world_startup::run_world_startup(";
+        assert_eq!(source.matches(delegation).count(), 1);
+        let delegation_position = source.find(delegation).unwrap();
+        assert_eq!(source[delegation_position..].split_once(".await").unwrap().0
+            .matches("&gossip_catalog_adapter,").count(), 1);
+        let persistence_source = include_str!("../app/session_persistence.rs");
         assert_eq!(
             source
                 .matches("MariaDbGossipCatalogPersistenceAdapterLikeCpp::new")
@@ -224,6 +231,52 @@ mod tests {
             1
         );
         assert!(source.contains("load_gossip_startup_catalog_like_cpp"));
-        assert!(source.contains("gossip_catalog_adapter.clone()"));
+        let load_call = "catalogs::gossip_startup::load_gossip_startup_catalog_like_cpp(";
+        let persistence_call = "session_persistence::build_session_persistence_ports(";
+        assert_eq!(source.matches(load_call).count(), 1);
+        assert_eq!(continuation.matches(persistence_call).count(), 1);
+        let adapter_position = source
+            .find("let gossip_catalog_adapter = Arc::new(")
+            .unwrap();
+        let load_position = source.find(load_call).unwrap();
+        let persistence_position = continuation.find(persistence_call).unwrap();
+        assert!(adapter_position < load_position && load_position < delegation_position);
+        let load_arguments = source[load_position..].split_once(".await").unwrap().0;
+        assert!(load_arguments.contains("gossip_catalog_adapter.as_ref()"));
+        let persistence_arguments = continuation[persistence_position..]
+            .split_once("\n    );")
+            .unwrap()
+            .0;
+        assert_eq!(
+            persistence_arguments.matches("gossip_catalog_adapter,").count(),
+            1
+        );
+        let persistence = persistence_source
+            .split_once("pub(super) fn build_session_persistence_ports(")
+            .unwrap()
+            .1;
+        let gossip_port = persistence
+            .split_once("let gossip_catalog_persistence_port: Arc<")
+            .unwrap()
+            .1
+            .split_once(';')
+            .unwrap()
+            .0;
+        assert!(gossip_port.contains("gossip_catalog_adapter.clone()"));
+        assert_eq!(
+            persistence.matches("gossip_catalog_adapter.clone()").count(),
+            1
+        );
+        let clone_position = persistence.find("gossip_catalog_adapter.clone()").unwrap();
+        let catalog_position = persistence
+            .find("CatalogPersistenceCapabilitiesLikeCpp::required_like_cpp(")
+            .unwrap();
+        assert!(clone_position < catalog_position);
+        assert_eq!(
+            persistence[catalog_position..]
+                .matches("gossip_catalog_persistence_port,")
+                .count(),
+            1
+        );
     }
 }

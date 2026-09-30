@@ -358,6 +358,40 @@ impl MapManager {
         visibility_range: f32,
         seer_phase_shift: Option<&PhaseShift>,
     ) -> Vec<WorldCreature> {
+        self.collect_visible_creatures_in_phase(
+            map_id, instance_id, x, y, z, visibility_range, seer_phase_shift, WorldCreature::clone,
+        )
+    }
+
+    /// Owned read facts; the caller releases its guard before reading Player.
+    pub fn get_visible_creature_facts_in_phase(
+        &self,
+        map_id: u16,
+        instance_id: u32,
+        x: f32,
+        y: f32,
+        z: f32,
+        visibility_range: f32,
+        seer_phase_shift: Option<&PhaseShift>,
+    ) -> Vec<crate::map::CreatureVisibilityCandidate> {
+        self.collect_visible_creatures_in_phase(
+            map_id, instance_id, x, y, z, visibility_range, seer_phase_shift,
+            WorldCreature::capture_visibility_candidate,
+        )
+    }
+
+    // One enumeration and filter order for both compatibility snapshots and facts.
+    fn collect_visible_creatures_in_phase<R>(
+        &self,
+        map_id: u16,
+        instance_id: u32,
+        x: f32,
+        y: f32,
+        z: f32,
+        visibility_range: f32,
+        seer_phase_shift: Option<&PhaseShift>,
+        mut capture: impl FnMut(&WorldCreature) -> R,
+    ) -> Vec<R> {
         let center_x = world_to_grid_x(x);
         let center_y = world_to_grid_y(y);
 
@@ -383,7 +417,7 @@ impl MapManager {
                         // with the canonical map visibility path.
                         let dist = Position::new(x, y, z, 0.0).distance_2d(&creature.position());
                         if dist <= visibility_range {
-                            creatures.push(creature.clone());
+                            creatures.push(capture(creature));
                         }
                     }
                 }

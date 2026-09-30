@@ -6,10 +6,6 @@
 //! GameObject summon and slot-replacement lifecycle.
 
 use super::*;
-use crate::map_rules::{
-    map_record_is_unit_like_gameobject_owner_like_cpp, map_record_unit_like_cpp,
-    map_record_unit_mut_like_cpp,
-};
 
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
 where
@@ -76,7 +72,7 @@ where
         }
         let summoner_is_player = summoner_record.kind() == AccessorObjectKind::Player;
         let summoner_is_unit_like =
-            map_record_is_unit_like_gameobject_owner_like_cpp(summoner_record);
+            summoner_record.is_unit_owner();
         let should_add_to_owner = summoner_is_player
             || (summoner_is_unit_like
                 && summon_type == GameObjectSummonTypeLikeCpp::TimedOrCorpseDespawn);
@@ -150,8 +146,8 @@ where
             game_object.set_owner_guid_like_cpp(summoner_guid);
             let mut registered_owned_gameobject = false;
             let mut creature_ai_callback_represented = false;
-            if let Some(record) = self.entity_world.get_mut(&summoner_guid) {
-                if let Some(owner) = map_record_unit_mut_like_cpp(record) {
+            if let Some(mut record) = self.entity_world.get_mut(&summoner_guid) {
+                if let Some(owner) = record.reborrow().unit_mut() {
                     owner
                         .subsystems_mut()
                         .control
@@ -251,10 +247,10 @@ where
     ) -> GameObjectPrepareOwnerSlotForSummonOutcomeLikeCpp {
         let owner_found_as_unit_like = self
             .map_object_record(owner_guid)
-            .is_some_and(map_record_is_unit_like_gameobject_owner_like_cpp);
+            .is_some_and(|record| record.is_unit_owner());
         let slot_guid_before = self
             .map_object_record(owner_guid)
-            .and_then(map_record_unit_like_cpp)
+            .and_then(|record| record.unit())
             .and_then(|owner| {
                 owner
                     .subsystems()
@@ -276,18 +272,18 @@ where
         if owner_found_as_unit_like && !slot_guid_before.is_empty() {
             gameobject_found = self
                 .map_object_record(slot_guid_before)
-                .and_then(MapObjectRecord::game_object)
+                .and_then(|record| record.game_object())
                 .is_some();
 
             if gameobject_found {
                 unit_pointer_owner_match = self
                     .map_object_record(slot_guid_before)
-                    .and_then(MapObjectRecord::game_object)
+                    .and_then(|record| record.game_object())
                     .is_some_and(|gameobject| gameobject.owner_guid() == owner_guid);
                 if let Some(gameobject) = self
                     .entity_world
                     .get_mut(&slot_guid_before)
-                    .and_then(MapObjectRecord::game_object_mut)
+                    .and_then(ObjectMut::game_object_mut)
                 {
                     if gameobject.spell_id() == spell_id {
                         gameobject.set_spell_id(0);
@@ -301,7 +297,7 @@ where
                     if let Some(gameobject) = self
                         .entity_world
                         .get_mut(&slot_guid_before)
-                        .and_then(MapObjectRecord::game_object_mut)
+                        .and_then(ObjectMut::game_object_mut)
                     {
                         gameobject.set_respawn_time(0);
                         respawn_time_cleared = true;
@@ -313,7 +309,7 @@ where
             if let Some(owner) = self
                 .entity_world
                 .get_mut(&owner_guid)
-                .and_then(map_record_unit_mut_like_cpp)
+                .and_then(|record| record.unit_mut())
             {
                 slot_cleared = owner
                     .subsystems_mut()
@@ -367,7 +363,7 @@ where
         let template_entry = template.entry;
         let Some(owner) = self
             .map_object_record(owner_guid)
-            .and_then(map_record_unit_like_cpp)
+            .and_then(|record| record.unit())
         else {
             return GameObjectSummonObjectForOwnerSlotOutcomeLikeCpp {
                 owner_guid,
@@ -474,8 +470,8 @@ where
 
         let mut registered_owned_gameobject = false;
         let mut creature_ai_callback_represented = false;
-        if let Some(record) = self.entity_world.get_mut(&owner_guid) {
-            if let Some(owner) = map_record_unit_mut_like_cpp(record) {
+        if let Some(mut record) = self.entity_world.get_mut(&owner_guid) {
+            if let Some(owner) = record.reborrow().unit_mut() {
                 owner
                     .subsystems_mut()
                     .control
@@ -532,7 +528,7 @@ where
             if let Some(owner) = self
                 .entity_world
                 .get_mut(&owner_guid)
-                .and_then(map_record_unit_mut_like_cpp)
+                .and_then(|record| record.unit_mut())
             {
                 if let Some(previous) = owner
                     .subsystems()
@@ -601,13 +597,13 @@ where
         let go_type = self
             .map_object_record(guid)
             .filter(|record| record.kind() == AccessorObjectKind::GameObject)
-            .and_then(MapObjectRecord::game_object)
+            .and_then(|record| record.game_object())
             .map(|game_object| game_object.data().type_id as u32)?;
 
         if let Some(game_object) = self
             .entity_world
             .get_mut(&guid)
-            .and_then(MapObjectRecord::game_object_mut)
+            .and_then(ObjectMut::game_object_mut)
         {
             // `GameObject::Delete` queues physical removal without calling
             // `ClearLoot`. Terminally detach only the async authority here:
@@ -624,7 +620,7 @@ where
         let (go_state_ready, flags_restored) = self
             .entity_world
             .get_mut(&guid)
-            .and_then(MapObjectRecord::game_object_mut)
+            .and_then(ObjectMut::game_object_mut)
             .map(|game_object| {
                 let go_state_ready = go_type != GAMEOBJECT_TYPE_TRANSPORT;
                 if go_state_ready {
@@ -682,4 +678,170 @@ where
             None => self.gameobject_delete_like_cpp(guid),
         }
     }
+fn gameobject_local_rotation_from_orientation_like_cpp(orientation: f32) -> [f32; 4] {
+    let half = orientation * 0.5;
+    [0.0, 0.0, half.sin(), half.cos()]
+}
+
+    /// Bounded map-owned body for C++ `Spell::EffectSummonObjectWild`.
+    ///
+    /// C++ anchors:
+    /// - `SpellEffects.cpp:2937-2971`: launch-only spell effect resolves the
+    ///   destination before this seam, creates a ready GameObject from
+    ///   `effectInfo->MiscValue`, inherits phase from `m_caster`, sets respawn
+    ///   seconds from positive duration, sets `SpellId`, executes the summon log,
+    ///   and calls `Map::AddToMap` without owner linkage.
+    /// - `SpellEffects.cpp:2973-2986`: flag-drop battleground state and linked
+    ///   trap phase/respawn/spell/log are runtime side effects after AddToMap.
+    ///
+    /// Scope: the caller supplies an already-resolved template, position,
+    /// duration and spell id. This helper does not load DB/templates, resolve
+    /// spell targets/GetClosePoint, inherit real phase masks, dispatch scripts,
+    /// send packets, update battleground state, or create/resolve linked traps.
+    pub fn spell_effect_summon_object_wild_like_cpp(
+        &mut self,
+        caster_guid: ObjectGuid,
+        spell_id: u32,
+        template: GameObjectTemplateLifecycleRecord,
+        position: Position,
+        duration_ms: i32,
+    ) -> SpellEffectSummonObjectWildOutcomeLikeCpp {
+        let template_entry = template.entry;
+        let Some(caster_record) = self.map_object_record(caster_guid) else {
+            return SpellEffectSummonObjectWildOutcomeLikeCpp {
+                caster_guid,
+                spell_id,
+                template_entry,
+                status: SpellEffectSummonObjectWildStatusLikeCpp::MissingCaster,
+                guid: None,
+                low_guid: None,
+                create_error: None,
+                add_to_map: None,
+                respawn_time_secs: None,
+                phase_inherit_represented: false,
+                execute_log_represented: false,
+                owner_linked: false,
+                flagdrop_type: false,
+                flagdrop_player_branch_reached: false,
+                flagdrop_battleground_update_represented: false,
+                linked_trap_guid: None,
+                linked_trap_side_effect_represented: false,
+            };
+        };
+        let caster_is_player = caster_record.kind() == AccessorObjectKind::Player;
+        let respawn_time_secs = if duration_ms > 0 {
+            duration_ms / 1_000
+        } else {
+            0
+        };
+        let flagdrop_type = template.go_type == GAMEOBJECT_TYPE_FLAGDROP;
+
+        let low_guid = match self.generate_low_guid_like_cpp(HighGuid::GameObject) {
+            Ok(low) => low,
+            Err(_) => {
+                return SpellEffectSummonObjectWildOutcomeLikeCpp {
+                    caster_guid,
+                    spell_id,
+                    template_entry,
+                    status: SpellEffectSummonObjectWildStatusLikeCpp::LowGuidUnavailable,
+                    guid: None,
+                    low_guid: None,
+                    create_error: None,
+                    add_to_map: None,
+                    respawn_time_secs: Some(respawn_time_secs),
+                    phase_inherit_represented: false,
+                    execute_log_represented: false,
+                    owner_linked: false,
+                    flagdrop_type,
+                    flagdrop_player_branch_reached: false,
+                    flagdrop_battleground_update_represented: false,
+                    linked_trap_guid: None,
+                    linked_trap_side_effect_represented: false,
+                };
+            }
+        };
+        let guid = ObjectGuid::create_world_object(
+            HighGuid::GameObject,
+            0,
+            1,
+            self.map_id as u16,
+            self.instance_id,
+            template_entry,
+            low_guid,
+        );
+        let record = GameObjectCreateLifecycleRecord {
+            guid,
+            map_id: self.map_id,
+            instance_id: self.instance_id,
+            position,
+            rotation: gameobject_local_rotation_from_orientation_like_cpp(position.orientation),
+            anim_progress: u8::MAX,
+            go_state: GoState::Ready,
+            art_kit: 0,
+            dynamic: true,
+            spawn_id: 0,
+            template,
+        };
+
+        let mut game_object = match GameObject::try_create_from_lifecycle(record) {
+            Ok(game_object) => game_object,
+            Err(error) => {
+                return SpellEffectSummonObjectWildOutcomeLikeCpp {
+                    caster_guid,
+                    spell_id,
+                    template_entry,
+                    status: SpellEffectSummonObjectWildStatusLikeCpp::CreateFailed,
+                    guid: Some(guid),
+                    low_guid: Some(low_guid),
+                    create_error: Some(error),
+                    add_to_map: None,
+                    respawn_time_secs: Some(respawn_time_secs),
+                    phase_inherit_represented: false,
+                    execute_log_represented: false,
+                    owner_linked: false,
+                    flagdrop_type,
+                    flagdrop_player_branch_reached: false,
+                    flagdrop_battleground_update_represented: false,
+                    linked_trap_guid: None,
+                    linked_trap_side_effect_represented: false,
+                };
+            }
+        };
+        game_object.set_respawn_time(i64::from(respawn_time_secs));
+        game_object.set_spell_id(spell_id);
+        let linked_trap_guid = game_object.linked_trap_guid_like_cpp();
+
+        let add_to_map = self
+            .add_map_object_record_to_map_like_cpp(
+                MapObjectRecord::new_game_object(game_object)
+                    .expect("GameObject lifecycle create must produce a typed GameObject record"),
+            )
+            .ok();
+        let execute_log_represented = add_to_map.is_some();
+
+        SpellEffectSummonObjectWildOutcomeLikeCpp {
+            caster_guid,
+            spell_id,
+            template_entry,
+            status: if execute_log_represented {
+                SpellEffectSummonObjectWildStatusLikeCpp::CreatedAddedToMap
+            } else {
+                SpellEffectSummonObjectWildStatusLikeCpp::AddToMapFailed
+            },
+            guid: Some(guid),
+            low_guid: Some(low_guid),
+            create_error: None,
+            add_to_map,
+            respawn_time_secs: Some(respawn_time_secs),
+            phase_inherit_represented: false,
+            execute_log_represented,
+            owner_linked: false,
+            flagdrop_type,
+            flagdrop_player_branch_reached: flagdrop_type && caster_is_player,
+            flagdrop_battleground_update_represented: false,
+            linked_trap_guid: (!linked_trap_guid.is_empty()).then_some(linked_trap_guid),
+            linked_trap_side_effect_represented: false,
+        }
+    }
+
 }

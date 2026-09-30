@@ -325,7 +325,7 @@ impl WorldSession {
             }
         };
         let quest_id: u32 = pkt.read_uint32().unwrap_or(0);
-        let choice = match WorldSession::read_quest_choice_item_like_cpp(&mut pkt) {
+        let choice = match wow_packet::packets::quest::read_quest_choice_item(&mut pkt) {
             Ok(choice) => choice,
             Err(error) => {
                 warn!(
@@ -416,8 +416,8 @@ impl WorldSession {
                 );
                 return;
             }
-            let valid = WorldSession::represented_reward_choice_matches_loaded_type_like_cpp(
-                &quest, choice,
+            let valid = quest.reward_choice_matches_loaded_type(
+                choice.loot_item_type, choice.item_id,
             ) || self.represented_quest_package_choice_matches_like_cpp(&quest, choice);
             if !valid {
                 warn!(

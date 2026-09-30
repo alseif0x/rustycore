@@ -36,25 +36,12 @@ impl WorldSession {
             .next_player_visible_aura_slot_like_cpp()
             .ok_or("No free aura slots or missing Player aura owner")?;
 
-        let aura = AuraApplication {
-            spell_id,
-            difficulty_id: self.current_map_difficulty_id_like_cpp(),
-            caster_guid,
-            slot,
-            duration_total: 0,
-            duration_remaining: 0,
-            stack_count: 1,
-            aura_flags: 0x0000_0001,
-            effect_mask: 1u32 << effect.effect_index,
-            aura_interrupt_flags: 0,
-            aura_interrupt_flags2: 0,
-            represented_effect: Some(RepresentedAuraEffectLikeCpp::Mounted),
-            represented_amount: mounted_amount,
-            represented_effect_amounts: represented_aura_effect_amounts_like_cpp(effect),
-            represented_misc_value: Some(effect.effect_misc_value_1),
-            represented_multiplier: 1.0,
-            applied_at: Instant::now(),
-        };
+        let aura = wow_entities::AuraSubsystem::build_mounted_runtime_application(
+            spell_id, caster_guid, slot, effect, mounted_amount, 
+            |effect| (effect.effect_index, effect.effect_base_points, effect.effect_misc_value_1),
+            || self.current_map_difficulty_id_like_cpp(),
+            Instant::now,
+        );
 
         if !self.set_player_mount_presentation_like_cpp(display_id, true) {
             return Err("Missing Player presentation owner");

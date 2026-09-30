@@ -221,7 +221,7 @@ where
                 && let (Some(respawn_time), Some(game_object)) = (
                     outcome.generic_respawn_scheduled_time,
                     self.map_object_record(outcome.game_object_guid)
-                        .and_then(MapObjectRecord::game_object),
+                        .and_then(|record| record.game_object()),
                 )
             {
                 let position = game_object.world().position();
@@ -321,7 +321,7 @@ where
             summary.visited += 1;
             let Some(context) = self
                 .map_object_record(guid)
-                .and_then(MapObjectRecord::scene_object)
+                .and_then(|record| record.scene_object())
                 .map(|scene_object| context_resolver(guid, scene_object))
             else {
                 let outcome = self.update_scene_object_like_cpp(

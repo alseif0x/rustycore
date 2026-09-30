@@ -165,38 +165,6 @@ fn party_member_reads_canonical_power_without_registry_republish_like_cpp() {
     assert!(info.is_ghost);
 }
 #[test]
-fn player_registry_publishes_home_group_party_type_like_cpp() {
-    let (mut session, _, _) = make_session();
-    let guid = ObjectGuid::create_player(1, 46);
-    let registry = Arc::new(PlayerRegistry::default());
-    let canonical = shared_canonical_map_manager();
-    assert!(registry.bind_canonical_map_manager(Arc::clone(&canonical)));
-    session.set_canonical_map_manager(Arc::clone(&canonical));
-    add_canonical_test_player_on_map(&canonical, guid, Position::new(1.0, 2.0, 3.0, 0.0), 571, 0);
-    let group_registry = Arc::new(GroupRegistry::default());
-    let position = Position::new(1.0, 2.0, 3.0, 0.0);
-    let group = GroupInfo::new(guid);
-    let group_guid = group.group_guid;
-    group_registry.register_group_like_cpp(group_guid, group);
-    session.set_player_guid(Some(guid));
-    session.set_player_map_position_like_cpp(571, position);
-    session.player_name = Some("PartyTypeTester".to_string());
-    session.group_guid = Some(group_guid);
-    session.set_player_registry(Arc::clone(&registry));
-    session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
-
-    session.register_in_player_registry();
-
-    let party_type = canonical_party_type_for_test(&canonical, guid);
-    assert_eq!(
-        party_type,
-        [
-            wow_social::group::GROUP_TYPE_NORMAL_LIKE_CPP,
-            wow_social::group::GROUP_TYPE_NONE_LIKE_CPP
-        ]
-    );
-}
-#[test]
 fn player_registry_publishes_party_member_vehicle_seat_id_like_cpp() {
     let (mut session, _, _) = make_session();
     let guid = ObjectGuid::create_player(1, 47);

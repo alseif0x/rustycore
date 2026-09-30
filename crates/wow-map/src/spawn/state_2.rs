@@ -21,11 +21,73 @@ impl PartialOrd for RespawnQueueKey {
     }
 }
 
-#[derive(Debug, Clone, Default)]
+mod actors;
+mod saved;
+mod phase;
+pub use phase::{ActorRespawnAttempt, ActorRespawnPhaseOutcome, ActorRespawnStatus};
+mod transport;
+mod reservations;
+pub use reservations::RespawnReserved;
+pub use actors::OwnedRespawn;
+pub use transport::{RespawnTransfer, RespawnTransferError};
+#[cfg(test)]
+mod tests;
+
+use crate::map_manager::{PendingRespawn, PersistedRespawnRowLikeCpp};
+use std::time::Instant;
+
+/// Persistent identities and transient GUID-low identities never alias.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum RespawnKey {
+    Persistent(SpawnObjectType, SpawnId),
+    TransientCreature(u64),
+}
+
+#[derive(Debug)]
+enum RespawnSlot {
+    SavedOnly(PersistedRespawnRowLikeCpp),
+    QueuedCatalog {
+        info: RespawnInfoLikeCpp,
+        row: Option<PersistedRespawnRowLikeCpp>,
+    },
+    QueuedActor {
+        // Captured runtime metadata is moved, never reconstructed from INFO.
+        // Its exact Instant is retained inside this immutable owned payload.
+        payload: Box<PendingRespawn>,
+        info: Option<RespawnInfoLikeCpp>,
+        row: Option<PersistedRespawnRowLikeCpp>,
+    },
+}
+
+impl RespawnSlot {
+    fn info(&self) -> Option<&RespawnInfoLikeCpp> {
+        match self {
+            Self::SavedOnly(_) => None,
+            Self::QueuedCatalog { info, .. } => Some(info),
+            Self::QueuedActor { info, .. } => info.as_ref(),
+        }
+    }
+
+    fn row(&self) -> Option<&PersistedRespawnRowLikeCpp> {
+        match self {
+            Self::SavedOnly(row) => Some(row),
+            Self::QueuedCatalog { row, .. } | Self::QueuedActor { row, .. } => row.as_ref(),
+        }
+    }
+}
+
+/// One slot and one executor per identity. Both temporary production owners
+/// (legacy MapInstance and canonical Map) use this definition; production has
+/// not become single-authority until quiescent transport retires the legacy rail.
+#[derive(Debug, Default)]
 pub struct RespawnStoreLikeCpp {
-    pub(super) creature_respawn_times_by_spawn_id: BTreeMap<SpawnId, RespawnInfoLikeCpp>,
-    pub(super) gameobject_respawn_times_by_spawn_id: BTreeMap<SpawnId, RespawnInfoLikeCpp>,
+    slots: BTreeMap<RespawnKey, RespawnSlot>,
+    // Derived indexes contain keys only, never payloads or second mutable rows.
     pub(super) respawn_times: BTreeSet<RespawnQueueKey>,
+    // Position is the ordinal; replacement removes then appends, like the old Vec.
+    actor_order: Vec<RespawnKey>,
+    // Operational keys only: payloads move into one owned continuation.
+    reserved: BTreeSet<RespawnKey>,
 }
 
 impl RespawnStoreLikeCpp {
@@ -43,13 +105,15 @@ impl RespawnStoreLikeCpp {
         if !Self::has_respawn_map_like_cpp(info.object_type) {
             return AddRespawnInfoOutcomeLikeCpp::RejectedUnsupportedType;
         }
+        assert!(!self.is_reserved(RespawnKey::Persistent(info.object_type, info.spawn_id)),
+            "use try_add_info for a reserved respawn key");
 
         let existing = self
             .get_respawn_info_like_cpp(info.object_type, info.spawn_id)
             .cloned();
         let replaced_existing = if let Some(existing) = existing {
             if info.respawn_time <= existing.respawn_time {
-                self.remove_respawn_time_like_cpp(info.object_type, info.spawn_id);
+                self.respawn_times.remove(&RespawnQueueKey::from_info(&existing));
                 true
             } else {
                 return AddRespawnInfoOutcomeLikeCpp::RejectedExistingSoonerOrEqual;
@@ -59,12 +123,20 @@ impl RespawnStoreLikeCpp {
         };
 
         self.respawn_times.insert(RespawnQueueKey::from_info(&info));
-        let Some(by_spawn_id) = self.map_mut_for_type_like_cpp(info.object_type) else {
-            self.respawn_times
-                .remove(&RespawnQueueKey::from_info(&info));
-            return AddRespawnInfoOutcomeLikeCpp::RejectedUnsupportedType;
-        };
-        by_spawn_id.insert(info.spawn_id, info);
+        let key = RespawnKey::Persistent(info.object_type, info.spawn_id);
+        match self.slots.remove(&key) {
+            Some(RespawnSlot::QueuedActor { payload, row, .. }) => {
+                self.slots.insert(key, RespawnSlot::QueuedActor {
+                    payload, row, info: Some(info),
+                });
+            }
+            previous => {
+                let row = previous.and_then(|slot| slot.row().copied());
+                // Ordinary addInfo is an explicit Catalog queue request, even
+                // when a JUST_DIED SavedOnly row already exists.
+                self.slots.insert(key, RespawnSlot::QueuedCatalog { info, row });
+            }
+        }
 
         if replaced_existing {
             AddRespawnInfoOutcomeLikeCpp::ReplacedExisting
@@ -87,8 +159,8 @@ impl RespawnStoreLikeCpp {
         object_type: SpawnObjectType,
         spawn_id: SpawnId,
     ) -> Option<&RespawnInfoLikeCpp> {
-        self.map_for_type_like_cpp(object_type)
-            .and_then(|map| map.get(&spawn_id))
+        self.slots.get(&RespawnKey::Persistent(object_type, spawn_id))
+            .and_then(RespawnSlot::info)
     }
 
     pub fn remove_respawn_time_like_cpp(
@@ -96,18 +168,26 @@ impl RespawnStoreLikeCpp {
         object_type: SpawnObjectType,
         spawn_id: SpawnId,
     ) -> Option<RespawnInfoLikeCpp> {
-        let info = self
-            .map_mut_for_type_like_cpp(object_type)
-            .and_then(|map| map.remove(&spawn_id))?;
+        let key = RespawnKey::Persistent(object_type, spawn_id);
+        if self.is_reserved(key) { return None; }
+        let info = self.slots.get(&key)?.info()?.clone();
+        match self.slots.remove(&key)? {
+            RespawnSlot::QueuedActor { payload, row, .. } => {
+                // Compatibility INFO deletion must not cancel the Actor rail.
+                self.slots.insert(key, RespawnSlot::QueuedActor { payload, row, info: None });
+            }
+            _ => {}
+        }
         self.respawn_times
             .remove(&RespawnQueueKey::from_info(&info));
         Some(info)
     }
 
     pub fn unload_all_respawn_infos_like_cpp(&mut self) {
-        self.respawn_times.clear();
-        self.creature_respawn_times_by_spawn_id.clear();
-        self.gameobject_respawn_times_by_spawn_id.clear();
+        let keys: Vec<_> = self.respawn_timer_keys_like_cpp().collect();
+        for (object_type, spawn_id) in keys {
+            self.remove_respawn_time_like_cpp(object_type, spawn_id);
+        }
     }
 
     pub fn respawn_timer_keys_like_cpp(
@@ -118,6 +198,15 @@ impl RespawnStoreLikeCpp {
             .map(|key| (key.object_type, key.spawn_id))
     }
 
+    /// Filter tags before the Unix due-head cutoff: Actor INFO remains visible
+    /// to guards/grids, but its executor uses the captured Instant and ordinal.
+    pub fn catalog_timer_keys(&self) -> impl Iterator<Item = (SpawnObjectType, SpawnId)> + '_ {
+        self.respawn_times.iter().filter(|key| matches!(
+            self.slots.get(&RespawnKey::Persistent(key.object_type, key.spawn_id)),
+            Some(RespawnSlot::QueuedCatalog { .. })
+        )).map(|key| (key.object_type, key.spawn_id))
+    }
+
     pub fn process_due_respawns_like_cpp(
         &mut self,
         now: i64,
@@ -126,7 +215,11 @@ impl RespawnStoreLikeCpp {
     ) -> Vec<ProcessRespawnActionLikeCpp> {
         let mut actions = Vec::new();
 
-        while let Some(next_key) = self.respawn_times.iter().next().copied() {
+        loop {
+            let Some((object_type, spawn_id)) = self.catalog_timer_keys().next() else { break; };
+            let next_key = RespawnQueueKey::from_info(
+                self.get_respawn_info_like_cpp(object_type, spawn_id).expect("indexed Catalog INFO")
+            );
             if now < next_key.respawn_time {
                 break;
             }
@@ -190,25 +283,4 @@ impl RespawnStoreLikeCpp {
         )
     }
 
-    pub(super) fn map_for_type_like_cpp(
-        &self,
-        object_type: SpawnObjectType,
-    ) -> Option<&BTreeMap<SpawnId, RespawnInfoLikeCpp>> {
-        match object_type {
-            SpawnObjectType::Creature => Some(&self.creature_respawn_times_by_spawn_id),
-            SpawnObjectType::GameObject => Some(&self.gameobject_respawn_times_by_spawn_id),
-            SpawnObjectType::AreaTrigger => None,
-        }
-    }
-
-    pub(super) fn map_mut_for_type_like_cpp(
-        &mut self,
-        object_type: SpawnObjectType,
-    ) -> Option<&mut BTreeMap<SpawnId, RespawnInfoLikeCpp>> {
-        match object_type {
-            SpawnObjectType::Creature => Some(&mut self.creature_respawn_times_by_spawn_id),
-            SpawnObjectType::GameObject => Some(&mut self.gameobject_respawn_times_by_spawn_id),
-            SpawnObjectType::AreaTrigger => None,
-        }
-    }
 }

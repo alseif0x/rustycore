@@ -28,6 +28,7 @@ wow-combat = { workspace = true }
 wow-conditions = { workspace = true }
 wow-progression = { workspace = true }
 wow-data = { workspace = true }
+wow-data-model = { workspace = true }
 wow-entities = { workspace = true }
 wow-network = { workspace = true }
 wow-loot = { workspace = true }
@@ -42,6 +43,7 @@ wow-session = { workspace = true }
 wow-instances = { workspace = true }
 wow-script = { workspace = true }
 wow-social = { workspace = true }
+wow-spell = { workspace = true }
 wow-spell-acquisition = { workspace = true }
 
 [dev-dependencies]

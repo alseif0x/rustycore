@@ -4,18 +4,9 @@
 //! Currency adapter: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{CurrencyTypesEntry, CurrencyTypesFlags, HashMap, PlayerCurrency, Team, WorldSession};
+use super::{CurrencyTypesEntry, HashMap, PlayerCurrency, Team, WorldSession};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct PlayerCurrencyDelta {
-    pub currency_id: u32,
-    pub quantity: u32,
-    pub amount: u32,
-    pub weekly_quantity: Option<u32>,
-    pub max_quantity: Option<u32>,
-    pub total_earned: Option<u32>,
-    pub suppress_chat_log: bool,
-}
+pub(crate) use wow_data_model::currency::CurrencyGainDelta as PlayerCurrencyDelta;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedQuestObjectiveProgressEventLikeCpp {
@@ -48,15 +39,7 @@ pub(in crate::session) fn currency_max_quantity_cpp(
     entry: &CurrencyTypesEntry,
     currency: &PlayerCurrency,
 ) -> u32 {
-    if !entry.has_max_quantity(false, false) {
-        return 0;
-    }
-
-    let mut max_quantity = entry.max_qty;
-    if entry.flags.contains(CurrencyTypesFlags::DYNAMIC_MAXIMUM) {
-        max_quantity = max_quantity.saturating_add(currency.increased_cap_quantity);
-    }
-    max_quantity
+    currency.max_quantity(entry)
 }
 
 impl WorldSession {

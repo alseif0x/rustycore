@@ -5,7 +5,17 @@ impl WorldSession {
     pub async fn handle_loot_money_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
+        pkt: wow_packet::WorldPacket,
+    ) {
+        self.consume_money_from_loot_views(item_guid_generator, pkt, LootCyclePolicy::Production)
+            .await;
+    }
+
+    pub(in crate::handlers::loot) async fn consume_money_from_loot_views(
+        &mut self,
+        item_guid_generator: &wow_core::ObjectGuidGenerator,
         mut pkt: wow_packet::WorldPacket,
+        policy: LootCyclePolicy,
     ) {
         let req = match LootMoney::read(&mut pkt) {
             Ok(r) => r,
@@ -26,10 +36,9 @@ impl WorldSession {
             "CMSG_LOOT_MONEY"
         );
 
-        let mut active_owners: Vec<ObjectGuid> =
-            self.active_loot_view_owners.iter().copied().collect();
-        if active_owners.is_empty() && !self.active_loot_guid.is_empty() {
-            active_owners.push(self.active_loot_guid);
+        let mut active_owners: Vec<ObjectGuid> = self.loot_views.owners().copied().collect();
+        if active_owners.is_empty() && !self.loot_views.primary_guid().is_empty() {
+            active_owners.push(self.loot_views.primary_guid());
         }
         active_owners.sort_by_key(|guid| (guid.high_value(), guid.low_value()));
 
@@ -66,7 +75,7 @@ impl WorldSession {
 
         for (loot_guid, loot_obj, money) in &money_by_loot {
             let owned_authority = self
-                .prepare_owned_loot_authority_for_active_request_like_cpp(*loot_guid, player_guid);
+                .prepare_active_loot_authority_with_policy(*loot_guid, player_guid, policy);
             let authority = owned_authority
                 .as_ref()
                 .filter(|authority| {
@@ -77,7 +86,7 @@ impl WorldSession {
                 .cloned();
             if authority.is_none()
                 && (loot_guid.is_creature_or_vehicle() || loot_guid.is_game_object())
-                && (owned_authority.is_some() || !represented_local_loot_fixture_allowed_like_cpp())
+                && (owned_authority.is_some() || !policy.permits_local_cache(owned_authority.is_some()))
             {
                 debug!(
                     owner = ?loot_guid,
@@ -97,10 +106,7 @@ impl WorldSession {
                 let _ = self.reconcile_represented_loot_cache_like_cpp(*loot_guid, player_guid);
                 self.ensure_represented_player_looting_like_cpp(*loot_guid, player_guid);
 
-                let Some(expected_generation) = self
-                    .active_loot_view_generations_like_cpp
-                    .get(loot_guid)
-                    .copied()
+                let Some(expected_generation) = self.loot_views.generation(loot_guid)
                 else {
                     continue;
                 };
@@ -355,7 +361,7 @@ impl WorldSession {
             // cache path exists only for pre-authority unit fixtures. Refuse
             // it in production so an unknown future owner type cannot publish
             // CoinRemoved or clear its pool before durable money succeeds.
-            if !represented_local_loot_fixture_allowed_like_cpp() {
+            if !policy.permits_local_cache(owned_authority.is_some()) {
                 debug!(
                     owner = ?loot_guid,
                     "non-authoritative loot-money fallback is disabled in production"

@@ -21,13 +21,13 @@ use wow_constants::{DeathState, TypeId, TypeMask, UnitStandStateType};
 use wow_core::{ObjectGuid, Position, guid::HighGuid};
 use wow_entities::{
     ACTIVE_PLAYER_DATA_COINAGE_BIT, AppliedAuraRef, Corpse, CorpseType, Creature,
-    CreatureAddToWorldVehicleResetContextLikeCpp, CreatureFormationInfoLikeCpp, GameObject,
-    GameObjectLootSource, GameObjectOwnedLoot, GooberUseSource, ObjectNotifyFlags, OwnedAuraRef,
-    PLAYER_DATA_INEBRIATION_BIT, Player, SPELL_AURA_INTERRUPT_FLAG_ENTER_WORLD_LIKE_CPP, Transport,
-    UNIT_DATA_STAND_STATE_BIT, VehicleAccessory, VehicleSeatAddon, VehicleSeatInfo,
-    VehicleSpellImmunity, VehicleSpellImmunityKind,
+    CreatureAddToWorldVehicleResetContextLikeCpp, CreatureFormationInfoLikeCpp, CreatureLoot,
+    GameObject, GameObjectLootSource, GameObjectOwnedLoot, GooberUseSource, LootClaimCommitError,
+    ObjectNotifyFlags, OwnedAuraRef, OwnedLootAuthorityLifecycle, PLAYER_DATA_INEBRIATION_BIT,
+    Player, SPELL_AURA_INTERRUPT_FLAG_ENTER_WORLD_LIKE_CPP, Transport, UNIT_DATA_STAND_STATE_BIT,
+    VehicleAccessory, VehicleSeatAddon, VehicleSeatInfo, VehicleSpellImmunity,
+    VehicleSpellImmunityKind,
 };
-use wow_loot::{CreatureLoot, LootClaimCommitError, OwnedLootAuthorityLifecycle};
 
 const GO_FLAG_MAP_OBJECT: u32 = 0x0010_0000;
 

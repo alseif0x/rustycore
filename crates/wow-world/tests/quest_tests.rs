@@ -12,8 +12,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use wow_world::handlers::quest::*;
-use wow_world::session::*;
+use wow_world::handlers::quest::PlayerQuestStatus;
+use wow_world::session::{InventoryItem, WorldSession};
 use wow_world::test_fixtures::*;
 use wow_world::test_fixtures::{
     PlayerQuestLoadStageFixtureLikeCpp, PlayerQuestPersistencePortFixtureLikeCpp,
@@ -74,6 +74,24 @@ use wow_persistence::{
 };
 use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
 
+#[path = "quest_tests/eligibility.rs"]
+mod eligibility;
+#[path = "quest_tests/item_mutations.rs"]
+mod item_mutations;
+#[path = "quest_tests/reputation.rs"]
+mod reputation;
+#[path = "quest_tests/controller_binding.rs"]
+mod controller_binding;
+#[path = "quest_tests/objective_credits.rs"]
+mod objective_credits;
+#[path = "quest_tests/reward_valuation_currency.rs"]
+mod reward_valuation_currency;
+
+#[path = "quest_tests/support.rs"]
+mod support;
+use support::{quest_template, quest_template_with_objective_count,
+    store_with_sharable_quest_objectives, store_with_sharable_timed_quest_objectives};
+
 #[path = "quest_tests/source_items.rs"]
 mod source_items;
 use source_items::{
@@ -91,20 +109,13 @@ use party::{
     install_confirm_accept_sender_snapshot, install_represented_party,
     set_canonical_party_reputation_like_cpp,
 };
-#[path = "quest_tests/catalog_persistence.rs"]
-mod catalog_persistence;
-use catalog_persistence::{
-    ItemTemplateAddonCatalogPortFixtureLikeCpp, QuestPoiPortFixtureLikeCpp,
-    quest_poi_blob_row_like_cpp,
-};
-
 /// The quest opcode registrations.
 ///
 /// #359 retired the dispatcher's match arms: an opcode is declared once, in
 /// its `PacketHandlerEntry`, which now carries the call as well as the
 /// admission metadata. These tests used to assert the arm and the registration
 /// separately; there is one side left to assert.
-const QUEST_HANDLER_REGISTRATIONS: &str = include_str!("../src/handlers/quest/handlers.rs");
+const QUEST_HANDLER_REGISTRATIONS: &str = include_str!("../src/handlers/quest/handlers/registrations.rs");
 
 fn make_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded(8);
@@ -141,78 +152,6 @@ fn quest_giver_cmsg_packet(guid: ObjectGuid, quest_id: u32, bit_byte: u8) -> Wor
     packet
 }
 
-fn quest_template(id: u32) -> QuestTemplate {
-    QuestTemplate {
-        id,
-        quest_type: 2,
-        quest_level: 1,
-        quest_max_scaling_level: 0,
-        quest_package_id: 0,
-        min_level: 1,
-        quest_sort_id: 0,
-        quest_info_id: 0,
-        suggested_group_num: 0,
-        reward_next_quest: 0,
-        reward_xp_difficulty: 0,
-        reward_xp_multiplier: 1.0,
-        reward_money_difficulty: 0,
-        reward_money_multiplier: 1.0,
-        reward_bonus_money: 0,
-        reward_display_spell: [0; QUEST_REWARD_DISPLAY_SPELL_COUNT],
-        reward_spell: 0,
-        reward_honor: 0,
-        reward_title_id: 0,
-        reward_skill_line_id: 0,
-        reward_skill_points: 0,
-        reward_mail_template_id: 0,
-        reward_mail_delay_secs: 0,
-        reward_mail_sender_entry: 0,
-        reward_faction_ids: [0; QUEST_REWARD_REPUTATIONS_COUNT],
-        reward_faction_values: [0; QUEST_REWARD_REPUTATIONS_COUNT],
-        reward_faction_overrides: [0; QUEST_REWARD_REPUTATIONS_COUNT],
-        reward_faction_cap_in: [0; QUEST_REWARD_REPUTATIONS_COUNT],
-        reward_faction_flags: 0,
-        source_item_id: 0,
-        source_item_count: 0,
-        source_spell_id: 0,
-        limit_time_secs: 0,
-        expansion: 0,
-        flags: 0,
-        flags_ex: 0,
-        flags_ex2: 0,
-        special_flags: 0,
-        event_id_for_quest: 0,
-        reward_items: [0; QUEST_REWARD_ITEM_COUNT],
-        reward_amounts: [0; QUEST_REWARD_ITEM_COUNT],
-        reward_currencies: [0; QUEST_REWARD_CURRENCY_COUNT],
-        reward_currency_amounts: [0; QUEST_REWARD_CURRENCY_COUNT],
-        item_drop: [0; QUEST_ITEM_DROP_COUNT],
-        item_drop_quantity: [0; QUEST_ITEM_DROP_COUNT],
-        log_title: format!("Quest {id}"),
-        log_description: String::new(),
-        quest_description: String::new(),
-        area_description: String::new(),
-        quest_completion_log: String::new(),
-        objectives: Vec::new(),
-        allowable_races: 0,
-        allowable_classes: 0,
-        max_level: 0,
-        prev_quest_id: 0,
-        next_quest_id: 0,
-        exclusive_group: 0,
-        breadcrumb_for_quest_id: 0,
-        dependent_previous_quests: Vec::new(),
-        dependent_breadcrumb_quests: Vec::new(),
-        required_min_rep_faction: 0,
-        required_min_rep_value: 0,
-        required_max_rep_faction: 0,
-        required_max_rep_value: 0,
-        required_skill_id: 0,
-        required_skill_points: 0,
-        reward_choice_items: [(0, 0); QUEST_REWARD_CHOICES_COUNT],
-        reward_choice_item_types: [0; QUEST_REWARD_CHOICES_COUNT],
-    }
-}
 
 fn quest_info_entry_like_cpp(id: u32, quest_type: i8, modifiers: i32) -> QuestInfoEntry {
     QuestInfoEntry {
@@ -252,42 +191,8 @@ fn adventure_map_start_quest_packet(quest_id: i32) -> WorldPacket {
     pkt
 }
 
-fn quest_template_with_objective_count(id: u32, objective_count: usize) -> QuestTemplate {
-    let mut quest = quest_template(id);
-    quest.objectives = (0..objective_count)
-        .map(|index| QuestObjective {
-            id: id * 10 + index as u32,
-            quest_id: id,
-            obj_type: 0,
-            order: index as u8,
-            storage_index: index as i8,
-            object_id: 1000 + index as i32,
-            amount: 1,
-            flags: 0,
-            flags2: 0,
-            progress_bar_weight: 0.0,
-            description: String::new(),
-        })
-        .collect();
-    quest
-}
 
-fn store_with_sharable_quest_objectives(id: u32, objective_count: usize) -> QuestStore {
-    let mut quest = quest_template_with_objective_count(id, objective_count);
-    quest.flags |= QUEST_FLAGS_SHARABLE_LIKE_CPP;
-    QuestStore::from_quests_like_cpp([quest])
-}
 
-fn store_with_sharable_timed_quest_objectives(
-    id: u32,
-    objective_count: usize,
-    limit_time_secs: i64,
-) -> QuestStore {
-    let mut quest = quest_template_with_objective_count(id, objective_count);
-    quest.flags |= QUEST_FLAGS_SHARABLE_LIKE_CPP;
-    quest.limit_time_secs = limit_time_secs;
-    QuestStore::from_quests_like_cpp([quest])
-}
 
 fn creature_guid(entry: u32, counter: i64) -> ObjectGuid {
     ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, entry, counter)
@@ -989,3 +894,13 @@ mod quest_7;
 mod reward_transaction;
 #[path = "quest_tests/spell.rs"]
 mod spell;
+#[path = "quest_tests/state.rs"]
+mod state;
+#[path = "quest_tests/persistence.rs"]
+mod persistence;
+#[path = "quest_tests/objectives.rs"]
+mod objectives;
+#[path = "quest_tests/directory_binding.rs"]
+mod directory_binding;
+#[path = "quest_tests/query_presentation.rs"]
+mod query_presentation;

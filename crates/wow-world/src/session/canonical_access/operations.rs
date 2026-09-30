@@ -10,6 +10,9 @@ impl WorldSession {
         &self,
         f: impl FnOnce(&mut Player) -> R,
     ) -> Option<R> {
+        if self.character_lifecycle_fixture_mode() && self.player_handle_like_cpp.is_some() {
+            return self.with_owned_player_mut_like_cpp(f);
+        }
         let guid = self.player_guid()?;
         self.mutate_canonical_player_by_guid_like_cpp(guid, f)
     }
@@ -45,8 +48,8 @@ impl WorldSession {
         &self,
         f: impl FnOnce(&Player) -> R,
     ) -> Option<R> {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             return self.canonical_player_snapshot_like_cpp(f);
         }
         self.with_owned_player_like_cpp(f)
@@ -55,8 +58,8 @@ impl WorldSession {
         &self,
         f: impl FnOnce(&mut Player) -> R,
     ) -> Option<R> {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             return self.mutate_canonical_player_like_cpp(f);
         }
         self.with_owned_player_mut_like_cpp(f)
@@ -94,9 +97,10 @@ impl WorldSession {
             if owned.is_some() {
                 return owned;
             }
-            #[cfg(not(test))]
-            return None;
-            #[cfg(test)]
+            if !self.character_lifecycle_handleless_fixture() {
+                return None;
+            }
+            #[cfg(any(test, feature = "test-fixtures"))]
             if self.player_handle_like_cpp.is_some() {
                 return None;
             }
@@ -134,7 +138,7 @@ impl WorldSession {
         });
         result
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn mutate_player_world_local_state_like_cpp<R>(
         &mut self,
         mutate: impl FnOnce(&mut wow_entities::PlayerWorldLocalState) -> R,
@@ -145,8 +149,8 @@ impl WorldSession {
                 &mut player.gameplay_state_mut().world_local,
             )
         });
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.character_lifecycle_handleless_fixture() {
             let mut state = self
                 .player_world_local_state_like_cpp()
                 .expect("handle-less fixture world-local state");
@@ -163,12 +167,20 @@ impl WorldSession {
         }
         canonical
     }
-    pub(in crate::session) fn set_player_zone_id_like_cpp(&mut self, zone_id: u32) -> bool {
+    /// Apply one represented zone-cache stage and its caller-snapshotted
+    /// `Unit::World` counterpart through one canonical Player mutation.
+    pub(in crate::session) fn set_player_zone_id_like_cpp(
+        &mut self,
+        zone_id: u32,
+        projection_area_id: u32,
+    ) -> bool {
         let canonical = self
-            .with_owned_player_mut_like_cpp(|player| player.set_zone_id_like_cpp(zone_id))
+            .with_owned_player_mut_like_cpp(|player| {
+                player.apply_represented_zone_stage_like_cpp(zone_id, projection_area_id)
+            })
             .is_some();
-        #[cfg(test)]
-        if !canonical && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if !canonical && self.character_lifecycle_handleless_fixture() {
             return self
                 .mutate_player_world_local_state_like_cpp(|state| {
                     state.set_zone_id_like_cpp(zone_id);
@@ -177,12 +189,20 @@ impl WorldSession {
         }
         canonical
     }
-    pub(in crate::session) fn set_player_area_id_like_cpp(&mut self, area_id: u32) -> bool {
+    /// Apply one represented area-cache stage and its caller-snapshotted
+    /// `Unit::World` counterpart through one canonical Player mutation.
+    pub(in crate::session) fn set_player_area_id_like_cpp(
+        &mut self,
+        area_id: u32,
+        projection_zone_id: u32,
+    ) -> bool {
         let canonical = self
-            .with_owned_player_mut_like_cpp(|player| player.set_area_id_like_cpp(area_id))
+            .with_owned_player_mut_like_cpp(|player| {
+                player.apply_represented_area_stage_like_cpp(area_id, projection_zone_id)
+            })
             .is_some();
-        #[cfg(test)]
-        if !canonical && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if !canonical && self.character_lifecycle_handleless_fixture() {
             return self
                 .mutate_player_world_local_state_like_cpp(|state| {
                     state.set_area_id_like_cpp(area_id);
@@ -191,6 +211,9 @@ impl WorldSession {
         }
         canonical
     }
+    /// Apply a resolved pair to the distinct Player cache and `Unit::World`
+    /// projection in one canonical Player mutation. A handle-less test fixture
+    /// continues to receive only its cache update.
     pub(in crate::session) fn set_player_world_local_zone_area_like_cpp(
         &mut self,
         zone_id: u32,
@@ -198,11 +221,11 @@ impl WorldSession {
     ) -> bool {
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| {
-                player.set_zone_area_like_cpp(zone_id, area_id)
+                player.apply_represented_zone_area_stage_like_cpp(zone_id, area_id)
             })
             .is_some();
-        #[cfg(test)]
-        if !canonical && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if !canonical && self.character_lifecycle_handleless_fixture() {
             return self
                 .mutate_player_world_local_state_like_cpp(|state| {
                     state.set_zone_area_like_cpp(zone_id, area_id);
@@ -220,8 +243,8 @@ impl WorldSession {
                 player.set_zone_area_authority_like_cpp(complete)
             })
             .is_some();
-        #[cfg(test)]
-        if !canonical && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if !canonical && self.character_lifecycle_handleless_fixture() {
             return self
                 .mutate_player_world_local_state_like_cpp(|state| {
                     state.set_zone_area_authority_like_cpp(complete);
@@ -370,6 +393,9 @@ impl WorldSession {
         &self,
         f: impl FnOnce(&Player) -> R,
     ) -> Option<R> {
+        if self.character_lifecycle_fixture_mode() && self.player_handle_like_cpp.is_some() {
+            return self.with_owned_player_like_cpp(f);
+        }
         let guid = self.player_guid()?;
         if let (Some(manager), Some(handle)) = (
             self.canonical_map_manager.as_ref(),
@@ -439,20 +465,20 @@ impl WorldSession {
         if canonical.is_some() {
             return canonical;
         }
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             let result = apply(&mut self.represented_cinematic_state_like_cpp);
             return Some(result);
         }
         None
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn mutate_player_rest_state_like_cpp<R>(
         &mut self,
         f: impl FnOnce(&mut wow_entities::PlayerRestState) -> R,
     ) -> Option<R> {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             let mut state = self.player_rest_state_snapshot_like_cpp()?;
             let result = f(&mut state);
             return self
@@ -475,8 +501,8 @@ impl WorldSession {
         if let Some(changed) = canonical {
             return changed;
         }
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             return self
                 .mutate_player_rest_state_like_cpp(|state| {
                     state.set_flag_like_cpp(rest_flag, trigger_id, || {
@@ -494,8 +520,8 @@ impl WorldSession {
         if let Some(changed) = canonical {
             return changed;
         }
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             return self
                 .mutate_player_rest_state_like_cpp(|state| state.remove_flag_like_cpp(rest_flag))
                 .unwrap_or(false);
@@ -510,8 +536,8 @@ impl WorldSession {
         {
             return true;
         }
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             return self
                 .mutate_player_rest_state_like_cpp(|state| state.defer_flag_sync_like_cpp())
                 .is_some();
@@ -525,8 +551,8 @@ impl WorldSession {
         if let Some(dirty) = canonical {
             return dirty;
         }
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             return self
                 .mutate_player_rest_state_like_cpp(|state| state.end_deferred_flag_sync_like_cpp())
                 .unwrap_or(false);
@@ -543,8 +569,8 @@ impl WorldSession {
         {
             return true;
         }
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             return self
                 .mutate_player_rest_state_like_cpp(|state| {
                     state.clear_deferred_flag_update_like_cpp()
@@ -563,8 +589,8 @@ impl WorldSession {
         if let Some(dirty) = canonical {
             return dirty;
         }
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             return self
                 .mutate_player_rest_state_like_cpp(|state| {
                     state.take_deferred_flag_update_like_cpp()

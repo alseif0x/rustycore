@@ -694,9 +694,9 @@ fn committed_void_deposit_retires_only_its_destroyed_item_loot_like_cpp() {
 
     session.retire_committed_destroyed_item_loot_like_cpp(destroyed_item, player_guid);
 
-    assert!(!session.active_loot_view_owners.contains(&destroyed_item));
+    assert!(!session.loot_views.contains_owner(&destroyed_item));
     assert!(!session.loot_table.contains_key(&destroyed_item));
-    assert!(session.active_loot_view_owners.contains(&unrelated_item));
+    assert!(session.loot_views.contains_owner(&unrelated_item));
     assert!(session.loot_table.contains_key(&unrelated_item));
     assert_eq!(
         send_rx

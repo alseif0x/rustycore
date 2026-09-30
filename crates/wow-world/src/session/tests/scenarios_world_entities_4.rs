@@ -402,7 +402,7 @@ async fn gameobject_visual_despawn_not_in_world_player_no_send_like_cpp() {
     );
     assert!(
         session
-            .represented_gameobject_visual_despawns_delivered_like_cpp
+            .visibility_publication.represented_gameobject_visual_despawns_delivered_like_cpp
             .is_empty()
     );
 
@@ -629,7 +629,7 @@ async fn gameobject_visual_despawn_mismatched_seer_without_vehicle_preserves_del
     );
     assert!(
         session
-            .represented_gameobject_visual_despawns_delivered_like_cpp
+            .visibility_publication.represented_gameobject_visual_despawns_delivered_like_cpp
             .is_empty()
     );
 
@@ -788,7 +788,7 @@ async fn gameobject_visual_despawn_player_shared_vision_out_of_world_target_no_s
     );
     assert!(
         session
-            .represented_gameobject_visual_despawns_delivered_like_cpp
+            .visibility_publication.represented_gameobject_visual_despawns_delivered_like_cpp
             .is_empty()
     );
 

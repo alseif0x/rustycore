@@ -11,8 +11,7 @@ impl MapInstance {
             instance_id,
             grids: HashMap::new(),
             grid_unload_timeout: DEFAULT_GRID_UNLOAD_TIME,
-            persisted_respawn_times: HashMap::new(),
-            respawn_queue: Vec::new(),
+            respawn_store: crate::spawn::RespawnStoreLikeCpp::new(),
         }
     }
 

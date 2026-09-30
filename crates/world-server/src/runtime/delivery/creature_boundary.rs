@@ -1,17 +1,17 @@
-//! Typed input and outcome for the map-owned Creature runtime boundary.
+//! Typed input and outcome for the legacy global Creature runtime bridge.
 //!
-//! This submodule keeps the delivery facade under its physical source budget;
-//! it does not add an owner or a second runtime clock.
+//! The canonical MapManager loop is independently scheduled; this boundary
+//! describes one Creature bridge invocation and does not order the two loops.
 
 use super::*;
 
-/// Phases emitted by the one map-owned Creature runtime boundary.
+/// Phases emitted by one invocation of the legacy global Creature runtime bridge.
 ///
-/// The order is the order of the current production bridge: the world-session
-/// player pass completes before the map-owned lifecycle/object work, and the
-/// Creature sub-phases then run once on the global owner. Keeping this as a
-/// typed value makes the order testable without treating a helper call or a
-/// timer mutation as a complete C++ `Creature::Update`.
+/// This records only the current bridge-local order:
+/// `PlayerMelee -> Lifecycle -> Movement -> Aggro -> Spell -> Melee`. The
+/// canonical MapManager/world-session loop has a separate interval, diff, and
+/// epoch; this enum makes no ordering claim between those loops. It also does
+/// not make a helper call or timer mutation a complete C++ `Creature::Update`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CreatureRuntimePhaseLikeCpp {
     PlayerMelee,
@@ -22,11 +22,12 @@ pub(crate) enum CreatureRuntimePhaseLikeCpp {
     Melee,
 }
 
-/// The map incarnation captured when one Creature runtime tick starts.
+/// The map incarnation observed when Creature tick metadata is captured.
 ///
-/// A map key alone can be reused after unload/recreate. The incarnation is
-/// therefore part of the outcome envelope and is rechecked before the caller
-/// considers the tick's deferred work current.
+/// A map key alone can be reused after unload/recreate. The bridge compares
+/// this stamp with the current manager only after its phase calls and their
+/// deliveries. A mismatch is counted and logged; it does not filter deferred
+/// work publication.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct CreatureRuntimeMapStampLikeCpp {
     pub map_id: u32,
@@ -34,7 +35,12 @@ pub(crate) struct CreatureRuntimeMapStampLikeCpp {
     pub incarnation: u64,
 }
 
-/// A canonical Creature admitted by the map's loaded-grid ObjectUpdater pass.
+/// Snapshot identity for a Creature admitted by one canonical map's
+/// loaded-grid `ObjectUpdater` pass.
+///
+/// `CreatureRuntimeTickInputLikeCpp::admitted_creatures` collects these values
+/// across the canonical maps at capture time. Current legacy phase routines do
+/// not consume that list as their workset.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub(crate) struct CreatureRuntimeObjectStampLikeCpp {
     pub creature_guid: ObjectGuid,
@@ -43,7 +49,10 @@ pub(crate) struct CreatureRuntimeObjectStampLikeCpp {
     pub incarnation: u64,
 }
 
-/// Immutable input captured for one global Creature runtime tick.
+/// Snapshot metadata captured for one legacy global Creature runtime tick.
+///
+/// `admitted_creatures` describes canonical loaded-grid selections; it is not
+/// used to select the objects enumerated by the current legacy phase routines.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CreatureRuntimeTickInputLikeCpp {
     pub tick_epoch: u64,
@@ -125,8 +134,8 @@ impl CreatureRuntimeTickInputLikeCpp {
 /// The detailed phase results remain on
 /// [`super::LegacyCreatureRuntimeTickBridgeOutcomeLikeCpp`] for compatibility
 /// with existing consumers. This envelope is the single boundary metadata
-/// shared by those results: input identity, completed phase order,
-/// map-incarnation validation and aggregate deferred work.
+/// shared by those results: input metadata, bridge-local phase order, the
+/// post-delivery map-incarnation mismatch count, and aggregate deferred work.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct CreatureRuntimeBoundaryOutcomeLikeCpp {
     pub input: CreatureRuntimeTickInputLikeCpp,

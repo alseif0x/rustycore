@@ -1,25 +1,12 @@
 use super::*;
 
 #[test]
-fn create_character_seeds_valid_cpp_rest_state_for_raf_roles() {
-    assert_eq!(
-        initial_character_rest_state_like_cpp(false, 0),
-        REST_STATE_NORMAL_LIKE_CPP
-    );
-    assert_eq!(
-        initial_character_rest_state_like_cpp(false, 7),
-        REST_STATE_RAF_LINKED_LIKE_CPP
-    );
-    assert_eq!(
-        initial_character_rest_state_like_cpp(true, 0),
-        REST_STATE_RAF_LINKED_LIKE_CPP
-    );
-}
+fn void_storage_login_context_preserves_cpp_field_five_bug() {
+    let selected_context_column = ItemContext::Timewalking as u8;
 
-#[test]
-fn motd_split_preserves_cpp_empty_and_trailing_lines() {
     assert_eq!(
-        motd_lines_like_cpp("first@@third@"),
-        vec!["first", "", "third", ""]
+        void_storage_login_context_like_cpp(29, selected_context_column),
+        29
     );
+    assert_ne!(29, selected_context_column);
 }

@@ -27,19 +27,6 @@ pub(in crate::session::tests) fn drain_server_packet_bytes(
     packets
 }
 
-pub(in crate::session::tests) fn party_update_sequence_num_like_cpp(bytes: &[u8]) -> i32 {
-    let mut pkt = WorldPacket::from_bytes(bytes);
-    assert_eq!(
-        pkt.read_uint16().unwrap(),
-        ServerOpcodes::PartyUpdate as u16
-    );
-    let _party_flags = pkt.read_uint16().unwrap();
-    let _party_index = pkt.read_uint8().unwrap();
-    let _party_type = pkt.read_uint8().unwrap();
-    let _my_index = pkt.read_int32().unwrap();
-    let _party_guid = pkt.read_packed_guid().unwrap();
-    pkt.read_int32().unwrap()
-}
 
 pub(in crate::session::tests) fn packet_contains_quest_ids_in_order(
     bytes: &[u8],

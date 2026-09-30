@@ -249,18 +249,12 @@ async fn crit_aura_percentages_follow_weapon_dependent_auras_like_cpp() {
     ));
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
-    session.set_item_store(Arc::new(ItemStore::from_records([ItemRecord {
-        id: weapon_id,
-        class_id: ItemClass::Weapon as u8,
-        subclass_id: ItemSubClassWeapon::Sword as u8,
-        material: 0,
-        inventory_type: InventoryType::WeaponMainhand as i8,
-        sheathe_type: 0,
-        random_select: 0,
-        random_suffix_group_id: 0,
-        scaling_stat_distribution_id: 0,
-        scaling_stat_value: 0,
-    }])));
+    session.set_item_store(Arc::new(ItemStore::from_records([represented_test_item_record_like_cpp(
+        weapon_id,
+        InventoryType::WeaponMainhand,
+        ItemClass::Weapon,
+        ItemSubClassWeapon::Sword as u8,
+    )])));
     session.set_item_stats_store(Arc::new(ItemStatsStore::from_parts(
         [(
             weapon_id,

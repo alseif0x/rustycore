@@ -9,6 +9,8 @@ mod objectives;
 mod persistence;
 mod publication;
 mod reset;
+#[cfg(any(test, feature = "test-fixtures"))]
+mod fixture_observations;
 mod rewards;
 pub(in crate::session) mod state;
 #[cfg(any(test, feature = "test-fixtures"))]

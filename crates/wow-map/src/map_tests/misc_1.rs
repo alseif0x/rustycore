@@ -425,7 +425,7 @@ fn game_event_npc_flag_live_consumer_applies_upper_bits_like_cpp() {
     let guid = map.creature_spawn_id_store_guids_like_cpp(550)[0];
     let creature = map
         .map_object_record(guid)
-        .and_then(MapObjectRecord::creature)
+        .and_then(|record| record.creature())
         .unwrap();
     assert_eq!(creature.ai_ownership().npc_flags, 0x40);
     assert_eq!(creature.ai_ownership().npc_flags2, 0xFFFF_FFFF);
@@ -504,12 +504,13 @@ fn send_object_updates_processes_dynamic_object_data_update_like_cpp() {
     map.insert_map_object_record(MapObjectRecord::new_dynamic_object(dynamic_object).unwrap())
         .unwrap();
 
-    let record = map.entity_world.get_mut(&dynamic_object_guid).unwrap();
+    let mut record = map.entity_world.get_mut(&dynamic_object_guid).unwrap();
     assert!(!record.object().object().is_object_updated());
-    record.dynamic_object_mut().unwrap().set_radius(12.5);
+    record.reborrow().dynamic_object_mut().unwrap().set_radius(12.5);
     assert!(record.object().object().is_object_updated());
     assert!(
         record
+            .as_ref()
             .dynamic_object()
             .unwrap()
             .dynamic_object_data_changes_mask()
@@ -781,7 +782,7 @@ fn send_object_updates_consumes_queued_player_stand_state_like_cpp() {
     );
     let player = map
         .map_object_record(player_guid)
-        .and_then(MapObjectRecord::player)
+        .and_then(|record| record.player())
         .expect("typed Player remains on map");
     assert_eq!(
         player.unit().stand_state_like_cpp(),
@@ -868,7 +869,7 @@ fn transport_update_mutates_typed_canonical_record_like_cpp() {
     assert!(outcome.position_update_represented);
     let transport = map
         .map_object_record(transport_guid)
-        .and_then(MapObjectRecord::transport)
+        .and_then(|record| record.transport())
         .unwrap();
     assert_eq!(transport.path_progress_ms(), 150);
 }

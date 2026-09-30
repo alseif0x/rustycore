@@ -131,7 +131,54 @@ mod tests {
 
     #[test]
     fn app_composes_one_adapter_and_keeps_display_before_model() {
-        let source = include_str!("../app.rs");
+        let root = include_str!("../app.rs");
+        let continuation = include_str!("../app/world_startup.rs");
+        assert_eq!(root.matches("world_startup::run_world_startup(").count(), 1);
+        assert_eq!(root.matches("world_template_startup::load(").count(), 0);
+        let templates = include_str!("../app/world_template_startup.rs");
+        let source = include_str!("../app/creature_catalog_startup.rs");
+        let delegation = "world_template_startup::load(";
+        assert_eq!(continuation.matches(delegation).count(), 1);
+        assert_eq!(continuation.matches("let emotes_store =").count(), 1);
+        assert!(
+            continuation.find(delegation).unwrap() < continuation.find("let emotes_store =").unwrap(),
+            "the complete world template phase must precede the original emotes load"
+        );
+        for call in [
+            "creature_catalog_startup::load_creature_template_catalogs(",
+            "creature_catalog_startup::load_creature_runtime_catalogs(",
+        ] {
+            assert_eq!(templates.matches(call).count(), 1);
+            assert_eq!(root.matches(call).count(), 0);
+            assert_eq!(continuation.matches(call).count(), 0);
+        }
+        let mut cursor = 0;
+        for stage in [
+            "creature_catalog_startup::load_creature_template_catalogs(",
+            "load_gameobject_templates_like_cpp(",
+            "load_gameobject_overrides_like_cpp(",
+            "wow_data::build_template_script_name_interner_like_cpp(",
+            "load_scene_templates_like_cpp(",
+            "let _scene_template_store = Arc::new(scene_template_outcome.store);",
+            "creature_catalog_startup::load_creature_runtime_catalogs(",
+        ] {
+            assert_eq!(templates.matches(stage).count(), 1);
+            let offset = templates[cursor..]
+                .find(stage)
+                .unwrap_or_else(|| panic!("missing or reordered creature startup stage: {stage}"));
+            cursor += offset + stage.len();
+        }
+        assert_eq!(
+            root.matches("MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp::new").count(),
+            0
+        );
+        for loader in [
+            "load_creature_display_info_store_like_cpp",
+            "load_creature_model_data_store_like_cpp",
+        ] {
+            assert_eq!(root.matches(loader).count(), 0);
+            assert_eq!(source.matches(loader).count(), 1);
+        }
         assert_eq!(
             source
                 .matches("MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp::new")

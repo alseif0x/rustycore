@@ -12,10 +12,10 @@ use super::{
 };
 use super::{UnitPvpFlags, WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP, WeaponAttackType};
 use super::{WorldSession, gender_from_u8, player_cuf_profile_from_packet_like_cpp};
-#[cfg(test)]
-use super::{
-    canonical_player_spell_runtime_like_cpp, primary_power_type_for_player_class_like_cpp,
-};
+#[cfg(any(test, feature = "test-fixtures"))]
+use super::canonical_player_spell_runtime_like_cpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+use super::quest_dialog::primary_power_type_for_player_class_like_cpp;
 
 impl WorldSession {
     /// Build the initial canonical Player value before a generation-checked
@@ -26,7 +26,6 @@ impl WorldSession {
         key: wow_map::MapKey,
         bootstrap_position: Option<Position>,
     ) -> Option<Player> {
-        #[cfg(not(test))]
         if self.player_handle_like_cpp.is_some() {
             return None;
         }
@@ -46,13 +45,20 @@ impl WorldSession {
         // Before the first canonical owner exists production has no phase
         // authority to read. The pre-load bootstrap has always been the C++
         // default empty PhaseShift; tests may provide an explicit fixture.
-        #[cfg(not(test))]
-        let bootstrap_phase_shift = PhaseShift::default();
-        #[cfg(test)]
-        let bootstrap_phase_shift = self
-            .visibility_test_fixture_like_cpp
-            .represented_player_phase_shift
-            .clone();
+        let bootstrap_phase_shift = {
+            #[cfg(any(test, feature = "test-fixtures"))]
+            if self.character_lifecycle_fixture_mode() {
+                self.visibility_test_fixture_like_cpp
+                    .represented_player_phase_shift
+                    .clone()
+            } else {
+                PhaseShift::default()
+            }
+            #[cfg(not(any(test, feature = "test-fixtures")))]
+            {
+                PhaseShift::default()
+            }
+        };
         *player.unit_mut().world_mut().phase_shift_mut() = bootstrap_phase_shift;
         player.unit_mut().world_mut().object_mut().add_to_world();
         player.set_race_class_gender(
@@ -67,16 +73,15 @@ impl WorldSession {
         // Preserve the pre-load Rust bootstrap shape. The Character row later
         // hydrates these values directly into the generation-checked Player;
         // Session no longer stores a second production vital-state authority.
-        #[cfg(not(test))]
-        {
+        if !self.character_lifecycle_fixture_mode() {
             player.unit_mut().set_max_health(100);
             player
                 .unit_mut()
                 .set_death_state(wow_constants::DeathState::Alive);
             player.unit_mut().set_health(100);
         }
-        #[cfg(test)]
-        {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode() {
             player
                 .unit_mut()
                 .set_max_health(u64::from(self.player_max_health_like_cpp.max(1)));
@@ -93,10 +98,11 @@ impl WorldSession {
                 .unit_mut()
                 .set_health(u64::from(self.player_health_like_cpp));
         }
-        #[cfg(test)]
-        self.apply_represented_player_powers_to_canonical_like_cpp(&mut player);
-        #[cfg(not(test))]
-        {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode() {
+            self.apply_represented_player_powers_to_canonical_like_cpp(&mut player);
+        }
+        if !self.character_lifecycle_fixture_mode() {
             // This value is the pre-Character-row bootstrap only. Production
             // immediately hydrates the same owned Player through the setters
             // below; it is never used as a fallback for an unresolved handle.
@@ -104,35 +110,40 @@ impl WorldSession {
             player.set_next_level_xp(400);
             player.set_character_points_like_cpp(0);
         }
-        #[cfg(test)]
-        {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode() {
             player.set_xp(self.player_xp_like_cpp() as i32);
             player.set_next_level_xp(self.player_next_level_xp_like_cpp() as i32);
             player.set_character_points_like_cpp(self.player_character_points_like_cpp());
         }
-        #[cfg(not(test))]
-        player.set_scaling_player_level_delta_like_cpp(
-            if self.player_level_like_cpp() < WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP {
-                -1
-            } else {
-                0
-            },
-        );
-        #[cfg(test)]
-        player.set_scaling_player_level_delta_like_cpp(self.player_scaling_level_delta_like_cpp());
-        #[cfg(not(test))]
-        player.set_money(0);
-        #[cfg(test)]
-        player.set_money(self.player_gold_like_cpp());
-        #[cfg(not(test))]
-        {
+        if !self.character_lifecycle_fixture_mode() {
+            player.set_scaling_player_level_delta_like_cpp(
+                if self.player_level_like_cpp() < WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP {
+                    -1
+                } else {
+                    0
+                },
+            );
+        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode() {
+            player.set_scaling_player_level_delta_like_cpp(self.player_scaling_level_delta_like_cpp());
+        }
+        if !self.character_lifecycle_fixture_mode() {
+            player.set_money(0);
+        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode() {
+            player.set_money(self.player_gold_like_cpp());
+        }
+        if !self.character_lifecycle_fixture_mode() {
             // Pre-character-row bootstrap only. Login hydrates both values
             // into this same owned Player before gameplay admission.
             player.set_inventory_slot_count(INVENTORY_DEFAULT_SIZE);
             player.set_bank_bag_slot_count(0);
         }
-        #[cfg(test)]
-        {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode() {
             player.set_inventory_slot_count(
                 self.player_item_test_fixture_like_cpp
                     .player_inventory_slot_count_like_cpp,
@@ -149,30 +160,39 @@ impl WorldSession {
         {
             let _ = player.set_party_type_like_cpp(category as u8, party_type);
         }
-        #[cfg(test)]
-        for (index, value) in self
-            .represented_bank_bag_slot_flags_like_cpp
-            .iter()
-            .copied()
-            .enumerate()
-        {
-            player.set_bank_bag_slot_flag_value_like_cpp(index, value);
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode() {
+            for (index, value) in self
+                .represented_bank_bag_slot_flags_like_cpp
+                .iter()
+                .copied()
+                .enumerate()
+            {
+                player.set_bank_bag_slot_flag_value_like_cpp(index, value);
+            }
         }
-        #[cfg(not(test))]
-        player.set_watched_faction_index_like_cpp(-1);
-        #[cfg(test)]
-        player.set_watched_faction_index_like_cpp(self.watched_faction_index_like_cpp);
-        #[cfg(test)]
-        for quest_bit in &self
-            .quest_test_fixture_like_cpp
-            .represented_quest_completed_bits_like_cpp
-        {
-            player.set_quest_completed_bit_like_cpp(*quest_bit, true);
+        if !self.character_lifecycle_fixture_mode() {
+            player.set_watched_faction_index_like_cpp(-1);
         }
-        #[cfg(test)]
-        player.set_explored_zones_blocks_like_cpp(&self.represented_explored_zones_like_cpp);
-        #[cfg(test)]
-        {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode() {
+            player.set_watched_faction_index_like_cpp(self.watched_faction_index_like_cpp);
+        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode() {
+            for quest_bit in &self
+                .quest_test_fixture_like_cpp
+                .represented_quest_completed_bits_like_cpp
+            {
+                player.set_quest_completed_bit_like_cpp(*quest_bit, true);
+            }
+        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode() {
+            player.set_explored_zones_blocks_like_cpp(&self.represented_explored_zones_like_cpp);
+        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode() {
             player.gameplay_state_mut().world_local =
                 wow_entities::PlayerWorldLocalState::from_represented_parts_like_cpp(
                     self.player_zone_id_like_cpp,
@@ -212,16 +232,19 @@ impl WorldSession {
                 player.set_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
             }
         }
-        #[cfg(not(test))]
-        player
-            .unit_mut()
-            .subsystems_mut()
-            .control
-            .set_moved_unit(Some(guid));
-        #[cfg(test)]
-        player.set_game_master_like_cpp(self.player_game_master_like_cpp);
-        #[cfg(test)]
-        {
+        if !self.character_lifecycle_fixture_mode() {
+            player
+                .unit_mut()
+                .subsystems_mut()
+                .control
+                .set_moved_unit(Some(guid));
+        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode() {
+            player.set_game_master_like_cpp(self.player_game_master_like_cpp);
+        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode() {
             player.set_cheat_god_like_cpp(self.player_cheat_god_like_cpp);
             player.set_normal_damage_immune_like_cpp(self.player_normal_damage_immune_like_cpp);
             player.set_environmental_damage_immune_like_cpp(
@@ -258,8 +281,8 @@ impl WorldSession {
             };
         }
         crate::canonical_player_sync::hydrate_player_presentation_like_cpp(self, &mut player)?;
-        #[cfg(test)]
-        {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode() {
             player.set_create_mode_like_cpp(self.player_create_mode_like_cpp);
             player.set_shapeshift_form_id_like_cpp(self.represented_shapeshift_form_like_cpp);
             player.set_loot_specialization_id_like_cpp(self.loot_specialization_id);
@@ -335,14 +358,17 @@ impl WorldSession {
         player
             .unit_mut()
             .set_base_attack_time_like_cpp(WeaponAttackType::BaseAttack, 2_000);
-        #[cfg(not(test))]
-        player
-            .unit_mut()
-            .set_unit_flags_like_cpp(UnitFlags::PLAYER_CONTROLLED);
-        #[cfg(test)]
-        player
+        if !self.character_lifecycle_fixture_mode() {
+            player
+                .unit_mut()
+                .set_unit_flags_like_cpp(UnitFlags::PLAYER_CONTROLLED);
+        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode() {
+            player
             .unit_mut()
             .set_unit_flags_like_cpp(self.player_unit_flags_like_cpp);
+        }
         if let Some(selection) = self.selection_guid_like_cpp() {
             player.set_selection(selection);
         }
@@ -357,7 +383,7 @@ impl WorldSession {
         Some(player)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn apply_represented_player_powers_to_canonical_like_cpp(
         &self,
         player: &mut Player,
@@ -398,23 +424,37 @@ impl WorldSession {
             self.player_race_like_cpp(),
             self.player_gender_like_cpp(),
         );
-        #[cfg(not(test))]
-        let mount_display_id = 0;
-        #[cfg(test)]
-        let mount_display_id = u32::try_from(self.player_mount_display_id_like_cpp).unwrap_or(0);
+        let mount_display_id = {
+            #[cfg(any(test, feature = "test-fixtures"))]
+            if self.character_lifecycle_fixture_mode() {
+                u32::try_from(self.player_mount_display_id_like_cpp).unwrap_or(0)
+            } else {
+                0
+            }
+            #[cfg(not(any(test, feature = "test-fixtures")))]
+            {
+                0
+            }
+        };
         let unit = player.unit_mut();
         unit.set_display_id(display_id, true);
         unit.set_mount_display_id(mount_display_id);
-        #[cfg(not(test))]
-        unit.set_collision_height_like_cpp(1.0);
-        #[cfg(test)]
-        unit.set_collision_height_like_cpp(self.player_collision_height_like_cpp);
-        #[cfg(not(test))]
-        unit.world_mut().object_mut().set_scale(1.0);
-        #[cfg(test)]
-        unit.world_mut()
+        if !self.character_lifecycle_fixture_mode() {
+            unit.set_collision_height_like_cpp(1.0);
+        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode() {
+            unit.set_collision_height_like_cpp(self.player_collision_height_like_cpp);
+        }
+        if !self.character_lifecycle_fixture_mode() {
+            unit.world_mut().object_mut().set_scale(1.0);
+        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode() {
+            unit.world_mut()
             .object_mut()
             .set_scale(self.player_object_scale_like_cpp);
+        }
     }
 
     #[inline(never)]

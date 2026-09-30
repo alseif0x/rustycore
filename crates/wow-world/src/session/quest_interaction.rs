@@ -5,7 +5,7 @@
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
 use super::{ObjectGuid, RepresentedGameObjectAccessLikeCpp, RepresentedGameObjectUseState};
-use super::{WorldSession, quest};
+use super::WorldSession;
 
 impl WorldSession {
     pub(crate) fn represented_gameobject_questgiver_can_interact_with_like_cpp(

@@ -230,8 +230,8 @@ impl WorldSession {
                 .is_none_or(|flags| flags.contains(MovementFlag::FLYING))
     }
     pub(crate) fn resummon_pet_temporary_unsummoned_like_cpp(&mut self) {
-        #[cfg(test)]
-        {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode() {
             self.temporary_pet_resummon_requests_like_cpp = self
                 .temporary_pet_resummon_requests_like_cpp
                 .saturating_add(1);
@@ -415,64 +415,18 @@ impl WorldSession {
                     } else {
                         aura.caster_guid
                     };
-                    let applied = wow_entities::AppliedAuraRef::new(
-                        aura.spell_id,
-                        caster_guid,
+                    aura_subsystem.install_loaded_applied_application(
                         slot,
+                        wow_entities::AuraRef::new(aura.spell_id, caster_guid),
                         aura.effect_mask,
-                    );
-                    let aura_ref = wow_entities::AuraRef::new(aura.spell_id, caster_guid);
-                    aura_subsystem.add_owned(wow_entities::OwnedAuraRef::new(
-                        aura.spell_id,
-                        caster_guid,
-                        None,
-                    ));
-                    aura_subsystem.add_applied(applied);
-                    aura_subsystem.set_loaded_aura_state_like_cpp(
-                        aura_ref,
                         wow_entities::LoadedAuraStateLikeCpp::new(
-                            aura.max_duration_ms,
-                            aura.remain_time_ms,
-                            aura.remain_charges,
-                            aura.stack_count,
-                            aura.recalculate_mask,
+                            aura.max_duration_ms, aura.remain_time_ms, aura.remain_charges,
+                            aura.stack_count, aura.recalculate_mask,
                         ),
-                    );
-                    aura_subsystem.visible_auras.insert(slot, aura_ref);
-
-                    let effect_amounts: Vec<_> = pet_aura_effects
-                        .iter()
-                        .filter(|effect| {
-                            let effect_caster_guid = if effect.caster_guid.is_empty() {
-                                pet_guid
-                            } else {
-                                effect.caster_guid
-                            };
-                            effect_caster_guid == caster_guid
-                                && effect.spell_id == aura.spell_id
-                                && effect.effect_mask == aura.effect_mask
-                        })
-                        .map(|effect| {
-                            let effect_ref = wow_entities::AppliedAuraRef::new(
-                                aura.spell_id,
-                                caster_guid,
-                                slot,
-                                1u32 << u32::from(effect.effect_index),
-                            );
-                            aura_subsystem
-                                .applied_aura_amounts
-                                .insert(effect_ref, effect.amount);
-                            wow_entities::VisibleAuraEffectAmountLikeCpp {
-                                effect_index: effect.effect_index,
-                                amount: effect.amount,
-                            }
-                        })
-                        .collect();
-                    aura_subsystem.visible_aura_applications_like_cpp.insert(
-                        slot,
-                        wow_entities::VisibleAuraApplicationLikeCpp::new(
-                            aura.effect_mask,
-                            effect_amounts,
+                        &pet_aura_effects,
+                        |effect| (
+                            if effect.caster_guid.is_empty() { pet_guid } else { effect.caster_guid },
+                            effect.spell_id, effect.effect_mask, effect.effect_index, effect.amount,
                         ),
                     );
                 }

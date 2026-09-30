@@ -196,13 +196,31 @@ mod tests {
 
     #[test]
     fn app_composes_one_adapter_at_the_existing_player_stats_stage() {
-        let source = include_str!("../app.rs");
+        let app_source = include_str!("../app.rs");
+        let startup_source = include_str!("../app/player_creation_startup.rs");
+        let continuation = include_str!("../app/world_startup.rs");
+        let delegation = "world_startup::run_world_startup(";
+        assert_eq!(app_source.matches(delegation).count(), 1);
+        assert!(app_source.find("MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp::new").unwrap()
+            < app_source.find(delegation).unwrap());
+        assert_eq!(app_source[app_source.find(delegation).unwrap()..]
+            .split_once(".await").unwrap().0.matches("&player_base_stats_persistence,").count(), 1);
+        let phase = "player_creation_startup::load_player_creation_startup(";
+        assert_eq!(continuation.matches(phase).count(), 1);
+        assert_eq!(continuation[continuation.find(phase).unwrap()..]
+            .split_once(".await").unwrap().0.matches("player_base_stats_persistence,").count(), 1);
+
         assert_eq!(
-            source
+            app_source
                 .matches("MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp::new")
                 .count(),
             1
         );
-        assert_eq!(source.matches("load_player_base_stats_like_cpp").count(), 1);
+        assert_eq!(
+            startup_source
+                .matches("load_player_base_stats_like_cpp")
+                .count(),
+            1
+        );
     }
 }

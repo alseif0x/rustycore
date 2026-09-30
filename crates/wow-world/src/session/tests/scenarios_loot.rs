@@ -129,19 +129,3 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
     assert!(info.rewarded_quests.contains(&400));
     assert_eq!(info.inventory_item_counts.get(&9001), Some(&8));
 }
-#[test]
-fn active_loot_guid_tracks_cpp_loot_target_guid_comparisons() {
-    let (mut session, _, _) = make_session();
-    let loot_guid = ObjectGuid::create_item(1, 700);
-    let other_guid = ObjectGuid::create_item(1, 701);
-
-    assert!(!session.is_active_loot_guid(loot_guid));
-    session.set_active_loot_guid(loot_guid);
-    assert!(session.is_active_loot_guid(loot_guid));
-    assert!(!session.is_active_loot_guid(other_guid));
-
-    session.clear_active_loot_guid_if(other_guid);
-    assert!(session.is_active_loot_guid(loot_guid));
-    session.clear_active_loot_guid_if(loot_guid);
-    assert!(!session.is_active_loot_guid(loot_guid));
-}

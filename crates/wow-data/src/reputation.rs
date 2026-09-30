@@ -5,8 +5,9 @@ use std::collections::HashMap;
 use crate::creature::template::CreatureTemplateLifecycleStoreLikeCpp;
 use crate::progression_rewards::FactionStore;
 
-/// C++ `ReputationMgr::_SendStates` spillover fan-out limit.
-pub const MAX_SPILLOVER_FACTIONS_LIKE_CPP: usize = 5;
+pub use wow_data_model::reputation::{
+    MAX_SPILLOVER_FACTIONS_LIKE_CPP, RepSpilloverTemplateLikeCpp,
+};
 
 // The reputation value types moved to `wow-constants` under #735 so the
 // canonical Player can own reputation state without depending on this catalog
@@ -61,23 +62,6 @@ pub struct ReputationRewardRateLoadReportLikeCpp {
 #[derive(Debug, Clone, Default, PartialEq)]
 pub struct ReputationRewardRateStoreLikeCpp {
     rates_by_faction: HashMap<u32, ReputationRewardRateEntryLikeCpp>,
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct RepSpilloverTemplateLikeCpp {
-    pub faction: [u32; MAX_SPILLOVER_FACTIONS_LIKE_CPP],
-    pub faction_rate: [f32; MAX_SPILLOVER_FACTIONS_LIKE_CPP],
-    pub faction_rank: [u8; MAX_SPILLOVER_FACTIONS_LIKE_CPP],
-}
-
-impl RepSpilloverTemplateLikeCpp {
-    pub const fn empty_like_cpp() -> Self {
-        Self {
-            faction: [0; MAX_SPILLOVER_FACTIONS_LIKE_CPP],
-            faction_rate: [0.0; MAX_SPILLOVER_FACTIONS_LIKE_CPP],
-            faction_rank: [0; MAX_SPILLOVER_FACTIONS_LIKE_CPP],
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq)]

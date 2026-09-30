@@ -205,8 +205,8 @@ impl WorldSession {
     pub(crate) fn resolved_player_scaling_level_delta_like_cpp(&self) -> Option<i32> {
         let canonical = self
             .with_owned_player_like_cpp(|player| player.active_data().scaling_player_level_delta);
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.character_lifecycle_handleless_fixture() {
             return Some(
                 if self.player_level_like_cpp() < WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP
                     && self.player_xp < self.player_next_level_xp / 2
@@ -220,7 +220,7 @@ impl WorldSession {
         canonical
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn player_scaling_level_delta_like_cpp(&self) -> i32 {
         self.resolved_player_scaling_level_delta_like_cpp()
             .expect("test Player progression owner must resolve")
@@ -244,11 +244,13 @@ impl WorldSession {
                 player.mark_scaling_player_level_delta_changed_like_cpp();
             })
             .is_some();
-        #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode()
+            && (canonical || self.character_lifecycle_handleless_fixture())
+        {
             self.player_xp = xp;
         }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+        canonical || self.character_lifecycle_handleless_fixture()
     }
 
     pub(crate) fn set_player_next_level_xp_like_cpp(&mut self, xp: u32) -> bool {
@@ -271,11 +273,13 @@ impl WorldSession {
                 player.set_scaling_player_level_delta_like_cpp(scaling_level_delta);
             })
             .is_some();
-        #[cfg(test)]
-        if canonical || self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_fixture_mode()
+            && (canonical || self.character_lifecycle_handleless_fixture())
+        {
             self.player_next_level_xp = xp;
         }
-        canonical || cfg!(test) && self.player_handle_like_cpp.is_none()
+        canonical || self.character_lifecycle_handleless_fixture()
     }
 
     pub(crate) fn set_selection_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
@@ -302,8 +306,8 @@ impl WorldSession {
     pub(crate) fn resolved_player_character_points_like_cpp(&self) -> Option<i32> {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.active_data().character_points);
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.character_lifecycle_handleless_fixture() {
             return Some(self.player_character_points_like_cpp);
         }
         canonical
@@ -312,8 +316,8 @@ impl WorldSession {
     pub(crate) fn resolved_player_xp_like_cpp(&self) -> Option<u32> {
         let canonical =
             self.with_owned_player_like_cpp(|player| player.active_data().xp.max(0) as u32);
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.character_lifecycle_handleless_fixture() {
             return Some(self.player_xp);
         }
         canonical
@@ -340,41 +344,38 @@ impl WorldSession {
     pub(crate) fn resolved_player_next_level_xp_like_cpp(&self) -> Option<u32> {
         let canonical = self
             .with_owned_player_like_cpp(|player| player.active_data().next_level_xp.max(0) as u32);
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.character_lifecycle_handleless_fixture() {
             return Some(self.player_next_level_xp);
         }
         canonical
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn player_character_points_like_cpp(&self) -> i32 {
         self.resolved_player_character_points_like_cpp()
             .or_else(|| {
-                self.player_handle_like_cpp
-                    .is_none()
+                self.character_lifecycle_handleless_fixture()
                     .then_some(self.player_character_points_like_cpp)
             })
             .expect("test Player progression owner must resolve")
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn player_xp_like_cpp(&self) -> u32 {
         self.resolved_player_xp_like_cpp()
             .or_else(|| {
-                self.player_handle_like_cpp
-                    .is_none()
+                self.character_lifecycle_handleless_fixture()
                     .then_some(self.player_xp)
             })
             .expect("test Player progression owner must resolve")
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn player_next_level_xp_like_cpp(&self) -> u32 {
         self.resolved_player_next_level_xp_like_cpp()
             .or_else(|| {
-                self.player_handle_like_cpp
-                    .is_none()
+                self.character_lifecycle_handleless_fixture()
                     .then_some(self.player_next_level_xp)
             })
             .expect("test Player progression owner must resolve")

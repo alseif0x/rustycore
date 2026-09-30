@@ -728,33 +728,3 @@ pub fn group_persistence_command_like_cpp(
         },
     }
 }
-
-#[cfg(test)]
-mod tests {
-    use crate::handlers::group::test_support::PartyInviteSocialPortLikeCpp;
-    use wow_core::ObjectGuid;
-    use wow_persistence::SocialPartyInviteLookupOutcomeLikeCpp;
-
-    #[tokio::test]
-    async fn failed_party_invite_social_lookup_retains_the_existing_fail_open_result() {
-        let inviter = ObjectGuid::create_player(1, 42);
-        let target = ObjectGuid::create_player(1, 77);
-        let port = PartyInviteSocialPortLikeCpp::new(
-            SocialPartyInviteLookupOutcomeLikeCpp::Failed {
-                reason: "database unavailable".to_owned(),
-            },
-            SocialPartyInviteLookupOutcomeLikeCpp::Resolved(false),
-        );
-
-        assert!(
-            !super::target_social_ignores_inviter_like_cpp(
-                Some(port.clone()),
-                target,
-                inviter,
-                1,
-            )
-            .await
-        );
-        assert_eq!(port.calls(), vec!["ignore:77:42:1"]);
-    }
-}

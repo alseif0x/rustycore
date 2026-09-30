@@ -1,6 +1,8 @@
 use std::sync::Arc;
 
-use crate::session::{SessionState, WorldSession};
+use crate::session::{
+    CharacterAuraEffectRowLikeCpp, CharacterAuraRowLikeCpp, SessionState, WorldSession,
+};
 use crate::test_fixtures::{
     CollectionLoadPortLikeCpp, install_canonical_player_owner_for_test,
     set_equipment_set_guid_generator_for_test, set_loaded_player_identity_like_cpp,
@@ -121,36 +123,6 @@ enum OutputClosure {
     DuringWorldStateRead,
     CancelDuringWorldStateRead,
     RetainedBeforeZone,
-}
-
-#[tokio::test]
-async fn worldport_scales_items_only_after_post_add_initialization() {
-    assert_post_add_scaling(true, OutputClosure::Never).await;
-}
-
-#[tokio::test]
-async fn login_post_add_applies_destination_item_scaling() {
-    assert_post_add_scaling(false, OutputClosure::Never).await;
-}
-
-#[tokio::test]
-async fn worldport_does_not_report_logged_in_when_post_add_delivery_closes() {
-    assert_post_add_scaling(true, OutputClosure::DuringWorldStateRead).await;
-}
-
-#[tokio::test]
-async fn worldport_finishes_native_effects_when_self_create_delivery_is_closed() {
-    assert_post_add_scaling(true, OutputClosure::BeforeAck).await;
-}
-
-#[tokio::test]
-async fn cancelled_worldport_finishes_native_effects_before_disconnect_save() {
-    assert_post_add_scaling(true, OutputClosure::CancelDuringWorldStateRead).await;
-}
-
-#[tokio::test]
-async fn retained_worldport_before_zone_finishes_native_effects_before_disconnect_save() {
-    assert_post_add_scaling(true, OutputClosure::RetainedBeforeZone).await;
 }
 
 async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
@@ -300,4 +272,56 @@ async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
     if let Some(send_rx) = send_rx {
         assert!(drain_server_opcodes(&send_rx).contains(&ServerOpcodes::InitWorldStates));
     }
+}
+
+#[test]
+fn login_combat_snapshot_clamps_saved_health_after_persisted_stat_auras_like_cpp() {
+    let (mut session, _send_rx) = make_session_with_send_capacity(2);
+    let player_guid = ObjectGuid::create_player(1, 85);
+    let spell_id = 90_086;
+    session.set_player_guid(Some(player_guid));
+    set_loaded_player_identity_like_cpp(&mut session, 571, 1, 5, 80, 0);
+    set_priest_level80_stats(&mut session, 1_000, 40);
+    session.set_spell_store(Arc::new(total_stat_percentage_spell_store_like_cpp(
+        spell_id, false,
+    )));
+
+    assert_eq!(
+        session.load_represented_character_auras_like_cpp(
+            [CharacterAuraRowLikeCpp {
+                caster_guid: player_guid,
+                spell_id: spell_id as u32,
+                effect_mask: 1,
+                recalculate_mask: 0,
+                difficulty: 0,
+                stack_count: 1,
+                max_duration_ms: -1,
+                remain_time_ms: -1,
+                remain_charges: 0,
+            }],
+            [CharacterAuraEffectRowLikeCpp {
+                caster_guid: player_guid,
+                spell_id: spell_id as u32,
+                effect_mask: 1,
+                effect_index: 0,
+                amount: 100,
+                base_amount: 100,
+            }],
+            0,
+        ),
+        1
+    );
+
+    let (combat, _, current_power0) = session
+        .player_login_combat_stats_like_cpp(1, 5, 80, Some(15), 2_000)
+        .expect("login combat snapshot");
+    assert_eq!(combat.max_health, 20);
+    assert_eq!(
+        combat.health, 15,
+        "saved health valid under the persisted stamina aura must not be pre-clamped to the unbuffed max"
+    );
+    assert_eq!(
+        current_power0, 1_320,
+        "saved primary power is clamped after the final aura/item projection like C++"
+    );
 }

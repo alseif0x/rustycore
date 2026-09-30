@@ -6,8 +6,8 @@ pub(crate) fn hydrate_player_presentation_like_cpp(
     session: &WorldSession,
     player: &mut wow_entities::Player,
 ) -> Option<()> {
-    #[cfg(test)]
-    {
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if session.character_lifecycle_handleless_fixture() {
         player.gameplay_state_mut().customizations = session
             .loaded_player_customizations_like_cpp
             .iter()
@@ -21,17 +21,19 @@ pub(crate) fn hydrate_player_presentation_like_cpp(
     // C++ constructs Player before LoadFromDB / _LoadInventory
     // (CharacterHandler.cpp:1065-1070; Player.cpp:17748). Production inventory
     // already belongs to Player: querying it here would require the very
-    // handle that this initial construction is about to install. Only old
-    // unit fixtures hydrate equipment from their Session-side input.
-    #[cfg(test)]
-    for (slot, values) in session
-        .loaded_player_visible_items_for_create_like_cpp()?
-        .into_iter()
-        .enumerate()
-    {
-        crate::canonical_player_access::set_player_visible_item_values_like_cpp(
-            player, slot as u8, values,
-        );
+    // handle that this initial construction is about to install. The explicitly selected
+    // Character fixture rail also uses those same initial equipment inputs.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    if session.character_lifecycle_handleless_fixture() {
+        for (slot, values) in session
+            .loaded_player_visible_items_for_create_like_cpp()?
+            .into_iter()
+            .enumerate()
+        {
+            crate::canonical_player_access::set_player_visible_item_values_like_cpp(
+                player, slot as u8, values,
+            );
+        }
     }
     Some(())
 }
@@ -48,7 +50,7 @@ pub(crate) fn sync_player_level_like_cpp(session: &WorldSession, level: u8, gray
     });
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) fn hydrate_player_directory_fixture_like_cpp(session: &WorldSession) {
     let known_spells = session.known_spells_fixture_like_cpp();
     let quests = session.player_quest_gameplay_snapshot_like_cpp();

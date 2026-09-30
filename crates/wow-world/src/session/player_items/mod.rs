@@ -13,6 +13,7 @@ mod equipment;
 mod equipment_sets;
 mod equipment_slots;
 mod items;
+mod inventory_capacity;
 mod modifiers;
 mod offhand;
 mod persistence;

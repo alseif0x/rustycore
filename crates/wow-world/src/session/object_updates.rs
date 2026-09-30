@@ -291,7 +291,7 @@ impl WorldSession {
                     &bytes,
                 );
             if !self
-                .represented_player_unit_values_updates_delivered_like_cpp
+                .visibility_publication.represented_player_unit_values_updates_delivered_like_cpp
                 .insert((
                     key.map_id,
                     key.instance_id,

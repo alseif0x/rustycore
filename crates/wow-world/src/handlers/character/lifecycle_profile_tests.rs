@@ -5,7 +5,8 @@ use wow_constants::ServerOpcodes;
 use wow_core::guid::HighGuid;
 use wow_core::{EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator};
 use wow_packet::packets::character::{
-    BARBER_SHOP_RESULT_NOT_ON_CHAIR_LIKE_CPP, DECLINED_NAMES_RESULT_ERROR_LIKE_CPP,
+    BARBER_SHOP_RESULT_NOT_ON_CHAIR_LIKE_CPP, BARBER_SHOP_RESULT_SUCCESS_LIKE_CPP,
+    DECLINED_NAMES_RESULT_ERROR_LIKE_CPP,
 };
 use wow_packet::WorldPacket;
 
@@ -47,6 +48,16 @@ fn alter_appearance_packet(
     for (option_id, choice_id) in customizations {
         pkt.write_int32(*option_id);
         pkt.write_int32(*choice_id);
+    }
+    pkt
+}
+
+fn confirm_barbers_choice_packet(customizations: &[(u32, u32)]) -> WorldPacket {
+    let mut pkt = WorldPacket::new_empty();
+    pkt.write_uint32(customizations.len() as u32);
+    for (option_id, choice_id) in customizations {
+        pkt.write_uint32(*option_id);
+        pkt.write_uint32(*choice_id);
     }
     pkt
 }
@@ -110,30 +121,79 @@ async fn alter_appearance_without_barber_chair_sends_not_on_chair_like_cpp() {
 }
 
 #[tokio::test]
-async fn set_player_declined_names_without_runtime_sends_error_like_cpp() {
-    let (mut session, send_rx) = make_session_with_send_capacity(1);
-    let player = ObjectGuid::create_player(1, 42);
+async fn alter_appearance_on_represented_barber_chair_records_request_like_cpp() {
+    let (mut session, send_rx) = make_session_with_send_capacity(4);
+    let player_guid = ObjectGuid::create_player(1, 42);
+    let gameobject_guid =
+        ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 22);
+    let chair_position = wow_core::Position::new(1.0, 2.0, 3.0, 0.0);
+
+    session.set_player_guid(Some(player_guid));
+    session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
+    assert!(session.use_represented_gameobject_barber_chair_like_cpp(
+        gameobject_guid,
+        player_guid,
+        chair_position,
+        wow_entities::BarberChairUseSource {
+            chair_height: 2,
+            sit_anim_kit: 0,
+            customization_scope: 7,
+        },
+    ));
+    let _enable_barber_shop = send_rx.try_recv().unwrap();
 
     session
-        .handle_set_player_declined_names(declined_names_packet(
-            player,
-            ["Gen", "Dat", "Acc", "Inst", "Prep"],
-        ))
+        .handle_alter_appearance(alter_appearance_packet(1, 7, 11, &[(20, 200), (10, 100)]))
         .await;
 
     assert_eq!(
-        read_declined_names_result(send_rx.try_recv().unwrap()),
-        (DECLINED_NAMES_RESULT_ERROR_LIKE_CPP, player)
+        read_barber_shop_result(send_rx.try_recv().unwrap()),
+        BARBER_SHOP_RESULT_SUCCESS_LIKE_CPP
+    );
+    assert_eq!(
+        session.represented_alter_appearance_requests_like_cpp(),
+        &[RepresentedAlterAppearanceLikeCpp {
+            new_sex: 1,
+            customizations: vec![
+                ChrCustomizationChoice {
+                    option_id: 10,
+                    choice_id: 100,
+                },
+                ChrCustomizationChoice {
+                    option_id: 20,
+                    choice_id: 200,
+                },
+            ],
+            customized_race: 7,
+            customized_chr_model_id: 11,
+            cost: 0,
+        }]
     );
 }
 
 #[tokio::test]
-async fn set_player_declined_names_short_packet_does_not_send_like_cpp() {
+async fn confirm_barbers_choice_records_request_without_success_packet_like_cpp() {
     let (mut session, send_rx) = make_session_with_send_capacity(1);
 
     session
-        .handle_set_player_declined_names(WorldPacket::from_bytes(&[0x2a, 0x00]))
+        .handle_confirm_barbers_choice(confirm_barbers_choice_packet(&[(20, 200), (10, 100)]))
         .await;
 
     assert!(send_rx.try_recv().is_err());
+    assert_eq!(
+        session.represented_confirm_barbers_choice_requests_like_cpp(),
+        &[RepresentedConfirmBarbersChoiceLikeCpp {
+            customizations: vec![
+                ChrCustomizationChoice {
+                    option_id: 20,
+                    choice_id: 200,
+                },
+                ChrCustomizationChoice {
+                    option_id: 10,
+                    choice_id: 100,
+                },
+            ],
+            cost: 0,
+        }]
+    );
 }

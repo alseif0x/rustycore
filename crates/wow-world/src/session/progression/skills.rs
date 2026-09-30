@@ -5,6 +5,8 @@
 
 use super::*;
 
+mod skill_write;
+
 impl WorldSession {
     /// Publish the canonical `ActivePlayerData::Skill` image after a durable
     /// acquisition commit. The current entity bridge does not yet own these
@@ -428,67 +430,27 @@ impl WorldSession {
         value: u16,
         max: u16,
     ) {
-        let step = if value == 0 { 0 } else { step };
         let Some(mut skill_records) = self.resolved_player_skill_records_like_cpp() else {
             return;
         };
         let previous = skill_records.get(&skill_id).copied();
         let complete_occupied_slots = self.complete_player_skill_occupied_slots_like_cpp();
-        // Preserve the existing DB-facing profession association exactly as
-        // the former active-only representation did. Persistence still
-        // ignores the shadow lifecycle state in this projection-only PR.
-        let profession_slot = previous.map(|skill| skill.profession_slot).unwrap_or(-1);
-        let state = match previous {
-            None => RepresentedPlayerSkillStateLikeCpp::New,
-            Some(previous) if value == 0 && previous.value != 0 => {
-                if previous.state == RepresentedPlayerSkillStateLikeCpp::New {
-                    RepresentedPlayerSkillStateLikeCpp::Unchanged
-                } else {
-                    RepresentedPlayerSkillStateLikeCpp::Deleted
-                }
-            }
-            Some(previous) if value == 0 => previous.state,
-            Some(previous)
-                if matches!(
-                    previous.state,
-                    RepresentedPlayerSkillStateLikeCpp::Unchanged
-                        | RepresentedPlayerSkillStateLikeCpp::Deleted
-                ) =>
-            {
-                if previous.value == 0 {
-                    if previous.state == RepresentedPlayerSkillStateLikeCpp::Deleted {
-                        RepresentedPlayerSkillStateLikeCpp::Changed
-                    } else {
-                        RepresentedPlayerSkillStateLikeCpp::New
-                    }
-                } else {
-                    RepresentedPlayerSkillStateLikeCpp::Changed
-                }
-            }
-            Some(previous) => previous.state,
-        };
+        let previous_record = previous.map(canonical_player_skill_record_like_cpp);
+        let write = wow_entities::PlayerGameplayState::prepare_skill_write(
+            skill_id, step, value, max, previous_record.as_ref(),
+        );
         skill_records.insert(
             skill_id,
-            RepresentedPlayerSkillLikeCpp {
-                skill_id,
-                step,
-                value,
-                max,
-                profession_slot,
-                state,
-            },
+            represented_player_skill_record_like_cpp(&write.record)
+                .expect("skill write retains its supplied u16 ID"),
         );
-        // A mutation of an already-authoritative map preserves exact slot
-        // ownership: existing/tombstone rows retain their slot and a genuinely
-        // new row consumes one. Incomplete sources remain fail-closed.
-        let preserve_complete = complete_occupied_slots.is_some();
-        if !self.replace_player_skill_records_like_cpp(skill_records, true, preserve_complete) {
-            return;
-        }
-        if let Some(occupied_slots) = complete_occupied_slots {
-            let occupied_slots = occupied_slots.saturating_add(u16::from(previous.is_none()));
-            let _ = self.set_player_skill_occupied_slots_like_cpp(occupied_slots);
-        }
+        self.install_skill_write(
+            skill_records,
+            complete_occupied_slots,
+            &write,
+            Self::replace_player_skill_records_like_cpp,
+            Self::set_player_skill_occupied_slots_like_cpp,
+        );
     }
     pub(in crate::session) fn resolved_player_skill_max_value_like_cpp(
         &self,
@@ -507,7 +469,7 @@ impl WorldSession {
             .expect("test Player skill owner must resolve")
     }
     pub(in crate::session) fn max_skill_value_for_level_like_cpp(&self) -> u16 {
-        u16::from(self.player_level_like_cpp()).saturating_mul(5)
+        wow_entities::PlayerGameplayState::skill_maximum_for_level(self.player_level_like_cpp())
     }
     pub(crate) fn resolved_player_skill_values_like_cpp(&self) -> Option<HashMap<u16, u16>> {
         Some(represented_skill_values_from_records_like_cpp(

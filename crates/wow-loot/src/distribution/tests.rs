@@ -2,9 +2,53 @@
 use super::*;
 use crate::LootEntryFlags;
 use wow_core::guid::HighGuid;
+mod personal_assignment;
 
 // Only fixture metadata: this suite performs no wire serialization.
 const LOOT_TYPE_CORPSE_LIKE_CPP: u8 = 1;
+
+#[test]
+fn loot_is_looted_requires_no_money_and_no_unlooted_items_like_cpp() {
+    let mut loot = CreatureLoot {
+        loot_guid: ObjectGuid::EMPTY,
+        coins: 1,
+        unlooted_count: 0,
+        loot_type: LOOT_TYPE_CORPSE_LIKE_CPP,
+        dungeon_encounter_id: 0,
+        loot_method: 0,
+        loot_master: ObjectGuid::EMPTY,
+        round_robin_player: ObjectGuid::EMPTY,
+        player_ffa_items: Vec::new(),
+        players_looting: Vec::new(),
+        allowed_looters: Vec::new(),
+        items: vec![],
+        looted_by_player: false,
+    };
+    assert!(!loot_is_looted_like_cpp(&loot));
+
+    loot.coins = 0;
+    loot.items.push(LootEntry {
+        loot_list_id: 0,
+        item_id: 25,
+        quantity: 1,
+        random_properties_id: 0,
+        random_properties_seed: 0,
+        item_context: 0,
+        flags: LootEntryFlags::default(),
+        allowed_looters: Vec::new(),
+        roll_winner: ObjectGuid::EMPTY,
+        ffa_looted_by: Vec::new(),
+        taken: false,
+    });
+    loot.unlooted_count = 1;
+    assert!(!loot_is_looted_like_cpp(&loot));
+
+    loot.items[0].taken = true;
+    assert!(!loot_is_looted_like_cpp(&loot));
+
+    loot.unlooted_count = 0;
+    assert!(loot_is_looted_like_cpp(&loot));
+}
 
 #[test]
 fn consumed_ffa_entries_stay_consumed_after_authority_view_rebuild() {

@@ -337,33 +337,31 @@ impl WorldSession {
         gameobject_guid: ObjectGuid,
         cooldown_secs: u32,
     ) -> bool {
-        if cooldown_secs == 0 {
-            return true;
+        let outcome = wow_entities::GameObjectUseValues::apply_cooldown(cooldown_secs, || {
+            let now = Instant::now();
+            let state = self
+                .represented_gameobject_use_states
+                .entry(gameobject_guid)
+                .or_default();
+            (now, &mut state.cooldown_until)
+        });
+        match outcome {
+            wow_entities::CooldownOutcome::NoCooldown => true,
+            wow_entities::CooldownOutcome::Rejected => {
+                self.represented_gameobject_use_effects
+                    .push(RepresentedGameObjectUseEffect::CooldownRejected { gameobject_guid });
+                false
+            }
+            wow_entities::CooldownOutcome::Started { cooldown_secs } => {
+                self.represented_gameobject_use_effects.push(
+                    RepresentedGameObjectUseEffect::CooldownStarted {
+                        gameobject_guid,
+                        cooldown_secs,
+                    },
+                );
+                true
+            }
         }
-
-        let now = Instant::now();
-        let state = self
-            .represented_gameobject_use_states
-            .entry(gameobject_guid)
-            .or_default();
-        if state
-            .cooldown_until
-            .is_some_and(|cooldown_until| cooldown_until > now)
-        {
-            self.represented_gameobject_use_effects
-                .push(RepresentedGameObjectUseEffect::CooldownRejected { gameobject_guid });
-            return false;
-        }
-
-        state.cooldown_until =
-            Some(now + Duration::from_millis(u64::from(cooldown_secs).saturating_mul(1000)));
-        self.represented_gameobject_use_effects.push(
-            RepresentedGameObjectUseEffect::CooldownStarted {
-                gameobject_guid,
-                cooldown_secs,
-            },
-        );
-        true
     }
     pub(in crate::session) fn tick_represented_gameobject_update_like_cpp(&mut self) {
         let now = Instant::now();
@@ -420,15 +418,12 @@ impl WorldSession {
             .represented_gameobject_use_states
             .iter()
             .filter_map(|(&guid, state)| {
-                let is_door_or_button = matches!(
-                    state.go_type.map(u32::from),
-                    Some(wow_entities::GAMEOBJECT_TYPE_DOOR | wow_entities::GAMEOBJECT_TYPE_BUTTON)
-                );
-                let is_activated = state.loot_state == Some(wow_entities::LootState::Activated);
-                let cooldown_expired = state
-                    .cooldown_until
-                    .is_some_and(|cooldown_until| cooldown_until <= now);
-                (is_door_or_button && is_activated && cooldown_expired).then_some(guid)
+                wow_entities::GameObjectUseValues::door_reset_due(
+                    state.go_type,
+                    state.loot_state,
+                    state.cooldown_until,
+                    now,
+                ).then_some(guid)
             })
             .collect::<Vec<_>>();
         let expired_goober_guids = self

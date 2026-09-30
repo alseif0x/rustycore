@@ -36,11 +36,6 @@ impl PassengerInfo {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
-pub struct VehicleTemplate {
-    pub despawn_delay_ms: i32,
-}
-
 #[derive(Debug, Clone, PartialEq)]
 pub struct Vehicle {
     base_guid: ObjectGuid,

@@ -470,7 +470,7 @@ mod tests {
             flags1: 0,
             flags2: 0,
         }]);
-        let mut data = [0_u32; wow_entities::MAX_GAMEOBJECT_DATA];
+        let mut data = [0_u32; crate::gameobject_template::MAX_GAMEOBJECT_DATA];
         data[0] = 7;
         let gameobject_templates = GameObjectTemplateLifecycleStoreLikeCpp::from_templates([
             crate::GameObjectTemplateLifecycleRecordLikeCpp {

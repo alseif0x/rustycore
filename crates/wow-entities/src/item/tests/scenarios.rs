@@ -542,3 +542,26 @@ fn values_update_sets_item_type_bit() {
     assert!(update.object_data.is_none());
     assert!(update.item_data.is_some());
 }
+
+#[test]
+fn loot_item_random_context_runtime_fields_match_entry() {
+    let item_guid = ObjectGuid::create_item(1, 902);
+    let owner_guid = ObjectGuid::create_player(1, 42);
+    let mut item = Item::new(0);
+    item.initialize_created_state(ItemCreateInfo {
+        guid: item_guid,
+        item_id: 25,
+        context: <ItemContext as num_traits::FromPrimitive>::from_u8(2).unwrap_or(ItemContext::None),
+        owner: Some(owner_guid),
+        max_durability: 0,
+        expiration: 0,
+        spell_charges: [0; MAX_ITEM_SPELLS],
+    });
+    item.set_random_properties_id(-77);
+    item.set_property_seed(456);
+
+    let data = item.data();
+    assert_eq!(data.random_properties_id, -77);
+    assert_eq!(data.property_seed, 456);
+    assert_eq!(u8::try_from(data.context).unwrap_or(0), 2);
+}

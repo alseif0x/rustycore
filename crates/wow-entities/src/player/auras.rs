@@ -53,6 +53,19 @@ impl Player {
         auras.insert_runtime_application_like_cpp(aura);
     }
 
+    /// Restored Player Aura commit includes the loaded cast provenance.
+    /// The generic threat installer retains its separate contract.
+    pub fn install_loaded_player_threat_aura(
+        &mut self,
+        slot: u8,
+        snapshot: AuraThreatSnapshotLikeCpp,
+        aura: AuraApplicationLikeCpp,
+        provenance: crate::AuraCastProvenanceLikeCpp,
+    ) {
+        self.unit_mut().subsystems_mut().auras
+            .install_loaded_runtime_application(slot, snapshot, aura, provenance);
+    }
+
     pub fn remove_player_threat_aura_like_cpp(
         &mut self,
         spell_id: u32,

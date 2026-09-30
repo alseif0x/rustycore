@@ -83,49 +83,49 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub fn set_chat_fake_message_preventing_like_cpp(&mut self, enabled: bool) {
-        self.chat_fake_message_preventing_like_cpp = enabled;
+        self.social.chat_fake_message_preventing_like_cpp = enabled;
     }
     #[cfg(test)]
     pub fn set_chat_strict_link_checking_kick_like_cpp(&mut self, enabled: bool) {
-        self.chat_strict_link_checking_kick_like_cpp = enabled;
+        self.social.chat_strict_link_checking_kick_like_cpp = enabled;
     }
     #[cfg(test)]
     pub fn set_chat_level_requirements_like_cpp(
         &mut self,
         requirements: ChatLevelRequirementsLikeCpp,
     ) {
-        self.chat_level_requirements_like_cpp = requirements;
+        self.social.chat_level_requirements_like_cpp = requirements;
     }
     #[cfg(test)]
     pub fn set_chat_listen_ranges_like_cpp(&mut self, ranges: ChatListenRangesLikeCpp) {
-        self.chat_listen_ranges_like_cpp = ranges;
+        self.social.chat_listen_ranges_like_cpp = ranges;
     }
     #[cfg(test)]
     pub fn set_chat_flood_config_like_cpp(&mut self, config: ChatFloodConfigLikeCpp) {
-        self.chat_flood_config_like_cpp = config;
+        self.social.chat_flood_config_like_cpp = config;
     }
     pub fn set_remote_address_like_cpp(&mut self, address: Option<String>) {
         self.transport.remote_address_like_cpp = address;
     }
     #[cfg(test)]
     pub(crate) fn chat_fake_message_preventing_like_cpp(&self) -> bool {
-        self.chat_fake_message_preventing_like_cpp
+        self.social.chat_fake_message_preventing_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn chat_strict_link_checking_kick_like_cpp(&self) -> bool {
-        self.chat_strict_link_checking_kick_like_cpp
+        self.social.chat_strict_link_checking_kick_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn chat_level_requirements_like_cpp(&self) -> ChatLevelRequirementsLikeCpp {
-        self.chat_level_requirements_like_cpp
+        self.social.chat_level_requirements_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn chat_listen_ranges_like_cpp(&self) -> ChatListenRangesLikeCpp {
-        self.chat_listen_ranges_like_cpp
+        self.social.chat_listen_ranges_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn chat_flood_config_like_cpp(&self) -> ChatFloodConfigLikeCpp {
-        self.chat_flood_config_like_cpp
+        self.social.chat_flood_config_like_cpp
     }
     pub(crate) fn set_player_emote_state_like_cpp(
         &mut self,

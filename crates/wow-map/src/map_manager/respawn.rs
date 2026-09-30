@@ -13,8 +13,8 @@ impl WorldCreature {
         spell_hit: bool,
         spell_cast_log: bool,
     ) {
-        self.respawn_spell_hit_aura_source_authority_like_cpp = spell_hit;
-        self.respawn_spell_cast_log_aura_source_authority_like_cpp = spell_cast_log;
+        self.runtime.respawn_spell_hit_aura_source_authority_like_cpp = spell_hit;
+        self.runtime.respawn_spell_cast_log_aura_source_authority_like_cpp = spell_cast_log;
         let auras = &mut self.creature.unit_mut().subsystems_mut().auras;
         auras.set_spell_hit_aura_authority_inert_like_cpp(spell_hit);
         auras.set_spell_cast_log_aura_authority_inert_like_cpp(spell_cast_log);
@@ -107,32 +107,33 @@ impl WorldCreature {
 }
 
 impl MapInstance {
+    /// Prepared only: caller holds the existing writer fence and has quiesced
+    /// producer/drained-borrower work. No production route calls this yet.
+    pub fn take_respawn_transfer<'fence>(
+        &mut self,
+        incarnation: u64,
+        writer_fence: &'fence std::sync::MutexGuard<'_, ()>,
+    ) -> crate::spawn::RespawnTransfer<'fence> {
+        self.respawn_store.take_transfer(
+            crate::MapKey::new(u32::from(self.map_id), self.instance_id),
+            incarnation, writer_fence,
+        )
+    }
+
+    pub fn restore_respawn_transfer<'fence>(
+        &mut self, incoming: crate::spawn::RespawnTransfer<'fence>,
+    ) -> Result<(), (crate::spawn::RespawnTransferError, crate::spawn::RespawnTransfer<'fence>)> {
+        if incoming.key() != crate::MapKey::new(u32::from(self.map_id), self.instance_id) {
+            return Err((crate::spawn::RespawnTransferError::WrongMap, incoming));
+        }
+        self.respawn_store.restore_transfer(incoming)
+    }
+
     pub fn add_persisted_respawn_time_like_cpp(
         &mut self,
         row: PersistedRespawnRowLikeCpp,
     ) -> LegacyRespawnTimeAddOutcomeLikeCpp {
-        if row.spawn_id == 0 {
-            return LegacyRespawnTimeAddOutcomeLikeCpp::RejectedZeroSpawnId;
-        }
-        if !matches!(
-            row.object_type,
-            SpawnObjectType::Creature | SpawnObjectType::GameObject
-        ) {
-            return LegacyRespawnTimeAddOutcomeLikeCpp::RejectedUnsupportedType;
-        }
-
-        let key = (row.object_type, row.spawn_id);
-        if let Some(existing) = self.persisted_respawn_times.get(&key) {
-            if row.respawn_time <= existing.respawn_time {
-                self.persisted_respawn_times.insert(key, row);
-                LegacyRespawnTimeAddOutcomeLikeCpp::ReplacedExisting
-            } else {
-                LegacyRespawnTimeAddOutcomeLikeCpp::RejectedExistingSoonerOrEqual
-            }
-        } else {
-            self.persisted_respawn_times.insert(key, row);
-            LegacyRespawnTimeAddOutcomeLikeCpp::Inserted
-        }
+        self.respawn_store.save_row(row)
     }
 
     pub fn persisted_respawn_time_like_cpp(
@@ -140,29 +141,17 @@ impl MapInstance {
         object_type: SpawnObjectType,
         spawn_id: u64,
     ) -> Option<i64> {
-        self.persisted_respawn_times
-            .get(&(object_type, spawn_id))
-            .map(|row| row.respawn_time)
+        self.respawn_store.saved_row(object_type, spawn_id).map(|row| row.respawn_time)
     }
 
     pub fn persisted_respawn_rows_like_cpp(&self) -> Vec<PersistedRespawnRowLikeCpp> {
-        self.persisted_respawn_times.values().copied().collect()
+        self.respawn_store.saved_rows()
     }
 
     /// Enqueue a creature waiting to respawn.
     /// C++ ref: `Map::_respawnTimes` insertion path (Map.cpp:2191).
     pub fn push_respawn(&mut self, respawn: PendingRespawn) {
-        if let Some(existing_index) = self.respawn_queue.iter().position(|queued| {
-            queued.persistent_spawn == respawn.persistent_spawn
-                && queued.spawn_id == respawn.spawn_id
-        }) {
-            if respawn.respawn_at <= self.respawn_queue[existing_index].respawn_at {
-                self.respawn_queue.remove(existing_index);
-            } else {
-                return;
-            }
-        }
-        self.respawn_queue.push(respawn);
+        let _ = self.respawn_store.queue_actor(respawn);
     }
 
     /// Drain entries whose `respawn_at <= now` in insertion order.
@@ -170,22 +159,12 @@ impl MapInstance {
     /// Entries that are NOT yet ready are retained in the queue.
     /// C++ ref: `Map::ProcessRespawns` (Map.cpp:2191).
     pub fn drain_ready_respawns(&mut self, now: Instant) -> Vec<PendingRespawn> {
-        let mut remaining = Vec::new();
-        let mut spawn_now = Vec::new();
-        for r in self.respawn_queue.drain(..) {
-            if now >= r.respawn_at {
-                spawn_now.push(r);
-            } else {
-                remaining.push(r);
-            }
-        }
-        self.respawn_queue = remaining;
-        spawn_now
+        self.respawn_store.drain_ready_actors(now)
     }
 
     /// Number of entries currently waiting to respawn.
     pub fn respawn_queue_len(&self) -> usize {
-        self.respawn_queue.len()
+        self.respawn_store.actor_queue_len()
     }
 
     pub fn save_pending_respawn_time_like_cpp(
@@ -194,30 +173,7 @@ impl MapInstance {
         now: Instant,
         now_secs: i64,
     ) -> Option<RespawnPersistenceMutationLikeCpp> {
-        let row = PersistedRespawnRowLikeCpp {
-            object_type: SpawnObjectType::Creature,
-            spawn_id: respawn.spawn_id,
-            respawn_time: respawn_time_from_instant_like_cpp(respawn.respawn_at, now, now_secs),
-            map_id: self.map_id,
-            instance_id: self.instance_id,
-        };
-        match self.add_persisted_respawn_time_like_cpp(row) {
-            LegacyRespawnTimeAddOutcomeLikeCpp::Inserted
-            | LegacyRespawnTimeAddOutcomeLikeCpp::ReplacedExisting => {
-                Some(RespawnPersistenceMutationLikeCpp::Save {
-                    key: RespawnPersistenceKeyLikeCpp {
-                        object_type_raw: spawn_object_type_raw_like_cpp(row.object_type),
-                        spawn_id: row.spawn_id,
-                        map_id: row.map_id,
-                        instance_id: row.instance_id,
-                    },
-                    respawn_time: row.respawn_time,
-                })
-            }
-            LegacyRespawnTimeAddOutcomeLikeCpp::RejectedZeroSpawnId
-            | LegacyRespawnTimeAddOutcomeLikeCpp::RejectedUnsupportedType
-            | LegacyRespawnTimeAddOutcomeLikeCpp::RejectedExistingSoonerOrEqual => None,
-        }
+        self.respawn_store.save_actor_row(respawn, self.map_id, self.instance_id, now, now_secs)
     }
 
     pub fn load_persisted_respawns_into_queue_like_cpp(

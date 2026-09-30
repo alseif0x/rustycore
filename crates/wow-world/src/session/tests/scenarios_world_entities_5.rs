@@ -78,7 +78,7 @@ async fn gameobject_visual_despawn_creature_shared_vision_out_of_world_target_no
     );
     assert!(
         session
-            .represented_gameobject_visual_despawns_delivered_like_cpp
+            .visibility_publication.represented_gameobject_visual_despawns_delivered_like_cpp
             .is_empty()
     );
 
@@ -165,7 +165,7 @@ async fn gameobject_visual_despawn_creature_shared_vision_requires_session_seer_
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
-            .represented_gameobject_visual_despawns_delivered_like_cpp
+            .visibility_publication.represented_gameobject_visual_despawns_delivered_like_cpp
             .is_empty()
     );
 }
@@ -217,7 +217,7 @@ async fn gameobject_visual_despawn_creature_shared_vision_requires_target_list_v
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
-            .represented_gameobject_visual_despawns_delivered_like_cpp
+            .visibility_publication.represented_gameobject_visual_despawns_delivered_like_cpp
             .is_empty()
     );
 }
@@ -338,7 +338,7 @@ async fn gameobject_visual_despawn_creature_shared_vision_phase_range_and_have_a
     );
     assert_eq!(
         session
-            .represented_gameobject_visual_despawns_delivered_like_cpp
+            .visibility_publication.represented_gameobject_visual_despawns_delivered_like_cpp
             .len(),
         1
     );
@@ -434,7 +434,7 @@ async fn gameobject_visual_despawn_dynamic_object_caster_viewer_receives_once_li
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert_eq!(
         session
-            .represented_gameobject_visual_despawns_delivered_like_cpp
+            .visibility_publication.represented_gameobject_visual_despawns_delivered_like_cpp
             .len(),
         1
     );
@@ -497,7 +497,7 @@ async fn gameobject_visual_despawn_dynamic_object_requires_session_seer_target_l
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
-            .represented_gameobject_visual_despawns_delivered_like_cpp
+            .visibility_publication.represented_gameobject_visual_despawns_delivered_like_cpp
             .is_empty()
     );
 }
@@ -559,7 +559,7 @@ async fn gameobject_visual_despawn_dynamic_object_requires_player_caster_like_cp
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
-            .represented_gameobject_visual_despawns_delivered_like_cpp
+            .visibility_publication.represented_gameobject_visual_despawns_delivered_like_cpp
             .is_empty()
     );
 
@@ -580,7 +580,7 @@ async fn gameobject_visual_despawn_dynamic_object_requires_player_caster_like_cp
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
-            .represented_gameobject_visual_despawns_delivered_like_cpp
+            .visibility_publication.represented_gameobject_visual_despawns_delivered_like_cpp
             .is_empty()
     );
 }
@@ -690,7 +690,7 @@ async fn gameobject_visual_despawn_dynamic_object_phase_range_and_have_at_client
     );
     assert_eq!(
         session
-            .represented_gameobject_visual_despawns_delivered_like_cpp
+            .visibility_publication.represented_gameobject_visual_despawns_delivered_like_cpp
             .len(),
         1
     );
@@ -770,7 +770,7 @@ async fn gameobject_visual_despawn_shared_vision_requires_session_seer_target_li
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
-            .represented_gameobject_visual_despawns_delivered_like_cpp
+            .visibility_publication.represented_gameobject_visual_despawns_delivered_like_cpp
             .is_empty()
     );
 }
@@ -821,7 +821,7 @@ async fn gameobject_visual_despawn_shared_vision_requires_target_list_viewer_lik
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert!(
         session
-            .represented_gameobject_visual_despawns_delivered_like_cpp
+            .visibility_publication.represented_gameobject_visual_despawns_delivered_like_cpp
             .is_empty()
     );
 }

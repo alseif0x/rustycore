@@ -6,22 +6,14 @@ use super::*;
 
 pub const MAPID_INVALID: u32 = u32::MAX;
 
-/// TrinityCore `MAX_VISIBILITY_DISTANCE` (`SIZE_OF_GRIDS`).
-pub const MAX_VISIBILITY_DISTANCE: f32 = 533.3333;
-
 /// TrinityCore `SIGHT_RANGE_UNIT`.
 pub const SIGHT_RANGE_UNIT: f32 = 50.0;
 
-/// TrinityCore normal visibility distance.
-pub const DEFAULT_VISIBILITY_DISTANCE: f32 = 100.0;
-
-pub const VISIBILITY_DISTANCE_TINY: f32 = 25.0;
-
-pub const VISIBILITY_DISTANCE_SMALL: f32 = 50.0;
-
-pub const VISIBILITY_DISTANCE_LARGE: f32 = 200.0;
-
-pub const VISIBILITY_DISTANCE_GIGANTIC: f32 = 400.0;
+pub use wow_data_model::creature::{
+    DEFAULT_VISIBILITY_DISTANCE, MAX_VISIBILITY_DISTANCE, VISIBILITY_DISTANCE_GIGANTIC,
+    VISIBILITY_DISTANCE_LARGE, VISIBILITY_DISTANCE_SMALL, VISIBILITY_DISTANCE_TINY,
+    VisibilityDistanceTypeLikeCpp,
+};
 
 /// TrinityCore default instance/cinematic visibility distance.
 pub const DEFAULT_VISIBILITY_INSTANCE: f32 = 170.0;
@@ -31,43 +23,6 @@ pub const INVALID_HEIGHT: f32 = -100_000.0;
 
 /// TrinityCore `MAX_HEIGHT` sentinel for unconstrained height search.
 pub const MAX_HEIGHT: f32 = 100_000.0;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[repr(u8)]
-pub enum VisibilityDistanceTypeLikeCpp {
-    Normal = 0,
-    Tiny = 1,
-    Small = 2,
-    Large = 3,
-    Gigantic = 4,
-    Infinite = 5,
-}
-
-impl VisibilityDistanceTypeLikeCpp {
-    pub const MAX_LIKE_CPP: u8 = 6;
-
-    pub const fn from_u8_like_cpp(value: u8) -> Self {
-        match value {
-            1 => Self::Tiny,
-            2 => Self::Small,
-            3 => Self::Large,
-            4 => Self::Gigantic,
-            5 => Self::Infinite,
-            _ => Self::Normal,
-        }
-    }
-
-    pub const fn distance_like_cpp(self) -> f32 {
-        match self {
-            Self::Normal => DEFAULT_VISIBILITY_DISTANCE,
-            Self::Tiny => VISIBILITY_DISTANCE_TINY,
-            Self::Small => VISIBILITY_DISTANCE_SMALL,
-            Self::Large => VISIBILITY_DISTANCE_LARGE,
-            Self::Gigantic => VISIBILITY_DISTANCE_GIGANTIC,
-            Self::Infinite => MAX_VISIBILITY_DISTANCE,
-        }
-    }
-}
 
 /// TrinityCore `DEFAULT_HEIGHT_SEARCH`.
 pub const DEFAULT_HEIGHT_SEARCH: f32 = 50.0;

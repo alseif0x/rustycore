@@ -39,10 +39,11 @@ pub(super) fn make_bank_slot_session(
     Arc<Mutex<wow_map::MapManager>>,
 ) {
     let (mut session, send_rx) = make_session_with_send_capacity(capacity);
+    session.enable_ownerless_inventory_snapshots_for_test();
     let canonical = Arc::new(Mutex::new(wow_map::MapManager::new(60_000, 10)));
     let player_guid = ObjectGuid::create_player(1, 42);
     session.set_canonical_map_manager(Arc::clone(&canonical));
-    session.attach_player_controller_like_cpp(SessionPlayerController::new(
+    session.attach_player_controller_for_fixture(SessionPlayerController::new(
         player_guid,
         "Tester".to_string(),
         Position::new(0.0, 0.0, 0.0, 0.0),

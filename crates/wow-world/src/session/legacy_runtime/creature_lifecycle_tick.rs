@@ -7,7 +7,10 @@ use super::*;
 
 /// Runs one global legacy creature lifecycle tick without spawning a loop.
 ///
-/// This is Slice 4A.3c.3 dormant infrastructure. It covers only the parts of
+/// This remains the legacy production execution owner until prepared canonical
+/// Actor transport is activated under producer/borrower quiescence. Both owners
+/// temporarily hold instances of the same tagged RespawnStore definition.
+/// It covers only the parts of
 /// the legacy session creature tick that change creature existence:
 ///
 /// - corpse removal after `corpse_despawn_at`;
@@ -24,8 +27,7 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
     now: Instant,
 ) -> LegacyCreatureLifecycleTickOutcomeLikeCpp {
     use crate::map_manager::{
-        RuntimeTickOwner, pending_respawn_from_world_creature_like_cpp,
-        respawn_time_from_instant_like_cpp, world_creature_from_pending_respawn_like_cpp,
+        RuntimeTickOwner, world_creature_from_pending_respawn_like_cpp,
         world_to_grid_coords,
     };
     use std::collections::BTreeSet;
@@ -69,137 +71,30 @@ pub fn run_legacy_creature_lifecycle_tick_once_like_cpp(
         let map_keys = legacy_map_keys;
         outcome.maps_seen = map_keys.len();
         for (map_id, instance_id) in map_keys {
-            let guids = manager.creature_guids(map_id, instance_id);
-            outcome.creatures_seen += guids.len();
-
-            // C++ saves the respawn time from JUST_DIED, not when the corpse
-            // is eventually removed. Only persistent world-map spawns belong
-            // in the global characters.respawn table.
-            if persistent_world_map_keys.contains(&(map_id, instance_id)) {
-                for guid in &guids {
-                    let pending =
-                        manager
-                            .find_creature(map_id, instance_id, *guid)
-                            .and_then(|creature| {
-                                (!creature.is_alive()
-                                    && creature.creature.spawn_id() != 0
-                                    && creature.creature.runtime_state().save_respawn_requested)
-                                    .then(|| {
-                                        pending_respawn_from_world_creature_like_cpp(
-                                            creature,
-                                            creature.respawn_at_from_death_at_game_time_like_cpp(
-                                                conversion_now,
-                                                conversion_now_secs,
-                                            ),
-                                            map_id,
-                                        )
-                                    })
-                            });
-                    if let Some(pending) = pending {
-                        if let Some(stmt) = manager.save_pending_respawn_time_like_cpp(
-                            map_id,
-                            instance_id,
-                            &pending,
-                            conversion_now,
-                            conversion_now_secs,
-                        ) {
-                            outcome.respawn_db_mutations.push(stmt);
-                        }
-                        if let Some(creature) =
-                            manager.find_creature_mut(map_id, instance_id, *guid)
-                        {
-                            creature.creature.runtime_state_mut().save_respawn_requested = false;
-                        }
-                    }
-                }
-            }
-
-            let despawn_guids: Vec<ObjectGuid> = guids
-                .iter()
-                .filter(|guid| {
-                    manager
-                        .find_creature(map_id, instance_id, **guid)
-                        .is_some_and(|creature| {
-                            !creature.is_alive()
-                                && creature.creature.unit().death_state()
-                                    == wow_constants::DeathState::Corpse
-                                && creature.corpse_despawn_due_like_cpp()
-                        })
-                })
-                .copied()
-                .collect();
-
-            for guid in despawn_guids {
-                if let Some(creature) = manager.find_creature_mut(map_id, instance_id, guid) {
-                    creature.creature.clear_loot_like_cpp();
-                }
-                let Some(creature) = manager.remove_creature_any(map_id, instance_id, guid) else {
-                    continue;
-                };
-                let respawn_at = creature.respawn_at_from_death_at_game_time_like_cpp(
-                    conversion_now,
-                    conversion_now_secs,
-                );
-                let pending =
-                    pending_respawn_from_world_creature_like_cpp(&creature, respawn_at, map_id);
-                let grid = wow_map::compute_grid_coord(pending.home_pos.x, pending.home_pos.y);
-                let pending_respawn_secs = respawn_time_from_instant_like_cpp(
-                    respawn_at,
-                    conversion_now,
-                    conversion_now_secs,
-                );
-                let canonical_respawn_info = wow_map::RespawnInfoLikeCpp {
-                    object_type: wow_map::SpawnObjectType::Creature,
-                    spawn_id: pending.spawn_id,
-                    entry: pending.create_data.entry,
-                    respawn_time: pending_respawn_secs,
-                    grid_id: grid.get_id(),
-                };
-                if persistent_world_map_keys.contains(&(map_id, instance_id))
-                    && creature.creature.spawn_id() != 0
-                    && manager
-                        .persisted_respawn_time_like_cpp(
-                            map_id,
-                            instance_id,
-                            wow_map::SpawnObjectType::Creature,
-                            pending.spawn_id,
-                        )
-                        .is_none_or(|stored| stored < pending_respawn_secs)
-                {
-                    // REP_RESPAWN is an upsert, so replace the in-memory row
-                    // directly; no intermediate DEL is needed for the DB row.
-                    let _ = manager.remove_persisted_respawn_time_like_cpp(
-                        map_id,
-                        instance_id,
-                        wow_map::SpawnObjectType::Creature,
-                        pending.spawn_id,
-                    );
-                    if let Some(stmt) = manager.save_pending_respawn_time_like_cpp(
-                        map_id,
-                        instance_id,
-                        &pending,
-                        conversion_now,
-                        conversion_now_secs,
-                    ) {
-                        outcome.respawn_db_mutations.push(stmt);
-                    }
-                }
-                manager.push_respawn(map_id, instance_id, pending);
-                if creature.creature.spawn_id() != 0 {
+            let prefix = manager.prepare_creature_respawns(
+                map_id,
+                instance_id,
+                now,
+                conversion_now,
+                conversion_now_secs,
+                persistent_world_map_keys.contains(&(map_id, instance_id)),
+            );
+            outcome.creatures_seen += prefix.creatures_seen;
+            outcome.respawn_db_mutations.extend(prefix.respawn_db_mutations);
+            for removed in prefix.removed_corpses {
+                if let Some(info) = removed.respawn_info {
                     canonical_respawn_despawns.push((
-                        u32::from(map_id),
-                        instance_id,
-                        guid,
-                        canonical_respawn_info,
+                        u32::from(map_id), instance_id, removed.guid, info,
                     ));
                 } else {
-                    canonical_plain_despawns.push((u32::from(map_id), instance_id, guid));
+                    canonical_plain_despawns.push((
+                        u32::from(map_id), instance_id, removed.guid,
+                    ));
                 }
                 affected_maps.insert((map_id, instance_id));
                 outcome.corpses_despawned += 1;
             }
-
-            let ready_respawns = manager.drain_ready_respawns(map_id, instance_id, now);
+            let ready_respawns = prefix.ready;
             for respawn in ready_respawns {
                 let guid = respawn.create_data.guid;
                 if manager.find_creature(map_id, instance_id, guid).is_some()

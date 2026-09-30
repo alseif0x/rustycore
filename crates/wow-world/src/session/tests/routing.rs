@@ -267,38 +267,6 @@ async fn realm_only_party_commands_never_use_instance_after_connect_to_like_cpp(
     assert!(instance_rx.try_recv().is_err());
 }
 
-/// Parses the destroyed `PartyUpdate` that C++
-/// `Group::SendUpdateDestroyGroupToPlayer` (`Group.cpp:917-926`) sends so
-/// the removed member's client tears down its party frames.
-pub(super) fn assert_destroyed_party_update_like_cpp(bytes: &[u8], group_guid: u64) {
-    let mut packet = WorldPacket::from_bytes(bytes);
-    assert_eq!(
-        packet.read_uint16().expect("opcode"),
-        ServerOpcodes::PartyUpdate as u16
-    );
-    assert_eq!(
-        packet.read_uint16().expect("party flags"),
-        wow_social::group::GROUP_FLAG_DESTROYED_LIKE_CPP
-    );
-    assert_eq!(
-        packet.read_uint8().expect("party index"),
-        wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
-    );
-    assert_eq!(
-        packet.read_uint8().expect("party type"),
-        wow_social::group::GROUP_TYPE_NONE_LIKE_CPP
-    );
-    assert_eq!(packet.read_int32().expect("my index"), -1);
-    assert_eq!(
-        packet.read_packed_guid().expect("party guid"),
-        ObjectGuid::create_group(group_guid)
-    );
-    let _sequence_num = packet.read_int32().expect("sequence num");
-    assert_eq!(
-        packet.read_packed_guid().expect("leader guid"),
-        ObjectGuid::EMPTY
-    );
-}
 
 /// (4) Packet is NOT sent when `instance_id` in command does not match session instance.
 /// Slice 4A.1b requirement — instance separation, no cross-instance delivery.

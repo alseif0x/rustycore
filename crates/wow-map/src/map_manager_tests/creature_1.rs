@@ -642,7 +642,7 @@ fn world_creature_move_spline_bridge_advances_and_finalizes_like_cpp_unit_tick()
         .expect("valid two-point spline");
 
     assert_eq!(from, Position::new(10.0, 10.0, 0.0, 0.0));
-    assert!(creature.active_move_spline.is_some());
+    assert!(creature.runtime.active_move_spline.is_some());
     assert_eq!(creature.spline_id(), 2);
     assert!(
         creature
@@ -691,7 +691,7 @@ fn world_creature_move_spline_bridge_advances_and_finalizes_like_cpp_unit_tick()
     creature.creature.ai_ownership_mut().move_start_ms =
         now_ms.saturating_sub(u64::from(duration_ms));
     assert!(creature.update_move_spline_like_cpp());
-    assert!(creature.active_move_spline.is_none());
+    assert!(creature.runtime.active_move_spline.is_none());
     assert_eq!(creature.position(), dst);
     let motion_spline = &creature.creature.unit().subsystems().motion.spline;
     assert!(!motion_spline.enabled);
@@ -745,7 +745,7 @@ fn world_creature_move_spline_by_path_uses_cpp_moveby_path_bridge() {
         .expect("valid multi-point path spline");
 
     assert_eq!(from, Position::new(10.0, 10.0, 0.0, 0.0));
-    assert!(creature.active_move_spline.is_some());
+    assert!(creature.runtime.active_move_spline.is_some());
     assert_eq!(creature.spline_id(), 2);
     assert_eq!(creature.move_target(), Some(path[2]));
     assert_eq!(spline.final_destination(), Some(path[2]));

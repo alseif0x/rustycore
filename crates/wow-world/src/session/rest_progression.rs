@@ -6,8 +6,8 @@
 
 use super::{Arc, AreaTriggerDb2Store, PLAYER_FLAGS_RESTING_LIKE_CPP};
 use super::{PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP, REST_FLAG_IN_TAVERN_LIKE_CPP};
-#[cfg(test)]
-use super::REST_BONUS_MAX_NEXT_LEVEL_XP_FACTOR_LIKE_CPP;
+#[cfg(any(test, feature = "test-fixtures"))]
+use super::constants::REST_BONUS_MAX_NEXT_LEVEL_XP_FACTOR_LIKE_CPP;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::REST_STATE_NORMAL_LIKE_CPP;
 use super::{RepresentedAuraEffectLikeCpp, WorldSession, max_level_for_expansion_like_cpp};
@@ -78,7 +78,7 @@ impl WorldSession {
         u32::from(self.player_level_like_cpp()) >= self.player_active_max_level_like_cpp()
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn can_gain_represented_xp_rest_bonus_like_cpp(&self) -> Option<bool> {
         if self.player_is_at_configured_max_level_like_cpp() {
             return Some(false);
@@ -88,7 +88,7 @@ impl WorldSession {
         Some(next_level_xp != 0 && next_level_xp != u32::MAX)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn represented_xp_rest_bonus_cap_like_cpp(&self) -> Option<f32> {
         Some(
             self.resolved_player_next_level_xp_like_cpp()? as f32
@@ -101,8 +101,8 @@ impl WorldSession {
     ) -> Option<wow_entities::PlayerRestState> {
         let canonical =
             self.with_owned_player_for_rest_like_cpp(|player| player.rest_state_like_cpp().clone());
-        #[cfg(test)]
-        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.character_lifecycle_handleless_fixture() {
             return Some(
                 wow_entities::PlayerRestState::from_represented_parts_like_cpp(
                     self.rest_mgr_test_fixture_like_cpp
@@ -127,7 +127,7 @@ impl WorldSession {
         canonical
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn replace_player_rest_state_like_cpp(
         &mut self,
         state: wow_entities::PlayerRestState,
@@ -148,8 +148,8 @@ impl WorldSession {
                 player.replace_rest_state_like_cpp(state.clone());
             })
             .is_some();
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             self.rest_mgr_test_fixture_like_cpp
                 .represented_rest_bonus_xp_like_cpp = state.rest_bonus_like_cpp();
             self.rest_mgr_test_fixture_like_cpp
@@ -173,13 +173,13 @@ impl WorldSession {
         canonical
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn set_represented_xp_rest_bonus_like_cpp(
         &mut self,
         rest_bonus: f32,
     ) -> u8 {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             return self.fixture_set_xp_rest_bonus_like_cpp(rest_bonus);
         }
         let at_max = self.player_is_at_configured_max_level_like_cpp();
@@ -191,8 +191,8 @@ impl WorldSession {
     }
 
     pub(crate) fn add_represented_xp_rest_bonus_like_cpp(&mut self, rest_bonus: f32) -> u8 {
-        #[cfg(test)]
-        if self.player_handle_like_cpp.is_none() {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.character_lifecycle_handleless_fixture() {
             let Some(current) = self.resolved_xp_rest_bonus_like_cpp() else {
                 return 0;
             };
@@ -206,7 +206,7 @@ impl WorldSession {
         .unwrap_or(0)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn calc_represented_xp_rest_extra_per_sec_like_cpp(
         &self,
         bubble: f32,

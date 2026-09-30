@@ -721,7 +721,7 @@ where
             summary.visited += 1;
             let Some(context) = self
                 .map_object_record(guid)
-                .and_then(MapObjectRecord::scene_object)
+                .and_then(|record| record.scene_object())
                 .map(|scene_object| context_resolver(guid, scene_object))
             else {
                 let outcome = self.update_scene_object_like_cpp(

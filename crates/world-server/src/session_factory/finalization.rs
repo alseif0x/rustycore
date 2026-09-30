@@ -46,6 +46,27 @@ pub(super) async fn finalize_owned_world_session_like_cpp(
         WorldSessionRunOutcomeLikeCpp::Finished => None,
     };
     let active_session_registry = Arc::clone(&active_session_registration.registry);
+    active_session_registry.withdraw_from_phases(active_session_registration.id);
+    session.refuse_pending_phase_requests_like_cpp();
+    // An owned World permit may not wait for itself. That variant blocks new
+    // producer admission and waits only for the legacy blocking owner; every
+    // unphased finalizer waits for all admitted ticks before its first effect.
+    let finalization_admission = active_session_registry
+        .admit_finalization(pending_finalization.as_ref());
+    let admitted = if active_session_registry.is_shutting_down_like_cpp() {
+        tokio::time::timeout(step_timeout, finalization_admission.wait()).await.is_ok()
+    } else {
+        finalization_admission.wait().await;
+        true
+    };
+    if !admitted {
+        finalization_admission.retain();
+        active_session_registry.begin_shutdown_like_cpp();
+        active_session_registry.request_session_stop_like_cpp();
+        world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
+        tracing::error!(account_id, "Session finalization has no quiescent admission; retaining session");
+        retain_session_until_process_teardown(&mut session).await;
+    }
     // Retired reads cannot start writes. Join writes already submitted by ready
     // callbacks before saving/discarding this Session. A timeout is fatal, not an
     // acknowledgement that a transaction rolled back or a worker stopped.
@@ -62,6 +83,7 @@ pub(super) async fn finalize_owned_world_session_like_cpp(
         rename_drain.await
     };
     if !rename_finished {
+        finalization_admission.retain();
         active_session_registry.begin_shutdown_like_cpp();
         active_session_registry.request_session_stop_like_cpp();
         world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
@@ -93,6 +115,7 @@ pub(super) async fn finalize_owned_world_session_like_cpp(
     };
     let report = attempt.or_else(|| session.interrupt_finalization_like_cpp());
     if !completed_session_finalization(&report) {
+        finalization_admission.retain();
         // Keep this task's Session, exact claim, remaining operation state and
         // registration alive. Closing admission precedes fail-stop; no other
         // session can race a still-unproven writer through a released claim.
@@ -113,6 +136,7 @@ pub(super) async fn finalize_owned_world_session_like_cpp(
     if let Some(pending) = pending_finalization {
         pending.complete_like_cpp();
     }
+    finalization_admission.complete();
 }
 
 #[cfg(test)]

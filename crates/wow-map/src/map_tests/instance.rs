@@ -350,6 +350,8 @@ fn map_object_store_inserts_finds_typed_objects_and_removes_by_guid() {
     assert_eq!(
         map.remove_map_object(creature_guid)
             .unwrap()
+            .record()
+            .unwrap()
             .object()
             .guid(),
         creature_guid
@@ -555,6 +557,8 @@ fn insert_map_object_record_preserves_shared_typed_authority_for_same_guid_refre
 
     assert!(
         displaced_creature
+            .record()
+            .unwrap()
             .creature()
             .unwrap()
             .loot_authority_like_cpp()
@@ -568,7 +572,7 @@ fn insert_map_object_record_preserves_shared_typed_authority_for_same_guid_refre
     assert_eq!(
         creature_map
             .map_object_record(creature_guid)
-            .and_then(MapObjectRecord::creature)
+            .and_then(|record| record.creature())
             .unwrap()
             .loot_authority_like_cpp()
             .shared_snapshot_like_cpp()
@@ -611,6 +615,8 @@ fn insert_map_object_record_preserves_shared_typed_authority_for_same_guid_refre
 
     assert!(
         displaced_gameobject
+            .record()
+            .unwrap()
             .game_object()
             .unwrap()
             .loot_authority_like_cpp()
@@ -624,7 +630,7 @@ fn insert_map_object_record_preserves_shared_typed_authority_for_same_guid_refre
     assert_eq!(
         gameobject_map
             .map_object_record(gameobject_guid)
-            .and_then(MapObjectRecord::game_object)
+            .and_then(|record| record.game_object())
             .unwrap()
             .loot_authority_like_cpp()
             .shared_snapshot_like_cpp()
