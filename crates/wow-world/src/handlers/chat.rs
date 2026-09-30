@@ -51,7 +51,7 @@ pub use ops_2::*;
 pub use state::*;
 
 #[cfg(test)]
-#[path = "chat/tests/mod.rs"]
+#[path = "../../unit_tests/handlers/chat/tests/mod.rs"]
 mod tests;
 
 // ── Handler registrations ─────────────────────────────────────────

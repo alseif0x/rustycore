@@ -223,7 +223,7 @@ pub struct MapManager {
 pub type SharedMapManager = Arc<RwLock<MapManager>>;
 
 #[cfg(test)]
-#[path = "../map_manager_tests.rs"]
+#[path = "../../unit_tests/map_manager_tests.rs"]
 mod tests;
 
 mod grid;

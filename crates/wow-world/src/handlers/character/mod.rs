@@ -972,9 +972,9 @@ fn player_team_for_race_cpp(race: u8) -> Team {
 }
 
 #[cfg(test)]
-#[path = "../character_vendor_atomicity_tests.rs"]
+#[path = "../../../unit_tests/handlers/character_vendor_atomicity_tests.rs"]
 mod vendor_atomicity_tests;
 
 #[cfg(test)]
-#[path = "../character_tests.rs"]
+#[path = "../../../unit_tests/handlers/character_tests.rs"]
 pub(crate) mod tests;

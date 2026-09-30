@@ -1025,5 +1025,5 @@ pub(crate) const SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP: u32 = 0x0000
 pub(crate) const PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP: u32 = 0x0000_8000;
 
 #[cfg(test)]
-#[path = "../session_tests.rs"]
+#[path = "../../unit_tests/session_tests.rs"]
 mod tests;

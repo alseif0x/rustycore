@@ -70,5 +70,5 @@ pub(crate) fn item_purchase_contents_from_extended_cost(
 }
 
 #[cfg(test)]
-#[path = "entities/tests/mod.rs"]
+#[path = "../../unit_tests/handlers/entities/tests/mod.rs"]
 mod tests;

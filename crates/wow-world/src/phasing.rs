@@ -846,5 +846,5 @@ pub fn print_to_chat_snapshot_like_cpp(
 }
 
 #[cfg(test)]
-#[path = "phasing/tests/mod.rs"]
+#[path = "../unit_tests/phasing/tests/mod.rs"]
 mod tests;

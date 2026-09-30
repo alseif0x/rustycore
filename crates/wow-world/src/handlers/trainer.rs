@@ -812,5 +812,5 @@ impl WorldSession {
 }
 
 #[cfg(test)]
-#[path = "trainer/tests/mod.rs"]
+#[path = "../../unit_tests/handlers/trainer/tests/mod.rs"]
 mod tests;

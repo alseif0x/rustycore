@@ -83,10 +83,10 @@ pub use ops_2::*;
 pub use state::*;
 
 #[cfg(test)]
-#[path = "battle_pet_purchase/executor_tests/mod.rs"]
+#[path = "../unit_tests/battle_pet_purchase/executor_tests/mod.rs"]
 mod executor_tests;
 #[cfg(test)]
-#[path = "battle_pet_purchase/tests/mod.rs"]
+#[path = "../unit_tests/battle_pet_purchase/tests/mod.rs"]
 pub(crate) mod tests;
 
 // ── Saga executor (live purchase + login recovery) ────────────────────────

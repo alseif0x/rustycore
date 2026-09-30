@@ -973,5 +973,5 @@ where
 }
 
 #[cfg(test)]
-#[path = "../loot_tests.rs"]
+#[path = "../../../unit_tests/handlers/loot_tests.rs"]
 mod tests;

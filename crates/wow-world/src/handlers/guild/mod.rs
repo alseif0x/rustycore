@@ -533,4 +533,5 @@ impl crate::session::WorldSession {
 }
 
 #[cfg(test)]
+#[path = "../../../unit_tests/handlers/guild/tests/mod.rs"]
 mod tests;

@@ -42,8 +42,8 @@ async fn uncage_item_state_read_routes_typed_ids_and_preserves_failure_distincti
 fn uncage_item_state_seam_no_longer_names_statement_or_driver_errors() {
     // #597 moved the uncage seam into the player item family; the seam's
     // contract is unchanged, so the scan follows the code.
-    let session_source = include_str!("../../player_items/items.rs");
-    let item_source = include_str!("../../../handlers/character/items.rs");
+    let session_source = include_str!("../../../../src/session/player_items/items.rs");
+    let item_source = include_str!("../../../../src/handlers/character/items.rs");
     let (_, helper_and_tail) = session_source
         .split_once("pub(crate) async fn uncage_item_state_like_cpp")
         .expect("uncage state helper starts");

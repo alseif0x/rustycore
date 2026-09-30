@@ -8,8 +8,8 @@ use super::*;
 #[test]
 fn continue_login_no_longer_names_location_or_guild_statements() {
     let handler = concat!(
-        include_str!("../character/world_entry/login.rs"),
-        include_str!("../character/world_entry/login/admission.rs"),
+        include_str!("../../../src/handlers/character/world_entry/login.rs"),
+        include_str!("../../../src/handlers/character/world_entry/login/admission.rs"),
     );
     assert!(handler.contains("load_login_admission_like_cpp"));
     assert!(handler.contains("PlayerLoginAdmissionLoadedLikeCpp::BattlegroundLocation"));

@@ -9,5 +9,5 @@ mod account_data;
 mod client_state;
 
 #[cfg(test)]
-#[path = "account_data/tests/mod.rs"]
+#[path = "../../unit_tests/handlers/account_data/tests/mod.rs"]
 mod tests;

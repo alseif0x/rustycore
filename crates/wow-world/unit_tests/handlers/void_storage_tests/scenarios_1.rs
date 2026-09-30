@@ -254,26 +254,29 @@ fn void_storage_mutation_paths_have_no_concrete_persistence_after_port_cut() {
     // #707 divided the handler impl into submodules, so this audits every file of
     // the module instead of slicing three handler bodies out of a single source.
     let audited = [
-        ("void_storage.rs", include_str!("../void_storage.rs")),
+        (
+            "void_storage.rs",
+            include_str!("../../../src/handlers/void_storage.rs"),
+        ),
         (
             "void_storage/items.rs",
-            include_str!("../void_storage/items.rs"),
+            include_str!("../../../src/handlers/void_storage/items.rs"),
         ),
         (
             "void_storage/publication.rs",
-            include_str!("../void_storage/publication.rs"),
+            include_str!("../../../src/handlers/void_storage/publication.rs"),
         ),
         (
             "void_storage/unlock_and_query.rs",
-            include_str!("../void_storage/unlock_and_query.rs"),
+            include_str!("../../../src/handlers/void_storage/unlock_and_query.rs"),
         ),
         (
             "void_storage/transfer.rs",
-            include_str!("../void_storage/transfer.rs"),
+            include_str!("../../../src/handlers/void_storage/transfer.rs"),
         ),
         (
             "void_storage/swap.rs",
-            include_str!("../void_storage/swap.rs"),
+            include_str!("../../../src/handlers/void_storage/swap.rs"),
         ),
     ];
     for (path, source) in audited {

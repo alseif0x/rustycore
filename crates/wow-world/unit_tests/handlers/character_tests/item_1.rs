@@ -9,7 +9,7 @@ use super::*;
 fn continue_login_inventory_reads_cross_the_typed_lifecycle_port() {
     let handler = // The #1233 decomposition moved the login inventory/repair orchestration into
     // handlers/character/items/login_load.rs; the assertions below are unchanged.
-    include_str!("../character/items/login_load.rs");
+    include_str!("../../../src/handlers/character/items/login_load.rs");
 
     assert!(handler.contains("PlayerLoginAuxiliaryLoadRequestLikeCpp::EquipmentInventory"));
     assert!(handler.contains("PlayerLoginAuxiliaryLoadRequestLikeCpp::BagInventory"));
@@ -29,7 +29,7 @@ fn continue_login_inventory_reads_cross_the_typed_lifecycle_port() {
 fn continue_login_item_repairs_cross_the_typed_lifecycle_port() {
     let handler = // The #1233 decomposition moved the login inventory/repair orchestration into
     // handlers/character/items/login_load.rs; the assertions below are unchanged.
-    include_str!("../character/items/login_load.rs");
+    include_str!("../../../src/handlers/character/items/login_load.rs");
 
     assert_eq!(
         handler

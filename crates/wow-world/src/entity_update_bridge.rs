@@ -31,5 +31,5 @@ pub use state_1::*;
 pub use state_2::*;
 
 #[cfg(test)]
-#[path = "entity_update_bridge/tests/mod.rs"]
+#[path = "../unit_tests/entity_update_bridge/tests/mod.rs"]
 mod tests;

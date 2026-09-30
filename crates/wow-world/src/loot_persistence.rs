@@ -273,5 +273,5 @@ impl Drop for DurableLootMoneyPersistenceGuardLikeCpp {
 }
 
 #[cfg(test)]
-#[path = "loot_persistence_tests.rs"]
+#[path = "../unit_tests/loot_persistence_tests.rs"]
 mod tests;

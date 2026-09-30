@@ -12,7 +12,7 @@ use wow_packet::ClientPacket;
 mod context;
 mod item_storage;
 #[cfg(test)]
-#[path = "requests/test_support.rs"]
+#[path = "../../../unit_tests/handlers/loot/requests/test_support.rs"]
 mod test_support;
 
 impl WorldSession {

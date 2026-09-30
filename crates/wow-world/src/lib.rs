@@ -40,11 +40,14 @@ pub(crate) mod trainer_offer;
 
 mod catalogs;
 #[cfg(test)]
+#[path = "../unit_tests/handler_contract_tests.rs"]
 mod handler_contract_tests;
 mod session_rules;
 #[cfg(test)]
+#[path = "../unit_tests/teleport_test_fixtures.rs"]
 mod teleport_test_fixtures;
 #[cfg(test)]
+#[path = "../unit_tests/vendor_trade_persistence_test_fixture.rs"]
 mod vendor_trade_persistence_test_fixture;
 
 pub use map_manager::{

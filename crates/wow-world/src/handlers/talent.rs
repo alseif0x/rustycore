@@ -24,7 +24,7 @@ mod state;
 pub use state::*;
 
 #[cfg(test)]
-#[path = "talent/tests/mod.rs"]
+#[path = "../../unit_tests/handlers/talent/tests/mod.rs"]
 mod tests;
 
 inventory::submit! {

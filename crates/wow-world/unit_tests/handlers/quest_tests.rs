@@ -83,7 +83,7 @@ pub(super) use catalog_persistence::{
 /// its `PacketHandlerEntry`, which now carries the call as well as the
 /// admission metadata. These tests used to assert the arm and the registration
 /// separately; there is one side left to assert.
-const QUEST_HANDLER_REGISTRATIONS: &str = include_str!("quest/handlers.rs");
+const QUEST_HANDLER_REGISTRATIONS: &str = include_str!("../../src/handlers/quest/handlers.rs");
 
 fn make_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded(8);

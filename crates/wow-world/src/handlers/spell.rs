@@ -235,5 +235,5 @@ inventory::submit! {
 // ── Handler implementations ───────────────────────────────────────
 
 #[cfg(test)]
-#[path = "spell/tests/mod.rs"]
+#[path = "../../unit_tests/handlers/spell/tests/mod.rs"]
 mod tests;

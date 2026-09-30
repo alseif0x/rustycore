@@ -23,5 +23,5 @@ pub use session_phase_permit::*;
 pub use session_phase_rail::*;
 
 #[cfg(test)]
-#[path = "tests.rs"]
+#[path = "../../../unit_tests/session/mailbox/tests.rs"]
 mod tests;

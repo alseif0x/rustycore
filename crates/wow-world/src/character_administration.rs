@@ -106,4 +106,5 @@ pub(crate) fn prepare_rename(
 }
 
 #[cfg(test)]
+#[path = "../unit_tests/character_administration/tests.rs"]
 mod tests;

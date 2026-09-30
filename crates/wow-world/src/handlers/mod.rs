@@ -35,4 +35,5 @@ pub mod vehicle;
 pub mod void_storage;
 
 #[cfg(test)]
+#[path = "../../unit_tests/handlers/test_support/mod.rs"]
 mod test_support;

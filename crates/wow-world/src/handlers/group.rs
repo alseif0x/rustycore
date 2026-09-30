@@ -346,5 +346,5 @@ inventory::submit! {
 // ── Handler implementations ───────────────────────────────────────────────────
 
 #[cfg(test)]
-#[path = "group_tests.rs"]
+#[path = "../../unit_tests/handlers/group_tests.rs"]
 mod tests;

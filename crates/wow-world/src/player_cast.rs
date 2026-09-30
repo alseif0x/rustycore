@@ -10,6 +10,7 @@ use wow_data::SpellInfo;
 use wow_entities::{PendingSpellCastRequestLikeCpp, SpellCastState, SpellCastVisualLikeCpp};
 
 #[cfg(test)]
+#[path = "../unit_tests/player_cast/tests.rs"]
 mod tests;
 
 pub(crate) trait Runtime {
