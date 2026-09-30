@@ -12,107 +12,8 @@
       },
       "fields": [
         {
-          "name": "access_requirement_store",
-          "type": "Option < Arc < AccessRequirementStoreLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "account_expansion",
-          "type": "u8",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "account_id",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "account_mounts_like_cpp",
-          "type": "HashMap < i32 , u8 >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "account_name",
-          "type": "String",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "account_state",
-          "type": "SessionAccountState",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "active_loot_guid",
-          "type": "wow_core :: ObjectGuid",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "active_loot_view_authorities_like_cpp",
-          "type": "std :: collections :: HashMap < wow_core :: ObjectGuid , OwnedLootAuthority >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "active_loot_view_generations_like_cpp",
-          "type": "std :: collections :: HashMap < wow_core :: ObjectGuid , u64 >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "active_loot_view_owners",
-          "type": "std :: collections :: HashSet < wow_core :: ObjectGuid >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "active_player_local_flags_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "active_player_multi_action_bars_like_cpp",
-          "type": "u8",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "active_player_transport_server_time_like_cpp",
-          "type": "i32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "active_spell_cast",
-          "type": "Option < SpellCastState >",
+          "name": "auras",
+          "type": "AuraState",
           "visibility": "pub (crate)",
           "cfg": [
             "cfg (test)"
@@ -120,8 +21,8 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "addon_channel_like_cpp",
-          "type": "bool",
+          "name": "battleground",
+          "type": "BattlegroundState",
           "visibility": "pub (in crate :: session)",
           "cfg": [
             "cfg (test)"
@@ -129,110 +30,15 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "addon_filter",
-          "type": "SessionAddonFilter",
+          "name": "catalogs",
+          "type": "SessionCatalogs",
           "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
         {
-          "name": "admission",
-          "type": "SessionAdmissionState",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "adventure_map_poi_store",
-          "type": "Option < Arc < AdventureMapPoiStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "allow_gm_group_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "allow_two_side_interaction_group_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "area_spirit_healer_guid_like_cpp",
-          "type": "ObjectGuid",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "area_table_store",
-          "type": "Option < Arc < AreaTableStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "area_trigger_db2_store",
-          "type": "Option < Arc < AreaTriggerDb2Store > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "area_trigger_script_dispatcher_like_cpp",
-          "type": "Option < AreaTriggerScriptDispatcherLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "area_trigger_script_store",
-          "type": "Option < Arc < AreaTriggerScriptStoreLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "area_trigger_store",
-          "type": "Option < Arc < AreaTriggerStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "bank_bag_slot_prices_store",
-          "type": "Option < Arc < BankBagSlotPricesStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "battle_pet_test_fixture_like_cpp",
-          "type": "BattlePetTestFixtureLikeCpp",
+          "name": "collections",
+          "type": "CollectionsState",
           "visibility": "pub (crate)",
           "cfg": [
             "cfg (test)"
@@ -240,147 +46,8 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "battlemaster_list_store",
-          "type": "Option < Arc < BattlemasterListStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "build",
-          "type": "u32",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "calendar_test_fixture_like_cpp",
-          "type": "CalendarTestFixtureLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "canonical_map_manager",
-          "type": "Option < SharedCanonicalMapManager >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "canonical_threat_aura_snapshots_like_cpp",
-          "type": "HashMap < u8 , CanonicalThreatAuraSnapshotLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "championing_faction_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "characters_per_realm_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "chat_fake_message_preventing_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "chat_flood_config_like_cpp",
-          "type": "ChatFloodConfigLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "chat_level_requirements_like_cpp",
-          "type": "ChatLevelRequirementsLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "chat_listen_ranges_like_cpp",
-          "type": "ChatListenRangesLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "chat_strict_link_checking_kick_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "chr",
-          "type": "crate :: catalogs :: chr :: ChrCatalogsLikeCpp",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "cinematic_sequences_store",
-          "type": "Option < Arc < CinematicSequencesStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "client_visible_guids_like_cpp",
-          "type": "SharedClientVisibleGuidsLikeCpp",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "client_visible_transports_like_cpp",
-          "type": "crate :: session :: mailbox :: SharedClientVisibleTransportsLikeCpp",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "combat_ratings_game_table",
-          "type": "Option < Arc < CombatRatingsGameTableLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "combat_target",
-          "type": "Option < wow_core :: ObjectGuid >",
+          "name": "combat",
+          "type": "CombatState",
           "visibility": "pub (crate)",
           "cfg": [
             "cfg (test)"
@@ -388,599 +55,45 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "condition_store",
-          "type": "Option < Arc < ConditionEntriesByTypeStore > >",
+          "name": "config",
+          "type": "SessionWorldConfig",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
         },
         {
-          "name": "content_tuning_store",
-          "type": "Option < Arc < ContentTuningStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "creature_addon_store_like_cpp",
-          "type": "Option < Arc < CreatureAddonStoreLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "creature_base_stats_store_like_cpp",
-          "type": "Option < Arc < CreatureBaseStatsStoreLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "creature_difficulty_store_like_cpp",
-          "type": "Option < Arc < CreatureDifficultyStoreLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "creature_equipment_store_like_cpp",
-          "type": "Option < Arc < CreatureEquipmentStoreLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "creature_health_rates_like_cpp",
-          "type": "CreatureClassificationHealthRatesLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "creature_tick",
-          "type": "u32",
+          "name": "core",
+          "type": "SessionCore",
           "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
         {
-          "name": "creatures",
-          "type": "crate :: catalogs :: creature :: CreatureCatalogsLikeCpp",
+          "name": "identity",
+          "type": "PlayerIdentityState",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
+          "name": "instances",
+          "type": "InstanceState",
           "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
         {
-          "name": "cuf_profiles_like_cpp",
-          "type": "Vec < Option < wow_packet :: packets :: misc :: CufProfile > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "cuf_profiles_loaded_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "currency_types_store",
-          "type": "Option < Arc < CurrencyTypesStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "current_map_id",
-          "type": "u16",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "curve_point_store",
-          "type": "Option < Arc < CurvePointStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "curve_store",
-          "type": "Option < Arc < CurveStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "declined_names_used_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "delayed_operations_processed_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "difficulty_store",
-          "type": "Option < Arc < DifficultyStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "directory",
-          "type": "SessionDirectory",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "disable_mgr",
-          "type": "Option < Arc < DisableMgrLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "driver",
-          "type": "SessionDriverServices",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "driver_phase_trace_like_cpp",
-          "type": "Vec < crate :: session :: driver :: phases :: SessionDriverPhaseLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "duel_test_fixture_like_cpp",
-          "type": "DuelTestFixtureLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "dungeon_encounter_store",
-          "type": "Option < Arc < DungeonEncounterStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "durability_costs_store",
-          "type": "Option < Arc < DurabilityCostsStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "durability_loss_on_death_rate_like_cpp",
-          "type": "f32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "durability_quality_store",
-          "type": "Option < Arc < DurabilityQualityStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "durable_creature_runtime_commands_like_cpp",
-          "type": "Arc < std :: sync :: Mutex < crate :: session :: mailbox :: DurableCreatureRuntimeCommandsLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "emotes_store",
-          "type": "Option < Arc < EmotesStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "emotes_text_store",
-          "type": "Option < Arc < EmotesTextStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "enable_ae_loot_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "equipment_set_guid_generator_like_cpp",
-          "type": "Option < Arc < EquipmentSetGuidGeneratorLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "expansion",
-          "type": "u8",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "exploration_base_xp_store",
-          "type": "Option < Arc < ExplorationBaseXpStoreLikeCpp > >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "exploration_xp_rate_like_cpp",
-          "type": "f32",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "factions",
-          "type": "crate :: catalogs :: faction :: FactionCatalogsLikeCpp",
+          "name": "interaction",
+          "type": "InteractionState",
           "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
         {
-          "name": "fall_damage_events_like_cpp",
-          "type": "Vec < MovementFallDamageEvent >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "feature_system_bpay_store_enabled_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "feature_system_character_undelete_enabled_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "fishing_base_skill_store",
-          "type": "Option < Arc < FishingBaseSkillStoreLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "flags",
-          "type": "SessionSharedFlags",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "forced_speed_changes_like_cpp",
-          "type": "[u8 ; UnitMoveTypeLikeCpp :: COUNT]",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "friendship_rep_reaction_store",
-          "type": "Option < Arc < FriendshipRepReactionStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "gameobject_template_lifecycle_store_like_cpp",
-          "type": "Option < Arc < GameObjectTemplateLifecycleStoreLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "gameobjects",
-          "type": "crate :: catalogs :: gameobject :: GameObjectCatalogsLikeCpp",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "gem_properties_store",
-          "type": "Option < Arc < GemPropertiesStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "give_player_xp_script_dispatcher_like_cpp",
-          "type": "Option < GivePlayerXpScriptDispatcherLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "gossip_options",
-          "type": "Vec < GossipOptionInfo >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "graveyard_store",
-          "type": "Option < Arc < GraveyardStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "group_guid",
-          "type": "Option < u64 >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "guid_generator",
-          "type": "Option < Arc < ObjectGuidGenerator > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "guild_test_fixture_like_cpp",
-          "type": "GuildTestFixtureLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "heirloom_store",
-          "type": "Option < Arc < HeirloomStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "import_price_stores",
-          "type": "Option < Arc < ImportPriceStores > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "in_combat",
-          "type": "bool",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "instance_lock_mgr",
-          "type": "Option < Arc < std :: sync :: RwLock < wow_instances :: InstanceLockMgr > > >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "instance_test_fixture_like_cpp",
-          "type": "InstanceTestFixtureLikeCpp",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "inventory_item_objects",
-          "type": "HashMap < ObjectGuid , Item >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "item_class_store",
-          "type": "Option < Arc < ItemClassStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "item_currency_cost_store",
-          "type": "Option < Arc < ItemCurrencyCostStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "item_disenchant_loot_store",
-          "type": "Option < Arc < ItemDisenchantLootStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "item_guid_generator_like_cpp",
-          "type": "Option < Arc < ObjectGuidGenerator > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "item_price_base_store",
-          "type": "Option < Arc < ItemPriceBaseStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "item_template_addon_quest_log_item_ids_like_cpp",
-          "type": "HashMap < u32 , u32 >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "items",
-          "type": "crate :: catalogs :: item :: ItemCatalogsLikeCpp",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "last_fall_time_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "last_fall_z_like_cpp",
-          "type": "f32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "last_observed_farsight_object_like_cpp",
-          "type": "wow_core :: ObjectGuid",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "last_spell_cast_time",
-          "type": "Option < Instant >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "last_spell_cast_time_per_spell",
-          "type": "HashMap < i32 , Instant >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "last_visibility_pos",
-          "type": "Option < wow_core :: Position >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "legacy_creature_aggro_config_like_cpp",
-          "type": "LegacyCreatureAggroConfigLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "lfg_dungeon_store_like_cpp",
-          "type": "Option < Arc < LfgDungeonStoreLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "lfg_dungeons_store",
-          "type": "Option < Arc < LfgDungeonsStore > >",
+          "name": "inventory",
+          "type": "InventoryState",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
@@ -993,449 +106,25 @@
           "source_class": "production"
         },
         {
-          "name": "loaded_player_customizations_like_cpp",
-          "type": "Box < Vec < wow_packet :: packets :: update :: ChrCustomizationChoiceValuesUpdate > >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "locale",
-          "type": "String",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "lock_store",
-          "type": "Option < Arc < LockStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "loot_drop_rates",
-          "type": "LootDropRatesLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "loot_item_store_test_commit_gate_like_cpp",
-          "type": "Option < Arc < tokio :: sync :: Notify > >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "loot_item_store_test_grants_like_cpp",
-          "type": "Option < Arc < AtomicUsize > >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "loot_item_store_test_success_like_cpp",
-          "type": "bool",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "loot_money_persistence_test_result_like_cpp",
-          "type": "Option < bool >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "loot_specialization_id",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "loot_stores",
-          "type": "Option < Arc < LootStores > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "loot_table",
-          "type": "std :: collections :: HashMap < wow_core :: ObjectGuid , wow_packet :: packets :: loot :: CreatureLoot >",
+          "name": "loot",
+          "type": "LootState",
           "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         },
         {
-          "name": "map_manager",
-          "type": "Option < crate :: map_manager :: SharedMapManager >",
+          "name": "movement",
+          "type": "MovementState",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture"
+        },
+        {
+          "name": "pets",
+          "type": "PetState",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "maps",
-          "type": "crate :: catalogs :: map :: MapCatalogsLikeCpp",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "max_player_level_config_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "max_primary_trade_skills_like_cpp",
-          "type": "u8",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "min_discovered_scaled_xp_ratio_like_cpp",
-          "type": "u32",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "mmap_pathfinder_like_cpp",
-          "type": "Option < Arc < WorldMMapPathfinderWorkerLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "mmap_runtime_config_like_cpp",
-          "type": "MMapRuntimeConfigLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "module_registry_like_cpp",
-          "type": "Option < Arc < wow_module_api :: ModuleRegistry > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "mount_cancel_expected_vehicle_aura_packets_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "mount_capability_store",
-          "type": "Option < Arc < MountCapabilityStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "mount_collision_height_update_requests_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "mount_definition_store_like_cpp",
-          "type": "Option < Arc < MountDefinitionStoreLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "mount_pet_control_disable_requests_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "mount_pet_control_enable_requests_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "mount_pet_resummon_requests_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "mount_store",
-          "type": "Option < Arc < MountStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "mount_type_x_capability_store",
-          "type": "Option < Arc < MountTypeXCapabilityStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "mount_vehicle_create_requests_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "mount_vehicle_remove_requests_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "mount_x_display_store",
-          "type": "Option < Arc < MountXDisplayStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "move_spline_done_taxi_events_like_cpp",
-          "type": "Vec < MoveSplineDoneTaxiEventLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "move_teleport_ack_events_like_cpp",
-          "type": "Vec < MoveTeleportAckEventLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "movement_ack_events_like_cpp",
-          "type": "Vec < MovementAckEventLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "movement_counter_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "movement_force_mod_magnitude_changes_like_cpp",
-          "type": "u8",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "movement_force_mod_magnitude_like_cpp",
-          "type": "f32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "movement_jump_proc_requests_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "movement_speed_ack_events_like_cpp",
-          "type": "Vec < MovementSpeedAckEventLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "movement_speed_rates_like_cpp",
-          "type": "[f32 ; UnitMoveTypeLikeCpp :: COUNT]",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "movie_store",
-          "type": "Option < Arc < MovieStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "near_teleport_destination_like_cpp",
-          "type": "Option < (u16 , wow_core :: Position) >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "near_teleport_destination_zone_area_like_cpp",
-          "type": "Option < (u32 , u32) >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "near_teleport_pending_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "num_talents_at_level_store",
-          "type": "Option < Arc < NumTalentsAtLevelStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "object_mgr_catalogs_like_cpp",
-          "type": "Option < Arc < ObjectMgrCatalogsLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "paragon_reputation_store",
-          "type": "Option < Arc < ParagonReputationStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "party_level_req_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "party_raid_warnings_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "pass_on_group_loot",
-          "type": "bool",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "pending_bind",
-          "type": "Option < RepresentedPendingBind >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "pending_creature_kill_loot_like_cpp",
-          "type": "Vec < ObjectGuid >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "pending_creature_kill_rewards_like_cpp",
-          "type": "Vec < PendingCreatureKillRewardLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "pending_creature_spawn",
-          "type": "Option < PendingCreatureSpawn >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "pending_teleport",
-          "type": "Option < (u32 , wow_core :: Position) >",
-          "visibility": "pub (in crate :: session)",
           "cfg": [
             "cfg (test)"
           ],
@@ -1449,22 +138,8 @@
           "source_class": "production"
         },
         {
-          "name": "phase_group_store",
-          "type": "Option < Arc < PhaseGroupStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "phase_store",
-          "type": "Option < Arc < PhaseStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "player_alive_like_cpp",
-          "type": "bool",
+          "name": "presentation",
+          "type": "PlayerPresentationState",
           "visibility": "pub (in crate :: session)",
           "cfg": [
             "cfg (test)"
@@ -1472,625 +147,13 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "player_area_id_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_aura_authority_complete_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_battleground_map_id_like_cpp",
-          "type": "Option < u32 >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_battleground_type_id_like_cpp",
-          "type": "Option < u32 >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_bootstrap_attached_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_bootstrap_catalog_test_fixture_like_cpp",
-          "type": "PlayerBootstrapCatalogTestFixtureLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_character_points_like_cpp",
-          "type": "i32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_cheat_god_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_class",
-          "type": "u8",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_collision_height_like_cpp",
-          "type": "f32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_condition_store",
-          "type": "Option < Arc < PlayerConditionStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "player_contested_pvp_timer_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_create_mode_like_cpp",
-          "type": "u8",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_currencies",
-          "type": "HashMap < u32 , PlayerCurrency >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_emote_state_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_environmental_damage_immune_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_equipment_inventory_authority_complete_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_faction_template_like_cpp",
-          "type": "Option < u32 >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_flags_test_fixture_like_cpp",
-          "type": "LoadedPlayerFlagsTestFixtureLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_game_master_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_gender",
-          "type": "u8",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_gold",
-          "type": "u64",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_guid",
-          "type": "Option < ObjectGuid >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "player_handle_like_cpp",
-          "type": "Option < wow_map :: PlayerHandle >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "player_health_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_identity_bootstrap_like_cpp",
-          "type": "Option < PlayerIdentityBootstrapLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "player_in_pvp_flag_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_interaction_data_like_cpp",
-          "type": "PlayerInteractionDataLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_item_test_fixture_like_cpp",
-          "type": "PlayerItemTestFixtureLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_level",
-          "type": "u8",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_max_health_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_mount_display_id_like_cpp",
-          "type": "i32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_mount_vehicle_accessories_like_cpp",
-          "type": "Vec < VehicleAccessory >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_mount_vehicle_id_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_mount_vehicle_kit_like_cpp",
-          "type": "Option < Vehicle >",
+          "name": "progression",
+          "type": "ProgressionState",
           "visibility": "pub (crate)",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "player_mount_vehicle_seat_count_like_cpp",
-          "type": "u8",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_mount_vehicle_usable_seat_count_like_cpp",
-          "type": "u8",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_mounted_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_moved_unit_guid_like_cpp",
-          "type": "ObjectGuid",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_movement_flags_like_cpp",
-          "type": "MovementFlag",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_movement_jump_like_cpp",
-          "type": "wow_packet :: packets :: movement :: JumpInfo",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_movement_time_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_name",
-          "type": "Option < String >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_next_level_xp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_normal_damage_immune_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_object_scale_like_cpp",
-          "type": "f32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_on_transport_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_out_of_bounds_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_position",
-          "type": "Option < wow_core :: Position >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_pvp_enabled_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_pvp_end_timer_like_cpp",
-          "type": "Option < i64 >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_pvp_hostile_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_race",
-          "type": "u8",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_registry",
-          "type": "Option < Arc < PlayerRegistry > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "player_scale_duration_like_cpp",
-          "type": "i32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_skill_test_fixture_like_cpp",
-          "type": "PlayerSkillTestFixtureLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_spell_hit_aura_authority_tombstoned_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_spell_test_fixture_like_cpp",
-          "type": "PlayerSpellAndTraitTestFixtureLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_stand_state_like_cpp",
-          "type": "UnitStandStateType",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_stats",
-          "type": "Option < Arc < PlayerStatsStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "player_transport_login_state_like_cpp",
-          "type": "Option < Box < PlayerTransportLoginStateLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_unit_flags_like_cpp",
-          "type": "UnitFlags",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_vehicle_seat_flags_like_cpp",
-          "type": "Option < i32 >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_vehicle_seat_id_like_cpp",
-          "type": "Option < u32 >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_xp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_xp_table",
-          "type": "Option < Arc < Vec < u32 > > >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_zone_area_authority_complete_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "player_zone_id_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "power_type_store",
-          "type": "Option < Arc < PowerTypeStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "pvp_item_store",
-          "type": "Option < Arc < PvpItemStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "quest_poi_store_like_cpp",
-          "type": "Option < Arc < HashMap < i32 , wow_packet :: packets :: query :: QuestPoiData > > >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "quest_state",
@@ -2100,1401 +163,8 @@
           "source_class": "production"
         },
         {
-          "name": "quest_test_fixture_like_cpp",
-          "type": "QuestTestFixtureLikeCpp",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "quests",
-          "type": "crate :: catalogs :: quest :: QuestCatalogsLikeCpp",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "rand_prop_points_store",
-          "type": "Option < Arc < RandPropPointsStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "realm_id",
-          "type": "u16",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "realm_policy",
-          "type": "SessionRealmPolicy",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "regen_game_tables",
-          "type": "Option < Arc < RegenGameTablesLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "repair_cost_rate_like_cpp",
-          "type": "f32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_account_heirlooms_like_cpp",
-          "type": "BTreeMap < u32 , AccountHeirloomDataLikeCpp >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_account_toys_like_cpp",
-          "type": "BTreeMap < u32 , u32 >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_action_buttons_like_cpp",
-          "type": "[u32 ; wow_packet :: packets :: misc :: MAX_ACTION_BUTTONS]",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_action_buttons_loaded_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_activate_taxi_requests_like_cpp",
-          "type": "Vec < RepresentedActivateTaxiLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_active_talent_group_like_cpp",
-          "type": "u8",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_adventure_map_start_quest_requests_like_cpp",
-          "type": "Vec < RepresentedAdventureMapStartQuestLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_alter_appearance_requests_like_cpp",
-          "type": "Vec < RepresentedAlterAppearanceLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_area_zone_criteria_like_cpp",
-          "type": "Vec < RepresentedAreaZoneCriteriaLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_arena_team_id_invited_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_armor_proficiency_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_at_login_flag_removals_like_cpp",
-          "type": "Vec < RepresentedAtLoginFlagRemovalLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_at_login_flags_like_cpp",
-          "type": "u16",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_auction_place_bids_like_cpp",
-          "type": "Vec < RepresentedAuctionPlaceBidLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_auction_remove_items_like_cpp",
-          "type": "Vec < RepresentedAuctionRemoveItemLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_auction_replicate_requests_like_cpp",
-          "type": "Vec < RepresentedAuctionReplicateRequestLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_auction_sell_items_like_cpp",
-          "type": "Vec < RepresentedAuctionSellItemLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_auto_unequip_offhand_requests_like_cpp",
-          "type": "Vec < RepresentedAutoUnequipOffhandLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_bank_bag_slot_flags_like_cpp",
-          "type": "[u32 ; 7]",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_bank_item_moves_like_cpp",
-          "type": "Vec < RepresentedBankItemMoveLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_battlefield_lists_like_cpp",
-          "type": "Vec < RepresentedBattlefieldListLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_battlefield_ports_like_cpp",
-          "type": "Vec < RepresentedBattlefieldPortLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_battleground_leave_requests_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_battleground_queue_slots_like_cpp",
-          "type": "Vec < RepresentedBattlegroundQueueSlotLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_battleground_status_like_cpp",
-          "type": "Option < u8 >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_battlemaster_hellos_like_cpp",
-          "type": "Vec < RepresentedBattlemasterHelloLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_battlemaster_join_arenas_like_cpp",
-          "type": "Vec < RepresentedBattlemasterJoinArenaLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_battlemaster_join_skirmishes_like_cpp",
-          "type": "Vec < RepresentedBattlemasterJoinSkirmishLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_battlemaster_joins_like_cpp",
-          "type": "Vec < RepresentedBattlemasterJoinLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_bonus_talent_groups_like_cpp",
-          "type": "u8",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_can_delay_teleport_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_can_swim_to_fly_transition_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_capture_point_removed_delivered_like_cpp",
-          "type": "std :: collections :: HashSet < (u32 , u32 , u64 , wow_core :: ObjectGuid) >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_cast_unstuck_enabled_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_character_pet_rows_empty_authority_complete_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_character_spell_charges_like_cpp",
-          "type": "BTreeMap < u32 , Vec < RepresentedCharacterSpellChargeLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_character_spell_charges_loaded_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_character_spell_cooldowns_like_cpp",
-          "type": "HashMap < u32 , RepresentedCharacterSpellCooldownLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_character_spell_cooldowns_loaded_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_cinematic_end_events_like_cpp",
-          "type": "Vec < u32 >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_cinematic_next_camera_events_like_cpp",
-          "type": "Vec < u16 >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_cinematic_state_like_cpp",
-          "type": "wow_entities :: PlayerCinematicStateLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_completed_achievements_like_cpp",
-          "type": "HashSet < u32 >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_confirm_barbers_choice_requests_like_cpp",
-          "type": "Vec < RepresentedConfirmBarbersChoiceLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_confirm_respec_wipe_requests_like_cpp",
-          "type": "Vec < RepresentedConfirmRespecWipeLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_confirmed_pending_binds",
-          "type": "Vec < u32 >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_creature_auras_like_cpp",
-          "type": "Vec < crate :: session :: world_entities :: RepresentedCreatureAuraLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_creature_kill_events_like_cpp",
-          "type": "Vec < RepresentedCreatureKillEventLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_death_timer_active_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_decline_petitions_like_cpp",
-          "type": "Vec < RepresentedDeclinePetitionLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_delayed_resurrection_after_teleport_like_cpp",
-          "type": "Option < PlayerResurrectionRequestLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_delayed_teleport_like_cpp",
-          "type": "Option < (u32 , wow_core :: Position , TeleportToOptionsLikeCpp) >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_dynamic_object_values_updates_delivered_like_cpp",
-          "type": "std :: collections :: HashSet < (u32 , u32 , u64 , wow_core :: ObjectGuid , u64) >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_enchanting_skill",
-          "type": "u16",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_equipment_sets_like_cpp",
-          "type": "wow_entities :: PlayerEquipmentSetsLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_explored_zones_like_cpp",
-          "type": "[u64 ; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP]",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_far_teleport_pending_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_favorite_item_appearances_like_cpp",
-          "type": "HashMap < u32 , FavoriteAppearanceStateLikeCpp >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_gameobject_criteria_events",
-          "type": "Vec < RepresentedGameObjectCriteriaEvent >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_gameobject_phase_shifts",
-          "type": "std :: collections :: HashMap < wow_core :: ObjectGuid , PhaseShift >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_gameobject_tap_lists",
-          "type": "std :: collections :: HashMap < wow_core :: ObjectGuid , Vec < wow_core :: ObjectGuid > >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_gameobject_use_effects",
-          "type": "Vec < RepresentedGameObjectUseEffect >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_gameobject_use_states",
-          "type": "std :: collections :: BTreeMap < wow_core :: ObjectGuid , RepresentedGameObjectUseState >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_gameobject_visual_despawns_delivered_like_cpp",
-          "type": "std :: collections :: HashSet < (u32 , u32 , u64 , wow_core :: ObjectGuid) >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_glyphs_like_cpp",
-          "type": "[[u16 ; wow_packet :: packets :: misc :: MAX_GLYPH_SLOT_INDEX_LIKE_CPP] ; MAX_SPECIALIZATIONS_LIKE_CPP]",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_glyphs_loaded_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_gray_level_script_overrides_like_cpp",
-          "type": "HashMap < u8 , u8 >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_group_update_sequences_like_cpp",
-          "type": "[wow_entities :: PlayerGroupUpdateSequenceLikeCpp ; wow_social :: group :: MAX_GROUP_CATEGORY_LIKE_CPP as usize]",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_guild_bank_inventory_moves_like_cpp",
-          "type": "Vec < RepresentedGuildBankInventoryMoveLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_guild_bank_list_requests_like_cpp",
-          "type": "Vec < RepresentedGuildBankListRequestLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_guild_bank_money_moves_like_cpp",
-          "type": "Vec < RepresentedGuildBankMoneyMoveLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_guild_bank_tab_actions_like_cpp",
-          "type": "Vec < RepresentedGuildBankTabActionLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_guild_repair_bank_state_like_cpp",
-          "type": "Option < RepresentedGuildRepairBankStateLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_guild_repair_bank_withdraws_like_cpp",
-          "type": "Vec < RepresentedGuildRepairBankWithdrawLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_has_delayed_teleport_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_homebind_like_cpp",
-          "type": "Option < RepresentedHomebindLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_instance_reset_times_like_cpp",
-          "type": "BTreeMap < u32 , u64 >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_is_outdoors_like_cpp",
-          "type": "Option < bool >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_item_appearance_blocks_like_cpp",
-          "type": "Vec < u32 >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_item_appearances_like_cpp",
-          "type": "HashSet < u32 >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_live_applications_like_cpp",
-          "type": "Vec < RepresentedLiveApplicationLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_locked_dungeon_encounters",
-          "type": "std :: collections :: HashSet < (wow_core :: ObjectGuid , u32) >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_loot_cache_generations_like_cpp",
-          "type": "std :: collections :: HashMap < wow_core :: ObjectGuid , u64 >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_loot_roll_criteria_events",
-          "type": "Vec < RepresentedLootRollCriteriaEvent >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_loot_rolls",
-          "type": "std :: collections :: HashMap < (wow_core :: ObjectGuid , u8) , RepresentedLootRollState >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_mover_fixed_position_vehicle_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_movie_complete_events_like_cpp",
-          "type": "Vec < u32 >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_old_pet_spell_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_override_spells_complete_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_override_spells_like_cpp",
-          "type": "HashMap < i32 , BTreeSet < i32 > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_pending_spell_cast_request_like_cpp",
-          "type": "Option < RepresentedPendingSpellCastRequestLikeCpp >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_personal_loot_money",
-          "type": "std :: collections :: HashMap < (wow_core :: ObjectGuid , wow_core :: ObjectGuid) , u32 >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_personal_loot_owners",
-          "type": "std :: collections :: HashSet < wow_core :: ObjectGuid >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_pet_command_state_like_cpp",
-          "type": "u8",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_pet_created_by_spell_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_pet_guid_like_cpp",
-          "type": "Option < ObjectGuid >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_pet_movement_speed_rates_like_cpp",
-          "type": "[f32 ; UnitMoveTypeLikeCpp :: COUNT]",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_pet_react_state_like_cpp",
-          "type": "u8",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_pet_speed_propagations_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_pet_stable_like_cpp",
-          "type": "PetStable",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_player_base_mana_like_cpp",
-          "type": "i32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_player_max_powers_like_cpp",
-          "type": "CharacterPowerSnapshotLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_player_powers_like_cpp",
-          "type": "CharacterPowerSnapshotLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_player_unit_values_updates_delivered_like_cpp",
-          "type": "std :: collections :: HashSet < (u32 , u32 , u64 , wow_core :: ObjectGuid , u64) >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_primary_specialization_id_like_cpp",
-          "type": "u32",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_query_petitions_like_cpp",
-          "type": "Vec < RepresentedQueryPetitionLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_repop_at_graveyard_count",
-          "type": "u32",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_resurrection_request_like_cpp",
-          "type": "Option < PlayerResurrectionRequestLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_reveal_world_map_overlay_criteria_like_cpp",
-          "type": "Vec < u32 >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_self_res_spells_like_cpp",
-          "type": "BTreeSet < i32 >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_shapeshift_form_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_sign_petitions_like_cpp",
-          "type": "Vec < RepresentedSignPetitionLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_silence_party_talker_like_cpp",
-          "type": "Vec < RepresentedSilencePartyTalkerLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_spell_acquisition_post_commit_actions_like_cpp",
-          "type": "Vec < crate :: spell_acquisition :: SpellAcquisitionPostCommitActionLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_spell_history_packets_like_cpp",
-          "type": "(Vec < SpellHistoryEntry > , Vec < SpellChargeEntry >)",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_subgroup_like_cpp",
-          "type": "Option < u8 >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_talent_reset_cost_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_talent_reset_script_hooks_like_cpp",
-          "type": "Vec < RepresentedTalentResetScriptHookLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_talent_reset_time_secs_like_cpp",
-          "type": "u64",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_talent_respec_criteria_events_like_cpp",
-          "type": "Vec < RepresentedTalentRespecCriteriaEventLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_talent_respec_visual_spell_casts_like_cpp",
-          "type": "Vec < RepresentedTalentRespecVisualSpellCastLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_talents_like_cpp",
-          "type": "[BTreeMap < u32 , u8 > ; MAX_SPECIALIZATIONS_LIKE_CPP]",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_talents_loaded_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_temporary_item_appearances_like_cpp",
-          "type": "HashMap < u32 , HashSet < ObjectGuid > >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_temporary_unsummoned_pet_number_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_transmog_criteria_events",
-          "type": "Vec < RepresentedTransmogCriteriaEvent >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_transmog_illusions_like_cpp",
-          "type": "HashSet < u32 >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_unique_gameobject_uses",
-          "type": "std :: collections :: HashSet < wow_core :: ObjectGuid >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "represented_using_pvp_item_levels_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_vehicle_base_movements_like_cpp",
-          "type": "Vec < RepresentedVehicleBaseMovementLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_vehicle_dismiss_movements_like_cpp",
-          "type": "Vec < RepresentedVehicleDismissMovementLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_vehicle_enter_requests_like_cpp",
-          "type": "Vec < RepresentedVehicleEnterRequestLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_vehicle_seat_change_requests_like_cpp",
-          "type": "Vec < RepresentedVehicleSeatChangeRequestLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_vehicle_seat_spell_click_requests_like_cpp",
-          "type": "Vec < RepresentedVehicleSeatSpellClickRequestLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_void_storage_items_like_cpp",
-          "type": "[Option < RepresentedVoidStorageItemLikeCpp > ; wow_packet :: packets :: void_storage :: VOID_STORAGE_MAX_SLOT_LIKE_CPP]",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_void_storage_loaded_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_wargame_invite_acceptances_like_cpp",
-          "type": "Vec < RepresentedWargameInviteAcceptanceLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "represented_weapon_proficiency_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "reputation_rates",
-          "type": "ReputationRatesLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "reputation_reward_rate_store",
-          "type": "Option < Arc < ReputationRewardRateStoreLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "reputation_spillover_template_store",
-          "type": "Option < Arc < RepSpilloverTemplateStoreLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "reputation_state_like_cpp",
-          "type": "wow_entities :: PlayerReputationStateLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "reset_schedule_like_cpp",
-          "type": "wow_instances :: ResetSchedule",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "rest_mgr_test_fixture_like_cpp",
-          "type": "RestMgrTestFixtureLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "scaling_stat_distribution_store",
-          "type": "Option < Arc < ScalingStatDistributionStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "scaling_stat_values_store",
-          "type": "Option < Arc < ScalingStatValuesStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "script_name_interner",
-          "type": "Option < Arc < ScriptNameInternerLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "security",
-          "type": "u8",
-          "visibility": "pub",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "selection_guid",
-          "type": "Option < wow_core :: ObjectGuid >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "session_command_rx",
-          "type": "flume :: Receiver < SessionCommand >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "session_command_tx",
-          "type": "flume :: Sender < SessionCommand >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "shield_block_regular_game_table",
-          "type": "Option < Arc < ShieldBlockRegularGameTableLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "skill_line_store",
-          "type": "Option < Arc < SkillLineStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "skill_store",
-          "type": "Option < Arc < SkillStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "skill_tiers_store",
-          "type": "Option < Arc < SkillTiersStoreLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
           "name": "social",
           "type": "SessionSocialLimits",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "spell_catalogs",
-          "type": "crate :: catalogs :: spell :: SpellCatalogsLikeCpp",
           "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
@@ -3507,22 +177,8 @@
           "source_class": "production"
         },
         {
-          "name": "state",
-          "type": "SessionState",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "stats_limits_like_cpp",
-          "type": "wow_data :: StatsLimitsLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "support_feature_test_fixture_like_cpp",
-          "type": "SupportFeatureTestFixtureLikeCpp",
+          "name": "teleport",
+          "type": "TeleportState",
           "visibility": "pub (in crate :: session)",
           "cfg": [
             "cfg (test)"
@@ -3530,219 +186,13 @@
           "source_class": "test_fixture"
         },
         {
-          "name": "suppress_creature_movement_queued_at_or_before_like_cpp",
-          "type": "Option < Instant >",
+          "name": "vehicles",
+          "type": "TaxiVehicleState",
           "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "tact_key_store",
-          "type": "Option < Arc < TactKeyStore > >",
-          "visibility": "pub (in crate :: session)",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture"
-        },
-        {
-          "name": "talent_store",
-          "type": "Option < Arc < TalentStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "tavern_area_trigger_store",
-          "type": "Option < Arc < TavernAreaTriggerStoreLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "taxi_destinations_like_cpp",
-          "type": "Vec < u32 >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "taxi_flight_state_like_cpp",
-          "type": "Option < RepresentedTaxiFlightStateLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "taxi_mounted_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "taxi_unit_flags_like_cpp",
-          "type": "UnitFlags",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "temporary_mount_pet_react_state_like_cpp",
-          "type": "Option < u8 >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "temporary_pet_resummon_requests_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "temporary_pet_unsummon_requests_like_cpp",
-          "type": "u32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "terrain_swap_store",
-          "type": "Option < Arc < wow_data :: TerrainSwapStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "toy_store",
-          "type": "Option < Arc < ToyStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "trade_test_fixture_like_cpp",
-          "type": "TradeTestFixtureLikeCpp",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "trainer_store_like_cpp",
-          "type": "Option < Arc < TrainerStoreLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "trait_definition_store",
-          "type": "Option < Arc < TraitDefinitionStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "trait_tree_skill_line_index",
-          "type": "Option < Arc < wow_data :: trait_tree :: TraitTreeSkillLineIndexLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "transmog_set_item_store",
-          "type": "Option < Arc < TransmogSetItemStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "transport",
-          "type": "SessionTransport",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "trinity_string_store",
-          "type": "Option < Arc < TrinityStringStoreLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "under_map_damage_events_like_cpp",
-          "type": "Vec < MovementUnderMapDamageEvent >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "vehicle_accessory_store",
-          "type": "Option < Arc < VehicleAccessoryStoreLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "vehicle_seat_store",
-          "type": "Option < Arc < VehicleSeatStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "vehicle_store",
-          "type": "Option < Arc < VehicleStore > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "vehicle_template_store",
-          "type": "Option < Arc < VehicleTemplateStoreLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "vendor_buy_item_test_override_like_cpp",
-          "type": "Option < VendorBuyItemTestOverrideLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "vendor_item_counts",
-          "type": "HashMap < (wow_core :: ObjectGuid , u32) , VendorItemCount >",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "source_class": "production"
         },
         {
           "name": "view",
@@ -3752,59 +202,16 @@
           "source_class": "production"
         },
         {
-          "name": "visibility_test_fixture_like_cpp",
-          "type": "VisibilityTestFixtureLikeCpp",
+          "name": "visibility",
+          "type": "VisibilityState",
           "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "visible_auras",
-          "type": "HashMap < u8 , AuraApplication >",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "vmap_indoor_check_like_cpp",
-          "type": "bool",
-          "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
         },
         {
-          "name": "void_storage_item_id_generator_like_cpp",
-          "type": "Option < Arc < VoidStorageItemIdGeneratorLikeCpp > >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "watched_faction_index_like_cpp",
-          "type": "i32",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "waypoint_path_resolver_like_cpp",
-          "type": "Option < WaypointPathResolverLikeCpp >",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [],
-          "source_class": "production"
-        },
-        {
-          "name": "world_safe_loc_store_like_cpp",
-          "type": "Option < Arc < WorldSafeLocStore > >",
-          "visibility": "pub (in crate :: session)",
+          "name": "world_entities",
+          "type": "WorldEntitiesState",
+          "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
         }
@@ -68054,7 +64461,7 @@
           "cfg": [
             "cfg_attr (not (test) , allow (unused_variables))"
           ],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         },
         {
@@ -68129,7 +64536,7 @@
           "cfg": [
             "cfg_attr (not (test) , allow (unused_variables))"
           ],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -68219,7 +64626,7 @@
           "cfg": [
             "cfg_attr (not (test) , allow (unused_variables))"
           ],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -68294,7 +64701,7 @@
           "cfg": [
             "cfg_attr (not (test) , allow (unused_variables))"
           ],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -68367,7 +64774,7 @@
           "symbol": "player_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         },
         {
@@ -68380,7 +64787,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -68406,7 +64813,7 @@
           "symbol": "player_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         },
         {
@@ -68445,7 +64852,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -68471,7 +64878,7 @@
           "symbol": "player_registry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         },
         {
@@ -68497,7 +64904,7 @@
           "symbol": "group_registry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -68523,7 +64930,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -68549,7 +64956,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -68562,7 +64969,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -68588,7 +64995,7 @@
           "symbol": "player_registry",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         },
         {
@@ -68601,7 +65008,7 @@
           "symbol": "player_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         },
         {
@@ -68783,7 +65190,7 @@
           "symbol": "player_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         },
         {
@@ -68861,7 +65268,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -68900,7 +65307,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -68952,7 +65359,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -69082,7 +65489,7 @@
           "symbol": "player_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         },
         {
@@ -69134,7 +65541,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -69212,7 +65619,7 @@
           "symbol": "pending_invites",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "self . directory . pending_invites",
+          "fingerprint": "self . core . directory . pending_invites",
           "count": 1
         },
         {
@@ -69225,7 +65632,7 @@
           "symbol": "registry",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "self . directory . pending_invites . as_ref ()",
+          "fingerprint": "self . core . directory . pending_invites . as_ref ()",
           "count": 1
         },
         {
@@ -69251,7 +65658,7 @@
           "symbol": "player_registry",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         },
         {
@@ -69264,7 +65671,7 @@
           "symbol": "registry",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "self . player_registry . as_ref ()",
+          "fingerprint": "self . core . player_registry . as_ref ()",
           "count": 1
         },
         {
@@ -69277,7 +65684,7 @@
           "symbol": "player_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         },
         {
@@ -69355,7 +65762,7 @@
           "symbol": "player_registry",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         },
         {
@@ -69381,7 +65788,7 @@
           "symbol": "player_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         },
         {
@@ -69459,7 +65866,7 @@
           "symbol": "player_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         },
         {
@@ -69485,7 +65892,7 @@
           "symbol": "player_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         },
         {
@@ -69550,7 +65957,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -69654,7 +66061,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -69680,7 +66087,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -69745,7 +66152,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -69797,7 +66204,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -69862,7 +66269,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -69901,7 +66308,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -69966,7 +66373,7 @@
           "symbol": "player_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         },
         {
@@ -70018,7 +66425,7 @@
           "symbol": "group_registry",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -70031,7 +66438,7 @@
           "symbol": "registry",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry . as_ref ()",
+          "fingerprint": "self . core . directory . group_registry . as_ref ()",
           "count": 1
         },
         {
@@ -70044,7 +66451,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -70083,7 +66490,7 @@
           "symbol": "player_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         },
         {
@@ -70122,7 +66529,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -70161,7 +66568,7 @@
           "symbol": "player_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         },
         {
@@ -70226,7 +66633,7 @@
           "symbol": "player_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         },
         {
@@ -70239,7 +66646,7 @@
           "symbol": "registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . player_registry . as_ref () . and_then (| registry | { registry . group_reward_snapshot (player_guid) . map (| entry | (entry . level , entry . map_id , entry . position , entry . is_alive)) })",
+          "fingerprint": "self . core . player_registry . as_ref () . and_then (| registry | { registry . group_reward_snapshot (player_guid) . map (| entry | (entry . level , entry . map_id , entry . position , entry . is_alive)) })",
           "count": 1
         },
         {
@@ -70252,7 +66659,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -70304,7 +66711,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -70369,7 +66776,7 @@
           "symbol": "group_registry",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -70408,7 +66815,7 @@
           "symbol": "pending_invites",
           "visibility": "pub",
           "cfg": [],
-          "fingerprint": "self . directory . pending_invites",
+          "fingerprint": "self . core . directory . pending_invites",
           "count": 1
         },
         {
@@ -70434,7 +66841,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -70473,7 +66880,7 @@
           "symbol": "player_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         },
         {
@@ -70512,7 +66919,7 @@
           "symbol": "player_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         },
         {
@@ -70642,7 +67049,7 @@
           "symbol": "player_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         },
         {
@@ -70725,9 +67132,9 @@
         },
         {
           "package": "wow-world",
-          "module": "crate::session::state",
-          "source": "crates/wow-world/src/session/state.rs",
-          "enclosing": "struct WorldSession",
+          "module": "crate::session::state::session_core",
+          "source": "crates/wow-world/src/session/state/session_core.rs",
+          "enclosing": "struct SessionCore",
           "registry": "PlayerRegistry",
           "operation": "type_reference",
           "symbol": "player_registry",
@@ -70772,7 +67179,7 @@
           "symbol": "player_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         },
         {
@@ -70798,7 +67205,7 @@
           "symbol": "group_registry",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -70876,7 +67283,7 @@
           "symbol": "group_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . directory . group_registry",
+          "fingerprint": "self . core . directory . group_registry",
           "count": 1
         },
         {
@@ -70902,7 +67309,7 @@
           "symbol": "player_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 2
         },
         {
@@ -70941,7 +67348,7 @@
           "symbol": "player_registry",
           "visibility": "pub (crate)",
           "cfg": [],
-          "fingerprint": "self . player_registry",
+          "fingerprint": "self . core . player_registry",
           "count": 1
         }
       ]
@@ -76100,7 +72507,7 @@
               "side": "canonical",
               "kind": "field_access",
               "symbol": "canonical_map_manager",
-              "fingerprint": "fnv1a64x2:976fdd57813a0bc03c64590226493073:len=49",
+              "fingerprint": "fnv1a64x2:25ea29435fd8d828bbed9603e0abe533:len=49",
               "multiplicity": 1
             },
             {
@@ -76114,7 +72521,7 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "as_ref",
-              "fingerprint": "fnv1a64x2:4f38ab4a5f6b8f1cf5382133eb76baff:len=49",
+              "fingerprint": "fnv1a64x2:aa191076fbfe6e842f6af38a626f63f7:len=49",
               "multiplicity": 1
             },
             {
@@ -76142,18 +72549,18 @@
               "side": "legacy",
               "kind": "field_access",
               "symbol": "map_manager",
-              "fingerprint": "fnv1a64x2:c6c2bb985e84a5f45b214a3fb639d7ff:len=49",
+              "fingerprint": "fnv1a64x2:c1b91436c070d82cbdf3d9dbefa30dc7:len=49",
               "multiplicity": 1
             },
             {
               "side": "legacy",
               "kind": "method_call",
               "symbol": "as_ref",
-              "fingerprint": "fnv1a64x2:1852d5325f08df77f046b7fdbd4061ec:len=49",
+              "fingerprint": "fnv1a64x2:1b301d2e12f2caf5df54ee8a5df1c97e:len=49",
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn represented_creature_is_dead_for_loot_visibility_like_cpp (& self , creature_guid : ObjectGuid ,) -> bool|body=fnv1a64x2:910cb19633cbc63199515b6f295eeed8:len=840|evidence=fnv1a64x2:abc3fd78ca4a481ca8f2d5e706f6f407:len=812",
+          "fingerprint": "signature=impl:WorldSession::fn represented_creature_is_dead_for_loot_visibility_like_cpp (& self , creature_guid : ObjectGuid ,) -> bool|body=fnv1a64x2:130eaffb8dcf732bc3d25b23398e52e6:len=854|evidence=fnv1a64x2:a4a6b3d0474508564e25b2622127487d:len=812",
           "cfg": [],
           "multiplicity": 1
         },
@@ -78389,7 +74796,7 @@
               "multiplicity": 2
             }
           ],
-          "fingerprint": "signature=impl:Fixture::fn new () -> Self|body=fnv1a64x2:c4349362517a7c10b17335228530d933:len=2403|evidence=fnv1a64x2:7eaea3832d373b1fee0683c61b52eebe:len=464",
+          "fingerprint": "signature=impl:Fixture::fn new () -> Self|body=fnv1a64x2:85a86bdbd8d2ee7bea954ee651edab68:len=2437|evidence=fnv1a64x2:7eaea3832d373b1fee0683c61b52eebe:len=464",
           "cfg": [
             "cfg (test)"
           ],
@@ -81432,14 +77839,14 @@
               "side": "canonical",
               "kind": "field_access",
               "symbol": "canonical_map_manager",
-              "fingerprint": "fnv1a64x2:976fdd57813a0bc03c64590226493073:len=49",
+              "fingerprint": "fnv1a64x2:25ea29435fd8d828bbed9603e0abe533:len=49",
               "multiplicity": 1
             },
             {
               "side": "canonical",
               "kind": "method_call",
               "symbol": "as_ref",
-              "fingerprint": "fnv1a64x2:4f38ab4a5f6b8f1cf5382133eb76baff:len=49",
+              "fingerprint": "fnv1a64x2:aa191076fbfe6e842f6af38a626f63f7:len=49",
               "multiplicity": 1
             },
             {
@@ -81453,7 +77860,7 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "lock",
-              "fingerprint": "fnv1a64x2:04f1a5574662b6232608be497dd0ec00:len=49",
+              "fingerprint": "fnv1a64x2:aa000710cb39ff257e150c4ea7cce342:len=49",
               "multiplicity": 1
             },
             {
@@ -81467,7 +77874,7 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "ok",
-              "fingerprint": "fnv1a64x2:748b710864d1bd34aa8f5ec726eb4117:len=49",
+              "fingerprint": "fnv1a64x2:fcae26fbc9293db10a86e236fe251b1e:len=49",
               "multiplicity": 1
             },
             {
@@ -81481,18 +77888,18 @@
               "side": "legacy",
               "kind": "field_access",
               "symbol": "map_manager",
-              "fingerprint": "fnv1a64x2:c6c2bb985e84a5f45b214a3fb639d7ff:len=49",
+              "fingerprint": "fnv1a64x2:c1b91436c070d82cbdf3d9dbefa30dc7:len=49",
               "multiplicity": 1
             },
             {
               "side": "legacy",
               "kind": "method_call",
               "symbol": "as_ref",
-              "fingerprint": "fnv1a64x2:1852d5325f08df77f046b7fdbd4061ec:len=49",
+              "fingerprint": "fnv1a64x2:1b301d2e12f2caf5df54ee8a5df1c97e:len=49",
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn represented_creature_has_loot_recipient_like_cpp (& self , creature_guid : wow_core :: ObjectGuid ,) -> Option < bool >|body=fnv1a64x2:914b54a0f7d39f251be9dc8d06e38e20:len=712|evidence=fnv1a64x2:1da3505b92d36017508811cfcb14e37c:len=809",
+          "fingerprint": "signature=impl:WorldSession::fn represented_creature_has_loot_recipient_like_cpp (& self , creature_guid : wow_core :: ObjectGuid ,) -> Option < bool >|body=fnv1a64x2:3aa256e92821cd4befd7a442844eeeba:len=726|evidence=fnv1a64x2:ea7e8cd629ffff0295b4a01d808dff85:len=809",
           "cfg": [],
           "multiplicity": 1
         },
@@ -81516,7 +77923,7 @@
               "side": "canonical",
               "kind": "field_access",
               "symbol": "canonical_map_manager",
-              "fingerprint": "fnv1a64x2:976fdd57813a0bc03c64590226493073:len=49",
+              "fingerprint": "fnv1a64x2:25ea29435fd8d828bbed9603e0abe533:len=49",
               "multiplicity": 1
             },
             {
@@ -81530,7 +77937,7 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "as_ref",
-              "fingerprint": "fnv1a64x2:4f38ab4a5f6b8f1cf5382133eb76baff:len=49",
+              "fingerprint": "fnv1a64x2:aa191076fbfe6e842f6af38a626f63f7:len=49",
               "multiplicity": 1
             },
             {
@@ -81544,39 +77951,39 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "lock",
-              "fingerprint": "fnv1a64x2:04f1a5574662b6232608be497dd0ec00:len=49",
+              "fingerprint": "fnv1a64x2:aa000710cb39ff257e150c4ea7cce342:len=49",
               "multiplicity": 1
             },
             {
               "side": "canonical",
               "kind": "method_call",
               "symbol": "ok",
-              "fingerprint": "fnv1a64x2:748b710864d1bd34aa8f5ec726eb4117:len=49",
+              "fingerprint": "fnv1a64x2:fcae26fbc9293db10a86e236fe251b1e:len=49",
               "multiplicity": 1
             },
             {
               "side": "legacy",
               "kind": "field_access",
               "symbol": "map_manager",
-              "fingerprint": "fnv1a64x2:c6c2bb985e84a5f45b214a3fb639d7ff:len=49",
+              "fingerprint": "fnv1a64x2:c1b91436c070d82cbdf3d9dbefa30dc7:len=49",
               "multiplicity": 1
             },
             {
               "side": "legacy",
               "kind": "method_call",
               "symbol": "as_ref",
-              "fingerprint": "fnv1a64x2:1852d5325f08df77f046b7fdbd4061ec:len=49",
+              "fingerprint": "fnv1a64x2:1b301d2e12f2caf5df54ee8a5df1c97e:len=49",
               "multiplicity": 1
             },
             {
               "side": "legacy",
               "kind": "method_call",
               "symbol": "cloned",
-              "fingerprint": "fnv1a64x2:8754d58fcf4d6c98faeee97feff10d5b:len=49",
+              "fingerprint": "fnv1a64x2:ce6c95667e3a89bb53ad93e1577bd920:len=49",
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn mover_movement_force_mod_magnitude_like_cpp (& self , mover_guid : ObjectGuid ,) -> Option < f32 >|body=fnv1a64x2:555388e240092b9ea64241f62d160809:len=1151|evidence=fnv1a64x2:07925270cbe56ba8aaacb8ae0a78fa93:len=795",
+          "fingerprint": "signature=impl:WorldSession::fn mover_movement_force_mod_magnitude_like_cpp (& self , mover_guid : ObjectGuid ,) -> Option < f32 >|body=fnv1a64x2:842e339288ff492ad0e38e3e92a306ad:len=1183|evidence=fnv1a64x2:27c38cc1c7a92a7e8d381e22e84fd5e5:len=795",
           "cfg": [],
           "multiplicity": 1
         },
@@ -81600,7 +78007,7 @@
               "side": "canonical",
               "kind": "field_access",
               "symbol": "canonical_map_manager",
-              "fingerprint": "fnv1a64x2:976fdd57813a0bc03c64590226493073:len=49",
+              "fingerprint": "fnv1a64x2:25ea29435fd8d828bbed9603e0abe533:len=49",
               "multiplicity": 1
             },
             {
@@ -81614,7 +78021,7 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "as_ref",
-              "fingerprint": "fnv1a64x2:4f38ab4a5f6b8f1cf5382133eb76baff:len=49",
+              "fingerprint": "fnv1a64x2:aa191076fbfe6e842f6af38a626f63f7:len=49",
               "multiplicity": 1
             },
             {
@@ -81628,39 +78035,39 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "lock",
-              "fingerprint": "fnv1a64x2:04f1a5574662b6232608be497dd0ec00:len=49",
+              "fingerprint": "fnv1a64x2:aa000710cb39ff257e150c4ea7cce342:len=49",
               "multiplicity": 1
             },
             {
               "side": "canonical",
               "kind": "method_call",
               "symbol": "ok",
-              "fingerprint": "fnv1a64x2:748b710864d1bd34aa8f5ec726eb4117:len=49",
+              "fingerprint": "fnv1a64x2:fcae26fbc9293db10a86e236fe251b1e:len=49",
               "multiplicity": 1
             },
             {
               "side": "legacy",
               "kind": "field_access",
               "symbol": "map_manager",
-              "fingerprint": "fnv1a64x2:c6c2bb985e84a5f45b214a3fb639d7ff:len=49",
+              "fingerprint": "fnv1a64x2:c1b91436c070d82cbdf3d9dbefa30dc7:len=49",
               "multiplicity": 1
             },
             {
               "side": "legacy",
               "kind": "method_call",
               "symbol": "as_ref",
-              "fingerprint": "fnv1a64x2:1852d5325f08df77f046b7fdbd4061ec:len=49",
+              "fingerprint": "fnv1a64x2:1b301d2e12f2caf5df54ee8a5df1c97e:len=49",
               "multiplicity": 1
             },
             {
               "side": "legacy",
               "kind": "method_call",
               "symbol": "cloned",
-              "fingerprint": "fnv1a64x2:8754d58fcf4d6c98faeee97feff10d5b:len=49",
+              "fingerprint": "fnv1a64x2:ce6c95667e3a89bb53ad93e1577bd920:len=49",
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn mover_position_like_cpp (& self , mover_guid : ObjectGuid ,) -> Option < wow_core :: Position >|body=fnv1a64x2:a0781ee43329f992101bffb7835ba78d:len=825|evidence=fnv1a64x2:63a0c401676a52fa9a7b77fc12228be9:len=795",
+          "fingerprint": "signature=impl:WorldSession::fn mover_position_like_cpp (& self , mover_guid : ObjectGuid ,) -> Option < wow_core :: Position >|body=fnv1a64x2:710cf0e49d9e96c4a802e84364ef52af:len=839|evidence=fnv1a64x2:5b8983ff1c7f1d1c0ab2faaf5cb00d07:len=795",
           "cfg": [],
           "multiplicity": 1
         },
@@ -81684,7 +78091,7 @@
               "side": "canonical",
               "kind": "field_access",
               "symbol": "canonical_map_manager",
-              "fingerprint": "fnv1a64x2:976fdd57813a0bc03c64590226493073:len=49",
+              "fingerprint": "fnv1a64x2:25ea29435fd8d828bbed9603e0abe533:len=49",
               "multiplicity": 1
             },
             {
@@ -81698,7 +78105,7 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "as_ref",
-              "fingerprint": "fnv1a64x2:4f38ab4a5f6b8f1cf5382133eb76baff:len=49",
+              "fingerprint": "fnv1a64x2:aa191076fbfe6e842f6af38a626f63f7:len=49",
               "multiplicity": 1
             },
             {
@@ -81712,39 +78119,39 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "lock",
-              "fingerprint": "fnv1a64x2:04f1a5574662b6232608be497dd0ec00:len=49",
+              "fingerprint": "fnv1a64x2:aa000710cb39ff257e150c4ea7cce342:len=49",
               "multiplicity": 1
             },
             {
               "side": "canonical",
               "kind": "method_call",
               "symbol": "ok",
-              "fingerprint": "fnv1a64x2:748b710864d1bd34aa8f5ec726eb4117:len=49",
+              "fingerprint": "fnv1a64x2:fcae26fbc9293db10a86e236fe251b1e:len=49",
               "multiplicity": 1
             },
             {
               "side": "legacy",
               "kind": "field_access",
               "symbol": "map_manager",
-              "fingerprint": "fnv1a64x2:c6c2bb985e84a5f45b214a3fb639d7ff:len=49",
+              "fingerprint": "fnv1a64x2:c1b91436c070d82cbdf3d9dbefa30dc7:len=49",
               "multiplicity": 1
             },
             {
               "side": "legacy",
               "kind": "method_call",
               "symbol": "as_ref",
-              "fingerprint": "fnv1a64x2:1852d5325f08df77f046b7fdbd4061ec:len=49",
+              "fingerprint": "fnv1a64x2:1b301d2e12f2caf5df54ee8a5df1c97e:len=49",
               "multiplicity": 1
             },
             {
               "side": "legacy",
               "kind": "method_call",
               "symbol": "cloned",
-              "fingerprint": "fnv1a64x2:8754d58fcf4d6c98faeee97feff10d5b:len=49",
+              "fingerprint": "fnv1a64x2:ce6c95667e3a89bb53ad93e1577bd920:len=49",
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn mover_spline_finalized_like_cpp (& self , mover_guid : ObjectGuid) -> Option < bool >|body=fnv1a64x2:c234003a8c7f38a6560c7b478d8eaf01:len=1074|evidence=fnv1a64x2:10e327da347d7ed3a13f48e82eba1ef4:len=795",
+          "fingerprint": "signature=impl:WorldSession::fn mover_spline_finalized_like_cpp (& self , mover_guid : ObjectGuid) -> Option < bool >|body=fnv1a64x2:5e4d83f139d6e7dd420e6576e2c984c2:len=1095|evidence=fnv1a64x2:f9da871a27e20fad549d81320b85520e:len=795",
           "cfg": [],
           "multiplicity": 1
         },
@@ -81782,61 +78189,61 @@
               "side": "canonical",
               "kind": "field_access",
               "symbol": "canonical_map_manager",
-              "fingerprint": "fnv1a64x2:976fdd57813a0bc03c64590226493073:len=49",
+              "fingerprint": "fnv1a64x2:25ea29435fd8d828bbed9603e0abe533:len=49",
               "multiplicity": 1
             },
             {
               "side": "canonical",
               "kind": "method_call",
               "symbol": "and_then",
-              "fingerprint": "fnv1a64x2:f84e2429926f7a464c24b85adec50a25:len=51",
+              "fingerprint": "fnv1a64x2:47cedc6f46e5f29a810301bfdbdc0c65:len=51",
               "multiplicity": 1
             },
             {
               "side": "canonical",
               "kind": "method_call",
               "symbol": "as_ref",
-              "fingerprint": "fnv1a64x2:4f38ab4a5f6b8f1cf5382133eb76baff:len=49",
+              "fingerprint": "fnv1a64x2:aa191076fbfe6e842f6af38a626f63f7:len=49",
               "multiplicity": 1
             },
             {
               "side": "canonical",
               "kind": "method_call",
               "symbol": "or_else",
-              "fingerprint": "fnv1a64x2:ebbea171e97d01b32d92ddbebca13b82:len=50",
+              "fingerprint": "fnv1a64x2:02953d709e799fd32ae83c2663a9ae7e:len=50",
               "multiplicity": 1
             },
             {
               "side": "legacy",
               "kind": "field_access",
               "symbol": "map_manager",
-              "fingerprint": "fnv1a64x2:c6c2bb985e84a5f45b214a3fb639d7ff:len=49",
+              "fingerprint": "fnv1a64x2:c1b91436c070d82cbdf3d9dbefa30dc7:len=49",
               "multiplicity": 1
             },
             {
               "side": "legacy",
               "kind": "method_call",
               "symbol": "and_then",
-              "fingerprint": "fnv1a64x2:1db7c8bf021403894aa41e34ac28ff2c:len=50",
+              "fingerprint": "fnv1a64x2:b757f638ee47244eb5bc522e413a308d:len=50",
               "multiplicity": 1
             },
             {
               "side": "legacy",
               "kind": "method_call",
               "symbol": "as_ref",
-              "fingerprint": "fnv1a64x2:1852d5325f08df77f046b7fdbd4061ec:len=49",
+              "fingerprint": "fnv1a64x2:1b301d2e12f2caf5df54ee8a5df1c97e:len=49",
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn represented_effective_caster_destination_like_cpp (& self , caster_guid : ObjectGuid ,) -> Option < (u32 , ObjectGuid , Position) >|body=fnv1a64x2:4f8b5cf43d758a18d276d15c2b29bd13:len=2160|evidence=fnv1a64x2:6c56a51a4608223f7cecb7b5f939e198:len=831",
+          "fingerprint": "signature=impl:WorldSession::fn represented_effective_caster_destination_like_cpp (& self , caster_guid : ObjectGuid ,) -> Option < (u32 , ObjectGuid , Position) >|body=fnv1a64x2:5546aedfb314815a9f1c0623742efd4d:len=2176|evidence=fnv1a64x2:8766154b81ab2f886d44ccaaac4bc0f3:len=831",
           "cfg": [],
           "multiplicity": 1
         },
         {
           "package": "wow-world",
-          "module": "crate::session::state",
-          "path": "crates/wow-world/src/session/state.rs",
-          "enclosing": "struct::WorldSession",
+          "module": "crate::session::state::session_core",
+          "path": "crates/wow-world/src/session/state/session_core.rs",
+          "enclosing": "struct::SessionCore",
           "direction_markers": [
             "unresolved_dual_side"
           ],
@@ -81856,7 +78263,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::WorldSession|surface=fnv1a64x2:594889279f7c710e15d60504eb571919:len=77086|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::SessionCore|surface=fnv1a64x2:6124a707ee49ba12a7709d1d8ea28cb5:len=5420|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },
@@ -82121,7 +78528,7 @@
               "side": "canonical",
               "kind": "field_access",
               "symbol": "canonical_map_manager",
-              "fingerprint": "fnv1a64x2:976fdd57813a0bc03c64590226493073:len=49",
+              "fingerprint": "fnv1a64x2:25ea29435fd8d828bbed9603e0abe533:len=49",
               "multiplicity": 1
             },
             {
@@ -82156,7 +78563,7 @@
               "side": "legacy",
               "kind": "field_access",
               "symbol": "map_manager",
-              "fingerprint": "fnv1a64x2:c6c2bb985e84a5f45b214a3fb639d7ff:len=49",
+              "fingerprint": "fnv1a64x2:c1b91436c070d82cbdf3d9dbefa30dc7:len=49",
               "multiplicity": 1
             },
             {
@@ -82177,7 +78584,7 @@
               "side": "legacy",
               "kind": "method_call",
               "symbol": "as_ref",
-              "fingerprint": "fnv1a64x2:1852d5325f08df77f046b7fdbd4061ec:len=49",
+              "fingerprint": "fnv1a64x2:1b301d2e12f2caf5df54ee8a5df1c97e:len=49",
               "multiplicity": 1
             },
             {
@@ -82209,7 +78616,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn represented_can_receive_creature_message_to_set_by_guid_with_legacy_fallback_like_cpp (& self , guid : ObjectGuid , map_id : u16 , instance_id : u32 , required_3d : bool , allow_legacy_fallback : bool ,) -> Option < bool >|body=fnv1a64x2:a8eed278ea575bb51f9f040fd89de116:len=1109|evidence=fnv1a64x2:c36489c56a4cb1a8f91b7793b7b7e91b:len=1113",
+          "fingerprint": "signature=impl:WorldSession::fn represented_can_receive_creature_message_to_set_by_guid_with_legacy_fallback_like_cpp (& self , guid : ObjectGuid , map_id : u16 , instance_id : u32 , required_3d : bool , allow_legacy_fallback : bool ,) -> Option < bool >|body=fnv1a64x2:7d2e1b42d4bb5573a09fe50fa1132714:len=1123|evidence=fnv1a64x2:ccf0aa938b865722595db9765afcefe5:len=1113",
           "cfg": [],
           "multiplicity": 1
         },
@@ -82261,7 +78668,7 @@
               "side": "canonical",
               "kind": "field_access",
               "symbol": "canonical_map_manager",
-              "fingerprint": "fnv1a64x2:976fdd57813a0bc03c64590226493073:len=49",
+              "fingerprint": "fnv1a64x2:25ea29435fd8d828bbed9603e0abe533:len=49",
               "multiplicity": 1
             },
             {
@@ -82289,7 +78696,7 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "as_ref",
-              "fingerprint": "fnv1a64x2:4f38ab4a5f6b8f1cf5382133eb76baff:len=49",
+              "fingerprint": "fnv1a64x2:aa191076fbfe6e842f6af38a626f63f7:len=49",
               "multiplicity": 1
             },
             {
@@ -82447,7 +78854,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn visible_creatures_from_canonical_map_like_cpp (& self , map_id : u16 , position : & wow_core :: Position ,) -> Option < Vec < crate :: map_manager :: WorldCreature > >|body=fnv1a64x2:0f81ecc66c21e180d17b7c39462d877b:len=1990|evidence=fnv1a64x2:cc2a683f2af22915299bf086ef332758:len=3880",
+          "fingerprint": "signature=impl:WorldSession::fn visible_creatures_from_canonical_map_like_cpp (& self , map_id : u16 , position : & wow_core :: Position ,) -> Option < Vec < crate :: map_manager :: WorldCreature > >|body=fnv1a64x2:44b96c38d2aefb0f7dd384912e7add5c:len=1997|evidence=fnv1a64x2:7c2f835ac11baa91218a20a3d99e6304:len=3880",
           "cfg": [],
           "multiplicity": 1
         },
@@ -82499,7 +78906,7 @@
               "side": "canonical",
               "kind": "field_access",
               "symbol": "canonical_map_manager",
-              "fingerprint": "fnv1a64x2:976fdd57813a0bc03c64590226493073:len=49",
+              "fingerprint": "fnv1a64x2:25ea29435fd8d828bbed9603e0abe533:len=49",
               "multiplicity": 1
             },
             {
@@ -82604,7 +79011,7 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "and_then",
-              "fingerprint": "fnv1a64x2:aea0c9126ef0c566f8ace431aa397911:len=50",
+              "fingerprint": "fnv1a64x2:e6e29df49f1bf631ed97eb1273319f04:len=50",
               "multiplicity": 1
             },
             {
@@ -82618,7 +79025,7 @@
               "side": "canonical",
               "kind": "method_call",
               "symbol": "as_ref",
-              "fingerprint": "fnv1a64x2:4f38ab4a5f6b8f1cf5382133eb76baff:len=49",
+              "fingerprint": "fnv1a64x2:aa191076fbfe6e842f6af38a626f63f7:len=49",
               "multiplicity": 1
             },
             {
@@ -82989,7 +79396,7 @@
               "side": "legacy",
               "kind": "field_access",
               "symbol": "map_manager",
-              "fingerprint": "fnv1a64x2:c6c2bb985e84a5f45b214a3fb639d7ff:len=49",
+              "fingerprint": "fnv1a64x2:c1b91436c070d82cbdf3d9dbefa30dc7:len=49",
               "multiplicity": 1
             },
             {
@@ -83014,7 +79421,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp (& mut self , map_id : u16 , position : wow_core :: Position , create_data : wow_packet :: packets :: update :: CreatureCreateData , min_dmg : u32 , max_dmg : u32 , aggro_radius : f32 , loot_id : u32 , skin_loot_id : u32 , gold_min : u32 , gold_max : u32 , respawn_delay_secs : u32 , selected_equipment_id : u8 , original_equipment_id : i8 , script_name : String , string_id : Option < String > , addon : Option < CreatureAddonLifecycleRecordLikeCpp > , boss_id : Option < u32 > , dungeon_encounter_id : u32 , phase_use_flags : u8 , phase_id : u16 , phase_group_id : u32 , terrain_swap_map : i32 , flags_extra : u32 , ground_movement_type : u8 , swim_allowed : bool , flight_movement_type : u8 , rooted : bool , chase_movement_type : u8 , random_movement_type : u8 , interaction_pause_timer_ms : u32 , wander_distance : f32 , default_movement_type : wow_entities :: MovementGeneratorType , waypoint_path_id : u32 ,)|body=fnv1a64x2:3c646367581db1d439d9cae7840d341f:len=7739|evidence=fnv1a64x2:d091264968434fbf3e82662c90a16604:len=16487",
+          "fingerprint": "signature=impl:WorldSession::fn register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp (& mut self , map_id : u16 , position : wow_core :: Position , create_data : wow_packet :: packets :: update :: CreatureCreateData , min_dmg : u32 , max_dmg : u32 , aggro_radius : f32 , loot_id : u32 , skin_loot_id : u32 , gold_min : u32 , gold_max : u32 , respawn_delay_secs : u32 , selected_equipment_id : u8 , original_equipment_id : i8 , script_name : String , string_id : Option < String > , addon : Option < CreatureAddonLifecycleRecordLikeCpp > , boss_id : Option < u32 > , dungeon_encounter_id : u32 , phase_use_flags : u8 , phase_id : u16 , phase_group_id : u32 , terrain_swap_map : i32 , flags_extra : u32 , ground_movement_type : u8 , swim_allowed : bool , flight_movement_type : u8 , rooted : bool , chase_movement_type : u8 , random_movement_type : u8 , interaction_pause_timer_ms : u32 , wander_distance : f32 , default_movement_type : wow_entities :: MovementGeneratorType , waypoint_path_id : u32 ,)|body=fnv1a64x2:8e0fdb6468b5cbf0b60e3c57aea8cc53:len=7764|evidence=fnv1a64x2:312ed3f4283b424a6c0b6fac861c13dd:len=16487",
           "cfg": [],
           "multiplicity": 1
         }

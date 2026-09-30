@@ -468,9 +468,9 @@
     },
     {
       "path": "crates/wow-world/src/handlers/character/session_state.rs",
-      "observed_lines": 773,
-      "ceiling_lines": 773,
-      "split": "Separate character adapters by complete operation; preserve registration/publication order. #585 adds ten lines so both failed-login consumers retain identity when canonical retirement fails, rather than discarding the returned outcome. This bounded safety integration does not retire the remaining login/worldport module debt in #584. #589 adds four inseparable lines: the binder consumer adapts to fallible canonical cast-identity allocation and returns when the admitted Map cannot allocate, instead of publishing an empty CastID. No new responsibility enters this file. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here.",
+      "observed_lines": 781,
+      "ceiling_lines": 781,
+      "split": "Separate character adapters by complete operation; preserve registration/publication order. #585 adds ten lines so both failed-login consumers retain identity when canonical retirement fails, rather than discarding the returned outcome. This bounded safety integration does not retire the remaining login/worldport module debt in #584. #589 adds four inseparable lines: the binder consumer adapts to fallible canonical cast-identity allocation and returns when the admitted Map cannot allocate, instead of publishing an empty CastID. No new responsibility enters this file. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here. #1241 F2 adds one sub-state path segment per WorldSession field access (rustfmt rewrap); no logic, no new responsibility; F3/F4 reverse it.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -517,30 +517,30 @@
     },
     {
       "path": "crates/wow-world/src/handlers/loot/handlers.rs",
-      "observed_lines": 986,
-      "ceiling_lines": 986,
-      "split": "Separate loot packet adaptation by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #743 removes the 116-line group command application block, which was not a loot responsibility; it now lives in `handlers/group/commands.rs` beside the group operations that produce those commands. The ceiling is tightened to the reduced size. #584 Transport VALUES adds a typed visibility projection and keeps the command gate beside the packet adaptation; no new authority or lock is introduced. #61 adds 3 lines to the represented creature-melee victim handler: the C++ `Unit::Kill` durability producer is one call into `durability.rs`, with the packet and gate kept outside this adapter. #29 adds the one `blocked: 0` field line to the loot roll `AttackerStateUpdate` construction. #29 adds the one `original_damage` field line to the loot roll packet. #29 adds 10 lines to the represented creature-melee victim handler: the exhausted-absorb-slot loop and overflow-returned fields that call the session's own `remove_aura` transition, which keeps the removal publication and its side effects in the aura owner; the packet and gate stay outside this adapter. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here.",
+      "observed_lines": 989,
+      "ceiling_lines": 989,
+      "split": "Separate loot packet adaptation by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #743 removes the 116-line group command application block, which was not a loot responsibility; it now lives in `handlers/group/commands.rs` beside the group operations that produce those commands. The ceiling is tightened to the reduced size. #584 Transport VALUES adds a typed visibility projection and keeps the command gate beside the packet adaptation; no new authority or lock is introduced. #61 adds 3 lines to the represented creature-melee victim handler: the C++ `Unit::Kill` durability producer is one call into `durability.rs`, with the packet and gate kept outside this adapter. #29 adds the one `blocked: 0` field line to the loot roll `AttackerStateUpdate` construction. #29 adds the one `original_damage` field line to the loot roll packet. #29 adds 10 lines to the represented creature-melee victim handler: the exhausted-absorb-slot loop and overflow-returned fields that call the session's own `remove_aura` transition, which keeps the removal publication and its side effects in the aura owner; the packet and gate stay outside this adapter. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here. #1241 F2 adds one sub-state path segment per WorldSession field access (rustfmt rewrap); no logic, no new responsibility; F3/F4 reverse it.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/loot/requests.rs",
-      "observed_lines": 364,
-      "ceiling_lines": 364,
-      "split": "Separate loot command admission and persistence outcomes by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #756 adds seven inseparable lines: the quest reads that used to touch the state's public fields now name the owner's accessors, which wrap onto their own lines. #584 adds the named Player::IsLockedToDungeonEncounter adapter and fail-closed missing-authority handling; the canonical catalog/InstanceLockMgr query remains in the Session binding module and the old set is cfg(test) fixture input only. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here.",
+      "observed_lines": 378,
+      "ceiling_lines": 378,
+      "split": "Separate loot command admission and persistence outcomes by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #756 adds seven inseparable lines: the quest reads that used to touch the state's public fields now name the owner's accessors, which wrap onto their own lines. #584 adds the named Player::IsLockedToDungeonEncounter adapter and fail-closed missing-authority handling; the canonical catalog/InstanceLockMgr query remains in the Session binding module and the old set is cfg(test) fixture input only. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here. #1241 F2 adds one sub-state path segment per WorldSession field access (rustfmt rewrap); no logic, no new responsibility; F3/F4 reverse it.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/src/handlers/loot/sources.rs",
-      "observed_lines": 957,
-      "ceiling_lines": 957,
-      "split": "Separate typed loot source discovery and queries by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #584 routes encounter filtering through the canonical Player::IsLockedToDungeonEncounter adapter without adding a source-local authority, lock or clock. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here.",
+      "observed_lines": 981,
+      "ceiling_lines": 981,
+      "split": "Separate typed loot source discovery and queries by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #584 routes encounter filtering through the canonical Player::IsLockedToDungeonEncounter adapter without adding a source-local authority, lock or clock. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here. #1241 F2 adds one sub-state path segment per WorldSession field access (rustfmt rewrap); no logic, no new responsibility; F3/F4 reverse it.",
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/unit_tests/handlers/loot_tests.rs",
-      "observed_lines": 879,
-      "ceiling_lines": 879,
-      "split": "Separate loot admission, claim, race and persistence scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #628 moves this file's test functions into bounded scenario modules beside it. #1233 continues the physical cut by moving cohesive canonical-world, loot-authority, item-template, group-lifecycle and overworld personal-loot fixtures into private children; the facade retains direct scenario support and explicit imports where needed. The 1,760-line observed ceiling remains historical until final validated acceptance; this level-1 reduction does not close terminal physical debt. Test count and production behavior are unchanged by these fixture-only moves. #787 adds the phase-rail field to this file's shared registration fixture. #584 Transport VALUES adds the explicit transport-visibility fixture field and a focused command-consumer regression. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here. #1241 F1 relocated this file unchanged from src/ to unit_tests/ (still a cfg(test) module of the library; tests unchanged).",
+      "observed_lines": 895,
+      "ceiling_lines": 895,
+      "split": "Separate loot admission, claim, race and persistence scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #628 moves this file's test functions into bounded scenario modules beside it. #1233 continues the physical cut by moving cohesive canonical-world, loot-authority, item-template, group-lifecycle and overworld personal-loot fixtures into private children; the facade retains direct scenario support and explicit imports where needed. The 1,760-line observed ceiling remains historical until final validated acceptance; this level-1 reduction does not close terminal physical debt. Test count and production behavior are unchanged by these fixture-only moves. #787 adds the phase-rail field to this file's shared registration fixture. #584 Transport VALUES adds the explicit transport-visibility fixture field and a focused command-consumer regression. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here. #1241 F1 relocated this file unchanged from src/ to unit_tests/ (still a cfg(test) module of the library; tests unchanged). #1241 F2 adds one sub-state path segment per WorldSession field access (rustfmt rewrap); no logic, no new responsibility; F3/F4 reverse it.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -559,16 +559,16 @@
     },
     {
       "path": "crates/wow-world/src/handlers/quest/rewards.rs",
-      "split": "Separate quest reward transaction/application by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #718 makes the reward one character transaction and moves its durable close - commit, ambiguous-COMMIT reconciliation and the memory half that may only follow a known COMMIT - into the quest application module, a validated reduction from 2232 to 2140 lines; #584 P2 replaces the production item-object mutation closures with data commands, adding eight measured lines while preserving reward transaction order. The ceiling is ratcheted to that validated delivery; the remaining file plans the grants and still owes the split above. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here.",
-      "observed_lines": 891,
-      "ceiling_lines": 891,
+      "split": "Separate quest reward transaction/application by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #718 makes the reward one character transaction and moves its durable close - commit, ambiguous-COMMIT reconciliation and the memory half that may only follow a known COMMIT - into the quest application module, a validated reduction from 2232 to 2140 lines; #584 P2 replaces the production item-object mutation closures with data commands, adding eight measured lines while preserving reward transaction order. The ceiling is ratcheted to that validated delivery; the remaining file plans the grants and still owes the split above. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here. #1241 F2 adds one sub-state path segment per WorldSession field access (rustfmt rewrap); no logic, no new responsibility; F3/F4 reverse it.",
+      "observed_lines": 902,
+      "ceiling_lines": 902,
       "review_checkpoint": "584:C4"
     },
     {
       "path": "crates/wow-world/unit_tests/handlers/quest_tests.rs",
-      "observed_lines": 977,
-      "ceiling_lines": 977,
-      "split": "Separate quest eligibility, accept, objective and reward scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 10679 to 1404 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved. #718 adds the 2-line declaration of the reward-transaction scenario module, from 1404 to 1406; its scenarios live in that bounded file. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here. #1241 F1 relocated this file unchanged from src/ to unit_tests/ (still a cfg(test) module of the library; tests unchanged).",
+      "observed_lines": 978,
+      "ceiling_lines": 978,
+      "split": "Separate quest eligibility, accept, objective and reward scenarios by complete operation into narrow adapters, owner capabilities and scenario tests; preserve opcode registration and publication order. #628 moves this file's test functions into bounded scenario modules beside it, each within the 1,000-line review budget, dropping it from 10679 to 1404 lines with the ceiling tightened to that figure. Shared helpers stay here because a child module already sees its parent's private items. Test count unchanged; no production line moved. #718 adds the 2-line declaration of the reward-transaction scenario module, from 1404 to 1406; its scenarios live in that bounded file. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here. #1241 F1 relocated this file unchanged from src/ to unit_tests/ (still a cfg(test) module of the library; tests unchanged). #1241 F2 adds one sub-state path segment per WorldSession field access (rustfmt rewrap); no logic, no new responsibility; F3/F4 reverse it.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -629,9 +629,9 @@
     },
     {
       "path": "crates/wow-world/src/session/state.rs",
-      "observed_lines": 1843,
-      "ceiling_lines": 1843,
-      "split": "Bounded aggregate exception: this file is the single WorldSession field declaration, including its private canonical/session delivery state. Moving fields into nested mirrors or synthetic accessors would change the owner surface and require broad reader/writer churn without a semantic boundary. Exit at 584:C4: extract a named capability aggregate only when all readers, writers, construction, persistence and fixture paths can migrate together; no physical growth is permitted before that review. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here.",
+      "observed_lines": 674,
+      "ceiling_lines": 674,
+      "split": "Bounded aggregate exception: this file is the single WorldSession field declaration, including its private canonical/session delivery state. Moving fields into nested mirrors or synthetic accessors would change the owner surface and require broad reader/writer churn without a semantic boundary. Exit at 584:C4: extract a named capability aggregate only when all readers, writers, construction, persistence and fixture paths can migrate together; no physical growth is permitted before that review. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here. #1241 F2 moved the WorldSession field declarations into the named sub-state structs under session/state/ (the capability-aggregate exit named above); WorldSession keeps 26 top-level fields. Ceiling lowered to the live size.",
       "review_checkpoint": "584:C4"
     },
     {

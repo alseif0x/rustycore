@@ -21,7 +21,7 @@ en [workspace-structure-programme.md](workspace-structure-programme.md).
 | líneas `.rs` de `wow-world/src` | ~412 000 |
 | …tests/fixtures dentro de `src` (por ruta) | **224 620 (55 %)**; `session/tests/` solo: 124 918 |
 | …producción | 187 252 |
-| campos de `WorldSession` (`session/state.rs:175`) | **455** (306 con `cfg`) |
+| campos de `WorldSession` (`session/state.rs:398`) | **455** (306 con `cfg`) |
 | métodos `impl WorldSession` | **3 834**, en 344 ficheros de producción |
 | `crates/wow-world/tests/` (integración) | 3 016 |
 
