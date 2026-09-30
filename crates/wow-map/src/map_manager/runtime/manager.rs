@@ -359,7 +359,14 @@ impl MapManager {
         seer_phase_shift: Option<&PhaseShift>,
     ) -> Vec<WorldCreature> {
         self.collect_visible_creatures_in_phase(
-            map_id, instance_id, x, y, z, visibility_range, seer_phase_shift, WorldCreature::clone,
+            map_id,
+            instance_id,
+            x,
+            y,
+            z,
+            visibility_range,
+            seer_phase_shift,
+            WorldCreature::clone,
         )
     }
 
@@ -375,7 +382,13 @@ impl MapManager {
         seer_phase_shift: Option<&PhaseShift>,
     ) -> Vec<crate::map::CreatureVisibilityCandidate> {
         self.collect_visible_creatures_in_phase(
-            map_id, instance_id, x, y, z, visibility_range, seer_phase_shift,
+            map_id,
+            instance_id,
+            x,
+            y,
+            z,
+            visibility_range,
+            seer_phase_shift,
             WorldCreature::capture_visibility_candidate,
         )
     }

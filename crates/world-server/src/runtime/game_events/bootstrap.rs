@@ -69,9 +69,9 @@ pub(crate) fn register_loaded_instance_ids(
 mod tests {
     use super::{map_db2_entries_from_stores, register_loaded_instance_ids};
     use std::sync::Mutex;
-    use wow_map::MapManager;
     use wow_data::{MapDifficultyEntry, MapDifficultyStore, MapEntry, MapStore};
     use wow_instances::{MapDb2Entries, MapDifficultyResetInterval};
+    use wow_map::MapManager;
 
     #[test]
     fn map_db2_entries_from_stores_match_cpp_fields() {
@@ -142,10 +142,7 @@ mod tests {
         let empty_map_manager = Mutex::new(MapManager::default());
         register_loaded_instance_ids(&empty_map_manager, &[]);
         assert_eq!(
-            empty_map_manager
-                .lock()
-                .unwrap()
-                .generate_instance_id(),
+            empty_map_manager.lock().unwrap().generate_instance_id(),
             Some(1)
         );
     }

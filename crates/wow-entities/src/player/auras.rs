@@ -62,7 +62,9 @@ impl Player {
         aura: AuraApplicationLikeCpp,
         provenance: crate::AuraCastProvenanceLikeCpp,
     ) {
-        self.unit_mut().subsystems_mut().auras
+        self.unit_mut()
+            .subsystems_mut()
+            .auras
             .install_loaded_runtime_application(slot, snapshot, aura, provenance);
     }
 

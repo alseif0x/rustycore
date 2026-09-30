@@ -75,7 +75,10 @@ fn self_flat_extremes_preserve_saturating_abs_and_setter_clamps() {
     ] {
         let mut player = player_with_vitals(0, maximum, DeathState::Corpse);
 
-        assert_eq!(player.apply_self_resurrection(damage, misc_value), Some(health));
+        assert_eq!(
+            player.apply_self_resurrection(damage, misc_value),
+            Some(health)
+        );
         assert_eq!(player.unit().data().health, u64::from(health));
         assert_eq!(player.unit().data().max_health, maximum);
         assert_eq!(powers(&player), [mana, 0, 120, 0]);
@@ -104,7 +107,10 @@ fn self_percentage_keeps_integer_saturation_before_division() {
 fn self_zero_percentage_keeps_alive_zero_health_and_lifecycle_gaps() {
     let mut player = player_with_vitals(20, 100, DeathState::Corpse);
     player.resurrection_state_mut_like_cpp().death_timer_active = true;
-    player.resurrection_state_mut_like_cpp().self_res_spells.insert(21169);
+    player
+        .resurrection_state_mut_like_cpp()
+        .self_res_spells
+        .insert(21169);
     let lifecycle = player.resurrection_state_like_cpp().clone();
     let revision = player.unit().health_state_revision_like_cpp();
 

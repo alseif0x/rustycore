@@ -203,7 +203,6 @@ impl CreatureLoadedGridLifecycleResolverLikeCpp {
             runtime_selections: runtime_selections.into_iter().collect(),
         }
     }
-
 }
 
 #[allow(clippy::too_many_arguments)]

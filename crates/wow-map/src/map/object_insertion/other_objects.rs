@@ -10,7 +10,6 @@ where
     Terrain: TerrainGridLoader,
     Lifecycle: GridLifecycle,
 {
-
     // Preserve the coordinator's captured admission facts; no new reads or context.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn add_other_object_entry(
@@ -26,7 +25,8 @@ where
     ) -> Result<AddToMapOutcome, AddToMapError> {
         let creature_unit_add_to_world = {
             entry
-                .as_mut().object_mut()
+                .as_mut()
+                .object_mut()
                 .set_current_cell(cell.cell_x(), cell.cell_y());
             let creature_unit_add_to_world = if let Some(creature) = entry.as_mut().creature_mut() {
                 Some(creature.unit_mut().add_to_world_like_cpp())
@@ -34,13 +34,24 @@ where
                 entry.as_mut().object_mut().object_mut().add_to_world();
                 None
             };
-            entry.as_mut().object_mut().object_mut().set_is_new_object(true);
-            entry.as_mut().object_mut().object_mut().set_is_new_object(false);
+            entry
+                .as_mut()
+                .object_mut()
+                .object_mut()
+                .set_is_new_object(true);
+            entry
+                .as_mut()
+                .object_mut()
+                .object_mut()
+                .set_is_new_object(false);
             creature_unit_add_to_world
         };
 
         let creature_search_formation = if kind == AccessorObjectKind::Creature {
-            entry.as_ref().creature().map(Creature::search_formation_like_cpp)
+            entry
+                .as_ref()
+                .creature()
+                .map(Creature::search_formation_like_cpp)
         } else {
             None
         };
@@ -49,7 +60,10 @@ where
         }
 
         let creature_aim_initialize = if kind == AccessorObjectKind::Creature {
-            entry.as_ref().creature().map(Creature::aim_initialize_like_cpp)
+            entry
+                .as_ref()
+                .creature()
+                .map(Creature::aim_initialize_like_cpp)
         } else {
             None
         };
@@ -82,23 +96,24 @@ where
         } else {
             None
         };
-        let creature_zone_script_create = if kind == AccessorObjectKind::Creature {
-            entry
-                .as_ref().creature()
-                .is_some()
-                .then_some(CreatureZoneScriptCreateOutcomeLikeCpp {
-                    guid,
-                    represented_callback: true,
-                    script_dispatch_represented: false,
-                })
-        } else {
-            None
-        };
+        let creature_zone_script_create =
+            if kind == AccessorObjectKind::Creature {
+                entry.as_ref().creature().is_some().then_some(
+                    CreatureZoneScriptCreateOutcomeLikeCpp {
+                        guid,
+                        represented_callback: true,
+                        script_dispatch_represented: false,
+                    },
+                )
+            } else {
+                None
+            };
 
         let (gameobject_model_insert, gameobject_collision_enable) =
             if kind == AccessorObjectKind::GameObject {
                 if let Some(game_object) = entry
-                    .as_mut().game_object_mut()
+                    .as_mut()
+                    .game_object_mut()
                     .filter(|game_object| game_object.has_represented_gameobject_model_like_cpp())
                 {
                     let gameobject_model_insert = self.insert_gameobject_model_like_cpp(
@@ -167,5 +182,4 @@ where
             add_to_map_tail,
         })
     }
-
 }

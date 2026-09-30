@@ -2,11 +2,20 @@
 use super::recovery_support::*;
 use std::collections::HashMap;
 use std::sync::Mutex;
-use wow_world::test_fixtures::loot::*;
-use wow_loot::{LootStore, LootStoreKind, LootStores, LootStoreItem, LootTemplateRow, loot_is_looted_like_cpp};
-use wow_world::session::mailbox::{SyncChestGameobjectStateAndRefreshLikeCppCommand, SyncGooberGameobjectStateAndRefreshLikeCppCommand, SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand};
+use wow_data::{
+    SpellEffectInfo, SpellInfo, SpellMiscEntry, SpellMiscStore, SpellRangeEntry, SpellRangeStore,
+    SpellStore,
+};
 use wow_entities::GAMEOBJECT_TYPE_GOOBER;
-use wow_data::{SpellStore, SpellInfo, SpellEffectInfo, SpellMiscStore, SpellMiscEntry, SpellRangeStore, SpellRangeEntry};
+use wow_loot::{
+    LootStore, LootStoreItem, LootStoreKind, LootStores, LootTemplateRow, loot_is_looted_like_cpp,
+};
+use wow_world::session::mailbox::{
+    SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
+    SyncGooberGameobjectStateAndRefreshLikeCppCommand,
+};
+use wow_world::test_fixtures::loot::*;
 
 #[test]
 fn gameobject_loot_distance_uses_display_box_when_db2_exists_like_cpp() {
@@ -14,14 +23,16 @@ fn gameobject_loot_distance_uses_display_box_when_db2_exists_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 42);
     let gameobject_guid = test_gameobject_guid(19_041);
     session.set_player_guid(Some(player_guid));
-    record_represented_gameobject_runtime_state_for_test(&mut session, 
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         gameobject_guid,
         gameobject_guid.entry(),
         Position::ZERO,
         GAMEOBJECT_TYPE_CHEST as u8,
     );
-    record_loot_display_model_for_test(&mut session, 
+    record_loot_display_model_for_test(
+        &mut session,
         gameobject_guid,
         77,
         1.0,
@@ -51,14 +62,18 @@ fn gameobject_loot_distance_uses_display_box_when_db2_exists_like_cpp() {
     ));
 
     session.set_player_position_like_cpp(Position::xyz(6.9, 0.0, 0.0));
-    assert!(
-        loot_gameobject_can_store_for_test(&session, gameobject_guid, player_guid)
-    );
+    assert!(loot_gameobject_can_store_for_test(
+        &session,
+        gameobject_guid,
+        player_guid
+    ));
 
     session.set_player_position_like_cpp(Position::xyz(7.1, 0.0, 0.0));
-    assert!(
-        !loot_gameobject_can_store_for_test(&session, gameobject_guid, player_guid)
-    );
+    assert!(!loot_gameobject_can_store_for_test(
+        &session,
+        gameobject_guid,
+        player_guid
+    ));
 }
 
 #[test]
@@ -68,7 +83,8 @@ fn gameobject_loot_distance_uses_spell_lock_range_like_cpp() {
     let gameobject_guid = test_gameobject_guid(19_042);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::xyz(11.0, 0.0, 0.0));
-    record_represented_gameobject_runtime_state_for_test(&mut session, 
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         gameobject_guid,
         gameobject_guid.entry(),
@@ -130,14 +146,18 @@ fn gameobject_loot_distance_uses_spell_lock_range_like_cpp() {
         range_max: [12.0, 12.0],
     }])));
 
-    assert!(
-        loot_gameobject_can_store_for_test(&session, gameobject_guid, player_guid)
-    );
+    assert!(loot_gameobject_can_store_for_test(
+        &session,
+        gameobject_guid,
+        player_guid
+    ));
 
     session.set_player_position_like_cpp(Position::xyz(12.1, 0.0, 0.0));
-    assert!(
-        !loot_gameobject_can_store_for_test(&session, gameobject_guid, player_guid)
-    );
+    assert!(!loot_gameobject_can_store_for_test(
+        &session,
+        gameobject_guid,
+        player_guid
+    ));
 }
 
 #[test]
@@ -149,7 +169,8 @@ fn gameobject_loot_distance_uses_known_open_lock_skill_spell_like_cpp() {
     session.set_player_position_like_cpp(Position::xyz(8.0, 0.0, 0.0));
     prepare_money_player_residence_for_test(&mut session);
     set_loot_lock_spells_for_test(&mut session, vec![8001]);
-    record_represented_gameobject_runtime_state_for_test(&mut session, 
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         gameobject_guid,
         gameobject_guid.entry(),
@@ -223,7 +244,9 @@ fn gameobject_loot_distance_uses_known_open_lock_skill_spell_like_cpp() {
         range_max: [9.0, 9.0],
     }])));
 
-    assert!(
-        loot_gameobject_can_store_for_test(&session, gameobject_guid, player_guid)
-    );
+    assert!(loot_gameobject_can_store_for_test(
+        &session,
+        gameobject_guid,
+        player_guid
+    ));
 }

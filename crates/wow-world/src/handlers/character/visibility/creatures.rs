@@ -2,8 +2,11 @@
 
 use super::*;
 
+#[path = "creatures/nearby.rs"]
 mod nearby;
+#[path = "creatures/owned_refresh.rs"]
 mod owned_refresh;
+#[path = "creatures/catalog_refresh.rs"]
 mod catalog_refresh;
 
 impl WorldSession {

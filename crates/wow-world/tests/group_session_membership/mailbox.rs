@@ -18,8 +18,7 @@ async fn apply_group_subgroup_command_updates_current_group_reference_like_cpp()
             },
         ))
         .unwrap();
-    process_represented_session_commands_like_cpp(&mut session)
-        .await;
+    process_represented_session_commands_like_cpp(&mut session).await;
 
     assert_eq!(represented_subgroup_like_cpp(&session), Some(4));
 
@@ -32,12 +31,10 @@ async fn apply_group_subgroup_command_updates_current_group_reference_like_cpp()
             },
         ))
         .unwrap();
-    process_represented_session_commands_like_cpp(&mut session)
-        .await;
+    process_represented_session_commands_like_cpp(&mut session).await;
 
     assert_eq!(represented_subgroup_like_cpp(&session), Some(4));
 }
-
 
 #[tokio::test]
 async fn apply_group_subgroup_command_ignores_non_logged_in_session_like_cpp() {
@@ -54,12 +51,10 @@ async fn apply_group_subgroup_command_ignores_non_logged_in_session_like_cpp() {
             },
         ))
         .unwrap();
-    process_represented_session_commands_like_cpp(&mut session)
-        .await;
+    process_represented_session_commands_like_cpp(&mut session).await;
 
     assert_eq!(represented_subgroup_like_cpp(&session), None);
 }
-
 
 #[tokio::test]
 async fn party_update_command_consumes_receiver_sequence_like_cpp() {
@@ -70,7 +65,10 @@ async fn party_update_command_consumes_receiver_sequence_like_cpp() {
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
-    assert!(set_owned_player_group_like_cpp(&mut session, Some((group_guid, 0))));
+    assert!(set_owned_player_group_like_cpp(
+        &mut session,
+        Some((group_guid, 0))
+    ));
     session.set_player_guid(Some(player_guid));
     session.set_state(SessionState::LoggedIn);
 
@@ -101,8 +99,7 @@ async fn party_update_command_consumes_receiver_sequence_like_cpp() {
                 },
             ))
             .unwrap();
-        process_represented_session_commands_like_cpp(&mut session)
-            .await;
+        process_represented_session_commands_like_cpp(&mut session).await;
     }
 
     let first = send_rx.try_recv().unwrap();
@@ -110,7 +107,6 @@ async fn party_update_command_consumes_receiver_sequence_like_cpp() {
     assert_eq!(party_update_sequence_num_like_cpp(&first), 1);
     assert_eq!(party_update_sequence_num_like_cpp(&second), 2);
 }
-
 
 #[tokio::test]
 async fn group_removal_command_clears_remote_party_type_like_cpp() {
@@ -174,8 +170,7 @@ async fn group_removal_command_clears_remote_party_type_like_cpp() {
         ))
         .unwrap();
     group_registry.unregister_group_like_cpp(&group_guid);
-    process_represented_session_commands_like_cpp(&mut session)
-        .await;
+    process_represented_session_commands_like_cpp(&mut session).await;
 
     assert_eq!(group_guid_for_test_like_cpp(&session), None);
     let after = canonical_party_type_for_test(&canonical, player_guid);
@@ -203,7 +198,6 @@ async fn group_removal_command_clears_remote_party_type_like_cpp() {
     assert_destroyed_party_update_like_cpp(&destroyed_update, group_guid);
     assert!(realm_rx.try_recv().is_err());
 }
-
 
 #[tokio::test]
 async fn group_removal_command_can_send_group_uninvite_like_cpp() {
@@ -257,8 +251,7 @@ async fn group_removal_command_can_send_group_uninvite_like_cpp() {
             },
         ))
         .unwrap();
-    process_represented_session_commands_like_cpp(&mut session)
-        .await;
+    process_represented_session_commands_like_cpp(&mut session).await;
 
     let packets = drain_server_packet_bytes(&instance_rx);
     assert!(packets.iter().any(|bytes| {
@@ -284,4 +277,3 @@ async fn group_removal_command_can_send_group_uninvite_like_cpp() {
     assert_destroyed_party_update_like_cpp(&destroyed_update, group_guid);
     assert!(realm_rx.try_recv().is_err());
 }
-

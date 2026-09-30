@@ -135,5 +135,4 @@ where
         self.apply_pool_despawn_pool_plan_safe_map_actions_like_cpp(&plan, &mut summary);
         Ok(summary)
     }
-
 }

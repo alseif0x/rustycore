@@ -640,13 +640,9 @@ async fn party_invite_rejects_gm_target_like_cpp_default_config() {
     let mut target_info = broadcast_info(target, target_tx);
     player_registry.register_or_replace(target, target_info, Default::default());
     let canonical = bind_canonical_party_players_like_cpp(&player_registry, [target]);
-    with_canonical_player_at_mut_like_cpp(
-        &canonical,
-        target,
-        0,
-        0,
-        |player| player.set_game_master_like_cpp(true),
-    )
+    with_canonical_player_at_mut_like_cpp(&canonical, target, 0, 0, |player| {
+        player.set_game_master_like_cpp(true)
+    })
     .unwrap();
     let pending_invites = Arc::new(PendingInvites::default());
 
@@ -714,13 +710,9 @@ async fn party_invite_allows_gm_target_when_cpp_config_enabled() {
     let mut target_info = broadcast_info(target, target_tx);
     player_registry.register_or_replace(target, target_info, Default::default());
     let canonical = bind_canonical_party_players_like_cpp(&player_registry, [target]);
-    with_canonical_player_at_mut_like_cpp(
-        &canonical,
-        target,
-        0,
-        0,
-        |player| player.set_game_master_like_cpp(true),
-    )
+    with_canonical_player_at_mut_like_cpp(&canonical, target, 0, 0, |player| {
+        player.set_game_master_like_cpp(true)
+    })
     .unwrap();
     let pending_invites = Arc::new(PendingInvites::default());
 

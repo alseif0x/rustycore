@@ -4,18 +4,20 @@
 //! callers. Only the compatibility Record branch takes its existing snapshot;
 //! the Actor branch moves its complete motor through Fresh admission.
 
-use super::{AddToMapError, AddToMapOutcome, FreshCreatureActorAdmission,
-    FreshCreatureActorAdmissionError, GridLifecycle, LoadedGridRespawnRecordsLikeCpp,
-    Map, TerrainGridLoader};
+use super::{
+    AddToMapError, AddToMapOutcome, FreshCreatureActorAdmission, FreshCreatureActorAdmissionError,
+    GridLifecycle, LoadedGridRespawnRecordsLikeCpp, Map, TerrainGridLoader,
+};
 use crate::map_manager::WorldCreature;
 use wow_entities::MapObjectRecord;
 
 mod owned;
-pub use owned::{LoadedGridAttemptPlan, LoadedGridPoolOutcome,
-    LoadedGridRespawnOutcome,
-    LoadedGridConditionOutcome, LoadedGridSpawnAttempt,
-    LoadedGridSpawnAttemptResult, LoadedGridSpawnOutcome};
 pub(in crate::map) use owned::LoadedGridReceipts;
+pub use owned::{
+    LoadedGridAttemptPlan, LoadedGridConditionOutcome, LoadedGridPoolOutcome,
+    LoadedGridRespawnOutcome, LoadedGridSpawnAttempt, LoadedGridSpawnAttemptResult,
+    LoadedGridSpawnOutcome,
+};
 
 #[derive(Debug)]
 pub struct LoadedGridMaterialization {
@@ -38,7 +40,10 @@ impl LoadedGridMaterialization {
     }
 
     pub fn creature(pre_add_records: Vec<MapObjectRecord>, actor: WorldCreature) -> Self {
-        Self { pre_add_records, primary: LoadedGridPrimary::CreatureActor(actor) }
+        Self {
+            pre_add_records,
+            primary: LoadedGridPrimary::CreatureActor(actor),
+        }
     }
 }
 
@@ -48,7 +53,9 @@ pub enum LoadedGridPrimaryAdmission {
         snapshot: MapObjectRecord,
         result: Result<AddToMapOutcome, AddToMapError>,
     },
-    CreatureActor(Result<FreshCreatureActorAdmission, (FreshCreatureActorAdmissionError, WorldCreature)>),
+    CreatureActor(
+        Result<FreshCreatureActorAdmission, (FreshCreatureActorAdmissionError, WorldCreature)>,
+    ),
 }
 
 #[derive(Debug)]
@@ -58,16 +65,22 @@ pub struct LoadedGridAdmission {
 }
 
 impl LoadedGridAdmission {
-    pub fn into_parts(self) -> (
-        Vec<Result<AddToMapOutcome, AddToMapError>>, LoadedGridPrimaryAdmission,
+    pub fn into_parts(
+        self,
+    ) -> (
+        Vec<Result<AddToMapOutcome, AddToMapError>>,
+        LoadedGridPrimaryAdmission,
     ) {
         (self.pre_add, self.primary)
     }
 
     // These three compatibility drivers construct only Record materialization.
     // Keep this projection inside Map; no external flow uses its invariant.
-    pub(in crate::map) fn into_record_parts(self) -> (
-        Vec<Result<AddToMapOutcome, AddToMapError>>, MapObjectRecord,
+    pub(in crate::map) fn into_record_parts(
+        self,
+    ) -> (
+        Vec<Result<AddToMapOutcome, AddToMapError>>,
+        MapObjectRecord,
         Result<AddToMapOutcome, AddToMapError>,
     ) {
         let (pre_add, primary) = self.into_parts();

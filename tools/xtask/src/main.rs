@@ -229,14 +229,7 @@ fn structure_audit(root: &Path) {
     let consumers = consumers(&crates);
     println!(
         "{:<24} {:>11} {:>11} {:>11} {:>7} {:>13} {:>6} {:>5}  layer  flags",
-        "crate",
-        "src-lines",
-        "test-lines",
-        "total-lines",
-        "files",
-        "largest-lines",
-        "deps",
-        "used"
+        "crate", "src-lines", "test-lines", "total-lines", "files", "largest-lines", "deps", "used"
     );
     for c in crates.iter().rev() {
         let mut flags = Vec::new();

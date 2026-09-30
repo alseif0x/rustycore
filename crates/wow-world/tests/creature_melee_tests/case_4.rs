@@ -42,9 +42,7 @@ async fn apply_creature_melee_damage_command_replay_after_resurrection_is_suppre
             command.clone(),
         ))
         .expect("lethal command queued");
-    session
-        .fixture_melee_process_commands()
-        .await;
+    session.fixture_melee_process_commands().await;
     assert_eq!(
         send_rx.drain().count(),
         3,
@@ -77,9 +75,7 @@ async fn apply_creature_melee_damage_command_replay_after_resurrection_is_suppre
         .try_send(SessionCommand::ApplyCreatureMeleeDamageLikeCpp(command))
         .expect("replayed command queued");
 
-    session
-        .fixture_melee_process_commands()
-        .await;
+    session.fixture_melee_process_commands().await;
 
     let canonical_after = session
         .fixture_melee_mutate_player(|player| {

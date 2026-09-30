@@ -141,7 +141,13 @@ impl WorldCreature {
         update_spline: bool,
         mut resolve_path: impl FnMut(CreaturePathQueryLikeCpp) -> Option<DetourPolyPath>,
     ) -> Option<(Position, MoveSpline)> {
-        let progress = pending::prepare_random(self, diff_ms, should_try_pathfinding, terrain.is_some(), update_spline);
+        let progress = pending::prepare_random(
+            self,
+            diff_ms,
+            should_try_pathfinding,
+            terrain.is_some(),
+            update_spline,
+        );
         match pending::run(self, progress, terrain, &mut resolve_path) {
             pending::MovementCompletion::Random(outcome) => outcome,
             _ => unreachable!("random preparation completes a random operation"),
@@ -204,7 +210,6 @@ impl WorldCreature {
         )
     }
 
-
     pub fn update_default_waypoint_movement_with_launch_like_cpp(
         &mut self,
         diff_ms: u32,
@@ -244,7 +249,14 @@ impl WorldCreature {
         update_spline: bool,
         mut resolve_path: impl FnMut(CreaturePathQueryLikeCpp) -> Option<DetourPolyPath>,
     ) -> (WaypointMovementAction, Option<(Position, MoveSpline)>) {
-        let progress = pending::prepare_waypoint(self, diff_ms, wait_time_roll_ms, should_try_pathfinding, terrain.is_some(), update_spline);
+        let progress = pending::prepare_waypoint(
+            self,
+            diff_ms,
+            wait_time_roll_ms,
+            should_try_pathfinding,
+            terrain.is_some(),
+            update_spline,
+        );
         match pending::run(self, progress, terrain, &mut resolve_path) {
             pending::MovementCompletion::Waypoint(action, movement) => (action, movement),
             _ => unreachable!("waypoint preparation completes a waypoint operation"),
@@ -290,7 +302,8 @@ impl WorldCreature {
 
     pub fn pick_wander_destination(&mut self) -> Option<Position> {
         let angle = self
-            .runtime.runtime_rng_like_cpp
+            .runtime
+            .runtime_rng_like_cpp
             .gen_range(0.0..(2.0 * std::f32::consts::PI));
         let radius = self.creature.ai_ownership().wander_radius.max(0.0);
         let dist = self.runtime.runtime_rng_like_cpp.gen_range(0.0..=radius);
@@ -306,7 +319,8 @@ impl WorldCreature {
         wander_distance: f32,
     ) -> Option<Position> {
         let angle = self
-            .runtime.runtime_rng_like_cpp
+            .runtime
+            .runtime_rng_like_cpp
             .gen_range(0.0..(2.0 * std::f32::consts::PI));
         let radius = wander_distance.max(0.0);
         let dist = self.runtime.runtime_rng_like_cpp.gen_range(0.0..=radius);

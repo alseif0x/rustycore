@@ -109,4 +109,3 @@ pub struct GameEventNpcVendorCacheUpdateSummaryLikeCpp {
     pub remove_misses: usize,
     pub no_match: usize,
 }
-

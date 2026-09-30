@@ -87,7 +87,11 @@ where
     let mut personal_loot = HashMap::new();
     for (index, looter) in looters.into_iter().enumerate() {
         let mut pool = loot.clone();
-        let existing_guid = if index == 0 { Some(pool.loot_guid) } else { None };
+        let existing_guid = if index == 0 {
+            Some(pool.loot_guid)
+        } else {
+            None
+        };
         let (loot_guid, coins) = resolve(looter, existing_guid)?;
         if index != 0 {
             pool.loot_guid = loot_guid;

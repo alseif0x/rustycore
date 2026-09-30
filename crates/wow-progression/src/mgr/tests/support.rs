@@ -83,17 +83,10 @@ impl ReputationCatalogReadLikeCpp for TestReputationCatalogLikeCpp {
         faction_ids
     }
 
-    fn friendship_reactions_like_cpp(
-        &self,
-        id: u8,
-    ) -> Option<Vec<&FriendshipRepReactionEntry>> {
-        self.friendship_reactions.as_ref().map(|by_friendship| {
-            by_friendship
-                .get(&id)
-                .into_iter()
-                .flatten()
-                .collect()
-        })
+    fn friendship_reactions_like_cpp(&self, id: u8) -> Option<Vec<&FriendshipRepReactionEntry>> {
+        self.friendship_reactions
+            .as_ref()
+            .map(|by_friendship| by_friendship.get(&id).into_iter().flatten().collect())
     }
 
     fn paragon_for_faction_like_cpp(&self, id: u32) -> Option<&ParagonReputationEntry> {

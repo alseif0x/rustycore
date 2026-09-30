@@ -1,8 +1,8 @@
 //! Quest request wire readers. Target QuestPackets.cpp:273-280, 547-560 at a5f8da2e.
 //! Preserve the existing Rust defaults for truncated ID/boolean fields.
 
-use wow_core::ObjectGuid;
 use crate::{PacketError, WorldPacket};
+use wow_core::ObjectGuid;
 
 pub fn read_quest_giver_query_quest(
     pkt: &mut WorldPacket,
@@ -29,9 +29,7 @@ pub struct QuestChoiceItem {
     pub quantity: i32,
 }
 
-pub fn read_quest_choice_item(
-    pkt: &mut WorldPacket,
-) -> Result<QuestChoiceItem, PacketError> {
+pub fn read_quest_choice_item(pkt: &mut WorldPacket) -> Result<QuestChoiceItem, PacketError> {
     // C++ `QuestChoiceItem` starts with `ResetBitPos(); ReadBits(2)`, then
     // an `Item::ItemInstance`, then signed `Quantity`.
     pkt.reset_bits();

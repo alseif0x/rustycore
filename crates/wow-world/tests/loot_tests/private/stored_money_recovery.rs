@@ -50,7 +50,12 @@ async fn cancelled_stored_item_money_before_commit_retries_without_local_consump
     wait_for_loot_persistence_for_test(&mut session).await;
     assert!(durable_source_row.load(Ordering::Acquire));
     assert_eq!(player_gold_for_test(&session), 100);
-    assert_eq!(loot_recovery_cache_for_test(&session, owner_guid).unwrap().coins, 7);
+    assert_eq!(
+        loot_recovery_cache_for_test(&session, owner_guid)
+            .unwrap()
+            .coins,
+        7
+    );
     assert!(!first_runtime_applied.load(Ordering::Acquire));
 
     let retry_source = Arc::clone(&durable_source_row);
@@ -88,7 +93,12 @@ async fn cancelled_stored_item_money_before_commit_retries_without_local_consump
     wait_for_loot_persistence_for_test(&mut session).await;
     assert!(!durable_source_row.load(Ordering::Acquire));
     assert_eq!(player_gold_for_test(&session), 107);
-    assert_eq!(loot_recovery_cache_for_test(&session, owner_guid).unwrap().coins, 0);
+    assert_eq!(
+        loot_recovery_cache_for_test(&session, owner_guid)
+            .unwrap()
+            .coins,
+        0
+    );
     assert!(retry_runtime_applied.load(Ordering::Acquire));
     assert!(is_active_loot_guid_for_test(&session, owner_guid));
 }
@@ -171,11 +181,15 @@ async fn stored_item_money_save_reconciled_balance_still_publishes_source_once_l
     ));
     drop(guard);
 
-    apply_loot_completions_for_test(&mut session)
-        .await;
+    apply_loot_completions_for_test(&mut session).await;
 
     assert_eq!(player_gold_for_test(&session), 107);
-    assert_eq!(loot_recovery_cache_for_test(&session, owner_guid).unwrap().coins, 0);
+    assert_eq!(
+        loot_recovery_cache_for_test(&session, owner_guid)
+            .unwrap()
+            .coins,
+        0
+    );
     assert!(balance_applied.load(Ordering::Acquire));
     assert!(publication_applied.load(Ordering::Acquire));
     assert!(
@@ -245,7 +259,12 @@ async fn stored_item_money_delete_cas_allows_exactly_one_durable_grant_like_cpp(
     assert_eq!(successes, 1);
     assert_eq!(durable_grants.load(Ordering::SeqCst), 1);
     assert_eq!(player_gold_for_test(&session), 107);
-    assert_eq!(loot_recovery_cache_for_test(&session, owner_guid).unwrap().coins, 0);
+    assert_eq!(
+        loot_recovery_cache_for_test(&session, owner_guid)
+            .unwrap()
+            .coins,
+        0
+    );
     assert_eq!(
         drain_server_opcodes_like_cpp(&send_rx)
             .into_iter()

@@ -33,8 +33,7 @@ async fn cancelled_after_runtime_apply_retains_multiviewer_fanout_and_corpse_lif
             creature.corpse_despawn_at()
         })
         .unwrap();
-    let authority = loot_recovery_authority_for_test(&mut first, owner)
-        .unwrap();
+    let authority = loot_recovery_authority_for_test(&mut first, owner).unwrap();
     let claim = authority
         .reserve_item_for_award_like_cpp(first_guid, 0)
         .await
@@ -49,7 +48,7 @@ async fn cancelled_after_runtime_apply_retains_multiviewer_fanout_and_corpse_lif
     let fanout = prepare_loot_item_fanout_for_test(
         &mut first, &claim, context.0, context.1, context.2, context.3, context.4,
     )
-        .expect("pre-COMMIT fanout route");
+    .expect("pre-COMMIT fanout route");
     assert_eq!(fanout.precommit_viewer_count(), 2);
 
     let runtime_inventory_applied = Arc::new(AtomicBool::new(true));
@@ -117,8 +116,7 @@ async fn cancelled_disenchant_waiter_cannot_reopen_durable_batch_like_cpp() {
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             0, true,
         ));
-    let authority = loot_recovery_authority_for_test(&mut session, owner)
-        .unwrap();
+    let authority = loot_recovery_authority_for_test(&mut session, owner).unwrap();
     let generation = authority
         .snapshot_for_player_like_cpp(player_guid)
         .unwrap()
@@ -170,8 +168,7 @@ async fn cancelled_world_owner_claim_after_commit_reconciles_cache_and_forces_re
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             0, true,
         ));
-    let authority = loot_recovery_authority_for_test(&mut session, owner_guid)
-        .unwrap();
+    let authority = loot_recovery_authority_for_test(&mut session, owner_guid).unwrap();
     let claim = authority
         .reserve_item_for_award_like_cpp(player_guid, 0)
         .await
@@ -220,7 +217,10 @@ async fn cancelled_world_owner_claim_after_commit_reconciles_cache_and_forces_re
             .taken
     );
     assert!(
-        loot_recovery_cache_for_test(&session, owner_guid).unwrap().items[0].taken,
+        loot_recovery_cache_for_test(&session, owner_guid)
+            .unwrap()
+            .items[0]
+            .taken,
         "master/roll/direct world-owner grants share this claimed-store recovery path"
     );
 }

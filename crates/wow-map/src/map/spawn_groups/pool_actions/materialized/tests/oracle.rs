@@ -32,12 +32,7 @@ impl Map {
         L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
     {
         for subplan in &plan.subplans {
-            self.original_typed(
-                subplan,
-                spawn_store,
-                summary,
-                load_record.as_deref_mut(),
-            );
+            self.original_typed(subplan, spawn_store, summary, load_record.as_deref_mut());
         }
     }
 
@@ -89,12 +84,9 @@ impl Map {
                     kind: PoolMemberKindLikeCpp::Pool,
                     ..
                 } => {}
-                other => self.original_action(
-                    other,
-                    spawn_store,
-                    summary,
-                    load_record.as_deref_mut(),
-                ),
+                other => {
+                    self.original_action(other, spawn_store, summary, load_record.as_deref_mut())
+                }
             }
         }
     }
@@ -114,14 +106,7 @@ impl Map {
             }
             PoolSpawnObjectActionLikeCpp::RespawnOne { kind, guid } => {
                 self.apply_pool_despawn_one_safe_map_action_like_cpp(kind, guid, summary);
-                self.original_spawn(
-                    kind,
-                    guid,
-                    true,
-                    spawn_store,
-                    summary,
-                    load_record,
-                );
+                self.original_spawn(kind, guid, true, spawn_store, summary, load_record);
             }
             PoolSpawnObjectActionLikeCpp::RemoveRespawnTime { kind, guid } => {
                 let Some(object_type) = pool_member_kind_to_spawn_object_type_like_cpp(kind) else {
@@ -137,14 +122,7 @@ impl Map {
                 }
             }
             PoolSpawnObjectActionLikeCpp::SpawnOne { kind, guid } => {
-                self.original_spawn(
-                    kind,
-                    guid,
-                    false,
-                    spawn_store,
-                    summary,
-                    load_record,
-                );
+                self.original_spawn(kind, guid, false, spawn_store, summary, load_record);
             }
         }
     }
@@ -235,13 +213,7 @@ impl Map {
             choose_equal,
         )?;
         let mut summary = ProcessRespawnsSafeSideEffectsSummaryLikeCpp::default();
-        self.original_pool(
-            &plan,
-            spawn_store,
-            &mut summary,
-            Some(&mut load_record),
-        );
+        self.original_pool(&plan, spawn_store, &mut summary, Some(&mut load_record));
         Ok(summary)
     }
-
 }

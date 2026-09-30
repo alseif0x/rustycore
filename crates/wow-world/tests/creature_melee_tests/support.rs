@@ -1,6 +1,9 @@
 //! Original APP builders shared by the moved melee contracts.
 use super::*;
-use wow_world::session::directory::{PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp, PlayerSessionRegistrationLikeCpp};
+use wow_world::session::directory::{
+    PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp,
+    PlayerSessionRegistrationLikeCpp,
+};
 
 pub(super) fn broadcast_info_with_command(
     guid: ObjectGuid,
@@ -100,7 +103,11 @@ pub(super) fn attach_share_test_player_like_cpp(
         .unwrap();
 }
 
-pub(super) fn set_player_aura_caster_like_cpp(session: &mut WorldSession, spell_id: i32, caster: ObjectGuid) {
+pub(super) fn set_player_aura_caster_like_cpp(
+    session: &mut WorldSession,
+    spell_id: i32,
+    caster: ObjectGuid,
+) {
     session
         .fixture_melee_mutate_auras(|auras| {
             let slot = auras
@@ -115,4 +122,3 @@ pub(super) fn set_player_aura_caster_like_cpp(session: &mut WorldSession, spell_
         })
         .unwrap();
 }
-

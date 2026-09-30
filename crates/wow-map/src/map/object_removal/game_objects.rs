@@ -10,7 +10,6 @@ where
     Terrain: TerrainGridLoader,
     Lifecycle: GridLifecycle,
 {
-
     /// Bounded map-owned representation of C++ `Unit::RemoveGameObject(uint32
     /// spellid, bool del)`.
     ///
@@ -299,5 +298,4 @@ where
             object_accessor_fanout_represented: false,
         })
     }
-
 }

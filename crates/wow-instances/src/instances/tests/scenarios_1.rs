@@ -46,8 +46,7 @@ fn map_db2_entries_from_resolved_entries_match_cpp_fields() {
         flags: MAP_DIFFICULTY_FLAG_USE_LOOT_BASED_LOCK,
     };
 
-    let entries =
-        MapDb2Entries::from_resolved_entries_like_cpp(631, 15, &map, &map_difficulty);
+    let entries = MapDb2Entries::from_resolved_entries_like_cpp(631, 15, &map, &map_difficulty);
 
     assert_eq!(
         entries,

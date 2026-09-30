@@ -6,10 +6,10 @@
 //! Spawn groups and spawned pools.
 mod pool_actions;
 
-use super::*;
 use super::loaded_grid_admission::{
     LoadedGridConditionOutcome, LoadedGridReceipts, LoadedGridSpawnOutcome,
 };
+use super::*;
 
 mod materialized;
 use materialized::ConditionResults;
@@ -196,7 +196,6 @@ where
         actions
     }
 
-
     /// C++ `Map::SpawnGroupDespawn(groupId, deleteRespawnTimes)` represented over
     /// map-owned runtime state and caller-supplied ObjectMgr-like `SpawnStore`.
     ///
@@ -308,11 +307,16 @@ where
         ) -> Option<LoadedGridRespawnRecordsLikeCpp>,
     {
         self.spawn_group_materialized_core(
-            group, ignore_respawn, force, spawn_store,
-            |map, kind, spawn_id, force| Ok(load_record(map, kind, spawn_id, force)
-                .map(LoadedGridMaterialization::records)),
+            group,
+            ignore_respawn,
+            force,
+            spawn_store,
+            |map, kind, spawn_id, force| {
+                Ok(load_record(map, kind, spawn_id, force).map(LoadedGridMaterialization::records))
+            },
             LoadedGridReceipts::RecordCompatibility,
-        ).summary
+        )
+        .summary
     }
 
     /// Compatibility wrapper preserving the pre-loader `SpawnGroupSpawn` seam:
@@ -362,9 +366,12 @@ where
         ) -> Option<LoadedGridRespawnRecordsLikeCpp>,
     {
         match self.update_spawn_group_conditions_core(
-            groups, spawn_store, meets_conditions,
-            |map, kind, spawn_id, force| Ok(load_record(map, kind, spawn_id, force)
-                .map(LoadedGridMaterialization::records)),
+            groups,
+            spawn_store,
+            meets_conditions,
+            |map, kind, spawn_id, force| {
+                Ok(load_record(map, kind, spawn_id, force).map(LoadedGridMaterialization::records))
+            },
             LoadedGridReceipts::RecordCompatibility,
         ) {
             ConditionResults::Record(outcomes) => outcomes,
@@ -428,5 +435,4 @@ where
             })
             .collect()
     }
-
 }

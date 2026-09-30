@@ -147,12 +147,9 @@ fn negative_gains_truncate_only_after_all_percentage_stages() {
         assert_eq!(
             calculate_reputation_gain(
                 reputation,
-                || reputation_gain_percent_before_reward_rate(
-                    reputation,
-                    20.0,
-                    Some(30.0),
-                    || Some(0.5),
-                ),
+                || reputation_gain_percent_before_reward_rate(reputation, 20.0, Some(30.0), || {
+                    Some(0.5)
+                },),
                 || None,
                 || Some(0.1),
             ),
@@ -183,7 +180,10 @@ fn shared_recruit_stage_retains_float_percentages_for_quest_rewards() {
     let percent = reputation_gain_percent_before_reward_rate(101, 25.0, None, || None)
         .expect("positive quest percentage");
     assert_eq!(percent, 125.0);
-    assert_eq!(apply_recruit_a_friend_reputation_bonus(percent, None), 125.0);
+    assert_eq!(
+        apply_recruit_a_friend_reputation_bonus(percent, None),
+        125.0
+    );
     assert_eq!(
         apply_recruit_a_friend_reputation_bonus(percent, Some(0.1)),
         137.5,

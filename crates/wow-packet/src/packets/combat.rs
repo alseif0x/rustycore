@@ -5,8 +5,8 @@
 
 //! Combat packet definitions.
 
-mod melee;
 mod logs;
+mod melee;
 #[cfg(test)]
 mod tests;
 

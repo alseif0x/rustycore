@@ -6,7 +6,10 @@ fn nonpositive_minimum_level_is_disabled_for_all_player_levels() {
     for minimum in [i32::MIN, -1, 0] {
         quest.min_level = minimum;
         for level in [0, 1, 254, u8::MAX] {
-            assert!(quest.meets_min_level(level), "minimum={minimum}, level={level}");
+            assert!(
+                quest.meets_min_level(level),
+                "minimum={minimum}, level={level}"
+            );
         }
     }
 }

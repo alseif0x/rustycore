@@ -198,4 +198,3 @@ fn registry_stale_ready_response_cannot_reopen_completed_check() {
     assert_eq!(group.ready_check_timer_ms, 0);
     assert!(group.member_slots.iter().all(|slot| !slot.ready_checked));
 }
-

@@ -2,14 +2,21 @@
 use super::recovery_support::*;
 use std::{collections::HashMap, sync::Barrier};
 use wow_loot::mark_loot_item_looted_for_player_like_cpp;
-use wow_world::test_fixtures::loot::{GameObjectLootWitness, observe_gameobject_loot_for_test, upsert_gameobject_pool_for_test, upsert_observed_gameobject_pool_for_test, release_gameobject_observation_for_test, mutate_loot_gameobject_for_test, release_fishing_hole_for_test, release_loot_owner_for_test, close_retired_loot_views_for_test, refresh_loot_summary_for_test, loot_cache_mut_for_test, share_loot_canonical_map_for_test};
 use wow_world::test_fixtures::loot::{
-    make_canonical_gameobject_for_loot_test as make_canonical_gameobject_for_session,
+    GameObjectLootWitness, close_retired_loot_views_for_test, loot_cache_mut_for_test,
+    mutate_loot_gameobject_for_test, observe_gameobject_loot_for_test,
+    refresh_loot_summary_for_test, release_fishing_hole_for_test,
+    release_gameobject_observation_for_test, release_loot_owner_for_test,
+    share_loot_canonical_map_for_test, upsert_gameobject_pool_for_test,
+    upsert_observed_gameobject_pool_for_test,
+};
+use wow_world::test_fixtures::loot::{
+    attach_canonical_creature_for_loot_test as attach_canonical_creature,
     attach_canonical_gameobject_for_loot_test as attach_canonical_gameobject,
+    canonical_creature_snapshot_for_loot_test as canonical_creature_snapshot,
     canonical_gameobject_snapshot_for_loot_test as canonical_gameobject_snapshot,
     make_canonical_creature_for_loot_test as make_canonical_creature_for_session,
-    attach_canonical_creature_for_loot_test as attach_canonical_creature,
-    canonical_creature_snapshot_for_loot_test as canonical_creature_snapshot,
+    make_canonical_gameobject_for_loot_test as make_canonical_gameobject_for_session,
 };
 
 #[tokio::test]
@@ -18,8 +25,7 @@ async fn stale_release_keeps_replacement_viewer_and_pool_like_cpp() {
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             7, true,
         ));
-    let authority = loot_recovery_authority_for_test(&mut first, owner)
-        .unwrap();
+    let authority = loot_recovery_authority_for_test(&mut first, owner).unwrap();
     let mut replacement = authoritative_test_loot_like_cpp(13, true);
     replacement.loot_guid = represented_loot_object_guid_like_cpp(owner);
     replacement.allowed_looters = vec![first_guid, second_guid];
@@ -27,10 +33,7 @@ async fn stale_release_keeps_replacement_viewer_and_pool_like_cpp() {
     let replacement_generation = authority.replace_like_cpp(Some(replacement), HashMap::new());
     authority.add_viewer_like_cpp(first_guid).unwrap();
 
-    assert!(
-        release_loot_owner_for_test(&mut first, owner, first_guid)
-            .await
-    );
+    assert!(release_loot_owner_for_test(&mut first, owner, first_guid).await);
 
     let snapshot = authority.snapshot_for_player_like_cpp(first_guid).unwrap();
     assert_eq!(snapshot.generation, replacement_generation);
@@ -46,8 +49,7 @@ fn retired_object_authority_releases_every_session_window_like_cpp() {
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             9, true,
         ));
-    let authority = loot_recovery_authority_for_test(&mut first, owner)
-        .unwrap();
+    let authority = loot_recovery_authority_for_test(&mut first, owner).unwrap();
     let _ = drain_server_opcodes_like_cpp(&first_rx);
     let _ = drain_server_opcodes_like_cpp(&second_rx);
 

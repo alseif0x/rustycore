@@ -1,15 +1,21 @@
 //! One selected, synchronous creature-melee operation under the caller's guard.
 //! The old entry opens no slot; original kill capture is a separate opt-in entry.
-use super::{MapManager, MapObjectTickContinuation, ObjectMapUpdateToken,
-    ObjectMapTickError, ActorTickAccessError};
-use crate::map::{CreatureMeleeCatalogsLikeCpp, CreatureMeleeReadiness,
-    CreatureMeleeSwingOutcome, creature_melee_readiness};
+use super::{
+    ActorTickAccessError, MapManager, MapObjectTickContinuation, ObjectMapTickError,
+    ObjectMapUpdateToken,
+};
+use crate::map::{
+    CreatureMeleeCatalogsLikeCpp, CreatureMeleeReadiness, CreatureMeleeSwingOutcome,
+    creature_melee_readiness,
+};
 use wow_core::ObjectGuid;
 
 mod kill_origin;
 pub(crate) use kill_origin::MeleeKillCollector;
-pub use kill_origin::{SelectedMeleeExecution, PendingMeleeKills, PreparedMeleeKill, PreparedMeleeLoot,
-    MeleeKillPhaseError, MeleeKillCaptureError, MeleeLootError};
+pub use kill_origin::{
+    MeleeKillCaptureError, MeleeKillPhaseError, MeleeLootError, PendingMeleeKills,
+    PreparedMeleeKill, PreparedMeleeLoot, SelectedMeleeExecution,
+};
 
 impl MapManager {
     pub(crate) fn apply_selected_creature_melee(
@@ -21,9 +27,11 @@ impl MapManager {
     ) -> Result<CreatureMeleeSwingOutcome, ActorTickAccessError> {
         self.require_current_actor_token(tick, token)?;
         if let Some(operation) = &token.actor_operation {
-            return Err(ActorTickAccessError::Tick(ObjectMapTickError::ActorOperationInFlight {
-                guid: operation.guid,
-            }));
+            return Err(ActorTickAccessError::Tick(
+                ObjectMapTickError::ActorOperationInFlight {
+                    guid: operation.guid,
+                },
+            ));
         }
         let witness = self.selected_actor_witness(token, guid, None)?;
         let key = token.key();
@@ -36,8 +44,13 @@ impl MapManager {
             });
         };
         let readiness = {
-            let actor = self.maps.get(&key).expect("the validated token retains its map")
-                .map().creature_actor(guid).expect("the admitted witness retains its actor");
+            let actor = self
+                .maps
+                .get(&key)
+                .expect("the validated token retains its map")
+                .map()
+                .creature_actor(guid)
+                .expect("the admitted witness retains its actor");
             creature_melee_readiness(actor, map_id, key.instance_id)
         };
         match readiness {
@@ -46,8 +59,9 @@ impl MapManager {
                 melee_precondition_rejections: 1,
                 ..Default::default()
             }),
-            CreatureMeleeReadiness::Ready(swing) => Ok(self.apply_canonical_creature_melee_swing(
-                key, guid, witness, swing, catalogs)),
+            CreatureMeleeReadiness::Ready(swing) => {
+                Ok(self.apply_canonical_creature_melee_swing(key, guid, witness, swing, catalogs))
+            }
         }
     }
     /// Produces kill provenance only; it does not schedule or complete Kill work.
@@ -61,16 +75,23 @@ impl MapManager {
         let admission = (|| {
             self.require_current_actor_token(tick, &token)?;
             if let Some(operation) = &token.actor_operation {
-                return Err(ActorTickAccessError::Tick(ObjectMapTickError::ActorOperationInFlight {
-                    guid: operation.guid,
-                }));
+                return Err(ActorTickAccessError::Tick(
+                    ObjectMapTickError::ActorOperationInFlight {
+                        guid: operation.guid,
+                    },
+                ));
             }
             let witness = self.selected_actor_witness(&mut token, guid, None)?;
             let key = token.key();
             let readiness = match u16::try_from(key.map_id) {
                 Ok(map_id) => {
-                    let actor = self.maps.get(&key).expect("the validated token retains its map")
-                        .map().creature_actor(guid).expect("the admitted witness retains its actor");
+                    let actor = self
+                        .maps
+                        .get(&key)
+                        .expect("the validated token retains its map")
+                        .map()
+                        .creature_actor(guid)
+                        .expect("the admitted witness retains its actor");
                     creature_melee_readiness(actor, map_id, key.instance_id)
                 }
                 Err(_) => CreatureMeleeReadiness::Rejected,
@@ -88,10 +109,15 @@ impl MapManager {
                 melee_precondition_rejections: 1,
                 ..Default::default()
             },
-            CreatureMeleeReadiness::Ready(swing) => self.apply_canonical_creature_melee_swing_with_kills(
-                key, guid, witness, swing, catalogs, &mut kills),
+            CreatureMeleeReadiness::Ready(swing) => self
+                .apply_canonical_creature_melee_swing_with_kills(
+                    key, guid, witness, swing, catalogs, &mut kills,
+                ),
         };
-        let batch = kills.take().expect("the producer retains its collector").finish();
+        let batch = kills
+            .take()
+            .expect("the producer retains its collector")
+            .finish();
         drop(kills);
         Ok(SelectedMeleeExecution::new(outcome, token, batch))
     }

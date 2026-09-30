@@ -4,14 +4,14 @@
 //! map/object order. These gates do not activate a canonical runtime producer,
 //! establish writer quiescence, or reproduce omitted AI/publication stages.
 
+use super::tick_objects::ActorStepIdentity;
 use super::{
     MapManager, MapObjectTickContinuation, ObjectMapFinishOutcome, ObjectMapTickError,
     ObjectMapUpdateToken,
 };
-use super::tick_objects::ActorStepIdentity;
+use crate::MapKey;
 use crate::map::CreatureActorWitness;
 use crate::map_manager::WorldCreature;
-use crate::MapKey;
 use wow_core::ObjectGuid;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -22,11 +22,19 @@ pub enum ActorTickAccessError {
         admitted_incarnation: u64,
         current_incarnation: Option<u64>,
     },
-    OutsideSelection { guid: ObjectGuid },
-    ActorUnavailable { guid: ObjectGuid },
-    WitnessMismatch { guid: ObjectGuid },
+    OutsideSelection {
+        guid: ObjectGuid,
+    },
+    ActorUnavailable {
+        guid: ObjectGuid,
+    },
+    WitnessMismatch {
+        guid: ObjectGuid,
+    },
     NoActorOperation,
-    OperationMismatch { guid: ObjectGuid },
+    OperationMismatch {
+        guid: ObjectGuid,
+    },
 }
 
 impl MapManager {
@@ -39,8 +47,17 @@ impl MapManager {
         token: &mut ObjectMapUpdateToken,
     ) -> Result<Vec<ObjectGuid>, ActorTickAccessError> {
         self.require_current_actor_token(tick, token)?;
-        let map = self.maps.get(&token.key()).expect("current token retains its map").map();
-        Ok(token.continuation.actor_workset(map).iter().map(|(guid, _)| *guid).collect())
+        let map = self
+            .maps
+            .get(&token.key())
+            .expect("current token retains its map")
+            .map();
+        Ok(token
+            .continuation
+            .actor_workset(map)
+            .iter()
+            .map(|(guid, _)| *guid)
+            .collect())
     }
 
     /// Validate admission, selection and actor identity before one synchronous
@@ -56,8 +73,12 @@ impl MapManager {
     ) -> Result<(R, CreatureActorWitness), ActorTickAccessError> {
         self.require_current_actor_token(tick, token)?;
         let witness = self.selected_actor_witness(token, guid, expected_witness)?;
-        let actor = self.maps.get_mut(&token.key()).expect("current token retains its map")
-            .map_mut().creature_actor_mut(guid)
+        let actor = self
+            .maps
+            .get_mut(&token.key())
+            .expect("current token retains its map")
+            .map_mut()
+            .creature_actor_mut(guid)
             .ok_or(ActorTickAccessError::ActorUnavailable { guid })?;
         Ok((apply(actor), witness))
     }
@@ -73,9 +94,11 @@ impl MapManager {
     ) -> Result<CreatureActorWitness, ActorTickAccessError> {
         self.require_current_actor_token(tick, token)?;
         if let Some(operation) = &token.actor_operation {
-            return Err(ActorTickAccessError::Tick(ObjectMapTickError::ActorOperationInFlight {
-                guid: operation.guid,
-            }));
+            return Err(ActorTickAccessError::Tick(
+                ObjectMapTickError::ActorOperationInFlight {
+                    guid: operation.guid,
+                },
+            ));
         }
         let witness = self.selected_actor_witness(token, guid, expected_witness)?;
         token.actor_operation = Some(ActorStepIdentity::new(token, guid, witness.clone()));
@@ -108,7 +131,8 @@ impl MapManager {
         guid: ObjectGuid,
         expected_witness: &CreatureActorWitness,
     ) -> Result<(), ActorTickAccessError> {
-        self.validate_object_map_token(tick, token).map_err(ActorTickAccessError::Tick)?;
+        self.validate_object_map_token(tick, token)
+            .map_err(ActorTickAccessError::Tick)?;
         require_actor_operation(token, guid, expected_witness)?;
         token.actor_operation = None;
         Ok(())
@@ -119,11 +143,18 @@ impl MapManager {
         tick: &MapObjectTickContinuation,
         token: &ObjectMapUpdateToken,
     ) -> Result<(), ActorTickAccessError> {
-        match self.validate_object_map_token(tick, token).map_err(ActorTickAccessError::Tick)? {
+        match self
+            .validate_object_map_token(tick, token)
+            .map_err(ActorTickAccessError::Tick)?
+        {
             Some(ObjectMapFinishOutcome::StaleParticipant {
-                key, admitted_incarnation, current_incarnation,
+                key,
+                admitted_incarnation,
+                current_incarnation,
             }) => Err(ActorTickAccessError::StaleParticipant {
-                key, admitted_incarnation, current_incarnation,
+                key,
+                admitted_incarnation,
+                current_incarnation,
             }),
             _ => Ok(()),
         }
@@ -136,12 +167,20 @@ impl MapManager {
         guid: ObjectGuid,
         expected_witness: Option<&CreatureActorWitness>,
     ) -> Result<CreatureActorWitness, ActorTickAccessError> {
-        let map = self.maps.get(&token.key()).expect("current token retains its map").map();
-        let admitted = token.continuation.actor_workset(map).iter()
+        let map = self
+            .maps
+            .get(&token.key())
+            .expect("current token retains its map")
+            .map();
+        let admitted = token
+            .continuation
+            .actor_workset(map)
+            .iter()
             .find(|(selected, _)| *selected == guid)
             .map(|(_, witness)| witness.clone())
             .ok_or(ActorTickAccessError::OutsideSelection { guid })?;
-        let current = map.creature_actor_witness(guid)
+        let current = map
+            .creature_actor_witness(guid)
             .ok_or(ActorTickAccessError::ActorUnavailable { guid })?;
         if !admitted.same_actor(&current)
             || expected_witness.is_some_and(|expected| !admitted.same_actor(expected))
@@ -165,7 +204,10 @@ fn require_actor_operation(
     guid: ObjectGuid,
     expected_witness: &CreatureActorWitness,
 ) -> Result<(), ActorTickAccessError> {
-    let operation = token.actor_operation.as_ref().ok_or(ActorTickAccessError::NoActorOperation)?;
+    let operation = token
+        .actor_operation
+        .as_ref()
+        .ok_or(ActorTickAccessError::NoActorOperation)?;
     if !operation.matches_token(token)
         || operation.guid != guid
         || !operation.witness.same_actor(expected_witness)

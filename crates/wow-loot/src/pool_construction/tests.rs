@@ -34,20 +34,14 @@ fn creature_generated_loot_entry_uses_item_template_addon_follow_loot_rules_like
         is_counted: false,
     };
 
-    let default_entry = loot_entry_from_generated(
-        generated,
-        false,
-    );
+    let default_entry = loot_entry_from_generated(generated, false);
     assert!(!default_entry.flags.follow_loot_rules);
     assert_eq!(default_entry.loot_list_id, 7);
     assert_eq!(default_entry.random_properties_id, -77);
     assert_eq!(default_entry.random_properties_seed, 456);
     assert_eq!(default_entry.item_context, ItemContext::DungeonNormal as u8);
 
-    let follow_entry = loot_entry_from_generated(
-        generated,
-        true,
-    );
+    let follow_entry = loot_entry_from_generated(generated, true);
     assert!(follow_entry.flags.follow_loot_rules);
     assert!(follow_entry.flags.needs_quest);
 }
@@ -88,15 +82,11 @@ fn shared_gameobject_item_evaluates_each_looter_after_roll_like_cpp() {
     };
     let mut evaluated = Vec::new();
 
-    let entry = shared_loot_entry_from_generated(
-        generated,
-        false,
-        &[first, second],
-        |context, looter| {
+    let entry =
+        shared_loot_entry_from_generated(generated, false, &[first, second], |context, looter| {
             evaluated.push((context, looter));
             looter == second
-        },
-    );
+        });
 
     assert_eq!(
         evaluated,
@@ -107,9 +97,7 @@ fn shared_gameobject_item_evaluates_each_looter_after_roll_like_cpp() {
 }
 
 fn pool_guid(counter: i64) -> ObjectGuid {
-    ObjectGuid::create_world_object(
-        wow_core::guid::HighGuid::LootObject, 0, 1, 0, 0, 0, counter,
-    )
+    ObjectGuid::create_world_object(wow_core::guid::HighGuid::LootObject, 0, 1, 0, 0, 0, counter)
 }
 
 fn pool_entry(loot_list_id: u8, allowed_looters: Vec<ObjectGuid>) -> LootEntry {
@@ -163,7 +151,8 @@ fn shared_pool_returns_unchanged_without_resolving() {
 
     let (shared, personal) = materialize_loot_pools(loot, player, false, |_, _| {
         panic!("shared pools must not resolve GUIDs or money")
-    }).unwrap();
+    })
+    .unwrap();
 
     assert_eq!(shared, Some(expected));
     assert!(personal.is_empty());
@@ -171,12 +160,11 @@ fn shared_pool_returns_unchanged_without_resolving() {
 
 #[test]
 fn empty_personal_owners_and_empty_fallback_return_empty_topology() {
-    let (shared, personal) = materialize_loot_pools(
-        pool_fixture(),
-        ObjectGuid::EMPTY,
-        true,
-        |_, _| panic!("an empty ownership set must not resolve a pool"),
-    ).unwrap();
+    let (shared, personal) =
+        materialize_loot_pools(pool_fixture(), ObjectGuid::EMPTY, true, |_, _| {
+            panic!("an empty ownership set must not resolve a pool")
+        })
+        .unwrap();
 
     assert!(shared.is_none());
     assert!(personal.is_empty());
@@ -186,15 +174,12 @@ fn empty_personal_owners_and_empty_fallback_return_empty_topology() {
 fn personal_fallback_reuses_existing_guid_and_resolved_money() {
     let player = ObjectGuid::create_player(1, 42);
     let mut calls = Vec::new();
-    let (shared, personal) = materialize_loot_pools(
-        pool_fixture(),
-        player,
-        true,
-        |looter, existing_guid| {
+    let (shared, personal) =
+        materialize_loot_pools(pool_fixture(), player, true, |looter, existing_guid| {
             calls.push((looter, existing_guid));
             Some((existing_guid.expect("the first pool reuses its GUID"), 41))
-        },
-    ).unwrap();
+        })
+        .unwrap();
 
     assert!(shared.is_none());
     assert_eq!(calls, vec![(player, Some(pool_guid(100)))]);
@@ -215,29 +200,34 @@ fn personal_resolution_sorts_deduplicates_and_allocates_before_money() {
     loot.allowed_looters = vec![third, second, first, third, first];
     let mut events = Vec::new();
     let mut next_guid = 101;
-    let (_, personal) = materialize_loot_pools(loot, ObjectGuid::EMPTY, true, |looter, existing| {
-        let guid = match existing {
-            Some(guid) => {
-                events.push((looter, "reuse"));
-                guid
-            }
-            None => {
-                events.push((looter, "allocate"));
-                let guid = pool_guid(next_guid);
-                next_guid += 1;
-                guid
-            }
-        };
-        events.push((looter, "money"));
-        Some((guid, looter.counter() as u32))
-    }).unwrap();
+    let (_, personal) =
+        materialize_loot_pools(loot, ObjectGuid::EMPTY, true, |looter, existing| {
+            let guid = match existing {
+                Some(guid) => {
+                    events.push((looter, "reuse"));
+                    guid
+                }
+                None => {
+                    events.push((looter, "allocate"));
+                    let guid = pool_guid(next_guid);
+                    next_guid += 1;
+                    guid
+                }
+            };
+            events.push((looter, "money"));
+            Some((guid, looter.counter() as u32))
+        })
+        .unwrap();
 
     assert_eq!(
         events,
         vec![
-            (first, "reuse"), (first, "money"),
-            (second, "allocate"), (second, "money"),
-            (third, "allocate"), (third, "money"),
+            (first, "reuse"),
+            (first, "money"),
+            (second, "allocate"),
+            (second, "money"),
+            (third, "allocate"),
+            (third, "money"),
         ]
     );
     assert_eq!(personal.len(), 3);
@@ -271,7 +261,10 @@ fn failed_guid_resolution_returns_none_before_money_or_later_players() {
     });
 
     assert!(result.is_none());
-    assert_eq!(events, vec![(first, "money"), (second, "allocation_failed")]);
+    assert_eq!(
+        events,
+        vec![(first, "money"), (second, "allocation_failed")]
+    );
 }
 
 #[test]
@@ -292,7 +285,8 @@ fn personal_partition_filters_permissions_and_viewers_without_renumbering() {
     ];
     let (_, personal) = materialize_loot_pools(loot, outsider, true, |looter, existing| {
         Some((existing.unwrap_or(pool_guid(101)), looter.counter() as u32))
-    }).unwrap();
+    })
+    .unwrap();
 
     assert_eq!(personal.len(), 2);
     assert!(!personal.contains_key(&outsider));
@@ -303,11 +297,19 @@ fn personal_partition_filters_permissions_and_viewers_without_renumbering() {
     assert_eq!(first_pool.players_looting, vec![first, first]);
     assert_eq!(second_pool.players_looting, vec![second]);
     assert_eq!(
-        first_pool.items.iter().map(|entry| entry.loot_list_id).collect::<Vec<_>>(),
+        first_pool
+            .items
+            .iter()
+            .map(|entry| entry.loot_list_id)
+            .collect::<Vec<_>>(),
         vec![7, 2]
     );
     assert_eq!(
-        second_pool.items.iter().map(|entry| entry.loot_list_id).collect::<Vec<_>>(),
+        second_pool
+            .items
+            .iter()
+            .map(|entry| entry.loot_list_id)
+            .collect::<Vec<_>>(),
         vec![7, 7]
     );
     for (player, pool) in [(first, first_pool), (second, second_pool)] {
@@ -340,14 +342,18 @@ fn personal_partition_preserves_consumed_items_and_player_ffa_counts() {
     ffa.flags.counted = true;
     ffa.ffa_looted_by = vec![first];
     loot.items = vec![ordinary, taken, ffa];
-    loot.player_ffa_items = vec![(first, vec![NotNormalLootItem {
-        loot_list_id: 7,
-        is_looted: false,
-    }])];
+    loot.player_ffa_items = vec![(
+        first,
+        vec![NotNormalLootItem {
+            loot_list_id: 7,
+            is_looted: false,
+        }],
+    )];
 
     let (_, personal) = materialize_loot_pools(loot, first, true, |_, existing| {
         Some((existing.unwrap_or(pool_guid(101)), 0))
-    }).unwrap();
+    })
+    .unwrap();
 
     let first_pool = &personal[&first];
     let second_pool = &personal[&second];
@@ -362,14 +368,26 @@ fn personal_partition_preserves_consumed_items_and_player_ffa_counts() {
         assert_eq!(pool.items[2].ffa_looted_by, vec![first]);
         assert_eq!(pool.player_ffa_items.len(), 1);
     }
-    assert_eq!(first_pool.player_ffa_items, vec![(first, vec![NotNormalLootItem {
-        loot_list_id: 7,
-        is_looted: true,
-    }])]);
-    assert_eq!(second_pool.player_ffa_items, vec![(second, vec![NotNormalLootItem {
-        loot_list_id: 7,
-        is_looted: false,
-    }])]);
+    assert_eq!(
+        first_pool.player_ffa_items,
+        vec![(
+            first,
+            vec![NotNormalLootItem {
+                loot_list_id: 7,
+                is_looted: true,
+            }]
+        )]
+    );
+    assert_eq!(
+        second_pool.player_ffa_items,
+        vec![(
+            second,
+            vec![NotNormalLootItem {
+                loot_list_id: 7,
+                is_looted: false,
+            }]
+        )]
+    );
 }
 
 #[test]
@@ -407,17 +425,23 @@ fn shared_entry_keeps_callback_order_and_duplicate_evaluations() {
     };
     let mut evaluated = Vec::new();
     let entry = shared_loot_entry_from_generated(
-        generated, false, &[second, first, second], |context, looter| {
+        generated,
+        false,
+        &[second, first, second],
+        |context, looter| {
             evaluated.push((context, looter));
             looter == second
         },
     );
 
-    assert_eq!(evaluated, vec![
-        (generated.store_item_context, second),
-        (generated.store_item_context, first),
-        (generated.store_item_context, second),
-    ]);
+    assert_eq!(
+        evaluated,
+        vec![
+            (generated.store_item_context, second),
+            (generated.store_item_context, first),
+            (generated.store_item_context, second),
+        ]
+    );
     assert_eq!(entry.allowed_looters, vec![second]);
     assert_eq!(entry.loot_list_id, 1);
     assert_eq!(entry.item_id, 25);

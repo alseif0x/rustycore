@@ -85,8 +85,7 @@ pub fn calculate_white_swing(
     draw_damage: impl FnOnce(u32, u32) -> u32,
     draw_attack_table: impl FnOnce(u32, u32) -> u32,
 ) -> (RepresentedMeleeOutcomeLikeCpp, (u32, u32, u32)) {
-    let (min_damage, max_damage) =
-        white_swing_damage_roll_bounds(weapon_range[0], weapon_range[1]);
+    let (min_damage, max_damage) = white_swing_damage_roll_bounds(weapon_range[0], weapon_range[1]);
     let rolled = draw_damage(min_damage, max_damage) as f32;
     let damage = (rolled + done_bonus.0 as f32) * done_bonus.1 * autoattack_multiplier;
     // C++ `CalculateMeleeDamage` runs `MeleeDamageBonusTaken` between the done
@@ -108,8 +107,8 @@ pub fn calculate_white_swing(
     // switch (`Unit.cpp:1341-1343`).
     let outcome_inputs = melee_outcome_inputs_like_cpp(outcome_facts.0, outcome_facts.1);
     let selected_inputs = &outcome_inputs[usize::from(offhand)];
-    let roll = i32::try_from(draw_attack_table(0, MELEE_OUTCOME_ROLL_MAX_LIKE_CPP))
-        .unwrap_or_default();
+    let roll =
+        i32::try_from(draw_attack_table(0, MELEE_OUTCOME_ROLL_MAX_LIKE_CPP)).unwrap_or_default();
     let outcome = melee_outcome_like_cpp(selected_inputs, roll);
     let damage = melee_outcome_damage_like_cpp(
         outcome,

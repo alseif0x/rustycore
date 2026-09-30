@@ -153,7 +153,10 @@ where
                     player.clear_data_changes();
                 }
                 AccessorObjectKind::Creature => {
-                    let creature = record.reborrow().creature_mut().expect("typed Creature record");
+                    let creature = record
+                        .reborrow()
+                        .creature_mut()
+                        .expect("typed Creature record");
                     let values_update = creature.unit().values_update();
                     if values_update.has_data() {
                         summary
@@ -181,7 +184,10 @@ where
                     pet.creature_mut().clear_data_changes();
                 }
                 AccessorObjectKind::GameObject | AccessorObjectKind::Transport => {
-                    let game_object = record.reborrow().game_object_mut().expect("typed GameObject record");
+                    let game_object = record
+                        .reborrow()
+                        .game_object_mut()
+                        .expect("typed GameObject record");
                     let values_update = game_object.values_update();
                     if values_update.has_data() {
                         summary.game_object_values_updates.push(
@@ -207,7 +213,10 @@ where
                     corpse.clear_corpse_data_changes();
                 }
                 AccessorObjectKind::AreaTrigger => {
-                    let area_trigger = record.reborrow().area_trigger_mut().expect("typed AreaTrigger record");
+                    let area_trigger = record
+                        .reborrow()
+                        .area_trigger_mut()
+                        .expect("typed AreaTrigger record");
                     let values_update = area_trigger.values_update();
                     if values_update.has_data() {
                         summary.area_trigger_values_updates.push(
@@ -220,7 +229,10 @@ where
                     area_trigger.clear_area_trigger_data_changes();
                 }
                 AccessorObjectKind::SceneObject => {
-                    let scene_object = record.reborrow().scene_object_mut().expect("typed SceneObject record");
+                    let scene_object = record
+                        .reborrow()
+                        .scene_object_mut()
+                        .expect("typed SceneObject record");
                     let values_update = scene_object.values_update();
                     if values_update.has_data() {
                         summary.scene_object_values_updates.push(

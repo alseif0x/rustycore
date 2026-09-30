@@ -2,11 +2,19 @@
 use super::recovery_support::*;
 use std::collections::HashMap;
 use std::sync::Mutex;
+use wow_data::{
+    SpellInfo, SpellMiscEntry, SpellMiscStore, SpellRangeEntry, SpellRangeStore, SpellStore,
+};
+use wow_entities::{GAMEOBJECT_TYPE_GATHERING_NODE, GAMEOBJECT_TYPE_GOOBER, GoState};
+use wow_loot::{
+    LootStore, LootStoreItem, LootStoreKind, LootStores, LootTemplateRow, loot_is_looted_like_cpp,
+};
+use wow_world::session::mailbox::{
+    SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
+    SyncGooberGameobjectStateAndRefreshLikeCppCommand,
+};
 use wow_world::test_fixtures::loot::*;
-use wow_loot::{LootStore, LootStoreKind, LootStores, LootStoreItem, LootTemplateRow, loot_is_looted_like_cpp};
-use wow_world::session::mailbox::{SyncChestGameobjectStateAndRefreshLikeCppCommand, SyncGooberGameobjectStateAndRefreshLikeCppCommand, SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand};
-use wow_entities::{GAMEOBJECT_TYPE_GOOBER, GAMEOBJECT_TYPE_GATHERING_NODE, GoState};
-use wow_data::{SpellStore, SpellInfo, SpellMiscStore, SpellMiscEntry, SpellRangeStore, SpellRangeEntry};
 
 #[tokio::test]
 async fn chest_state_sync_command_updates_receiver_before_refresh_like_cpp() {
@@ -39,11 +47,10 @@ async fn chest_state_sync_command_updates_receiver_before_refresh_like_cpp() {
         ))
         .expect("command queued");
 
-    process_loot_commands_for_test(&mut session)
-        .await;
+    process_loot_commands_for_test(&mut session).await;
 
-    let state = loot_gameobject_state_for_test(&session, gameobject_guid)
-        .expect("synced chest state");
+    let state =
+        loot_gameobject_state_for_test(&session, gameobject_guid).expect("synced chest state");
     assert_eq!(
         state.go_type(),
         Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8)
@@ -90,11 +97,10 @@ async fn goober_state_sync_command_updates_receiver_before_refresh_like_cpp() {
         ))
         .expect("command queued");
 
-    process_loot_commands_for_test(&mut session)
-        .await;
+    process_loot_commands_for_test(&mut session).await;
 
-    let state = loot_gameobject_state_for_test(&session, gameobject_guid)
-        .expect("synced goober state");
+    let state =
+        loot_gameobject_state_for_test(&session, gameobject_guid).expect("synced goober state");
     assert_eq!(state.go_type(), Some(GAMEOBJECT_TYPE_GOOBER as u8));
     assert_eq!(state.gameobject_flags() & wow_entities::GO_FLAG_IN_USE, 1);
     assert_eq!(state.loot_state(), Some(wow_entities::LootState::Activated));
@@ -141,8 +147,7 @@ async fn gathering_node_state_sync_command_updates_receiver_before_refresh_like_
         )
         .expect("command queued");
 
-    process_loot_commands_for_test(&mut session)
-        .await;
+    process_loot_commands_for_test(&mut session).await;
 
     let state = loot_gameobject_state_for_test(&session, gameobject_guid)
         .expect("synced gathering node state");
@@ -167,7 +172,8 @@ fn partial_gathering_node_release_does_not_run_on_loot_release_state_like_cpp() 
     let mut session = make_session();
     let player_guid = ObjectGuid::create_player(1, 61_900);
     let gathering_node = test_gameobject_guid(61_901);
-    record_represented_gameobject_runtime_state_for_test(&mut session, 
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         gathering_node,
         gathering_node.entry(),
@@ -175,15 +181,15 @@ fn partial_gathering_node_release_does_not_run_on_loot_release_state_like_cpp() 
         GAMEOBJECT_TYPE_GATHERING_NODE as u8,
     );
 
-    apply_cached_gameobject_loot_release_for_test(&mut session, 
+    apply_cached_gameobject_loot_release_for_test(
+        &mut session,
         gathering_node,
         player_guid,
         false,
         false,
     );
 
-    let state = loot_gameobject_state_for_test(&session, gathering_node)
-        .unwrap();
+    let state = loot_gameobject_state_for_test(&session, gathering_node).unwrap();
     assert_ne!(state.go_state(), Some(GoState::Active));
     assert_eq!(state.loot_state(), Some(LootState::Activated));
 }

@@ -527,6 +527,5 @@ fn derive_valid_craft_spell_ids_like_cpp(
         .collect()
 }
 
-
 #[cfg(test)]
 mod tests;

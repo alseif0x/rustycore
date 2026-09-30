@@ -43,7 +43,7 @@ async fn quest_confirm_accept_source_item_bound_objective_dont_report_flag_sends
         source_item_id,
         quest_log_item_id,
     );
-    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session, sender_guid, quest_id);
     let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     session.set_player_registry(Arc::clone(&player_registry));
     set_loaded_player_name_like_cpp(&mut session, "Receiver".to_string());
@@ -54,7 +54,9 @@ async fn quest_confirm_accept_source_item_bound_objective_dont_report_flag_sends
     set_loaded_player_name_like_cpp(&mut sender_session, "Sender".to_string());
     sender_session.set_player_registry(Arc::clone(&player_registry));
     register_in_player_registry_for_test(&sender_session);
-    assert!(adopt_registered_canonical_player_fixture_like_cpp(&mut sender_session));
+    assert!(adopt_registered_canonical_player_fixture_like_cpp(
+        &mut sender_session
+    ));
     add_active_quest_in_slot_with_status(
         &mut sender_session,
         quest_id,
@@ -144,7 +146,7 @@ async fn quest_confirm_accept_source_item_multiple_bound_objectives_stops_after_
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     install_source_item_template(&mut session, source_item_id, 20, 0);
-    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session, sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -229,7 +231,7 @@ async fn quest_confirm_accept_source_item_sequenced_objective_waits_for_previous
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     install_source_item_template(&mut session, source_item_id, 20, 0);
-    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session, sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -296,7 +298,7 @@ async fn quest_confirm_accept_source_item_optional_previous_allows_sequenced_obj
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     install_source_item_template(&mut session, source_item_id, 20, 0);
-    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session, sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -347,7 +349,7 @@ async fn quest_confirm_accept_source_item_progress_bar_part_objective_progresses
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     install_source_item_template(&mut session, source_item_id, 20, 0);
-    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session, sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -389,7 +391,7 @@ async fn quest_confirm_accept_source_item_zero_count_normalizes_to_one_and_fails
             91_000 + u64::from(slot),
         );
     }
-    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session, sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -401,9 +403,7 @@ async fn quest_confirm_accept_source_item_zero_count_normalizes_to_one_and_fails
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
     assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
-    assert!(
-        !contains_player_quest_status_for_test(&session, quest_id)
-    );
+    assert!(!contains_player_quest_status_for_test(&session, quest_id));
     let outcomes = represented_quest_confirm_accepts_for_test(&session);
     assert_eq!(outcomes.len(), 1);
     let outcome = &outcomes[0];
@@ -443,7 +443,7 @@ async fn quest_confirm_accept_source_item_at_max_count_allows_can_add_gate_like_
     )));
     install_source_item_template(&mut session, source_item_id, 20, 1);
     insert_direct_inventory_item(&mut session, receiver_guid, 23, source_item_id, 1, 9002);
-    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session, sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -454,9 +454,7 @@ async fn quest_confirm_accept_source_item_at_max_count_allows_can_add_gate_like_
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    assert!(
-        contains_player_quest_status_for_test(&session, quest_id)
-    );
+    assert!(contains_player_quest_status_for_test(&session, quest_id));
     assert_eq!(
         represented_quest_confirm_accepts_for_test(&session),
         &[RepresentedQuestConfirmAcceptLikeCpp {
@@ -491,7 +489,7 @@ async fn quest_confirm_accept_missing_source_item_proto_fails_can_add_gate_like_
         1,
         0,
     )));
-    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session, sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -542,7 +540,7 @@ async fn quest_confirm_accept_source_item_limit_category_missing_db2_entry_fails
         0,
     )));
     install_source_item_template_with_limit_category(&mut session, source_item_id, 20, 0, 44);
-    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session, sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -554,9 +552,7 @@ async fn quest_confirm_accept_source_item_limit_category_missing_db2_entry_fails
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
     assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
-    assert!(
-        !contains_player_quest_status_for_test(&session, quest_id)
-    );
+    assert!(!contains_player_quest_status_for_test(&session, quest_id));
     assert_eq!(
         represented_quest_confirm_accepts_for_test(&session),
         &[RepresentedQuestConfirmAcceptLikeCpp {
@@ -613,7 +609,7 @@ async fn quest_confirm_accept_source_item_start_quest_still_respects_limit_categ
         },
     ])));
     insert_direct_inventory_item(&mut session, receiver_guid, 23, source_item_id, 1, 9906);
-    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session, sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -625,9 +621,7 @@ async fn quest_confirm_accept_source_item_start_quest_still_respects_limit_categ
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
     assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
-    assert!(
-        !contains_player_quest_status_for_test(&session, quest_id)
-    );
+    assert!(!contains_player_quest_status_for_test(&session, quest_id));
     assert_eq!(
         represented_quest_confirm_accepts_for_test(&session),
         &[RepresentedQuestConfirmAcceptLikeCpp {
@@ -664,7 +658,7 @@ async fn quest_confirm_accept_without_source_item_does_not_overclaim_source_gate
     let sender_guid = ObjectGuid::create_player(1, 94);
     let quest_id = 7016;
     session.set_quest_store(Arc::new(store_with_source_item_quest(quest_id, 0, 0, 0)));
-    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session, sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -683,9 +677,7 @@ async fn quest_confirm_accept_without_source_item_does_not_overclaim_source_gate
         quest_id as i32,
         RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp::ReceiverAddQuestLocalStateRepresented,
     );
-    assert!(
-        contains_player_quest_status_for_test(&session, quest_id)
-    );
+    assert!(contains_player_quest_status_for_test(&session, quest_id));
     assert_eq!(
         player_quest_status_for_test(&session, quest_id)
             .expect("no-objective shared quest should be locally tracked")
@@ -779,12 +771,10 @@ async fn push_quest_to_party_repeatable_turn_in_success_prompts_request_items_wi
         recv_quest_giver_request_items_like_cpp(&receiver_rx, shared_quest_id);
     assert_eq!(collect, vec![(49211, 3, 0xA5)]);
     assert!(auto_launched);
-    assert!(
-        !can_complete_repeatable_quest_represented_bounded_for_test(
-            &receiver_session,
-            &quest_for_assertion,
-        )
-    );
+    assert!(!can_complete_repeatable_quest_represented_bounded_for_test(
+        &receiver_session,
+        &quest_for_assertion,
+    ));
     assert!(represented_push_quest_to_party_outcomes_for_test(&session).iter().any(
         |outcome| outcome.target_guid == Some(receiver_guid)
             && matches!(

@@ -10,7 +10,6 @@ where
     Terrain: TerrainGridLoader,
     Lifecycle: GridLifecycle,
 {
-
     pub(in crate::map) fn player_viewpoint_guid_like_cpp(
         &self,
         player_guid: ObjectGuid,
@@ -30,7 +29,10 @@ where
         })
     }
 
-    pub(in crate::map) fn exact_cell_guids_like_cpp(&self, cell_coord: CellCoord) -> NearbyCellGuids {
+    pub(in crate::map) fn exact_cell_guids_like_cpp(
+        &self,
+        cell_coord: CellCoord,
+    ) -> NearbyCellGuids {
         let mut nearby = NearbyCellGuids::default();
         let cell = Cell::from_cell_coord(cell_coord);
         let Some(grid) = self.get_ngrid(GridCoord::new(cell.grid_x(), cell.grid_y())) else {
@@ -286,5 +288,4 @@ where
     pub fn get_corpse(&self, guid: ObjectGuid) -> Option<&WorldObject> {
         self.map_object_by_kind(guid, &[AccessorObjectKind::Corpse])
     }
-
 }

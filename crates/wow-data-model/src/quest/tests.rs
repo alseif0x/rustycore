@@ -1,8 +1,8 @@
 use super::*;
 use wow_constants::quest::*;
 use wow_constants::quest::{
-    QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM as QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
     QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY as QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP,
+    QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM as QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
 };
 
 #[test]
@@ -13,30 +13,24 @@ fn quest_giver_choose_reward_choice_validation_matches_loaded_cpp_type() {
     quest.reward_choice_items[1] = (392, 5);
     quest.reward_choice_item_types[1] = QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP;
 
-    assert!(
-        represented_reward_choice_matches_loaded_type_for_test(
-            &quest,
-            QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
-            19019,
-            1,
-        )
-    );
-    assert!(
-        represented_reward_choice_matches_loaded_type_for_test(
-            &quest,
-            QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP,
-            392,
-            5,
-        )
-    );
-    assert!(
-        !represented_reward_choice_matches_loaded_type_for_test(
-            &quest,
-            QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
-            392,
-            5,
-        )
-    );
+    assert!(represented_reward_choice_matches_loaded_type_for_test(
+        &quest,
+        QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
+        19019,
+        1,
+    ));
+    assert!(represented_reward_choice_matches_loaded_type_for_test(
+        &quest,
+        QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP,
+        392,
+        5,
+    ));
+    assert!(!represented_reward_choice_matches_loaded_type_for_test(
+        &quest,
+        QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
+        392,
+        5,
+    ));
 }
 
 fn quest_template(id: u32) -> QuestTemplate {
@@ -113,7 +107,10 @@ fn quest_template(id: u32) -> QuestTemplate {
 }
 
 fn represented_reward_choice_matches_loaded_type_for_test(
-    quest: &QuestTemplate, loot_item_type: u8, item_id: u32, _quantity: i32,
+    quest: &QuestTemplate,
+    loot_item_type: u8,
+    item_id: u32,
+    _quantity: i32,
 ) -> bool {
     quest.reward_choice_matches_loaded_type(loot_item_type, item_id)
 }
@@ -124,13 +121,24 @@ fn loaded_reward_choice_ignores_quantity_and_rejects_empty_slots() {
     quest.reward_choice_items[0] = (19019, 1);
     quest.reward_choice_item_types[0] = QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP;
     assert!(represented_reward_choice_matches_loaded_type_for_test(
-        &quest, QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP, 19019, -1,
+        &quest,
+        QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
+        19019,
+        -1,
     ));
     assert!(represented_reward_choice_matches_loaded_type_for_test(
-        &quest, QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP, 19019, i32::MAX,
+        &quest,
+        QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
+        19019,
+        i32::MAX,
     ));
     assert!(!quest.reward_choice_matches_loaded_type(QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP, 0));
-    assert!(!quest.reward_choice_matches_loaded_type(QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP, 19019));
+    assert!(
+        !quest.reward_choice_matches_loaded_type(
+            QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP,
+            19019
+        )
+    );
 }
 
 #[path = "tests/level_requirements.rs"]

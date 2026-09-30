@@ -4,9 +4,9 @@ use super::recovery_support::*;
 use std::sync::Barrier;
 use wow_core::guid::ObjectGuidGenerator;
 use wow_world::test_fixtures::loot::{
+    allocate_loot_guid_for_test, allocate_loot_item_guids_for_test,
     attach_loot_allocator_for_test as attach_loot_guid_allocator_for_owner,
-    allocate_loot_guid_for_test, materialize_loot_pools_for_test,
-    next_map_loot_guid_for_test, allocate_loot_item_guids_for_test,
+    materialize_loot_pools_for_test, next_map_loot_guid_for_test,
 };
 
 #[test]
@@ -18,10 +18,7 @@ fn loot_guid_allocator_refuses_different_owner_map_without_advancing_like_cpp() 
         ObjectGuid::create_world_object(HighGuid::Creature, 0, 9, 0, 7, 505, 19_703);
     attach_loot_guid_allocator_for_owner(&mut session, canonical_owner);
 
-    assert!(
-        allocate_loot_guid_for_test(&mut session, other_map_owner)
-            .is_none()
-    );
+    assert!(allocate_loot_guid_for_test(&mut session, other_map_owner).is_none());
 
     let first_allocated = allocate_loot_guid_for_test(&mut session, canonical_owner)
         .expect("the rejected owner must not consume the canonical map sequence");
@@ -33,10 +30,7 @@ fn loot_guid_allocator_without_canonical_map_fails_without_advancing_like_cpp() 
     let mut session = make_session();
     let owner_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 9, 571, 7, 303, 19_701);
 
-    assert!(
-        allocate_loot_guid_for_test(&mut session, owner_guid)
-            .is_none()
-    );
+    assert!(allocate_loot_guid_for_test(&mut session, owner_guid).is_none());
 
     attach_loot_guid_allocator_for_owner(&mut session, owner_guid);
     let first_allocated = allocate_loot_guid_for_test(&mut session, owner_guid)
@@ -88,7 +82,10 @@ fn map_owned_loot_guid_sequence_is_shared_across_owner_kinds_like_cpp() {
         assert_eq!(loot_guid.entry(), 0);
     }
 
-    assert_eq!(next_map_loot_guid_for_test(&session, u32::from(map_id), 0).unwrap(), 3);
+    assert_eq!(
+        next_map_loot_guid_for_test(&session, u32::from(map_id), 0).unwrap(),
+        3
+    );
 }
 
 #[test]
@@ -106,8 +103,9 @@ fn personal_loot_pools_receive_distinct_map_owned_guids_like_cpp() {
         .expect("the base personal pool should receive a map-owned LootObject");
     loot.allowed_looters = vec![second_player, first_player];
 
-    let (shared, personal) = materialize_loot_pools_for_test(&mut session, owner_guid, first_player, loot, true)
-        .expect("both personal pools should materialize");
+    let (shared, personal) =
+        materialize_loot_pools_for_test(&mut session, owner_guid, first_player, loot, true)
+            .expect("both personal pools should materialize");
 
     assert!(shared.is_none());
     assert_eq!(personal.len(), 2);
@@ -138,13 +136,13 @@ fn item_instance_guid_allocator_fails_closed_and_never_reuses_failed_grant_like_
     // C++ consumes a GUID when Item::CreateItem runs.  A later storage or
     // transaction failure may leave a gap, but must never make that GUID
     // available to a competing durable grant.
-    let abandoned_after_persistence_failure = allocate_loot_item_guids_for_test(&session, 1)
-        .expect("allocator must be installed");
+    let abandoned_after_persistence_failure =
+        allocate_loot_item_guids_for_test(&session, 1).expect("allocator must be installed");
     assert_eq!(abandoned_after_persistence_failure[0].0, 91_000);
     drop(abandoned_after_persistence_failure);
 
-    let next_grant = allocate_loot_item_guids_for_test(&session, 1)
-        .expect("allocator must remain installed");
+    let next_grant =
+        allocate_loot_item_guids_for_test(&session, 1).expect("allocator must remain installed");
     assert_eq!(next_grant[0].0, 91_001);
     assert_eq!(generator.next_after_max_used(), 91_002);
 }

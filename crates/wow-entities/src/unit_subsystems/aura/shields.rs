@@ -1,10 +1,10 @@
 //! Shield selection over canonical aura amounts and borrowed spell rows.
 
-use std::collections::HashMap;
 use super::{AppliedAuraRef, AuraApplicationLikeCpp, AuraSubsystem};
+use std::collections::HashMap;
 use wow_data_model::aura_effects::{
-    RepresentedAbsorbShieldLikeCpp, RepresentedManaShieldLikeCpp,
-    RepresentedHealAbsorbShieldLikeCpp,
+    RepresentedAbsorbShieldLikeCpp, RepresentedHealAbsorbShieldLikeCpp,
+    RepresentedManaShieldLikeCpp,
 };
 
 impl AuraSubsystem {

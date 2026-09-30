@@ -175,11 +175,19 @@ async fn legacy_respawn_producer_stop_runs_final_lifecycle_flush_like_cpp() {
     let producer_stop = Arc::new(std::sync::atomic::AtomicBool::new(true));
     let active_registry = Arc::new(ActiveWorldSessionRegistryLikeCpp::new());
     let request = active_registry.close_tick_admission();
-    let receipt = active_registry.wait_for_quiescence(request, Duration::from_secs(1)).await.unwrap();
+    let receipt = active_registry
+        .wait_for_quiescence(request, Duration::from_secs(1))
+        .await
+        .unwrap();
     active_registry.enable_session_drain(receipt).unwrap();
     let request = active_registry.close_tick_admission();
-    let terminal = active_registry.wait_for_terminal_settlement(request, Duration::from_secs(1)).await.unwrap();
-    active_registry.authorize_final_respawn_tick(terminal).unwrap();
+    let terminal = active_registry
+        .wait_for_terminal_settlement(request, Duration::from_secs(1))
+        .await
+        .unwrap();
+    active_registry
+        .authorize_final_respawn_tick(terminal)
+        .unwrap();
     let writer_tx = RespawnDbWriterSenderLikeCpp::new_like_cpp();
     let writer_probe = writer_tx.clone();
     let handle = spawn_legacy_creature_runtime_update_loop_like_cpp(

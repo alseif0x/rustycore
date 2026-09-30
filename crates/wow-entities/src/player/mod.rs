@@ -26,12 +26,11 @@ mod construction;
 mod difficulty;
 mod effective_stats;
 mod equipment_sets;
-mod item_modifiers;
-mod item_effect_actions;
-mod items;
 mod inventory_positions;
 mod inventory_storage;
-mod storage_helpers;
+mod item_effect_actions;
+mod item_modifiers;
+mod items;
 mod location;
 mod menu;
 mod movement_control;
@@ -44,30 +43,39 @@ mod quest_state;
 mod reputation;
 mod rest;
 mod spell_runtime;
+mod storage_helpers;
 mod talent_runtime;
 mod taxi_state;
 mod trade;
 mod update_values;
 pub use update_values::{
-    PLAYER_DATA_PARENT_BIT, PLAYER_DATA_LOOT_TARGET_GUID_BIT, PLAYER_DATA_FLAGS_BIT,
-    PLAYER_DATA_FLAGS_EX_BIT, PLAYER_DATA_PARTY_TYPE_PARENT_BIT, PLAYER_DATA_PARTY_TYPE_FIRST_BIT,
-    PLAYER_DATA_NUM_BANK_SLOTS_BIT, PLAYER_DATA_NATIVE_SEX_BIT, PLAYER_DATA_INEBRIATION_BIT,
-    PLAYER_DATA_PLAYER_TITLE_BIT, PLAYER_DATA_CURRENT_SPEC_ID_BIT, PLAYER_DATA_CURRENT_BATTLE_PET_BREED_QUALITY_BIT,
-    PLAYER_DATA_HONOR_LEVEL_BIT, PLAYER_DATA_VISIBLE_ITEMS_PARENT_BIT, PLAYER_DATA_VISIBLE_ITEMS_FIRST_BIT,
-    ACTIVE_PLAYER_DATA_PARENT_BIT, ACTIVE_PLAYER_DATA_FARSIGHT_OBJECT_BIT, ACTIVE_PLAYER_DATA_SUMMONED_BATTLE_PET_GUID_BIT,
-    ACTIVE_PLAYER_DATA_COINAGE_BIT, ACTIVE_PLAYER_DATA_XP_BIT, ACTIVE_PLAYER_DATA_NEXT_LEVEL_XP_BIT,
-    ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_PARENT_BIT, ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_BIT, ACTIVE_PLAYER_DATA_CHARACTER_POINTS_BIT,
-    ACTIVE_PLAYER_DATA_HEIRLOOMS_BIT, ACTIVE_PLAYER_DATA_HEIRLOOM_FLAGS_BIT, ACTIVE_PLAYER_DATA_TOYS_BIT,
-    ACTIVE_PLAYER_DATA_TRANSMOG_BIT, ACTIVE_PLAYER_DATA_CONDITIONAL_TRANSMOG_BIT, ACTIVE_PLAYER_DATA_HONOR_PARENT_BIT,
-    ACTIVE_PLAYER_DATA_HONOR_BIT, ACTIVE_PLAYER_DATA_HONOR_NEXT_LEVEL_BIT, ACTIVE_PLAYER_DATA_NUM_BACKPACK_SLOTS_BIT,
-    ACTIVE_PLAYER_DATA_INV_SLOTS_PARENT_BIT, ACTIVE_PLAYER_DATA_INV_SLOTS_FIRST_BIT, ACTIVE_PLAYER_DATA_EXPLORED_ZONES_PARENT_BIT,
-    ACTIVE_PLAYER_DATA_EXPLORED_ZONES_FIRST_BIT, ACTIVE_PLAYER_DATA_REST_INFO_PARENT_BIT, ACTIVE_PLAYER_DATA_REST_INFO_FIRST_BIT,
-    ACTIVE_PLAYER_DATA_BUYBACK_PARENT_BIT, ACTIVE_PLAYER_DATA_BUYBACK_PRICE_FIRST_BIT, ACTIVE_PLAYER_DATA_BUYBACK_TIMESTAMP_FIRST_BIT,
-    ACTIVE_PLAYER_DATA_BANK_BAG_SLOT_FLAGS_PARENT_BIT, ACTIVE_PLAYER_DATA_BANK_BAG_SLOT_FLAGS_FIRST_BIT, ACTIVE_PLAYER_DATA_QUEST_COMPLETED_PARENT_BIT,
-    ACTIVE_PLAYER_DATA_QUEST_COMPLETED_FIRST_BIT, ACTIVE_PLAYER_DATA_WATCHED_FACTION_INDEX_BIT, QUESTS_COMPLETED_BITS_SIZE,
-    QUESTS_COMPLETED_BITS_PER_BLOCK, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, ActivePlayerDataUpdate,
-    ActivePlayerDataValues, PlayerDataUpdate, PlayerDataValues,
-    PlayerRestInfoValueLikeCpp, PlayerValuesUpdate, VisibleItemValues,
+    ACTIVE_PLAYER_DATA_BANK_BAG_SLOT_FLAGS_FIRST_BIT,
+    ACTIVE_PLAYER_DATA_BANK_BAG_SLOT_FLAGS_PARENT_BIT, ACTIVE_PLAYER_DATA_BUYBACK_PARENT_BIT,
+    ACTIVE_PLAYER_DATA_BUYBACK_PRICE_FIRST_BIT, ACTIVE_PLAYER_DATA_BUYBACK_TIMESTAMP_FIRST_BIT,
+    ACTIVE_PLAYER_DATA_CHARACTER_POINTS_BIT, ACTIVE_PLAYER_DATA_COINAGE_BIT,
+    ACTIVE_PLAYER_DATA_CONDITIONAL_TRANSMOG_BIT, ACTIVE_PLAYER_DATA_EXPLORED_ZONES_FIRST_BIT,
+    ACTIVE_PLAYER_DATA_EXPLORED_ZONES_PARENT_BIT, ACTIVE_PLAYER_DATA_FARSIGHT_OBJECT_BIT,
+    ACTIVE_PLAYER_DATA_HEIRLOOM_FLAGS_BIT, ACTIVE_PLAYER_DATA_HEIRLOOMS_BIT,
+    ACTIVE_PLAYER_DATA_HONOR_BIT, ACTIVE_PLAYER_DATA_HONOR_NEXT_LEVEL_BIT,
+    ACTIVE_PLAYER_DATA_HONOR_PARENT_BIT, ACTIVE_PLAYER_DATA_INV_SLOTS_FIRST_BIT,
+    ACTIVE_PLAYER_DATA_INV_SLOTS_PARENT_BIT, ACTIVE_PLAYER_DATA_NEXT_LEVEL_XP_BIT,
+    ACTIVE_PLAYER_DATA_NUM_BACKPACK_SLOTS_BIT, ACTIVE_PLAYER_DATA_PARENT_BIT,
+    ACTIVE_PLAYER_DATA_QUEST_COMPLETED_FIRST_BIT, ACTIVE_PLAYER_DATA_QUEST_COMPLETED_PARENT_BIT,
+    ACTIVE_PLAYER_DATA_REST_INFO_FIRST_BIT, ACTIVE_PLAYER_DATA_REST_INFO_PARENT_BIT,
+    ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_BIT,
+    ACTIVE_PLAYER_DATA_SCALING_PLAYER_LEVEL_DELTA_PARENT_BIT,
+    ACTIVE_PLAYER_DATA_SUMMONED_BATTLE_PET_GUID_BIT, ACTIVE_PLAYER_DATA_TOYS_BIT,
+    ACTIVE_PLAYER_DATA_TRANSMOG_BIT, ACTIVE_PLAYER_DATA_WATCHED_FACTION_INDEX_BIT,
+    ACTIVE_PLAYER_DATA_XP_BIT, ActivePlayerDataUpdate, ActivePlayerDataValues,
+    PLAYER_DATA_CURRENT_BATTLE_PET_BREED_QUALITY_BIT, PLAYER_DATA_CURRENT_SPEC_ID_BIT,
+    PLAYER_DATA_FLAGS_BIT, PLAYER_DATA_FLAGS_EX_BIT, PLAYER_DATA_HONOR_LEVEL_BIT,
+    PLAYER_DATA_INEBRIATION_BIT, PLAYER_DATA_LOOT_TARGET_GUID_BIT, PLAYER_DATA_NATIVE_SEX_BIT,
+    PLAYER_DATA_NUM_BANK_SLOTS_BIT, PLAYER_DATA_PARENT_BIT, PLAYER_DATA_PARTY_TYPE_FIRST_BIT,
+    PLAYER_DATA_PARTY_TYPE_PARENT_BIT, PLAYER_DATA_PLAYER_TITLE_BIT,
+    PLAYER_DATA_VISIBLE_ITEMS_FIRST_BIT, PLAYER_DATA_VISIBLE_ITEMS_PARENT_BIT,
+    PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PlayerDataUpdate, PlayerDataValues,
+    PlayerRestInfoValueLikeCpp, PlayerValuesUpdate, QUESTS_COMPLETED_BITS_PER_BLOCK,
+    QUESTS_COMPLETED_BITS_SIZE, VisibleItemValues,
 };
 mod vehicle;
 mod world_local;
@@ -75,36 +83,33 @@ pub use battleground::PlayerBattlegroundState;
 pub use cinematic::PlayerCinematicStateLikeCpp;
 pub use collection_state::{
     AccountItemAppearanceSavePlanLikeCpp, AccountTransmogIllusionSavePlanLikeCpp,
-    AppearanceAcquisitionSource, AppearanceAdmissionSource, AppearanceModifiedFacts, AppearanceSearchFacts,
-    AppearanceSparseFacts, AppearanceStorageFacts, DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP,
-    PlayerCollectionStateLikeCpp, RuntimeAppearanceRoute,
+    AppearanceAcquisitionSource, AppearanceAdmissionSource, AppearanceModifiedFacts,
+    AppearanceSearchFacts, AppearanceSparseFacts, AppearanceStorageFacts,
+    DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP, PlayerCollectionStateLikeCpp, RuntimeAppearanceRoute,
 };
 pub use effective_stats::PlayerEffectiveCombatStatsLikeCpp;
 pub use equipment_sets::PlayerEquipmentSetsLikeCpp;
-pub use item_modifiers::{
-    PlayerItemBonusStateLikeCpp, PlayerItemLevelCapsLikeCpp, PlayerItemModifierRuntimeStateLikeCpp,
-    PlayerItemSetEffectLikeCpp, loaded_enchantment_effect_action_is_unrepresented_like_cpp,
-    represented_item_bonus_action_updates_stats_like_cpp,
+pub use inventory_positions::{
+    BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BANK_SLOT_ITEM_END, BANK_SLOT_ITEM_START,
+    BUYBACK_SLOT_COUNT, BUYBACK_SLOT_END, BUYBACK_SLOT_START, CHILD_EQUIPMENT_SLOT_END,
+    CHILD_EQUIPMENT_SLOT_START, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_END,
+    INVENTORY_SLOT_BAG_START, INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START,
+    ITEM_LIMIT_CATEGORY_MODE_EQUIP, ITEM_LIMIT_CATEGORY_MODE_HAVE, KEYRING_SLOT_END,
+    KEYRING_SLOT_START, PLAYER_SLOT_END, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, is_bag_pos,
+    is_bank_packed_pos, is_bank_pos, is_child_equipment_packed_pos, is_child_equipment_pos,
+    is_equipment_packed_pos, is_equipment_pos, is_inventory_packed_pos, is_inventory_pos,
+    make_item_pos,
 };
+pub use inventory_storage::{PlayerBagStorage, PlayerInventoryItem, PlayerInventoryStorage};
 pub use item_effect_actions::{
     item_resistance_bonus_actions_like_cpp, item_scaling_stat_bonus_actions_like_cpp,
     item_shield_block_bonus_action_like_cpp, item_stat_bonus_actions_like_cpp,
     item_weapon_damage_actions_like_cpp,
 };
-pub use storage_helpers::is_buyback_slot;
-pub use inventory_storage::{PlayerBagStorage, PlayerInventoryItem, PlayerInventoryStorage};
-pub use inventory_positions::{
-    PLAYER_SLOT_END, INVENTORY_DEFAULT_SIZE, INVENTORY_SLOT_BAG_START,
-    INVENTORY_SLOT_BAG_END, REAGENT_BAG_SLOT_START, REAGENT_BAG_SLOT_END,
-    INVENTORY_SLOT_ITEM_START, INVENTORY_SLOT_ITEM_END, BANK_SLOT_ITEM_START,
-    BANK_SLOT_ITEM_END, BANK_SLOT_BAG_START, BANK_SLOT_BAG_END,
-    BUYBACK_SLOT_START, BUYBACK_SLOT_END, BUYBACK_SLOT_COUNT,
-    KEYRING_SLOT_START, KEYRING_SLOT_END, CHILD_EQUIPMENT_SLOT_START,
-    CHILD_EQUIPMENT_SLOT_END, ITEM_LIMIT_CATEGORY_MODE_HAVE, ITEM_LIMIT_CATEGORY_MODE_EQUIP,
-    make_item_pos, is_inventory_pos, is_inventory_packed_pos,
-    is_equipment_pos, is_equipment_packed_pos, is_bank_pos,
-    is_bank_packed_pos, is_bag_pos, is_child_equipment_pos,
-    is_child_equipment_packed_pos,
+pub use item_modifiers::{
+    PlayerItemBonusStateLikeCpp, PlayerItemLevelCapsLikeCpp, PlayerItemModifierRuntimeStateLikeCpp,
+    PlayerItemSetEffectLikeCpp, loaded_enchantment_effect_action_is_unrepresented_like_cpp,
+    represented_item_bonus_action_updates_stats_like_cpp,
 };
 pub use items::{
     ExistingStorageStackUpdateLikeCpp, InventoryStorageMovePlanLikeCpp,
@@ -117,8 +122,7 @@ pub use items::{
 pub use progression::PreparedPlayerSpellAcquisitionLikeCpp;
 pub use quest_state::{
     PlayerQuestGameplayState, QuestBoundItemObjectiveProgressLikeCpp,
-    QuestItemObjectiveProgressLikeCpp,
-    SeasonalQuestBitReset, SeasonalQuestResetOutcome,
+    QuestItemObjectiveProgressLikeCpp, SeasonalQuestBitReset, SeasonalQuestResetOutcome,
     SeasonalQuestResetPlan, SeasonalQuestResetReason,
 };
 pub use reputation::{
@@ -127,13 +131,14 @@ pub use reputation::{
 };
 pub use rest::PlayerRestState;
 pub use spell_runtime::{
+    ForgottenKnownSpellLikeCpp, LearnedSkillInput, LearnedSkillLookup, LearnedSkillNode,
+    LearnedSkillOperation, LearnedSkillRange, LearnedSkillStep, LearnedSkillWrite,
     LoadedSpellDependency, LoadedSpellInput, LoadedSpellReconstruction, LoadedSpellStep,
-    LearnedSkillInput, LearnedSkillLookup, LearnedSkillNode, LearnedSkillOperation,
-    LearnedSkillRange, LearnedSkillStep, LearnedSkillWrite,
-    ForgottenKnownSpellLikeCpp, PlayerSpellAcquisitionSnapshotLikeCpp, PlayerSpellRuntimeState,
-    SpellUnlearnEdge, SpellUnlearnInput, SpellUnlearnOperation,
-    SpellUnlearnOwnerOutcome, SpellUnlearnOwnerStep, SpellUnlearnStep,
+    PlayerSpellAcquisitionSnapshotLikeCpp, PlayerSpellRuntimeState, SpellUnlearnEdge,
+    SpellUnlearnInput, SpellUnlearnOperation, SpellUnlearnOwnerOutcome, SpellUnlearnOwnerStep,
+    SpellUnlearnStep,
 };
+pub use storage_helpers::is_buyback_slot;
 pub use talent_runtime::PlayerTalentRuntimeState;
 pub use taxi_state::{PlayerTaxiFlightNodeLikeCpp, PlayerTaxiFlightStateLikeCpp, PlayerTaxiState};
 pub use world_local::PlayerWorldLocalState;
@@ -151,191 +156,100 @@ mod spellbook;
 mod trait_config;
 mod transport_and_faction;
 pub use trait_config::{PlayerTraitConfigDetails, PlayerTraitConfigState, PlayerTraitEntry};
+mod lifecycle_models;
 mod visibility;
 mod vitals;
 mod void_storage;
-mod lifecycle_models;
 pub use lifecycle_models::{
-    PlayerLifecyclePower,
-    PlayerCreateLifecycleRecord,
-    PlayerDbLoadLifecycleRecord,
-    PlayerLifecycleMetadata,
-    PlayerLoginLifecycleStep,
-    PlayerLoginLifecyclePlan,
-    PlayerWorldInsertionState,
-    PlayerGameplayLoadStep,
-    PlayerGameplayLoadPlan,
-    PlayerQuestStatusRecord,
-    PlayerSkillRecord,
-    PlayerSkillLoadState,
-    PlayerSpellLoadState,
-    PlayerKnownSpellRecord,
-    PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP,
-    PLAYER_MAX_GLYPH_SLOTS_LIKE_CPP,
-    PlayerActionButtonRecord,
-    PlayerSocialState,
-    PlayerCustomizationChoice,
-    PlayerTransportState,
-    PlayerMailRecord,
-    PlayerCufProfile,
-    PLAYER_EQUIPMENT_SET_SLOTS_LIKE_CPP,
-    PLAYER_VOID_STORAGE_MAX_SLOTS_LIKE_CPP,
-    PlayerEquipmentSetTypeLikeCpp,
-    PlayerEquipmentSetUpdateStateLikeCpp,
-    PlayerEquipmentSetLikeCpp,
-    PlayerVoidStorageItemLikeCpp,
-    PlayerGroupState,
-    PlayerGroupUpdateSequenceLikeCpp,
-    PlayerGuildState,
-    PlayerTradeStateLikeCpp,
-    PlayerPersistentCapabilityStateLikeCpp,
-    PlayerBattlegroundQueueTypeIdLikeCpp,
-    PlayerBattlegroundQueueSlotLikeCpp,
-    PlayerBattlegroundQueueRecord,
-    PlayerRandomBattlegroundState,
-    PlayerAchievementRecord,
-    PlayerAchievementCriteriaRecord,
-    PlayerCurrencyRecord,
-    PlayerSpellCooldownRecord,
-    PlayerSpellChargeRecord,
-    PlayerDuelStateLikeCpp,
-    PlayerDuelInfoLikeCpp,
-    PlayerGameplayLoadRecord,
+    PLAYER_EQUIPMENT_SET_SLOTS_LIKE_CPP, PLAYER_MAX_GLYPH_SLOTS_LIKE_CPP,
+    PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP, PLAYER_VOID_STORAGE_MAX_SLOTS_LIKE_CPP,
+    PlayerAchievementCriteriaRecord, PlayerAchievementRecord, PlayerActionButtonRecord,
+    PlayerBattlegroundQueueRecord, PlayerBattlegroundQueueSlotLikeCpp,
+    PlayerBattlegroundQueueTypeIdLikeCpp, PlayerCreateLifecycleRecord, PlayerCufProfile,
+    PlayerCurrencyRecord, PlayerCustomizationChoice, PlayerDbLoadLifecycleRecord,
+    PlayerDuelInfoLikeCpp, PlayerDuelStateLikeCpp, PlayerEquipmentSetLikeCpp,
+    PlayerEquipmentSetTypeLikeCpp, PlayerEquipmentSetUpdateStateLikeCpp, PlayerGameplayLoadPlan,
+    PlayerGameplayLoadRecord, PlayerGameplayLoadStep, PlayerGroupState,
+    PlayerGroupUpdateSequenceLikeCpp, PlayerGuildState, PlayerKnownSpellRecord,
+    PlayerLifecycleMetadata, PlayerLifecyclePower, PlayerLoginLifecyclePlan,
+    PlayerLoginLifecycleStep, PlayerMailRecord, PlayerPersistentCapabilityStateLikeCpp,
+    PlayerQuestStatusRecord, PlayerRandomBattlegroundState, PlayerSkillLoadState,
+    PlayerSkillRecord, PlayerSocialState, PlayerSpellChargeRecord, PlayerSpellCooldownRecord,
+    PlayerSpellLoadState, PlayerTradeStateLikeCpp, PlayerTransportState,
+    PlayerVoidStorageItemLikeCpp, PlayerWorldInsertionState,
 };
 
 mod inventory_models;
 pub use inventory_models::{
-    ItemPosCount,
-    ItemSlotRef,
-    ItemStorageRef,
-    BagTemplateRef,
-    CanStoreItemArgs,
-    CanBankItemArgs,
-    CanStoreItemOutcome,
-    ItemLimitCategoryTemplate,
-    CanTakeMoreSimilarItemsArgs,
-    CanTakeMoreSimilarItemsOutcome,
-    ItemSearchLocation,
-    ItemSearchCallbackResult,
+    BagTemplateRef, CanBankItemArgs, CanStoreItemArgs, CanStoreItemOutcome,
+    CanTakeMoreSimilarItemsArgs, CanTakeMoreSimilarItemsOutcome, ItemLimitCategoryTemplate,
+    ItemPosCount, ItemSearchCallbackResult, ItemSearchLocation, ItemSlotRef, ItemStorageRef,
     PlayerStorageError,
 };
 mod equipment_models;
 pub use equipment_models::{
-    FindEquipSlotArgs,
-    CanEquipItemArgs,
-    CanEquipItemOutcome,
-    EquipItemObjectOutcome,
-    CanUnequipItemArgs,
-    CanUseItemTemplateArgs,
-    CanUseItemArgs,
-    EquippedGemRef,
-    CanEquipUniqueItemTemplateArgs,
-    SocketedGemUniqueRef,
-    CanEquipUniqueItemArgs,
-    TitanGripPenaltyAction,
+    CanEquipItemArgs, CanEquipItemOutcome, CanEquipUniqueItemArgs, CanEquipUniqueItemTemplateArgs,
+    CanUnequipItemArgs, CanUseItemArgs, CanUseItemTemplateArgs, EquipItemObjectOutcome,
+    EquippedGemRef, FindEquipSlotArgs, SocketedGemUniqueRef, TitanGripPenaltyAction,
 };
 mod destruction_models;
 pub use destruction_models::{
-    DestroyItemCountItemRef,
-    DestroyItemCountAction,
-    DestroyItemCountPlan,
-    DestroyFilteredItemRef,
-    DestroyFilteredItemAction,
+    DestroyFilteredItemAction, DestroyFilteredItemRef, DestroyItemCountAction,
+    DestroyItemCountItemRef, DestroyItemCountPlan,
 };
 mod swap_models;
 pub use swap_models::{
-    SwapItemPreflightItem,
-    SwapItemPreflightResult,
-    SwapItemPreflightPlan,
-    SwapItemEmptyDestinationResult,
-    SwapItemEmptyDestinationPlan,
-    SwapItemMergeFillResult,
-    SwapItemMergeFillPlan,
+    SwapBagItemMove, SwapBagItemRef, SwapBagRef, SwapItemBagExchangePlan,
+    SwapItemBagExchangeResult, SwapItemEmptyDestinationPlan, SwapItemEmptyDestinationResult,
+    SwapItemErrorItemOrder, SwapItemMergeFillPlan, SwapItemMergeFillResult, SwapItemMissingPhase,
+    SwapItemOrchestrationPlan, SwapItemOrchestrationResult, SwapItemPreflightItem,
+    SwapItemPreflightPlan, SwapItemPreflightResult, SwapItemRealSwapExecutionPlan,
+    SwapItemRealSwapTarget, SwapItemRealSwapValidationPlan, SwapItemRealSwapValidationResult,
     SwapItemRealSwapValidationSubject,
-    SwapItemRealSwapTarget,
-    SwapItemRealSwapValidationResult,
-    SwapItemRealSwapValidationPlan,
-    SwapBagItemRef,
-    SwapBagRef,
-    SwapBagItemMove,
-    SwapItemBagExchangeResult,
-    SwapItemBagExchangePlan,
-    SwapItemRealSwapExecutionPlan,
-    SwapItemErrorItemOrder,
-    SwapItemMissingPhase,
-    SwapItemOrchestrationResult,
-    SwapItemOrchestrationPlan,
 };
 mod duration_models;
 pub use duration_models::{
-    SoulboundTradeableItemRef,
-    PlayerItemTimeUpdate,
-    ItemDurationRef,
+    ItemDurationRef, PlayerEnchantDuration, PlayerEnchantDurationItemRef, PlayerEnchantTimeUpdate,
+    PlayerItemTimeUpdate, SoulboundTradeableItemRef, UpdateEnchantTimeAction,
     UpdateItemDurationAction,
-    PlayerEnchantDuration,
-    PlayerEnchantTimeUpdate,
-    PlayerEnchantDurationItemRef,
-    UpdateEnchantTimeAction,
 };
 mod enchantment_models;
 pub use enchantment_models::{
-    ArenaEnchantmentItemRef,
-    RemoveArenaEnchantmentAction,
-    ApplyEnchantmentTemplateRef,
-    ApplyEnchantmentGemRequirementRef,
-    ApplyEnchantmentSocketContext,
-    ApplyEnchantmentArgs,
-    ApplyEnchantmentSkipReason,
-    ApplyEnchantmentDurationAction,
-    ApplyEnchantmentResult,
-    ApplyEnchantmentPlan,
-    ApplyEnchantmentEffectKind,
-    ApplyEnchantmentEffectRef,
-    APPLY_ENCHANTMENT_RANDOM_SUFFIX_EFFECTS,
-    ApplyEnchantmentRandomSuffixRef,
-    ApplyEnchantmentEffectAction,
-    WeaponDamageBoundLikeCpp,
-    ApplyEnchantmentUnitModifier,
-    ApplyEnchantmentUnitMod,
-    ApplyEnchantmentCombatRating,
-    ApplyEnchantmentBaseMod,
-    SkillEnchantmentTemplateRef,
-    SkillEnchantmentItemRef,
-    UpdateSkillEnchantmentReason,
-    UpdateSkillEnchantmentAction,
+    APPLY_ENCHANTMENT_RANDOM_SUFFIX_EFFECTS, ApplyEnchantmentArgs, ApplyEnchantmentBaseMod,
+    ApplyEnchantmentCombatRating, ApplyEnchantmentDurationAction, ApplyEnchantmentEffectAction,
+    ApplyEnchantmentEffectKind, ApplyEnchantmentEffectRef, ApplyEnchantmentGemRequirementRef,
+    ApplyEnchantmentPlan, ApplyEnchantmentRandomSuffixRef, ApplyEnchantmentResult,
+    ApplyEnchantmentSkipReason, ApplyEnchantmentSocketContext, ApplyEnchantmentTemplateRef,
+    ApplyEnchantmentUnitMod, ApplyEnchantmentUnitModifier, ArenaEnchantmentItemRef,
+    RemoveArenaEnchantmentAction, SkillEnchantmentItemRef, SkillEnchantmentTemplateRef,
+    UpdateSkillEnchantmentAction, UpdateSkillEnchantmentReason, WeaponDamageBoundLikeCpp,
 };
 mod publication_models;
 pub use publication_models::{
-    SendNewItemTemplateRef,
-    SendNewItemArgs,
-    SendNewItemDisplayText,
-    SendNewItemDelivery,
-    SendNewItemModifier,
-    SendNewItemInstancePlan,
-    SendNewItemPlan,
+    SendNewItemArgs, SendNewItemDelivery, SendNewItemDisplayText, SendNewItemInstancePlan,
+    SendNewItemModifier, SendNewItemPlan, SendNewItemTemplateRef,
 };
 
 use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 use std::sync::Arc;
 
+use crate::PlayerGameplayState;
+use bitflags::bitflags;
 use item_effect_actions::{
-    apply_enchantment_effect_action, arena_enchantment_ref_by_guid,
-    is_socket_enchantment_slot, push_arena_inventory_enchantment_action,
-    push_update_skill_enchantment_action, skill_enchantment_transition,
+    apply_enchantment_effect_action, arena_enchantment_ref_by_guid, is_socket_enchantment_slot,
+    push_arena_inventory_enchantment_action, push_update_skill_enchantment_action,
+    skill_enchantment_transition,
 };
+use lifecycle_models::PlayerLifecycleBase;
 use storage_helpers::{
     can_equip_item_outcome, can_store_item_count_zero, can_store_item_error,
     can_take_more_similar_ok, destroy_filtered_scan_bag_ranges,
     destroy_filtered_scan_top_level_range, destroy_item_count_scan_bag_ranges,
     destroy_item_count_scan_top_level_range, equip_slot_candidates,
-    equipped_gem_limit_category_count, equipped_item_limit_category_count,
-    has_equipped_gem_entry, has_equipped_item_entry, is_bag_storage_slot,
-    paired_unique_ignore_slot, swap_item_real_swap_target_for_destination,
-    validate_split_source,
+    equipped_gem_limit_category_count, equipped_item_limit_category_count, has_equipped_gem_entry,
+    has_equipped_item_entry, is_bag_storage_slot, paired_unique_ignore_slot,
+    swap_item_real_swap_target_for_destination, validate_split_source,
 };
-use crate::PlayerGameplayState;
-use lifecycle_models::PlayerLifecycleBase;
-use bitflags::bitflags;
 use wow_constants::{
     BagFamilyMask, EnchantmentSlot, Gender, InventoryResult, InventoryType, ItemBondingType,
     ItemClass, ItemEnchantmentType, ItemFieldFlags, ItemFieldFlags2, ItemModType, ItemModifier,
@@ -414,7 +328,6 @@ fn representable_power_types() -> [PowerType; MAX_POWERS] {
     ]
 }
 
-
 /// C++ `Player::LoadFromDB` `exploredZones` parser.
 ///
 /// Trinity stores each 64-bit block as two decimal 32-bit words:
@@ -477,7 +390,6 @@ const ENCHANTMENT_DURATION_SLOTS: [EnchantmentSlot; MAX_ENCHANTMENT_SLOT] = [
     EnchantmentSlot::Property3,
     EnchantmentSlot::Property4,
 ];
-
 
 fn item_ref_by_pos<'a>(items: &'a [ItemSlotRef<'a>], bag: u8, slot: u8) -> Option<&'a Item> {
     items
@@ -619,7 +531,6 @@ pub struct Player {
 }
 
 impl Player {
-
     pub const fn unit(&self) -> &Unit {
         &self.unit
     }
@@ -848,9 +759,7 @@ impl Player {
                 0
             }
     }
-
 }
-
 
 #[cfg(test)]
 #[path = "../player_tests.rs"]

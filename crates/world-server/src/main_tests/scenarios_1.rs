@@ -14,8 +14,13 @@ fn dungeon_encounter_catalog_is_loaded_as_an_immutable_session_capability() {
     let delegation = "world_startup::run_world_startup(";
     assert_eq!(app.matches(delegation).count(), 1);
     let delegation_position = app.find(delegation).unwrap();
-    assert!(app[delegation_position..].split_once(".await").unwrap().0
-        .contains("&dungeon_encounter_store,"));
+    assert!(
+        app[delegation_position..]
+            .split_once(".await")
+            .unwrap()
+            .0
+            .contains("&dungeon_encounter_store,")
+    );
     let startup = include_str!("../app/world_instance_startup.rs");
     let catalogs = include_str!("../app/session_catalog_capabilities.rs");
     let resources = fs::read_to_string(root.join("src/session_resources.rs")).unwrap();
@@ -25,8 +30,10 @@ fn dungeon_encounter_catalog_is_loaded_as_an_immutable_session_capability() {
     let world_call = "world: session_catalog_capabilities::build_world(";
     assert_eq!(app.matches(load_call).count(), 1);
     assert_eq!(
-        app.matches("let dungeon_encounter_store = world_instance_startup::load_dungeon_encounters(")
-            .count(),
+        app.matches(
+            "let dungeon_encounter_store = world_instance_startup::load_dungeon_encounters("
+        )
+        .count(),
         1
     );
     assert_eq!(continuation.matches(world_call).count(), 1);
@@ -35,7 +42,8 @@ fn dungeon_encounter_catalog_is_loaded_as_an_immutable_session_capability() {
     assert!(load_position < delegation_position);
     assert!(
         world_position
-            < continuation.find("let session_resources = Arc::new(session_resources);")
+            < continuation
+                .find("let session_resources = Arc::new(session_resources);")
                 .unwrap()
     );
     let load_arguments = app[load_position..].split_once(")?;").unwrap().0;
@@ -61,16 +69,22 @@ fn dungeon_encounter_catalog_is_loaded_as_an_immutable_session_capability() {
         .unwrap()
         .0;
     assert_eq!(
-        startup.matches("wow_data::DungeonEncounterStore::load(").count(),
+        startup
+            .matches("wow_data::DungeonEncounterStore::load(")
+            .count(),
         1
     );
     assert_eq!(
-        world_catalogs.matches("dungeon_encounter_store: Arc::clone(").count(),
+        world_catalogs
+            .matches("dungeon_encounter_store: Arc::clone(")
+            .count(),
         1
     );
     assert!(loader.contains("wow_data::DungeonEncounterStore::load(data_dir, locale)"));
     assert!(loader.contains("Failed to load DungeonEncounter.db2"));
-    assert!(world_catalogs.contains("dungeon_encounter_store: Arc::clone(dungeon_encounter_store)"));
+    assert!(
+        world_catalogs.contains("dungeon_encounter_store: Arc::clone(dungeon_encounter_store)")
+    );
     assert!(resources.contains("dungeon_encounter_store: Arc<wow_data::DungeonEncounterStore>"));
     assert!(resources.contains("set_dungeon_encounter_store"));
     assert!(session.contains("dungeon_encounter_store: Option<Arc<DungeonEncounterStore>>"));

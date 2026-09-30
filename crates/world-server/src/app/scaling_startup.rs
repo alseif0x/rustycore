@@ -1,12 +1,14 @@
 //! Player level scaling and shared curve authority.
 
-use std::sync::Arc;
 use anyhow::Context;
+use std::sync::Arc;
 use tracing::info;
 
 pub(super) struct ScalingCatalogs {
-    pub(super) scaling_stat_values_store: Arc<wow_data::progression_rewards::ScalingStatValuesStore>,
-    pub(super) scaling_stat_distribution_store: Arc<wow_data::progression_rewards::ScalingStatDistributionStore>,
+    pub(super) scaling_stat_values_store:
+        Arc<wow_data::progression_rewards::ScalingStatValuesStore>,
+    pub(super) scaling_stat_distribution_store:
+        Arc<wow_data::progression_rewards::ScalingStatDistributionStore>,
     pub(super) curve_point_store: Arc<wow_data::progression_rewards::CurvePointStore>,
     pub(super) curve_store: Arc<wow_data::progression_rewards::CurveStore>,
 }

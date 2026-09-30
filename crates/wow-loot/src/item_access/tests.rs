@@ -46,12 +46,21 @@ fn direct_rejections_prioritize_allowed_looter_then_blocked_then_winner() {
     let mut item = entry(0, vec![other]);
     item.flags.blocked = true;
     item.roll_winner = other;
-    assert_eq!(direct_item_rejection(&item, player), Some(DirectItemRejection::NotAllowed));
+    assert_eq!(
+        direct_item_rejection(&item, player),
+        Some(DirectItemRejection::NotAllowed)
+    );
 
     item.allowed_looters.push(player);
-    assert_eq!(direct_item_rejection(&item, player), Some(DirectItemRejection::Blocked));
+    assert_eq!(
+        direct_item_rejection(&item, player),
+        Some(DirectItemRejection::Blocked)
+    );
     item.flags.blocked = false;
-    assert_eq!(direct_item_rejection(&item, player), Some(DirectItemRejection::OtherWinner));
+    assert_eq!(
+        direct_item_rejection(&item, player),
+        Some(DirectItemRejection::OtherWinner)
+    );
     item.roll_winner = player;
     assert_eq!(direct_item_rejection(&item, player), None);
     item.roll_winner = ObjectGuid::EMPTY;
@@ -70,7 +79,10 @@ fn direct_selection_uses_list_id_while_master_selection_uses_vector_index() {
     assert_eq!(find_unlooted_item(&pool, 0, player).unwrap().item_id, 26);
     assert_eq!(select_master_item(&pool, 0, player).unwrap().item_id, 25);
     assert_eq!(find_unlooted_item(&pool, 9, player).unwrap().item_id, 25);
-    assert_eq!(select_master_item(&pool, 9, player).err(), Some(MasterItemRejection::InvalidSlot));
+    assert_eq!(
+        select_master_item(&pool, 9, player).err(),
+        Some(MasterItemRejection::InvalidSlot)
+    );
     assert!(find_unlooted_item(&pool, 8, player).is_none());
 }
 
@@ -83,7 +95,10 @@ fn direct_selection_skips_consumed_rows_and_takes_the_first_available_duplicate(
     first_available.item_id = 26;
     let mut later_available = entry(7, vec![player]);
     later_available.item_id = 27;
-    let mut pool = loot(vec![consumed, first_available, later_available], vec![player]);
+    let mut pool = loot(
+        vec![consumed, first_available, later_available],
+        vec![player],
+    );
 
     assert_eq!(find_unlooted_item(&pool, 7, player).unwrap().item_id, 26);
     pool.items[1].taken = true;
@@ -103,14 +118,20 @@ fn direct_ffa_selection_uses_the_player_pool_marker() {
     let mut pool = loot(vec![item], vec![player, other]);
     assert!(find_unlooted_item(&pool, 3, player).is_none());
 
-    pool.player_ffa_items.push((player, vec![NotNormalLootItem {
-        loot_list_id: 3,
-        is_looted: false,
-    }]));
-    pool.player_ffa_items.push((other, vec![NotNormalLootItem {
-        loot_list_id: 3,
-        is_looted: true,
-    }]));
+    pool.player_ffa_items.push((
+        player,
+        vec![NotNormalLootItem {
+            loot_list_id: 3,
+            is_looted: false,
+        }],
+    ));
+    pool.player_ffa_items.push((
+        other,
+        vec![NotNormalLootItem {
+            loot_list_id: 3,
+            is_looted: true,
+        }],
+    ));
     assert!(find_unlooted_item(&pool, 3, player).is_some());
     assert!(find_unlooted_item(&pool, 3, other).is_none());
     pool.player_ffa_items[0].1[0].is_looted = true;
@@ -123,12 +144,24 @@ fn master_rejections_prioritize_method_pool_membership_index_then_item_membershi
     let other = ObjectGuid::create_player(1, 77);
     let mut pool = loot(vec![entry(0, vec![other])], Vec::new());
     pool.loot_method = 0;
-    assert_eq!(select_master_item(&pool, 9, player).err(), Some(MasterItemRejection::WrongMethod));
+    assert_eq!(
+        select_master_item(&pool, 9, player).err(),
+        Some(MasterItemRejection::WrongMethod)
+    );
     pool.loot_method = LOOT_METHOD_MASTER_LIKE_CPP;
-    assert_eq!(select_master_item(&pool, 9, player).err(), Some(MasterItemRejection::TargetNotAllowed));
+    assert_eq!(
+        select_master_item(&pool, 9, player).err(),
+        Some(MasterItemRejection::TargetNotAllowed)
+    );
     pool.allowed_looters.push(player);
-    assert_eq!(select_master_item(&pool, 9, player).err(), Some(MasterItemRejection::InvalidSlot));
-    assert_eq!(select_master_item(&pool, 0, player).err(), Some(MasterItemRejection::ItemTargetNotAllowed));
+    assert_eq!(
+        select_master_item(&pool, 9, player).err(),
+        Some(MasterItemRejection::InvalidSlot)
+    );
+    assert_eq!(
+        select_master_item(&pool, 0, player).err(),
+        Some(MasterItemRejection::ItemTargetNotAllowed)
+    );
     pool.items[0].allowed_looters.push(player);
     assert!(select_master_item(&pool, 0, player).is_ok());
 }
@@ -140,7 +173,10 @@ fn empty_item_tap_list_is_allowed_for_master_selection_but_not_remote_delivery()
     let item = select_master_item(&pool, 0, player).unwrap();
     assert!(!master_award_recipient_allowed(item, player));
     assert!(!roll_award_batch_allowed(&pool.items, false, player));
-    assert_eq!(direct_item_rejection(item, player), Some(DirectItemRejection::NotAllowed));
+    assert_eq!(
+        direct_item_rejection(item, player),
+        Some(DirectItemRejection::NotAllowed)
+    );
 }
 
 #[test]
@@ -154,7 +190,10 @@ fn master_selection_and_remote_admission_do_not_add_direct_or_winner_checks() {
     let pool = loot(vec![item], vec![player]);
     let selected = select_master_item(&pool, 0, player).unwrap();
     assert!(master_award_recipient_allowed(selected, player));
-    assert_eq!(direct_item_rejection(selected, player), Some(DirectItemRejection::Blocked));
+    assert_eq!(
+        direct_item_rejection(selected, player),
+        Some(DirectItemRejection::Blocked)
+    );
     assert!(!roll_award_batch_allowed(&pool.items, false, player));
 }
 
@@ -232,24 +271,12 @@ fn loot_item_random_context_stack_compatibility_uses_cpp_store_metadata() {
         ffa_looted_by: Vec::new(),
         taken: false,
     };
-    assert!(loot_store_item_matches(
-        &matching,
-        -77, 456,
-        &item
-    ));
+    assert!(loot_store_item_matches(&matching, -77, 456, &item));
 
     let different_random = LootEntry {
         random_properties_id: -78,
         ..matching.clone()
     };
-    assert!(loot_store_item_matches(
-        &different_random,
-        -77, 456,
-        &item
-    ));
-    assert!(!loot_store_item_matches(
-        &matching,
-        0, 0,
-        &item
-    ));
+    assert!(loot_store_item_matches(&different_random, -77, 456, &item));
+    assert!(!loot_store_item_matches(&matching, 0, 0, &item));
 }

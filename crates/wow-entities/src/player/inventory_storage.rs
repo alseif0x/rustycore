@@ -1,6 +1,4 @@
-use super::{
-    BUYBACK_SLOT_START, Item, MAX_BAG_SIZE, ObjectGuid, PLAYER_SLOT_END, is_buyback_slot,
-};
+use super::{BUYBACK_SLOT_START, Item, MAX_BAG_SIZE, ObjectGuid, PLAYER_SLOT_END, is_buyback_slot};
 
 /// Persistent identity and template metadata for one Player-owned item.
 ///

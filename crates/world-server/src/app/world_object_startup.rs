@@ -6,9 +6,8 @@ use tracing::info;
 use wow_persistence::RespawnPersistencePortLikeCpp;
 
 use crate::{
-    load_persisted_respawn_times_like_cpp, spawn_store_loader,
     PersistedRespawnLoadReportLikeCpp, PersistedRespawnTimesLikeCpp,
-    SharedCanonicalSpawnMetadataLikeCpp,
+    SharedCanonicalSpawnMetadataLikeCpp, load_persisted_respawn_times_like_cpp, spawn_store_loader,
 };
 
 pub(super) async fn load_creature_addons(
@@ -48,8 +47,10 @@ pub(super) struct WorldSpawnStartup {
     pub(super) persisted_respawn_report: PersistedRespawnLoadReportLikeCpp,
     pub(super) canonical_spawn_report: spawn_store_loader::CanonicalSpawnStoreLoadReport,
     pub(super) respawn_persistence: Arc<dyn RespawnPersistencePortLikeCpp>,
-    pub(super) canonical_spawn_catalog: Arc<dyn wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp>,
-    pub(super) game_event_world_catalog: Arc<dyn wow_persistence::GameEventWorldCatalogPersistencePortLikeCpp>,
+    pub(super) canonical_spawn_catalog:
+        Arc<dyn wow_persistence::CanonicalSpawnCatalogPersistencePortLikeCpp>,
+    pub(super) game_event_world_catalog:
+        Arc<dyn wow_persistence::GameEventWorldCatalogPersistencePortLikeCpp>,
     pub(super) game_event_persistence: Arc<dyn wow_persistence::GameEventPersistencePortLikeCpp>,
     pub(super) script_name_interner: Arc<wow_data::ScriptNameInternerLikeCpp>,
     pub(super) persisted_respawn_times: Arc<PersistedRespawnTimesLikeCpp>,
@@ -132,9 +133,7 @@ pub(super) async fn load_world_spawns(
     );
 
     let game_event_persistence: Arc<dyn wow_persistence::GameEventPersistencePortLikeCpp> =
-        Arc::new(
-            wow_database::MariaDbGameEventPersistenceAdapterLikeCpp::new(Arc::clone(char_db)),
-        );
+        Arc::new(wow_database::MariaDbGameEventPersistenceAdapterLikeCpp::new(Arc::clone(char_db)));
     let game_event_world_catalog: Arc<
         dyn wow_persistence::GameEventWorldCatalogPersistencePortLikeCpp,
     > = Arc::new(

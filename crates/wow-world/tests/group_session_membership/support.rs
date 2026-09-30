@@ -29,11 +29,9 @@ pub(super) fn make_session() -> (
     (session, pkt_tx, send_rx)
 }
 
-
 pub(super) fn shared_canonical_map_manager() -> SharedCanonicalMapManager {
     Arc::new(Mutex::new(wow_map::MapManager::default()))
 }
-
 
 pub(super) fn session_with_canonical_player_for_away_like_cpp()
 -> (WorldSession, SharedCanonicalMapManager, ObjectGuid) {
@@ -42,9 +40,7 @@ pub(super) fn session_with_canonical_player_for_away_like_cpp()
     (session, canonical, player_guid)
 }
 
-
-pub(super) fn session_with_canonical_player_for_away_like_cpp_with_packet_tx()
--> (
+pub(super) fn session_with_canonical_player_for_away_like_cpp_with_packet_tx() -> (
     WorldSession,
     flume::Sender<WorldPacket>,
     SharedCanonicalMapManager,
@@ -68,7 +64,6 @@ pub(super) fn session_with_canonical_player_for_away_like_cpp_with_packet_tx()
     (session, pkt_tx, canonical, player_guid)
 }
 
-
 pub(super) fn add_canonical_test_player_on_map(
     canonical: &SharedCanonicalMapManager,
     guid: ObjectGuid,
@@ -85,7 +80,6 @@ pub(super) fn add_canonical_test_player_on_map(
         0,
     );
 }
-
 
 pub(super) fn add_canonical_test_player_on_map_with_difficulty(
     canonical: &SharedCanonicalMapManager,
@@ -120,7 +114,6 @@ pub(super) fn add_canonical_test_player_on_map_with_difficulty(
         .unwrap();
 }
 
-
 pub(super) fn canonical_party_type_for_test(
     canonical: &SharedCanonicalMapManager,
     guid: ObjectGuid,
@@ -129,7 +122,6 @@ pub(super) fn canonical_party_type_for_test(
         .expect("canonical player")
 }
 
-
 pub(super) fn broadcast_info(
     guid: ObjectGuid,
     send_tx: flume::Sender<Vec<u8>>,
@@ -137,7 +129,6 @@ pub(super) fn broadcast_info(
     let (command_tx, _command_rx) = flume::bounded(1);
     broadcast_info_with_command(guid, send_tx, command_tx)
 }
-
 
 pub(super) fn broadcast_info_with_command(
     guid: ObjectGuid,
@@ -175,9 +166,7 @@ pub(super) fn broadcast_info_with_command(
     }
 }
 
-
-pub(super) fn canonical_player_transfer_test_map_store_like_cpp()
--> Arc<wow_data::MapStore> {
+pub(super) fn canonical_player_transfer_test_map_store_like_cpp() -> Arc<wow_data::MapStore> {
     Arc::new(wow_data::MapStore::from_entries([
         wow_data::MapEntry {
             id: 0,
@@ -200,7 +189,6 @@ pub(super) fn canonical_player_transfer_test_map_store_like_cpp()
     ]))
 }
 
-
 pub(super) fn with_canonical_player_at_like_cpp<R>(
     manager: &SharedCanonicalMapManager,
     guid: ObjectGuid,
@@ -213,4 +201,3 @@ pub(super) fn with_canonical_player_at_like_cpp<R>(
     let player = map.map().get_typed_player(guid)?;
     Some(read(player))
 }
-

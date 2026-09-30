@@ -118,5 +118,4 @@ impl Player {
 
         InventoryResult::Ok
     }
-
 }

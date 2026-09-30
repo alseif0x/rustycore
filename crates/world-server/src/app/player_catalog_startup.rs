@@ -12,7 +12,8 @@ pub(super) struct PlayerCatalogs {
     pub(super) chr_classes_store: Arc<wow_data::character_progression::ChrClassesStore>,
     pub(super) chr_races_store: Arc<wow_data::character_progression::ChrRacesStore>,
     pub(super) glyph_properties_store: Arc<wow_data::GlyphPropertiesStore>,
-    pub(super) num_talents_at_level_store: Arc<wow_data::progression_rewards::NumTalentsAtLevelStore>,
+    pub(super) num_talents_at_level_store:
+        Arc<wow_data::progression_rewards::NumTalentsAtLevelStore>,
     pub(super) talent_tab_store: Arc<wow_data::TalentTabStore>,
     pub(super) talent_store: Arc<wow_data::TalentStore>,
     pub(super) skill_tiers_store: Arc<wow_data::SkillTiersStoreLikeCpp>,
@@ -33,8 +34,7 @@ pub(super) async fn load_player_catalogs(
         wow_data::TalentStore::load(data_dir, locale).context("Failed to load Talent.db2")?,
     );
     let talent_tab_store = Arc::new(
-        wow_data::TalentTabStore::load(data_dir, locale)
-            .context("Failed to load TalentTab.db2")?,
+        wow_data::TalentTabStore::load(data_dir, locale).context("Failed to load TalentTab.db2")?,
     );
     let num_talents_at_level_store = Arc::new(
         wow_data::progression_rewards::NumTalentsAtLevelStore::load(data_dir, locale)
@@ -107,7 +107,8 @@ pub(super) async fn load_player_catalogs(
 
 pub(super) struct SpecializationCatalog {
     pub(super) chr_specialization_store: Arc<wow_data::ChrSpecializationStore>,
-    pub(super) chr_specialization_hotfix_persistence: wow_database::MariaDbChrSpecializationHotfixPersistenceAdapterLikeCpp,
+    pub(super) chr_specialization_hotfix_persistence:
+        wow_database::MariaDbChrSpecializationHotfixPersistenceAdapterLikeCpp,
 }
 
 pub(super) async fn load_specialization(

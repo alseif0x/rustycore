@@ -102,7 +102,9 @@ pub(crate) fn canonical_map_tick_resume_like_cpp(
         condition_store,
         map_store,
         loaded_grid_creature_respawn_caches,
-    ).ok().flatten()
+    )
+    .ok()
+    .flatten()
 }
 
 pub(crate) fn try_canonical_map_tick_resume(
@@ -118,9 +120,16 @@ pub(crate) fn try_canonical_map_tick_resume(
     Option<CanonicalSpawnGroupConditionTickSummaryLikeCpp>,
     object_work::CanonicalObjectResumeFailure,
 > {
-    object_work::try_resume(manager, legacy_manager, plan, scheduler,
-        canonical_spawn_metadata, condition_store, map_store,
-        loaded_grid_creature_respawn_caches)
+    object_work::try_resume(
+        manager,
+        legacy_manager,
+        plan,
+        scheduler,
+        canonical_spawn_metadata,
+        condition_store,
+        map_store,
+        loaded_grid_creature_respawn_caches,
+    )
 }
 
 pub(crate) fn canonical_map_update_tick_set_inactive_like_cpp(
@@ -145,8 +154,6 @@ pub(crate) fn canonical_map_update_tick_set_inactive_like_cpp(
         loaded_grid_creature_respawn_caches,
     )
 }
-
-
 
 fn canonical_map_tick_tail_like_cpp(
     manager: &mut wow_map::MapManager,

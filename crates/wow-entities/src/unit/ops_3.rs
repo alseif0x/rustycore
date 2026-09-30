@@ -921,12 +921,7 @@ mod tests {
             (PowerType::Mana, mana_input),
         ];
 
-        let outcome = unit.regenerate_all(
-            5_000,
-            14_999,
-            &prepared,
-            Some(health_input(10.0)),
-        );
+        let outcome = unit.regenerate_all(5_000, 14_999, &prepared, Some(health_input(10.0)));
 
         assert_eq!(
             outcome.published_power_changes,

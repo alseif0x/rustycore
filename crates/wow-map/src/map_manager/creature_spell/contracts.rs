@@ -10,10 +10,20 @@ pub enum SpellAiKind {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SpellCondition { Aggro, Combat, Die }
+pub enum SpellCondition {
+    Aggro,
+    Combat,
+    Die,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub enum SpellTarget { SelfTarget, Victim, Enemy, Buff, Debuff }
+pub enum SpellTarget {
+    SelfTarget,
+    Victim,
+    Enemy,
+    Buff,
+    Debuff,
+}
 
 impl SpellTarget {
     pub fn requires_random_threat_selection(self) -> bool {
@@ -29,10 +39,18 @@ impl SpellTarget {
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SpellDisable { Enabled, Disabled, Unrepresented }
+pub enum SpellDisable {
+    Enabled,
+    Disabled,
+    Unrepresented,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SpellTopologyError { NonInstant, ProjectileOrAmmo, EffectOrTarget }
+pub enum SpellTopologyError {
+    NonInstant,
+    ProjectileOrAmmo,
+    EffectOrTarget,
+}
 
 #[derive(Debug)]
 pub struct SpellEffectFacts {
@@ -92,11 +110,16 @@ pub struct SpellRange {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpellHitProfile {
     NoAttackMissAfterRequiredRoll,
-    BaseMeleeMiss { miss_threshold_per_ten_thousand: u32 },
+    BaseMeleeMiss {
+        miss_threshold_per_ten_thousand: u32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SpellHit { Hit, Miss }
+pub enum SpellHit {
+    Hit,
+    Miss,
+}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpellValidation {

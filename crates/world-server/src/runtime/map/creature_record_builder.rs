@@ -8,10 +8,8 @@ pub(crate) fn build_creature_respawn_records(
     spawn_id: wow_map::SpawnId,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     caches: &LoadedGridCreatureRespawnCachesLikeCpp,
-) -> Result<
-    Option<wow_map::map::LoadedGridRespawnRecordsLikeCpp>,
-    LoadedGridCreaturePreparationError,
-> {
+) -> Result<Option<wow_map::map::LoadedGridRespawnRecordsLikeCpp>, LoadedGridCreaturePreparationError>
+{
     let Some(respawn_time) = map
         .get_respawn_info_like_cpp(object_type, spawn_id)
         .map(|info| info.respawn_time)
@@ -39,10 +37,8 @@ pub(crate) fn build_creature_spawn_records(
     spawn_id: wow_map::SpawnId,
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     caches: &LoadedGridCreatureRespawnCachesLikeCpp,
-) -> Result<
-    Option<wow_map::map::LoadedGridRespawnRecordsLikeCpp>,
-    LoadedGridCreaturePreparationError,
-> {
+) -> Result<Option<wow_map::map::LoadedGridRespawnRecordsLikeCpp>, LoadedGridCreaturePreparationError>
+{
     build_creature_records_with_respawn_time(
         map,
         object_type,
@@ -60,10 +56,8 @@ pub(crate) fn build_creature_records_with_respawn_time(
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     caches: &LoadedGridCreatureRespawnCachesLikeCpp,
     respawn_time: i64,
-) -> Result<
-    Option<wow_map::map::LoadedGridRespawnRecordsLikeCpp>,
-    LoadedGridCreaturePreparationError,
-> {
+) -> Result<Option<wow_map::map::LoadedGridRespawnRecordsLikeCpp>, LoadedGridCreaturePreparationError>
+{
     if object_type != wow_map::SpawnObjectType::Creature {
         return Ok(None);
     }

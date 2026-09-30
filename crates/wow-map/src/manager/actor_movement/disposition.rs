@@ -29,7 +29,11 @@ impl MapManager {
     ) -> Result<(), ActorMovementResumeFailure<ActorPathContinuation, Option<DetourPolyPath>>> {
         match self.discard_movement_identity(tick, token, &continuation.identity) {
             Ok(()) => Ok(()),
-            Err(error) => Err(ActorMovementResumeFailure { error, continuation, response }),
+            Err(error) => Err(ActorMovementResumeFailure {
+                error,
+                continuation,
+                response,
+            }),
         }
     }
 
@@ -42,7 +46,11 @@ impl MapManager {
     ) -> Result<(), ActorMovementResumeFailure<ActorStaticHeightContinuation, f32>> {
         match self.discard_movement_identity(tick, token, &continuation.identity) {
             Ok(()) => Ok(()),
-            Err(error) => Err(ActorMovementResumeFailure { error, continuation, response }),
+            Err(error) => Err(ActorMovementResumeFailure {
+                error,
+                continuation,
+                response,
+            }),
         }
     }
 
@@ -55,7 +63,11 @@ impl MapManager {
     ) -> Result<(), ActorMovementResumeFailure<ActorGridHeightContinuation, f32>> {
         match self.discard_movement_identity(tick, token, &continuation.identity) {
             Ok(()) => Ok(()),
-            Err(error) => Err(ActorMovementResumeFailure { error, continuation, response }),
+            Err(error) => Err(ActorMovementResumeFailure {
+                error,
+                continuation,
+                response,
+            }),
         }
     }
 
@@ -66,7 +78,9 @@ impl MapManager {
         identity: &ActorStepIdentity,
     ) -> Result<(), ActorMovementError> {
         if !identity.matches_token(token) {
-            return Err(ActorMovementError::OperationMismatch { guid: identity.guid });
+            return Err(ActorMovementError::OperationMismatch {
+                guid: identity.guid,
+            });
         }
         // This gate checks the original token and slot, deliberately without
         // requiring a current map incarnation or actor witness. Stale/ABA work

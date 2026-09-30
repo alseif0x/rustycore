@@ -1,9 +1,7 @@
 //! Shared Aggro rules, preserving the legacy source gates and order.
 use super::*;
 
-pub fn candidate_targetable(
-    candidate: &AggroCandidate,
-) -> bool {
+pub fn candidate_targetable(candidate: &AggroCandidate) -> bool {
     let player_flags = UnitFlags::from_bits_truncate(candidate.player_unit_flags);
     let player_state = UnitState::from_bits_truncate(candidate.player_unit_state);
 
@@ -33,9 +31,7 @@ pub fn candidate_targetable(
             | UnitFlags::IMMUNE_TO_NPC,
     )
 }
-fn candidate_unit(
-    candidate: &AggroCandidate,
-) -> Unit {
+fn candidate_unit(candidate: &AggroCandidate) -> Unit {
     let mut unit = Unit::new(true);
     unit.world_mut().object_mut().create(candidate.player_guid);
     let _ = unit
@@ -52,11 +48,7 @@ fn candidate_unit(
     let _ = unit.add_to_world_like_cpp();
     unit
 }
-fn creature_unit(
-    creature: &WorldCreature,
-    map_id: u16,
-    instance_id: u32,
-) -> Unit {
+fn creature_unit(creature: &WorldCreature, map_id: u16, instance_id: u32) -> Unit {
     let source = creature.creature.unit();
     let mut unit = Unit::new(true);
     unit.world_mut()
@@ -93,15 +85,10 @@ pub fn candidate_visibility(
         AggroVisibility::Rejected
     }
 }
-pub fn candidate_has_stealth(
-    candidate: &AggroCandidate,
-) -> bool {
+pub fn candidate_has_stealth(candidate: &AggroCandidate) -> bool {
     candidate_unit(candidate).has_stealth_aura_like_cpp()
 }
-pub fn candidate_accessible(
-    creature: &WorldCreature,
-    candidate: &AggroCandidate,
-) -> bool {
+pub fn candidate_accessible(creature: &WorldCreature, candidate: &AggroCandidate) -> bool {
     let victim_is_in_water = candidate.player_liquid_status
         & (LIQUID_MAP_IN_WATER_LIKE_CPP | LIQUID_MAP_UNDER_WATER_LIKE_CPP)
         != 0;

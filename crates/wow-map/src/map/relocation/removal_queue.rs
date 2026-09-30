@@ -65,13 +65,11 @@ impl SwitchGridContainersOutcomeLikeCpp {
     }
 }
 
-
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
 where
     Terrain: TerrainGridLoader,
     Lifecycle: GridLifecycle,
 {
-
     /// C++ `Map::AddObjectToRemoveList` represented over canonical map records.
     ///
     /// C++ anchors:
@@ -384,5 +382,4 @@ where
     pub(in crate::map) fn enqueue_object_to_remove_for_test(&mut self, guid: ObjectGuid) {
         self.objects_to_remove.insert(guid);
     }
-
 }

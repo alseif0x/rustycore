@@ -1,5 +1,5 @@
-use super::*;
 use super::QuestDialogClassification as QuestDialogClassificationLikeCpp;
+use super::*;
 use quest_giver_status::*;
 
 #[test]
@@ -64,11 +64,8 @@ fn dialog_status_metadata_and_flag_precedence_matches_cpp() {
                         } else {
                             0
                         };
-                        let classification = QuestDialogClassificationLikeCpp::new(
-                            flags,
-                            flags_ex,
-                            info.as_ref(),
-                        );
+                        let classification =
+                            QuestDialogClassificationLikeCpp::new(flags, flags_ex, info.as_ref());
                         let important = matches!(metadata, Some((0x400, _)));
                         let kind = match metadata {
                             Some((0x400, _)) => 1,
@@ -114,8 +111,7 @@ fn dialog_status_ignores_unrelated_metadata_and_flag_bits() {
         modifiers: 0x401,
         profession: 123,
     };
-    let important =
-        QuestDialogClassificationLikeCpp::new(0x8000_0000, 0x8000_0000, Some(&info));
+    let important = QuestDialogClassificationLikeCpp::new(0x8000_0000, 0x8000_0000, Some(&info));
     assert!(important.is_important());
     assert_eq!(important.reward(), IMPORTANT_REWARD);
     let info = QuestInfoEntry {

@@ -1,28 +1,10 @@
 use super::{
-    Arc,
-    BTreeMap,
-    Creature,
-    GameEventPersistenceMutationLikeCpp,
-    GameEventWorldEventStateDbOperationKindLikeCpp,
-    GameEventWorldEventStateDbOperationLikeCpp,
-    GameObject,
-    HighGuid,
-    LoadedGridCreatureRespawnCachesLikeCpp,
-    MapObjectRecord,
-    ObjectGuid,
-    PoolGroupLikeCpp,
-    PoolMemberKindLikeCpp,
-    PoolMgrLikeCpp,
-    PoolObjectLikeCpp,
-    PoolTemplateDataLikeCpp,
-    Position,
-    SpawnData,
-    SpawnGroupFlags,
-    SpawnGroupTemplateData,
-    SpawnObjectType,
-    SpawnPosition,
-    SpawnStore,
-    spawn_store_loader,
+    Arc, BTreeMap, Creature, GameEventPersistenceMutationLikeCpp,
+    GameEventWorldEventStateDbOperationKindLikeCpp, GameEventWorldEventStateDbOperationLikeCpp,
+    GameObject, HighGuid, LoadedGridCreatureRespawnCachesLikeCpp, MapObjectRecord, ObjectGuid,
+    PoolGroupLikeCpp, PoolMemberKindLikeCpp, PoolMgrLikeCpp, PoolObjectLikeCpp,
+    PoolTemplateDataLikeCpp, Position, SpawnData, SpawnGroupFlags, SpawnGroupTemplateData,
+    SpawnObjectType, SpawnPosition, SpawnStore, spawn_store_loader,
     variable_loaded_grid_creature_respawn_caches_with_vehicle_id_and_difficulty_like_cpp,
 };
 
@@ -138,8 +120,8 @@ pub(super) fn add_spawn_data_like_cpp(
     });
 }
 
-pub(super) fn game_event_npc_flag_template_store_like_cpp() -> wow_data::CreatureTemplateLifecycleStoreLikeCpp
-{
+pub(super) fn game_event_npc_flag_template_store_like_cpp()
+-> wow_data::CreatureTemplateLifecycleStoreLikeCpp {
     wow_data::CreatureTemplateLifecycleStoreLikeCpp::from_templates([
         wow_data::CreatureTemplateLifecycleRecordLikeCpp {
             entry: 99,

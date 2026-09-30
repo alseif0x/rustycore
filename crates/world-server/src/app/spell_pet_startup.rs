@@ -9,9 +9,12 @@ use crate::spell;
 
 pub(super) struct SpellPetStartup {
     pub(super) spell_name_load_report: wow_data::SpellNameEffectiveLoadReportLikeCpp,
-    pub(super) spell_info_key_hotfix_persistence: wow_database::MariaDbSpellInfoKeyHotfixPersistenceAdapterLikeCpp,
-    pub(super) spell_acquisition_startup_persistence: wow_database::MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp,
-    pub(super) spell_core_hotfix_persistence: wow_database::MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp,
+    pub(super) spell_info_key_hotfix_persistence:
+        wow_database::MariaDbSpellInfoKeyHotfixPersistenceAdapterLikeCpp,
+    pub(super) spell_acquisition_startup_persistence:
+        wow_database::MariaDbSpellAcquisitionStartupPersistenceAdapterLikeCpp,
+    pub(super) spell_core_hotfix_persistence:
+        wow_database::MariaDbSpellCoreDb2HotfixPersistenceAdapterLikeCpp,
     pub(super) spell_store: wow_data::SpellStore,
     pub(super) spell_name_store: wow_data::SpellNameStore,
     pub(super) spell_info: spell_info_startup::SpellInfoStartup,

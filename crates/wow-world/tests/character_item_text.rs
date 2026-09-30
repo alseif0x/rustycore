@@ -6,9 +6,7 @@ use wow_world::test_fixtures::{
     insert_inventory_item_object_for_test, make_inventory_item_object_for_test,
 };
 
-fn make_session_with_send_capacity(
-    capacity: usize,
-) -> (WorldSession, flume::Receiver<Vec<u8>>) {
+fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(1);
     let (send_tx, send_rx) = flume::bounded::<Vec<u8>>(capacity);
     let session = WorldSession::new(
@@ -52,8 +50,16 @@ async fn item_text_query_inventory_item_sends_text_like_cpp() {
     let (mut session, send_rx) = make_session_with_send_capacity(1);
     let owner_guid = ObjectGuid::create_player(1, 700);
     let item_guid = ObjectGuid::create_world_object(HighGuid::Item, 0, 1, 0, 0, 700, 2);
-    let mut item =
-        make_inventory_item_object_for_test(&session, item_guid, 8000, owner_guid, 1, 0, ItemContext::None, 0);
+    let mut item = make_inventory_item_object_for_test(
+        &session,
+        item_guid,
+        8000,
+        owner_guid,
+        1,
+        0,
+        ItemContext::None,
+        0,
+    );
     item.set_text("abc");
     insert_inventory_item_object_for_test(&mut session, item);
 

@@ -15,11 +15,11 @@ use super::*;
 /// publishes zero dealt damage and no health transition.
 #[test]
 fn legacy_creature_melee_tick_once_resolves_player_victim_bands_like_cpp() {
-    use wow_world::map_manager::RuntimeTickOwner;
     use wow_packet::packets::combat::{
         HIT_INFO_AFFECTS_VICTIM, HIT_INFO_CRITICAL_HIT, HIT_INFO_MISS, VICTIM_STATE_DODGE,
         VICTIM_STATE_HIT, VICTIM_STATE_INTACT, VICTIM_STATE_PARRY,
     };
+    use wow_world::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
     let canonical = shared_canonical_map_manager();

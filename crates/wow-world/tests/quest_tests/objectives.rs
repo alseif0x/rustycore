@@ -31,25 +31,15 @@ async fn bank_withdrawal_credits_only_first_matching_bound_item_objective_like_c
     add_active_quest_in_slot(&mut session, 7_401, 0);
     add_active_quest_in_slot(&mut session, 7_402, 1);
 
-    let planned = plan_bank_item_quest_persistence_for_test(
-        &session,
-        item_id as u32,
-        0,
-        false,
-        1,
-        1,
-    );
+    let planned =
+        plan_bank_item_quest_persistence_for_test(&session, item_id as u32, 0, false, 1, 1);
     assert_eq!(planned.len(), 1);
     assert_eq!(planned[0].objective_counts, vec![1]);
     let planned_quest_id = planned[0].quest_id;
 
-    let changed = apply_quest_item_added_objective_progress_for_test(
-        &mut session,
-        item_id as u32,
-        0,
-        1,
-    )
-    .await;
+    let changed =
+        apply_quest_item_added_objective_progress_for_test(&mut session, item_id as u32, 0, 1)
+            .await;
     assert_eq!(changed, vec![planned_quest_id]);
     assert_eq!(
         player_quest_statuses_for_test(&session)
@@ -114,13 +104,9 @@ async fn bound_item_durable_plan_and_apply_use_the_same_quest_log_order_like_cpp
     add_active_quest_in_slot(&mut session, late_slot_quest_id, 9);
     add_active_quest_in_slot(&mut session, early_slot_quest_id, 2);
 
-    let planned_statuses = plan_quest_source_item_bound_objective_statuses_for_test(
-        &session,
-        item_id as u32,
-        0,
-        1,
-    )
-        .expect("one bound objective should be planned");
+    let planned_statuses =
+        plan_quest_source_item_bound_objective_statuses_for_test(&session, item_id as u32, 0, 1)
+            .expect("one bound objective should be planned");
     assert_eq!(planned_statuses.len(), 1);
     assert_eq!(planned_statuses[0].quest_id, early_slot_quest_id);
 
@@ -168,13 +154,9 @@ async fn bank_withdrawal_item_objective_never_sends_generic_credit_like_cpp() {
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     add_active_quest(&mut session, quest_id);
 
-    let changed = apply_quest_item_added_objective_progress_for_test(
-        &mut session,
-        item_id as u32,
-        0,
-        1,
-    )
-    .await;
+    let changed =
+        apply_quest_item_added_objective_progress_for_test(&mut session, item_id as u32, 0, 1)
+            .await;
 
     assert_eq!(changed, vec![quest_id]);
     assert_eq!(

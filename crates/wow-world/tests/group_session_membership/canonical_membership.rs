@@ -6,9 +6,9 @@ use super::*;
 fn represented_group_leader_flag_is_removed_for_non_leader_like_cpp() {
     let (mut session, _, player_guid) = session_with_canonical_player_for_away_like_cpp();
     mutate_canonical_player_for_test(&session, |player| {
-            player.set_player_flag(PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP);
-        })
-        .unwrap();
+        player.set_player_flag(PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP);
+    })
+    .unwrap();
     let leader_guid = ObjectGuid::create_player(1, 99);
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(leader_guid);
@@ -28,7 +28,6 @@ fn represented_group_leader_flag_is_removed_for_non_leader_like_cpp() {
         Some(false)
     );
 }
-
 
 #[test]
 fn canonical_player_group_reference_follows_detached_and_stale_ownership_like_cpp() {
@@ -56,15 +55,17 @@ fn canonical_player_group_reference_follows_detached_and_stale_ownership_like_cp
     session
         .character_ensure_canonical_world_map_for_current_player_for_test()
         .expect("initial world map");
-    let old_handle = session.character_player_handle_for_test().expect("canonical handle");
+    let old_handle = session
+        .character_player_handle_for_test()
+        .expect("canonical handle");
 
-    assert!(set_owned_player_group_like_cpp(&mut session, Some((group_guid, 0))));
+    assert!(set_owned_player_group_like_cpp(
+        &mut session,
+        Some((group_guid, 0))
+    ));
     assert!(session.group_reset_update_sequence_for_test());
     assert_eq!(resolved_group_guid_like_cpp(&session), Some(group_guid));
-    assert_eq!(
-        session.group_next_update_sequence_for_test(0),
-        Some(1)
-    );
+    assert_eq!(session.group_next_update_sequence_for_test(0), Some(1));
     assert!(session.character_remove_current_player_from_canonical_current_map_for_test());
     assert_eq!(
         canonical
@@ -74,10 +75,7 @@ fn canonical_player_group_reference_follows_detached_and_stale_ownership_like_cp
         Some(wow_map::PlayerResidenceLikeCpp::Detached)
     );
     assert_eq!(resolved_group_guid_like_cpp(&session), Some(group_guid));
-    assert_eq!(
-        session.group_next_update_sequence_for_test(0),
-        Some(2)
-    );
+    assert_eq!(session.group_next_update_sequence_for_test(0), Some(2));
 
     let replacement_state = wow_entities::PlayerGroupState {
         group_guid: ObjectGuid::create_group(group_guid + 1),
@@ -112,7 +110,6 @@ fn canonical_player_group_reference_follows_detached_and_stale_ownership_like_cp
     );
 }
 
-
 #[test]
 fn player_registry_publishes_home_group_party_type_like_cpp() {
     let (mut session, _, _) = make_session();
@@ -145,4 +142,3 @@ fn player_registry_publishes_home_group_party_type_like_cpp() {
         ]
     );
 }
-

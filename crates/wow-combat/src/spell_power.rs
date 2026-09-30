@@ -10,9 +10,7 @@ pub fn spell_power_override_from_ap_like_cpp(
     attack_power_multiplier: f32,
     override_percent: f32,
 ) -> i32 {
-    let total_attack_power = attack_power
-        .saturating_add(attack_power_mod_pos)
-        .max(0) as f32
+    let total_attack_power = attack_power.saturating_add(attack_power_mod_pos).max(0) as f32
         * (1.0 + attack_power_multiplier);
     (total_attack_power * override_percent / 100.0 + 0.5) as i32
 }
@@ -73,8 +71,7 @@ pub fn spell_base_damage_bonus_fallback_like_cpp(
             .ok()
             .and_then(|index| stats.get(index))
         {
-            benefit =
-                benefit.saturating_add((*stat as f32 * amount as f32 / 100.0) as i32);
+            benefit = benefit.saturating_add((*stat as f32 * amount as f32 / 100.0) as i32);
         }
     }
     benefit
@@ -108,8 +105,7 @@ pub fn spell_base_healing_bonus_fallback_like_cpp(
             .ok()
             .and_then(|index| stats.get(index))
         {
-            benefit =
-                benefit.saturating_add((*stat as f32 * amount as f32 / 100.0) as i32);
+            benefit = benefit.saturating_add((*stat as f32 * amount as f32 / 100.0) as i32);
         }
     }
     benefit

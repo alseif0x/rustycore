@@ -8,10 +8,9 @@ fn add_account_toy_inserts_once_like_cpp() {
         30_000,
         PlayerCollectionStateLikeCpp::toy_flags(false, false),
     ));
-    assert!(!collections.add_toy_like_cpp(
-        30_000,
-        PlayerCollectionStateLikeCpp::toy_flags(true, true),
-    ));
+    assert!(
+        !collections.add_toy_like_cpp(30_000, PlayerCollectionStateLikeCpp::toy_flags(true, true),)
+    );
 
     assert_eq!(
         collections.project_toy_status(|item_id, is_favorite, has_fanfare| {
@@ -43,9 +42,9 @@ fn toy_clear_fanfare_clears_known_toy_only_like_cpp() {
 #[test]
 fn toy_set_favorite_toggles_known_toy_only_like_cpp() {
     let mut collections = PlayerCollectionStateLikeCpp::default();
-    collections.replace_toys_like_cpp(PlayerCollectionStateLikeCpp::prepare_toys([
-        (30_000, false, true),
-    ]));
+    collections.replace_toys_like_cpp(PlayerCollectionStateLikeCpp::prepare_toys([(
+        30_000, false, true,
+    )]));
 
     assert!(collections.set_toy_favorite(30_000, true));
     assert_eq!(
@@ -99,6 +98,9 @@ fn toy_status_projection_keeps_row_order_optional_emission_and_unrelated_bits() 
         calls.push((item_id, is_favorite, has_fanfare));
         (item_id != 20).then_some((item_id, is_favorite, has_fanfare))
     });
-    assert_eq!(calls, vec![(10, false, false), (20, true, true), (30, false, true)]);
+    assert_eq!(
+        calls,
+        vec![(10, false, false), (20, true, true), (30, false, true)]
+    );
     assert_eq!(rows, vec![(10, false, false), (30, false, true)]);
 }

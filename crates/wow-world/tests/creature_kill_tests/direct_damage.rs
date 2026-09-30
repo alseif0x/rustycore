@@ -25,7 +25,8 @@ async fn creature_kill_target_dies_proc_filters_group_reward_distance_like_cpp()
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
     session.fixture_kill_bind_player(
-        player, Some((Position::new(10.0, 10.0, 0.0, 0.0), Some(group_guid))),
+        player,
+        Some((Position::new(10.0, 10.0, 0.0, 0.0), Some(group_guid))),
     );
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
@@ -42,10 +43,14 @@ async fn creature_kill_target_dies_proc_filters_group_reward_distance_like_cpp()
     ])));
     register_test_creature(&mut session, manager.clone(), guid, 40);
 
-    session.fixture_kill_apply_damage(None, guid, 100).await.unwrap();
+    session
+        .fixture_kill_apply_damage(None, guid, 100)
+        .await
+        .unwrap();
 
     let target_dies_tappers: Vec<_> = session
-        .fixture_kill_observations().events
+        .fixture_kill_observations()
+        .events
         .iter()
         .filter_map(|event| match event {
             RepresentedCreatureKillEventLikeCpp::TapperTargetDiesProc {
@@ -91,7 +96,10 @@ async fn creature_kill_notifies_current_tapper_pet_after_death_state_like_cpp() 
     );
     register_test_creature(&mut session, manager.clone(), guid, 40);
 
-    session.fixture_kill_apply_damage(None, guid, 100).await.unwrap();
+    session
+        .fixture_kill_apply_damage(None, guid, 100)
+        .await
+        .unwrap();
 
     assert_eq!(
         session.fixture_kill_observations().events,
@@ -191,9 +199,17 @@ async fn creature_kill_sets_skinning_flags_when_skin_loot_template_exists_like_c
         -1,
     );
 
-    session.fixture_kill_apply_damage(None, guid, 100).await.unwrap();
+    session
+        .fixture_kill_apply_damage(None, guid, 100)
+        .await
+        .unwrap();
 
-    let manager = session.fixture_lifecycle_manager().as_ref().unwrap().read().unwrap();
+    let manager = session
+        .fixture_lifecycle_manager()
+        .as_ref()
+        .unwrap()
+        .read()
+        .unwrap();
     let world_creature = manager.find_creature(0, 0, guid).unwrap();
     assert!(
         world_creature
@@ -210,16 +226,14 @@ async fn creature_kill_sets_skinning_flags_when_skin_loot_template_exists_like_c
             .unit_flags_like_cpp()
             .contains(UnitFlags::SKINNABLE)
     );
-    assert!(
-        session
-            .fixture_kill_observations().events
-            .contains(&RepresentedCreatureKillEventLikeCpp::LootFlagsApplied {
-                creature_guid: guid,
-                lootable: false,
-                can_skin: true,
-                skinnable: true,
-            })
-    );
+    assert!(session.fixture_kill_observations().events.contains(
+        &RepresentedCreatureKillEventLikeCpp::LootFlagsApplied {
+            creature_guid: guid,
+            lootable: false,
+            can_skin: true,
+            skinnable: true,
+        }
+    ));
 }
 
 #[tokio::test]
@@ -231,7 +245,10 @@ async fn spell_damage_kill_keeps_empty_creature_loot_non_lootable_like_cpp() {
     session.fixture_kill_bind_player(player, None);
     register_test_creature(&mut session, manager.clone(), guid, 40);
 
-    session.fixture_kill_apply_damage(None, guid, 100).await.unwrap();
+    session
+        .fixture_kill_apply_damage(None, guid, 100)
+        .await
+        .unwrap();
 
     let loot = session
         .fixture_kill_loot(guid)

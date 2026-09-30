@@ -5,28 +5,27 @@ use std::{process::ExitCode, sync::Arc};
 use anyhow::{Context, Result};
 use tracing::info;
 use wow_database::{
-    CharacterDatabase, HotfixDatabase, ItemGuidAllocatorAdvisoryLockLikeCpp,
-    LoginDatabase, WorldDatabase,
+    CharacterDatabase, HotfixDatabase, ItemGuidAllocatorAdvisoryLockLikeCpp, LoginDatabase,
+    WorldDatabase,
 };
 use wow_world::session::directory::PlayerRegistry;
 
+use super::{
+    account_admission_startup, area_trigger_template_startup, collection_startup,
+    condition_reference_startup, condition_startup, game_event_startup, geography_startup,
+    group_startup, hotfix_delivery_startup, item_auxiliary_catalogs, jump_charge_startup,
+    loot_startup, network_configuration, npc_service_catalogs, object_lookup_startup,
+    object_query_startup, player_catalog_startup, player_choice_startup, player_creation_startup,
+    presentation_startup, progression_catalog_startup, quest_admission_startup, realm_startup,
+    scaling_startup, serve, session_catalog_capabilities, session_core_capabilities,
+    session_persistence, session_runtime_policy, skill_catalogs, spell_acquisition_startup,
+    spell_pet_startup, spell_world_startup, stat_tables_startup, vehicle_catalogs,
+    world_instance_startup, world_object_startup, world_state_startup, world_template_startup,
+};
 use crate::{
     ActiveWorldSessionRegistryLikeCpp, WorldRuntimeStateLikeCpp,
     run_game_event_quest_complete_processor_like_cpp,
     session_resources::{SessionRealmCapabilitiesLikeCpp, SessionResources},
-};
-use super::{
-    account_admission_startup, area_trigger_template_startup, collection_startup,
-    condition_reference_startup,
-    condition_startup, game_event_startup, geography_startup, group_startup,
-    hotfix_delivery_startup, item_auxiliary_catalogs, jump_charge_startup, loot_startup,
-    network_configuration, npc_service_catalogs, object_lookup_startup, object_query_startup,
-    player_catalog_startup, player_choice_startup, player_creation_startup, presentation_startup,
-    progression_catalog_startup, quest_admission_startup, realm_startup, scaling_startup,
-    serve, session_catalog_capabilities, session_core_capabilities, session_persistence,
-    session_runtime_policy, skill_catalogs, spell_acquisition_startup, spell_pet_startup,
-    spell_world_startup, stat_tables_startup, vehicle_catalogs, world_instance_startup,
-    world_object_startup, world_state_startup, world_template_startup,
 };
 
 pub(super) async fn run_world_startup(
@@ -104,7 +103,10 @@ pub(super) async fn run_world_startup(
         &world_ports.world_object_catalog_persistence,
         world_templates.creature_template_lifecycle_store.as_ref(),
         spawn_ids.creature_spawn_store.as_ref(),
-        world_templates.creature_runtime.creature_display_info_store.as_ref(),
+        world_templates
+            .creature_runtime
+            .creature_display_info_store
+            .as_ref(),
         emotes_store.as_ref(),
         presentation.anim_kit_store.as_ref(),
         &spell_pet.spell_store,
@@ -112,11 +114,10 @@ pub(super) async fn run_world_startup(
         spell_pet.spell_duration_store.as_ref(),
     )
     .await?;
-    let (active_event_store, world_state_store) =
-        world_state_startup::load_condition_world_ids(
-            &world_ports.world_reference_catalog_persistence,
-        )
-        .await?;
+    let (active_event_store, world_state_store) = world_state_startup::load_condition_world_ids(
+        &world_ports.world_reference_catalog_persistence,
+    )
+    .await?;
     let trainer_store = condition_reference_startup::load_trainer_ids(
         &world_ports.world_reference_catalog_persistence,
     )
@@ -205,12 +206,9 @@ pub(super) async fn run_world_startup(
     )
     .await?;
 
-    let (hotfix_blob_cache, tact_key_store) = hotfix_delivery_startup::load(
-        data_dir,
-        locale,
-        hotfix_delivery_metadata_persistence,
-    )
-    .await?;
+    let (hotfix_blob_cache, tact_key_store) =
+        hotfix_delivery_startup::load(data_dir, locale, hotfix_delivery_metadata_persistence)
+            .await?;
 
     let spell_acquisition = spell_acquisition_startup::load(
         data_dir,
@@ -271,7 +269,10 @@ pub(super) async fn run_world_startup(
         spell_acquisition.serverside_spell_store.as_ref(),
         world_templates.creature_runtime.difficulty_store.as_ref(),
         skills.skill_line_store.as_ref(),
-        world_templates.spawn_references.creature_template_store.as_ref(),
+        world_templates
+            .spawn_references
+            .creature_template_store
+            .as_ref(),
         gossip_store,
     )
     .await?;
@@ -288,12 +289,9 @@ pub(super) async fn run_world_startup(
         world_spawns.item_stats_store.as_ref(),
     )
     .await?;
-    let quest_rewards = progression_catalog_startup::load_player_xp_and_quest_rewards(
-        data_dir,
-        locale,
-        world_db,
-    )
-    .await?;
+    let quest_rewards =
+        progression_catalog_startup::load_player_xp_and_quest_rewards(data_dir, locale, world_db)
+            .await?;
     let player_choice_catalog_persistence =
         wow_database::MariaDbPlayerChoiceCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
             world_db,
@@ -327,18 +325,8 @@ pub(super) async fn run_world_startup(
     )
     .await?;
 
-    let (
-        realm_identity,
-        login_db,
-        battle_pet_account_registry,
-        table,
-        account_lookup,
-    ) = account_admission_startup::load(
-        login_db_slot,
-        realm_availability,
-        &stat_tables,
-    )
-    .await?;
+    let (realm_identity, login_db, battle_pet_account_registry, table, account_lookup) =
+        account_admission_startup::load(login_db_slot, realm_availability, &stat_tables).await?;
 
     let player_registry = Arc::new(PlayerRegistry::new());
     let active_session_registry = Arc::new(ActiveWorldSessionRegistryLikeCpp::new());
@@ -390,7 +378,10 @@ pub(super) async fn run_world_startup(
         &spell_pet.spell_info,
         spell_pet.spell_procs_per_minute_store.as_ref(),
         player_catalogs.chr_races_store.as_ref(),
-        world_templates.creature_runtime.creature_display_info_store.as_ref(),
+        world_templates
+            .creature_runtime
+            .creature_display_info_store
+            .as_ref(),
         spell_area.spell_area_store.as_ref(),
         world_spawns.item_stats_store.as_ref(),
     )
@@ -454,10 +445,8 @@ pub(super) async fn run_world_startup(
             Arc::clone(&world_spawns.game_event_persistence),
         ));
 
-    let world_listener_policy = network_configuration::build_listener_policy(
-        world_configs,
-        ip_location_store,
-    );
+    let world_listener_policy =
+        network_configuration::build_listener_policy(world_configs, ip_location_store);
     // The Player lifecycle port is composed here, before any session is
     // accepted, so a build that cannot persist lifecycle state fails at
     // startup rather than silently dropping offline marks at logout (#200).

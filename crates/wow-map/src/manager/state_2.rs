@@ -549,7 +549,9 @@ impl MapManager {
 
     pub fn begin_tick_like_cpp(&mut self, diff_ms: u32) -> MapTickBeginLikeCpp {
         if let Some(operation) = &self.active_respawn {
-            return MapTickBeginLikeCpp::Busy { epoch: operation.epoch() };
+            return MapTickBeginLikeCpp::Busy {
+                epoch: operation.epoch(),
+            };
         }
         // A tick already split is not allowed to consume this diff: advancing the
         // shared timer here would give the pending resumption a foreign current
@@ -579,7 +581,11 @@ impl MapManager {
             };
 
             if map.can_unload(diff_ms) {
-                if Self::destroy_map_inner(map, &mut self.instance_ids, self.active_respawn.is_some()) {
+                if Self::destroy_map_inner(
+                    map,
+                    &mut self.instance_ids,
+                    self.active_respawn.is_some(),
+                ) {
                     destroyed.push(MapTickParticipantLikeCpp { key, incarnation });
                 }
                 continue;
@@ -623,7 +629,8 @@ impl MapManager {
     /// post-session phases. Runtime callers use this before any phase work.
     #[must_use]
     pub fn can_resume_tick(&self, plan: &MapTickPlanLikeCpp) -> bool {
-        self.respawn_ready_for_objects(plan) && self.owns_tick_plan(plan)
+        self.respawn_ready_for_objects(plan)
+            && self.owns_tick_plan(plan)
             && self.tick_coordination_like_cpp
                 == MapTickCoordinationStateLikeCpp::AwaitingSessions(plan.epoch)
     }
@@ -763,9 +770,7 @@ impl MapManager {
         };
 
         loop {
-            let token = match self
-                .prepare_next_object_map(&mut tick, object_update_selection)
-            {
+            let token = match self.prepare_next_object_map(&mut tick, object_update_selection) {
                 Ok(Some(token)) => token,
                 Ok(None) => break,
                 Err(_) => {
@@ -910,7 +915,9 @@ impl MapTickPlanLikeCpp {
     /// Supply a stale respawn participant without changing the earned tick.
     #[cfg(feature = "test-fixtures")]
     pub fn fixture_set_respawn_participant_incarnation(
-        &mut self, key: MapKey, incarnation: u64,
+        &mut self,
+        key: MapKey,
+        incarnation: u64,
     ) -> bool {
         let Some(participant) = self.updated.iter_mut().find(|item| item.key == key) else {
             return false;

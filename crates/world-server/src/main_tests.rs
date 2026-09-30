@@ -116,78 +116,57 @@ use wow_persistence::{
 };
 
 // Keep fixture helpers available to the existing scenario modules through this root.
+#[path = "main_tests/loaded_grid_fixtures.rs"]
 mod loaded_grid_fixtures;
 use loaded_grid_fixtures::{
-    empty_loaded_grid_creature_respawn_caches_like_cpp,
-    loaded_grid_map_store_like_cpp,
-    area_trigger_template_store_for_loaded_grid_like_cpp,
+    area_trigger_template_store_for_loaded_grid_like_cpp, canonical_test_map_store_like_cpp,
+    creature_base_stats_record_like_cpp, empty_loaded_grid_creature_respawn_caches_like_cpp,
+    loaded_grid_map_store_like_cpp, mapid_condition, test_spawn, test_spawn_metadata,
+    test_spawn_metadata_with_explicit_spawn_ids, test_spawn_metadata_with_flags,
     variable_loaded_grid_creature_respawn_caches_like_cpp,
-    variable_loaded_grid_creature_respawn_caches_with_vehicle_id_like_cpp,
     variable_loaded_grid_creature_respawn_caches_with_vehicle_id_and_difficulty_like_cpp,
-    vehicle_store_for_loaded_grid_test,
-    vehicle_seat_store_for_loaded_grid_test,
-    creature_base_stats_record_like_cpp,
-    test_spawn_metadata,
-    test_spawn_metadata_with_flags,
-    test_spawn_metadata_with_explicit_spawn_ids,
-    test_spawn,
-    mapid_condition,
-    canonical_test_map_store_like_cpp,
+    variable_loaded_grid_creature_respawn_caches_with_vehicle_id_like_cpp,
+    vehicle_seat_store_for_loaded_grid_test, vehicle_store_for_loaded_grid_test,
 };
 
+#[path = "main_tests/game_event_fixtures.rs"]
 mod game_event_fixtures;
 use game_event_fixtures::{
-    game_event_quest_complete_progressed_outcome_like_cpp,
+    add_spawn_data_like_cpp, assert_game_event_save_operation_like_cpp,
     canonical_spawn_metadata_with_pool_mgr_like_cpp,
+    canonical_spawn_metadata_with_store_and_game_event_guids_like_cpp,
     canonical_spawn_metadata_with_store_and_pool_mgr_like_cpp,
     canonical_spawn_metadata_with_store_pool_mgr_and_game_event_pools_like_cpp,
-    pool_mgr_with_creature_pool_like_cpp,
-    spawn_data_like_cpp,
-    add_spawn_data_like_cpp,
-    game_event_npc_flag_template_store_like_cpp,
-    game_event_spawn_test_spawn_data_like_cpp,
-    game_event_spawn_test_caches_like_cpp,
-    canonical_spawn_metadata_with_store_and_game_event_guids_like_cpp,
-    push_game_event_guid_for_test_like_cpp,
-    test_guid_like_cpp,
-    insert_live_creature_for_spawn_like_cpp,
-    insert_live_gameobject_for_spawn_like_cpp,
-    game_event_world_state_metadata_like_cpp,
-    game_event_world_state_start_outcome_like_cpp,
     empty_game_event_update_outcome_for_db_bridge_like_cpp,
-    assert_game_event_save_operation_like_cpp,
-    game_event_live_update_npc_vendor_record_like_cpp,
     game_event_live_update_npc_vendor_metadata_like_cpp,
-    live_npc_flags_like_cpp,
-    live_npc_flags2_like_cpp,
+    game_event_live_update_npc_vendor_record_like_cpp, game_event_npc_flag_template_store_like_cpp,
+    game_event_quest_complete_progressed_outcome_like_cpp, game_event_spawn_test_caches_like_cpp,
+    game_event_spawn_test_spawn_data_like_cpp, game_event_world_state_metadata_like_cpp,
+    game_event_world_state_start_outcome_like_cpp, insert_live_creature_for_spawn_like_cpp,
+    insert_live_gameobject_for_spawn_like_cpp, live_npc_flags_like_cpp, live_npc_flags2_like_cpp,
+    pool_mgr_with_creature_pool_like_cpp, push_game_event_guid_for_test_like_cpp,
+    spawn_data_like_cpp, test_guid_like_cpp,
 };
 
+#[path = "main_tests/respawn_persistence_fixtures.rs"]
 mod respawn_persistence_fixtures;
 use respawn_persistence_fixtures::{
-    assert_del_respawn_params_like_cpp,
-    assert_rep_respawn_params_like_cpp,
+    assert_del_respawn_params_like_cpp, assert_rep_respawn_params_like_cpp,
+    linked_respawn_guid_like_cpp, respawn_db_delete_mutation_fixture_like_cpp,
+    respawn_db_save_mutation_fixture_like_cpp, respawn_info_like_cpp,
     respawn_persistence_key_fixture_like_cpp,
-    linked_respawn_guid_like_cpp,
-    respawn_info_like_cpp,
-    respawn_db_save_mutation_fixture_like_cpp,
-    respawn_db_delete_mutation_fixture_like_cpp,
 };
 
+#[path = "main_tests/runtime_delivery_fixtures.rs"]
 mod runtime_delivery_fixtures;
 use runtime_delivery_fixtures::{
-    legacy_runtime_world_map_store_like_cpp,
-    player_registration_fixture_like_cpp,
-    drain_durable_creature_runtime_commands_like_cpp,
+    add_canonical_test_creature_on_map_like_cpp, add_canonical_test_player_on_map_like_cpp,
+    drain_durable_creature_runtime_commands_like_cpp, insert_player_registration_fixture_like_cpp,
     insert_player_registration_fixture_with_in_world_like_cpp,
-    insert_player_registration_fixture_like_cpp,
+    legacy_runtime_world_map_store_like_cpp, make_creature_spell_runtime_plan_like_cpp,
+    make_nearby_visible_event_like_cpp, make_registry_player_like_cpp, make_source_guid,
+    mirror_canonical_melee_test_creature_like_cpp, player_registration_fixture_like_cpp,
     unique_temp_dir,
-    make_source_guid,
-    make_nearby_visible_event_like_cpp,
-    make_creature_spell_runtime_plan_like_cpp,
-    make_registry_player_like_cpp,
-    add_canonical_test_player_on_map_like_cpp,
-    add_canonical_test_creature_on_map_like_cpp,
-    mirror_canonical_melee_test_creature_like_cpp,
 };
 
 #[derive(Default)]

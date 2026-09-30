@@ -10,7 +10,6 @@ where
     Terrain: TerrainGridLoader,
     Lifecycle: GridLifecycle,
 {
-
     pub const fn grid_expiry_ms(&self) -> i64 {
         self.grid_expiry_ms
     }
@@ -225,7 +224,9 @@ where
         self.terrain.unload_map(terrain_x, terrain_y);
     }
 
-    pub(in crate::map) fn drain_grid_unload_actions_like_cpp(&mut self) -> Vec<GridUnloadApplyOutcome> {
+    pub(in crate::map) fn drain_grid_unload_actions_like_cpp(
+        &mut self,
+    ) -> Vec<GridUnloadApplyOutcome> {
         let actions = self.lifecycle.take_unload_actions_like_cpp();
         if actions.is_empty() {
             return Vec::new();
@@ -233,5 +234,4 @@ where
 
         apply_grid_unload_actions(self, actions)
     }
-
 }

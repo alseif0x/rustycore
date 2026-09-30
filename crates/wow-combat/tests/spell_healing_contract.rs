@@ -1,7 +1,7 @@
 use wow_combat::{
     SpellHealingPctDoneInputsLikeCpp, spell_healing_bonus_done_like_cpp,
-    spell_healing_bonus_from_victim_aura_effects_like_cpp,
-    spell_healing_bonus_taken_like_cpp, spell_healing_pct_done_like_cpp,
+    spell_healing_bonus_from_victim_aura_effects_like_cpp, spell_healing_bonus_taken_like_cpp,
+    spell_healing_pct_done_like_cpp,
 };
 
 #[test]
@@ -70,7 +70,10 @@ fn spell_healing_pct_gate_short_circuits_all_modifier_inputs() {
 
 #[test]
 fn spell_healing_taken_uses_min_negative_then_max_positive_and_clamps() {
-    assert_eq!(spell_healing_bonus_taken_like_cpp(100, &[-30, -10, 20, 5]), 84);
+    assert_eq!(
+        spell_healing_bonus_taken_like_cpp(100, &[-30, -10, 20, 5]),
+        84
+    );
     assert_eq!(spell_healing_bonus_taken_like_cpp(10, &[-200, -150]), 0);
     assert_eq!(spell_healing_bonus_taken_like_cpp(u32::MAX, &[]), u32::MAX);
 }
@@ -78,5 +81,8 @@ fn spell_healing_taken_uses_min_negative_then_max_positive_and_clamps() {
 #[test]
 fn spell_healing_final_application_clamps_below_zero_and_at_u32_max() {
     assert_eq!(spell_healing_bonus_done_like_cpp(10, -20, 1.0), 0);
-    assert_eq!(spell_healing_bonus_done_like_cpp(u32::MAX, 0, 1.0), u32::MAX);
+    assert_eq!(
+        spell_healing_bonus_done_like_cpp(u32::MAX, 0, 1.0),
+        u32::MAX
+    );
 }

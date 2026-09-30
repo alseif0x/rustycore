@@ -1,7 +1,7 @@
 // Existing Character application scenarios, moved with original assertion operands.
 
-use super::fixtures::*;
 use super::fixtures::session::make_session;
+use super::fixtures::*;
 
 fn character_save_session_with_port(
     outcome: PersistenceOutcomeLikeCpp,
@@ -147,24 +147,19 @@ async fn character_save_does_not_reapply_save_destination_or_progression_to_runt
         {
             let player = session.character_save_runtime_for_test().unwrap();
             assert_eq!(
-                player.position,
-                original,
+                player.position, original,
                 "save-only teleport destination must not relocate the live Player"
             );
+            assert_eq!(player.level, 60, "saving must not replay staged identity");
             assert_eq!(
-                player.level,
-                60,
-                "saving must not replay staged identity"
-            );
-            assert_eq!(
-                player.character_points,
-                23,
+                player.character_points, 23,
                 "saving must not run talent initialization"
             );
             assert!(player.near_pending);
         }
         assert_eq!(
-            session.character_tutorials_changed_for_test(), remains_dirty,
+            session.character_tutorials_changed_for_test(),
+            remains_dirty,
             "only confirmed commit cleans dirty groups"
         );
     }

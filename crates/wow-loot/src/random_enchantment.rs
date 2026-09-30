@@ -1,5 +1,8 @@
 //! Weighted random enchantment selection; ItemEnchantmentMgr::GenerateRandomProperties.
-use rand::{Rng, distributions::{Distribution, WeightedIndex}};
+use rand::{
+    Rng,
+    distributions::{Distribution, WeightedIndex},
+};
 
 pub fn select_random_enchantment<R: Rng + ?Sized>(
     group: impl IntoIterator<Item = (u32, f32)>,

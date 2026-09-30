@@ -1,7 +1,7 @@
 //! Creature-victim mitigation/outcome stages; no packet production.
-use super::*;
-use super::source::CreatureMeleeSource;
 use super::absorption::*;
+use super::source::CreatureMeleeSource;
+use super::*;
 pub(super) fn creature_victim_damage_like_cpp(
     canonical_manager: &mut MapManager,
     source: &CreatureMeleeSource<'_>,
@@ -279,21 +279,20 @@ pub(super) fn creature_victim_damage_like_cpp(
                     );
                     // C++ `Unit::RollMeleeOutcomeAgainst`
                     // (`Unit.cpp:2272-2310`).
-                    let inputs = melee_outcome_inputs_like_cpp(
-                        &attacker_facts,
-                        &victim_facts,
-                    );
+                    let inputs = melee_outcome_inputs_like_cpp(&attacker_facts, &victim_facts);
                     let rolled = rolled_melee_outcome_like_cpp(&inputs[0]);
-                    let mut info = MeleePresentation { outcome: Some(rolled), ..Default::default() };
-                    let (outcome_damage, blocked, _original) =
-                        melee_outcome_damage_like_cpp(
-                            rolled,
-                            mitigated,
-                            attacker_facts.level,
-                            victim_facts.level,
-                            attacker_facts.crit_damage_multiplier,
-                            CREATURE_BLOCK_PERCENT_LIKE_CPP,
-                        );
+                    let mut info = MeleePresentation {
+                        outcome: Some(rolled),
+                        ..Default::default()
+                    };
+                    let (outcome_damage, blocked, _original) = melee_outcome_damage_like_cpp(
+                        rolled,
+                        mitigated,
+                        attacker_facts.level,
+                        victim_facts.level,
+                        attacker_facts.crit_damage_multiplier,
+                        CREATURE_BLOCK_PERCENT_LIKE_CPP,
+                    );
                     swing_state.creature_victim_avoided = matches!(
                         rolled,
                         RepresentedMeleeOutcomeLikeCpp::Immune
@@ -303,10 +302,19 @@ pub(super) fn creature_victim_damage_like_cpp(
                             | RepresentedMeleeOutcomeLikeCpp::Parry
                     );
                     swing_state.outcome_represented = true;
-                    let absorb = apply_melee_absorb_to_canonical_creature_like_cpp(canonical_manager, swing.map_id, swing.instance_id, swing.attacker_guid, swing.victim_guid, 0x01, outcome_damage, outcome_damage.min(i32::MAX as u32) as i32, catalogs, map_difficulty_id, represented_melee_ignore_absorb_like_cpp(
-                            &attacker_effects,
-                            0x01,
-                        ));
+                    let absorb = apply_melee_absorb_to_canonical_creature_like_cpp(
+                        canonical_manager,
+                        swing.map_id,
+                        swing.instance_id,
+                        swing.attacker_guid,
+                        swing.victim_guid,
+                        0x01,
+                        outcome_damage,
+                        outcome_damage.min(i32::MAX as u32) as i32,
+                        catalogs,
+                        map_difficulty_id,
+                        represented_melee_ignore_absorb_like_cpp(&attacker_effects, 0x01),
+                    );
                     let (absorbed, remaining) = absorb
                         .map(|(absorbed, remaining, events)| {
                             swing_state.creature_victim_absorb_events = events;

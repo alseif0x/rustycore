@@ -65,7 +65,12 @@ impl PlayerCollectionStateLikeCpp {
                 item_appearance_blocks[block_index as usize] = appearance_mask;
             }
         }
-        (blocks, item_appearances, item_appearance_blocks, highest_block)
+        (
+            blocks,
+            item_appearances,
+            item_appearance_blocks,
+            highest_block,
+        )
     }
 
     pub fn apply_loaded_appearance_fields(
@@ -155,7 +160,8 @@ impl PlayerCollectionStateLikeCpp {
     }
 
     pub fn has_transmog_illusion(&self, transmog_illusion_id: u32) -> bool {
-        self.transmog_illusions_like_cpp().contains(&transmog_illusion_id)
+        self.transmog_illusions_like_cpp()
+            .contains(&transmog_illusion_id)
     }
 
     pub fn illusion_save_plan(&self) -> AccountTransmogIllusionSavePlanLikeCpp {
@@ -168,7 +174,8 @@ impl PlayerCollectionStateLikeCpp {
             }
         }
         AccountTransmogIllusionSavePlanLikeCpp {
-            illusion_blocks: blocks.into_iter()
+            illusion_blocks: blocks
+                .into_iter()
                 .filter(|(_, illusion_mask)| *illusion_mask != 0)
                 .collect(),
         }

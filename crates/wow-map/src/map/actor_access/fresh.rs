@@ -19,9 +19,18 @@ pub enum FreshCreatureActorAdmission {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FreshCreatureActorAdmissionError {
     Store(MapObjectStoreError),
-    AlreadyInWorld { guid: ObjectGuid },
-    InvalidCoordinates { guid: ObjectGuid, x: f32, y: f32 },
-    NotExactCreature { guid: ObjectGuid, actual_kind: AccessorObjectKind },
+    AlreadyInWorld {
+        guid: ObjectGuid,
+    },
+    InvalidCoordinates {
+        guid: ObjectGuid,
+        x: f32,
+        y: f32,
+    },
+    NotExactCreature {
+        guid: ObjectGuid,
+        actual_kind: AccessorObjectKind,
+    },
 }
 
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
@@ -39,26 +48,39 @@ where
     pub fn admit_fresh_creature_actor(
         &mut self,
         incoming: WorldCreature,
-    ) -> Result<FreshCreatureActorAdmission, (FreshCreatureActorAdmissionError, WorldCreature)> {
+    ) -> Result<FreshCreatureActorAdmission, (FreshCreatureActorAdmissionError, WorldCreature)>
+    {
         if let Err(error) = self.validate_creature_actor(&incoming) {
             return Err((FreshCreatureActorAdmissionError::Store(error), incoming));
         }
         let guid = incoming.guid();
         let object = incoming.creature.unit().world();
         if object.object().is_in_world() {
-            return Err((FreshCreatureActorAdmissionError::AlreadyInWorld { guid }, incoming));
+            return Err((
+                FreshCreatureActorAdmissionError::AlreadyInWorld { guid },
+                incoming,
+            ));
         }
         let position = object.position();
         if !is_valid_map_coord_2d(position.x, position.y) {
-            return Err((FreshCreatureActorAdmissionError::InvalidCoordinates {
-                guid, x: position.x, y: position.y,
-            }, incoming));
+            return Err((
+                FreshCreatureActorAdmissionError::InvalidCoordinates {
+                    guid,
+                    x: position.x,
+                    y: position.y,
+                },
+                incoming,
+            ));
         }
         if let Some(current) = self.entity_world.get(&guid) {
             if current.kind() != AccessorObjectKind::Creature || current.creature().is_none() {
-                return Err((FreshCreatureActorAdmissionError::NotExactCreature {
-                    guid, actual_kind: current.kind(),
-                }, incoming));
+                return Err((
+                    FreshCreatureActorAdmissionError::NotExactCreature {
+                        guid,
+                        actual_kind: current.kind(),
+                    },
+                    incoming,
+                ));
             }
             return Ok(if self.entity_world.creature_actor(guid).is_some() {
                 FreshCreatureActorAdmission::ExistingActor { incoming }
@@ -73,7 +95,8 @@ where
         // receive terrain/grid state, not Map or its entity store. The lifecycle
         // changes current-cell/in-world state, never GUID or map identity.
         // Reuse its sole body rather than duplicating or reinitializing a motor.
-        let outcome = self.add_object_entry_to_map(ObjectEntry::from_creature_actor(incoming))
+        let outcome = self
+            .add_object_entry_to_map(ObjectEntry::from_creature_actor(incoming))
             .expect("fresh actor preflight covers every AddToMap rejection gate");
         debug_assert!(outcome.inserted && !outcome.already_in_world);
         Ok(FreshCreatureActorAdmission::Inserted { outcome })

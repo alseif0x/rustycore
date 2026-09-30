@@ -14,7 +14,11 @@ impl MapManager {
         persistent_world_map: bool,
     ) -> LegacyCreatureRespawnPrefix {
         crate::map::prepare_legacy_creature_respawns(
-            self, (map_id, instance_id), now, conversion_now, conversion_now_secs,
+            self,
+            (map_id, instance_id),
+            now,
+            conversion_now,
+            conversion_now_secs,
             persistent_world_map,
         )
     }

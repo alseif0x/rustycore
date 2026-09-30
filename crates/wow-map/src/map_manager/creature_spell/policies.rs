@@ -4,21 +4,32 @@ use crate::map_manager::AggroAiFacts;
 
 #[derive(Debug, Clone, Copy)]
 pub enum SpellPreparationCheck {
-    RuntimeHooks, CastingRequirements, ShapeshiftRequirements, AuraRestrictions,
-    CooldownSemantics, CombatForbidden, TargetRestrictions, Projectile,
+    RuntimeHooks,
+    CastingRequirements,
+    ShapeshiftRequirements,
+    AuraRestrictions,
+    CooldownSemantics,
+    CombatForbidden,
+    TargetRestrictions,
+    Projectile,
 }
 
 #[derive(Debug)]
 pub struct SpellHitFacts {
-    pub defense_type: i8, pub school_mask: u8, pub spell_mechanic: i8,
+    pub defense_type: i8,
+    pub school_mask: u8,
+    pub spell_mechanic: i8,
     pub effect_mechanics: std::collections::BTreeMap<u32, i32>,
 }
 
 #[derive(Debug, Clone, Copy)]
 pub struct SpellFactionFacts {
-    pub creature_faction_id: u32, pub contested_guard: bool,
-    pub caster_hostile: bool, pub victim_hostile: bool,
-    pub caster_friendly: bool, pub victim_friendly: bool,
+    pub creature_faction_id: u32,
+    pub contested_guard: bool,
+    pub caster_hostile: bool,
+    pub victim_hostile: bool,
+    pub caster_friendly: bool,
+    pub victim_friendly: bool,
 }
 
 pub struct SpellPolicies<'a> {

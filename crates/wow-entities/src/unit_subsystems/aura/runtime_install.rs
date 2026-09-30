@@ -11,8 +11,8 @@
 //! and SpellAuraEffects.cpp. This relocation does not claim full Aura execution.
 
 use super::{
-    AuraApplicationLikeCpp, AuraSubsystem, Instant, ObjectGuid,
-    RepresentedAuraEffectAmountLikeCpp, RepresentedAuraEffectLikeCpp,
+    AuraApplicationLikeCpp, AuraSubsystem, Instant, ObjectGuid, RepresentedAuraEffectAmountLikeCpp,
+    RepresentedAuraEffectLikeCpp,
 };
 
 impl AuraSubsystem {
@@ -26,13 +26,17 @@ impl AuraSubsystem {
         self.set_aura_cast_provenance_like_cpp(slot, provenance);
     }
 
-    pub fn single_effect_amounts(effect_index: u32, base_points: i32)
-        -> Vec<RepresentedAuraEffectAmountLikeCpp>
-    {
+    pub fn single_effect_amounts(
+        effect_index: u32,
+        base_points: i32,
+    ) -> Vec<RepresentedAuraEffectAmountLikeCpp> {
         let Some(effect_index) = u8::try_from(effect_index).ok() else {
             return Vec::new();
         };
-        vec![RepresentedAuraEffectAmountLikeCpp { effect_index, amount: base_points }]
+        vec![RepresentedAuraEffectAmountLikeCpp {
+            effect_index,
+            amount: base_points,
+        }]
     }
     /// Select and calculate before A0, then form the canonical record.
     /// The only amount-vector clone is retained at its original field point.
@@ -50,7 +54,12 @@ impl AuraSubsystem {
         is_ability: impl FnOnce(i32) -> bool,
         difficulty: impl FnOnce() -> u8,
         now: impl FnOnce() -> Instant,
-    ) -> (AuraApplicationLikeCpp, Vec<RepresentedAuraEffectAmountLikeCpp>, bool, bool) {
+    ) -> (
+        AuraApplicationLikeCpp,
+        Vec<RepresentedAuraEffectAmountLikeCpp>,
+        bool,
+        bool,
+    ) {
         // Preserve the represented StatSystem-relevant multiplier on the same
         // AuraApplication. C++ AuraEffect::HandleModTotalPercentStat uses
         // MiscValueB as a per-stat bitmask (zero means all stats), while the
@@ -73,20 +82,33 @@ impl AuraSubsystem {
         let is_ability = is_ability(spell_id);
         let modifies_total_stats = !total_stat_percentage_effects.is_empty();
         let preserve_health_pct = is_ability
-            && total_stat_percentage_effects.iter()
+            && total_stat_percentage_effects
+                .iter()
                 .any(|(_, _, _, stat_mask)| *stat_mask == 0 || *stat_mask & (1 << 2) != 0);
         let first_total_stat_percentage = total_stat_percentage_effects.first().copied();
-        let (represented_effect, represented_amount, represented_misc_value, represented_multiplier) =
-            if let Some((_, amount, _, stat_mask)) = first_total_stat_percentage {
-                (Some(RepresentedAuraEffectLikeCpp::ModTotalStatPercentage),
-                    amount, Some(stat_mask), 1.0 + amount as f32 / 100.0)
-            } else {
-                (None, 0, None, 1.0)
-            };
-        let represented_effect_amounts: Vec<_> = total_stat_percentage_effects.iter()
+        let (
+            represented_effect,
+            represented_amount,
+            represented_misc_value,
+            represented_multiplier,
+        ) = if let Some((_, amount, _, stat_mask)) = first_total_stat_percentage {
+            (
+                Some(RepresentedAuraEffectLikeCpp::ModTotalStatPercentage),
+                amount,
+                Some(stat_mask),
+                1.0 + amount as f32 / 100.0,
+            )
+        } else {
+            (None, 0, None, 1.0)
+        };
+        let represented_effect_amounts: Vec<_> = total_stat_percentage_effects
+            .iter()
             .filter_map(|(effect_index, amount, _, _)| {
                 u8::try_from(*effect_index).ok().map(|effect_index| {
-                    RepresentedAuraEffectAmountLikeCpp { effect_index, amount: *amount }
+                    RepresentedAuraEffectAmountLikeCpp {
+                        effect_index,
+                        amount: *amount,
+                    }
                 })
             })
             .collect();
@@ -109,7 +131,12 @@ impl AuraSubsystem {
             represented_multiplier,
             applied_at: now(),
         };
-        (aura, represented_effect_amounts, modifies_total_stats, preserve_health_pct)
+        (
+            aura,
+            represented_effect_amounts,
+            modifies_total_stats,
+            preserve_health_pct,
+        )
     }
 
     pub fn build_focus_runtime_application<E>(
@@ -135,7 +162,10 @@ impl AuraSubsystem {
             aura_interrupt_flags2: 0,
             represented_effect: Some(RepresentedAuraEffectLikeCpp::ProvideSpellFocus),
             represented_amount: fields(effect).1,
-            represented_effect_amounts: Self::single_effect_amounts(fields(effect).0, fields(effect).1),
+            represented_effect_amounts: Self::single_effect_amounts(
+                fields(effect).0,
+                fields(effect).1,
+            ),
             represented_misc_value: Some(fields(effect).2),
             represented_multiplier: 1.0,
             applied_at: now(),
@@ -167,7 +197,10 @@ impl AuraSubsystem {
             aura_interrupt_flags2: 0,
             represented_effect: Some(represented_effect),
             represented_amount: fields(effect).1,
-            represented_effect_amounts: Self::single_effect_amounts(fields(effect).0, fields(effect).1),
+            represented_effect_amounts: Self::single_effect_amounts(
+                fields(effect).0,
+                fields(effect).1,
+            ),
             represented_misc_value: None,
             represented_multiplier: 1.0,
             applied_at: now(),
@@ -198,7 +231,10 @@ impl AuraSubsystem {
             aura_interrupt_flags2: 0,
             represented_effect: Some(RepresentedAuraEffectLikeCpp::Mounted),
             represented_amount: mounted_amount,
-            represented_effect_amounts: Self::single_effect_amounts(fields(effect).0, fields(effect).1),
+            represented_effect_amounts: Self::single_effect_amounts(
+                fields(effect).0,
+                fields(effect).1,
+            ),
             represented_misc_value: Some(fields(effect).2),
             represented_multiplier: 1.0,
             applied_at: now(),
@@ -229,11 +265,13 @@ impl AuraSubsystem {
             aura_interrupt_flags2: 0,
             represented_effect: Some(RepresentedAuraEffectLikeCpp::ModBattlePetXpPct),
             represented_amount: fields(effect).1,
-            represented_effect_amounts: Self::single_effect_amounts(fields(effect).0, fields(effect).1),
+            represented_effect_amounts: Self::single_effect_amounts(
+                fields(effect).0,
+                fields(effect).1,
+            ),
             represented_misc_value: None,
             represented_multiplier: multiplier,
             applied_at: now(),
         }
     }
-
 }

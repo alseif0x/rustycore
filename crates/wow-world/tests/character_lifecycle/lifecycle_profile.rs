@@ -3,18 +3,14 @@ use super::fixtures::*;
 
 use std::sync::Arc;
 
-use wow_world::session::WorldSession;
 use wow_constants::ServerOpcodes;
 use wow_core::guid::HighGuid;
 use wow_core::{EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator};
-use wow_packet::packets::character::{
-    DECLINED_NAMES_RESULT_ERROR_LIKE_CPP,
-};
 use wow_packet::WorldPacket;
+use wow_packet::packets::character::DECLINED_NAMES_RESULT_ERROR_LIKE_CPP;
+use wow_world::session::WorldSession;
 
-fn make_session_with_send_capacity(
-    capacity: usize,
-) -> (WorldSession, flume::Receiver<Vec<u8>>) {
+fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(1);
     let (send_tx, send_rx) = flume::bounded::<Vec<u8>>(capacity);
     let mut session = WorldSession::new_character_lifecycle_fixture(
@@ -35,12 +31,6 @@ fn make_session_with_send_capacity(
     ));
     (session, send_rx)
 }
-
-
-
-
-
-
 
 fn declined_names_packet(player: ObjectGuid, names: [&str; 5]) -> WorldPacket {
     let mut pkt = WorldPacket::new_empty();

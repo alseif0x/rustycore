@@ -1,22 +1,21 @@
 //! Supervision and ordered shutdown of the running world server.
 
+use crate::runtime::map::{CanonicalMapProducerExit, stop_canonical_map_producer};
 use anyhow::Result;
 use std::process::ExitCode;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tokio::task::{AbortHandle, JoinHandle};
 use tracing::info;
-use crate::runtime::map::{CanonicalMapProducerExit, stop_canonical_map_producer};
 
 use crate::{
-    clear_online_accounts_like_cpp, drain_respawn_db_writer_like_cpp,
-    kick_all_sessions_like_cpp, process_exit_code_like_cpp, set_realm_offline,
-    shutdown_signal, stop_respawn_db_producer_like_cpp, stop_world_network_like_cpp,
-    update_sessions_shutdown_flush_once_like_cpp, ActiveWorldSessionRegistryLikeCpp,
-    RespawnDbWriterSenderLikeCpp, WorldRuntimeStateLikeCpp, ERROR_EXIT_CODE_LIKE_CPP,
-    RESPAWN_DB_PRODUCER_STOP_TIMEOUT,
-    SHUTDOWN_EXIT_CODE_LIKE_CPP, WORLD_SESSION_FORCE_CANCEL_TIMEOUT_LIKE_CPP,
-    WORLD_SESSION_SHUTDOWN_DRAIN_TIMEOUT_LIKE_CPP,
-    WORLD_SESSION_SHUTDOWN_FLUSH_TIMEOUT_LIKE_CPP,
+    ActiveWorldSessionRegistryLikeCpp, ERROR_EXIT_CODE_LIKE_CPP, RESPAWN_DB_PRODUCER_STOP_TIMEOUT,
+    RespawnDbWriterSenderLikeCpp, SHUTDOWN_EXIT_CODE_LIKE_CPP,
+    WORLD_SESSION_FORCE_CANCEL_TIMEOUT_LIKE_CPP, WORLD_SESSION_SHUTDOWN_DRAIN_TIMEOUT_LIKE_CPP,
+    WORLD_SESSION_SHUTDOWN_FLUSH_TIMEOUT_LIKE_CPP, WorldRuntimeStateLikeCpp,
+    clear_online_accounts_like_cpp, drain_respawn_db_writer_like_cpp, kick_all_sessions_like_cpp,
+    process_exit_code_like_cpp, set_realm_offline, shutdown_signal,
+    stop_respawn_db_producer_like_cpp, stop_world_network_like_cpp,
+    update_sessions_shutdown_flush_once_like_cpp,
 };
 
 pub(super) struct RuntimeSupervisionInputs<'a> {
@@ -33,7 +32,8 @@ pub(super) struct RuntimeSupervisionInputs<'a> {
     pub(super) battle_pet_account_registry: &'a wow_world::BattlePetAccountRegistryLikeCpp,
     pub(super) respawn_db_producer_stop: &'a AtomicBool,
     pub(super) respawn_db_writer_tx: RespawnDbWriterSenderLikeCpp,
-    pub(super) item_guid_allocator_advisory_lock: wow_database::ItemGuidAllocatorAdvisoryLockLikeCpp,
+    pub(super) item_guid_allocator_advisory_lock:
+        wow_database::ItemGuidAllocatorAdvisoryLockLikeCpp,
     pub(super) game_event_quest_complete_handle: &'a JoinHandle<()>,
     pub(super) db_keepalive_handle: &'a Option<JoinHandle<()>>,
     pub(super) realm_list_update_handle: &'a Option<JoinHandle<()>>,
@@ -190,12 +190,16 @@ pub(super) async fn supervise_and_shutdown(
     // StopNetwork ordering remains intact.
     active_session_registry.begin_shutdown_like_cpp();
     let request = active_session_registry.close_tick_admission();
-    let quiescence = active_session_registry.wait_for_quiescence(
-        request, RESPAWN_DB_PRODUCER_STOP_TIMEOUT,
-    ).await.and_then(|receipt| active_session_registry.enable_session_drain(receipt));
+    let quiescence = active_session_registry
+        .wait_for_quiescence(request, RESPAWN_DB_PRODUCER_STOP_TIMEOUT)
+        .await
+        .and_then(|receipt| active_session_registry.enable_session_drain(receipt));
     if let Err(failure) = quiescence {
         world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
-        tracing::error!(?failure, "Producer quiescence unproven; shutdown controls cannot authorize session effects");
+        tracing::error!(
+            ?failure,
+            "Producer quiescence unproven; shutdown controls cannot authorize session effects"
+        );
     }
     // Control/network attempts retain their C++ order even on failure. Only
     // the real receipt above lets session owners execute the queued controls.
@@ -299,12 +303,16 @@ pub(super) async fn supervise_and_shutdown(
     // A final simulation tick is an explicit new admission, never a bypass
     // around a retained writer or an unresolved producer obligation.
     let request = active_session_registry.close_tick_admission();
-    let final_tick_admission = active_session_registry.wait_for_terminal_settlement(
-        request, RESPAWN_DB_PRODUCER_STOP_TIMEOUT,
-    ).await.and_then(|receipt| active_session_registry.authorize_final_respawn_tick(receipt));
+    let final_tick_admission = active_session_registry
+        .wait_for_terminal_settlement(request, RESPAWN_DB_PRODUCER_STOP_TIMEOUT)
+        .await
+        .and_then(|receipt| active_session_registry.authorize_final_respawn_tick(receipt));
     if let Err(failure) = final_tick_admission {
         world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
-        tracing::error!(?failure, "Final respawn tick refused; retained owners cannot authorize simulation");
+        tracing::error!(
+            ?failure,
+            "Final respawn tick refused; retained owners cannot authorize simulation"
+        );
     }
     respawn_db_producer_stop.store(true, Ordering::Release);
     let (map_update_stopped, legacy_runtime_stopped) = tokio::join!(
@@ -328,22 +336,28 @@ pub(super) async fn supervise_and_shutdown(
     // timeout or abort is never a receipt for that closure.
     active_session_registry.close_final_tick_admission();
     let request = active_session_registry.close_tick_admission();
-    let producers_settled = active_session_registry.wait_for_terminal_settlement(
-        request, RESPAWN_DB_PRODUCER_STOP_TIMEOUT,
-    ).await;
+    let producers_settled = active_session_registry
+        .wait_for_terminal_settlement(request, RESPAWN_DB_PRODUCER_STOP_TIMEOUT)
+        .await;
     if producers_settled.is_ok() {
         // The mutation-to-submit fence is unchanged. Closing now makes the
         // writer's existing backoff due and drains retained spawn operations.
         respawn_db_writer_tx.close_like_cpp();
         drop(respawn_db_writer_tx);
-        if !drain_respawn_db_writer_like_cpp(&mut *respawn_db_writer_handle, respawn_db_writer_finished)
-            .await
+        if !drain_respawn_db_writer_like_cpp(
+            &mut *respawn_db_writer_handle,
+            respawn_db_writer_finished,
+        )
+        .await
         {
             world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
         }
     } else {
         world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
-        tracing::error!(?producers_settled, "Respawn producers retain unproven effects; refusing mailbox completion/drain claim");
+        tracing::error!(
+            ?producers_settled,
+            "Respawn producers retain unproven effects; refusing mailbox completion/drain claim"
+        );
     }
 
     game_event_quest_complete_handle.abort();

@@ -2,18 +2,30 @@
 use super::*;
 
 pub(super) fn plan_creature_damage_threat_like_cpp(
-    map: &ManagedMapInnerLikeCpp, attacker_guid: ObjectGuid,
-    spell_id: Option<i32>, catalogs: &impl CreatureMeleeCatalogsLikeCpp, difficulty: u8,
+    map: &ManagedMapInnerLikeCpp,
+    attacker_guid: ObjectGuid,
+    spell_id: Option<i32>,
+    catalogs: &impl CreatureMeleeCatalogsLikeCpp,
+    difficulty: u8,
 ) -> CreatureDamageThreatPlanLikeCpp {
     let facts = catalogs.threat_spell(spell_id, difficulty);
-    let aura_multiplier = map.with_creature_like_cpp(attacker_guid, |attacker| {
-        if !catalogs.represented() { return 1.0; }
-        catalogs.threat_aura(&attacker.unit().subsystems().auras.applied_auras,
-            difficulty, facts.school_mask)
-    }).unwrap_or(1.0);
-    CreatureDamageThreatPlanLikeCpp { suppress: facts.suppress,
+    let aura_multiplier = map
+        .with_creature_like_cpp(attacker_guid, |attacker| {
+            if !catalogs.represented() {
+                return 1.0;
+            }
+            catalogs.threat_aura(
+                &attacker.unit().subsystems().auras.applied_auras,
+                difficulty,
+                facts.school_mask,
+            )
+        })
+        .unwrap_or(1.0);
+    CreatureDamageThreatPlanLikeCpp {
+        suppress: facts.suppress,
         no_initial_threat: facts.no_initial_threat,
-        multiplier: facts.multiplier * aura_multiplier }
+        multiplier: facts.multiplier * aura_multiplier,
+    }
 }
 
 pub(super) fn apply_creature_damage_threat_on_map_like_cpp(
@@ -95,4 +107,3 @@ pub(super) fn apply_creature_damage_threat_on_map_like_cpp(
         delta: amount,
     })
 }
-

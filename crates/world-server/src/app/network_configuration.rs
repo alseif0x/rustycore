@@ -1,11 +1,14 @@
 //! Ordered network configuration composition.
 
+use crate::{
+    legacy_creature_aggro_config_like_cpp, mmap_runtime_config_like_cpp, world_config_u8,
+    world_config_u16,
+};
 use anyhow::Context;
+use std::net::SocketAddr;
 use std::sync::Arc;
 use tracing::info;
-use std::net::SocketAddr;
 use wow_world::WorldMMapPathfinderWorkerLikeCpp;
-use crate::{world_config_u16, world_config_u8, mmap_runtime_config_like_cpp, legacy_creature_aggro_config_like_cpp};
 
 pub(super) struct NetworkConfiguration {
     pub(super) legacy_creature_aggro_config: wow_world::session::LegacyCreatureAggroConfigLikeCpp,
@@ -70,15 +73,19 @@ pub(super) fn load(
         wow_data::ExpectedStatStore::load(data_dir, locale)
             .ok()
             .map(Arc::new);
-    legacy_creature_aggro_config.faction_template_store = Some(Arc::clone(&progression.faction_template_store));
-    legacy_creature_aggro_config.faction_store = Some(Arc::clone(&progression.progression_faction_store));
+    legacy_creature_aggro_config.faction_template_store =
+        Some(Arc::clone(&progression.faction_template_store));
+    legacy_creature_aggro_config.faction_store =
+        Some(Arc::clone(&progression.progression_faction_store));
     legacy_creature_aggro_config.map_store = Some(Arc::clone(&world.map_store));
     legacy_creature_aggro_config.disable_mgr = Some(Arc::clone(&player.disable_mgr));
     legacy_creature_aggro_config.spell_misc_store = Some(Arc::clone(&spell_info.spell_misc_store));
     legacy_creature_aggro_config.spell_range_store = Some(Arc::clone(&spells.spell_range_store));
-    legacy_creature_aggro_config.spell_duration_store = Some(Arc::clone(&spells.spell_duration_store));
+    legacy_creature_aggro_config.spell_duration_store =
+        Some(Arc::clone(&spells.spell_duration_store));
     legacy_creature_aggro_config.spell_cooldowns_store = Some(Arc::clone(spell_cooldowns_store));
-    legacy_creature_aggro_config.spell_category_store = Some(Arc::clone(&spell_info.spell_category_store));
+    legacy_creature_aggro_config.spell_category_store =
+        Some(Arc::clone(&spell_info.spell_category_store));
     legacy_creature_aggro_config.spell_x_spell_visual_store =
         Some(Arc::clone(&jump_charge.spell_x_spell_visual_store));
     legacy_creature_aggro_config.spell_target_restrictions_store =
@@ -124,7 +131,11 @@ pub(super) fn build_listener_policy(
     ip_location_store: &Arc<wow_core::IpLocationStore>,
 ) -> wow_network::WorldListenerPolicyLikeCpp {
     let world_listener_policy = wow_network::WorldListenerPolicyLikeCpp {
-        max_overspeed_pings: crate::world_config_u32(world_configs, "CONFIG_MAX_OVERSPEED_PINGS", 2),
+        max_overspeed_pings: crate::world_config_u32(
+            world_configs,
+            "CONFIG_MAX_OVERSPEED_PINGS",
+            2,
+        ),
         socket_timeouts: wow_network::SocketTimeoutsLikeCpp {
             unauthenticated_secs: u64::from(crate::world_config_u32(
                 world_configs,

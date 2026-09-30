@@ -145,8 +145,15 @@ mod tests {
         let delegation = "world_startup::run_world_startup(";
         assert_eq!(source.matches(delegation).count(), 1);
         let delegation_position = source.find(delegation).unwrap();
-        assert_eq!(source[delegation_position..].split_once(".await").unwrap().0
-            .matches("&skill_world_rules_persistence,").count(), 1);
+        assert_eq!(
+            source[delegation_position..]
+                .split_once(".await")
+                .unwrap()
+                .0
+                .matches("&skill_world_rules_persistence,")
+                .count(),
+            1
+        );
         assert_eq!(
             source
                 .matches("MariaDbSkillWorldRulesPersistenceAdapterLikeCpp::new")
@@ -166,7 +173,12 @@ mod tests {
             .find("player_catalog_startup::load_player_catalogs(")
             .expect("skill tiers must remain composed through the Player catalog startup phase");
         assert!(fishing < delegation_position);
-        assert!(tiers < continuation.find("spell_pet_startup::load_spell_pet_startup(").unwrap());
+        assert!(
+            tiers
+                < continuation
+                    .find("spell_pet_startup::load_spell_pet_startup(")
+                    .unwrap()
+        );
         assert!(
             continuation.contains(
                 "player_catalog_startup::load_player_catalogs(\n        data_dir,\n        locale,\n        skill_world_rules_persistence,\n        static_data_overlay_persistence,\n    )"
@@ -175,7 +187,9 @@ mod tests {
         );
         assert_eq!(
             source.matches("load_skill_tiers_store_like_cpp(").count()
-                + continuation.matches("load_skill_tiers_store_like_cpp(").count(),
+                + continuation
+                    .matches("load_skill_tiers_store_like_cpp(")
+                    .count(),
             0,
             "skill tiers must not be loaded again inline in the root"
         );

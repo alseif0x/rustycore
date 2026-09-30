@@ -15,7 +15,8 @@ pub(super) struct PlayerXpAndQuestRewards {
     pub(super) quest_xp_store: Arc<wow_data::quest_xp::QuestXpStore>,
     pub(super) dbc_path: String,
     pub(super) exploration_base_xp_store: Arc<wow_data::ExplorationBaseXpStoreLikeCpp>,
-    pub(super) exploration_base_xp_persistence: wow_database::MariaDbExplorationBaseXpCatalogPersistenceAdapterLikeCpp,
+    pub(super) exploration_base_xp_persistence:
+        wow_database::MariaDbExplorationBaseXpCatalogPersistenceAdapterLikeCpp,
     pub(super) player_xp_table: Arc<Vec<u32>>,
 }
 
@@ -95,18 +96,27 @@ pub(super) async fn load_player_xp_and_quest_rewards(
 }
 
 pub(super) struct QuestReputationCatalogs {
-    pub(super) reputation_spillover_template_report: wow_data::reputation::RepSpilloverTemplateLoadReportLikeCpp,
-    pub(super) reputation_spillover_template_store: Arc<wow_data::reputation::RepSpilloverTemplateStoreLikeCpp>,
-    pub(super) creature_onkill_reputation_report: wow_data::reputation::CreatureOnKillReputationLoadReportLikeCpp,
-    pub(super) creature_onkill_reputation_store: Arc<wow_data::reputation::CreatureOnKillReputationStoreLikeCpp>,
-    pub(super) reputation_reward_rate_report: wow_data::reputation::ReputationRewardRateLoadReportLikeCpp,
-    pub(super) reputation_reward_rate_store: Arc<wow_data::reputation::ReputationRewardRateStoreLikeCpp>,
-    pub(super) reputation_catalog_persistence: wow_database::MariaDbReputationCatalogPersistenceAdapterLikeCpp,
+    pub(super) reputation_spillover_template_report:
+        wow_data::reputation::RepSpilloverTemplateLoadReportLikeCpp,
+    pub(super) reputation_spillover_template_store:
+        Arc<wow_data::reputation::RepSpilloverTemplateStoreLikeCpp>,
+    pub(super) creature_onkill_reputation_report:
+        wow_data::reputation::CreatureOnKillReputationLoadReportLikeCpp,
+    pub(super) creature_onkill_reputation_store:
+        Arc<wow_data::reputation::CreatureOnKillReputationStoreLikeCpp>,
+    pub(super) reputation_reward_rate_report:
+        wow_data::reputation::ReputationRewardRateLoadReportLikeCpp,
+    pub(super) reputation_reward_rate_store:
+        Arc<wow_data::reputation::ReputationRewardRateStoreLikeCpp>,
+    pub(super) reputation_catalog_persistence:
+        wow_database::MariaDbReputationCatalogPersistenceAdapterLikeCpp,
     pub(super) paragon_reputation_store: Arc<wow_data::progression_rewards::ParagonReputationStore>,
-    pub(super) friendship_rep_reaction_store: Arc<wow_data::progression_rewards::FriendshipRepReactionStore>,
+    pub(super) friendship_rep_reaction_store:
+        Arc<wow_data::progression_rewards::FriendshipRepReactionStore>,
     pub(super) faction_template_store: Arc<wow_data::progression_rewards::FactionTemplateStore>,
     pub(super) progression_faction_store: Arc<wow_data::progression_rewards::FactionStore>,
-    pub(super) quest_faction_reward_store: Arc<wow_data::progression_rewards::QuestFactionRewardStore>,
+    pub(super) quest_faction_reward_store:
+        Arc<wow_data::progression_rewards::QuestFactionRewardStore>,
 }
 
 pub(super) async fn load_quest_reputation_catalogs(
@@ -130,10 +140,9 @@ pub(super) async fn load_quest_reputation_catalogs(
             .context("Failed to load FactionTemplate.db2 — check DataDir and DBC.Locale config")?,
     );
     let friendship_rep_reaction_store = Arc::new(
-        wow_data::progression_rewards::FriendshipRepReactionStore::load(data_dir, locale)
-            .context(
-                "Failed to load FriendshipRepReaction.db2 — check DataDir and DBC.Locale config",
-            )?,
+        wow_data::progression_rewards::FriendshipRepReactionStore::load(data_dir, locale).context(
+            "Failed to load FriendshipRepReaction.db2 — check DataDir and DBC.Locale config",
+        )?,
     );
     let paragon_reputation_store = Arc::new(
         wow_data::progression_rewards::ParagonReputationStore::load(data_dir, locale).context(
@@ -211,16 +220,17 @@ pub(super) async fn load_faction_changes(
     spell_store: &wow_data::SpellStore,
     item_stats_store: &wow_data::ItemStatsStore,
 ) -> anyhow::Result<FactionChangeCatalog> {
-    let mut faction_change_outcome = crate::catalogs::gameplay_rule::load_faction_change_store_like_cpp(
-        gameplay_rule_catalog_persistence,
-        |id| condition_references.achievement_store.contains(id),
-        |id| quest_admission.quest_store.get(id).is_some(),
-        |id| condition_references.faction_store.contains(id),
-        |id| spell_store.get(i32::try_from(id).unwrap_or(-1)).is_some(),
-        |id| condition_references.char_titles_store.contains(id),
-    )
-    .await
-    .context("Failed to load C++ faction-change mapping stores")?;
+    let mut faction_change_outcome =
+        crate::catalogs::gameplay_rule::load_faction_change_store_like_cpp(
+            gameplay_rule_catalog_persistence,
+            |id| condition_references.achievement_store.contains(id),
+            |id| quest_admission.quest_store.get(id).is_some(),
+            |id| condition_references.faction_store.contains(id),
+            |id| spell_store.get(i32::try_from(id).unwrap_or(-1)).is_some(),
+            |id| condition_references.char_titles_store.contains(id),
+        )
+        .await
+        .context("Failed to load C++ faction-change mapping stores")?;
     faction_change_outcome.store = faction_change_outcome.store.with_item_templates_like_cpp(
         item_stats_store
             .sparse_templates_like_cpp()

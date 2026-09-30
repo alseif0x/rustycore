@@ -15,7 +15,8 @@ async fn quest_giver_choose_reward_records_reward_spell_cast_like_cpp() {
     quest.reward_spell = 12_345;
     quest.reward_display_spell = [22_001, 22_002, 0];
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    insert_player_quest_status_for_test(&mut session,
+    insert_player_quest_status_for_test(
+        &mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -60,7 +61,8 @@ async fn quest_giver_choose_reward_records_display_spells_only_without_reward_sp
     quest.flags = QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP | QUEST_FLAGS_PLAYER_CAST_COMPLETE_LIKE_CPP;
     quest.reward_display_spell = [22_001, 0, 22_003];
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    insert_player_quest_status_for_test(&mut session,
+    insert_player_quest_status_for_test(
+        &mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -117,7 +119,7 @@ async fn quest_confirm_accept_source_spell_records_two_self_casts_like_cpp() {
     quest.flags |= QUEST_FLAGS_SHARABLE_LIKE_CPP;
     quest.source_spell_id = 12_345;
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session, sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -195,7 +197,7 @@ async fn quest_confirm_accept_source_item_bound_objective_broadcasts_to_group_li
         source_item_id,
         quest_log_item_id,
     );
-    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session, sender_guid, quest_id);
 
     let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     session.set_player_registry(Arc::clone(&player_registry));
@@ -207,7 +209,9 @@ async fn quest_confirm_accept_source_item_bound_objective_broadcasts_to_group_li
     set_loaded_player_name_like_cpp(&mut sender_session, "Sender".to_string());
     sender_session.set_player_registry(Arc::clone(&player_registry));
     register_in_player_registry_for_test(&sender_session);
-    assert!(adopt_registered_canonical_player_fixture_like_cpp(&mut sender_session));
+    assert!(adopt_registered_canonical_player_fixture_like_cpp(
+        &mut sender_session
+    ));
     add_active_quest_in_slot_with_status(
         &mut sender_session,
         quest_id,

@@ -6,14 +6,16 @@ fn gameobject_loot_release_without_canonical_manager_keeps_represented_restock_f
     let mut session = make_session();
     let player_guid = ObjectGuid::create_player(1, 42);
     let loot_guid = test_gameobject_guid(19_135);
-    record_represented_gameobject_runtime_state_for_test(&mut session, 
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         loot_guid,
         loot_guid.entry(),
         Position::ZERO,
         GAMEOBJECT_TYPE_CHEST as u8,
     );
-    record_gameobject_chest_release_metadata_for_loot_test(&mut session, 
+    record_gameobject_chest_release_metadata_for_loot_test(
+        &mut session,
         loot_guid,
         GameObjectLootSource {
             chest_consumable: false,
@@ -24,10 +26,8 @@ fn gameobject_loot_release_without_canonical_manager_keeps_represented_restock_f
 
     apply_cached_gameobject_loot_release_for_test(&mut session, loot_guid, player_guid, true, true);
 
-    let state = gameobject_loot_release_snapshot_for_test(&session, loot_guid)
-        .unwrap();
+    let state = gameobject_loot_release_snapshot_for_test(&session, loot_guid).unwrap();
     assert_eq!(state.loot_state, Some(LootState::NotReady));
     assert_eq!(state.loot_state_unit_guid, ObjectGuid::EMPTY);
     assert!(state.chest_restock_until.is_some());
 }
-

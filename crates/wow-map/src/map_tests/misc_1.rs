@@ -506,7 +506,11 @@ fn send_object_updates_processes_dynamic_object_data_update_like_cpp() {
 
     let mut record = map.entity_world.get_mut(&dynamic_object_guid).unwrap();
     assert!(!record.object().object().is_object_updated());
-    record.reborrow().dynamic_object_mut().unwrap().set_radius(12.5);
+    record
+        .reborrow()
+        .dynamic_object_mut()
+        .unwrap()
+        .set_radius(12.5);
     assert!(record.object().object().is_object_updated());
     assert!(
         record

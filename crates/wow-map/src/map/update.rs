@@ -22,7 +22,6 @@ fn push_in_world_guids<Terrain, Lifecycle>(
     );
 }
 
-
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
 where
     Terrain: TerrainGridLoader,
@@ -840,5 +839,4 @@ where
 
         summary
     }
-
 }

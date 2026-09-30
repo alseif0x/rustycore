@@ -2,9 +2,15 @@
 use super::recovery_support::*;
 use std::sync::Mutex;
 use wow_entities::Player;
-use wow_loot::{LOOT_METHOD_GROUP_LIKE_CPP, ROLL_VOTE_GREED_LIKE_CPP, ROLL_VOTE_NEED_LIKE_CPP, ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP, ROLL_VOTE_NOT_VALID_LIKE_CPP};
+use wow_loot::{
+    LOOT_METHOD_GROUP_LIKE_CPP, ROLL_VOTE_GREED_LIKE_CPP, ROLL_VOTE_NEED_LIKE_CPP,
+    ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP, ROLL_VOTE_NOT_VALID_LIKE_CPP,
+};
 use wow_world::session::mailbox::LootRollVoteCommand;
-use wow_world::test_fixtures::loot::{loot_roll_observation_for_test, process_loot_commands_for_test, allocate_loot_guid_for_test, sync_creature_loot_fixture_for_test};
+use wow_world::test_fixtures::loot::{
+    allocate_loot_guid_for_test, loot_roll_observation_for_test, process_loot_commands_for_test,
+    sync_creature_loot_fixture_for_test,
+};
 
 fn generation_guarded_group_loot_like_cpp(
     owner_guid: ObjectGuid,
@@ -43,7 +49,6 @@ fn generation_guarded_group_loot_like_cpp(
         looted_by_player: false,
     }
 }
-
 
 #[tokio::test]
 async fn loot_roll_remote_session_routes_vote_to_owner_session_like_cpp() {
@@ -149,8 +154,7 @@ async fn loot_roll_remote_session_routes_vote_to_owner_session_like_cpp() {
         .expect("the canonical creature must expose the installed shared loot");
     assert_eq!(installed.loot.loot_guid, loot_object);
 
-    handle_loot_unit_for_test(&mut owner_session, loot_unit_packet(owner_guid))
-        .await;
+    handle_loot_unit_for_test(&mut owner_session, loot_unit_packet(owner_guid)).await;
     let _response = owner_rx.try_recv().unwrap();
     let _loot_list = owner_rx.try_recv().unwrap();
     let _start_roll = owner_rx.try_recv().unwrap();
@@ -165,14 +169,16 @@ async fn loot_roll_remote_session_routes_vote_to_owner_session_like_cpp() {
             .any(|identity| identity.matches_key_like_cpp(loot_object, 0))
     );
 
-    handle_loot_roll_for_test(&mut remote_session, LootRoll {
+    handle_loot_roll_for_test(
+        &mut remote_session,
+        LootRoll {
             loot_obj: loot_object,
             loot_list_id: 0,
             roll_type: ROLL_VOTE_GREED_LIKE_CPP,
-        })
-        .await;
-    process_loot_commands_for_test(&mut owner_session)
-        .await;
+        },
+    )
+    .await;
+    process_loot_commands_for_test(&mut owner_session).await;
 
     let local_roll = owner_rx.try_recv().unwrap();
     let mut local_roll = WorldPacket::from_bytes(&local_roll);
@@ -213,7 +219,8 @@ async fn loot_roll_vote_command_updates_owner_session_roll_state_like_cpp() {
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         owner_guid,
         CreatureLoot {
             loot_guid: loot_object,
@@ -271,8 +278,7 @@ async fn loot_roll_vote_command_updates_owner_session_roll_state_like_cpp() {
             roll_identity,
         }))
         .unwrap();
-    process_loot_commands_for_test(&mut session)
-        .await;
+    process_loot_commands_for_test(&mut session).await;
 
     let local_roll = send_rx.try_recv().unwrap();
     let mut local_roll = WorldPacket::from_bytes(&local_roll);
@@ -294,8 +300,7 @@ async fn loot_roll_vote_command_updates_owner_session_roll_state_like_cpp() {
     assert_eq!(remote_roll.read_packed_guid().unwrap(), loot_object);
     assert_eq!(remote_roll.read_packed_guid().unwrap(), candidate_guid);
 
-    let state = loot_roll_observation_for_test(&session, loot_object, 0)
-        .unwrap();
+    let state = loot_roll_observation_for_test(&session, loot_object, 0).unwrap();
     assert_eq!(
         state.vote(candidate_guid).unwrap().vote,
         ROLL_VOTE_GREED_LIKE_CPP

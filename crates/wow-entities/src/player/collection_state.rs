@@ -43,16 +43,16 @@ pub struct PlayerCollectionStateLikeCpp {
 #[cfg(test)]
 mod tests;
 
-mod appearance;
 mod account_load;
 mod account_projection;
+mod appearance;
 mod heirloom_upgrades;
 mod toys;
 pub use appearance::RuntimeAppearanceRoute;
+mod admission;
 mod favorites;
 mod load_save;
 mod sets;
-mod admission;
 pub use sets::AppearanceAcquisitionSource;
 
 pub use admission::{

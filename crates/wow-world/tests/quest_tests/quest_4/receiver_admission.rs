@@ -283,8 +283,14 @@ async fn push_quest_to_party_df_daily_reads_df_bucket_before_registered_mailbox_
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
     set_represented_daily_quest_completed_for_test(&mut receiver_session, shared_quest_id, true);
-    assert!(contains_daily_quest_completed_for_test(&receiver_session, shared_quest_id));
-    assert!(!contains_df_quest_for_test(&receiver_session, shared_quest_id));
+    assert!(contains_daily_quest_completed_for_test(
+        &receiver_session,
+        shared_quest_id
+    ));
+    assert!(!contains_df_quest_for_test(
+        &receiver_session,
+        shared_quest_id
+    ));
     sync_player_registry_state_for_test(&receiver_session);
 
     run_push_quest_to_party(&mut session, shared_quest_id).await;
@@ -297,16 +303,20 @@ async fn push_quest_to_party_df_daily_reads_df_bucket_before_registered_mailbox_
         sender_guid,
         shared_quest_id,
     );
-    assert!(represented_push_quest_to_party_outcomes_for_test(&session)
-        .iter()
-        .any(|outcome| matches!(
+    assert!(
+        represented_push_quest_to_party_outcomes_for_test(&session)
+            .iter()
+            .any(|outcome| matches!(
             outcome.reason,
             RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverSuccessQuestDetailsPrompted
-        )));
-    assert!(!represented_push_quest_to_party_outcomes_for_test(&session)
-        .iter()
-        .any(|outcome| matches!(
-            outcome.reason,
-            RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverSatisfyQuestDayAlreadyDone
-        )));
+        ))
+    );
+    assert!(
+        !represented_push_quest_to_party_outcomes_for_test(&session)
+            .iter()
+            .any(|outcome| matches!(
+                outcome.reason,
+                RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverSatisfyQuestDayAlreadyDone
+            ))
+    );
 }

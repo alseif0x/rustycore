@@ -52,7 +52,10 @@ where
         Ok(self.object_is_in_world(guid))
     }
 
-    pub(super) fn activate_registered_corpses_for_grid_like_cpp(&mut self, grid: GridCoord) -> usize {
+    pub(super) fn activate_registered_corpses_for_grid_like_cpp(
+        &mut self,
+        grid: GridCoord,
+    ) -> usize {
         if !self.is_grid_loaded(grid) {
             return 0;
         }
@@ -105,7 +108,10 @@ where
         corpses.len()
     }
 
-    pub(super) fn deactivate_registered_corpses_for_grid_like_cpp(&mut self, grid: GridCoord) -> usize {
+    pub(super) fn deactivate_registered_corpses_for_grid_like_cpp(
+        &mut self,
+        grid: GridCoord,
+    ) -> usize {
         let corpses = self
             .entity_world
             .iter()
@@ -134,5 +140,4 @@ where
 
         corpses.len()
     }
-
 }

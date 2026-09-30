@@ -14,34 +14,32 @@ fn can_add_item_appearance_applies_can_use_item_reputation_gate_like_cpp() {
         80,
         0,
     );
-    fixture.modified = Some(Arc::new(
-        ItemModifiedAppearanceStore::from_entries([
-            ItemModifiedAppearanceEntry {
-                id: 65,
-                item_id: 777,
-                item_appearance_modifier_id: 0,
-                item_appearance_id: 9_000,
-                order_index: 0,
-                transmog_source_type_enum: 0,
-            },
-            ItemModifiedAppearanceEntry {
-                id: 66,
-                item_id: 778,
-                item_appearance_modifier_id: 0,
-                item_appearance_id: 9_001,
-                order_index: 0,
-                transmog_source_type_enum: 0,
-            },
-            ItemModifiedAppearanceEntry {
-                id: 67,
-                item_id: 779,
-                item_appearance_modifier_id: 0,
-                item_appearance_id: 9_002,
-                order_index: 0,
-                transmog_source_type_enum: 0,
-            },
-        ]),
-    ));
+    fixture.modified = Some(Arc::new(ItemModifiedAppearanceStore::from_entries([
+        ItemModifiedAppearanceEntry {
+            id: 65,
+            item_id: 777,
+            item_appearance_modifier_id: 0,
+            item_appearance_id: 9_000,
+            order_index: 0,
+            transmog_source_type_enum: 0,
+        },
+        ItemModifiedAppearanceEntry {
+            id: 66,
+            item_id: 778,
+            item_appearance_modifier_id: 0,
+            item_appearance_id: 9_001,
+            order_index: 0,
+            transmog_source_type_enum: 0,
+        },
+        ItemModifiedAppearanceEntry {
+            id: 67,
+            item_id: 779,
+            item_appearance_modifier_id: 0,
+            item_appearance_id: 9_002,
+            order_index: 0,
+            transmog_source_type_enum: 0,
+        },
+    ])));
     install_appearance_test_items(
         &mut fixture,
         [
@@ -110,7 +108,9 @@ fn can_add_item_appearance_applies_can_use_item_reputation_gate_like_cpp() {
         ),
     ));
     fixture.install_identity(571, 1, 1, 80, 0);
-    fixture.player.add_weapon_proficiency_like_cpp(1 << (ItemSubClassWeapon::Sword as u32));
+    fixture
+        .player
+        .add_weapon_proficiency_like_cpp(1 << (ItemSubClassWeapon::Sword as u32));
     fixture.factions = Some(Arc::new(FactionStore::from_entries([
         FactionEntry::for_test_like_cpp(72, 5),
     ])));
@@ -119,7 +119,9 @@ fn can_add_item_appearance_applies_can_use_item_reputation_gate_like_cpp() {
         faction_template_entry(1, 1, 0, 0, 0),
     ])));
 
-    assert!(PlayerCollectionStateLikeCpp::can_add_appearance(&fixture, 65));
+    assert!(PlayerCollectionStateLikeCpp::can_add_appearance(
+        &fixture, 65
+    ));
     assert!(
         PlayerCollectionStateLikeCpp::can_add_appearance(&fixture, 66),
         "a zero-rank faction requirement is satisfied"
@@ -129,7 +131,6 @@ fn can_add_item_appearance_applies_can_use_item_reputation_gate_like_cpp() {
         "an Exalted requirement is not satisfied by the unloaded reputation"
     );
 }
-
 
 fn sparse_template_with_reputation_for_test(
     required_reputation_faction: u16,

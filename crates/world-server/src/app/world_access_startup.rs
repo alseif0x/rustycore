@@ -1,9 +1,9 @@
 //! Ordered world access startup composition.
 
+use crate::load_disable_mgr_like_cpp;
 use anyhow::Context;
 use std::sync::Arc;
 use tracing::info;
-use crate::load_disable_mgr_like_cpp;
 
 pub(super) struct WorldAccessCatalogs {
     pub(super) access_requirement_report: wow_data::AccessRequirementLoadReportLikeCpp,

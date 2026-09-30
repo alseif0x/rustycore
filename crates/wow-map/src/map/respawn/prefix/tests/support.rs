@@ -5,7 +5,10 @@ pub(super) fn actor(counter: i64, spawn_id: u64) -> WorldCreature {
     let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 7, 42, counter);
     creature.unit_mut().world_mut().object_mut().create(guid);
     creature.unit_mut().world_mut().set_map(571, 7).unwrap();
-    creature.unit_mut().world_mut().relocate(Position::xyz(1.0, 2.0, 3.0));
+    creature
+        .unit_mut()
+        .world_mut()
+        .relocate(Position::xyz(1.0, 2.0, 3.0));
     creature.unit_mut().world_mut().object_mut().add_to_world();
     creature.unit_mut().set_max_health(100);
     creature.unit_mut().set_health(100);
@@ -47,19 +50,31 @@ pub(super) fn clocks() -> Clocks {
     }
 }
 
-pub(super) fn canonical(map: &mut Map, clocks: Clocks, persistent: bool)
-    -> (ActorRespawnPhaseOutcome, VecDeque<PendingRespawn>)
-{
+pub(super) fn canonical(
+    map: &mut Map,
+    clocks: Clocks,
+    persistent: bool,
+) -> (ActorRespawnPhaseOutcome, VecDeque<PendingRespawn>) {
     map.prepare_actor_respawns(
-        clocks.now, clocks.conversion_now, clocks.conversion_now_secs, persistent,
+        clocks.now,
+        clocks.conversion_now,
+        clocks.conversion_now_secs,
+        persistent,
     )
 }
 
-pub(super) fn run_legacy_prefix(manager: &mut LegacyMapManager, clocks: Clocks, persistent: bool)
-    -> LegacyCreatureRespawnPrefix
-{
+pub(super) fn run_legacy_prefix(
+    manager: &mut LegacyMapManager,
+    clocks: Clocks,
+    persistent: bool,
+) -> LegacyCreatureRespawnPrefix {
     manager.prepare_creature_respawns(
-        571, 7, clocks.now, clocks.conversion_now, clocks.conversion_now_secs, persistent,
+        571,
+        7,
+        clocks.now,
+        clocks.conversion_now,
+        clocks.conversion_now_secs,
+        persistent,
     )
 }
 

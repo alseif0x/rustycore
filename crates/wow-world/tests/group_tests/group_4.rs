@@ -32,16 +32,15 @@ async fn silence_party_talker_assistant_allowed_but_regular_member_rejected_like
         .handle_silence_party_talker(silence_party_talker_packet(target, false))
         .await;
     assert_eq!(
-        wow_world::test_fixtures::represented_silence_party_talker_like_cpp(
-            &assistant_session,
-        )
-        .len(),
+        wow_world::test_fixtures::represented_silence_party_talker_like_cpp(&assistant_session,)
+            .len(),
         1
     );
-    assert!(!wow_world::test_fixtures::represented_silence_party_talker_like_cpp(
-        &assistant_session,
-    )[0]
-        .1);
+    assert!(
+        !wow_world::test_fixtures::represented_silence_party_talker_like_cpp(&assistant_session,)
+            [0]
+        .1
+    );
 
     let (mut regular_session, _regular_send_rx) = make_session_with_send();
     regular_session.set_player_guid(Some(regular));

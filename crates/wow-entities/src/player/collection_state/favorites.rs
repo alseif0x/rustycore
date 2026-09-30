@@ -13,9 +13,7 @@ impl PlayerCollectionStateLikeCpp {
         use std::collections::hash_map::Entry;
 
         if apply {
-            match self
-                .favorite_item_appearance_entry_like_cpp(item_modified_appearance_id)
-            {
+            match self.favorite_item_appearance_entry_like_cpp(item_modified_appearance_id) {
                 Entry::Vacant(entry) => {
                     entry.insert(New);
                     true
@@ -27,9 +25,7 @@ impl PlayerCollectionStateLikeCpp {
                 Entry::Occupied(_) => false,
             }
         } else {
-            match self
-                .favorite_item_appearance_entry_like_cpp(item_modified_appearance_id)
-            {
+            match self.favorite_item_appearance_entry_like_cpp(item_modified_appearance_id) {
                 Entry::Occupied(entry) if *entry.get() == New => {
                     entry.remove();
                     true

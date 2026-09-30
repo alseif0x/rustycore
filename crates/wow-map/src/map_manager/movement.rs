@@ -105,15 +105,15 @@ impl MapManager {
 mod corpse_loot;
 mod home_and_chase;
 mod motion_master;
+mod pending;
 mod point_and_effects;
 mod random_and_waypoint;
 mod spline;
-mod terrain;
 mod step;
-mod pending;
+mod terrain;
 
-pub use self::step::{CreatureMovementSource, CreatureMovementStep};
 pub(crate) use self::pending::step_pending::{
     StepGridHeightContinuation, StepPathContinuation, StepPending, StepProgress,
     StepStaticHeightContinuation,
 };
+pub use self::step::{CreatureMovementSource, CreatureMovementStep};

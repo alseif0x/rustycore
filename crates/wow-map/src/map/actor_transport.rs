@@ -6,13 +6,15 @@
 //! C++ a5f8da2e Map.cpp:530-577 / Creature.cpp:333-351 own one live object.
 //! This Rust transition moves the existing motor without replaying that Add.
 
-use super::{AccessorObjectKind, GridLifecycle, Map, MapObjectRecord, MapObjectStoreError, TerrainGridLoader};
-use crate::map_manager::{
-    GridCoord as LegacyGridCoord, MapInstance, LegacyCreatureTransportError,
-    LegacyCreatureTransportSlot,
+use super::{
+    AccessorObjectKind, GridLifecycle, Map, MapObjectRecord, MapObjectStoreError, TerrainGridLoader,
 };
-use wow_core::ObjectGuid;
+use crate::map_manager::{
+    GridCoord as LegacyGridCoord, LegacyCreatureTransportError, LegacyCreatureTransportSlot,
+    MapInstance,
+};
 use std::collections::HashSet;
+use wow_core::ObjectGuid;
 
 mod commit;
 
@@ -23,24 +25,66 @@ pub enum CreatureActorTransportError {
     StaleIncarnation,
     WrongLegacyMap,
     MissingLegacyMap,
-    SourceSlot { guid: ObjectGuid, grid: LegacyGridCoord },
-    MissingSourceGrid { grid: LegacyGridCoord },
-    SourceGridCoordinateMismatch { grid: LegacyGridCoord },
-    MissingSourceActor { guid: ObjectGuid },
-    SourceGuidMismatch { guid: ObjectGuid },
-    SourceMapMismatch { guid: ObjectGuid },
-    DuplicateSourceGuid { guid: ObjectGuid },
-    MissingCounterpart { guid: ObjectGuid },
-    CanonicalOnly { guid: ObjectGuid },
-    ExistingActor { guid: ObjectGuid },
-    NotExactCreature { guid: ObjectGuid },
-    GuidMismatch { guid: ObjectGuid },
-    Store { guid: ObjectGuid, error: MapObjectStoreError },
-    SpawnMismatch { guid: ObjectGuid, source: u64, canonical: u64 },
-    SpawnIndexMismatch { guid: ObjectGuid, spawn_id: u64 },
-    CardinalityMismatch { source: usize, canonical: usize },
-    HealthTimelineMismatch { guid: ObjectGuid },
-    LootAuthorityMismatch { guid: ObjectGuid },
+    SourceSlot {
+        guid: ObjectGuid,
+        grid: LegacyGridCoord,
+    },
+    MissingSourceGrid {
+        grid: LegacyGridCoord,
+    },
+    SourceGridCoordinateMismatch {
+        grid: LegacyGridCoord,
+    },
+    MissingSourceActor {
+        guid: ObjectGuid,
+    },
+    SourceGuidMismatch {
+        guid: ObjectGuid,
+    },
+    SourceMapMismatch {
+        guid: ObjectGuid,
+    },
+    DuplicateSourceGuid {
+        guid: ObjectGuid,
+    },
+    MissingCounterpart {
+        guid: ObjectGuid,
+    },
+    CanonicalOnly {
+        guid: ObjectGuid,
+    },
+    ExistingActor {
+        guid: ObjectGuid,
+    },
+    NotExactCreature {
+        guid: ObjectGuid,
+    },
+    GuidMismatch {
+        guid: ObjectGuid,
+    },
+    Store {
+        guid: ObjectGuid,
+        error: MapObjectStoreError,
+    },
+    SpawnMismatch {
+        guid: ObjectGuid,
+        source: u64,
+        canonical: u64,
+    },
+    SpawnIndexMismatch {
+        guid: ObjectGuid,
+        spawn_id: u64,
+    },
+    CardinalityMismatch {
+        source: usize,
+        canonical: usize,
+    },
+    HealthTimelineMismatch {
+        guid: ObjectGuid,
+    },
+    LootAuthorityMismatch {
+        guid: ObjectGuid,
+    },
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -77,7 +121,9 @@ where
     ) -> Result<CreatureActorTransportSummary, CreatureActorTransportError> {
         let prepared = self.preflight_creature_transport(source)?;
         let mut summary = CreatureActorTransportSummary {
-            transported: 0, source_inner_winners: 0, canonical_inner_winners: 0,
+            transported: 0,
+            source_inner_winners: 0,
+            canonical_inner_winners: 0,
         };
         let mut threat_deltas = Vec::new();
         for planned in prepared {
@@ -108,37 +154,65 @@ where
         let mut prepared = Vec::new();
         for (coord, grid) in &source.grids {
             for (guid, actor) in &grid.creatures {
-                let source_slot = source.preflight_creature_transport_slot(*coord, *guid)
+                let source_slot = source
+                    .preflight_creature_transport_slot(*coord, *guid)
                     .map_err(|error| match error {
-                        LegacyCreatureTransportError::WrongInstance => CreatureActorTransportError::WrongLegacyMap,
-                        LegacyCreatureTransportError::MissingGrid => CreatureActorTransportError::MissingSourceGrid { grid: *coord },
-                        LegacyCreatureTransportError::GridCoordinateMismatch => CreatureActorTransportError::SourceGridCoordinateMismatch { grid: *coord },
-                        LegacyCreatureTransportError::MissingActor => CreatureActorTransportError::MissingSourceActor { guid: *guid },
-                        LegacyCreatureTransportError::GuidMismatch => CreatureActorTransportError::SourceGuidMismatch { guid: *guid },
-                        LegacyCreatureTransportError::ActorMapMismatch => CreatureActorTransportError::SourceMapMismatch { guid: *guid },
+                        LegacyCreatureTransportError::WrongInstance => {
+                            CreatureActorTransportError::WrongLegacyMap
+                        }
+                        LegacyCreatureTransportError::MissingGrid => {
+                            CreatureActorTransportError::MissingSourceGrid { grid: *coord }
+                        }
+                        LegacyCreatureTransportError::GridCoordinateMismatch => {
+                            CreatureActorTransportError::SourceGridCoordinateMismatch {
+                                grid: *coord,
+                            }
+                        }
+                        LegacyCreatureTransportError::MissingActor => {
+                            CreatureActorTransportError::MissingSourceActor { guid: *guid }
+                        }
+                        LegacyCreatureTransportError::GuidMismatch => {
+                            CreatureActorTransportError::SourceGuidMismatch { guid: *guid }
+                        }
+                        LegacyCreatureTransportError::ActorMapMismatch => {
+                            CreatureActorTransportError::SourceMapMismatch { guid: *guid }
+                        }
                         LegacyCreatureTransportError::DuplicateGuid => {
                             CreatureActorTransportError::DuplicateSourceGuid { guid: *guid }
                         }
-                        LegacyCreatureTransportError::Occupied => CreatureActorTransportError::SourceSlot { guid: *guid, grid: *coord },
+                        LegacyCreatureTransportError::Occupied => {
+                            CreatureActorTransportError::SourceSlot {
+                                guid: *guid,
+                                grid: *coord,
+                            }
+                        }
                     })?;
                 self.validate_creature_actor(actor)
                     .map_err(|error| CreatureActorTransportError::Store { guid: *guid, error })?;
                 let current = self.entity_world.creature_transport_counterpart(*guid)?;
                 MapObjectRecord::validate_world_object(
-                    AccessorObjectKind::Creature, current.unit().world(),
-                ).map_err(MapObjectStoreError::from)
-                    .and_then(|()| self.validate_map_object(current.unit().world()))
-                    .map_err(|error| CreatureActorTransportError::Store { guid: *guid, error })?;
+                    AccessorObjectKind::Creature,
+                    current.unit().world(),
+                )
+                .map_err(MapObjectStoreError::from)
+                .and_then(|()| self.validate_map_object(current.unit().world()))
+                .map_err(|error| CreatureActorTransportError::Store { guid: *guid, error })?;
                 if current.spawn_id() != actor.creature.spawn_id() {
                     return Err(CreatureActorTransportError::SpawnMismatch {
-                        guid: *guid, source: actor.creature.spawn_id(), canonical: current.spawn_id(),
+                        guid: *guid,
+                        source: actor.creature.spawn_id(),
+                        canonical: current.spawn_id(),
                     });
                 }
-                if current.spawn_id() != 0 && !self.creatures_by_spawn_id
-                    .get(&current.spawn_id()).is_some_and(|guids| guids.contains(guid))
+                if current.spawn_id() != 0
+                    && !self
+                        .creatures_by_spawn_id
+                        .get(&current.spawn_id())
+                        .is_some_and(|guids| guids.contains(guid))
                 {
                     return Err(CreatureActorTransportError::SpawnIndexMismatch {
-                        guid: *guid, spawn_id: current.spawn_id(),
+                        guid: *guid,
+                        spawn_id: current.spawn_id(),
                     });
                 }
                 let incoming_unit = actor.creature.unit();
@@ -146,16 +220,21 @@ where
                 if !incoming_unit.shares_health_state_revision_authority_like_cpp(
                     &current_unit.health_state_revision_authority_like_cpp(),
                 ) {
-                    return Err(CreatureActorTransportError::HealthTimelineMismatch { guid: *guid });
+                    return Err(CreatureActorTransportError::HealthTimelineMismatch {
+                        guid: *guid,
+                    });
                 }
-                if !actor.creature.loot_authority_like_cpp()
+                if !actor
+                    .creature
+                    .loot_authority_like_cpp()
                     .shares_storage_like_cpp(current.loot_authority_like_cpp())
                 {
                     return Err(CreatureActorTransportError::LootAuthorityMismatch { guid: *guid });
                 }
                 let incoming_revision = incoming_unit.health_state_revision_like_cpp();
                 let current_revision = current_unit.health_state_revision_like_cpp();
-                let health_tuple_matches = incoming_unit.data().health == current_unit.data().health
+                let health_tuple_matches = incoming_unit.data().health
+                    == current_unit.data().health
                     && incoming_unit.data().max_health == current_unit.data().max_health
                     && incoming_unit.death_state() == current_unit.death_state();
                 let source_wins = incoming_revision > current_revision
@@ -164,15 +243,28 @@ where
                 // adapter's incoming HashSet iteration and old sorted removals.
                 let threat_delta = source_wins.then(|| {
                     let old_threat_guids = current_unit.subsystems().combat.sorted_threat_guids();
-                    let incoming_threat_guids: HashSet<_> = incoming_unit.subsystems().combat
-                        .sorted_threat_guids().into_iter().collect();
-                    let removed = old_threat_guids.into_iter()
-                        .filter(|target| !incoming_threat_guids.contains(target)).collect();
+                    let incoming_threat_guids: HashSet<_> = incoming_unit
+                        .subsystems()
+                        .combat
+                        .sorted_threat_guids()
+                        .into_iter()
+                        .collect();
+                    let removed = old_threat_guids
+                        .into_iter()
+                        .filter(|target| !incoming_threat_guids.contains(target))
+                        .collect();
                     let mirrored = incoming_threat_guids.iter().copied().collect();
-                    PreparedCreatureThreatDelta { guid: *guid, mirrored, removed }
+                    PreparedCreatureThreatDelta {
+                        guid: *guid,
+                        mirrored,
+                        removed,
+                    }
                 });
                 prepared.push(PreparedCreatureTransport {
-                    source_slot, guid: *guid, source_wins, threat_delta,
+                    source_slot,
+                    guid: *guid,
+                    source_wins,
+                    threat_delta,
                 });
             }
         }
@@ -191,7 +283,8 @@ where
         }
         if prepared.len() != canonical_count {
             return Err(CreatureActorTransportError::CardinalityMismatch {
-                source: prepared.len(), canonical: canonical_count,
+                source: prepared.len(),
+                canonical: canonical_count,
             });
         }
         for (spawn_id, guids) in &self.creatures_by_spawn_id {
@@ -199,7 +292,8 @@ where
                 let creature = self.entity_world.creature_transport_counterpart(*guid)?;
                 if *spawn_id == 0 || creature.spawn_id() != *spawn_id {
                     return Err(CreatureActorTransportError::SpawnIndexMismatch {
-                        guid: *guid, spawn_id: *spawn_id,
+                        guid: *guid,
+                        spawn_id: *spawn_id,
                     });
                 }
             }

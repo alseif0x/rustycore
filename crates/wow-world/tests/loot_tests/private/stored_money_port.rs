@@ -1,13 +1,15 @@
 //! Stored money requires and consumes the original typed persistence port.
 use super::money_support::*;
-use wow_persistence::{PersistenceFutureLikeCpp, StoredItemMoneyPersistenceAttemptLikeCpp, StoredItemMoneyPersistenceOutcomeLikeCpp, StoredItemMoneyPersistencePortLikeCpp, StoredItemMoneyPersistenceRequestLikeCpp, StoredItemMoneyReconciliationLikeCpp};
+use wow_persistence::{
+    PersistenceFutureLikeCpp, StoredItemMoneyPersistenceAttemptLikeCpp,
+    StoredItemMoneyPersistenceOutcomeLikeCpp, StoredItemMoneyPersistencePortLikeCpp,
+    StoredItemMoneyPersistenceRequestLikeCpp, StoredItemMoneyReconciliationLikeCpp,
+};
 use wow_world::test_fixtures::loot::consume_stored_money_with_port_for_test;
 
 struct StoredItemMoneyPortFixtureLikeCpp {
     attempt: StoredItemMoneyPersistenceAttemptLikeCpp,
 }
-
-
 
 impl StoredItemMoneyPersistencePortLikeCpp for StoredItemMoneyPortFixtureLikeCpp {
     fn attempt_stored_item_money_like_cpp(
@@ -27,7 +29,6 @@ impl StoredItemMoneyPersistencePortLikeCpp for StoredItemMoneyPortFixtureLikeCpp
         ))
     }
 }
-
 
 #[tokio::test]
 async fn stored_item_money_worker_requires_and_uses_the_typed_persistence_port_like_cpp() {
@@ -56,8 +57,9 @@ async fn stored_item_money_worker_requires_and_uses_the_typed_persistence_port_l
             ),
         },
     ));
-    let (_, _, applied_delta, notified_amount) = consume_stored_money_with_port_for_test(&session, item_guid, 7)
-        .await
-        .expect("typed stored-money port outcome");
+    let (_, _, applied_delta, notified_amount) =
+        consume_stored_money_with_port_for_test(&session, item_guid, 7)
+            .await
+            .expect("typed stored-money port outcome");
     assert_eq!((applied_delta, notified_amount), (7, 7));
 }

@@ -221,10 +221,30 @@ fn melee_damage_bonus_done_uses_resolved_masks_and_caster_independent_aura_order
         amount,
     };
     let effects = [
-        effect(SPELL_AURA_MOD_DAMAGE_DONE_CREATURE, 0b001, 30, external_caster),
-        effect(SPELL_AURA_MOD_DAMAGE_DONE_CREATURE, 0b010, 700, external_caster),
-        effect(SPELL_AURA_MOD_DAMAGE_DONE_VERSUS, 0b001, 50, external_caster),
-        effect(SPELL_AURA_MOD_DAMAGE_DONE_VERSUS, 0b010, 100, external_caster),
+        effect(
+            SPELL_AURA_MOD_DAMAGE_DONE_CREATURE,
+            0b001,
+            30,
+            external_caster,
+        ),
+        effect(
+            SPELL_AURA_MOD_DAMAGE_DONE_CREATURE,
+            0b010,
+            700,
+            external_caster,
+        ),
+        effect(
+            SPELL_AURA_MOD_DAMAGE_DONE_VERSUS,
+            0b001,
+            50,
+            external_caster,
+        ),
+        effect(
+            SPELL_AURA_MOD_DAMAGE_DONE_VERSUS,
+            0b010,
+            100,
+            external_caster,
+        ),
         effect(
             SPELL_AURA_MOD_AUTOATTACK_DAMAGE,
             0,

@@ -365,7 +365,6 @@ impl SpellHistory {
         self.category_cooldowns.clear();
     }
 
-
     pub fn lock_spell_school(&mut self, school_mask: u32, now_ms: u64, lockout_ms: u64) {
         let lockout_end = now_ms + lockout_ms;
         for school in 0..MAX_SPELL_SCHOOL {

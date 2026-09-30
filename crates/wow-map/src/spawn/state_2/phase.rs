@@ -27,4 +27,3 @@ pub struct ActorRespawnPhaseOutcome {
     pub attempts: Vec<ActorRespawnAttempt>,
     pub respawn_db_mutations: Vec<RespawnPersistenceMutationLikeCpp>,
 }
-

@@ -3,8 +3,8 @@
 use super::money_support::*;
 
 use wow_persistence::{
-    GroupLootMoneyPersistencePortLikeCpp, GroupLootMoneyPersistenceRequestLikeCpp,
     GroupLootMoneyPersistenceAttemptLikeCpp, GroupLootMoneyPersistenceOutcomeLikeCpp,
+    GroupLootMoneyPersistencePortLikeCpp, GroupLootMoneyPersistenceRequestLikeCpp,
     GroupLootMoneyReconciliationLikeCpp, PersistenceFutureLikeCpp,
 };
 
@@ -44,7 +44,6 @@ impl GroupLootMoneyPersistencePortLikeCpp for GroupLootMoneyPortFixtureLikeCpp {
     }
 }
 
-
 #[tokio::test]
 async fn cancelled_money_waiter_cannot_reopen_a_durable_claim_like_cpp() {
     let (mut first, _first_rx, mut second, second_rx, owner, first_guid, second_guid) =
@@ -52,8 +51,7 @@ async fn cancelled_money_waiter_cannot_reopen_a_durable_claim_like_cpp() {
             9, false,
         ));
     set_loot_money_persistence_test_result_for_test(&mut first, true);
-    let authority = loot_recovery_authority_for_test(&mut first, owner)
-        .unwrap();
+    let authority = loot_recovery_authority_for_test(&mut first, owner).unwrap();
     let claim = authority.reserve_money_like_cpp(first_guid).await.unwrap();
     let authority_generation = claim.generation_like_cpp();
     let authority_committed = Arc::new(AtomicBool::new(false));
@@ -79,8 +77,7 @@ async fn cancelled_money_waiter_cannot_reopen_a_durable_claim_like_cpp() {
         first.session_command_tx(),
         first.player_registry().cloned(),
         money_map_for_test(&first),
-        money_instance_for_test(&first)
-            .unwrap_or(0),
+        money_instance_for_test(&first).unwrap_or(0),
         owner,
         represented_loot_object_guid_like_cpp(owner),
         authority.clone(),
@@ -88,14 +85,15 @@ async fn cancelled_money_waiter_cannot_reopen_a_durable_claim_like_cpp() {
         [second_guid].into_iter().collect(),
     );
     let _ = drain_server_opcodes_like_cpp(&second_rx);
-    let persistence = spawn_group_money_worker_for_test(&first, 
-            vec![(second_guid, 9)],
-            claim,
-            vec![delivery],
-            Arc::clone(&authority_committed),
-            viewer_fanout,
-        )
-        .unwrap();
+    let persistence = spawn_group_money_worker_for_test(
+        &first,
+        vec![(second_guid, 9)],
+        claim,
+        vec![delivery],
+        Arc::clone(&authority_committed),
+        viewer_fanout,
+    )
+    .unwrap();
 
     // The outer packet task owns only the JoinHandle. Aborting it must not
     // cancel the detached SQL+authority worker that owns the lease.
@@ -154,8 +152,7 @@ async fn group_loot_money_worker_requires_and_uses_the_typed_persistence_port_li
     registry.register_or_replace(second_guid, second_info, Default::default());
     first.set_player_registry(registry);
     clear_money_persistence_outcome_for_test(&mut first);
-    let authority = loot_recovery_authority_for_test(&mut first, owner)
-        .unwrap();
+    let authority = loot_recovery_authority_for_test(&mut first, owner).unwrap();
 
     handle_loot_money_for_test(&mut first, loot_money_packet()).await;
     process_pending_for_loot_test(&mut second).await;
@@ -174,11 +171,12 @@ async fn group_loot_money_worker_requires_and_uses_the_typed_persistence_port_li
     );
 
     let calls = Arc::new(AtomicUsize::new(0));
-    set_group_money_port_for_test(&mut first, Arc::new(
-        GroupLootMoneyPortFixtureLikeCpp {
+    set_group_money_port_for_test(
+        &mut first,
+        Arc::new(GroupLootMoneyPortFixtureLikeCpp {
             calls: Arc::clone(&calls),
-        },
-    ));
+        }),
+    );
     handle_loot_money_for_test(&mut first, loot_money_packet()).await;
     process_pending_for_loot_test(&mut second).await;
     assert_eq!(
@@ -203,8 +201,7 @@ async fn money_viewer_opened_during_persistence_receives_coin_removed_like_cpp()
             9, false,
         ));
     set_loot_money_persistence_test_result_for_test(&mut first, true);
-    let authority = loot_recovery_authority_for_test(&mut first, owner)
-        .unwrap();
+    let authority = loot_recovery_authority_for_test(&mut first, owner).unwrap();
     assert!(authority.remove_viewer_like_cpp(second_guid));
     let _ = drain_server_opcodes_like_cpp(&first_rx);
     let _ = drain_server_opcodes_like_cpp(&second_rx);
@@ -240,22 +237,25 @@ async fn money_viewer_opened_during_persistence_receives_coin_removed_like_cpp()
         first.session_command_tx(),
         Some(registry),
         money_map_for_test(&first),
-        money_instance_for_test(&first)
-            .unwrap_or(0),
+        money_instance_for_test(&first).unwrap_or(0),
         owner,
         represented_loot_object_guid_like_cpp(owner),
         authority.clone(),
         authority_generation,
         [first_guid].into_iter().collect(),
     );
-    let persistence = spawn_group_money_worker_for_test(&first, 
-            vec![(first_guid, 9)],
-            claim,
-            vec![source_money_delivery_for_test(first.session_command_tx(), application)],
-            Arc::clone(&authority_committed),
-            viewer_fanout,
-        )
-        .unwrap();
+    let persistence = spawn_group_money_worker_for_test(
+        &first,
+        vec![(first_guid, 9)],
+        claim,
+        vec![source_money_delivery_for_test(
+            first.session_command_tx(),
+            application,
+        )],
+        Arc::clone(&authority_committed),
+        viewer_fanout,
+    )
+    .unwrap();
 
     authority
         .open_view_with_snapshot_like_cpp(second_guid, |_, _| ())

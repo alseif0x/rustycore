@@ -15,7 +15,11 @@ async fn quest_required_creature_loot_is_not_generated_after_completion_like_cpp
     install_limited_test_item_template(&mut session, item_id, 0);
     install_quest_bound_loot_objective_like_cpp(&mut session, quest_id, item_id, 6, 6);
     mutate_player_quest_gameplay_for_test(&mut session, |quests| {
-        quests.statuses_mut_like_cpp().find(|status| status.quest_id == quest_id).unwrap().status = wow_world::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP;
+        quests
+            .statuses_mut_like_cpp()
+            .find(|status| status.quest_id == quest_id)
+            .unwrap()
+            .status = wow_world::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP;
     });
 
     let mut creature_store = LootStore::for_kind_like_cpp(LootStoreKind::Creature);
@@ -50,7 +54,10 @@ async fn quest_required_creature_loot_is_not_generated_after_completion_like_cpp
     );
 
     mutate_player_quest_gameplay_for_test(&mut session, |quests| {
-        let status = quests.statuses_mut_like_cpp().find(|status| status.quest_id == quest_id).unwrap();
+        let status = quests
+            .statuses_mut_like_cpp()
+            .find(|status| status.quest_id == quest_id)
+            .unwrap();
         status.status = wow_world::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
         status.objective_counts[0] = 5;
     });
@@ -60,4 +67,3 @@ async fn quest_required_creature_loot_is_not_generated_after_completion_like_cpp
     assert_eq!(incomplete_loot.len(), 1);
     assert!(incomplete_loot[0].flags.needs_quest);
 }
-

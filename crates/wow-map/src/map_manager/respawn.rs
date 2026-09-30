@@ -13,8 +13,10 @@ impl WorldCreature {
         spell_hit: bool,
         spell_cast_log: bool,
     ) {
-        self.runtime.respawn_spell_hit_aura_source_authority_like_cpp = spell_hit;
-        self.runtime.respawn_spell_cast_log_aura_source_authority_like_cpp = spell_cast_log;
+        self.runtime
+            .respawn_spell_hit_aura_source_authority_like_cpp = spell_hit;
+        self.runtime
+            .respawn_spell_cast_log_aura_source_authority_like_cpp = spell_cast_log;
         let auras = &mut self.creature.unit_mut().subsystems_mut().auras;
         auras.set_spell_hit_aura_authority_inert_like_cpp(spell_hit);
         auras.set_spell_cast_log_aura_authority_inert_like_cpp(spell_cast_log);
@@ -116,13 +118,21 @@ impl MapInstance {
     ) -> crate::spawn::RespawnTransfer<'fence> {
         self.respawn_store.take_transfer(
             crate::MapKey::new(u32::from(self.map_id), self.instance_id),
-            incarnation, writer_fence,
+            incarnation,
+            writer_fence,
         )
     }
 
     pub fn restore_respawn_transfer<'fence>(
-        &mut self, incoming: crate::spawn::RespawnTransfer<'fence>,
-    ) -> Result<(), (crate::spawn::RespawnTransferError, crate::spawn::RespawnTransfer<'fence>)> {
+        &mut self,
+        incoming: crate::spawn::RespawnTransfer<'fence>,
+    ) -> Result<
+        (),
+        (
+            crate::spawn::RespawnTransferError,
+            crate::spawn::RespawnTransfer<'fence>,
+        ),
+    > {
         if incoming.key() != crate::MapKey::new(u32::from(self.map_id), self.instance_id) {
             return Err((crate::spawn::RespawnTransferError::WrongMap, incoming));
         }
@@ -141,7 +151,9 @@ impl MapInstance {
         object_type: SpawnObjectType,
         spawn_id: u64,
     ) -> Option<i64> {
-        self.respawn_store.saved_row(object_type, spawn_id).map(|row| row.respawn_time)
+        self.respawn_store
+            .saved_row(object_type, spawn_id)
+            .map(|row| row.respawn_time)
     }
 
     pub fn persisted_respawn_rows_like_cpp(&self) -> Vec<PersistedRespawnRowLikeCpp> {
@@ -173,7 +185,8 @@ impl MapInstance {
         now: Instant,
         now_secs: i64,
     ) -> Option<RespawnPersistenceMutationLikeCpp> {
-        self.respawn_store.save_actor_row(respawn, self.map_id, self.instance_id, now, now_secs)
+        self.respawn_store
+            .save_actor_row(respawn, self.map_id, self.instance_id, now, now_secs)
     }
 
     pub fn load_persisted_respawns_into_queue_like_cpp(

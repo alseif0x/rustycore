@@ -64,8 +64,7 @@ impl PlayerCurrency {
             currency_id,
             quantity: self.quantity,
             amount: applied,
-            weekly_quantity: ((self.weekly_quantity / scaler) > 0)
-                .then_some(self.weekly_quantity),
+            weekly_quantity: ((self.weekly_quantity / scaler) > 0).then_some(self.weekly_quantity),
             max_quantity: (max_quantity != 0).then_some(max_quantity),
             total_earned: entry.has_total_earned().then_some(self.earned_quantity),
             suppress_chat_log: entry.is_suppressing_chat_log(false),

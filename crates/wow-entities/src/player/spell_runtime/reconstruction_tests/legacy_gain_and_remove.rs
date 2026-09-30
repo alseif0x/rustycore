@@ -1,7 +1,7 @@
 //! Original Session rule cases, now exercising canonical Player operations.
 
-use super::*;
 use super::support::*;
+use super::*;
 
 #[test]
 fn loaded_dependency_spells_apply_learn_skill_before_authority_like_cpp() {
@@ -98,7 +98,9 @@ fn remove_known_spell_removes_first_rank_learned_skill_like_cpp() {
     );
 
     assert!(
-        session.player.non_durable_skill_tombstones_like_cpp()
+        session
+            .player
+            .non_durable_skill_tombstones_like_cpp()
             .contains(&755)
     );
 }
@@ -219,4 +221,3 @@ fn remove_known_spell_resets_skill_when_previous_learned_skill_missing_like_cpp(
         "C++ removes the current learned skill when no previous SpellLearnSkill setting is found"
     );
 }
-

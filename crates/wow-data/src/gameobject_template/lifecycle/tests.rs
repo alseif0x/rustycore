@@ -1,7 +1,7 @@
 //! Tests for lifecycle store construction and entity projection.
 
-use super::*;
 use super::super::catalog::{GAMEOBJECT_DATA_CHEST_LOOT, GAMEOBJECT_TYPE_DOOR};
+use super::*;
 
 fn template(
     addon: Option<GameObjectTemplateAddonLifecycleRecordLikeCpp>,
@@ -96,36 +96,19 @@ fn gameobject_for_quest_store_matches_cpp_template_type_filters() {
     gathering_data[GAMEOBJECT_DATA_CHEST_LOOT] = 9100;
 
     let templates = GameObjectTemplateLifecycleStoreLikeCpp::from_templates([
-        template_with_data(
-            100,
-            GAMEOBJECT_TYPE_QUESTGIVER,
-            [0; MAX_GAMEOBJECT_DATA],
-        ),
+        template_with_data(100, GAMEOBJECT_TYPE_QUESTGIVER, [0; MAX_GAMEOBJECT_DATA]),
         template_with_data(101, GAMEOBJECT_TYPE_CHEST, chest_quest_data),
         template_with_data(102, GAMEOBJECT_TYPE_CHEST, chest_loot_data),
         template_with_data(103, GAMEOBJECT_TYPE_GENERIC, generic_data),
         template_with_data(104, GAMEOBJECT_TYPE_GOOBER, goober_data),
-        template_with_data(
-            105,
-            GAMEOBJECT_TYPE_GATHERING_NODE,
-            gathering_data,
-        ),
-        template_with_data(
-            106,
-            GAMEOBJECT_TYPE_CHEST,
-            [0; MAX_GAMEOBJECT_DATA],
-        ),
-        template_with_data(
-            107,
-            GAMEOBJECT_TYPE_DOOR,
-            [0; MAX_GAMEOBJECT_DATA],
-        ),
+        template_with_data(105, GAMEOBJECT_TYPE_GATHERING_NODE, gathering_data),
+        template_with_data(106, GAMEOBJECT_TYPE_CHEST, [0; MAX_GAMEOBJECT_DATA]),
+        template_with_data(107, GAMEOBJECT_TYPE_DOOR, [0; MAX_GAMEOBJECT_DATA]),
     ]);
 
-    let store =
-        GameObjectForQuestStoreLikeCpp::from_templates_like_cpp(&templates, |loot_id| {
-            matches!(loot_id, 9000 | 9100)
-        });
+    let store = GameObjectForQuestStoreLikeCpp::from_templates_like_cpp(&templates, |loot_id| {
+        matches!(loot_id, 9000 | 9100)
+    });
 
     for entry in [100, 101, 102, 103, 104, 105] {
         assert!(
@@ -137,4 +120,3 @@ fn gameobject_for_quest_store_matches_cpp_template_type_filters() {
     assert!(!store.is_game_object_for_quests_like_cpp(107));
     assert_eq!(store.len(), 6);
 }
-

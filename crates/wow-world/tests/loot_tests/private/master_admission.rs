@@ -6,11 +6,14 @@ async fn master_loot_item_without_group_sends_didnt_kill_like_cpp() {
     let (mut session, send_rx) = make_session_with_send();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
 
-    handle_master_loot_item_for_test(&mut session, MasterLootItem {
+    handle_master_loot_item_for_test(
+        &mut session,
+        MasterLootItem {
             target: ObjectGuid::create_player(1, 77),
             loot: Vec::new(),
-        })
-        .await;
+        },
+    )
+    .await;
 
     let sent = send_rx.try_recv().unwrap();
     let mut sent = WorldPacket::from_bytes(&sent);
@@ -50,11 +53,14 @@ async fn master_loot_item_uses_group_master_looter_guid_like_cpp() {
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(leader_guid));
 
-    handle_master_loot_item_for_test(&mut session, MasterLootItem {
+    handle_master_loot_item_for_test(
+        &mut session,
+        MasterLootItem {
             target: master_guid,
             loot: Vec::new(),
-        })
-        .await;
+        },
+    )
+    .await;
 
     let sent = send_rx.try_recv().unwrap();
     let mut sent = WorldPacket::from_bytes(&sent);
@@ -70,11 +76,14 @@ async fn master_loot_item_uses_group_master_looter_guid_like_cpp() {
     );
 
     session.set_player_guid(Some(master_guid));
-    handle_master_loot_item_for_test(&mut session, MasterLootItem {
+    handle_master_loot_item_for_test(
+        &mut session,
+        MasterLootItem {
             target: leader_guid,
             loot: Vec::new(),
-        })
-        .await;
+        },
+    )
+    .await;
 
     assert!(send_rx.try_recv().is_err());
 }
@@ -94,11 +103,14 @@ async fn master_loot_item_missing_target_sends_player_not_found_like_cpp() {
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));
 
-    handle_master_loot_item_for_test(&mut session, MasterLootItem {
+    handle_master_loot_item_for_test(
+        &mut session,
+        MasterLootItem {
             target: missing_target,
             loot: Vec::new(),
-        })
-        .await;
+        },
+    )
+    .await;
 
     let sent = send_rx.try_recv().unwrap();
     let mut sent = WorldPacket::from_bytes(&sent);
@@ -139,7 +151,8 @@ async fn master_loot_item_ineligible_target_sends_master_other_like_cpp() {
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));
     set_active_loot_guid_for_test(&mut session, loot_owner);
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_owner,
         CreatureLoot {
             loot_guid: loot_object,
@@ -170,14 +183,17 @@ async fn master_loot_item_ineligible_target_sends_master_other_like_cpp() {
         },
     );
 
-    handle_master_loot_item_for_test(&mut session, MasterLootItem {
+    handle_master_loot_item_for_test(
+        &mut session,
+        MasterLootItem {
             target: target_guid,
             loot: vec![wow_packet::packets::loot::LootItemRequest {
                 object: loot_object,
                 loot_list_id: 0,
             }],
-        })
-        .await;
+        },
+    )
+    .await;
 
     let sent = send_rx.try_recv().unwrap();
     let mut sent = WorldPacket::from_bytes(&sent);

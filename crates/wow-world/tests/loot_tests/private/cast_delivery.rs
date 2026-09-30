@@ -1,10 +1,17 @@
 //! Original cast commit and visibility delivery regressions.
 
 use super::recovery_support::*;
-use wow_world::test_fixtures::loot::loot_visibility_matches_for_test;
 use wow_constants::ServerOpcodes;
-use wow_world::session::mailbox::{SendCreatureSpellCastIfVisibleLikeCppCommand, SendVisibleObjectValuesUpdateCommand};
-use wow_world::test_fixtures::loot::{make_loot_cast_delivery_fixture, loot_committed_visibility_for_test, remove_loot_visibility_for_test, set_loot_combat_logging_for_test, drain_loot_delivery_commands_for_test, deliver_loot_visible_values_for_test, insert_loot_transport_visibility_for_test, clear_loot_transport_visibility_for_test};
+use wow_world::session::mailbox::{
+    SendCreatureSpellCastIfVisibleLikeCppCommand, SendVisibleObjectValuesUpdateCommand,
+};
+use wow_world::test_fixtures::loot::loot_visibility_matches_for_test;
+use wow_world::test_fixtures::loot::{
+    clear_loot_transport_visibility_for_test, deliver_loot_visible_values_for_test,
+    drain_loot_delivery_commands_for_test, insert_loot_transport_visibility_for_test,
+    loot_committed_visibility_for_test, make_loot_cast_delivery_fixture,
+    remove_loot_visibility_for_test, set_loot_combat_logging_for_test,
+};
 
 fn creature_spell_cast_command_like_cpp(
     source_guid: ObjectGuid,
@@ -45,8 +52,7 @@ async fn advanced_combat_logging_receives_the_committed_full_creature_spell_go_l
         ))
         .expect("atomic spell command queued");
 
-    drain_loot_delivery_commands_for_test(&mut session)
-        .await;
+    drain_loot_delivery_commands_for_test(&mut session).await;
 
     assert_eq!(send_rx.try_recv().expect("START frame"), expected_start);
     assert_eq!(send_rx.try_recv().expect("full GO frame"), expected_go);
@@ -70,8 +76,7 @@ async fn creature_spell_cast_command_sends_start_then_basic_go_after_one_gate_li
         ))
         .expect("atomic spell command queued");
 
-    drain_loot_delivery_commands_for_test(&mut session)
-        .await;
+    drain_loot_delivery_commands_for_test(&mut session).await;
 
     assert_eq!(send_rx.try_recv().expect("START frame"), expected_start);
     assert_eq!(send_rx.try_recv().expect("GO frame"), expected_go);
@@ -102,8 +107,7 @@ async fn creature_spell_cast_honors_commit_time_visibility_after_exit_like_cpp()
         "the caster leaves the client's visible set before the drain"
     );
 
-    drain_loot_delivery_commands_for_test(&mut session)
-        .await;
+    drain_loot_delivery_commands_for_test(&mut session).await;
 
     assert_eq!(send_rx.try_recv().expect("START frame"), expected_start);
     assert_eq!(send_rx.try_recv().expect("GO frame"), expected_go);
@@ -116,7 +120,8 @@ async fn creature_spell_cast_rejects_command_committed_for_another_session_like_
     // committed against the previous incarnation must not be delivered even
     // when the caster is visible again.
     let (mut session, send_rx, source_guid) = make_loot_cast_delivery_fixture();
-    let previous_incarnation = wow_world::session::mailbox::SharedClientVisibleGuidsLikeCpp::default();
+    let previous_incarnation =
+        wow_world::session::mailbox::SharedClientVisibleGuidsLikeCpp::default();
     previous_incarnation.insert(source_guid);
     assert!(
         !loot_visibility_matches_for_test(&session, &previous_incarnation),
@@ -130,8 +135,7 @@ async fn creature_spell_cast_rejects_command_committed_for_another_session_like_
         ))
         .expect("atomic spell command queued");
 
-    drain_loot_delivery_commands_for_test(&mut session)
-        .await;
+    drain_loot_delivery_commands_for_test(&mut session).await;
 
     assert!(
         send_rx.try_recv().is_err(),
@@ -159,8 +163,7 @@ async fn creature_spell_go_keeps_the_committed_frame_after_a_preference_toggle_l
         .expect("atomic spell command queued");
     set_loot_combat_logging_for_test(&mut session, true);
 
-    drain_loot_delivery_commands_for_test(&mut session)
-        .await;
+    drain_loot_delivery_commands_for_test(&mut session).await;
 
     let _start = send_rx.try_recv().expect("START frame");
     assert_eq!(

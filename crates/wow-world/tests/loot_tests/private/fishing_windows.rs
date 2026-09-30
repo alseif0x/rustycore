@@ -34,8 +34,7 @@ async fn represented_fishing_node_junk_loot_uses_default_zone_like_cpp() {
     session.set_loot_stores(Arc::new(stores));
 
     prepare_money_player_residence_for_test(&mut session);
-    open_fishing_loot_cycle_for_test(&mut session, gameobject_guid, 77, true)
-        .await;
+    open_fishing_loot_cycle_for_test(&mut session, gameobject_guid, 77, true).await;
 
     let loot = loot_for_test(&session, gameobject_guid).unwrap();
     assert_eq!(loot.loot_type, LOOT_TYPE_FISHING_JUNK_LIKE_CPP);
@@ -97,8 +96,7 @@ async fn represented_fishing_node_loot_walks_parent_area_like_cpp() {
     session.set_loot_stores(Arc::new(stores));
 
     prepare_money_player_residence_for_test(&mut session);
-    open_fishing_loot_cycle_for_test(&mut session, gameobject_guid, 77, false)
-        .await;
+    open_fishing_loot_cycle_for_test(&mut session, gameobject_guid, 77, false).await;
 
     let loot = loot_for_test(&session, gameobject_guid).unwrap();
     assert_eq!(loot.loot_type, LOOT_TYPE_FISHING_LIKE_CPP);
@@ -106,4 +104,3 @@ async fn represented_fishing_node_loot_walks_parent_area_like_cpp() {
     assert_eq!(loot.items[0].item_id, item_id);
     assert!(is_active_loot_guid_for_test(&session, gameobject_guid));
 }
-

@@ -52,7 +52,8 @@ impl DisenchantLootBuilder {
                     if let Some(row) = group.roll_like_cpp(DEFAULT_LOOT_MODE, rng, |item| {
                         item_max_stack(item.item_id).is_some()
                     }) {
-                        let count = rng.gen_range(u32::from(row.min_count)..=u32::from(row.max_count));
+                        let count =
+                            rng.gen_range(u32::from(row.min_count)..=u32::from(row.max_count));
                         add_item_stacks(
                             &mut self.loot_items,
                             row.item_id,
@@ -105,9 +106,7 @@ impl DisenchantLootBuilder {
                 if !reference_row_can_roll(&row) {
                     continue;
                 }
-                if row.chance < 100.0
-                    && !roll_chance_with_rate(row.chance, reference_rate(), rng)
-                {
+                if row.chance < 100.0 && !roll_chance_with_rate(row.chance, reference_rate(), rng) {
                     continue;
                 }
 
@@ -118,8 +117,7 @@ impl DisenchantLootBuilder {
             if !plain_row_can_roll(&row, item_max_stack(row.item_id).is_some()) {
                 continue;
             }
-            if row.chance < 100.0
-                && !roll_chance_with_rate(row.chance, item_rate(row.item_id), rng)
+            if row.chance < 100.0 && !roll_chance_with_rate(row.chance, item_rate(row.item_id), rng)
             {
                 continue;
             }
@@ -149,7 +147,8 @@ impl DisenchantLootBuilder {
             .expect("reference rows require a pending request");
         let max_count = reference_max_count(row.max_count, amount_rate);
         for _ in 0..max_count {
-            self.frames.push(disenchant_frame(rows.clone(), row.group_id));
+            self.frames
+                .push(disenchant_frame(rows.clone(), row.group_id));
         }
         self.processed_frames = self.processed_frames.saturating_add(1);
         self.processed_frames <= MAX_REFERENCE_FRAMES

@@ -63,7 +63,9 @@ impl<'a> RepresentedCreatureDamage<'a> {
     ) -> RepresentedCreatureDamageApplied<'a> {
         let creature = self.creature;
         if let Some((player_guid, tap_group_guids)) = player_tap {
-            creature.creature.set_tapped_by_player(player_guid, tap_group_guids);
+            creature
+                .creature
+                .set_tapped_by_player(player_guid, tap_group_guids);
         }
         // SpellNonMeleeDamage::preHitHealth precedes DealDamage.
         let pre_hit_health = creature.current_hp();
@@ -82,28 +84,50 @@ impl<'a> RepresentedCreatureDamage<'a> {
             if creature.creature.ai_ownership().combat_target.is_none() {
                 creature.enter_combat(caster_guid);
             }
-            creature.creature.unit_mut().subsystems_mut().combat.add_threat(
-                caster_guid,
-                damage_amount as f32 * spell_threat_pct_mod * caster_school_threat_mod,
-            );
-            creature.creature.unit().subsystems().combat.threat_value(caster_guid)
+            creature
+                .creature
+                .unit_mut()
+                .subsystems_mut()
+                .combat
+                .add_threat(
+                    caster_guid,
+                    damage_amount as f32 * spell_threat_pct_mod * caster_school_threat_mod,
+                );
+            creature
+                .creature
+                .unit()
+                .subsystems()
+                .combat
+                .threat_value(caster_guid)
         } else {
             None
         };
         RepresentedCreatureDamageApplied {
-            creature, died, threat_value, newly_engaged, pre_hit_health,
+            creature,
+            died,
+            threat_value,
+            newly_engaged,
+            pre_hit_health,
         }
     }
 }
 
 impl RepresentedCreatureDamageApplied<'_> {
-    pub fn died(&self) -> bool { self.died }
+    pub fn died(&self) -> bool {
+        self.died
+    }
 
-    pub fn entry(&self) -> u32 { self.creature.entry() }
+    pub fn entry(&self) -> u32 {
+        self.creature.entry()
+    }
 
     /// Called after APP's kill log and before its stop serialization.
     pub fn stop_after_kill(&mut self) -> Option<MoveSplineStopResult> {
-        if self.died { self.creature.stop_move_spline_like_cpp() } else { None }
+        if self.died {
+            self.creature.stop_move_spline_like_cpp()
+        } else {
+            None
+        }
     }
 
     /// Consuming the borrowed phase captures values only after APP serialization.

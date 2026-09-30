@@ -6,8 +6,8 @@ use super::*;
 /// auras each use the same base, including a self-targeting aura.
 #[test]
 fn legacy_creature_melee_tick_once_shares_creature_damage_in_cpp_order() {
-    use wow_world::map_manager::RuntimeTickOwner;
     use wow_constants::ServerOpcodes;
+    use wow_world::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
     let canonical = shared_canonical_map_manager();

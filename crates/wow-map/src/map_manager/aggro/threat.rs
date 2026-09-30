@@ -30,13 +30,8 @@ pub fn update_threat_victim(
         .iter()
         .filter(|candidate| {
             candidate_targetable(candidate)
-                && candidate_hostile(
-                    creature, candidate, policies,
-                )
-                .unwrap_or(false)
-                && candidate_accessible(
-                    creature, candidate,
-                )
+                && candidate_hostile(creature, candidate, policies).unwrap_or(false)
+                && candidate_accessible(creature, candidate)
                 && matches!(
                     candidate_visibility(
                         creature,
@@ -48,12 +43,7 @@ pub fn update_threat_victim(
                     AggroVisibility::Allowed
                 )
                 && matches!(
-                    candidate_leash(
-                        creature,
-                        candidate,
-                        config,
-                        owner_snapshots,
-                    ),
+                    candidate_leash(creature, candidate, config, owner_snapshots,),
                     AggroLeash::Allowed
                 )
         })
@@ -75,20 +65,14 @@ pub fn update_threat_victim(
                     | UnitFlags::IMMUNE_TO_NPC
                     | UnitFlags::UNINTERACTIBLE,
             )
-            && snapshot_hostile(creature, snapshot, policies)
-                .unwrap_or(false)
+            && snapshot_hostile(creature, snapshot, policies).unwrap_or(false)
             && if snapshot.in_water {
                 creature.creature.can_enter_water_like_cpp()
             } else {
                 creature.creature.can_walk_like_cpp() || creature.creature.can_fly_like_cpp()
             }
             && matches!(
-                snapshot_leash(
-                    creature,
-                    snapshot,
-                    config,
-                    owner_snapshots,
-                ),
+                snapshot_leash(creature, snapshot, config, owner_snapshots,),
                 AggroLeash::Allowed
             ))
         .then_some(*guid)

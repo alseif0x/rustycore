@@ -19,7 +19,10 @@ use crate::{
 
 pub(super) async fn initialize_guid_allocators(
     char_db: &CharacterDatabase,
-) -> anyhow::Result<(SessionIdGeneratorsLikeCpp, ItemGuidAllocatorAdvisoryLockLikeCpp)> {
+) -> anyhow::Result<(
+    SessionIdGeneratorsLikeCpp,
+    ItemGuidAllocatorAdvisoryLockLikeCpp,
+)> {
     // Initialize GUID generator from MAX(guid) in characters table
     let max_guid = {
         let stmt = char_db.prepare(CharStatements::SEL_MAX_GUID);

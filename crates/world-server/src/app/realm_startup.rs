@@ -1,11 +1,16 @@
 //! Ordered realm startup composition.
 
+use crate::{
+    RealmListSnapshotLikeCpp, clear_online_accounts_like_cpp, realm_id_like_cpp,
+    realms_state_update_delay_secs_like_cpp, set_realm_offline,
+    spawn_realm_list_update_loop_like_cpp, update_realm_list_once_like_cpp,
+    verify_world_db_version_like_cpp,
+};
 use anyhow::Context;
 use std::sync::Arc;
-use tracing::info;
 use std::sync::Mutex;
+use tracing::info;
 use wow_database::LoginDatabase;
-use crate::{realm_id_like_cpp, clear_online_accounts_like_cpp, verify_world_db_version_like_cpp, set_realm_offline, RealmListSnapshotLikeCpp, update_realm_list_once_like_cpp, spawn_realm_list_update_loop_like_cpp, realms_state_update_delay_secs_like_cpp};
 
 pub(super) struct RealmAvailability {
     pub(super) realm_list_update_handle: Option<tokio::task::JoinHandle<()>>,

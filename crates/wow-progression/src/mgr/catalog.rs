@@ -15,10 +15,7 @@ pub trait ReputationCatalogReadLikeCpp {
 
     fn faction_team_list_like_cpp(&self, id: u32) -> Vec<u32>;
 
-    fn friendship_reactions_like_cpp(
-        &self,
-        id: u8,
-    ) -> Option<Vec<&FriendshipRepReactionEntry>>;
+    fn friendship_reactions_like_cpp(&self, id: u8) -> Option<Vec<&FriendshipRepReactionEntry>>;
 
     fn paragon_for_faction_like_cpp(&self, id: u32) -> Option<&ParagonReputationEntry>;
 

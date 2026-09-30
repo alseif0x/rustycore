@@ -1,7 +1,7 @@
 // External application scenarios migrated with their original assertions.
 
-use super::*;
 use super::fixtures::make_session;
+use super::*;
 use std::sync::Arc;
 use wow_data::PlayerCreatePositionLikeCpp;
 

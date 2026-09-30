@@ -292,6 +292,5 @@ pub fn calculate_derived_stats(
     }
 }
 
-
 #[cfg(test)]
 mod tests;

@@ -5,12 +5,12 @@
 
 //! Pool planning and map-local pool actions.
 
+mod despawn;
 mod gameobject_update;
 mod materialized;
-mod despawn;
 
-use super::*;
 use super::super::loaded_grid_admission::{LoadedGridPoolOutcome, LoadedGridReceipts};
+use super::*;
 
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
 where
@@ -48,12 +48,17 @@ where
     {
         // A genuinely absent optional loader remains None through recursion.
         let mut materialized = load_record.as_deref_mut().map(|loader| {
-            move |map: &mut Self, kind, spawn_id| Ok(loader(map, kind, spawn_id)
-                .map(LoadedGridMaterialization::records))
+            move |map: &mut Self, kind, spawn_id| {
+                Ok(loader(map, kind, spawn_id).map(LoadedGridMaterialization::records))
+            }
         });
         let mut receipts = LoadedGridReceipts::RecordCompatibility;
         self.apply_pool_typed_materialized(
-            plan, spawn_store, summary, materialized.as_mut(), &mut receipts,
+            plan,
+            spawn_store,
+            summary,
+            materialized.as_mut(),
+            &mut receipts,
         );
     }
 
@@ -87,11 +92,17 @@ where
         L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
     {
         self.spawn_pool_materialized_core(
-            pool_mgr, pool_id, spawn_store, explicit_roll_for, choose_equal,
-            |map, kind, spawn_id| Ok(load_record(map, kind, spawn_id)
-                .map(LoadedGridMaterialization::records)),
+            pool_mgr,
+            pool_id,
+            spawn_store,
+            explicit_roll_for,
+            choose_equal,
+            |map, kind, spawn_id| {
+                Ok(load_record(map, kind, spawn_id).map(LoadedGridMaterialization::records))
+            },
             LoadedGridReceipts::RecordCompatibility,
-        ).map(|outcome| outcome.summary)
+        )
+        .map(|outcome| outcome.summary)
     }
 
     /// C++ `Map` constructor calls `sPoolMgr->InitPoolsForMap(this)` before

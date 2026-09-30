@@ -40,18 +40,13 @@ pub fn represented_hit_profile(
     )
 }
 
-pub fn resolve_hit_profile(
-    profile: SpellHitProfile,
-    roll: Option<u32>,
-) -> Option<SpellHit> {
+pub fn resolve_hit_profile(profile: SpellHitProfile, roll: Option<u32>) -> Option<SpellHit> {
     // C++ `Unit::MeleeSpellHitResult` draws `urand(0, 9999)` before applying
     // NO_ATTACK_MISS to the miss-chance bucket. Both currently represented
     // profiles therefore require exactly one authoritative draw.
     let roll = roll.filter(|roll| *roll <= 9_999)?;
     match profile {
-        SpellHitProfile::NoAttackMissAfterRequiredRoll => {
-            Some(SpellHit::Hit)
-        }
+        SpellHitProfile::NoAttackMissAfterRequiredRoll => Some(SpellHit::Hit),
         SpellHitProfile::BaseMeleeMiss {
             miss_threshold_per_ten_thousand,
         } => Some(if roll < miss_threshold_per_ten_thousand {

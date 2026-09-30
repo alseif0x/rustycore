@@ -56,5 +56,6 @@ pub(super) fn test_quest_template(id: u32) -> QuestTemplate {
     quest
 }
 
+#[path = "fixtures/item_rows.rs"]
 mod item_rows;
 pub(super) use item_rows::*;

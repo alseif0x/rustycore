@@ -50,9 +50,7 @@ async fn apply_creature_melee_damage_command_battleground_skips_durability_like_
         ))
         .expect("lethal battleground command queued");
 
-    session
-        .fixture_melee_process_commands()
-        .await;
+    session.fixture_melee_process_commands().await;
 
     assert!(
         !drain_server_opcodes(&send_rx).contains(&ServerOpcodes::DurabilityDamageDeath),

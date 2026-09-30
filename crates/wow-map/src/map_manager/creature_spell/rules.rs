@@ -1,9 +1,7 @@
 //! Represented spell rules shared by both owners and compatibility facades.
 use super::*;
 
-pub fn has_nonzero_power_cost(
-    spell: &SpellInfoFacts,
-) -> bool {
+pub fn has_nonzero_power_cost(spell: &SpellInfoFacts) -> bool {
     // `SpellInfo::PowerCosts` retains zero-valued SpellPower rows. Their mere
     // presence does not make `Spell::m_powerCost` nonzero; in particular live
     // 15691 has a type-3 row whose flat, per-level, periodic, percentage,
@@ -36,9 +34,7 @@ pub fn single_unit_topology(
     if requires_projectile_payload {
         return Err(SpellTopologyError::ProjectileOrAmmo);
     }
-    if spell.requires_spell_focus != 0
-        || has_nonzero_power_cost(spell)
-    {
+    if spell.requires_spell_focus != 0 || has_nonzero_power_cost(spell) {
         // Focus discovery and Creature power-cost calculation/deduction are
         // not part of M2.6. Emitting GO when C++ CheckCast/CheckPower would
         // fail would be a false successful cast, so keep this slice closed.

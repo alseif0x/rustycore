@@ -32,7 +32,10 @@ fn positive_snapshot_revives_only_just_died_and_corpse() {
             player.unit().health_state_revision_like_cpp(),
             revision + 1 + u64::from(state != expected_state),
         );
-        assert_eq!(player.unit().is_alive(), expected_state == DeathState::Alive);
+        assert_eq!(
+            player.unit().is_alive(),
+            expected_state == DeathState::Alive
+        );
     }
 }
 
@@ -74,12 +77,19 @@ fn snapshot_clamps_zero_maximum_and_health_above_maximum() {
     ] {
         let mut player = player_with_health(20, 100, DeathState::Alive);
 
-        assert_eq!(player.apply_represented_health_snapshot(health, max_health), expected);
+        assert_eq!(
+            player.apply_represented_health_snapshot(health, max_health),
+            expected
+        );
         assert_eq!(player.unit().data().health, u64::from(expected.0));
         assert_eq!(player.unit().data().max_health, u64::from(expected.1));
         assert_eq!(
             player.unit().death_state(),
-            if health == 0 { DeathState::Corpse } else { DeathState::Alive },
+            if health == 0 {
+                DeathState::Corpse
+            } else {
+                DeathState::Alive
+            },
         );
     }
 }
@@ -90,7 +100,10 @@ fn identical_snapshot_does_not_advance_revision_or_dirty_unit_fields() {
         let mut player = player_with_health(health, 100, state);
         let revision = player.unit().health_state_revision_like_cpp();
 
-        assert_eq!(player.apply_represented_health_snapshot(health as u32, 100), (health as u32, 100));
+        assert_eq!(
+            player.apply_represented_health_snapshot(health as u32, 100),
+            (health as u32, 100)
+        );
         assert_eq!(player.unit().health_state_revision_like_cpp(), revision);
         assert!(!player.unit().unit_data_changes_mask().is_any_set());
     }
@@ -138,7 +151,10 @@ fn alive_zero_health_rejects_damage_without_a_death_transition() {
     let mut player = player_with_health(0, 100, DeathState::Alive);
     let revision = player.unit().health_state_revision_like_cpp();
 
-    assert_eq!(player.apply_represented_damage(20, DeathState::JustDied), (0, 0, 100, 0, false));
+    assert_eq!(
+        player.apply_represented_damage(20, DeathState::JustDied),
+        (0, 0, 100, 0, false)
+    );
     assert_eq!(player.unit().death_state(), DeathState::Alive);
     assert_eq!(player.unit().health_state_revision_like_cpp(), revision);
     assert!(!player.unit().unit_data_changes_mask().is_any_set());
@@ -162,8 +178,14 @@ fn zero_damage_keeps_normal_health_but_still_normalizes_extreme_health() {
         assert_eq!(player.unit().data().health, expected_health);
         assert_eq!(player.unit().data().max_health, max_health);
         assert_eq!(player.unit().death_state(), DeathState::Alive);
-        assert_eq!(player.unit().health_state_revision_like_cpp(), revision + revision_delta);
-        assert_eq!(player.unit().unit_data_changes_mask().is_any_set(), revision_delta != 0);
+        assert_eq!(
+            player.unit().health_state_revision_like_cpp(),
+            revision + revision_delta
+        );
+        assert_eq!(
+            player.unit().unit_data_changes_mask().is_any_set(),
+            revision_delta != 0
+        );
     }
 }
 
@@ -172,15 +194,24 @@ fn successive_damage_reads_updated_health_and_saturates_applied_damage() {
     let mut player = player_with_health(20, 100, DeathState::Alive);
     let revision = player.unit().health_state_revision_like_cpp();
 
-    assert_eq!(player.apply_represented_damage(7, DeathState::Corpse), (20, 13, 100, 7, false));
+    assert_eq!(
+        player.apply_represented_damage(7, DeathState::Corpse),
+        (20, 13, 100, 7, false)
+    );
     assert_eq!(player.unit().death_state(), DeathState::Alive);
     assert_eq!(player.unit().health_state_revision_like_cpp(), revision + 1);
-    assert_eq!(player.apply_represented_damage(u32::MAX, DeathState::Corpse), (13, 0, 100, 13, true));
+    assert_eq!(
+        player.apply_represented_damage(u32::MAX, DeathState::Corpse),
+        (13, 0, 100, 13, true)
+    );
     assert_eq!(player.unit().death_state(), DeathState::Corpse);
     assert_eq!(player.unit().health_state_revision_like_cpp(), revision + 3);
 
     player.unit_mut().clear_unit_data_changes();
-    assert_eq!(player.apply_represented_damage(1, DeathState::Dead), (0, 0, 100, 0, false));
+    assert_eq!(
+        player.apply_represented_damage(1, DeathState::Dead),
+        (0, 0, 100, 0, false)
+    );
     assert_eq!(player.unit().death_state(), DeathState::Corpse);
     assert_eq!(player.unit().health_state_revision_like_cpp(), revision + 3);
     assert!(!player.unit().unit_data_changes_mask().is_any_set());
@@ -198,7 +229,10 @@ fn lethal_damage_preserves_the_requested_state_including_alive() {
         let mut player = player_with_health(20, 100, DeathState::Alive);
         let revision = player.unit().health_state_revision_like_cpp();
 
-        assert_eq!(player.apply_represented_damage(20, state), (20, 0, 100, 20, true));
+        assert_eq!(
+            player.apply_represented_damage(20, state),
+            (20, 0, 100, 20, true)
+        );
         assert_eq!(player.unit().death_state(), state);
         assert_eq!(player.unit().data().health, 0);
         assert_eq!(player.unit().data().max_health, 100);

@@ -130,17 +130,17 @@ pub use creature::{
     CREATURE_CURRENT_EXPANSION_LIKE_CPP, CREATURE_EXPANSION_LEVEL_CURRENT_LIKE_CPP,
     CreatureAddonAuraApplicationLikeCpp, CreatureAddonAuraEffectLikeCpp,
     CreatureAddonLifecycleRecordLikeCpp, CreatureAddonRowLikeCpp, CreatureAddonStoreLikeCpp,
-    CreatureBaseStatsRecordLikeCpp,
-    CreatureBaseStatsStoreLikeCpp, CreatureClassificationDamageRatesLikeCpp,
-    CreatureClassificationHealthRatesLikeCpp, CreatureDifficultyRecordLikeCpp,
-    CreatureDifficultyStoreLikeCpp, CreatureModelSelectionRandomLikeCpp,
-    CreatureTemplateClassificationStoreLikeCpp, CreatureTemplateLifecycleModelLikeCpp,
-    CreatureTemplateLifecycleRecordLikeCpp, CreatureTemplateLifecycleStoreLikeCpp,
-    CreatureTemplateMountEntryLikeCpp, CreatureTemplateMountModelLikeCpp,
-    CreatureTemplateMountStoreLikeCpp, CreatureTemplateSparringStoreLikeCpp,
-    DEFAULT_VISIBILITY_DISTANCE, MAX_CREATURE_SPELLS_LIKE_CPP, MAX_VISIBILITY_DISTANCE,
-    VISIBILITY_DISTANCE_GIGANTIC, VISIBILITY_DISTANCE_LARGE, VISIBILITY_DISTANCE_SMALL,
-    VISIBILITY_DISTANCE_TINY, VisibilityDistanceTypeLikeCpp,
+    CreatureBaseStatsRecordLikeCpp, CreatureBaseStatsStoreLikeCpp,
+    CreatureClassificationDamageRatesLikeCpp, CreatureClassificationHealthRatesLikeCpp,
+    CreatureDifficultyRecordLikeCpp, CreatureDifficultyStoreLikeCpp,
+    CreatureModelSelectionRandomLikeCpp, CreatureTemplateClassificationStoreLikeCpp,
+    CreatureTemplateLifecycleModelLikeCpp, CreatureTemplateLifecycleRecordLikeCpp,
+    CreatureTemplateLifecycleStoreLikeCpp, CreatureTemplateMountEntryLikeCpp,
+    CreatureTemplateMountModelLikeCpp, CreatureTemplateMountStoreLikeCpp,
+    CreatureTemplateSparringStoreLikeCpp, DEFAULT_VISIBILITY_DISTANCE,
+    MAX_CREATURE_SPELLS_LIKE_CPP, MAX_VISIBILITY_DISTANCE, VISIBILITY_DISTANCE_GIGANTIC,
+    VISIBILITY_DISTANCE_LARGE, VISIBILITY_DISTANCE_SMALL, VISIBILITY_DISTANCE_TINY,
+    VisibilityDistanceTypeLikeCpp,
 };
 pub use creature::{
     CreatureDisplayInfoEntry, CreatureDisplayInfoStore, CreatureModelDataEntry,
@@ -157,7 +157,6 @@ pub use currency::{CurrencyTypesEntry, CurrencyTypesStore};
 pub use db2_hotfix::Db2HotfixRemovalStoreLikeCpp;
 pub use db2_id_store::Db2IdStore;
 pub use difficulty::DifficultyStore;
-pub use wow_data_model::difficulty::DifficultyEntry;
 pub use disable_mgr::{
     CreatureSpellDisableDecisionLikeCpp, DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_CRITERIA,
     DISABLE_TYPE_LFG_MAP, DISABLE_TYPE_MAP, DISABLE_TYPE_MMAP, DISABLE_TYPE_OUTDOORPVP,
@@ -166,7 +165,6 @@ pub use disable_mgr::{
     DisableWorldObjectRefLikeCpp, SPELL_DISABLE_CREATURE,
 };
 pub use dungeon_encounter::DungeonEncounterStore;
-pub use wow_data_model::dungeon_encounter::DungeonEncounterEntry;
 pub use entities_movement::{
     AnimKitEntry, AnimKitStore, AnimationDataEntry, AnimationDataStore,
     CreatureDisplayInfoExtraEntry, CreatureDisplayInfoExtraStore, CreatureFamilyEntry,
@@ -213,16 +211,16 @@ pub use gameobject_template::{
     GAMEOBJECT_TYPE_BINDER, GAMEOBJECT_TYPE_BUTTON, GAMEOBJECT_TYPE_CAMERA,
     GAMEOBJECT_TYPE_CAPTURE_POINT, GAMEOBJECT_TYPE_CHAIR, GAMEOBJECT_TYPE_CHEST,
     GAMEOBJECT_TYPE_DESTRUCTIBLE_BUILDING, GAMEOBJECT_TYPE_DOOR,
-    GAMEOBJECT_TYPE_DUNGEON_DIFFICULTY, GAMEOBJECT_TYPE_FISHING_HOLE,
-    GAMEOBJECT_TYPE_FISHING_NODE, GAMEOBJECT_TYPE_FLAGDROP, GAMEOBJECT_TYPE_FLAGSTAND,
-    GAMEOBJECT_TYPE_GATHERING_NODE, GAMEOBJECT_TYPE_GENERIC, GAMEOBJECT_TYPE_GOOBER,
-    GAMEOBJECT_TYPE_GUARDPOST, GAMEOBJECT_TYPE_GUILD_BANK, GAMEOBJECT_TYPE_ITEM_FORGE,
-    GAMEOBJECT_TYPE_MAILBOX, GAMEOBJECT_TYPE_MAP_OBJECT, GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT,
-    GAMEOBJECT_TYPE_MEETINGSTONE, GAMEOBJECT_TYPE_MINI_GAME, GAMEOBJECT_TYPE_NEW_FLAG,
-    GAMEOBJECT_TYPE_NEW_FLAG_DROP, GAMEOBJECT_TYPE_QUESTGIVER, GAMEOBJECT_TYPE_RITUAL,
-    GAMEOBJECT_TYPE_SPELL_FOCUS, GAMEOBJECT_TYPE_SPELLCASTER, GAMEOBJECT_TYPE_TEXT,
-    GAMEOBJECT_TYPE_TRANSPORT, GAMEOBJECT_TYPE_TRAP, GAMEOBJECT_TYPE_UI_LINK,
-    GameObjectForQuestStoreLikeCpp, GameObjectLootSource, GameObjectOverrideLifecycleRecordLikeCpp,
+    GAMEOBJECT_TYPE_DUNGEON_DIFFICULTY, GAMEOBJECT_TYPE_FISHING_HOLE, GAMEOBJECT_TYPE_FISHING_NODE,
+    GAMEOBJECT_TYPE_FLAGDROP, GAMEOBJECT_TYPE_FLAGSTAND, GAMEOBJECT_TYPE_GATHERING_NODE,
+    GAMEOBJECT_TYPE_GENERIC, GAMEOBJECT_TYPE_GOOBER, GAMEOBJECT_TYPE_GUARDPOST,
+    GAMEOBJECT_TYPE_GUILD_BANK, GAMEOBJECT_TYPE_ITEM_FORGE, GAMEOBJECT_TYPE_MAILBOX,
+    GAMEOBJECT_TYPE_MAP_OBJ_TRANSPORT, GAMEOBJECT_TYPE_MAP_OBJECT, GAMEOBJECT_TYPE_MEETINGSTONE,
+    GAMEOBJECT_TYPE_MINI_GAME, GAMEOBJECT_TYPE_NEW_FLAG, GAMEOBJECT_TYPE_NEW_FLAG_DROP,
+    GAMEOBJECT_TYPE_QUESTGIVER, GAMEOBJECT_TYPE_RITUAL, GAMEOBJECT_TYPE_SPELL_FOCUS,
+    GAMEOBJECT_TYPE_SPELLCASTER, GAMEOBJECT_TYPE_TEXT, GAMEOBJECT_TYPE_TRANSPORT,
+    GAMEOBJECT_TYPE_TRAP, GAMEOBJECT_TYPE_UI_LINK, GameObjectForQuestStoreLikeCpp,
+    GameObjectLootSource, GameObjectOverrideLifecycleRecordLikeCpp,
     GameObjectOverrideLifecycleStoreLikeCpp, GameObjectTemplateAddonLifecycleRecordLikeCpp,
     GameObjectTemplateData, GameObjectTemplateLifecycleRecord,
     GameObjectTemplateLifecycleRecordLikeCpp, GameObjectTemplateLifecycleStoreLikeCpp,
@@ -323,7 +321,6 @@ pub use mail::{
 pub use map::{
     MapDifficultyStore, MapDifficultyXConditionEntry, MapDifficultyXConditionStore, MapStore,
 };
-pub use wow_data_model::map::{MapDifficultyEntry, MapEntry};
 pub use maps_world::{
     AreaGroupMemberEntry, AreaGroupMemberStore, AreaTriggerDb2Entry, AreaTriggerDb2Store,
     Db2Position2, Db2Position3, LightEntry, LightStore, LiquidTypeEntry, LiquidTypeStore,
@@ -382,8 +379,8 @@ pub use phasing::{
     PhaseAreaInfo, PhaseConditionAttachmentReport, PhaseConditionContainer, PhaseInfoStore,
     PhaseInfoStruct, PhaseNameStoreLikeCpp,
 };
-pub use player::{ClassPowerIndexRecord, Db2PlayerPowerIndexResolver, PlayerClassPowerIndexStore};
 pub use player::power::PlayerPowerIndexResolver;
+pub use player::{ClassPowerIndexRecord, Db2PlayerPowerIndexResolver, PlayerClassPowerIndexStore};
 pub use player::{
     PLAYER_CREATE_MODE_MAX_LIKE_CPP, PLAYER_CREATE_MODE_NORMAL_LIKE_CPP,
     PLAYER_CREATE_MODE_NPE_LIKE_CPP, PlayerCreateInfoCastSpellLoadReportLikeCpp,
@@ -422,12 +419,12 @@ pub use poi::{
     PointOfInterestLocaleLikeCpp, PointOfInterestLocaleRowLikeCpp,
     PointOfInterestLocaleStoreLikeCpp, PointOfInterestRowLikeCpp, PointOfInterestStoreLikeCpp,
 };
+pub use quest::{QuestObjective, QuestObjectiveRulesLikeCpp};
 pub use quest_item::{
     CreatureQuestItemLoadOutcomeLikeCpp, CreatureQuestItemLoadReportLikeCpp,
     CreatureQuestItemStoreLikeCpp, GameObjectQuestItemLoadOutcomeLikeCpp,
     GameObjectQuestItemLoadReportLikeCpp, GameObjectQuestItemStoreLikeCpp,
 };
-pub use quest::{QuestObjective, QuestObjectiveRulesLikeCpp};
 pub use rand_prop_points::{RandPropPointsEntry, RandPropPointsStore};
 pub use reserved_names::ReservedNameStoreLikeCpp;
 pub use scene_template::{
@@ -475,7 +472,7 @@ pub use spawn_group::{
 pub use spell::{
     EffectiveCoreSpellDb2StoresLikeCpp, GENDER_FEMALE_LIKE_CPP, GENDER_MALE_LIKE_CPP,
     GENDER_NONE_LIKE_CPP, ImplicitSpellProcEffectLikeCpp, ImplicitSpellProcSourceLikeCpp,
-    MAX_SPELL_EFFECTS_LIKE_CPP, PrimaryProfessionSpellClassificationErrorLikeCpp,
+    MAX_SPELL_EFFECTS_LIKE_CPP, PetAuraLikeCpp, PrimaryProfessionSpellClassificationErrorLikeCpp,
     SKILL_DUAL_WIELD_LIKE_CPP, SPELL_AREA_FLAG_AUTOCAST_LIKE_CPP,
     SPELL_AREA_FLAG_AUTOREMOVE_LIKE_CPP,
     SPELL_AREA_FLAG_IGNORE_AUTOCAST_ON_QUEST_STATUS_CHANGE_LIKE_CPP,
@@ -516,7 +513,6 @@ pub use spell::{
     SpellLinkedStoreLikeCpp, SpellLinkedTypeLikeCpp, SpellPetAuraLoadErrorKindLikeCpp,
     SpellPetAuraLoadErrorLikeCpp, SpellPetAuraLoadOutcomeLikeCpp, SpellPetAuraRowLikeCpp,
     SpellPetAuraSourceEffectLikeCpp, SpellPetAuraSourceLookupLikeCpp, SpellPetAuraStoreLikeCpp,
-    PetAuraLikeCpp,
     SpellPowerCostInfoLikeCpp, SpellPowerCostLikeCpp, SpellProcEntryLikeCpp, SpellProcKeyLikeCpp,
     SpellProcLoadErrorKindLikeCpp, SpellProcLoadErrorLikeCpp, SpellProcLoadOutcomeLikeCpp,
     SpellProcRowLikeCpp, SpellProcSourceSpellInfoLikeCpp, SpellProcStoreLikeCpp,
@@ -607,11 +603,10 @@ pub use ui_map::{UiMapXMapArtEntry, UiMapXMapArtStore};
 pub use vehicle::{
     VEHICLE_SEAT_FLAG_ALLOW_TURNING, VEHICLE_SEAT_FLAG_B_EJECTABLE,
     VEHICLE_SEAT_FLAG_B_USABLE_FORCED, VEHICLE_SEAT_FLAG_CAN_ATTACK, VEHICLE_SEAT_FLAG_CAN_CONTROL,
-    VEHICLE_SEAT_FLAG_CAN_ENTER_OR_EXIT, VEHICLE_SEAT_FLAG_CAN_SWITCH,
-    VehicleAccessory, VehicleAccessoryStoreLikeCpp, VehicleEntry, VehicleSeatAddon, VehicleSeatEntry,
-    VehicleSeatInfo, VehicleSeatStore, VehicleStore, VehicleTemplate,
-    VehicleTemplateStoreLikeCpp, vehicle_seat_flags_allow_turning_like_cpp,
-    vehicle_seat_flags_can_enter_or_exit_like_cpp,
+    VEHICLE_SEAT_FLAG_CAN_ENTER_OR_EXIT, VEHICLE_SEAT_FLAG_CAN_SWITCH, VehicleAccessory,
+    VehicleAccessoryStoreLikeCpp, VehicleEntry, VehicleSeatAddon, VehicleSeatEntry,
+    VehicleSeatInfo, VehicleSeatStore, VehicleStore, VehicleTemplate, VehicleTemplateStoreLikeCpp,
+    vehicle_seat_flags_allow_turning_like_cpp, vehicle_seat_flags_can_enter_or_exit_like_cpp,
     vehicle_seat_flags_can_switch_from_seat_like_cpp,
 };
 pub use vendor::{
@@ -628,4 +623,7 @@ pub use world::{
     WorldStateExpressionTimeLikeCpp, WorldStateExpressionWorldState,
     is_meeting_world_state_expression_like_cpp,
 };
+pub use wow_data_model::difficulty::DifficultyEntry;
+pub use wow_data_model::dungeon_encounter::DungeonEncounterEntry;
+pub use wow_data_model::map::{MapDifficultyEntry, MapEntry};
 pub use xp::{ExplorationBaseXpRowLikeCpp, ExplorationBaseXpStoreLikeCpp};

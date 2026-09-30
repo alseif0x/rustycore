@@ -94,7 +94,9 @@ async fn typed_map_corpse_base_failure_publishes_nothing_like_cpp() {
             reason: "base query failed".to_owned(),
         });
 
-    let outcome = session.character_load_map_corpse_data_for_test(571, 9).await;
+    let outcome = session
+        .character_load_map_corpse_data_for_test(571, 9)
+        .await;
 
     assert_eq!(outcome, MapCorpseLoadOutcomeLikeCpp::default());
     assert!(
@@ -133,7 +135,9 @@ async fn typed_map_corpse_auxiliary_failures_are_independent_and_non_fatal_like_
                 customizations,
             });
 
-        let outcome = session.character_load_map_corpse_data_for_test(571, 9).await;
+        let outcome = session
+            .character_load_map_corpse_data_for_test(571, 9)
+            .await;
 
         assert_eq!(outcome.invalid_type_rows, 1);
         assert_eq!(outcome.corpses_added, 0);
@@ -159,7 +163,9 @@ async fn typed_map_corpse_empty_load_marks_the_map_once_like_cpp() {
             customizations: MapCorpseAuxiliaryLoadOutcomeLikeCpp::Loaded(Vec::new()),
         });
 
-    let outcome = session.character_load_map_corpse_data_for_test(571, 9).await;
+    let outcome = session
+        .character_load_map_corpse_data_for_test(571, 9)
+        .await;
 
     assert_eq!(outcome, MapCorpseLoadOutcomeLikeCpp::default());
     assert_eq!(

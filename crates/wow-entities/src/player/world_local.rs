@@ -214,11 +214,7 @@ impl Player {
     /// `WorldObject` zone/area projection together. The Player cache and
     /// `Unit::World` remain distinct state; the caller provides the area from
     /// the snapshot used by this stage rather than having it reread here.
-    pub fn apply_represented_zone_stage_like_cpp(
-        &mut self,
-        zone_id: u32,
-        projection_area_id: u32,
-    ) {
+    pub fn apply_represented_zone_stage_like_cpp(&mut self, zone_id: u32, projection_area_id: u32) {
         self.set_zone_id_like_cpp(zone_id);
         self.unit_mut()
             .world_mut()
@@ -229,11 +225,7 @@ impl Player {
     /// `WorldObject` zone/area projection together. The Player cache and
     /// `Unit::World` remain distinct state; the caller provides the zone from
     /// the snapshot used by this stage rather than having it reread here.
-    pub fn apply_represented_area_stage_like_cpp(
-        &mut self,
-        area_id: u32,
-        projection_zone_id: u32,
-    ) {
+    pub fn apply_represented_area_stage_like_cpp(&mut self, area_id: u32, projection_zone_id: u32) {
         self.set_area_id_like_cpp(area_id);
         self.unit_mut()
             .world_mut()
@@ -243,11 +235,7 @@ impl Player {
     /// Apply a resolved zone/area pair to the Player cache and its
     /// `WorldObject` projection in one Player mutation. The underlying stores
     /// stay separate and the cache setter retains its authority semantics.
-    pub fn apply_represented_zone_area_stage_like_cpp(
-        &mut self,
-        zone_id: u32,
-        area_id: u32,
-    ) {
+    pub fn apply_represented_zone_area_stage_like_cpp(&mut self, zone_id: u32, area_id: u32) {
         self.set_zone_area_like_cpp(zone_id, area_id);
         self.unit_mut()
             .world_mut()

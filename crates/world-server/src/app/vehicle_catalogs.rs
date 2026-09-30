@@ -1,5 +1,5 @@
-use anyhow::{Context, Result};
 use crate::catalogs;
+use anyhow::{Context, Result};
 use std::sync::Arc;
 use tracing::info;
 use wow_database::{HotfixDatabase, WorldDatabase};

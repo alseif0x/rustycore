@@ -104,4 +104,3 @@ pub enum UpdateEnchantTimeAction {
         slot: EnchantmentSlot,
     },
 }
-

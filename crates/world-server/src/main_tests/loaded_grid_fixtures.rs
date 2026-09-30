@@ -1,18 +1,7 @@
 use super::{
-    Arc,
-    BTreeMap,
-    Condition,
-    ConditionSourceType,
-    ConditionType,
-    LoadedGridCreatureRespawnCachesLikeCpp,
-    SpawnData,
-    SpawnGroupFlags,
-    SpawnGroupMemberRow,
-    SpawnGroupTemplateData,
-    SpawnObjectType,
-    SpawnPosition,
-    SpawnStore,
-    spawn_store_loader,
+    Arc, BTreeMap, Condition, ConditionSourceType, ConditionType,
+    LoadedGridCreatureRespawnCachesLikeCpp, SpawnData, SpawnGroupFlags, SpawnGroupMemberRow,
+    SpawnGroupTemplateData, SpawnObjectType, SpawnPosition, SpawnStore, spawn_store_loader,
 };
 
 pub(super) fn canonical_test_map_store_like_cpp() -> wow_data::MapStore {
@@ -27,7 +16,8 @@ pub(super) fn canonical_test_map_store_like_cpp() -> wow_data::MapStore {
     }))
 }
 
-pub(super) fn empty_loaded_grid_creature_respawn_caches_like_cpp() -> LoadedGridCreatureRespawnCachesLikeCpp {
+pub(super) fn empty_loaded_grid_creature_respawn_caches_like_cpp()
+-> LoadedGridCreatureRespawnCachesLikeCpp {
     LoadedGridCreatureRespawnCachesLikeCpp {
         realm_id: 1,
         template_store: Arc::new(wow_data::CreatureTemplateLifecycleStoreLikeCpp::default()),

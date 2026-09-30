@@ -14,12 +14,15 @@ use wow_core::ObjectGuid;
 
 // Constants matching C# SharedConst
 use wow_constants::quest::{
-    QUEST_REWARD_ITEM_COUNT, QUEST_REWARD_CHOICES_COUNT, QUEST_REWARD_REPUTATIONS_COUNT,
-    QUEST_REWARD_CURRENCY_COUNT, QUEST_REWARD_DISPLAY_SPELL_COUNT,
+    QUEST_REWARD_CHOICES_COUNT, QUEST_REWARD_CURRENCY_COUNT, QUEST_REWARD_DISPLAY_SPELL_COUNT,
+    QUEST_REWARD_ITEM_COUNT, QUEST_REWARD_REPUTATIONS_COUNT,
 };
 
 mod requests;
-pub use requests::{QuestChoiceItem, read_quest_choice_item, read_quest_giver_accept_quest, read_quest_giver_query_quest};
+pub use requests::{
+    QuestChoiceItem, read_quest_choice_item, read_quest_giver_accept_quest,
+    read_quest_giver_query_quest,
+};
 const QUEST_EMOTE_COUNT: usize = 4;
 
 /// Client request to start an Adventure Map quest.

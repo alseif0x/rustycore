@@ -1,9 +1,9 @@
 use super::loot_response_item_views;
 use crate::{
-    CreatureLoot, LootEntry, LootEntryFlags, NotNormalLootItem,
-    LOOT_METHOD_GROUP_LIKE_CPP, LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP,
-    LOOT_SLOT_TYPE_OWNER_LIKE_CPP, LOOT_SLOT_TYPE_ROLL_ONGOING_LIKE_CPP,
-    mark_loot_allowed_for_player_like_cpp, mark_loot_item_looted_for_player_like_cpp,
+    CreatureLoot, LOOT_METHOD_GROUP_LIKE_CPP, LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP,
+    LOOT_SLOT_TYPE_OWNER_LIKE_CPP, LOOT_SLOT_TYPE_ROLL_ONGOING_LIKE_CPP, LootEntry, LootEntryFlags,
+    NotNormalLootItem, mark_loot_allowed_for_player_like_cpp,
+    mark_loot_item_looted_for_player_like_cpp,
 };
 use wow_core::{ObjectGuid, guid::HighGuid};
 
@@ -132,9 +132,15 @@ fn represented_ffa_loot_uses_player_ffa_items_like_cpp() {
 
     assert!(player_ffa.is_looted);
     assert!(!other_ffa.is_looted);
-    assert!(loot_response_item_views(&loot, player_guid).collect::<Vec<_>>().is_empty());
+    assert!(
+        loot_response_item_views(&loot, player_guid)
+            .collect::<Vec<_>>()
+            .is_empty()
+    );
     assert_eq!(
-        loot_response_item_views(&loot, other_guid).collect::<Vec<_>>().len(),
+        loot_response_item_views(&loot, other_guid)
+            .collect::<Vec<_>>()
+            .len(),
         1
     );
 }
@@ -223,16 +229,22 @@ fn ffa_visibility_precedes_quest_bypass() {
 
     assert!(loot_response_item_views(&loot, player).next().is_none());
 
-    loot.player_ffa_items.push((other, vec![NotNormalLootItem {
-        loot_list_id: 7,
-        is_looted: false,
-    }]));
+    loot.player_ffa_items.push((
+        other,
+        vec![NotNormalLootItem {
+            loot_list_id: 7,
+            is_looted: false,
+        }],
+    ));
     assert!(loot_response_item_views(&loot, player).next().is_none());
 
-    loot.player_ffa_items.push((player, vec![NotNormalLootItem {
-        loot_list_id: 7,
-        is_looted: false,
-    }]));
+    loot.player_ffa_items.push((
+        player,
+        vec![NotNormalLootItem {
+            loot_list_id: 7,
+            is_looted: false,
+        }],
+    ));
     let rows: Vec<_> = loot_response_item_views(&loot, player).collect();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].ui_type, LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP);
@@ -271,7 +283,10 @@ fn quest_without_loot_rules_bypasses_normal_method_guards() {
 
     loot.items[0].roll_winner = player;
     assert_eq!(
-        loot_response_item_views(&loot, player).next().unwrap().ui_type,
+        loot_response_item_views(&loot, player)
+            .next()
+            .unwrap()
+            .ui_type,
         LOOT_SLOT_TYPE_OWNER_LIKE_CPP
     );
 }
@@ -294,7 +309,10 @@ fn quest_bypass_still_rejects_consumed_and_disallowed_rows() {
 
     loot.items[0].allowed_looters = vec![player];
     assert_eq!(
-        loot_response_item_views(&loot, player).next().unwrap().ui_type,
+        loot_response_item_views(&loot, player)
+            .next()
+            .unwrap()
+            .ui_type,
         LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP
     );
 }

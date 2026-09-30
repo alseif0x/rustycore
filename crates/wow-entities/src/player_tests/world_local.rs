@@ -179,7 +179,10 @@ fn cache_only_zone_area_setters_leave_the_world_projection_independent() {
     player.set_area_id_like_cpp(4);
     player.set_zone_area_like_cpp(5, 6);
 
-    assert_eq!(player.gameplay_state().world_local.zone_area_like_cpp(), (5, 6));
+    assert_eq!(
+        player.gameplay_state().world_local.zone_area_like_cpp(),
+        (5, 6)
+    );
     assert_eq!(player.unit().world().zone_id(), 70);
     assert_eq!(player.unit().world().area_id(), 80);
 }
@@ -191,52 +194,73 @@ fn represented_zone_area_stages_keep_both_pairs_and_supplied_counterparts() {
     player.set_zone_area_authority_like_cpp(true);
 
     player.apply_represented_zone_stage_like_cpp(11, 21);
-    assert_eq!(player.gameplay_state().world_local.zone_area_like_cpp(), (11, 20));
+    assert_eq!(
+        player.gameplay_state().world_local.zone_area_like_cpp(),
+        (11, 20)
+    );
     assert_eq!(player.unit().world().zone_id(), 11);
     assert_eq!(player.unit().world().area_id(), 21);
-    assert!(!player
-        .gameplay_state()
-        .world_local
-        .has_zone_area_authority_like_cpp());
+    assert!(
+        !player
+            .gameplay_state()
+            .world_local
+            .has_zone_area_authority_like_cpp()
+    );
 
     player.set_zone_area_authority_like_cpp(true);
     player.apply_represented_zone_stage_like_cpp(11, 22);
-    assert!(player
-        .gameplay_state()
-        .world_local
-        .has_zone_area_authority_like_cpp());
+    assert!(
+        player
+            .gameplay_state()
+            .world_local
+            .has_zone_area_authority_like_cpp()
+    );
     assert_eq!(player.unit().world().area_id(), 22);
 
     player.apply_represented_area_stage_like_cpp(23, 12);
-    assert_eq!(player.gameplay_state().world_local.zone_area_like_cpp(), (11, 23));
+    assert_eq!(
+        player.gameplay_state().world_local.zone_area_like_cpp(),
+        (11, 23)
+    );
     assert_eq!(player.unit().world().zone_id(), 12);
     assert_eq!(player.unit().world().area_id(), 23);
-    assert!(!player
-        .gameplay_state()
-        .world_local
-        .has_zone_area_authority_like_cpp());
+    assert!(
+        !player
+            .gameplay_state()
+            .world_local
+            .has_zone_area_authority_like_cpp()
+    );
 
     player.set_zone_area_authority_like_cpp(true);
     player.apply_represented_area_stage_like_cpp(23, 13);
-    assert!(player
-        .gameplay_state()
-        .world_local
-        .has_zone_area_authority_like_cpp());
+    assert!(
+        player
+            .gameplay_state()
+            .world_local
+            .has_zone_area_authority_like_cpp()
+    );
     assert_eq!(player.unit().world().zone_id(), 13);
 
     player.apply_represented_zone_area_stage_like_cpp(12, 24);
-    assert_eq!(player.gameplay_state().world_local.zone_area_like_cpp(), (12, 24));
+    assert_eq!(
+        player.gameplay_state().world_local.zone_area_like_cpp(),
+        (12, 24)
+    );
     assert_eq!(player.unit().world().zone_id(), 12);
     assert_eq!(player.unit().world().area_id(), 24);
-    assert!(!player
-        .gameplay_state()
-        .world_local
-        .has_zone_area_authority_like_cpp());
+    assert!(
+        !player
+            .gameplay_state()
+            .world_local
+            .has_zone_area_authority_like_cpp()
+    );
 
     player.set_zone_area_authority_like_cpp(true);
     player.apply_represented_zone_area_stage_like_cpp(12, 24);
-    assert!(player
-        .gameplay_state()
-        .world_local
-        .has_zone_area_authority_like_cpp());
+    assert!(
+        player
+            .gameplay_state()
+            .world_local
+            .has_zone_area_authority_like_cpp()
+    );
 }

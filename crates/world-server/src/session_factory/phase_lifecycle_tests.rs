@@ -27,8 +27,11 @@ async fn world_finalizer_settles_legacy_without_waiting_for_its_own_world_permit
     harness.session.kick("controlled World disconnect");
     let catalogs = SessionHandlerCatalogsLikeCpp::default();
     let (request, permit, reply) = world_request();
-    let pending = harness.session.run_requested_session_phase_like_cpp(request, &catalogs)
-        .await.unwrap();
+    let pending = harness
+        .session
+        .run_requested_session_phase_like_cpp(request, &catalogs)
+        .await
+        .unwrap();
     registry.begin_shutdown_like_cpp();
     let runtime = WorldRuntimeStateLikeCpp::new();
     let mut finalizer = Box::pin(finalization::finalize_owned_world_session_like_cpp(
@@ -41,25 +44,41 @@ async fn world_finalizer_settles_legacy_without_waiting_for_its_own_world_permit
         Duration::from_secs(2),
     ));
     assert_pending(finalizer.as_mut()).await;
-    assert!(entered.is_empty(), "legacy must settle before the first finalization write");
+    assert!(
+        entered.is_empty(),
+        "legacy must settle before the first finalization write"
+    );
     assert!(registry.try_admit_tick(legacy, 2, false).is_none());
     assert!(legacy_tick.complete(TickDisposition::FullyFinished));
     assert_pending(finalizer.as_mut()).await;
-    assert!(entered.try_recv().is_ok(), "the owned World permit must not wait for itself");
-    assert_eq!(permit.state_like_cpp(), SessionPhasePermitStateLikeCpp::Running);
+    assert!(
+        entered.try_recv().is_ok(),
+        "the owned World permit must not wait for itself"
+    );
+    assert_eq!(
+        permit.state_like_cpp(),
+        SessionPhasePermitStateLikeCpp::Running
+    );
     assert_eq!(reply.try_recv(), Err(flume::TryRecvError::Empty));
     let request = registry.close_tick_admission();
     let mut receipt = Box::pin(registry.wait_for_quiescence(request, Duration::from_secs(2)));
     assert_pending(receipt.as_mut()).await;
-    release.send(PersistenceOutcomeLikeCpp::Applied { rows: 1 }).unwrap();
+    release
+        .send(PersistenceOutcomeLikeCpp::Applied { rows: 1 })
+        .unwrap();
     finalizer.await;
     assert!(destroyed.load(Ordering::Acquire));
     assert_eq!(registry.len_like_cpp(), 0);
-    assert_eq!(permit.state_like_cpp(), SessionPhasePermitStateLikeCpp::Completed);
+    assert_eq!(
+        permit.state_like_cpp(),
+        SessionPhasePermitStateLikeCpp::Completed
+    );
     assert!(reply.try_recv().is_ok());
     assert_pending(receipt.as_mut()).await;
     assert!(canonical_tick.complete(TickDisposition::AbandonedAfterAccounting));
-    registry.enable_session_drain(receipt.await.unwrap()).unwrap();
+    registry
+        .enable_session_drain(receipt.await.unwrap())
+        .unwrap();
 }
 
 #[tokio::test]
@@ -296,7 +315,10 @@ async fn shutdown_drains_kick_and_flush_after_the_phase_producer_disappears() {
     // refusal accounts for the prefix; dropping the producer proved nothing.
     assert!(tick.complete(crate::session_supervision::TickDisposition::AbandonedAfterAccounting));
     let request = registry.close_tick_admission();
-    let receipt = registry.wait_for_quiescence(request, Duration::from_secs(1)).await.unwrap();
+    let receipt = registry
+        .wait_for_quiescence(request, Duration::from_secs(1))
+        .await
+        .unwrap();
     registry.enable_session_drain(receipt).unwrap();
     assert_pending(consumer.as_mut()).await;
     assert_eq!(

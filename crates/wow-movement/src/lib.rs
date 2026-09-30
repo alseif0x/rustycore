@@ -9,7 +9,6 @@ pub use defines::{
     CONTACT_DISTANCE_LIKE_CPP, ChaseAngle, ChaseRange, JumpArrivalCastArgs,
     MovementWalkRunSpeedSelectionMode, RotateDirection, normalize_orientation_like_cpp,
 };
-pub use wow_data_model::jump_charge::{JumpChargeParams, JumpChargeSpec};
 pub use generator::{
     MovementGenerator, MovementGeneratorFlags, MovementGeneratorMode, MovementGeneratorPriority,
     MovementGeneratorState, MovementGeneratorType, MovementSlot,
@@ -100,3 +99,4 @@ pub use spline::{
     calculate_jump_speeds_like_cpp, compute_fall_elevation, compute_fall_time,
     compute_jump_max_height_like_cpp,
 };
+pub use wow_data_model::jump_charge::{JumpChargeParams, JumpChargeSpec};

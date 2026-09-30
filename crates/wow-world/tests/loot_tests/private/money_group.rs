@@ -11,8 +11,7 @@ async fn failed_authoritative_money_persistence_rolls_back_for_retry_like_cpp() 
     set_loot_money_persistence_test_result_for_test(&mut first, false);
 
     handle_loot_money_for_test(&mut first, loot_money_packet()).await;
-    let authority = loot_recovery_authority_for_test(&mut first, owner)
-        .unwrap();
+    let authority = loot_recovery_authority_for_test(&mut first, owner).unwrap();
     assert_eq!(player_gold_for_test(&first), 0);
     assert_eq!(
         authority
@@ -84,8 +83,7 @@ async fn remote_group_money_is_one_atomic_durable_fanout_like_cpp() {
     second_info.command_tx = second.session_command_tx();
     player_registry.register_or_replace(second_guid, second_info, Default::default());
     first.set_player_registry(player_registry);
-    let authority = loot_recovery_authority_for_test(&mut first, owner)
-        .unwrap();
+    let authority = loot_recovery_authority_for_test(&mut first, owner).unwrap();
     let _ = drain_server_opcodes_like_cpp(&first_rx);
     let _ = drain_server_opcodes_like_cpp(&second_rx);
 
@@ -125,10 +123,9 @@ async fn stale_active_money_view_cannot_claim_replacement_generation_like_cpp() 
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             7, false,
         ));
-    let authority = loot_recovery_authority_for_test(&mut first, owner)
-        .unwrap();
-    let opened_generation = active_money_generation_for_test(&first, owner)
-        .expect("opened loot generation");
+    let authority = loot_recovery_authority_for_test(&mut first, owner).unwrap();
+    let opened_generation =
+        active_money_generation_for_test(&first, owner).expect("opened loot generation");
     let mut replacement = authoritative_test_loot_like_cpp(11, false);
     replacement.loot_guid = represented_loot_object_guid_like_cpp(owner);
     replacement.allowed_looters = vec![first_guid, second_guid];
@@ -172,8 +169,7 @@ async fn two_sessions_claim_one_authoritative_money_pool_exactly_once_like_cpp()
         player_gold_for_test(&first) + player_gold_for_test(&second),
         9
     );
-    let authority = loot_recovery_authority_for_test(&mut first, owner)
-        .unwrap();
+    let authority = loot_recovery_authority_for_test(&mut first, owner).unwrap();
     assert_eq!(
         authority
             .snapshot_for_player_like_cpp(first_guid)
@@ -256,7 +252,8 @@ fn corpse_money_reward_distance_ignores_range_only_in_same_dungeon_instance_like
     ])));
     let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
     session.set_canonical_map_manager(canonical);
-    attach_money_player_controller_for_test(&mut session, 
+    attach_money_player_controller_for_test(
+        &mut session,
         player_guid,
         "LootOwner".to_string(),
         Position::ZERO,
@@ -266,8 +263,7 @@ fn corpse_money_reward_distance_ignores_range_only_in_same_dungeon_instance_like
         80,
         0,
     );
-    ensure_money_player_map_for_test(&mut session)
-        .expect("canonical loot owner map");
+    ensure_money_player_map_for_test(&mut session).expect("canonical loot owner map");
     install_group_loot_group(&mut session, player_guid, member_guid);
     assert_eq!(
         money_recipients_for_test(&session, owner),
@@ -320,8 +316,7 @@ async fn failed_remote_group_money_transaction_credits_nobody_and_retries_like_c
     player_registry.register_or_replace(second_guid, second_info, Default::default());
     first.set_player_registry(player_registry);
     set_loot_money_persistence_test_result_for_test(&mut first, false);
-    let authority = loot_recovery_authority_for_test(&mut first, owner)
-        .unwrap();
+    let authority = loot_recovery_authority_for_test(&mut first, owner).unwrap();
 
     handle_loot_money_for_test(&mut first, loot_money_packet()).await;
     process_pending_for_loot_test(&mut second).await;
@@ -350,4 +345,3 @@ async fn failed_remote_group_money_transaction_credits_nobody_and_retries_like_c
         0
     );
 }
-

@@ -3,13 +3,15 @@ use super::catalogs::Catalogs;
 use std::sync::{Arc, Mutex};
 use wow_core::{ObjectGuid, Position, guid::HighGuid};
 use wow_entities::{Creature, OwnedLootAuthority};
-use wow_map::{MapManager, GridCoord};
-use wow_map::manager::{MapObjectTickContinuation, MapObjectUpdateSelectionLikeCpp, PreparedMeleeKill,
-    PendingMeleeKills, MeleeLootError};
+use wow_loot::{LootStore, LootStoreItem, LootStoreKind, LootStores, LootTemplateRow};
+use wow_map::manager::{
+    MapObjectTickContinuation, MapObjectUpdateSelectionLikeCpp, MeleeLootError, PendingMeleeKills,
+    PreparedMeleeKill,
+};
 use wow_map::map_manager::WorldCreature;
-use wow_world::{session::WorldSession, test_fixtures};
+use wow_map::{GridCoord, MapManager};
 use wow_world::test_fixtures::loot::*;
-use wow_loot::{LootStore, LootStoreKind, LootStores, LootTemplateRow, LootStoreItem};
+use wow_world::{session::WorldSession, test_fixtures};
 
 pub(super) struct Fixture {
     pub session: WorldSession,
@@ -26,7 +28,11 @@ pub(super) fn guid(counter: i64) -> ObjectGuid {
 }
 fn actor(counter: i64, health: u64, position: Position) -> WorldCreature {
     let mut creature = Creature::new(false);
-    creature.unit_mut().world_mut().object_mut().create(guid(counter));
+    creature
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(guid(counter));
     creature.unit_mut().world_mut().set_map(1, 0).unwrap();
     creature.unit_mut().world_mut().relocate(position);
     creature.unit_mut().world_mut().object_mut().add_to_world();
@@ -35,7 +41,9 @@ fn actor(counter: i64, health: u64, position: Position) -> WorldCreature {
     creature.unit_mut().set_level(80);
     creature.set_ai_identity_runtime(1, 35, 0, 0);
     creature.set_avoidance_like_cpp(wow_entities::CreatureAvoidanceLikeCpp {
-        dodge_pct: 0.0, parry_pct: 0.0, block_pct: 0.0,
+        dodge_pct: 0.0,
+        parry_pct: 0.0,
+        block_pct: 0.0,
     });
     let data = WorldCreature::create_data_from_canonical_like_cpp(&creature);
     WorldCreature::from_canonical(creature, data)
@@ -47,15 +55,24 @@ fn admit(manager: &mut MapManager, actor: WorldCreature) {
     map.test_fixture_admit_creature_actor(actor);
     let cell = wow_map::map::cell_from_world(position.x, position.y);
     map.ensure_grid_loaded(&cell);
-    map.get_ngrid_mut(GridCoord::new(cell.grid_x(), cell.grid_y())).unwrap()
-        .get_grid_type_mut(cell.cell_x(), cell.cell_y()).unwrap()
-        .grid_objects.creatures.insert(guid);
+    map.get_ngrid_mut(GridCoord::new(cell.grid_x(), cell.grid_y()))
+        .unwrap()
+        .get_grid_type_mut(cell.cell_x(), cell.cell_y())
+        .unwrap()
+        .grid_objects
+        .creatures
+        .insert(guid);
 }
 pub(super) fn fixture(counter: i64, loot_id: u32, tapped: bool) -> Fixture {
     fixture_with(counter, loot_id, tapped, 0, false)
 }
-pub(super) fn fixture_with(counter: i64, loot_id: u32, tapped: bool,
-    encounter: u32, companion: bool) -> Fixture {
+pub(super) fn fixture_with(
+    counter: i64,
+    loot_id: u32,
+    tapped: bool,
+    encounter: u32,
+    companion: bool,
+) -> Fixture {
     let mut session = make_session();
     let manager = Arc::new(Mutex::new(MapManager::new(wow_map::MIN_GRID_DELAY_MS, 200)));
     manager.lock().unwrap().create_world_map(1, 0);
@@ -85,45 +102,95 @@ pub(super) fn fixture_with(counter: i64, loot_id: u32, tapped: bool,
         let mut maps = manager.lock().unwrap();
         admit(&mut maps, attacker);
         admit(&mut maps, target);
-        maps.find_map_mut(1, 0).unwrap().map_mut().add_to_active_like_cpp(root);
+        maps.find_map_mut(1, 0)
+            .unwrap()
+            .map_mut()
+            .add_to_active_like_cpp(root);
         let plan = maps.begin_tick_like_cpp(200).into_started().unwrap();
         let mut tick = maps.begin_object_tick(plan).unwrap();
-        let token = maps.prepare_next_object_map(&mut tick,
-            MapObjectUpdateSelectionLikeCpp::WholeTypedStores).unwrap().unwrap();
-        let execution = maps.apply_selected_creature_melee_with_kills(
-            &tick, token, root, &Catalogs::default()).ok().unwrap();
+        let token = maps
+            .prepare_next_object_map(&mut tick, MapObjectUpdateSelectionLikeCpp::WholeTypedStores)
+            .unwrap()
+            .unwrap();
+        let execution = maps
+            .apply_selected_creature_melee_with_kills(&tick, token, root, &Catalogs::default())
+            .ok()
+            .unwrap();
         assert_eq!(execution.outcome().canonical_creature_hits, 1);
-        let prepared = maps.prepare_next_melee_kill(&tick, execution.into_pending()).ok().unwrap();
+        let prepared = maps
+            .prepare_next_melee_kill(&tick, execution.into_pending())
+            .ok()
+            .unwrap();
         (tick, prepared)
     };
-    Fixture { session, manager, tick, prepared, root, victim, player, authority }
+    Fixture {
+        session,
+        manager,
+        tick,
+        prepared,
+        root,
+        victim,
+        player,
+        authority,
+    }
 }
 pub(super) fn map_kind(session: &mut WorldSession, dungeon: bool) {
-    session.set_map_store(Arc::new(wow_data::MapStore::from_entries([wow_data::MapEntry {
-        id: 1, instance_type: if dungeon { wow_data::map::MAP_INSTANCE }
-            else { wow_data::map::MAP_COMMON },
-        expansion_id: 0, parent_map_id: -1, cosmetic_parent_map_id: -1,
-        flags1: 0, flags2: 0,
-    }])));
+    session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
+        wow_data::MapEntry {
+            id: 1,
+            instance_type: if dungeon {
+                wow_data::map::MAP_INSTANCE
+            } else {
+                wow_data::map::MAP_COMMON
+            },
+            expansion_id: 0,
+            parent_map_id: -1,
+            cosmetic_parent_map_id: -1,
+            flags1: 0,
+            flags2: 0,
+        },
+    ])));
 }
 pub(super) fn store(session: &mut WorldSession, loot_id: u32) {
     install_basic_item_template_for_loot_test(session, 80101, 0);
     let mut creature = LootStore::for_kind_like_cpp(LootStoreKind::Creature);
-    creature.load_rows_like_cpp([LootTemplateRow { entry: loot_id, item: LootStoreItem {
-        item_id: 80101, reference: 0, chance: 100.0, needs_quest: false,
-        loot_mode: wow_loot::LOOT_MODE_DEFAULT_LIKE_CPP, group_id: 0, min_count: 1, max_count: 1,
-    } }], |_| true).unwrap();
+    creature
+        .load_rows_like_cpp(
+            [LootTemplateRow {
+                entry: loot_id,
+                item: LootStoreItem {
+                    item_id: 80101,
+                    reference: 0,
+                    chance: 100.0,
+                    needs_quest: false,
+                    loot_mode: wow_loot::LOOT_MODE_DEFAULT_LIKE_CPP,
+                    group_id: 0,
+                    min_count: 1,
+                    max_count: 1,
+                },
+            }],
+            |_| true,
+        )
+        .unwrap();
     let mut stores = LootStores::new();
     stores.insert(LootStoreKind::Creature, creature);
     session.set_loot_stores(Arc::new(stores));
 }
-pub(super) fn pending(result: Result<PendingMeleeKills, (MeleeLootError, PendingMeleeKills)>)
-    -> PendingMeleeKills {
-    match result { Ok(pending) => pending, Err((error, _)) => panic!("loot failed: {error:?}") }
+pub(super) fn pending(
+    result: Result<PendingMeleeKills, (MeleeLootError, PendingMeleeKills)>,
+) -> PendingMeleeKills {
+    match result {
+        Ok(pending) => pending,
+        Err((error, _)) => panic!("loot failed: {error:?}"),
+    }
 }
-pub(super) fn rejected(result: Result<PendingMeleeKills, (MeleeLootError, PendingMeleeKills)>)
-    -> (MeleeLootError, PendingMeleeKills) {
-    match result { Err(error) => error, Ok(_) => panic!("expected original-operation rejection") }
+pub(super) fn rejected(
+    result: Result<PendingMeleeKills, (MeleeLootError, PendingMeleeKills)>,
+) -> (MeleeLootError, PendingMeleeKills) {
+    match result {
+        Err(error) => error,
+        Ok(_) => panic!("expected original-operation rejection"),
+    }
 }
 pub(super) fn replace_actor(manager: &mut MapManager, id: ObjectGuid) {
     let map = manager.find_map_mut(1, 0).unwrap().map_mut();

@@ -36,8 +36,7 @@ pub fn spell_is_positive(spell_info: &SpellInfoFacts) -> bool {
     !effects
         .into_iter()
         .any(|(effect, aura, amount, target_a, target_b)| {
-            let targets_enemy =
-                target_checks_enemy(target_a) || target_checks_enemy(target_b);
+            let targets_enemy = target_checks_enemy(target_a) || target_checks_enemy(target_b);
             effect == 1 /* SPELL_EFFECT_INSTAKILL */
                 || effect == 2 /* SPELL_EFFECT_SCHOOL_DAMAGE */
                 || effect == 7 /* SPELL_EFFECT_ENVIRONMENTAL_DAMAGE */
@@ -75,17 +74,23 @@ pub fn spell_is_positive(spell_info: &SpellInfoFacts) -> bool {
 
 pub fn classify_target(spell: &SpellInfoFacts) -> SpellTarget {
     let positive = spell_is_positive(spell);
-    spell.effects.iter().fold(SpellTarget::SelfTarget, |selected, effect| {
-        let target_a = effect.implicit_target_1;
-        let mut candidate = match target_a {
-            6 | 53 => SpellTarget::Victim,
-            16 => SpellTarget::Enemy,
-            _ => SpellTarget::SelfTarget,
-        };
-        if effect.effect == 6 {
-            if target_a == 6 { candidate = SpellTarget::Debuff; }
-            else if positive { candidate = SpellTarget::Buff; }
-        }
-        selected.max(candidate)
-    })
+    spell
+        .effects
+        .iter()
+        .fold(SpellTarget::SelfTarget, |selected, effect| {
+            let target_a = effect.implicit_target_1;
+            let mut candidate = match target_a {
+                6 | 53 => SpellTarget::Victim,
+                16 => SpellTarget::Enemy,
+                _ => SpellTarget::SelfTarget,
+            };
+            if effect.effect == 6 {
+                if target_a == 6 {
+                    candidate = SpellTarget::Debuff;
+                } else if positive {
+                    candidate = SpellTarget::Buff;
+                }
+            }
+            selected.max(candidate)
+        })
 }

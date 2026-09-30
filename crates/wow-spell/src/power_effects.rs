@@ -18,10 +18,7 @@ pub fn energize_spell_amount(
         24_532 => damage - 4 * i32::from(caster_level.saturating_sub(60).min(15)),
         _ => damage,
     };
-    if spell_id == 67_490
-        && caster_is_player
-        && engineering().is_some_and(|value| value != 0)
-    {
+    if spell_id == 67_490 && caster_is_player && engineering().is_some_and(|value| value != 0) {
         damage += (damage as f32 * 25.0 / 100.0) as i32;
     }
     damage

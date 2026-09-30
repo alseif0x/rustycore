@@ -39,7 +39,8 @@ impl PlayerQuestGameplayState {
                     continue;
                 }
                 if objective_type == QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP
-                    && (objective.flags & QUEST_OBJECTIVE_FLAG_KILL_PLAYERS_SAME_FACTION_LIKE_CPP) != 0
+                    && (objective.flags & QUEST_OBJECTIVE_FLAG_KILL_PLAYERS_SAME_FACTION_LIKE_CPP)
+                        != 0
                     && victim_same_faction == Some(false)
                 {
                     continue;
@@ -136,13 +137,15 @@ impl PlayerQuestGameplayState {
         quest_rules: impl FnOnce() -> QuestObjectiveRulesLikeCpp<'a>,
     ) -> bool {
         let quest_already_rewarded = self.rewarded_quest_ids_like_cpp().contains(&quest_id);
-        self.statuses_like_cpp().get(&quest_id).is_some_and(|status| {
-            represented_can_complete_quest_after_objective_like_cpp(
-                status,
-                &quest_rules(),
-                objective_id,
-                quest_already_rewarded,
-            )
-        })
+        self.statuses_like_cpp()
+            .get(&quest_id)
+            .is_some_and(|status| {
+                represented_can_complete_quest_after_objective_like_cpp(
+                    status,
+                    &quest_rules(),
+                    objective_id,
+                    quest_already_rewarded,
+                )
+            })
     }
 }

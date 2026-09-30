@@ -2,8 +2,8 @@ use super::*;
 
 #[test]
 fn legacy_creature_melee_tick_once_preserves_fake_damage_wire_like_cpp() {
-    use wow_world::map_manager::RuntimeTickOwner;
     use wow_packet::packets::combat::{HIT_INFO_AFFECTS_VICTIM, HIT_INFO_FAKE_DAMAGE};
+    use wow_world::map_manager::RuntimeTickOwner;
     let manager = shared_map_manager();
     let canonical = shared_canonical_map_manager();
     let victim = test_creature_guid(91_032);

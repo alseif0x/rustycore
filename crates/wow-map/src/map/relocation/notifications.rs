@@ -10,7 +10,6 @@ where
     Terrain: TerrainGridLoader,
     Lifecycle: GridLifecycle,
 {
-
     /// Live represented C++ `Map::Update` source selection for
     /// `ProcessRelocationNotifies(t_diff)` (`Map.cpp:692-717,797-805,830-905`).
     ///
@@ -395,5 +394,4 @@ where
             })
             .collect()
     }
-
 }

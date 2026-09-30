@@ -2,11 +2,11 @@ use super::fixtures::*;
 // External application scenarios migrated with their original assertions.
 
 use super::fixtures::make_session;
-use wow_world::test_fixtures::CollectionLoadPortLikeCpp;
 use wow_persistence::{
     PlayerInitialWorldStateRowsLikeCpp, PlayerInitialWorldStateTemplateRowLikeCpp,
     PlayerInitialWorldStateValueRowLikeCpp, PlayerInitialWorldStatesLoadOutcomeLikeCpp,
 };
+use wow_world::test_fixtures::CollectionLoadPortLikeCpp;
 
 #[tokio::test]
 async fn initial_world_state_port_applies_saved_overlay_after_templates_like_cpp() {

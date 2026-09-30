@@ -22,4 +22,6 @@ pub mod quest_poi;
 pub mod reputation;
 pub mod vehicle;
 
-pub use quest::{QuestDayCooldownBlock, QuestEligibilityRules, QuestInfoEntry, QuestStatusBlock, QuestTemplate};
+pub use quest::{
+    QuestDayCooldownBlock, QuestEligibilityRules, QuestInfoEntry, QuestStatusBlock, QuestTemplate,
+};

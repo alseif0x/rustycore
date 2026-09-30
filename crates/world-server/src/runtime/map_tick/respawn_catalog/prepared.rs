@@ -4,12 +4,12 @@
 //! Its future admission consumer must call this before insertion, retaining its
 //! original timer/pool/linked-respawn decisions and statement ownership.
 
+use crate::LoadedGridCreatureRespawnCachesLikeCpp;
 use crate::runtime::game_events::spawn_helpers::{
     PreparedLoadedGridCreature, prepare_loaded_grid_creature,
 };
+use crate::runtime::map::{LoadedGridCreaturePreparationError, build_creature_respawn_records};
 use crate::spawn_store_loader::CanonicalSpawnMetadataLikeCpp;
-use crate::LoadedGridCreatureRespawnCachesLikeCpp;
-use crate::runtime::map::{build_creature_respawn_records, LoadedGridCreaturePreparationError};
 
 pub(crate) fn prepare_catalog_creature_respawn(
     map: &mut wow_map::Map,
@@ -20,8 +20,13 @@ pub(crate) fn prepare_catalog_creature_respawn(
     // Unlike grid/event/pool/condition spawn, this loader requires the current
     // map-owned respawn timer. Do not default its time to zero or sample a clock.
     let Some(records) = build_creature_respawn_records(
-        map, wow_map::SpawnObjectType::Creature, spawn_id, metadata, caches,
-    )? else {
+        map,
+        wow_map::SpawnObjectType::Creature,
+        spawn_id,
+        metadata,
+        caches,
+    )?
+    else {
         return Ok(None);
     };
     prepare_loaded_grid_creature(records, metadata.waypoint_paths_like_cpp())

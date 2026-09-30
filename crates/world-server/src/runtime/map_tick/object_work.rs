@@ -44,7 +44,8 @@ impl CanonicalObjectWork {
             condition_store,
             map_store,
             loaded_grid_creature_respawn_caches,
-        ).ok()
+        )
+        .ok()
     }
 
     /// The outer Option reports a rejected stage; the inner None ends the pass.
@@ -59,11 +60,10 @@ impl CanonicalObjectWork {
         &mut self,
         manager: &mut wow_map::MapManager,
     ) -> Result<Option<wow_map::ObjectMapUpdateToken>, wow_map::ObjectMapTickError> {
-        manager
-            .prepare_next_object_map(
-                &mut self.object_tick,
-                wow_map::MapObjectUpdateSelectionLikeCpp::NearbyCells,
-            )
+        manager.prepare_next_object_map(
+            &mut self.object_tick,
+            wow_map::MapObjectUpdateSelectionLikeCpp::NearbyCells,
+        )
     }
 
     pub(crate) fn finish_map<L>(
@@ -111,14 +111,13 @@ impl CanonicalObjectWork {
         // The canonical map still carries an intentionally incomplete Creature
         // visitor. Production behaviour is owned by the legacy/session runtime;
         // declare that owner so this tick cannot mutate and discard a shadow plan.
-        manager
-            .try_finish_object_map(
-                &mut self.object_tick,
-                token,
-                pool_update,
-                Some(load_record),
-                wow_map::MapCreatureUpdateOwnerLikeCpp::ExternalRuntime,
-            )
+        manager.try_finish_object_map(
+            &mut self.object_tick,
+            token,
+            pool_update,
+            Some(load_record),
+            wow_map::MapCreatureUpdateOwnerLikeCpp::ExternalRuntime,
+        )
     }
 
     pub(crate) fn complete(
@@ -139,10 +138,23 @@ impl CanonicalObjectWork {
         Option<CanonicalSpawnGroupConditionTickSummaryLikeCpp>,
         (wow_map::ObjectMapTickError, CanonicalObjectWork),
     > {
-        let Self { object_tick, respawn_summary } = self;
+        let Self {
+            object_tick,
+            respawn_summary,
+        } = self;
         match manager.try_finalize_object_tick(object_tick) {
-            Ok(()) => Ok(canonical_map_tick_tail_like_cpp(manager, respawn_summary, map_store)),
-            Err((error, object_tick)) => Err((error, Self { object_tick, respawn_summary })),
+            Ok(()) => Ok(canonical_map_tick_tail_like_cpp(
+                manager,
+                respawn_summary,
+                map_store,
+            )),
+            Err((error, object_tick)) => Err((
+                error,
+                Self {
+                    object_tick,
+                    respawn_summary,
+                },
+            )),
         }
     }
 }

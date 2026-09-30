@@ -1,13 +1,25 @@
 //! Preserved item catalog generation and binding scenarios.
 use super::support::*;
 use rand::{SeedableRng, rngs::StdRng};
-use wow_constants::{InventoryType, ItemBondingType, ItemClass, ItemContext, ItemFieldFlags, ItemQuality};
+use wow_constants::{
+    InventoryType, ItemBondingType, ItemClass, ItemContext, ItemFieldFlags, ItemQuality,
+};
 use wow_core::ObjectGuidGenerator;
-use wow_world::session::InventoryItem;
+use wow_data::{
+    ItemRandomEnchantmentTemplateEntry, ItemRandomEnchantmentTemplateStore,
+    ItemRandomPropertiesEntry, ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry,
+    ItemRandomSuffixEntry, ItemRandomSuffixStore, ItemRecord, ItemSparseTemplateEntry,
+    ItemStatsStore, ItemStore, RandPropPointsEntry, RandPropPointsStore,
+};
+use wow_entities::{INVENTORY_SLOT_ITEM_START, Item};
 use wow_persistence::PersistenceOutcomeLikeCpp;
-use wow_entities::{Item, INVENTORY_SLOT_ITEM_START};
-use wow_data::{ItemRecord, ItemStore, ItemStatsStore, ItemSparseTemplateEntry, ItemRandomEnchantmentTemplateStore, ItemRandomEnchantmentTemplateEntry, ItemRandomPropertiesStore, ItemRandomPropertiesEntry, ItemRandomPropertyTemplateEntry, ItemRandomSuffixStore, ItemRandomSuffixEntry, RandPropPointsStore, RandPropPointsEntry};
-use wow_world::test_fixtures::loot::{LootRandomProperties, generate_loot_item_properties_for_test, new_loot_item_flags_for_test, existing_loot_item_flags_for_test, install_loot_inventory_item_for_test, loot_inventory_item_for_test, install_loot_inventory_port_for_test, store_loot_item_for_test};
+use wow_world::session::InventoryItem;
+use wow_world::test_fixtures::loot::{
+    LootRandomProperties, existing_loot_item_flags_for_test,
+    generate_loot_item_properties_for_test, install_loot_inventory_item_for_test,
+    install_loot_inventory_port_for_test, loot_inventory_item_for_test,
+    new_loot_item_flags_for_test, store_loot_item_for_test,
+};
 
 fn install_limited_test_item_template_with_flags2_and_bonding(
     session: &mut WorldSession,
@@ -60,11 +72,7 @@ fn install_limited_test_item_template_with_flags2_and_bonding(
     )])));
 }
 
-fn test_item_record(
-    item_id: u32,
-    random_select: u16,
-    random_suffix_group_id: u16,
-) -> ItemRecord {
+fn test_item_record(item_id: u32, random_select: u16, random_suffix_group_id: u16) -> ItemRecord {
     ItemRecord {
         id: item_id,
         class_id: 2,
@@ -136,7 +144,8 @@ fn historical_stack_binding_adds_only_soulbound_like_cpp() {
         0,
         ItemBondingType::OnAcquire,
     );
-    let flags = existing_loot_item_flags_for_test(&session, 
+    let flags = existing_loot_item_flags_for_test(
+        &session,
         item_id,
         INVENTORY_SLOT_ITEM_START,
         &historical,
@@ -152,7 +161,8 @@ fn historical_stack_binding_adds_only_soulbound_like_cpp() {
         ItemBondingType::OnEquip,
     );
     assert_eq!(
-        existing_loot_item_flags_for_test(&session, 
+        existing_loot_item_flags_for_test(
+            &session,
             item_id,
             wow_entities::INVENTORY_SLOT_BAG_START,
             &historical,
@@ -161,7 +171,8 @@ fn historical_stack_binding_adds_only_soulbound_like_cpp() {
         "C++ binds an OnEquip item when that item is stored in a bag-equipment position"
     );
     assert_eq!(
-        existing_loot_item_flags_for_test(&session, 
+        existing_loot_item_flags_for_test(
+            &session,
             item_id,
             INVENTORY_SLOT_ITEM_START,
             &historical,
@@ -206,7 +217,8 @@ fn loot_item_store_random_properties_are_generated_from_cpp_random_select() {
         },
     ])));
 
-    let generated = generate_loot_item_properties_for_test(&session, 
+    let generated = generate_loot_item_properties_for_test(
+        &session,
         entry.item_id,
         &mut StdRng::seed_from_u64(1),
     );
@@ -255,11 +267,9 @@ fn loot_item_store_random_suffix_uses_cpp_property_points_seed() {
         },
     ])));
 
-    let generated = generate_loot_item_properties_for_test(&session, 25, &mut StdRng::seed_from_u64(1));
-    assert_eq!(
-        generated,
-        LootRandomProperties::new(-7001, 123)
-    );
+    let generated =
+        generate_loot_item_properties_for_test(&session, 25, &mut StdRng::seed_from_u64(1));
+    assert_eq!(generated, LootRandomProperties::new(-7001, 123));
 }
 
 #[tokio::test]
@@ -281,34 +291,46 @@ async fn failed_existing_stack_store_publishes_neither_count_nor_binding() {
         ItemBondingType::OnAcquire,
     );
     wow_world::test_fixtures::enable_ownerless_inventory_snapshots_for_test(&mut session);
-    install_loot_inventory_item_for_test(&mut session, INVENTORY_SLOT_ITEM_START,
+    install_loot_inventory_item_for_test(
+        &mut session,
+        INVENTORY_SLOT_ITEM_START,
         InventoryItem {
-            guid: item_guid, entry_id: item_id, db_guid: 77, inventory_type: None,
-        }, player_guid, 4, 0, ItemContext::None);
+            guid: item_guid,
+            entry_id: item_id,
+            db_guid: 77,
+            inventory_type: None,
+        },
+        player_guid,
+        4,
+        0,
+        ItemContext::None,
+    );
 
-    let requests = install_loot_inventory_port_for_test(&mut session,
+    let requests = install_loot_inventory_port_for_test(
+        &mut session,
         PersistenceOutcomeLikeCpp::Failed {
             reason: "fixture rollback".into(),
         },
     );
 
-    let stored = store_loot_item_for_test(&mut session, 
-            &LootEntry {
-                loot_list_id: 0,
-                item_id,
-                quantity: 1,
-                random_properties_id: 0,
-                random_properties_seed: 0,
-                item_context: 0,
-                flags: LootEntryFlags::default(),
-                allowed_looters: vec![player_guid],
-                roll_winner: ObjectGuid::EMPTY,
-                ffa_looted_by: Vec::new(),
-                taken: false,
-            },
-            0,
-        )
-        .await;
+    let stored = store_loot_item_for_test(
+        &mut session,
+        &LootEntry {
+            loot_list_id: 0,
+            item_id,
+            quantity: 1,
+            random_properties_id: 0,
+            random_properties_seed: 0,
+            item_context: 0,
+            flags: LootEntryFlags::default(),
+            allowed_looters: vec![player_guid],
+            roll_winner: ObjectGuid::EMPTY,
+            ffa_looted_by: Vec::new(),
+            taken: false,
+        },
+        0,
+    )
+    .await;
 
     assert!(!stored);
     let historical = loot_inventory_item_for_test(&session, item_guid)

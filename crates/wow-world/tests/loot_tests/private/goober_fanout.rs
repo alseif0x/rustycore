@@ -2,11 +2,19 @@
 use super::recovery_support::*;
 use std::collections::HashMap;
 use std::sync::Mutex;
-use wow_world::test_fixtures::loot::*;
-use wow_loot::{LootStore, LootStoreKind, LootStores, LootStoreItem, LootTemplateRow, loot_is_looted_like_cpp};
-use wow_world::session::mailbox::{SyncChestGameobjectStateAndRefreshLikeCppCommand, SyncGooberGameobjectStateAndRefreshLikeCppCommand, SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand};
+use wow_data::{
+    SpellInfo, SpellMiscEntry, SpellMiscStore, SpellRangeEntry, SpellRangeStore, SpellStore,
+};
 use wow_entities::GAMEOBJECT_TYPE_GOOBER;
-use wow_data::{SpellStore, SpellInfo, SpellMiscStore, SpellMiscEntry, SpellRangeStore, SpellRangeEntry};
+use wow_loot::{
+    LootStore, LootStoreItem, LootStoreKind, LootStores, LootTemplateRow, loot_is_looted_like_cpp,
+};
+use wow_world::session::mailbox::{
+    SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
+    SyncGooberGameobjectStateAndRefreshLikeCppCommand,
+};
+use wow_world::test_fixtures::loot::*;
 
 #[test]
 fn represented_goober_use_syncs_shared_state_to_same_map_viewers_like_cpp() {
@@ -34,7 +42,8 @@ fn represented_goober_use_syncs_shared_state_to_same_map_viewers_like_cpp() {
     session.set_player_registry(player_registry);
     set_loot_linked_trap_for_test(&mut session, gameobject_guid, 190_015);
 
-    assert!(use_loot_goober_for_test(&mut session, 
+    assert!(use_loot_goober_for_test(
+        &mut session,
         gameobject_guid,
         player_guid,
         777,

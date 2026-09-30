@@ -4,8 +4,8 @@
 //! Complete Creature snapshot replacement inside the existing Map borrow.
 
 use super::{
-    AccessorObjectKind, GridLifecycle, Map, MapObjectRecord, MapObjectStoreError,
-    ObjectEntry, ObjectRef, TerrainGridLoader, detach_typed_loot_authority_like_cpp,
+    AccessorObjectKind, GridLifecycle, Map, MapObjectRecord, MapObjectStoreError, ObjectEntry,
+    ObjectRef, TerrainGridLoader, detach_typed_loot_authority_like_cpp,
     typed_loot_authorities_share_storage_like_cpp,
 };
 use wow_core::ObjectGuid;
@@ -60,10 +60,13 @@ where
                 drop(previous);
             }
             PreparedCreatureSnapshot::Actor(incoming) => {
-                let mut entry = self.entity_world.take(&guid)
+                let mut entry = self
+                    .entity_world
+                    .take(&guid)
                     .ok_or(CreatureSnapshotReplaceError::NotExactCreature { guid })?;
                 if !typed_loot_authorities_share_storage_like_cpp(
-                    entry.as_ref(), ObjectRef::from_creature(&incoming),
+                    entry.as_ref(),
+                    ObjectRef::from_creature(&incoming),
                 ) {
                     detach_typed_loot_authority_like_cpp(entry.as_mut());
                 }

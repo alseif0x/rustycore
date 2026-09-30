@@ -3,22 +3,20 @@ use super::fixtures::*;
 
 use std::sync::Arc;
 
-use wow_world::session::WorldSession;
+use wow_core::guid::HighGuid;
+use wow_core::{EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator, Position};
 use wow_entities::{
     PlayerHomebindLikeCpp as RepresentedHomebindLikeCpp,
     PlayerTaxiFlightNodeLikeCpp as RepresentedTaxiFlightNodeLikeCpp,
 };
+use wow_packet::WorldPacket;
+use wow_world::session::WorldSession;
 use wow_world::test_fixtures::{
     install_canonical_player_owner_for_test, player_is_alive_for_test,
     set_loaded_player_identity_like_cpp, set_player_position_for_test,
 };
-use wow_core::guid::HighGuid;
-use wow_core::{EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator, Position};
-use wow_packet::WorldPacket;
 
-fn make_session_with_send_capacity(
-    capacity: usize,
-) -> (WorldSession, flume::Receiver<Vec<u8>>) {
+fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(1);
     let (send_tx, send_rx) = flume::bounded::<Vec<u8>>(capacity);
     let mut session = WorldSession::new_character_lifecycle_fixture(
@@ -40,9 +38,7 @@ fn make_session_with_send_capacity(
     (session, send_rx)
 }
 
-fn make_hearth_and_resurrect_session(
-    area_flags: u32,
-) -> (WorldSession, flume::Receiver<Vec<u8>>) {
+fn make_hearth_and_resurrect_session(area_flags: u32) -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (mut session, send_rx) = make_session_with_send_capacity(4);
     session.set_map_store(world_maps([571]));
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));

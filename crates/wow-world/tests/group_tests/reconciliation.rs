@@ -15,7 +15,9 @@
 use super::*;
 
 use wow_world::session::SessionState;
-use wow_world::session::mailbox::{ApplyGroupRemovalLikeCppCommand, ApplyGroupSubgroupLikeCppCommand};
+use wow_world::session::mailbox::{
+    ApplyGroupRemovalLikeCppCommand, ApplyGroupSubgroupLikeCppCommand,
+};
 
 /// One kick/disband scenario: a leader that acts and a target whose mailbox
 /// is already saturated by the time the group authority reaches it.
@@ -262,7 +264,7 @@ async fn delivered_removal_after_reconciliation_does_not_publish_twice_like_cpp(
     wow_world::test_fixtures::process_represented_session_commands_like_cpp(
         &mut fixture.target_session,
     )
-        .await;
+    .await;
 
     assert_eq!(resolved_group_guid_like_cpp(&fixture.target_session), None);
     assert!(
@@ -329,7 +331,7 @@ async fn obsolete_removal_after_rejoining_the_same_group_is_ignored_like_cpp() {
     wow_world::test_fixtures::process_represented_session_commands_like_cpp(
         &mut fixture.target_session,
     )
-        .await;
+    .await;
 
     assert_eq!(
         resolved_group_guid_like_cpp(&fixture.target_session),
@@ -361,7 +363,7 @@ async fn removal_for_another_group_leaves_current_membership_alone_like_cpp() {
     wow_world::test_fixtures::process_represented_session_commands_like_cpp(
         &mut fixture.target_session,
     )
-        .await;
+    .await;
 
     assert_eq!(
         resolved_group_guid_like_cpp(&fixture.target_session),
@@ -518,7 +520,7 @@ async fn group_command_dropped_before_login_defers_reconciliation_like_cpp() {
     wow_world::test_fixtures::process_represented_session_commands_like_cpp(
         &mut fixture.target_session,
     )
-        .await;
+    .await;
 
     assert!(
         fixture
@@ -597,7 +599,7 @@ async fn subgroup_command_for_another_group_defers_reconciliation_like_cpp() {
     wow_world::test_fixtures::process_represented_session_commands_like_cpp(
         &mut fixture.target_session,
     )
-        .await;
+    .await;
 
     assert_eq!(
         represented_subgroup_like_cpp(&fixture.target_session),

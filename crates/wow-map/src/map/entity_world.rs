@@ -18,9 +18,9 @@ use std::collections::HashMap;
 use wow_core::ObjectGuid;
 use wow_entities::{AccessorObjectKind, Creature, MapObjectRecord};
 
-use super::{CreatureTransformVitalsSnapshotLikeCpp, ObjectEntry, ObjectMut, ObjectRef};
 use super::creature_snapshot::{CreatureSnapshotReplaceError, PreparedCreatureSnapshot};
 use super::object_entry::CreatureActorEntry;
+use super::{CreatureTransformVitalsSnapshotLikeCpp, ObjectEntry, ObjectMut, ObjectRef};
 
 #[derive(Debug, Default)]
 pub(super) struct EntityWorld {
@@ -37,7 +37,9 @@ impl EntityWorld {
     }
 
     pub(super) fn kind(&self, guid: ObjectGuid) -> Option<AccessorObjectKind> {
-        self.entries_by_guid.get(&guid).map(|entry| entry.as_ref().kind())
+        self.entries_by_guid
+            .get(&guid)
+            .map(|entry| entry.as_ref().kind())
     }
 
     pub(super) fn creature_actor(&self, guid: ObjectGuid) -> Option<&CreatureActorEntry> {
@@ -47,7 +49,10 @@ impl EntityWorld {
         }
     }
 
-    pub(super) fn creature_actor_mut(&mut self, guid: ObjectGuid) -> Option<&mut CreatureActorEntry> {
+    pub(super) fn creature_actor_mut(
+        &mut self,
+        guid: ObjectGuid,
+    ) -> Option<&mut CreatureActorEntry> {
         match self.entries_by_guid.get_mut(&guid)? {
             ObjectEntry::CreatureActor(actor) => Some(actor),
             ObjectEntry::Record(_) => None,
@@ -98,7 +103,9 @@ impl EntityWorld {
     }
 
     pub(super) fn iter(&self) -> impl Iterator<Item = (&ObjectGuid, ObjectRef<'_>)> {
-        self.entries_by_guid.iter().map(|(guid, record)| (guid, record.as_ref()))
+        self.entries_by_guid
+            .iter()
+            .map(|(guid, record)| (guid, record.as_ref()))
     }
 
     pub(super) fn values(&self) -> impl Iterator<Item = ObjectRef<'_>> {
@@ -110,7 +117,8 @@ impl EntityWorld {
     }
 
     pub(super) fn insert(&mut self, entry: ObjectEntry) -> Option<ObjectEntry> {
-        self.entries_by_guid.insert(entry.as_ref().object().guid(), entry)
+        self.entries_by_guid
+            .insert(entry.as_ref().object().guid(), entry)
     }
 
     pub(super) fn take(&mut self, guid: &ObjectGuid) -> Option<ObjectEntry> {
@@ -123,7 +131,9 @@ impl EntityWorld {
         guid: ObjectGuid,
     ) -> Result<&Creature, super::actor_transport::CreatureActorTransportError> {
         use super::actor_transport::CreatureActorTransportError as Error;
-        let entry = self.entries_by_guid.get(&guid)
+        let entry = self
+            .entries_by_guid
+            .get(&guid)
             .ok_or(Error::MissingCounterpart { guid })?;
         if entry.as_ref().object().guid() != guid {
             return Err(Error::GuidMismatch { guid });
@@ -166,7 +176,8 @@ impl EntityWorld {
         let guid = record.object().guid();
         match self.entries_by_guid.get(&guid) {
             Some(ObjectEntry::Record(_)) => Ok(PreparedCreatureSnapshot::Record(record)),
-            Some(ObjectEntry::CreatureActor(_)) => record.into_creature()
+            Some(ObjectEntry::CreatureActor(_)) => record
+                .into_creature()
                 .map(PreparedCreatureSnapshot::Actor)
                 .map_err(|_| CreatureSnapshotReplaceError::NotExactCreature { guid }),
             None => Err(CreatureSnapshotReplaceError::NotExactCreature { guid }),
@@ -200,7 +211,11 @@ mod tests {
         let guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 7, 100, 42);
         let mut world = EntityWorld::default();
 
-        assert!(world.insert(ObjectEntry::Record(creature_record(guid, 25))).is_none());
+        assert!(
+            world
+                .insert(ObjectEntry::Record(creature_record(guid, 25)))
+                .is_none()
+        );
         let displaced = world
             .insert(ObjectEntry::Record(creature_record(guid, 75)))
             .expect("same GUID should displace exactly one canonical record");
@@ -264,7 +279,9 @@ mod tests {
         game_object.world_mut().set_map(571, 7).unwrap();
         assert!(
             world
-                .insert(ObjectEntry::Record(MapObjectRecord::new_game_object(game_object).unwrap()))
+                .insert(ObjectEntry::Record(
+                    MapObjectRecord::new_game_object(game_object).unwrap()
+                ))
                 .is_none()
         );
 

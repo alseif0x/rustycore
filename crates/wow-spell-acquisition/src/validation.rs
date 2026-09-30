@@ -5,8 +5,8 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use crate::model::*;
 use crate::SKILL_RIDING_LIKE_CPP;
+use crate::model::*;
 
 mod actions;
 mod errors;
@@ -16,8 +16,11 @@ mod snapshots;
 use actions::validate_acquisition_actions;
 pub use errors::AcquisitionPlanError;
 use provenance::{validate_provenance, validate_root};
-use snapshots::{acquisition_override_pairs, acquisition_spell_rows, validate_snapshot, validate_snapshot_identity};
 pub use snapshots::acquisition_skill_rows;
+use snapshots::{
+    acquisition_override_pairs, acquisition_spell_rows, validate_snapshot,
+    validate_snapshot_identity,
+};
 
 pub fn validate_acquisition_plan(
     plan: &SpellAcquisitionPlanLikeCpp,
@@ -45,20 +48,16 @@ pub fn validate_acquisition_plan(
                         .after
                         .is_some_and(|row| row.spell_id != transition.spell_id)
                 {
-                    return Err(
-                        AcquisitionPlanError::TransitionIdMismatch {
-                            domain: "spell",
-                            id: transition.spell_id,
-                        },
-                    );
+                    return Err(AcquisitionPlanError::TransitionIdMismatch {
+                        domain: "spell",
+                        id: transition.spell_id,
+                    });
                 }
                 if spells.get(&transition.spell_id).copied() != transition.before {
-                    return Err(
-                        AcquisitionPlanError::TransitionBeforeMismatch {
-                            domain: "spell",
-                            id: transition.spell_id,
-                        },
-                    );
+                    return Err(AcquisitionPlanError::TransitionBeforeMismatch {
+                        domain: "spell",
+                        id: transition.spell_id,
+                    });
                 }
                 if let Some(after) = transition.after {
                     spells.insert(transition.spell_id, after);
@@ -74,20 +73,16 @@ pub fn validate_acquisition_plan(
                         .before
                         .is_some_and(|row| row.skill_id != transition.skill_id)
                 {
-                    return Err(
-                        AcquisitionPlanError::TransitionIdMismatch {
-                            domain: "skill",
-                            id: transition.skill_id,
-                        },
-                    );
+                    return Err(AcquisitionPlanError::TransitionIdMismatch {
+                        domain: "skill",
+                        id: transition.skill_id,
+                    });
                 }
                 if skills.get(&transition.skill_id).copied() != transition.before {
-                    return Err(
-                        AcquisitionPlanError::TransitionBeforeMismatch {
-                            domain: "skill",
-                            id: transition.skill_id,
-                        },
-                    );
+                    return Err(AcquisitionPlanError::TransitionBeforeMismatch {
+                        domain: "skill",
+                        id: transition.skill_id,
+                    });
                 }
                 skills.insert(transition.skill_id, transition.after);
                 replayed_skills.push(transition.clone());
@@ -99,20 +94,16 @@ pub fn validate_acquisition_plan(
                 );
                 if transition.add {
                     if !overrides.insert(pair) {
-                        return Err(
-                            AcquisitionPlanError::DuplicateOverrideMutation {
-                                overridden: pair.0,
-                                overriding: pair.1,
-                            },
-                        );
-                    }
-                } else if !overrides.remove(&pair) {
-                    return Err(
-                        AcquisitionPlanError::MissingOverrideMutation {
+                        return Err(AcquisitionPlanError::DuplicateOverrideMutation {
                             overridden: pair.0,
                             overriding: pair.1,
-                        },
-                    );
+                        });
+                    }
+                } else if !overrides.remove(&pair) {
+                    return Err(AcquisitionPlanError::MissingOverrideMutation {
+                        overridden: pair.0,
+                        overriding: pair.1,
+                    });
                 }
                 replayed_overrides.push(*transition);
             }
@@ -120,21 +111,19 @@ pub fn validate_acquisition_plan(
     }
 
     if replayed_spells != plan.spell_transitions {
-        return Err(
-            AcquisitionPlanError::TypedProjectionMismatch("spell_transitions"),
-        );
+        return Err(AcquisitionPlanError::TypedProjectionMismatch(
+            "spell_transitions",
+        ));
     }
     if replayed_skills != plan.skill_transitions {
-        return Err(
-            AcquisitionPlanError::TypedProjectionMismatch("skill_transitions"),
-        );
+        return Err(AcquisitionPlanError::TypedProjectionMismatch(
+            "skill_transitions",
+        ));
     }
     if replayed_overrides != plan.override_transitions {
-        return Err(
-            AcquisitionPlanError::TypedProjectionMismatch(
-                "override_transitions",
-            ),
-        );
+        return Err(AcquisitionPlanError::TypedProjectionMismatch(
+            "override_transitions",
+        ));
     }
 
     let resulting_spells = acquisition_spell_rows(&plan.resulting_snapshot)?;

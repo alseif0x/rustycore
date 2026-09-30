@@ -59,11 +59,8 @@ fn terrain_grid_area_map_decodes_cpp_area_cell_and_zone_parent() {
         (4395, 4613)
     );
 
-    let no_parent_store = wow_data::AreaTableStore::from_entries([test_area_entry(
-        4613,
-        0,
-        0x4000_0000,
-    )]);
+    let no_parent_store =
+        wow_data::AreaTableStore::from_entries([test_area_entry(4613, 0, 0x4000_0000)]);
     assert_eq!(
         zone_and_area_for_position_like_cpp(
             &data_dir,

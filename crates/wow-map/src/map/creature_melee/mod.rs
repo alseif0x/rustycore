@@ -21,22 +21,22 @@ pub use catalogs::CreatureMeleeCatalogsLikeCpp;
 pub use commit::is_creature_melee_los_clear_like_cpp;
 pub use engine::{CreatureMeleeReadiness, creature_melee_readiness};
 pub use models::{
-    MeleePresentation, MeleeEffect, MeleeThreatSpellFacts,
-    CreatureDamageThreatOutcomeLikeCpp, CreatureMeleeVictimSyncIdentityLikeCpp,
-    CreatureMeleeVictimSyncStateLikeCpp, PendingCreatureSwingLikeCpp,
-    CreatureVictimCompatibilitySyncLikeCpp, MeleeAbsorbConsumption,
-    CreatureMeleePlayerHit, CreatureMeleeSwingOutcome,
-    ShareAuraIdentityLikeCpp, ShareAuraSnapshotLikeCpp,
+    CreatureDamageThreatOutcomeLikeCpp, CreatureMeleePlayerHit, CreatureMeleeSwingOutcome,
+    CreatureMeleeVictimSyncIdentityLikeCpp, CreatureMeleeVictimSyncStateLikeCpp,
+    CreatureVictimCompatibilitySyncLikeCpp, MeleeAbsorbConsumption, MeleeEffect, MeleePresentation,
+    MeleeThreatSpellFacts, PendingCreatureSwingLikeCpp, ShareAuraIdentityLikeCpp,
+    ShareAuraSnapshotLikeCpp,
 };
-use models::{CreatureDamageThreatPlanLikeCpp, CreatureMeleeApplyResultLikeCpp,
-    MeleeSwingStateLikeCpp};
+use models::{
+    CreatureDamageThreatPlanLikeCpp, CreatureMeleeApplyResultLikeCpp, MeleeSwingStateLikeCpp,
+};
 
-use crate::{MapManager, ManagedMapInnerLikeCpp};
 use crate::map_manager::WorldCreature;
+use crate::{ManagedMapInnerLikeCpp, MapManager};
+use geometry::*;
+use wow_combat::*;
 use wow_core::{ObjectGuid, Position};
 use wow_entities::{Creature, Player, UnitValuesUpdate};
-use wow_combat::*;
-use geometry::*;
 
 #[cfg(test)]
 mod tests;

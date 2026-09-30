@@ -1,18 +1,17 @@
 //! Canonical party and group fixtures for quest-sharing scenarios.
 
 use super::{
-    add_active_quest_in_slot_with_status, make_session, register_in_player_registry_for_test,
-    adopt_registered_canonical_player_fixture_like_cpp, set_group_guid_for_test_like_cpp,
-    player_position_for_test, set_player_position_for_test,
-    set_loaded_player_identity_like_cpp,
-    set_loaded_player_name_like_cpp,
+    add_active_quest_in_slot_with_status, adopt_registered_canonical_player_fixture_like_cpp,
+    make_session, player_position_for_test, register_in_player_registry_for_test,
+    set_group_guid_for_test_like_cpp, set_loaded_player_identity_like_cpp,
+    set_loaded_player_name_like_cpp, set_player_position_for_test,
     sync_player_registry_state_for_test,
 };
-use wow_world::session::WorldSession;
-use wow_world::session::directory::PlayerRegistry;
 use std::sync::Arc;
 use wow_core::{ObjectGuid, Position};
 use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
+use wow_world::session::WorldSession;
+use wow_world::session::directory::PlayerRegistry;
 
 pub(crate) fn install_confirm_accept_sender_snapshot(
     session: &mut WorldSession,
@@ -31,7 +30,9 @@ pub(crate) fn install_confirm_accept_sender_snapshot(
     set_loaded_player_name_like_cpp(&mut sender_session, "Sender".to_string());
     sender_session.set_player_registry(player_registry);
     register_in_player_registry_for_test(&sender_session);
-    assert!(adopt_registered_canonical_player_fixture_like_cpp(&mut sender_session));
+    assert!(adopt_registered_canonical_player_fixture_like_cpp(
+        &mut sender_session
+    ));
     if let Some(status) = sender_active_status {
         add_active_quest_in_slot_with_status(&mut sender_session, quest_id, 0, status);
     }
@@ -125,10 +126,7 @@ pub(crate) fn install_represented_party(
     receiver_session.set_player_guid(Some(receiver_guid));
     set_loaded_player_name_like_cpp(&mut receiver_session, "Receiver".to_string());
     set_loaded_player_identity_like_cpp(&mut receiver_session, 571, 1, 1, 80, 0);
-    set_player_position_for_test(
-        &mut receiver_session,
-        Position::new(11.0, 0.0, 0.0, 0.0),
-    );
+    set_player_position_for_test(&mut receiver_session, Position::new(11.0, 0.0, 0.0, 0.0));
     receiver_session.set_player_registry(Arc::clone(&player_registry));
 
     // Production keeps every in-world player on the shared canonical map, and
@@ -148,7 +146,9 @@ pub(crate) fn install_represented_party(
     session.set_canonical_map_manager(Arc::clone(&canonical));
 
     register_in_player_registry_for_test(&receiver_session);
-    assert!(adopt_registered_canonical_player_fixture_like_cpp(&mut receiver_session));
+    assert!(adopt_registered_canonical_player_fixture_like_cpp(
+        &mut receiver_session
+    ));
     // Production `Player::LoadFromDB` builds the canonical Player with the
     // character's identity, and later registry movement publications read
     // `player_level_like_cpp`. Apply the session's loaded identity after

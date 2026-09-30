@@ -103,9 +103,7 @@ impl PlayerQuestGameplayState {
 }
 
 impl SeasonalQuestResetPlan {
-    pub fn take_updated_seasonal_quests(
-        &mut self,
-    ) -> Option<BTreeMap<u16, BTreeMap<u32, u64>>> {
+    pub fn take_updated_seasonal_quests(&mut self) -> Option<BTreeMap<u16, BTreeMap<u32, u64>>> {
         self.updated_seasonal_quests.take()
     }
 

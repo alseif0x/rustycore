@@ -56,4 +56,3 @@ pub struct DestroyFilteredItemAction {
     pub bag: u8,
     pub slot: u8,
 }
-

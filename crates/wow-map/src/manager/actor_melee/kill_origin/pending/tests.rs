@@ -1,23 +1,35 @@
 //! Real producer executions; preparation preserves the original slot and buffers.
 use super::*;
+use crate::manager::MapObjectUpdateSelectionLikeCpp;
 use crate::manager::actor_melee::kill_origin::MeleeKillPhase;
 use crate::manager::actor_tick_access::fixtures::*;
-use crate::manager::MapObjectUpdateSelectionLikeCpp;
 use wow_core::Position;
 
-mod fixtures;
 mod conflicts;
+mod fixtures;
 use fixtures::*;
 
-fn execution(manager: &mut MapManager, root: ObjectGuid)
-    -> (MapObjectTickContinuation, PendingMeleeKills) {
-    let (tick, token) = start(manager, 200, MapObjectUpdateSelectionLikeCpp::WholeTypedStores);
-    let pending = manager.apply_selected_creature_melee_with_kills(
-        &tick, token, root, &Catalogs::default()).ok().unwrap().into_pending();
+fn execution(
+    manager: &mut MapManager,
+    root: ObjectGuid,
+) -> (MapObjectTickContinuation, PendingMeleeKills) {
+    let (tick, token) = start(
+        manager,
+        200,
+        MapObjectUpdateSelectionLikeCpp::WholeTypedStores,
+    );
+    let pending = manager
+        .apply_selected_creature_melee_with_kills(&tick, token, root, &Catalogs::default())
+        .ok()
+        .unwrap()
+        .into_pending();
     (tick, pending)
 }
-fn reject(manager: &MapManager, tick: &MapObjectTickContinuation, pending: PendingMeleeKills)
-    -> (MeleeKillPhaseError, PendingMeleeKills) {
+fn reject(
+    manager: &MapManager,
+    tick: &MapObjectTickContinuation,
+    pending: PendingMeleeKills,
+) -> (MeleeKillPhaseError, PendingMeleeKills) {
     match manager.prepare_next_melee_kill(tick, pending) {
         Ok(_) => panic!("expected preparation rejection"),
         Err(error) => error,
@@ -38,20 +50,46 @@ fn retained(pending: &PendingMeleeKills, root: ObjectGuid) {
 fn first_occurrence_keeps_full_token_outcome_and_buffers_without_completion() {
     let (mut manager, root, victim) = setup(2800, 5, false, 10);
     let (tick, pending) = execution(&mut manager, root);
-    let identity = (pending.token.key(), pending.token.incarnation(), pending.token.effective_diff_ms());
-    let buffers = (pending.outcome.events.as_ptr(), pending.outcome.syncs.as_ptr(),
-        pending.batch.occurrences.as_ptr());
-    let prepared = manager.prepare_next_melee_kill(&tick, pending).ok().unwrap();
+    let identity = (
+        pending.token.key(),
+        pending.token.incarnation(),
+        pending.token.effective_diff_ms(),
+    );
+    let buffers = (
+        pending.outcome.events.as_ptr(),
+        pending.outcome.syncs.as_ptr(),
+        pending.batch.occurrences.as_ptr(),
+    );
+    let prepared = manager
+        .prepare_next_melee_kill(&tick, pending)
+        .ok()
+        .unwrap();
     assert_eq!(prepared.occurrence().phase(), MeleeKillPhase::Primary);
     assert_eq!(prepared.captured().target_guid(), victim);
     assert!(!prepared.before_hook_source().is_alive());
     retained(prepared.pending(), root);
     let pending = prepared.into_pending();
-    assert_eq!((pending.token.key(), pending.token.incarnation(), pending.token.effective_diff_ms()), identity);
-    assert_eq!((pending.outcome.events.as_ptr(), pending.outcome.syncs.as_ptr(),
-        pending.batch.occurrences.as_ptr()), buffers);
+    assert_eq!(
+        (
+            pending.token.key(),
+            pending.token.incarnation(),
+            pending.token.effective_diff_ms()
+        ),
+        identity
+    );
+    assert_eq!(
+        (
+            pending.outcome.events.as_ptr(),
+            pending.outcome.syncs.as_ptr(),
+            pending.batch.occurrences.as_ptr()
+        ),
+        buffers
+    );
     assert_eq!(pending.batch.occurrences.len(), 1);
-    let prepared = manager.prepare_next_melee_kill(&tick, pending).ok().unwrap();
+    let prepared = manager
+        .prepare_next_melee_kill(&tick, pending)
+        .ok()
+        .unwrap();
     assert_eq!(prepared.pending().cursor(), 0);
     assert_eq!(prepared.captured().target_guid(), victim);
     retained(&prepared.into_pending(), root);
@@ -60,16 +98,34 @@ fn first_occurrence_keeps_full_token_outcome_and_buffers_without_completion() {
 #[test]
 fn late_damage_target_outside_nearby_selection_remains_valid() {
     let (mut manager, root) = manager_with_actor(2810);
-    let (tick, mut token) = start(&mut manager, 200, MapObjectUpdateSelectionLikeCpp::NearbyCells);
-    assert_eq!(manager.selected_actor_guids(&tick, &mut token).unwrap(), vec![root]);
+    let (tick, mut token) = start(
+        &mut manager,
+        200,
+        MapObjectUpdateSelectionLikeCpp::NearbyCells,
+    );
+    assert_eq!(
+        manager.selected_actor_guids(&tick, &mut token).unwrap(),
+        vec![root]
+    );
     let victim = target(&mut manager, 2811, 5, false);
     arm(&mut manager, root, victim, 10);
-    let pending = manager.apply_selected_creature_melee_with_kills(
-        &tick, token, root, &Catalogs::default()).ok().unwrap().into_pending();
-    let prepared = manager.prepare_next_melee_kill(&tick, pending).ok().unwrap();
+    let pending = manager
+        .apply_selected_creature_melee_with_kills(&tick, token, root, &Catalogs::default())
+        .ok()
+        .unwrap()
+        .into_pending();
+    let prepared = manager
+        .prepare_next_melee_kill(&tick, pending)
+        .ok()
+        .unwrap();
     assert_eq!(prepared.captured().target_guid(), victim);
     let mut pending = prepared.into_pending();
-    assert_eq!(manager.selected_actor_guids(&tick, &mut pending.token).unwrap(), vec![root]);
+    assert_eq!(
+        manager
+            .selected_actor_guids(&tick, &mut pending.token)
+            .unwrap(),
+        vec![root]
+    );
     retained(&pending, root);
 }
 
@@ -79,7 +135,10 @@ fn dead_root_is_valid_without_a_late_alive_gate() {
     arm(&mut manager, root, root, 100);
     let (tick, pending) = execution(&mut manager, root);
     assert_eq!(health(&manager, root), 0);
-    let prepared = manager.prepare_next_melee_kill(&tick, pending).ok().unwrap();
+    let prepared = manager
+        .prepare_next_melee_kill(&tick, pending)
+        .ok()
+        .unwrap();
     assert_eq!(prepared.captured().target_guid(), root);
     retained(&prepared.into_pending(), root);
 }
@@ -89,10 +148,15 @@ fn record_unavailable_retains_actual_damage_and_complete_partial_outcome() {
     let (mut manager, root, victim) = setup(2830, 5, true, 10);
     let (tick, pending) = execution(&mut manager, root);
     let (error, pending) = reject(&manager, &tick, pending);
-    assert_eq!(error, MeleeKillPhaseError::Unavailable(MeleeKillCaptureError::NoActor));
+    assert_eq!(
+        error,
+        MeleeKillPhaseError::Unavailable(MeleeKillCaptureError::NoActor)
+    );
     assert_eq!(health(&manager, victim), 0);
-    assert!(matches!(pending.batch.occurrences[0].capture,
-        MeleeKillCapture::Unavailable(MeleeKillCaptureError::NoActor)));
+    assert!(matches!(
+        pending.batch.occurrences[0].capture,
+        MeleeKillCapture::Unavailable(MeleeKillCaptureError::NoActor)
+    ));
     retained(&pending, root);
 }
 

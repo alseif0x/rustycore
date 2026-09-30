@@ -7,14 +7,7 @@ use wow_combat::{
 fn spell_damage_pct_applies_ordered_school_aura_mechanic_and_script_terms() {
     let school_percentages = [0.1, 0.2, 0.5, 0.4, 0.0, 0.0, 0.0];
     let damage_done_versus = [(0b010, 10), (0b011, 20), (0b001, 99)];
-    let damage_done_versus_aura_state = [
-        (2, 10),
-        (2, -20),
-        (1, 99),
-        (0, 50),
-        (-1, 50),
-        (33, 50),
-    ];
+    let damage_done_versus_aura_state = [(2, 10), (2, -20), (1, 99), (0, 50), (-1, 50), (33, 50)];
     let damage_percent_by_target_mechanic = [(4, 10), (4, -5), (2, 99), (64, 50)];
     let damage_done_for_mechanic = [(7, 10), (7, -5), (6, 99)];
 
@@ -31,8 +24,7 @@ fn spell_damage_pct_applies_ordered_school_aura_mechanic_and_script_terms() {
         damage_done_for_mechanic: Some(&damage_done_for_mechanic),
         scripted_factor: 3.0,
     });
-    let expected = ((((((((0.4_f32 * 1.1) * 1.2) * 1.1) * 0.8) * 1.1) * 0.95) * 1.05)
-        * 3.0;
+    let expected = ((((((((0.4_f32 * 1.1) * 1.2) * 1.1) * 0.8) * 1.1) * 0.95) * 1.05) * 3.0);
     assert!((actual - expected).abs() < f32::EPSILON);
 }
 

@@ -194,7 +194,8 @@ async fn loot_unit_empty_visible_loot_returns_silently_like_cpp() {
     let loot_guid = test_creature_guid(19_007);
     session.set_player_guid(Some(player_guid));
     register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -226,7 +227,8 @@ async fn loot_unit_fully_looted_existing_loot_returns_silently_like_cpp() {
     let loot_guid = test_creature_guid(19_017);
     session.set_player_guid(Some(player_guid));
     register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -270,7 +272,8 @@ async fn loot_unit_without_allowed_loot_for_player_returns_silently_like_cpp() {
     let loot_guid = test_creature_guid(19_018);
     session.set_player_guid(Some(player_guid));
     register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -367,7 +370,8 @@ async fn loot_money_zero_money_still_notifies_like_cpp() {
     let loot_guid = test_creature_guid(19_021);
     session.set_player_guid(Some(player_guid));
     set_active_loot_guid_for_test(&mut session, loot_guid);
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -428,7 +432,8 @@ async fn loot_money_coin_removed_uses_loot_object_like_cpp() {
     let loot_object_guid = represented_loot_object_guid_like_cpp(owner_guid);
     session.set_player_guid(Some(player_guid));
     set_active_loot_guid_for_test(&mut session, owner_guid);
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         owner_guid,
         CreatureLoot {
             loot_guid: loot_object_guid,
@@ -470,7 +475,8 @@ async fn loot_money_consumes_all_active_loot_views_like_cpp() {
     session.set_player_guid(Some(player_guid));
     set_active_loot_guid_for_test(&mut session, owner_one);
     add_active_loot_view_owner_for_test(&mut session, owner_two);
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         owner_one,
         CreatureLoot {
             loot_guid: loot_object_one,
@@ -488,7 +494,8 @@ async fn loot_money_consumes_all_active_loot_views_like_cpp() {
             looted_by_player: false,
         },
     );
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         owner_two,
         CreatureLoot {
             loot_guid: loot_object_two,
@@ -591,12 +598,8 @@ async fn loot_money_gain_completes_money_tracking_event_objective_like_cpp() {
     handle_loot_money_for_test(&mut session, loot_money_packet()).await;
 
     assert_eq!(player_gold_for_test(&session), 7);
-    assert!(
-        !contains_player_quest_status_for_test(&session, quest_id)
-    );
-    assert!(
-        contains_rewarded_quest_for_test(&session, quest_id)
-    );
+    assert!(!contains_player_quest_status_for_test(&session, quest_id));
+    assert!(contains_rewarded_quest_for_test(&session, quest_id));
 
     let sent = send_rx.try_recv().unwrap();
     let mut sent = WorldPacket::from_bytes(&sent);
@@ -661,7 +664,8 @@ async fn loot_money_splits_corpse_gold_to_near_group_members_like_cpp() {
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     set_active_loot_guid_for_test(&mut session, loot_guid);
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -729,12 +733,15 @@ async fn loot_roll_without_canonical_roll_state_returns_silently_like_cpp() {
     let (mut session, send_rx) = make_session_with_send();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
 
-    handle_loot_roll_for_test(&mut session, LootRoll {
+    handle_loot_roll_for_test(
+        &mut session,
+        LootRoll {
             loot_obj: test_creature_guid(19_006),
             loot_list_id: 0,
             roll_type: 1,
-        })
-        .await;
+        },
+    )
+    .await;
 
     assert!(send_rx.try_recv().is_err());
 }
@@ -805,7 +812,8 @@ async fn loot_release_ignores_guid_outside_active_view_like_cpp() {
     let spoofed_guid = test_creature_guid(19_012);
     session.set_player_guid(Some(player_guid));
     set_active_loot_guid_for_test(&mut session, active_guid);
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         spoofed_guid,
         CreatureLoot {
             loot_guid: spoofed_guid,

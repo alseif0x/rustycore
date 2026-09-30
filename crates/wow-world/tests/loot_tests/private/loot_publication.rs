@@ -3,9 +3,15 @@
 use super::recovery_support::*;
 use std::collections::{HashMap, HashSet};
 use wow_constants::UnitDynFlags;
-use wow_packet::packets::update::{UnitDataValuesDeltaUpdate, ObjectDataValuesUpdate};
-use wow_world::test_fixtures::loot::{open_loot_item_window_for_test, loot_release_values_for_test, loot_item_fanout_at_commit_for_test};
-use wow_world::test_fixtures::loot::{make_canonical_creature_for_loot_test as make_canonical_creature_for_session, attach_canonical_creature_for_loot_test as attach_canonical_creature};
+use wow_packet::packets::update::{ObjectDataValuesUpdate, UnitDataValuesDeltaUpdate};
+use wow_world::test_fixtures::loot::{
+    attach_canonical_creature_for_loot_test as attach_canonical_creature,
+    make_canonical_creature_for_loot_test as make_canonical_creature_for_session,
+};
+use wow_world::test_fixtures::loot::{
+    loot_item_fanout_at_commit_for_test, loot_release_values_for_test,
+    open_loot_item_window_for_test,
+};
 
 #[tokio::test]
 async fn item_loot_releases_ae_view_and_tracks_multiple_items_like_cpp() {
@@ -24,10 +30,8 @@ async fn item_loot_releases_ae_view_and_tracks_multiple_items_like_cpp() {
     assert!(active_loot_guid_for_test(&session).is_empty());
     assert!(active_loot_view_owners_for_test(&session).contains(&secondary_guid));
 
-    open_loot_item_window_for_test(&mut session, player_guid, first_item)
-        .await;
-    open_loot_item_window_for_test(&mut session, player_guid, second_item)
-        .await;
+    open_loot_item_window_for_test(&mut session, player_guid, first_item).await;
+    open_loot_item_window_for_test(&mut session, player_guid, second_item).await;
 
     assert!(is_active_loot_guid_for_test(&session, first_item));
     assert_eq!(active_loot_view_owners_for_test(&session).len(), 2);
@@ -58,8 +62,7 @@ fn durable_item_fanout_uses_precommit_union_exact_commit_cut_like_cpp() {
     let during = ObjectGuid::create_player(1, 42);
     let after = ObjectGuid::create_player(1, 43);
 
-    let viewers =
-        loot_item_fanout_at_commit_for_test(&[before], &[before, during]);
+    let viewers = loot_item_fanout_at_commit_for_test(&[before], &[before, during]);
 
     assert_eq!(viewers, HashSet::from([before, during]));
     assert!(
@@ -116,16 +119,17 @@ fn creature_loot_release_dynamic_flags_are_viewer_dependent_like_cpp() {
         ..UnitDataValuesDeltaUpdate::default()
     };
     let dynamic_flags_for = |viewer_guid| {
-        loot_release_values_for_test(&session, 
-                owner_guid,
-                viewer_guid,
-                false,
-                Some(&authority),
-                update.clone(),
-            )
-            .object_data
-            .unwrap()
-            .dynamic_flags
+        loot_release_values_for_test(
+            &session,
+            owner_guid,
+            viewer_guid,
+            false,
+            Some(&authority),
+            update.clone(),
+        )
+        .object_data
+        .unwrap()
+        .dynamic_flags
     };
 
     assert_eq!(dynamic_flags_for(first_player), 0);

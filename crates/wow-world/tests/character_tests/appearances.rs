@@ -30,13 +30,22 @@ use wow_world::test_fixtures::{
     set_loaded_player_identity_like_cpp,
 };
 
+#[path = "appearances/fixtures.rs"]
 mod fixtures;
 use fixtures::*;
+#[path = "appearances/catalogs.rs"]
 mod catalogs;
+#[path = "appearances/acquisition.rs"]
 mod acquisition;
+#[path = "appearances/runtime_items.rs"]
 mod runtime_items;
+#[path = "appearances/rewards.rs"]
 mod rewards;
+#[path = "appearances/temporary.rs"]
 mod temporary;
+#[path = "appearances/criteria.rs"]
 mod criteria;
+#[path = "appearances/sets.rs"]
 mod sets;
+#[path = "appearances/boundaries.rs"]
 mod boundaries;

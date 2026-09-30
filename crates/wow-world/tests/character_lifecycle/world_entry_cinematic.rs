@@ -2,7 +2,6 @@ use super::fixtures::*;
 // External application scenarios migrated with their original assertions.
 
 use super::fixtures::make_session;
-use wow_world::test_fixtures::set_loaded_player_identity_like_cpp;
 use std::sync::Arc;
 use wow_constants::ServerOpcodes;
 use wow_core::ObjectGuid;
@@ -10,6 +9,7 @@ use wow_data::character_progression::{
     ChrClassesEntry, ChrClassesStore, ChrRacesEntry, ChrRacesStore,
 };
 use wow_packet::WorldPacket;
+use wow_world::test_fixtures::set_loaded_player_identity_like_cpp;
 
 fn chr_class_entry(id: u32, cinematic_sequence_id: u16) -> ChrClassesEntry {
     ChrClassesEntry {

@@ -162,4 +162,3 @@ impl SpellAcquisitionSqlOverlaySourceLikeCpp for SpellAcquisitionSqlOverlaySourc
         })
     }
 }
-

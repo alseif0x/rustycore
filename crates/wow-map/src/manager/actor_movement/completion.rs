@@ -34,14 +34,21 @@ pub(super) fn capture(
     movement: Option<CreatureMovementStep>,
 ) -> ActorMovementCompletion {
     let position = actor.position();
-    let home_health_update = actor.take_home_health_restored_pending_like_cpp()
+    let home_health_update = actor
+        .take_home_health_restored_pending_like_cpp()
         .then(|| actor.creature.unit().values_update());
     ActorMovementCompletion {
-        guid, key, incarnation, position,
+        guid,
+        key,
+        incarnation,
+        position,
         visibility_range: actor.visibility_range_like_cpp(),
-        movement, home_health_update,
+        movement,
+        home_health_update,
         trace: ActorMovementTraceFacts {
-            entry: actor.entry(), map_id: actor.map_id(), state: actor.state(),
+            entry: actor.entry(),
+            map_id: actor.map_id(),
+            state: actor.state(),
         },
     }
 }

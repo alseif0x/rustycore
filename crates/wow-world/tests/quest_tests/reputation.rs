@@ -2,7 +2,6 @@
 
 use super::*;
 
-
 #[test]
 fn quest_reputation_source_preserves_legacy_type_identity_and_priority() {
     assert_eq!(
@@ -12,12 +11,26 @@ fn quest_reputation_source_preserves_legacy_type_identity_and_priority() {
     let monthly = wow_data::quest::QUEST_SPECIAL_FLAGS_MONTHLY_LIKE_CPP;
     let repeatable = wow_data::quest::QUEST_SPECIAL_FLAGS_REPEATABLE_LIKE_CPP;
     for (flags, special_flags, expected) in [
-        (QUEST_FLAGS_DAILY_LIKE_CPP | QUEST_FLAGS_WEEKLY_LIKE_CPP, monthly | repeatable,
-            RepresentedQuestRewardReputationSourceLikeCpp::DailyQuest),
-        (QUEST_FLAGS_WEEKLY_LIKE_CPP, monthly | repeatable,
-            RepresentedQuestRewardReputationSourceLikeCpp::WeeklyQuest),
-        (0, monthly | repeatable, RepresentedQuestRewardReputationSourceLikeCpp::MonthlyQuest),
-        (0, repeatable, RepresentedQuestRewardReputationSourceLikeCpp::RepeatableQuest),
+        (
+            QUEST_FLAGS_DAILY_LIKE_CPP | QUEST_FLAGS_WEEKLY_LIKE_CPP,
+            monthly | repeatable,
+            RepresentedQuestRewardReputationSourceLikeCpp::DailyQuest,
+        ),
+        (
+            QUEST_FLAGS_WEEKLY_LIKE_CPP,
+            monthly | repeatable,
+            RepresentedQuestRewardReputationSourceLikeCpp::WeeklyQuest,
+        ),
+        (
+            0,
+            monthly | repeatable,
+            RepresentedQuestRewardReputationSourceLikeCpp::MonthlyQuest,
+        ),
+        (
+            0,
+            repeatable,
+            RepresentedQuestRewardReputationSourceLikeCpp::RepeatableQuest,
+        ),
         (0, 0, RepresentedQuestRewardReputationSourceLikeCpp::Quest),
     ] {
         let (mut session, send_rx) = make_session();
@@ -51,7 +64,10 @@ fn quest_reputation_wiring_preserves_slots_override_mask_and_missing_store_diagn
     quest.reward_faction_cap_in[3] = 5;
     record_quest_reward_reputation_for_test(&mut session, &quest);
     let rewards = represented_quest_reward_reputations_for_test(&session);
-    assert_eq!(rewards.iter().map(|reward| reward.slot).collect::<Vec<_>>(), vec![0, 2, 3]);
+    assert_eq!(
+        rewards.iter().map(|reward| reward.slot).collect::<Vec<_>>(),
+        vec![0, 2, 3]
+    );
     assert_eq!(rewards[0].base_reputation_before_gain, 12);
     assert!(rewards[0].no_quest_bonus);
     assert!(rewards[0].no_spillover);
@@ -66,8 +82,16 @@ fn quest_reputation_wiring_preserves_slots_override_mask_and_missing_store_diagn
     assert_eq!(rewards[2].base_reputation_before_gain, -12);
     assert!(!rewards[2].no_spillover);
     assert!(!rewards[2].reputation_rank_cap_check_unrepresented);
-    assert!(rewards.iter().all(|reward| reward.faction_store_lookup_unrepresented));
-    assert!(rewards.iter().all(|reward| reward.modify_reputation_runtime_unrepresented));
+    assert!(
+        rewards
+            .iter()
+            .all(|reward| reward.faction_store_lookup_unrepresented)
+    );
+    assert!(
+        rewards
+            .iter()
+            .all(|reward| reward.modify_reputation_runtime_unrepresented)
+    );
     assert!(send_rx.try_recv().is_err());
 }
 
@@ -81,13 +105,21 @@ fn quest_reputation_wiring_present_tables_fail_closed_for_missing_rows_and_inval
             quest.reward_faction_values[0] = reward_value;
             let rows = if populated {
                 vec![
-                    QuestFactionRewardEntry { id: 1, difficulty: [0; 10] },
-                    QuestFactionRewardEntry { id: 2, difficulty: [0; 10] },
+                    QuestFactionRewardEntry {
+                        id: 1,
+                        difficulty: [0; 10],
+                    },
+                    QuestFactionRewardEntry {
+                        id: 2,
+                        difficulty: [0; 10],
+                    },
                 ]
             } else {
                 Vec::new()
             };
-            session.set_quest_faction_reward_store(Arc::new(QuestFactionRewardStore::from_entries(rows)));
+            session.set_quest_faction_reward_store(Arc::new(
+                QuestFactionRewardStore::from_entries(rows),
+            ));
             record_quest_reward_reputation_for_test(&mut session, &quest);
             assert!(represented_quest_reward_reputations_for_test(&session).is_empty());
             assert!(send_rx.try_recv().is_err());
@@ -110,7 +142,9 @@ fn quest_reputation_wiring_present_faction_store_skips_unknown_faction_before_va
 }
 
 pub(super) fn install_world_map_catalogs(session: &mut WorldSession) {
-    session.set_canonical_map_manager(Arc::new(std::sync::Mutex::new(wow_map::MapManager::default())));
+    session.set_canonical_map_manager(Arc::new(std::sync::Mutex::new(
+        wow_map::MapManager::default(),
+    )));
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
         wow_data::MapEntry {
             id: 571,
@@ -127,11 +161,16 @@ pub(super) fn install_world_map_catalogs(session: &mut WorldSession) {
 fn canonical_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (mut session, send_rx) = make_session();
     install_world_map_catalogs(&mut session);
-    attach_player_controller_for_test(&mut session,
+    attach_player_controller_for_test(
+        &mut session,
         ObjectGuid::create_player(1, 7104),
         "QuestReputationOwner".to_string(),
         Position::new(3700.0, 1500.0, 120.0, 0.0),
-        571, 1, 1, 80, 0,
+        571,
+        1,
+        1,
+        80,
+        0,
     );
     ensure_world_map_for_current_player_for_test(&mut session).expect("world map");
     session.set_faction_store(Arc::new(FactionStore::from_entries([
@@ -169,7 +208,8 @@ fn quest_reputation_wiring_installs_valuation_before_standing_publication() {
                 },
             }],
             factions.as_ref(),
-        ).0,
+        )
+        .0,
     ));
     record_quest_reward_reputation_for_test(&mut session, &quest);
     let rewards = represented_quest_reward_reputations_for_test(&session);
@@ -181,7 +221,10 @@ fn quest_reputation_wiring_installs_valuation_before_standing_publication() {
     assert_eq!(reputation_standing_for_test(&session, 5), Some(18));
     let bytes = send_rx.try_recv().expect("standing publication");
     let mut packet = WorldPacket::from_bytes(&bytes);
-    assert_eq!(packet.server_opcode(), Some(wow_constants::ServerOpcodes::SetFactionStanding));
+    assert_eq!(
+        packet.server_opcode(),
+        Some(wow_constants::ServerOpcodes::SetFactionStanding)
+    );
     packet.skip_opcode();
     assert_eq!(packet.read_float().unwrap(), 0.0);
     assert_eq!(packet.read_uint32().unwrap(), 1);

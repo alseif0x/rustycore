@@ -89,4 +89,3 @@ pub struct SendNewItemPlan {
     pub is_encounter_loot: bool,
     pub delivery: SendNewItemDelivery,
 }
-

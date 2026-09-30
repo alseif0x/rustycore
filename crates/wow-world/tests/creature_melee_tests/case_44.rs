@@ -5,8 +5,8 @@ use super::*;
 /// `AttackerStateUpdate` in the map runtime plan.
 #[test]
 fn legacy_creature_melee_tick_once_splits_creature_victim_damage_like_cpp() {
-    use wow_world::map_manager::RuntimeTickOwner;
     use wow_constants::ServerOpcodes;
+    use wow_world::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
     let canonical = shared_canonical_map_manager();

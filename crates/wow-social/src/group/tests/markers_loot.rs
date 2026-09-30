@@ -181,4 +181,3 @@ fn update_looter_guid_clears_when_no_member_is_eligible_like_cpp() {
     assert_eq!(group.looter_guid, ObjectGuid::EMPTY);
     assert_eq!(group.sequence_num, sequence_before + 1);
 }
-

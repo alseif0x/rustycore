@@ -1,9 +1,11 @@
 //! Original remote loot-condition catalog integration cases.
 use super::support::*;
 use std::collections::HashMap;
-use wow_data::quest::{QuestTemplate, QUEST_REWARD_REPUTATIONS_COUNT};
+use wow_data::quest::{QUEST_REWARD_REPUTATIONS_COUNT, QuestTemplate};
 use wow_loot::LootConditionRowLikeCpp;
-use wow_world::test_fixtures::loot::{LootConditionPlayer, evaluate_remote_loot_condition_for_test};
+use wow_world::test_fixtures::loot::{
+    LootConditionPlayer, evaluate_remote_loot_condition_for_test,
+};
 
 fn loot_condition(
     condition_type_or_reference: i32,
@@ -34,35 +36,40 @@ fn represented_personal_loot_remote_context_uses_registry_fields_like_cpp() {
     let remote_context = LootConditionPlayer::remote(1, 1, 0, 80);
 
     assert_eq!(
-        evaluate_remote_loot_condition_for_test(&session, 
+        evaluate_remote_loot_condition_for_test(
+            &session,
             &loot_condition(6, 469, 0, 0),
             &remote_context,
         ),
         Some(true)
     );
     assert_eq!(
-        evaluate_remote_loot_condition_for_test(&session, 
+        evaluate_remote_loot_condition_for_test(
+            &session,
             &loot_condition(15, 1, 0, 0),
             &remote_context,
         ),
         Some(true)
     );
     assert_eq!(
-        evaluate_remote_loot_condition_for_test(&session, 
+        evaluate_remote_loot_condition_for_test(
+            &session,
             &loot_condition(16, 1, 0, 0),
             &remote_context,
         ),
         Some(true)
     );
     assert_eq!(
-        evaluate_remote_loot_condition_for_test(&session, 
+        evaluate_remote_loot_condition_for_test(
+            &session,
             &loot_condition(20, 0, 0, 0),
             &remote_context,
         ),
         Some(true)
     );
     assert_eq!(
-        evaluate_remote_loot_condition_for_test(&session, 
+        evaluate_remote_loot_condition_for_test(
+            &session,
             &loot_condition(27, 70, 3, 0),
             &remote_context,
         ),
@@ -96,39 +103,47 @@ fn represented_personal_loot_remote_inventory_and_objective_conditions_use_regis
     active_quest_objective_counts.insert(100, vec![5]);
     let mut inventory_item_counts = HashMap::new();
     inventory_item_counts.insert(9001, 2);
-    let remote_context = LootConditionPlayer::remote(1, 1, 0, 80)
-        .with_inventory_and_progress(active_quest_statuses, active_quest_objective_counts, inventory_item_counts);
+    let remote_context = LootConditionPlayer::remote(1, 1, 0, 80).with_inventory_and_progress(
+        active_quest_statuses,
+        active_quest_objective_counts,
+        inventory_item_counts,
+    );
 
     assert_eq!(
-        evaluate_remote_loot_condition_for_test(&session, 
+        evaluate_remote_loot_condition_for_test(
+            &session,
             &loot_condition(2, 9001, 2, 0),
             &remote_context,
         ),
         Some(true)
     );
     assert_eq!(
-        evaluate_remote_loot_condition_for_test(&session, 
+        evaluate_remote_loot_condition_for_test(
+            &session,
             &loot_condition(2, 9001, 3, 0),
             &remote_context,
         ),
         Some(false)
     );
     assert_eq!(
-        evaluate_remote_loot_condition_for_test(&session, 
+        evaluate_remote_loot_condition_for_test(
+            &session,
             &loot_condition(2, 9001, 2, 1),
             &remote_context,
         ),
         None
     );
     assert_eq!(
-        evaluate_remote_loot_condition_for_test(&session, 
+        evaluate_remote_loot_condition_for_test(
+            &session,
             &loot_condition(48, 11, 0, 5),
             &remote_context,
         ),
         Some(true)
     );
     assert_eq!(
-        evaluate_remote_loot_condition_for_test(&session, 
+        evaluate_remote_loot_condition_for_test(
+            &session,
             &loot_condition(48, 11, 0, 4),
             &remote_context,
         ),

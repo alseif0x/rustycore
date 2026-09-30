@@ -252,7 +252,8 @@ pub fn represented_melee_ignore_absorb_like_cpp(
     attacker_effects
         .iter()
         .filter(|effect| {
-            effect.aura_type == wow_constants::spell::aura_types::SPELL_AURA_MOD_TARGET_ABSORB_SCHOOL
+            effect.aura_type
+                == wow_constants::spell::aura_types::SPELL_AURA_MOD_TARGET_ABSORB_SCHOOL
                 && (effect.misc_value as u32) & school_mask != 0
         })
         .map(|effect| effect.amount as f32)

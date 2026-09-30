@@ -9,7 +9,8 @@ async fn loot_item_uses_active_loot_view_like_cpp() {
     let inactive_guid = test_creature_guid(19_002);
     session.set_player_guid(Some(player_guid));
     set_active_loot_guid_for_test(&mut session, active_guid);
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         inactive_guid,
         CreatureLoot {
             loot_guid: inactive_guid,
@@ -40,8 +41,7 @@ async fn loot_item_uses_active_loot_view_like_cpp() {
         },
     );
 
-    handle_loot_item_for_test(&mut session, loot_item_packet(inactive_guid, 0))
-        .await;
+    handle_loot_item_for_test(&mut session, loot_item_packet(inactive_guid, 0)).await;
 
     let sent = send_rx.try_recv().unwrap();
     let mut sent = WorldPacket::from_bytes(&sent);
@@ -62,7 +62,8 @@ async fn loot_item_request_uses_loot_object_to_find_active_owner_like_cpp() {
     let loot_object_guid = represented_loot_object_guid_like_cpp(owner_guid);
     session.set_player_guid(Some(player_guid));
     set_active_loot_guid_for_test(&mut session, owner_guid);
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         owner_guid,
         CreatureLoot {
             loot_guid: loot_object_guid,
@@ -93,8 +94,7 @@ async fn loot_item_request_uses_loot_object_to_find_active_owner_like_cpp() {
         },
     );
 
-    handle_loot_item_for_test(&mut session, loot_item_packet(loot_object_guid, 0))
-        .await;
+    handle_loot_item_for_test(&mut session, loot_item_packet(loot_object_guid, 0)).await;
 
     let sent = send_rx.try_recv().unwrap();
     let mut sent = WorldPacket::from_bytes(&sent);
@@ -119,7 +119,8 @@ async fn loot_item_request_can_use_secondary_active_loot_object_like_cpp() {
     session.set_player_guid(Some(player_guid));
     set_active_loot_guid_for_test(&mut session, primary_owner);
     add_active_loot_view_owner_for_test(&mut session, secondary_owner);
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         secondary_owner,
         CreatureLoot {
             loot_guid: secondary_loot_object,
@@ -150,8 +151,7 @@ async fn loot_item_request_can_use_secondary_active_loot_object_like_cpp() {
         },
     );
 
-    handle_loot_item_for_test(&mut session, loot_item_packet(secondary_loot_object, 0))
-        .await;
+    handle_loot_item_for_test(&mut session, loot_item_packet(secondary_loot_object, 0)).await;
 
     let sent = send_rx.try_recv().unwrap();
     let mut sent = WorldPacket::from_bytes(&sent);

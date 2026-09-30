@@ -142,7 +142,9 @@ where
                         // `AddToMap` result remains determinant as in C++.
                         self.remove_respawn_time_like_cpp(object_type, spawn_id);
                         let (_, loaded_grid_primary_record, primary_result) = self
-                            .admit_loaded_grid_materialization(LoadedGridMaterialization::records(records))
+                            .admit_loaded_grid_materialization(LoadedGridMaterialization::records(
+                                records,
+                            ))
                             .into_record_parts();
                         match primary_result {
                             Ok(_outcome) => {

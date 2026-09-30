@@ -24,9 +24,10 @@ pub(crate) fn make_session_with_send_capacity(
         send_tx,
     );
     session.set_item_guid_generator_like_cpp(Arc::new(ObjectGuidGenerator::new(HighGuid::Item, 1)));
-    set_equipment_set_guid_generator_for_test(&mut session, Arc::new(
-        EquipmentSetGuidGeneratorLikeCpp::new(1),
-    ));
+    set_equipment_set_guid_generator_for_test(
+        &mut session,
+        Arc::new(EquipmentSetGuidGeneratorLikeCpp::new(1)),
+    );
     (session, send_rx)
 }
 

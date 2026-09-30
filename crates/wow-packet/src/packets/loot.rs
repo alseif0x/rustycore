@@ -5,12 +5,12 @@
 
 //! Loot packet definitions.
 
-use wow_constants::{ClientOpcodes, ServerOpcodes};
-use wow_core::ObjectGuid;
-pub use wow_constants::LOOT_SLOT_TYPE_OWNER_LIKE_CPP;
 use crate::packets::item::ItemInstance;
 use crate::world_packet::{PacketError, WorldPacket};
 use crate::{ClientPacket, ServerPacket};
+pub use wow_constants::LOOT_SLOT_TYPE_OWNER_LIKE_CPP;
+use wow_constants::{ClientOpcodes, ServerOpcodes};
+use wow_core::ObjectGuid;
 
 pub const LOOT_ERROR_DIDNT_KILL_LIKE_CPP: u8 = 0;
 pub const LOOT_ERROR_TOO_FAR_LIKE_CPP: u8 = 4;

@@ -41,9 +41,7 @@ async fn apply_creature_melee_damage_command_syncs_health_without_visible_attack
             },
         ))
         .expect("command queued");
-    session
-        .fixture_melee_process_commands()
-        .await;
+    session.fixture_melee_process_commands().await;
 
     assert_eq!(session.fixture_melee_health(), 83);
     let packet = send_rx

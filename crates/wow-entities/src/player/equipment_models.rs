@@ -186,4 +186,3 @@ pub enum TitanGripPenaltyAction {
     Cast(u32),
     Remove(u32),
 }
-

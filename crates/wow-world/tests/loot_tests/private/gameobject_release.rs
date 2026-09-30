@@ -10,7 +10,8 @@ async fn loot_release_accepts_secondary_active_owner_like_cpp() {
     session.set_player_guid(Some(player_guid));
     set_active_loot_guid_for_test(&mut session, primary_guid);
     add_active_loot_view_owner_for_test(&mut session, secondary_guid);
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         secondary_guid,
         CreatureLoot {
             loot_guid: represented_loot_object_guid_like_cpp(secondary_guid),
@@ -29,8 +30,7 @@ async fn loot_release_accepts_secondary_active_owner_like_cpp() {
         },
     );
 
-    release_local_loot_for_test(&mut session, secondary_guid, player_guid)
-        .await;
+    release_local_loot_for_test(&mut session, secondary_guid, player_guid).await;
 
     let sent = send_rx.try_recv().unwrap();
     let mut sent = WorldPacket::from_bytes(&sent);
@@ -68,14 +68,16 @@ async fn loot_release_fishing_gameobjects_follow_cpp_state_branches() {
             LOOT_TYPE_FISHINGHOLE_LIKE_CPP,
         ),
     ] {
-        record_represented_gameobject_runtime_state_for_test(&mut session, 
+        record_represented_gameobject_runtime_state_for_test(
+            &mut session,
             0,
             guid,
             guid.entry(),
             Position::ZERO,
             go_type,
         );
-        set_loot_for_test(&mut session, 
+        set_loot_for_test(
+            &mut session,
             guid,
             CreatureLoot {
                 loot_guid: guid,
@@ -107,10 +109,8 @@ async fn loot_release_fishing_gameobjects_follow_cpp_state_branches() {
         );
     }
 
-    release_local_loot_for_test(&mut session, fishing_node, player_guid)
-        .await;
-    release_local_loot_for_test(&mut session, fishing_hole, player_guid)
-        .await;
+    release_local_loot_for_test(&mut session, fishing_node, player_guid).await;
+    release_local_loot_for_test(&mut session, fishing_hole, player_guid).await;
 
     assert!(send_rx.try_recv().is_ok());
     assert!(send_rx.try_recv().is_ok());
@@ -120,8 +120,7 @@ async fn loot_release_fishing_gameobjects_follow_cpp_state_branches() {
             .loot_state,
         Some(LootState::JustDeactivated)
     );
-    let hole_state = gameobject_loot_release_snapshot_for_test(&session, fishing_hole)
-        .unwrap();
+    let hole_state = gameobject_loot_release_snapshot_for_test(&session, fishing_hole).unwrap();
     assert_eq!(hole_state.loot_state, Some(LootState::Ready));
     assert_eq!(hole_state.personal_loot_uses, 1);
 }
@@ -140,14 +139,16 @@ async fn loot_release_personal_chest_records_per_player_despawn_like_cpp() {
     wow_world::test_fixtures::insert_client_visible_guid_for_test(&mut session, fallback_chest);
 
     for (guid, restock_time) in [(restocked_chest, 45), (fallback_chest, 0)] {
-        record_represented_gameobject_runtime_state_for_test(&mut session, 
+        record_represented_gameobject_runtime_state_for_test(
+            &mut session,
             0,
             guid,
             guid.entry(),
             Position::ZERO,
             GAMEOBJECT_TYPE_CHEST as u8,
         );
-        record_gameobject_chest_release_metadata_for_loot_test(&mut session, 
+        record_gameobject_chest_release_metadata_for_loot_test(
+            &mut session,
             guid,
             GameObjectLootSource {
                 personal_loot_id: 7_001,
@@ -156,7 +157,8 @@ async fn loot_release_personal_chest_records_per_player_despawn_like_cpp() {
                 ..Default::default()
             },
         );
-        set_loot_for_test(&mut session, 
+        set_loot_for_test(
+            &mut session,
             guid,
             CreatureLoot {
                 loot_guid: guid,
@@ -176,21 +178,15 @@ async fn loot_release_personal_chest_records_per_player_despawn_like_cpp() {
         );
     }
 
-    release_local_loot_for_test(&mut session, restocked_chest, player_guid)
-        .await;
-    release_local_loot_for_test(&mut session, fallback_chest, player_guid)
-        .await;
+    release_local_loot_for_test(&mut session, restocked_chest, player_guid).await;
+    release_local_loot_for_test(&mut session, fallback_chest, player_guid).await;
 
     assert!(send_rx.try_recv().is_ok());
     assert!(send_rx.try_recv().is_ok());
     assert!(send_rx.try_recv().is_ok());
     assert!(send_rx.try_recv().is_ok());
-    assert!(
-        !loot_committed_visibility_for_test(&session).contains(&restocked_chest)
-    );
-    assert!(
-        !loot_committed_visibility_for_test(&session).contains(&fallback_chest)
-    );
+    assert!(!loot_committed_visibility_for_test(&session).contains(&restocked_chest));
+    assert!(!loot_committed_visibility_for_test(&session).contains(&fallback_chest));
     assert_eq!(
         gameobject_loot_release_snapshot_for_test(&session, restocked_chest)
             .unwrap()
@@ -209,7 +205,10 @@ async fn loot_release_personal_chest_records_per_player_despawn_like_cpp() {
             .per_player_despawn_until
             .is_some()
     );
-    assert!(is_per_player_gameobject_despawned_for_loot_test(&mut session, restocked_chest));
+    assert!(is_per_player_gameobject_despawned_for_loot_test(
+        &mut session,
+        restocked_chest
+    ));
 }
 
 #[tokio::test]
@@ -220,14 +219,16 @@ async fn loot_release_personal_chest_without_have_at_client_sends_no_out_of_rang
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
     set_active_loot_guid_for_test(&mut session, chest_guid);
-    record_represented_gameobject_runtime_state_for_test(&mut session, 
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         chest_guid,
         chest_guid.entry(),
         Position::ZERO,
         GAMEOBJECT_TYPE_CHEST as u8,
     );
-    record_gameobject_chest_release_metadata_for_loot_test(&mut session, 
+    record_gameobject_chest_release_metadata_for_loot_test(
+        &mut session,
         chest_guid,
         GameObjectLootSource {
             personal_loot_id: 7_001,
@@ -236,7 +237,8 @@ async fn loot_release_personal_chest_without_have_at_client_sends_no_out_of_rang
             ..Default::default()
         },
     );
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         chest_guid,
         CreatureLoot {
             loot_guid: chest_guid,
@@ -255,8 +257,7 @@ async fn loot_release_personal_chest_without_have_at_client_sends_no_out_of_rang
         },
     );
 
-    release_local_loot_for_test(&mut session, chest_guid, player_guid)
-        .await;
+    release_local_loot_for_test(&mut session, chest_guid, player_guid).await;
 
     let release_bytes = send_rx.try_recv().unwrap();
     let mut release = WorldPacket::from_bytes(&release_bytes);
@@ -265,8 +266,7 @@ async fn loot_release_personal_chest_without_have_at_client_sends_no_out_of_rang
         wow_constants::ServerOpcodes::LootRelease as u16
     );
     assert!(send_rx.try_recv().is_err());
-    let state = gameobject_loot_release_snapshot_for_test(&session, chest_guid)
-        .unwrap();
+    let state = gameobject_loot_release_snapshot_for_test(&session, chest_guid).unwrap();
     assert_eq!(state.per_player_despawn_secs, Some(45));
     assert!(state.per_player_despawn_until.is_some());
     assert_eq!(state.per_player_state_player_guid, Some(player_guid));
@@ -283,14 +283,16 @@ async fn loot_release_shared_chest_restock_starts_like_cpp() {
     add_active_loot_view_owner_for_test(&mut session, full_chest);
 
     for guid in [partial_chest, full_chest] {
-        record_represented_gameobject_runtime_state_for_test(&mut session, 
+        record_represented_gameobject_runtime_state_for_test(
+            &mut session,
             0,
             guid,
             guid.entry(),
             Position::ZERO,
             GAMEOBJECT_TYPE_CHEST as u8,
         );
-        record_gameobject_chest_release_metadata_for_loot_test(&mut session, 
+        record_gameobject_chest_release_metadata_for_loot_test(
+            &mut session,
             guid,
             GameObjectLootSource {
                 loot_id: 7_001,
@@ -300,7 +302,8 @@ async fn loot_release_shared_chest_restock_starts_like_cpp() {
             },
         );
     }
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         partial_chest,
         CreatureLoot {
             loot_guid: partial_chest,
@@ -330,7 +333,8 @@ async fn loot_release_shared_chest_restock_starts_like_cpp() {
             looted_by_player: false,
         },
     );
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         full_chest,
         CreatureLoot {
             loot_guid: full_chest,
@@ -349,19 +353,15 @@ async fn loot_release_shared_chest_restock_starts_like_cpp() {
         },
     );
 
-    release_local_loot_for_test(&mut session, partial_chest, player_guid)
-        .await;
-    release_local_loot_for_test(&mut session, full_chest, player_guid)
-        .await;
+    release_local_loot_for_test(&mut session, partial_chest, player_guid).await;
+    release_local_loot_for_test(&mut session, full_chest, player_guid).await;
 
-    let partial_state = gameobject_loot_release_snapshot_for_test(&session, partial_chest)
-        .unwrap();
+    let partial_state = gameobject_loot_release_snapshot_for_test(&session, partial_chest).unwrap();
     assert_eq!(partial_state.loot_state, Some(LootState::Activated));
     assert!(partial_state.chest_restock_until.is_some());
     assert!(has_loot_for_test(&session, partial_chest));
 
-    let full_state = gameobject_loot_release_snapshot_for_test(&session, full_chest)
-        .unwrap();
+    let full_state = gameobject_loot_release_snapshot_for_test(&session, full_chest).unwrap();
     assert_eq!(full_state.loot_state, Some(LootState::NotReady));
     assert!(full_state.chest_restock_until.is_some());
     assert!(!has_loot_for_test(&session, full_chest));
@@ -375,7 +375,8 @@ async fn loot_release_fishing_hole_just_deactivates_at_max_opens_like_cpp() {
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
     set_active_loot_guid_for_test(&mut session, fishing_hole);
-    record_represented_gameobject_runtime_state_for_test(&mut session, 
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         fishing_hole,
         fishing_hole.entry(),
@@ -383,7 +384,8 @@ async fn loot_release_fishing_hole_just_deactivates_at_max_opens_like_cpp() {
         GAMEOBJECT_TYPE_FISHING_HOLE as u8,
     );
     record_fishing_hole_max_opens_for_loot_test(&mut session, fishing_hole, 1);
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         fishing_hole,
         CreatureLoot {
             loot_guid: fishing_hole,
@@ -414,12 +416,10 @@ async fn loot_release_fishing_hole_just_deactivates_at_max_opens_like_cpp() {
         },
     );
 
-    release_local_loot_for_test(&mut session, fishing_hole, player_guid)
-        .await;
+    release_local_loot_for_test(&mut session, fishing_hole, player_guid).await;
 
     assert!(send_rx.try_recv().is_ok());
-    let hole_state = gameobject_loot_release_snapshot_for_test(&session, fishing_hole)
-        .unwrap();
+    let hole_state = gameobject_loot_release_snapshot_for_test(&session, fishing_hole).unwrap();
     assert_eq!(hole_state.personal_loot_uses, 1);
     assert_eq!(hole_state.loot_state, Some(LootState::JustDeactivated));
 }
@@ -440,14 +440,16 @@ async fn loot_release_gathering_node_sets_local_active_state_like_cpp() {
     attach_canonical_gameobject(&mut session, game_object);
     set_active_loot_guid_for_test(&mut session, gathering_node);
     wow_world::test_fixtures::insert_client_visible_guid_for_test(&mut session, gathering_node);
-    record_represented_gameobject_runtime_state_for_test(&mut session, 
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         gathering_node,
         gathering_node.entry(),
         Position::ZERO,
         GAMEOBJECT_TYPE_GATHERING_NODE as u8,
     );
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         gathering_node,
         CreatureLoot {
             loot_guid: gathering_node,
@@ -469,11 +471,13 @@ async fn loot_release_gathering_node_sets_local_active_state_like_cpp() {
     // Prepare the same fresh canonical authority formerly installed by cfg(test).
     refresh_loot_summary_for_test(&mut session, gathering_node, player_guid);
     let authority = loot_recovery_authority_for_test(&mut session, gathering_node).unwrap();
-    let generation = authority.snapshot_for_player_like_cpp(player_guid).unwrap().generation;
+    let generation = authority
+        .snapshot_for_player_like_cpp(player_guid)
+        .unwrap()
+        .generation;
     bind_loot_view_for_test(&mut session, gathering_node, generation, &authority);
 
-    release_local_loot_for_test(&mut session, gathering_node, player_guid)
-        .await;
+    release_local_loot_for_test(&mut session, gathering_node, player_guid).await;
 
     let release_bytes = send_rx.try_recv().unwrap();
     let mut release = WorldPacket::from_bytes(&release_bytes);
@@ -481,8 +485,7 @@ async fn loot_release_gathering_node_sets_local_active_state_like_cpp() {
         release.read_uint16().unwrap(),
         wow_constants::ServerOpcodes::LootRelease as u16
     );
-    let state = gameobject_loot_release_snapshot_for_test(&session, gathering_node)
-        .unwrap();
+    let state = gameobject_loot_release_snapshot_for_test(&session, gathering_node).unwrap();
     assert_eq!(state.go_state, Some(GoState::Active));
     assert_eq!(state.loot_state, None);
     let expected = wow_packet::packets::update::UpdateObject::game_object_values_update(
@@ -524,4 +527,3 @@ async fn loot_release_gathering_node_sets_local_active_state_like_cpp() {
     .to_bytes();
     assert_eq!(send_rx.try_recv().unwrap(), expected);
 }
-

@@ -2,8 +2,6 @@
 use super::*;
 
 impl PlayerSpellRuntimeState {
-
-
     /// Drop the loaded trait-config headers and return them to unhydrated.
     pub fn clear_trait_config_rows_like_cpp(&mut self) {
         self.trait_config_rows.clear();

@@ -12,6 +12,14 @@ mod corpse_loading;
 mod creation_support;
 #[path = "character_lifecycle/enumeration_support.rs"]
 mod enumeration_support;
+#[path = "character_lifecycle/initial_packets.rs"]
+mod initial_packets;
+#[path = "character_lifecycle/initial_packets_post_add_rest.rs"]
+mod initial_packets_post_add_rest;
+#[path = "character_lifecycle/initial_packets_post_add_scaling.rs"]
+mod initial_packets_post_add_scaling;
+#[path = "character_lifecycle/initial_packets_spell.rs"]
+mod initial_packets_spell;
 #[path = "character_lifecycle/lifecycle_corpse.rs"]
 mod lifecycle_corpse;
 #[path = "character_lifecycle/lifecycle_customize.rs"]
@@ -26,26 +34,18 @@ mod lifecycle_profile;
 mod lifecycle_rename;
 #[path = "character_lifecycle/login_context.rs"]
 mod login_context;
+#[path = "character_lifecycle/login_prelude.rs"]
+mod login_prelude;
+#[path = "character_lifecycle/login_recovery.rs"]
+mod login_recovery;
+#[path = "character_lifecycle/login_recovery_homebind_persistence.rs"]
+mod login_recovery_homebind_persistence;
 #[path = "character_lifecycle/login_support.rs"]
 mod login_support;
 #[path = "character_lifecycle/login_transport_support.rs"]
 mod login_transport_support;
 #[path = "character_lifecycle/session_state_transport.rs"]
 mod session_state_transport;
-#[path = "character_lifecycle/initial_packets_post_add_rest.rs"]
-mod initial_packets_post_add_rest;
-#[path = "character_lifecycle/initial_packets_post_add_scaling.rs"]
-mod initial_packets_post_add_scaling;
-#[path = "character_lifecycle/initial_packets_spell.rs"]
-mod initial_packets_spell;
-#[path = "character_lifecycle/initial_packets.rs"]
-mod initial_packets;
-#[path = "character_lifecycle/login_prelude.rs"]
-mod login_prelude;
-#[path = "character_lifecycle/login_recovery_homebind_persistence.rs"]
-mod login_recovery_homebind_persistence;
-#[path = "character_lifecycle/login_recovery.rs"]
-mod login_recovery;
 #[path = "character_lifecycle/world_entry_cinematic.rs"]
 mod world_entry_cinematic;
 

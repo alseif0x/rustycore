@@ -13,15 +13,6 @@ async fn failed_party_invite_social_lookup_retains_the_existing_fail_open_result
         SocialPartyInviteLookupOutcomeLikeCpp::Resolved(false),
     );
 
-    assert!(
-        !group_target_ignores_inviter_for_test(
-            Some(port.clone()),
-            target,
-            inviter,
-            1,
-        )
-        .await
-    );
+    assert!(!group_target_ignores_inviter_for_test(Some(port.clone()), target, inviter, 1,).await);
     assert_eq!(port.calls(), vec!["ignore:77:42:1"]);
 }
-

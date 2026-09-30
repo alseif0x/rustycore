@@ -3,7 +3,12 @@ use super::recovery_support::*;
 use wow_constants::InventoryResult;
 use wow_entities::INVENTORY_SLOT_BAG_0;
 use wow_packet::packets::loot::*;
-use wow_world::test_fixtures::loot::{loot_client_type_for_test, loot_fixture_response, loot_response_for_test, master_loot_inventory_error_for_test, notify_cached_loot_item_for_test, notify_committed_loot_item_for_test, open_loot_response_for_test, push_loot_item_for_test, send_loot_failure_for_test};
+use wow_world::test_fixtures::loot::{
+    loot_client_type_for_test, loot_fixture_response, loot_response_for_test,
+    master_loot_inventory_error_for_test, notify_cached_loot_item_for_test,
+    notify_committed_loot_item_for_test, open_loot_response_for_test, push_loot_item_for_test,
+    send_loot_failure_for_test,
+};
 
 fn loot_response_threshold(sent: &[u8]) -> u8 {
     let mut pkt = WorldPacket::from_bytes(&sent[2..]);
@@ -22,9 +27,7 @@ fn master_loot_inventory_result_mapping_matches_cpp_errors() {
         None
     );
     assert_eq!(
-        master_loot_inventory_error_for_test(
-            InventoryResult::ItemMaxCount
-        ),
+        master_loot_inventory_error_for_test(InventoryResult::ItemMaxCount),
         Some(LOOT_ERROR_MASTER_UNIQUE_ITEM_LIKE_CPP)
     );
     assert_eq!(
@@ -32,9 +35,7 @@ fn master_loot_inventory_result_mapping_matches_cpp_errors() {
         Some(wow_packet::packets::loot::LOOT_ERROR_MASTER_INV_FULL_LIKE_CPP)
     );
     assert_eq!(
-        master_loot_inventory_error_for_test(
-            InventoryResult::CantEquipEver
-        ),
+        master_loot_inventory_error_for_test(InventoryResult::CantEquipEver),
         Some(LOOT_ERROR_MASTER_OTHER_LIKE_CPP)
     );
 }
@@ -47,7 +48,8 @@ async fn represented_loot_response_acquire_reason_uses_cpp_loot_type_mapping() {
     let loot_guid = represented_loot_object_guid_like_cpp(owner_guid);
     let entry = represented_loot_entry(0, 25, player_guid);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         owner_guid,
         CreatureLoot {
             loot_guid,
@@ -158,7 +160,8 @@ async fn loot_response_success_keeps_cpp_failure_and_threshold_defaults() {
     set_group_guid_for_test_like_cpp(&mut session, Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         creature_guid,
         CreatureLoot {
             loot_guid: represented_loot_object_guid_like_cpp(creature_guid),

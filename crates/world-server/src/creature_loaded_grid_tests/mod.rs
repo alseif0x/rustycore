@@ -1,8 +1,8 @@
 #![cfg(test)]
 
 mod builder;
-mod resolver;
 mod created;
+mod resolver;
 
 use super::*;
 use wow_constants::PowerType;

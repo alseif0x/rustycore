@@ -6,8 +6,7 @@ pub(super) struct SkillCatalogs {
     pub(super) trait_node_entry_store: Arc<wow_data::trait_tree::TraitNodeEntryStore>,
     pub(super) trait_currency_source_locale_store:
         Arc<wow_data::trait_tree::TraitCurrencySourceLocaleStore>,
-    pub(super) trait_definition_locale_store:
-        Arc<wow_data::trait_tree::TraitDefinitionLocaleStore>,
+    pub(super) trait_definition_locale_store: Arc<wow_data::trait_tree::TraitDefinitionLocaleStore>,
     pub(super) trait_definition_store: Arc<wow_data::trait_tree::TraitDefinitionStore>,
     pub(super) trait_tree_skill_line_index:
         Arc<wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp>,

@@ -69,22 +69,22 @@ pub fn calculate_quest_reputation_reward<'a>(
     apply_recruit: impl FnOnce(f32) -> f32,
     resolve_rank: impl FnOnce() -> Option<u8>,
 ) -> Option<QuestReputationReward> {
-    let (base_reputation, no_quest_bonus, reward_table_unavailable) =
-        if rules.reward_override != 0 {
-            (rules.reward_override / 100, true, false)
+    let (base_reputation, no_quest_bonus, reward_table_unavailable) = if rules.reward_override != 0
+    {
+        (rules.reward_override / 100, true, false)
+    } else {
+        let row = if rules.reward_value < 0 { 2 } else { 1 };
+        if let Some(row) = resolve_row(row) {
+            let field = rules.reward_value.unsigned_abs() as usize;
+            let reputation = row
+                .and_then(|difficulty| difficulty.get(field).copied())
+                .map(i32::from)
+                .unwrap_or(0);
+            (reputation, false, false)
         } else {
-            let row = if rules.reward_value < 0 { 2 } else { 1 };
-            if let Some(row) = resolve_row(row) {
-                let field = rules.reward_value.unsigned_abs() as usize;
-                let reputation = row
-                    .and_then(|difficulty| difficulty.get(field).copied())
-                    .map(i32::from)
-                    .unwrap_or(0);
-                (reputation, false, false)
-            } else {
-                (0, false, true)
-            }
-        };
+            (0, false, true)
+        }
+    };
 
     if base_reputation == 0 && !reward_table_unavailable {
         return None;

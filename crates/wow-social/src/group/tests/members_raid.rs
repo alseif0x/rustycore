@@ -824,4 +824,3 @@ fn concurrent_kicks_remove_each_member_once_and_disband_once() {
     );
     assert!(!registry.contains_key(&group_guid));
 }
-

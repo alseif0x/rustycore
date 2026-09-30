@@ -31,9 +31,7 @@ pub fn candidate_leash(
         return AggroLeash::Allowed;
     }
 
-    let mut max_home_distance = config
-        .map_visibility_range
-        .min(SIZE_OF_GRID_CELL * 2.0);
+    let mut max_home_distance = config.map_visibility_range.min(SIZE_OF_GRID_CELL * 2.0);
 
     // C++ uses `GetCharmerOrOwner()` as the leash center after the non-player
     // dungeon/recent-damage bypasses. This transitional scan represents active
@@ -116,9 +114,7 @@ pub fn snapshot_leash(
         return AggroLeash::Allowed;
     }
 
-    let mut max_home_distance = config
-        .map_visibility_range
-        .min(SIZE_OF_GRID_CELL * 2.0);
+    let mut max_home_distance = config.map_visibility_range.min(SIZE_OF_GRID_CELL * 2.0);
     if let Some(owner_guid) = charmer_or_owner_guid {
         let Some(owner) = owner_snapshots.get(&owner_guid) else {
             return AggroLeash::OwnerPositionUnrepresented;

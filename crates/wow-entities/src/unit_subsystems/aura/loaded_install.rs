@@ -12,10 +12,10 @@
 //! Entities/Pet/Pet.cpp and Spells/Auras/SpellAuras.cpp.
 
 use super::{
-    AppliedAuraRef, AuraApplicationLikeCpp, AuraCastProvenanceLikeCpp, AuraRef,
-    AuraSubsystem, AuraThreatSnapshotLikeCpp, Instant, LoadedAuraStateLikeCpp,
-    ObjectGuid, OwnedAuraRef, RepresentedAuraEffectAmountLikeCpp,
-    VisibleAuraApplicationLikeCpp, VisibleAuraEffectAmountLikeCpp,
+    AppliedAuraRef, AuraApplicationLikeCpp, AuraCastProvenanceLikeCpp, AuraRef, AuraSubsystem,
+    AuraThreatSnapshotLikeCpp, Instant, LoadedAuraStateLikeCpp, ObjectGuid, OwnedAuraRef,
+    RepresentedAuraEffectAmountLikeCpp, VisibleAuraApplicationLikeCpp,
+    VisibleAuraEffectAmountLikeCpp,
 };
 
 impl AuraSubsystem {
@@ -28,14 +28,18 @@ impl AuraSubsystem {
         effects: &[E],
         fields: impl Fn(&E) -> (ObjectGuid, u32, u32, u8, i32),
     ) -> Vec<RepresentedAuraEffectAmountLikeCpp> {
-        effects.iter()
+        effects
+            .iter()
             .filter(|effect| {
                 let (caster, spell, mask, _, _) = fields(effect);
                 caster == caster_guid && spell == spell_id && mask == effect_mask
             })
             .map(|effect| {
                 let (_, _, _, effect_index, amount) = fields(effect);
-                RepresentedAuraEffectAmountLikeCpp { effect_index, amount }
+                RepresentedAuraEffectAmountLikeCpp {
+                    effect_index,
+                    amount,
+                }
             })
             .collect()
     }
@@ -99,31 +103,44 @@ impl AuraSubsystem {
         effects: &[E],
         fields: impl Fn(&E) -> (ObjectGuid, u32, u32, u8, i32),
     ) {
-        self.add_owned(OwnedAuraRef::new(aura_ref.spell_id, aura_ref.caster_guid, None));
+        self.add_owned(OwnedAuraRef::new(
+            aura_ref.spell_id,
+            aura_ref.caster_guid,
+            None,
+        ));
         self.add_applied(AppliedAuraRef::new(
-            aura_ref.spell_id, aura_ref.caster_guid, slot, effect_mask,
+            aura_ref.spell_id,
+            aura_ref.caster_guid,
+            slot,
+            effect_mask,
         ));
         self.set_loaded_aura_state_like_cpp(aura_ref, state);
         self.visible_auras.insert(slot, aura_ref);
 
-        let effect_amounts: Vec<_> = effects.iter()
+        let effect_amounts: Vec<_> = effects
+            .iter()
             .filter(|effect| {
                 let (caster, spell, mask, _, _) = fields(effect);
-                caster == aura_ref.caster_guid
-                    && spell == aura_ref.spell_id && mask == effect_mask
+                caster == aura_ref.caster_guid && spell == aura_ref.spell_id && mask == effect_mask
             })
             .map(|effect| {
                 let (_, _, _, effect_index, amount) = fields(effect);
                 let effect_ref = AppliedAuraRef::new(
-                    aura_ref.spell_id, aura_ref.caster_guid, slot,
+                    aura_ref.spell_id,
+                    aura_ref.caster_guid,
+                    slot,
                     1u32 << u32::from(effect_index),
                 );
                 self.applied_aura_amounts.insert(effect_ref, amount);
-                VisibleAuraEffectAmountLikeCpp { effect_index, amount }
+                VisibleAuraEffectAmountLikeCpp {
+                    effect_index,
+                    amount,
+                }
             })
             .collect();
         self.visible_aura_applications_like_cpp.insert(
-            slot, VisibleAuraApplicationLikeCpp::new(effect_mask, effect_amounts),
+            slot,
+            VisibleAuraApplicationLikeCpp::new(effect_mask, effect_amounts),
         );
     }
 

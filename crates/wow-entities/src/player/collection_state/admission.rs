@@ -5,8 +5,8 @@
 
 use super::*;
 use wow_constants::{
-    InventoryType, ItemClass, ItemFlags2, ItemFlags3, ItemQuality,
-    ItemSubClassArmor, ItemSubClassWeapon,
+    InventoryType, ItemClass, ItemFlags2, ItemFlags3, ItemQuality, ItemSubClassArmor,
+    ItemSubClassWeapon,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -68,7 +68,8 @@ impl PlayerCollectionStateLikeCpp {
         source: &impl AppearanceAdmissionSource,
         item_modified_appearance_id: u32,
     ) -> bool {
-        let Some(item_modified_appearance) = source.modified_appearance(item_modified_appearance_id)
+        let Some(item_modified_appearance) =
+            source.modified_appearance(item_modified_appearance_id)
         else {
             return false;
         };
@@ -80,17 +81,14 @@ impl PlayerCollectionStateLikeCpp {
         let Ok(item_id) = u32::try_from(item_modified_appearance.item_id) else {
             return false;
         };
-        let Some(search_template) = source.search_name(item_id)
-        else {
+        let Some(search_template) = source.search_name(item_id) else {
             return false;
         };
 
-        let Some(item_record) = source.item_subclass(item_id)
-        else {
+        let Some(item_record) = source.item_subclass(item_id) else {
             return false;
         };
-        let Some(sparse_template) = source.sparse_template(item_id)
-        else {
+        let Some(sparse_template) = source.sparse_template(item_id) else {
             return false;
         };
         let Some(template) = source.storage_template(item_id) else {
@@ -159,9 +157,7 @@ impl PlayerCollectionStateLikeCpp {
             let required_rank =
                 u32::try_from(sparse_template.required_reputation_rank.max(0)).unwrap_or(0);
             if source
-                .reputation_rank(u32::from(
-                    sparse_template.required_reputation_faction,
-                ))
+                .reputation_rank(u32::from(sparse_template.required_reputation_faction))
                 .unwrap_or(0)
                 < required_rank
             {
@@ -182,8 +178,7 @@ impl PlayerCollectionStateLikeCpp {
             return false;
         }
 
-        let player_class_mask =
-            source.class_mask(source.player_class());
+        let player_class_mask = source.class_mask(source.player_class());
         if sparse_template.allowable_class != 0
             && (u32::try_from(sparse_template.allowable_class).unwrap_or(0) & player_class_mask)
                 == 0
@@ -212,9 +207,7 @@ impl PlayerCollectionStateLikeCpp {
                 // C++ `CollectionMgr::CanAddAppearance` reads the learned
                 // `Player::GetWeaponProficiency` mask, not the class default
                 // the client receives at creation.
-                let weapon_proficiency = source
-                    .weapon_proficiency()
-                    .unwrap_or(0);
+                let weapon_proficiency = source.weapon_proficiency().unwrap_or(0);
                 if (weapon_proficiency & (1_u32 << subclass)) == 0 {
                     return false;
                 }
@@ -270,7 +263,8 @@ impl PlayerCollectionStateLikeCpp {
             return false;
         }
 
-        source.permanent_appearance_exists(item_modified_appearance_id)
+        source
+            .permanent_appearance_exists(item_modified_appearance_id)
             .is_some_and(|permanent| !permanent)
     }
 }

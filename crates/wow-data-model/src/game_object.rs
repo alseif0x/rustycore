@@ -189,7 +189,6 @@ pub struct GameObjectTemplateData {
     pub data: [u32; MAX_GAMEOBJECT_DATA],
 }
 
-
 impl GameObjectTemplateData {
     pub const fn new(go_type: u32, data: [u32; MAX_GAMEOBJECT_DATA]) -> Self {
         Self { go_type, data }

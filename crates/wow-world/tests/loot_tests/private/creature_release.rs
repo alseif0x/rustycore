@@ -1,8 +1,8 @@
 //! Preserved canonical loot lifecycle scenarios.
 use super::recovery_support::*;
 use std::collections::HashMap;
-use wow_world::test_fixtures::loot::*;
 use wow_entities::ObjectChangedFields;
+use wow_world::test_fixtures::loot::*;
 
 #[tokio::test]
 async fn disconnect_runs_full_creature_release_lifecycle_after_persistence_like_cpp() {
@@ -15,27 +15,26 @@ async fn disconnect_runs_full_creature_release_lifecycle_after_persistence_like_
         ..LootDropRatesLikeCpp::default()
     });
     let before = mutate_loot_creature_for_test(&mut session, owner_guid, |creature| {
-            creature.creature.set_corpse_delay(120, false);
-            creature.set_corpse_despawn_at(Some(Instant::now() + Duration::from_secs(120)));
-            creature.apply_corpse_loot_flags_after_death_state_like_cpp(true, false);
-            (
-                creature.corpse_despawn_at(),
-                creature.has_lootable_dynamic_flag_like_cpp(),
-            )
-        })
-        .unwrap();
+        creature.creature.set_corpse_delay(120, false);
+        creature.set_corpse_despawn_at(Some(Instant::now() + Duration::from_secs(120)));
+        creature.apply_corpse_loot_flags_after_death_state_like_cpp(true, false);
+        (
+            creature.corpse_despawn_at(),
+            creature.has_lootable_dynamic_flag_like_cpp(),
+        )
+    })
+    .unwrap();
     assert!(before.1);
 
-    disconnect_loot_cleanup_for_test(&mut session)
-        .await;
+    disconnect_loot_cleanup_for_test(&mut session).await;
 
     let after = mutate_loot_creature_for_test(&mut session, owner_guid, |creature| {
-            (
-                creature.corpse_despawn_at(),
-                creature.has_lootable_dynamic_flag_like_cpp(),
-            )
-        })
-        .unwrap();
+        (
+            creature.corpse_despawn_at(),
+            creature.has_lootable_dynamic_flag_like_cpp(),
+        )
+    })
+    .unwrap();
     assert!(!after.1);
     assert!(after.0 <= before.0);
 }
@@ -79,7 +78,8 @@ async fn personal_creature_release_starts_decay_only_after_every_pool_is_looted_
         corpse_decay_looted: 0.5,
         ..LootDropRatesLikeCpp::default()
     });
-    let corpse_deadline_before = mutate_loot_creature_for_test(&mut session, owner_guid, |creature| {
+    let corpse_deadline_before =
+        mutate_loot_creature_for_test(&mut session, owner_guid, |creature| {
             creature.creature.set_corpse_delay(120, false);
             let deadline = Instant::now() + Duration::from_secs(120);
             creature.set_corpse_despawn_at(Some(deadline));
@@ -89,7 +89,11 @@ async fn personal_creature_release_starts_decay_only_after_every_pool_is_looted_
         .expect("dead creature should already own its normal corpse deadline");
 
     session.set_player_guid(Some(first_player));
-    assert!(reconcile_loot_recovery_cache_for_test(&mut session, owner_guid, first_player));
+    assert!(reconcile_loot_recovery_cache_for_test(
+        &mut session,
+        owner_guid,
+        first_player
+    ));
     session.set_active_loot_guid(owner_guid);
     let response = loot_fixture_response(
         owner_guid,
@@ -99,22 +103,23 @@ async fn personal_creature_release_starts_decay_only_after_every_pool_is_looted_
     open_loot_response_for_test(&mut session, owner_guid, first_player, response);
     let _ = drain_server_opcodes_like_cpp(&send_rx);
 
-    assert!(
-        release_loot_owner_for_test(&mut session, owner_guid, first_player)
-            .await
-    );
+    assert!(release_loot_owner_for_test(&mut session, owner_guid, first_player).await);
     assert_eq!(
         mutate_loot_creature_for_test(&mut session, owner_guid, |creature| {
-                creature.corpse_despawn_deadline_ms_like_cpp()
-            })
-            .flatten(),
+            creature.corpse_despawn_deadline_ms_like_cpp()
+        })
+        .flatten(),
         Some(corpse_deadline_before),
         "one empty personal pool must not start global corpse decay while a peer has loot"
     );
     assert!(!authority.is_fully_looted_like_cpp());
 
     session.set_player_guid(Some(second_player));
-    assert!(reconcile_loot_recovery_cache_for_test(&mut session, owner_guid, second_player));
+    assert!(reconcile_loot_recovery_cache_for_test(
+        &mut session,
+        owner_guid,
+        second_player
+    ));
     session.set_active_loot_guid(owner_guid);
     let response = loot_fixture_response(
         owner_guid,
@@ -129,12 +134,10 @@ async fn personal_creature_release_starts_decay_only_after_every_pool_is_looted_
     assert_eq!(claim.commit_like_cpp(), Ok(true));
     let _ = drain_server_opcodes_like_cpp(&send_rx);
 
-    assert!(
-        release_loot_owner_for_test(&mut session, owner_guid, second_player)
-            .await
-    );
+    assert!(release_loot_owner_for_test(&mut session, owner_guid, second_player).await);
     assert!(authority.is_fully_looted_like_cpp());
-    let (corpse_deadline_after, runtime_elapsed_ms) = mutate_loot_creature_for_test(&mut session, owner_guid, |creature| {
+    let (corpse_deadline_after, runtime_elapsed_ms) =
+        mutate_loot_creature_for_test(&mut session, owner_guid, |creature| {
             creature
                 .corpse_despawn_deadline_ms_like_cpp()
                 .map(|deadline| (deadline, creature.runtime_elapsed_ms_like_cpp()))
@@ -160,8 +163,7 @@ async fn authoritative_partial_release_clears_round_robin_for_all_sessions_and_f
     // current round-robin holder from the opened first session.
     let opened_first = first.player_guid().unwrap();
     let opened_second = second.player_guid().unwrap();
-    let authority = loot_recovery_authority_for_test(&mut first, owner_guid)
-        .unwrap();
+    let authority = loot_recovery_authority_for_test(&mut first, owner_guid).unwrap();
     let generation = authority
         .snapshot_for_player_like_cpp(opened_first)
         .unwrap()
@@ -179,7 +181,11 @@ async fn authoritative_partial_release_clears_round_robin_for_all_sessions_and_f
     assert_ne!(generation, replacement_generation);
     authority.add_viewer_like_cpp(opened_first).unwrap();
     bind_loot_view_for_test(&mut first, owner_guid, replacement_generation, &authority);
-    assert!(reconcile_loot_recovery_cache_for_test(&mut first, owner_guid, opened_first));
+    assert!(reconcile_loot_recovery_cache_for_test(
+        &mut first,
+        owner_guid,
+        opened_first
+    ));
     let _ = mutate_loot_creature_for_test(&mut first, owner_guid, |creature| {
         creature
             .creature
@@ -189,10 +195,7 @@ async fn authoritative_partial_release_clears_round_robin_for_all_sessions_and_f
             .clear_update_mask(false);
     });
 
-    assert!(
-        release_loot_owner_for_test(&mut first, owner_guid, opened_first)
-            .await
-    );
+    assert!(release_loot_owner_for_test(&mut first, owner_guid, opened_first).await);
 
     assert!(
         authority
@@ -202,7 +205,11 @@ async fn authoritative_partial_release_clears_round_robin_for_all_sessions_and_f
             .round_robin_player
             .is_empty()
     );
-    assert!(reconcile_loot_recovery_cache_for_test(&mut second, owner_guid, opened_second));
+    assert!(reconcile_loot_recovery_cache_for_test(
+        &mut second,
+        owner_guid,
+        opened_second
+    ));
     assert!(
         loot_recovery_cache_for_test(&second, owner_guid)
             .unwrap()
@@ -211,14 +218,14 @@ async fn authoritative_partial_release_clears_round_robin_for_all_sessions_and_f
     );
     assert!(
         mutate_loot_creature_for_test(&mut first, owner_guid, |creature| {
-                creature
-                    .creature
-                    .unit()
-                    .world()
-                    .object()
-                    .changed_fields()
-                    .contains(ObjectChangedFields::DYNAMIC_FLAGS)
-            })
-            .unwrap()
+            creature
+                .creature
+                .unit()
+                .world()
+                .object()
+                .changed_fields()
+                .contains(ObjectChangedFields::DYNAMIC_FLAGS)
+        })
+        .unwrap()
     );
 }

@@ -58,5 +58,4 @@ impl MapManager {
     pub fn decrease_scheduled_script_count_by(&mut self, count: usize) {
         self.scheduled_scripts = self.scheduled_scripts.saturating_sub(count);
     }
-
 }

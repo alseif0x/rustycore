@@ -1,9 +1,9 @@
 //! Ordered object query startup composition.
 
+use crate::catalogs;
 use anyhow::Context;
 use std::sync::Arc;
 use tracing::info;
-use crate::catalogs;
 
 pub(super) struct ObjectQueryCatalogs {
     pub(super) object_mgr_catalogs: Arc<wow_world::session::ObjectMgrCatalogsLikeCpp>,

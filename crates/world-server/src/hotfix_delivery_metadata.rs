@@ -262,14 +262,29 @@ mod tests {
         assert_eq!(source.matches(delegation).count(), 1);
         let delegated_load = "hotfix_delivery_startup::load(";
         assert_eq!(continuation.matches(delegated_load).count(), 1);
-        assert!(continuation[continuation.find(delegated_load).unwrap()..]
-            .split_once(".await").unwrap().0
-            .contains("hotfix_delivery_metadata_persistence,"));
-        assert_eq!(source[source.find(delegation).unwrap()..]
-            .split_once(".await").unwrap().0
-            .matches("&hotfix_delivery_metadata_persistence,").count(), 1);
+        assert!(
+            continuation[continuation.find(delegated_load).unwrap()..]
+                .split_once(".await")
+                .unwrap()
+                .0
+                .contains("hotfix_delivery_metadata_persistence,")
+        );
+        assert_eq!(
+            source[source.find(delegation).unwrap()..]
+                .split_once(".await")
+                .unwrap()
+                .0
+                .matches("&hotfix_delivery_metadata_persistence,")
+                .count(),
+            1
+        );
         assert_eq!(delivery.matches("build_hotfix_blob_cache(").count(), 1);
-        assert_eq!(delivery.matches("load_hotfix_delivery_metadata_like_cpp(").count(), 1);
+        assert_eq!(
+            delivery
+                .matches("load_hotfix_delivery_metadata_like_cpp(")
+                .count(),
+            1
+        );
         assert_eq!(
             source
                 .matches("MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::new")

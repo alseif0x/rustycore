@@ -7,30 +7,6 @@
 //! drops their trailing commas; that is the only difference from the original text.
 #![cfg(test)]
 
-use wow_world::test_fixtures::{
-    PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP, current_group_guid_like_cpp,
-    first_connected_group_member_like_cpp, group_persistence_command_like_cpp,
-    install_realm_send_channel_for_test, party_player_info_like_cpp,
-    resolved_dungeon_difficulty_id_like_cpp, represented_subgroup_like_cpp,
-    send_group_new_leader_like_cpp, send_party_update,
-    send_ready_check_events_like_cpp, sender_can_start_ready_check_like_cpp,
-    group_guid_for_test_like_cpp, in_combat_for_test_like_cpp,
-    pass_on_group_loot_for_test_like_cpp, set_group_guid_for_test_like_cpp,
-    set_in_combat_for_test_like_cpp, set_in_combat_like_cpp,
-    set_loaded_player_identity_like_cpp, set_loaded_player_name_like_cpp,
-    set_represented_dungeon_difficulty_id_for_test_like_cpp,
-    set_player_battleground_type_id_like_cpp, set_pass_on_group_loot_for_test_like_cpp,
-    with_canonical_player_at_mut_like_cpp,
-    adopt_registered_canonical_player_fixture_like_cpp,
-    set_owned_player_group_like_cpp, resolved_group_guid_like_cpp,
-    reconcile_group_state_like_cpp, PartyInviteSocialPortLikeCpp,
-    persist_group_intents_like_cpp, handle_party_invite_with_policy_like_cpp,
-};
-use wow_world::session::directory::{
-    PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp, PlayerRegistry,
-    PlayerSessionRegistrationLikeCpp,
-};
-use wow_world::session::mailbox::{SendRealmPacketLikeCppCommand, SessionCommand};
 use flume::bounded;
 use std::{
     sync::{Arc, Mutex},
@@ -39,8 +15,28 @@ use std::{
 use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::{ObjectGuid, Position, guid::HighGuid};
 use wow_handler::{PacketProcessing, SessionStatus};
+use wow_world::session::directory::{
+    PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp, PlayerRegistry,
+    PlayerSessionRegistrationLikeCpp,
+};
+use wow_world::session::mailbox::{SendRealmPacketLikeCppCommand, SessionCommand};
+use wow_world::test_fixtures::{
+    PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP, PartyInviteSocialPortLikeCpp,
+    adopt_registered_canonical_player_fixture_like_cpp, current_group_guid_like_cpp,
+    first_connected_group_member_like_cpp, group_guid_for_test_like_cpp,
+    group_persistence_command_like_cpp, handle_party_invite_with_policy_like_cpp,
+    in_combat_for_test_like_cpp, install_realm_send_channel_for_test, party_player_info_like_cpp,
+    pass_on_group_loot_for_test_like_cpp, persist_group_intents_like_cpp,
+    reconcile_group_state_like_cpp, represented_subgroup_like_cpp,
+    resolved_dungeon_difficulty_id_like_cpp, resolved_group_guid_like_cpp,
+    send_group_new_leader_like_cpp, send_party_update, send_ready_check_events_like_cpp,
+    sender_can_start_ready_check_like_cpp, set_group_guid_for_test_like_cpp,
+    set_in_combat_for_test_like_cpp, set_in_combat_like_cpp, set_loaded_player_identity_like_cpp,
+    set_loaded_player_name_like_cpp, set_owned_player_group_like_cpp,
+    set_pass_on_group_loot_for_test_like_cpp, set_player_battleground_type_id_like_cpp,
+    set_represented_dungeon_difficulty_id_for_test_like_cpp, with_canonical_player_at_mut_like_cpp,
+};
 
-use wow_world::session::registry::PacketHandlerEntry;
 use wow_packet::{ServerPacket, WorldPacket, packets::party::party_result};
 use wow_persistence::{
     PersistenceFutureLikeCpp, RepresentedGroupPersistenceOutcomeLikeCpp,
@@ -52,6 +48,7 @@ use wow_social::group::{
     GroupInfo, GroupMemberCharacterLikeCpp, GroupRegistry, PendingInviteLikeCpp, PendingInvites,
     ReadyCheckEventLikeCpp,
 };
+use wow_world::session::registry::PacketHandlerEntry;
 
 use wow_world::session::{GroupInvitePolicyLikeCpp, WorldSession};
 

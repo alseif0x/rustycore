@@ -33,8 +33,14 @@ fn foreign_plan_origin_is_rejected_by_resume_gate_begin_and_abandon() {
         .into_started()
         .expect("timer passed");
 
-    assert_eq!(foreign_plan.epoch_like_cpp(), recipient_plan.epoch_like_cpp());
-    assert_eq!(foreign_plan.updated_maps_like_cpp(), recipient_plan.updated_maps_like_cpp());
+    assert_eq!(
+        foreign_plan.epoch_like_cpp(),
+        recipient_plan.epoch_like_cpp()
+    );
+    assert_eq!(
+        foreign_plan.updated_maps_like_cpp(),
+        recipient_plan.updated_maps_like_cpp()
+    );
     assert_eq!(foreign_plan.effective_diff_ms(), 200);
     assert_eq!(recipient_plan.effective_diff_ms(), 300);
     assert!(!plan_recipient.can_resume_tick(&foreign_plan));
@@ -99,7 +105,10 @@ fn foreign_continuation_and_token_cannot_cross_managers() {
         .into_started()
         .expect("timer passed");
     assert_eq!(first_plan.epoch_like_cpp(), second_plan.epoch_like_cpp());
-    assert_eq!(first_plan.updated_maps_like_cpp(), second_plan.updated_maps_like_cpp());
+    assert_eq!(
+        first_plan.updated_maps_like_cpp(),
+        second_plan.updated_maps_like_cpp()
+    );
     assert_eq!(first_plan.effective_diff_ms(), 200);
     assert_eq!(second_plan.effective_diff_ms(), 300);
 
@@ -136,10 +145,7 @@ fn foreign_continuation_and_token_cannot_cross_managers() {
         .unwrap()
         .unwrap();
     assert_eq!(first_token.key(), second_token.key());
-    assert_eq!(
-        first_token.incarnation(),
-        second_token.incarnation()
-    );
+    assert_eq!(first_token.incarnation(), second_token.incarnation());
     assert_eq!(first_token.effective_diff_ms(), 200);
     assert_eq!(second_token.effective_diff_ms(), 300);
 
@@ -154,10 +160,12 @@ fn foreign_continuation_and_token_cannot_cross_managers() {
     );
     let second_map = second.find_map(1, 0).unwrap();
     assert_eq!(second_map.last_creatures_update_summary().visited, 0);
-    assert!(!second_map
-        .last_map_update_tail_summary_like_cpp()
-        .script_hook
-        .invoked);
+    assert!(
+        !second_map
+            .last_map_update_tail_summary_like_cpp()
+            .script_hook
+            .invoked
+    );
     assert!(second_map.delayed_update_calls().is_empty());
     assert_eq!(
         second
@@ -224,10 +232,8 @@ fn staged_map_inflight_blocks_second_prepare_and_manager_timer_advance() {
         Ok(ObjectMapFinishOutcome::Completed)
     );
     assert!(matches!(
-        manager.prepare_next_object_map(
-            &mut tick,
-            MapObjectUpdateSelectionLikeCpp::WholeTypedStores,
-        ),
+        manager
+            .prepare_next_object_map(&mut tick, MapObjectUpdateSelectionLikeCpp::WholeTypedStores,),
         Ok(None)
     ));
     manager.finalize_object_tick(tick).unwrap();
@@ -318,10 +324,12 @@ fn stale_map_token_does_not_run_creature_or_tail_on_same_key_replacement() {
     );
     let replacement = manager.find_map(1, 0).unwrap();
     assert_eq!(replacement.last_creatures_update_summary().visited, 0);
-    assert!(!replacement
-        .last_map_update_tail_summary_like_cpp()
-        .script_hook
-        .invoked);
+    assert!(
+        !replacement
+            .last_map_update_tail_summary_like_cpp()
+            .script_hook
+            .invoked
+    );
     assert_eq!(manager.updater.pending_requests, 0);
     assert_eq!(manager.updater.scheduled_updates, 1);
 
@@ -349,7 +357,10 @@ fn staged_maps_keep_order_and_diff_and_finalize_one_wait_then_all_delayed_update
         .unwrap()
         .unwrap();
     assert_eq!(first.key(), MapKey::new(1, 0));
-    assert_eq!(first.incarnation(), manager.map_incarnation_like_cpp(first.key()).unwrap());
+    assert_eq!(
+        first.incarnation(),
+        manager.map_incarnation_like_cpp(first.key()).unwrap()
+    );
     assert_eq!(first.effective_diff_ms(), 200);
     assert_eq!(
         finish_without_load_record(

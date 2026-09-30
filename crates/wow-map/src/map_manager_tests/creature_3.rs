@@ -343,7 +343,8 @@ fn world_creature_random_missing_path_retries_instead_of_direct_fallback_like_cp
     assert!(creature.active_move_spline_like_cpp().is_none());
     assert_eq!(
         creature
-            .runtime.active_random_generator
+            .runtime
+            .active_random_generator
             .as_ref()
             .expect("random generator")
             .timer_ms(),

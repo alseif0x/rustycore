@@ -84,8 +84,11 @@ impl CreatureLoadedGridLifecycleResolverLikeCpp {
         spawn_id: u64,
         map_object_guid: ObjectGuid,
     ) -> Result<CreatureLoadedGridResolvedLikeCpp, CreatureLoadedGridResolveErrorLikeCpp> {
-        let CreatedLoadedGridCreature { lifecycle_record, creature, map_insertion_requested } =
-            self.resolve_creature(spawn_id, map_object_guid)?;
+        let CreatedLoadedGridCreature {
+            lifecycle_record,
+            creature,
+            map_insertion_requested,
+        } = self.resolve_creature(spawn_id, map_object_guid)?;
         let map_object_record = if map_insertion_requested {
             Some(
                 MapObjectRecord::new_creature(creature.clone()).map_err(|error| {
@@ -121,7 +124,8 @@ fn project_creature_record(
     if map_insertion_requested {
         Some(MapObjectRecord::new_creature(creature).map_err(|error| {
             CreatureLoadedGridResolveErrorLikeCpp::MapObjectRecord(format!("{error:?}"))
-        })).transpose()
+        }))
+        .transpose()
     } else {
         Ok(None)
     }

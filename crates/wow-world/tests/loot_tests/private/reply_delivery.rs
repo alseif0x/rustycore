@@ -3,7 +3,12 @@ use super::recovery_support::*;
 use wow_constants::InventoryResult;
 use wow_entities::INVENTORY_SLOT_BAG_0;
 use wow_packet::packets::loot::*;
-use wow_world::test_fixtures::loot::{loot_client_type_for_test, loot_fixture_response, loot_response_for_test, master_loot_inventory_error_for_test, notify_cached_loot_item_for_test, notify_committed_loot_item_for_test, open_loot_response_for_test, push_loot_item_for_test, send_loot_failure_for_test};
+use wow_world::test_fixtures::loot::{
+    loot_client_type_for_test, loot_fixture_response, loot_response_for_test,
+    master_loot_inventory_error_for_test, notify_cached_loot_item_for_test,
+    notify_committed_loot_item_for_test, open_loot_response_for_test, push_loot_item_for_test,
+    send_loot_failure_for_test,
+};
 
 fn loot_response_threshold(sent: &[u8]) -> u8 {
     let mut pkt = WorldPacket::from_bytes(&sent[2..]);
@@ -30,8 +35,7 @@ async fn full_loot_response_queue_rolls_back_open_without_blocking_authority_lik
     loot.items[0].allowed_looters = vec![player_guid];
     set_loot_for_test(&mut session, owner_guid, loot);
     install_cached_test_creature_loot_authority_like_cpp(&mut session, owner_guid, player_guid);
-    let authority = loot_recovery_authority_for_test(&mut session, owner_guid)
-        .unwrap();
+    let authority = loot_recovery_authority_for_test(&mut session, owner_guid).unwrap();
     set_active_loot_guid_for_test(&mut session, owner_guid);
     let response = loot_fixture_response(
         owner_guid,
@@ -92,8 +96,7 @@ async fn successful_loot_open_queues_response_before_claim_removal_like_cpp() {
     loot.items[0].allowed_looters = vec![player_guid];
     set_loot_for_test(&mut session, owner_guid, loot);
     install_cached_test_creature_loot_authority_like_cpp(&mut session, owner_guid, player_guid);
-    let authority = loot_recovery_authority_for_test(&mut session, owner_guid)
-        .unwrap();
+    let authority = loot_recovery_authority_for_test(&mut session, owner_guid).unwrap();
     set_active_loot_guid_for_test(&mut session, owner_guid);
     let response = loot_fixture_response(
         owner_guid,
@@ -108,12 +111,7 @@ async fn successful_loot_open_queues_response_before_claim_removal_like_cpp() {
         .unwrap();
     assert_eq!(claim.commit_like_cpp(), Ok(true));
     let committed = authority.snapshot_for_player_like_cpp(player_guid).unwrap();
-    notify_committed_loot_item_for_test(&mut session, 
-        owner_guid,
-        Some(&authority),
-        &committed,
-        0,
-    );
+    notify_committed_loot_item_for_test(&mut session, owner_guid, Some(&authority), &committed, 0);
 
     let opcodes = drain_server_opcodes_like_cpp(&send_rx);
     let response_index = opcodes
@@ -139,7 +137,19 @@ fn represented_loot_item_push_result_uses_realm_route_and_cpp_encounter_fields()
     let item_guid = ObjectGuid::create_item(1, 700);
     let entry = represented_loot_entry(0, 25, player_guid);
 
-    push_loot_item_for_test(&session, player_guid, item_guid, &entry, 0, 0, 0, 1, 1, false, 615);
+    push_loot_item_for_test(
+        &session,
+        player_guid,
+        item_guid,
+        &entry,
+        0,
+        0,
+        0,
+        1,
+        1,
+        false,
+        615,
+    );
 
     assert!(instance_rx.try_recv().is_err());
     let sent = realm_rx.try_recv().unwrap();
@@ -192,7 +202,8 @@ fn represented_loot_removed_uses_players_looting_like_cpp() {
     );
     session.set_player_registry(player_registry);
     session.set_player_guid(Some(player_guid));
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         owner_guid,
         CreatureLoot {
             loot_guid: loot_object,
@@ -243,7 +254,9 @@ fn represented_loot_removed_uses_players_looting_like_cpp() {
     );
     assert!(closed_rx.try_recv().is_err());
     assert_eq!(
-        loot_recovery_cache_for_test(&session, owner_guid).unwrap().players_looting,
+        loot_recovery_cache_for_test(&session, owner_guid)
+            .unwrap()
+            .players_looting,
         vec![player_guid, open_guid]
     );
 }

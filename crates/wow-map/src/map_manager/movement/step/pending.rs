@@ -90,7 +90,11 @@ impl StepPathContinuation {
         &self.metadata.phase_shift
     }
 
-    pub(crate) fn resume(self, actor: &mut WorldCreature, response: Option<DetourPolyPath>) -> StepProgress {
+    pub(crate) fn resume(
+        self,
+        actor: &mut WorldCreature,
+        response: Option<DetourPolyPath>,
+    ) -> StepProgress {
         let progress = self.continuation.resume(actor, response);
         wrap(progress, self.metadata)
     }
@@ -122,22 +126,34 @@ impl StepGridHeightContinuation {
     }
 }
 
-pub(in crate::map_manager::movement) fn wrap(progress: MovementProgress, metadata: StepMetadata) -> StepProgress {
+pub(in crate::map_manager::movement) fn wrap(
+    progress: MovementProgress,
+    metadata: StepMetadata,
+) -> StepProgress {
     match progress {
         MovementProgress::Complete(completion) => {
             let result = match completion {
                 MovementCompletion::Home(outcome) | MovementCompletion::Chase(outcome) => {
                     match outcome {
                         ChaseTickOutcomeLikeCpp::Idle => None,
-                        ChaseTickOutcomeLikeCpp::Stopped(stop) => Some(CreatureMovementStep::Stop(stop)),
-                        ChaseTickOutcomeLikeCpp::Launched(from, spline) => Some(CreatureMovementStep::Launch {
-                            source: metadata.source, from, spline,
-                        }),
+                        ChaseTickOutcomeLikeCpp::Stopped(stop) => {
+                            Some(CreatureMovementStep::Stop(stop))
+                        }
+                        ChaseTickOutcomeLikeCpp::Launched(from, spline) => {
+                            Some(CreatureMovementStep::Launch {
+                                source: metadata.source,
+                                from,
+                                spline,
+                            })
+                        }
                     }
                 }
-                MovementCompletion::Random(movement) | MovementCompletion::Waypoint(_, movement) => {
+                MovementCompletion::Random(movement)
+                | MovementCompletion::Waypoint(_, movement) => {
                     movement.map(|(from, spline)| CreatureMovementStep::Launch {
-                        source: metadata.source, from, spline,
+                        source: metadata.source,
+                        from,
+                        spline,
                     })
                 }
             };
@@ -146,7 +162,11 @@ pub(in crate::map_manager::movement) fn wrap(progress: MovementProgress, metadat
         MovementProgress::Pending(PendingMovement::Path(request)) => {
             let (query, continuation) = request.into_parts();
             StepProgress::Pending(StepPending::Path(StepPathRequest {
-                query, continuation: StepPathContinuation { metadata, continuation },
+                query,
+                continuation: StepPathContinuation {
+                    metadata,
+                    continuation,
+                },
             }))
         }
         MovementProgress::Pending(PendingMovement::StaticHeight(request)) => {
@@ -156,7 +176,11 @@ pub(in crate::map_manager::movement) fn wrap(progress: MovementProgress, metadat
                 probe_z: request.request.probe_z,
             };
             StepProgress::Pending(StepPending::StaticHeight(StepStaticHeightRequest {
-                query, continuation: StepStaticHeightContinuation { metadata, continuation: request },
+                query,
+                continuation: StepStaticHeightContinuation {
+                    metadata,
+                    continuation: request,
+                },
             }))
         }
         MovementProgress::Pending(PendingMovement::GridHeight(request)) => {
@@ -165,7 +189,11 @@ pub(in crate::map_manager::movement) fn wrap(progress: MovementProgress, metadat
                 point: request.request.point,
             };
             StepProgress::Pending(StepPending::GridHeight(StepGridHeightRequest {
-                query, continuation: StepGridHeightContinuation { metadata, continuation: request },
+                query,
+                continuation: StepGridHeightContinuation {
+                    metadata,
+                    continuation: request,
+                },
             }))
         }
     }

@@ -2,11 +2,19 @@
 use super::recovery_support::*;
 use std::collections::HashMap;
 use std::sync::Mutex;
-use wow_world::test_fixtures::loot::*;
-use wow_loot::{LootStore, LootStoreKind, LootStores, LootStoreItem, LootTemplateRow, loot_is_looted_like_cpp};
-use wow_world::session::mailbox::{SyncChestGameobjectStateAndRefreshLikeCppCommand, SyncGooberGameobjectStateAndRefreshLikeCppCommand, SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand};
+use wow_data::{
+    SpellInfo, SpellMiscEntry, SpellMiscStore, SpellRangeEntry, SpellRangeStore, SpellStore,
+};
 use wow_entities::GAMEOBJECT_TYPE_GOOBER;
-use wow_data::{SpellStore, SpellInfo, SpellMiscStore, SpellMiscEntry, SpellRangeStore, SpellRangeEntry};
+use wow_loot::{
+    LootStore, LootStoreItem, LootStoreKind, LootStores, LootTemplateRow, loot_is_looted_like_cpp,
+};
+use wow_world::session::mailbox::{
+    SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
+    SyncGooberGameobjectStateAndRefreshLikeCppCommand,
+};
+use wow_world::test_fixtures::loot::*;
 
 #[tokio::test]
 async fn represented_gameobject_chest_loot_carries_cpp_source_metadata() {
@@ -24,14 +32,15 @@ async fn represented_gameobject_chest_loot_carries_cpp_source_metadata() {
         ..Default::default()
     };
 
-    let loot = generate_chest_loot_for_test(&mut session, 
-            gameobject_guid,
-            ObjectGuid::create_player(1, 42),
-            source,
-            &[],
-        )
-        .await
-        .expect("canonical owner map allocates a LootObject");
+    let loot = generate_chest_loot_for_test(
+        &mut session,
+        gameobject_guid,
+        ObjectGuid::create_player(1, 42),
+        source,
+        &[],
+    )
+    .await
+    .expect("canonical owner map allocates a LootObject");
 
     assert_eq!(loot.loot_type, LOOT_TYPE_CHEST_LIKE_CPP);
     assert_eq!(loot.dungeon_encounter_id, 733);
@@ -65,7 +74,8 @@ fn chest_allowed_looters_ignore_range_only_in_same_dungeon_instance_like_cpp() {
     ])));
     let canonical = Arc::new(Mutex::new(wow_map::MapManager::default()));
     session.set_canonical_map_manager(canonical);
-    attach_money_player_controller_for_test(&mut session,
+    attach_money_player_controller_for_test(
+        &mut session,
         player_guid,
         "LootOwner".to_string(),
         Position::ZERO,
@@ -75,8 +85,7 @@ fn chest_allowed_looters_ignore_range_only_in_same_dungeon_instance_like_cpp() {
         80,
         0,
     );
-    ensure_money_player_map_for_test(&mut session)
-        .expect("canonical loot owner map");
+    ensure_money_player_map_for_test(&mut session).expect("canonical loot owner map");
     install_group_loot_group(&mut session, player_guid, member_guid);
     assert_eq!(
         chest_reward_looters_for_test(&session, player_guid),

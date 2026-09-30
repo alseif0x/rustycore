@@ -1,8 +1,8 @@
 //! Aura-effect selection over canonical applications and borrowed catalog rows.
 //! C++ Unit::GetAuraEffectsByType; catalog lookup remains with the caller.
 
-use std::collections::HashMap;
 use super::{AppliedAuraRef, AuraApplicationLikeCpp, AuraSubsystem};
+use std::collections::HashMap;
 use wow_data_model::aura_effects::AppliedAuraEffectLikeCpp;
 
 impl AuraSubsystem {
@@ -21,7 +21,11 @@ impl AuraSubsystem {
         slots.sort_unstable();
         project_player_effects(
             slots.into_iter().map(|slot| (slot, &auras[&slot])),
-            aura_type, &mut select, &fields, &mut base_amount, &mut project,
+            aura_type,
+            &mut select,
+            &fields,
+            &mut base_amount,
+            &mut project,
         )
     }
 
@@ -36,7 +40,11 @@ impl AuraSubsystem {
     ) -> Vec<T> {
         project_player_effects(
             auras.values().map(|aura| (aura.slot, aura)),
-            Some(aura_type), &mut select, &fields, &mut base_amount, &mut project,
+            Some(aura_type),
+            &mut select,
+            &fields,
+            &mut base_amount,
+            &mut project,
         )
     }
 
@@ -57,7 +65,8 @@ impl AuraSubsystem {
             };
             for effect in spell_effects.iter().filter(|effect| {
                 fields(effect).2 != 0
-                    && 1u32.checked_shl(fields(effect).0)
+                    && 1u32
+                        .checked_shl(fields(effect).0)
                         .is_some_and(|bit| aura.effect_mask & bit != 0)
             }) {
                 effects.push(AppliedAuraEffectLikeCpp {
@@ -76,14 +85,16 @@ impl AuraSubsystem {
 
     /// Unit::GetTotalAuraMultiplierByMiscValue over already resolved effects.
     pub fn effect_multiplier_by_misc(effects: Vec<(i32, i32)>, misc_value: i32) -> f32 {
-        effects.into_iter()
+        effects
+            .into_iter()
             .filter(|(effect_misc_value, _)| *effect_misc_value == misc_value)
             .fold(1.0, |acc, (_, amount)| acc * (1.0 + amount as f32 / 100.0))
     }
 
     /// Unit::GetTotalAuraModifierByMiscValue over already resolved effects.
     pub fn effect_modifier_by_misc(effects: Vec<(i32, i32)>, misc_value: i32) -> i32 {
-        effects.into_iter()
+        effects
+            .into_iter()
             .filter(|(effect_misc_value, _)| *effect_misc_value == misc_value)
             .map(|(_, amount)| amount)
             .sum()
@@ -112,15 +123,16 @@ impl AuraSubsystem {
         mut select: impl FnMut(i32) -> Option<&'catalog [E]>,
         fields: impl Fn(&E) -> (u32, u32, i32, i32, i32),
     ) -> bool {
-        is_ability(aura.spell_id) && select(aura.spell_id).is_some_and(|effects| {
-            effects.iter().any(|effect| {
-                1u32.checked_shl(fields(effect).0)
+        is_ability(aura.spell_id)
+            && select(aura.spell_id).is_some_and(|effects| {
+                effects.iter().any(|effect| {
+                    1u32.checked_shl(fields(effect).0)
                     .is_some_and(|bit| aura.effect_mask & bit != 0)
                     && fields(effect).2
                         == wow_constants::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE
                     && (fields(effect).4 == 0 || fields(effect).4 & (1 << 2) != 0)
+                })
             })
-        })
     }
 }
 
@@ -139,10 +151,13 @@ fn project_player_effects<'application, 'catalog, E: 'catalog, T>(
         };
         for effect in spell_effects.iter().filter(|effect| {
             aura_type.is_none_or(|aura_type| fields(effect).2 == aura_type)
-                && 1u32.checked_shl(fields(effect).0)
+                && 1u32
+                    .checked_shl(fields(effect).0)
                     .is_some_and(|bit| aura.effect_mask & bit != 0)
         }) {
-            let amount = aura.represented_effect_amounts.iter()
+            let amount = aura
+                .represented_effect_amounts
+                .iter()
                 .find(|represented| {
                     u8::try_from(fields(effect).0).ok() == Some(represented.effect_index)
                 })

@@ -551,7 +551,8 @@ fn loot_item_random_context_runtime_fields_match_entry() {
     item.initialize_created_state(ItemCreateInfo {
         guid: item_guid,
         item_id: 25,
-        context: <ItemContext as num_traits::FromPrimitive>::from_u8(2).unwrap_or(ItemContext::None),
+        context: <ItemContext as num_traits::FromPrimitive>::from_u8(2)
+            .unwrap_or(ItemContext::None),
         owner: Some(owner_guid),
         max_durability: 0,
         expiration: 0,

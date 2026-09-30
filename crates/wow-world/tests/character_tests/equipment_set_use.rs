@@ -11,9 +11,7 @@ use wow_world::test_fixtures::{
     set_equipment_set_guid_generator_for_test,
 };
 
-fn make_session_with_send_capacity(
-    capacity: usize,
-) -> (WorldSession, flume::Receiver<Vec<u8>>) {
+fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(1);
     let (send_tx, send_rx) = flume::bounded::<Vec<u8>>(capacity);
     let mut session = WorldSession::new(
@@ -29,9 +27,10 @@ fn make_session_with_send_capacity(
         send_tx,
     );
     session.set_item_guid_generator_like_cpp(Arc::new(ObjectGuidGenerator::new(HighGuid::Item, 1)));
-    set_equipment_set_guid_generator_for_test(&mut session, Arc::new(
-        EquipmentSetGuidGeneratorLikeCpp::new(1),
-    ));
+    set_equipment_set_guid_generator_for_test(
+        &mut session,
+        Arc::new(EquipmentSetGuidGeneratorLikeCpp::new(1)),
+    );
     (session, send_rx)
 }
 
@@ -67,7 +66,8 @@ fn read_use_equipment_set_result(encoded: Vec<u8>) -> (u64, u8) {
 async fn use_equipment_set_moves_direct_inventory_item_and_sends_result_like_cpp() {
     let (mut session, send_rx) = make_session_with_send_capacity(1);
     let item_guid = ObjectGuid::create_item(1, 55);
-    insert_inventory_item_for_test(&mut session,
+    insert_inventory_item_for_test(
+        &mut session,
         INVENTORY_SLOT_ITEM_START,
         InventoryItem {
             guid: item_guid,
@@ -94,7 +94,11 @@ async fn use_equipment_set_moves_direct_inventory_item_and_sends_result_like_cpp
         item_guid
     );
     assert!(
-        get_inventory_item_by_pos_for_test(&session, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_ITEM_START)
-            .is_none()
+        get_inventory_item_by_pos_for_test(
+            &session,
+            INVENTORY_SLOT_BAG_0,
+            INVENTORY_SLOT_ITEM_START
+        )
+        .is_none()
     );
 }

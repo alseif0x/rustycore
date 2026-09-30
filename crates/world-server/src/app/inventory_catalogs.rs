@@ -20,10 +20,7 @@ pub(super) struct InventoryBaseCatalogs {
     pub(super) currency_types_store: Arc<wow_data::CurrencyTypesStore>,
 }
 
-pub(super) fn load(
-    data_dir: &str,
-    locale: &str,
-) -> Result<InventoryBaseCatalogs> {
+pub(super) fn load(data_dir: &str, locale: &str) -> Result<InventoryBaseCatalogs> {
     let currency_types_store = Arc::new(
         wow_data::CurrencyTypesStore::load(&data_dir, &locale)
             .context("Failed to load CurrencyTypes.db2 — check DataDir and DBC.Locale config")?,

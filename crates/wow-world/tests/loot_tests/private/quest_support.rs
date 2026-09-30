@@ -1,11 +1,11 @@
 //! Existing quest fixture inputs and adapters for loot's application scenarios.
 use super::support::*;
 pub(super) use std::collections::{HashMap, HashSet};
-pub(super) use wow_world::test_fixtures::quest::*;
-pub(super) use wow_world::test_fixtures::loot::*;
-pub(super) use wow_world::handlers::quest::PlayerQuestStatus;
-pub(super) use wow_loot::{LootStore, LootStores, LootStoreKind, LootStoreItem, LootTemplateRow};
+pub(super) use wow_loot::{LootStore, LootStoreItem, LootStoreKind, LootStores, LootTemplateRow};
 pub(super) use wow_persistence::PersistenceOutcomeLikeCpp;
+pub(super) use wow_world::handlers::quest::PlayerQuestStatus;
+pub(super) use wow_world::test_fixtures::loot::*;
+pub(super) use wow_world::test_fixtures::quest::*;
 pub(super) const LOOT_MODE_DEFAULT_LIKE_CPP: u16 = 0x01;
 pub(super) const QUEST_STATUS_REWARDED_LIKE_CPP: u8 = 6;
 pub(super) use basic_quest_template_for_loot_test as test_quest_template;
@@ -32,7 +32,8 @@ pub(super) fn install_quest_bound_loot_objective_like_cpp(
         description: String::new(),
     });
     set_quest_store_for_test(session, Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    insert_player_quest_gameplay_status_for_test(session, 
+    insert_player_quest_gameplay_status_for_test(
+        session,
         quest_id,
         wow_world::handlers::quest::PlayerQuestStatus {
             quest_id,
@@ -45,4 +46,3 @@ pub(super) fn install_quest_bound_loot_objective_like_cpp(
         },
     );
 }
-

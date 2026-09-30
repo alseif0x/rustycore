@@ -56,9 +56,7 @@ async fn apply_creature_melee_damage_command_delayed_after_heal_presents_current
         .try_send(SessionCommand::ApplyCreatureMeleeDamageLikeCpp(command))
         .expect("delayed command queued");
 
-    session
-        .fixture_melee_process_commands()
-        .await;
+    session.fixture_melee_process_commands().await;
 
     let canonical_after = session
         .fixture_melee_mutate_player(|player| {

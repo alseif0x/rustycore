@@ -319,7 +319,10 @@ async fn leave_group_party_index_instance_does_not_leave_home_group_like_cpp() {
             .contains(&leaving_guid),
         "PartyIndex INSTANCE must not resolve and leave the HOME group"
     );
-    assert_eq!(group_guid_for_test_like_cpp(&session), Some(home_group_guid));
+    assert_eq!(
+        group_guid_for_test_like_cpp(&session),
+        Some(home_group_guid)
+    );
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]
@@ -558,17 +561,11 @@ fn party_member_full_state_carries_phase_states_like_cpp() {
     );
     let canonical = bind_canonical_party_players_like_cpp(&registry, [leader, member]);
     assert!(
-        with_canonical_player_at_mut_like_cpp(
-            &canonical,
-            member,
-            0,
-            0,
-            |player| {
-                let phase = player.unit_mut().world_mut().phase_shift_mut();
-                phase.add_phase_like_cpp(20, wow_constants::PhaseFlags::PERSONAL, 1);
-                phase.set_flags_like_cpp(wow_constants::PhaseShiftFlags::UNPHASED);
-            },
-        )
+        with_canonical_player_at_mut_like_cpp(&canonical, member, 0, 0, |player| {
+            let phase = player.unit_mut().world_mut().phase_shift_mut();
+            phase.add_phase_like_cpp(20, wow_constants::PhaseFlags::PERSONAL, 1);
+            phase.set_flags_like_cpp(wow_constants::PhaseShiftFlags::UNPHASED);
+        },)
         .is_some()
     );
     let mut group = GroupInfo::new(leader);

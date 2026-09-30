@@ -2,14 +2,21 @@
 use super::recovery_support::*;
 use std::{collections::HashMap, sync::Barrier};
 use wow_loot::mark_loot_item_looted_for_player_like_cpp;
-use wow_world::test_fixtures::loot::{GameObjectLootWitness, observe_gameobject_loot_for_test, upsert_gameobject_pool_for_test, upsert_observed_gameobject_pool_for_test, release_gameobject_observation_for_test, mutate_loot_gameobject_for_test, release_fishing_hole_for_test, release_loot_owner_for_test, close_retired_loot_views_for_test, refresh_loot_summary_for_test, loot_cache_mut_for_test, share_loot_canonical_map_for_test};
 use wow_world::test_fixtures::loot::{
-    make_canonical_gameobject_for_loot_test as make_canonical_gameobject_for_session,
+    GameObjectLootWitness, close_retired_loot_views_for_test, loot_cache_mut_for_test,
+    mutate_loot_gameobject_for_test, observe_gameobject_loot_for_test,
+    refresh_loot_summary_for_test, release_fishing_hole_for_test,
+    release_gameobject_observation_for_test, release_loot_owner_for_test,
+    share_loot_canonical_map_for_test, upsert_gameobject_pool_for_test,
+    upsert_observed_gameobject_pool_for_test,
+};
+use wow_world::test_fixtures::loot::{
+    attach_canonical_creature_for_loot_test as attach_canonical_creature,
     attach_canonical_gameobject_for_loot_test as attach_canonical_gameobject,
+    canonical_creature_snapshot_for_loot_test as canonical_creature_snapshot,
     canonical_gameobject_snapshot_for_loot_test as canonical_gameobject_snapshot,
     make_canonical_creature_for_loot_test as make_canonical_creature_for_session,
-    attach_canonical_creature_for_loot_test as attach_canonical_creature,
-    canonical_creature_snapshot_for_loot_test as canonical_creature_snapshot,
+    make_canonical_gameobject_for_loot_test as make_canonical_gameobject_for_session,
 };
 
 #[tokio::test]
@@ -21,7 +28,8 @@ async fn loot_item_creature_pickup_refreshes_canonical_owned_loot_like_cpp() {
     creature.set_shared_loot_like_cpp(CreatureOwnedLoot::new(0, 1));
     attach_canonical_creature(&mut session, creature);
     session.set_player_guid(Some(player_guid));
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -69,7 +77,8 @@ async fn loot_item_gameobject_pickup_refreshes_canonical_owned_loot_like_cpp() {
     game_object.set_personal_loot_like_cpp(player_guid, GameObjectOwnedLoot::new(0, 1));
     attach_canonical_gameobject(&mut session, game_object);
     session.set_player_guid(Some(player_guid));
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid: represented_loot_object_guid_like_cpp(loot_guid),

@@ -4,6 +4,9 @@
 
 use super::*;
 
-mod prerequisites;
-mod receiver_gates;
+#[path = "quest_5/delivery.rs"]
 mod delivery;
+#[path = "quest_5/prerequisites.rs"]
+mod prerequisites;
+#[path = "quest_5/receiver_gates.rs"]
+mod receiver_gates;

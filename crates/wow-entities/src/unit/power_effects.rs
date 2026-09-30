@@ -31,10 +31,9 @@ impl Unit {
             return None;
         }
         let requested = match amount {
-            SpellPowerAmount::Percent(damage) => {
-                ((i64::from(max_power) * i64::from(damage)) / 100)
-                    .clamp(i64::from(i32::MIN), i64::from(i32::MAX)) as i32
-            }
+            SpellPowerAmount::Percent(damage) => ((i64::from(max_power) * i64::from(damage)) / 100)
+                .clamp(i64::from(i32::MIN), i64::from(i32::MAX))
+                as i32,
             SpellPowerAmount::Flat(damage) => damage,
         };
         let current = self.get_power(power);

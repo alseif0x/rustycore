@@ -53,36 +53,41 @@ mod tests {
     use super::*;
 
     fn blob_row(quest_id: i32, idx1: i32) -> (i32, i32, QuestPoiBlobData) {
-        (quest_id, idx1, QuestPoiBlobData {
-            blob_index: 1,
-            objective_index: -1,
-            quest_objective_id: 2,
-            quest_object_id: 3,
-            map_id: 571,
-            ui_map_id: 486,
-            priority: 4,
-            flags: 5,
-            world_effect_id: 6,
-            player_condition_id: 7,
-            navigation_player_condition_id: 8,
-            spawn_tracking_id: 9,
-            points: Vec::new(),
-            always_allow_merging_blobs: false,
-        })
+        (
+            quest_id,
+            idx1,
+            QuestPoiBlobData {
+                blob_index: 1,
+                objective_index: -1,
+                quest_objective_id: 2,
+                quest_object_id: 3,
+                map_id: 571,
+                ui_map_id: 486,
+                priority: 4,
+                flags: 5,
+                world_effect_id: 6,
+                player_condition_id: 7,
+                navigation_player_condition_id: 8,
+                spawn_tracking_id: 9,
+                points: Vec::new(),
+                always_allow_merging_blobs: false,
+            },
+        )
     }
 
     #[test]
     fn quest_poi_typed_rows_join_points_and_skip_unknown_groups_like_cpp() {
         let store = build_quest_poi_store(
-            vec![(77, 3, QuestPoiBlobPoint {
-                x: 10,
-                y: 11,
-                z: 12,
-            })],
-            vec![
-                blob_row(77, 3),
-                blob_row(88, 9),
-            ],
+            vec![(
+                77,
+                3,
+                QuestPoiBlobPoint {
+                    x: 10,
+                    y: 11,
+                    z: 12,
+                },
+            )],
+            vec![blob_row(77, 3), blob_row(88, 9)],
         );
 
         assert_eq!(store.len(), 1);
@@ -161,7 +166,15 @@ mod tests {
     #[test]
     fn quest_poi_skips_missing_groups_without_creating_quest_entries() {
         let store = build_quest_poi_store(
-            [(77, 3, QuestPoiBlobPoint { x: 10, y: 11, z: 12 })],
+            [(
+                77,
+                3,
+                QuestPoiBlobPoint {
+                    x: 10,
+                    y: 11,
+                    z: 12,
+                },
+            )],
             [
                 blob_row(77, 9),
                 blob_row(77, 9),

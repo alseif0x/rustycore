@@ -38,7 +38,10 @@ impl PlayerCollectionStateLikeCpp {
     }
 
     pub fn has_appearance(&self, item_modified_appearance_id: u32) -> (bool, bool) {
-        if self.item_appearances_like_cpp().contains(&item_modified_appearance_id) {
+        if self
+            .item_appearances_like_cpp()
+            .contains(&item_modified_appearance_id)
+        {
             return (true, false);
         }
         if self.has_temporary_item_appearance_like_cpp(item_modified_appearance_id) {

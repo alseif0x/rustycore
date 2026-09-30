@@ -1,12 +1,12 @@
 //! Player item-effect action planning helpers.
 
 use super::{
-    get_attack_by_slot, item_mod_type_from_u32, ApplyEnchantmentBaseMod,
-    ApplyEnchantmentCombatRating, ApplyEnchantmentEffectAction, ApplyEnchantmentEffectKind,
-    ApplyEnchantmentEffectRef, ApplyEnchantmentRandomSuffixRef, ApplyEnchantmentUnitMod,
-    ApplyEnchantmentUnitModifier, ArenaEnchantmentItemRef, RemoveArenaEnchantmentAction,
-    SkillEnchantmentItemRef, UpdateSkillEnchantmentAction, UpdateSkillEnchantmentReason,
-    WeaponDamageBoundLikeCpp,
+    ApplyEnchantmentBaseMod, ApplyEnchantmentCombatRating, ApplyEnchantmentEffectAction,
+    ApplyEnchantmentEffectKind, ApplyEnchantmentEffectRef, ApplyEnchantmentRandomSuffixRef,
+    ApplyEnchantmentUnitMod, ApplyEnchantmentUnitModifier, ArenaEnchantmentItemRef,
+    RemoveArenaEnchantmentAction, SkillEnchantmentItemRef, UpdateSkillEnchantmentAction,
+    UpdateSkillEnchantmentReason, WeaponDamageBoundLikeCpp, get_attack_by_slot,
+    item_mod_type_from_u32,
 };
 use crate::{
     BASE_MAXDAMAGE, BASE_MINDAMAGE, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, Item,
@@ -743,4 +743,3 @@ pub(super) fn push_update_skill_enchantment_action(
     };
     actions.push(action);
 }
-

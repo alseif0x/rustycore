@@ -15,8 +15,14 @@ impl XpRows {
         multiplier: f32,
         min_ratio: u32,
     ) -> u32 {
-        calculate_quest_xp(quest_level, player_level, difficulty, multiplier, min_ratio,
-            |level| self.rows.get(&level))
+        calculate_quest_xp(
+            quest_level,
+            player_level,
+            difficulty,
+            multiplier,
+            min_ratio,
+            |level| self.rows.get(&level),
+        )
     }
 
     fn player_level_difficulty_xp(&self, player_level: u8, difficulty: u32) -> u32 {
@@ -81,11 +87,20 @@ fn quest_xp_blocks_rewarded_non_df_and_allows_rewarded_df() {
 #[test]
 fn effective_level_samples_player_only_for_nonpositive_quest_levels() {
     let fixed = QuestRewardRules::new(42, 0, false, 1, 1.0, 1, 1.0);
-    assert_eq!(effective_quest_level(&fixed, || panic!("positive level must not sample Player")), 42);
+    assert_eq!(
+        effective_quest_level(&fixed, || panic!("positive level must not sample Player")),
+        42
+    );
 
     let scaled = QuestRewardRules::new(-1, 70, false, 1, 1.0, 1, 1.0);
     let mut calls = 0;
-    assert_eq!(effective_quest_level(&scaled, || { calls += 1; 80 }), 70);
+    assert_eq!(
+        effective_quest_level(&scaled, || {
+            calls += 1;
+            80
+        }),
+        70
+    );
     assert_eq!(calls, 1);
     let zero_cap = QuestRewardRules::new(0, 0, false, 1, 1.0, 1, 1.0);
     assert_eq!(effective_quest_level(&zero_cap, || 80), 0);
@@ -94,18 +109,32 @@ fn effective_level_samples_player_only_for_nonpositive_quest_levels() {
 #[test]
 fn invalid_xp_difficulty_skips_lookup_after_player_argument_is_sampled() {
     let mut player_samples = 0;
-    let xp = calculate_quest_xp(42, { player_samples += 1; 80 }, 10, 1.0, 0,
-        |_| panic!("invalid difficulty must not look up a row"));
+    let xp = calculate_quest_xp(
+        42,
+        {
+            player_samples += 1;
+            80
+        },
+        10,
+        1.0,
+        0,
+        |_| panic!("invalid difficulty must not look up a row"),
+    );
     assert_eq!(xp, 0);
     assert_eq!(player_samples, 1);
-    assert_eq!(player_level_difficulty_xp(42, u32::MAX,
-        |_| panic!("invalid raw difficulty must not look up a row")), 0);
+    assert_eq!(
+        player_level_difficulty_xp(42, u32::MAX, |_| panic!(
+            "invalid raw difficulty must not look up a row"
+        )),
+        0
+    );
 }
 
 #[test]
 fn fallback_retains_fixed_table_and_clamps_invalid_difficulty() {
     for (difficulty, expected) in [0, 50, 100, 200, 400, 650, 1000, 1500, 2500, 4000]
-        .into_iter().enumerate()
+        .into_iter()
+        .enumerate()
     {
         assert_eq!(fallback_quest_xp(difficulty as u32), expected);
     }
@@ -117,24 +146,36 @@ fn fallback_retains_fixed_table_and_clamps_invalid_difficulty() {
 fn xp_minus_one_uses_player_row_and_negative_levels_keep_unsigned_lookup_key() {
     let row = [0, 513, 0, 0, 0, 0, 0, 0, 0, 0];
     let mut keys = Vec::new();
-    assert_eq!(calculate_quest_xp(-1, 42, 1, 1.0, 0, |key| {
-        keys.push(key);
-        Some(&row)
-    }), 525);
+    assert_eq!(
+        calculate_quest_xp(-1, 42, 1, 1.0, 0, |key| {
+            keys.push(key);
+            Some(&row)
+        }),
+        525
+    );
     assert_eq!(keys, vec![42]);
-    assert_eq!(calculate_quest_xp(-2, 42, 1, 1.0, 0, |key| {
-        keys.push(key);
-        None
-    }), 0);
+    assert_eq!(
+        calculate_quest_xp(-2, 42, 1, 1.0, 0, |key| {
+            keys.push(key);
+            None
+        }),
+        0
+    );
     assert_eq!(keys, vec![42, (-2_i32) as u32]);
 }
 
 #[test]
 fn xp_zero_base_and_nan_multiplier_preserve_early_return_and_cast_order() {
     let empty = [0; 10];
-    assert_eq!(calculate_quest_xp(42, 80, 1, f32::NAN, 50, |_| Some(&empty)), 0);
+    assert_eq!(
+        calculate_quest_xp(42, 80, 1, f32::NAN, 50, |_| Some(&empty)),
+        0
+    );
     let row = [0, 1000, 0, 0, 0, 0, 0, 0, 0, 0];
-    assert_eq!(calculate_quest_xp(42, 80, 1, f32::NAN, 50, |_| Some(&row)), 100);
+    assert_eq!(
+        calculate_quest_xp(42, 80, 1, f32::NAN, 50, |_| Some(&row)),
+        100
+    );
     assert_eq!(calculate_quest_xp(42, 80, 1, -2.0, 50, |_| Some(&row)), 100);
     assert_eq!(calculate_quest_xp(42, 80, 1, 20.0, 0, |_| Some(&row)), 100);
 }

@@ -34,12 +34,7 @@ pub(super) fn apply_melee_absorb_to_canonical_player_like_cpp(
     // C++ `CalcAbsorbResist`'s `auraAbsorbMod` from the attacker's
     // `SPELL_AURA_MOD_TARGET_ABSORB_SCHOOL`.
     ignore_absorb_pct: f32,
-) -> Option<(
-    u32,
-    u32,
-    u32,
-    Vec<MeleeAbsorbConsumption>,
-)> {
+) -> Option<(u32, u32, u32, Vec<MeleeAbsorbConsumption>)> {
     let managed = canonical_manager.find_map_mut(map_id, instance_id)?;
     let player = managed.map_mut().get_typed_player_mut(victim_guid)?;
     let auras = player
@@ -49,21 +44,15 @@ pub(super) fn apply_melee_absorb_to_canonical_player_like_cpp(
         .runtime_applications_like_cpp()
         .clone();
     let shields = catalogs.player_shields(&auras, difficulty_id, school_mask);
-    let absorb = represented_melee_absorb_like_cpp(
-        &shields,
-        damage,
-        ignore_absorb_pct,
-    );
+    let absorb = represented_melee_absorb_like_cpp(&shields, damage, ignore_absorb_pct);
     let mut consumptions = Vec::with_capacity(absorb.consumed.len());
     for consumption in &absorb.consumed {
         write_absorbed_shield_amount_like_cpp(player, consumption);
-        consumptions.push(
-            MeleeAbsorbConsumption {
-                slot: consumption.slot,
-                consumed: consumption.consumed,
-                removed: consumption.removed,
-            },
-        );
+        consumptions.push(MeleeAbsorbConsumption {
+            slot: consumption.slot,
+            consumed: consumption.consumed,
+            removed: consumption.removed,
+        });
     }
 
     // C++ runs the mana-shield loop after the school-absorb loop
@@ -99,13 +88,11 @@ pub(super) fn apply_melee_absorb_to_canonical_player_like_cpp(
                 removed: consumption.removed,
             },
         );
-        consumptions.push(
-            MeleeAbsorbConsumption {
-                slot: consumption.slot,
-                consumed: consumption.consumed,
-                removed: consumption.removed,
-            },
-        );
+        consumptions.push(MeleeAbsorbConsumption {
+            slot: consumption.slot,
+            consumed: consumption.consumed,
+            removed: consumption.removed,
+        });
     }
     Some((
         absorb.absorbed + mana_absorb.absorbed,
@@ -120,7 +107,15 @@ fn write_absorbed_shield_amount_like_cpp(
     player: &mut wow_entities::Player,
     consumption: &RepresentedAbsorbConsumptionLikeCpp,
 ) {
-    player.unit_mut().subsystems_mut().auras.set_runtime_absorb_amount(consumption.slot, consumption.effect_index, consumption.remaining);
+    player
+        .unit_mut()
+        .subsystems_mut()
+        .auras
+        .set_runtime_absorb_amount(
+            consumption.slot,
+            consumption.effect_index,
+            consumption.remaining,
+        );
 }
 
 /// C++ `Unit::CalcAbsorbResist`'s school-absorb loop for a creature victim.
@@ -143,15 +138,14 @@ pub(super) fn apply_melee_absorb_to_canonical_creature_like_cpp(
     difficulty_id: u8,
     ignore_absorb_pct: f32,
 ) -> Option<(u32, u32, Vec<MeleeEffect>)> {
-
     let managed = canonical_manager.find_map_mut(u32::from(map_id), instance_id)?;
     let victim = managed.map_mut().get_typed_creature_mut(victim_guid)?;
-    let shields = catalogs.creature_shields(&victim.unit().subsystems().auras, difficulty_id, school_mask);
-    let absorb = represented_melee_absorb_like_cpp(
-        &shields,
-        damage,
-        ignore_absorb_pct,
+    let shields = catalogs.creature_shields(
+        &victim.unit().subsystems().auras,
+        difficulty_id,
+        school_mask,
     );
+    let absorb = represented_melee_absorb_like_cpp(&shields, damage, ignore_absorb_pct);
     if absorb.consumed.is_empty() {
         return Some((0, damage, Vec::new()));
     }
@@ -169,12 +163,12 @@ pub(super) fn apply_melee_absorb_to_canonical_creature_like_cpp(
 
         if consumption.consumed > 0 {
             events.push(MeleeEffect::AbsorbLog {
-                    attacker: attacker_guid,
-                    victim: victim_guid,
-                    absorb_spell_id: i32::try_from(applied.spell_id).unwrap_or(i32::MAX),
-                    caster: applied.caster_guid,
-                    absorbed: consumption.consumed,
-                    original_damage,
+                attacker: attacker_guid,
+                victim: victim_guid,
+                absorb_spell_id: i32::try_from(applied.spell_id).unwrap_or(i32::MAX),
+                caster: applied.caster_guid,
+                absorbed: consumption.consumed,
+                original_damage,
             });
         }
 
@@ -182,16 +176,14 @@ pub(super) fn apply_melee_absorb_to_canonical_creature_like_cpp(
             .unit_mut()
             .subsystems_mut()
             .auras
-            .commit_applied_absorb_amount(
-                applied,
-                consumption.remaining,
-                consumption.removed,
-            );
+            .commit_applied_absorb_amount(applied, consumption.remaining, consumption.removed);
         if consumption.removed {
-            events.push(MeleeEffect::AuraRemoved { unit: victim_guid, slot: applied.slot });
+            events.push(MeleeEffect::AuraRemoved {
+                unit: victim_guid,
+                slot: applied.slot,
+            });
         }
     }
 
     Some((absorb.absorbed, absorb.damage, events))
 }
-

@@ -201,14 +201,32 @@ mod tests {
         let continuation = include_str!("../app/world_startup.rs");
         let delegation = "world_startup::run_world_startup(";
         assert_eq!(app_source.matches(delegation).count(), 1);
-        assert!(app_source.find("MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp::new").unwrap()
-            < app_source.find(delegation).unwrap());
-        assert_eq!(app_source[app_source.find(delegation).unwrap()..]
-            .split_once(".await").unwrap().0.matches("&player_base_stats_persistence,").count(), 1);
+        assert!(
+            app_source
+                .find("MariaDbPlayerBaseStatsPersistenceAdapterLikeCpp::new")
+                .unwrap()
+                < app_source.find(delegation).unwrap()
+        );
+        assert_eq!(
+            app_source[app_source.find(delegation).unwrap()..]
+                .split_once(".await")
+                .unwrap()
+                .0
+                .matches("&player_base_stats_persistence,")
+                .count(),
+            1
+        );
         let phase = "player_creation_startup::load_player_creation_startup(";
         assert_eq!(continuation.matches(phase).count(), 1);
-        assert_eq!(continuation[continuation.find(phase).unwrap()..]
-            .split_once(".await").unwrap().0.matches("player_base_stats_persistence,").count(), 1);
+        assert_eq!(
+            continuation[continuation.find(phase).unwrap()..]
+                .split_once(".await")
+                .unwrap()
+                .0
+                .matches("player_base_stats_persistence,")
+                .count(),
+            1
+        );
 
         assert_eq!(
             app_source

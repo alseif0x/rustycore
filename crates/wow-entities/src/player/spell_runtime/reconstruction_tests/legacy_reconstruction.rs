@@ -1,7 +1,7 @@
 //! Original Session rule cases, now exercising canonical Player operations.
 
-use super::*;
 use super::support::*;
+use super::*;
 
 #[test]
 fn login_known_spells_deactivate_lower_ranks_like_cpp_addspell() {
@@ -89,4 +89,3 @@ fn loaded_known_spell_dependencies_rebuild_all_active_override_edges_like_cpp() 
         HashMap::from([(100, BTreeSet::from([20])), (200, BTreeSet::from([30])),])
     );
 }
-

@@ -4,34 +4,32 @@
 //! These adapters retain only immutable identity and the existing owned Step
 //! continuations. They neither publish packets nor own an actor or a guard.
 
-use super::{MapManager, MapObjectTickContinuation, ObjectMapUpdateToken};
 use super::ActorTickAccessError;
 use super::tick_objects::ActorStepIdentity;
+use super::{MapManager, MapObjectTickContinuation, ObjectMapUpdateToken};
 use crate::map_manager::{
     ChaseTargetSnapshotLikeCpp, CreatureMovementStep, CreaturePathQueryLikeCpp,
-    StepGridHeightContinuation, StepPathContinuation,
-    StepPending, StepProgress, StepStaticHeightContinuation,
+    StepGridHeightContinuation, StepPathContinuation, StepPending, StepProgress,
+    StepStaticHeightContinuation,
 };
 use wow_core::ObjectGuid;
 use wow_entities::PhaseShift;
 use wow_recastdetour::DetourPolyPath;
 
-mod requests;
-mod resume;
 mod access;
 mod completion;
-mod error;
 mod disposition;
+mod error;
+mod requests;
+mod resume;
 
 pub use completion::{ActorMovementCompletion, ActorMovementTraceFacts};
 pub use error::ActorMovementError;
 
 pub use requests::{
-    ActorGridHeightContinuation, ActorGridHeightRequest,
-    ActorMovementPending, ActorMovementProgress,
-    ActorPathContinuation, ActorPathRequest,
-    ActorStaticHeightContinuation, ActorStaticHeightRequest,
-    ActorStaticHeightQuery, ActorGridHeightQuery,
+    ActorGridHeightContinuation, ActorGridHeightQuery, ActorGridHeightRequest,
+    ActorMovementPending, ActorMovementProgress, ActorPathContinuation, ActorPathRequest,
+    ActorStaticHeightContinuation, ActorStaticHeightQuery, ActorStaticHeightRequest,
 };
 
 /// A rejected resume preserves its complete owned input for an explicit retry
@@ -54,10 +52,10 @@ impl MapManager {
         terrain_enabled: bool,
         policy: impl FnMut(u32, bool) -> bool,
     ) -> Result<ActorMovementProgress, ActorMovementError> {
-        self.begin_actor_step(
-            tick, token, guid,
-            |actor, diff_ms| actor.prepare_movement_step(diff_ms, target, terrain_enabled, policy),
-        ).map_err(Into::into)
+        self.begin_actor_step(tick, token, guid, |actor, diff_ms| {
+            actor.prepare_movement_step(diff_ms, target, terrain_enabled, policy)
+        })
+        .map_err(Into::into)
     }
 }
 

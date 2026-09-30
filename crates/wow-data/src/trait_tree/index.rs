@@ -521,4 +521,3 @@ impl TraitTreeSkillLineIndexLikeCpp {
         self.trees_by_skill_line.is_empty()
     }
 }
-

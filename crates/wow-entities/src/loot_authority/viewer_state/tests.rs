@@ -8,7 +8,13 @@ fn player(counter: i64) -> ObjectGuid {
 fn loot() -> CreatureLoot {
     CreatureLoot {
         loot_guid: ObjectGuid::create_world_object(
-            wow_core::guid::HighGuid::LootObject, 0, 1, 0, 0, 0, 100,
+            wow_core::guid::HighGuid::LootObject,
+            0,
+            1,
+            0,
+            0,
+            0,
+            100,
         ),
         coins: 37,
         unlooted_count: 9,
@@ -17,10 +23,13 @@ fn loot() -> CreatureLoot {
         loot_method: 3,
         loot_master: player(7),
         round_robin_player: player(3),
-        player_ffa_items: vec![(player(1), vec![NotNormalLootItem {
-            loot_list_id: 7,
-            is_looted: true,
-        }])],
+        player_ffa_items: vec![(
+            player(1),
+            vec![NotNormalLootItem {
+                loot_list_id: 7,
+                is_looted: true,
+            }],
+        )],
         players_looting: Vec::new(),
         allowed_looters: vec![player(1), player(2)],
         items: vec![LootEntry {
@@ -59,7 +68,10 @@ fn viewer_membership_accepts_empty_and_preserves_existing_order() {
     assert!(pool.add_viewer(ObjectGuid::EMPTY));
     assert!(!pool.add_viewer(ObjectGuid::EMPTY));
     assert!(pool.add_viewer(third));
-    assert_eq!(pool.players_looting, vec![second, first, second, ObjectGuid::EMPTY, third]);
+    assert_eq!(
+        pool.players_looting,
+        vec![second, first, second, ObjectGuid::EMPTY, third]
+    );
 
     let mut expected = loot();
     expected.players_looting = vec![second, first, second, ObjectGuid::EMPTY, third];
@@ -125,7 +137,10 @@ fn single_viewer_removal_removes_duplicates_without_resetting_first_open() {
     pool.players_looting = vec![second, first, ObjectGuid::EMPTY, first, second];
 
     assert!(pool.remove_viewer(first));
-    assert_eq!(pool.players_looting, vec![second, ObjectGuid::EMPTY, second]);
+    assert_eq!(
+        pool.players_looting,
+        vec![second, ObjectGuid::EMPTY, second]
+    );
     assert!(!pool.remove_viewer(first));
     assert!(pool.remove_viewer(ObjectGuid::EMPTY));
 

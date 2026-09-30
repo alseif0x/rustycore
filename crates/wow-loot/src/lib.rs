@@ -16,8 +16,8 @@ mod disenchant_generation;
 mod distribution;
 mod item_access;
 mod pool_construction;
-mod response_view;
 mod random_enchantment;
+mod response_view;
 pub use random_enchantment::select_random_enchantment;
 mod source_consumption;
 pub use source_consumption::remaining_source_item_count;
@@ -29,13 +29,13 @@ pub use disenchant_generation::DisenchantLootBuilder;
 pub use distribution::*;
 pub use item_access::{
     DirectItemRejection, MasterItemRejection, direct_item_rejection, find_unlooted_item,
-    master_award_recipient_allowed, roll_award_batch_allowed, select_master_item,
-    loot_store_item_matches,
+    loot_store_item_matches, master_award_recipient_allowed, roll_award_batch_allowed,
+    select_master_item,
 };
-pub use response_view::{LootItemView, loot_response_item_views};
 pub use pool_construction::{
     loot_entry_from_generated, materialize_loot_pools, shared_loot_entry_from_generated,
 };
+pub use response_view::{LootItemView, loot_response_item_views};
 pub use rolls::{
     ROLL_ALL_TYPE_MASK_LIKE_CPP, ROLL_FLAG_TYPE_DISENCHANT_LIKE_CPP, ROLL_FLAG_TYPE_NEED_LIKE_CPP,
     ROLL_VOTE_DISENCHANT_LIKE_CPP, ROLL_VOTE_GREED_LIKE_CPP, ROLL_VOTE_NEED_LIKE_CPP,

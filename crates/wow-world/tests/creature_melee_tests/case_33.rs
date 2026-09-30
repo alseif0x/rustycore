@@ -11,10 +11,10 @@ use super::*;
 /// absorbing and the next swing lands at full damage.
 #[test]
 fn legacy_creature_melee_tick_once_absorbs_player_victim_damage_like_cpp() {
-    use wow_world::map_manager::RuntimeTickOwner;
     use wow_packet::packets::combat::{
         HIT_INFO_AFFECTS_VICTIM, HIT_INFO_FULL_ABSORB, HIT_INFO_PARTIAL_ABSORB,
     };
+    use wow_world::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
     let canonical = shared_canonical_map_manager();

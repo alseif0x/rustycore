@@ -1,7 +1,7 @@
 // Original recording lifecycle port and its classified outcomes.
 
-use super::*;
 use super::session::make_session;
+use super::*;
 use std::sync::Mutex;
 use wow_persistence::{
     AccountCollectionLoadOutcomeLikeCpp, AccountCollectionLoadRequestLikeCpp,
@@ -374,7 +374,6 @@ impl PlayerLifecyclePortLikeCpp for RecordingPortLikeCpp {
         })
     }
 }
-
 
 pub fn session_with_port(
     outcome: PersistenceOutcomeLikeCpp,

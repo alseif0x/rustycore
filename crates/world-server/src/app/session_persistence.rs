@@ -14,9 +14,7 @@ pub(super) fn build_session_persistence_ports(
     represented_group_persistence_adapter: &Arc<
         wow_database::represented_group_persistence_adapter::MariaDbRepresentedGroupPersistenceAdapterLikeCpp,
     >,
-    instance_lock_persistence_port: &Arc<
-        dyn wow_persistence::InstanceLockPersistencePortLikeCpp,
-    >,
+    instance_lock_persistence_port: &Arc<dyn wow_persistence::InstanceLockPersistencePortLikeCpp>,
 ) -> wow_world::session::SessionPersistencePortsLikeCpp {
     let player_lifecycle_port: Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp> = Arc::new(
         wow_database::player::lifecycle_adapter::MariaDbPlayerLifecycleAdapterLikeCpp::new(
@@ -134,9 +132,7 @@ pub(super) fn build_session_persistence_ports(
     let battle_pet_purchase_persistence_port: Arc<
         dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp,
     > = Arc::new(
-        wow_database::CharacterBattlePetPurchasePersistenceAdapterLikeCpp::new(Arc::clone(
-            char_db,
-        )),
+        wow_database::CharacterBattlePetPurchasePersistenceAdapterLikeCpp::new(Arc::clone(char_db)),
     );
     let stored_item_persistence_port: Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp> =
         Arc::new(

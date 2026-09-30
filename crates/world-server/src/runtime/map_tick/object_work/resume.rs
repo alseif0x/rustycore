@@ -1,6 +1,6 @@
 //! Ordinary object phases keep their original work and token on rejection.
-use super::*;
 use super::super::build_loaded_grid_gameobject_respawn_record_like_cpp;
+use super::*;
 
 /// Every variant owns the actual rejected stage, without cloning it.
 pub(crate) enum CanonicalObjectResumeFailure {
@@ -42,9 +42,15 @@ pub(crate) fn try_resume(
         condition_store,
         map_store,
         loaded_grid_creature_respawn_caches,
-    ).map_err(|failure| CanonicalObjectResumeFailure::BeginRejected { failure })?;
-    resume_objects(manager, work, canonical_spawn_metadata, map_store,
-        loaded_grid_creature_respawn_caches)
+    )
+    .map_err(|failure| CanonicalObjectResumeFailure::BeginRejected { failure })?;
+    resume_objects(
+        manager,
+        work,
+        canonical_spawn_metadata,
+        map_store,
+        loaded_grid_creature_respawn_caches,
+    )
 }
 
 fn resume_objects(
@@ -58,10 +64,17 @@ fn resume_objects(
         let token = match work.try_prepare_next(manager) {
             Ok(Some(token)) => token,
             Ok(None) => break,
-            Err(error) => return Err(CanonicalObjectResumeFailure::PrepareRejected { error, work }),
+            Err(error) => {
+                return Err(CanonicalObjectResumeFailure::PrepareRejected { error, work });
+            }
         };
-        work = finish_prepared_map(manager, work, token, canonical_spawn_metadata,
-            loaded_grid_creature_respawn_caches)?;
+        work = finish_prepared_map(
+            manager,
+            work,
+            token,
+            canonical_spawn_metadata,
+            loaded_grid_creature_respawn_caches,
+        )?;
     }
     finalize_work(manager, work, map_store)
 }
@@ -95,7 +108,9 @@ fn finish_prepared_map(
         &mut load_record,
     ) {
         Ok(_) => Ok(work),
-        Err((error, token)) => Err(CanonicalObjectResumeFailure::FinishRejected { error, work, token }),
+        Err((error, token)) => {
+            Err(CanonicalObjectResumeFailure::FinishRejected { error, work, token })
+        }
     }
 }
 
@@ -120,13 +135,28 @@ impl CanonicalObjectResumeFailure {
     ) -> Result<Option<CanonicalSpawnGroupConditionTickSummaryLikeCpp>, Self> {
         match self {
             failure @ Self::BeginRejected { .. } => Err(failure),
-            Self::PrepareRejected { work, .. } => resume_objects(manager, work,
-                canonical_spawn_metadata, map_store, loaded_grid_creature_respawn_caches),
+            Self::PrepareRejected { work, .. } => resume_objects(
+                manager,
+                work,
+                canonical_spawn_metadata,
+                map_store,
+                loaded_grid_creature_respawn_caches,
+            ),
             Self::FinishRejected { work, token, .. } => {
-                let work = finish_prepared_map(manager, work, token,
-                    canonical_spawn_metadata, loaded_grid_creature_respawn_caches)?;
-                resume_objects(manager, work, canonical_spawn_metadata, map_store,
-                    loaded_grid_creature_respawn_caches)
+                let work = finish_prepared_map(
+                    manager,
+                    work,
+                    token,
+                    canonical_spawn_metadata,
+                    loaded_grid_creature_respawn_caches,
+                )?;
+                resume_objects(
+                    manager,
+                    work,
+                    canonical_spawn_metadata,
+                    map_store,
+                    loaded_grid_creature_respawn_caches,
+                )
             }
             Self::FinalizeRejected { work, .. } => finalize_work(manager, work, map_store),
         }

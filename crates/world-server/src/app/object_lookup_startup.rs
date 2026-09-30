@@ -1,16 +1,17 @@
 //! Ordered object lookup startup composition.
 
+use crate::catalogs;
 use anyhow::Context;
 use std::sync::Arc;
 use tracing::info;
-use crate::catalogs;
 
 pub(super) struct ObjectLookupCatalogs {
     pub(super) game_tele_report: wow_data::GameTeleLoadReportLikeCpp,
     pub(super) game_tele_store: Arc<wow_data::GameTeleStoreLikeCpp>,
     pub(super) game_tele_persistence: wow_database::MariaDbGameTeleCatalogPersistenceAdapterLikeCpp,
     pub(super) reserved_name_store: Arc<wow_data::ReservedNameStoreLikeCpp>,
-    pub(super) reserved_name_persistence: wow_database::MariaDbReservedNameCatalogPersistenceAdapterLikeCpp,
+    pub(super) reserved_name_persistence:
+        wow_database::MariaDbReservedNameCatalogPersistenceAdapterLikeCpp,
 }
 
 pub(super) async fn load(

@@ -26,11 +26,19 @@ impl ObjectUpdateContinuation {
                 Some(plan) => plan.update_guids.iter().copied().collect(),
                 None => map.admitted_creature_guids_like_cpp(),
             };
-            self.actor_workset = Some(guids.into_iter().filter_map(|guid| {
-                map.creature_actor_witness(guid).map(|witness| (guid, witness))
-            }).collect());
+            self.actor_workset = Some(
+                guids
+                    .into_iter()
+                    .filter_map(|guid| {
+                        map.creature_actor_witness(guid)
+                            .map(|witness| (guid, witness))
+                    })
+                    .collect(),
+            );
         }
-        self.actor_workset.as_deref().expect("actor workset was initialized")
+        self.actor_workset
+            .as_deref()
+            .expect("actor workset was initialized")
     }
 }
 

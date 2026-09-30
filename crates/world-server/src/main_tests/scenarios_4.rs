@@ -12,10 +12,18 @@ fn world_listener_captures_application_resources_outside_transport_boundary() {
     let serving_source = include_str!("../app/serve.rs");
     let listener_source = include_str!("../app/listener_startup.rs");
     let continuation = include_str!("../app/world_startup.rs");
-    assert_eq!(source.matches("world_startup::run_world_startup(").count(), 1);
+    assert_eq!(
+        source.matches("world_startup::run_world_startup(").count(),
+        1
+    );
     assert_eq!(continuation.matches("serve::serve(").count(), 1);
     assert_eq!(serving_source.matches("listener_startup::load(").count(), 1);
-    assert_eq!(listener_source.matches("wow_network::start_world_listener(").count(), 1);
+    assert_eq!(
+        listener_source
+            .matches("wow_network::start_world_listener(")
+            .count(),
+        1
+    );
     let listener_start = listener_source
         .find("wow_network::start_world_listener(")
         .expect("world listener call must exist");
@@ -25,7 +33,10 @@ fn world_listener_captures_application_resources_outside_transport_boundary() {
             .expect("world listener readiness argument must exist");
     let listener_call = &listener_source[listener_start..listener_end];
 
-    assert!(listener_source[..listener_start].contains("let resources = Arc::clone(session_resources);"));
+    assert!(
+        listener_source[..listener_start]
+            .contains("let resources = Arc::clone(session_resources);")
+    );
     assert!(
         listener_call.contains(
             "move |account, pkt_rx, send_tx, send_write_fence_like_cpp, socket_timeouts|"
@@ -63,17 +74,28 @@ fn primary_profession_capacity_config_and_session_resource_wiring_are_pinned() {
         );
     }
 
-    let composition_source =
-        fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app/world_startup.rs"))
-            .expect("world-server continuation source should be readable");
+    let composition_source = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app/world_startup.rs"),
+    )
+    .expect("world-server continuation source should be readable");
     let root_source = include_str!("../app.rs");
-    assert_eq!(root_source.matches("world_startup::run_world_startup(").count(), 1);
+    assert_eq!(
+        root_source
+            .matches("world_startup::run_world_startup(")
+            .count(),
+        1
+    );
     let resources_source = fs::read_to_string(
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_resources.rs"),
     )
     .expect("world-server session resources source should be readable");
     let catalog_source = include_str!("../app/session_catalog_capabilities.rs");
-    assert_eq!(composition_source.matches("session_catalog_capabilities::build_progression(").count(), 1);
+    assert_eq!(
+        composition_source
+            .matches("session_catalog_capabilities::build_progression(")
+            .count(),
+        1
+    );
     let materialization_needle = [
         "max_primary_trade_skills:",
         " max_primary_trade_skills_like_cpp(world_configs),",
@@ -95,11 +117,17 @@ fn primary_profession_capacity_config_and_session_resource_wiring_are_pinned() {
 }
 #[test]
 fn production_persistence_capabilities_are_required_and_installed_atomically() {
-    let composition_source =
-        fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app/world_startup.rs"))
-            .expect("world-server continuation source should be readable");
+    let composition_source = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app/world_startup.rs"),
+    )
+    .expect("world-server continuation source should be readable");
     let root_source = include_str!("../app.rs");
-    assert_eq!(root_source.matches("world_startup::run_world_startup(").count(), 1);
+    assert_eq!(
+        root_source
+            .matches("world_startup::run_world_startup(")
+            .count(),
+        1
+    );
     let resources_source = fs::read_to_string(
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/session_resources.rs"),
     )
@@ -111,8 +139,18 @@ fn production_persistence_capabilities_are_required_and_installed_atomically() {
 
     let persistence_source = include_str!("../app/session_persistence.rs");
     let core_source = include_str!("../app/session_core_capabilities.rs");
-    assert_eq!(composition_source.matches("session_persistence::build_session_persistence_ports(").count(), 1);
-    assert_eq!(composition_source.matches("core: session_core_capabilities::build(").count(), 1);
+    assert_eq!(
+        composition_source
+            .matches("session_persistence::build_session_persistence_ports(")
+            .count(),
+        1
+    );
+    assert_eq!(
+        composition_source
+            .matches("core: session_core_capabilities::build(")
+            .count(),
+        1
+    );
     assert_eq!(core_source.matches("            persistence,").count(), 1);
     let mut cursor = 0;
     for constructor in [
@@ -121,9 +159,13 @@ fn production_persistence_capabilities_are_required_and_installed_atomically() {
         "WorldPersistenceCapabilitiesLikeCpp::required_like_cpp(",
         "CatalogPersistenceCapabilitiesLikeCpp::required_like_cpp(",
     ] {
-        assert_eq!(persistence_source.matches(constructor).count(), 1,
-                   "the graph builder must construct required capability {constructor} exactly once");
-        let offset = persistence_source[cursor..].find(constructor)
+        assert_eq!(
+            persistence_source.matches(constructor).count(),
+            1,
+            "the graph builder must construct required capability {constructor} exactly once"
+        );
+        let offset = persistence_source[cursor..]
+            .find(constructor)
             .expect("required capability construction order must be retained");
         cursor += offset + constructor.len();
     }
@@ -154,15 +196,26 @@ fn production_persistence_capabilities_are_required_and_installed_atomically() {
 }
 #[test]
 fn session_resources_requires_named_capability_bundles() {
-    let composition_source =
-        fs::read_to_string(PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app/world_startup.rs"))
-            .expect("world-server continuation source should be readable");
+    let composition_source = fs::read_to_string(
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app/world_startup.rs"),
+    )
+    .expect("world-server continuation source should be readable");
     let root_source = include_str!("../app.rs");
-    assert_eq!(root_source.matches("world_startup::run_world_startup(").count(), 1);
+    assert_eq!(
+        root_source
+            .matches("world_startup::run_world_startup(")
+            .count(),
+        1
+    );
     let core_source = include_str!("../app/session_core_capabilities.rs");
     let serving_source = include_str!("../app/serve.rs");
     let listener_source = include_str!("../app/listener_startup.rs");
-    assert_eq!(composition_source.matches("core: session_core_capabilities::build(").count(), 1);
+    assert_eq!(
+        composition_source
+            .matches("core: session_core_capabilities::build(")
+            .count(),
+        1
+    );
     let handler_policy_source = fs::read_to_string(
         PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("src/app/session_handler_policies.rs"),
     )
@@ -485,17 +538,26 @@ fn session_resources_requires_named_capability_bundles() {
     assert!(construction < publication && publication < listener);
     assert_eq!(composition_source.matches("serve::serve(").count(), 1);
     assert_eq!(serving_source.matches("listener_startup::load(").count(), 1);
-    assert_eq!(listener_source.matches("wow_network::start_world_listener(").count(), 1);
+    assert_eq!(
+        listener_source
+            .matches("wow_network::start_world_listener(")
+            .count(),
+        1
+    );
     let mut cursor = construction;
-    for field in ["core: session_core_capabilities::build(",
-                  "inventory: session_catalog_capabilities::build_inventory(",
-                  "player: session_catalog_capabilities::build_player(",
-                  "spells: session_catalog_capabilities::build_spells(",
-                  "world: session_catalog_capabilities::build_world(",
-                  "progression: session_catalog_capabilities::build_progression(",
-                  "runtime: session_runtime_policy::build(", "realm: SessionRealmCapabilitiesLikeCpp {"] {
+    for field in [
+        "core: session_core_capabilities::build(",
+        "inventory: session_catalog_capabilities::build_inventory(",
+        "player: session_catalog_capabilities::build_player(",
+        "spells: session_catalog_capabilities::build_spells(",
+        "world: session_catalog_capabilities::build_world(",
+        "progression: session_catalog_capabilities::build_progression(",
+        "runtime: session_runtime_policy::build(",
+        "realm: SessionRealmCapabilitiesLikeCpp {",
+    ] {
         assert_eq!(composition_source.matches(field).count(), 1);
-        let offset = composition_source[cursor..].find(field)
+        let offset = composition_source[cursor..]
+            .find(field)
             .expect("named bundles must retain their construction order");
         cursor += offset + field.len();
     }
@@ -666,8 +728,12 @@ fn set_tick_owner_has_exactly_one_production_call_site_before_the_loop_spawns() 
     assert_eq!(continuation.matches("serve::serve(").count(), 1);
     assert!(!continuation.contains("set_tick_owner("));
     assert_eq!(serving.matches("runtime_launch::load(").count(), 1);
-    assert!(serving.find("listener_startup::publish_realm_online(").unwrap()
-        < serving.find("runtime_launch::load(").unwrap());
+    assert!(
+        serving
+            .find("listener_startup::publish_realm_online(")
+            .unwrap()
+            < serving.find("runtime_launch::load(").unwrap()
+    );
     assert!(!app.contains("set_tick_owner("));
     let calls: Vec<_> = launch.match_indices("set_tick_owner(").collect();
     assert_eq!(
@@ -719,10 +785,16 @@ fn startup_has_no_schema_mutation_and_validates_before_runtime_writes() {
     assert_eq!(app.matches(availability_call).count(), 1);
     let first_runtime_write = app.find(availability_call).unwrap();
     assert_eq!(realms.matches("clear_online_accounts_like_cpp(").count(), 1);
-    assert!(realms.find("pub(super) async fn initialize_availability(").unwrap()
-        < realms.find("clear_online_accounts_like_cpp(").unwrap());
-    assert!(realms.find("clear_online_accounts_like_cpp(").unwrap()
-        < realms.find("set_realm_offline(").unwrap());
+    assert!(
+        realms
+            .find("pub(super) async fn initialize_availability(")
+            .unwrap()
+            < realms.find("clear_online_accounts_like_cpp(").unwrap()
+    );
+    assert!(
+        realms.find("clear_online_accounts_like_cpp(").unwrap()
+            < realms.find("set_realm_offline(").unwrap()
+    );
     assert!(validation < first_runtime_write);
 }
 #[test]

@@ -3,9 +3,9 @@
 use super::*;
 use crate::test_fixtures::SpellAcquisitionPlanFixtureLikeCpp;
 
+mod actions;
 mod original;
 mod replay;
-mod actions;
 
 fn snapshot(
     spells: Vec<PlayerSpellAcquisitionRowLikeCpp>,

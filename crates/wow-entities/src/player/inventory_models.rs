@@ -194,4 +194,3 @@ pub enum PlayerStorageError {
     SplitItemInTrade,
     TopLevelBuybackHiddenFromGetItemByPos(u8),
 }
-

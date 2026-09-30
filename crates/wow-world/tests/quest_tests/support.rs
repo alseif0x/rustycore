@@ -6,7 +6,10 @@ pub(super) fn quest_template(id: u32) -> QuestTemplate {
     wow_world::test_fixtures::quest_template_row_for_test(id, 2, format!("Quest {id}"))
 }
 
-pub(super) fn quest_template_with_objective_count(id: u32, objective_count: usize) -> QuestTemplate {
+pub(super) fn quest_template_with_objective_count(
+    id: u32,
+    objective_count: usize,
+) -> QuestTemplate {
     let mut quest = quest_template(id);
     quest.objectives = (0..objective_count)
         .map(|index| QuestObjective {

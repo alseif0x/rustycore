@@ -1,7 +1,7 @@
 // Existing Character application scenarios, moved with original assertion operands.
 
-use super::fixtures::*;
 use super::fixtures::session::make_session;
+use super::fixtures::*;
 
 #[tokio::test]
 async fn realm_character_count_refresh_reaches_the_lifecycle_port_without_database_handles() {
@@ -32,7 +32,9 @@ async fn logout_publishes_each_offline_mark_through_the_port_like_cpp() {
     session.set_player_guid(Some(guid));
 
     session.character_mark_character_offline_for_test().await;
-    session.character_mark_character_account_offline_for_test().await;
+    session
+        .character_mark_character_account_offline_for_test()
+        .await;
     session
         .character_mark_login_account_offline_on_disconnect_for_test()
         .await;
@@ -83,7 +85,9 @@ async fn a_failed_offline_mark_is_handled_without_panicking_like_cpp() {
     session.set_player_guid(Some(ObjectGuid::create_player(1, 0x7200_0002)));
 
     session.character_mark_character_offline_for_test().await;
-    session.character_mark_character_account_offline_for_test().await;
+    session
+        .character_mark_character_account_offline_for_test()
+        .await;
 
     assert_eq!(port.marks().len(), 2);
 }
@@ -112,7 +116,9 @@ async fn a_session_without_a_port_performs_no_durable_write_like_cpp() {
     session.set_player_guid(Some(ObjectGuid::create_player(1, 0x7200_0004)));
 
     session.character_mark_character_offline_for_test().await;
-    session.character_mark_character_account_offline_for_test().await;
+    session
+        .character_mark_character_account_offline_for_test()
+        .await;
     session
         .character_mark_login_account_offline_on_disconnect_for_test()
         .await;

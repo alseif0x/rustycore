@@ -185,5 +185,4 @@ impl PlayerLifecyclePortLikeCpp for PersonalMoneyPort {
     ) -> PersistenceFutureLikeCpp<'a, PlayerCharacterSaveResultLikeCpp> {
         panic!("unexpected save_character_like_cpp in personal-money fixture");
     }
-
 }

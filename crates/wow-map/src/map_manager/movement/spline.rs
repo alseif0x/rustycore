@@ -87,14 +87,16 @@ impl WorldCreature {
         }
         let spline_id = init.args.spline_id;
         let active_spline_position = self
-            .runtime.active_move_spline
+            .runtime
+            .active_move_spline
             .as_ref()
             .filter(|spline| !spline.finalized() && !spline.on_transport)
             .and_then(MoveSpline::compute_position);
 
         let now_ms = self.runtime_elapsed_ms_like_cpp();
         let mut spline = self
-            .runtime.active_move_spline
+            .runtime
+            .active_move_spline
             .take()
             .unwrap_or_else(MoveSpline::new);
         let launch = init
@@ -312,7 +314,8 @@ impl WorldCreature {
         let spline_id = self.spline_id().saturating_add(1);
         let current = self.position();
         let active_spline_position = self
-            .runtime.active_move_spline
+            .runtime
+            .active_move_spline
             .as_ref()
             .filter(|spline| !spline.finalized() && !spline.on_transport)
             .and_then(MoveSpline::compute_position);
@@ -323,7 +326,8 @@ impl WorldCreature {
 
         let now_ms = self.runtime_elapsed_ms_like_cpp();
         let mut spline = self
-            .runtime.active_move_spline
+            .runtime
+            .active_move_spline
             .take()
             .unwrap_or_else(MoveSpline::new);
         let launch = init

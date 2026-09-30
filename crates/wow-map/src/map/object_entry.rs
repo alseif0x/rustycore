@@ -8,14 +8,14 @@
 //! Moves preserve the complete stored value, including a live creature motor.
 //! Actor admission remains private until production ownership is transferred.
 
-use wow_entities::MapObjectRecord;
 use std::sync::Arc;
+use wow_entities::MapObjectRecord;
 
-use crate::map_manager::WorldCreature;
 use super::{
     AccessorObjectKind, GridLifecycle, Map, MapObjectStoreError, ObjectMut, ObjectRef,
     TerrainGridLoader,
 };
+use crate::map_manager::WorldCreature;
 
 /// Complete displaced or removed map-owned value, including its execution state.
 pub struct OwnedMapObject {
@@ -24,7 +24,10 @@ pub struct OwnedMapObject {
 
 impl std::fmt::Debug for OwnedMapObject {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        formatter.debug_struct("OwnedMapObject").field("entry", &self.entry).finish()
+        formatter
+            .debug_struct("OwnedMapObject")
+            .field("entry", &self.entry)
+            .finish()
     }
 }
 

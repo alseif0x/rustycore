@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use anyhow::Context;
 use tracing::info;
 
-use crate::{spawn_store_loader, SharedWorldStateMgrLikeCpp};
+use crate::{SharedWorldStateMgrLikeCpp, spawn_store_loader};
 
 pub(super) async fn load_condition_world_ids(
     world_reference_catalog_persistence: &dyn wow_persistence::WorldReferenceCatalogPersistencePortLikeCpp,

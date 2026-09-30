@@ -12,8 +12,7 @@ use wow_entities::OwnedLootAuthority;
 pub struct SpellCasterIncarnation {
     spawn_id: u64,
     authority: OwnedLootAuthority,
-    health_state_revision_authority:
-        wow_entities::HealthStateRevisionAuthorityLikeCpp,
+    health_state_revision_authority: wow_entities::HealthStateRevisionAuthorityLikeCpp,
 }
 
 impl SpellCasterIncarnation {
@@ -68,23 +67,36 @@ pub struct SpellCastPlan {
     pub(super) caster_incarnation: SpellCasterIncarnation,
 }
 
-
 #[derive(Debug)]
 pub struct SpellSchedule {
-    pub caster_guid: ObjectGuid, pub map_id: u16, pub instance_id: u32,
-    pub engagement_epoch: u64, pub slot: usize, pub minimum_ms: u64,
+    pub caster_guid: ObjectGuid,
+    pub map_id: u16,
+    pub instance_id: u32,
+    pub engagement_epoch: u64,
+    pub slot: usize,
+    pub minimum_ms: u64,
 }
 #[derive(Debug)]
 pub struct SpellRejectedAttempt {
-    pub caster_guid: ObjectGuid, pub target_guid: ObjectGuid,
-    pub map_id: u16, pub instance_id: u32, pub engagement_epoch: u64,
-    pub spell_id: u32, pub difficulty_id: u8,
+    pub caster_guid: ObjectGuid,
+    pub target_guid: ObjectGuid,
+    pub map_id: u16,
+    pub instance_id: u32,
+    pub engagement_epoch: u64,
+    pub spell_id: u32,
+    pub difficulty_id: u8,
 }
 #[derive(Debug)]
-pub struct SpellCast { pub command: SpellCastPlan, pub difficulty_id: u8, pub turret_ai: bool }
+pub struct SpellCast {
+    pub command: SpellCastPlan,
+    pub difficulty_id: u8,
+    pub turret_ai: bool,
+}
 #[derive(Debug)]
 pub enum SpellAction {
-    Cast(SpellCast), Schedule(SpellSchedule), TurretRejectedAttempt(SpellRejectedAttempt),
+    Cast(SpellCast),
+    Schedule(SpellSchedule),
+    TurretRejectedAttempt(SpellRejectedAttempt),
 }
 impl SpellAction {
     pub fn key(&self) -> crate::MapKey {

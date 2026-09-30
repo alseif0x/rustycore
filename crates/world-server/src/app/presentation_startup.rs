@@ -12,10 +12,7 @@ pub(super) struct PresentationCatalogs {
     pub(super) emotes_text_store: Arc<wow_data::EmotesTextStore>,
 }
 
-pub(super) fn load(
-    data_dir: &str,
-    locale: &str,
-) -> anyhow::Result<PresentationCatalogs> {
+pub(super) fn load(data_dir: &str, locale: &str) -> anyhow::Result<PresentationCatalogs> {
     let emotes_text_store = Arc::new(
         wow_data::EmotesTextStore::load(data_dir, locale)
             .context("Failed to load EmotesText.db2")?,
@@ -25,9 +22,8 @@ pub(super) fn load(
         wow_data::AnimKitStore::load(data_dir, locale).context("Failed to load AnimKit.db2")?,
     );
     info!("Loaded {} anim kit rows", anim_kit_store.len());
-    let movie_store = Arc::new(
-        wow_data::MovieStore::load(data_dir, locale).context("Failed to load Movie.db2")?,
-    );
+    let movie_store =
+        Arc::new(wow_data::MovieStore::load(data_dir, locale).context("Failed to load Movie.db2")?);
     info!("Loaded {} movie rows", movie_store.len());
     let cfg_categories_store = wow_data::CfgCategoriesStore::load(data_dir, locale)
         .context("Failed to load Cfg_Categories.db2")?;

@@ -1,7 +1,7 @@
 // Existing Character application scenarios, moved with original assertion operands.
 
-use super::fixtures::*;
 use super::fixtures::session::make_session;
+use super::fixtures::*;
 
 #[test]
 fn canonical_player_logout_retires_detached_handle_like_cpp() {
@@ -25,7 +25,9 @@ fn canonical_player_logout_retires_detached_handle_like_cpp() {
         session
             .character_ensure_canonical_world_map_for_current_player_for_test()
             .expect("initial world map");
-        let handle = session.character_player_handle_for_test().expect("canonical handle");
+        let handle = session
+            .character_player_handle_for_test()
+            .expect("canonical handle");
         assert!(session.character_remove_current_player_from_canonical_current_map_for_test());
 
         session.cleanup_shared_runtime_state();

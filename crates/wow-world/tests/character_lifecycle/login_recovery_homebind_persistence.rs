@@ -14,7 +14,15 @@ async fn homebind_repair_writes_typed_delete_and_insert_requests_nonfatally_like
     let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(1);
     let (send_tx, _send_rx) = flume::bounded::<Vec<u8>>(4);
     let mut session = WorldSession::new_character_lifecycle_fixture(
-        1, "TestAccount".into(), 0, 2, 9, 54261, vec![0u8; 40], "esES".into(), pkt_rx,
+        1,
+        "TestAccount".into(),
+        0,
+        2,
+        9,
+        54261,
+        vec![0u8; 40],
+        "esES".into(),
+        pkt_rx,
         send_tx,
     );
     // This private port records both requests and returns nonfatal Failed outcomes.

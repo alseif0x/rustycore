@@ -22,16 +22,16 @@ mod ops_3;
 mod power_effects;
 mod state;
 mod visibility;
-pub use visibility::UnitVisibilityTargetFacts;
-pub use power_effects::{SpellPowerAmount, SpellPowerGain};
 #[allow(unused_imports)]
 pub use ops_1::*;
 #[allow(unused_imports)]
 pub use ops_2::*;
 #[allow(unused_imports)]
 pub use ops_3::*;
+pub use power_effects::{SpellPowerAmount, SpellPowerGain};
 #[allow(unused_imports)]
 pub use state::*;
+pub use visibility::UnitVisibilityTargetFacts;
 
 #[cfg(test)]
 #[path = "unit/tests/mod.rs"]

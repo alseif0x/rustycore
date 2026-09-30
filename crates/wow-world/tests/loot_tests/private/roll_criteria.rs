@@ -25,7 +25,10 @@ async fn loot_roll_all_voted_finishes_need_winner_like_cpp() {
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    set_loot_for_test(&mut session, owner_guid, CreatureLoot {
+    set_loot_for_test(
+        &mut session,
+        owner_guid,
+        CreatureLoot {
             loot_guid: loot_object,
             coins: 0,
             unlooted_count: 0,
@@ -55,7 +58,8 @@ async fn loot_roll_all_voted_finishes_need_winner_like_cpp() {
                 taken: false,
             }],
             looted_by_player: false,
-        });
+        },
+    );
 
     install_cached_test_creature_loot_authority_like_cpp(&mut session, owner_guid, player_guid);
     handle_loot_unit_for_test(&mut session, loot_unit_packet(owner_guid)).await;
@@ -65,22 +69,28 @@ async fn loot_roll_all_voted_finishes_need_winner_like_cpp() {
     let _remote_loot_list = candidate_rx.try_recv().unwrap();
     let _remote_start_roll = candidate_rx.try_recv().unwrap();
 
-    handle_loot_roll_for_test(&mut session, LootRoll {
+    handle_loot_roll_for_test(
+        &mut session,
+        LootRoll {
             loot_obj: loot_object,
             loot_list_id: 0,
             roll_type: ROLL_VOTE_NEED_LIKE_CPP,
-        })
-        .await;
+        },
+    )
+    .await;
     let _local_need_roll = send_rx.try_recv().unwrap();
     let _remote_need_roll = candidate_rx.try_recv().unwrap();
 
     session.set_player_guid(Some(candidate_guid));
-    handle_loot_roll_for_test(&mut session, LootRoll {
+    handle_loot_roll_for_test(
+        &mut session,
+        LootRoll {
             loot_obj: loot_object,
             loot_list_id: 0,
             roll_type: ROLL_VOTE_GREED_LIKE_CPP,
-        })
-        .await;
+        },
+    )
+    .await;
 
     let local_greed_roll = send_rx.try_recv().unwrap();
     let mut local_greed_roll = WorldPacket::from_bytes(&local_greed_roll);
@@ -140,9 +150,7 @@ async fn loot_roll_all_voted_finishes_need_winner_like_cpp() {
     let entry = &loot_for_test(&session, owner_guid).unwrap().items[0];
     assert!(!entry.flags.blocked);
     assert_eq!(entry.roll_winner, player_guid);
-    assert!(
-        !loot_roll_observation_for_test(&session, loot_object, 0).is_some()
-    );
+    assert!(!loot_roll_observation_for_test(&session, loot_object, 0).is_some());
     assert_eq!(
         loot_criterion_for_test(&session, 0),
         LootCriterionExpectation::any_need(player_guid, 1)
@@ -179,7 +187,10 @@ async fn loot_roll_timer_expiry_finishes_current_winner_like_cpp() {
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    set_loot_for_test(&mut session, owner_guid, CreatureLoot {
+    set_loot_for_test(
+        &mut session,
+        owner_guid,
+        CreatureLoot {
             loot_guid: loot_object,
             coins: 0,
             unlooted_count: 0,
@@ -209,7 +220,8 @@ async fn loot_roll_timer_expiry_finishes_current_winner_like_cpp() {
                 taken: false,
             }],
             looted_by_player: false,
-        });
+        },
+    );
 
     install_cached_test_creature_loot_authority_like_cpp(&mut session, owner_guid, player_guid);
     handle_loot_unit_for_test(&mut session, loot_unit_packet(owner_guid)).await;
@@ -219,16 +231,24 @@ async fn loot_roll_timer_expiry_finishes_current_winner_like_cpp() {
     let _remote_loot_list = candidate_rx.try_recv().unwrap();
     let _remote_start_roll = candidate_rx.try_recv().unwrap();
 
-    handle_loot_roll_for_test(&mut session, LootRoll {
+    handle_loot_roll_for_test(
+        &mut session,
+        LootRoll {
             loot_obj: loot_object,
             loot_list_id: 0,
             roll_type: ROLL_VOTE_GREED_LIKE_CPP,
-        })
-        .await;
+        },
+    )
+    .await;
     let _local_greed_roll = send_rx.try_recv().unwrap();
     let _remote_greed_roll = candidate_rx.try_recv().unwrap();
 
-    set_loot_roll_deadline_for_test(&mut session, loot_object, 0, Instant::now() - Duration::from_millis(1));
+    set_loot_roll_deadline_for_test(
+        &mut session,
+        loot_object,
+        0,
+        Instant::now() - Duration::from_millis(1),
+    );
     tick_loot_rolls_for_test(&mut session).await;
 
     let mut local_final_replay =
@@ -264,9 +284,7 @@ async fn loot_roll_timer_expiry_finishes_current_winner_like_cpp() {
     let entry = &loot_for_test(&session, owner_guid).unwrap().items[0];
     assert!(!entry.flags.blocked);
     assert_eq!(entry.roll_winner, player_guid);
-    assert!(
-        !loot_roll_observation_for_test(&session, loot_object, 0).is_some()
-    );
+    assert!(!loot_roll_observation_for_test(&session, loot_object, 0).is_some());
     assert_eq!(
         loot_criterion_for_test(&session, 0),
         LootCriterionExpectation::any_greed(player_guid, 1)
@@ -286,7 +304,9 @@ async fn stale_loot_roll_expiry_does_not_mutate_replacement_generation_like_cpp(
     let (mut session, send_rx, candidate_rx, player_guid, candidate_guid, owner_guid) =
         open_generation_guarded_group_roll_like_cpp(19_061).await;
     let loot_object = represented_loot_object_guid_like_cpp(owner_guid);
-    let old_generation = loot_roll_observation_for_test(&session, loot_object, 0).unwrap().authority_generation();
+    let old_generation = loot_roll_observation_for_test(&session, loot_object, 0)
+        .unwrap()
+        .authority_generation();
     let replacement_generation = replace_generation_guarded_group_loot_like_cpp(
         &mut session,
         owner_guid,
@@ -294,7 +314,12 @@ async fn stale_loot_roll_expiry_does_not_mutate_replacement_generation_like_cpp(
         candidate_guid,
     );
     assert_ne!(old_generation, replacement_generation);
-    set_loot_roll_deadline_for_test(&mut session, loot_object, 0, Instant::now() - Duration::from_millis(1));
+    set_loot_roll_deadline_for_test(
+        &mut session,
+        loot_object,
+        0,
+        Instant::now() - Duration::from_millis(1),
+    );
 
     tick_loot_rolls_for_test(&mut session).await;
 
@@ -306,8 +331,7 @@ async fn stale_loot_roll_expiry_does_not_mutate_replacement_generation_like_cpp(
     assert!(candidate_rx.try_recv().is_err());
     assert!(loot_criteria_empty_for_test(&session));
 
-    let authority = loot_recovery_authority_for_test(&mut session, owner_guid)
-        .unwrap();
+    let authority = loot_recovery_authority_for_test(&mut session, owner_guid).unwrap();
     let replacement = authority.shared_snapshot_like_cpp().unwrap();
     assert_eq!(replacement.generation, replacement_generation);
     let entry = &replacement.loot.items[0];
@@ -322,7 +346,9 @@ async fn stale_loot_roll_vote_does_not_mutate_replacement_generation_like_cpp() 
     let (mut session, send_rx, candidate_rx, player_guid, candidate_guid, owner_guid) =
         open_generation_guarded_group_roll_like_cpp(19_060).await;
     let loot_object = represented_loot_object_guid_like_cpp(owner_guid);
-    let old_generation = loot_roll_observation_for_test(&session, loot_object, 0).unwrap().authority_generation();
+    let old_generation = loot_roll_observation_for_test(&session, loot_object, 0)
+        .unwrap()
+        .authority_generation();
     let replacement_generation = replace_generation_guarded_group_loot_like_cpp(
         &mut session,
         owner_guid,
@@ -331,12 +357,15 @@ async fn stale_loot_roll_vote_does_not_mutate_replacement_generation_like_cpp() 
     );
     assert_ne!(old_generation, replacement_generation);
 
-    handle_loot_roll_for_test(&mut session, LootRoll {
+    handle_loot_roll_for_test(
+        &mut session,
+        LootRoll {
             loot_obj: loot_object,
             loot_list_id: 0,
             roll_type: ROLL_VOTE_NEED_LIKE_CPP,
-        })
-        .await;
+        },
+    )
+    .await;
 
     assert!(
         !loot_roll_observation_for_test(&session, loot_object, 0).is_some(),
@@ -346,8 +375,7 @@ async fn stale_loot_roll_vote_does_not_mutate_replacement_generation_like_cpp() 
     assert!(candidate_rx.try_recv().is_err());
     assert!(loot_criteria_empty_for_test(&session));
 
-    let authority = loot_recovery_authority_for_test(&mut session, owner_guid)
-        .unwrap();
+    let authority = loot_recovery_authority_for_test(&mut session, owner_guid).unwrap();
     let replacement = authority.shared_snapshot_like_cpp().unwrap();
     assert_eq!(replacement.generation, replacement_generation);
     let entry = &replacement.loot.items[0];
@@ -356,4 +384,3 @@ async fn stale_loot_roll_vote_does_not_mutate_replacement_generation_like_cpp() 
     assert!(!entry.taken);
     assert_eq!(replacement.loot.unlooted_count, 1);
 }
-

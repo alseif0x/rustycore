@@ -1,9 +1,15 @@
 //! Original roll criteria and generation-lifetime setup, backed by real authority.
-pub(super) use super::recovery_support::*;
 pub(super) use super::money_support::recv_packet_with_opcode;
-pub(super) use wow_loot::{LOOT_METHOD_GROUP_LIKE_CPP, ROLL_VOTE_NEED_LIKE_CPP, ROLL_VOTE_GREED_LIKE_CPP};
-pub(super) use wow_world::test_fixtures::loot::{LootCriterionExpectation, loot_criterion_for_test, loot_criteria_empty_for_test, loot_roll_observation_for_test, set_loot_roll_deadline_for_test, tick_loot_rolls_for_test, loot_opened_cache_generation_for_test};
+pub(super) use super::recovery_support::*;
 use std::collections::HashMap;
+pub(super) use wow_loot::{
+    LOOT_METHOD_GROUP_LIKE_CPP, ROLL_VOTE_GREED_LIKE_CPP, ROLL_VOTE_NEED_LIKE_CPP,
+};
+pub(super) use wow_world::test_fixtures::loot::{
+    LootCriterionExpectation, loot_criteria_empty_for_test, loot_criterion_for_test,
+    loot_opened_cache_generation_for_test, loot_roll_observation_for_test,
+    set_loot_roll_deadline_for_test, tick_loot_rolls_for_test,
+};
 
 pub(super) fn generation_guarded_group_loot_like_cpp(
     owner_guid: ObjectGuid,
@@ -69,7 +75,11 @@ pub(super) async fn open_generation_guarded_group_roll_like_cpp(
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    set_loot_for_test(&mut session, owner_guid, generation_guarded_group_loot_like_cpp(owner_guid, player_guid, candidate_guid));
+    set_loot_for_test(
+        &mut session,
+        owner_guid,
+        generation_guarded_group_loot_like_cpp(owner_guid, player_guid, candidate_guid),
+    );
     install_cached_test_creature_loot_authority_like_cpp(&mut session, owner_guid, player_guid);
 
     handle_loot_unit_for_test(&mut session, loot_unit_packet(owner_guid)).await;

@@ -123,7 +123,10 @@ async fn push_quest_to_party_repeatable_turn_in_command_queue_failure_sends_no_s
 
     assert!(sender_rx.try_recv().is_err());
     assert!(receiver_rx.try_recv().is_err());
-    assert_eq!(drain_session_commands_for_test(&receiver_session).len(), 256);
+    assert_eq!(
+        drain_session_commands_for_test(&receiver_session).len(),
+        256
+    );
     assert!(represented_push_quest_to_party_outcomes_for_test(&session).iter().any(
         |outcome| outcome.target_guid == Some(receiver_guid)
             && matches!(
@@ -230,12 +233,8 @@ async fn push_quest_to_party_preserves_partial_exclusive_peer_policy_after_expan
             }
             _ => unreachable!(),
         }
-        let quest_store = Arc::new(QuestStore::from_quests_like_cpp([
-            shared_quest, peer_quest,
-        ]));
-        let quest_pool_store = QuestPoolStoreLikeCpp::from_rows_like_cpp(
-            &quest_store, [], [],
-        );
+        let quest_store = Arc::new(QuestStore::from_quests_like_cpp([shared_quest, peer_quest]));
+        let quest_pool_store = QuestPoolStoreLikeCpp::from_rows_like_cpp(&quest_store, [], []);
         session.set_quest_store(Arc::clone(&quest_store));
         session.set_quest_pool_store(Arc::new(quest_pool_store));
         add_active_quest(&mut session, shared_quest_id);
@@ -250,21 +249,22 @@ async fn push_quest_to_party_preserves_partial_exclusive_peer_policy_after_expan
                 wow_constants::quest::QUEST_STATUS_NONE_LIKE_CPP,
             );
         } else {
-            mutate_player_quest_gameplay_for_test(&mut receiver_session, |state| {
-                match case {
-                    "weekly" => state.set_weekly_like_cpp(peer_quest_id, true),
-                    "seasonal" => state.set_seasonal_like_cpp(9, peer_quest_id, 100),
-                    "df_daily" => state.set_daily_like_cpp(peer_quest_id, true),
-                    _ => unreachable!(),
-                }
-            }).expect("registered canonical receiver quest owner");
+            mutate_player_quest_gameplay_for_test(&mut receiver_session, |state| match case {
+                "weekly" => state.set_weekly_like_cpp(peer_quest_id, true),
+                "seasonal" => state.set_seasonal_like_cpp(9, peer_quest_id, 100),
+                "df_daily" => state.set_daily_like_cpp(peer_quest_id, true),
+                _ => unreachable!(),
+            })
+            .expect("registered canonical receiver quest owner");
         }
 
         // Full local eligibility blocks all four inputs. The represented final
         // sharing operation intentionally retains its narrower policy.
-        assert!(!receiver_session.can_take_quest(
-            quest_store.get(shared_quest_id).expect("shared quest row"),
-        ), "local exclusive rule, case={case}");
+        assert!(
+            !receiver_session
+                .can_take_quest(quest_store.get(shared_quest_id).expect("shared quest row"),),
+            "local exclusive rule, case={case}"
+        );
         sync_player_registry_state_for_test(&receiver_session);
 
         run_push_quest_to_party(&mut session, shared_quest_id).await;
@@ -281,7 +281,11 @@ async fn push_quest_to_party_preserves_partial_exclusive_peer_policy_after_expan
         } else {
             assert_eq!(
                 recv_push_quest_result_response(&sender_rx),
-                (receiver_guid, QUEST_PUSH_REASON_INVALID_LIKE_CPP, String::new()),
+                (
+                    receiver_guid,
+                    QUEST_PUSH_REASON_INVALID_LIKE_CPP,
+                    String::new()
+                ),
             );
             assert_eq!(
                 recv_push_quest_result_response(&receiver_rx),

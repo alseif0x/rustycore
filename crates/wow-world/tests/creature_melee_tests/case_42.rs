@@ -5,8 +5,8 @@ use super::*;
 /// This production-shaped player-victim path proves the latter independently.
 #[test]
 fn legacy_creature_melee_tick_once_honors_player_damage_immunity_like_cpp() {
-    use wow_world::map_manager::RuntimeTickOwner;
     use wow_packet::packets::combat::VICTIM_STATE_IS_IMMUNE;
+    use wow_world::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
     let canonical = shared_canonical_map_manager();

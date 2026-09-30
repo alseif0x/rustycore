@@ -1,18 +1,7 @@
 use super::{
-    Creature,
-    HighGuid,
-    MapObjectRecord,
-    ObjectGuid,
-    PathBuf,
-    Player,
-    PlayerDirectoryIdentityLikeCpp,
-    PlayerDirectoryPlacementLikeCpp,
-    PlayerRegistry,
-    PlayerSessionRegistrationLikeCpp,
-    Position,
-    SessionCommand,
-    env,
-    fs,
+    Creature, HighGuid, MapObjectRecord, ObjectGuid, PathBuf, Player,
+    PlayerDirectoryIdentityLikeCpp, PlayerDirectoryPlacementLikeCpp, PlayerRegistry,
+    PlayerSessionRegistrationLikeCpp, Position, SessionCommand, env, fs,
 };
 
 pub(super) fn legacy_runtime_world_map_store_like_cpp() -> wow_data::MapStore {

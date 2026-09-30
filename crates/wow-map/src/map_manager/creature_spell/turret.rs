@@ -1,10 +1,17 @@
 //! Original AI preparation; all primaries prepare before any queue consumption.
 use super::*;
 
-pub(super) fn turret(creature: &mut WorldCreature, guid: ObjectGuid,
-    recipient_guid: ObjectGuid, map_id: u16, instance_id: u32, difficulty_id: u8,
-    policies: &mut SpellPolicies<'_>, outcome: &mut SpellOutcome,
-    pending_actions: &mut Vec<SpellAction>) {
+pub(super) fn turret(
+    creature: &mut WorldCreature,
+    guid: ObjectGuid,
+    recipient_guid: ObjectGuid,
+    map_id: u16,
+    instance_id: u32,
+    difficulty_id: u8,
+    policies: &mut SpellPolicies<'_>,
+    outcome: &mut SpellOutcome,
+    pending_actions: &mut Vec<SpellAction>,
+) {
     let spells = creature.creature.spells();
 
     if difficulty_id != 0 && spells[0] != 0 {
@@ -15,11 +22,7 @@ pub(super) fn turret(creature: &mut WorldCreature, guid: ObjectGuid,
     }
     // C++ TurretAI only ever reads `m_spells[0]`; unrelated
     // template slots cannot put it into UNIT_STATE_CASTING.
-    if has_noninstant_spell(
-        &spells[..1],
-        difficulty_id,
-        policies,
-    ) {
+    if has_noninstant_spell(&spells[..1], difficulty_id, policies) {
         outcome.noninstant_casts_unrepresented += 1;
         return;
     }
@@ -43,9 +46,7 @@ pub(super) fn turret(creature: &mut WorldCreature, guid: ObjectGuid,
         return;
     };
 
-    match disable(
-        spell_id, map_id, creature, policies,
-    ) {
+    match disable(spell_id, map_id, creature, policies) {
         SpellDisable::Enabled => {}
         SpellDisable::Disabled => {
             outcome.spells_disabled += 1;
@@ -55,20 +56,15 @@ pub(super) fn turret(creature: &mut WorldCreature, guid: ObjectGuid,
             // `DoSpellAttackIfReady` admitted the attempt.
             // Deciding that here would use the pre-tick legacy
             // position, so defer it to the canonical drain.
-            pending_actions.push(
-                SpellAction::TurretRejectedAttempt(
-                    SpellRejectedAttempt {
-                        caster_guid: guid,
-                        target_guid: recipient_guid,
-                        map_id,
-                        instance_id,
-                        engagement_epoch: creature
-                            .creature_spell_engagement_epoch_like_cpp(),
-                        spell_id,
-                        difficulty_id,
-                    },
-                ),
-            );
+            pending_actions.push(SpellAction::TurretRejectedAttempt(SpellRejectedAttempt {
+                caster_guid: guid,
+                target_guid: recipient_guid,
+                map_id,
+                instance_id,
+                engagement_epoch: creature.creature_spell_engagement_epoch_like_cpp(),
+                spell_id,
+                difficulty_id,
+            }));
             return;
         }
         SpellDisable::Unrepresented => {
@@ -80,53 +76,47 @@ pub(super) fn turret(creature: &mut WorldCreature, guid: ObjectGuid,
         outcome.spell_runtime_hooks_unrepresented += 1;
         return;
     }
-    if !(policies.check)(SpellPreparationCheck::CastingRequirements, spell_id, difficulty_id) {
+    if !(policies.check)(
+        SpellPreparationCheck::CastingRequirements,
+        spell_id,
+        difficulty_id,
+    ) {
         outcome.spell_casting_requirements_unrepresented += 1;
         return;
     }
-    if !(policies.check)(SpellPreparationCheck::ShapeshiftRequirements, spell_id, difficulty_id)
-    {
+    if !(policies.check)(
+        SpellPreparationCheck::ShapeshiftRequirements,
+        spell_id,
+        difficulty_id,
+    ) {
         outcome.spell_casting_requirements_unrepresented += 1;
         creature.record_swing();
         return;
     }
-    if !(policies.check)(SpellPreparationCheck::AuraRestrictions, spell_id, difficulty_id) {
-        outcome.spell_effects_unrepresented += 1;
-        return;
-    }
-    if !cooldown_semantics(
+    if !(policies.check)(
+        SpellPreparationCheck::AuraRestrictions,
         spell_id,
         difficulty_id,
-        policies,
     ) {
         outcome.spell_effects_unrepresented += 1;
         return;
     }
-    if combat_forbidden(
-        spell_id,
-        difficulty_id,
-        policies,
-    ) {
+    if !cooldown_semantics(spell_id, difficulty_id, policies) {
+        outcome.spell_effects_unrepresented += 1;
+        return;
+    }
+    if combat_forbidden(spell_id, difficulty_id, policies) {
         outcome.spell_effects_unrepresented += 1;
         // TurretAI resets BASE_ATTACK after its CastSpell call
         // even when CheckCast rejects the peaceful-only spell.
         creature.record_swing();
         return;
     }
-    if implicit_cost(
-        &spell,
-        difficulty_id,
-        policies,
-        creature,
-    ) {
+    if implicit_cost(&spell, difficulty_id, policies, creature) {
         outcome.spell_effects_unrepresented += 1;
         return;
     }
-    if target_restrictions(
-        spell_id,
-        difficulty_id,
-        policies,
-    ) {
+    if target_restrictions(spell_id, difficulty_id, policies) {
         outcome.spell_effects_unrepresented += 1;
         return;
     }
@@ -134,11 +124,7 @@ pub(super) fn turret(creature: &mut WorldCreature, guid: ObjectGuid,
         &spell,
         recipient_guid,
         recipient_guid,
-        projectile(
-            spell_id,
-            difficulty_id,
-            policies,
-        ),
+        projectile(spell_id, difficulty_id, policies),
     ) {
         Ok(()) => {}
         Err(SpellTopologyError::NonInstant) => {
@@ -168,12 +154,10 @@ pub(super) fn turret(creature: &mut WorldCreature, guid: ObjectGuid,
         outcome.spell_visuals_unrepresented += 1;
         return;
     };
-    pending_actions.push(SpellAction::Cast(
-        SpellCast {
-            command,
-            difficulty_id,
-            turret_ai: true,
-        },
-    ));
+    pending_actions.push(SpellAction::Cast(SpellCast {
+        command,
+        difficulty_id,
+        turret_ai: true,
+    }));
     outcome.casts_ready += 1;
 }

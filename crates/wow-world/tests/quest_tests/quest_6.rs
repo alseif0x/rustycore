@@ -125,7 +125,11 @@ async fn push_quest_to_party_grouped_receiver_busy_emits_sender_only_busy_like_c
     add_active_quest(&mut session, 7113);
     let (_player_registry, mut receiver_session, receiver_rx) =
         install_represented_party(&mut session, sender_guid, receiver_guid);
-    set_represented_pending_quest_sharing_for_test(&mut receiver_session,ObjectGuid::create_player(1, 77), 9000);
+    set_represented_pending_quest_sharing_for_test(
+        &mut receiver_session,
+        ObjectGuid::create_player(1, 77),
+        9000,
+    );
 
     run_push_quest_to_party(&mut session, 7113).await;
 
@@ -460,7 +464,8 @@ async fn quest_giver_status_query_starter_allows_objective_progress_condition_li
         .or_default()
         .push(starter_quest_id);
     session.set_quest_store(Arc::new(store));
-    insert_player_quest_status_for_test(&mut session,
+    insert_player_quest_status_for_test(
+        &mut session,
         active_quest_id,
         PlayerQuestStatus {
             quest_id: active_quest_id,
@@ -507,7 +512,8 @@ async fn quest_giver_status_query_starter_rejects_objective_progress_mismatch_li
         .or_default()
         .push(starter_quest_id);
     session.set_quest_store(Arc::new(store));
-    insert_player_quest_status_for_test(&mut session,
+    insert_player_quest_status_for_test(
+        &mut session,
         active_quest_id,
         PlayerQuestStatus {
             quest_id: active_quest_id,
@@ -601,7 +607,8 @@ async fn quest_giver_status_query_covenant_completed_ender_uses_quest_info_tag_l
     session.set_quest_info_store(Arc::new(QuestInfoStore::from_entries([
         quest_info_entry_like_cpp(712, 15, 0),
     ])));
-    insert_player_quest_status_for_test(&mut session,
+    insert_player_quest_status_for_test(
+        &mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -659,9 +666,7 @@ async fn quest_giver_close_missing_active_quest_records_no_acknowledge_like_cpp(
 
     run_close_quest(&mut session, 5902).await;
 
-    assert!(
-        represented_auto_accept_acknowledged_quests_for_test(&session).is_empty()
-    );
+    assert!(represented_auto_accept_acknowledged_quests_for_test(&session).is_empty());
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]
@@ -672,9 +677,7 @@ async fn quest_giver_close_missing_template_records_no_acknowledge_like_cpp() {
 
     run_close_quest(&mut session, 5903).await;
 
-    assert!(
-        represented_auto_accept_acknowledged_quests_for_test(&session).is_empty()
-    );
+    assert!(represented_auto_accept_acknowledged_quests_for_test(&session).is_empty());
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]
@@ -687,8 +690,6 @@ async fn quest_giver_close_short_packet_records_no_acknowledge_and_sends_no_pack
         .handle_quest_giver_close_quest(WorldPacket::from_bytes(&[0x05, 0x17]))
         .await;
 
-    assert!(
-        represented_auto_accept_acknowledged_quests_for_test(&session).is_empty()
-    );
+    assert!(represented_auto_accept_acknowledged_quests_for_test(&session).is_empty());
     assert!(send_rx.try_recv().is_err());
 }

@@ -105,28 +105,53 @@ pub(super) fn wrap(
 ) -> ActorMovementProgress {
     match progress {
         // The manager releases the slot only for this explicit terminal Step.
-        StepProgress::Complete(effect) => ActorMovementProgress::Complete(
-            completion::capture(actor, identity.guid, key, incarnation, effect),
-        ),
+        StepProgress::Complete(effect) => ActorMovementProgress::Complete(completion::capture(
+            actor,
+            identity.guid,
+            key,
+            incarnation,
+            effect,
+        )),
         StepProgress::Pending(StepPending::Path(request)) => {
             let (query, continuation) = request.into_parts();
             ActorMovementProgress::Pending(ActorMovementPending::Path(ActorPathRequest {
-                query, continuation: ActorPathContinuation { identity, continuation },
+                query,
+                continuation: ActorPathContinuation {
+                    identity,
+                    continuation,
+                },
             }))
         }
         StepProgress::Pending(StepPending::StaticHeight(request)) => {
             let (query, continuation) = request.into_parts();
-            ActorMovementProgress::Pending(ActorMovementPending::StaticHeight(ActorStaticHeightRequest {
-                query: ActorStaticHeightQuery { map_id: query.map_id, point: query.point, probe_z: query.probe_z },
-                continuation: ActorStaticHeightContinuation { identity, continuation },
-            }))
+            ActorMovementProgress::Pending(ActorMovementPending::StaticHeight(
+                ActorStaticHeightRequest {
+                    query: ActorStaticHeightQuery {
+                        map_id: query.map_id,
+                        point: query.point,
+                        probe_z: query.probe_z,
+                    },
+                    continuation: ActorStaticHeightContinuation {
+                        identity,
+                        continuation,
+                    },
+                },
+            ))
         }
         StepProgress::Pending(StepPending::GridHeight(request)) => {
             let (query, continuation) = request.into_parts();
-            ActorMovementProgress::Pending(ActorMovementPending::GridHeight(ActorGridHeightRequest {
-                query: ActorGridHeightQuery { map_id: query.map_id, point: query.point },
-                continuation: ActorGridHeightContinuation { identity, continuation },
-            }))
+            ActorMovementProgress::Pending(ActorMovementPending::GridHeight(
+                ActorGridHeightRequest {
+                    query: ActorGridHeightQuery {
+                        map_id: query.map_id,
+                        point: query.point,
+                    },
+                    continuation: ActorGridHeightContinuation {
+                        identity,
+                        continuation,
+                    },
+                },
+            ))
         }
     }
 }

@@ -22,13 +22,13 @@ impl PartialOrd for RespawnQueueKey {
 }
 
 mod actors;
-mod saved;
 mod phase;
+mod saved;
 pub use phase::{ActorRespawnAttempt, ActorRespawnPhaseOutcome, ActorRespawnStatus};
-mod transport;
 mod reservations;
-pub use reservations::RespawnReserved;
+mod transport;
 pub use actors::OwnedRespawn;
+pub use reservations::RespawnReserved;
 pub use transport::{RespawnTransfer, RespawnTransferError};
 #[cfg(test)]
 mod tests;
@@ -105,15 +105,18 @@ impl RespawnStoreLikeCpp {
         if !Self::has_respawn_map_like_cpp(info.object_type) {
             return AddRespawnInfoOutcomeLikeCpp::RejectedUnsupportedType;
         }
-        assert!(!self.is_reserved(RespawnKey::Persistent(info.object_type, info.spawn_id)),
-            "use try_add_info for a reserved respawn key");
+        assert!(
+            !self.is_reserved(RespawnKey::Persistent(info.object_type, info.spawn_id)),
+            "use try_add_info for a reserved respawn key"
+        );
 
         let existing = self
             .get_respawn_info_like_cpp(info.object_type, info.spawn_id)
             .cloned();
         let replaced_existing = if let Some(existing) = existing {
             if info.respawn_time <= existing.respawn_time {
-                self.respawn_times.remove(&RespawnQueueKey::from_info(&existing));
+                self.respawn_times
+                    .remove(&RespawnQueueKey::from_info(&existing));
                 true
             } else {
                 return AddRespawnInfoOutcomeLikeCpp::RejectedExistingSoonerOrEqual;
@@ -126,15 +129,21 @@ impl RespawnStoreLikeCpp {
         let key = RespawnKey::Persistent(info.object_type, info.spawn_id);
         match self.slots.remove(&key) {
             Some(RespawnSlot::QueuedActor { payload, row, .. }) => {
-                self.slots.insert(key, RespawnSlot::QueuedActor {
-                    payload, row, info: Some(info),
-                });
+                self.slots.insert(
+                    key,
+                    RespawnSlot::QueuedActor {
+                        payload,
+                        row,
+                        info: Some(info),
+                    },
+                );
             }
             previous => {
                 let row = previous.and_then(|slot| slot.row().copied());
                 // Ordinary addInfo is an explicit Catalog queue request, even
                 // when a JUST_DIED SavedOnly row already exists.
-                self.slots.insert(key, RespawnSlot::QueuedCatalog { info, row });
+                self.slots
+                    .insert(key, RespawnSlot::QueuedCatalog { info, row });
             }
         }
 
@@ -159,7 +168,8 @@ impl RespawnStoreLikeCpp {
         object_type: SpawnObjectType,
         spawn_id: SpawnId,
     ) -> Option<&RespawnInfoLikeCpp> {
-        self.slots.get(&RespawnKey::Persistent(object_type, spawn_id))
+        self.slots
+            .get(&RespawnKey::Persistent(object_type, spawn_id))
             .and_then(RespawnSlot::info)
     }
 
@@ -169,12 +179,21 @@ impl RespawnStoreLikeCpp {
         spawn_id: SpawnId,
     ) -> Option<RespawnInfoLikeCpp> {
         let key = RespawnKey::Persistent(object_type, spawn_id);
-        if self.is_reserved(key) { return None; }
+        if self.is_reserved(key) {
+            return None;
+        }
         let info = self.slots.get(&key)?.info()?.clone();
         match self.slots.remove(&key)? {
             RespawnSlot::QueuedActor { payload, row, .. } => {
                 // Compatibility INFO deletion must not cancel the Actor rail.
-                self.slots.insert(key, RespawnSlot::QueuedActor { payload, row, info: None });
+                self.slots.insert(
+                    key,
+                    RespawnSlot::QueuedActor {
+                        payload,
+                        row,
+                        info: None,
+                    },
+                );
             }
             _ => {}
         }
@@ -201,10 +220,16 @@ impl RespawnStoreLikeCpp {
     /// Filter tags before the Unix due-head cutoff: Actor INFO remains visible
     /// to guards/grids, but its executor uses the captured Instant and ordinal.
     pub fn catalog_timer_keys(&self) -> impl Iterator<Item = (SpawnObjectType, SpawnId)> + '_ {
-        self.respawn_times.iter().filter(|key| matches!(
-            self.slots.get(&RespawnKey::Persistent(key.object_type, key.spawn_id)),
-            Some(RespawnSlot::QueuedCatalog { .. })
-        )).map(|key| (key.object_type, key.spawn_id))
+        self.respawn_times
+            .iter()
+            .filter(|key| {
+                matches!(
+                    self.slots
+                        .get(&RespawnKey::Persistent(key.object_type, key.spawn_id)),
+                    Some(RespawnSlot::QueuedCatalog { .. })
+                )
+            })
+            .map(|key| (key.object_type, key.spawn_id))
     }
 
     pub fn process_due_respawns_like_cpp(
@@ -216,9 +241,12 @@ impl RespawnStoreLikeCpp {
         let mut actions = Vec::new();
 
         loop {
-            let Some((object_type, spawn_id)) = self.catalog_timer_keys().next() else { break; };
+            let Some((object_type, spawn_id)) = self.catalog_timer_keys().next() else {
+                break;
+            };
             let next_key = RespawnQueueKey::from_info(
-                self.get_respawn_info_like_cpp(object_type, spawn_id).expect("indexed Catalog INFO")
+                self.get_respawn_info_like_cpp(object_type, spawn_id)
+                    .expect("indexed Catalog INFO"),
             );
             if now < next_key.respawn_time {
                 break;
@@ -282,5 +310,4 @@ impl RespawnStoreLikeCpp {
             SpawnObjectType::Creature | SpawnObjectType::GameObject
         )
     }
-
 }

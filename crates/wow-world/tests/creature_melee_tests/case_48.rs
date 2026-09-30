@@ -5,8 +5,8 @@ use super::*;
 /// while canonical health, death and the compatibility mirror retain 1 HP.
 #[test]
 fn legacy_creature_melee_tick_once_preserves_unkillable_creature_like_cpp() {
-    use wow_world::map_manager::RuntimeTickOwner;
     use wow_constants::ServerOpcodes;
+    use wow_world::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
     let canonical = shared_canonical_map_manager();

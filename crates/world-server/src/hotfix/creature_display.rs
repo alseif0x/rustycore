@@ -141,7 +141,8 @@ mod tests {
         assert_eq!(continuation.matches(delegation).count(), 1);
         assert_eq!(continuation.matches("let emotes_store =").count(), 1);
         assert!(
-            continuation.find(delegation).unwrap() < continuation.find("let emotes_store =").unwrap(),
+            continuation.find(delegation).unwrap()
+                < continuation.find("let emotes_store =").unwrap(),
             "the complete world template phase must precede the original emotes load"
         );
         for call in [
@@ -169,7 +170,8 @@ mod tests {
             cursor += offset + stage.len();
         }
         assert_eq!(
-            root.matches("MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp::new").count(),
+            root.matches("MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp::new")
+                .count(),
             0
         );
         for loader in [

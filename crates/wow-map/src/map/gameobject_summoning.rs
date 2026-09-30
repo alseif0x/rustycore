@@ -71,8 +71,7 @@ where
             };
         }
         let summoner_is_player = summoner_record.kind() == AccessorObjectKind::Player;
-        let summoner_is_unit_like =
-            summoner_record.is_unit_owner();
+        let summoner_is_unit_like = summoner_record.is_unit_owner();
         let should_add_to_owner = summoner_is_player
             || (summoner_is_unit_like
                 && summon_type == GameObjectSummonTypeLikeCpp::TimedOrCorpseDespawn);
@@ -678,10 +677,10 @@ where
             None => self.gameobject_delete_like_cpp(guid),
         }
     }
-fn gameobject_local_rotation_from_orientation_like_cpp(orientation: f32) -> [f32; 4] {
-    let half = orientation * 0.5;
-    [0.0, 0.0, half.sin(), half.cos()]
-}
+    fn gameobject_local_rotation_from_orientation_like_cpp(orientation: f32) -> [f32; 4] {
+        let half = orientation * 0.5;
+        [0.0, 0.0, half.sin(), half.cos()]
+    }
 
     /// Bounded map-owned body for C++ `Spell::EffectSummonObjectWild`.
     ///
@@ -843,5 +842,4 @@ fn gameobject_local_rotation_from_orientation_like_cpp(orientation: f32) -> [f32
             linked_trap_side_effect_represented: false,
         }
     }
-
 }

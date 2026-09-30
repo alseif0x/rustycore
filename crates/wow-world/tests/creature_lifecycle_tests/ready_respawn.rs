@@ -450,4 +450,3 @@ fn legacy_creature_lifecycle_tick_once_respawns_synthetic_spawn_id_collision_lik
     assert!(guard.find_creature(0, 0, persistent_guid).is_some());
     assert_eq!(guard.respawn_queue_len(0, 0), 0);
 }
-

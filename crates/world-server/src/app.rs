@@ -2,57 +2,57 @@
 //!
 //! Coordinates ordered bootstrap, listener publication, runtime launch and shutdown.
 
+mod account_admission_startup;
 mod area_trigger_template_startup;
-mod inventory_catalogs;
+mod collection_startup;
+mod condition_reference_startup;
+mod condition_startup;
+mod creature_catalog_startup;
+mod database_startup;
 mod game_event_startup;
 mod geography_startup;
 mod group_startup;
 mod guid_allocator_startup;
-mod item_auxiliary_catalogs;
-mod npc_service_catalogs;
-mod player_catalog_startup;
-mod player_creation_startup;
-mod player_choice_startup;
-mod progression_catalog_startup;
-mod runtime_supervision;
-mod condition_startup;
-mod creature_catalog_startup;
-mod database_startup;
 mod hotfix_delivery_startup;
-mod world_startup;
-mod account_admission_startup;
-mod world_template_startup;
-mod process_startup;
-mod realm_startup;
-mod presentation_startup;
-mod session_runtime_policy;
-mod session_core_capabilities;
-mod world_access_startup;
-mod quest_admission_startup;
-mod network_configuration;
+mod inventory_catalogs;
+mod item_auxiliary_catalogs;
+mod jump_charge_startup;
 mod listener_startup;
-mod runtime_launch;
-mod serve;
-mod session_catalog_capabilities;
+mod loot_startup;
+mod network_configuration;
+mod npc_service_catalogs;
 mod object_lookup_startup;
 mod object_query_startup;
-mod loot_startup;
-mod spell_acquisition_startup;
-mod jump_charge_startup;
-mod collection_startup;
-mod condition_reference_startup;
-mod stat_tables_startup;
+mod player_catalog_startup;
+mod player_choice_startup;
+mod player_creation_startup;
+mod presentation_startup;
+mod process_startup;
+mod progression_catalog_startup;
+mod quest_admission_startup;
+mod realm_startup;
+mod runtime_launch;
+mod runtime_supervision;
 mod scaling_startup;
+mod serve;
+mod session_catalog_capabilities;
+mod session_core_capabilities;
 mod session_handler_policies;
 mod session_persistence;
+mod session_runtime_policy;
 mod skill_catalogs;
+mod spell_acquisition_startup;
 mod spell_info_startup;
 mod spell_pet_startup;
 mod spell_world_startup;
+mod stat_tables_startup;
 mod vehicle_catalogs;
-mod world_object_startup;
-mod world_state_startup;
+mod world_access_startup;
 mod world_instance_startup;
+mod world_object_startup;
+mod world_startup;
+mod world_state_startup;
+mod world_template_startup;
 
 use super::*;
 
@@ -86,8 +86,7 @@ async fn run_inner(
     };
     // Keep the Login pool's owner before the other primary pools in drop order.
     let mut login_db: Option<LoginDatabase>;
-    let (primary_login_db, char_db, world_db) =
-        database_startup::open_primary_databases().await?;
+    let (primary_login_db, char_db, world_db) = database_startup::open_primary_databases().await?;
     login_db = Some(primary_login_db);
     let world_ports = database_startup::compose_world_catalog_ports(&world_db)?;
     let player_base_stats_persistence =
@@ -153,10 +152,8 @@ async fn run_inner(
         &db2_hotfix_removals,
     )
     .await?;
-    let dungeon_encounter_store = world_instance_startup::load_dungeon_encounters(
-        &data_dir,
-        &locale,
-    )?;
+    let dungeon_encounter_store =
+        world_instance_startup::load_dungeon_encounters(&data_dir, &locale)?;
     let geography = geography_startup::load_geography_base(
         &data_dir,
         &locale,

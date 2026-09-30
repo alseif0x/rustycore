@@ -1,7 +1,7 @@
 //! Battle-pet stat authority and player combat game tables.
 
-use std::sync::Arc;
 use anyhow::Context;
+use std::sync::Arc;
 use tracing::info;
 
 pub(super) struct StatTables {
@@ -72,8 +72,10 @@ pub(super) fn load(data_dir: &str, locale: &str) -> anyhow::Result<StatTables> {
 }
 
 pub(super) struct BattlePetSelection {
-    pub(super) battle_pet_selection_store: Arc<wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp>,
-    pub(super) battle_pet_selection_persistence: wow_database::MariaDbBattlePetSelectionCatalogPersistenceAdapterLikeCpp,
+    pub(super) battle_pet_selection_store:
+        Arc<wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp>,
+    pub(super) battle_pet_selection_persistence:
+        wow_database::MariaDbBattlePetSelectionCatalogPersistenceAdapterLikeCpp,
 }
 
 pub(super) async fn load_battle_pet_selection(

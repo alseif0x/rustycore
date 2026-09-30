@@ -7,7 +7,9 @@ impl WorldCreature {
             target: self.creature.unit().capture_visibility_target(),
             create: CreatureCreateFacts::legacy(self),
             initial_auras: CreatureInitialAuraFacts::capture(
-                self.guid(), self.level(), &self.creature.unit().subsystems().auras,
+                self.guid(),
+                self.level(),
+                &self.creature.unit().subsystems().auras,
             ),
         }
     }
@@ -32,24 +34,34 @@ where
         seer_phase: &PhaseShift,
     ) -> Vec<CreatureVisibilityCandidate> {
         let nearby = self.nearby_cell_guids_like_cpp(
-            position.x, position.y, visibility_range + source_combat_reach,
+            position.x,
+            position.y,
+            visibility_range + source_combat_reach,
         );
-        nearby.world.creatures.into_iter().chain(nearby.grid.creatures)
+        nearby
+            .world
+            .creatures
+            .into_iter()
+            .chain(nearby.grid.creatures)
             .filter_map(|guid| {
                 self.with_creature_or_pet_like_cpp(guid, |creature, _owner| {
                     let world = creature.unit().world();
                     if !world.object().is_in_world()
                         || world.map_id() != self.map_id()
                         || !wow_core::visibility_distance_allows_like_cpp(
-                            position, source_combat_reach, &world.position(),
-                            world.combat_reach(), visibility_range,
+                            position,
+                            source_combat_reach,
+                            &world.position(),
+                            world.combat_reach(),
+                            visibility_range,
                         )
                         || !seer_phase.can_see(world.phase_shift())
                     {
                         return None;
                     }
                     Some(CreatureVisibilityCandidate::compatible(creature))
-                }).flatten()
+                })
+                .flatten()
             })
             .collect()
     }

@@ -21,7 +21,9 @@ impl CreatureAuraSlotFacts {
             aura_ref,
             // Deliberately match spell+caster, not AppliedAuraRef::slot.
             // Retain source order and raw masks for the original APP fold.
-            matching_effect_masks: auras.applied_auras.iter()
+            matching_effect_masks: auras
+                .applied_auras
+                .iter()
                 .filter(|applied| applied.aura_ref() == aura_ref)
                 .map(|applied| applied.effect_mask)
                 .collect(),
@@ -65,9 +67,11 @@ impl CreatureInitialAuraFacts {
             guid,
             level,
             // The APP still sorts by slot at its existing publication point.
-            slots: auras.visible_auras.keys().filter_map(|slot| {
-                CreatureAuraSlotFacts::capture(auras, *slot)
-            }).collect(),
+            slots: auras
+                .visible_auras
+                .keys()
+                .filter_map(|slot| CreatureAuraSlotFacts::capture(auras, *slot))
+                .collect(),
         }
     }
 

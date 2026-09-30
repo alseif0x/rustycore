@@ -72,11 +72,7 @@ impl WorldCreature {
                 if !self.can_swing() {
                     return None;
                 }
-                vec![
-                    PlayerMeleeSwing::hit_like_cpp(
-                        self.roll_damage()?.max(1),
-                    ),
-                ]
+                vec![PlayerMeleeSwing::hit_like_cpp(self.roll_damage()?.max(1))]
             }
         };
         let entry = self.entry();

@@ -286,13 +286,15 @@ impl WorldCreature {
 
     pub fn advance_runtime_clock_like_cpp(&mut self, diff_ms: u32) {
         self.runtime.runtime_elapsed_ms_like_cpp = self
-            .runtime.runtime_elapsed_ms_like_cpp
+            .runtime
+            .runtime_elapsed_ms_like_cpp
             .saturating_add(u64::from(diff_ms));
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn backdate_runtime_clock_for_test(&mut self, elapsed: Duration) {
-        self.runtime.runtime_elapsed_ms_like_cpp = elapsed.as_millis().min(u128::from(u64::MAX)) as u64;
+        self.runtime.runtime_elapsed_ms_like_cpp =
+            elapsed.as_millis().min(u128::from(u64::MAX)) as u64;
     }
 
     pub fn guid(&self) -> ObjectGuid {
@@ -498,7 +500,8 @@ impl WorldCreature {
     /// active spline falling).
     pub fn detour_owner_capabilities_like_cpp(&self) -> DetourOwnerCapabilitiesLikeCpp {
         let spline_falling = self
-            .runtime.active_move_spline
+            .runtime
+            .active_move_spline
             .as_ref()
             .is_some_and(|spline| spline.flags().contains(MoveSplineFlag::FALLING));
         DetourOwnerCapabilitiesLikeCpp {
@@ -567,7 +570,8 @@ impl WorldCreature {
                 .unit()
                 .has_unit_state(UnitState::CASTING.bits()),
             move_spline_finalized: self
-                .runtime.active_move_spline
+                .runtime
+                .active_move_spline
                 .as_ref()
                 .is_none_or(MoveSpline::finalized),
             owner_wander_distance: self.creature.ai_ownership().wander_radius,

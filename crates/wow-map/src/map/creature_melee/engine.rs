@@ -1,10 +1,10 @@
 //! One complete represented swing shared by Legacy and CanonicalSelected.
 //! The caller retains its manager guard throughout the synchronous operation;
 //! Legacy additionally retains the established legacy writer guard.
-use super::*;
-use crate::manager::MeleeKillCollector;
-use super::{player_victim::*, creature_victim::*, secondary_targets::*};
 use super::source::{CreatureMeleeSource, SourceAdmission};
+use super::*;
+use super::{creature_victim::*, player_victim::*, secondary_targets::*};
+use crate::manager::MeleeKillCollector;
 
 #[derive(Clone, Copy)]
 pub enum CreatureMeleeReadiness {
@@ -13,20 +13,28 @@ pub enum CreatureMeleeReadiness {
     Ready(PendingCreatureSwingLikeCpp),
 }
 
-pub fn creature_melee_readiness(creature: &WorldCreature, map_id: u16, instance_id: u32)
-    -> CreatureMeleeReadiness {
+pub fn creature_melee_readiness(
+    creature: &WorldCreature,
+    map_id: u16,
+    instance_id: u32,
+) -> CreatureMeleeReadiness {
     use wow_constants::unit::UnitState;
     use wow_entities::CurrentSpellSlot;
-    if !creature.can_swing() { return CreatureMeleeReadiness::NotReady; }
+    if !creature.can_swing() {
+        return CreatureMeleeReadiness::NotReady;
+    }
     if creature.creature.lifecycle_metadata().ai_name == "TurretAI"
-        || !creature.creature.can_melee_like_cpp() {
+        || !creature.creature.can_melee_like_cpp()
+    {
         return CreatureMeleeReadiness::Rejected;
     }
     let unit = creature.creature.unit();
     if unit.has_unit_state(UnitState::CHARGING.bits())
         || (unit.has_unit_state(UnitState::CASTING.bits())
-            && !unit.current_spell(CurrentSpellSlot::Channeled)
-                .is_some_and(|spell| spell.allow_actions_during_channel)) {
+            && !unit
+                .current_spell(CurrentSpellSlot::Channeled)
+                .is_some_and(|spell| spell.allow_actions_during_channel))
+    {
         return CreatureMeleeReadiness::Rejected;
     }
     let Some(victim_guid) = creature.creature.ai_ownership().combat_target else {
@@ -36,43 +44,74 @@ pub fn creature_melee_readiness(creature: &WorldCreature, map_id: u16, instance_
         return CreatureMeleeReadiness::NotReady;
     }
     CreatureMeleeReadiness::Ready(PendingCreatureSwingLikeCpp {
-        map_id, instance_id, attacker_guid: creature.guid(),
-        attacker_position: creature.position(), attacker_combat_reach: unit.world().combat_reach(),
-        attacker_can_state_update: unit.can_attacker_state_update_melee_like_cpp(false), victim_guid,
+        map_id,
+        instance_id,
+        attacker_guid: creature.guid(),
+        attacker_position: creature.position(),
+        attacker_combat_reach: unit.world().combat_reach(),
+        attacker_can_state_update: unit.can_attacker_state_update_melee_like_cpp(false),
+        victim_guid,
     })
 }
 
 impl MapManager {
-    pub fn apply_legacy_creature_melee_swing(&mut self, attacker: Option<&mut WorldCreature>,
-        swing: PendingCreatureSwingLikeCpp, catalogs: &impl CreatureMeleeCatalogsLikeCpp,
+    pub fn apply_legacy_creature_melee_swing(
+        &mut self,
+        attacker: Option<&mut WorldCreature>,
+        swing: PendingCreatureSwingLikeCpp,
+        catalogs: &impl CreatureMeleeCatalogsLikeCpp,
     ) -> CreatureMeleeSwingOutcome {
         let Some(attacker) = attacker else {
             let mut outcome = CreatureMeleeSwingOutcome::default();
             outcome.melee_precondition_rejections += 1;
             return outcome;
         };
-        self.run_creature_melee_swing(CreatureMeleeSource::Legacy(attacker), swing, catalogs, &mut None)
+        self.run_creature_melee_swing(
+            CreatureMeleeSource::Legacy(attacker),
+            swing,
+            catalogs,
+            &mut None,
+        )
     }
 
-    pub(crate) fn apply_canonical_creature_melee_swing(&mut self, key: crate::MapKey,
-        guid: ObjectGuid, witness: crate::map::CreatureActorWitness,
-        swing: PendingCreatureSwingLikeCpp, catalogs: &impl CreatureMeleeCatalogsLikeCpp,
+    pub(crate) fn apply_canonical_creature_melee_swing(
+        &mut self,
+        key: crate::MapKey,
+        guid: ObjectGuid,
+        witness: crate::map::CreatureActorWitness,
+        swing: PendingCreatureSwingLikeCpp,
+        catalogs: &impl CreatureMeleeCatalogsLikeCpp,
     ) -> CreatureMeleeSwingOutcome {
         self.run_creature_melee_swing(
-            CreatureMeleeSource::CanonicalSelected { key, guid, witness }, swing, catalogs, &mut None)
+            CreatureMeleeSource::CanonicalSelected { key, guid, witness },
+            swing,
+            catalogs,
+            &mut None,
+        )
     }
 
-    pub(crate) fn apply_canonical_creature_melee_swing_with_kills(&mut self, key: crate::MapKey,
-        guid: ObjectGuid, witness: crate::map::CreatureActorWitness,
-        swing: PendingCreatureSwingLikeCpp, catalogs: &impl CreatureMeleeCatalogsLikeCpp,
+    pub(crate) fn apply_canonical_creature_melee_swing_with_kills(
+        &mut self,
+        key: crate::MapKey,
+        guid: ObjectGuid,
+        witness: crate::map::CreatureActorWitness,
+        swing: PendingCreatureSwingLikeCpp,
+        catalogs: &impl CreatureMeleeCatalogsLikeCpp,
         kills: &mut Option<MeleeKillCollector<'_>>,
     ) -> CreatureMeleeSwingOutcome {
         self.run_creature_melee_swing(
-            CreatureMeleeSource::CanonicalSelected { key, guid, witness }, swing, catalogs, kills)
+            CreatureMeleeSource::CanonicalSelected { key, guid, witness },
+            swing,
+            catalogs,
+            kills,
+        )
     }
 
-    fn run_creature_melee_swing(&mut self, mut source: CreatureMeleeSource<'_>,
-        mut swing: PendingCreatureSwingLikeCpp, catalogs: &impl CreatureMeleeCatalogsLikeCpp,
+    fn run_creature_melee_swing(
+        &mut self,
+        mut source: CreatureMeleeSource<'_>,
+        mut swing: PendingCreatureSwingLikeCpp,
+        catalogs: &impl CreatureMeleeCatalogsLikeCpp,
         kills: &mut Option<MeleeKillCollector<'_>>,
     ) -> CreatureMeleeSwingOutcome {
         let mut outcome = CreatureMeleeSwingOutcome::default();
@@ -87,7 +126,13 @@ impl MapManager {
         let primary_threat_plan = canonical_manager
             .find_map(u32::from(swing.map_id), swing.instance_id)
             .map(|managed| {
-                super::threat::plan_creature_damage_threat_like_cpp(managed.map(), swing.attacker_guid, None, catalogs, managed.difficulty())
+                super::threat::plan_creature_damage_threat_like_cpp(
+                    managed.map(),
+                    swing.attacker_guid,
+                    None,
+                    catalogs,
+                    managed.difficulty(),
+                )
             })
             .unwrap_or_default();
 
@@ -113,11 +158,37 @@ impl MapManager {
                     wire_health_before,
                 )
             } else {
-                super::commit::apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(canonical_manager, u32::from(swing.map_id), swing.instance_id, swing.attacker_guid, swing.attacker_position, swing.attacker_combat_reach, swing.attacker_can_state_update, swing.victim_guid, damage, presentation, absorbed, wire_health_before, represented_damage_done, primary_threat_plan, catalogs, kills)
+                super::commit::apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
+                    canonical_manager,
+                    u32::from(swing.map_id),
+                    swing.instance_id,
+                    swing.attacker_guid,
+                    swing.attacker_position,
+                    swing.attacker_combat_reach,
+                    swing.attacker_can_state_update,
+                    swing.victim_guid,
+                    damage,
+                    presentation,
+                    absorbed,
+                    wire_health_before,
+                    represented_damage_done,
+                    primary_threat_plan,
+                    catalogs,
+                    kills,
+                )
             }
         };
 
-        match apply(&mut canonical_manager, kills, &swing, None, None, 0, None, None) {
+        match apply(
+            &mut canonical_manager,
+            kills,
+            &swing,
+            None,
+            None,
+            0,
+            None,
+            None,
+        ) {
             CreatureMeleeApplyResultLikeCpp::Ready => {}
             CreatureMeleeApplyResultLikeCpp::Hit { .. } => {
                 unreachable!("melee precondition validation must not mutate canonical health")
@@ -251,25 +322,24 @@ impl MapManager {
             // C++ `Unit::AttackerStateUpdate` removes the attacking-interrupt
             // auras before `CalculateMeleeDamage`, so an avoided swing removes
             // them too (`Unit.cpp:2172-2173`).
-            outcome.attacking_interrupt_auras_removed += source.finish_swing(&mut canonical_manager);
-            outcome.commands.push(
-                CreatureMeleePlayerHit {
-                    swing,
-                    damage: 0,
-                    over_damage: -1,
-                    target_level,
-                    victim_health_after,
-                    victim_health_state_revision_after,
-                    presentation: state.hit_info,
-                    
-                    original_damage: state.original_damage,
-                    absorbed: 0,
-                    mana_spent: 0,
-                    absorb_consumptions: Vec::new(),
-                    split_combat_log_packets: Vec::new(),
-                    self_share_health_updates: Vec::new(),
-                },
-            );
+            outcome.attacking_interrupt_auras_removed +=
+                source.finish_swing(&mut canonical_manager);
+            outcome.commands.push(CreatureMeleePlayerHit {
+                swing,
+                damage: 0,
+                over_damage: -1,
+                target_level,
+                victim_health_after,
+                victim_health_state_revision_after,
+                presentation: state.hit_info,
+
+                original_damage: state.original_damage,
+                absorbed: 0,
+                mana_spent: 0,
+                absorb_consumptions: Vec::new(),
+                split_combat_log_packets: Vec::new(),
+                self_share_health_updates: Vec::new(),
+            });
             return outcome;
         }
 
@@ -359,33 +429,29 @@ impl MapManager {
         outcome.attacking_interrupt_auras_removed += source.finish_swing(&mut canonical_manager);
         outcome.canonical_hits += 1;
         if swing.victim_guid.is_player() {
-            outcome.commands.push(
-                CreatureMeleePlayerHit {
-                    swing,
-                    damage,
-                    over_damage,
-                    target_level,
-                    victim_health_after,
-                    victim_health_state_revision_after,
-                    presentation: state.hit_info,
-                    
-                    original_damage: state.original_damage,
-                    absorbed: state.absorbed_damage,
-                    mana_spent: state.mana_spent,
-                    absorb_consumptions: state.absorb_consumptions,
-                    split_combat_log_packets: split_combat_log_packets,
-                    self_share_health_updates: primary_player_share_health_updates,
-                },
-            );
+            outcome.commands.push(CreatureMeleePlayerHit {
+                swing,
+                damage,
+                over_damage,
+                target_level,
+                victim_health_after,
+                victim_health_state_revision_after,
+                presentation: state.hit_info,
+
+                original_damage: state.original_damage,
+                absorbed: state.absorbed_damage,
+                mana_spent: state.mana_spent,
+                absorb_consumptions: state.absorb_consumptions,
+                split_combat_log_packets: split_combat_log_packets,
+                self_share_health_updates: primary_player_share_health_updates,
+            });
             outcome.events.extend(split_mutation_events);
             outcome.events.extend(share_mutation_events);
         } else {
             if !state.creature_victim_avoided {
                 outcome.canonical_creature_hits += 1;
             }
-            outcome
-                .events
-                .extend(state.creature_victim_absorb_events);
+            outcome.events.extend(state.creature_victim_absorb_events);
             outcome.events.extend(split_mutation_events);
             outcome.events.extend(split_combat_log_packets);
             let mut primary_events = events.into_iter();

@@ -1,9 +1,9 @@
 //! Original seasonal recurrence cases on the Domain owner and real bit storage.
 
+use super::SeasonalQuestResetReason as ResetSeasonalQuestStatusReasonLikeCpp;
 use super::*;
 use crate::Player;
 use std::collections::BTreeSet;
-use super::SeasonalQuestResetReason as ResetSeasonalQuestStatusReasonLikeCpp;
 
 mod stages;
 
@@ -71,12 +71,14 @@ fn reset_seasonal_missing_quest_v2_store_removes_without_inventing_bit_like_cpp(
     assert_eq!(outcome.completed_bit_skipped_no_quest_v2_store, 1);
     assert_eq!(outcome.completed_bit_clear_unrepresented, 0);
     assert_eq!(
-        player.gameplay_state().quests.seasonal_event_quests_like_cpp(7),
+        player
+            .gameplay_state()
+            .quests
+            .seasonal_event_quests_like_cpp(7),
         None
     );
     assert!(completed_bits(&player).is_empty());
 }
-
 
 #[test]
 fn reset_seasonal_removes_older_than_start_and_erases_emptied_bucket_like_cpp() {
@@ -102,13 +104,20 @@ fn reset_seasonal_removes_older_than_start_and_erases_emptied_bucket_like_cpp() 
     assert_eq!(outcome.completed_bit_clear_unrepresented, 0);
     assert!(outcome.event_bucket_erased);
     assert_eq!(
-        player.gameplay_state().quests.seasonal_event_quests_like_cpp(7),
+        player
+            .gameplay_state()
+            .quests
+            .seasonal_event_quests_like_cpp(7),
         None
     );
-    assert!(!player.gameplay_state().quests.seasonal_quest_changed_like_cpp());
+    assert!(
+        !player
+            .gameplay_state()
+            .quests
+            .seasonal_quest_changed_like_cpp()
+    );
     assert!(!outcome.seasonal_quest_changed);
 }
-
 
 #[test]
 fn reset_seasonal_keeps_equal_and_newer_completions_like_cpp() {
@@ -137,14 +146,21 @@ fn reset_seasonal_keeps_equal_and_newer_completions_like_cpp() {
     );
     assert!(outcome.removed_quest_ids.is_empty());
     assert_eq!(outcome.completed_bit_cleared, 0);
-    let bucket = player.gameplay_state().quests.seasonal_event_quests_like_cpp(7)
+    let bucket = player
+        .gameplay_state()
+        .quests
+        .seasonal_event_quests_like_cpp(7)
         .expect("bucket kept");
     assert_eq!(bucket.get(&1001), Some(&100));
     assert_eq!(bucket.get(&1002), Some(&101));
     assert_eq!(completed_bits(&player), BTreeSet::from([65, 66]));
-    assert!(!player.gameplay_state().quests.seasonal_quest_changed_like_cpp());
+    assert!(
+        !player
+            .gameplay_state()
+            .quests
+            .seasonal_quest_changed_like_cpp()
+    );
 }
-
 
 #[test]
 fn reset_seasonal_zero_or_missing_unique_bit_removes_without_inventing_bit_like_cpp() {
@@ -167,12 +183,14 @@ fn reset_seasonal_zero_or_missing_unique_bit_removes_without_inventing_bit_like_
     assert_eq!(outcome.completed_bit_skipped_no_quest_v2_store, 0);
     assert_eq!(outcome.completed_bit_clear_unrepresented, 0);
     assert_eq!(
-        player.gameplay_state().quests.seasonal_event_quests_like_cpp(7),
+        player
+            .gameplay_state()
+            .quests
+            .seasonal_event_quests_like_cpp(7),
         None
     );
     assert!(completed_bits(&player).is_empty());
 }
-
 
 #[test]
 fn reset_seasonal_missing_event_leaves_changed_false_like_cpp() {
@@ -189,10 +207,14 @@ fn reset_seasonal_missing_event_leaves_changed_false_like_cpp() {
         ResetSeasonalQuestStatusReasonLikeCpp::MissingEvent
     );
     assert!(outcome.removed_quest_ids.is_empty());
-    assert!(!player.gameplay_state().quests.seasonal_quest_changed_like_cpp());
+    assert!(
+        !player
+            .gameplay_state()
+            .quests
+            .seasonal_quest_changed_like_cpp()
+    );
     assert!(!outcome.seasonal_quest_changed);
 }
-
 
 #[test]
 fn reset_seasonal_preexisting_empty_bucket_is_preserved_like_cpp() {
@@ -213,6 +235,17 @@ fn reset_seasonal_preexisting_empty_bucket_is_preserved_like_cpp() {
         ResetSeasonalQuestStatusReasonLikeCpp::EmptyEvent
     );
     assert!(outcome.removed_quest_ids.is_empty());
-    assert!(player.gameplay_state().quests.seasonal_event_quests_like_cpp(7).is_some());
-    assert!(!player.gameplay_state().quests.seasonal_quest_changed_like_cpp());
+    assert!(
+        player
+            .gameplay_state()
+            .quests
+            .seasonal_event_quests_like_cpp(7)
+            .is_some()
+    );
+    assert!(
+        !player
+            .gameplay_state()
+            .quests
+            .seasonal_quest_changed_like_cpp()
+    );
 }

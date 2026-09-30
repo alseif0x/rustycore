@@ -3,7 +3,18 @@ use std::cell::RefCell;
 
 fn rules(daily: bool, dungeon_finder: bool) -> QuestEligibilityRules<'static> {
     QuestEligibilityRules::new(
-        22, false, 0, 0, &[], &[], daily, dungeon_finder, false, false, false, 0,
+        22,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+        daily,
+        dungeon_finder,
+        false,
+        false,
+        false,
+        0,
     )
 }
 

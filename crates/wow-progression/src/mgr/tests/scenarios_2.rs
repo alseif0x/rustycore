@@ -13,7 +13,8 @@ fn set_reputation_like_cpp_db_template_respects_rank_cap_and_no_spillover() {
     spill.reputation_race_mask[0] = 1;
     spill.reputation_base[0] = 21_000;
     spill.reputation_max[0] = 42_000;
-    let faction_store = TestReputationCatalogLikeCpp::from_factions([source.clone(), spill.clone()]);
+    let faction_store =
+        TestReputationCatalogLikeCpp::from_factions([source.clone(), spill.clone()]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
     mgr.initialize_like_cpp(&faction_store, 1, 1);
     let mut template = RepSpilloverTemplateLikeCpp::empty_like_cpp();
@@ -60,12 +61,12 @@ fn set_reputation_like_cpp_redirects_positive_exalted_gain_to_paragon_faction() 
     paragon.reputation_max[0] = 42_000;
     let faction_store =
         TestReputationCatalogLikeCpp::from_factions([source.clone(), paragon.clone()])
-        .with_paragon_entries([ParagonReputationEntry {
-            id: 4,
-            faction_id: 105,
-            level_threshold: 10_000,
-            quest_id: 800,
-        }]);
+            .with_paragon_entries([ParagonReputationEntry {
+                id: 4,
+                faction_id: 105,
+                level_threshold: 10_000,
+                quest_id: 800,
+            }]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
     mgr.initialize_like_cpp(&faction_store, 1, 1);
 
@@ -141,7 +142,8 @@ fn set_reputation_like_cpp_applies_dbc_sister_spillover_when_parent_has_no_bar()
     sister.parent_faction_mod[0] = 0.25;
     sister.parent_faction_cap[0] = ReputationRankLikeCpp::Exalted.as_u8();
     sister.reputation_max[0] = 42_000;
-    let faction_store = TestReputationCatalogLikeCpp::from_factions([parent, source.clone(), sister]);
+    let faction_store =
+        TestReputationCatalogLikeCpp::from_factions([parent, source.clone(), sister]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
     mgr.initialize_like_cpp(&faction_store, 1, 1);
 
@@ -177,7 +179,8 @@ fn set_reputation_like_cpp_spills_to_parent_when_parent_header_shows_bar() {
     sister.parent_faction_mod[0] = 1.0;
     sister.parent_faction_cap[0] = ReputationRankLikeCpp::Exalted.as_u8();
     sister.reputation_max[0] = 42_000;
-    let faction_store = TestReputationCatalogLikeCpp::from_factions([parent, source.clone(), sister]);
+    let faction_store =
+        TestReputationCatalogLikeCpp::from_factions([parent, source.clone(), sister]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
     mgr.initialize_like_cpp(&faction_store, 1, 1);
 

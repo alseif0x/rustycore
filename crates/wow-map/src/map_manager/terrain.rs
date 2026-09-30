@@ -469,11 +469,17 @@ impl LiveTerrainHeights {
     /// Resolve the original Aggro object-query endpoints outside the map guard.
     /// Only the already-owned caller facts accompany the two shaped endpoints.
     pub(crate) fn resolve_aggro_los(
-        &self, map_id: u32, source: &wow_entities::WorldObject,
-        from: wow_entities::LineOfSightEndpoint, to: wow_entities::LineOfSightEndpoint,
+        &self,
+        map_id: u32,
+        source: &wow_entities::WorldObject,
+        from: wow_entities::LineOfSightEndpoint,
+        to: wow_entities::LineOfSightEndpoint,
     ) -> bool {
         let mut query = wow_entities::LineOfSightQuery::to_position_like_cpp(
-            source, to.position, wow_entities::LineOfSightOptions::default());
+            source,
+            to.position,
+            wow_entities::LineOfSightOptions::default(),
+        );
         query.from = from;
         query.to = to;
         self.terrain_for_map(map_id).line_of_sight(query)

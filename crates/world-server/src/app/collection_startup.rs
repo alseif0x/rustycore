@@ -1,9 +1,9 @@
 //! Mount, heirloom and toy collection authority startup.
 
-use std::sync::Arc;
-use anyhow::Context;
-use tracing::info;
 use crate::catalogs;
+use anyhow::Context;
+use std::sync::Arc;
+use tracing::info;
 
 pub(super) struct CollectionCatalogs {
     pub(super) toy_store: Arc<wow_data::ToyStore>,
@@ -13,10 +13,16 @@ pub(super) struct CollectionCatalogs {
     pub(super) mount_capability_store: Arc<wow_data::MountCapabilityStore>,
     pub(super) mount_definition_store: Arc<wow_data::MountDefinitionStoreLikeCpp>,
     pub(super) mount_store: Arc<wow_data::MountStore>,
-    pub(super) mount_catalog_persistence: wow_database::MariaDbMountCatalogPersistenceAdapterLikeCpp,
+    pub(super) mount_catalog_persistence:
+        wow_database::MariaDbMountCatalogPersistenceAdapterLikeCpp,
 }
 
-pub(super) async fn load(data_dir: &str, locale: &str, hotfix_db: &Arc<wow_database::HotfixDatabase>, world_db: &Arc<wow_database::WorldDatabase>) -> anyhow::Result<CollectionCatalogs> {
+pub(super) async fn load(
+    data_dir: &str,
+    locale: &str,
+    hotfix_db: &Arc<wow_database::HotfixDatabase>,
+    world_db: &Arc<wow_database::WorldDatabase>,
+) -> anyhow::Result<CollectionCatalogs> {
     let mount_catalog_persistence = wow_database::MariaDbMountCatalogPersistenceAdapterLikeCpp::new(
         Arc::clone(hotfix_db),
         Arc::clone(world_db),
@@ -120,10 +126,7 @@ pub(super) struct TransmogCatalogs {
     pub(super) transmog_set_store: Arc<wow_data::TransmogSetStore>,
 }
 
-pub(super) fn load_transmogs(
-    data_dir: &str,
-    locale: &str,
-) -> anyhow::Result<TransmogCatalogs> {
+pub(super) fn load_transmogs(data_dir: &str, locale: &str) -> anyhow::Result<TransmogCatalogs> {
     // Load TransmogSet.db2 and TransmogSetItem.db2 for DB2Manager transmog indexes.
     let transmog_set_store = Arc::new(
         wow_data::TransmogSetStore::load(data_dir, locale)

@@ -7,12 +7,8 @@ use super::*;
 
 #[test]
 fn game_event_world_state_load_inserts_realm_default_like_cpp() {
-    let (mgr, report) = from_db_rows_like_cpp(
-        [world_state_row(100, 7, "", "")],
-        [],
-        |_| false,
-        |_| None,
-    );
+    let (mgr, report) =
+        from_db_rows_like_cpp([world_state_row(100, 7, "", "")], [], |_| false, |_| None);
 
     assert_eq!(report.template_rows, 1);
     assert_eq!(report.templates_loaded, 1);

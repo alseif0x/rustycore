@@ -3,12 +3,12 @@ use super::super::PlayerSpellRuntimeState;
 use super::{SpellUnlearnOwnerOutcome, SpellUnlearnOwnerStep};
 
 impl PlayerSpellRuntimeState {
-    pub fn apply_unlearn_step(
-        &mut self,
-        step: SpellUnlearnOwnerStep,
-    ) -> SpellUnlearnOwnerOutcome {
+    pub fn apply_unlearn_step(&mut self, step: SpellUnlearnOwnerStep) -> SpellUnlearnOwnerOutcome {
         match step {
-            SpellUnlearnOwnerStep::Forget { spell_id, preserve_complete } => {
+            SpellUnlearnOwnerStep::Forget {
+                spell_id,
+                preserve_complete,
+            } => {
                 let forgotten = self.forget_known_spell_like_cpp(spell_id);
                 let was_dependent = forgotten.was_dependent;
                 if preserve_complete {

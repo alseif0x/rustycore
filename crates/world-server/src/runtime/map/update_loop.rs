@@ -6,8 +6,10 @@ use std::time::{Duration, Instant};
 use tracing::debug;
 use wow_persistence::GameEventPersistencePortLikeCpp;
 
+use super::producer_exit::{
+    BeforeObjectsExitCause, CanonicalMapProducerExit, take_retained_objects_on_stop,
+};
 use crate::deliver_canonical_map_object_values_updates_like_cpp;
-use super::producer_exit::{BeforeObjectsExitCause, CanonicalMapProducerExit, take_retained_objects_on_stop};
 
 use super::super::{deferred_visibility, map_session_pass, world_session_pass};
 use super::{
@@ -81,7 +83,8 @@ pub(crate) fn spawn_canonical_map_update_loop(
             // Abort/drop is not a settlement receipt; no automatic retry runs.
             if held_object_failure.is_some() {
                 if let Some(exit) = take_retained_objects_on_stop(
-                    &mut held_object_failure, respawn_db_producer_stop.as_ref(),
+                    &mut held_object_failure,
+                    respawn_db_producer_stop.as_ref(),
                 ) {
                     return exit;
                 }
@@ -110,7 +113,9 @@ pub(crate) fn spawn_canonical_map_update_loop(
             }
             let next_epoch = tick_epoch.wrapping_add(1);
             let Some(tick_admission) = active_session_registry.try_admit_tick(
-                producer_origin, next_epoch, stop_after_tick,
+                producer_origin,
+                next_epoch,
+                stop_after_tick,
             ) else {
                 continue;
             };
@@ -206,17 +211,28 @@ pub(crate) fn spawn_canonical_map_update_loop(
                 // prove that a different admitted tick has terminated.
                 let session_plan = match manager.begin_tick_like_cpp(diff_ms) {
                     wow_map::MapTickBeginLikeCpp::Started(plan) => {
-                        let participants = plan.updated_maps_like_cpp().iter()
-                            .map(|participant| crate::runtime::CanonicalMapSessionPassMapLikeCpp {
-                                key: participant.key,
-                                incarnation: participant.incarnation,
-                                participants: manager.map_session_pass_participants_like_cpp(participant.key),
-                            }).collect();
-                        Some(crate::runtime::CanonicalMapSessionPassPlanLikeCpp { plan, participants })
+                        let participants = plan
+                            .updated_maps_like_cpp()
+                            .iter()
+                            .map(
+                                |participant| crate::runtime::CanonicalMapSessionPassMapLikeCpp {
+                                    key: participant.key,
+                                    incarnation: participant.incarnation,
+                                    participants: manager
+                                        .map_session_pass_participants_like_cpp(participant.key),
+                                },
+                            )
+                            .collect();
+                        Some(crate::runtime::CanonicalMapSessionPassPlanLikeCpp {
+                            plan,
+                            participants,
+                        })
                     }
                     wow_map::MapTickBeginLikeCpp::TimerNotPassed => None,
                     wow_map::MapTickBeginLikeCpp::Busy { .. } => {
-                        tracing::error!("Canonical map tick refused by an unresolved owner; retaining admission");
+                        tracing::error!(
+                            "Canonical map tick refused by an unresolved owner; retaining admission"
+                        );
                         break;
                     }
                 };
@@ -291,12 +307,18 @@ pub(crate) fn spawn_canonical_map_update_loop(
                             };
                         }
                     };
-                    let crate::runtime::map_tick::CanonicalMapSessionPassPlanLikeCpp { plan, participants } = plan;
+                    let crate::runtime::map_tick::CanonicalMapSessionPassPlanLikeCpp {
+                        plan,
+                        participants,
+                    } = plan;
                     if let Err((status, plan)) = manager.try_abandon_tick(plan) {
                         drop(manager);
                         return CanonicalMapProducerExit::RetainedBeforeObjects {
                             cause: BeforeObjectsExitCause::UnresolvedMapPassRejected(status),
-                            plan: crate::runtime::map_tick::CanonicalMapSessionPassPlanLikeCpp { plan, participants },
+                            plan: crate::runtime::map_tick::CanonicalMapSessionPassPlanLikeCpp {
+                                plan,
+                                participants,
+                            },
                             admission: tick_admission,
                             unresolved_permits: unresolved_phase_permits,
                         };
@@ -318,12 +340,18 @@ pub(crate) fn spawn_canonical_map_update_loop(
                             };
                         }
                     };
-                    let crate::runtime::map_tick::CanonicalMapSessionPassPlanLikeCpp { plan, participants } = plan;
+                    let crate::runtime::map_tick::CanonicalMapSessionPassPlanLikeCpp {
+                        plan,
+                        participants,
+                    } = plan;
                     if let Err((status, plan)) = manager.try_abandon_tick(plan) {
                         drop(manager);
                         return CanonicalMapProducerExit::RetainedBeforeObjects {
                             cause: BeforeObjectsExitCause::ShutdownAbandonRejected(status),
-                            plan: crate::runtime::map_tick::CanonicalMapSessionPassPlanLikeCpp { plan, participants },
+                            plan: crate::runtime::map_tick::CanonicalMapSessionPassPlanLikeCpp {
+                                plan,
+                                participants,
+                            },
                             admission: tick_admission,
                             unresolved_permits: unresolved_phase_permits,
                         };
@@ -369,7 +397,9 @@ pub(crate) fn spawn_canonical_map_update_loop(
                         drop(canonical_spawn_metadata);
                         drop(manager);
                         drop(_respawn_db_mutation_order);
-                        tracing::error!("Canonical object continuation rejected; holding original work and admission");
+                        tracing::error!(
+                            "Canonical object continuation rejected; holding original work and admission"
+                        );
                         continue;
                     }
                 };

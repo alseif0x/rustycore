@@ -7,7 +7,6 @@
 use super::super::super::*;
 
 impl Player {
-
     /// C++ `Player::GetBankBagSlotCount` (`Player.h:1334`).
     pub const fn bank_bag_slot_count(&self) -> u8 {
         self.data.num_bank_slots
@@ -404,5 +403,4 @@ impl Player {
 
         InventoryResult::BankFull
     }
-
 }

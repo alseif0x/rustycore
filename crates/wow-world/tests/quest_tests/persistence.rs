@@ -78,7 +78,8 @@ async fn quest_status_save_uses_the_sqlx_free_player_quest_port_like_cpp() {
         description: String::new(),
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    insert_player_quest_status_for_test(&mut session,
+    insert_player_quest_status_for_test(
+        &mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -196,18 +197,14 @@ async fn quest_load_keeps_the_seven_stage_order_behind_the_typed_port_like_cpp()
             .objective_counts,
         vec![3]
     );
-    assert!(
-        contains_rewarded_quest_for_test(&session, rewarded_id)
-    );
-    assert!(
-        contains_daily_quest_completed_for_test(&session, daily_id)
-    );
-    assert!(
-        contains_weekly_quest_completed_for_test(&session, weekly_id)
-    );
-    assert!(
-        contains_monthly_quest_completed_for_test(&session, monthly_id)
-    );
+    assert!(contains_rewarded_quest_for_test(&session, rewarded_id));
+    assert!(contains_daily_quest_completed_for_test(&session, daily_id));
+    assert!(contains_weekly_quest_completed_for_test(
+        &session, weekly_id
+    ));
+    assert!(contains_monthly_quest_completed_for_test(
+        &session, monthly_id
+    ));
 }
 
 #[test]
@@ -245,16 +242,16 @@ fn save_to_db_quest_status_list_skips_rewarded_non_repeatable_active_duplicate_l
 fn save_to_db_quest_status_list_is_empty_without_active_quests_like_cpp() {
     let (session, _send_rx) = make_session();
 
-    assert!(
-        represented_quest_statuses_for_save_for_test(&session)
-            .is_empty()
-    );
+    assert!(represented_quest_statuses_for_save_for_test(&session).is_empty());
 }
 
 fn hydration_active_row(quest_id: u32) -> PlayerQuestActivePersistenceRowLikeCpp {
     PlayerQuestActivePersistenceRowLikeCpp {
-        quest_id: Some(quest_id), status: Some(QUEST_STATUS_INCOMPLETE_LIKE_CPP),
-        explored: Some(0), accept_time_secs: Some(12), end_time_secs: Some(34),
+        quest_id: Some(quest_id),
+        status: Some(QUEST_STATUS_INCOMPLETE_LIKE_CPP),
+        explored: Some(0),
+        accept_time_secs: Some(12),
+        end_time_secs: Some(34),
     }
 }
 
@@ -271,7 +268,12 @@ async fn quest_hydration_rejects_each_required_null_without_consuming_slots() {
             _ => invalid.end_time_secs = None,
         }
         let fixture = player_quest_persistence_port_with_load_rows_for_test(
-            vec![invalid, hydration_active_row(6001)], vec![], vec![], vec![], vec![], vec![],
+            vec![invalid, hydration_active_row(6001)],
+            vec![],
+            vec![],
+            vec![],
+            vec![],
+            vec![],
         );
         session.set_player_quest_persistence_port_like_cpp(fixture.clone());
         load_player_quests_for_test(&mut session).await;
@@ -291,42 +293,78 @@ async fn quest_hydration_preserves_sql_defaults_and_distinct_rewarded_membership
         let mut zero = quest_template(0);
         zero.flags |= QUEST_FLAGS_DAILY_LIKE_CPP;
         zero.objectives.push(QuestObjective {
-            id: 1, quest_id: 0, obj_type: QUEST_OBJECTIVE_MONSTER_LIKE_CPP_LOCAL, order: 0,
-            storage_index: 0, object_id: 44, amount: 5, flags: 0, flags2: 0,
-            progress_bar_weight: 0.0, description: String::new(),
+            id: 1,
+            quest_id: 0,
+            obj_type: QUEST_OBJECTIVE_MONSTER_LIKE_CPP_LOCAL,
+            order: 0,
+            storage_index: 0,
+            object_id: 44,
+            amount: 5,
+            flags: 0,
+            flags2: 0,
+            progress_bar_weight: 0.0,
+            description: String::new(),
         });
         session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([
-            zero, quest_template(6100),
+            zero,
+            quest_template(6100),
         ])));
         let fixture = player_quest_persistence_port_with_load_rows_for_test(
             vec![hydration_active_row(0)],
             vec![
                 PlayerQuestObjectivePersistenceRowLikeCpp {
-                    quest_id: Some(0), storage_index: Some(0), count: Some(5),
+                    quest_id: Some(0),
+                    storage_index: Some(0),
+                    count: Some(5),
                 },
                 PlayerQuestObjectivePersistenceRowLikeCpp {
-                    quest_id: None, storage_index: None, count: None,
+                    quest_id: None,
+                    storage_index: None,
+                    count: None,
                 },
             ],
             vec![
                 PlayerQuestIdPersistenceRowLikeCpp { quest_id: Some(0) },
-                PlayerQuestIdPersistenceRowLikeCpp { quest_id: Some(6100) },
-                PlayerQuestIdPersistenceRowLikeCpp { quest_id: Some(6101) },
+                PlayerQuestIdPersistenceRowLikeCpp {
+                    quest_id: Some(6100),
+                },
+                PlayerQuestIdPersistenceRowLikeCpp {
+                    quest_id: Some(6101),
+                },
                 PlayerQuestIdPersistenceRowLikeCpp {
                     quest_id: if null_rewarded_id { None } else { Some(6100) },
                 },
-            ], vec![], vec![], vec![],
+            ],
+            vec![],
+            vec![],
+            vec![],
         );
         session.set_player_quest_persistence_port_like_cpp(fixture);
         load_player_quests_for_test(&mut session).await;
         let state = player_quest_gameplay_snapshot_for_test(&session).unwrap();
         assert_eq!(state.statuses_like_cpp()[&0].objective_counts, vec![0]);
-        assert_eq!(state.rewarded_quest_rows_like_cpp().iter().copied().collect::<Vec<_>>(), vec![0, 6100, 6101]);
-        assert_eq!(state.rewarded_quest_ids_like_cpp().iter().copied().collect::<Vec<_>>(), vec![6100]);
-        assert_eq!(state.status_authority_complete_like_cpp(), !null_rewarded_id);
+        assert_eq!(
+            state
+                .rewarded_quest_rows_like_cpp()
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            vec![0, 6100, 6101]
+        );
+        assert_eq!(
+            state
+                .rewarded_quest_ids_like_cpp()
+                .iter()
+                .copied()
+                .collect::<Vec<_>>(),
+            vec![6100]
+        );
+        assert_eq!(
+            state.status_authority_complete_like_cpp(),
+            !null_rewarded_id
+        );
     }
 }
-
 
 struct QuestPoiPortFixtureLikeCpp(QuestPoiLoadOutcomeLikeCpp);
 
@@ -338,7 +376,6 @@ impl QuestPoiPersistencePortLikeCpp for QuestPoiPortFixtureLikeCpp {
         Box::pin(async move { outcome })
     }
 }
-
 
 fn quest_poi_blob_row_like_cpp(quest_id: i32, idx1: i32) -> QuestPoiBlobLoadRowLikeCpp {
     QuestPoiBlobLoadRowLikeCpp {
@@ -371,75 +408,139 @@ struct HydrationFailurePort {
 
 impl HydrationFailurePort {
     fn outcome<'a, T: 'a>(
-        &self, stage: PlayerQuestLoadStageFixtureLikeCpp, loaded: HydrationLoad<'a, T>,
+        &self,
+        stage: PlayerQuestLoadStageFixtureLikeCpp,
+        loaded: HydrationLoad<'a, T>,
     ) -> HydrationLoad<'a, T> {
         if stage == self.failed_stage {
-            Box::pin(async { PlayerQuestLoadOutcomeLikeCpp::Failed { reason: "fixture failure".into() } })
-        } else { loaded }
+            Box::pin(async {
+                PlayerQuestLoadOutcomeLikeCpp::Failed {
+                    reason: "fixture failure".into(),
+                }
+            })
+        } else {
+            loaded
+        }
     }
 }
 
 impl PlayerQuestPersistencePortLikeCpp for HydrationFailurePort {
-    fn load_active_statuses_like_cpp(&self, guid: u64) -> HydrationLoad<'_, PlayerQuestActivePersistenceRowLikeCpp> {
-        self.outcome(PlayerQuestLoadStageFixtureLikeCpp::Active, self.base.load_active_statuses_like_cpp(guid))
+    fn load_active_statuses_like_cpp(
+        &self,
+        guid: u64,
+    ) -> HydrationLoad<'_, PlayerQuestActivePersistenceRowLikeCpp> {
+        self.outcome(
+            PlayerQuestLoadStageFixtureLikeCpp::Active,
+            self.base.load_active_statuses_like_cpp(guid),
+        )
     }
-    fn load_objectives_like_cpp(&self, guid: u64) -> HydrationLoad<'_, PlayerQuestObjectivePersistenceRowLikeCpp> {
-        self.outcome(PlayerQuestLoadStageFixtureLikeCpp::Objectives, self.base.load_objectives_like_cpp(guid))
+    fn load_objectives_like_cpp(
+        &self,
+        guid: u64,
+    ) -> HydrationLoad<'_, PlayerQuestObjectivePersistenceRowLikeCpp> {
+        self.outcome(
+            PlayerQuestLoadStageFixtureLikeCpp::Objectives,
+            self.base.load_objectives_like_cpp(guid),
+        )
     }
-    fn load_rewarded_like_cpp(&self, guid: u64) -> HydrationLoad<'_, PlayerQuestIdPersistenceRowLikeCpp> {
-        self.outcome(PlayerQuestLoadStageFixtureLikeCpp::Rewarded, self.base.load_rewarded_like_cpp(guid))
+    fn load_rewarded_like_cpp(
+        &self,
+        guid: u64,
+    ) -> HydrationLoad<'_, PlayerQuestIdPersistenceRowLikeCpp> {
+        self.outcome(
+            PlayerQuestLoadStageFixtureLikeCpp::Rewarded,
+            self.base.load_rewarded_like_cpp(guid),
+        )
     }
-    fn load_daily_like_cpp(&self, guid: u64) -> HydrationLoad<'_, PlayerQuestDailyPersistenceRowLikeCpp> {
+    fn load_daily_like_cpp(
+        &self,
+        guid: u64,
+    ) -> HydrationLoad<'_, PlayerQuestDailyPersistenceRowLikeCpp> {
         self.base.load_daily_like_cpp(guid)
     }
-    fn load_weekly_like_cpp(&self, guid: u64) -> HydrationLoad<'_, PlayerQuestIdPersistenceRowLikeCpp> {
+    fn load_weekly_like_cpp(
+        &self,
+        guid: u64,
+    ) -> HydrationLoad<'_, PlayerQuestIdPersistenceRowLikeCpp> {
         self.base.load_weekly_like_cpp(guid)
     }
-    fn load_monthly_like_cpp(&self, guid: u64) -> HydrationLoad<'_, PlayerQuestIdPersistenceRowLikeCpp> {
+    fn load_monthly_like_cpp(
+        &self,
+        guid: u64,
+    ) -> HydrationLoad<'_, PlayerQuestIdPersistenceRowLikeCpp> {
         self.base.load_monthly_like_cpp(guid)
     }
-    fn load_seasonal_like_cpp(&self, guid: u64) -> HydrationLoad<'_, wow_persistence::PlayerQuestSeasonalPersistenceRowLikeCpp> {
+    fn load_seasonal_like_cpp(
+        &self,
+        guid: u64,
+    ) -> HydrationLoad<'_, wow_persistence::PlayerQuestSeasonalPersistenceRowLikeCpp> {
         self.base.load_seasonal_like_cpp(guid)
     }
-    fn persist_status_like_cpp(&self, request: PlayerQuestStatusPersistenceRequestLikeCpp) -> PersistenceFutureLikeCpp<'_, PersistenceOutcomeLikeCpp> {
+    fn persist_status_like_cpp(
+        &self,
+        request: PlayerQuestStatusPersistenceRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'_, PersistenceOutcomeLikeCpp> {
         self.base.persist_status_like_cpp(request)
     }
-    fn persist_lockout_like_cpp(&self, request: wow_persistence::PlayerQuestLockoutPersistenceRequestLikeCpp) -> PersistenceFutureLikeCpp<'_, PersistenceOutcomeLikeCpp> {
+    fn persist_lockout_like_cpp(
+        &self,
+        request: wow_persistence::PlayerQuestLockoutPersistenceRequestLikeCpp,
+    ) -> PersistenceFutureLikeCpp<'_, PersistenceOutcomeLikeCpp> {
         self.base.persist_lockout_like_cpp(request)
     }
 }
 
 #[tokio::test]
 async fn quest_hydration_query_failures_preserve_stages_install_and_authority() {
-    for failed_stage in [PlayerQuestLoadStageFixtureLikeCpp::Active,
-        PlayerQuestLoadStageFixtureLikeCpp::Objectives, PlayerQuestLoadStageFixtureLikeCpp::Rewarded]
-    {
+    for failed_stage in [
+        PlayerQuestLoadStageFixtureLikeCpp::Active,
+        PlayerQuestLoadStageFixtureLikeCpp::Objectives,
+        PlayerQuestLoadStageFixtureLikeCpp::Rewarded,
+    ] {
         let (mut session, _) = make_session();
         let mut quest = quest_template(6200);
         quest.objectives.push(QuestObjective {
-            id: 1, quest_id: 6200, obj_type: QUEST_OBJECTIVE_MONSTER_LIKE_CPP_LOCAL, order: 0,
-            storage_index: 0, object_id: 44, amount: 5, flags: 0, flags2: 0,
-            progress_bar_weight: 0.0, description: String::new(),
+            id: 1,
+            quest_id: 6200,
+            obj_type: QUEST_OBJECTIVE_MONSTER_LIKE_CPP_LOCAL,
+            order: 0,
+            storage_index: 0,
+            object_id: 44,
+            amount: 5,
+            flags: 0,
+            flags2: 0,
+            progress_bar_weight: 0.0,
+            description: String::new(),
         });
         session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([
-            quest, quest_template(6201),
+            quest,
+            quest_template(6201),
         ])));
         add_active_quest_in_slot(&mut session, 6209, 4);
         mutate_player_quest_gameplay_for_test(&mut session, |state| {
             state.set_rewarded_like_cpp(6208, true);
             state.set_rewarded_row_like_cpp(6208, true);
             state.set_status_authority_complete_like_cpp(true);
-        }).unwrap();
+        })
+        .unwrap();
         let fixture = Arc::new(HydrationFailurePort {
             failed_stage,
             base: Arc::try_unwrap(player_quest_persistence_port_with_load_rows_for_test(
                 vec![hydration_active_row(6200)],
                 vec![PlayerQuestObjectivePersistenceRowLikeCpp {
-                    quest_id: Some(6200), storage_index: Some(0), count: Some(9),
+                    quest_id: Some(6200),
+                    storage_index: Some(0),
+                    count: Some(9),
                 }],
-                vec![PlayerQuestIdPersistenceRowLikeCpp { quest_id: Some(6201) }],
-                vec![], vec![], vec![],
-            )).ok().expect("unique quest persistence fixture"),
+                vec![PlayerQuestIdPersistenceRowLikeCpp {
+                    quest_id: Some(6201),
+                }],
+                vec![],
+                vec![],
+                vec![],
+            ))
+            .ok()
+            .expect("unique quest persistence fixture"),
         });
         session.set_player_quest_persistence_port_like_cpp(fixture.clone());
         load_player_quests_for_test(&mut session).await;
@@ -452,17 +553,37 @@ async fn quest_hydration_query_failures_preserve_stages_install_and_authority() 
             assert!(state.rewarded_quest_ids_like_cpp().contains(&6208));
             assert!(state.rewarded_quest_rows_like_cpp().is_empty());
         } else {
-            assert_eq!(stages, vec![PlayerQuestLoadStageFixtureLikeCpp::Active,
-                PlayerQuestLoadStageFixtureLikeCpp::Objectives, PlayerQuestLoadStageFixtureLikeCpp::Rewarded,
-                PlayerQuestLoadStageFixtureLikeCpp::Daily, PlayerQuestLoadStageFixtureLikeCpp::Weekly,
-                PlayerQuestLoadStageFixtureLikeCpp::Monthly, PlayerQuestLoadStageFixtureLikeCpp::Seasonal]);
+            assert_eq!(
+                stages,
+                vec![
+                    PlayerQuestLoadStageFixtureLikeCpp::Active,
+                    PlayerQuestLoadStageFixtureLikeCpp::Objectives,
+                    PlayerQuestLoadStageFixtureLikeCpp::Rewarded,
+                    PlayerQuestLoadStageFixtureLikeCpp::Daily,
+                    PlayerQuestLoadStageFixtureLikeCpp::Weekly,
+                    PlayerQuestLoadStageFixtureLikeCpp::Monthly,
+                    PlayerQuestLoadStageFixtureLikeCpp::Seasonal
+                ]
+            );
             assert!(!state.statuses_like_cpp().contains_key(&6209));
-            assert_eq!(state.statuses_like_cpp()[&6200].objective_counts,
-                vec![if failed_stage == PlayerQuestLoadStageFixtureLikeCpp::Objectives { 0 } else { 9 }]);
-            assert_eq!(state.rewarded_quest_rows_like_cpp().contains(&6201),
-                failed_stage != PlayerQuestLoadStageFixtureLikeCpp::Rewarded);
+            assert_eq!(
+                state.statuses_like_cpp()[&6200].objective_counts,
+                vec![
+                    if failed_stage == PlayerQuestLoadStageFixtureLikeCpp::Objectives {
+                        0
+                    } else {
+                        9
+                    }
+                ]
+            );
+            assert_eq!(
+                state.rewarded_quest_rows_like_cpp().contains(&6201),
+                failed_stage != PlayerQuestLoadStageFixtureLikeCpp::Rewarded
+            );
         }
-        assert_eq!(state.status_authority_complete_like_cpp(),
-            failed_stage == PlayerQuestLoadStageFixtureLikeCpp::Objectives);
+        assert_eq!(
+            state.status_authority_complete_like_cpp(),
+            failed_stage == PlayerQuestLoadStageFixtureLikeCpp::Objectives
+        );
     }
 }

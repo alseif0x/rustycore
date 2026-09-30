@@ -52,4 +52,3 @@ fn legacy_creature_melee_tick_once_is_noop_under_session_owner_like_cpp() {
         .health;
     assert_eq!(health, 100);
 }
-

@@ -21,7 +21,9 @@ pub fn target_is_valid(
         return false;
     }
 
-    if !(policies.faction_authority)() { return false; }
+    if !(policies.faction_authority)() {
+        return false;
+    }
     let Ok(caster_faction_template_id) = u32::try_from(caster.unit().data().faction_template)
     else {
         return false;
@@ -30,8 +32,11 @@ pub fn target_is_valid(
     else {
         return false;
     };
-    let Some(factions) = (policies.factions)(caster_faction_template_id, victim_faction_template_id)
-        else { return false; };
+    let Some(factions) =
+        (policies.factions)(caster_faction_template_id, victim_faction_template_id)
+    else {
+        return false;
+    };
 
     let mut victim_flags = victim.unit().unit_flags_like_cpp();
     if spell_attributes[6] & 0x0100_0000 != 0 {
@@ -61,14 +66,12 @@ pub fn target_is_valid(
             // unrepresented at this cast-time boundary.
             return false;
         }
-        let Some(can_have_reputation) = (policies.can_have_reputation)(creature_faction_id)
-            else { return false; };
-        if can_have_reputation
-            && victim.has_reputation_state_like_cpp(creature_faction_id)
-        {
+        let Some(can_have_reputation) = (policies.can_have_reputation)(creature_faction_id) else {
+            return false;
+        };
+        if can_have_reputation && victim.has_reputation_state_like_cpp(creature_faction_id) {
             context.player_creature_reputation_represented = true;
-            context.creature_is_contested_guard =
-                factions.contested_guard;
+            context.creature_is_contested_guard = factions.contested_guard;
             context.player_has_contested_pvp_flag =
                 victim.has_player_flag(PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP);
             context.player_at_war_with_creature_faction =

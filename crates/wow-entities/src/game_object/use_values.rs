@@ -4,15 +4,17 @@
 //! their existing per-Session entries; this does not make those values shared
 //! canonical GameObject state. Clocks, catalogs and publication stay with callers.
 
+use super::{
+    ChairUseSource, GAMEOBJECT_TYPE_BUTTON, GAMEOBJECT_TYPE_DOOR, GAMEOBJECT_TYPE_TRAP,
+    GO_FLAG_IN_USE, GoState, LootState, TrapUseSource,
+};
 use std::time::{Duration, Instant};
 use wow_core::{ObjectGuid, Position};
-use super::{ChairUseSource, GoState, LootState, TrapUseSource, GO_FLAG_IN_USE,
-    GAMEOBJECT_TYPE_BUTTON, GAMEOBJECT_TYPE_DOOR, GAMEOBJECT_TYPE_TRAP};
 
-mod timed;
 mod chair;
 #[cfg(test)]
 mod tests;
+mod timed;
 
 pub struct GameObjectUseValues<'a> {
     loot_state: &'a mut Option<LootState>,
@@ -48,10 +50,18 @@ pub struct ChairPlacement {
 }
 
 impl ChairPlacement {
-    pub fn slot(&self) -> u32 { self.slot }
-    pub fn teleport_position(&self) -> Position { self.teleport_position }
-    pub fn raw_stand_state(&self) -> u32 { self.raw_stand_state }
-    pub fn trigger_event(&self) -> Option<u32> { self.trigger_event }
+    pub fn slot(&self) -> u32 {
+        self.slot
+    }
+    pub fn teleport_position(&self) -> Position {
+        self.teleport_position
+    }
+    pub fn raw_stand_state(&self) -> u32 {
+        self.raw_stand_state
+    }
+    pub fn trigger_event(&self) -> Option<u32> {
+        self.trigger_event
+    }
 }
 
 impl<'a> GameObjectUseValues<'a> {
@@ -67,7 +77,16 @@ impl<'a> GameObjectUseValues<'a> {
         trap_use_source: &'a mut Option<TrapUseSource>,
         chair_slots: &'a mut Vec<Option<ObjectGuid>>,
     ) -> Self {
-        Self { loot_state, loot_state_unit_guid, go_state, prev_go_state,
-            gameobject_flags, cooldown_until, go_type, trap_use_source, chair_slots }
+        Self {
+            loot_state,
+            loot_state_unit_guid,
+            go_state,
+            prev_go_state,
+            gameobject_flags,
+            cooldown_until,
+            go_type,
+            trap_use_source,
+            chair_slots,
+        }
     }
 }

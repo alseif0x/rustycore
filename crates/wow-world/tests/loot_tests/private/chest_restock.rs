@@ -6,7 +6,8 @@ async fn process_pending_shared_chest_restock_clears_loot_like_cpp() {
     let (mut session, _send_rx) = make_session_with_send_capacity(4);
     let chest_guid = test_gameobject_guid(19_043);
     session.set_state(SessionState::LoggedIn);
-    record_represented_gameobject_runtime_state_for_test(&mut session,
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         chest_guid,
         chest_guid.entry(),
@@ -14,7 +15,8 @@ async fn process_pending_shared_chest_restock_clears_loot_like_cpp() {
         GAMEOBJECT_TYPE_CHEST as u8,
     );
     mark_chest_restock_expired_for_loot_test(&mut session, chest_guid, LootState::Activated);
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         chest_guid,
         CreatureLoot {
             loot_guid: chest_guid,
@@ -35,8 +37,7 @@ async fn process_pending_shared_chest_restock_clears_loot_like_cpp() {
 
     process_pending_for_loot_test(&mut session).await;
 
-    let state = gameobject_loot_release_snapshot_for_test(&session, chest_guid)
-        .unwrap();
+    let state = gameobject_loot_release_snapshot_for_test(&session, chest_guid).unwrap();
     assert_eq!(state.loot_state, Some(LootState::Ready));
     assert!(state.chest_restock_until.is_none());
     assert!(!has_loot_for_test(&session, chest_guid));
@@ -60,14 +61,16 @@ async fn process_pending_shared_chest_restock_syncs_state_to_same_map_viewers_li
     session.set_player_guid(Some(player_guid));
     set_player_map_position_for_loot_test(&mut session, 571, Position::ZERO);
     session.set_player_registry(player_registry);
-    record_represented_gameobject_runtime_state_for_test(&mut session, 
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         chest_guid,
         chest_guid.entry(),
         Position::ZERO,
         GAMEOBJECT_TYPE_CHEST as u8,
     );
-    record_gameobject_chest_release_metadata_for_loot_test(&mut session,
+    record_gameobject_chest_release_metadata_for_loot_test(
+        &mut session,
         chest_guid,
         GameObjectLootSource {
             loot_id: 7_002,
@@ -77,7 +80,8 @@ async fn process_pending_shared_chest_restock_syncs_state_to_same_map_viewers_li
         },
     );
     mark_chest_restock_expired_for_loot_test(&mut session, chest_guid, LootState::NotReady);
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         chest_guid,
         CreatureLoot {
             loot_guid: chest_guid,

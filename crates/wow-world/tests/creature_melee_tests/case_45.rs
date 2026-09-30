@@ -5,8 +5,8 @@ use super::*;
 /// recursively triggers a share aura on the secondary target (`NODAMAGE`).
 #[test]
 fn legacy_creature_melee_tick_once_shares_post_split_player_damage_like_cpp() {
-    use wow_world::map_manager::RuntimeTickOwner;
     use wow_constants::ServerOpcodes;
+    use wow_world::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
     let canonical = shared_canonical_map_manager();

@@ -238,7 +238,8 @@ pub(super) async fn load_spell_click(
 
 pub(super) struct NpcServiceCatalogs {
     pub(super) trainer_data_store: Arc<wow_data::TrainerStoreLikeCpp>,
-    pub(super) trainer_catalog_persistence: wow_database::MariaDbTrainerCatalogPersistenceAdapterLikeCpp,
+    pub(super) trainer_catalog_persistence:
+        wow_database::MariaDbTrainerCatalogPersistenceAdapterLikeCpp,
     pub(super) npc_vendor_store: Arc<wow_data::NpcVendorStoreLikeCpp>,
 }
 
@@ -252,9 +253,7 @@ pub(super) async fn load_services(
     creature_template_store: &wow_data::WorldIdStore,
     gossip_store: &wow_data::GossipStore,
 ) -> anyhow::Result<NpcServiceCatalogs> {
-    let npc_vendor_store =
-        load_npc_vendor(gameplay_rule_catalog_persistence)
-            .await?;
+    let npc_vendor_store = load_npc_vendor(gameplay_rule_catalog_persistence).await?;
     let trainer_catalog_persistence =
         wow_database::MariaDbTrainerCatalogPersistenceAdapterLikeCpp::new(Arc::clone(world_db));
     let trainer_data_store = load_trainer(

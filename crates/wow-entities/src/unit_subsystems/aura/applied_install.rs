@@ -10,9 +10,8 @@
 //! Scripts, recalculation and periodic execution remain outside this represented install.
 
 use super::{
-    AppliedAuraRef, AuraCastProvenanceLikeCpp, AuraRef, AuraSubsystem,
-    LoadedAuraStateLikeCpp, ObjectGuid, OwnedAuraRef,
-    VisibleAuraApplicationLikeCpp, VisibleAuraEffectAmountLikeCpp,
+    AppliedAuraRef, AuraCastProvenanceLikeCpp, AuraRef, AuraSubsystem, LoadedAuraStateLikeCpp,
+    ObjectGuid, OwnedAuraRef, VisibleAuraApplicationLikeCpp, VisibleAuraEffectAmountLikeCpp,
 };
 
 impl AuraSubsystem {
@@ -22,17 +21,20 @@ impl AuraSubsystem {
         fields: impl Fn(&E) -> (u32, i32, i32),
         mut base_amount: impl FnMut(&E) -> i32,
     ) -> Vec<(i32, i32, i32, u8)> {
-        effects.iter()
+        effects
+            .iter()
             .filter(|effect| {
                 1u32.checked_shl(fields(effect).0)
                     .is_some_and(|bit| effect_mask & bit != 0)
             })
-            .map(|effect| (
-                fields(effect).1,
-                base_amount(effect),
-                fields(effect).2,
-                u8::try_from(fields(effect).0).unwrap_or(0),
-            ))
+            .map(|effect| {
+                (
+                    fields(effect).1,
+                    base_amount(effect),
+                    fields(effect).2,
+                    u8::try_from(fields(effect).0).unwrap_or(0),
+                )
+            })
             .collect()
     }
 
@@ -52,11 +54,7 @@ impl AuraSubsystem {
             return None;
         }
         let slot = (0..u8::MAX).find(|slot| !self.visible_auras.contains_key(slot))?;
-        self.add_owned(OwnedAuraRef::new(
-            spell_key,
-            caster_guid,
-            None,
-        ));
+        self.add_owned(OwnedAuraRef::new(spell_key, caster_guid, None));
         // C++ `Aura::Create` builds one `AuraEffect` per applied slot
         // and `GetAuraEffectsByType` reads those effects individually.
         // The per-slot `AppliedAuraRef` keeps each slot's own amount
@@ -93,12 +91,12 @@ impl AuraSubsystem {
                 0,
                 effects
                     .iter()
-                    .map(|(_, amount, _, effect_index)| {
-                        VisibleAuraEffectAmountLikeCpp {
+                    .map(
+                        |(_, amount, _, effect_index)| VisibleAuraEffectAmountLikeCpp {
                             effect_index: *effect_index,
                             amount: *amount,
-                        }
-                    })
+                        },
+                    )
                     .collect(),
             ),
         );

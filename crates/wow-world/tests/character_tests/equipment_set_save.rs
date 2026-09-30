@@ -11,9 +11,7 @@ use wow_world::test_fixtures::{
     set_equipment_set_guid_generator_for_test,
 };
 
-fn make_session_with_send_capacity(
-    capacity: usize,
-) -> (WorldSession, flume::Receiver<Vec<u8>>) {
+fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(1);
     let (send_tx, send_rx) = flume::bounded::<Vec<u8>>(capacity);
     let mut session = WorldSession::new(
@@ -29,9 +27,10 @@ fn make_session_with_send_capacity(
         send_tx,
     );
     session.set_item_guid_generator_like_cpp(Arc::new(ObjectGuidGenerator::new(HighGuid::Item, 1)));
-    set_equipment_set_guid_generator_for_test(&mut session, Arc::new(
-        EquipmentSetGuidGeneratorLikeCpp::new(1),
-    ));
+    set_equipment_set_guid_generator_for_test(
+        &mut session,
+        Arc::new(EquipmentSetGuidGeneratorLikeCpp::new(1)),
+    );
     (session, send_rx)
 }
 
@@ -91,7 +90,8 @@ fn read_equipment_set_id(encoded: Vec<u8>) -> (u64, i32, u32) {
 async fn save_equipment_set_new_equipment_normalizes_and_sends_id_like_cpp() {
     let (mut session, send_rx) = make_session_with_send_capacity(1);
     let item_guid = ObjectGuid::create_item(1, 55);
-    insert_inventory_item_for_test(&mut session,
+    insert_inventory_item_for_test(
+        &mut session,
         0,
         InventoryItem {
             guid: item_guid,
@@ -119,12 +119,11 @@ async fn save_equipment_set_new_equipment_normalizes_and_sends_id_like_cpp() {
             "INV_Helmet_01",
         ),
     )
-        .await;
+    .await;
 
     let (generated_guid, set_type, set_id) = read_equipment_set_id(send_rx.try_recv().unwrap());
     assert_eq!((generated_guid, set_type, set_id), (1, 0, 7));
-    let saved = represented_equipment_set_for_test(&session, generated_guid)
-        .unwrap();
+    let saved = represented_equipment_set_for_test(&session, generated_guid).unwrap();
     assert_eq!(saved.guid, generated_guid);
     assert_eq!(saved.set_id, 7);
     assert_eq!(saved.set_name, "Tank");
@@ -173,7 +172,7 @@ async fn save_equipment_set_requires_process_wide_guid_allocator() {
             "INV_Misc_QuestionMark",
         ),
     )
-        .await;
+    .await;
 
     assert!(send_rx.try_recv().is_err());
     assert!(represented_equipment_set_for_test(&session, 1).is_none());
@@ -191,32 +190,32 @@ async fn concurrent_sessions_share_equipment_and_transmog_set_guid_namespace_lik
         handle_save_equipment_set_for_test(
             &mut equipment_session,
             save_equipment_set_packet(
-            0,
-            0,
-            7,
-            ignore_mask,
-            [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
-            [0; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
-            [0, 0],
-            None,
-            "Equipment",
-            "INV_Sword_01",
-        ),
+                0,
+                0,
+                7,
+                ignore_mask,
+                [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+                [0; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+                [0, 0],
+                None,
+                "Equipment",
+                "INV_Sword_01",
+            ),
         ),
         handle_save_equipment_set_for_test(
             &mut transmog_session,
             save_equipment_set_packet(
-            1,
-            0,
-            8,
-            ignore_mask,
-            [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
-            [0; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
-            [0, 0],
-            None,
-            "Transmog",
-            "INV_Chest_Cloth_01",
-        ),
+                1,
+                0,
+                8,
+                ignore_mask,
+                [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+                [0; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+                [0, 0],
+                None,
+                "Transmog",
+                "INV_Chest_Cloth_01",
+            ),
         ),
     );
 
@@ -258,7 +257,7 @@ async fn save_equipment_set_existing_marks_changed_without_id_packet_like_cpp() 
             "INV_Sword_01",
         ),
     )
-        .await;
+    .await;
 
     assert!(send_rx.try_recv().is_err());
     let saved = represented_equipment_set_for_test(&session, 100).unwrap();
@@ -289,12 +288,11 @@ async fn save_equipment_set_negative_type_follows_cpp_non_equipment_branch() {
             "INV_Odd",
         ),
     )
-        .await;
+    .await;
 
     let (generated_guid, set_type, set_id) = read_equipment_set_id(send_rx.try_recv().unwrap());
     assert_eq!((generated_guid, set_type, set_id), (1, -1, 7));
-    let saved = represented_equipment_set_for_test(&session, generated_guid)
-        .unwrap();
+    let saved = represented_equipment_set_for_test(&session, generated_guid).unwrap();
     assert_eq!(saved.raw_set_type, -1);
     assert_eq!(
         saved.set_type,
@@ -304,7 +302,8 @@ async fn save_equipment_set_negative_type_follows_cpp_non_equipment_branch() {
 #[tokio::test]
 async fn save_equipment_set_rejects_equipment_guid_mismatch_like_cpp() {
     let (mut session, send_rx) = make_session_with_send_capacity(1);
-    insert_inventory_item_for_test(&mut session,
+    insert_inventory_item_for_test(
+        &mut session,
         0,
         InventoryItem {
             guid: ObjectGuid::create_item(1, 55),
@@ -331,7 +330,7 @@ async fn save_equipment_set_rejects_equipment_guid_mismatch_like_cpp() {
             "INV_Bad",
         ),
     )
-        .await;
+    .await;
 
     assert!(send_rx.try_recv().is_err());
     assert!(represented_equipment_set_for_test(&session, 1).is_none());

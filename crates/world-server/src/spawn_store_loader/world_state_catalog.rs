@@ -32,8 +32,7 @@ pub fn from_db_rows_like_cpp(
 
     for row in template_rows {
         report.template_rows += 1;
-        let map_ids =
-            parse_world_state_map_ids_like_cpp(row.id, &row.map_ids_csv, &map_exists);
+        let map_ids = parse_world_state_map_ids_like_cpp(row.id, &row.map_ids_csv, &map_exists);
         if !row.map_ids_csv.is_empty() && map_ids.is_empty() {
             report.skipped_invalid_map_list += 1;
             continue;

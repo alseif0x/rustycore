@@ -73,36 +73,33 @@ pub(super) async fn load_condition_startup(
         loot_stores,
     } = inputs;
 
-    let mut condition_load_report = crate::catalogs::condition_disable::load_conditions_like_cpp(
-        persistence,
-        |_| 0,
-    )
-    .await
-    .context("Failed to load C++ conditions table")?;
+    let mut condition_load_report =
+        crate::catalogs::condition_disable::load_conditions_like_cpp(persistence, |_| 0)
+            .await
+            .context("Failed to load C++ conditions table")?;
     let loot_template_exists = |source_type: wow_constants::ConditionSourceType,
                                 source_group: u32| {
         wow_loot::loot_store_kind_for_condition_source_type_like_cpp(source_type as i32)
             .and_then(|kind| loot_stores.get(&kind))
             .is_some_and(|store| store.have_loot_for(source_group))
     };
-    let loot_source_entry_exists = |source_type: wow_constants::ConditionSourceType,
-                                    source_group: u32,
-                                    source_entry: i32| {
-        let Some(source_entry) = u32::try_from(source_entry).ok() else {
-            return false;
-        };
-        let Some(store) =
-            wow_loot::loot_store_kind_for_condition_source_type_like_cpp(source_type as i32)
-                .and_then(|kind| loot_stores.get(&kind))
-        else {
-            return false;
-        };
-        let Some(template) = store.get_loot_for(source_group) else {
-            return false;
-        };
+    let loot_source_entry_exists =
+        |source_type: wow_constants::ConditionSourceType, source_group: u32, source_entry: i32| {
+            let Some(source_entry) = u32::try_from(source_entry).ok() else {
+                return false;
+            };
+            let Some(store) =
+                wow_loot::loot_store_kind_for_condition_source_type_like_cpp(source_type as i32)
+                    .and_then(|kind| loot_stores.get(&kind))
+            else {
+                return false;
+            };
+            let Some(template) = store.get_loot_for(source_group) else {
+                return false;
+            };
 
-        item_store.get(source_entry).is_some() || template.is_reference_like_cpp(source_entry)
-    };
+            item_store.get(source_entry).is_some() || template.is_reference_like_cpp(source_entry)
+        };
     let externally_skipped_conditions =
         wow_data::conditions::apply_external_condition_validation_like_cpp(
             &mut condition_load_report,
@@ -244,7 +241,9 @@ pub(super) async fn load_world_conditions(
             creature_template_store: spawn_references.creature_template_store.as_ref(),
             gameobject_template_store: spawn_references.gameobject_template_store.as_ref(),
             trainer_store: trainer_store.as_ref(),
-            conversation_line_template_store: condition_references.conversation_line_template_store.as_ref(),
+            conversation_line_template_store: condition_references
+                .conversation_line_template_store
+                .as_ref(),
             area_trigger_template_store: area_trigger_template_store.as_ref(),
             creature_spawn_store: spawn_ids.creature_spawn_store.as_ref(),
             gameobject_spawn_store: spawn_ids.gameobject_spawn_store.as_ref(),

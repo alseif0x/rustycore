@@ -140,8 +140,7 @@ impl DifficultyStore {
     pub fn check_loaded_dungeon_difficulty_id_like_cpp(&self, difficulty: u32) -> u32 {
         match self.get(difficulty) {
             Some(entry)
-                if entry.instance_type == MAP_INSTANCE_LIKE_CPP
-                    && entry.can_select_like_cpp() =>
+                if entry.instance_type == MAP_INSTANCE_LIKE_CPP && entry.can_select_like_cpp() =>
             {
                 difficulty
             }

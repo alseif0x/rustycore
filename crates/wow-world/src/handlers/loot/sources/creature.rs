@@ -6,8 +6,11 @@
 //! Creature loot generation, persistence observations, and source snapshots.
 
 use super::*;
+#[path = "creature/generation.rs"]
 mod generation;
+#[path = "creature/ensure.rs"]
 mod ensure;
+#[path = "creature/melee.rs"]
 mod melee;
 
 use wow_map::manager::{MapObjectTickContinuation, MeleeLootError, PendingMeleeKills,

@@ -3,8 +3,8 @@
 use std::collections::{HashMap, HashSet};
 
 use super::catalog::{
-    GameObjectTemplateData, GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_GATHERING_NODE,
-    GAMEOBJECT_TYPE_GENERIC, GAMEOBJECT_TYPE_GOOBER, GAMEOBJECT_TYPE_QUESTGIVER,
+    GAMEOBJECT_TYPE_CHEST, GAMEOBJECT_TYPE_GATHERING_NODE, GAMEOBJECT_TYPE_GENERIC,
+    GAMEOBJECT_TYPE_GOOBER, GAMEOBJECT_TYPE_QUESTGIVER, GameObjectTemplateData,
     MAX_GAMEOBJECT_DATA,
 };
 pub use wow_data_model::game_object::GameObjectTemplateLifecycleRecord;
@@ -104,30 +104,29 @@ impl GameObjectForQuestStoreLikeCpp {
 
         for template in templates.entries_like_cpp() {
             let template_data = GameObjectTemplateData::new(template.go_type, template.data);
-            let is_for_quest = match template.go_type {
-                GAMEOBJECT_TYPE_QUESTGIVER => true,
-                GAMEOBJECT_TYPE_CHEST => template_data
-                    .chest_loot_source_like_cpp()
-                    .is_some_and(|source| {
-                        source.chest_quest_id != 0
-                            || [source.loot_id, source.personal_loot_id, source.push_loot_id]
-                                .into_iter()
-                                .filter(|loot_id| *loot_id != 0)
-                                .any(&mut have_quest_loot_for)
-                    }),
-                GAMEOBJECT_TYPE_GENERIC => {
-                    template.data.get(5).copied().unwrap_or(0) > 0
-                }
-                GAMEOBJECT_TYPE_GOOBER => template_data
-                    .goober_use_source_like_cpp()
-                    .is_some_and(|source| source.quest_id > 0),
-                GAMEOBJECT_TYPE_GATHERING_NODE => template_data
-                    .gathering_node_use_source_like_cpp()
-                    .is_some_and(|source| {
-                        source.loot_id != 0 && have_quest_loot_for(source.loot_id)
-                    }),
-                _ => false,
-            };
+            let is_for_quest =
+                match template.go_type {
+                    GAMEOBJECT_TYPE_QUESTGIVER => true,
+                    GAMEOBJECT_TYPE_CHEST => template_data
+                        .chest_loot_source_like_cpp()
+                        .is_some_and(|source| {
+                            source.chest_quest_id != 0
+                                || [source.loot_id, source.personal_loot_id, source.push_loot_id]
+                                    .into_iter()
+                                    .filter(|loot_id| *loot_id != 0)
+                                    .any(&mut have_quest_loot_for)
+                        }),
+                    GAMEOBJECT_TYPE_GENERIC => template.data.get(5).copied().unwrap_or(0) > 0,
+                    GAMEOBJECT_TYPE_GOOBER => template_data
+                        .goober_use_source_like_cpp()
+                        .is_some_and(|source| source.quest_id > 0),
+                    GAMEOBJECT_TYPE_GATHERING_NODE => template_data
+                        .gathering_node_use_source_like_cpp()
+                        .is_some_and(|source| {
+                            source.loot_id != 0 && have_quest_loot_for(source.loot_id)
+                        }),
+                    _ => false,
+                };
 
             if is_for_quest {
                 entries.insert(template.entry);

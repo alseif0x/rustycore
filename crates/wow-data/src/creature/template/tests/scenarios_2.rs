@@ -157,12 +157,14 @@ fn creature_addon_store_normalizes_auras_like_cpp() {
         |spell_id| if spell_id == 300 { 5_000 } else { 0 },
         |spell_id| {
             matches!(spell_id, 100 | 200 | 400)
-                .then(|| crate::creature::template::CreatureAddonAuraEffectLikeCpp {
-                    aura_type: 91,
-                    amount: 7,
-                    misc_value: 0,
-                    effect_index: 0,
-                })
+                .then(
+                    || crate::creature::template::CreatureAddonAuraEffectLikeCpp {
+                        aura_type: 91,
+                        amount: 7,
+                        misc_value: 0,
+                        effect_index: 0,
+                    },
+                )
                 .into_iter()
                 .collect()
         },
@@ -216,7 +218,7 @@ fn creature_addon_store_normalizes_auras_like_cpp() {
                 flags: AFLAG_NOCASTER_LIKE_CPP
                     | AFLAG_POSITIVE_LIKE_CPP
                     | AFLAG_CANCELABLE_LIKE_CPP,
-                crate::creature::template::CreatureAddonAuraEffectLikeCpp {
+                effects: vec![crate::creature::template::CreatureAddonAuraEffectLikeCpp {
                     aura_type: 91,
                     amount: 7,
                     misc_value: 0,

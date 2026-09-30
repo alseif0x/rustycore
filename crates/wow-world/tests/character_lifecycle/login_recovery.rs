@@ -9,10 +9,10 @@
 
 use super::*;
 use std::sync::Arc;
-use wow_world::test_fixtures::install_canonical_player_owner_for_test;
 use wow_core::guid::HighGuid;
 use wow_core::{EquipmentSetGuidGeneratorLikeCpp, ObjectGuidGenerator};
 use wow_packet::WorldPacket;
+use wow_world::test_fixtures::install_canonical_player_owner_for_test;
 
 fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(1);
@@ -30,9 +30,9 @@ fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Rec
         send_tx,
     );
     session.set_item_guid_generator_like_cpp(Arc::new(ObjectGuidGenerator::new(HighGuid::Item, 1)));
-    session.character_set_equipment_set_guid_generator_for_test(
-        Arc::new(EquipmentSetGuidGeneratorLikeCpp::new(1)),
-    );
+    session.character_set_equipment_set_guid_generator_for_test(Arc::new(
+        EquipmentSetGuidGeneratorLikeCpp::new(1),
+    ));
     (session, send_rx)
 }
 
@@ -129,7 +129,10 @@ fn rejected_instance_login_retries_valid_homebind_before_disconnect_like_cpp() {
 
         assert_eq!(map_id, 1);
         assert_eq!(zone_id, 12);
-        assert_eq!(session.character_player_zone_area_for_test(), Some((12, 12)));
+        assert_eq!(
+            session.character_player_zone_area_for_test(),
+            Some((12, 12))
+        );
         assert_eq!(position, homebind_position);
         assert_eq!(
             session.character_current_canonical_player_map_key_for_test(),
@@ -249,7 +252,10 @@ fn garrison_login_rejects_unsupported_expansion_and_retries_homebind_like_cpp() 
         ));
         assert_eq!(map_id, 1);
         assert_eq!(zone_id, 12);
-        assert_eq!(session.character_player_zone_area_for_test(), Some((12, 12)));
+        assert_eq!(
+            session.character_player_zone_area_for_test(),
+            Some((12, 12))
+        );
         assert_eq!(position, homebind_position);
         assert_eq!(
             session.character_current_canonical_player_map_key_for_test(),
@@ -308,7 +314,10 @@ fn unavailable_login_grid_cleans_partial_player_and_kicks_without_failure_packet
             }),
         ));
 
-        assert_eq!(session.state(), wow_world::session::SessionState::Disconnecting);
+        assert_eq!(
+            session.state(),
+            wow_world::session::SessionState::Disconnecting
+        );
         assert!(session.player_guid().is_none());
         assert!(
             canonical
@@ -345,7 +354,10 @@ fn late_login_sequence_failure_releases_claim_and_partial_player_like_cpp() {
     install_canonical_player_owner_for_test(&mut failed, 1, 0);
     failed.character_abort_partial_login_sequence_for_test();
 
-    assert_eq!(failed.state(), wow_world::session::SessionState::Disconnecting);
+    assert_eq!(
+        failed.state(),
+        wow_world::session::SessionState::Disconnecting
+    );
     assert!(failed.player_guid().is_none());
     let (mut retry, _retry_rx) = make_session_with_send_capacity(1);
     assert!(
@@ -374,7 +386,10 @@ fn login_without_grid_resolver_fails_closed_like_cpp() {
     install_canonical_player_owner_for_test(&mut session, 1, 0);
     assert!(!session.character_continue_login_after_grid_load_for_test(guid, 1, 0, None));
 
-    assert_eq!(session.state(), wow_world::session::SessionState::Disconnecting);
+    assert_eq!(
+        session.state(),
+        wow_world::session::SessionState::Disconnecting
+    );
     assert!(session.player_guid().is_none());
     assert!(send_rx.try_recv().is_err());
 }
@@ -428,7 +443,10 @@ fn homebind_retry_refreshes_zone_when_saved_coordinates_already_match_like_cpp()
         assert_eq!(map_id, 1);
         assert_eq!(zone_id, 12);
         assert_eq!(position, homebind_position);
-        assert_eq!(session.character_player_zone_area_for_test(), Some((12, 12)));
+        assert_eq!(
+            session.character_player_zone_area_for_test(),
+            Some((12, 12))
+        );
         assert_eq!(
             session.character_current_canonical_player_map_key_for_test(),
             Some(wow_map::MapKey::new(1, 0))

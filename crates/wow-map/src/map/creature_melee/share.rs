@@ -45,11 +45,27 @@ pub(super) fn apply_melee_share_damage_like_cpp(
         return result;
     };
     let share_auras = if victim_guid.is_player() {
-        managed.map().get_typed_player(victim_guid).map_or_else(Vec::new,
-            |victim| catalogs.share_player(victim.unit().subsystems().auras.runtime_applications_like_cpp()))
+        managed
+            .map()
+            .get_typed_player(victim_guid)
+            .map_or_else(Vec::new, |victim| {
+                catalogs.share_player(
+                    victim
+                        .unit()
+                        .subsystems()
+                        .auras
+                        .runtime_applications_like_cpp(),
+                )
+            })
     } else {
-        managed.map().with_creature_like_cpp(victim_guid, |victim|
-            catalogs.share_creature(&victim.unit().subsystems().auras.applied_auras, difficulty_id))
+        managed
+            .map()
+            .with_creature_like_cpp(victim_guid, |victim| {
+                catalogs.share_creature(
+                    &victim.unit().subsystems().auras.applied_auras,
+                    difficulty_id,
+                )
+            })
             .unwrap_or_default()
     };
 
@@ -72,12 +88,24 @@ pub(super) fn apply_melee_share_damage_like_cpp(
         if share_damage == 0 {
             continue;
         }
-        let Some(secondary) = apply_secondary_share_damage_like_cpp(canonical_manager, map_id, instance_id, attacker_guid, aura.caster_guid, share_damage, attacker_is_player_controlled, match aura.identity {
+        let Some(secondary) = apply_secondary_share_damage_like_cpp(
+            canonical_manager,
+            map_id,
+            instance_id,
+            attacker_guid,
+            aura.caster_guid,
+            share_damage,
+            attacker_is_player_controlled,
+            match aura.identity {
                 ShareAuraIdentityLikeCpp::Player { spell_id, .. } => spell_id,
                 ShareAuraIdentityLikeCpp::Creature { applied, .. } => {
                     i32::try_from(applied.spell_id).unwrap_or(0)
                 }
-            }, catalogs, difficulty_id, kills) else {
+            },
+            catalogs,
+            difficulty_id,
+            kills,
+        ) else {
             continue;
         };
         let is_primary_target = aura.caster_guid == victim_guid;
@@ -162,10 +190,16 @@ struct SecondaryShareDamageOutcomeLikeCpp {
 /// target 3.4.3 share loop does not call `IsImmunedToDamage` here.
 #[allow(clippy::too_many_arguments)]
 fn apply_secondary_share_damage_like_cpp(
-    canonical_manager: &mut MapManager, map_id: u16, instance_id: u32,
-    attacker_guid: ObjectGuid, caster_guid: ObjectGuid, share_damage: u32,
-    attacker_is_player_controlled: bool, spell_id: i32,
-    catalogs: &impl CreatureMeleeCatalogsLikeCpp, difficulty_id: u8,
+    canonical_manager: &mut MapManager,
+    map_id: u16,
+    instance_id: u32,
+    attacker_guid: ObjectGuid,
+    caster_guid: ObjectGuid,
+    share_damage: u32,
+    attacker_is_player_controlled: bool,
+    spell_id: i32,
+    catalogs: &impl CreatureMeleeCatalogsLikeCpp,
+    difficulty_id: u8,
     kills: &mut Option<MeleeKillCollector<'_>>,
 ) -> Option<SecondaryShareDamageOutcomeLikeCpp> {
     let managed = canonical_manager.find_map(u32::from(map_id), instance_id)?;
@@ -193,7 +227,13 @@ fn apply_secondary_share_damage_like_cpp(
         });
     }
 
-    let threat_plan = super::threat::plan_creature_damage_threat_like_cpp(managed.map(), attacker_guid, Some(spell_id), catalogs, difficulty_id);
+    let threat_plan = super::threat::plan_creature_damage_threat_like_cpp(
+        managed.map(),
+        attacker_guid,
+        Some(spell_id),
+        catalogs,
+        difficulty_id,
+    );
     let mut mutation_events = Vec::new();
     let mut creature_sync = None;
     let mut player_health_after = None;
@@ -212,9 +252,9 @@ fn apply_secondary_share_damage_like_cpp(
             caster.unit_mut().set_health(0);
         }
         mutation_events.push(MeleeEffect::PlayerHealth {
-                guid: caster_guid,
-                health: health_after.min(i64::MAX as u64) as i64,
-            });
+            guid: caster_guid,
+            health: health_after.min(i64::MAX as u64) as i64,
+        });
         player_health_after = Some(health_after);
     } else {
         let managed = canonical_manager.find_map_mut(u32::from(map_id), instance_id)?;
@@ -249,8 +289,12 @@ fn apply_secondary_share_damage_like_cpp(
         }
         if killed {
             if let Some(collector) = kills.as_mut() {
-                collector.capture(map, crate::MapKey::new(u32::from(map_id), instance_id),
-                    MeleeKillCollector::SHARE, caster_guid);
+                collector.capture(
+                    map,
+                    crate::MapKey::new(u32::from(map_id), instance_id),
+                    MeleeKillCollector::SHARE,
+                    caster_guid,
+                );
             }
         }
         let threat = if killed {
@@ -290,7 +334,10 @@ fn apply_secondary_share_damage_like_cpp(
                 ai_state_after: caster.ai_ownership().state,
             },
         });
-        mutation_events.push(MeleeEffect::Values { guid: caster_guid, update: caster.unit().values_update() });
+        mutation_events.push(MeleeEffect::Values {
+            guid: caster_guid,
+            update: caster.unit().values_update(),
+        });
     }
 
     Some(SecondaryShareDamageOutcomeLikeCpp {

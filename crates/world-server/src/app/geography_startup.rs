@@ -103,13 +103,10 @@ pub(super) async fn load_phase_and_graveyard_catalogs(
 ) -> anyhow::Result<PhaseAndGraveyardCatalogs> {
     let phase_hotfix_adapter =
         wow_database::MariaDbPhaseHotfixPersistenceAdapterLikeCpp::new(Arc::clone(hotfix_db));
-    let (phase_store, phase_group_store) = catalogs::phase_hotfix::load_phase_stores_like_cpp(
-        data_dir,
-        locale,
-        &phase_hotfix_adapter,
-    )
-    .await
-    .context("Failed to load Phase/PhaseXPhaseGroup DB2 and hotfix rows")?;
+    let (phase_store, phase_group_store) =
+        catalogs::phase_hotfix::load_phase_stores_like_cpp(data_dir, locale, &phase_hotfix_adapter)
+            .await
+            .context("Failed to load Phase/PhaseXPhaseGroup DB2 and hotfix rows")?;
     let phase_store = Arc::new(phase_store);
     let phase_group_store = Arc::new(phase_group_store);
     info!(

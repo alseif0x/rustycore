@@ -90,13 +90,24 @@ impl<'a> LearnedSkillOperation<'a> {
                 }
                 Phase::PreviousNode(id) => LearnedSkillStep::PreviousNode(id),
                 Phase::FirstRank(id) => LearnedSkillStep::FirstRank(id),
-                Phase::Value => LearnedSkillStep::Value(self.node.expect("learned skill node").skill_id),
-                Phase::Maximum => LearnedSkillStep::Maximum(self.node.expect("learned skill node").skill_id),
-                Phase::Range => LearnedSkillStep::Range(self.node.expect("learned skill node").skill_id),
+                Phase::Value => {
+                    LearnedSkillStep::Value(self.node.expect("learned skill node").skill_id)
+                }
+                Phase::Maximum => {
+                    LearnedSkillStep::Maximum(self.node.expect("learned skill node").skill_id)
+                }
+                Phase::Range => {
+                    LearnedSkillStep::Range(self.node.expect("learned skill node").skill_id)
+                }
                 Phase::Level => LearnedSkillStep::LevelMaximum,
                 Phase::Tier(tier_id) => LearnedSkillStep::TierMaximum {
                     tier_id,
-                    index: u32::from(self.node.expect("learned skill node").step.saturating_sub(1)),
+                    index: u32::from(
+                        self.node
+                            .expect("learned skill node")
+                            .step
+                            .saturating_sub(1),
+                    ),
                 },
                 Phase::Write(write) => LearnedSkillStep::Write(write),
                 Phase::Done(complete) => LearnedSkillStep::Done(complete),
@@ -195,7 +206,10 @@ impl<'a> LearnedSkillOperation<'a> {
                         self.new_maximum = 1;
                         self.always_max = always_max;
                     }
-                    LearnedSkillRange::Rank { always_max, tier_id } => {
+                    LearnedSkillRange::Rank {
+                        always_max,
+                        tier_id,
+                    } => {
                         self.always_max = always_max;
                         self.phase = Phase::Tier(tier_id);
                         return;
@@ -217,7 +231,11 @@ impl<'a> LearnedSkillOperation<'a> {
                 self.finish_range();
             }
             (Phase::Write(_), LearnedSkillInput::Applied) => {
-                self.phase = if self.gain { Phase::GainRoot } else { Phase::Done(true) };
+                self.phase = if self.gain {
+                    Phase::GainRoot
+                } else {
+                    Phase::Done(true)
+                };
             }
             _ => unreachable!("input must answer the current learned skill step"),
         }

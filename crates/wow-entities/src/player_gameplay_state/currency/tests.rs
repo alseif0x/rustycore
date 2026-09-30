@@ -43,28 +43,43 @@ fn quest_gain_applies_weekly_then_quantity_caps_to_all_enabled_counters() {
     let delta = currency
         .apply_quest_gain(394, 20, &entry, CurrencyGainSourceLikeCpp::QuestReward)
         .unwrap();
-    assert_eq!(currency, PlayerCurrency {
-        state: PlayerCurrencyState::Changed,
-        quantity: 15,
-        weekly_quantity: 9,
-        tracked_quantity: 11,
-        increased_cap_quantity: 3,
-        earned_quantity: 13,
-        flags: 9,
-    });
-    assert_eq!(delta, CurrencyGainDelta {
-        currency_id: 394,
-        quantity: 15,
-        amount: 5,
-        weekly_quantity: Some(9),
-        max_quantity: Some(15),
-        total_earned: Some(13),
-        suppress_chat_log: false,
-    });
+    assert_eq!(
+        currency,
+        PlayerCurrency {
+            state: PlayerCurrencyState::Changed,
+            quantity: 15,
+            weekly_quantity: 9,
+            tracked_quantity: 11,
+            increased_cap_quantity: 3,
+            earned_quantity: 13,
+            flags: 9,
+        }
+    );
+    assert_eq!(
+        delta,
+        CurrencyGainDelta {
+            currency_id: 394,
+            quantity: 15,
+            amount: 5,
+            weekly_quantity: Some(9),
+            max_quantity: Some(15),
+            total_earned: Some(13),
+            suppress_chat_log: false,
+        }
+    );
 
-    let mut weekly_limited = PlayerCurrency { quantity: 0, weekly_quantity: 11, ..currency };
+    let mut weekly_limited = PlayerCurrency {
+        quantity: 0,
+        weekly_quantity: 11,
+        ..currency
+    };
     let delta = weekly_limited
-        .apply_quest_gain(394, 20, &entry, CurrencyGainSourceLikeCpp::WeeklyQuestReward)
+        .apply_quest_gain(
+            394,
+            20,
+            &entry,
+            CurrencyGainSourceLikeCpp::WeeklyQuestReward,
+        )
         .unwrap();
     assert_eq!(delta.amount, 1);
     assert_eq!(weekly_limited.quantity, 1);
@@ -76,17 +91,44 @@ fn quest_gain_zero_or_exhausted_caps_leave_every_field_unchanged() {
     let base = currency_entry();
     for (entry, amount) in [
         (base, 0),
-        (CurrencyTypesEntry { max_earnable_per_week: 4, ..base }, 7),
-        (CurrencyTypesEntry { max_earnable_per_week: 3, ..base }, 7),
-        (CurrencyTypesEntry { max_qty: 10, ..base }, 7),
+        (
+            CurrencyTypesEntry {
+                max_earnable_per_week: 4,
+                ..base
+            },
+            7,
+        ),
+        (
+            CurrencyTypesEntry {
+                max_earnable_per_week: 3,
+                ..base
+            },
+            7,
+        ),
+        (
+            CurrencyTypesEntry {
+                max_qty: 10,
+                ..base
+            },
+            7,
+        ),
         (CurrencyTypesEntry { max_qty: 9, ..base }, 7),
     ] {
         for state in [PlayerCurrencyState::New, PlayerCurrencyState::Removed] {
-            let before = PlayerCurrency { state, ..currency() };
+            let before = PlayerCurrency {
+                state,
+                ..currency()
+            };
             let mut current = before;
-            assert_eq!(current.apply_quest_gain(
-                394, amount, &entry, CurrencyGainSourceLikeCpp::QuestReward,
-            ), None);
+            assert_eq!(
+                current.apply_quest_gain(
+                    394,
+                    amount,
+                    &entry,
+                    CurrencyGainSourceLikeCpp::QuestReward,
+                ),
+                None
+            );
             assert_eq!(current, before);
         }
     }
@@ -100,15 +142,26 @@ fn quest_gain_preserves_new_and_marks_all_other_states_changed() {
         PlayerCurrencyState::Changed,
         PlayerCurrencyState::Removed,
     ] {
-        let mut currency = PlayerCurrency { state, ..currency() };
+        let mut currency = PlayerCurrency {
+            state,
+            ..currency()
+        };
         let delta = currency
-            .apply_quest_gain(394, 2, &currency_entry(), CurrencyGainSourceLikeCpp::DailyQuestReward)
+            .apply_quest_gain(
+                394,
+                2,
+                &currency_entry(),
+                CurrencyGainSourceLikeCpp::DailyQuestReward,
+            )
             .unwrap();
-        assert_eq!(currency.state, if state == PlayerCurrencyState::New {
-            PlayerCurrencyState::New
-        } else {
-            PlayerCurrencyState::Changed
-        });
+        assert_eq!(
+            currency.state,
+            if state == PlayerCurrencyState::New {
+                PlayerCurrencyState::New
+            } else {
+                PlayerCurrencyState::Changed
+            }
+        );
         assert_eq!(currency.quantity, 12);
         assert_eq!(currency.flags, 9);
         assert_eq!(currency.increased_cap_quantity, 3);
@@ -133,9 +186,15 @@ fn quest_gain_uses_dynamic_maximum_and_saturating_cap_increase() {
     assert_eq!(delta.amount, 3);
     assert_eq!(delta.max_quantity, Some(13));
 
-    let saturated = CurrencyTypesEntry { max_qty: u32::MAX - 1, ..entry };
+    let saturated = CurrencyTypesEntry {
+        max_qty: u32::MAX - 1,
+        ..entry
+    };
     assert_eq!(current.max_quantity(&saturated), u32::MAX);
-    let dynamic_only = CurrencyTypesEntry { max_qty: 0, ..entry };
+    let dynamic_only = CurrencyTypesEntry {
+        max_qty: 0,
+        ..entry
+    };
     assert_eq!(current.max_quantity(&dynamic_only), 3);
     assert_eq!(current.max_quantity(&currency_entry()), 0);
 }
@@ -147,7 +206,10 @@ fn quest_gain_scaler_controls_weekly_presence_but_keeps_raw_quantity() {
         flags: CurrencyTypesFlags::SCALER_100 | CurrencyTypesFlags::SUPPRESS_CHAT_MESSAGES,
         ..currency_entry()
     };
-    let mut current = PlayerCurrency { weekly_quantity: 98, ..currency() };
+    let mut current = PlayerCurrency {
+        weekly_quantity: 98,
+        ..currency()
+    };
     let first = current
         .apply_quest_gain(394, 1, &entry, CurrencyGainSourceLikeCpp::QuestReward)
         .unwrap();
@@ -165,7 +227,12 @@ fn quest_gain_scaler_controls_weekly_presence_but_keeps_raw_quantity() {
         ..entry
     };
     let delta = current
-        .apply_quest_gain(394, 1, &version_only, CurrencyGainSourceLikeCpp::QuestReward)
+        .apply_quest_gain(
+            394,
+            1,
+            &version_only,
+            CurrencyGainSourceLikeCpp::QuestReward,
+        )
         .unwrap();
     assert!(!delta.suppress_chat_log);
     assert_eq!(delta.weekly_quantity, Some(101));
@@ -187,11 +254,14 @@ fn quest_gain_ignore_caps_skips_weekly_tracking_and_earned_mutations() {
         let before = currency();
         let mut current = before;
         let delta = current.apply_quest_gain(394, 20, &entry, source).unwrap();
-        assert_eq!(current, PlayerCurrency {
-            state: PlayerCurrencyState::Changed,
-            quantity: 30,
-            ..before
-        });
+        assert_eq!(
+            current,
+            PlayerCurrency {
+                state: PlayerCurrencyState::Changed,
+                quantity: 30,
+                ..before
+            }
+        );
         assert_eq!(delta.amount, 20);
         assert_eq!(delta.weekly_quantity, Some(4));
         assert_eq!(delta.max_quantity, Some(13));
@@ -244,7 +314,12 @@ fn quest_gain_without_counter_flags_preserves_existing_auxiliary_values() {
     let before = currency();
     let mut current = before;
     let delta = current
-        .apply_quest_gain(394, 5, &currency_entry(), CurrencyGainSourceLikeCpp::QuestReward)
+        .apply_quest_gain(
+            394,
+            5,
+            &currency_entry(),
+            CurrencyGainSourceLikeCpp::QuestReward,
+        )
         .unwrap();
     assert_eq!(current.weekly_quantity, before.weekly_quantity);
     assert_eq!(current.tracked_quantity, before.tracked_quantity);

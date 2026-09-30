@@ -1,7 +1,7 @@
 //! Player-victim mitigation/outcome stages; catalog reads remain borrowed.
-use super::*;
-use super::source::CreatureMeleeSource;
 use super::absorption::*;
+use super::source::CreatureMeleeSource;
+use super::*;
 pub(super) fn player_victim_damage_like_cpp(
     canonical_manager: &mut MapManager,
     source: &CreatureMeleeSource<'_>,
@@ -42,8 +42,9 @@ pub(super) fn player_victim_damage_like_cpp(
                     .map(|effect| effect.amount as f32)
                     .sum()
             };
-            let attacker_target_resistance_normal_aura =
-                attacker_armor_pen(wow_constants::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE);
+            let attacker_target_resistance_normal_aura = attacker_armor_pen(
+                wow_constants::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE,
+            );
             let attacker_ignore_target_resist_normal_pct = attacker_armor_pen(
                 wow_constants::spell::aura_types::SPELL_AURA_MOD_IGNORE_TARGET_RESIST,
             );
@@ -280,8 +281,7 @@ pub(super) fn player_victim_damage_like_cpp(
                         damage,
                         creature_attacker_damage_bonus,
                     );
-                    let after_taken =
-                        melee_damage_taken_apply_like_cpp(taken, after_done);
+                    let after_taken = melee_damage_taken_apply_like_cpp(taken, after_done);
                     let mitigated = armor_reduced_damage_like_cpp(
                         after_taken,
                         attacker_facts.level,
@@ -294,21 +294,20 @@ pub(super) fn player_victim_damage_like_cpp(
                         attacker_ignore_target_resist_normal_pct,
                         bypass_armor_pct_by_caster,
                     );
-                    let inputs = melee_outcome_inputs_like_cpp(
-                        &attacker_facts,
-                        &victim_facts,
-                    );
+                    let inputs = melee_outcome_inputs_like_cpp(&attacker_facts, &victim_facts);
                     let rolled = rolled_melee_outcome_like_cpp(&inputs[0]);
-                    let (damage, _blocked, original) =
-                        melee_outcome_damage_like_cpp(
-                            rolled,
-                            mitigated,
-                            attacker_facts.level,
-                            victim_facts.level,
-                            attacker_facts.crit_damage_multiplier,
-                            player_block_percent,
-                        );
-                    let info = MeleePresentation { outcome: Some(rolled), ..Default::default() };
+                    let (damage, _blocked, original) = melee_outcome_damage_like_cpp(
+                        rolled,
+                        mitigated,
+                        attacker_facts.level,
+                        victim_facts.level,
+                        attacker_facts.crit_damage_multiplier,
+                        player_block_percent,
+                    );
+                    let info = MeleePresentation {
+                        outcome: Some(rolled),
+                        ..Default::default()
+                    };
                     swing_state.hit_info = info;
                     swing_state.original_damage = original;
                     swing_state.outcome_represented = true;
@@ -328,10 +327,17 @@ pub(super) fn player_victim_damage_like_cpp(
                     // committed damage and the published `SubDmg`
                     // already carry the reduced amount. Physical melee
                     // always uses `SPELL_SCHOOL_MASK_NORMAL`.
-                    let absorb = apply_melee_absorb_to_canonical_player_like_cpp(canonical_manager, u32::from(swing.map_id), swing.instance_id, swing.victim_guid, 0x01, damage, catalogs, map_difficulty_id, represented_melee_ignore_absorb_like_cpp(
-                            &attacker_effects,
-                            0x01,
-                        ));
+                    let absorb = apply_melee_absorb_to_canonical_player_like_cpp(
+                        canonical_manager,
+                        u32::from(swing.map_id),
+                        swing.instance_id,
+                        swing.victim_guid,
+                        0x01,
+                        damage,
+                        catalogs,
+                        map_difficulty_id,
+                        represented_melee_ignore_absorb_like_cpp(&attacker_effects, 0x01),
+                    );
                     let damage = match absorb {
                         Some((absorbed, remaining, spent, consumptions)) => {
                             if absorbed > 0 {

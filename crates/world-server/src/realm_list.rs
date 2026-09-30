@@ -13,9 +13,9 @@ use wow_database::{LoginDatabase, LoginStatements, SqlResult};
 
 use super::{
     MAX_CLIENT_REALM_TYPE_LIKE_CPP, REALM_TYPE_FFA_PVP_LIKE_CPP, REALM_TYPE_NORMAL_LIKE_CPP,
-    REALM_TYPE_PVP_LIKE_CPP, REALM_TYPE_RPPVP_LIKE_CPP, SEC_ADMINISTRATOR_LIKE_CPP,
-    RealmHandleLikeCpp, RealmListEntryLikeCpp, RealmListRawRowLikeCpp,
-    RealmListRefreshSummaryLikeCpp, RealmListSnapshotLikeCpp, SharedRealmListLikeCpp,
+    REALM_TYPE_PVP_LIKE_CPP, REALM_TYPE_RPPVP_LIKE_CPP, RealmHandleLikeCpp, RealmListEntryLikeCpp,
+    RealmListRawRowLikeCpp, RealmListRefreshSummaryLikeCpp, RealmListSnapshotLikeCpp,
+    SEC_ADMINISTRATOR_LIKE_CPP, SharedRealmListLikeCpp,
 };
 
 impl RealmHandleLikeCpp {
@@ -93,7 +93,10 @@ impl RealmListSnapshotLikeCpp {
     }
 
     #[cfg(test)]
-    pub(super) fn get_realm_like_cpp(&self, handle: RealmHandleLikeCpp) -> Option<&RealmListEntryLikeCpp> {
+    pub(super) fn get_realm_like_cpp(
+        &self,
+        handle: RealmHandleLikeCpp,
+    ) -> Option<&RealmListEntryLikeCpp> {
         self.realms.get(&handle)
     }
 
@@ -142,7 +145,9 @@ pub(super) fn normalized_realm_name_like_cpp(name: &str) -> String {
         .collect()
 }
 
-pub(super) fn realm_list_entry_from_row_like_cpp(row: RealmListRawRowLikeCpp) -> RealmListEntryLikeCpp {
+pub(super) fn realm_list_entry_from_row_like_cpp(
+    row: RealmListRawRowLikeCpp,
+) -> RealmListEntryLikeCpp {
     let id = RealmHandleLikeCpp::new_like_cpp(row.region, row.battlegroup, row.realm_id);
     let normalized_name = normalized_realm_name_like_cpp(&row.name);
     RealmListEntryLikeCpp {
@@ -161,7 +166,9 @@ pub(super) fn realm_list_entry_from_row_like_cpp(row: RealmListRawRowLikeCpp) ->
     }
 }
 
-pub(super) fn realm_list_snapshot_from_result_like_cpp(result: &mut SqlResult) -> RealmListSnapshotLikeCpp {
+pub(super) fn realm_list_snapshot_from_result_like_cpp(
+    result: &mut SqlResult,
+) -> RealmListSnapshotLikeCpp {
     let mut snapshot = RealmListSnapshotLikeCpp::default();
     if result.is_empty() {
         return snapshot;

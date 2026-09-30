@@ -10,7 +10,6 @@ where
     Terrain: TerrainGridLoader,
     Lifecycle: GridLifecycle,
 {
-
     pub fn creature_spawn_id_store_count_like_cpp(&self, spawn_id: SpawnId) -> usize {
         self.creatures_by_spawn_id
             .get(&spawn_id)
@@ -106,7 +105,10 @@ where
         let guid = entry.as_ref().object().guid();
         let mut previous = self.entity_world.take(&guid);
         if let Some(previous_entry) = previous.as_mut() {
-            if !typed_loot_authorities_share_storage_like_cpp(previous_entry.as_ref(), entry.as_ref()) {
+            if !typed_loot_authorities_share_storage_like_cpp(
+                previous_entry.as_ref(),
+                entry.as_ref(),
+            ) {
                 detach_typed_loot_authority_like_cpp(previous_entry.as_mut());
             }
             self.unindex_map_object_record_by_spawn_id_like_cpp(previous_entry.as_ref());
@@ -146,5 +148,4 @@ where
     pub fn map_reference_order_like_cpp(&self) -> &[ObjectGuid] {
         &self.map_reference_order_like_cpp
     }
-
 }

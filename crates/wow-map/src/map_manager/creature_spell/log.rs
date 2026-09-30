@@ -7,7 +7,6 @@ pub fn cast_log(
     spell: &SpellInfoFacts,
     difficulty_id: u8,
 ) -> Option<SpellLog> {
-
     // The enclosing M2.6 cast path admits only base-difficulty spells and zero
     // effective costs. Keep the cost/aura portions independently fail-closed
     // so later callers cannot fabricate a complete log snapshot.

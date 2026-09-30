@@ -2,16 +2,13 @@
 
 use super::*;
 
-pub(super) fn drain_server_packet_bytes(
-    send_rx: &flume::Receiver<Vec<u8>>,
-) -> Vec<Vec<u8>> {
+pub(super) fn drain_server_packet_bytes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<Vec<u8>> {
     let mut packets = Vec::new();
     while let Ok(bytes) = send_rx.try_recv() {
         packets.push(bytes);
     }
     packets
 }
-
 
 pub(super) fn party_update_sequence_num_like_cpp(bytes: &[u8]) -> i32 {
     let mut pkt = WorldPacket::from_bytes(bytes);
@@ -26,7 +23,6 @@ pub(super) fn party_update_sequence_num_like_cpp(bytes: &[u8]) -> i32 {
     let _party_guid = pkt.read_packed_guid().unwrap();
     pkt.read_int32().unwrap()
 }
-
 
 /// Parses the destroyed `PartyUpdate` that C++
 /// `Group::SendUpdateDestroyGroupToPlayer` (`Group.cpp:917-926`) sends so

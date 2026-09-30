@@ -20,7 +20,8 @@ impl CreatureMessageSourceFacts {
             instance_id: world.instance_id(),
             position: creature.position(),
             phase_shift: world.phase_shift().clone(),
-            visibility_range: world.visibility_distance_override_like_cpp()
+            visibility_range: world
+                .visibility_distance_override_like_cpp()
                 .unwrap_or(crate::map_manager::VISIBILITY_RADIUS),
         }
     }

@@ -45,9 +45,7 @@ async fn apply_creature_melee_damage_command_updates_victim_and_sends_hit_like_c
             },
         ))
         .expect("command queued");
-    session
-        .fixture_melee_process_commands()
-        .await;
+    session.fixture_melee_process_commands().await;
 
     assert_eq!(session.fixture_melee_health(), 83);
     let packet = send_rx.try_recv().expect("attacker state update");

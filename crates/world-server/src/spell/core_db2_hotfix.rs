@@ -2,57 +2,28 @@
 
 use anyhow::{Result, anyhow};
 use wow_data::{
-    Db2HotfixRemovalStoreLikeCpp,
-    EffectiveCoreSpellDb2StoresLikeCpp,
-    SpellAuraRestrictionsStore,
-    SpellCastTimesStore,
-    SpellCastingRequirementsStore,
-    SpellCategoriesStore,
-    SpellCategoryStore,
-    SpellCooldownsStore,
-    SpellDurationStore,
-    SpellEffectDb2Store,
-    SpellEquippedItemsStore,
-    SpellInterruptsStore,
-    SpellMiscStore,
-    SpellNameEffectiveLoadReportLikeCpp,
-    SpellNameStore,
-    SpellPowerDifficultyStore,
-    SpellPowerStore,
-    SpellRadiusStore,
-    SpellRangeStore,
-    SpellShapeshiftStore,
-    SpellStore,
-    SpellTargetRestrictionsStore,
-    SpellXSpellVisualStore,
+    Db2HotfixRemovalStoreLikeCpp, EffectiveCoreSpellDb2StoresLikeCpp, SpellAuraRestrictionsStore,
+    SpellCastTimesStore, SpellCastingRequirementsStore, SpellCategoriesStore, SpellCategoryStore,
+    SpellCooldownsStore, SpellDurationStore, SpellEffectDb2Store, SpellEquippedItemsStore,
+    SpellInterruptsStore, SpellMiscStore, SpellNameEffectiveLoadReportLikeCpp, SpellNameStore,
+    SpellPowerDifficultyStore, SpellPowerStore, SpellRadiusStore, SpellRangeStore,
+    SpellShapeshiftStore, SpellStore, SpellTargetRestrictionsStore, SpellXSpellVisualStore,
 };
 use wow_persistence::{
-    SpellCoreDb2HotfixLoadOutcomeLikeCpp,
-    SpellCoreDb2HotfixPersistencePortLikeCpp,
+    SpellCoreDb2HotfixLoadOutcomeLikeCpp, SpellCoreDb2HotfixPersistencePortLikeCpp,
 };
 
 mod row_projection;
 
 use row_projection::{
-    spell_name_entry_like_cpp,
-    spell_categories_entry_like_cpp,
-    spell_misc_entry_like_cpp,
-    spell_effect_entry_like_cpp,
-    spell_shapeshift_entry_like_cpp,
-    spell_interrupts_entry_like_cpp,
-    spell_cast_times_entry_like_cpp,
-    spell_cooldowns_entry_like_cpp,
-    spell_casting_requirements_entry_like_cpp,
-    spell_power_entry_like_cpp,
-    spell_power_difficulty_entry_like_cpp,
-    spell_aura_restrictions_entry_like_cpp,
-    spell_category_entry_like_cpp,
-    spell_duration_entry_like_cpp,
-    spell_radius_entry_like_cpp,
-    spell_range_entry_like_cpp,
-    spell_equipped_items_entry_like_cpp,
-    spell_target_restrictions_entry_like_cpp,
-    spell_x_spell_visual_entry_like_cpp,
+    spell_aura_restrictions_entry_like_cpp, spell_cast_times_entry_like_cpp,
+    spell_casting_requirements_entry_like_cpp, spell_categories_entry_like_cpp,
+    spell_category_entry_like_cpp, spell_cooldowns_entry_like_cpp, spell_duration_entry_like_cpp,
+    spell_effect_entry_like_cpp, spell_equipped_items_entry_like_cpp,
+    spell_interrupts_entry_like_cpp, spell_misc_entry_like_cpp, spell_name_entry_like_cpp,
+    spell_power_difficulty_entry_like_cpp, spell_power_entry_like_cpp, spell_radius_entry_like_cpp,
+    spell_range_entry_like_cpp, spell_shapeshift_entry_like_cpp,
+    spell_target_restrictions_entry_like_cpp, spell_x_spell_visual_entry_like_cpp,
 };
 
 fn loaded_rows_like_cpp<T>(outcome: SpellCoreDb2HotfixLoadOutcomeLikeCpp<T>) -> Result<Vec<T>> {

@@ -67,10 +67,8 @@ pub(super) fn settle_creature_record(
     spawn_id: wow_map::SpawnId,
     entry: u32,
     map_object_guid: ObjectGuid,
-) -> Result<
-    Option<wow_map::map::LoadedGridRespawnRecordsLikeCpp>,
-    LoadedGridCreaturePreparationError,
-> {
+) -> Result<Option<wow_map::map::LoadedGridRespawnRecordsLikeCpp>, LoadedGridCreaturePreparationError>
+{
     match resolved {
         Ok(record) => {
             let Some(mut primary_record) = record else {
@@ -118,10 +116,8 @@ pub(super) fn settle_creature_record(
 fn project_settlement(
     primary_record: wow_entities::MapObjectRecord,
     settlement: Result<usize, wow_map::MapGuidSequenceErrorLikeCpp>,
-) -> Result<
-    Option<wow_map::map::LoadedGridRespawnRecordsLikeCpp>,
-    LoadedGridCreaturePreparationError,
-> {
+) -> Result<Option<wow_map::map::LoadedGridRespawnRecordsLikeCpp>, LoadedGridCreaturePreparationError>
+{
     let records = wow_map::map::LoadedGridRespawnRecordsLikeCpp::primary_only(primary_record);
     match settlement {
         Ok(_) => Ok(Some(records)),

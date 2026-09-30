@@ -1,6 +1,8 @@
 use super::*;
 use wow_core::guid::HighGuid;
-use wow_entities::{AuraCastProvenanceLikeCpp, AuraRef, AppliedAuraRef, MapObjectRecord, Pet, PetType, Unit};
+use wow_entities::{
+    AppliedAuraRef, AuraCastProvenanceLikeCpp, AuraRef, MapObjectRecord, Pet, PetType, Unit,
+};
 
 mod auras;
 mod capture;
@@ -32,9 +34,18 @@ fn legacy(counter: i64) -> WorldCreature {
 fn pet(counter: i64) -> Pet {
     let mut pet = Pet::new(ObjectGuid::create_player(1, 99), PetType::Hunter);
     let guid = ObjectGuid::create_world_object(HighGuid::Pet, 0, 1, 571, 7, 42, counter);
-    pet.creature_mut().unit_mut().world_mut().object_mut().create(guid);
-    pet.creature_mut().unit_mut().world_mut().set_map(571, 7).unwrap();
-    pet.creature_mut().set_ai_position(Position::xyz(11.0, 10.0, 0.0));
+    pet.creature_mut()
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(guid);
+    pet.creature_mut()
+        .unit_mut()
+        .world_mut()
+        .set_map(571, 7)
+        .unwrap();
+    pet.creature_mut()
+        .set_ai_position(Position::xyz(11.0, 10.0, 0.0));
     pet.creature_mut().unit_mut().set_max_health(100);
     pet.creature_mut().unit_mut().set_health(80);
     pet
@@ -42,6 +53,9 @@ fn pet(counter: i64) -> Pet {
 
 fn collect(map: &Map) -> Vec<CreatureVisibilityCandidate> {
     map.capture_compatible_creature_visibility(
-        &Position::xyz(10.0, 10.0, 0.0), 100.0, 1.5, &PhaseShift::default(),
+        &Position::xyz(10.0, 10.0, 0.0),
+        100.0,
+        1.5,
+        &PhaseShift::default(),
     )
 }

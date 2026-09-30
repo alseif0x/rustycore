@@ -190,5 +190,4 @@ impl Player {
         bag_storage.set_item(slot, None);
         Ok(removed)
     }
-
 }

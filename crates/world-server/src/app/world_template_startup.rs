@@ -9,11 +9,16 @@ pub(super) struct WorldTemplateStartup {
     pub(super) _scene_template_store: Arc<wow_data::SceneTemplateStoreLikeCpp>,
     pub(super) scene_template_report: wow_data::SceneTemplateLoadReportLikeCpp,
     pub(super) script_name_interner: wow_data::ScriptNameInternerLikeCpp,
-    pub(super) gameobject_override_lifecycle_store: Arc<wow_data::GameObjectOverrideLifecycleStoreLikeCpp>,
-    pub(super) gameobject_template_lifecycle_store: Arc<wow_data::GameObjectTemplateLifecycleStoreLikeCpp>,
-    pub(super) creature_template_sparring_store: Arc<wow_data::CreatureTemplateSparringStoreLikeCpp>,
-    pub(super) creature_template_lifecycle_store: Arc<wow_data::CreatureTemplateLifecycleStoreLikeCpp>,
-    pub(super) creature_template_classification_store: Arc<wow_data::CreatureTemplateClassificationStoreLikeCpp>,
+    pub(super) gameobject_override_lifecycle_store:
+        Arc<wow_data::GameObjectOverrideLifecycleStoreLikeCpp>,
+    pub(super) gameobject_template_lifecycle_store:
+        Arc<wow_data::GameObjectTemplateLifecycleStoreLikeCpp>,
+    pub(super) creature_template_sparring_store:
+        Arc<wow_data::CreatureTemplateSparringStoreLikeCpp>,
+    pub(super) creature_template_lifecycle_store:
+        Arc<wow_data::CreatureTemplateLifecycleStoreLikeCpp>,
+    pub(super) creature_template_classification_store:
+        Arc<wow_data::CreatureTemplateClassificationStoreLikeCpp>,
     pub(super) spawn_references: super::condition_reference_startup::SpawnReferences,
 }
 
@@ -26,10 +31,13 @@ pub(super) async fn load(
     world_configs: &wow_config::WorldConfigSet,
 ) -> anyhow::Result<WorldTemplateStartup> {
     let spawn_references = super::condition_reference_startup::load_spawn_references(
-        &world_ports.world_auxiliary_catalog_persistence, &world_ports.world_reference_catalog_persistence,
-    ).await?;
+        &world_ports.world_auxiliary_catalog_persistence,
+        &world_ports.world_reference_catalog_persistence,
+    )
+    .await?;
     let super::creature_catalog_startup::CreatureTemplateCatalogs {
-        creature_template_classification_store, mut creature_template_lifecycle_store,
+        creature_template_classification_store,
+        mut creature_template_lifecycle_store,
         creature_template_sparring_store,
     } = super::creature_catalog_startup::load_creature_template_catalogs(
         &world_ports.world_object_catalog_persistence,
@@ -55,10 +63,12 @@ pub(super) async fn load(
         gameobject_override_lifecycle_store.len()
     );
     let mut script_name_interner = wow_data::build_template_script_name_interner_like_cpp(
-        creature_template_lifecycle_store.as_ref(), gameobject_template_lifecycle_store.as_ref(),
+        creature_template_lifecycle_store.as_ref(),
+        gameobject_template_lifecycle_store.as_ref(),
     );
     let scene_template_outcome = crate::world::auxiliary_catalog::load_scene_templates_like_cpp(
-        &world_ports.world_auxiliary_catalog_persistence, &mut script_name_interner,
+        &world_ports.world_auxiliary_catalog_persistence,
+        &mut script_name_interner,
     )
     .await
     .context("Failed to load C++ scene_template rows")?;
@@ -69,8 +79,13 @@ pub(super) async fn load(
         scene_template_outcome.report.cpp_logged_count_bug_like_cpp
     );
     let creature_runtime = super::creature_catalog_startup::load_creature_runtime_catalogs(
-        data_dir, locale, hotfix_db, db2_hotfix_removals, &world_ports.world_object_catalog_persistence,
-        creature_template_classification_store.as_ref(), world_configs,
+        data_dir,
+        locale,
+        hotfix_db,
+        db2_hotfix_removals,
+        &world_ports.world_object_catalog_persistence,
+        creature_template_classification_store.as_ref(),
+        world_configs,
     )
     .await?;
     Ok(WorldTemplateStartup {

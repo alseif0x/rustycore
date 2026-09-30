@@ -1,17 +1,21 @@
 //! Owned receipts for Group/Conditions, Pool and Catalog materializations.
 
 use super::*;
-use crate::map::{SpawnGroupActiveChange, SpawnGroupConditionActionLikeCpp,
-    SpawnGroupConditionUpdateOutcomeLikeCpp, SpawnGroupDespawnOutcomeLikeCpp,
-    SpawnGroupSpawnLoadPlanLikeCpp, SpawnGroupSpawnOutcomeLikeCpp,
+use crate::map::{
     PoolSpawnActionLoadPlanLikeCpp, ProcessRespawnsSafeSideEffectsSummaryLikeCpp,
-    SpawnObjectType, SpawnId};
+    SpawnGroupActiveChange, SpawnGroupConditionActionLikeCpp,
+    SpawnGroupConditionUpdateOutcomeLikeCpp, SpawnGroupDespawnOutcomeLikeCpp,
+    SpawnGroupSpawnLoadPlanLikeCpp, SpawnGroupSpawnOutcomeLikeCpp, SpawnId, SpawnObjectType,
+};
 
 #[derive(Debug)]
 pub enum LoadedGridAttemptPlan {
     SpawnGroup(SpawnGroupSpawnLoadPlanLikeCpp),
     Pool(PoolSpawnActionLoadPlanLikeCpp),
-    Catalog { object_type: SpawnObjectType, spawn_id: SpawnId },
+    Catalog {
+        object_type: SpawnObjectType,
+        spawn_id: SpawnId,
+    },
 }
 
 #[derive(Debug)]
@@ -97,7 +101,8 @@ impl LoadedGridReceipts {
         };
         if let Self::Owned(attempts) = self {
             attempts.push(LoadedGridSpawnAttempt {
-                plan: LoadedGridAttemptPlan::SpawnGroup(plan), result,
+                plan: LoadedGridAttemptPlan::SpawnGroup(plan),
+                result,
             });
         }
     }
@@ -139,7 +144,10 @@ impl LoadedGridReceipts {
         }
     }
 
-    pub(in crate::map) fn finish(self, summary: SpawnGroupSpawnOutcomeLikeCpp) -> LoadedGridSpawnOutcome {
+    pub(in crate::map) fn finish(
+        self,
+        summary: SpawnGroupSpawnOutcomeLikeCpp,
+    ) -> LoadedGridSpawnOutcome {
         let attempts = match self {
             Self::RecordCompatibility => Vec::new(),
             Self::Owned(attempts) => attempts,
@@ -167,7 +175,10 @@ impl LoadedGridReceipts {
             Ok(Some(_)) => unreachable!("successful materialization enters admission"),
         };
         if let Self::Owned(attempts) = self {
-            attempts.push(LoadedGridSpawnAttempt { plan: LoadedGridAttemptPlan::Pool(plan), result });
+            attempts.push(LoadedGridSpawnAttempt {
+                plan: LoadedGridAttemptPlan::Pool(plan),
+                result,
+            });
         }
     }
 
@@ -193,7 +204,11 @@ impl LoadedGridReceipts {
         };
         if let Self::Owned(attempts) = self {
             attempts.push(LoadedGridSpawnAttempt {
-                plan: LoadedGridAttemptPlan::Catalog { object_type, spawn_id }, result,
+                plan: LoadedGridAttemptPlan::Catalog {
+                    object_type,
+                    spawn_id,
+                },
+                result,
             });
         }
     }
@@ -205,7 +220,14 @@ impl LoadedGridReceipts {
         admission: LoadedGridAdmission,
         summary: &mut ProcessRespawnsSafeSideEffectsSummaryLikeCpp,
     ) {
-        self.respawn_admitted(LoadedGridAttemptPlan::Catalog { object_type, spawn_id }, admission, summary);
+        self.respawn_admitted(
+            LoadedGridAttemptPlan::Catalog {
+                object_type,
+                spawn_id,
+            },
+            admission,
+            summary,
+        );
     }
 
     fn respawn_admitted(
@@ -243,7 +265,10 @@ impl LoadedGridReceipts {
         }
     }
 
-    pub(in crate::map) fn finish_pool(self, summary: ProcessRespawnsSafeSideEffectsSummaryLikeCpp) -> LoadedGridPoolOutcome {
+    pub(in crate::map) fn finish_pool(
+        self,
+        summary: ProcessRespawnsSafeSideEffectsSummaryLikeCpp,
+    ) -> LoadedGridPoolOutcome {
         let attempts = match self {
             Self::RecordCompatibility => Vec::new(),
             Self::Owned(attempts) => attempts,
@@ -251,7 +276,10 @@ impl LoadedGridReceipts {
         LoadedGridPoolOutcome { summary, attempts }
     }
 
-    pub(in crate::map) fn finish_respawns(self, summary: ProcessRespawnsSafeSideEffectsSummaryLikeCpp) -> LoadedGridRespawnOutcome {
+    pub(in crate::map) fn finish_respawns(
+        self,
+        summary: ProcessRespawnsSafeSideEffectsSummaryLikeCpp,
+    ) -> LoadedGridRespawnOutcome {
         let attempts = match self {
             Self::RecordCompatibility => Vec::new(),
             Self::Owned(attempts) => attempts,
@@ -263,8 +291,8 @@ impl LoadedGridReceipts {
 fn primary_succeeded(admission: &LoadedGridAdmission) -> bool {
     match &admission.primary {
         LoadedGridPrimaryAdmission::Record { result, .. } => result.is_ok(),
-        LoadedGridPrimaryAdmission::CreatureActor(result) => matches!(
-            result, Ok(FreshCreatureActorAdmission::Inserted { .. }),
-        ),
+        LoadedGridPrimaryAdmission::CreatureActor(result) => {
+            matches!(result, Ok(FreshCreatureActorAdmission::Inserted { .. }),)
+        }
     }
 }

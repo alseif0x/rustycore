@@ -192,4 +192,3 @@ fn legacy_creature_lifecycle_tick_once_does_not_persist_garrison_respawn_like_cp
         90_019,
     );
 }
-

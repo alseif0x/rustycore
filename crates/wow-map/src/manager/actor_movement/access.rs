@@ -16,13 +16,11 @@ impl MapManager {
         let diff_ms = token.effective_diff_ms();
         let key = token.key();
         let incarnation = token.incarnation();
-        let (progress, _witness) = self.with_selected_actor(
-            tick, token, guid, Some(&witness),
-            |actor| {
+        let (progress, _witness) =
+            self.with_selected_actor(tick, token, guid, Some(&witness), |actor| {
                 let progress = prepare(actor, diff_ms);
                 requests::wrap(identity, progress, actor, key, incarnation)
-            },
-        )?;
+            })?;
         if matches!(&progress, ActorMovementProgress::Complete(_)) {
             // The callback holds only the actor borrow: it cannot change the
             // manager admission or slot validated immediately before it ran.
@@ -40,21 +38,39 @@ impl MapManager {
         resume: impl FnOnce(&mut WorldCreature, Input) -> StepProgress,
     ) -> Result<ActorMovementProgress, (ActorTickAccessError, ActorStepIdentity, Input)> {
         if !identity.matches_token(token) {
-            return Err((ActorTickAccessError::OperationMismatch { guid: identity.guid }, identity, input));
+            return Err((
+                ActorTickAccessError::OperationMismatch {
+                    guid: identity.guid,
+                },
+                identity,
+                input,
+            ));
         }
-        if let Err(error) = self.resume_actor_operation(
-            tick, token, identity.guid, &identity.witness,
-        ) {
+        if let Err(error) =
+            self.resume_actor_operation(tick, token, identity.guid, &identity.witness)
+        {
             return Err((error, identity, input));
         }
         // Keep ownership of input until the already-validated actor borrow is
         // obtained. Every rejection returns the exact input, without invoking
         // a closure that captured and could otherwise discard its response.
         let Some(map) = self.maps.get_mut(&token.key()) else {
-            return Err((ActorTickAccessError::ActorUnavailable { guid: identity.guid }, identity, input));
+            return Err((
+                ActorTickAccessError::ActorUnavailable {
+                    guid: identity.guid,
+                },
+                identity,
+                input,
+            ));
         };
         let Some(actor) = map.map_mut().creature_actor_mut(identity.guid) else {
-            return Err((ActorTickAccessError::ActorUnavailable { guid: identity.guid }, identity, input));
+            return Err((
+                ActorTickAccessError::ActorUnavailable {
+                    guid: identity.guid,
+                },
+                identity,
+                input,
+            ));
         };
         let progress = resume(actor, input);
         let progress = requests::wrap(identity, progress, actor, token.key(), token.incarnation());

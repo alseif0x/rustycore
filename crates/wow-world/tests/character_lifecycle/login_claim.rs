@@ -1,7 +1,7 @@
 // Existing Character application scenarios, moved with original assertion operands.
 
-use super::fixtures::*;
 use super::fixtures::session::make_session;
+use super::fixtures::*;
 
 #[test]
 fn character_login_claim_allows_only_one_live_session_like_cpp() {
@@ -32,16 +32,16 @@ fn account_data_times_respect_global_and_character_masks_like_cpp() {
     assert!(session.character_set_account_data_for_test(4, 40, "global-4".to_string()));
     assert!(session.character_set_account_data_for_test(14, 140, "character-14".to_string()));
 
-    let global_times =
-        session.character_account_data_times_for_test(ObjectGuid::EMPTY, GLOBAL_CACHE_MASK_LIKE_CPP);
+    let global_times = session
+        .character_account_data_times_for_test(ObjectGuid::EMPTY, GLOBAL_CACHE_MASK_LIKE_CPP);
     assert_eq!(global_times.player_guid, ObjectGuid::EMPTY);
     assert_eq!(global_times.account_times[0], 10);
     assert_eq!(global_times.account_times[1], 0);
     assert_eq!(global_times.account_times[4], 40);
     assert_eq!(global_times.account_times[14], 0);
 
-    let player_times =
-        session.character_account_data_times_for_test(player_guid, PER_CHARACTER_CACHE_MASK_LIKE_CPP);
+    let player_times = session
+        .character_account_data_times_for_test(player_guid, PER_CHARACTER_CACHE_MASK_LIKE_CPP);
     assert_eq!(player_times.player_guid, player_guid);
     assert_eq!(player_times.account_times[0], 0);
     assert_eq!(player_times.account_times[1], 20);

@@ -61,4 +61,3 @@ fn legacy_creature_victim_sync_cas_rejects_same_guid_replacement_like_cpp() {
             .shares_storage_like_cpp(&sync.identity.authority)
     );
 }
-

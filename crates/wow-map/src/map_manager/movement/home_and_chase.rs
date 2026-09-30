@@ -30,7 +30,8 @@ impl WorldCreature {
             owner_unit_state: self.creature.unit().unit_state(),
             home_position: self.creature.ai_ownership().home_position,
             move_spline_finalized: self
-                .runtime.active_move_spline
+                .runtime
+                .active_move_spline
                 .as_ref()
                 .is_none_or(MoveSpline::finalized),
             can_swim_out_of_combat: !self.creature.is_missing_can_swim_flag_out_of_combat(),
@@ -48,7 +49,8 @@ impl WorldCreature {
     pub(super) fn finish_home_movement_like_cpp(&mut self) {
         let snapshot = self.home_unit_snapshot_like_cpp();
         let finalize = self
-            .runtime.active_home_generator
+            .runtime
+            .active_home_generator
             .as_mut()
             .map(|generator| generator.finalize_like_cpp(true, true, snapshot));
         if let Some(finalize) = finalize {
@@ -104,7 +106,8 @@ impl WorldCreature {
             owner_victim_is_target: self.creature.ai_ownership().combat_target == Some(target.guid),
             owner_has_chase_move: unit.has_unit_state(UnitState::CHASE_MOVE.bits()),
             owner_movespline_finalized: self
-                .runtime.active_move_spline
+                .runtime
+                .active_move_spline
                 .as_ref()
                 .is_none_or(MoveSpline::finalized),
             // C++ `IsMutualChase` needs the target's own MotionMaster; only
@@ -160,7 +163,13 @@ impl WorldCreature {
         terrain: Option<&LiveTerrainHeights>,
         mut resolve_path: impl FnMut(CreaturePathQueryLikeCpp) -> Option<DetourPolyPath>,
     ) -> ChaseTickOutcomeLikeCpp {
-        let progress = pending::prepare_chase(self, diff_ms, target, should_try_pathfinding, terrain.is_some());
+        let progress = pending::prepare_chase(
+            self,
+            diff_ms,
+            target,
+            should_try_pathfinding,
+            terrain.is_some(),
+        );
         match pending::run(self, progress, terrain, &mut resolve_path) {
             pending::MovementCompletion::Chase(outcome) => outcome,
             _ => unreachable!("chase preparation completes a chase operation"),

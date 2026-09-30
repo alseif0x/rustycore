@@ -7,12 +7,12 @@
 
 use super::*;
 
+mod active_locations;
 mod actors;
+mod catalog;
+mod guards;
 pub(crate) mod prefix;
 mod transport;
-mod active_locations;
-mod guards;
-mod catalog;
 
 const WEEK_SECS_LIKE_CPP: i64 = 7 * 24 * 60 * 60;
 
@@ -120,5 +120,4 @@ where
         self.respawn_store
             .process_due_respawns_like_cpp(now, is_part_of_pool, check_respawn)
     }
-
 }

@@ -25,7 +25,14 @@ pub(super) fn remove(
     spell_id: i32,
     suppress: bool,
 ) -> Vec<SpellUnlearnStep> {
-    drive(runtime, catalog, spell_id, suppress, &BTreeSet::new(), &BTreeSet::new())
+    drive(
+        runtime,
+        catalog,
+        spell_id,
+        suppress,
+        &BTreeSet::new(),
+        &BTreeSet::new(),
+    )
 }
 
 pub(super) fn drive(
@@ -42,12 +49,12 @@ pub(super) fn drive(
         let step = operation.step();
         trace.push(step);
         let input = match step {
-            SpellUnlearnStep::Known(id) => SpellUnlearnInput::Known(
-                runtime.known_spells_like_cpp().contains(&id),
-            ),
-            SpellUnlearnStep::RowsComplete => SpellUnlearnInput::RowsComplete(
-                runtime.rows_complete_like_cpp(),
-            ),
+            SpellUnlearnStep::Known(id) => {
+                SpellUnlearnInput::Known(runtime.known_spells_like_cpp().contains(&id))
+            }
+            SpellUnlearnStep::RowsComplete => {
+                SpellUnlearnInput::RowsComplete(runtime.rows_complete_like_cpp())
+            }
             SpellUnlearnStep::InvalidateRows => {
                 runtime.clear_rows_like_cpp();
                 runtime.set_acquisition_snapshot_completeness_like_cpp(false, false);
@@ -56,21 +63,35 @@ pub(super) fn drive(
             SpellUnlearnStep::NextRank(id) => {
                 SpellUnlearnInput::Rank(catalog.next.get(&id).copied().unwrap_or(0))
             }
-            SpellUnlearnStep::Talent(id) => SpellUnlearnInput::Talent(catalog.talents.contains(&id)),
+            SpellUnlearnStep::Talent(id) => {
+                SpellUnlearnInput::Talent(catalog.talents.contains(&id))
+            }
             SpellUnlearnStep::Requiring(id) => SpellUnlearnInput::Requiring(
                 catalog.requiring.get(&id).cloned().unwrap_or_default(),
             ),
             SpellUnlearnStep::Owner(owner_step) => {
                 let fail = match owner_step {
-                    SpellUnlearnOwnerStep::Forget { spell_id, .. } => failed_forget.contains(&spell_id),
-                    SpellUnlearnOwnerStep::DropOverridesAndTrait { spell_id } => failed_trait.contains(&spell_id),
+                    SpellUnlearnOwnerStep::Forget { spell_id, .. } => {
+                        failed_forget.contains(&spell_id)
+                    }
+                    SpellUnlearnOwnerStep::DropOverridesAndTrait { spell_id } => {
+                        failed_trait.contains(&spell_id)
+                    }
                 };
                 SpellUnlearnInput::Owner((!fail).then(|| runtime.apply_unlearn_step(owner_step)))
             }
             SpellUnlearnStep::Learned(id) => SpellUnlearnInput::Learned(
-                catalog.learned.get(&id).cloned().unwrap_or_default().into_iter(),
+                catalog
+                    .learned
+                    .get(&id)
+                    .cloned()
+                    .unwrap_or_default()
+                    .into_iter(),
             ),
-            SpellUnlearnStep::RemoveOverride { overridden, replacement } => {
+            SpellUnlearnStep::RemoveOverride {
+                overridden,
+                replacement,
+            } => {
                 runtime.remove_override_spell_like_cpp(overridden, replacement);
                 SpellUnlearnInput::Applied
             }
@@ -78,7 +99,10 @@ pub(super) fn drive(
                 SpellUnlearnInput::Rank(catalog.previous.get(&id).copied().unwrap_or(0))
             }
             SpellUnlearnStep::Ranked(id) => SpellUnlearnInput::Ranked(catalog.ranked.contains(&id)),
-            SpellUnlearnStep::Reactivate { spell_id, dependent } => {
+            SpellUnlearnStep::Reactivate {
+                spell_id,
+                dependent,
+            } => {
                 // Existing low-level LearnSpell invalidation precedes its writer.
                 runtime.clear_rows_like_cpp();
                 runtime.set_acquisition_snapshot_completeness_like_cpp(false, false);

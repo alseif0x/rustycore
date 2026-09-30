@@ -434,4 +434,3 @@ fn gameobject_load_from_db_lifecycle_preserves_prenormalized_zero_respawn_time()
     assert_eq!(go.respawn_time(), 0);
     assert!(!go.respawn_compatibility_mode());
 }
-

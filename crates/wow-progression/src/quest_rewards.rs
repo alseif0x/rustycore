@@ -17,10 +17,7 @@ pub fn quest_xp_is_blocked(already_rewarded: bool, is_dungeon_finder: bool) -> b
 }
 
 /// Sample Player level only when the quest does not supply a positive level.
-pub fn effective_quest_level(
-    rules: &QuestRewardRules,
-    player_level: impl FnOnce() -> u8,
-) -> i32 {
+pub fn effective_quest_level(rules: &QuestRewardRules, player_level: impl FnOnce() -> u8) -> i32 {
     if rules.quest_level() > 0 {
         rules.quest_level()
     } else {
@@ -58,9 +55,7 @@ pub fn calculate_quest_xp<'a>(
     let diff_factor = (2 * (ql - player_level as i32) + 20).clamp(1, 10) as u32;
     let xp = round_xp(diff_factor * base_xp / 10);
     if min_quest_scaled_xp_ratio != 0 {
-        xp.max(
-            round_xp((base_xp as f32 * xp_multiplier) as u32) * min_quest_scaled_xp_ratio / 100,
-        )
+        xp.max(round_xp((base_xp as f32 * xp_multiplier) as u32) * min_quest_scaled_xp_ratio / 100)
     } else {
         xp
     }

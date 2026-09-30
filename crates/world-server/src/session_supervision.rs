@@ -6,16 +6,13 @@ use std::sync::{
 use std::time::Duration;
 
 use super::{
-    ActiveWorldSessionCancellationLikeCpp,
-    ActiveWorldSessionLikeCpp,
-    ActiveWorldSessionRegistryLikeCpp,
-    ActiveWorldSessionRegistrationGuardLikeCpp,
-    SessionCommand,
+    ActiveWorldSessionCancellationLikeCpp, ActiveWorldSessionLikeCpp,
+    ActiveWorldSessionRegistrationGuardLikeCpp, ActiveWorldSessionRegistryLikeCpp, SessionCommand,
 };
 
 mod quiescence;
-pub(crate) use quiescence::{ProducerKind, TickAdmission, TickDisposition, TickPhase};
 use quiescence::{CoordinationLedger, next_coordination_issuer};
+pub(crate) use quiescence::{ProducerKind, TickAdmission, TickDisposition, TickPhase};
 
 #[derive(Debug, Default)]
 pub(super) struct ActiveSessionState {
@@ -111,7 +108,8 @@ impl ActiveWorldSessionRegistryLikeCpp {
             .inner
             .lock()
             .expect("active world session registry lock poisoned");
-        sessions.sessions
+        sessions
+            .sessions
             .values()
             .filter(|session| session.ready_for_phases_like_cpp.load(Ordering::Acquire))
             .map(|session| session.phase_tx.clone())
@@ -119,7 +117,11 @@ impl ActiveWorldSessionRegistryLikeCpp {
     }
 
     #[cfg(test)]
-    pub(super) fn register(&self, account_id: u32, command_tx: flume::Sender<SessionCommand>) -> u64 {
+    pub(super) fn register(
+        &self,
+        account_id: u32,
+        command_tx: flume::Sender<SessionCommand>,
+    ) -> u64 {
         let (phase_tx, _phase_rx) = flume::bounded(2);
         self.try_register(account_id, command_tx, phase_tx)
             .expect("test registry must still accept sessions")
@@ -132,8 +134,11 @@ impl ActiveWorldSessionRegistryLikeCpp {
     }
 
     pub(super) fn is_shutting_down_like_cpp(&self) -> bool {
-        self.inner.lock().expect("active world session registry lock poisoned")
-            .coordination.shutdown_requested()
+        self.inner
+            .lock()
+            .expect("active world session registry lock poisoned")
+            .coordination
+            .shutdown_requested()
     }
 
     pub(super) fn request_session_stop_like_cpp(&self) {
@@ -169,7 +174,8 @@ impl ActiveWorldSessionRegistryLikeCpp {
             .inner
             .lock()
             .expect("active world session registry lock poisoned");
-        sessions.sessions
+        sessions
+            .sessions
             .iter()
             .map(|(id, session)| (*id, session.clone()))
             .collect()
@@ -179,7 +185,8 @@ impl ActiveWorldSessionRegistryLikeCpp {
         self.inner
             .lock()
             .expect("active world session registry lock poisoned")
-            .sessions.len()
+            .sessions
+            .len()
     }
 
     pub(super) fn is_empty_like_cpp(&self) -> bool {

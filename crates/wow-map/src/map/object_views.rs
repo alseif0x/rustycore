@@ -11,8 +11,8 @@
 
 use wow_core::ObjectGuid;
 use wow_entities::{
-    AccessorObjectKind, AreaTrigger, Conversation, Corpse, Creature, DynamicObject,
-    GameObject, MapObjectRecord, Pet, Player, SceneObject, Transport, Unit, WorldObject,
+    AccessorObjectKind, AreaTrigger, Conversation, Corpse, Creature, DynamicObject, GameObject,
+    MapObjectRecord, Pet, Player, SceneObject, Transport, Unit, WorldObject,
 };
 
 pub(crate) struct ObjectRef<'a> {
@@ -35,11 +35,15 @@ enum ObjectMutBody<'a> {
 
 impl<'a> ObjectRef<'a> {
     pub(in crate::map) fn new(record: &'a MapObjectRecord) -> Self {
-        Self { body: ObjectRefBody::Record(record) }
+        Self {
+            body: ObjectRefBody::Record(record),
+        }
     }
 
     pub(in crate::map) fn from_creature(creature: &'a Creature) -> Self {
-        Self { body: ObjectRefBody::Creature(creature) }
+        Self {
+            body: ObjectRefBody::Creature(creature),
+        }
     }
 
     pub(crate) fn kind(&self) -> AccessorObjectKind {
@@ -129,7 +133,9 @@ impl<'a> ObjectRef<'a> {
     pub(in crate::map) fn charmer_guid(&self) -> Option<ObjectGuid> {
         match &self.body {
             ObjectRefBody::Record(record) => record.charmer_guid_like_cpp(),
-            ObjectRefBody::Creature(creature) => creature.unit().subsystems().control.charmer_guid_like_cpp(),
+            ObjectRefBody::Creature(creature) => {
+                creature.unit().subsystems().control.charmer_guid_like_cpp()
+            }
         }
     }
 
@@ -152,11 +158,15 @@ impl<'a> ObjectRef<'a> {
 
 impl<'a> ObjectMut<'a> {
     pub(in crate::map) fn new(record: &'a mut MapObjectRecord) -> Self {
-        Self { body: ObjectMutBody::Record(record) }
+        Self {
+            body: ObjectMutBody::Record(record),
+        }
     }
 
     pub(in crate::map) fn from_creature(creature: &'a mut Creature) -> Self {
-        Self { body: ObjectMutBody::Creature(creature) }
+        Self {
+            body: ObjectMutBody::Creature(creature),
+        }
     }
 
     pub(in crate::map) fn reborrow(&mut self) -> ObjectMut<'_> {

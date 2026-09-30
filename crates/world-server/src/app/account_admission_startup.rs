@@ -9,8 +9,8 @@ use wow_database::{LoginBattlePetPersistenceLikeCpp, LoginDatabase};
 use wow_network::world_socket::AccountLookup;
 use wow_world::{BattlePetAccountRegistryLikeCpp, session::registry::PacketHandlerEntry};
 
-use crate::DbAccountLookup;
 use super::{realm_startup, stat_tables_startup::StatTables};
+use crate::DbAccountLookup;
 
 pub(super) async fn load(
     login_db_slot: &mut Option<LoginDatabase>,

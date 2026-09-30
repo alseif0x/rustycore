@@ -27,13 +27,12 @@ impl AuraSubsystem {
             .find(|represented| represented.effect_index == effect_index)
         {
             Some(represented) => represented.amount = remaining.max(0),
-            None => {
-                aura.represented_effect_amounts
-                    .push(RepresentedAuraEffectAmountLikeCpp {
-                        effect_index,
-                        amount: remaining.max(0),
-                    })
-            }
+            None => aura
+                .represented_effect_amounts
+                .push(RepresentedAuraEffectAmountLikeCpp {
+                    effect_index,
+                    amount: remaining.max(0),
+                }),
         }
     }
 

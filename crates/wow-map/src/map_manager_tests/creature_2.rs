@@ -233,7 +233,8 @@ fn world_creature_waypoint_launch_applies_land_takeoff_anim_tier_like_cpp() {
 
         assert_eq!(
             creature
-                .runtime.active_move_spline
+                .runtime
+                .active_move_spline
                 .as_ref()
                 .and_then(MoveSpline::anim_tier)
                 .map(|anim| anim.anim_tier),
@@ -276,7 +277,8 @@ fn world_creature_waypoint_arrival_records_inform_and_launches_next_node_like_cp
         WaypointMovementAction::Launch(_)
     ));
     creature
-        .runtime.active_move_spline
+        .runtime
+        .active_move_spline
         .as_mut()
         .expect("initial waypoint spline")
         .finalize();
@@ -356,7 +358,8 @@ fn world_creature_waypoint_arrival_without_delay_launches_next_node_same_tick_li
         WaypointMovementAction::Launch(_)
     ));
     creature
-        .runtime.active_move_spline
+        .runtime
+        .active_move_spline
         .as_mut()
         .expect("single waypoint spline")
         .finalize();
@@ -419,7 +422,8 @@ fn world_creature_waypoint_tick_advances_spline_before_motionmaster_like_cpp() {
         WaypointMovementAction::Launch(_)
     ));
     creature
-        .runtime.active_move_spline
+        .runtime
+        .active_move_spline
         .as_mut()
         .expect("initial waypoint spline")
         .finalize();
@@ -484,7 +488,8 @@ fn world_creature_waypoint_single_node_path_ends_same_tick_after_arrival_like_cp
         WaypointMovementAction::Launch(_)
     ));
     creature
-        .runtime.active_move_spline
+        .runtime
+        .active_move_spline
         .as_mut()
         .expect("single waypoint spline")
         .finalize();
@@ -549,7 +554,8 @@ fn world_creature_waypoint_path_end_random_handoff_launches_active_random_spline
             other => panic!("expected waypoint launch for node {expected_node}, got {other:?}"),
         }
         creature
-            .runtime.active_move_spline
+            .runtime
+            .active_move_spline
             .as_mut()
             .expect("active waypoint spline")
             .finalize();

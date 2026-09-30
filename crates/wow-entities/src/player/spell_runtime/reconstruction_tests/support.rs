@@ -3,8 +3,8 @@
 use super::*;
 
 mod catalogs;
-mod owner;
 mod operations;
+mod owner;
 mod unlearn;
 
 pub(super) use catalogs::*;
@@ -24,20 +24,27 @@ pub(super) struct TestPlayer {
 }
 
 pub(super) fn make_session() -> (TestPlayer, (), ()) {
-    (TestPlayer {
-        player: Player::new(None, false),
-        chains: None,
-        learned: None,
-        learn_skills: None,
-        skills: None,
-        lines: None,
-        tiers: None,
-        trace: Vec::new(),
-    }, (), ())
+    (
+        TestPlayer {
+            player: Player::new(None, false),
+            chains: None,
+            learned: None,
+            learn_skills: None,
+            skills: None,
+            lines: None,
+            tiers: None,
+            trace: Vec::new(),
+        },
+        (),
+        (),
+    )
 }
 
 pub(super) fn node_fact(node: wow_data::SpellLearnSkillNodeLikeCpp) -> LearnedSkillNode {
     LearnedSkillNode {
-        skill_id: node.skill, step: node.step, value: node.value, max_value: node.maxvalue,
+        skill_id: node.skill,
+        step: node.step,
+        value: node.value,
+        max_value: node.maxvalue,
     }
 }

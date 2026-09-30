@@ -156,16 +156,8 @@ impl<S: std::borrow::BorrowMut<PlayerReputationStateLikeCpp>> ReputationMgrLikeC
         let mut new_rank = None;
         let mut set_at_war_for_hostile = false;
         if !is_paragon && !is_renown {
-            let old = reputation_to_rank_like_cpp(
-                faction_entry,
-                old_standing,
-                catalogs,
-            );
-            let new = reputation_to_rank_like_cpp(
-                faction_entry,
-                target_standing,
-                catalogs,
-            );
+            let old = reputation_to_rank_like_cpp(faction_entry, old_standing, catalogs);
+            let new = reputation_to_rank_like_cpp(faction_entry, target_standing, catalogs);
             old_rank = Some(old);
             new_rank = Some(new);
 

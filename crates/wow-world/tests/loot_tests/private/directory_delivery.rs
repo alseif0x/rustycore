@@ -33,4 +33,3 @@ fn loot_directory_delivery_rejects_replaced_session_generation_like_cpp() {
         .expect("current generation receives its packet");
     assert_eq!(replacement_rx.try_recv().unwrap(), vec![0xBB]);
 }
-

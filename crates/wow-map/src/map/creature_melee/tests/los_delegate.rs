@@ -1,7 +1,7 @@
 //! Original LOS delegation contract and its entity-only fixtures.
+use super::super::commit::is_creature_melee_los_clear_like_cpp;
 use super::*;
 use wow_constants::TypeId;
-use super::super::commit::is_creature_melee_los_clear_like_cpp;
 
 struct CreatureMeleeLosTestEnvironment {
     los: bool,

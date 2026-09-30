@@ -329,8 +329,7 @@ fn reputation_to_rank_like_cpp_preserves_present_empty_friendship_store() {
     let mut faction = FactionEntry::for_test_like_cpp(87, 16);
     faction.friendship_rep_id = 10;
     let absent = TestReputationCatalogLikeCpp::default();
-    let present_empty =
-        TestReputationCatalogLikeCpp::default().with_friendship_reactions([]);
+    let present_empty = TestReputationCatalogLikeCpp::default().with_friendship_reactions([]);
 
     assert_eq!(
         reputation_to_rank_like_cpp(&faction, 0, &absent),
@@ -459,7 +458,16 @@ fn set_one_faction_reputation_like_cpp_applies_incremental_rate_and_marks_visibl
     mgr.initialize_like_cpp(&faction_store, 1, 1);
 
     let outcome = mgr.set_one_faction_reputation_like_cpp(
-        &faction, 4_000, true, 1.5, &faction_store, true, 0, 0, 1, 1,
+        &faction,
+        4_000,
+        true,
+        1.5,
+        &faction_store,
+        true,
+        0,
+        0,
+        1,
+        1,
     );
 
     assert!(outcome.applied);
@@ -486,13 +494,7 @@ fn set_reputation_like_cpp_applies_reputation_gain_rate_to_primary_incremental_g
     let mut options = set_reputation_options_for_test_like_cpp(true);
     options.reputation_gain_rate = 2.0;
 
-    let outcome = mgr.set_reputation_like_cpp(
-        &faction,
-        500,
-        options,
-        &faction_store,
-        None,
-    );
+    let outcome = mgr.set_reputation_like_cpp(&faction, 500, options, &faction_store, None);
 
     assert!(outcome.applied);
     assert_eq!(outcome.send_state_rep_list_id, Some(150));
@@ -511,7 +513,16 @@ fn set_one_faction_reputation_like_cpp_clamps_to_slot_max() {
     mgr.initialize_like_cpp(&faction_store, 1, 1);
 
     let outcome = mgr.set_one_faction_reputation_like_cpp(
-        &faction, 42_000, false, 1.0, &faction_store, true, 0, 0, 1, 1,
+        &faction,
+        42_000,
+        false,
+        1.0,
+        &faction_store,
+        true,
+        0,
+        0,
+        1,
+        1,
     );
 
     assert!(outcome.applied);
@@ -529,7 +540,16 @@ fn set_one_faction_reputation_like_cpp_forces_at_war_for_hostile_rank() {
     mgr.initialize_like_cpp(&faction_store, 1, 1);
 
     let outcome = mgr.set_one_faction_reputation_like_cpp(
-        &faction, -6_000, false, 1.0, &faction_store, true, 0, 0, 1, 1,
+        &faction,
+        -6_000,
+        false,
+        1.0,
+        &faction_store,
+        true,
+        0,
+        0,
+        1,
+        1,
     );
 
     assert!(outcome.applied);
@@ -553,7 +573,16 @@ fn set_one_faction_reputation_like_cpp_updates_honored_revered_exalted_counters(
     mgr.initialize_like_cpp(&faction_store, 1, 1);
 
     mgr.set_one_faction_reputation_like_cpp(
-        &faction, 21_000, false, 1.0, &faction_store, true, 0, 0, 1, 1,
+        &faction,
+        21_000,
+        false,
+        1.0,
+        &faction_store,
+        true,
+        0,
+        0,
+        1,
+        1,
     );
 
     assert_eq!(mgr.rank_counters().honored, 1);
@@ -572,7 +601,16 @@ fn criteria_progress_like_cpp_exposes_reputation_counters_and_positive_reputatio
     mgr.initialize_like_cpp(&faction_store, 1, 1);
 
     mgr.set_one_faction_reputation_like_cpp(
-        &faction, 21_000, false, 1.0, &faction_store, true, 0, 0, 1, 1,
+        &faction,
+        21_000,
+        false,
+        1.0,
+        &faction_store,
+        true,
+        0,
+        0,
+        1,
+        1,
     );
 
     assert_eq!(
@@ -822,7 +860,8 @@ fn set_reputation_like_cpp_applies_db_template_spillover_then_primary_and_send_s
     let mut spill = FactionEntry::for_test_like_cpp(101, 25);
     spill.reputation_race_mask[0] = 1;
     spill.reputation_max[0] = 42_000;
-    let faction_store = TestReputationCatalogLikeCpp::from_factions([source.clone(), spill.clone()]);
+    let faction_store =
+        TestReputationCatalogLikeCpp::from_factions([source.clone(), spill.clone()]);
     let mut mgr = ReputationMgrLikeCpp::new_like_cpp();
     mgr.initialize_like_cpp(&faction_store, 1, 1);
     let mut template = RepSpilloverTemplateLikeCpp::empty_like_cpp();

@@ -1,10 +1,10 @@
 use super::*;
-use wow_constants::creature::AiReaction;
 use wow_constants::ServerOpcodes;
+use wow_constants::creature::AiReaction;
 use wow_core::ObjectGuid;
 
-use crate::world_packet::WorldPacket;
 use crate::ServerPacket;
+use crate::world_packet::WorldPacket;
 
 #[test]
 fn attacker_state_update_writes_the_block_fields_like_cpp() {
@@ -187,15 +187,7 @@ fn attacker_state_update_writes_custom_hit_info_like_cpp() {
 #[test]
 fn attacker_state_update_writes_absorbed_sub_damage_like_cpp() {
     let guid = |entry: u32, low: i64| {
-        ObjectGuid::create_world_object(
-            wow_core::guid::HighGuid::Creature,
-            0,
-            0,
-            0,
-            0,
-            entry,
-            low,
-        )
+        ObjectGuid::create_world_object(wow_core::guid::HighGuid::Creature, 0, 0, 0, 0, entry, low)
     };
     for (hit_info, damage, absorbed) in [
         (HIT_INFO_AFFECTS_VICTIM | HIT_INFO_PARTIAL_ABSORB, 70, 30),
@@ -363,15 +355,8 @@ fn spell_non_melee_damage_log_writes_cpp_field_order_like_cpp() {
         123,
         0x1234,
     );
-    let cast_id = ObjectGuid::create_world_object(
-        wow_core::guid::HighGuid::Cast,
-        0,
-        1,
-        0,
-        0,
-        456,
-        0x5678,
-    );
+    let cast_id =
+        ObjectGuid::create_world_object(wow_core::guid::HighGuid::Cast, 0, 1, 0, 0, 456, 0x5678);
     let bytes = SpellNonMeleeDamageLog {
         target,
         caster,
@@ -523,15 +508,8 @@ fn spell_energize_log_writes_cpp_field_order_like_cpp() {
 #[test]
 fn spell_execute_log_writes_cpp_effect_lists() {
     let caster = ObjectGuid::create_player(1, 0x0102_0304_0506_0708);
-    let victim = ObjectGuid::create_world_object(
-        wow_core::guid::HighGuid::Creature,
-        0,
-        1,
-        0,
-        0,
-        9_001,
-        44,
-    );
+    let victim =
+        ObjectGuid::create_world_object(wow_core::guid::HighGuid::Creature, 0, 1, 0, 0, 9_001, 44);
     let bytes = SpellExecuteLog {
         caster,
         spell_id: 2_971,
@@ -599,15 +577,8 @@ fn spell_execute_log_writes_cpp_effect_lists() {
 #[test]
 fn spell_execute_log_writes_the_durability_generic_trade_and_feed_lists() {
     let caster = ObjectGuid::create_player(1, 0x0102_0304_0506_0708);
-    let victim = ObjectGuid::create_world_object(
-        wow_core::guid::HighGuid::Creature,
-        0,
-        1,
-        0,
-        0,
-        9_001,
-        45,
-    );
+    let victim =
+        ObjectGuid::create_world_object(wow_core::guid::HighGuid::Creature, 0, 1, 0, 0, 9_001, 45);
     let bytes = SpellExecuteLog {
         caster,
         spell_id: 4_036,
@@ -747,15 +718,8 @@ fn cancel_combat_writes_empty_cpp_payload_like_cpp() {
 
 #[test]
 fn spell_instakill_log_writes_target_caster_and_spell_like_cpp() {
-    let target = ObjectGuid::create_world_object(
-        wow_core::guid::HighGuid::Creature,
-        0,
-        1,
-        0,
-        0,
-        9_001,
-        44,
-    );
+    let target =
+        ObjectGuid::create_world_object(wow_core::guid::HighGuid::Creature, 0, 1, 0, 0, 9_001, 44);
     let caster = ObjectGuid::create_player(1, 0x0102_0304_0506_0708);
     let bytes = SpellInstakillLog {
         target,

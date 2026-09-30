@@ -12,8 +12,8 @@ use super::*;
 /// shrinks (`Unit.cpp:7670-7778`).
 #[test]
 fn legacy_creature_melee_tick_once_applies_player_victim_taken_like_cpp() {
-    use wow_world::map_manager::RuntimeTickOwner;
     use wow_packet::packets::combat::HIT_INFO_AFFECTS_VICTIM;
+    use wow_world::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
     let canonical = shared_canonical_map_manager();

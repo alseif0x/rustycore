@@ -1,6 +1,6 @@
 //! Original encounter scenarios backed by real resident Players and shared locks.
-use super::interaction_support::*;
 use super::creature_pool_setup::overworld_personal_loot_test_fixture_like_cpp;
+use super::interaction_support::*;
 use wow_world::test_fixtures::loot::attach_loot_allocator_for_test as attach_loot_guid_allocator_for_owner;
 
 #[tokio::test]
@@ -10,8 +10,17 @@ async fn represented_gameobject_personal_encounter_loot_skips_locked_tappers_lik
     let open_tapper = ObjectGuid::create_player(1, 77);
     let gameobject_guid = test_gameobject_guid(91_010);
     attach_loot_guid_allocator_for_owner(&mut session, gameobject_guid);
-    set_loot_gameobject_tappers_for_test(&mut session, gameobject_guid, vec![locked_tapper, open_tapper]);
-    prepare_encounter_loot_players_for_test(&mut session, 733, &[locked_tapper, open_tapper], &[locked_tapper]);
+    set_loot_gameobject_tappers_for_test(
+        &mut session,
+        gameobject_guid,
+        vec![locked_tapper, open_tapper],
+    );
+    prepare_encounter_loot_players_for_test(
+        &mut session,
+        733,
+        &[locked_tapper, open_tapper],
+        &[locked_tapper],
+    );
     let source = GameObjectLootSource {
         loot_id: 0,
         use_group_loot_rules: false,
@@ -23,14 +32,10 @@ async fn represented_gameobject_personal_encounter_loot_skips_locked_tappers_lik
         ..Default::default()
     };
 
-    let loot = generate_chest_loot_for_test(&mut session, 
-            gameobject_guid,
-            locked_tapper,
-            source,
-            &[],
-        )
-        .await
-        .expect("canonical owner map allocates a LootObject");
+    let loot =
+        generate_chest_loot_for_test(&mut session, gameobject_guid, locked_tapper, source, &[])
+            .await
+            .expect("canonical owner map allocates a LootObject");
 
     assert_eq!(loot.allowed_looters, vec![open_tapper]);
     assert!(
@@ -58,16 +63,20 @@ async fn dungeon_encounter_builds_independent_unlocked_personal_pools_like_cpp()
         ])));
     let encounter_id = 733;
     mutate_loot_creature_for_test(&mut fixture.session, fixture.owner_guid, |creature| {
-            creature.creature.ai_ownership_mut().dungeon_encounter_id = encounter_id;
-        });
+        creature.creature.ai_ownership_mut().dungeon_encounter_id = encounter_id;
+    });
     prepare_money_player_residence_for_test(&mut fixture.session);
-    prepare_encounter_loot_players_for_test(&mut fixture.session, encounter_id, &[fixture.first_tapper, fixture.second_tapper], &[fixture.second_tapper]);
+    prepare_encounter_loot_players_for_test(
+        &mut fixture.session,
+        encounter_id,
+        &[fixture.first_tapper, fixture.second_tapper],
+        &[fixture.second_tapper],
+    );
 
-    ensure_creature_kill_loot_for_test(&mut fixture.session, fixture.owner_guid)
-        .await;
+    ensure_creature_kill_loot_for_test(&mut fixture.session, fixture.owner_guid).await;
 
-    let authority = loot_recovery_authority_for_test(&mut fixture.session, fixture.owner_guid)
-        .unwrap();
+    let authority =
+        loot_recovery_authority_for_test(&mut fixture.session, fixture.owner_guid).unwrap();
     let personal = authority.personal_snapshots_like_cpp();
     assert_eq!(personal.len(), 1);
     assert!(personal.contains_key(&fixture.first_tapper));
@@ -134,7 +143,12 @@ async fn represented_personal_encounter_locked_or_empty_late_player_does_not_ins
     prepare_money_player_residence_for_test(&mut first);
     prepare_money_player_residence_for_test(&mut locked);
     prepare_money_player_residence_for_test(&mut empty);
-    prepare_encounter_loot_players_for_test(&mut first, encounter_id, &[first_player, locked_player, empty_player], &[locked_player]);
+    prepare_encounter_loot_players_for_test(
+        &mut first,
+        encounter_id,
+        &[first_player, locked_player, empty_player],
+        &[locked_player],
+    );
     share_encounter_loot_catalogs_for_test(&first, &mut locked);
     share_encounter_loot_catalogs_for_test(&first, &mut empty);
 
@@ -144,8 +158,7 @@ async fn represented_personal_encounter_locked_or_empty_late_player_does_not_ins
         personal_loot_id,
         ..Default::default()
     };
-    open_money_loot_normally_for_test(&mut first, gameobject_guid, source)
-        .await;
+    open_money_loot_normally_for_test(&mut first, gameobject_guid, source).await;
     let authority = canonical_gameobject_snapshot(&first, gameobject_guid)
         .unwrap()
         .loot_authority_like_cpp()
@@ -154,10 +167,8 @@ async fn represented_personal_encounter_locked_or_empty_late_player_does_not_ins
         .snapshot_for_player_like_cpp(first_player)
         .unwrap();
 
-    open_money_loot_normally_for_test(&mut locked, gameobject_guid, source)
-        .await;
-    open_money_loot_normally_for_test(&mut empty, gameobject_guid, source)
-        .await;
+    open_money_loot_normally_for_test(&mut locked, gameobject_guid, source).await;
+    open_money_loot_normally_for_test(&mut empty, gameobject_guid, source).await;
 
     assert_eq!(authority.personal_snapshots_like_cpp().len(), 1);
     assert_eq!(
@@ -181,4 +192,3 @@ async fn represented_personal_encounter_locked_or_empty_late_player_does_not_ins
     assert!(locked_rx.try_recv().is_err());
     assert!(empty_rx.try_recv().is_err());
 }
-

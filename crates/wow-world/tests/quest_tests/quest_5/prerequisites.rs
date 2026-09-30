@@ -398,13 +398,20 @@ async fn push_quest_to_party_negative_previous_rejects_rewarded_complete_or_fail
             )
             .expect("registered canonical receiver snapshot");
         assert!(snapshot.rewarded_quests.contains(&previous_id));
-        assert_eq!(snapshot.active_quest_statuses.get(&previous_id).copied(), Some(status));
+        assert_eq!(
+            snapshot.active_quest_statuses.get(&previous_id).copied(),
+            Some(status)
+        );
 
         run_push_quest_to_party(&mut session, shared_quest_id).await;
 
         assert_eq!(
             recv_push_quest_result_response(&sender_rx),
-            (receiver_guid, QUEST_PUSH_REASON_PREREQUISITE_LIKE_CPP, String::new())
+            (
+                receiver_guid,
+                QUEST_PUSH_REASON_PREREQUISITE_LIKE_CPP,
+                String::new()
+            )
         );
         assert_eq!(
             recv_push_quest_result_response(&receiver_rx),
@@ -421,12 +428,14 @@ async fn push_quest_to_party_negative_previous_rejects_rewarded_complete_or_fail
                 outcome.reason,
                 RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverSatisfyQuestPreviousQuestPrerequisite
             )));
-        assert!(!represented_push_quest_to_party_outcomes_for_test(&session)
-            .iter()
-            .any(|outcome| matches!(
+        assert!(
+            !represented_push_quest_to_party_outcomes_for_test(&session)
+                .iter()
+                .any(|outcome| matches!(
                 outcome.reason,
                 RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverSuccessQuestDetailsPrompted
-            )));
+            ))
+        );
         assert!(sender_rx.try_recv().is_err());
         assert!(receiver_rx.try_recv().is_err());
     }

@@ -1,9 +1,12 @@
 use super::*;
 use crate::manager::MeleeKillCollector;
-use wow_entities::{WorldObject, WorldObjectEnvironment, LineOfSightOptions};
+use wow_entities::{LineOfSightOptions, WorldObject, WorldObjectEnvironment};
 
-pub fn is_creature_melee_los_clear_like_cpp(attacker: &WorldObject, victim: &WorldObject,
-    environment: &impl WorldObjectEnvironment) -> bool {
+pub fn is_creature_melee_los_clear_like_cpp(
+    attacker: &WorldObject,
+    victim: &WorldObject,
+    environment: &impl WorldObjectEnvironment,
+) -> bool {
     attacker.is_within_los_in_map(victim, environment, LineOfSightOptions::default())
 }
 
@@ -147,7 +150,6 @@ pub(super) fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
     catalogs: &impl CreatureMeleeCatalogsLikeCpp,
     kills: &mut Option<MeleeKillCollector<'_>>,
 ) -> CreatureMeleeApplyResultLikeCpp {
-
     let Some(managed) = canonical_map_manager.find_map_mut(map_id, instance_id) else {
         return CreatureMeleeApplyResultLikeCpp::MissingVictim;
     };
@@ -229,7 +231,8 @@ pub(super) fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
             // this reduced amount.
             let applied_damage = victim
                 .damage_after_unkillable_gate_like_cpp(attacker_guid == victim_guid, damage_done);
-            let mut hit_info = outcome_presentation.map_or(MeleePresentation::default(), |(info, _)| info);
+            let mut hit_info =
+                outcome_presentation.map_or(MeleePresentation::default(), |(info, _)| info);
             if victim.should_fake_damage_from_like_cpp(true, attacker_is_player_controlled) {
                 hit_info.fake_damage = true;
             }
@@ -275,8 +278,12 @@ pub(super) fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
     let health_state_revision_after = victim.unit().health_state_revision_like_cpp();
     if killed {
         if let Some(collector) = kills.as_mut() {
-            collector.capture(managed.map(), crate::MapKey::new(map_id, instance_id),
-                MeleeKillCollector::PRIMARY, victim_guid);
+            collector.capture(
+                managed.map(),
+                crate::MapKey::new(map_id, instance_id),
+                MeleeKillCollector::PRIMARY,
+                victim_guid,
+            );
         }
     }
     // C++ returns before `AddThreat` when sparring reduced `damageDone` to
@@ -327,17 +334,20 @@ pub(super) fn apply_creature_melee_damage_to_canonical_creature_on_map_like_cpp(
 
     let mut events = Vec::new();
     events.push(MeleeEffect::AttackState {
-            attacker: attacker_guid,
-            victim: victim_guid,
-            presentation: hit_info,
-            damage: damage.min(i32::MAX as u32) as i32,
-            original_damage: damage.min(i32::MAX as u32) as i32,
-            over_damage,
-            blocked: outcome_presentation.map_or(0, |(_, blocked)| blocked.max(0)),
-            absorbed: absorbed.min(i32::MAX as u32) as i32,
-            target_level,
+        attacker: attacker_guid,
+        victim: victim_guid,
+        presentation: hit_info,
+        damage: damage.min(i32::MAX as u32) as i32,
+        original_damage: damage.min(i32::MAX as u32) as i32,
+        over_damage,
+        blocked: outcome_presentation.map_or(0, |(_, blocked)| blocked.max(0)),
+        absorbed: absorbed.min(i32::MAX as u32) as i32,
+        target_level,
     });
-    events.push(MeleeEffect::Values { guid: victim_guid, update: values_update });
+    events.push(MeleeEffect::Values {
+        guid: victim_guid,
+        update: values_update,
+    });
 
     CreatureMeleeApplyResultLikeCpp::Hit {
         victim_applied_damage: applied_damage,

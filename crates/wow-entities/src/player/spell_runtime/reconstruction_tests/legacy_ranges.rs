@@ -1,7 +1,7 @@
 //! Original Session rule cases, now exercising canonical Player operations.
 
-use super::*;
 use super::support::*;
+use super::*;
 
 #[test]
 fn remove_known_spell_downgrades_learned_skill_language_range_like_cpp() {
@@ -208,4 +208,3 @@ fn remove_known_spell_downgrades_learned_skill_without_race_class_info_to_zero_l
         "C++ leaves new_skill_max_value at 0 when SkillRaceClassInfo is missing, then clamps value/max to 0"
     );
 }
-

@@ -2,11 +2,19 @@
 use super::recovery_support::*;
 use std::collections::HashMap;
 use std::sync::Mutex;
-use wow_world::test_fixtures::loot::*;
-use wow_loot::{LootStore, LootStoreKind, LootStores, LootStoreItem, LootTemplateRow, loot_is_looted_like_cpp};
-use wow_world::session::mailbox::{SyncChestGameobjectStateAndRefreshLikeCppCommand, SyncGooberGameobjectStateAndRefreshLikeCppCommand, SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand};
+use wow_data::{
+    SpellInfo, SpellMiscEntry, SpellMiscStore, SpellRangeEntry, SpellRangeStore, SpellStore,
+};
 use wow_entities::GAMEOBJECT_TYPE_GOOBER;
-use wow_data::{SpellStore, SpellInfo, SpellMiscStore, SpellMiscEntry, SpellRangeStore, SpellRangeEntry};
+use wow_loot::{
+    LootStore, LootStoreItem, LootStoreKind, LootStores, LootTemplateRow, loot_is_looted_like_cpp,
+};
+use wow_world::session::mailbox::{
+    SyncChestGameobjectStateAndRefreshLikeCppCommand,
+    SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand,
+    SyncGooberGameobjectStateAndRefreshLikeCppCommand,
+};
+use wow_world::test_fixtures::loot::*;
 
 #[tokio::test]
 async fn represented_non_encounter_personal_chest_keeps_two_session_pools_independent_like_cpp() {
@@ -63,10 +71,8 @@ async fn represented_non_encounter_personal_chest_keeps_two_session_pools_indepe
         ..Default::default()
     };
 
-    open_money_loot_normally_for_test(&mut first, gameobject_guid, source)
-        .await;
-    open_money_loot_normally_for_test(&mut second, gameobject_guid, source)
-        .await;
+    open_money_loot_normally_for_test(&mut first, gameobject_guid, source).await;
+    open_money_loot_normally_for_test(&mut second, gameobject_guid, source).await;
 
     let authority = canonical_gameobject_snapshot(&first, gameobject_guid)
         .expect("canonical chest remains map-owned")
@@ -127,16 +133,17 @@ async fn represented_empty_non_encounter_personal_chest_still_opens_like_cpp() {
     );
     attach_canonical_gameobject(&mut session, gameobject);
 
-    open_money_loot_normally_for_test(&mut session, 
-            gameobject_guid,
-            GameObjectLootSource {
-                loot_id: 0,
-                dungeon_encounter_id: 0,
-                personal_loot_id: 10_021,
-                ..Default::default()
-            },
-        )
-        .await;
+    open_money_loot_normally_for_test(
+        &mut session,
+        gameobject_guid,
+        GameObjectLootSource {
+            loot_id: 0,
+            dungeon_encounter_id: 0,
+            personal_loot_id: 10_021,
+            ..Default::default()
+        },
+    )
+    .await;
 
     let authority = canonical_gameobject_snapshot(&session, gameobject_guid)
         .unwrap()

@@ -1,10 +1,17 @@
 //! Ordered loot startup composition.
 
+use crate::{
+    load_condition_reference_template_ids_like_cpp, load_loot_condition_ids_like_cpp,
+    load_loot_condition_reference_uses_like_cpp, load_loot_stores_like_cpp,
+    log_loot_condition_link_report_like_cpp, log_loot_reference_report_like_cpp,
+};
 use anyhow::Context;
 use std::sync::Arc;
 use tracing::info;
-use wow_loot::{LootStoreKind, check_loot_references_like_cpp, check_loot_condition_links_like_cpp, check_loot_condition_references_like_cpp};
-use crate::{load_loot_stores_like_cpp, load_loot_condition_ids_like_cpp, load_loot_condition_reference_uses_like_cpp, load_condition_reference_template_ids_like_cpp, log_loot_reference_report_like_cpp, log_loot_condition_link_report_like_cpp};
+use wow_loot::{
+    LootStoreKind, check_loot_condition_links_like_cpp, check_loot_condition_references_like_cpp,
+    check_loot_references_like_cpp,
+};
 
 pub(super) struct LootCatalogs {
     pub(super) loot_condition_report: wow_loot::LootConditionLinkReport,
@@ -33,10 +40,9 @@ pub(super) async fn load(
     let loot_condition_reference_uses = load_loot_condition_reference_uses_like_cpp(world_db)
         .await
         .context("Failed to load C++ loot-template condition reference uses")?;
-    let condition_reference_template_ids =
-        load_condition_reference_template_ids_like_cpp(world_db)
-            .await
-            .context("Failed to load C++ condition reference template IDs")?;
+    let condition_reference_template_ids = load_condition_reference_template_ids_like_cpp(world_db)
+        .await
+        .context("Failed to load C++ condition reference template IDs")?;
     check_loot_condition_references_like_cpp(
         &mut loot_condition_report,
         loot_condition_reference_uses,

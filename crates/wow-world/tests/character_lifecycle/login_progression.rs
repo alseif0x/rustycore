@@ -1,7 +1,7 @@
 // Existing Character application scenarios, moved with original assertion operands.
 
-use super::fixtures::*;
 use super::fixtures::session::make_session;
+use super::fixtures::*;
 
 #[test]
 fn first_login_start_all_explored_sets_all_cpp_blocks_and_sends_update() {
@@ -148,7 +148,10 @@ fn logout_resting_only_selects_offline_rate_and_does_not_restore_online_rest_lik
     assert!(!session.character_represented_is_resting_for_test());
     assert!(
         !session
-            .character_canonical_player_has_player_flag_for_test(guid, PLAYER_FLAGS_RESTING_LIKE_CPP)
+            .character_canonical_player_has_player_flag_for_test(
+                guid,
+                PLAYER_FLAGS_RESTING_LIKE_CPP
+            )
             .unwrap_or(false)
     );
 
@@ -159,17 +162,14 @@ fn logout_resting_only_selects_offline_rate_and_does_not_restore_online_rest_lik
         "the persisted bit still selects the tavern/city offline rate"
     );
     assert!(!session.character_represented_is_resting_for_test());
-    assert_eq!(
-        session.character_inn_trigger_for_test(),
-        0
-    );
-    assert_eq!(
-        session.character_rest_time_for_test(),
-        0
-    );
+    assert_eq!(session.character_inn_trigger_for_test(), 0);
+    assert_eq!(session.character_rest_time_for_test(), 0);
     assert!(
         !session
-            .character_canonical_player_has_player_flag_for_test(guid, PLAYER_FLAGS_RESTING_LIKE_CPP)
+            .character_canonical_player_has_player_flag_for_test(
+                guid,
+                PLAYER_FLAGS_RESTING_LIKE_CPP
+            )
             .unwrap_or(true)
     );
     assert!(session.character_represented_xp_rest_bonus_for_test() > 123.0);
@@ -191,7 +191,10 @@ fn logout_resting_only_selects_offline_rate_and_does_not_restore_online_rest_lik
     assert!(!session.character_represented_is_resting_for_test());
     assert!(
         !session
-            .character_canonical_player_has_player_flag_for_test(guid, PLAYER_FLAGS_RESTING_LIKE_CPP)
+            .character_canonical_player_has_player_flag_for_test(
+                guid,
+                PLAYER_FLAGS_RESTING_LIKE_CPP
+            )
             .unwrap_or(true)
     );
 }
@@ -286,18 +289,17 @@ fn login_update_zone_rebuilds_city_and_faction_rest_when_ids_are_preseeded_like_
 
     assert!(session.character_represented_is_resting_for_test());
     assert_ne!(
-        session.character_rest_flags_for_test()
-            & REST_FLAG_IN_CITY_LIKE_CPP,
+        session.character_rest_flags_for_test() & REST_FLAG_IN_CITY_LIKE_CPP,
         0
     );
     assert_ne!(
-        session.character_rest_flags_for_test()
-            & REST_FLAG_IN_FACTION_AREA_LIKE_CPP,
+        session.character_rest_flags_for_test() & REST_FLAG_IN_FACTION_AREA_LIKE_CPP,
         0
     );
-    assert_ne!(
-        session.character_rest_time_for_test(),
-        0
+    assert_ne!(session.character_rest_time_for_test(), 0);
+    assert!(
+        session
+            .character_represented_area_zone_criteria_for_test()
+            .is_empty()
     );
-    assert!(session.character_represented_area_zone_criteria_for_test().is_empty());
 }

@@ -49,20 +49,24 @@ pub(super) fn apply_melee_split_damage_like_cpp(
             .get_typed_player(victim_guid)
             .map(|victim| {
                 let auras = &victim.unit().subsystems().auras;
-                catalogs.player_effects_of_type(auras.runtime_applications_like_cpp(), wow_constants::spell::aura_types::SPELL_AURA_SPLIT_DAMAGE_PCT)
-                .into_iter()
-                .map(|effect| {
-                    let provenance = auras.aura_cast_provenance_like_cpp(effect.slot);
-                    (
-                        effect.spell_id,
-                        effect.caster_guid,
-                        effect.misc_value as u32,
-                        effect.amount,
-                        provenance.cast_id,
-                        provenance.spell_visual_id,
+                catalogs
+                    .player_effects_of_type(
+                        auras.runtime_applications_like_cpp(),
+                        wow_constants::spell::aura_types::SPELL_AURA_SPLIT_DAMAGE_PCT,
                     )
-                })
-                .collect::<Vec<_>>()
+                    .into_iter()
+                    .map(|effect| {
+                        let provenance = auras.aura_cast_provenance_like_cpp(effect.slot);
+                        (
+                            effect.spell_id,
+                            effect.caster_guid,
+                            effect.misc_value as u32,
+                            effect.amount,
+                            provenance.cast_id,
+                            provenance.spell_visual_id,
+                        )
+                    })
+                    .collect::<Vec<_>>()
             })
             .unwrap_or_default()
     } else {
@@ -70,23 +74,25 @@ pub(super) fn apply_melee_split_damage_like_cpp(
             .map()
             .with_creature_like_cpp(victim_guid, |victim| {
                 let auras = &victim.unit().subsystems().auras;
-                catalogs.creature_effects(&auras.applied_auras, difficulty_id)
-                .into_iter()
-                .filter(|effect| {
-                    effect.aura_type == wow_constants::spell::aura_types::SPELL_AURA_SPLIT_DAMAGE_PCT
-                })
-                .map(|effect| {
-                    let provenance = auras.aura_cast_provenance_like_cpp(effect.slot);
-                    (
-                        effect.spell_id,
-                        effect.caster_guid,
-                        effect.misc_value as u32,
-                        effect.amount,
-                        provenance.cast_id,
-                        provenance.spell_visual_id,
-                    )
-                })
-                .collect::<Vec<_>>()
+                catalogs
+                    .creature_effects(&auras.applied_auras, difficulty_id)
+                    .into_iter()
+                    .filter(|effect| {
+                        effect.aura_type
+                            == wow_constants::spell::aura_types::SPELL_AURA_SPLIT_DAMAGE_PCT
+                    })
+                    .map(|effect| {
+                        let provenance = auras.aura_cast_provenance_like_cpp(effect.slot);
+                        (
+                            effect.spell_id,
+                            effect.caster_guid,
+                            effect.misc_value as u32,
+                            effect.amount,
+                            provenance.cast_id,
+                            provenance.spell_visual_id,
+                        )
+                    })
+                    .collect::<Vec<_>>()
             })
             .unwrap_or_default()
     };
@@ -113,7 +119,23 @@ pub(super) fn apply_melee_split_damage_like_cpp(
         if split_damage == 0 {
             continue;
         }
-        let Some(secondary) = apply_secondary_split_damage_like_cpp(canonical_manager, map_id, instance_id, attacker_guid, victim_guid, caster_guid, spell_id, aura_cast_id, aura_spell_visual_id, split_damage, school_mask, attacker_is_player_controlled, catalogs, difficulty_id, kills) else {
+        let Some(secondary) = apply_secondary_split_damage_like_cpp(
+            canonical_manager,
+            map_id,
+            instance_id,
+            attacker_guid,
+            victim_guid,
+            caster_guid,
+            spell_id,
+            aura_cast_id,
+            aura_spell_visual_id,
+            split_damage,
+            school_mask,
+            attacker_is_player_controlled,
+            catalogs,
+            difficulty_id,
+            kills,
+        ) else {
             continue;
         };
         result.damage -= split_damage;
@@ -148,11 +170,20 @@ pub(super) struct SecondarySplitDamageOutcomeLikeCpp {
 /// split: primary damage is absorbed and the returned packet is a miss log.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn apply_secondary_split_damage_like_cpp(
-    canonical_manager: &mut MapManager, map_id: u16, instance_id: u32,
-    attacker_guid: ObjectGuid, primary_victim_guid: ObjectGuid, caster_guid: ObjectGuid,
-    spell_id: i32, aura_cast_id: ObjectGuid, aura_spell_visual_id: i32,
-    split_damage: u32, school_mask: u32, attacker_is_player_controlled: bool,
-    catalogs: &impl CreatureMeleeCatalogsLikeCpp, difficulty_id: u8,
+    canonical_manager: &mut MapManager,
+    map_id: u16,
+    instance_id: u32,
+    attacker_guid: ObjectGuid,
+    primary_victim_guid: ObjectGuid,
+    caster_guid: ObjectGuid,
+    spell_id: i32,
+    aura_cast_id: ObjectGuid,
+    aura_spell_visual_id: i32,
+    split_damage: u32,
+    school_mask: u32,
+    attacker_is_player_controlled: bool,
+    catalogs: &impl CreatureMeleeCatalogsLikeCpp,
+    difficulty_id: u8,
     kills: &mut Option<MeleeKillCollector<'_>>,
 ) -> Option<SecondarySplitDamageOutcomeLikeCpp> {
     if caster_guid == primary_victim_guid {
@@ -167,11 +198,13 @@ pub(super) fn apply_secondary_split_damage_like_cpp(
                 (caster.unit().world().object().is_in_world() && caster.unit().is_alive()).then(
                     || {
                         (
-                            catalogs.player_effects(caster
+                            catalogs.player_effects(
+                                caster
                                     .unit()
                                     .subsystems()
                                     .auras
-                                    .runtime_applications_like_cpp()),
+                                    .runtime_applications_like_cpp(),
+                            ),
                             caster.unit().unit_state()
                                 & wow_constants::unit::UnitState::IN_FLIGHT.bits()
                                 != 0,
@@ -185,7 +218,10 @@ pub(super) fn apply_secondary_split_damage_like_cpp(
             .with_creature_like_cpp(caster_guid, |caster| {
                 (caster.unit().world().object().is_in_world() && caster.is_alive()).then(|| {
                     (
-                        catalogs.creature_effects(&caster.unit().subsystems().auras.applied_auras, difficulty_id),
+                        catalogs.creature_effects(
+                            &caster.unit().subsystems().auras.applied_auras,
+                            difficulty_id,
+                        ),
                         caster.unit().unit_state()
                             & wow_constants::unit::UnitState::IN_FLIGHT.bits()
                             != 0
@@ -205,7 +241,11 @@ pub(super) fn apply_secondary_split_damage_like_cpp(
     }) {
         return Some(SecondarySplitDamageOutcomeLikeCpp {
             mutation_events: Vec::new(),
-            combat_log_packet: MeleeEffect::SplitMiss { spell_id, caster: primary_victim_guid, victim: caster_guid },
+            combat_log_packet: MeleeEffect::SplitMiss {
+                spell_id,
+                caster: primary_victim_guid,
+                victim: caster_guid,
+            },
             creature_sync: None,
             reached_damage_delivery: false,
         });
@@ -221,7 +261,13 @@ pub(super) fn apply_secondary_split_damage_like_cpp(
         split_damage
     };
     let secondary_absorbed = split_damage - secondary_damage;
-    let threat_plan = super::threat::plan_creature_damage_threat_like_cpp(managed.map(), attacker_guid, Some(spell_id), catalogs, difficulty_id);
+    let threat_plan = super::threat::plan_creature_damage_threat_like_cpp(
+        managed.map(),
+        attacker_guid,
+        Some(spell_id),
+        catalogs,
+        difficulty_id,
+    );
     let mut mutation_events = Vec::new();
     let pre_hit_health;
     let mut creature_sync = None;
@@ -241,8 +287,8 @@ pub(super) fn apply_secondary_split_damage_like_cpp(
                 caster.unit_mut().set_health(0);
             }
             mutation_events.push(MeleeEffect::PlayerHealth {
-                    guid: caster_guid,
-                    health: health_after.min(i64::MAX as u64) as i64,
+                guid: caster_guid,
+                health: health_after.min(i64::MAX as u64) as i64,
             });
         }
     } else {
@@ -279,8 +325,12 @@ pub(super) fn apply_secondary_split_damage_like_cpp(
             }
             if killed {
                 if let Some(collector) = kills.as_mut() {
-                    collector.capture(map, crate::MapKey::new(u32::from(map_id), instance_id),
-                        MeleeKillCollector::SPLIT, caster_guid);
+                    collector.capture(
+                        map,
+                        crate::MapKey::new(u32::from(map_id), instance_id),
+                        MeleeKillCollector::SPLIT,
+                        caster_guid,
+                    );
                 }
             }
             let threat = if killed {
@@ -321,7 +371,10 @@ pub(super) fn apply_secondary_split_damage_like_cpp(
                     ai_state_after: caster.ai_ownership().state,
                 },
             });
-            mutation_events.push(MeleeEffect::Values { guid: caster_guid, update: caster.unit().values_update() });
+            mutation_events.push(MeleeEffect::Values {
+                guid: caster_guid,
+                update: caster.unit().values_update(),
+            });
         }
     }
 

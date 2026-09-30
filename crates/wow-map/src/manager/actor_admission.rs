@@ -20,12 +20,23 @@ impl MapManager {
         &mut self,
         key: MapKey,
         incoming: WorldCreature,
-    ) -> Result<FreshCreatureActorAdmission, (FreshCreatureActorMapAdmissionError, WorldCreature)> {
+    ) -> Result<FreshCreatureActorAdmission, (FreshCreatureActorMapAdmissionError, WorldCreature)>
+    {
         let Some(managed) = self.maps.get_mut(&key) else {
-            return Err((FreshCreatureActorMapAdmissionError::MissingMap { key }, incoming));
+            return Err((
+                FreshCreatureActorMapAdmissionError::MissingMap { key },
+                incoming,
+            ));
         };
-        managed.map_mut().admit_fresh_creature_actor(incoming)
-            .map_err(|(error, incoming)| (FreshCreatureActorMapAdmissionError::Admission(error), incoming))
+        managed
+            .map_mut()
+            .admit_fresh_creature_actor(incoming)
+            .map_err(|(error, incoming)| {
+                (
+                    FreshCreatureActorMapAdmissionError::Admission(error),
+                    incoming,
+                )
+            })
     }
 }
 

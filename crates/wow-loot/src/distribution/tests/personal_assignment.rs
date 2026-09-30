@@ -15,7 +15,13 @@ fn loot_object_guid(owner: ObjectGuid) -> ObjectGuid {
         return ObjectGuid::EMPTY;
     }
     ObjectGuid::create_world_object(
-        HighGuid::LootObject, 0, owner.realm_id(), owner.map_id(), 0, 0, owner.counter(),
+        HighGuid::LootObject,
+        0,
+        owner.realm_id(),
+        owner.map_id(),
+        0,
+        0,
+        owner.counter(),
     )
 }
 

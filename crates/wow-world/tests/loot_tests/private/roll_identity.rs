@@ -1,7 +1,7 @@
 //! Original mailbox identity cases; no session fixture state is constructed.
 use super::support::*;
-use wow_world::session::mailbox::{LootRollCommandIdentityLikeCpp, LootRollVoteCommand};
 use wow_loot::{OwnedLootAuthority, ROLL_VOTE_GREED_LIKE_CPP};
+use wow_world::session::mailbox::{LootRollCommandIdentityLikeCpp, LootRollVoteCommand};
 
 #[test]
 fn loot_roll_vote_command_accepts_exact_enqueued_roll_identity_like_cpp() {

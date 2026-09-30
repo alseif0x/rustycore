@@ -9,9 +9,7 @@ use wow_world::test_fixtures::{
     set_equipment_set_guid_generator_for_test,
 };
 
-fn make_session_with_send_capacity(
-    capacity: usize,
-) -> (WorldSession, flume::Receiver<Vec<u8>>) {
+fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(1);
     let (send_tx, send_rx) = flume::bounded::<Vec<u8>>(capacity);
     let mut session = WorldSession::new(
@@ -27,9 +25,10 @@ fn make_session_with_send_capacity(
         send_tx,
     );
     session.set_item_guid_generator_like_cpp(Arc::new(ObjectGuidGenerator::new(HighGuid::Item, 1)));
-    set_equipment_set_guid_generator_for_test(&mut session, Arc::new(
-        EquipmentSetGuidGeneratorLikeCpp::new(1),
-    ));
+    set_equipment_set_guid_generator_for_test(
+        &mut session,
+        Arc::new(EquipmentSetGuidGeneratorLikeCpp::new(1)),
+    );
     (session, send_rx)
 }
 

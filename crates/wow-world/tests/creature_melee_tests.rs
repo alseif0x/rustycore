@@ -1,23 +1,24 @@
 //! Original creature-melee APP contracts: catalog, runtime, packet and CAS boundaries.
-use std::sync::Arc;
 use rand::{Rng, SeedableRng, rngs::StdRng};
-use wow_core::{ObjectGuid, Position, guid::HighGuid};
-use wow_packet::opcodes::ServerOpcodes;
-use wow_packet::WorldPacket;
-use wow_packet::ServerPacket;
-use wow_world::session::{WorldSession, SessionState, SharedCanonicalMapManager, run_legacy_creature_melee_tick_once_like_cpp};
-use wow_world::player_directory::PlayerRegistry;
+use std::sync::Arc;
 use wow_constants::{UnitFlags, UnitState};
-use wow_world::session::mailbox::{SessionCommand, ApplyCreatureMeleeDamageLikeCppCommand};
-use wow_world::session::creature_melee_fixtures::*;
+use wow_core::{ObjectGuid, Position, guid::HighGuid};
+use wow_packet::ServerPacket;
+use wow_packet::WorldPacket;
+use wow_packet::opcodes::ServerOpcodes;
+use wow_world::player_directory::PlayerRegistry;
 use wow_world::session::creature_melee_fixtures::CreatureMeleePlayerController as SessionPlayerController;
+use wow_world::session::creature_melee_fixtures::*;
+use wow_world::session::mailbox::{ApplyCreatureMeleeDamageLikeCppCommand, SessionCommand};
+use wow_world::session::{
+    SessionState, SharedCanonicalMapManager, WorldSession,
+    run_legacy_creature_melee_tick_once_like_cpp,
+};
 
 mod support;
 use support::*;
 
-fn drain_server_opcodes(
-    send_rx: &flume::Receiver<Vec<u8>>,
-) -> Vec<ServerOpcodes> {
+fn drain_server_opcodes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<ServerOpcodes> {
     let mut opcodes = Vec::new();
     while let Ok(bytes) = send_rx.try_recv() {
         if let Some(opcode) = wow_packet::WorldPacket::from_bytes(&bytes).server_opcode() {
@@ -53,7 +54,6 @@ mod case_8;
 
 #[path = "creature_melee_tests/case_9.rs"]
 mod case_9;
-
 
 #[path = "creature_melee_tests/case_10.rs"]
 mod case_10;

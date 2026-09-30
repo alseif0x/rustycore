@@ -11,11 +11,7 @@ impl Player {
         if self.unit().is_alive() {
             return None;
         }
-        let max_health = self
-            .unit()
-            .data()
-            .max_health
-            .clamp(1, u64::from(u32::MAX)) as u32;
+        let max_health = self.unit().data().max_health.clamp(1, u64::from(u32::MAX)) as u32;
         let (health, mana) = if damage < 0 {
             (damage.saturating_abs() as u32, misc_value.max(0))
         } else {
@@ -48,18 +44,14 @@ impl Player {
     /// percentages, and omission of the surrounding resurrection lifecycle.
     /// All three power benefits are read before any power write.
     pub fn apply_percentage_resurrection(&mut self, restore_percent: f32) -> u32 {
-        let max_health = self
-            .unit()
-            .data()
-            .max_health
-            .clamp(1, u64::from(u32::MAX)) as u32;
+        let max_health = self.unit().data().max_health.clamp(1, u64::from(u32::MAX)) as u32;
         let health = ((max_health as f32) * restore_percent)
             .max(0.0)
             .min(max_health as f32) as u32;
         self.unit_mut().set_death_state(DeathState::Alive);
         self.unit_mut().set_health(u64::from(health));
-        let mana = ((self.get_max_power(PowerType::Mana).max(0) as f32) * restore_percent)
-            .max(0.0) as i32;
+        let mana =
+            ((self.get_max_power(PowerType::Mana).max(0) as f32) * restore_percent).max(0.0) as i32;
         let energy = ((self.get_max_power(PowerType::Energy).max(0) as f32) * restore_percent)
             .max(0.0) as i32;
         let focus = ((self.get_max_power(PowerType::Focus).max(0) as f32) * restore_percent)

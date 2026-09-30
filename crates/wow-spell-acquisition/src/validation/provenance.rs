@@ -2,17 +2,13 @@
 
 use super::*;
 
-pub(super) fn validate_root(
-    root: SpellAcquisitionRootLikeCpp,
-) -> Result<(), AcquisitionPlanError> {
+pub(super) fn validate_root(root: SpellAcquisitionRootLikeCpp) -> Result<(), AcquisitionPlanError> {
     let spell_id = match root {
         SpellAcquisitionRootLikeCpp::DirectLearn(spell_id)
         | SpellAcquisitionRootLikeCpp::TrainerWrapperCast(spell_id) => spell_id,
     };
     if spell_id == 0 || i32::try_from(spell_id).is_err() {
-        return Err(AcquisitionPlanError::InvalidSpellId(
-            spell_id,
-        ));
+        return Err(AcquisitionPlanError::InvalidSpellId(spell_id));
     }
     Ok(())
 }
@@ -64,11 +60,9 @@ pub(super) fn validate_provenance(
         } => valid_spell(*source_spell_id) && *record_id != 0,
     };
     if !valid {
-        return Err(
-            AcquisitionPlanError::ProvenanceMismatch(
-                "invalid or root-mismatched transition provenance",
-            ),
-        );
+        return Err(AcquisitionPlanError::ProvenanceMismatch(
+            "invalid or root-mismatched transition provenance",
+        ));
     }
     Ok(())
 }

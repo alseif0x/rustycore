@@ -50,7 +50,6 @@ impl PlayerClassLevelStatsRowsLikeCpp {
     }
 }
 
-
 /// In-memory C++ player level information keyed by `(race, class, level)`.
 pub struct PlayerStatsStore {
     stats: HashMap<(u8, u8, u8), PlayerLevelStats>,

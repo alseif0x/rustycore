@@ -147,12 +147,8 @@ impl<S: std::borrow::BorrowMut<PlayerReputationStateLikeCpp>> ReputationMgrLikeC
                 continue;
             }
 
-            let flags = default_state_flags_like_cpp(
-                faction_entry,
-                catalogs,
-                player_race,
-                player_class,
-            );
+            let flags =
+                default_state_flags_like_cpp(faction_entry, catalogs, player_race, player_class);
             let state = FactionStateLikeCpp::new_like_cpp(
                 faction_entry.id,
                 faction_entry.reputation_index as RepListIdLikeCpp,
@@ -279,9 +275,9 @@ impl<S: std::borrow::BorrowMut<PlayerReputationStateLikeCpp>> ReputationMgrLikeC
                             );
                             outcome.spillover_mutations.push((parent.id, mutation));
                         } else {
-                            faction_team_list = catalogs.faction_team_list_like_cpp(
-                                u32::from(faction_entry.parent_faction_id),
-                            );
+                            faction_team_list = catalogs.faction_team_list_like_cpp(u32::from(
+                                faction_entry.parent_faction_id,
+                            ));
                         }
                     }
                 }
@@ -381,11 +377,7 @@ impl<S: std::borrow::BorrowMut<PlayerReputationStateLikeCpp>> ReputationMgrLikeC
         player_race: u8,
         player_class: u8,
     ) {
-        self.initialize_like_cpp(
-            catalogs,
-            player_race,
-            player_class,
-        );
+        self.initialize_like_cpp(catalogs, player_race, player_class);
 
         for row in rows {
             let Some(faction_entry) = catalogs.faction_like_cpp(u32::from(row.faction_id)) else {
@@ -398,11 +390,7 @@ impl<S: std::borrow::BorrowMut<PlayerReputationStateLikeCpp>> ReputationMgrLikeC
             let rep_list_id = faction_entry.reputation_index as RepListIdLikeCpp;
             let base_reputation =
                 base_reputation_like_cpp(faction_entry, player_race, player_class);
-            let old_rank = reputation_to_rank_like_cpp(
-                faction_entry,
-                base_reputation,
-                catalogs,
-            );
+            let old_rank = reputation_to_rank_like_cpp(faction_entry, base_reputation, catalogs);
             let new_rank = reputation_to_rank_like_cpp(
                 faction_entry,
                 base_reputation + row.standing,
@@ -493,12 +481,12 @@ impl<S: std::borrow::BorrowMut<PlayerReputationStateLikeCpp>> ReputationMgrLikeC
         faction_rep_list_id: Option<RepListIdLikeCpp>,
     ) -> FactionStandingUpdateLikeCpp {
         let primary_faction = faction_rep_list_id.and_then(|rep_list_id| {
-            self.state().faction_like_cpp(rep_list_id).map(|state| {
-                FactionStandingStateLikeCpp {
+            self.state()
+                .faction_like_cpp(rep_list_id)
+                .map(|state| FactionStandingStateLikeCpp {
                     index: state.reputation_list_id as i32,
                     standing: standing_for_packet_like_cpp(state),
-                }
-            })
+                })
         });
 
         let mut update = FactionStandingUpdateLikeCpp {

@@ -1,9 +1,9 @@
 //! Ordered listener startup composition.
 
-use anyhow::Context;
-use std::sync::Arc;
-use anyhow::bail;
 use crate::{create_session, stop_world_network_like_cpp};
+use anyhow::Context;
+use anyhow::bail;
+use std::sync::Arc;
 
 pub(super) struct NetworkListeners {
     pub(super) instance_network_abort_handle: tokio::task::AbortHandle,

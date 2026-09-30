@@ -2,7 +2,8 @@ use super::Map;
 use wow_constants::{HighGuid, UnitState};
 use wow_core::ObjectGuid;
 use wow_entities::{
-    CombatReferenceState, Creature, CurrentSpellRef, CurrentSpellSlot, MapObjectRecord, Player, Unit,
+    CombatReferenceState, Creature, CurrentSpellRef, CurrentSpellSlot, MapObjectRecord, Player,
+    Unit,
 };
 
 fn bind_unit(unit: &mut Unit, guid: ObjectGuid) {
@@ -19,12 +20,14 @@ fn fixture() -> (Map, ObjectGuid, ObjectGuid, ObjectGuid, ObjectGuid) {
     for guid in [owner, peer, foreign] {
         let mut player = Player::new(Some(7), false);
         bind_unit(player.unit_mut(), guid);
-        map.insert_map_object_record(MapObjectRecord::new_player(player).unwrap()).unwrap();
+        map.insert_map_object_record(MapObjectRecord::new_player(player).unwrap())
+            .unwrap();
     }
     let creature = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 7, 100, 4);
     let mut entity = Creature::new(false);
     bind_unit(entity.unit_mut(), creature);
-    map.insert_map_object_record(MapObjectRecord::new_creature(entity).unwrap()).unwrap();
+    map.insert_map_object_record(MapObjectRecord::new_creature(entity).unwrap())
+        .unwrap();
     (map, owner, peer, creature, foreign)
 }
 
@@ -32,7 +35,9 @@ fn unit(map: &Map, guid: ObjectGuid) -> &Unit {
     if let Some(player) = map.get_typed_player(guid) {
         player.unit()
     } else {
-        map.get_typed_creature(guid).expect("fixture creature").unit()
+        map.get_typed_creature(guid)
+            .expect("fixture creature")
+            .unit()
     }
 }
 
@@ -40,7 +45,9 @@ fn unit_mut(map: &mut Map, guid: ObjectGuid) -> &mut Unit {
     if map.get_typed_player(guid).is_some() {
         map.get_typed_player_mut(guid).unwrap().unit_mut()
     } else {
-        map.get_typed_creature_mut(guid).expect("fixture creature").unit_mut()
+        map.get_typed_creature_mut(guid)
+            .expect("fixture creature")
+            .unit_mut()
     }
 }
 
@@ -60,7 +67,9 @@ fn cleanup_returns_sorted_unique_original_union_including_missing_owners() {
     let (mut map, owner, peer, creature, _) = fixture();
     let missing = ObjectGuid::create_player(1, 99);
     let combat = &mut unit_mut(&mut map, owner).subsystems_mut().combat;
-    combat.pve_refs.insert(creature, CombatReferenceState::pve());
+    combat
+        .pve_refs
+        .insert(creature, CombatReferenceState::pve());
     combat.pve_refs.insert(peer, CombatReferenceState::pve());
     combat.pvp_refs.insert(peer, CombatReferenceState::pvp());
     combat.add_attacker(creature);
@@ -83,7 +92,9 @@ fn cleanup_stops_player_and_creature_peers_and_preserves_unrelated_relationships
     let (mut map, owner, peer, creature, foreign) = fixture();
     let combat = &mut unit_mut(&mut map, owner).subsystems_mut().combat;
     combat.pvp_refs.insert(peer, CombatReferenceState::pvp());
-    combat.pve_refs.insert(creature, CombatReferenceState::pve());
+    combat
+        .pve_refs
+        .insert(creature, CombatReferenceState::pve());
     for guid in [peer, creature] {
         let unit = unit_mut(&mut map, guid);
         start_melee(unit, owner);
@@ -112,7 +123,10 @@ fn cleanup_stops_player_and_creature_peers_and_preserves_unrelated_relationships
         assert!(!combat.pve_refs.contains_key(&owner));
         assert!(!combat.pvp_refs.contains_key(&owner));
         assert!(!combat.attackers.contains(&owner));
-        assert_eq!(combat.pve_refs.get(&foreign), Some(&CombatReferenceState::pve()));
+        assert_eq!(
+            combat.pve_refs.get(&foreign),
+            Some(&CombatReferenceState::pve())
+        );
         assert!(combat.attackers.contains(&foreign));
     }
 }
@@ -124,7 +138,10 @@ fn foreign_victim_keeps_peer_attack_target_state_and_melee_spell() {
         unit_mut(&mut map, owner).add_attacker_like_cpp(guid);
         let unit = unit_mut(&mut map, guid);
         start_melee(unit, foreign);
-        unit.subsystems_mut().combat.pve_refs.insert(owner, CombatReferenceState::pve());
+        unit.subsystems_mut()
+            .combat
+            .pve_refs
+            .insert(owner, CombatReferenceState::pve());
         unit.add_attacker_like_cpp(owner);
     }
 
@@ -134,7 +151,12 @@ fn foreign_victim_keeps_peer_attack_target_state_and_melee_spell() {
         assert_eq!(unit.attacking(), Some(foreign));
         assert_eq!(unit.data().target, foreign);
         assert!(unit.has_unit_state(UnitState::MELEE_ATTACKING.bits()));
-        assert_eq!(unit.current_spell(CurrentSpellSlot::Melee).unwrap().spell_id, 701);
+        assert_eq!(
+            unit.current_spell(CurrentSpellSlot::Melee)
+                .unwrap()
+                .spell_id,
+            701
+        );
         assert!(!unit.subsystems().combat.pve_refs.contains_key(&owner));
         assert!(!unit.has_attacker_like_cpp(owner));
     }
@@ -147,11 +169,15 @@ fn absent_or_creature_owner_returns_none_without_peer_writes() {
     for guid in [owner, peer, creature] {
         let unit = unit_mut(&mut map, guid);
         start_melee(unit, missing);
-        unit.subsystems_mut().combat.pve_refs.insert(missing, CombatReferenceState::pve());
+        unit.subsystems_mut()
+            .combat
+            .pve_refs
+            .insert(missing, CombatReferenceState::pve());
         unit.add_attacker_like_cpp(missing);
     }
     for absent in [missing, creature] {
-        let before: Vec<_> = [owner, peer, creature].into_iter()
+        let before: Vec<_> = [owner, peer, creature]
+            .into_iter()
             .map(|guid| (guid, unit(&map, guid).subsystems().combat.clone()))
             .collect();
         assert_eq!(map.clear_player_combat(absent), None);
@@ -170,7 +196,10 @@ fn existing_player_with_no_relationships_returns_some_empty_set() {
     let (mut map, owner, peer, creature, _) = fixture();
     let peer_before = unit(&map, peer).subsystems().combat.clone();
     let creature_before = unit(&map, creature).subsystems().combat.clone();
-    unit_mut(&mut map, owner).subsystems_mut().combat.combat_disallowed = true;
+    unit_mut(&mut map, owner)
+        .subsystems_mut()
+        .combat
+        .combat_disallowed = true;
 
     assert_eq!(map.clear_player_combat(owner), Some(Vec::new()));
     assert!(unit(&map, owner).subsystems().combat.combat_disallowed);
@@ -182,14 +211,22 @@ fn existing_player_with_no_relationships_returns_some_empty_set() {
 fn peers_outside_the_original_union_are_not_scanned_or_changed() {
     let (mut map, owner, peer, creature, _) = fixture();
     start_melee(unit_mut(&mut map, peer), owner);
-    unit_mut(&mut map, peer).subsystems_mut().combat.pvp_refs.insert(owner, CombatReferenceState::pvp());
+    unit_mut(&mut map, peer)
+        .subsystems_mut()
+        .combat
+        .pvp_refs
+        .insert(owner, CombatReferenceState::pvp());
     unit_mut(&mut map, owner).add_attacker_like_cpp(creature);
     let peer_before = unit(&map, peer).subsystems().combat.clone();
 
     assert_eq!(map.clear_player_combat(owner), Some(vec![creature]));
     assert_eq!(unit(&map, peer).subsystems().combat, peer_before);
     assert_eq!(unit(&map, peer).data().target, owner);
-    assert!(unit(&map, peer).current_spell(CurrentSpellSlot::Melee).is_some());
+    assert!(
+        unit(&map, peer)
+            .current_spell(CurrentSpellSlot::Melee)
+            .is_some()
+    );
 }
 
 #[test]
@@ -206,7 +243,10 @@ fn cleanup_retains_the_existing_purge_short_circuit_for_duplicate_peer_buckets()
     assert!(!combat.pve_refs.contains_key(&owner));
     // The original purge helper uses short-circuit OR; moving the loop does
     // not add a second purge to repair an already duplicated reference.
-    assert_eq!(combat.pvp_refs.get(&owner), Some(&CombatReferenceState::pvp()));
+    assert_eq!(
+        combat.pvp_refs.get(&owner),
+        Some(&CombatReferenceState::pvp())
+    );
     assert!(!combat.attackers.contains(&owner));
 }
 

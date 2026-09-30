@@ -72,8 +72,7 @@ async fn item_grant_commit_unknown_quarantines_claim_and_kicks_even_when_queue_f
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             0, true,
         ));
-    let authority = loot_recovery_authority_for_test(&mut first, owner)
-        .unwrap();
+    let authority = loot_recovery_authority_for_test(&mut first, owner).unwrap();
     let claim = authority
         .reserve_item_for_award_like_cpp(first_guid, 0)
         .await
@@ -129,8 +128,7 @@ async fn cancelled_item_waiter_cannot_reopen_a_durable_claim_like_cpp() {
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             0, true,
         ));
-    let authority = loot_recovery_authority_for_test(&mut first, owner)
-        .unwrap();
+    let authority = loot_recovery_authority_for_test(&mut first, owner).unwrap();
     let claim = authority
         .reserve_item_for_award_like_cpp(first_guid, 0)
         .await
@@ -208,11 +206,11 @@ async fn durable_item_completion_auto_releases_only_after_items_and_coins_are_em
         wait_for_loot_persistence_for_test(&mut session).await;
 
         assert!(!session.is_disconnecting());
+        assert_eq!(has_loot_for_test(&session, owner_guid), !should_release);
         assert_eq!(
-            has_loot_for_test(&session, owner_guid),
+            is_active_loot_guid_for_test(&session, owner_guid),
             !should_release
         );
-        assert_eq!(is_active_loot_guid_for_test(&session, owner_guid), !should_release);
         if !should_release {
             let loot = loot_recovery_cache_for_test(&session, owner_guid).unwrap();
             assert!(loot.items[0].taken);
@@ -315,10 +313,14 @@ async fn failed_item_persistence_publishes_no_removal_or_release_like_cpp() {
 
     assert!(!session.is_disconnecting());
     assert!(is_active_loot_guid_for_test(&session, owner_guid));
-    assert!(!loot_recovery_cache_for_test(&session, owner_guid).unwrap().items[0].taken);
+    assert!(
+        !loot_recovery_cache_for_test(&session, owner_guid)
+            .unwrap()
+            .items[0]
+            .taken
+    );
     assert!(
         !drain_server_opcodes_like_cpp(&send_rx)
             .contains(&(wow_constants::ServerOpcodes::LootRelease as u16))
     );
 }
-

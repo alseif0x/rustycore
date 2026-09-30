@@ -2,9 +2,15 @@
 use super::recovery_support::*;
 use std::sync::Mutex;
 use wow_entities::Player;
-use wow_loot::{LOOT_METHOD_GROUP_LIKE_CPP, ROLL_VOTE_GREED_LIKE_CPP, ROLL_VOTE_NEED_LIKE_CPP, ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP, ROLL_VOTE_NOT_VALID_LIKE_CPP};
+use wow_loot::{
+    LOOT_METHOD_GROUP_LIKE_CPP, ROLL_VOTE_GREED_LIKE_CPP, ROLL_VOTE_NEED_LIKE_CPP,
+    ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP, ROLL_VOTE_NOT_VALID_LIKE_CPP,
+};
 use wow_world::session::mailbox::LootRollVoteCommand;
-use wow_world::test_fixtures::loot::{loot_roll_observation_for_test, process_loot_commands_for_test, allocate_loot_guid_for_test, sync_creature_loot_fixture_for_test};
+use wow_world::test_fixtures::loot::{
+    allocate_loot_guid_for_test, loot_roll_observation_for_test, process_loot_commands_for_test,
+    sync_creature_loot_fixture_for_test,
+};
 
 #[tokio::test]
 async fn loot_unit_group_loot_first_open_starts_roll_for_blocked_item_like_cpp() {
@@ -25,7 +31,8 @@ async fn loot_unit_group_loot_first_open_starts_roll_for_blocked_item_like_cpp()
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         owner_guid,
         CreatureLoot {
             loot_guid: loot_object,
@@ -61,8 +68,7 @@ async fn loot_unit_group_loot_first_open_starts_roll_for_blocked_item_like_cpp()
     );
 
     install_cached_test_creature_loot_authority_like_cpp(&mut session, owner_guid, player_guid);
-    handle_loot_unit_for_test(&mut session, loot_unit_packet(owner_guid))
-        .await;
+    handle_loot_unit_for_test(&mut session, loot_unit_packet(owner_guid)).await;
 
     let response = send_rx.try_recv().unwrap();
     let mut response = WorldPacket::from_bytes(&response);
@@ -111,8 +117,7 @@ async fn loot_unit_group_loot_first_open_starts_roll_for_blocked_item_like_cpp()
     );
     assert_eq!(remote_start_roll.read_packed_guid().unwrap(), loot_object);
 
-    let state = loot_roll_observation_for_test(&session, loot_object, 0)
-        .unwrap();
+    let state = loot_roll_observation_for_test(&session, loot_object, 0).unwrap();
     assert_eq!(
         state.vote(player_guid).unwrap().vote,
         ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP
@@ -126,7 +131,9 @@ async fn loot_unit_group_loot_first_open_starts_roll_for_blocked_item_like_cpp()
         ROLL_VOTE_NOT_VALID_LIKE_CPP
     );
 
-    let entry = &loot_recovery_cache_for_test(&session, owner_guid).unwrap().items[0];
+    let entry = &loot_recovery_cache_for_test(&session, owner_guid)
+        .unwrap()
+        .items[0];
     assert!(entry.flags.blocked);
     assert!(!entry.flags.under_threshold);
     assert!(
@@ -160,7 +167,8 @@ async fn loot_roll_all_passed_unblocks_without_all_passed_to_valid_voters_like_c
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         owner_guid,
         CreatureLoot {
             loot_guid: loot_object,
@@ -203,12 +211,15 @@ async fn loot_roll_all_passed_unblocks_without_all_passed_to_valid_voters_like_c
     let _remote_loot_list = candidate_rx.try_recv().unwrap();
     let _remote_start_roll = candidate_rx.try_recv().unwrap();
 
-    handle_loot_roll_for_test(&mut session, LootRoll {
+    handle_loot_roll_for_test(
+        &mut session,
+        LootRoll {
             loot_obj: loot_object,
             loot_list_id: 0,
             roll_type: ROLL_VOTE_PASS_LIKE_CPP,
-        })
-        .await;
+        },
+    )
+    .await;
     let _local_pass_roll = send_rx.try_recv().unwrap();
     let _remote_pass_roll = candidate_rx.try_recv().unwrap();
     let pass_state = loot_roll_observation_for_test(&session, loot_object, 0)
@@ -220,12 +231,15 @@ async fn loot_roll_all_passed_unblocks_without_all_passed_to_valid_voters_like_c
     );
 
     session.set_player_guid(Some(candidate_guid));
-    handle_loot_roll_for_test(&mut session, LootRoll {
+    handle_loot_roll_for_test(
+        &mut session,
+        LootRoll {
             loot_obj: loot_object,
             loot_list_id: 0,
             roll_type: ROLL_VOTE_PASS_LIKE_CPP,
-        })
-        .await;
+        },
+    )
+    .await;
 
     let candidate_pass_roll = send_rx.try_recv().unwrap();
     let mut candidate_pass_roll = WorldPacket::from_bytes(&candidate_pass_roll);
@@ -254,12 +268,12 @@ async fn loot_roll_all_passed_unblocks_without_all_passed_to_valid_voters_like_c
     assert!(player_rx.try_recv().is_err());
     assert!(candidate_rx.try_recv().is_err());
 
-    let entry = &loot_recovery_cache_for_test(&session, owner_guid).unwrap().items[0];
+    let entry = &loot_recovery_cache_for_test(&session, owner_guid)
+        .unwrap()
+        .items[0];
     assert!(!entry.flags.blocked);
     assert!(entry.roll_winner.is_empty());
-    assert!(
-        !loot_roll_observation_for_test(&session, loot_object, 0).is_some()
-    );
+    assert!(!loot_roll_observation_for_test(&session, loot_object, 0).is_some());
 }
 
 #[tokio::test]
@@ -280,7 +294,8 @@ async fn loot_roll_need_vote_broadcasts_immediate_roll_like_cpp() {
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         owner_guid,
         CreatureLoot {
             loot_guid: loot_object,
@@ -322,12 +337,15 @@ async fn loot_roll_need_vote_broadcasts_immediate_roll_like_cpp() {
     let _start_roll = send_rx.try_recv().unwrap();
     let _remote_loot_list = candidate_rx.try_recv().unwrap();
     let _remote_start_roll = candidate_rx.try_recv().unwrap();
-    handle_loot_roll_for_test(&mut session, LootRoll {
+    handle_loot_roll_for_test(
+        &mut session,
+        LootRoll {
             loot_obj: loot_object,
             loot_list_id: 0,
             roll_type: ROLL_VOTE_NEED_LIKE_CPP,
-        })
-        .await;
+        },
+    )
+    .await;
 
     let local_roll = send_rx.try_recv().unwrap();
     let mut local_roll = WorldPacket::from_bytes(&local_roll);

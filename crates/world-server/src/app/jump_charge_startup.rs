@@ -1,14 +1,15 @@
 //! Ordered jump charge startup composition.
 
+use crate::{catalogs, spell};
 use anyhow::Context;
 use std::sync::Arc;
 use tracing::info;
-use crate::{catalogs, spell};
 
 pub(super) struct JumpChargeCatalogs {
     pub(super) jump_charge_report: wow_data::JumpChargeParamsLoadReportLikeCpp,
     pub(super) _jump_charge_params_store: Arc<wow_data::JumpChargeParamsStoreLikeCpp>,
-    pub(super) jump_charge_persistence: wow_database::MariaDbJumpChargeCatalogPersistenceAdapterLikeCpp,
+    pub(super) jump_charge_persistence:
+        wow_database::MariaDbJumpChargeCatalogPersistenceAdapterLikeCpp,
     pub(super) spell_x_spell_visual_store: Arc<wow_data::SpellXSpellVisualStore>,
     pub(super) spell_visual_store: wow_data::SpellVisualStore,
 }

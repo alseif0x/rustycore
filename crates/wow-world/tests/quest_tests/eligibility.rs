@@ -16,8 +16,6 @@
 
 use super::*;
 use std::collections::HashSet;
-use wow_world::test_fixtures::quest_dependent_previous_blocks_for_test as represented_satisfy_quest_dependent_previous_quests_failed_like_cpp;
-use wow_world::handlers::quest::PlayerQuestStatus;
 use std::sync::Arc;
 use wow_constants::quest::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
 use wow_constants::{ComparisonType, ConditionSourceType, ConditionType};
@@ -26,6 +24,8 @@ use wow_data::quest::{
     QUEST_FLAGS_DAILY_LIKE_CPP, QUEST_SPECIAL_FLAGS_DF_QUEST_LIKE_CPP, QuestStore, QuestTemplate,
 };
 use wow_data::{Condition, ConditionEntriesByTypeStore};
+use wow_world::handlers::quest::PlayerQuestStatus;
+use wow_world::test_fixtures::quest_dependent_previous_blocks_for_test as represented_satisfy_quest_dependent_previous_quests_failed_like_cpp;
 
 fn make_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded(8);
@@ -92,12 +92,14 @@ fn can_take_quest_adapter_preserves_df_priority_and_independent_exclusive_peer_c
     install_quest(&mut session, &quest);
     mutate_player_quest_gameplay_for_test(&mut session, |state| {
         state.set_daily_like_cpp(quest.id, true);
-    }).expect("test Player quest owner");
+    })
+    .expect("test Player quest owner");
 
     assert!(session.can_take_quest(&quest));
     mutate_player_quest_gameplay_for_test(&mut session, |state| {
         state.set_df_quest_like_cpp(quest.id, true);
-    }).expect("test Player quest owner");
+    })
+    .expect("test Player quest owner");
     assert!(!session.can_take_quest(&quest));
 
     let (mut peer_session, _peer_send_rx) = make_session();
@@ -108,13 +110,15 @@ fn can_take_quest_adapter_preserves_df_priority_and_independent_exclusive_peer_c
     peer.flags = QUEST_FLAGS_DAILY_LIKE_CPP;
     peer.special_flags = QUEST_SPECIAL_FLAGS_DF_QUEST_LIKE_CPP;
     peer_session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([
-        candidate.clone(), peer.clone(),
+        candidate.clone(),
+        peer.clone(),
     ])));
 
     assert!(peer_session.can_take_quest(&candidate));
     mutate_player_quest_gameplay_for_test(&mut peer_session, |state| {
         state.set_daily_like_cpp(peer.id, true);
-    }).expect("test Player quest owner");
+    })
+    .expect("test Player quest owner");
     // Retained Rust gap: C++ SatisfyQuestExclusiveGroup calls SatisfyQuestDay.
     assert!(!peer_session.can_take_quest(&candidate));
 }
@@ -148,22 +152,26 @@ fn dependent_previous_adapter_passes_lazy_catalog_and_negative_group_facts_to_do
     let blocked = represented_satisfy_quest_dependent_previous_quests_failed_like_cpp(
         &store, &quest, &rewarded,
     );
-    assert!(blocked, "the catalog's unrewarded negative-group peer blocks");
+    assert!(
+        blocked,
+        "the catalog's unrewarded negative-group peer blocks"
+    );
     rewarded.insert(9956);
     let blocked = represented_satisfy_quest_dependent_previous_quests_failed_like_cpp(
         &store, &quest, &rewarded,
     );
-    assert!(!blocked, "a complete first group allows before a missing later row");
+    assert!(
+        !blocked,
+        "a complete first group allows before a missing later row"
+    );
     quest.dependent_previous_quests.swap(0, 1);
-    assert!(represented_satisfy_quest_dependent_previous_quests_failed_like_cpp(
-        &store, &quest, &rewarded,
-    ), "a missing first catalog row rejects even when a later group is complete");
+    assert!(
+        represented_satisfy_quest_dependent_previous_quests_failed_like_cpp(
+            &store, &quest, &rewarded,
+        ),
+        "a missing first catalog row rejects even when a later group is complete"
+    );
 }
-
-
-
-
-
 
 #[test]
 fn can_take_quest_blocks_when_quest_available_condition_not_met_like_cpp() {
@@ -227,12 +235,6 @@ fn can_take_quest_blocks_when_session_expansion_below_required_like_cpp() {
     session2.expansion = 2;
     assert!(session2.can_take_quest(&quest2));
 }
-
-
-
-
-
-
 
 #[test]
 fn can_take_quest_dependent_previous_not_rewarded_blocks_like_cpp() {

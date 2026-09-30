@@ -21,7 +21,10 @@ impl PlayerCollectionStateLikeCpp {
             let Some(bonus_id) = resolve_bonus(item_id, flags) else {
                 continue;
             };
-            heirlooms.insert(item_id, PlayerAccountHeirloomDataLikeCpp { flags, bonus_id });
+            heirlooms.insert(
+                item_id,
+                PlayerAccountHeirloomDataLikeCpp { flags, bonus_id },
+            );
         }
         heirlooms
     }

@@ -307,8 +307,7 @@ impl InstanceScriptBase {
         };
 
         for (slot, encounter_id) in dungeon_encounter_ids.into_iter().enumerate() {
-            boss.dungeon_encounters[slot] =
-                resolve_encounter(encounter_id).map(|entry| entry.id);
+            boss.dungeon_encounters[slot] = resolve_encounter(encounter_id).map(|entry| entry.id);
         }
     }
 

@@ -86,9 +86,7 @@ async fn quest_giver_accept_rejected_source_sends_no_quest_log_update_like_cpp()
         .handle_quest_giver_accept_quest(quest_giver_cmsg_packet(source_guid, quest_id, 0x00))
         .await;
 
-    assert!(
-        !contains_player_quest_status_for_test(&session, quest_id)
-    );
+    assert!(!contains_player_quest_status_for_test(&session, quest_id));
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]
@@ -125,9 +123,7 @@ async fn adventure_map_start_quest_unknown_quest_returns_silently_like_cpp() {
         .handle_adventure_map_start_quest(adventure_map_start_quest_packet(7002))
         .await;
 
-    assert!(
-        represented_adventure_map_start_quest_requests_for_test(&session).is_empty()
-    );
+    assert!(represented_adventure_map_start_quest_requests_for_test(&session).is_empty());
 }
 #[tokio::test]
 async fn adventure_map_start_quest_missing_player_condition_store_returns_silently_like_cpp() {
@@ -141,9 +137,7 @@ async fn adventure_map_start_quest_missing_player_condition_store_returns_silent
         .handle_adventure_map_start_quest(adventure_map_start_quest_packet(7001))
         .await;
 
-    assert!(
-        represented_adventure_map_start_quest_requests_for_test(&session).is_empty()
-    );
+    assert!(represented_adventure_map_start_quest_requests_for_test(&session).is_empty());
 }
 #[tokio::test]
 async fn quest_poi_query_filters_to_active_quest_slots_like_cpp() {
@@ -151,41 +145,44 @@ async fn quest_poi_query_filters_to_active_quest_slots_like_cpp() {
     let (realm_tx, realm_rx) = flume::bounded(8);
     install_realm_send_channel_for_test(&mut session, realm_tx);
     add_active_quest(&mut session, 77);
-    set_quest_poi_store_for_test(&mut session, Arc::new(HashMap::from([
-        (
-            77,
-            wow_packet::packets::query::QuestPoiData {
-                quest_id: 77,
-                blobs: vec![wow_packet::packets::query::QuestPoiBlobData {
-                    blob_index: 1,
-                    objective_index: -1,
-                    quest_objective_id: 2,
-                    quest_object_id: 3,
-                    map_id: 571,
-                    ui_map_id: 486,
-                    priority: 4,
-                    flags: 5,
-                    world_effect_id: 6,
-                    player_condition_id: 7,
-                    navigation_player_condition_id: 8,
-                    spawn_tracking_id: 9,
-                    points: vec![wow_packet::packets::query::QuestPoiBlobPoint {
-                        x: 10,
-                        y: 11,
-                        z: 12,
+    set_quest_poi_store_for_test(
+        &mut session,
+        Arc::new(HashMap::from([
+            (
+                77,
+                wow_packet::packets::query::QuestPoiData {
+                    quest_id: 77,
+                    blobs: vec![wow_packet::packets::query::QuestPoiBlobData {
+                        blob_index: 1,
+                        objective_index: -1,
+                        quest_objective_id: 2,
+                        quest_object_id: 3,
+                        map_id: 571,
+                        ui_map_id: 486,
+                        priority: 4,
+                        flags: 5,
+                        world_effect_id: 6,
+                        player_condition_id: 7,
+                        navigation_player_condition_id: 8,
+                        spawn_tracking_id: 9,
+                        points: vec![wow_packet::packets::query::QuestPoiBlobPoint {
+                            x: 10,
+                            y: 11,
+                            z: 12,
+                        }],
+                        always_allow_merging_blobs: false,
                     }],
-                    always_allow_merging_blobs: false,
-                }],
-            },
-        ),
-        (
-            88,
-            wow_packet::packets::query::QuestPoiData {
-                quest_id: 88,
-                blobs: Vec::new(),
-            },
-        ),
-    ])));
+                },
+            ),
+            (
+                88,
+                wow_packet::packets::query::QuestPoiData {
+                    quest_id: 88,
+                    blobs: Vec::new(),
+                },
+            ),
+        ])),
+    );
 
     let mut missing_quest_pois =
         [0; wow_packet::packets::query::QUEST_POI_QUERY_MISSING_QUEST_POIS_LIKE_CPP];
@@ -214,9 +211,9 @@ async fn quest_poi_query_filters_to_active_quest_slots_like_cpp() {
 }
 #[tokio::test]
 async fn quest_giver_status_queries_borrow_process_metadata_not_session_catalog() {
-    use wow_world::session::SessionHandlerCatalogsLikeCpp;
     use wow_constants::ClientOpcodes;
     use wow_handler::{PacketProcessing, SessionStatus};
+    use wow_world::session::SessionHandlerCatalogsLikeCpp;
     for (metadata, expected) in [
         (None, quest_giver_status::QUEST),
         (Some((2, 0x400)), quest_giver_status::IMPORTANT_QUEST),
@@ -299,7 +296,8 @@ async fn quest_giver_choose_reward_accepts_existing_reward_currency_like_cpp() {
         currency_entry_like_cpp(currency_id),
     ])));
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    insert_player_quest_status_for_test(&mut session,
+    insert_player_quest_status_for_test(
+        &mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -321,14 +319,13 @@ async fn quest_giver_choose_reward_accepts_existing_reward_currency_like_cpp() {
         ))
         .await;
 
-    assert!(
-        !contains_player_quest_status_for_test(&session, quest_id)
-    );
-    assert!(
-        contains_rewarded_quest_for_test(&session, quest_id)
-    );
+    assert!(!contains_player_quest_status_for_test(&session, quest_id));
+    assert!(contains_rewarded_quest_for_test(&session, quest_id));
     assert_eq!(player_gold_for_test(&session), 42);
-    assert_eq!(player_currency_quantity_for_test(&session, currency_id), Some(5));
+    assert_eq!(
+        player_currency_quantity_for_test(&session, currency_id),
+        Some(5)
+    );
     assert_eq!(
         send_rx.try_recv().unwrap(),
         wow_packet::packets::misc::SetCurrency {
@@ -378,7 +375,8 @@ async fn quest_giver_choose_reward_fixed_currency_rewards_like_cpp() {
         currency_entry_like_cpp(currency_id),
     ])));
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    insert_player_quest_status_for_test(&mut session,
+    insert_player_quest_status_for_test(
+        &mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -400,14 +398,13 @@ async fn quest_giver_choose_reward_fixed_currency_rewards_like_cpp() {
         ))
         .await;
 
-    assert!(
-        !contains_player_quest_status_for_test(&session, quest_id)
-    );
-    assert!(
-        contains_rewarded_quest_for_test(&session, quest_id)
-    );
+    assert!(!contains_player_quest_status_for_test(&session, quest_id));
+    assert!(contains_rewarded_quest_for_test(&session, quest_id));
     assert_eq!(player_gold_for_test(&session), 42);
-    assert_eq!(player_currency_quantity_for_test(&session, currency_id), Some(7));
+    assert_eq!(
+        player_currency_quantity_for_test(&session, currency_id),
+        Some(7)
+    );
     assert_eq!(
         send_rx.try_recv().unwrap(),
         wow_packet::packets::misc::SetCurrency {
@@ -451,7 +448,8 @@ async fn quest_giver_choose_reward_removes_timed_quest_before_rewards_like_cpp()
     quest.reward_money_difficulty = 37;
     set_player_gold_for_test(&mut session, 5);
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    insert_player_quest_status_for_test(&mut session,
+    insert_player_quest_status_for_test(
+        &mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -477,12 +475,8 @@ async fn quest_giver_choose_reward_removes_timed_quest_before_rewards_like_cpp()
         represented_timed_quest_removals_for_test(&session).as_slice(),
         &[quest_id]
     );
-    assert!(
-        !contains_player_quest_status_for_test(&session, quest_id)
-    );
-    assert!(
-        contains_rewarded_quest_for_test(&session, quest_id)
-    );
+    assert!(!contains_player_quest_status_for_test(&session, quest_id));
+    assert!(contains_rewarded_quest_for_test(&session, quest_id));
     assert_eq!(player_gold_for_test(&session), 42);
 }
 #[tokio::test]
@@ -493,7 +487,8 @@ async fn quest_giver_choose_reward_non_timed_quest_records_no_timed_removal_like
     let mut quest = quest_template(quest_id);
     quest.flags = QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP;
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    insert_player_quest_status_for_test(&mut session,
+    insert_player_quest_status_for_test(
+        &mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -516,12 +511,8 @@ async fn quest_giver_choose_reward_non_timed_quest_records_no_timed_removal_like
         .await;
 
     assert!(represented_timed_quest_removals_for_test(&session).is_empty());
-    assert!(
-        !contains_player_quest_status_for_test(&session, quest_id)
-    );
-    assert!(
-        contains_rewarded_quest_for_test(&session, quest_id)
-    );
+    assert!(!contains_player_quest_status_for_test(&session, quest_id));
+    assert!(contains_rewarded_quest_for_test(&session, quest_id));
 }
 #[tokio::test]
 async fn quest_giver_choose_reward_emits_reward_skill_fields_like_cpp() {
@@ -535,7 +526,8 @@ async fn quest_giver_choose_reward_emits_reward_skill_fields_like_cpp() {
     quest.reward_skill_points = 5;
     set_player_gold_for_test(&mut session, 5);
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    insert_player_quest_status_for_test(&mut session,
+    insert_player_quest_status_for_test(
+        &mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -585,7 +577,8 @@ async fn quest_giver_choose_reward_records_title_and_talent_rewards_like_cpp() {
     quest.reward_title_id = 77;
     quest.reward_skill_points = 3;
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    insert_player_quest_status_for_test(&mut session,
+    insert_player_quest_status_for_test(
+        &mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -636,7 +629,8 @@ async fn quest_giver_choose_reward_records_reward_mail_sender_entry_like_cpp() {
     quest.reward_mail_delay_secs = 900;
     quest.reward_mail_sender_entry = 1234;
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    insert_player_quest_status_for_test(&mut session,
+    insert_player_quest_status_for_test(
+        &mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,

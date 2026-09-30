@@ -10,7 +10,6 @@ where
     Terrain: TerrainGridLoader,
     Lifecycle: GridLifecycle,
 {
-
     // Preserve the coordinator's captured admission facts; no new reads or context.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn add_creature_entry(
@@ -25,7 +24,8 @@ where
         grid_created: bool,
     ) -> Result<AddToMapOutcome, AddToMapError> {
         entry
-            .as_mut().object_mut()
+            .as_mut()
+            .object_mut()
             .set_current_cell(cell.cell_x(), cell.cell_y());
         let previous = self.insert_object_entry(entry)?;
 
@@ -74,10 +74,7 @@ where
                     .unit_mut()
                     .subsystems_mut()
                     .vehicle
-                    .reset_vehicle_kit_for_creature_add_to_world_like_cpp(
-                        &context,
-                        base_is_alive,
-                    )
+                    .reset_vehicle_kit_for_creature_add_to_world_like_cpp(&context, base_is_alive)
             });
 
         let creature_vehicle_install = self
@@ -102,11 +99,8 @@ where
                 represented_callback: true,
                 script_dispatch_represented: false,
             });
-        let add_to_map_tail = self.represent_add_to_map_post_add_to_world_tail_like_cpp(
-            kind,
-            guid,
-            active_object,
-        );
+        let add_to_map_tail =
+            self.represent_add_to_map_post_add_to_world_tail_like_cpp(kind, guid, active_object);
         if kind == AccessorObjectKind::Transport {
             self.mark_transport_players_for_visibility_like_cpp(guid);
         } else {
@@ -141,7 +135,6 @@ where
             creature_zone_script_create,
             add_to_map_tail,
         });
-
     }
     pub fn creature_group_holder_member_count_like_cpp(&self, leader_spawn_id: SpawnId) -> usize {
         self.creature_group_holder_like_cpp
@@ -225,5 +218,4 @@ where
         }
         group.insert(current_guid);
     }
-
 }

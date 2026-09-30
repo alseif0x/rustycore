@@ -139,14 +139,21 @@ fn typed_and_generic_bodies_keep_exact_kind_gates_and_transport_alias() {
 fn reborrow_preserves_sequential_typed_and_common_writes_on_one_body() {
     let mut record = typed_records().remove(3);
     let mut view = ObjectMut::new(&mut record);
-    view.reborrow().object_mut().object_mut().set_is_new_object(true);
+    view.reborrow()
+        .object_mut()
+        .object_mut()
+        .set_is_new_object(true);
     assert!(view.as_ref().object().object().is_new_object());
     {
         let creature = view.reborrow().creature_mut().unwrap();
         assert!(creature.unit().world().object().is_new_object());
         creature.unit_mut().set_max_health(100);
         creature.unit_mut().set_health(75);
-        creature.unit_mut().world_mut().object_mut().set_is_new_object(false);
+        creature
+            .unit_mut()
+            .world_mut()
+            .object_mut()
+            .set_is_new_object(false);
     }
     assert!(!view.as_ref().object().object().is_new_object());
     assert_eq!(view.as_ref().creature().unwrap().current_health(), 75);
@@ -196,5 +203,13 @@ fn transport_gameobject_writes_share_the_same_body() {
     let transport = view.reborrow().transport_mut().unwrap();
     assert!(transport.world().object().is_new_object());
     transport.world_mut().object_mut().set_is_new_object(false);
-    assert!(!view.as_ref().game_object().unwrap().world().object().is_new_object());
+    assert!(
+        !view
+            .as_ref()
+            .game_object()
+            .unwrap()
+            .world()
+            .object()
+            .is_new_object()
+    );
 }

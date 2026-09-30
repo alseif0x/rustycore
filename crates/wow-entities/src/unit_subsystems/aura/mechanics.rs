@@ -1,7 +1,7 @@
 //! Mechanic masks from canonical applications and difficulty-selected metadata.
 
-use std::collections::{BTreeMap, HashMap};
 use super::{AppliedAuraRef, AuraApplicationLikeCpp, AuraSubsystem};
+use std::collections::{BTreeMap, HashMap};
 
 impl AuraSubsystem {
     /// C++ Unit::HasAuraWithMechanic (Unit.cpp:4714-4729). Each Player
@@ -14,8 +14,12 @@ impl AuraSubsystem {
     ) -> u64 {
         auras.values().fold(0_u64, |mask, aura| {
             mask | spell_mechanic_mask(
-                aura.spell_id, aura.difficulty_id, aura.effect_mask,
-                &mut metadata, &mut select, &fields,
+                aura.spell_id,
+                aura.difficulty_id,
+                aura.effect_mask,
+                &mut metadata,
+                &mut select,
+                &fields,
             )
         })
     }
@@ -30,8 +34,12 @@ impl AuraSubsystem {
     ) -> u64 {
         applied_auras.iter().fold(0_u64, |mask, aura| {
             mask | spell_mechanic_mask(
-                i32::try_from(aura.spell_id).unwrap_or(0), difficulty_id,
-                aura.effect_mask, &mut metadata, &mut select, &fields,
+                i32::try_from(aura.spell_id).unwrap_or(0),
+                difficulty_id,
+                aura.effect_mask,
+                &mut metadata,
+                &mut select,
+                &fields,
             )
         })
     }
@@ -57,7 +65,9 @@ fn spell_mechanic_mask<'catalog, E: 'catalog>(
             continue;
         }
         let is_effect = effects.is_some_and(|effects| {
-            effects.iter().any(|effect| fields(effect).0 == effect_index && fields(effect).1 != 0)
+            effects
+                .iter()
+                .any(|effect| fields(effect).0 == effect_index && fields(effect).1 != 0)
         });
         if is_effect {
             mask |= mechanic_bit(mechanic).unwrap_or(0);

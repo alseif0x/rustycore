@@ -18,7 +18,8 @@ async fn master_loot_item_non_master_loot_view_returns_silently_like_cpp() {
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));
     set_active_loot_guid_for_test(&mut session, loot_owner);
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         loot_owner,
         CreatureLoot {
             loot_guid: loot_object,
@@ -49,14 +50,17 @@ async fn master_loot_item_non_master_loot_view_returns_silently_like_cpp() {
         },
     );
 
-    give_local_master_loot_for_test(&mut session, MasterLootItem {
+    give_local_master_loot_for_test(
+        &mut session,
+        MasterLootItem {
             target: master_guid,
             loot: vec![wow_packet::packets::loot::LootItemRequest {
                 object: loot_object,
                 loot_list_id: 0,
             }],
-        })
-        .await;
+        },
+    )
+    .await;
 
     assert!(send_rx.try_recv().is_err());
 }
@@ -85,7 +89,10 @@ async fn master_loot_item_remote_target_can_store_error_is_reported_by_target_se
     target_info.command_tx = target_session.session_command_tx();
     player_registry.register_or_replace(target_guid, target_info, Default::default());
 
-    wow_world::test_fixtures::set_group_guid_for_test_like_cpp(&mut master_session, Some(group_guid));
+    wow_world::test_fixtures::set_group_guid_for_test_like_cpp(
+        &mut master_session,
+        Some(group_guid),
+    );
     master_session.set_group_registry(
         Arc::clone(&group_registry),
         Arc::new(PendingInvites::default()),
@@ -93,7 +100,8 @@ async fn master_loot_item_remote_target_can_store_error_is_reported_by_target_se
     master_session.set_player_registry(Arc::clone(&player_registry));
     master_session.set_player_guid(Some(master_guid));
     set_active_loot_guid_for_test(&mut master_session, loot_owner);
-    set_loot_for_test(&mut master_session, 
+    set_loot_for_test(
+        &mut master_session,
         loot_owner,
         CreatureLoot {
             loot_guid: loot_object,
@@ -127,20 +135,31 @@ async fn master_loot_item_remote_target_can_store_error_is_reported_by_target_se
     target_session.set_player_guid(Some(target_guid));
     prepare_money_player_residence_for_test(&mut target_session);
     install_limited_test_item_template(&mut target_session, 701, 1);
-    install_loot_inventory_item_for_test(&mut target_session, 35, InventoryItem {
+    install_loot_inventory_item_for_test(
+        &mut target_session,
+        35,
+        InventoryItem {
             guid: existing_item_guid,
             entry_id: 701,
             db_guid: 701,
             inventory_type: None,
-        }, target_guid, 1, 0, ItemContext::None);
+        },
+        target_guid,
+        1,
+        0,
+        ItemContext::None,
+    );
 
-    let master_future = give_local_master_loot_for_test(&mut master_session, MasterLootItem {
-        target: target_guid,
-        loot: vec![wow_packet::packets::loot::LootItemRequest {
-            object: loot_object,
-            loot_list_id: 0,
-        }],
-    });
+    let master_future = give_local_master_loot_for_test(
+        &mut master_session,
+        MasterLootItem {
+            target: target_guid,
+            loot: vec![wow_packet::packets::loot::LootItemRequest {
+                object: loot_object,
+                loot_list_id: 0,
+            }],
+        },
+    );
     let target_future = async {
         for _ in 0..8 {
             process_pending_for_loot_test(&mut target_session).await;
@@ -187,12 +206,16 @@ async fn master_loot_item_remote_target_unavailable_command_reports_player_not_f
     target_info.command_tx = command_tx;
     player_registry.register_or_replace(target_guid, target_info, Default::default());
 
-    wow_world::test_fixtures::set_group_guid_for_test_like_cpp(&mut master_session, Some(group_guid));
+    wow_world::test_fixtures::set_group_guid_for_test_like_cpp(
+        &mut master_session,
+        Some(group_guid),
+    );
     master_session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     master_session.set_player_registry(player_registry);
     master_session.set_player_guid(Some(master_guid));
     set_active_loot_guid_for_test(&mut master_session, loot_owner);
-    set_loot_for_test(&mut master_session, 
+    set_loot_for_test(
+        &mut master_session,
         loot_owner,
         CreatureLoot {
             loot_guid: loot_object,
@@ -223,14 +246,17 @@ async fn master_loot_item_remote_target_unavailable_command_reports_player_not_f
         },
     );
 
-    give_local_master_loot_for_test(&mut master_session, MasterLootItem {
+    give_local_master_loot_for_test(
+        &mut master_session,
+        MasterLootItem {
             target: target_guid,
             loot: vec![wow_packet::packets::loot::LootItemRequest {
                 object: loot_object,
                 loot_list_id: 0,
             }],
-        })
-        .await;
+        },
+    )
+    .await;
 
     let sent = master_rx.try_recv().unwrap();
     let mut sent = WorldPacket::from_bytes(&sent);
@@ -267,13 +293,22 @@ async fn master_loot_item_self_target_can_store_maps_unique_error_like_cpp() {
     let _ = set_owned_player_group_like_cpp(&mut session, Some((group_guid, 0)));
     set_active_loot_guid_for_test(&mut session, loot_owner);
     install_limited_test_item_template(&mut session, 700, 1);
-    install_loot_inventory_item_for_test(&mut session, 35, InventoryItem {
+    install_loot_inventory_item_for_test(
+        &mut session,
+        35,
+        InventoryItem {
             guid: item_guid,
             entry_id: 700,
             db_guid: 700,
             inventory_type: None,
-        }, master_guid, 1, 0, ItemContext::None);
-    set_loot_for_test(&mut session, 
+        },
+        master_guid,
+        1,
+        0,
+        ItemContext::None,
+    );
+    set_loot_for_test(
+        &mut session,
         loot_owner,
         CreatureLoot {
             loot_guid: loot_object,
@@ -304,14 +339,17 @@ async fn master_loot_item_self_target_can_store_maps_unique_error_like_cpp() {
         },
     );
 
-    give_local_master_loot_for_test(&mut session, MasterLootItem {
+    give_local_master_loot_for_test(
+        &mut session,
+        MasterLootItem {
             target: master_guid,
             loot: vec![wow_packet::packets::loot::LootItemRequest {
                 object: loot_object,
                 loot_list_id: 0,
             }],
-        })
-        .await;
+        },
+    )
+    .await;
 
     let sent = send_rx.try_recv().unwrap();
     let mut sent = WorldPacket::from_bytes(&sent);
@@ -334,7 +372,8 @@ async fn master_loot_item_self_target_success_marks_removed_like_cpp() {
     let loot_owner = test_creature_guid(19_082);
     let loot_object = represented_loot_object_guid_like_cpp(loot_owner);
 
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         loot_owner,
         CreatureLoot {
             loot_guid: loot_object,
@@ -365,12 +404,7 @@ async fn master_loot_item_self_target_success_marks_removed_like_cpp() {
         },
     );
 
-    remove_master_loot_slot_for_test(&mut session, 
-        loot_owner,
-        loot_object,
-        0,
-        master_guid,
-    );
+    remove_master_loot_slot_for_test(&mut session, loot_owner, loot_object, 0, master_guid);
 
     let loot = loot_for_test(&session, loot_owner).unwrap();
     assert_eq!(loot.items[0].quantity, 0);
@@ -405,7 +439,8 @@ async fn master_loot_item_target_not_allowed_for_loot_sends_master_other_like_cp
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));
     set_active_loot_guid_for_test(&mut session, loot_owner);
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         loot_owner,
         CreatureLoot {
             loot_guid: loot_object,
@@ -436,14 +471,17 @@ async fn master_loot_item_target_not_allowed_for_loot_sends_master_other_like_cp
         },
     );
 
-    give_local_master_loot_for_test(&mut session, MasterLootItem {
+    give_local_master_loot_for_test(
+        &mut session,
+        MasterLootItem {
             target: master_guid,
             loot: vec![wow_packet::packets::loot::LootItemRequest {
                 object: loot_object,
                 loot_list_id: 0,
             }],
-        })
-        .await;
+        },
+    )
+    .await;
 
     let sent = send_rx.try_recv().unwrap();
     let mut sent = WorldPacket::from_bytes(&sent);
@@ -455,4 +493,3 @@ async fn master_loot_item_target_not_allowed_for_loot_sends_master_other_like_cp
     assert_eq!(sent.read_packed_guid().unwrap(), loot_object);
     assert_eq!(sent.read_uint8().unwrap(), LOOT_ERROR_MASTER_OTHER_LIKE_CPP);
 }
-

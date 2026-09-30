@@ -1834,8 +1834,12 @@ pub(crate) fn spawn_legacy_creature_runtime_update_loop_like_cpp(
                 break;
             }
             let Some(tick_admission) = active_session_registry.try_admit_tick(
-                producer_origin, tick_epoch, stop_after_tick,
-            ) else { continue; };
+                producer_origin,
+                tick_epoch,
+                stop_after_tick,
+            ) else {
+                continue;
+            };
             let now = Instant::now();
             let diff_ms = now
                 .duration_since(last_tick)

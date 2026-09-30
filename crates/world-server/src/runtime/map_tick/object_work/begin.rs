@@ -47,9 +47,14 @@ impl CanonicalObjectWork {
             loaded_grid_creature_respawn_caches,
         );
         match manager.try_begin_object_tick(plan) {
-            Ok(object_tick) => Ok(Self { object_tick, respawn_summary }),
+            Ok(object_tick) => Ok(Self {
+                object_tick,
+                respawn_summary,
+            }),
             Err((error, plan)) => Err(ObjectWorkBeginFailure::AfterPrefix {
-                error, plan, respawn_summary,
+                error,
+                plan,
+                respawn_summary,
             }),
         }
     }

@@ -41,11 +41,7 @@ impl Player {
         requested_damage: u32,
         lethal_death_state: DeathState,
     ) -> (u32, u32, u32, u32, bool) {
-        let max_health = self
-            .unit()
-            .data()
-            .max_health
-            .clamp(1, u64::from(u32::MAX)) as u32;
+        let max_health = self.unit().data().max_health.clamp(1, u64::from(u32::MAX)) as u32;
         let before = self.unit().data().health.min(u64::from(max_health)) as u32;
         if !self.unit().is_alive() || before == 0 {
             return (before, before, max_health, 0, false);

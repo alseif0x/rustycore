@@ -1,7 +1,7 @@
 //! Immutable references used by condition and world-content validation.
 
-use std::sync::Arc;
 use anyhow::Context;
+use std::sync::Arc;
 use tracing::info;
 
 pub(super) struct ConditionReferences {
@@ -22,7 +22,11 @@ pub(super) struct ConditionReferences {
     pub(super) faction_store: Arc<wow_data::Db2IdStore>,
 }
 
-pub(super) async fn load(data_dir: &str, locale: &str, world_reference_catalog_persistence: &dyn wow_persistence::WorldReferenceCatalogPersistencePortLikeCpp) -> anyhow::Result<ConditionReferences> {
+pub(super) async fn load(
+    data_dir: &str,
+    locale: &str,
+    world_reference_catalog_persistence: &dyn wow_persistence::WorldReferenceCatalogPersistencePortLikeCpp,
+) -> anyhow::Result<ConditionReferences> {
     let faction_store = Arc::new(
         wow_data::Db2IdStore::load(data_dir, locale, "Faction.db2")
             .context("Failed to load Faction.db2 — check DataDir and DBC.Locale config")?,

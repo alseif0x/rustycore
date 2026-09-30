@@ -8,9 +8,12 @@ use tracing::info;
 use crate::{bootstrap::world_config_f32, hotfix};
 
 pub(super) struct CreatureTemplateCatalogs {
-    pub(super) creature_template_classification_store: Arc<wow_data::CreatureTemplateClassificationStoreLikeCpp>,
-    pub(super) creature_template_lifecycle_store: Arc<wow_data::CreatureTemplateLifecycleStoreLikeCpp>,
-    pub(super) creature_template_sparring_store: Arc<wow_data::CreatureTemplateSparringStoreLikeCpp>,
+    pub(super) creature_template_classification_store:
+        Arc<wow_data::CreatureTemplateClassificationStoreLikeCpp>,
+    pub(super) creature_template_lifecycle_store:
+        Arc<wow_data::CreatureTemplateLifecycleStoreLikeCpp>,
+    pub(super) creature_template_sparring_store:
+        Arc<wow_data::CreatureTemplateSparringStoreLikeCpp>,
 }
 
 pub(super) async fn load_creature_template_catalogs(
@@ -58,12 +61,14 @@ pub(super) struct CreatureRuntimeCatalogs {
     pub(super) creature_model_info_store: Arc<wow_data::CreatureModelInfoStoreLikeCpp>,
     pub(super) creature_model_data_store: Arc<wow_data::CreatureModelDataStore>,
     pub(super) creature_display_info_store: Arc<wow_data::CreatureDisplayInfoStore>,
-    pub(super) creature_display_hotfix_persistence: wow_database::MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp,
+    pub(super) creature_display_hotfix_persistence:
+        wow_database::MariaDbCreatureDisplayHotfixPersistenceAdapterLikeCpp,
     pub(super) creature_template_mount_store: Arc<wow_data::CreatureTemplateMountStoreLikeCpp>,
     pub(super) creature_base_stats_store: Arc<wow_data::CreatureBaseStatsStoreLikeCpp>,
     pub(super) creature_difficulty_store: Arc<wow_data::CreatureDifficultyStoreLikeCpp>,
     pub(super) difficulty_store: Arc<wow_data::DifficultyStore>,
-    pub(super) difficulty_hotfix_persistence: wow_database::MariaDbDifficultyHotfixPersistenceAdapterLikeCpp,
+    pub(super) difficulty_hotfix_persistence:
+        wow_database::MariaDbDifficultyHotfixPersistenceAdapterLikeCpp,
     pub(super) creature_health_rates: wow_data::CreatureClassificationHealthRatesLikeCpp,
     pub(super) creature_damage_rates: wow_data::CreatureClassificationDamageRatesLikeCpp,
 }

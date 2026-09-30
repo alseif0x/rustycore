@@ -4,30 +4,27 @@ use super::map_tick::{canonical_map_tick_begin_like_cpp, canonical_map_tick_resu
 use super::*;
 mod creature_addon_provenance;
 mod creature_record_builder;
-pub(crate) use creature_record_builder::{
-    build_creature_respawn_records, build_creature_spawn_records,
-    build_creature_records_with_respawn_time,
-};
 pub(crate) use creature_addon_provenance::LoadedGridCreaturePreparationError;
 pub(crate) use creature_addon_provenance::creature_addon_spell_x_spell_visual_id_like_cpp;
+pub(crate) use creature_record_builder::{
+    build_creature_records_with_respawn_time, build_creature_respawn_records,
+    build_creature_spawn_records,
+};
 mod game_event_persistence_bridge;
 pub(crate) use game_event_persistence_bridge::{
+    GameEventQuestCompleteConditionSaveDbOperationLikeCpp,
+    GameEventQuestCompleteDbBridgeSummaryLikeCpp, GameEventWorldEventStateDbBridgeSummaryLikeCpp,
+    GameEventWorldEventStateDbOperationKindLikeCpp, GameEventWorldEventStateDbOperationLikeCpp,
     execute_game_event_quest_complete_condition_save_db_bridge_like_cpp,
     execute_game_event_world_event_state_db_bridge_like_cpp,
     game_event_world_event_state_db_delete_operation_like_cpp,
     game_event_world_event_state_db_save_operation_like_cpp,
     materialize_game_event_quest_complete_db_bridge_like_cpp,
     materialize_game_event_world_event_state_db_bridge_like_cpp,
-    GameEventQuestCompleteConditionSaveDbOperationLikeCpp,
-    GameEventQuestCompleteDbBridgeSummaryLikeCpp,
-    GameEventWorldEventStateDbBridgeSummaryLikeCpp,
-    GameEventWorldEventStateDbOperationKindLikeCpp,
-    GameEventWorldEventStateDbOperationLikeCpp,
 };
 mod respawn_projection;
 pub(crate) use respawn_projection::{
-    queue_respawn_db_delete_like_cpp,
-    queue_respawn_db_save_like_cpp,
+    queue_respawn_db_delete_like_cpp, queue_respawn_db_save_like_cpp,
 };
 
 /// Supply the Group owner's loaded-difficulty port from the DB2 store.
@@ -247,13 +244,9 @@ pub(crate) fn build_loaded_grid_creature_respawn_record_like_cpp(
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     caches: &LoadedGridCreatureRespawnCachesLikeCpp,
 ) -> Option<wow_map::map::LoadedGridRespawnRecordsLikeCpp> {
-    build_creature_respawn_records(
-        map,
-        object_type,
-        spawn_id,
-        canonical_spawn_metadata,
-        caches,
-    ).ok().flatten()
+    build_creature_respawn_records(map, object_type, spawn_id, canonical_spawn_metadata, caches)
+        .ok()
+        .flatten()
 }
 
 pub(crate) fn build_loaded_grid_creature_spawn_group_spawn_record_like_cpp(
@@ -263,13 +256,9 @@ pub(crate) fn build_loaded_grid_creature_spawn_group_spawn_record_like_cpp(
     canonical_spawn_metadata: &spawn_store_loader::CanonicalSpawnMetadataLikeCpp,
     caches: &LoadedGridCreatureRespawnCachesLikeCpp,
 ) -> Option<wow_map::map::LoadedGridRespawnRecordsLikeCpp> {
-    build_creature_spawn_records(
-        map,
-        object_type,
-        spawn_id,
-        canonical_spawn_metadata,
-        caches,
-    ).ok().flatten()
+    build_creature_spawn_records(map, object_type, spawn_id, canonical_spawn_metadata, caches)
+        .ok()
+        .flatten()
 }
 
 pub(crate) fn build_loaded_grid_creature_record_with_respawn_time_like_cpp(
@@ -287,7 +276,9 @@ pub(crate) fn build_loaded_grid_creature_record_with_respawn_time_like_cpp(
         canonical_spawn_metadata,
         caches,
         respawn_time,
-    ).ok().flatten()
+    )
+    .ok()
+    .flatten()
 }
 
 pub(crate) fn build_loaded_grid_gameobject_respawn_record_like_cpp(
@@ -727,8 +718,8 @@ pub(crate) fn spawn_group_ready_check_tick_loop(
     })
 }
 
-mod update_loop;
 mod producer_exit;
+mod update_loop;
 pub(crate) use producer_exit::{CanonicalMapProducerExit, stop_canonical_map_producer};
 pub(crate) use update_loop::spawn_canonical_map_update_loop;
 

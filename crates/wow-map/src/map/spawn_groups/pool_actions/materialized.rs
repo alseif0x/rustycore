@@ -17,11 +17,21 @@ where
         load_record: L,
     ) -> Result<LoadedGridPoolOutcome, PoolMgrPlanErrorLikeCpp>
     where
-        L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
+        L: FnMut(
+            &mut Self,
+            SpawnObjectType,
+            SpawnId,
+        )
+            -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
     {
         self.spawn_pool_materialized_core(
-            pool_mgr, pool_id, spawn_store, explicit_roll_for, choose_equal,
-            load_record, LoadedGridReceipts::Owned(Vec::new()),
+            pool_mgr,
+            pool_id,
+            spawn_store,
+            explicit_roll_for,
+            choose_equal,
+            load_record,
+            LoadedGridReceipts::Owned(Vec::new()),
         )
     }
 
@@ -36,7 +46,12 @@ where
         mut receipts: LoadedGridReceipts,
     ) -> Result<LoadedGridPoolOutcome, PoolMgrPlanErrorLikeCpp>
     where
-        L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
+        L: FnMut(
+            &mut Self,
+            SpawnObjectType,
+            SpawnId,
+        )
+            -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
     {
         let plan = pool_mgr.spawn_pool_plan_like_cpp(
             &mut self.pool_data,
@@ -63,7 +78,12 @@ where
         mut load_record: Option<&mut L>,
         receipts: &mut LoadedGridReceipts,
     ) where
-        L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
+        L: FnMut(
+            &mut Self,
+            SpawnObjectType,
+            SpawnId,
+        )
+            -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
     {
         if let Some(object_plan) = plan.object_plan.as_ref() {
             self.apply_pool_spawn_object_materialized(
@@ -84,7 +104,12 @@ where
         mut load_record: Option<&mut L>,
         receipts: &mut LoadedGridReceipts,
     ) where
-        L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
+        L: FnMut(
+            &mut Self,
+            SpawnObjectType,
+            SpawnId,
+        )
+            -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
     {
         for subplan in &plan.subplans {
             self.apply_pool_typed_materialized(
@@ -105,7 +130,12 @@ where
         mut load_record: Option<&mut L>,
         receipts: &mut LoadedGridReceipts,
     ) where
-        L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
+        L: FnMut(
+            &mut Self,
+            SpawnObjectType,
+            SpawnId,
+        )
+            -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
     {
         let mut child_spawn_plans = plan.child_pool_spawn_plans.iter();
         let mut child_despawn_plans = plan.child_pool_despawn_plans.iter();
@@ -166,7 +196,12 @@ where
         load_record: Option<&mut L>,
         receipts: &mut LoadedGridReceipts,
     ) where
-        L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
+        L: FnMut(
+            &mut Self,
+            SpawnObjectType,
+            SpawnId,
+        )
+            -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
     {
         match action {
             PoolSpawnObjectActionLikeCpp::DespawnOne { kind, guid } => {
@@ -221,7 +256,12 @@ where
         load_record: Option<&mut L>,
         receipts: &mut LoadedGridReceipts,
     ) where
-        L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
+        L: FnMut(
+            &mut Self,
+            SpawnObjectType,
+            SpawnId,
+        )
+            -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
     {
         let Some(object_type) = pool_member_kind_to_spawn_object_type_like_cpp(kind) else {
             summary.pool_unsupported_action_kind += 1;
@@ -248,7 +288,11 @@ where
                     spawn_id,
                     respawn,
                 });
-            receipts.pool_no_loader(PoolSpawnActionLoadPlanLikeCpp { object_type, spawn_id, respawn });
+            receipts.pool_no_loader(PoolSpawnActionLoadPlanLikeCpp {
+                object_type,
+                spawn_id,
+                respawn,
+            });
             return;
         };
 
@@ -264,7 +308,12 @@ where
                         respawn,
                     });
                 receipts.pool_load_failed(
-                    PoolSpawnActionLoadPlanLikeCpp { object_type, spawn_id, respawn }, failure,
+                    PoolSpawnActionLoadPlanLikeCpp {
+                        object_type,
+                        spawn_id,
+                        respawn,
+                    },
+                    failure,
                 );
                 return;
             }
@@ -272,10 +321,15 @@ where
 
         let admission = self.admit_loaded_grid_materialization(materialization);
         receipts.pool_admitted(
-            PoolSpawnActionLoadPlanLikeCpp { object_type, spawn_id, respawn }, admission, summary,
+            PoolSpawnActionLoadPlanLikeCpp {
+                object_type,
+                spawn_id,
+                respawn,
+            },
+            admission,
+            summary,
         );
     }
-
 }
 
 #[cfg(test)]

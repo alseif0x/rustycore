@@ -905,5 +905,4 @@ impl Player {
 
         can_store_item_error(InventoryResult::InvFull, count, no_similar_count)
     }
-
 }

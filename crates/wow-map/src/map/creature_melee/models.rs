@@ -11,8 +11,11 @@ pub struct MeleePresentation {
 
 impl MeleePresentation {
     pub(super) fn add_absorb(&mut self, remaining: u32) {
-        if remaining == 0 { self.full_absorb = true; }
-        else { self.partial_absorb = true; }
+        if remaining == 0 {
+            self.full_absorb = true;
+        } else {
+            self.partial_absorb = true;
+        }
     }
     pub(super) fn replace_absorb(&mut self, remaining: u32) {
         self.full_absorb = remaining == 0;
@@ -21,18 +24,54 @@ impl MeleePresentation {
 }
 
 pub enum MeleeEffect {
-    AbsorbLog { attacker: ObjectGuid, victim: ObjectGuid, absorb_spell_id: i32,
-        caster: ObjectGuid, absorbed: i32, original_damage: i32 },
-    AuraRemoved { unit: ObjectGuid, slot: u8 },
-    PlayerHealth { guid: ObjectGuid, health: i64 },
-    Values { guid: ObjectGuid, update: UnitValuesUpdate },
-    AttackState { attacker: ObjectGuid, victim: ObjectGuid, presentation: MeleePresentation,
-        damage: i32, original_damage: i32, over_damage: i32, blocked: i32,
-        absorbed: i32, target_level: u8 },
-    SplitMiss { spell_id: i32, caster: ObjectGuid, victim: ObjectGuid },
-    SplitDamage { target: ObjectGuid, caster: ObjectGuid, cast_id: ObjectGuid,
-        spell_id: i32, visual_id: i32, damage: i32, original_damage: i32,
-        overkill: i32, school_mask: u8, absorbed: i32 },
+    AbsorbLog {
+        attacker: ObjectGuid,
+        victim: ObjectGuid,
+        absorb_spell_id: i32,
+        caster: ObjectGuid,
+        absorbed: i32,
+        original_damage: i32,
+    },
+    AuraRemoved {
+        unit: ObjectGuid,
+        slot: u8,
+    },
+    PlayerHealth {
+        guid: ObjectGuid,
+        health: i64,
+    },
+    Values {
+        guid: ObjectGuid,
+        update: UnitValuesUpdate,
+    },
+    AttackState {
+        attacker: ObjectGuid,
+        victim: ObjectGuid,
+        presentation: MeleePresentation,
+        damage: i32,
+        original_damage: i32,
+        over_damage: i32,
+        blocked: i32,
+        absorbed: i32,
+        target_level: u8,
+    },
+    SplitMiss {
+        spell_id: i32,
+        caster: ObjectGuid,
+        victim: ObjectGuid,
+    },
+    SplitDamage {
+        target: ObjectGuid,
+        caster: ObjectGuid,
+        cast_id: ObjectGuid,
+        spell_id: i32,
+        visual_id: i32,
+        damage: i32,
+        original_damage: i32,
+        overkill: i32,
+        school_mask: u8,
+        absorbed: i32,
+    },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -42,7 +81,13 @@ pub(super) struct CreatureDamageThreatPlanLikeCpp {
     pub multiplier: f32,
 }
 impl Default for CreatureDamageThreatPlanLikeCpp {
-    fn default() -> Self { Self { suppress: false, no_initial_threat: false, multiplier: 1.0 } }
+    fn default() -> Self {
+        Self {
+            suppress: false,
+            no_initial_threat: false,
+            multiplier: 1.0,
+        }
+    }
 }
 
 pub struct MeleeThreatSpellFacts {
@@ -142,11 +187,18 @@ pub(super) struct MeleeSwingStateLikeCpp {
 }
 impl MeleeSwingStateLikeCpp {
     pub fn new_like_cpp(damage: u32) -> Self {
-        Self { hit_info: MeleePresentation::default(), original_damage: damage,
-            avoided_outcome: None, creature_victim_presentation: None,
-            creature_victim_avoided: false, outcome_represented: false,
-            absorbed_damage: 0, mana_spent: 0, absorb_consumptions: Vec::new(),
-            creature_victim_absorb_events: Vec::new() }
+        Self {
+            hit_info: MeleePresentation::default(),
+            original_damage: damage,
+            avoided_outcome: None,
+            creature_victim_presentation: None,
+            creature_victim_avoided: false,
+            outcome_represented: false,
+            absorbed_damage: 0,
+            mana_spent: 0,
+            absorb_consumptions: Vec::new(),
+            creature_victim_absorb_events: Vec::new(),
+        }
     }
 }
 
@@ -185,8 +237,16 @@ pub struct CreatureMeleeSwingOutcome {
 
 #[derive(Clone, Copy)]
 pub enum ShareAuraIdentityLikeCpp {
-    Player { slot: u8, spell_id: i32, caster_guid: ObjectGuid, effect_index: u32 },
-    Creature { applied: wow_entities::AppliedAuraRef, effect_index: u32 },
+    Player {
+        slot: u8,
+        spell_id: i32,
+        caster_guid: ObjectGuid,
+        effect_index: u32,
+    },
+    Creature {
+        applied: wow_entities::AppliedAuraRef,
+        effect_index: u32,
+    },
 }
 #[derive(Clone, Copy)]
 pub struct ShareAuraSnapshotLikeCpp {

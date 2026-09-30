@@ -1,13 +1,26 @@
 use super::*;
 use crate::PlayerQuestStatusRecord;
 use wow_constants::quest::{
-    QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_FAILED_LIKE_CPP,
-    QUEST_STATUS_INCOMPLETE_LIKE_CPP, QUEST_STATUS_NONE_LIKE_CPP,
+    QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_FAILED_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+    QUEST_STATUS_NONE_LIKE_CPP,
 };
 use wow_data_model::quest::QuestEligibilityRules;
 
 fn rules(id: u32) -> QuestEligibilityRules<'static> {
-    rules_with(id, 0, false, false, false, false, false, false, 0, 0, &[], &[])
+    rules_with(
+        id,
+        0,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -55,16 +68,45 @@ fn status(quest_id: u32, status: u8) -> PlayerQuestStatusRecord {
 
 #[test]
 fn can_take_quest_blocks_daily_already_completed_like_cpp() {
-    let quest = rules_with(7600, 0, false, true, false, false, false, false, 0, 0, &[], &[]);
+    let quest = rules_with(
+        7600,
+        0,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+    );
     let mut state = PlayerQuestGameplayState::default();
     state.set_daily_like_cpp(quest.id(), true);
 
-    assert_eq!(state.quest_day_cooldown_block(&quest), Some(QuestDayCooldownBlock::Daily));
+    assert_eq!(
+        state.quest_day_cooldown_block(&quest),
+        Some(QuestDayCooldownBlock::Daily)
+    );
 }
 
 #[test]
 fn can_take_quest_allows_daily_not_yet_completed_like_cpp() {
-    let quest = rules_with(7601, 0, false, true, false, false, false, false, 0, 0, &[], &[]);
+    let quest = rules_with(
+        7601,
+        0,
+        false,
+        true,
+        false,
+        false,
+        false,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+    );
     let state = PlayerQuestGameplayState::default();
 
     assert_eq!(state.quest_day_cooldown_block(&quest), None);
@@ -72,16 +114,45 @@ fn can_take_quest_allows_daily_not_yet_completed_like_cpp() {
 
 #[test]
 fn can_take_quest_blocks_df_quest_already_completed_like_cpp() {
-    let quest = rules_with(7602, 0, false, false, true, false, false, false, 0, 0, &[], &[]);
+    let quest = rules_with(
+        7602,
+        0,
+        false,
+        false,
+        true,
+        false,
+        false,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+    );
     let mut state = PlayerQuestGameplayState::default();
     state.set_df_quest_like_cpp(quest.id(), true);
 
-    assert_eq!(state.quest_day_cooldown_block(&quest), Some(QuestDayCooldownBlock::DungeonFinder));
+    assert_eq!(
+        state.quest_day_cooldown_block(&quest),
+        Some(QuestDayCooldownBlock::DungeonFinder)
+    );
 }
 
 #[test]
 fn can_take_quest_blocks_weekly_already_completed_like_cpp() {
-    let quest = rules_with(7603, 0, false, false, false, true, false, false, 0, 0, &[], &[]);
+    let quest = rules_with(
+        7603,
+        0,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+    );
     let mut state = PlayerQuestGameplayState::default();
     state.set_weekly_like_cpp(quest.id(), true);
 
@@ -90,7 +161,20 @@ fn can_take_quest_blocks_weekly_already_completed_like_cpp() {
 
 #[test]
 fn can_take_quest_blocks_monthly_already_completed_like_cpp() {
-    let quest = rules_with(7605, 0, false, false, false, false, true, false, 0, 0, &[], &[]);
+    let quest = rules_with(
+        7605,
+        0,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+    );
     let mut state = PlayerQuestGameplayState::default();
     state.set_monthly_like_cpp(quest.id(), true);
 
@@ -99,7 +183,20 @@ fn can_take_quest_blocks_monthly_already_completed_like_cpp() {
 
 #[test]
 fn can_take_quest_allows_weekly_not_yet_completed_like_cpp() {
-    let quest = rules_with(7604, 0, false, false, false, true, false, false, 0, 0, &[], &[]);
+    let quest = rules_with(
+        7604,
+        0,
+        false,
+        false,
+        false,
+        true,
+        false,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+    );
     let state = PlayerQuestGameplayState::default();
 
     assert!(!state.quest_weekly_cooldown_blocks(&quest));
@@ -107,7 +204,20 @@ fn can_take_quest_allows_weekly_not_yet_completed_like_cpp() {
 
 #[test]
 fn can_take_quest_allows_monthly_not_yet_completed_like_cpp() {
-    let quest = rules_with(7606, 0, false, false, false, false, true, false, 0, 0, &[], &[]);
+    let quest = rules_with(
+        7606,
+        0,
+        false,
+        false,
+        false,
+        false,
+        true,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+    );
     let state = PlayerQuestGameplayState::default();
 
     assert!(!state.quest_monthly_cooldown_blocks(&quest));
@@ -115,8 +225,34 @@ fn can_take_quest_allows_monthly_not_yet_completed_like_cpp() {
 
 #[test]
 fn can_take_quest_exclusive_group_blocks_when_peer_rewarded_non_repeatable_like_cpp() {
-    let quest = rules_with(9911, 5, false, false, false, false, false, false, 0, 0, &[], &[]);
-    let peer = rules_with(9910, 5, false, false, false, false, false, false, 0, 0, &[], &[]);
+    let quest = rules_with(
+        9911,
+        5,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+    );
+    let peer = rules_with(
+        9910,
+        5,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+    );
     let mut state = PlayerQuestGameplayState::default();
     state.set_rewarded_like_cpp(peer.id(), true);
 
@@ -125,18 +261,73 @@ fn can_take_quest_exclusive_group_blocks_when_peer_rewarded_non_repeatable_like_
 
 #[test]
 fn can_take_quest_exclusive_group_blocks_when_peer_active_like_cpp() {
-    let quest = rules_with(9913, 7, false, false, false, false, false, false, 0, 0, &[], &[]);
-    let peer = rules_with(9912, 7, false, false, false, false, false, false, 0, 0, &[], &[]);
+    let quest = rules_with(
+        9913,
+        7,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+    );
+    let peer = rules_with(
+        9912,
+        7,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+    );
     let mut state = PlayerQuestGameplayState::default();
-    state.insert_status_like_cpp(peer.id(), status(peer.id(), QUEST_STATUS_INCOMPLETE_LIKE_CPP));
+    state.insert_status_like_cpp(
+        peer.id(),
+        status(peer.id(), QUEST_STATUS_INCOMPLETE_LIKE_CPP),
+    );
 
     assert!(state.exclusive_group_peer_blocks(&quest, &peer));
 }
 
 #[test]
 fn can_take_quest_exclusive_group_positive_no_conflicting_peer_allows_like_cpp() {
-    let quest = rules_with(9915, 9, false, false, false, false, false, false, 0, 0, &[], &[]);
-    let peer = rules_with(9914, 9, false, false, false, false, false, false, 0, 0, &[], &[]);
+    let quest = rules_with(
+        9915,
+        9,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+    );
+    let peer = rules_with(
+        9914,
+        9,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+    );
     let state = PlayerQuestGameplayState::default();
 
     assert!(!state.exclusive_group_peer_blocks(&quest, &peer));
@@ -147,8 +338,34 @@ fn can_take_quest_exclusive_group_zero_never_blocks_like_cpp() {
     let state = PlayerQuestGameplayState::default();
     let zero_group = rules(9916);
     let zero_peer = rules(9918);
-    let negative_group = rules_with(9917, -3, false, false, false, false, false, false, 0, 0, &[], &[]);
-    let negative_peer = rules_with(9919, -3, false, false, false, false, false, false, 0, 0, &[], &[]);
+    let negative_group = rules_with(
+        9917,
+        -3,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+    );
+    let negative_peer = rules_with(
+        9919,
+        -3,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+    );
 
     assert!(!state.exclusive_group_peer_blocks(&zero_group, &zero_peer));
     assert!(!state.exclusive_group_peer_blocks(&negative_group, &negative_peer));
@@ -175,13 +392,35 @@ fn quest_status_rule_preserves_rewarded_repeatability_and_active_key_semantics()
     let quest = rules(10);
     let mut state = PlayerQuestGameplayState::default();
     state.set_rewarded_like_cpp(quest.id(), true);
-    assert_eq!(state.quest_status_block(&quest), Some(QuestStatusBlock::AlreadyRewarded));
+    assert_eq!(
+        state.quest_status_block(&quest),
+        Some(QuestStatusBlock::AlreadyRewarded)
+    );
 
-    let repeatable = rules_with(10, 0, true, false, false, false, false, false, 0, 0, &[], &[]);
+    let repeatable = rules_with(
+        10,
+        0,
+        true,
+        false,
+        false,
+        false,
+        false,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+    );
     assert_eq!(state.quest_status_block(&repeatable), None);
     state.insert_status_like_cpp(quest.id(), status(quest.id(), QUEST_STATUS_NONE_LIKE_CPP));
-    assert_eq!(state.quest_status_block(&repeatable), Some(QuestStatusBlock::AlreadyActive));
-    assert_eq!(state.quest_status_block(&quest), Some(QuestStatusBlock::AlreadyRewarded));
+    assert_eq!(
+        state.quest_status_block(&repeatable),
+        Some(QuestStatusBlock::AlreadyActive)
+    );
+    assert_eq!(
+        state.quest_status_block(&quest),
+        Some(QuestStatusBlock::AlreadyRewarded)
+    );
 }
 
 #[test]
@@ -205,16 +444,26 @@ fn previous_quest_rule_keeps_signed_status_and_i32_min_unsigned_abs() {
         status(active_id, QUEST_STATUS_INCOMPLETE_LIKE_CPP),
     );
     assert!(state.previous_quest_requirement_satisfied(-(active_id as i32)));
-    state.insert_status_like_cpp(
-        active_id,
-        status(active_id, QUEST_STATUS_COMPLETE_LIKE_CPP),
-    );
+    state.insert_status_like_cpp(active_id, status(active_id, QUEST_STATUS_COMPLETE_LIKE_CPP));
     assert!(!state.previous_quest_requirement_satisfied(-(active_id as i32)));
 }
 
 #[test]
 fn quest_day_cooldown_prioritizes_df_over_daily_even_without_df_membership() {
-    let quest = rules_with(22, 0, false, true, true, false, false, false, 0, 0, &[], &[]);
+    let quest = rules_with(
+        22,
+        0,
+        false,
+        true,
+        true,
+        false,
+        false,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+    );
     let mut state = PlayerQuestGameplayState::default();
     state.set_daily_like_cpp(quest.id(), true);
 
@@ -229,8 +478,34 @@ fn quest_day_cooldown_prioritizes_df_over_daily_even_without_df_membership() {
 
 #[test]
 fn exclusive_group_peer_keeps_daily_check_independent_from_df_check() {
-    let quest = rules_with(20, 4, false, false, false, false, false, false, 0, 0, &[], &[]);
-    let peer = rules_with(21, 4, false, true, true, false, false, false, 0, 0, &[], &[]);
+    let quest = rules_with(
+        20,
+        4,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+    );
+    let peer = rules_with(
+        21,
+        4,
+        false,
+        true,
+        true,
+        false,
+        false,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+    );
     let mut state = PlayerQuestGameplayState::default();
     state.set_daily_like_cpp(peer.id(), true);
 
@@ -239,8 +514,34 @@ fn exclusive_group_peer_keeps_daily_check_independent_from_df_check() {
 
 #[test]
 fn exclusive_group_peer_blocks_on_status_key_even_when_record_is_none() {
-    let quest = rules_with(30, 8, false, false, false, false, false, false, 0, 0, &[], &[]);
-    let peer = rules_with(31, 8, false, false, false, false, false, false, 0, 0, &[], &[]);
+    let quest = rules_with(
+        30,
+        8,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+    );
+    let peer = rules_with(
+        31,
+        8,
+        false,
+        false,
+        false,
+        false,
+        false,
+        false,
+        0,
+        0,
+        &[],
+        &[],
+    );
     let mut state = PlayerQuestGameplayState::default();
     state.insert_status_like_cpp(peer.id(), status(peer.id(), QUEST_STATUS_NONE_LIKE_CPP));
 
@@ -255,15 +556,17 @@ fn dependent_breadcrumb_membership_blocks_only_cpp_incomplete_complete_or_failed
         QUEST_STATUS_COMPLETE_LIKE_CPP,
         QUEST_STATUS_FAILED_LIKE_CPP,
     ] {
-        assert!(PlayerQuestGameplayState::dependent_breadcrumb_quest_ids_block(
-            &breadcrumb_ids,
-            |id| (id == 40).then_some(status_value),
-        ));
+        assert!(
+            PlayerQuestGameplayState::dependent_breadcrumb_quest_ids_block(&breadcrumb_ids, |id| {
+                (id == 40).then_some(status_value)
+            },)
+        );
     }
-    assert!(!PlayerQuestGameplayState::dependent_breadcrumb_quest_ids_block(
-        &breadcrumb_ids,
-        |_| Some(QUEST_STATUS_NONE_LIKE_CPP),
-    ));
+    assert!(
+        !PlayerQuestGameplayState::dependent_breadcrumb_quest_ids_block(&breadcrumb_ids, |_| Some(
+            QUEST_STATUS_NONE_LIKE_CPP
+        ),)
+    );
 }
 
 // Original seasonal metadata inputs, shared with the APP bridge matrix.
@@ -352,7 +655,6 @@ fn seasonal_test_quest_template(
     quest
 }
 
-
 #[test]
 fn can_take_quest_rejects_completed_seasonal_bucket_quest_like_cpp() {
     let mut state = PlayerQuestGameplayState::default();
@@ -362,7 +664,6 @@ fn can_take_quest_rejects_completed_seasonal_bucket_quest_like_cpp() {
     assert!(state.quest_seasonal_cooldown_blocks(&quest.eligibility_rules()));
 }
 
-
 #[test]
 fn can_take_quest_allows_seasonal_when_only_other_event_bucket_has_quest_like_cpp() {
     let mut state = PlayerQuestGameplayState::default();
@@ -371,7 +672,6 @@ fn can_take_quest_allows_seasonal_when_only_other_event_bucket_has_quest_like_cp
 
     assert!(!state.quest_seasonal_cooldown_blocks(&quest.eligibility_rules()));
 }
-
 
 #[test]
 fn can_take_quest_allows_seasonal_when_bucket_missing_or_empty_like_cpp() {
@@ -383,7 +683,6 @@ fn can_take_quest_allows_seasonal_when_bucket_missing_or_empty_like_cpp() {
     state.ensure_seasonal_event_like_cpp(9);
     assert!(!state.quest_seasonal_cooldown_blocks(&quest.eligibility_rules()));
 }
-
 
 #[test]
 fn can_take_quest_allows_non_seasonal_even_when_same_bucket_has_quest_like_cpp() {

@@ -120,7 +120,10 @@ async fn combat_tick_kill_keeps_empty_creature_loot_non_lootable_after_pending_d
     session.fixture_kill_tick_combat();
 
     assert!(session.fixture_kill_loot(guid).is_none());
-    assert_eq!(session.fixture_kill_observations().pending_loot, &vec![guid]);
+    assert_eq!(
+        session.fixture_kill_observations().pending_loot,
+        &vec![guid]
+    );
 
     process_pending_for_loot_test(&mut session).await;
 

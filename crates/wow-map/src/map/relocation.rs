@@ -7,9 +7,8 @@
 
 use super::*;
 
-
-mod removal_queue;
 mod notifications;
+mod removal_queue;
 
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
 where
@@ -201,7 +200,8 @@ where
         }
         entry.as_mut().object_mut().relocate(new_position);
         entry
-            .as_mut().object_mut()
+            .as_mut()
+            .object_mut()
             .set_current_cell(new_cell.cell_x(), new_cell.cell_y());
         self.insert_object_entry(entry)
             .map_err(MapObjectRelocationError::Store)?;
@@ -219,5 +219,4 @@ where
             blocked_by_unloaded_grid: false,
         })
     }
-
 }

@@ -237,4 +237,3 @@ fn two_sessions_share_respawn_queue_drain_is_not_duplicated_like_cpp() {
         "helpers must not send packets"
     );
 }
-

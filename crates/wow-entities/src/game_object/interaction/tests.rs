@@ -4,81 +4,42 @@ use super::*;
 #[test]
 fn gameobject_interaction_distance_uses_cpp_type_branches() {
     assert_eq!(
-        gameobject_interaction_distance(
-            Some(GAMEOBJECT_TYPE_CHEST as u8),
-            Some(725),
-            0.5
-        ),
+        gameobject_interaction_distance(Some(GAMEOBJECT_TYPE_CHEST as u8), Some(725), 0.5),
         7.25
     );
     assert_eq!(
-        gameobject_interaction_distance(
-            Some(GAMEOBJECT_TYPE_AREADAMAGE as u8),
-            None,
-            0.5
-        ),
+        gameobject_interaction_distance(Some(GAMEOBJECT_TYPE_AREADAMAGE as u8), None, 0.5),
         0.0
     );
     assert_eq!(
-        gameobject_interaction_distance(
-            Some(GAMEOBJECT_TYPE_QUESTGIVER as u8),
-            None,
-            0.5
-        ),
+        gameobject_interaction_distance(Some(GAMEOBJECT_TYPE_QUESTGIVER as u8), None, 0.5),
         5.5555553
     );
     assert_eq!(
-        gameobject_interaction_distance(
-            Some(GAMEOBJECT_TYPE_BINDER as u8),
-            None,
-            0.5
-        ),
+        gameobject_interaction_distance(Some(GAMEOBJECT_TYPE_BINDER as u8), None, 0.5),
         10.0
     );
     assert_eq!(
-        gameobject_interaction_distance(
-            Some(GAMEOBJECT_TYPE_CHAIR as u8),
-            None,
-            0.5
-        ),
+        gameobject_interaction_distance(Some(GAMEOBJECT_TYPE_CHAIR as u8), None, 0.5),
         3.0
     );
     assert_eq!(
-        gameobject_interaction_distance(
-            Some(GAMEOBJECT_TYPE_FISHING_NODE as u8),
-            None,
-            0.5
-        ),
+        gameobject_interaction_distance(Some(GAMEOBJECT_TYPE_FISHING_NODE as u8), None, 0.5),
         100.0
     );
     assert_eq!(
-        gameobject_interaction_distance(
-            Some(GAMEOBJECT_TYPE_FISHING_HOLE as u8),
-            None,
-            0.5
-        ),
+        gameobject_interaction_distance(Some(GAMEOBJECT_TYPE_FISHING_HOLE as u8), None, 0.5),
         20.0 + 0.5
     );
     assert_eq!(
-        gameobject_interaction_distance(
-            Some(GAMEOBJECT_TYPE_DOOR as u8),
-            None,
-            0.5
-        ),
+        gameobject_interaction_distance(Some(GAMEOBJECT_TYPE_DOOR as u8), None, 0.5),
         5.0
     );
     assert_eq!(
-        gameobject_interaction_distance(
-            Some(GAMEOBJECT_TYPE_GUILD_BANK as u8),
-            None,
-            0.5
-        ),
+        gameobject_interaction_distance(Some(GAMEOBJECT_TYPE_GUILD_BANK as u8), None, 0.5),
         10.0
     );
-    assert_eq!(
-        gameobject_interaction_distance(None, None, 0.5),
-        5.0
-    );
+    assert_eq!(gameobject_interaction_distance(None, None, 0.5), 5.0);
 }
 
 #[test]

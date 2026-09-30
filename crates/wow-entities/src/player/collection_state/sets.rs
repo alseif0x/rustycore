@@ -1,8 +1,8 @@
 //! Ordered transmog-set completion and acquisition folds.
 
 use super::*;
-use wow_constants::InventoryType;
 use crate::{EQUIPMENT_SLOT_END, item_transmogrification_slot_like_cpp};
+use wow_constants::InventoryType;
 
 pub trait AppearanceAcquisitionSource {
     type Update;
@@ -39,7 +39,11 @@ impl PlayerCollectionStateLikeCpp {
                 continue;
             }
             let (has_appearance, is_temporary) = has_appearance(item_modified_appearance_id);
-            known_pieces[transmog_slot] = if has_appearance && !is_temporary { 1 } else { 0 };
+            known_pieces[transmog_slot] = if has_appearance && !is_temporary {
+                1
+            } else {
+                0
+            };
         }
         !known_pieces.contains(&0)
     }

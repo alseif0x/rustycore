@@ -7,18 +7,18 @@
 
 use super::*;
 
+mod chase;
 mod home;
 mod random;
-mod waypoint;
-mod chase;
 mod terrain;
+mod waypoint;
 
 // Step adapters need private height request data, without opening family fields.
 #[path = "step/pending.rs"]
 pub(super) mod step_pending;
 
-pub(super) use home::prepare as prepare_home;
 pub(super) use chase::prepare as prepare_chase;
+pub(super) use home::prepare as prepare_home;
 pub(super) use random::prepare as prepare_random;
 pub(super) use waypoint::prepare as prepare_waypoint;
 
@@ -76,17 +76,33 @@ impl PathContinuation {
         response: Option<DetourPolyPath>,
     ) -> MovementProgress {
         match self.purpose {
-            PathPurpose::Home(launch) => home::resolved(actor, launch, response, self.terrain_enabled),
-            PathPurpose::Random(query) => random::resolved(actor, query, response, self.terrain_enabled),
-            PathPurpose::Waypoint(query) => waypoint::resolved(actor, query, response, self.terrain_enabled),
-            PathPurpose::Chase(launch) => chase::resolved(actor, launch, response, true, self.terrain_enabled),
+            PathPurpose::Home(launch) => {
+                home::resolved(actor, launch, response, self.terrain_enabled)
+            }
+            PathPurpose::Random(query) => {
+                random::resolved(actor, query, response, self.terrain_enabled)
+            }
+            PathPurpose::Waypoint(query) => {
+                waypoint::resolved(actor, query, response, self.terrain_enabled)
+            }
+            PathPurpose::Chase(launch) => {
+                chase::resolved(actor, launch, response, true, self.terrain_enabled)
+            }
         }
     }
 }
 
-fn request_path(query: CreaturePathQueryLikeCpp, purpose: PathPurpose, terrain_enabled: bool) -> MovementProgress {
+fn request_path(
+    query: CreaturePathQueryLikeCpp,
+    purpose: PathPurpose,
+    terrain_enabled: bool,
+) -> MovementProgress {
     MovementProgress::Pending(PendingMovement::Path(PathRequest {
-        query, continuation: PathContinuation { purpose, terrain_enabled },
+        query,
+        continuation: PathContinuation {
+            purpose,
+            terrain_enabled,
+        },
     }))
 }
 
@@ -107,20 +123,35 @@ pub(super) fn run(
                 continuation.resume(actor, response)
             }
             MovementProgress::Pending(PendingMovement::StaticHeight(request)) => {
-                let height = terrain.expect("height requests require terrain")
-                    .static_height_like_cpp(request.request.map_id, request.request.point.x, request.request.point.y, request.request.probe_z);
+                let height = terrain
+                    .expect("height requests require terrain")
+                    .static_height_like_cpp(
+                        request.request.map_id,
+                        request.request.point.x,
+                        request.request.point.y,
+                        request.request.probe_z,
+                    );
                 request.resume(actor, height)
             }
             MovementProgress::Pending(PendingMovement::GridHeight(request)) => {
-                let height = terrain.expect("height requests require terrain")
-                    .grid_height_like_cpp(request.request.map_id, request.request.point.x, request.request.point.y);
+                let height = terrain
+                    .expect("height requests require terrain")
+                    .grid_height_like_cpp(
+                        request.request.map_id,
+                        request.request.point.x,
+                        request.request.point.y,
+                    );
                 request.resume(actor, height)
             }
         };
     }
 }
 
-pub(super) fn normalize_position_sync(actor: &WorldCreature, point: Position, heights: Option<&LiveTerrainHeights>) -> Position {
+pub(super) fn normalize_position_sync(
+    actor: &WorldCreature,
+    point: Position,
+    heights: Option<&LiveTerrainHeights>,
+) -> Position {
     terrain::normalize_sync(actor, point, heights)
 }
 

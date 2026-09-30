@@ -312,9 +312,11 @@ pub fn pending_respawn_from_world_creature_like_cpp(
         max_dmg: creature.max_dmg(),
         combat_log_stats: creature.creature.combat_log_stats_like_cpp(),
         spell_hit_aura_source_authority_like_cpp: creature
-            .runtime.respawn_spell_hit_aura_source_authority_like_cpp,
+            .runtime
+            .respawn_spell_hit_aura_source_authority_like_cpp,
         spell_cast_log_aura_source_authority_like_cpp: creature
-            .runtime.respawn_spell_cast_log_aura_source_authority_like_cpp,
+            .runtime
+            .respawn_spell_cast_log_aura_source_authority_like_cpp,
         aggro_radius: creature.creature.ai_ownership().aggro_radius,
         wander_distance: creature.creature.ai_ownership().wander_radius.max(0.0),
         flags_extra: creature.creature.lifecycle_metadata().flags_extra,

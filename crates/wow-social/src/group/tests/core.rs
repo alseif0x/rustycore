@@ -68,4 +68,3 @@ fn registry_rejects_mismatched_materialized_identity() {
     let group = GroupInfo::new(ObjectGuid::create_player(1, 119));
     registry.register_group_like_cpp(group.group_guid + 1, group);
 }
-

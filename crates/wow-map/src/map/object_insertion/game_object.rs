@@ -10,7 +10,6 @@ where
     Terrain: TerrainGridLoader,
     Lifecycle: GridLifecycle,
 {
-
     // Preserve the coordinator's captured admission facts; no new reads or context.
     #[allow(clippy::too_many_arguments)]
     pub(super) fn add_game_object_entry(
@@ -25,7 +24,8 @@ where
         grid_created: bool,
     ) -> Result<AddToMapOutcome, AddToMapError> {
         entry
-            .as_mut().object_mut()
+            .as_mut()
+            .object_mut()
             .set_current_cell(cell.cell_x(), cell.cell_y());
         let object_store_present_before_callback = self
             .map_object_record(guid)
@@ -86,8 +86,8 @@ where
                         } else {
                             game_object.data().state == GoState::Ready as i8
                         };
-                    let collision = game_object
-                        .enable_represented_gameobject_collision_like_cpp(toggled_state);
+                    let collision =
+                        game_object.enable_represented_gameobject_collision_like_cpp(toggled_state);
                     GameObjectCollisionEnableOutcomeLikeCpp {
                         requested_enable: collision.requested_enable,
                         represented_model_present: collision.represented_model_present,
@@ -107,11 +107,8 @@ where
         {
             game_object.world_mut().object_mut().add_to_world();
         }
-        let add_to_map_tail = self.represent_add_to_map_post_add_to_world_tail_like_cpp(
-            kind,
-            guid,
-            active_object,
-        );
+        let add_to_map_tail =
+            self.represent_add_to_map_post_add_to_world_tail_like_cpp(kind, guid, active_object);
         if kind == AccessorObjectKind::Transport {
             self.mark_transport_players_for_visibility_like_cpp(guid);
         } else {
@@ -146,7 +143,5 @@ where
             creature_zone_script_create: None,
             add_to_map_tail,
         });
-
     }
-
 }

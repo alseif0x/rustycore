@@ -473,4 +473,3 @@ pub enum UpdateSkillEnchantmentAction {
         enchantment_id: i32,
     },
 }
-

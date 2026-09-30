@@ -118,8 +118,8 @@ pub fn validate_movement_flags(
         stripped_rules: Vec::new(),
     };
 
-    let should_remove = flags.contains(MovementFlag::ROOT)
-        && !player_state.mover_fixed_position_vehicle;
+    let should_remove =
+        flags.contains(MovementFlag::ROOT) && !player_state.mover_fixed_position_vehicle;
     remove_if(
         flags,
         &mut result,
@@ -128,8 +128,8 @@ pub fn validate_movement_flags(
         MovementSanitizerRule::RootWithoutFixedVehicle,
     );
 
-    let should_remove = flags.contains(MovementFlag::ROOT)
-        && flags.intersects(MovementFlag::MASK_MOVING);
+    let should_remove =
+        flags.contains(MovementFlag::ROOT) && flags.intersects(MovementFlag::MASK_MOVING);
     remove_if(
         flags,
         &mut result,
@@ -138,8 +138,7 @@ pub fn validate_movement_flags(
         MovementSanitizerRule::RootWithMovingFlags,
     );
 
-    let should_remove =
-        flags.contains(MovementFlag::HOVER) && !player_state.has_hover_aura;
+    let should_remove = flags.contains(MovementFlag::HOVER) && !player_state.has_hover_aura;
     remove_if(
         flags,
         &mut result,
@@ -148,8 +147,7 @@ pub fn validate_movement_flags(
         MovementSanitizerRule::HoverWithoutAura,
     );
 
-    let should_remove =
-        flags.contains(MovementFlag::ASCENDING | MovementFlag::DESCENDING);
+    let should_remove = flags.contains(MovementFlag::ASCENDING | MovementFlag::DESCENDING);
     remove_if(
         flags,
         &mut result,
@@ -167,8 +165,7 @@ pub fn validate_movement_flags(
         MovementSanitizerRule::LeftAndRight,
     );
 
-    let should_remove =
-        flags.contains(MovementFlag::STRAFE_LEFT | MovementFlag::STRAFE_RIGHT);
+    let should_remove = flags.contains(MovementFlag::STRAFE_LEFT | MovementFlag::STRAFE_RIGHT);
     remove_if(
         flags,
         &mut result,
@@ -177,8 +174,7 @@ pub fn validate_movement_flags(
         MovementSanitizerRule::StrafeLeftAndRight,
     );
 
-    let should_remove =
-        flags.contains(MovementFlag::PITCH_UP | MovementFlag::PITCH_DOWN);
+    let should_remove = flags.contains(MovementFlag::PITCH_UP | MovementFlag::PITCH_DOWN);
     remove_if(
         flags,
         &mut result,
@@ -187,8 +183,7 @@ pub fn validate_movement_flags(
         MovementSanitizerRule::PitchUpAndDown,
     );
 
-    let should_remove =
-        flags.contains(MovementFlag::FORWARD | MovementFlag::BACKWARD);
+    let should_remove = flags.contains(MovementFlag::FORWARD | MovementFlag::BACKWARD);
     remove_if(
         flags,
         &mut result,
@@ -208,8 +203,8 @@ pub fn validate_movement_flags(
         MovementSanitizerRule::WaterWalkWithoutAuraOrGhost,
     );
 
-    let should_remove = flags.contains(MovementFlag::FALLING_SLOW)
-        && !player_state.has_feather_fall_aura;
+    let should_remove =
+        flags.contains(MovementFlag::FALLING_SLOW) && !player_state.has_feather_fall_aura;
     remove_if(
         flags,
         &mut result,
@@ -230,8 +225,7 @@ pub fn validate_movement_flags(
         MovementSanitizerRule::FlyWithoutAuraOrSecurity,
     );
 
-    let should_remove = flags
-        .intersects(MovementFlag::DISABLE_GRAVITY | MovementFlag::CAN_FLY)
+    let should_remove = flags.intersects(MovementFlag::DISABLE_GRAVITY | MovementFlag::CAN_FLY)
         && flags.contains(MovementFlag::FALLING);
     remove_if(
         flags,
@@ -332,8 +326,7 @@ mod tests {
             ),
         ] {
             let mut flags = movement(flag);
-            let result =
-                validate_movement_flags(&mut flags, 0.0, &PlayerState::default());
+            let result = validate_movement_flags(&mut flags, 0.0, &PlayerState::default());
 
             assert!(flags.is_empty(), "{flag:?}");
             assert_eq!(result.stripped_rules, vec![rule], "{flag:?}");
@@ -397,12 +390,9 @@ mod tests {
             has_mounted_flight_speed_aura: true,
             ..PlayerState::default()
         };
-        assert!(validate_movement_flags(
-            &mut mounted_flight_flags,
-            0.0,
-            &mounted_flight_state
-        )
-        .clean());
+        assert!(
+            validate_movement_flags(&mut mounted_flight_flags, 0.0, &mounted_flight_state).clean()
+        );
         assert!(mounted_flight_flags.contains(MovementFlag::FLYING | MovementFlag::CAN_FLY));
     }
 
@@ -437,8 +427,7 @@ mod tests {
         ] {
             let mut flags = movement(left | right);
 
-            let result =
-                validate_movement_flags(&mut flags, 0.0, &PlayerState::default());
+            let result = validate_movement_flags(&mut flags, 0.0, &PlayerState::default());
 
             assert!(flags.is_empty(), "{left:?} | {right:?}");
             assert!(
@@ -452,8 +441,7 @@ mod tests {
     #[test]
     fn flying_and_falling_rules_match_cpp() {
         let mut flying = movement(MovementFlag::FLYING | MovementFlag::CAN_FLY);
-        let flying_result =
-            validate_movement_flags(&mut flying, 0.0, &PlayerState::default());
+        let flying_result = validate_movement_flags(&mut flying, 0.0, &PlayerState::default());
         assert!(flying.is_empty());
         assert_eq!(
             flying_result.stripped_rules,
@@ -461,8 +449,7 @@ mod tests {
         );
 
         let mut falling = movement(MovementFlag::DISABLE_GRAVITY | MovementFlag::FALLING);
-        let falling_result =
-            validate_movement_flags(&mut falling, 0.0, &PlayerState::default());
+        let falling_result = validate_movement_flags(&mut falling, 0.0, &PlayerState::default());
         assert_eq!(falling, MovementFlag::DISABLE_GRAVITY);
         assert_eq!(
             falling_result.stripped_rules,
@@ -473,8 +460,7 @@ mod tests {
     #[test]
     fn spline_elevation_rules_match_cpp() {
         let mut zero = movement(MovementFlag::SPLINE_ELEVATION);
-        let zero_result =
-            validate_movement_flags(&mut zero, 0.0, &PlayerState::default());
+        let zero_result = validate_movement_flags(&mut zero, 0.0, &PlayerState::default());
         assert!(zero.is_empty());
         assert_eq!(
             zero_result.stripped_rules,
@@ -482,8 +468,7 @@ mod tests {
         );
 
         let mut non_zero = movement(MovementFlag::empty());
-        let non_zero_result =
-            validate_movement_flags(&mut non_zero, 1.0, &PlayerState::default());
+        let non_zero_result = validate_movement_flags(&mut non_zero, 1.0, &PlayerState::default());
         assert!(non_zero.contains(MovementFlag::SPLINE_ELEVATION));
         assert_eq!(non_zero_result.added_flags, MovementFlag::SPLINE_ELEVATION);
         assert_eq!(
@@ -492,20 +477,17 @@ mod tests {
         );
 
         let mut negative_step = movement(MovementFlag::empty());
-        let negative_step_result = validate_movement_flags(
-            &mut negative_step,
-            -1.0,
-            &PlayerState::default(),
-        );
+        let negative_step_result =
+            validate_movement_flags(&mut negative_step, -1.0, &PlayerState::default());
         assert!(negative_step.contains(MovementFlag::SPLINE_ELEVATION));
-        assert_eq!(negative_step_result.added_flags, MovementFlag::SPLINE_ELEVATION);
+        assert_eq!(
+            negative_step_result.added_flags,
+            MovementFlag::SPLINE_ELEVATION
+        );
 
         let mut epsilon_step = movement(MovementFlag::SPLINE_ELEVATION);
-        let epsilon_result = validate_movement_flags(
-            &mut epsilon_step,
-            f32::EPSILON,
-            &PlayerState::default(),
-        );
+        let epsilon_result =
+            validate_movement_flags(&mut epsilon_step, f32::EPSILON, &PlayerState::default());
         assert!(epsilon_step.is_empty());
         assert_eq!(
             epsilon_result.stripped_rules,
@@ -513,11 +495,7 @@ mod tests {
         );
 
         let mut nan_step = movement(MovementFlag::SPLINE_ELEVATION);
-        let nan_result = validate_movement_flags(
-            &mut nan_step,
-            f32::NAN,
-            &PlayerState::default(),
-        );
+        let nan_result = validate_movement_flags(&mut nan_step, f32::NAN, &PlayerState::default());
         assert!(nan_step.is_empty());
         assert_eq!(
             nan_result.stripped_rules,

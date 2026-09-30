@@ -25,8 +25,12 @@ fn banked_quest_item_recomputes_objective_and_reopens_quest_like_cpp() {
         progress_bar_weight: 0.0,
         description: String::new(),
     });
-    set_quest_store_for_test(&mut session, Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    insert_player_quest_gameplay_status_for_test(&mut session, 
+    set_quest_store_for_test(
+        &mut session,
+        Arc::new(QuestStore::from_quests_like_cpp([quest])),
+    );
+    insert_player_quest_gameplay_status_for_test(
+        &mut session,
         quest_id,
         wow_world::handlers::quest::PlayerQuestStatus {
             quest_id,
@@ -51,9 +55,7 @@ fn banked_quest_item_recomputes_objective_and_reopens_quest_like_cpp() {
         Some(vec![quest_id])
     );
     let quest_statuses = quest_compatibility_statuses_for_test(&session);
-    let status = quest_statuses
-        .get(&quest_id)
-        .expect("active quest");
+    let status = quest_statuses.get(&quest_id).expect("active quest");
     assert_eq!(
         status.status,
         wow_world::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP
@@ -87,8 +89,12 @@ async fn loot_item_added_progresses_incomplete_quest_item_objective_like_cpp() {
         progress_bar_weight: 0.0,
         description: String::new(),
     });
-    set_quest_store_for_test(&mut session, Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    insert_player_quest_gameplay_status_for_test(&mut session, 
+    set_quest_store_for_test(
+        &mut session,
+        Arc::new(QuestStore::from_quests_like_cpp([quest])),
+    );
+    insert_player_quest_gameplay_status_for_test(
+        &mut session,
         quest_id,
         wow_world::handlers::quest::PlayerQuestStatus {
             quest_id,
@@ -101,10 +107,12 @@ async fn loot_item_added_progresses_incomplete_quest_item_objective_like_cpp() {
         },
     );
 
-    assert!(loot_item_quest_allowed_for_test(&session, item_id, true, 0, 0, None));
+    assert!(loot_item_quest_allowed_for_test(
+        &session, item_id, true, 0, 0, None
+    ));
 
-    let changed_quest_ids = advance_loot_item_objectives_for_test(&mut session, item_id, 0, 3)
-        .await;
+    let changed_quest_ids =
+        advance_loot_item_objectives_for_test(&mut session, item_id, 0, 3).await;
 
     assert_eq!(changed_quest_ids, vec![quest_id]);
     assert_eq!(
@@ -139,8 +147,12 @@ async fn loot_item_eligibility_does_not_treat_complete_quest_as_incomplete_like_
         progress_bar_weight: 0.0,
         description: String::new(),
     });
-    set_quest_store_for_test(&mut session, Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    insert_player_quest_gameplay_status_for_test(&mut session, 
+    set_quest_store_for_test(
+        &mut session,
+        Arc::new(QuestStore::from_quests_like_cpp([quest])),
+    );
+    insert_player_quest_gameplay_status_for_test(
+        &mut session,
         quest_id,
         wow_world::handlers::quest::PlayerQuestStatus {
             quest_id,
@@ -154,10 +166,12 @@ async fn loot_item_eligibility_does_not_treat_complete_quest_as_incomplete_like_
     );
 
     assert!(!incomplete_loot_item_objective_for_test(&session, item_id));
-    assert!(!loot_item_quest_allowed_for_test(&session, item_id, true, 0, 0, None));
+    assert!(!loot_item_quest_allowed_for_test(
+        &session, item_id, true, 0, 0, None
+    ));
 
-    let changed_quest_ids = advance_loot_item_objectives_for_test(&mut session, item_id, 0, 1)
-        .await;
+    let changed_quest_ids =
+        advance_loot_item_objectives_for_test(&mut session, item_id, 0, 1).await;
 
     assert!(changed_quest_ids.is_empty());
     assert_eq!(
@@ -188,8 +202,12 @@ async fn withdrawn_banked_item_restores_bound_objective_like_cpp() {
         progress_bar_weight: 0.0,
         description: String::new(),
     });
-    set_quest_store_for_test(&mut session, Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    insert_player_quest_gameplay_status_for_test(&mut session, 
+    set_quest_store_for_test(
+        &mut session,
+        Arc::new(QuestStore::from_quests_like_cpp([quest])),
+    );
+    insert_player_quest_gameplay_status_for_test(
+        &mut session,
         quest_id,
         wow_world::handlers::quest::PlayerQuestStatus {
             quest_id,
@@ -209,18 +227,15 @@ async fn withdrawn_banked_item_restores_bound_objective_like_cpp() {
         planned[0].status,
         wow_world::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
     );
-    let changed_quest_ids = apply_quest_item_added_objective_progress_for_test(&mut session, item_id, 0, 1)
-        .await;
+    let changed_quest_ids =
+        apply_quest_item_added_objective_progress_for_test(&mut session, item_id, 0, 1).await;
 
     assert_eq!(changed_quest_ids, vec![quest_id]);
     let quest_statuses = quest_compatibility_statuses_for_test(&session);
-    let status = quest_statuses
-        .get(&quest_id)
-        .expect("active quest");
+    let status = quest_statuses.get(&quest_id).expect("active quest");
     assert_eq!(status.objective_counts, vec![1]);
     assert_eq!(
         status.status,
         wow_world::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
     );
 }
-

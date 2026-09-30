@@ -1,13 +1,12 @@
 //! Quest dialog classification from Player.cpp:15706-15784 and QuestDef.cpp:438-445.
 //! Eligibility, catalog access and publication remain with callers.
 
-use wow_data_model::quest::QuestInfoEntry;
 use wow_constants::quest::{
     QUEST_FLAGS_DAILY as QUEST_FLAGS_DAILY_LIKE_CPP,
     QUEST_FLAGS_EX_LEGENDARY as QUEST_FLAGS_EX_LEGENDARY_LIKE_CPP,
-    QUEST_FLAGS_HIDE_REWARD_POI as QUEST_FLAGS_HIDE_REWARD_POI_LIKE_CPP,
-    quest_giver_status,
+    QUEST_FLAGS_HIDE_REWARD_POI as QUEST_FLAGS_HIDE_REWARD_POI_LIKE_CPP, quest_giver_status,
 };
+use wow_data_model::quest::QuestInfoEntry;
 
 #[cfg(test)]
 mod tests;

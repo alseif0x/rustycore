@@ -9,7 +9,8 @@ async fn loot_item_missing_gameobject_uses_cpp_release() {
     let loot_guid = test_gameobject_guid(19_010);
     session.set_player_guid(Some(player_guid));
     set_active_loot_guid_for_test(&mut session, loot_guid);
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -40,8 +41,7 @@ async fn loot_item_missing_gameobject_uses_cpp_release() {
         },
     );
 
-    handle_loot_item_for_test(&mut session, loot_item_packet(loot_guid, 0))
-        .await;
+    handle_loot_item_for_test(&mut session, loot_item_packet(loot_guid, 0)).await;
 
     let sent = send_rx.try_recv().unwrap();
     let mut sent = WorldPacket::from_bytes(&sent);
@@ -69,14 +69,16 @@ async fn loot_item_gameobject_too_far_uses_cpp_release() {
         AccessorObjectKind::GameObject,
         canonical_world_object(loot_guid, 0, go_position),
     );
-    record_represented_gameobject_runtime_state_for_test(&mut session, 
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         loot_guid,
         loot_guid.entry(),
         go_position,
         GAMEOBJECT_TYPE_CHEST as u8,
     );
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -107,8 +109,7 @@ async fn loot_item_gameobject_too_far_uses_cpp_release() {
         },
     );
 
-    handle_loot_item_for_test(&mut session, loot_item_packet(loot_guid, 0))
-        .await;
+    handle_loot_item_for_test(&mut session, loot_item_packet(loot_guid, 0)).await;
 
     let sent = send_rx.try_recv().unwrap();
     let mut sent = WorldPacket::from_bytes(&sent);

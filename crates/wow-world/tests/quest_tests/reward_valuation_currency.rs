@@ -2,27 +2,26 @@
 
 use super::*;
 use std::sync::Arc;
-use wow_world::handlers::quest::PlayerQuestStatus;
-use wow_world::test_fixtures::{
-    CURRENCY_DESTROY_REASON_QUEST_TURNIN_LIKE_CPP,
-    QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP, QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP,
-};
-use wow_world::session::WorldSession;
-use wow_world::test_fixtures::*;
-use wow_entities::{PlayerCurrency, PlayerCurrencyState};
-use wow_data_model::currency::CurrencyGainDelta as PlayerCurrencyDelta;
-use wow_constants::quest::QUEST_OBJECTIVE_CURRENCY_LIKE_CPP as QUEST_OBJECTIVE_CURRENCY_LIKE_CPP_LOCAL;
 use wow_constants::currency::CurrencyGainSourceLikeCpp;
+use wow_constants::quest::QUEST_OBJECTIVE_CURRENCY_LIKE_CPP as QUEST_OBJECTIVE_CURRENCY_LIKE_CPP_LOCAL;
 use wow_constants::quest::QUEST_STATUS_COMPLETE_LIKE_CPP;
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position, guid::HighGuid};
 use wow_data::quest::{
-    QuestObjective, QuestStore, QuestTemplate,
     QUEST_ITEM_DROP_COUNT, QUEST_REWARD_CHOICES_COUNT, QUEST_REWARD_CURRENCY_COUNT,
-    QUEST_REWARD_DISPLAY_SPELL_COUNT, QUEST_REWARD_ITEM_COUNT,
-    QUEST_REWARD_REPUTATIONS_COUNT,
+    QUEST_REWARD_DISPLAY_SPELL_COUNT, QUEST_REWARD_ITEM_COUNT, QUEST_REWARD_REPUTATIONS_COUNT,
+    QuestObjective, QuestStore, QuestTemplate,
 };
 use wow_data::{CurrencyTypesEntry, CurrencyTypesStore};
+use wow_data_model::currency::CurrencyGainDelta as PlayerCurrencyDelta;
+use wow_entities::{PlayerCurrency, PlayerCurrencyState};
 use wow_packet::{ServerPacket, WorldPacket};
+use wow_world::handlers::quest::PlayerQuestStatus;
+use wow_world::session::WorldSession;
+use wow_world::test_fixtures::*;
+use wow_world::test_fixtures::{
+    CURRENCY_DESTROY_REASON_QUEST_TURNIN_LIKE_CPP, QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
+    QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP,
+};
 
 #[test]
 fn quest_xp_valuation_wiring_preserves_df_gate_and_missing_store_fallback() {
@@ -55,8 +54,14 @@ fn quest_money_valuation_wiring_preserves_level_row_and_rounding() {
     assert_eq!(quest_money_reward_for_test(&session, &quest), 0);
 
     session.set_quest_money_reward_store(Arc::new(QuestMoneyRewardStore::from_entries([
-        QuestMoneyRewardEntry { id: 1, difficulty: [0, 3, 0, 0, 0, 0, 0, 0, 0, 0] },
-        QuestMoneyRewardEntry { id: 70, difficulty: [0, 7, 0, 0, 0, 0, 0, 0, 0, 0] },
+        QuestMoneyRewardEntry {
+            id: 1,
+            difficulty: [0, 3, 0, 0, 0, 0, 0, 0, 0, 0],
+        },
+        QuestMoneyRewardEntry {
+            id: 70,
+            difficulty: [0, 7, 0, 0, 0, 0, 0, 0, 0, 0],
+        },
     ])));
     assert_eq!(quest_money_reward_for_test(&session, &quest), 5);
     quest.quest_level = 0;
@@ -74,9 +79,10 @@ fn quest_currency_zero_gain_does_not_require_catalog_or_owner() {
     let (mut session, send_rx) = make_session();
     session.set_player_guid(None);
     assert!(session.currency_types_store().is_none());
-    assert_eq!(quest_currency_gain_for_test(&mut session, 
-        394, 0, CurrencyGainSourceLikeCpp::QuestReward,
-    ), Ok(None));
+    assert_eq!(
+        quest_currency_gain_for_test(&mut session, 394, 0, CurrencyGainSourceLikeCpp::QuestReward,),
+        Ok(None)
+    );
     assert!(currency_compatibility_fixture_for_test(&session).is_empty());
     assert!(send_rx.try_recv().is_err());
 }
@@ -84,9 +90,10 @@ fn quest_currency_zero_gain_does_not_require_catalog_or_owner() {
 #[test]
 fn quest_currency_catalog_team_and_award_gates_preserve_order() {
     let (mut session, send_rx) = make_session();
-    assert_eq!(quest_currency_gain_for_test(&mut session, 
-        394, 1, CurrencyGainSourceLikeCpp::QuestReward,
-    ), Err(()));
+    assert_eq!(
+        quest_currency_gain_for_test(&mut session, 394, 1, CurrencyGainSourceLikeCpp::QuestReward,),
+        Err(())
+    );
 
     let mut entry = CurrencyTypesEntry {
         flags: wow_constants::CurrencyTypesFlags::IS_HORDE_ONLY,
@@ -95,29 +102,40 @@ fn quest_currency_catalog_team_and_award_gates_preserve_order() {
         ..currency_entry_like_cpp(394)
     };
     session.set_currency_types_store(Arc::new(CurrencyTypesStore::from_entries([entry])));
-    assert_eq!(quest_currency_gain_for_test(&mut session, 
-        394, 1, CurrencyGainSourceLikeCpp::QuestReward,
-    ), Ok(None), "team filtering precedes award conditions");
+    assert_eq!(
+        quest_currency_gain_for_test(&mut session, 394, 1, CurrencyGainSourceLikeCpp::QuestReward,),
+        Ok(None),
+        "team filtering precedes award conditions"
+    );
 
     entry.flags = wow_constants::CurrencyTypesFlags::empty();
     session.set_currency_types_store(Arc::new(CurrencyTypesStore::from_entries([entry])));
-    assert_eq!(quest_currency_gain_for_test(&mut session, 
-        394, 1, CurrencyGainSourceLikeCpp::QuestReward,
-    ), Err(()), "award conditions precede faction conversion filtering");
+    assert_eq!(
+        quest_currency_gain_for_test(&mut session, 394, 1, CurrencyGainSourceLikeCpp::QuestReward,),
+        Err(()),
+        "award conditions precede faction conversion filtering"
+    );
 
     entry.award_condition_id = 0;
     session.set_currency_types_store(Arc::new(CurrencyTypesStore::from_entries([entry])));
-    assert_eq!(quest_currency_gain_for_test(&mut session, 
-        394, 1, CurrencyGainSourceLikeCpp::QuestReward,
-    ), Ok(None));
+    assert_eq!(
+        quest_currency_gain_for_test(&mut session, 394, 1, CurrencyGainSourceLikeCpp::QuestReward,),
+        Ok(None)
+    );
 
     let azerite_id = wow_constants::CurrencyTypes::Azerite as u32;
     session.set_currency_types_store(Arc::new(CurrencyTypesStore::from_entries([
         currency_entry_like_cpp(azerite_id),
     ])));
-    assert_eq!(quest_currency_gain_for_test(&mut session, 
-        azerite_id, 1, CurrencyGainSourceLikeCpp::QuestReward,
-    ), Ok(None));
+    assert_eq!(
+        quest_currency_gain_for_test(
+            &mut session,
+            azerite_id,
+            1,
+            CurrencyGainSourceLikeCpp::QuestReward,
+        ),
+        Ok(None)
+    );
     assert!(currency_compatibility_fixture_for_test(&session).is_empty());
     assert!(send_rx.try_recv().is_err());
 }
@@ -134,33 +152,54 @@ fn quest_currency_gain_installs_single_delta_and_retains_new_state() {
         ..currency_entry_like_cpp(394)
     };
     session.set_currency_types_store(Arc::new(CurrencyTypesStore::from_entries([entry])));
-    let first = quest_currency_gain_for_test(&mut session, 
-        394, 5, CurrencyGainSourceLikeCpp::QuestReward,
-    ).unwrap().unwrap();
+    let first =
+        quest_currency_gain_for_test(&mut session, 394, 5, CurrencyGainSourceLikeCpp::QuestReward)
+            .unwrap()
+            .unwrap();
     assert_eq!(first.amount, 5);
-    assert_eq!(currency_compatibility_fixture_for_test(&session).get(&394).unwrap().state, PlayerCurrencyState::New);
-    let second = quest_currency_gain_for_test(&mut session, 
-        394, 10, CurrencyGainSourceLikeCpp::QuestReward,
-    ).unwrap().unwrap();
-    assert_eq!(second, PlayerCurrencyDelta {
-        currency_id: 394,
-        quantity: 7,
-        amount: 2,
-        weekly_quantity: Some(7),
-        max_quantity: Some(10),
-        total_earned: Some(7),
-        suppress_chat_log: true,
-    });
-    assert_eq!(currency_compatibility_fixture_for_test(&session).get(&394), Some(&PlayerCurrency {
-        state: PlayerCurrencyState::New,
-        quantity: 7,
-        weekly_quantity: 7,
-        tracked_quantity: 7,
-        increased_cap_quantity: 0,
-        earned_quantity: 7,
-        flags: 0,
-    }));
-    assert!(send_rx.try_recv().is_err(), "publication belongs to the reward handler");
+    assert_eq!(
+        currency_compatibility_fixture_for_test(&session)
+            .get(&394)
+            .unwrap()
+            .state,
+        PlayerCurrencyState::New
+    );
+    let second = quest_currency_gain_for_test(
+        &mut session,
+        394,
+        10,
+        CurrencyGainSourceLikeCpp::QuestReward,
+    )
+    .unwrap()
+    .unwrap();
+    assert_eq!(
+        second,
+        PlayerCurrencyDelta {
+            currency_id: 394,
+            quantity: 7,
+            amount: 2,
+            weekly_quantity: Some(7),
+            max_quantity: Some(10),
+            total_earned: Some(7),
+            suppress_chat_log: true,
+        }
+    );
+    assert_eq!(
+        currency_compatibility_fixture_for_test(&session).get(&394),
+        Some(&PlayerCurrency {
+            state: PlayerCurrencyState::New,
+            quantity: 7,
+            weekly_quantity: 7,
+            tracked_quantity: 7,
+            increased_cap_quantity: 0,
+            earned_quantity: 7,
+            flags: 0,
+        })
+    );
+    assert!(
+        send_rx.try_recv().is_err(),
+        "publication belongs to the reward handler"
+    );
 }
 
 #[test]
@@ -180,55 +219,115 @@ fn quest_currency_canonical_noop_and_stale_owner_do_not_install_or_publish() {
             flags2: 0,
         },
     ])));
-    attach_player_controller_for_test(&mut session, 
+    attach_player_controller_for_test(
+        &mut session,
         player_guid,
         "QuestCurrencyOwner".to_string(),
         Position::new(3700.0, 1500.0, 120.0, 0.0),
-        571, 1, 1, 20, 0,
+        571,
+        1,
+        1,
+        20,
+        0,
     );
     ensure_world_map_for_current_player_for_test(&mut session).expect("world map");
     let old_handle = quest_player_handle_for_test(&session).expect("canonical owner");
     session.set_currency_types_store(Arc::new(CurrencyTypesStore::from_entries([
-        CurrencyTypesEntry { max_qty: 13, ..currency_entry_like_cpp(394) },
+        CurrencyTypesEntry {
+            max_qty: 13,
+            ..currency_entry_like_cpp(394)
+        },
     ])));
-    assert_eq!(quest_currency_gain_for_test(&mut session, 
-        394, 10, CurrencyGainSourceLikeCpp::QuestReward,
-    ).unwrap().unwrap().quantity, 10);
+    assert_eq!(
+        quest_currency_gain_for_test(
+            &mut session,
+            394,
+            10,
+            CurrencyGainSourceLikeCpp::QuestReward,
+        )
+        .unwrap()
+        .unwrap()
+        .quantity,
+        10
+    );
     assert!(remove_current_quest_player_from_map_for_test(&mut session));
-    assert_eq!(canonical.lock().unwrap().player_residence_like_cpp(old_handle),
-        Some(wow_map::PlayerResidenceLikeCpp::Detached));
-    assert_eq!(quest_currency_gain_for_test(&mut session, 
-        394, 3, CurrencyGainSourceLikeCpp::QuestReward,
-    ).unwrap().unwrap().quantity, 13);
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .player_residence_like_cpp(old_handle),
+        Some(wow_map::PlayerResidenceLikeCpp::Detached)
+    );
+    assert_eq!(
+        quest_currency_gain_for_test(&mut session, 394, 3, CurrencyGainSourceLikeCpp::QuestReward,)
+            .unwrap()
+            .unwrap()
+            .quantity,
+        13
+    );
 
     let before = player_currencies_snapshot_for_test(&session).unwrap();
     mutate_currency_compatibility_fixture_for_test(&mut session, |currencies| {
         currencies.get_mut(&394).unwrap().quantity = 999;
     });
     let fixture_before = currency_compatibility_fixture_for_test(&session);
-    assert_eq!(quest_currency_gain_for_test(&mut session, 
-        394, 1, CurrencyGainSourceLikeCpp::QuestReward,
-    ), Ok(None));
-    assert_eq!(player_currencies_snapshot_for_test(&session), Some(before.clone()));
-    assert_eq!(currency_compatibility_fixture_for_test(&session), fixture_before,
-        "a capped no-op must not call the writer, which would refresh this fixture mirror");
+    assert_eq!(
+        quest_currency_gain_for_test(&mut session, 394, 1, CurrencyGainSourceLikeCpp::QuestReward,),
+        Ok(None)
+    );
+    assert_eq!(
+        player_currencies_snapshot_for_test(&session),
+        Some(before.clone())
+    );
+    assert_eq!(
+        currency_compatibility_fixture_for_test(&session),
+        fixture_before,
+        "a capped no-op must not call the writer, which would refresh this fixture mirror"
+    );
 
     let mut replacement = Box::new(wow_entities::Player::new(Some(2), false));
-    replacement.unit_mut().world_mut().object_mut().create(player_guid);
+    replacement
+        .unit_mut()
+        .world_mut()
+        .object_mut()
+        .create(player_guid);
     replacement.install_currencies_like_cpp(before.clone());
-    let replacement_handle = canonical.lock().unwrap()
-        .install_detached_player_like_cpp(replacement).expect("replacement owner");
+    let replacement_handle = canonical
+        .lock()
+        .unwrap()
+        .install_detached_player_like_cpp(replacement)
+        .expect("replacement owner");
     assert_ne!(replacement_handle, old_handle);
     assert_eq!(player_currencies_snapshot_for_test(&session), None);
-    assert_eq!(quest_currency_gain_for_test(&mut session, 
-        394, 0, CurrencyGainSourceLikeCpp::QuestReward,
-    ), Ok(None), "zero is gated before ownership");
-    assert_eq!(quest_currency_gain_for_test(&mut session, 
-        394, 1, CurrencyGainSourceLikeCpp::QuestRewardIgnoreCaps,
-    ), Err(()), "stale handles never gain through the fixture fallback");
-    assert_eq!(currency_compatibility_fixture_for_test(&session), fixture_before);
-    assert_eq!(canonical.lock().unwrap().with_player_like_cpp(replacement_handle,
-        |player| player.gameplay_state().currencies.clone()), Some(before));
+    assert_eq!(
+        quest_currency_gain_for_test(&mut session, 394, 0, CurrencyGainSourceLikeCpp::QuestReward,),
+        Ok(None),
+        "zero is gated before ownership"
+    );
+    assert_eq!(
+        quest_currency_gain_for_test(
+            &mut session,
+            394,
+            1,
+            CurrencyGainSourceLikeCpp::QuestRewardIgnoreCaps,
+        ),
+        Err(()),
+        "stale handles never gain through the fixture fallback"
+    );
+    assert_eq!(
+        currency_compatibility_fixture_for_test(&session),
+        fixture_before
+    );
+    assert_eq!(
+        canonical
+            .lock()
+            .unwrap()
+            .with_player_like_cpp(replacement_handle, |player| player
+                .gameplay_state()
+                .currencies
+                .clone()),
+        Some(before)
+    );
     assert!(send_rx.try_recv().is_err());
 }
 
@@ -276,7 +375,8 @@ async fn quest_giver_choose_reward_removes_currency_objective_before_rewards_lik
         currency_entry_like_cpp(currency_id),
     ])));
     assert!(
-        quest_currency_gain_for_test(&mut session, 
+        quest_currency_gain_for_test(
+            &mut session,
             currency_id,
             10,
             CurrencyGainSourceLikeCpp::QuestReward,
@@ -285,7 +385,8 @@ async fn quest_giver_choose_reward_removes_currency_objective_before_rewards_lik
         .is_some()
     );
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    insert_player_quest_status_for_test(&mut session,
+    insert_player_quest_status_for_test(
+        &mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -307,14 +408,13 @@ async fn quest_giver_choose_reward_removes_currency_objective_before_rewards_lik
         ))
         .await;
 
-    assert!(
-        !contains_player_quest_status_for_test(&session, quest_id)
-    );
-    assert!(
-        contains_rewarded_quest_for_test(&session, quest_id)
-    );
+    assert!(!contains_player_quest_status_for_test(&session, quest_id));
+    assert!(contains_rewarded_quest_for_test(&session, quest_id));
     assert_eq!(player_gold_for_test(&session), 42);
-    assert_eq!(player_currency_quantity_for_test(&session, currency_id), Some(6));
+    assert_eq!(
+        player_currency_quantity_for_test(&session, currency_id),
+        Some(6)
+    );
     assert_eq!(
         send_rx.try_recv().unwrap(),
         wow_packet::packets::misc::SetCurrency {

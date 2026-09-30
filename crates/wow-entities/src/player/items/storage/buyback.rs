@@ -148,5 +148,4 @@ impl Player {
 
         Ok(slot)
     }
-
 }

@@ -143,4 +143,3 @@ pub(in crate::player::spell_runtime::reconstruction_tests) fn prepare_remove_spe
     )]));
     session.set_known_spells_like_cpp(vec![20]);
 }
-

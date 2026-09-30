@@ -1,8 +1,8 @@
 //! Player inventory and equipment position definitions.
 
 use super::{
-    is_bag_storage_slot, EQUIPMENT_SLOT_END, INVENTORY_SLOT_BAG_0, NULL_SLOT,
-    PROFESSION_SLOT_END, PROFESSION_SLOT_START,
+    EQUIPMENT_SLOT_END, INVENTORY_SLOT_BAG_0, NULL_SLOT, PROFESSION_SLOT_END,
+    PROFESSION_SLOT_START, is_bag_storage_slot,
 };
 
 pub const PLAYER_SLOT_END: usize = 141;

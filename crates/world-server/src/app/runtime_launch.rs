@@ -1,16 +1,23 @@
 //! Ordered runtime launch composition.
 
+use crate::{
+    DEFAULT_RESPAWN_MIN_CHECK_INTERVAL_MS, db_keepalive_interval_minutes_like_cpp,
+    legacy_creature_global_runtime_enabled_from_config_like_cpp, spawn_canonical_map_update_loop,
+    spawn_db_keepalive_loop_like_cpp, spawn_group_ready_check_tick_loop,
+    spawn_legacy_creature_runtime_update_loop_like_cpp, spawn_respawn_db_writer_like_cpp,
+    world_config_u32,
+};
 use std::sync::Arc;
-use tracing::info;
 use std::sync::{Mutex, atomic::AtomicBool};
+use tracing::info;
 use tracing::warn;
-use crate::{world_config_u32, legacy_creature_global_runtime_enabled_from_config_like_cpp, DEFAULT_RESPAWN_MIN_CHECK_INTERVAL_MS, spawn_respawn_db_writer_like_cpp, spawn_canonical_map_update_loop, spawn_legacy_creature_runtime_update_loop_like_cpp, spawn_group_ready_check_tick_loop, spawn_db_keepalive_loop_like_cpp, db_keepalive_interval_minutes_like_cpp};
 
 pub(super) struct RuntimeTasks {
     pub(super) db_keepalive_handle: Option<tokio::task::JoinHandle<()>>,
     pub(super) ready_check_tick_handle: tokio::task::JoinHandle<()>,
     pub(super) legacy_creature_runtime_handle: tokio::task::JoinHandle<()>,
-    pub(super) map_update_handle: tokio::task::JoinHandle<crate::runtime::map::CanonicalMapProducerExit>,
+    pub(super) map_update_handle:
+        tokio::task::JoinHandle<crate::runtime::map::CanonicalMapProducerExit>,
     pub(super) respawn_db_writer_handle: tokio::task::JoinHandle<()>,
     pub(super) respawn_db_writer_tx: crate::RespawnDbWriterSenderLikeCpp,
     pub(super) respawn_db_producer_stop: Arc<std::sync::atomic::AtomicBool>,

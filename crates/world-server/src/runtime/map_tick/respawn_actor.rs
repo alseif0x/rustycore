@@ -20,9 +20,15 @@ pub(crate) fn transfer_respawns_under_quiescence(
     key: wow_map::MapKey,
     incarnation: u64,
 ) -> Result<(), wow_world::session::RespawnOwnerTransferError> {
-    let guard = writer_fence.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+    let guard = writer_fence
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     wow_world::session::WorldSession::transfer_legacy_respawns_to_canonical(
-        legacy, canonical, key, incarnation, &guard,
+        legacy,
+        canonical,
+        key,
+        incarnation,
+        &guard,
     )
 }
 
@@ -42,15 +48,24 @@ pub(crate) fn prepared_actor_respawn_phase(
     plan: &wow_map::MapTickPlanLikeCpp,
     map_store: &wow_data::MapStore,
     terrain: Option<&LiveTerrainHeights>,
-    now: Instant, conversion_now: Instant, conversion_now_secs: i64,
+    now: Instant,
+    conversion_now: Instant,
+    conversion_now_secs: i64,
 ) -> Result<Vec<(wow_map::MapKey, ActorRespawnPhaseOutcome)>, PreparedActorRespawnFailure> {
-    drive_prepared_actor_respawns(canonical, plan, map_store, now, conversion_now,
-        conversion_now_secs, world_creature_from_pending_respawn_like_cpp,
+    drive_prepared_actor_respawns(
+        canonical,
+        plan,
+        map_store,
+        now,
+        conversion_now,
+        conversion_now_secs,
+        world_creature_from_pending_respawn_like_cpp,
         |actor, map_id| {
             if let Some(terrain) = terrain {
                 snap_respawn_creature_to_ground_like_cpp(actor, map_id, terrain);
             }
-        })
+        },
+    )
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -58,39 +73,71 @@ fn drive_prepared_actor_respawns(
     canonical: &wow_world::session::SharedCanonicalMapManager,
     plan: &wow_map::MapTickPlanLikeCpp,
     map_store: &wow_data::MapStore,
-    now: Instant, conversion_now: Instant, conversion_now_secs: i64,
-    mut factory: impl FnMut(&wow_map::map_manager::PendingRespawn, u32) -> wow_map::map_manager::WorldCreature,
+    now: Instant,
+    conversion_now: Instant,
+    conversion_now_secs: i64,
+    mut factory: impl FnMut(
+        &wow_map::map_manager::PendingRespawn,
+        u32,
+    ) -> wow_map::map_manager::WorldCreature,
     mut snap: impl FnMut(&mut wow_map::map_manager::WorldCreature, u16),
 ) -> Result<Vec<(wow_map::MapKey, ActorRespawnPhaseOutcome)>, PreparedActorRespawnFailure> {
     use wow_map::manager::{ActorRespawnError, ActorRespawnProgress};
     let mut outcomes = Vec::new();
     {
         let Ok(manager) = canonical.lock() else {
-            return Err(PreparedActorRespawnFailure { error: None, reply: None, completed: outcomes });
+            return Err(PreparedActorRespawnFailure {
+                error: None,
+                reply: None,
+                completed: outcomes,
+            });
         };
         if let Err(error) = manager.validate_actor_respawn_phase(plan) {
-            return Err(PreparedActorRespawnFailure { error: Some(error), reply: None, completed: outcomes });
+            return Err(PreparedActorRespawnFailure {
+                error: Some(error),
+                reply: None,
+                completed: outcomes,
+            });
         }
     }
     for participant in plan.updated_maps_like_cpp() {
-        let persistent_world_map = map_store.get(participant.key.map_id)
+        let persistent_world_map = map_store
+            .get(participant.key.map_id)
             .is_some_and(|entry| !entry.is_instanceable_like_cpp());
         let mut progress = {
             let Ok(mut manager) = canonical.lock() else {
-                return Err(PreparedActorRespawnFailure { error: None, reply: None, completed: outcomes });
+                return Err(PreparedActorRespawnFailure {
+                    error: None,
+                    reply: None,
+                    completed: outcomes,
+                });
             };
-            match manager.begin_actor_respawn_map(plan, *participant, now, conversion_now,
-                conversion_now_secs, persistent_world_map) {
+            match manager.begin_actor_respawn_map(
+                plan,
+                *participant,
+                now,
+                conversion_now,
+                conversion_now_secs,
+                persistent_world_map,
+            ) {
                 Ok(progress) => progress,
                 Err(ActorRespawnError::StaleParticipant) => {
                     if let Err(error) = manager.skip_stale_actor_respawn_map(plan, *participant) {
-                        return Err(PreparedActorRespawnFailure { error: Some(error), reply: None, completed: outcomes });
+                        return Err(PreparedActorRespawnFailure {
+                            error: Some(error),
+                            reply: None,
+                            completed: outcomes,
+                        });
                     }
                     continue;
                 }
-                Err(error) => return Err(PreparedActorRespawnFailure {
-                    error: Some(error), reply: None, completed: outcomes,
-                }),
+                Err(error) => {
+                    return Err(PreparedActorRespawnFailure {
+                        error: Some(error),
+                        reply: None,
+                        completed: outcomes,
+                    });
+                }
             }
         }; // Drop canonical guard before entropy/ground query.
         loop {
@@ -102,13 +149,21 @@ fn drive_prepared_actor_respawns(
                 ActorRespawnProgress::Pending(request) => {
                     let reply = request.resolve(&mut factory, &mut snap);
                     let Ok(mut manager) = canonical.lock() else {
-                        return Err(PreparedActorRespawnFailure { error: None, reply: Some(reply), completed: outcomes });
+                        return Err(PreparedActorRespawnFailure {
+                            error: None,
+                            reply: Some(reply),
+                            completed: outcomes,
+                        });
                     };
                     progress = match manager.resume_actor_respawn(plan, reply) {
                         Ok(progress) => progress,
-                        Err(rejected) => return Err(PreparedActorRespawnFailure {
-                            error: Some(rejected.error), reply: Some(rejected.owned), completed: outcomes,
-                        }),
+                        Err(rejected) => {
+                            return Err(PreparedActorRespawnFailure {
+                                error: Some(rejected.error),
+                                reply: Some(rejected.owned),
+                                completed: outcomes,
+                            });
+                        }
                     };
                 }
             }
@@ -135,10 +190,25 @@ pub(crate) fn run_prepared_actor_respawns(
     conversion_now_secs: i64,
     writer_fence: &SharedRespawnDbMutationOrderLikeCpp,
     writer: &RespawnDbWriterSenderLikeCpp,
-) -> Result<(Vec<(wow_map::MapKey, ActorRespawnPhaseOutcome)>, usize, usize), PreparedActorRespawnFailure> {
-    let _writer_guard = writer_fence.lock().unwrap_or_else(|poisoned| poisoned.into_inner());
+) -> Result<
+    (
+        Vec<(wow_map::MapKey, ActorRespawnPhaseOutcome)>,
+        usize,
+        usize,
+    ),
+    PreparedActorRespawnFailure,
+> {
+    let _writer_guard = writer_fence
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     let mut outcomes = prepared_actor_respawn_phase(
-        canonical, plan, map_store, terrain, now, conversion_now, conversion_now_secs,
+        canonical,
+        plan,
+        map_store,
+        terrain,
+        now,
+        conversion_now,
+        conversion_now_secs,
     )?;
     let mut produced = 0;
     let mut submitted = 0;
@@ -146,7 +216,9 @@ pub(crate) fn run_prepared_actor_respawns(
         produced += outcome.respawn_db_mutations.len();
         for mutation in outcome.respawn_db_mutations.drain(..) {
             if writer.send(mutation).is_err() {
-                tracing::error!("Shared respawn DB writer stopped before prepared Actor statement submission");
+                tracing::error!(
+                    "Shared respawn DB writer stopped before prepared Actor statement submission"
+                );
             } else {
                 submitted += 1;
             }

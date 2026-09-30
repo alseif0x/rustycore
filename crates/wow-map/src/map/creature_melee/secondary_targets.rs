@@ -4,9 +4,9 @@
 //! caller keeps the C++ map-update serialization, the established
 //! canonical -> legacy lock order and the delivery of the terms resolved here.
 
+use super::source::CreatureMeleeSource;
 use super::*;
 use crate::manager::MeleeKillCollector;
-use super::source::CreatureMeleeSource;
 
 /// The split/share terms the tick's loop needs after the secondary-target
 /// phase: the damage the primary apply commits and the publications its
@@ -57,7 +57,19 @@ pub(super) fn apply_secondary_targets_damage_like_cpp(
                     .map(|managed| managed.difficulty())
                     .unwrap_or(0);
                 let attacker_is_player_controlled = source.is_player_controlled(canonical_manager);
-                let split = super::split::apply_melee_split_damage_like_cpp(canonical_manager, swing.map_id, swing.instance_id, swing.attacker_guid, swing.victim_guid, damage, 0x01, attacker_is_player_controlled, catalogs, map_difficulty_id, kills);
+                let split = super::split::apply_melee_split_damage_like_cpp(
+                    canonical_manager,
+                    swing.map_id,
+                    swing.instance_id,
+                    swing.attacker_guid,
+                    swing.victim_guid,
+                    damage,
+                    0x01,
+                    attacker_is_player_controlled,
+                    catalogs,
+                    map_difficulty_id,
+                    kills,
+                );
                 if split.absorbed > 0 {
                     state.absorbed_damage = state.absorbed_damage.saturating_add(split.absorbed);
                     state.hit_info.replace_absorb(split.damage);
@@ -118,15 +130,25 @@ pub(super) fn apply_secondary_targets_damage_like_cpp(
     } else {
         damage
     };
-    if represented_damage_done > 0
-        && catalogs.represented()
-    {
+    if represented_damage_done > 0 && catalogs.represented() {
         let map_difficulty_id = canonical_manager
             .find_map(u32::from(swing.map_id), swing.instance_id)
             .map(|managed| managed.difficulty())
             .unwrap_or(0);
         let attacker_is_player_controlled = source.is_player_controlled(canonical_manager);
-        let share = super::share::apply_melee_share_damage_like_cpp(canonical_manager, swing.map_id, swing.instance_id, swing.attacker_guid, swing.victim_guid, represented_damage_done, 0x01, attacker_is_player_controlled, catalogs, map_difficulty_id, kills);
+        let share = super::share::apply_melee_share_damage_like_cpp(
+            canonical_manager,
+            swing.map_id,
+            swing.instance_id,
+            swing.attacker_guid,
+            swing.victim_guid,
+            represented_damage_done,
+            0x01,
+            attacker_is_player_controlled,
+            catalogs,
+            map_difficulty_id,
+            kills,
+        );
         share_mutation_events = share.mutation_events;
         primary_was_share_target = share.primary_was_share_target;
         primary_player_share_health_updates = share.primary_player_share_health_updates;

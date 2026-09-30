@@ -4,7 +4,6 @@ use super::{
     insert_inventory_item_for_test, insert_inventory_item_object_for_test,
     make_inventory_item_object_for_test, quest_template,
 };
-use wow_world::session::{InventoryItem, WorldSession};
 use std::sync::Arc;
 use wow_constants::{InventoryType, ItemBondingType, ItemClass, ItemContext};
 use wow_core::ObjectGuid;
@@ -14,6 +13,7 @@ use wow_data::{
     ItemStatsStore, ItemStore,
 };
 use wow_entities::ITEM_LIMIT_CATEGORY_MODE_HAVE;
+use wow_world::session::{InventoryItem, WorldSession};
 
 pub(crate) fn quest_template_with_source_item(
     id: u32,

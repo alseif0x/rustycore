@@ -7,8 +7,9 @@ async fn remote_master_loot_command_transports_and_commits_claim_like_cpp() {
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             0, true,
         ));
-    let authority = wow_world::test_fixtures::loot::loot_recovery_authority_for_test(&mut first, owner)
-        .unwrap();
+    let authority =
+        wow_world::test_fixtures::loot::loot_recovery_authority_for_test(&mut first, owner)
+            .unwrap();
     let claim = authority
         .reserve_item_for_award_like_cpp(second_guid, 0)
         .await
@@ -20,7 +21,11 @@ async fn remote_master_loot_command_transports_and_commits_claim_like_cpp() {
     let granted_item = entry.item_id;
     let inventory_before = applied_loot_item_quantity_for_test(&second, granted_item);
     install_limited_test_item_template(&mut second, entry.item_id, 0);
-    install_storage_port(&mut second, PersistenceOutcomeLikeCpp::Applied { rows: 1 }, None);
+    install_storage_port(
+        &mut second,
+        PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+        None,
+    );
     let player_registry = Arc::new(PlayerRegistry::default());
     let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
     let mut second_info = broadcast_info(second_guid, registry_send_tx);
@@ -28,7 +33,8 @@ async fn remote_master_loot_command_transports_and_commits_claim_like_cpp() {
     player_registry.register_or_replace(second_guid, second_info, Default::default());
     first.set_player_registry(player_registry);
 
-    let request = request_master_loot_store_for_test(&first, 
+    let request = request_master_loot_store_for_test(
+        &first,
         second_guid,
         owner,
         represented_loot_object_guid_like_cpp(owner),
@@ -44,7 +50,10 @@ async fn remote_master_loot_command_transports_and_commits_claim_like_cpp() {
     let (result, ()) = tokio::join!(request, target);
 
     assert_eq!(result, MasterLootGiveResult::Stored);
-    assert_eq!((applied_loot_item_quantity_for_test(&second, granted_item)) - inventory_before, 1);
+    assert_eq!(
+        (applied_loot_item_quantity_for_test(&second, granted_item)) - inventory_before,
+        1
+    );
     assert!(
         authority
             .snapshot_for_player_like_cpp(first_guid)
@@ -61,8 +70,9 @@ async fn remote_roll_winner_command_transports_and_commits_claim_like_cpp() {
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             0, true,
         ));
-    let authority = wow_world::test_fixtures::loot::loot_recovery_authority_for_test(&mut first, owner)
-        .unwrap();
+    let authority =
+        wow_world::test_fixtures::loot::loot_recovery_authority_for_test(&mut first, owner)
+            .unwrap();
     let generation = authority
         .snapshot_for_player_like_cpp(second_guid)
         .unwrap()
@@ -81,7 +91,11 @@ async fn remote_roll_winner_command_transports_and_commits_claim_like_cpp() {
     let granted_item = entry.item_id;
     let inventory_before = applied_loot_item_quantity_for_test(&second, granted_item);
     install_limited_test_item_template(&mut second, entry.item_id, 0);
-    install_storage_port(&mut second, PersistenceOutcomeLikeCpp::Applied { rows: 1 }, None);
+    install_storage_port(
+        &mut second,
+        PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+        None,
+    );
     let player_registry = Arc::new(PlayerRegistry::default());
     let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
     let mut second_info = broadcast_info(second_guid, registry_send_tx);
@@ -89,7 +103,8 @@ async fn remote_roll_winner_command_transports_and_commits_claim_like_cpp() {
     player_registry.register_or_replace(second_guid, second_info, Default::default());
     first.set_player_registry(player_registry);
 
-    let request = request_roll_loot_store_for_test(&first, 
+    let request = request_roll_loot_store_for_test(
+        &first,
         second_guid,
         owner,
         represented_loot_object_guid_like_cpp(owner),
@@ -106,7 +121,10 @@ async fn remote_roll_winner_command_transports_and_commits_claim_like_cpp() {
     let (result, ()) = tokio::join!(request, target);
 
     assert_eq!(result, MasterLootGiveResult::Stored);
-    assert_eq!((applied_loot_item_quantity_for_test(&second, granted_item)) - inventory_before, 1);
+    assert_eq!(
+        (applied_loot_item_quantity_for_test(&second, granted_item)) - inventory_before,
+        1
+    );
     assert!(
         authority
             .snapshot_for_player_like_cpp(first_guid)
@@ -126,12 +144,13 @@ async fn detached_remote_claim_waits_for_every_authority_viewer_before_corpse_li
     let _ = drain_server_opcodes_like_cpp(&first_rx);
     let _ = drain_server_opcodes_like_cpp(&second_rx);
     mutate_loot_creature_for_test(&mut first, owner, |creature| {
-            creature.apply_corpse_loot_flags_after_death_state_like_cpp(true, false);
-        })
-        .unwrap();
+        creature.apply_corpse_loot_flags_after_death_state_like_cpp(true, false);
+    })
+    .unwrap();
 
-    let authority = wow_world::test_fixtures::loot::loot_recovery_authority_for_test(&mut first, owner)
-        .unwrap();
+    let authority =
+        wow_world::test_fixtures::loot::loot_recovery_authority_for_test(&mut first, owner)
+            .unwrap();
     let generation = authority
         .snapshot_for_player_like_cpp(second_guid)
         .unwrap()
@@ -165,9 +184,14 @@ async fn detached_remote_claim_waits_for_every_authority_viewer_before_corpse_li
     let granted_item = entry.item_id;
     let inventory_before = applied_loot_item_quantity_for_test(&second, granted_item);
     install_limited_test_item_template(&mut second, entry.item_id, 0);
-    install_storage_port(&mut second, PersistenceOutcomeLikeCpp::Applied { rows: 1 }, None);
+    install_storage_port(
+        &mut second,
+        PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+        None,
+    );
 
-    let request = request_roll_loot_store_for_test(&first, 
+    let request = request_roll_loot_store_for_test(
+        &first,
         second_guid,
         owner,
         represented_loot_object_guid_like_cpp(owner),
@@ -184,12 +208,15 @@ async fn detached_remote_claim_waits_for_every_authority_viewer_before_corpse_li
     let (result, ()) = tokio::join!(request, target);
 
     assert_eq!(result, MasterLootGiveResult::Stored);
-    assert_eq!((applied_loot_item_quantity_for_test(&second, granted_item)) - inventory_before, 1);
+    assert_eq!(
+        (applied_loot_item_quantity_for_test(&second, granted_item)) - inventory_before,
+        1
+    );
     assert!(
         mutate_loot_creature_for_test(&mut first, owner, |creature| {
-                creature.has_lootable_dynamic_flag_like_cpp()
-            })
-            .unwrap(),
+            creature.has_lootable_dynamic_flag_like_cpp()
+        })
+        .unwrap(),
         "the detached winner cannot finish lifecycle while the original viewer remains open"
     );
     assert_eq!(
@@ -204,9 +231,9 @@ async fn detached_remote_claim_waits_for_every_authority_viewer_before_corpse_li
     first.handle_loot_release(loot_release_packet(owner)).await;
     assert!(
         !mutate_loot_creature_for_test(&mut first, owner, |creature| {
-                creature.has_lootable_dynamic_flag_like_cpp()
-            })
-            .unwrap(),
+            creature.has_lootable_dynamic_flag_like_cpp()
+        })
+        .unwrap(),
         "the final real viewer release performs the ordinary C++ corpse transition"
     );
 }
@@ -217,8 +244,9 @@ async fn remote_disenchant_batch_uses_one_command_and_commits_all_materials_like
         two_sessions_with_authoritative_creature_loot_like_cpp(authoritative_test_loot_like_cpp(
             0, true,
         ));
-    let authority = wow_world::test_fixtures::loot::loot_recovery_authority_for_test(&mut first, owner)
-        .unwrap();
+    let authority =
+        wow_world::test_fixtures::loot::loot_recovery_authority_for_test(&mut first, owner)
+            .unwrap();
     let generation = authority
         .snapshot_for_player_like_cpp(second_guid)
         .unwrap()
@@ -235,7 +263,11 @@ async fn remote_disenchant_batch_uses_one_command_and_commits_all_materials_like
     install_limited_test_item_template(&mut second, granted_item, 0);
     let inventory_before = applied_loot_item_quantity_for_test(&second, granted_item);
     install_limited_test_item_template(&mut second, 700, 0);
-    install_storage_port(&mut second, PersistenceOutcomeLikeCpp::Applied { rows: 1 }, None);
+    install_storage_port(
+        &mut second,
+        PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+        None,
+    );
     let player_registry = Arc::new(PlayerRegistry::default());
     let (registry_send_tx, _registry_send_rx) = flume::bounded(8);
     let mut second_info = broadcast_info(second_guid, registry_send_tx);
@@ -243,7 +275,8 @@ async fn remote_disenchant_batch_uses_one_command_and_commits_all_materials_like
     player_registry.register_or_replace(second_guid, second_info, Default::default());
     first.set_player_registry(player_registry);
 
-    let request = request_roll_loot_store_for_test(&first, 
+    let request = request_roll_loot_store_for_test(
+        &first,
         second_guid,
         owner,
         represented_loot_object_guid_like_cpp(owner),
@@ -262,7 +295,10 @@ async fn remote_disenchant_batch_uses_one_command_and_commits_all_materials_like
     let (result, ()) = tokio::join!(request, target);
 
     assert_eq!(result, MasterLootGiveResult::Stored);
-    assert_eq!((applied_loot_item_quantity_for_test(&second, granted_item)) - inventory_before, 2);
+    assert_eq!(
+        (applied_loot_item_quantity_for_test(&second, granted_item)) - inventory_before,
+        2
+    );
     assert!(
         authority
             .reserve_item_for_award_like_cpp(second_guid, 0)
@@ -270,4 +306,3 @@ async fn remote_disenchant_batch_uses_one_command_and_commits_all_materials_like
             .is_err()
     );
 }
-

@@ -37,7 +37,8 @@ async fn quest_giver_choose_reward_package_primary_inventory_failure_sends_equip
         },
     ])));
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    insert_player_quest_status_for_test(&mut session,
+    insert_player_quest_status_for_test(
+        &mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -60,13 +61,10 @@ async fn quest_giver_choose_reward_package_primary_inventory_failure_sends_equip
         .await;
 
     assert_eq!(
-        player_quest_status_for_test(&session, quest_id)
-            .map(|status| status.status),
+        player_quest_status_for_test(&session, quest_id).map(|status| status.status),
         Some(QUEST_STATUS_COMPLETE_LIKE_CPP)
     );
-    assert!(
-        !contains_rewarded_quest_for_test(&session, quest_id)
-    );
+    assert!(!contains_rewarded_quest_for_test(&session, quest_id));
     assert_eq!(player_gold_for_test(&session), 5);
     assert_eq!(
         send_rx.try_recv().unwrap(),
@@ -108,7 +106,8 @@ async fn quest_giver_choose_reward_package_fallback_inventory_failure_sends_equi
         },
     ])));
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    insert_player_quest_status_for_test(&mut session,
+    insert_player_quest_status_for_test(
+        &mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -131,13 +130,10 @@ async fn quest_giver_choose_reward_package_fallback_inventory_failure_sends_equi
         .await;
 
     assert_eq!(
-        player_quest_status_for_test(&session, quest_id)
-            .map(|status| status.status),
+        player_quest_status_for_test(&session, quest_id).map(|status| status.status),
         Some(QUEST_STATUS_COMPLETE_LIKE_CPP)
     );
-    assert!(
-        !contains_rewarded_quest_for_test(&session, quest_id)
-    );
+    assert!(!contains_rewarded_quest_for_test(&session, quest_id));
     assert_eq!(player_gold_for_test(&session), 5);
     assert_eq!(
         send_rx.try_recv().unwrap(),
@@ -168,7 +164,7 @@ async fn quest_confirm_accept_source_item_start_quest_no_grant_adds_local_state_
         0,
         quest_id as i32,
     );
-    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session, sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -180,9 +176,7 @@ async fn quest_confirm_accept_source_item_start_quest_no_grant_adds_local_state_
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
     assert_eq!(represented_pending_quest_sharing_for_test(&session), None);
-    assert!(
-        contains_player_quest_status_for_test(&session, quest_id)
-    );
+    assert!(contains_player_quest_status_for_test(&session, quest_id));
     assert_eq!(
         represented_inventory_item_counts_for_test(&session)
             .expect("fixture canonical inventory owner")
@@ -242,7 +236,7 @@ async fn quest_confirm_accept_source_item_with_space_stores_and_pushes_item_like
         source_item_id,
         quest_log_item_id,
     );
-    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session, sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -452,7 +446,7 @@ async fn quest_confirm_accept_source_item_full_backpack_stores_in_represented_ba
         );
     }
 
-    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session, sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -463,9 +457,7 @@ async fn quest_confirm_accept_source_item_full_backpack_stores_in_represented_ba
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    assert!(
-        contains_player_quest_status_for_test(&session, quest_id)
-    );
+    assert!(contains_player_quest_status_for_test(&session, quest_id));
     assert!(
         inventory_items_for_test(&session)
             .values()
@@ -642,7 +634,7 @@ async fn quest_confirm_accept_source_item_merges_existing_stack_inside_represent
         );
     }
 
-    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session, sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -706,7 +698,7 @@ async fn quest_confirm_accept_source_item_binds_on_acquire_like_cpp_store_item()
         0,
         ItemBondingType::OnAcquire,
     );
-    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session, sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -761,7 +753,7 @@ async fn quest_confirm_accept_source_item_bound_objective_updates_quest_without_
         source_item_id,
         quest_log_item_id,
     );
-    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session, sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -854,7 +846,7 @@ async fn quest_confirm_accept_tracking_event_source_item_objective_auto_rewards_
     });
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     install_source_item_template(&mut session, source_item_id, 20, 0);
-    set_represented_pending_quest_sharing_for_test(&mut session,sender_guid, quest_id);
+    set_represented_pending_quest_sharing_for_test(&mut session, sender_guid, quest_id);
     let (_sender_session, sender_rx) = install_confirm_accept_sender_snapshot(
         &mut session,
         sender_guid,
@@ -865,12 +857,8 @@ async fn quest_confirm_accept_tracking_event_source_item_objective_auto_rewards_
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;
 
-    assert!(
-        !contains_player_quest_status_for_test(&session, quest_id)
-    );
-    assert!(
-        contains_rewarded_quest_for_test(&session, quest_id)
-    );
+    assert!(!contains_player_quest_status_for_test(&session, quest_id));
+    assert!(contains_rewarded_quest_for_test(&session, quest_id));
     assert_complete_status_update_like_cpp(&session, quest_id, false);
 
     let mut opcodes = Vec::new();

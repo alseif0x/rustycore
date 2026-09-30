@@ -9,11 +9,11 @@
 
 use super::*;
 use std::sync::Arc;
-use wow_world::test_fixtures::install_canonical_player_owner_for_test;
 use wow_constants::ServerOpcodes;
 use wow_core::guid::HighGuid;
 use wow_core::{EquipmentSetGuidGeneratorLikeCpp, ObjectGuidGenerator};
 use wow_packet::WorldPacket;
+use wow_world::test_fixtures::install_canonical_player_owner_for_test;
 
 fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(1);
@@ -31,9 +31,9 @@ fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Rec
         send_tx,
     );
     session.set_item_guid_generator_like_cpp(Arc::new(ObjectGuidGenerator::new(HighGuid::Item, 1)));
-    session.character_set_equipment_set_guid_generator_for_test(
-        Arc::new(EquipmentSetGuidGeneratorLikeCpp::new(1)),
-    );
+    session.character_set_equipment_set_guid_generator_for_test(Arc::new(
+        EquipmentSetGuidGeneratorLikeCpp::new(1),
+    ));
     (session, send_rx)
 }
 
@@ -208,7 +208,10 @@ async fn unavailable_login_grid_aborts_before_success_login_packets_like_cpp() {
             .await
     );
 
-    assert_eq!(session.state(), wow_world::session::SessionState::Disconnecting);
+    assert_eq!(
+        session.state(),
+        wow_world::session::SessionState::Disconnecting
+    );
     assert!(session.player_guid().is_none());
     assert!(
         send_rx.try_recv().is_err(),

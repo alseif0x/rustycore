@@ -3,11 +3,13 @@
 use super::recovery_support::*;
 use std::collections::HashMap;
 use wow_world::test_fixtures::loot::{
-    make_canonical_gameobject_for_loot_test as make_canonical_gameobject_for_session,
     attach_canonical_gameobject_for_loot_test as attach_canonical_gameobject,
     canonical_gameobject_snapshot_for_loot_test as canonical_gameobject_snapshot,
-    loot_fixture_response, open_loot_response_for_test, release_loot_owner_for_test,
-    open_money_loot_normally_for_test, has_cached_loot_generation_for_test, personal_loot_money_entry_for_test, update_loot_gameobject_for_test,
+    has_cached_loot_generation_for_test, loot_fixture_response,
+    make_canonical_gameobject_for_loot_test as make_canonical_gameobject_for_session,
+    open_loot_response_for_test, open_money_loot_normally_for_test,
+    personal_loot_money_entry_for_test, release_loot_owner_for_test,
+    update_loot_gameobject_for_test,
 };
 
 #[tokio::test]
@@ -48,14 +50,16 @@ async fn personal_gameobject_release_deactivates_only_after_every_pool_is_looted
     let authority = gameobject.loot_authority_like_cpp().clone();
     attach_canonical_gameobject(&mut session, gameobject);
     session.set_player_position_like_cpp(Position::ZERO);
-    record_represented_gameobject_runtime_state_for_test(&mut session, 
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         owner_guid,
         owner_guid.entry(),
         Position::ZERO,
         GAMEOBJECT_TYPE_CHEST as u8,
     );
-    record_gameobject_chest_release_metadata_for_loot_test(&mut session, 
+    record_gameobject_chest_release_metadata_for_loot_test(
+        &mut session,
         owner_guid,
         GameObjectLootSource {
             personal_loot_id: 55,
@@ -66,7 +70,11 @@ async fn personal_gameobject_release_deactivates_only_after_every_pool_is_looted
     );
 
     session.set_player_guid(Some(first_player));
-    assert!(reconcile_loot_cache_for_test(&mut session, owner_guid, first_player));
+    assert!(reconcile_loot_cache_for_test(
+        &mut session,
+        owner_guid,
+        first_player
+    ));
     set_active_loot_guid_for_test(&mut session, owner_guid);
     let response = loot_fixture_response(
         owner_guid,
@@ -76,10 +84,7 @@ async fn personal_gameobject_release_deactivates_only_after_every_pool_is_looted
     open_loot_response_for_test(&mut session, owner_guid, first_player, response);
     let _ = drain_server_opcodes_like_cpp(&send_rx);
 
-    assert!(
-        release_loot_owner_for_test(&mut session, owner_guid, first_player)
-            .await
-    );
+    assert!(release_loot_owner_for_test(&mut session, owner_guid, first_player).await);
     assert_eq!(
         canonical_gameobject_snapshot(&session, owner_guid)
             .unwrap()
@@ -98,7 +103,11 @@ async fn personal_gameobject_release_deactivates_only_after_every_pool_is_looted
     );
 
     session.set_player_guid(Some(second_player));
-    assert!(reconcile_loot_cache_for_test(&mut session, owner_guid, second_player));
+    assert!(reconcile_loot_cache_for_test(
+        &mut session,
+        owner_guid,
+        second_player
+    ));
     set_active_loot_guid_for_test(&mut session, owner_guid);
     let response = loot_fixture_response(
         owner_guid,
@@ -113,10 +122,7 @@ async fn personal_gameobject_release_deactivates_only_after_every_pool_is_looted
     assert_eq!(claim.commit_like_cpp(), Ok(true));
     let _ = drain_server_opcodes_like_cpp(&send_rx);
 
-    assert!(
-        release_loot_owner_for_test(&mut session, owner_guid, second_player)
-            .await
-    );
+    assert!(release_loot_owner_for_test(&mut session, owner_guid, second_player).await);
     assert_eq!(
         canonical_gameobject_snapshot(&session, owner_guid)
             .unwrap()
@@ -156,7 +162,8 @@ async fn authoritative_partial_gameobject_release_drops_cache_and_reopen_rehydra
     attach_canonical_gameobject(&mut session, gameobject);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    record_represented_gameobject_runtime_state_for_test(&mut session, 
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         owner_guid,
         owner_guid.entry(),
@@ -170,7 +177,11 @@ async fn authoritative_partial_gameobject_release_drops_cache_and_reopen_rehydra
         ..Default::default()
     };
     record_gameobject_chest_release_metadata_for_loot_test(&mut session, owner_guid, source);
-    assert!(reconcile_loot_cache_for_test(&mut session, owner_guid, player_guid));
+    assert!(reconcile_loot_cache_for_test(
+        &mut session,
+        owner_guid,
+        player_guid
+    ));
     set_active_loot_guid_for_test(&mut session, owner_guid);
     let response = loot_fixture_response(
         owner_guid,
@@ -180,29 +191,19 @@ async fn authoritative_partial_gameobject_release_drops_cache_and_reopen_rehydra
     open_loot_response_for_test(&mut session, owner_guid, player_guid, response);
     let _ = drain_server_opcodes_like_cpp(&send_rx);
 
-    assert!(
-        release_loot_owner_for_test(&mut session, owner_guid, player_guid)
-            .await
-    );
+    assert!(release_loot_owner_for_test(&mut session, owner_guid, player_guid).await);
     assert!(!has_loot_for_test(&session, owner_guid));
-    assert!(
-        !has_cached_loot_generation_for_test(&session, owner_guid)
-    );
-    assert!(
-        !personal_loot_money_entry_for_test(&session, owner_guid, player_guid).is_some()
-    );
+    assert!(!has_cached_loot_generation_for_test(&session, owner_guid));
+    assert!(!personal_loot_money_entry_for_test(&session, owner_guid, player_guid).is_some());
     let before_reopen = authority
         .snapshot_for_player_like_cpp(player_guid)
         .expect("release preserves the canonical personal pool");
     assert_eq!(before_reopen.loot.coins, 11);
     assert!(!before_reopen.loot.items[0].taken);
 
-    open_money_loot_normally_for_test(&mut session, owner_guid, source)
-        .await;
+    open_money_loot_normally_for_test(&mut session, owner_guid, source).await;
     assert!(has_loot_for_test(&session, owner_guid));
-    assert!(
-        personal_loot_marker_for_test(&session, owner_guid, player_guid).0
-    );
+    assert!(personal_loot_marker_for_test(&session, owner_guid, player_guid).0);
     assert_eq!(
         personal_loot_money_entry_for_test(&session, owner_guid, player_guid),
         Some(&11)

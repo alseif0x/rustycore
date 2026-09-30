@@ -13,8 +13,18 @@ fn history(loaded: bool) -> SpellHistory {
 fn canonical_restore_pops_tail_and_keeps_empty_category_without_loaded_rows() {
     let mut history = history(false);
     assert_eq!(history.restore_charges(7, 2), 2);
-    assert_eq!(history.charges(7).unwrap().iter().copied().collect::<Vec<_>>(),
-        vec![SpellChargeState { recharge_start_ms: 10, recharge_end_ms: 20 }]);
+    assert_eq!(
+        history
+            .charges(7)
+            .unwrap()
+            .iter()
+            .copied()
+            .collect::<Vec<_>>(),
+        vec![SpellChargeState {
+            recharge_start_ms: 10,
+            recharge_end_ms: 20
+        }]
+    );
     assert_eq!(history.restore_charges(7, 2), 1);
     assert!(history.charges.contains_key(&7));
     assert!(history.charges(7).unwrap().is_empty());
@@ -29,7 +39,10 @@ fn loaded_restore_refuses_unloaded_rows_without_consuming_the_queue() {
     assert_eq!(history.charges, before);
     history.charges_loaded = true;
     assert!(history.restore_loaded_charge(7));
-    assert_eq!(history.charges(7).unwrap().back().unwrap().recharge_end_ms, 30);
+    assert_eq!(
+        history.charges(7).unwrap().back().unwrap().recharge_end_ms,
+        30
+    );
 }
 
 #[test]

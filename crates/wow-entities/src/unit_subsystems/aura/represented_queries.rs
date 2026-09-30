@@ -1,7 +1,7 @@
 //! Represented Player/Unit aura predicates and modifier rules.
 
-use std::collections::HashMap;
 use super::{AuraApplicationLikeCpp, AuraSubsystem, RepresentedAuraEffectLikeCpp};
+use std::collections::HashMap;
 
 impl AuraSubsystem {
     pub fn has_represented_effect(

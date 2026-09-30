@@ -1,7 +1,7 @@
 use super::*;
 use wow_world::test_fixtures::{
-    quest_giver_creature_entry_for_test as quest_giver_creature_id_from_source_like_cpp,
     quest_completion_npc_response_for_test as represented_quest_completion_npc_response_like_cpp,
+    quest_giver_creature_entry_for_test as quest_giver_creature_id_from_source_like_cpp,
 };
 
 #[test]

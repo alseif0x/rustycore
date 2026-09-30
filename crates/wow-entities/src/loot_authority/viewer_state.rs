@@ -35,7 +35,8 @@ impl CreatureLoot {
 
     pub fn remove_viewers(&mut self, players: &[ObjectGuid]) -> bool {
         let old_len = self.players_looting.len();
-        self.players_looting.retain(|viewer| !players.contains(viewer));
+        self.players_looting
+            .retain(|viewer| !players.contains(viewer));
         old_len != self.players_looting.len()
     }
 

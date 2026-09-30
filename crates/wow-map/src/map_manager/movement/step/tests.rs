@@ -15,8 +15,7 @@ fn step_creature_movement_idle_zero_wander_radius_stays_still_like_cpp() {
         ai.wander_radius = 0.0;
     }
 
-    let result =
-        step(&mut creature, 200, false);
+    let result = step(&mut creature, 200, false);
 
     assert!(
         result.is_none(),
@@ -37,8 +36,7 @@ fn step_creature_movement_idle_positive_wander_radius_stays_still_like_cpp() {
         ai.wander_radius = 3.0;
     }
 
-    let result =
-        step(&mut creature, 200, false);
+    let result = step(&mut creature, 200, false);
 
     assert!(
         result.is_none(),
@@ -120,9 +118,7 @@ fn step_creature_movement_random_keeps_wandering_over_many_ticks_like_cpp() {
     let mut launches = 0usize;
     let mut launch_ticks: Vec<usize> = Vec::new();
     for tick in 0..600usize {
-        if step(&mut creature, diff_ms, false)
-            .is_some()
-        {
+        if step(&mut creature, diff_ms, false).is_some() {
             launches += 1;
             launch_ticks.push(tick);
         }
@@ -270,9 +266,7 @@ fn step_creature_movement_walking_random_finished_returns_none_and_state_idle() 
     // Ensure no move_target (movement_finished returns true when None).
     creature.creature.ai_ownership_mut().move_target = None;
 
-
-    let result =
-        step(&mut creature, 200, true);
+    let result = step(&mut creature, 200, true);
 
     assert!(
         result.is_none(),
@@ -317,7 +311,11 @@ fn step_creature_movement_waypoint_progresses_through_nodes_with_real_diff_like_
     );
 
     // First leg launches after the initial delay; it heads to node 1.
-    let leg1 = step(&mut creature, wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32, true);
+    let leg1 = step(
+        &mut creature,
+        wow_movement::WAYPOINT_INITIAL_DELAY_MS_LIKE_CPP as u32,
+        true,
+    );
     assert!(leg1.is_some(), "node 1 leg must launch a MonsterMove");
     let mut targets = vec![creature.move_target().map(|p| p.x).unwrap_or(f32::NAN)];
 
@@ -368,9 +366,7 @@ fn step_creature_movement_dead_ready_respawn_waits_for_lifecycle_owner_like_cpp(
         "creature must be ready to respawn"
     );
 
-
-    let result =
-        step(&mut creature, 200, true);
+    let result = step(&mut creature, 200, true);
 
     assert!(result.is_none(), "dead creature movement must return None");
     assert!(

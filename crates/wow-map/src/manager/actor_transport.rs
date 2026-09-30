@@ -17,14 +17,19 @@ impl MapManager {
         if self.tick_coordination_like_cpp() != MapTickCoordinationStateLikeCpp::Idle {
             return Err(CreatureActorTransportError::MapBusy);
         }
-        let current_incarnation = self.map_incarnation_like_cpp(key)
+        let current_incarnation = self
+            .map_incarnation_like_cpp(key)
             .ok_or(CreatureActorTransportError::MissingMap)?;
         if current_incarnation != incarnation {
             return Err(CreatureActorTransportError::StaleIncarnation);
         }
-        let managed = self.maps.get_mut(&key)
+        let managed = self
+            .maps
+            .get_mut(&key)
             .ok_or(CreatureActorTransportError::MissingMap)?;
-        managed.map_mut().transport_legacy_creature_ownership(source)
+        managed
+            .map_mut()
+            .transport_legacy_creature_ownership(source)
     }
 }
 

@@ -1,12 +1,7 @@
 use super::{
-    RespawnDbDeleteQueueOutcomeLikeCpp,
-    RespawnDbSaveQueueOutcomeLikeCpp,
-    RespawnInfoLikeCpp,
-    RespawnPersistenceKeyLikeCpp,
-    RespawnPersistenceMutationLikeCpp,
-    SpawnObjectType,
-    queue_respawn_db_delete_like_cpp,
-    queue_respawn_db_save_like_cpp,
+    RespawnDbDeleteQueueOutcomeLikeCpp, RespawnDbSaveQueueOutcomeLikeCpp, RespawnInfoLikeCpp,
+    RespawnPersistenceKeyLikeCpp, RespawnPersistenceMutationLikeCpp, SpawnObjectType,
+    queue_respawn_db_delete_like_cpp, queue_respawn_db_save_like_cpp,
 };
 
 pub(super) fn assert_del_respawn_params_like_cpp(
@@ -47,7 +42,9 @@ pub(super) fn assert_rep_respawn_params_like_cpp(
     assert_eq!(key.instance_id, instance_id);
 }
 
-pub(super) fn respawn_persistence_key_fixture_like_cpp(spawn_id: u64) -> RespawnPersistenceKeyLikeCpp {
+pub(super) fn respawn_persistence_key_fixture_like_cpp(
+    spawn_id: u64,
+) -> RespawnPersistenceKeyLikeCpp {
     RespawnPersistenceKeyLikeCpp {
         object_type_raw: 0,
         spawn_id,
@@ -100,7 +97,9 @@ pub(super) fn respawn_db_save_mutation_fixture_like_cpp(
     save.mutation
 }
 
-pub(super) fn respawn_db_delete_mutation_fixture_like_cpp(spawn_id: u64) -> RespawnPersistenceMutationLikeCpp {
+pub(super) fn respawn_db_delete_mutation_fixture_like_cpp(
+    spawn_id: u64,
+) -> RespawnPersistenceMutationLikeCpp {
     let RespawnDbDeleteQueueOutcomeLikeCpp::Queued(delete) = queue_respawn_db_delete_like_cpp(
         wow_map::ManagedMapKind::World,
         false,

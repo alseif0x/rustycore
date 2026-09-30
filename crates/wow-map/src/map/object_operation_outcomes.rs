@@ -3,11 +3,10 @@ use super::{
     CreatureSearchFormationOutcomeLikeCpp, DynamicMapTreeModelMutationOutcomeLikeCpp,
     DynamicObjectCasterViewpointOutcomeLikeCpp, GameObjectDeleteOutcomeLikeCpp,
     GameObjectLifecycleError, GameObjectSummonTypeLikeCpp, GridCoord, LootState,
-    ObjectAccessorError, ObjectGuid, PersonalPhaseUnregisterTrackedObjectOutcomeLikeCpp,
-    Player, PlayerRemoveFromWorldViewpointCleanupOutcomeLikeCpp, SpawnId,
-    UnitAddToWorldOutcomeLikeCpp, UnitRemoveFromWorldOutcomeLikeCpp,
-    VehicleKitAddToWorldResetOutcomeLikeCpp, VehicleKitInstallOutcomeLikeCpp,
-    VehicleKitRemoveOutcomeLikeCpp, WorldObject,
+    ObjectAccessorError, ObjectGuid, PersonalPhaseUnregisterTrackedObjectOutcomeLikeCpp, Player,
+    PlayerRemoveFromWorldViewpointCleanupOutcomeLikeCpp, SpawnId, UnitAddToWorldOutcomeLikeCpp,
+    UnitRemoveFromWorldOutcomeLikeCpp, VehicleKitAddToWorldResetOutcomeLikeCpp,
+    VehicleKitInstallOutcomeLikeCpp, VehicleKitRemoveOutcomeLikeCpp, WorldObject,
 };
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

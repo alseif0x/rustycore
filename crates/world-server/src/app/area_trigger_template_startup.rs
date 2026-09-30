@@ -217,7 +217,8 @@ pub(super) struct AreaTriggerWorldCatalogs {
     pub(super) tavern_area_trigger_store: Arc<wow_data::TavernAreaTriggerStoreLikeCpp>,
     pub(super) area_trigger_script_store: Arc<wow_data::AreaTriggerScriptStoreLikeCpp>,
     pub(super) area_trigger_store: Arc<wow_data::AreaTriggerStore>,
-    pub(super) area_trigger_world_persistence: wow_database::MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp,
+    pub(super) area_trigger_world_persistence:
+        wow_database::MariaDbAreaTriggerWorldCatalogPersistenceAdapterLikeCpp,
 }
 
 pub(super) async fn load_world_catalogs(

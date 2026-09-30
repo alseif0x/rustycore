@@ -54,12 +54,10 @@ pub(super) fn validate_acquisition_actions(
         })
         .collect::<Vec<_>>();
     if actual_publication_requirements.as_slice() != plan.publication_requirements_like_cpp() {
-        return Err(
-            AcquisitionPlanError::PostCommitActionCausalityMismatch {
-                action: "required publication tape",
-                id: 0,
-            },
-        );
+        return Err(AcquisitionPlanError::PostCommitActionCausalityMismatch {
+            action: "required publication tape",
+            id: 0,
+        });
     }
     let resulting_spells = acquisition_spell_rows(&plan.resulting_snapshot)?;
     let resulting_skills = acquisition_skill_rows(&plan.resulting_snapshot)?;
@@ -130,10 +128,7 @@ pub(super) fn validate_acquisition_actions(
     for transition_index in superseding_activations {
         let transition = &plan.spell_transitions[transition_index];
         let favorite = transition.after.is_some_and(|after| after.favorite);
-        let _ = consume_action_evidence(
-            &mut learned_evidence,
-            (transition.spell_id, favorite),
-        );
+        let _ = consume_action_evidence(&mut learned_evidence, (transition.spell_id, favorite));
     }
     for transition in &plan.skill_transitions {
         *skill_transition_evidence
@@ -170,12 +165,7 @@ pub(super) fn validate_acquisition_actions(
 
     for (action_index, action) in plan.post_commit_actions.iter().enumerate() {
         let mismatch = |action, id| {
-            Err(
-                AcquisitionPlanError::PostCommitActionCausalityMismatch {
-                    action,
-                    id,
-                },
-            )
+            Err(AcquisitionPlanError::PostCommitActionCausalityMismatch { action, id })
         };
         match action {
             SpellAcquisitionPostCommitActionLikeCpp::LearnedSpell {
@@ -185,16 +175,9 @@ pub(super) fn validate_acquisition_actions(
                     .get(spell_id)
                     .is_some_and(|row| row.favorite == *favorite);
                 if !row_matches
-                    || !consume_action_evidence(
-                        &mut learned_evidence,
-                        (*spell_id, *favorite),
-                    )
+                    || !consume_action_evidence(&mut learned_evidence, (*spell_id, *favorite))
                 {
-                    return Err(
-                        AcquisitionPlanError::LearnedActionRowMismatch(
-                            *spell_id,
-                        ),
-                    );
+                    return Err(AcquisitionPlanError::LearnedActionRowMismatch(*spell_id));
                 }
             }
             SpellAcquisitionPostCommitActionLikeCpp::SupersededSpell {
@@ -203,12 +186,10 @@ pub(super) fn validate_acquisition_actions(
             } => {
                 for spell_id in [*old_spell_id, *new_spell_id] {
                     if spell_id == 0 || i32::try_from(spell_id).is_err() {
-                        return Err(
-                            AcquisitionPlanError::InvalidPostCommitAction {
-                                domain: "spell",
-                                id: spell_id,
-                            },
-                        );
+                        return Err(AcquisitionPlanError::InvalidPostCommitAction {
+                            domain: "spell",
+                            id: spell_id,
+                        });
                     }
                 }
                 let evidence_index = supersede_evidence
@@ -387,20 +368,15 @@ pub(super) fn validate_acquisition_actions(
         .iter()
         .find(|(_, count)| **count != 0)
     {
-        return Err(
-            AcquisitionPlanError::PostCommitActionCausalityMismatch {
-                action: "DualWieldEffectProjected",
-                id: spell_id,
-            },
-        );
+        return Err(AcquisitionPlanError::PostCommitActionCausalityMismatch {
+            action: "DualWieldEffectProjected",
+            id: spell_id,
+        });
     }
     Ok(())
 }
 
-fn consume_action_evidence<K: Ord>(
-    evidence: &mut BTreeMap<K, usize>,
-    key: K,
-) -> bool {
+fn consume_action_evidence<K: Ord>(evidence: &mut BTreeMap<K, usize>, key: K) -> bool {
     evidence.get_mut(&key).is_some_and(|count| {
         if *count == 0 {
             false
@@ -417,9 +393,7 @@ fn validate_action_id(
     u16_required: bool,
 ) -> Result<(), AcquisitionPlanError> {
     if id == 0 || i32::try_from(id).is_err() || (u16_required && u16::try_from(id).is_err()) {
-        return Err(
-            AcquisitionPlanError::InvalidPostCommitAction { domain, id },
-        );
+        return Err(AcquisitionPlanError::InvalidPostCommitAction { domain, id });
     }
     Ok(())
 }

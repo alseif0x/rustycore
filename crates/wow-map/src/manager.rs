@@ -28,19 +28,18 @@ use crate::spawn::{Difficulty, SpawnId, SpawnObjectType, SpawnStore};
 use wow_core::{GameTime, ObjectGuid};
 use wow_entities::CreatureRuntimeUpdateContext;
 
-mod admin;
 mod actor_admission;
-mod actor_transport;
 mod actor_respawn;
-pub use actor_respawn::{ActorRespawnError, ActorRespawnProgress, ActorRespawnRequest,
-    ActorRespawnReply, ActorRespawnRejected};
+mod actor_transport;
+mod admin;
 pub use actor_admission::FreshCreatureActorMapAdmissionError;
-mod actor_movement;
+pub use actor_respawn::{
+    ActorRespawnError, ActorRespawnProgress, ActorRespawnRejected, ActorRespawnReply,
+    ActorRespawnRequest,
+};
 mod actor_aggro;
+mod actor_movement;
 mod actor_spell;
-pub use actor_spell::{ActorSpellContinuation, ActorSpellError, ActorSpellLosQuery,
-    ActorSpellLosRequest, ActorSpellPrepareFailure, ActorSpellProgress, ActorSpellResumeFailure,
-    ActorSpellPublicationContinuation, ActorSpellPublicationFailure};
 pub use actor_aggro::{
     ActorAggroContinuation, ActorAggroError, ActorAggroLosQuery, ActorAggroLosRequest,
     ActorAggroPrepareFailure, ActorAggroProgress, ActorAggroResumeFailure,
@@ -51,14 +50,23 @@ pub use actor_movement::{
     ActorMovementResumeFailure, ActorMovementTraceFacts, ActorPathContinuation, ActorPathRequest,
     ActorStaticHeightContinuation, ActorStaticHeightQuery, ActorStaticHeightRequest,
 };
+pub use actor_spell::{
+    ActorSpellContinuation, ActorSpellError, ActorSpellLosQuery, ActorSpellLosRequest,
+    ActorSpellPrepareFailure, ActorSpellProgress, ActorSpellPublicationContinuation,
+    ActorSpellPublicationFailure, ActorSpellResumeFailure,
+};
 mod actor_tick_access;
 mod creature_loot;
-pub use creature_loot::{CreatureLootAccess, CreatureLootAccessError,
-    CreatureLootActorHandle, CreatureLootActorObservation};
+pub use creature_loot::{
+    CreatureLootAccess, CreatureLootAccessError, CreatureLootActorHandle,
+    CreatureLootActorObservation,
+};
 mod actor_melee;
 pub(crate) use actor_melee::MeleeKillCollector;
-pub use actor_melee::{SelectedMeleeExecution, PendingMeleeKills, PreparedMeleeKill, PreparedMeleeLoot,
-    MeleeKillPhaseError, MeleeKillCaptureError, MeleeLootError};
+pub use actor_melee::{
+    MeleeKillCaptureError, MeleeKillPhaseError, MeleeLootError, PendingMeleeKills,
+    PreparedMeleeKill, PreparedMeleeLoot, SelectedMeleeExecution,
+};
 mod actor_kill;
 pub use actor_tick_access::ActorTickAccessError;
 mod map_lifetime;
@@ -78,8 +86,7 @@ pub use state_1::*;
 #[allow(unused_imports)]
 pub use state_2::*;
 pub use tick_objects::{
-    MapObjectTickContinuation, ObjectMapFinishOutcome,
-    ObjectMapTickError, ObjectMapUpdateToken,
+    MapObjectTickContinuation, ObjectMapFinishOutcome, ObjectMapTickError, ObjectMapUpdateToken,
 };
 pub use updater::MapUpdater;
 

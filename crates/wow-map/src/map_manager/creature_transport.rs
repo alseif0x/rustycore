@@ -1,8 +1,8 @@
 //! Exact-slot, move-only extraction for the quiescent ownership transition.
 //! These primitives neither register actors nor replay their lifecycle.
 
-use std::collections::hash_map::Entry;
 use super::{GridCoord, MapInstance, ObjectGuid, WorldCreature};
+use std::collections::hash_map::Entry;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum LegacyCreatureTransportError {
@@ -44,19 +44,21 @@ impl MapInstance {
         coord: GridCoord,
         guid: ObjectGuid,
     ) -> Result<LegacyCreatureTransportSlot, LegacyCreatureTransportError> {
-        let grid = self.grids.get(&coord)
+        let grid = self
+            .grids
+            .get(&coord)
             .ok_or(LegacyCreatureTransportError::MissingGrid)?;
         if grid.coord != coord {
             return Err(LegacyCreatureTransportError::GridCoordinateMismatch);
         }
-        let actor = grid.creatures.get(&guid)
+        let actor = grid
+            .creatures
+            .get(&guid)
             .ok_or(LegacyCreatureTransportError::MissingActor)?;
         if actor.guid() != guid {
             return Err(LegacyCreatureTransportError::GuidMismatch);
         }
-        if actor.map_id() != u32::from(self.map_id)
-            || actor.instance_id() != self.instance_id
-        {
+        if actor.map_id() != u32::from(self.map_id) || actor.instance_id() != self.instance_id {
             return Err(LegacyCreatureTransportError::ActorMapMismatch);
         }
         if self.grids.iter().any(|(other_coord, other)| {
@@ -65,14 +67,18 @@ impl MapInstance {
             return Err(LegacyCreatureTransportError::DuplicateGuid);
         }
         Ok(LegacyCreatureTransportSlot {
-            map_id: self.map_id, instance_id: self.instance_id, grid: coord, guid,
+            map_id: self.map_id,
+            instance_id: self.instance_id,
+            grid: coord,
+            guid,
         })
     }
 
     pub(crate) fn take_creature_transport_slot(
         &mut self,
         slot: LegacyCreatureTransportSlot,
-    ) -> Result<TakenLegacyCreature, (LegacyCreatureTransportError, LegacyCreatureTransportSlot)> {
+    ) -> Result<TakenLegacyCreature, (LegacyCreatureTransportError, LegacyCreatureTransportSlot)>
+    {
         if self.map_id != slot.map_id || self.instance_id != slot.instance_id {
             return Err((LegacyCreatureTransportError::WrongInstance, slot));
         }
@@ -81,9 +87,12 @@ impl MapInstance {
         }
         // This second lookup cannot fail: no mutation/callback separates the
         // borrowed preflight from remove on this exclusive instance borrow.
-        let actor = self.grids.get_mut(&slot.grid)
+        let actor = self
+            .grids
+            .get_mut(&slot.grid)
             .expect("preflighted source grid remains present")
-            .creatures.remove(&slot.guid)
+            .creatures
+            .remove(&slot.guid)
             .expect("preflighted source actor remains present");
         Ok(TakenLegacyCreature { slot, actor })
     }

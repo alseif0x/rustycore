@@ -2,9 +2,9 @@ use super::{
     AddObjectToRemoveListOutcomeLikeCpp, AddRespawnInfoOutcomeLikeCpp, AddToMapError,
     AddToMapOutcome, CreatureRuntimePlan, EntityGameObjectUpdateOutcomeLikeCpp,
     GameObjectRemoveFromOwnerOutcomeLikeCpp, MapGuidSequenceErrorLikeCpp, ObjectAccessorError,
-    ObjectGuid, PoolMgrPlanErrorLikeCpp, PoolTypedSpawnPlanLikeCpp,
+    ObjectGuid, PoolMgrPlanErrorLikeCpp, PoolTypedSpawnPlanLikeCpp, Position,
     ProcessRespawnsSafeSideEffectsSummaryLikeCpp, RemoveListOutcomeLikeCpp, RespawnInfoLikeCpp,
-    SceneObject, SpawnId, TransportUpdateLikeCpp, UnitValuesUpdate, Position,
+    SceneObject, SpawnId, TransportUpdateLikeCpp, UnitValuesUpdate,
 };
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
@@ -73,7 +73,6 @@ pub struct GameEventSmartAiScriptCandidateSummaryLikeCpp {
     pub creature_ai_enabled_unrepresented: usize,
     pub script_dispatch_unrepresented: usize,
 }
-
 
 /// Represented result for C++ `DynamicMapTree::update(t_diff)`.
 ///

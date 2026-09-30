@@ -397,4 +397,3 @@ fn invite_acceptance_emits_creation_persistence_before_publication_like_cpp() {
         }
     );
 }
-

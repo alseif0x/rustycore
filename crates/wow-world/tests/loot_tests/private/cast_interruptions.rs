@@ -1,6 +1,10 @@
 //! Original loot admission and cast/aura interruption scenarios.
 use super::support::*;
-use wow_world::test_fixtures::loot::{prepare_money_player_residence_for_test, install_loot_interruptible_cast_for_test, install_loot_interrupt_aura_for_test, loot_cast_pending_for_test, loot_aura_slot_present_for_test};
+use wow_world::test_fixtures::loot::{
+    install_loot_interrupt_aura_for_test, install_loot_interruptible_cast_for_test,
+    loot_aura_slot_present_for_test, loot_cast_pending_for_test,
+    prepare_money_player_residence_for_test,
+};
 const SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP: u32 = 0x0000_0800;
 
 #[tokio::test]
@@ -67,4 +71,3 @@ async fn loot_unit_valid_target_removes_looting_interrupt_auras_like_cpp() {
     assert!(!loot_aura_slot_present_for_test(&session, 3));
     assert!(loot_aura_slot_present_for_test(&session, 4));
 }
-

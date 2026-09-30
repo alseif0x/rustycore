@@ -4,15 +4,13 @@ use wow_constants::ClientOpcodes;
 use wow_core::guid::HighGuid;
 use wow_core::{EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator, Position};
 use wow_handler::{PacketProcessing, SessionStatus};
-use wow_packet::packets::query::QueryPetName;
 use wow_packet::WorldPacket;
-use wow_world::session::registry::PacketHandlerEntry;
+use wow_packet::packets::query::QueryPetName;
 use wow_world::session::WorldSession;
+use wow_world::session::registry::PacketHandlerEntry;
 use wow_world::test_fixtures::set_equipment_set_guid_generator_for_test;
 
-fn make_session_with_send_capacity(
-    capacity: usize,
-) -> (WorldSession, flume::Receiver<Vec<u8>>) {
+fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(1);
     let (send_tx, send_rx) = flume::bounded::<Vec<u8>>(capacity);
     let mut session = WorldSession::new(

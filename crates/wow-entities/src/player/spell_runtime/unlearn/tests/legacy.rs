@@ -20,8 +20,16 @@ fn remove_known_spell_removes_non_talent_higher_ranks_like_cpp() {
         "C++ Player::RemoveSpell recursively removes known non-talent higher ranks before removing the current spell"
     );
     assert!(
-        runtime.known_spells_like_cpp().iter().map(|id| (*id, false))
-            .chain(runtime.removed_known_spells_like_cpp().iter().map(|id| (*id, true)))
+        runtime
+            .known_spells_like_cpp()
+            .iter()
+            .map(|id| (*id, false))
+            .chain(
+                runtime
+                    .removed_known_spells_like_cpp()
+                    .iter()
+                    .map(|id| (*id, true))
+            )
             .all(|(spell_id, removed)| spell_id == 40 || removed)
     );
 }
@@ -58,7 +66,11 @@ fn remove_known_spell_removes_spells_requiring_it_like_cpp() {
         "C++ Player::RemoveSpell removes spells returned by GetSpellsRequiringSpellBounds recursively"
     );
     assert_eq!(
-        runtime.removed_known_spells_like_cpp().iter().copied().collect::<BTreeSet<_>>(),
+        runtime
+            .removed_known_spells_like_cpp()
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>(),
         BTreeSet::from([10, 100, 101]),
         "C++ marks the removed required spell and its non-dependent known dependants as PLAYERSPELL_REMOVED"
     );
@@ -75,9 +87,13 @@ fn remove_known_spell_removes_learned_dependent_spells_and_overrides_like_cpp() 
     let mut runtime = runtime(vec![10, 20, 30]);
     runtime.add_override_spell_like_cpp(100, 20);
     let catalog = Catalog {
-        learned: BTreeMap::from([(10, vec![SpellUnlearnEdge {
-            spell_id: 20, overrides_spell_id: 100,
-        }])]),
+        learned: BTreeMap::from([(
+            10,
+            vec![SpellUnlearnEdge {
+                spell_id: 20,
+                overrides_spell_id: 100,
+            }],
+        )]),
         ..Default::default()
     };
     remove(&mut runtime, &catalog, 10, false);
@@ -92,7 +108,11 @@ fn remove_known_spell_removes_learned_dependent_spells_and_overrides_like_cpp() 
         "C++ removes OverridesSpell pairs for learned dependent spells"
     );
     assert_eq!(
-        runtime.removed_known_spells_like_cpp().iter().copied().collect::<BTreeSet<_>>(),
+        runtime
+            .removed_known_spells_like_cpp()
+            .iter()
+            .copied()
+            .collect::<BTreeSet<_>>(),
         BTreeSet::from([10, 20])
     );
 }
@@ -169,8 +189,13 @@ fn remove_known_spell_erases_override_source_like_cpp() {
         "C++ Player::RemoveSpell erases m_overrideSpells[spell_id] after removing the spell"
     );
     assert_eq!(
-        runtime.override_spells_like_cpp().get(&30).cloned().unwrap_or_default()
-            .into_iter().collect::<Vec<_>>(),
+        runtime
+            .override_spells_like_cpp()
+            .get(&30)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .collect::<Vec<_>>(),
         vec![40],
         "unrelated override spell entries are not removed by m_overrideSpells.erase(spell_id)"
     );
@@ -182,16 +207,27 @@ fn remove_known_spell_removes_trait_definition_override_like_cpp() {
     runtime.add_override_spell_like_cpp(10, 20);
     runtime.add_override_spell_like_cpp(30, 40);
     runtime.set_trait_definition_id_like_cpp(20, Some(7));
-    let catalog = Catalog { traits: BTreeMap::from([(7, 10)]), ..Default::default() };
+    let catalog = Catalog {
+        traits: BTreeMap::from([(7, 10)]),
+        ..Default::default()
+    };
     remove(&mut runtime, &catalog, 20, false);
 
     assert!(
-        !runtime.override_spells_like_cpp().get(&10).is_some_and(|spells| spells.contains(&20)),
+        !runtime
+            .override_spells_like_cpp()
+            .get(&10)
+            .is_some_and(|spells| spells.contains(&20)),
         "C++ Player::RemoveSpell removes TraitDefinition OverridesSpellID -> spell_id pairs"
     );
     assert_eq!(
-        runtime.override_spells_like_cpp().get(&30).cloned().unwrap_or_default()
-            .into_iter().collect::<Vec<_>>(),
+        runtime
+            .override_spells_like_cpp()
+            .get(&30)
+            .cloned()
+            .unwrap_or_default()
+            .into_iter()
+            .collect::<Vec<_>>(),
         vec![40],
         "trait-definition cleanup must not remove unrelated override mappings"
     );

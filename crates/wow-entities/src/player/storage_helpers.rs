@@ -1,23 +1,23 @@
 //! Player storage and equipment planning helpers.
 
 use super::{
-    is_bank_packed_pos, is_equipment_packed_pos, is_inventory_packed_pos, BANK_SLOT_BAG_END,
-    BANK_SLOT_BAG_START, BUYBACK_SLOT_END, BUYBACK_SLOT_START, CanEquipItemOutcome,
-    CanStoreItemOutcome, CanTakeMoreSimilarItemsOutcome, DestroyFilteredItemAction,
-    DestroyFilteredItemRef, DestroyItemCountAction, DestroyItemCountItemRef, DestroyItemCountPlan,
-    EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY, EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_FEET,
-    EQUIPMENT_SLOT_FINGER1, EQUIPMENT_SLOT_FINGER2, EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD,
-    EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_NECK, EQUIPMENT_SLOT_OFFHAND,
-    EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_TABARD, EQUIPMENT_SLOT_TRINKET1,
-    EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS, EquippedGemRef,
-    FindEquipSlotArgs, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
-    InventoryResult, InventoryType, Item, ItemClass, ItemStorageRef, ItemSubclassProfession,
-    MAX_BAG_SIZE, NULL_SLOT, PlayerStorageError,
-    PROFESSION_SLOT_COOKING_GEAR1, PROFESSION_SLOT_COOKING_TOOL, PROFESSION_SLOT_FISHING_TOOL,
-    PROFESSION_SLOT_MAX_COUNT, PROFESSION_SLOT_PROFESSION1_GEAR1,
-    PROFESSION_SLOT_PROFESSION1_GEAR2, PROFESSION_SLOT_PROFESSION1_TOOL,
-    PROFESSION_SLOT_PROFESSION2_GEAR1, PROFESSION_SLOT_PROFESSION2_GEAR2,
-    REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SwapItemRealSwapTarget,
+    BANK_SLOT_BAG_END, BANK_SLOT_BAG_START, BUYBACK_SLOT_END, BUYBACK_SLOT_START,
+    CanEquipItemOutcome, CanStoreItemOutcome, CanTakeMoreSimilarItemsOutcome,
+    DestroyFilteredItemAction, DestroyFilteredItemRef, DestroyItemCountAction,
+    DestroyItemCountItemRef, DestroyItemCountPlan, EQUIPMENT_SLOT_BACK, EQUIPMENT_SLOT_BODY,
+    EQUIPMENT_SLOT_CHEST, EQUIPMENT_SLOT_FEET, EQUIPMENT_SLOT_FINGER1, EQUIPMENT_SLOT_FINGER2,
+    EQUIPMENT_SLOT_HANDS, EQUIPMENT_SLOT_HEAD, EQUIPMENT_SLOT_LEGS, EQUIPMENT_SLOT_MAINHAND,
+    EQUIPMENT_SLOT_NECK, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_SHOULDERS, EQUIPMENT_SLOT_TABARD,
+    EQUIPMENT_SLOT_TRINKET1, EQUIPMENT_SLOT_TRINKET2, EQUIPMENT_SLOT_WAIST, EQUIPMENT_SLOT_WRISTS,
+    EquippedGemRef, FindEquipSlotArgs, INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END,
+    INVENTORY_SLOT_BAG_START, InventoryResult, InventoryType, Item, ItemClass, ItemStorageRef,
+    ItemSubclassProfession, MAX_BAG_SIZE, NULL_SLOT, PROFESSION_SLOT_COOKING_GEAR1,
+    PROFESSION_SLOT_COOKING_TOOL, PROFESSION_SLOT_FISHING_TOOL, PROFESSION_SLOT_MAX_COUNT,
+    PROFESSION_SLOT_PROFESSION1_GEAR1, PROFESSION_SLOT_PROFESSION1_GEAR2,
+    PROFESSION_SLOT_PROFESSION1_TOOL, PROFESSION_SLOT_PROFESSION2_GEAR1,
+    PROFESSION_SLOT_PROFESSION2_GEAR2, PlayerStorageError, REAGENT_BAG_SLOT_END,
+    REAGENT_BAG_SLOT_START, SwapItemRealSwapTarget, is_bank_packed_pos, is_equipment_packed_pos,
+    is_inventory_packed_pos,
 };
 
 pub(super) fn equip_slot_candidates(args: FindEquipSlotArgs<'_>) -> [u8; 4] {
@@ -151,7 +151,11 @@ pub(super) fn has_equipped_item_entry(
     })
 }
 
-pub(super) fn has_equipped_gem_entry(equipped_gems: &[EquippedGemRef], entry: u32, except_slot: u8) -> bool {
+pub(super) fn has_equipped_gem_entry(
+    equipped_gems: &[EquippedGemRef],
+    entry: u32,
+    except_slot: u8,
+) -> bool {
     equipped_gems
         .iter()
         .any(|gem| gem.slot != except_slot && gem.entry == entry)
@@ -428,7 +432,10 @@ pub(super) fn can_store_item_error(
     }
 }
 
-pub(super) fn can_store_item_count_zero(count: u32, no_similar_count: u32) -> Option<CanStoreItemOutcome> {
+pub(super) fn can_store_item_count_zero(
+    count: u32,
+    no_similar_count: u32,
+) -> Option<CanStoreItemOutcome> {
     (count == 0).then(|| {
         if no_similar_count == 0 {
             CanStoreItemOutcome {

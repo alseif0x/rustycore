@@ -6,16 +6,16 @@
 
 use super::super::*;
 
-mod bank;
-mod store_admission;
-mod usability;
-mod destruction_plans;
-mod swap_plans;
 mod bag_operations;
-mod lookup_iteration;
+mod bank;
 mod buyback;
+mod destruction_plans;
 mod durations;
+mod lookup_iteration;
 mod mutations;
+mod store_admission;
+mod swap_plans;
+mod usability;
 
 impl Player {
     pub fn inventory(&self) -> &PlayerInventoryStorage {
@@ -117,5 +117,4 @@ impl Player {
             slot,
         );
     }
-
 }

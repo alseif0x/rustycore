@@ -16,10 +16,10 @@ pub use auras::{CreatureAuraSlotFacts, CreatureInitialAuraFacts};
 pub use create::CreatureCreateFacts;
 pub use message::CreatureMessageSourceFacts;
 
+use super::{GridLifecycle, Map, TerrainGridLoader};
+use crate::map_manager::WorldCreature;
 use wow_core::{ObjectGuid, Position};
 use wow_entities::{Creature, PhaseShift, UnitVisibilityTargetFacts};
-use crate::map_manager::WorldCreature;
-use super::{GridLifecycle, Map, TerrainGridLoader};
 
 /// All target values from the same read window; the caller observes Player later.
 #[derive(Debug)]
@@ -51,7 +51,9 @@ impl CreatureVisibilityCandidate {
             target: creature.unit().capture_visibility_target(),
             create: CreatureCreateFacts::compatible(creature),
             initial_auras: CreatureInitialAuraFacts::capture(
-                creature.guid(), creature.level(), &creature.unit().subsystems().auras,
+                creature.guid(),
+                creature.level(),
+                &creature.unit().subsystems().auras,
             ),
         }
     }

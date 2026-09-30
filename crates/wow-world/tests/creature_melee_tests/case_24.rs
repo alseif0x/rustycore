@@ -13,8 +13,8 @@ use super::*;
 /// (`Unit.cpp:1348-1355`).
 #[test]
 fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
-    use wow_world::map_manager::RuntimeTickOwner;
     use wow_packet::packets::combat::{HIT_INFO_AFFECTS_VICTIM, HIT_INFO_MISS};
+    use wow_world::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
     let canonical = shared_canonical_map_manager();
@@ -209,32 +209,33 @@ fn legacy_creature_melee_tick_once_resolves_creature_victim_bands_like_cpp() {
 
     // Decode `victimState` sequentially: hitInfo, both packed guids, damage,
     // original, over, the sub-damage block and then the victim state.
-    let wire_victim_state = |outcome: &wow_world::session::LegacyCreatureMeleeTickOutcomeLikeCpp| {
-        let event = outcome
-            .plan
-            .events
-            .iter()
-            .find(|event| {
-                event.packet_bytes.len() > 2
-                    && u16::from_le_bytes([event.packet_bytes[0], event.packet_bytes[1]])
-                        == wow_constants::ServerOpcodes::AttackerStateUpdate as u16
-            })
-            .expect("attacker state update event");
-        let mut packet = wow_packet::world_packet::WorldPacket::from_bytes(&event.packet_bytes);
-        packet.read_uint16().expect("opcode");
-        packet.read_bit().expect("has_log_data");
-        let info_len = packet.read_uint32().expect("attackRoundInfo size") as usize;
-        let info_bytes = packet.read_bytes(info_len).expect("attackRoundInfo bytes");
-        let mut info = wow_packet::world_packet::WorldPacket::from_bytes(&info_bytes);
-        let hit_info = info.read_uint32().expect("hitInfo");
-        info.read_packed_guid().expect("attacker");
-        info.read_packed_guid().expect("victim");
-        info.read_int32().expect("damage");
-        info.read_int32().expect("original damage");
-        info.read_int32().expect("over damage");
-        read_sub_damage(&mut info, hit_info);
-        info.read_uint8().expect("victim state")
-    };
+    let wire_victim_state =
+        |outcome: &wow_world::session::LegacyCreatureMeleeTickOutcomeLikeCpp| {
+            let event = outcome
+                .plan
+                .events
+                .iter()
+                .find(|event| {
+                    event.packet_bytes.len() > 2
+                        && u16::from_le_bytes([event.packet_bytes[0], event.packet_bytes[1]])
+                            == wow_constants::ServerOpcodes::AttackerStateUpdate as u16
+                })
+                .expect("attacker state update event");
+            let mut packet = wow_packet::world_packet::WorldPacket::from_bytes(&event.packet_bytes);
+            packet.read_uint16().expect("opcode");
+            packet.read_bit().expect("has_log_data");
+            let info_len = packet.read_uint32().expect("attackRoundInfo size") as usize;
+            let info_bytes = packet.read_bytes(info_len).expect("attackRoundInfo bytes");
+            let mut info = wow_packet::world_packet::WorldPacket::from_bytes(&info_bytes);
+            let hit_info = info.read_uint32().expect("hitInfo");
+            info.read_packed_guid().expect("attacker");
+            info.read_packed_guid().expect("victim");
+            info.read_int32().expect("damage");
+            info.read_int32().expect("original damage");
+            info.read_int32().expect("over damage");
+            read_sub_damage(&mut info, hit_info);
+            info.read_uint8().expect("victim state")
+        };
 
     // Decode the appended `int32(BlockAmount)` exactly like the packet
     // writer's own block test.

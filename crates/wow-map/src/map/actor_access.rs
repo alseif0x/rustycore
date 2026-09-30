@@ -5,8 +5,8 @@
 //! Production registration and the runtime producer are not switched here.
 
 use super::{
-    AccessorObjectKind, CreatureActorWitness, GridLifecycle, Map, MapObjectStoreError,
-    ObjectEntry, TerrainGridLoader,
+    AccessorObjectKind, CreatureActorWitness, GridLifecycle, Map, MapObjectStoreError, ObjectEntry,
+    TerrainGridLoader,
 };
 use crate::map_manager::WorldCreature;
 use wow_core::ObjectGuid;
@@ -16,15 +16,25 @@ pub use fresh::{FreshCreatureActorAdmission, FreshCreatureActorAdmissionError};
 
 #[derive(Debug)]
 pub(crate) enum CreatureActorAdmission {
-    Inserted { witness: CreatureActorWitness },
-    ExistingActor { incoming: WorldCreature, witness: CreatureActorWitness },
-    ExistingRecord { incoming: WorldCreature },
+    Inserted {
+        witness: CreatureActorWitness,
+    },
+    ExistingActor {
+        incoming: WorldCreature,
+        witness: CreatureActorWitness,
+    },
+    ExistingRecord {
+        incoming: WorldCreature,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum CreatureActorAdmissionError {
     Store(MapObjectStoreError),
-    NotExactCreature { guid: ObjectGuid, actual_kind: AccessorObjectKind },
+    NotExactCreature {
+        guid: ObjectGuid,
+        actual_kind: AccessorObjectKind,
+    },
 }
 
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
@@ -46,10 +56,13 @@ where
         let guid = incoming.guid();
         if let Some(current) = self.entity_world.get(&guid) {
             if current.kind() != AccessorObjectKind::Creature || current.creature().is_none() {
-                return Err((CreatureActorAdmissionError::NotExactCreature {
-                    guid,
-                    actual_kind: current.kind(),
-                }, incoming));
+                return Err((
+                    CreatureActorAdmissionError::NotExactCreature {
+                        guid,
+                        actual_kind: current.kind(),
+                    },
+                    incoming,
+                ));
             }
             return Ok(match self.creature_actor_witness(guid) {
                 Some(witness) => CreatureActorAdmission::ExistingActor { incoming, witness },
@@ -64,14 +77,17 @@ where
             ObjectEntry::CreatureActor(actor) => actor.witness(),
             ObjectEntry::Record(_) => unreachable!("actor constructor cannot produce a Record"),
         };
-        let displaced = self.insert_object_entry(entry)
+        let displaced = self
+            .insert_object_entry(entry)
             .expect("the actor's map identity was validated before constructing its entry");
         debug_assert!(displaced.is_none());
         Ok(CreatureActorAdmission::Inserted { witness })
     }
 
     pub(crate) fn creature_actor(&self, guid: ObjectGuid) -> Option<&WorldCreature> {
-        self.entity_world.creature_actor(guid).map(|entry| entry.actor())
+        self.entity_world
+            .creature_actor(guid)
+            .map(|entry| entry.actor())
     }
 
     /// Move a real actor into an empty fixture slot through normal admission.
@@ -91,11 +107,15 @@ where
     }
 
     pub(crate) fn creature_actor_mut(&mut self, guid: ObjectGuid) -> Option<&mut WorldCreature> {
-        self.entity_world.creature_actor_mut(guid).map(|entry| entry.actor_mut())
+        self.entity_world
+            .creature_actor_mut(guid)
+            .map(|entry| entry.actor_mut())
     }
 
     pub(crate) fn creature_actor_witness(&self, guid: ObjectGuid) -> Option<CreatureActorWitness> {
-        self.entity_world.creature_actor(guid).map(|entry| entry.witness())
+        self.entity_world
+            .creature_actor(guid)
+            .map(|entry| entry.witness())
     }
 }
 

@@ -3,12 +3,15 @@
 //! through the real InstanceLock lookup; it does not enable the cfg(test) fallback.
 use super::recovery_support::*;
 use std::collections::HashMap;
-use wow_world::test_fixtures::loot::*;
+use wow_loot::{
+    LootStore, LootStoreItem, LootStoreKind, LootStores, LootTemplateRow, loot_is_looted_like_cpp,
+};
 use wow_world::test_fixtures::loot::attach_loot_allocator_for_test as attach_loot_guid_allocator_for_owner;
-use wow_loot::{LootStore, LootStores, LootStoreKind, LootStoreItem, LootTemplateRow, loot_is_looted_like_cpp};
+use wow_world::test_fixtures::loot::*;
 
 fn install_unknown_encounter_catalog(session: &mut WorldSession) {
-    session.set_dungeon_encounter_store(Arc::new(wow_data::DungeonEncounterStore::from_entries([])));
+    session
+        .set_dungeon_encounter_store(Arc::new(wow_data::DungeonEncounterStore::from_entries([])));
 }
 
 #[tokio::test]
@@ -65,8 +68,7 @@ async fn represented_personal_encounter_late_session_without_canonical_tap_list_
         personal_loot_id,
         ..Default::default()
     };
-    open_money_loot_normally_for_test(&mut first, gameobject_guid, source)
-        .await;
+    open_money_loot_normally_for_test(&mut first, gameobject_guid, source).await;
     let authority = canonical_gameobject_snapshot(&first, gameobject_guid)
         .unwrap()
         .loot_authority_like_cpp()
@@ -75,8 +77,7 @@ async fn represented_personal_encounter_late_session_without_canonical_tap_list_
         .snapshot_for_player_like_cpp(first_player)
         .expect("the first opener owns the initial encounter pool");
 
-    open_money_loot_normally_for_test(&mut second, gameobject_guid, source)
-        .await;
+    open_money_loot_normally_for_test(&mut second, gameobject_guid, source).await;
 
     let personal = authority.personal_snapshots_like_cpp();
     assert_eq!(personal.len(), 1);
@@ -107,16 +108,17 @@ async fn represented_empty_personal_encounter_chest_does_not_install_or_open_lik
     );
     attach_canonical_gameobject(&mut session, gameobject);
 
-    open_money_loot_normally_for_test(&mut session, 
-            gameobject_guid,
-            GameObjectLootSource {
-                loot_id: 0,
-                dungeon_encounter_id: 733,
-                personal_loot_id: 10_016,
-                ..Default::default()
-            },
-        )
-        .await;
+    open_money_loot_normally_for_test(
+        &mut session,
+        gameobject_guid,
+        GameObjectLootSource {
+            loot_id: 0,
+            dungeon_encounter_id: 733,
+            personal_loot_id: 10_016,
+            ..Default::default()
+        },
+    )
+    .await;
 
     let gameobject = canonical_gameobject_snapshot(&session, gameobject_guid).unwrap();
     assert!(gameobject.loot_authority_like_cpp().is_pristine_like_cpp());
@@ -127,12 +129,12 @@ async fn represented_empty_personal_encounter_chest_does_not_install_or_open_lik
             .is_empty()
     );
     assert!(!has_loot_for_test(&session, gameobject_guid));
-    assert!(
-        !is_personal_loot_owner_for_test(&session, gameobject_guid)
-    );
-    assert!(
-        !has_personal_loot_money_entry_for_test(&session, gameobject_guid, player_guid)
-    );
+    assert!(!is_personal_loot_owner_for_test(&session, gameobject_guid));
+    assert!(!has_personal_loot_money_entry_for_test(
+        &session,
+        gameobject_guid,
+        player_guid
+    ));
     assert!(!is_active_loot_guid_for_test(&session, gameobject_guid));
     assert!(send_rx.try_recv().is_err());
 }
@@ -178,16 +180,17 @@ async fn represented_nonempty_personal_encounter_chest_keeps_live_canonical_pool
     stores.insert(LootStoreKind::Gameobject, gameobject_store);
     session.set_loot_stores(Arc::new(stores));
 
-    open_money_loot_normally_for_test(&mut session, 
-            gameobject_guid,
-            GameObjectLootSource {
-                loot_id: 0,
-                dungeon_encounter_id: 733,
-                personal_loot_id,
-                ..Default::default()
-            },
-        )
-        .await;
+    open_money_loot_normally_for_test(
+        &mut session,
+        gameobject_guid,
+        GameObjectLootSource {
+            loot_id: 0,
+            dungeon_encounter_id: 733,
+            personal_loot_id,
+            ..Default::default()
+        },
+    )
+    .await;
 
     let gameobject = canonical_gameobject_snapshot(&session, gameobject_guid).unwrap();
     let pool = gameobject
@@ -220,14 +223,10 @@ async fn represented_gameobject_personal_encounter_loot_uses_current_player_when
         ..Default::default()
     };
 
-    let loot = generate_chest_loot_for_test(&mut session, 
-            gameobject_guid,
-            player_guid,
-            source,
-            &[],
-        )
-        .await
-        .expect("canonical owner map allocates a LootObject");
+    let loot =
+        generate_chest_loot_for_test(&mut session, gameobject_guid, player_guid, source, &[])
+            .await
+            .expect("canonical owner map allocates a LootObject");
 
     assert_eq!(loot.allowed_looters, vec![player_guid]);
     assert!(
@@ -236,12 +235,12 @@ async fn represented_gameobject_personal_encounter_loot_uses_current_player_when
             .all(|entry| entry.allowed_looters == vec![player_guid])
     );
     assert_eq!(loot.coins, 0);
-    assert!(
-        is_personal_loot_owner_for_test(&session, gameobject_guid)
-    );
-    assert!(
-        has_personal_loot_money_entry_for_test(&session, gameobject_guid, player_guid)
-    );
+    assert!(is_personal_loot_owner_for_test(&session, gameobject_guid));
+    assert!(has_personal_loot_money_entry_for_test(
+        &session,
+        gameobject_guid,
+        player_guid
+    ));
 }
 
 #[tokio::test]
@@ -253,7 +252,8 @@ async fn represented_gameobject_personal_encounter_loot_uses_tap_list_like_cpp()
     let non_player_tapper = ObjectGuid::create_item(1, 900);
     let gameobject_guid = test_gameobject_guid(91_009);
     attach_loot_guid_allocator_for_owner(&mut session, gameobject_guid);
-    set_loot_gameobject_tappers_for_test(&mut session, 
+    set_loot_gameobject_tappers_for_test(
+        &mut session,
         gameobject_guid,
         vec![
             second_tapper,
@@ -273,14 +273,10 @@ async fn represented_gameobject_personal_encounter_loot_uses_tap_list_like_cpp()
         ..Default::default()
     };
 
-    let loot = generate_chest_loot_for_test(&mut session, 
-            gameobject_guid,
-            first_tapper,
-            source,
-            &[],
-        )
-        .await
-        .expect("canonical owner map allocates a LootObject");
+    let loot =
+        generate_chest_loot_for_test(&mut session, gameobject_guid, first_tapper, source, &[])
+            .await
+            .expect("canonical owner map allocates a LootObject");
 
     assert_eq!(loot.allowed_looters, vec![first_tapper, second_tapper]);
     assert!(
@@ -289,13 +285,15 @@ async fn represented_gameobject_personal_encounter_loot_uses_tap_list_like_cpp()
             .all(|entry| entry.allowed_looters == vec![first_tapper, second_tapper])
     );
     assert_eq!(loot.coins, 0);
-    assert!(
-        is_personal_loot_owner_for_test(&session, gameobject_guid)
-    );
-    assert!(
-        has_personal_loot_money_entry_for_test(&session, gameobject_guid, first_tapper)
-    );
-    assert!(
-        has_personal_loot_money_entry_for_test(&session, gameobject_guid, second_tapper)
-    );
+    assert!(is_personal_loot_owner_for_test(&session, gameobject_guid));
+    assert!(has_personal_loot_money_entry_for_test(
+        &session,
+        gameobject_guid,
+        first_tapper
+    ));
+    assert!(has_personal_loot_money_entry_for_test(
+        &session,
+        gameobject_guid,
+        second_tapper
+    ));
 }

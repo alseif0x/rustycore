@@ -27,11 +27,16 @@ impl CreatureMeleeSource<'_> {
         match self {
             Self::Legacy(actor) => actor,
             Self::CanonicalSelected { key, guid, witness } => {
-                let map = manager.find_map(key.map_id, key.instance_id)
-                    .expect("the validated map remains borrowed by the synchronous motor").map();
-                assert!(map.creature_actor_witness(*guid)
-                    .is_some_and(|current| current.same_actor(witness)));
-                map.creature_actor(*guid).expect("the admitted actor remains in its slot")
+                let map = manager
+                    .find_map(key.map_id, key.instance_id)
+                    .expect("the validated map remains borrowed by the synchronous motor")
+                    .map();
+                assert!(
+                    map.creature_actor_witness(*guid)
+                        .is_some_and(|current| current.same_actor(witness))
+                );
+                map.creature_actor(*guid)
+                    .expect("the admitted actor remains in its slot")
             }
         }
     }
@@ -40,16 +45,23 @@ impl CreatureMeleeSource<'_> {
         match self {
             Self::Legacy(actor) => actor,
             Self::CanonicalSelected { key, guid, witness } => {
-                let map = manager.find_map_mut(key.map_id, key.instance_id)
-                    .expect("the validated map remains borrowed by the synchronous motor").map_mut();
-                assert!(map.creature_actor_witness(*guid)
-                    .is_some_and(|current| current.same_actor(witness)));
-                map.creature_actor_mut(*guid).expect("the admitted actor remains in its slot")
+                let map = manager
+                    .find_map_mut(key.map_id, key.instance_id)
+                    .expect("the validated map remains borrowed by the synchronous motor")
+                    .map_mut();
+                assert!(
+                    map.creature_actor_witness(*guid)
+                        .is_some_and(|current| current.same_actor(witness))
+                );
+                map.creature_actor_mut(*guid)
+                    .expect("the admitted actor remains in its slot")
             }
         }
     }
 
-    pub(super) fn prepare_swing(&mut self, canonical_manager: &mut MapManager,
+    pub(super) fn prepare_swing(
+        &mut self,
+        canonical_manager: &mut MapManager,
         swing: &mut PendingCreatureSwingLikeCpp,
     ) -> Result<(), SourceAdmission> {
         let attacker = self.actor(canonical_manager);
@@ -83,8 +95,10 @@ impl CreatureMeleeSource<'_> {
         Ok(())
     }
 
-    fn verify_and_align_legacy(canonical_manager: &mut MapManager,
-        attacker: &WorldCreature, swing: &PendingCreatureSwingLikeCpp,
+    fn verify_and_align_legacy(
+        canonical_manager: &mut MapManager,
+        attacker: &WorldCreature,
+        swing: &PendingCreatureSwingLikeCpp,
     ) -> Result<(), SourceAdmission> {
         let canonical_attacker_is_same_incarnation = canonical_manager
             .find_map(u32::from(swing.map_id), swing.instance_id)
@@ -127,16 +141,24 @@ impl CreatureMeleeSource<'_> {
         Ok(())
     }
 
-    pub(super) fn effects(&self, manager: &MapManager,
-        catalogs: &impl CreatureMeleeCatalogsLikeCpp, difficulty: u8,
+    pub(super) fn effects(
+        &self,
+        manager: &MapManager,
+        catalogs: &impl CreatureMeleeCatalogsLikeCpp,
+        difficulty: u8,
     ) -> Vec<AppliedAuraEffectLikeCpp> {
         let attacker = self.actor(manager);
         catalogs.creature_effects(
-            &attacker.creature.unit().subsystems().auras.applied_auras, difficulty)
+            &attacker.creature.unit().subsystems().auras.applied_auras,
+            difficulty,
+        )
     }
 
     pub(super) fn flags_extra(&self, manager: &MapManager) -> u32 {
-        self.actor(manager).creature.lifecycle_metadata().flags_extra
+        self.actor(manager)
+            .creature
+            .lifecycle_metadata()
+            .flags_extra
     }
 
     pub(super) fn level(&self, manager: &MapManager) -> u8 {
@@ -144,7 +166,9 @@ impl CreatureMeleeSource<'_> {
     }
 
     pub(super) fn is_player_controlled(&self, manager: &MapManager) -> bool {
-        self.actor(manager).creature.is_charmed_owned_by_player_or_player_like_cpp()
+        self.actor(manager)
+            .creature
+            .is_charmed_owned_by_player_or_player_like_cpp()
     }
 
     pub(super) fn base_attack_speed(&self, manager: &MapManager) -> u32 {
@@ -156,7 +180,8 @@ impl CreatureMeleeSource<'_> {
     }
 
     pub(super) fn invalidate_rng(&mut self, manager: &mut MapManager) {
-        self.actor_mut(manager).invalidate_runtime_rng_authority_like_cpp();
+        self.actor_mut(manager)
+            .invalidate_runtime_rng_authority_like_cpp();
     }
 
     pub(super) fn retry(&mut self, manager: &mut MapManager) {
@@ -171,7 +196,10 @@ impl CreatureMeleeSource<'_> {
         // Deliberately no late alive gate: preserve removal -> timer reset,
         // including after a successful primary commit against the same actor.
         let attacker = self.actor_mut(manager);
-        let removed = attacker.creature.unit_mut().remove_attacking_interrupt_auras_like_cpp();
+        let removed = attacker
+            .creature
+            .unit_mut()
+            .remove_attacking_interrupt_auras_like_cpp();
         attacker.record_swing();
         removed
     }

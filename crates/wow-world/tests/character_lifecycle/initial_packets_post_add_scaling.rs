@@ -3,14 +3,6 @@ use super::fixtures::*;
 
 use std::sync::Arc;
 
-use wow_world::session::{
-    SessionState, WorldSession,
-};
-use wow_world::test_fixtures::{
-    CollectionLoadPortLikeCpp, install_canonical_player_owner_for_test,
-    set_equipment_set_guid_generator_for_test, set_loaded_player_identity_like_cpp,
-    set_player_position_for_test,
-};
 use wow_constants::ServerOpcodes;
 use wow_core::guid::HighGuid;
 use wow_core::{EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator, Position};
@@ -23,6 +15,12 @@ use wow_data::{
 use wow_packet::WorldPacket;
 use wow_persistence::{
     PlayerInitialWorldStateRowsLikeCpp, PlayerInitialWorldStatesLoadOutcomeLikeCpp,
+};
+use wow_world::session::{SessionState, WorldSession};
+use wow_world::test_fixtures::{
+    CollectionLoadPortLikeCpp, install_canonical_player_owner_for_test,
+    set_equipment_set_guid_generator_for_test, set_loaded_player_identity_like_cpp,
+    set_player_position_for_test,
 };
 
 fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Receiver<Vec<u8>>) {

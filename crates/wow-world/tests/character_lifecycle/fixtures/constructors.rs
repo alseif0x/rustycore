@@ -52,9 +52,7 @@ pub mod session {
     }
 }
 
-pub fn run_canonical_player_owner_test(
-    test: impl FnOnce() + Send + 'static,
-) {
+pub fn run_canonical_player_owner_test(test: impl FnOnce() + Send + 'static) {
     std::thread::Builder::new()
         .name("canonical-player-owner".into())
         .stack_size(8 * 1024 * 1024)
@@ -91,9 +89,7 @@ pub fn canonical_player_transfer_test_map_store_like_cpp() -> Arc<wow_data::MapS
     ]))
 }
 
-pub fn drain_server_packet_bytes(
-    send_rx: &flume::Receiver<Vec<u8>>,
-) -> Vec<Vec<u8>> {
+pub fn drain_server_packet_bytes(send_rx: &flume::Receiver<Vec<u8>>) -> Vec<Vec<u8>> {
     let mut packets = Vec::new();
     while let Ok(bytes) = send_rx.try_recv() {
         packets.push(bytes);

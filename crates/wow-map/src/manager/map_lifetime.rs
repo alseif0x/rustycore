@@ -11,7 +11,9 @@ pub struct MapUnloadBlockedLikeCpp {
 
 impl MapManager {
     pub fn destroy_map(&mut self, map_id: u32, instance_id: u32) -> bool {
-        if self.active_respawn.is_some() { return false; }
+        if self.active_respawn.is_some() {
+            return false;
+        }
         let key = MapKey::new(map_id, instance_id);
         let Some(map) = self.maps.get_mut(&key) else {
             return false;
@@ -32,7 +34,10 @@ impl MapManager {
         // The current runtime has no Map-owned evacuation delivery yet. Retain
         // the owner until its real transfer/detach completes; never fake evacuation
         // by clearing a compatibility counter. No callbacks or I/O under this owner.
-        if respawn_in_flight || map.have_players() || map.map().respawn_store_like_cpp().has_reservations() {
+        if respawn_in_flight
+            || map.have_players()
+            || map.map().respawn_store_like_cpp().has_reservations()
+        {
             return false;
         }
         map.unload_all();
@@ -48,13 +53,17 @@ impl MapManager {
     /// remain owned here and are not implicitly retired by deleting map storage.
     pub fn unload_all(&mut self) -> Result<(), MapUnloadBlockedLikeCpp> {
         if let Some(operation) = &self.active_respawn {
-            return Err(MapUnloadBlockedLikeCpp { occupied_maps: vec![operation.participant.key] });
+            return Err(MapUnloadBlockedLikeCpp {
+                occupied_maps: vec![operation.participant.key],
+            });
         }
         let occupied_maps: Vec<_> = self
             .maps
             .iter()
-            .filter_map(|(key, map)| (map.have_players()
-                || map.map().respawn_store_like_cpp().has_reservations()).then_some(*key))
+            .filter_map(|(key, map)| {
+                (map.have_players() || map.map().respawn_store_like_cpp().has_reservations())
+                    .then_some(*key)
+            })
             .collect();
         if !occupied_maps.is_empty() {
             return Err(MapUnloadBlockedLikeCpp { occupied_maps });

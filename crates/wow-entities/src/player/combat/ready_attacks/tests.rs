@@ -37,16 +37,22 @@ fn ready_player(with_offhand: bool) -> Player {
         item.object_mut().create(guid);
         item.set_max_durability(100);
         item.set_durability(100);
-        player.inventory_runtime_mut_like_cpp().inventory_items_mut().insert(
-            EQUIPMENT_SLOT_OFFHAND,
-            PlayerInventoryItem {
-                guid,
-                entry_id: 61_001,
-                db_guid: 61_001,
-                inventory_type: Some(InventoryType::WeaponOffhand as u8),
-            },
-        );
-        player.inventory_runtime_mut_like_cpp().item_objects_mut().insert(guid, item);
+        player
+            .inventory_runtime_mut_like_cpp()
+            .inventory_items_mut()
+            .insert(
+                EQUIPMENT_SLOT_OFFHAND,
+                PlayerInventoryItem {
+                    guid,
+                    entry_id: 61_001,
+                    db_guid: 61_001,
+                    inventory_type: Some(InventoryType::WeaponOffhand as u8),
+                },
+            );
+        player
+            .inventory_runtime_mut_like_cpp()
+            .item_objects_mut()
+            .insert(guid, item);
     }
     player
 }
@@ -132,12 +138,19 @@ fn only_generic_and_channeled_spells_pause_attack_timers() {
             }),
             None,
         );
-        let expected = if paused { [700, 900, 1_100] } else { [400, 600, 800] };
+        let expected = if paused {
+            [700, 900, 1_100]
+        } else {
+            [400, 600, 800]
+        };
         for (attack, timer) in [
             WeaponAttackType::BaseAttack,
             WeaponAttackType::OffAttack,
             WeaponAttackType::RangedAttack,
-        ].into_iter().zip(expected) {
+        ]
+        .into_iter()
+        .zip(expected)
+        {
             assert_eq!(player.unit().attack_timer(attack), timer);
         }
     }
@@ -147,7 +160,9 @@ fn only_generic_and_channeled_spells_pause_attack_timers() {
 fn casting_channel_without_actions_blocks_ready_attacks() {
     let mut player = ready_player(true);
     let channel = CurrentSpellRef::new(713, None, None).with_cast_time_ms(2_000);
-    player.unit_mut().set_current_cast_spell(CurrentSpellSlot::Channeled, channel);
+    player
+        .unit_mut()
+        .set_current_cast_spell(CurrentSpellSlot::Channeled, channel);
 
     assert_eq!(
         player.take_ready_melee_attacks::<()>(100, true, true, true, 200, |_, _, _| {
@@ -157,7 +172,10 @@ fn casting_channel_without_actions_blocks_ready_attacks() {
     );
     assert_eq!(player.unit().attack_timer(WeaponAttackType::BaseAttack), 0);
     assert_eq!(player.unit().attack_timer(WeaponAttackType::OffAttack), 0);
-    assert_eq!(player.unit().current_spell(CurrentSpellSlot::Channeled), Some(channel));
+    assert_eq!(
+        player.unit().current_spell(CurrentSpellSlot::Channeled),
+        Some(channel)
+    );
 }
 
 #[test]
@@ -168,23 +186,42 @@ fn channel_actions_and_timer_pause_are_independent() {
             .with_cast_time_ms(2_000)
             .with_allow_actions_during_channel(true)
             .with_delay_combat_timer_during_cast(paused);
-        player.unit_mut().set_current_cast_spell(CurrentSpellSlot::Channeled, channel);
-        player.unit_mut().set_attack_timer(WeaponAttackType::BaseAttack, 100);
+        player
+            .unit_mut()
+            .set_current_cast_spell(CurrentSpellSlot::Channeled, channel);
+        player
+            .unit_mut()
+            .set_attack_timer(WeaponAttackType::BaseAttack, 100);
 
-        let first = player.take_ready_melee_attacks(150, true, true, true, 200, |attack, _, _| attack);
+        let first =
+            player.take_ready_melee_attacks(150, true, true, true, 200, |attack, _, _| attack);
         if paused {
             assert_eq!(first, None);
-            assert_eq!(player.unit().attack_timer(WeaponAttackType::BaseAttack), 100);
-            player.unit_mut().set_attack_timer(WeaponAttackType::BaseAttack, 0);
+            assert_eq!(
+                player.unit().attack_timer(WeaponAttackType::BaseAttack),
+                100
+            );
+            player
+                .unit_mut()
+                .set_attack_timer(WeaponAttackType::BaseAttack, 0);
             assert_eq!(
                 player.take_ready_melee_attacks(150, true, true, true, 200, |attack, _, _| attack),
                 Some((vec![WeaponAttackType::BaseAttack], Some(None))),
             );
         } else {
-            assert_eq!(first, Some((vec![WeaponAttackType::BaseAttack], Some(None))));
+            assert_eq!(
+                first,
+                Some((vec![WeaponAttackType::BaseAttack], Some(None)))
+            );
         }
-        assert_eq!(player.unit().attack_timer(WeaponAttackType::BaseAttack), 2_000);
-        assert_eq!(player.unit().current_spell(CurrentSpellSlot::Channeled), Some(channel));
+        assert_eq!(
+            player.unit().attack_timer(WeaponAttackType::BaseAttack),
+            2_000
+        );
+        assert_eq!(
+            player.unit().current_spell(CurrentSpellSlot::Channeled),
+            Some(channel)
+        );
         assert!(player.unit().has_unit_state(UnitState::CASTING.bits()));
     }
 }
@@ -200,7 +237,10 @@ fn range_error_precedes_facing_and_both_attacks_use_short_retry() {
             }),
             Some((vec![], Some(Some(error)))),
         );
-        assert_eq!(player.unit().attack_timer(WeaponAttackType::BaseAttack), 100);
+        assert_eq!(
+            player.unit().attack_timer(WeaponAttackType::BaseAttack),
+            100
+        );
         assert_eq!(player.unit().attack_timer(WeaponAttackType::OffAttack), 100);
         assert!(player.unit().subsystems().auras.has_applied(interrupted));
     }
@@ -209,38 +249,62 @@ fn range_error_precedes_facing_and_both_attacks_use_short_retry() {
 #[test]
 fn mainhand_precedes_offhand_and_supplies_effective_weapon_snapshots() {
     let mut player = ready_player(true);
-    let first = player.take_ready_melee_attacks(0, true, true, true, 200, |attack, range, multiplier| {
-        (attack, range, multiplier)
-    });
+    let first =
+        player.take_ready_melee_attacks(0, true, true, true, 200, |attack, range, multiplier| {
+            (attack, range, multiplier)
+        });
     assert_eq!(
         first,
-        Some((vec![(WeaponAttackType::BaseAttack, [11.0, 13.0], 1.25)], Some(None))),
+        Some((
+            vec![(WeaponAttackType::BaseAttack, [11.0, 13.0], 1.25)],
+            Some(None)
+        )),
     );
-    assert_eq!(player.unit().attack_timer(WeaponAttackType::BaseAttack), 2_000);
+    assert_eq!(
+        player.unit().attack_timer(WeaponAttackType::BaseAttack),
+        2_000
+    );
     assert_eq!(player.unit().attack_timer(WeaponAttackType::OffAttack), 200);
 
-    let second = player.take_ready_melee_attacks(200, true, true, true, 200, |attack, range, multiplier| {
-        (attack, range, multiplier)
-    });
+    let second =
+        player.take_ready_melee_attacks(200, true, true, true, 200, |attack, range, multiplier| {
+            (attack, range, multiplier)
+        });
     assert_eq!(
         second,
         Some((vec![(WeaponAttackType::OffAttack, [5.0, 6.0], 1.25)], None)),
     );
-    assert_eq!(player.unit().attack_timer(WeaponAttackType::BaseAttack), 1_800);
-    assert_eq!(player.unit().attack_timer(WeaponAttackType::OffAttack), 1_500);
+    assert_eq!(
+        player.unit().attack_timer(WeaponAttackType::BaseAttack),
+        1_800
+    );
+    assert_eq!(
+        player.unit().attack_timer(WeaponAttackType::OffAttack),
+        1_500
+    );
 }
 
 #[test]
 fn offhand_only_never_updates_the_mainhand_error() {
     for (in_range, facing) in [(true, true), (false, false), (true, false)] {
         let mut player = ready_player(true);
-        player.unit_mut().set_attack_timer(WeaponAttackType::BaseAttack, 500);
+        player
+            .unit_mut()
+            .set_attack_timer(WeaponAttackType::BaseAttack, 500);
         player.set_attack_swing_error_like_cpp(Some(1));
-        let outcome = player.take_ready_melee_attacks(0, in_range, facing, true, 200, |attack, _, _| attack);
-        let expected = if in_range && facing { vec![WeaponAttackType::OffAttack] } else { vec![] };
+        let outcome =
+            player.take_ready_melee_attacks(0, in_range, facing, true, 200, |attack, _, _| attack);
+        let expected = if in_range && facing {
+            vec![WeaponAttackType::OffAttack]
+        } else {
+            vec![]
+        };
         assert_eq!(outcome, Some((expected, None)));
         assert_eq!(player.attack_swing_error_like_cpp(), Some(1));
-        assert_eq!(player.unit().attack_timer(WeaponAttackType::BaseAttack), 500);
+        assert_eq!(
+            player.unit().attack_timer(WeaponAttackType::BaseAttack),
+            500
+        );
         assert_eq!(
             player.unit().attack_timer(WeaponAttackType::OffAttack),
             if in_range && facing { 1_500 } else { 100 },
@@ -253,14 +317,21 @@ fn offhand_requires_equipment_and_nonferal_form() {
     for admission in ["missing", "broken", "feral"] {
         let mut player = ready_player(admission != "missing");
         player.unit_mut().set_can_dual_wield_like_cpp(true);
-        player.unit_mut().set_attack_timer(WeaponAttackType::BaseAttack, 500);
+        player
+            .unit_mut()
+            .set_attack_timer(WeaponAttackType::BaseAttack, 500);
         match admission {
             "broken" => {
-                player.inventory_runtime_mut_like_cpp().item_objects_mut()
-                    .get_mut(&ObjectGuid::create_item(1, 61_001)).expect("offhand item")
+                player
+                    .inventory_runtime_mut_like_cpp()
+                    .item_objects_mut()
+                    .get_mut(&ObjectGuid::create_item(1, 61_001))
+                    .expect("offhand item")
                     .set_durability(0);
             }
-            "feral" => player.unit_mut().set_shapeshift_form_like_cpp(ShapeShiftForm::CatForm),
+            "feral" => player
+                .unit_mut()
+                .set_shapeshift_form_like_cpp(ShapeShiftForm::CatForm),
             _ => {}
         }
         assert_eq!(
@@ -274,7 +345,9 @@ fn offhand_requires_equipment_and_nonferal_form() {
 
     // The mainhand sibling delay still applies with an equipped weapon in feral form.
     let mut player = ready_player(true);
-    player.unit_mut().set_shapeshift_form_like_cpp(ShapeShiftForm::CatForm);
+    player
+        .unit_mut()
+        .set_shapeshift_form_like_cpp(ShapeShiftForm::CatForm);
     assert_eq!(
         player.take_ready_melee_attacks(0, true, true, true, 200, |attack, _, _| attack),
         Some((vec![WeaponAttackType::BaseAttack], Some(None))),
@@ -288,27 +361,42 @@ fn attack_admission_blocks_still_reset_and_separate_timers() {
         for offhand_only in [false, true] {
             let mut player = ready_player(true);
             if offhand_only {
-                player.unit_mut().set_attack_timer(WeaponAttackType::BaseAttack, 50);
+                player
+                    .unit_mut()
+                    .set_attack_timer(WeaponAttackType::BaseAttack, 50);
             }
             let (interrupted, kept) = install_interrupt_auras(&mut player);
             let melee = CurrentSpellRef::new(715, None, None);
-            player.unit_mut().set_current_cast_spell(CurrentSpellSlot::Melee, melee);
+            player
+                .unit_mut()
+                .set_current_cast_spell(CurrentSpellSlot::Melee, melee);
             match gate {
-                "pacified" => player.unit_mut().set_unit_flags_like_cpp(UnitFlags::PACIFIED),
+                "pacified" => player
+                    .unit_mut()
+                    .set_unit_flags_like_cpp(UnitFlags::PACIFIED),
                 "controlled" => player.unit_mut().add_unit_state(UnitState::STUNNED.bits()),
                 "disable_aura" => {
-                    player.unit_mut().subsystems_mut().auras.register_applied_aura_type_like_cpp(
-                        AppliedAuraRef::new(703, ObjectGuid::create_player(1, 7), 0, 0x1),
-                        SPELL_AURA_DISABLE_ATTACKING_EXCEPT_ABILITIES_LIKE_CPP,
-                    );
+                    player
+                        .unit_mut()
+                        .subsystems_mut()
+                        .auras
+                        .register_applied_aura_type_like_cpp(
+                            AppliedAuraRef::new(703, ObjectGuid::create_player(1, 7), 0, 0x1),
+                            SPELL_AURA_DISABLE_ATTACKING_EXCEPT_ABILITIES_LIKE_CPP,
+                        );
                 }
                 _ => {}
             }
 
             assert_eq!(
-                player.take_ready_melee_attacks::<()>(0, true, true, gate != "los", 200, |_, _, _| {
-                    panic!("attack admission must skip the resolver")
-                }),
+                player.take_ready_melee_attacks::<()>(
+                    0,
+                    true,
+                    true,
+                    gate != "los",
+                    200,
+                    |_, _, _| { panic!("attack admission must skip the resolver") }
+                ),
                 Some((vec![], if offhand_only { None } else { Some(None) })),
             );
             assert_eq!(
@@ -319,7 +407,10 @@ fn attack_admission_blocks_still_reset_and_separate_timers() {
                 player.unit().attack_timer(WeaponAttackType::OffAttack),
                 if offhand_only { 1_500 } else { 200 },
             );
-            assert_eq!(player.unit().current_spell(CurrentSpellSlot::Melee), Some(melee));
+            assert_eq!(
+                player.unit().current_spell(CurrentSpellSlot::Melee),
+                Some(melee)
+            );
             assert!(player.unit().subsystems().auras.has_applied(interrupted));
             assert!(player.unit().subsystems().auras.has_applied(kept));
         }
@@ -343,22 +434,32 @@ fn mainhand_finishes_pending_melee_spell_and_interrupts_auras_without_resolving_
     assert_eq!(player.unit().current_spell(CurrentSpellSlot::Melee), None);
     assert!(!player.unit().subsystems().auras.has_applied(interrupted));
     assert!(player.unit().subsystems().auras.has_applied(kept));
-    assert_eq!(player.unit().attack_timer(WeaponAttackType::BaseAttack), 2_000);
+    assert_eq!(
+        player.unit().attack_timer(WeaponAttackType::BaseAttack),
+        2_000
+    );
     assert_eq!(player.unit().attack_timer(WeaponAttackType::OffAttack), 200);
 }
 
 #[test]
 fn offhand_interrupts_auras_and_preserves_pending_melee_spell() {
     let mut player = ready_player(true);
-    player.unit_mut().set_attack_timer(WeaponAttackType::BaseAttack, 500);
+    player
+        .unit_mut()
+        .set_attack_timer(WeaponAttackType::BaseAttack, 500);
     let (interrupted, kept) = install_interrupt_auras(&mut player);
     let melee = CurrentSpellRef::new(717, None, None);
-    player.unit_mut().set_current_cast_spell(CurrentSpellSlot::Melee, melee);
+    player
+        .unit_mut()
+        .set_current_cast_spell(CurrentSpellSlot::Melee, melee);
     assert_eq!(
         player.take_ready_melee_attacks(0, true, true, true, 200, |attack, _, _| attack),
         Some((vec![WeaponAttackType::OffAttack], None)),
     );
-    assert_eq!(player.unit().current_spell(CurrentSpellSlot::Melee), Some(melee));
+    assert_eq!(
+        player.unit().current_spell(CurrentSpellSlot::Melee),
+        Some(melee)
+    );
     assert!(!player.unit().subsystems().auras.has_applied(interrupted));
     assert!(player.unit().subsystems().auras.has_applied(kept));
 }
@@ -368,7 +469,9 @@ fn callback_runs_after_aura_interrupt_and_before_attack_timer_reset() {
     for attack in [WeaponAttackType::BaseAttack, WeaponAttackType::OffAttack] {
         let mut player = ready_player(true);
         if attack == WeaponAttackType::OffAttack {
-            player.unit_mut().set_attack_timer(WeaponAttackType::BaseAttack, 50);
+            player
+                .unit_mut()
+                .set_attack_timer(WeaponAttackType::BaseAttack, 50);
         }
         let (interrupted, kept) = install_interrupt_auras(&mut player);
         let observed_attack = Cell::new(None);
@@ -395,17 +498,25 @@ fn callback_runs_after_aura_interrupt_and_before_attack_timer_reset() {
 #[test]
 fn processed_attacks_reset_with_existing_speed_multipliers() {
     let mut player = ready_player(true);
-    player.unit_mut().apply_attack_time_multipliers_like_cpp([0.75, 0.5, 1.0]);
+    player
+        .unit_mut()
+        .apply_attack_time_multipliers_like_cpp([0.75, 0.5, 1.0]);
     assert_eq!(
         player.take_ready_melee_attacks(0, true, true, true, 200, |attack, _, _| attack),
         Some((vec![WeaponAttackType::BaseAttack], Some(None))),
     );
-    assert_eq!(player.unit().attack_timer(WeaponAttackType::BaseAttack), 1_500);
+    assert_eq!(
+        player.unit().attack_timer(WeaponAttackType::BaseAttack),
+        1_500
+    );
     assert_eq!(player.unit().attack_timer(WeaponAttackType::OffAttack), 200);
     assert_eq!(
         player.take_ready_melee_attacks(200, true, true, true, 200, |attack, _, _| attack),
         Some((vec![WeaponAttackType::OffAttack], None)),
     );
-    assert_eq!(player.unit().attack_timer(WeaponAttackType::BaseAttack), 1_300);
+    assert_eq!(
+        player.unit().attack_timer(WeaponAttackType::BaseAttack),
+        1_300
+    );
     assert_eq!(player.unit().attack_timer(WeaponAttackType::OffAttack), 750);
 }

@@ -44,10 +44,12 @@ fn two_voters() -> RollBallots {
 fn zero_or_one_connected_looter_unblocks_before_any_pass_lookup() {
     for count in [0, 1] {
         let mut item = entry(vec![player(1), player(2), player(2)]);
-        assert!(RollBallots::start(&mut item, count, player(1), false, |_| {
-            panic!("under-threshold entries must not query pass preferences")
-        })
-        .is_none());
+        assert!(
+            RollBallots::start(&mut item, count, player(1), false, |_| {
+                panic!("under-threshold entries must not query pass preferences")
+            })
+            .is_none()
+        );
         assert!(!item.flags.blocked);
         assert!(item.flags.under_threshold);
         assert!(item.flags.follow_loot_rules);
@@ -78,7 +80,12 @@ fn duplicate_looters_repeat_queries_in_order_and_last_insert_wins() {
     let remote = player(2);
     let missing = player(3);
     let mut item = entry(vec![
-        current, remote, missing, remote, current, ObjectGuid::EMPTY,
+        current,
+        remote,
+        missing,
+        remote,
+        current,
+        ObjectGuid::EMPTY,
     ]);
     let mut queried = Vec::new();
     let ballots = RollBallots::start(&mut item, 2, current, true, |guid| {
@@ -94,7 +101,10 @@ fn duplicate_looters_repeat_queries_in_order_and_last_insert_wins() {
     assert_eq!(ballots.votes().count(), 4);
     assert_eq!(ballots.vote(current).unwrap().vote, ROLL_VOTE_PASS_LIKE_CPP);
     assert_eq!(ballots.vote(remote).unwrap().vote, ROLL_VOTE_PASS_LIKE_CPP);
-    assert_eq!(ballots.vote(missing).unwrap().vote, ROLL_VOTE_NOT_VALID_LIKE_CPP);
+    assert_eq!(
+        ballots.vote(missing).unwrap().vote,
+        ROLL_VOTE_NOT_VALID_LIKE_CPP
+    );
     assert_eq!(
         ballots.vote(ObjectGuid::EMPTY).unwrap().vote,
         ROLL_VOTE_NOT_VALID_LIKE_CPP,
@@ -116,7 +126,9 @@ fn pass_and_unknown_votes_never_draw() {
         Some(None),
     );
     for unknown in [
-        ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP, ROLL_VOTE_NOT_VALID_LIKE_CPP, 99,
+        ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP,
+        ROLL_VOTE_NOT_VALID_LIKE_CPP,
+        99,
     ] {
         assert_eq!(
             RollBallots::prepare_vote(unknown, || panic!("unknown vote must not draw")),
@@ -129,7 +141,9 @@ fn pass_and_unknown_votes_never_draw() {
 fn each_known_numbered_vote_draws_once_with_the_callers_value() {
     let draws = Cell::new(0);
     for vote in [
-        ROLL_VOTE_NEED_LIKE_CPP, ROLL_VOTE_GREED_LIKE_CPP, ROLL_VOTE_DISENCHANT_LIKE_CPP,
+        ROLL_VOTE_NEED_LIKE_CPP,
+        ROLL_VOTE_GREED_LIKE_CPP,
+        ROLL_VOTE_DISENCHANT_LIKE_CPP,
     ] {
         let consumed = String::from("one-shot draw");
         assert_eq!(
@@ -167,8 +181,8 @@ fn pass_after_need_keeps_the_previous_number_and_removes_winning_eligibility() {
     let number = RollBallots::prepare_vote(ROLL_VOTE_NEED_LIKE_CPP, || 87).unwrap();
     assert!(ballots.record_vote(player(1), ROLL_VOTE_NEED_LIKE_CPP, number));
     assert_eq!(ballots.current_winner().unwrap().0, player(1));
-    let number = RollBallots::prepare_vote(ROLL_VOTE_PASS_LIKE_CPP, || panic!("Pass draw"))
-        .unwrap();
+    let number =
+        RollBallots::prepare_vote(ROLL_VOTE_PASS_LIKE_CPP, || panic!("Pass draw")).unwrap();
     assert!(ballots.record_vote(player(1), ROLL_VOTE_PASS_LIKE_CPP, number));
     assert_eq!(
         ballots.vote(player(1)),
@@ -201,7 +215,10 @@ fn repeated_votes_redraw_and_overwrite_without_prior_vote_guards() {
         assert!(ballots.record_vote(player(1), vote, prepared));
         assert_eq!(
             ballots.vote(player(1)),
-            Some(&RepresentedLootRollVote { vote, roll_number: number }),
+            Some(&RepresentedLootRollVote {
+                vote,
+                roll_number: number
+            }),
         );
     }
     assert_eq!(draws.get(), 4);
@@ -252,7 +269,8 @@ fn ties_follow_borrowed_iteration_and_timeout_ignores_pending_without_mutation()
     .unwrap();
     assert!(ballots.record_vote(player(1), ROLL_VOTE_NEED_LIKE_CPP, Some(50)));
     assert!(ballots.record_vote(player(2), ROLL_VOTE_NEED_LIKE_CPP, Some(50)));
-    let first_need = ballots.votes()
+    let first_need = ballots
+        .votes()
         .find(|(_, vote)| vote.vote == ROLL_VOTE_NEED_LIKE_CPP)
         .map(|(guid, vote)| (*guid, *vote));
     assert_eq!(ballots.finished_winner(), None);
@@ -264,12 +282,16 @@ fn ties_follow_borrowed_iteration_and_timeout_ignores_pending_without_mutation()
     assert!(ballots.record_vote(player(3), ROLL_VOTE_GREED_LIKE_CPP, Some(100)));
     assert_eq!(ballots.finished_winner(), Some(first_need));
     assert_eq!(ballots.current_winner(), first_need);
-    let before = ballots.votes()
+    let before = ballots
+        .votes()
         .map(|(guid, vote)| (*guid, *vote))
         .collect::<Vec<_>>();
     let snapshot = ballots.clone();
     assert_eq!(
-        snapshot.votes().map(|(guid, vote)| (*guid, *vote)).collect::<Vec<_>>(),
+        snapshot
+            .votes()
+            .map(|(guid, vote)| (*guid, *vote))
+            .collect::<Vec<_>>(),
         before,
     );
     assert_eq!(snapshot.finished_winner(), ballots.finished_winner());

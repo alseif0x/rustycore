@@ -3,8 +3,23 @@ use super::quest_support::*;
 use super::support::*;
 use wow_loot::LootConditionRowLikeCpp;
 
-fn loot_condition(condition_type_or_reference: i32, value1: u32, value2: u32, value3: u32) -> LootConditionRowLikeCpp {
-    LootConditionRowLikeCpp { else_group: 0, condition_type_or_reference, condition_target: 0, value1, value2, value3, string_value1: String::new(), negative: false, script_name: String::new() }
+fn loot_condition(
+    condition_type_or_reference: i32,
+    value1: u32,
+    value2: u32,
+    value3: u32,
+) -> LootConditionRowLikeCpp {
+    LootConditionRowLikeCpp {
+        else_group: 0,
+        condition_type_or_reference,
+        condition_target: 0,
+        value1,
+        value2,
+        value3,
+        string_value1: String::new(),
+        negative: false,
+        script_name: String::new(),
+    }
 }
 
 #[test]
@@ -27,10 +42,24 @@ fn represented_personal_loot_remote_has_quest_for_item_drop_like_cpp() {
         .with_inventory_and_progress(active_quest_statuses, HashMap::new(), inventory_item_counts)
         .with_rewarded_quests(HashSet::new());
 
-    assert!(loot_item_quest_allowed_for_test(&session, 7002, true, 0, 0, Some(&remote_context)));
+    assert!(loot_item_quest_allowed_for_test(
+        &session,
+        7002,
+        true,
+        0,
+        0,
+        Some(&remote_context)
+    ));
 
     remote_context.set_item_count(7002, 4);
-    assert!(!loot_item_quest_allowed_for_test(&session, 7002, true, 0, 0, Some(&remote_context)));
+    assert!(!loot_item_quest_allowed_for_test(
+        &session,
+        7002,
+        true,
+        0,
+        0,
+        Some(&remote_context)
+    ));
 }
 
 #[test]
@@ -61,13 +90,31 @@ fn represented_personal_loot_remote_has_quest_for_item_objective_like_cpp() {
     active_quest_objective_counts.insert(100, vec![2]);
     let mut remote_context = LootConditionPlayer::remote(1, 1, 0, 80)
         .with_known_spells(Vec::new())
-        .with_inventory_and_progress(active_quest_statuses, active_quest_objective_counts, HashMap::new())
+        .with_inventory_and_progress(
+            active_quest_statuses,
+            active_quest_objective_counts,
+            HashMap::new(),
+        )
         .with_rewarded_quests(HashSet::new());
 
-    assert!(loot_item_quest_allowed_for_test(&session, 7001, true, 0, 0, Some(&remote_context)));
+    assert!(loot_item_quest_allowed_for_test(
+        &session,
+        7001,
+        true,
+        0,
+        0,
+        Some(&remote_context)
+    ));
 
     remote_context.set_objective_counts(100, vec![3]);
-    assert!(!loot_item_quest_allowed_for_test(&session, 7001, true, 0, 0, Some(&remote_context)));
+    assert!(!loot_item_quest_allowed_for_test(
+        &session,
+        7001,
+        true,
+        0,
+        0,
+        Some(&remote_context)
+    ));
 }
 
 #[test]
@@ -84,28 +131,32 @@ fn represented_personal_loot_remote_quest_and_spell_conditions_use_registry_like
         .with_rewarded_quests(rewarded_quests);
 
     assert_eq!(
-        evaluate_remote_loot_condition_for_test(&session, 
+        evaluate_remote_loot_condition_for_test(
+            &session,
             &loot_condition(9, 100, 0, 0),
             &remote_context,
         ),
         Some(true)
     );
     assert_eq!(
-        evaluate_remote_loot_condition_for_test(&session, 
+        evaluate_remote_loot_condition_for_test(
+            &session,
             &loot_condition(28, 200, 0, 0),
             &remote_context,
         ),
         Some(true)
     );
     assert_eq!(
-        evaluate_remote_loot_condition_for_test(&session, 
+        evaluate_remote_loot_condition_for_test(
+            &session,
             &loot_condition(8, 300, 0, 0),
             &remote_context,
         ),
         Some(true)
     );
     assert_eq!(
-        evaluate_remote_loot_condition_for_test(&session, 
+        evaluate_remote_loot_condition_for_test(
+            &session,
             &loot_condition(14, 400, 0, 0),
             &remote_context,
         ),
@@ -116,7 +167,8 @@ fn represented_personal_loot_remote_quest_and_spell_conditions_use_registry_like
         QUEST_STATUS_REWARDED_LIKE_CPP
     );
     assert_eq!(
-        evaluate_remote_loot_condition_for_test(&session, 
+        evaluate_remote_loot_condition_for_test(
+            &session,
             &loot_condition(14, 300, 0, 0),
             &remote_context,
         ),
@@ -124,18 +176,19 @@ fn represented_personal_loot_remote_quest_and_spell_conditions_use_registry_like
         "C++ Player::GetQuestStatus returns REWARDED before QUEST_STATUS_NONE"
     );
     assert_eq!(
-        evaluate_remote_loot_condition_for_test(&session, 
+        evaluate_remote_loot_condition_for_test(
+            &session,
             &loot_condition(25, 12_345, 0, 0),
             &remote_context,
         ),
         Some(true)
     );
     assert_eq!(
-        evaluate_remote_loot_condition_for_test(&session, 
+        evaluate_remote_loot_condition_for_test(
+            &session,
             &loot_condition(47, 100, 0x08, 0),
             &remote_context,
         ),
         Some(true)
     );
 }
-

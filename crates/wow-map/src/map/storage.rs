@@ -8,17 +8,16 @@
 use super::*;
 
 mod corpses;
-mod guid_provenance;
 mod entries;
-mod object_access;
 mod grids;
+mod guid_provenance;
+mod object_access;
 
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
 where
     Terrain: TerrainGridLoader,
     Lifecycle: GridLifecycle,
 {
-
     /// C++ `Map::AddFarSpellCallback` represented as a map-owned FIFO action queue.
     ///
     /// This helper only accepts explicit represented actions; it does not expose a
@@ -103,5 +102,4 @@ where
             },
         }
     }
-
 }

@@ -61,8 +61,14 @@ fn equal_generations_on_distinct_authorities_do_not_match() {
     let owner = ObjectGuid::create_item(1, 700);
     let first = authority_with_money(player);
     let other = authority_with_money(player);
-    let generation = first.snapshot_for_player_like_cpp(player).unwrap().generation;
-    let other_generation = other.snapshot_for_player_like_cpp(player).unwrap().generation;
+    let generation = first
+        .snapshot_for_player_like_cpp(player)
+        .unwrap()
+        .generation;
+    let other_generation = other
+        .snapshot_for_player_like_cpp(player)
+        .unwrap()
+        .generation;
     assert_eq!(generation, other_generation);
     let mut views = LootViews::default();
     views.set_primary(owner);
@@ -79,17 +85,25 @@ fn recreated_authority_does_not_reuse_retired_view_binding() {
     let player = ObjectGuid::create_player(1, 42);
     let owner = ObjectGuid::create_item(1, 700);
     let original = authority_with_money(player);
-    let generation = original.snapshot_for_player_like_cpp(player).unwrap().generation;
+    let generation = original
+        .snapshot_for_player_like_cpp(player)
+        .unwrap()
+        .generation;
     let mut views = LootViews::default();
     views.set_primary(owner);
     views.bind_opened(owner, generation, &original);
     original.retire_like_cpp();
 
     let replacement = authority_with_money(player);
-    let replacement_generation = replacement.snapshot_for_player_like_cpp(player).unwrap().generation;
+    let replacement_generation = replacement
+        .snapshot_for_player_like_cpp(player)
+        .unwrap()
+        .generation;
     assert_eq!(generation, replacement_generation);
     assert!(!views.matches_authority(owner, &replacement, Some(replacement_generation)));
-    let retired_generation = original.snapshot_for_player_like_cpp(player).map(|snapshot| snapshot.generation);
+    let retired_generation = original
+        .snapshot_for_player_like_cpp(player)
+        .map(|snapshot| snapshot.generation);
     assert!(!views.matches_authority(owner, &original, retired_generation));
 
     views.bind_opened(owner, replacement_generation, &replacement);
@@ -193,7 +207,10 @@ fn claims_require_both_original_allocation_and_generation() {
     let other = authority_with_money(player);
     let claim = money_claim(&original, player);
     let other_claim = money_claim(&other, player);
-    assert_eq!(claim.generation_like_cpp(), other_claim.generation_like_cpp());
+    assert_eq!(
+        claim.generation_like_cpp(),
+        other_claim.generation_like_cpp()
+    );
     let mut views = LootViews::default();
     views.bind_opened(owner, claim.generation_like_cpp(), &original);
     assert!(views.matches_claim(owner, &claim));

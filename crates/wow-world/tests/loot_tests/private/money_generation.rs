@@ -11,7 +11,8 @@ async fn represented_gameobject_personal_encounter_open_reads_player_money_like_
     session.set_player_guid(Some(player_guid));
     prepare_personal_money_fixture(&mut session, true);
     insert_client_visible_guid_for_test(&mut session, gameobject_guid);
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         gameobject_guid,
         CreatureLoot {
             loot_guid: loot_object,
@@ -67,7 +68,8 @@ async fn represented_gameobject_personal_encounter_money_pickup_consumes_only_pl
     session.set_player_guid(Some(player_guid));
     prepare_personal_money_fixture(&mut session, true);
     set_active_loot_guid_for_test(&mut session, gameobject_guid);
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         gameobject_guid,
         CreatureLoot {
             loot_guid: loot_object,
@@ -94,14 +96,23 @@ async fn represented_gameobject_personal_encounter_money_pickup_consumes_only_pl
         recv_packet_with_opcode(&send_rx, wow_constants::ServerOpcodes::LootMoneyNotify);
     assert_eq!(notify.read_uint64().unwrap(), 123);
     assert_eq!(
-        personal_loot_marker_for_test(&session, gameobject_guid, player_guid).1.as_ref(),
+        personal_loot_marker_for_test(&session, gameobject_guid, player_guid)
+            .1
+            .as_ref(),
         Some(&0)
     );
     assert_eq!(
-        personal_loot_marker_for_test(&session, gameobject_guid, other_tapper).1.as_ref(),
+        personal_loot_marker_for_test(&session, gameobject_guid, other_tapper)
+            .1
+            .as_ref(),
         Some(&456)
     );
-    assert_eq!(loot_recovery_cache_for_test(&session, gameobject_guid).unwrap().coins, 999);
+    assert_eq!(
+        loot_recovery_cache_for_test(&session, gameobject_guid)
+            .unwrap()
+            .coins,
+        999
+    );
 }
 
 #[test]
@@ -129,27 +140,27 @@ async fn durable_money_delta_is_order_independent_near_gold_cap_like_cpp() {
     set_player_gold_for_test(&mut session, start);
     let committed = Arc::new(AtomicBool::new(false));
     let command_authority = OwnedLootAuthority::new();
-    let command = |durable_delta| LootMoneyApplication::new(
-        player_guid,
-        test_creature_guid(19_510),
-        represented_loot_object_guid_like_cpp(test_creature_guid(19_510)),
-        5,
-        Arc::new(AtomicU64::new(durable_delta)),
-        Default::default(),
-        false,
-        command_authority.clone(),
-        1,
-        Arc::clone(&committed),
-        Arc::new(AtomicBool::new(false)),
-        Arc::new(AtomicBool::new(false)),
-        Arc::new(AtomicBool::new(false)),
-    );
+    let command = |durable_delta| {
+        LootMoneyApplication::new(
+            player_guid,
+            test_creature_guid(19_510),
+            represented_loot_object_guid_like_cpp(test_creature_guid(19_510)),
+            5,
+            Arc::new(AtomicU64::new(durable_delta)),
+            Default::default(),
+            false,
+            command_authority.clone(),
+            1,
+            Arc::clone(&committed),
+            Arc::new(AtomicBool::new(false)),
+            Arc::new(AtomicBool::new(false)),
+            Arc::new(AtomicBool::new(false)),
+        )
+    };
 
     // Runtime delivery is deliberately opposite to the locked DB order.
-    apply_money_command_for_test(&mut session, command(second_delta))
-        .await;
-    apply_money_command_for_test(&mut session, command(first_delta))
-        .await;
+    apply_money_command_for_test(&mut session, command(second_delta)).await;
+    apply_money_command_for_test(&mut session, command(first_delta)).await;
 
     assert_eq!(player_gold_for_test(&session), start + 5);
     let opcodes = drain_server_opcodes_like_cpp(&send_rx);
@@ -173,18 +184,18 @@ async fn represented_creature_money_uses_cpp_money_drop_rate() {
     });
 
     let loot = generate_creature_money_loot_for_test(
-            &mut session,
-            owner_guid,
-            ObjectGuid::create_player(1, 42),
-            10,
-            25,
-            0,
-            100,
-            100,
-            0,
-        )
-        .await
-        .expect("canonical owner map allocates a LootObject");
+        &mut session,
+        owner_guid,
+        ObjectGuid::create_player(1, 42),
+        10,
+        25,
+        0,
+        100,
+        100,
+        0,
+    )
+    .await
+    .expect("canonical owner map allocates a LootObject");
 
     assert_eq!(loot.coins, 250);
     assert!(loot.items.is_empty());
@@ -197,18 +208,18 @@ async fn represented_creature_money_zero_gold_max_stays_zero_like_cpp() {
     attach_loot_guid_allocator_for_owner(&mut session, owner_guid);
 
     let loot = generate_creature_money_loot_for_test(
-            &mut session,
-            owner_guid,
-            ObjectGuid::create_player(1, 42),
-            10,
-            25,
-            0,
-            0,
-            0,
-            0,
-        )
-        .await
-        .expect("canonical owner map allocates a LootObject");
+        &mut session,
+        owner_guid,
+        ObjectGuid::create_player(1, 42),
+        10,
+        25,
+        0,
+        0,
+        0,
+        0,
+    )
+    .await
+    .expect("canonical owner map allocates a LootObject");
 
     assert_eq!(loot.coins, 0);
     assert!(loot.items.is_empty());
@@ -221,15 +232,15 @@ async fn represented_gameobject_chest_uses_resolved_template_money_like_cpp() {
     attach_loot_guid_allocator_for_owner(&mut session, gameobject_guid);
 
     let loot = generate_chest_money_loot_for_test(
-            &mut session,
-            gameobject_guid,
-            ObjectGuid::create_player(1, 42),
-            GameObjectLootSource::default(),
-            &[],
-            (123, 123),
-        )
-        .await
-        .expect("canonical owner map allocates a LootObject");
+        &mut session,
+        gameobject_guid,
+        ObjectGuid::create_player(1, 42),
+        GameObjectLootSource::default(),
+        &[],
+        (123, 123),
+    )
+    .await
+    .expect("canonical owner map allocates a LootObject");
 
     assert_eq!(loot.coins, 123);
 }
@@ -252,7 +263,8 @@ fn represented_money_removed_erases_missing_players_looting_like_cpp() {
     session.set_player_registry(player_registry);
     session.set_player_guid(Some(player_guid));
     prepare_money_player_residence_for_test(&mut session);
-    set_loot_for_test(&mut session, 
+    set_loot_for_test(
+        &mut session,
         owner_guid,
         CreatureLoot {
             loot_guid: loot_object,
@@ -288,7 +300,9 @@ fn represented_money_removed_erases_missing_players_looting_like_cpp() {
         wow_constants::ServerOpcodes::CoinRemoved as u16
     );
     assert_eq!(
-        loot_recovery_cache_for_test(&session, owner_guid).unwrap().players_looting,
+        loot_recovery_cache_for_test(&session, owner_guid)
+            .unwrap()
+            .players_looting,
         vec![player_guid, open_guid]
     );
 }

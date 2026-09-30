@@ -7,8 +7,8 @@
 
 use super::*;
 
-mod membership;
 mod game_objects;
+mod membership;
 mod viewpoints;
 
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
@@ -16,7 +16,6 @@ where
     Terrain: TerrainGridLoader,
     Lifecycle: GridLifecycle,
 {
-
     pub fn remove_map_object(&mut self, guid: ObjectGuid) -> Option<OwnedMapObject> {
         self.take_object_entry(guid).map(OwnedMapObject::new)
     }
@@ -189,8 +188,15 @@ where
             let was_in_world = remove_from_map_was_in_world;
             let cxx_in_world =
                 was_in_world && remove_from_map_in_world_eligible_type_like_cpp(kind);
-            let personal_phase_owner = entry.as_ref().object().phase_shift().personal_guid_like_cpp();
-            let cell = Cell::from_world(entry.as_ref().object().position().x, entry.as_ref().object().position().y);
+            let personal_phase_owner = entry
+                .as_ref()
+                .object()
+                .phase_shift()
+                .personal_guid_like_cpp();
+            let cell = Cell::from_world(
+                entry.as_ref().object().position().x,
+                entry.as_ref().object().position().y,
+            );
             let grid = GridCoord::new(cell.grid_x(), cell.grid_y());
 
             entry.as_mut().object_mut().object_mut().remove_from_world();
@@ -214,7 +220,8 @@ where
 
             entry.as_mut().object_mut().clear_current_cell();
             entry
-                .as_mut().object_mut()
+                .as_mut()
+                .object_mut()
                 .reset_map()
                 .map_err(RemoveFromMapError::ResetMap)?;
 
@@ -230,14 +237,15 @@ where
             // owner. The `WorldObject` is only an immutable compatibility
             // projection in the outcome; no second mutable Player is created.
             let object = entry.as_ref().object().clone();
-            let (player, terminal_entry) = if !delete_from_world && kind == AccessorObjectKind::Player {
-                match entry {
-                    ObjectEntry::Record(record) => (record.into_player().ok(), None),
-                    actor @ ObjectEntry::CreatureActor(_) => (None, Some(actor)),
-                }
-            } else {
-                (None, Some(entry))
-            };
+            let (player, terminal_entry) =
+                if !delete_from_world && kind == AccessorObjectKind::Player {
+                    match entry {
+                        ObjectEntry::Record(record) => (record.into_player().ok(), None),
+                        actor @ ObjectEntry::CreatureActor(_) => (None, Some(actor)),
+                    }
+                } else {
+                    (None, Some(entry))
+                };
 
             let outcome = RemoveFromMapOutcome {
                 guid,
@@ -275,7 +283,7 @@ where
             match terminal_entry {
                 Some(ObjectEntry::Record(record)) => drop(record),
                 Some(ObjectEntry::CreatureActor(actor_entry)) => drop(actor_entry),
-                None => {},
+                None => {}
             }
             Ok(outcome)
         })();
@@ -347,5 +355,4 @@ where
 
         outcome
     }
-
 }

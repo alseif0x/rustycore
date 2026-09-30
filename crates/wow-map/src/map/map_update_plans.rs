@@ -146,4 +146,3 @@ pub struct ResetNotifyFlagsOutcome {
     pub reset_creature_guids: Vec<ObjectGuid>,
     pub missing_guids: Vec<ObjectGuid>,
 }
-

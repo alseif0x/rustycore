@@ -1,7 +1,8 @@
 use super::support::*;
 
 #[tokio::test]
-async fn gameobject_loot_release_fishing_hole_uses_canonical_use_count_when_represented_stale_like_cpp() {
+async fn gameobject_loot_release_fishing_hole_uses_canonical_use_count_when_represented_stale_like_cpp()
+ {
     let (mut session, send_rx) = make_session_with_send();
     let player_guid = ObjectGuid::create_player(1, 42);
     let fishing_hole = test_gameobject_guid(19_136);
@@ -64,8 +65,7 @@ async fn gameobject_loot_release_fishing_hole_uses_canonical_use_count_when_repr
     let canonical = canonical_gameobject_snapshot_for_loot_test(&session, fishing_hole).unwrap();
     assert_eq!(canonical.use_times(), 2);
     assert_eq!(canonical.loot_state(), LootState::JustDeactivated);
-    let hole_state =
-        gameobject_loot_release_snapshot_for_test(&session, fishing_hole).unwrap();
+    let hole_state = gameobject_loot_release_snapshot_for_test(&session, fishing_hole).unwrap();
     assert_eq!(hole_state.personal_loot_uses, 2);
     assert_eq!(hole_state.loot_state, Some(LootState::JustDeactivated));
 }
@@ -84,14 +84,16 @@ async fn loot_item_fishing_hole_skips_gameobject_distance_like_cpp() {
         AccessorObjectKind::GameObject,
         canonical_world_object(loot_guid, 0, go_position),
     );
-    record_represented_gameobject_runtime_state_for_test(&mut session,
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         loot_guid,
         loot_guid.entry(),
         go_position,
         GAMEOBJECT_TYPE_FISHING_HOLE as u8,
     );
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -125,8 +127,7 @@ async fn loot_item_fishing_hole_skips_gameobject_distance_like_cpp() {
         },
     );
 
-    handle_loot_item_for_test(&mut session, loot_item_packet(loot_guid, 0))
-        .await;
+    handle_loot_item_for_test(&mut session, loot_item_packet(loot_guid, 0)).await;
 
     let sent = send_rx.try_recv().unwrap();
     let mut sent = WorldPacket::from_bytes(&sent);
@@ -148,7 +149,8 @@ async fn loot_item_owned_gameobject_skips_distance_like_cpp() {
     session.set_player_guid(Some(player_guid));
     set_player_position_for_loot_test(&mut session, Position::ZERO);
     set_active_loot_guid_like_cpp(&mut session, loot_guid);
-    record_represented_gameobject_runtime_state_for_test(&mut session,
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         loot_guid,
         loot_guid.entry(),
@@ -156,7 +158,8 @@ async fn loot_item_owned_gameobject_skips_distance_like_cpp() {
         GAMEOBJECT_TYPE_CHEST as u8,
     );
     record_gameobject_owner_like_cpp(&mut session, loot_guid, player_guid);
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -190,8 +193,7 @@ async fn loot_item_owned_gameobject_skips_distance_like_cpp() {
         },
     );
 
-    handle_loot_item_for_test(&mut session, loot_item_packet(loot_guid, 0))
-        .await;
+    handle_loot_item_for_test(&mut session, loot_item_packet(loot_guid, 0)).await;
 
     let sent = send_rx.try_recv().unwrap();
     let mut sent = WorldPacket::from_bytes(&sent);
@@ -220,7 +222,8 @@ async fn loot_item_owned_gameobject_skips_distance_from_canonical_created_by_lik
     set_player_position_for_loot_test(&mut session, Position::ZERO);
     set_active_loot_guid_like_cpp(&mut session, loot_guid);
     attach_canonical_gameobject(&mut session, game_object);
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -254,8 +257,7 @@ async fn loot_item_owned_gameobject_skips_distance_from_canonical_created_by_lik
         },
     );
 
-    handle_loot_item_for_test(&mut session, loot_item_packet(loot_guid, 0))
-        .await;
+    handle_loot_item_for_test(&mut session, loot_item_packet(loot_guid, 0)).await;
 
     let sent = send_rx.try_recv().unwrap();
     let mut sent = WorldPacket::from_bytes(&sent);
@@ -276,14 +278,16 @@ async fn loot_release_keeps_unlooted_gameobject_loot_like_cpp() {
     session.set_player_guid(Some(player_guid));
     set_active_loot_guid_like_cpp(&mut session, loot_guid);
     insert_client_visible_guid_for_test(&mut session, loot_guid);
-    record_represented_gameobject_runtime_state_for_test(&mut session,
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         loot_guid,
         loot_guid.entry(),
         Position::ZERO,
         GAMEOBJECT_TYPE_CHEST as u8,
     );
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -342,14 +346,16 @@ async fn loot_release_gameobject_too_far_keeps_state_and_loot_like_cpp() {
     session.set_player_guid(Some(player_guid));
     set_player_position_for_loot_test(&mut session, Position::ZERO);
     set_active_loot_guid_like_cpp(&mut session, loot_guid);
-    record_represented_gameobject_runtime_state_for_test(&mut session,
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         loot_guid,
         loot_guid.entry(),
         go_position,
         GAMEOBJECT_TYPE_CHEST as u8,
     );
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -383,7 +389,8 @@ async fn loot_release_gameobject_too_far_keeps_state_and_loot_like_cpp() {
     assert!(!is_active_loot_guid_like_cpp(&session, loot_guid));
     assert!(has_loot_for_test(&session, loot_guid));
     assert_eq!(
-        represented_gameobject_loot_release_snapshot_like_cpp(&session, loot_guid).unwrap()
+        represented_gameobject_loot_release_snapshot_like_cpp(&session, loot_guid)
+            .unwrap()
             .loot_state,
         None
     );
@@ -398,7 +405,8 @@ async fn loot_release_owned_gameobject_skips_distance_like_cpp() {
     session.set_player_guid(Some(player_guid));
     set_player_position_for_loot_test(&mut session, Position::ZERO);
     set_active_loot_guid_like_cpp(&mut session, loot_guid);
-    record_represented_gameobject_runtime_state_for_test(&mut session,
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         loot_guid,
         loot_guid.entry(),
@@ -406,7 +414,8 @@ async fn loot_release_owned_gameobject_skips_distance_like_cpp() {
         GAMEOBJECT_TYPE_CHEST as u8,
     );
     record_gameobject_owner_like_cpp(&mut session, loot_guid, player_guid);
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -437,7 +446,8 @@ async fn loot_release_owned_gameobject_skips_distance_like_cpp() {
     );
     assert!(!has_loot_for_test(&session, loot_guid));
     assert_eq!(
-        represented_gameobject_loot_release_snapshot_like_cpp(&session, loot_guid).unwrap()
+        represented_gameobject_loot_release_snapshot_like_cpp(&session, loot_guid)
+            .unwrap()
             .loot_state,
         Some(LootState::JustDeactivated)
     );
@@ -451,14 +461,16 @@ async fn loot_release_fully_looted_gameobject_just_deactivates_like_cpp() {
     session.set_player_guid(Some(player_guid));
     set_player_position_for_loot_test(&mut session, Position::ZERO);
     set_active_loot_guid_like_cpp(&mut session, loot_guid);
-    record_represented_gameobject_runtime_state_for_test(&mut session,
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         loot_guid,
         loot_guid.entry(),
         Position::ZERO,
         GAMEOBJECT_TYPE_CHEST as u8,
     );
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -489,7 +501,8 @@ async fn loot_release_fully_looted_gameobject_just_deactivates_like_cpp() {
     );
     assert!(!has_loot_for_test(&session, loot_guid));
     assert_eq!(
-        represented_gameobject_loot_release_snapshot_like_cpp(&session, loot_guid).unwrap()
+        represented_gameobject_loot_release_snapshot_like_cpp(&session, loot_guid)
+            .unwrap()
             .loot_state,
         Some(LootState::JustDeactivated)
     );
@@ -507,14 +520,16 @@ async fn gameobject_owned_loot_release_partial_chest_uses_canonical_is_fully_loo
     session.set_player_guid(Some(player_guid));
     set_player_position_for_loot_test(&mut session, Position::ZERO);
     set_active_loot_guid_like_cpp(&mut session, loot_guid);
-    record_represented_gameobject_runtime_state_for_test(&mut session,
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         loot_guid,
         loot_guid.entry(),
         Position::ZERO,
         GAMEOBJECT_TYPE_CHEST as u8,
     );
-    record_gameobject_chest_release_metadata_like_cpp(&mut session, 
+    record_gameobject_chest_release_metadata_like_cpp(
+        &mut session,
         loot_guid,
         GameObjectLootSource {
             chest_consumable: false,
@@ -522,7 +537,8 @@ async fn gameobject_owned_loot_release_partial_chest_uses_canonical_is_fully_loo
             ..Default::default()
         },
     );
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid: represented_loot_object_guid_like_cpp(loot_guid),
@@ -561,10 +577,15 @@ async fn gameobject_owned_loot_release_partial_chest_uses_canonical_is_fully_loo
     assert_eq!(canonical.loot_state_unit_guid(), player_guid);
     assert!(canonical.restock_time() > 0);
     assert!(!has_loot_for_test(&session, loot_guid));
-    assert!(reconcile_represented_loot_cache_like_cpp(&mut session, loot_guid, player_guid));
+    assert!(reconcile_represented_loot_cache_like_cpp(
+        &mut session,
+        loot_guid,
+        player_guid
+    ));
     assert!(has_loot_for_test(&session, loot_guid));
     assert_eq!(
-        represented_gameobject_loot_release_snapshot_like_cpp(&session, loot_guid).unwrap()
+        represented_gameobject_loot_release_snapshot_like_cpp(&session, loot_guid)
+            .unwrap()
             .loot_state,
         Some(LootState::Activated)
     );
@@ -589,14 +610,16 @@ async fn loot_release_partial_chest_syncs_state_to_same_map_viewers_like_cpp() {
     set_player_position_for_loot_test(&mut session, Position::ZERO);
     set_player_map_position_for_loot_test(&mut session, 571, Position::ZERO);
     set_active_loot_guid_like_cpp(&mut session, loot_guid);
-    record_represented_gameobject_runtime_state_for_test(&mut session,
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         loot_guid,
         loot_guid.entry(),
         Position::ZERO,
         GAMEOBJECT_TYPE_CHEST as u8,
     );
-    record_gameobject_chest_release_metadata_like_cpp(&mut session, 
+    record_gameobject_chest_release_metadata_like_cpp(
+        &mut session,
         loot_guid,
         GameObjectLootSource {
             loot_id: 7_001,
@@ -605,7 +628,8 @@ async fn loot_release_partial_chest_syncs_state_to_same_map_viewers_like_cpp() {
             ..Default::default()
         },
     );
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid: represented_loot_object_guid_like_cpp(loot_guid),
@@ -674,14 +698,16 @@ async fn gameobject_owned_loot_release_fully_consumed_chest_uses_canonical_is_fu
     session.set_player_guid(Some(player_guid));
     set_player_position_for_loot_test(&mut session, Position::ZERO);
     set_active_loot_guid_like_cpp(&mut session, loot_guid);
-    record_represented_gameobject_runtime_state_for_test(&mut session,
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         loot_guid,
         loot_guid.entry(),
         Position::ZERO,
         GAMEOBJECT_TYPE_CHEST as u8,
     );
-    record_gameobject_chest_release_metadata_like_cpp(&mut session, 
+    record_gameobject_chest_release_metadata_like_cpp(
+        &mut session,
         loot_guid,
         GameObjectLootSource {
             chest_consumable: false,
@@ -689,7 +715,8 @@ async fn gameobject_owned_loot_release_fully_consumed_chest_uses_canonical_is_fu
             ..Default::default()
         },
     );
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid: represented_loot_object_guid_like_cpp(loot_guid),
@@ -724,7 +751,8 @@ async fn gameobject_owned_loot_release_fully_consumed_chest_uses_canonical_is_fu
     assert_eq!(canonical.restock_time(), 0);
     assert!(!has_loot_for_test(&session, loot_guid));
     assert_eq!(
-        represented_gameobject_loot_release_snapshot_like_cpp(&session, loot_guid).unwrap()
+        represented_gameobject_loot_release_snapshot_like_cpp(&session, loot_guid)
+            .unwrap()
             .loot_state,
         Some(LootState::JustDeactivated)
     );
@@ -741,14 +769,16 @@ async fn gameobject_owned_loot_release_personal_chest_syncs_current_player_and_d
     session.set_player_guid(Some(player_guid));
     set_player_position_for_loot_test(&mut session, Position::ZERO);
     set_active_loot_guid_like_cpp(&mut session, loot_guid);
-    record_represented_gameobject_runtime_state_for_test(&mut session,
+    record_represented_gameobject_runtime_state_for_test(
+        &mut session,
         0,
         loot_guid,
         loot_guid.entry(),
         Position::ZERO,
         GAMEOBJECT_TYPE_CHEST as u8,
     );
-    record_gameobject_chest_release_metadata_like_cpp(&mut session, 
+    record_gameobject_chest_release_metadata_like_cpp(
+        &mut session,
         loot_guid,
         GameObjectLootSource {
             personal_loot_id: 55,
@@ -758,7 +788,8 @@ async fn gameobject_owned_loot_release_personal_chest_syncs_current_player_and_d
         },
     );
     set_personal_loot_like_cpp(&mut session, loot_guid, player_guid, 0);
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid: represented_loot_object_guid_like_cpp(loot_guid),

@@ -53,14 +53,22 @@ where
         L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Option<LoadedGridRespawnRecordsLikeCpp>,
     {
         self.process_due_respawns_materialized_core(
-            now, spawn_store, linked_store, pool_mgr, jitter_secs,
-            respawn_dynamic_escortnpc, &mut is_creature_escorted,
-            &mut explicit_roll_for, &mut choose_equal,
+            now,
+            spawn_store,
+            linked_store,
+            pool_mgr,
+            jitter_secs,
+            respawn_dynamic_escortnpc,
+            &mut is_creature_escorted,
+            &mut explicit_roll_for,
+            &mut choose_equal,
             consume_due_timer_on_load_failure_like_cpp,
-            |map, object_type, spawn_id| Ok(load_record(map, object_type, spawn_id)
-                .map(LoadedGridMaterialization::records)),
+            |map, object_type, spawn_id| {
+                Ok(load_record(map, object_type, spawn_id).map(LoadedGridMaterialization::records))
+            },
             LoadedGridReceipts::RecordCompatibility,
-        ).summary
+        )
+        .summary
     }
 
     /// Owned Catalog loads share the existing queue engine and timer order.
@@ -83,12 +91,25 @@ where
         F: FnMut(ObjectGuid, &Creature) -> bool,
         R: FnMut(PoolMemberKindLikeCpp, u32) -> f32,
         C: FnMut(&[PoolObjectLikeCpp], usize) -> Vec<usize>,
-        L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
+        L: FnMut(
+            &mut Self,
+            SpawnObjectType,
+            SpawnId,
+        )
+            -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
     {
         self.process_due_respawns_materialized_core(
-            now, spawn_store, linked_store, pool_mgr, jitter_secs,
-            respawn_dynamic_escortnpc, is_creature_escorted, explicit_roll_for,
-            choose_equal, consume_due_timer_on_load_failure, load_record,
+            now,
+            spawn_store,
+            linked_store,
+            pool_mgr,
+            jitter_secs,
+            respawn_dynamic_escortnpc,
+            is_creature_escorted,
+            explicit_roll_for,
+            choose_equal,
+            consume_due_timer_on_load_failure,
+            load_record,
             LoadedGridReceipts::Owned(Vec::new()),
         )
     }
@@ -112,7 +133,12 @@ where
         F: FnMut(ObjectGuid, &Creature) -> bool,
         R: FnMut(PoolMemberKindLikeCpp, u32) -> f32,
         C: FnMut(&[PoolObjectLikeCpp], usize) -> Vec<usize>,
-        L: FnMut(&mut Self, SpawnObjectType, SpawnId) -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
+        L: FnMut(
+            &mut Self,
+            SpawnObjectType,
+            SpawnId,
+        )
+            -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
     {
         let mut summary = ProcessRespawnsSafeSideEffectsSummaryLikeCpp::default();
 
@@ -331,7 +357,6 @@ where
             |_candidates, count| (0..count).collect(),
         )
     }
-
 }
 
 #[cfg(test)]

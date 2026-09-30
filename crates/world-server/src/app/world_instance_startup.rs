@@ -24,7 +24,8 @@ pub(super) struct WorldInstanceManagers {
     pub(super) registered_instance_ids: Vec<u32>,
     pub(super) instance_lock_stats: InstanceLocksStatistics,
     pub(super) instance_lock_load_issues: Vec<InstanceLockLoadIssue>,
-    pub(super) instance_lock_persistence_port: Arc<dyn wow_persistence::InstanceLockPersistencePortLikeCpp>,
+    pub(super) instance_lock_persistence_port:
+        Arc<dyn wow_persistence::InstanceLockPersistencePortLikeCpp>,
     pub(super) shared_map: SharedMapManager,
 }
 

@@ -1,10 +1,10 @@
 //! Trait DB2 store loaders and shared WDC4 row ingestion.
 
 use super::*;
-use std::path::Path;
-use anyhow::{Context, Result};
-use tracing::info;
 use crate::wdc4::Wdc4Reader;
+use anyhow::{Context, Result};
+use std::path::Path;
+use tracing::info;
 
 impl TraitCondStore {
     pub fn load(data_dir: &str, locale: &str) -> Result<Self> {
@@ -437,4 +437,3 @@ impl_from_entries!(TraitTreeLoadoutStore, TraitTreeLoadoutEntry);
 impl_from_entries!(TraitTreeLoadoutEntryStore, TraitTreeLoadoutEntryEntry);
 impl_from_entries!(TraitTreeXTraitCostStore, TraitTreeXTraitCostEntry);
 impl_from_entries!(TraitTreeXTraitCurrencyStore, TraitTreeXTraitCurrencyEntry);
-

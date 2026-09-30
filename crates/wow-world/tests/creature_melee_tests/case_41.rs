@@ -7,8 +7,8 @@ use super::*;
 /// the absorb log before the attacker-state packet.
 #[test]
 fn legacy_creature_melee_tick_once_absorbs_creature_victim_damage_like_cpp() {
-    use wow_world::map_manager::RuntimeTickOwner;
     use wow_constants::ServerOpcodes;
+    use wow_world::map_manager::RuntimeTickOwner;
 
     let manager = shared_map_manager();
     let canonical = shared_canonical_map_manager();
@@ -197,43 +197,44 @@ fn legacy_creature_melee_tick_once_absorbs_creature_victim_damage_like_cpp() {
             })
             .collect::<Vec<_>>()
     };
-    let event_victim_state = |outcome: &wow_world::session::LegacyCreatureMeleeTickOutcomeLikeCpp| {
-        let event = outcome
-            .plan
-            .events
-            .iter()
-            .find(|event| {
-                event.packet_bytes.len() > 2
-                    && u16::from_le_bytes([event.packet_bytes[0], event.packet_bytes[1]])
-                        == ServerOpcodes::AttackerStateUpdate as u16
-            })
-            .expect("attacker state update event");
-        let mut packet = wow_packet::world_packet::WorldPacket::from_bytes(&event.packet_bytes);
-        packet.read_uint16().expect("opcode");
-        packet.read_bit().expect("has log data");
-        let info_len = packet.read_uint32().expect("attackRoundInfo size") as usize;
-        let info_bytes = packet.read_bytes(info_len).expect("attackRoundInfo bytes");
-        let mut info = wow_packet::world_packet::WorldPacket::from_bytes(&info_bytes);
-        let hit_info = info.read_uint32().expect("hitInfo");
-        info.read_packed_guid().expect("attacker");
-        info.read_packed_guid().expect("victim");
-        info.read_int32().expect("damage");
-        info.read_int32().expect("original damage");
-        info.read_int32().expect("over damage");
-        if info.read_uint8().expect("sub-damage present") != 0 {
-            info.read_int32().expect("sub-damage school");
-            info.read_float().expect("sub-damage float");
-            info.read_int32().expect("sub-damage amount");
-            if hit_info
-                & (wow_packet::packets::combat::HIT_INFO_FULL_ABSORB
-                    | wow_packet::packets::combat::HIT_INFO_PARTIAL_ABSORB)
-                != 0
-            {
-                info.read_int32().expect("absorbed");
+    let event_victim_state =
+        |outcome: &wow_world::session::LegacyCreatureMeleeTickOutcomeLikeCpp| {
+            let event = outcome
+                .plan
+                .events
+                .iter()
+                .find(|event| {
+                    event.packet_bytes.len() > 2
+                        && u16::from_le_bytes([event.packet_bytes[0], event.packet_bytes[1]])
+                            == ServerOpcodes::AttackerStateUpdate as u16
+                })
+                .expect("attacker state update event");
+            let mut packet = wow_packet::world_packet::WorldPacket::from_bytes(&event.packet_bytes);
+            packet.read_uint16().expect("opcode");
+            packet.read_bit().expect("has log data");
+            let info_len = packet.read_uint32().expect("attackRoundInfo size") as usize;
+            let info_bytes = packet.read_bytes(info_len).expect("attackRoundInfo bytes");
+            let mut info = wow_packet::world_packet::WorldPacket::from_bytes(&info_bytes);
+            let hit_info = info.read_uint32().expect("hitInfo");
+            info.read_packed_guid().expect("attacker");
+            info.read_packed_guid().expect("victim");
+            info.read_int32().expect("damage");
+            info.read_int32().expect("original damage");
+            info.read_int32().expect("over damage");
+            if info.read_uint8().expect("sub-damage present") != 0 {
+                info.read_int32().expect("sub-damage school");
+                info.read_float().expect("sub-damage float");
+                info.read_int32().expect("sub-damage amount");
+                if hit_info
+                    & (wow_packet::packets::combat::HIT_INFO_FULL_ABSORB
+                        | wow_packet::packets::combat::HIT_INFO_PARTIAL_ABSORB)
+                    != 0
+                {
+                    info.read_int32().expect("absorbed");
+                }
             }
-        }
-        info.read_uint8().expect("victim state")
-    };
+            info.read_uint8().expect("victim state")
+        };
     let tick = |session: &mut WorldSession| {
         session
             .fixture_melee_mutate_creature(attacker_guid, |creature| {

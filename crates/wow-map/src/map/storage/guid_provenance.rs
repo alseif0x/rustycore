@@ -15,7 +15,6 @@ where
     /// (`Spell.h:140`, `ObjectGuid.h:227`).
     const SPELL_CAST_SOURCE_NORMAL_LIKE_CPP: u8 = 3;
 
-
     pub fn generate_low_guid_like_cpp(
         &mut self,
         high: HighGuid,
@@ -144,5 +143,4 @@ where
             .entry(high)
             .or_insert_with(|| MapGuidSequenceGeneratorLikeCpp::new(high))
     }
-
 }

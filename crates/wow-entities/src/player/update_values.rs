@@ -1,8 +1,8 @@
 //! Player update-field values and schema bit positions.
 
 use super::{
-    BUYBACK_SLOT_COUNT, EQUIPMENT_SLOT_END, Gender, ObjectDataUpdate, ObjectGuid,
-    PLAYER_SLOT_END, Player, UnitDataUpdate, UpdateMask,
+    BUYBACK_SLOT_COUNT, EQUIPMENT_SLOT_END, Gender, ObjectDataUpdate, ObjectGuid, PLAYER_SLOT_END,
+    Player, UnitDataUpdate, UpdateMask,
 };
 
 pub const PLAYER_DATA_PARENT_BIT: usize = 0;

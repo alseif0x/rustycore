@@ -74,7 +74,8 @@ impl<I: Iterator<Item = LoadedSpellDependency>> LoadedSpellReconstruction<I> {
                 }
                 Phase::Lookup(id) => return LoadedSpellStep::Dependencies(id),
                 Phase::Rows => {
-                    let Some(row) = self.rows.as_mut().expect("resolved dependency rows").next() else {
+                    let Some(row) = self.rows.as_mut().expect("resolved dependency rows").next()
+                    else {
                         self.rows = None;
                         self.phase = Phase::Root;
                         continue;
@@ -102,7 +103,10 @@ impl<I: Iterator<Item = LoadedSpellDependency>> LoadedSpellReconstruction<I> {
                     self.phase = Phase::Rows;
                 }
                 Phase::Override(overridden, replacement) => {
-                    return LoadedSpellStep::Override { overridden, replacement };
+                    return LoadedSpellStep::Override {
+                        overridden,
+                        replacement,
+                    };
                 }
                 Phase::Done => return LoadedSpellStep::Done(self.added),
             }

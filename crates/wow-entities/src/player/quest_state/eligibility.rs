@@ -12,13 +12,12 @@
 
 use super::PlayerQuestGameplayState;
 use wow_constants::quest::{
-    QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_FAILED_LIKE_CPP,
-    QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+    QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_FAILED_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP,
 };
 use wow_data_model::quest::{QuestDayCooldownBlock, QuestEligibilityRules, QuestStatusBlock};
 
-mod dependent_previous;
 mod cooldowns;
+mod dependent_previous;
 mod previous;
 mod sharing_acceptance;
 
@@ -52,9 +51,7 @@ impl PlayerQuestGameplayState {
             return false;
         }
 
-        if peer.is_dungeon_finder()
-            && self.df_quest_ids_like_cpp().contains(&peer.id())
-        {
+        if peer.is_dungeon_finder() && self.df_quest_ids_like_cpp().contains(&peer.id()) {
             return true;
         }
         if peer.is_daily() && self.daily_quest_ids_like_cpp().contains(&peer.id()) {
@@ -85,7 +82,11 @@ impl PlayerQuestGameplayState {
         Self::previous_quest_requirement_satisfied_from_membership(
             previous_quest_id,
             |id| self.rewarded_quest_ids_like_cpp().contains(&id),
-            |id| self.statuses_like_cpp().get(&id).map(|status| status.status),
+            |id| {
+                self.statuses_like_cpp()
+                    .get(&id)
+                    .map(|status| status.status)
+            },
         )
     }
 
@@ -113,24 +114,15 @@ impl PlayerQuestGameplayState {
         )
     }
 
-    pub fn quest_weekly_cooldown_blocks(
-        &self,
-        quest: &QuestEligibilityRules<'_>,
-    ) -> bool {
+    pub fn quest_weekly_cooldown_blocks(&self, quest: &QuestEligibilityRules<'_>) -> bool {
         quest.is_weekly() && self.weekly_quest_ids_like_cpp().contains(&quest.id())
     }
 
-    pub fn quest_monthly_cooldown_blocks(
-        &self,
-        quest: &QuestEligibilityRules<'_>,
-    ) -> bool {
+    pub fn quest_monthly_cooldown_blocks(&self, quest: &QuestEligibilityRules<'_>) -> bool {
         quest.is_monthly() && self.monthly_quest_ids_like_cpp().contains(&quest.id())
     }
 
-    pub fn quest_seasonal_cooldown_blocks(
-        &self,
-        quest: &QuestEligibilityRules<'_>,
-    ) -> bool {
+    pub fn quest_seasonal_cooldown_blocks(&self, quest: &QuestEligibilityRules<'_>) -> bool {
         quest.is_seasonal()
             && !self.seasonal_quests_like_cpp().is_empty()
             && self
@@ -159,13 +151,10 @@ impl PlayerQuestGameplayState {
         &self,
         dependent_breadcrumb_quest_ids: &[u32],
     ) -> bool {
-        Self::dependent_breadcrumb_quest_ids_block(
-            dependent_breadcrumb_quest_ids,
-            |quest_id| {
-                self.statuses_like_cpp()
-                    .get(&quest_id)
-                    .map(|status| status.status)
-            },
-        )
+        Self::dependent_breadcrumb_quest_ids_block(dependent_breadcrumb_quest_ids, |quest_id| {
+            self.statuses_like_cpp()
+                .get(&quest_id)
+                .map(|status| status.status)
+        })
     }
 }

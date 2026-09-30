@@ -1,8 +1,7 @@
 //! One creature movement step; application policy and path resolution are lazy inputs.
 
 use crate::map_manager::{
-    ChaseTargetSnapshotLikeCpp, CreaturePathQueryLikeCpp,
-    LiveTerrainHeights, WorldCreature,
+    ChaseTargetSnapshotLikeCpp, CreaturePathQueryLikeCpp, LiveTerrainHeights, WorldCreature,
 };
 use wow_constants::UnitState;
 use wow_core::Position;
@@ -45,24 +44,37 @@ impl WorldCreature {
         mut policy: impl FnMut(u32, bool) -> bool,
         mut path: impl FnMut(CreaturePathQueryLikeCpp, u32, u32, &PhaseShift) -> Option<DetourPolyPath>,
     ) -> Option<CreatureMovementStep> {
-        let mut progress = self.prepare_movement_step(diff_ms, chase_target, terrain.is_some(), &mut policy);
+        let mut progress =
+            self.prepare_movement_step(diff_ms, chase_target, terrain.is_some(), &mut policy);
         loop {
             progress = match progress {
                 StepProgress::Complete(result) => return result,
                 StepProgress::Pending(StepPending::Path(request)) => {
                     let (query, continuation) = request.into_parts();
-                    let response = path(query, continuation.map_id(), continuation.instance_id(), continuation.phase_shift());
+                    let response = path(
+                        query,
+                        continuation.map_id(),
+                        continuation.instance_id(),
+                        continuation.phase_shift(),
+                    );
                     continuation.resume(self, response)
                 }
                 StepProgress::Pending(StepPending::StaticHeight(request)) => {
                     let (query, continuation) = request.into_parts();
-                    let height = terrain.expect("height requests require terrain")
-                        .static_height_like_cpp(query.map_id, query.point.x, query.point.y, query.probe_z);
+                    let height = terrain
+                        .expect("height requests require terrain")
+                        .static_height_like_cpp(
+                            query.map_id,
+                            query.point.x,
+                            query.point.y,
+                            query.probe_z,
+                        );
                     continuation.resume(self, height)
                 }
                 StepProgress::Pending(StepPending::GridHeight(request)) => {
                     let (query, continuation) = request.into_parts();
-                    let height = terrain.expect("height requests require terrain")
+                    let height = terrain
+                        .expect("height requests require terrain")
                         .grid_height_like_cpp(query.map_id, query.point.x, query.point.y);
                     continuation.resume(self, height)
                 }
@@ -116,14 +128,18 @@ impl WorldCreature {
             let phase_shift = creature.phase_shift().clone();
             let filter_context = creature.path_query_filter_context_like_cpp();
             let owner_capabilities = creature.detour_owner_capabilities_like_cpp();
-            let should_try_pathfinding =
-                policy(source_map_id, owner_ignores_pathfinding);
+            let should_try_pathfinding = policy(source_map_id, owner_ignores_pathfinding);
 
             let progress = family::prepare_home(creature, should_try_pathfinding, terrain_enabled);
-            return wrap(progress, StepMetadata {
-                source: CreatureMovementSource::Home,
-                map_id: source_map_id, instance_id: source_instance_id, phase_shift,
-            });
+            return wrap(
+                progress,
+                StepMetadata {
+                    source: CreatureMovementSource::Home,
+                    map_id: source_map_id,
+                    instance_id: source_instance_id,
+                    phase_shift,
+                },
+            );
         }
 
         if creature.state() == wow_entities::CreatureAiState::WalkingRandom
@@ -144,7 +160,8 @@ impl WorldCreature {
             Some(wow_movement::MovementGeneratorType::Random)
                 if matches!(
                     creature.state(),
-                    wow_entities::CreatureAiState::Idle | wow_entities::CreatureAiState::WalkingRandom
+                    wow_entities::CreatureAiState::Idle
+                        | wow_entities::CreatureAiState::WalkingRandom
                 ) =>
             {
                 let owner_ignores_pathfinding = creature
@@ -164,11 +181,22 @@ impl WorldCreature {
                 // query (`RandomMovementGenerator.cpp:140-143`).
                 let previous_poly_refs = creature.active_random_path_poly_refs_like_cpp().to_vec();
                 let should_try_pathfinding = policy(source_map_id, owner_ignores_pathfinding);
-                let progress = family::prepare_random(creature, diff_ms, should_try_pathfinding, terrain_enabled, false);
-                return wrap(progress, StepMetadata {
-                    source: CreatureMovementSource::Random,
-                    map_id: source_map_id, instance_id: source_instance_id, phase_shift,
-                });
+                let progress = family::prepare_random(
+                    creature,
+                    diff_ms,
+                    should_try_pathfinding,
+                    terrain_enabled,
+                    false,
+                );
+                return wrap(
+                    progress,
+                    StepMetadata {
+                        source: CreatureMovementSource::Random,
+                        map_id: source_map_id,
+                        instance_id: source_instance_id,
+                        phase_shift,
+                    },
+                );
             }
             Some(wow_movement::MovementGeneratorType::Waypoint)
                 if creature.state() == wow_entities::CreatureAiState::WalkingWaypoint =>
@@ -189,11 +217,23 @@ impl WorldCreature {
                 let filter_context = creature.path_query_filter_context_like_cpp();
                 let owner_capabilities = creature.detour_owner_capabilities_like_cpp();
                 let should_try_pathfinding = policy(source_map_id, owner_ignores_pathfinding);
-                let progress = family::prepare_waypoint(creature, diff_ms, None, should_try_pathfinding, terrain_enabled, false);
-                return wrap(progress, StepMetadata {
-                    source: CreatureMovementSource::Waypoint,
-                    map_id: source_map_id, instance_id: source_instance_id, phase_shift,
-                });
+                let progress = family::prepare_waypoint(
+                    creature,
+                    diff_ms,
+                    None,
+                    should_try_pathfinding,
+                    terrain_enabled,
+                    false,
+                );
+                return wrap(
+                    progress,
+                    StepMetadata {
+                        source: CreatureMovementSource::Waypoint,
+                        map_id: source_map_id,
+                        instance_id: source_instance_id,
+                        phase_shift,
+                    },
+                );
             }
             Some(wow_movement::MovementGeneratorType::Chase) => {
                 // `MoveChase` replaces the default random/waypoint generator at the
@@ -231,11 +271,22 @@ impl WorldCreature {
                 let previous_poly_refs = creature.active_chase_path_poly_refs_like_cpp().to_vec();
                 let should_try_pathfinding = policy(source_map_id, owner_ignores_pathfinding);
 
-                let progress = family::prepare_chase(creature, diff_ms, target, should_try_pathfinding, terrain_enabled);
-                return wrap(progress, StepMetadata {
-                    source: CreatureMovementSource::Chase,
-                    map_id: source_map_id, instance_id: source_instance_id, phase_shift,
-                });
+                let progress = family::prepare_chase(
+                    creature,
+                    diff_ms,
+                    target,
+                    should_try_pathfinding,
+                    terrain_enabled,
+                );
+                return wrap(
+                    progress,
+                    StepMetadata {
+                        source: CreatureMovementSource::Chase,
+                        map_id: source_map_id,
+                        instance_id: source_instance_id,
+                        phase_shift,
+                    },
+                );
             }
             _ => {}
         }
@@ -244,11 +295,11 @@ impl WorldCreature {
 }
 
 #[cfg(test)]
-mod tests;
-#[cfg(test)]
 mod contract_tests;
 #[cfg(test)]
 mod fixtures;
+#[cfg(test)]
+mod tests;
 
 #[cfg(test)]
 mod pending_tests;

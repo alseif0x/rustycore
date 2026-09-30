@@ -77,7 +77,8 @@ async fn loot_item_creature_too_far_uses_cpp_error() {
     let mut creature = test_creature(loot_guid, false);
     creature.current_pos = Position::new(31.0, 0.0, 0.0, 0.0);
     register_test_creature_like_cpp(&mut session, creature);
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -108,8 +109,7 @@ async fn loot_item_creature_too_far_uses_cpp_error() {
         },
     );
 
-    handle_loot_item_for_test(&mut session, loot_item_packet(loot_guid, 0))
-        .await;
+    handle_loot_item_for_test(&mut session, loot_item_packet(loot_guid, 0)).await;
 
     let sent = send_rx.try_recv().unwrap();
     assert_eq!(
@@ -133,7 +133,8 @@ async fn loot_item_creature_distance_can_use_canonical_map_object_like_cpp() {
         AccessorObjectKind::Creature,
         canonical_world_object(loot_guid, 0, Position::new(31.0, 0.0, 0.0, 0.0)),
     );
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -164,8 +165,7 @@ async fn loot_item_creature_distance_can_use_canonical_map_object_like_cpp() {
         },
     );
 
-    handle_loot_item_for_test(&mut session, loot_item_packet(loot_guid, 0))
-        .await;
+    handle_loot_item_for_test(&mut session, loot_item_packet(loot_guid, 0)).await;
 
     let sent = send_rx.try_recv().unwrap();
     assert_eq!(
@@ -183,7 +183,8 @@ async fn loot_item_missing_creature_uses_cpp_no_loot_error() {
     let loot_guid = test_creature_guid(19_009);
     session.set_player_guid(Some(player_guid));
     set_active_loot_guid_for_test(&mut session, loot_guid);
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -214,8 +215,7 @@ async fn loot_item_missing_creature_uses_cpp_no_loot_error() {
         },
     );
 
-    handle_loot_item_for_test(&mut session, loot_item_packet(loot_guid, 0))
-        .await;
+    handle_loot_item_for_test(&mut session, loot_item_packet(loot_guid, 0)).await;
 
     let sent = send_rx.try_recv().unwrap();
     assert_eq!(

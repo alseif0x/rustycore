@@ -9,15 +9,14 @@ use super::*;
 
 mod creature;
 mod game_object;
-mod other_objects;
 mod membership;
+mod other_objects;
 
 impl<Terrain, Lifecycle> Map<Terrain, Lifecycle>
 where
     Terrain: TerrainGridLoader,
     Lifecycle: GridLifecycle,
 {
-
     pub fn add_to_map_like_cpp(
         &mut self,
         kind: AccessorObjectKind,
@@ -112,14 +111,40 @@ where
         }
 
         if kind == AccessorObjectKind::Creature && entry.as_ref().creature().is_some() {
-            return self.add_creature_entry(entry, kind, guid, cell, grid, active_object, grid_loaded, grid_created);
+            return self.add_creature_entry(
+                entry,
+                kind,
+                guid,
+                cell,
+                grid,
+                active_object,
+                grid_loaded,
+                grid_created,
+            );
         }
 
         if kind == AccessorObjectKind::GameObject && entry.as_ref().game_object().is_some() {
-            return self.add_game_object_entry(entry, kind, guid, cell, grid, active_object, grid_loaded, grid_created);
+            return self.add_game_object_entry(
+                entry,
+                kind,
+                guid,
+                cell,
+                grid,
+                active_object,
+                grid_loaded,
+                grid_created,
+            );
         }
 
-        self.add_other_object_entry(entry, kind, guid, cell, grid, active_object, grid_loaded, grid_created)
+        self.add_other_object_entry(
+            entry,
+            kind,
+            guid,
+            cell,
+            grid,
+            active_object,
+            grid_loaded,
+            grid_created,
+        )
     }
-
 }

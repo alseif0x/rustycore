@@ -9,12 +9,15 @@ use wow_loot::{
 };
 
 use super::recovery_support::*;
+use wow_world::test_fixtures::loot::{
+    attach_loot_allocator_for_test as attach_loot_guid_allocator_for_owner,
+    mutate_loot_creature_for_test,
+};
 use wow_world::test_fixtures::set_loaded_player_identity_like_cpp;
-use wow_world::test_fixtures::loot::{mutate_loot_creature_for_test, attach_loot_allocator_for_test as attach_loot_guid_allocator_for_owner};
 
 use super::recovery_support::{
-    broadcast_info, make_session,
-    register_test_creature_like_cpp, test_creature, test_creature_guid,
+    broadcast_info, make_session, register_test_creature_like_cpp, test_creature,
+    test_creature_guid,
 };
 use wow_world::session::WorldSession;
 use wow_world::session::directory::PlayerRegistry;

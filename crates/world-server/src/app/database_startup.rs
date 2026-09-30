@@ -9,8 +9,8 @@ use wow_database::{CharacterDatabase, HotfixDatabase, LoginDatabase, WorldDataba
 
 use crate::{database_pool_size_like_cpp, log_database_target_like_cpp};
 
-pub(super) async fn open_primary_databases(
-) -> Result<(LoginDatabase, CharacterDatabase, Arc<WorldDatabase>)> {
+pub(super) async fn open_primary_databases()
+-> Result<(LoginDatabase, CharacterDatabase, Arc<WorldDatabase>)> {
     // Connect to login database (needed for session key validation)
     let login_info = wow_config::get_database_info_default(
         "Login",
@@ -138,12 +138,18 @@ pub(super) async fn validate_runtime_schemas(
 }
 
 pub(super) struct WorldCatalogPorts {
-    pub(super) condition_disable_catalog_persistence: wow_database::MariaDbConditionDisableCatalogPersistenceAdapterLikeCpp,
-    pub(super) gameplay_rule_catalog_persistence: wow_database::MariaDbGameplayRuleCatalogPersistenceAdapterLikeCpp,
-    pub(super) quest_catalog_persistence: wow_database::MariaDbQuestCatalogPersistenceAdapterLikeCpp,
-    pub(super) world_object_catalog_persistence: wow_database::MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp,
-    pub(super) world_auxiliary_catalog_persistence: wow_database::MariaDbWorldAuxiliaryCatalogPersistenceAdapterLikeCpp,
-    pub(super) world_reference_catalog_persistence: wow_database::MariaDbWorldReferenceCatalogPersistenceAdapterLikeCpp,
+    pub(super) condition_disable_catalog_persistence:
+        wow_database::MariaDbConditionDisableCatalogPersistenceAdapterLikeCpp,
+    pub(super) gameplay_rule_catalog_persistence:
+        wow_database::MariaDbGameplayRuleCatalogPersistenceAdapterLikeCpp,
+    pub(super) quest_catalog_persistence:
+        wow_database::MariaDbQuestCatalogPersistenceAdapterLikeCpp,
+    pub(super) world_object_catalog_persistence:
+        wow_database::MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp,
+    pub(super) world_auxiliary_catalog_persistence:
+        wow_database::MariaDbWorldAuxiliaryCatalogPersistenceAdapterLikeCpp,
+    pub(super) world_reference_catalog_persistence:
+        wow_database::MariaDbWorldReferenceCatalogPersistenceAdapterLikeCpp,
 }
 
 pub(super) fn compose_world_catalog_ports(
@@ -158,9 +164,7 @@ pub(super) fn compose_world_catalog_ports(
             world_db,
         ));
     let world_object_catalog_persistence =
-        wow_database::MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp::new(Arc::clone(
-            world_db,
-        ));
+        wow_database::MariaDbWorldObjectCatalogPersistenceAdapterLikeCpp::new(Arc::clone(world_db));
     let quest_catalog_persistence =
         wow_database::MariaDbQuestCatalogPersistenceAdapterLikeCpp::new(Arc::clone(world_db));
     let gameplay_rule_catalog_persistence =

@@ -47,8 +47,7 @@ impl PlayerQuestGameplayState {
                 return false;
             }
 
-            if status(peer.id()).unwrap_or(QUEST_STATUS_NONE_LIKE_CPP)
-                != QUEST_STATUS_NONE_LIKE_CPP
+            if status(peer.id()).unwrap_or(QUEST_STATUS_NONE_LIKE_CPP) != QUEST_STATUS_NONE_LIKE_CPP
             {
                 return false;
             }

@@ -9,8 +9,13 @@ pub struct SpellUnlearnEdge {
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SpellUnlearnOwnerStep {
-    Forget { spell_id: i32, preserve_complete: bool },
-    DropOverridesAndTrait { spell_id: i32 },
+    Forget {
+        spell_id: i32,
+        preserve_complete: bool,
+    },
+    DropOverridesAndTrait {
+        spell_id: i32,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -30,16 +35,28 @@ pub enum SpellUnlearnStep {
     Owner(SpellUnlearnOwnerStep),
     DowngradeSkill(u32),
     Learned(u32),
-    RemoveOverride { overridden: i32, replacement: i32 },
+    RemoveOverride {
+        overridden: i32,
+        replacement: i32,
+    },
     PreviousRank(u32),
     Ranked(u32),
-    Reactivate { spell_id: i32, dependent: bool },
-    Superceded { spell_id: i32, previous_spell_id: i32 },
+    Reactivate {
+        spell_id: i32,
+        dependent: bool,
+    },
+    Superceded {
+        spell_id: i32,
+        previous_spell_id: i32,
+    },
     TraitOverride(u32),
     TitanGrip(i32),
     DualWield(i32),
     Offhand,
-    Unlearned { spell_id: u32, suppress_messaging: bool },
+    Unlearned {
+        spell_id: u32,
+        suppress_messaging: bool,
+    },
     Done,
 }
 

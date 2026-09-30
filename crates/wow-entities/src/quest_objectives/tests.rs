@@ -12,8 +12,7 @@ use crate::PlayerQuestStatusRecord;
 use std::collections::BTreeMap;
 use std::collections::{HashMap, HashSet};
 use wow_constants::quest::{
-    QUEST_FLAGS_COMPLETION_EVENT_LIKE_CPP,
-    QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP,
+    QUEST_FLAGS_COMPLETION_EVENT_LIKE_CPP, QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP,
     QUEST_OBJECTIVE_FLAG_PART_OF_PROGRESS_BAR_LIKE_CPP, QUEST_OBJECTIVE_FLAG_SEQUENCED_LIKE_CPP,
     QUEST_OBJECTIVE_ITEM_LIKE_CPP, QUEST_OBJECTIVE_MONSTER_LIKE_CPP,
     QUEST_OBJECTIVE_PROGRESS_BAR_LIKE_CPP, QUEST_STATUS_COMPLETE_LIKE_CPP,
@@ -50,12 +49,7 @@ fn catalog_objective_definition_and_rule_view_keep_the_same_contract() {
                 repeatable,
                 &objectives,
             );
-            represented_can_complete_quest_after_objective_like_cpp(
-                $status,
-                &rules,
-                0,
-                $rewarded,
-            )
+            represented_can_complete_quest_after_objective_like_cpp($status, &rules, 0, $rewarded)
         }};
     }
 
@@ -127,7 +121,10 @@ fn definition_view_borrows_the_original_objectives_in_the_original_order() {
         objective(91, 9, QUEST_OBJECTIVE_ITEM_LIKE_CPP, 1, 21, 2, 0, 0, 0.0),
     ];
     let view = QuestObjectiveRulesLikeCpp::new(9, 0, 0, false, &objectives);
-    assert!(std::ptr::eq(view.objectives().as_ptr(), objectives.as_ptr()));
+    assert!(std::ptr::eq(
+        view.objectives().as_ptr(),
+        objectives.as_ptr()
+    ));
     assert_eq!(view.objectives()[0].id, 90);
     assert_eq!(view.objectives()[1].id, 91);
 }

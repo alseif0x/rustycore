@@ -221,8 +221,15 @@ mod tests {
         let delegation = "world_startup::run_world_startup(";
         assert_eq!(source.matches(delegation).count(), 1);
         let delegation_position = source.find(delegation).unwrap();
-        assert_eq!(source[delegation_position..].split_once(".await").unwrap().0
-            .matches("&gossip_catalog_adapter,").count(), 1);
+        assert_eq!(
+            source[delegation_position..]
+                .split_once(".await")
+                .unwrap()
+                .0
+                .matches("&gossip_catalog_adapter,")
+                .count(),
+            1
+        );
         let persistence_source = include_str!("../app/session_persistence.rs");
         assert_eq!(
             source
@@ -248,7 +255,9 @@ mod tests {
             .unwrap()
             .0;
         assert_eq!(
-            persistence_arguments.matches("gossip_catalog_adapter,").count(),
+            persistence_arguments
+                .matches("gossip_catalog_adapter,")
+                .count(),
             1
         );
         let persistence = persistence_source
@@ -264,7 +273,9 @@ mod tests {
             .0;
         assert!(gossip_port.contains("gossip_catalog_adapter.clone()"));
         assert_eq!(
-            persistence.matches("gossip_catalog_adapter.clone()").count(),
+            persistence
+                .matches("gossip_catalog_adapter.clone()")
+                .count(),
             1
         );
         let clone_position = persistence.find("gossip_catalog_adapter.clone()").unwrap();

@@ -19,7 +19,8 @@ async fn loot_release_keeps_unlooted_creature_loot_like_cpp() {
     );
     let corpse_despawn_before = world_creature_corpse_deadline_for_test(&mut session, loot_guid)
         .expect("C++ arms corpse removal when the creature reaches JUST_DIED");
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -55,7 +56,11 @@ async fn loot_release_keeps_unlooted_creature_loot_like_cpp() {
         !has_loot_for_test(&session, loot_guid),
         "the closed session view is a discardable cache; the creature authority keeps loot"
     );
-    assert!(reconcile_loot_cache_for_test(&mut session, loot_guid, player_guid));
+    assert!(reconcile_loot_cache_for_test(
+        &mut session,
+        loot_guid,
+        player_guid
+    ));
     assert_eq!(loot_for_test(&session, loot_guid).unwrap().coins, 7);
     assert!(has_loot_for_test(&session, loot_guid));
     assert_eq!(
@@ -82,7 +87,8 @@ async fn creature_owned_loot_release_partial_uses_canonical_is_fully_looted_like
     register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
     let corpse_despawn_before = world_creature_corpse_deadline_for_test(&mut session, loot_guid)
         .expect("C++ arms corpse removal when the creature reaches JUST_DIED");
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -119,7 +125,11 @@ async fn creature_owned_loot_release_partial_uses_canonical_is_fully_looted_like
         Some(&CreatureOwnedLoot::new(7, 0))
     );
     assert!(!canonical.is_fully_looted_like_cpp());
-    assert!(reconcile_loot_cache_for_test(&mut session, loot_guid, player_guid));
+    assert!(reconcile_loot_cache_for_test(
+        &mut session,
+        loot_guid,
+        player_guid
+    ));
     assert_eq!(loot_for_test(&session, loot_guid).unwrap().coins, 7);
     assert!(has_loot_for_test(&session, loot_guid));
     assert_eq!(
@@ -148,7 +158,8 @@ async fn creature_owned_loot_release_fully_consumed_uses_canonical_is_fully_loot
         world_creature_corpse_delay_for_test(&mut session, loot_guid),
         Some(120)
     );
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -210,7 +221,8 @@ async fn creature_owned_loot_release_does_not_extend_expired_corpse_like_cpp() {
         &mut session,
         loot_guid
     ));
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -260,7 +272,8 @@ async fn creature_owned_loot_release_fully_consumed_removes_lootable_dynflag_lik
         &mut session,
         loot_guid
     ));
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,
@@ -367,7 +380,8 @@ async fn creature_skinning_loot_release_despawns_corpse_immediately_like_cpp() {
     });
     register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
     set_world_creature_corpse_delay_for_test(&mut session, loot_guid, 120, false);
-    set_loot_for_test(&mut session,
+    set_loot_for_test(
+        &mut session,
         loot_guid,
         CreatureLoot {
             loot_guid,

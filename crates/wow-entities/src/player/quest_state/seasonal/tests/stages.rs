@@ -30,7 +30,9 @@ fn nonempty_event_with_no_older_rows_still_requests_one_writeback() {
     let mut state = PlayerQuestGameplayState::default();
     state.seed_seasonal_quest_like_cpp(7, 1001, 100);
     let mut plan = state.plan_seasonal_reset(7, 100);
-    let updated = plan.take_updated_seasonal_quests().expect("nonempty writeback");
+    let updated = plan
+        .take_updated_seasonal_quests()
+        .expect("nonempty writeback");
     assert_eq!(updated.get(&7), Some(&BTreeMap::from([(1001, 100)])));
     assert!(plan.take_updated_seasonal_quests().is_none());
     let outcome = plan.finish(|_| panic!("equal timestamps do not read bits"));
@@ -75,10 +77,17 @@ fn dropping_a_plan_neither_applies_its_snapshot_nor_clears_player_bits() {
         .quests
         .seed_seasonal_quest_like_cpp(7, 1001, 99);
     assert!(player.set_quest_completed_bit_like_cpp(65, true));
-    let plan = player.gameplay_state().quests.clone().plan_seasonal_reset(7, 100);
+    let plan = player
+        .gameplay_state()
+        .quests
+        .clone()
+        .plan_seasonal_reset(7, 100);
     drop(plan);
     assert_eq!(
-        player.gameplay_state().quests.seasonal_event_quests_like_cpp(7),
+        player
+            .gameplay_state()
+            .quests
+            .seasonal_event_quests_like_cpp(7),
         Some(&BTreeMap::from([(1001, 99)]))
     );
     assert_eq!(player.quest_completed_block_like_cpp(1), Some(1));

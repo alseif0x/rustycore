@@ -8,14 +8,14 @@
 //! currently follows Record AddToMap. This new dormant ownership contract does
 //! not assert that switching those production timings is already equivalent.
 
-use crate::spawn_store_loader::WaypointPathStoreLikeCpp;
-use crate::spawn_store_loader::CanonicalSpawnMetadataLikeCpp;
 use crate::LoadedGridCreatureRespawnCachesLikeCpp;
+use crate::runtime::map::{LoadedGridCreaturePreparationError, build_creature_spawn_records};
+use crate::spawn_store_loader::CanonicalSpawnMetadataLikeCpp;
+use crate::spawn_store_loader::WaypointPathStoreLikeCpp;
 use wow_entities::{AccessorObjectKind, MapObjectRecord};
 use wow_map::map::{AddToMapError, AddToMapOutcome, LoadedGridRespawnRecordsLikeCpp};
 use wow_map::{FreshCreatureActorAdmission, FreshCreatureActorAdmissionError};
 use wow_world::map_manager::WorldCreature;
-use crate::runtime::map::{build_creature_spawn_records, LoadedGridCreaturePreparationError};
 
 /// Owns one newly materialized actor and every preceding loaded-grid facet.
 /// No Clone: the caller must admit it or explicitly retain/drop its payload.
@@ -30,7 +30,8 @@ pub(crate) struct PreparedLoadedGridCreature {
 #[derive(Debug)]
 pub(crate) struct PreparedLoadedGridCreatureOutcome {
     pub(crate) pre_add: Vec<Result<AddToMapOutcome, AddToMapError>>,
-    pub(crate) primary: Result<FreshCreatureActorAdmission, (FreshCreatureActorAdmissionError, WorldCreature)>,
+    pub(crate) primary:
+        Result<FreshCreatureActorAdmission, (FreshCreatureActorAdmissionError, WorldCreature)>,
 }
 
 /// Grid, GameEvent, pool and condition spawn use the same no-timer builder.
@@ -43,8 +44,13 @@ pub(crate) fn prepare_spawn_creature(
     caches: &LoadedGridCreatureRespawnCachesLikeCpp,
 ) -> Result<Option<PreparedLoadedGridCreature>, LoadedGridCreaturePreparationError> {
     let Some(records) = build_creature_spawn_records(
-        map, wow_map::SpawnObjectType::Creature, spawn_id, metadata, caches,
-    )? else {
+        map,
+        wow_map::SpawnObjectType::Creature,
+        spawn_id,
+        metadata,
+        caches,
+    )?
+    else {
         return Ok(None);
     };
     prepare_loaded_grid_creature(records, metadata.waypoint_paths_like_cpp())
@@ -63,26 +69,38 @@ pub(crate) fn prepare_loaded_grid_creature(
     {
         return Err(records);
     }
-    let LoadedGridRespawnRecordsLikeCpp { pre_add_records, primary_record } = records;
+    let LoadedGridRespawnRecordsLikeCpp {
+        pre_add_records,
+        primary_record,
+    } = records;
     let creature = match primary_record.into_creature() {
         Ok(creature) => creature,
-        Err(primary_record) => return Err(LoadedGridRespawnRecordsLikeCpp {
-            pre_add_records, primary_record,
-        }),
+        Err(primary_record) => {
+            return Err(LoadedGridRespawnRecordsLikeCpp {
+                pre_add_records,
+                primary_record,
+            });
+        }
     };
     // Reuse the exact create_data/default-motion/waypoint constructor currently
     // used by mirror_loaded_grid_creature_to_legacy_like_cpp, moving the inner.
-    let actor = WorldCreature::from_loaded_grid_canonical_like_cpp(
-        creature, |path_id| waypoint_paths.get(path_id).cloned(),
-    );
-    Ok(PreparedLoadedGridCreature { pre_add_records, actor })
+    let actor = WorldCreature::from_loaded_grid_canonical_like_cpp(creature, |path_id| {
+        waypoint_paths.get(path_id).cloned()
+    });
+    Ok(PreparedLoadedGridCreature {
+        pre_add_records,
+        actor,
+    })
 }
 
 impl PreparedLoadedGridCreature {
     pub(crate) fn admit(self, map: &mut wow_map::Map) -> PreparedLoadedGridCreatureOutcome {
-        let (pre_add, primary) = map.admit_loaded_grid_materialization(
-            wow_map::LoadedGridMaterialization::creature(self.pre_add_records, self.actor),
-        ).into_parts();
+        let (pre_add, primary) = map
+            .admit_loaded_grid_materialization(wow_map::LoadedGridMaterialization::creature(
+                self.pre_add_records,
+                self.actor,
+            ))
+            .into_parts();
         let wow_map::LoadedGridPrimaryAdmission::CreatureActor(primary) = primary else {
             unreachable!("prepared creature constructs Actor materialization")
         };

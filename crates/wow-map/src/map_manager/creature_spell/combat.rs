@@ -1,10 +1,17 @@
 //! Original AI preparation; all primaries prepare before any queue consumption.
 use super::*;
 
-pub(super) fn combat(creature: &mut WorldCreature, guid: ObjectGuid,
-    recipient_guid: ObjectGuid, map_id: u16, instance_id: u32, difficulty_id: u8,
-    policies: &mut SpellPolicies<'_>, outcome: &mut SpellOutcome,
-    pending_actions: &mut Vec<SpellAction>) {
+pub(super) fn combat(
+    creature: &mut WorldCreature,
+    guid: ObjectGuid,
+    recipient_guid: ObjectGuid,
+    map_id: u16,
+    instance_id: u32,
+    difficulty_id: u8,
+    policies: &mut SpellPolicies<'_>,
+    outcome: &mut SpellOutcome,
+    pending_actions: &mut Vec<SpellAction>,
+) {
     let spells = creature.creature.spells();
 
     if difficulty_id != 0 && spells.iter().any(|spell_id| *spell_id != 0) {
@@ -15,11 +22,7 @@ pub(super) fn combat(creature: &mut WorldCreature, guid: ObjectGuid,
         outcome.spell_effects_unrepresented += 1;
         return;
     }
-    if has_noninstant_spell(
-        &spells,
-        difficulty_id,
-        policies,
-    ) {
+    if has_noninstant_spell(&spells, difficulty_id, policies) {
         outcome.noninstant_casts_unrepresented += 1;
         return;
     }
@@ -37,19 +40,13 @@ pub(super) fn combat(creature: &mut WorldCreature, guid: ObjectGuid,
                 outcome.missing_spell_metadata += 1;
                 continue;
             };
-        
-            match condition(
-                spell_id,
-                difficulty_id,
-                policies,
-            ) {
+
+            match condition(spell_id, difficulty_id, policies) {
                 SpellCondition::Aggro => {
                     // C++ `CombatAI::JustEngagedWith` casts
                     // AICOND_AGGRO directly on `who`, bypassing
                     // `UnitAI::DoCast` target classification.
-                    match disable(
-                        spell_id, map_id, creature, policies,
-                    ) {
+                    match disable(spell_id, map_id, creature, policies) {
                         SpellDisable::Enabled => {}
                         SpellDisable::Disabled => {
                             outcome.spells_disabled += 1;
@@ -61,63 +58,58 @@ pub(super) fn combat(creature: &mut WorldCreature, guid: ObjectGuid,
                             break 'spell_slots;
                         }
                     }
-                    if !(policies.check)(SpellPreparationCheck::RuntimeHooks, spell_id, difficulty_id)
-                    {
+                    if !(policies.check)(
+                        SpellPreparationCheck::RuntimeHooks,
+                        spell_id,
+                        difficulty_id,
+                    ) {
                         outcome.spell_runtime_hooks_unrepresented += 1;
                         creature.record_swing();
                         break 'spell_slots;
                     }
-                    if !(policies.check)(SpellPreparationCheck::CastingRequirements, spell_id, difficulty_id)
-                    {
+                    if !(policies.check)(
+                        SpellPreparationCheck::CastingRequirements,
+                        spell_id,
+                        difficulty_id,
+                    ) {
                         outcome.spell_casting_requirements_unrepresented += 1;
                         creature.record_swing();
                         break 'spell_slots;
                     }
-                    if !(policies.check)(SpellPreparationCheck::ShapeshiftRequirements, spell_id, difficulty_id)
-                    {
+                    if !(policies.check)(
+                        SpellPreparationCheck::ShapeshiftRequirements,
+                        spell_id,
+                        difficulty_id,
+                    ) {
                         outcome.spell_casting_requirements_unrepresented += 1;
                         creature.record_swing();
                         break 'spell_slots;
                     }
-                    if !(policies.check)(SpellPreparationCheck::AuraRestrictions, spell_id, difficulty_id)
-                    {
-                        outcome.spell_effects_unrepresented += 1;
-                        creature.record_swing();
-                        break 'spell_slots;
-                    }
-                    if !cooldown_semantics(
+                    if !(policies.check)(
+                        SpellPreparationCheck::AuraRestrictions,
                         spell_id,
                         difficulty_id,
-                        policies,
                     ) {
                         outcome.spell_effects_unrepresented += 1;
                         creature.record_swing();
                         break 'spell_slots;
                     }
-                    if combat_forbidden(
-                        spell_id,
-                        difficulty_id,
-                        policies,
-                    ) {
+                    if !cooldown_semantics(spell_id, difficulty_id, policies) {
                         outcome.spell_effects_unrepresented += 1;
                         creature.record_swing();
                         break 'spell_slots;
                     }
-                    if implicit_cost(
-                        &spell,
-                        difficulty_id,
-                        policies,
-                        creature,
-                    ) {
+                    if combat_forbidden(spell_id, difficulty_id, policies) {
                         outcome.spell_effects_unrepresented += 1;
                         creature.record_swing();
                         break 'spell_slots;
                     }
-                    if target_restrictions(
-                        spell_id,
-                        difficulty_id,
-                        policies,
-                    ) {
+                    if implicit_cost(&spell, difficulty_id, policies, creature) {
+                        outcome.spell_effects_unrepresented += 1;
+                        creature.record_swing();
+                        break 'spell_slots;
+                    }
+                    if target_restrictions(spell_id, difficulty_id, policies) {
                         outcome.spell_effects_unrepresented += 1;
                         creature.record_swing();
                         break 'spell_slots;
@@ -126,11 +118,7 @@ pub(super) fn combat(creature: &mut WorldCreature, guid: ObjectGuid,
                         &spell,
                         recipient_guid,
                         recipient_guid,
-                        projectile(
-                            spell_id,
-                            difficulty_id,
-                            policies,
-                        ),
+                        projectile(spell_id, difficulty_id, policies),
                     ) {
                         Ok(()) => {}
                         Err(SpellTopologyError::NonInstant) => {
@@ -164,13 +152,11 @@ pub(super) fn combat(creature: &mut WorldCreature, guid: ObjectGuid,
                         creature.record_swing();
                         break 'spell_slots;
                     };
-                    pending_actions.push(SpellAction::Cast(
-                        SpellCast {
-                            command,
-                            difficulty_id,
-                            turret_ai: false,
-                        },
-                    ));
+                    pending_actions.push(SpellAction::Cast(SpellCast {
+                        command,
+                        difficulty_id,
+                        turret_ai: false,
+                    }));
                     outcome.casts_ready += 1;
                 }
                 SpellCondition::Combat => {
@@ -178,25 +164,15 @@ pub(super) fn combat(creature: &mut WorldCreature, guid: ObjectGuid,
                     // AICOND_AGGRO cast (and its hit roll) runs
                     // before a later AICOND_COMBAT schedule
                     // draws its randomized initial delay.
-                    let minimum = minimum(
-                        spell_id,
-                        &spell,
-                        difficulty_id,
-                        policies,
-                    );
-                    pending_actions.push(
-                        SpellAction::Schedule(
-                            SpellSchedule {
-                                caster_guid: guid,
-                                map_id,
-                                instance_id,
-                                engagement_epoch: creature
-                                    .creature_spell_engagement_epoch_like_cpp(),
-                                slot,
-                                minimum_ms: minimum,
-                            },
-                        ),
-                    );
+                    let minimum = minimum(spell_id, &spell, difficulty_id, policies);
+                    pending_actions.push(SpellAction::Schedule(SpellSchedule {
+                        caster_guid: guid,
+                        map_id,
+                        instance_id,
+                        engagement_epoch: creature.creature_spell_engagement_epoch_like_cpp(),
+                        slot,
+                        minimum_ms: minimum,
+                    }));
                 }
                 SpellCondition::Die => {}
             }
@@ -228,13 +204,8 @@ pub(super) fn combat(creature: &mut WorldCreature, guid: ObjectGuid,
             outcome.missing_spell_metadata += 1;
             return;
         };
-    
-        let target_kind = target(
-            spell_id,
-            &spell,
-            difficulty_id,
-            policies,
-        );
+
+        let target_kind = target(spell_id, &spell, difficulty_id, policies);
         if target_kind.requires_random_threat_selection() {
             // C++ Enemy/Debuff selection draws from the full
             // non-offline threat list before CastSpell. This
@@ -246,19 +217,13 @@ pub(super) fn combat(creature: &mut WorldCreature, guid: ObjectGuid,
             creature.invalidate_runtime_rng_authority_like_cpp();
             return;
         }
-        let target_guid = target_kind
-            .resolve_single_player(guid, recipient_guid);
+        let target_guid = target_kind.resolve_single_player(guid, recipient_guid);
 
         // `CombatAI::UpdateAI` re-schedules after every
         // `DoCast` attempt, including a failed one. Defer the
         // delay draw until after a represented hit roll so the
         // shared creature RNG follows C++ DoCast -> ScheduleEvent.
-        let minimum = minimum(
-            spell_id,
-            &spell,
-            difficulty_id,
-            policies,
-        );
+        let minimum = minimum(spell_id, &spell, difficulty_id, policies);
         let schedule = SpellSchedule {
             caster_guid: guid,
             map_id,
@@ -268,119 +233,91 @@ pub(super) fn combat(creature: &mut WorldCreature, guid: ObjectGuid,
             minimum_ms: minimum,
         };
 
-        match disable(
-            spell_id, map_id, creature, policies,
-        ) {
+        match disable(spell_id, map_id, creature, policies) {
             SpellDisable::Enabled => {}
             SpellDisable::Disabled => {
                 outcome.spells_disabled += 1;
-                pending_actions
-                    .push(SpellAction::Schedule(schedule));
+                pending_actions.push(SpellAction::Schedule(schedule));
                 return;
             }
             SpellDisable::Unrepresented => {
                 outcome.spell_disable_context_unrepresented += 1;
-                pending_actions
-                    .push(SpellAction::Schedule(schedule));
+                pending_actions.push(SpellAction::Schedule(schedule));
                 return;
             }
         }
         if !(policies.check)(SpellPreparationCheck::RuntimeHooks, spell_id, difficulty_id) {
             outcome.spell_runtime_hooks_unrepresented += 1;
-            pending_actions
-                .push(SpellAction::Schedule(schedule));
+            pending_actions.push(SpellAction::Schedule(schedule));
             return;
         }
-        if !(policies.check)(SpellPreparationCheck::CastingRequirements, spell_id, difficulty_id)
-        {
+        if !(policies.check)(
+            SpellPreparationCheck::CastingRequirements,
+            spell_id,
+            difficulty_id,
+        ) {
             outcome.spell_casting_requirements_unrepresented += 1;
-            pending_actions
-                .push(SpellAction::Schedule(schedule));
+            pending_actions.push(SpellAction::Schedule(schedule));
             return;
         }
-        if !(policies.check)(SpellPreparationCheck::ShapeshiftRequirements, spell_id, difficulty_id)
-        {
+        if !(policies.check)(
+            SpellPreparationCheck::ShapeshiftRequirements,
+            spell_id,
+            difficulty_id,
+        ) {
             outcome.spell_casting_requirements_unrepresented += 1;
-            pending_actions
-                .push(SpellAction::Schedule(schedule));
+            pending_actions.push(SpellAction::Schedule(schedule));
             return;
         }
-        if !(policies.check)(SpellPreparationCheck::AuraRestrictions, spell_id, difficulty_id) {
-            outcome.spell_effects_unrepresented += 1;
-            pending_actions
-                .push(SpellAction::Schedule(schedule));
-            return;
-        }
-        if !cooldown_semantics(
+        if !(policies.check)(
+            SpellPreparationCheck::AuraRestrictions,
             spell_id,
             difficulty_id,
-            policies,
         ) {
             outcome.spell_effects_unrepresented += 1;
-            pending_actions
-                .push(SpellAction::Schedule(schedule));
+            pending_actions.push(SpellAction::Schedule(schedule));
             return;
         }
-        if combat_forbidden(
-            spell_id,
-            difficulty_id,
-            policies,
-        ) {
+        if !cooldown_semantics(spell_id, difficulty_id, policies) {
             outcome.spell_effects_unrepresented += 1;
-            pending_actions
-                .push(SpellAction::Schedule(schedule));
+            pending_actions.push(SpellAction::Schedule(schedule));
             return;
         }
-        if implicit_cost(
-            &spell,
-            difficulty_id,
-            policies,
-            creature,
-        ) {
+        if combat_forbidden(spell_id, difficulty_id, policies) {
             outcome.spell_effects_unrepresented += 1;
-            pending_actions
-                .push(SpellAction::Schedule(schedule));
+            pending_actions.push(SpellAction::Schedule(schedule));
             return;
         }
-        if target_restrictions(
-            spell_id,
-            difficulty_id,
-            policies,
-        ) {
+        if implicit_cost(&spell, difficulty_id, policies, creature) {
             outcome.spell_effects_unrepresented += 1;
-            pending_actions
-                .push(SpellAction::Schedule(schedule));
+            pending_actions.push(SpellAction::Schedule(schedule));
+            return;
+        }
+        if target_restrictions(spell_id, difficulty_id, policies) {
+            outcome.spell_effects_unrepresented += 1;
+            pending_actions.push(SpellAction::Schedule(schedule));
             return;
         }
         match single_unit_topology(
             &spell,
             target_guid,
             recipient_guid,
-            projectile(
-                spell_id,
-                difficulty_id,
-                policies,
-            ),
+            projectile(spell_id, difficulty_id, policies),
         ) {
             Ok(()) => {}
             Err(SpellTopologyError::NonInstant) => {
                 outcome.noninstant_casts_unrepresented += 1;
-                pending_actions
-                    .push(SpellAction::Schedule(schedule));
+                pending_actions.push(SpellAction::Schedule(schedule));
                 return;
             }
-            Err(
-                SpellTopologyError::ProjectileOrAmmo,
-            ) => {
+            Err(SpellTopologyError::ProjectileOrAmmo) => {
                 outcome.spell_projectiles_unrepresented += 1;
-                pending_actions
-                    .push(SpellAction::Schedule(schedule));
+                pending_actions.push(SpellAction::Schedule(schedule));
                 return;
             }
             Err(SpellTopologyError::EffectOrTarget) => {
                 outcome.spell_effects_unrepresented += 1;
-                pending_actions
-                    .push(SpellAction::Schedule(schedule));
+                pending_actions.push(SpellAction::Schedule(schedule));
                 return;
             }
         }
@@ -396,17 +333,14 @@ pub(super) fn combat(creature: &mut WorldCreature, guid: ObjectGuid,
             policies,
         ) else {
             outcome.spell_visuals_unrepresented += 1;
-            pending_actions
-                .push(SpellAction::Schedule(schedule));
+            pending_actions.push(SpellAction::Schedule(schedule));
             return;
         };
-        pending_actions.push(SpellAction::Cast(
-            SpellCast {
-                command,
-                difficulty_id,
-                turret_ai: false,
-            },
-        ));
+        pending_actions.push(SpellAction::Cast(SpellCast {
+            command,
+            difficulty_id,
+            turret_ai: false,
+        }));
         pending_actions.push(SpellAction::Schedule(schedule));
         outcome.casts_ready += 1;
     }

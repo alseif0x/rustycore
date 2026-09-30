@@ -2,15 +2,13 @@ use super::fixtures::*;
 // External application scenarios migrated with their original assertions.
 
 use super::CHAR_CREATE_ERROR_LIKE_CPP;
-use wow_world::session::WorldSession;
 use wow_constants::ServerOpcodes;
 use wow_core::ObjectGuid;
-use wow_packet::packets::character::CharCustomize;
 use wow_packet::WorldPacket;
+use wow_packet::packets::character::CharCustomize;
+use wow_world::session::WorldSession;
 
-fn make_session_with_send_capacity(
-    capacity: usize,
-) -> (WorldSession, flume::Receiver<Vec<u8>>) {
+fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(1);
     let (send_tx, send_rx) = flume::bounded::<Vec<u8>>(capacity);
     (
@@ -70,6 +68,9 @@ async fn char_customize_non_owned_guid_kicks_like_cpp() {
         })
         .await;
 
-    assert_eq!(session.state(), wow_world::session::SessionState::Disconnecting);
+    assert_eq!(
+        session.state(),
+        wow_world::session::SessionState::Disconnecting
+    );
     assert!(send_rx.try_recv().is_err());
 }

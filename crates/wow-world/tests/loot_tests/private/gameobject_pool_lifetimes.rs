@@ -2,14 +2,21 @@
 use super::recovery_support::*;
 use std::{collections::HashMap, sync::Barrier};
 use wow_loot::mark_loot_item_looted_for_player_like_cpp;
-use wow_world::test_fixtures::loot::{GameObjectLootWitness, observe_gameobject_loot_for_test, upsert_gameobject_pool_for_test, upsert_observed_gameobject_pool_for_test, release_gameobject_observation_for_test, mutate_loot_gameobject_for_test, release_fishing_hole_for_test, release_loot_owner_for_test, close_retired_loot_views_for_test, refresh_loot_summary_for_test, loot_cache_mut_for_test, share_loot_canonical_map_for_test};
 use wow_world::test_fixtures::loot::{
-    make_canonical_gameobject_for_loot_test as make_canonical_gameobject_for_session,
+    GameObjectLootWitness, close_retired_loot_views_for_test, loot_cache_mut_for_test,
+    mutate_loot_gameobject_for_test, observe_gameobject_loot_for_test,
+    refresh_loot_summary_for_test, release_fishing_hole_for_test,
+    release_gameobject_observation_for_test, release_loot_owner_for_test,
+    share_loot_canonical_map_for_test, upsert_gameobject_pool_for_test,
+    upsert_observed_gameobject_pool_for_test,
+};
+use wow_world::test_fixtures::loot::{
+    attach_canonical_creature_for_loot_test as attach_canonical_creature,
     attach_canonical_gameobject_for_loot_test as attach_canonical_gameobject,
+    canonical_creature_snapshot_for_loot_test as canonical_creature_snapshot,
     canonical_gameobject_snapshot_for_loot_test as canonical_gameobject_snapshot,
     make_canonical_creature_for_loot_test as make_canonical_creature_for_session,
-    attach_canonical_creature_for_loot_test as attach_canonical_creature,
-    canonical_creature_snapshot_for_loot_test as canonical_creature_snapshot,
+    make_canonical_gameobject_for_loot_test as make_canonical_gameobject_for_session,
 };
 
 #[test]
@@ -42,17 +49,18 @@ fn personal_gameobject_release_before_upsert_rejects_resurrection_like_cpp() {
         .close_viewer_if_generation_like_cpp(generation, first)
         .unwrap();
     assert!(
-        release_gameobject_observation_for_test(&mut session, 
-                owner_guid,
-                &authority,
-                close.object_generation,
-                close.lifecycle_revision,
-                LootState::JustDeactivated,
-                None,
-                0,
-                false,
-            )
-            .is_some()
+        release_gameobject_observation_for_test(
+            &mut session,
+            owner_guid,
+            &authority,
+            close.object_generation,
+            close.lifecycle_revision,
+            LootState::JustDeactivated,
+            None,
+            0,
+            false,
+        )
+        .is_some()
     );
 
     let mut late_pool = authoritative_test_loot_like_cpp(0, true);
@@ -69,9 +77,7 @@ fn personal_gameobject_release_before_upsert_rejects_resurrection_like_cpp() {
     late_pool.allowed_looters = vec![late];
     late_pool.items[0].allowed_looters = vec![late];
     assert!(
-        upsert_gameobject_pool_for_test(&mut session, 
-                owner_guid, late, late_pool, false,
-            )
+        upsert_gameobject_pool_for_test(&mut session, owner_guid, late, late_pool, false,)
             .is_none(),
         "a generator finishing after JustDeactivated must not resurrect the object"
     );
@@ -129,24 +135,23 @@ fn personal_gameobject_upsert_before_release_invalidates_global_deactivation_lik
     late_pool.allowed_looters = vec![late];
     late_pool.items[0].allowed_looters = vec![late];
     assert!(
-        upsert_gameobject_pool_for_test(&mut session, 
-                owner_guid, late, late_pool, false,
-            )
+        upsert_gameobject_pool_for_test(&mut session, owner_guid, late, late_pool, false,)
             .is_some()
     );
 
     assert!(
-        release_gameobject_observation_for_test(&mut session, 
-                owner_guid,
-                &authority,
-                close.object_generation,
-                close.lifecycle_revision,
-                LootState::JustDeactivated,
-                None,
-                0,
-                false,
-            )
-            .is_none(),
+        release_gameobject_observation_for_test(
+            &mut session,
+            owner_guid,
+            &authority,
+            close.object_generation,
+            close.lifecycle_revision,
+            LootState::JustDeactivated,
+            None,
+            0,
+            false,
+        )
+        .is_none(),
         "the late pool revision must invalidate the earlier fully-looted observation"
     );
     assert_eq!(
@@ -184,13 +189,12 @@ fn personal_fishing_hole_restock_accepts_second_lifecycle_and_rejects_old_observ
     attach_canonical_gameobject(&mut session, gameobject);
     session.set_player_guid(Some(second));
 
-    let stale_observation = observe_gameobject_loot_for_test(&mut session, owner_guid)
-        .unwrap();
+    let stale_observation = observe_gameobject_loot_for_test(&mut session, owner_guid).unwrap();
     mutate_loot_gameobject_for_test(&mut session, owner_guid, |gameobject| {
-            gameobject.clear_loot_like_cpp();
-            gameobject.set_loot_state(LootState::Ready, None);
-        })
-        .unwrap();
+        gameobject.clear_loot_like_cpp();
+        gameobject.set_loot_state(LootState::Ready, None);
+    })
+    .unwrap();
 
     let mut stale_pool = authoritative_test_loot_like_cpp(0, true);
     stale_pool.loot_guid = represented_loot_object_guid_like_cpp(owner_guid);
@@ -198,23 +202,22 @@ fn personal_fishing_hole_restock_accepts_second_lifecycle_and_rejects_old_observ
     stale_pool.allowed_looters = vec![second];
     stale_pool.items[0].allowed_looters = vec![second];
     assert!(
-        upsert_observed_gameobject_pool_for_test(&mut session, 
-                owner_guid,
-                second,
-                stale_pool.clone(),
-                false,
-                false,
-                &stale_observation,
-            )
-            .is_none(),
+        upsert_observed_gameobject_pool_for_test(
+            &mut session,
+            owner_guid,
+            second,
+            stale_pool.clone(),
+            false,
+            false,
+            &stale_observation,
+        )
+        .is_none(),
         "an async generator from before ClearLoot must lose the lifecycle CAS"
     );
     assert!(authority.is_retired_like_cpp());
 
     assert!(
-        upsert_gameobject_pool_for_test(&mut session, 
-                owner_guid, second, stale_pool, false,
-            )
+        upsert_gameobject_pool_for_test(&mut session, owner_guid, second, stale_pool, false,)
             .is_some(),
         "a generator started after Ready must install the new fishing-hole lifetime"
     );
@@ -247,15 +250,13 @@ fn concurrent_fishing_hole_releases_cannot_finish_ready_after_max_like_cpp() {
         let first_session = &mut first;
         let first_handle = scope.spawn(move || {
             first_start.wait();
-            release_fishing_hole_for_test(first_session, fishing_hole, Some(2))
-                .unwrap()
+            release_fishing_hole_for_test(first_session, fishing_hole, Some(2)).unwrap()
         });
         let second_start = Arc::clone(&start);
         let second_session = &mut second;
         let second_handle = scope.spawn(move || {
             second_start.wait();
-            release_fishing_hole_for_test(second_session, fishing_hole, Some(2))
-                .unwrap()
+            release_fishing_hole_for_test(second_session, fishing_hole, Some(2)).unwrap()
         });
         let first_outcome = first_handle.join().unwrap();
         let second_outcome = second_handle.join().unwrap();
@@ -317,20 +318,23 @@ fn personal_encounter_late_upsert_cannot_cross_clear_loot_like_cpp() {
     });
 
     assert!(
-        upsert_observed_gameobject_pool_for_test(&mut session, 
-                gameobject_guid,
-                late_player,
-                stale_late_pool,
-                false,
-                true,
-                &observation,
-            )
-            .is_none()
+        upsert_observed_gameobject_pool_for_test(
+            &mut session,
+            gameobject_guid,
+            late_player,
+            stale_late_pool,
+            false,
+            true,
+            &observation,
+        )
+        .is_none()
     );
     assert!(authority.is_retired_like_cpp());
     assert!(authority.personal_snapshots_like_cpp().is_empty());
     assert!(
-        !personal_loot_marker_for_test(&session, gameobject_guid, late_player).1.is_some()
+        !personal_loot_marker_for_test(&session, gameobject_guid, late_player)
+            .1
+            .is_some()
     );
     assert!(!has_loot_for_test(&session, gameobject_guid));
 }

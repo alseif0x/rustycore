@@ -106,7 +106,9 @@ fn represented_melee_absorb_matches_calc_absorb_resist_like_cpp() {
 /// represented loop uses (`SpellAuraEffects.h:365-407`).
 #[test]
 fn represented_absorb_priority_matches_absorb_aura_order_pred_like_cpp() {
-    use wow_combat::{RepresentedAbsorbShieldLikeCpp as Shield, represented_absorb_priority_like_cpp};
+    use wow_combat::{
+        RepresentedAbsorbShieldLikeCpp as Shield, represented_absorb_priority_like_cpp,
+    };
 
     let shield = |spell_id: i32, category_id: u32| Shield {
         slot: 0,
@@ -138,7 +140,9 @@ fn represented_absorb_priority_matches_absorb_aura_order_pred_like_cpp() {
 /// could pay.
 #[test]
 fn represented_melee_mana_absorb_matches_calc_absorb_resist_like_cpp() {
-    use wow_combat::{RepresentedManaShieldLikeCpp as Shield, represented_melee_mana_absorb_like_cpp};
+    use wow_combat::{
+        RepresentedManaShieldLikeCpp as Shield, represented_melee_mana_absorb_like_cpp,
+    };
 
     let shield = |slot: u8, amount: i32, mana_multiplier: f32| Shield {
         slot,
@@ -213,7 +217,9 @@ fn represented_melee_mana_absorb_matches_calc_absorb_resist_like_cpp() {
 /// term in this loop.
 #[test]
 fn represented_heal_absorb_matches_calc_heal_absorb_like_cpp() {
-    use wow_combat::{RepresentedHealAbsorbShieldLikeCpp as Shield, represented_heal_absorb_like_cpp};
+    use wow_combat::{
+        RepresentedHealAbsorbShieldLikeCpp as Shield, represented_heal_absorb_like_cpp,
+    };
 
     let shield = |slot: u8, amount: i32| Shield {
         slot,

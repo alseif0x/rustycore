@@ -586,4 +586,3 @@ fn removal_outcome_preserves_cpp_persistence_order_like_cpp() {
         ]
     );
 }
-

@@ -36,7 +36,10 @@ fn ordinary_feature_session_does_not_enable_handleless_character_fallback() {
         session.character_apply_offline_xp_rest_bonus_for_test(100, 200, true),
         0.0
     );
-    assert_eq!(session.character_fixture_progression_inputs_for_test(), before);
+    assert_eq!(
+        session.character_fixture_progression_inputs_for_test(),
+        before
+    );
     assert_eq!(session.character_player_handle_for_test(), None);
 }
 
@@ -56,7 +59,10 @@ fn opted_in_character_fixture_without_guid_cannot_create_or_read_a_map_owner() {
         None
     );
     assert_eq!(session.character_player_handle_for_test(), None);
-    assert_eq!(session.character_fixture_progression_inputs_for_test(), before);
+    assert_eq!(
+        session.character_fixture_progression_inputs_for_test(),
+        before
+    );
 }
 
 #[test]
@@ -111,16 +117,16 @@ fn stale_some_handle_never_reaches_replacement_guid_or_partially_writes_fixture_
         assert!(!session.character_set_player_xp_for_test(1));
         assert!(!session.character_set_player_next_level_xp_for_test(2));
         assert!(!session.character_set_fall_information_for_test(3, 4.0));
-        session.character_load_represented_xp_rest_bonus_for_test(
-            REST_STATE_RESTED_LIKE_CPP,
-            5.0,
-        );
+        session.character_load_represented_xp_rest_bonus_for_test(REST_STATE_RESTED_LIKE_CPP, 5.0);
         assert!(
             session
                 .character_player_rest_state_snapshot_for_test()
                 .is_none()
         );
-        assert_eq!(session.character_canonical_player_pvp_flags_for_test(guid), None);
+        assert_eq!(
+            session.character_canonical_player_pvp_flags_for_test(guid),
+            None
+        );
         assert!(!session.character_ensure_login_player_controller_for_test(
             guid,
             "Rejected".into(),
@@ -131,7 +137,10 @@ fn stale_some_handle_never_reaches_replacement_guid_or_partially_writes_fixture_
             1,
             0,
         ));
-        assert_eq!(session.character_fixture_progression_inputs_for_test(), before);
+        assert_eq!(
+            session.character_fixture_progression_inputs_for_test(),
+            before
+        );
         let manager = canonical.lock().unwrap();
         assert_eq!(
             manager.with_player_like_cpp(replacement, |player| player.active_data().xp),

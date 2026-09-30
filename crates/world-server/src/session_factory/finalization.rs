@@ -51,10 +51,12 @@ pub(super) async fn finalize_owned_world_session_like_cpp(
     // An owned World permit may not wait for itself. That variant blocks new
     // producer admission and waits only for the legacy blocking owner; every
     // unphased finalizer waits for all admitted ticks before its first effect.
-    let finalization_admission = active_session_registry
-        .admit_finalization(pending_finalization.as_ref());
+    let finalization_admission =
+        active_session_registry.admit_finalization(pending_finalization.as_ref());
     let admitted = if active_session_registry.is_shutting_down_like_cpp() {
-        tokio::time::timeout(step_timeout, finalization_admission.wait()).await.is_ok()
+        tokio::time::timeout(step_timeout, finalization_admission.wait())
+            .await
+            .is_ok()
     } else {
         finalization_admission.wait().await;
         true
@@ -64,7 +66,10 @@ pub(super) async fn finalize_owned_world_session_like_cpp(
         active_session_registry.begin_shutdown_like_cpp();
         active_session_registry.request_session_stop_like_cpp();
         world_runtime_state.stop_now_like_cpp(ERROR_EXIT_CODE_LIKE_CPP);
-        tracing::error!(account_id, "Session finalization has no quiescent admission; retaining session");
+        tracing::error!(
+            account_id,
+            "Session finalization has no quiescent admission; retaining session"
+        );
         retain_session_until_process_teardown(&mut session).await;
     }
     // Retired reads cannot start writes. Join writes already submitted by ready

@@ -1,9 +1,9 @@
 //! Ordered spell acquisition startup composition.
 
+use crate::spell;
 use anyhow::Context;
 use std::sync::Arc;
 use tracing::info;
-use crate::spell;
 
 pub(super) struct SpellAcquisitionCatalogs {
     pub(super) serverside_spell_errors: Vec<wow_data::ServersideSpellLoadErrorLikeCpp>,

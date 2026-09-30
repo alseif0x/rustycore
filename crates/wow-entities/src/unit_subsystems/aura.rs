@@ -21,9 +21,9 @@ mod shields;
 #[cfg(test)]
 mod absorb_amount_tests;
 #[cfg(test)]
-mod effect_query_tests;
-#[cfg(test)]
 mod applied_install_tests;
+#[cfg(test)]
+mod effect_query_tests;
 #[cfg(test)]
 mod loaded_install_tests;
 #[cfg(test)]
@@ -31,8 +31,8 @@ mod runtime_install_tests;
 #[cfg(test)]
 mod runtime_removal_tests;
 pub use application_models::{
-    AppliedAuraRef, AuraApplicationLikeCpp, AuraCastProvenanceLikeCpp,
-    AuraRef, AuraThreatSnapshotLikeCpp, LoadedAuraStateLikeCpp, OwnedAuraRef,
+    AppliedAuraRef, AuraApplicationLikeCpp, AuraCastProvenanceLikeCpp, AuraRef,
+    AuraThreatSnapshotLikeCpp, LoadedAuraStateLikeCpp, OwnedAuraRef,
     RepresentedAuraEffectAmountLikeCpp, RepresentedAuraEffectLikeCpp,
     VisibleAuraApplicationLikeCpp, VisibleAuraEffectAmountLikeCpp,
 };

@@ -72,7 +72,8 @@ impl WorldCreature {
             MovementGeneratorType::Waypoint => RuntimeMovementGeneratorType::Waypoint,
         };
         if self
-            .runtime.runtime_motion_master
+            .runtime
+            .runtime_motion_master
             .current_kind_for_slot(RuntimeMovementSlot::Default)
             != Some(expected_default)
         {
@@ -126,16 +127,19 @@ impl WorldCreature {
             .map(RuntimeRepresentedActiveGeneratorLikeCpp::key);
         let runtime_proxy_missing = expected_key.is_some_and(|key| {
             !self
-                .runtime.runtime_motion_master
+                .runtime
+                .runtime_motion_master
                 .has_generator_kind(key.kind, RuntimeMovementSlot::Active)
         });
         if self.runtime.runtime_represented_active != expected_key || runtime_proxy_missing {
             if let Some(previous) = self.runtime.runtime_represented_active {
-                self.runtime.runtime_motion_master
+                self.runtime
+                    .runtime_motion_master
                     .remove_kind(previous.kind, RuntimeMovementSlot::Active);
             }
             if let Some(generator) = expected_represented_active {
-                self.runtime.runtime_motion_master
+                self.runtime
+                    .runtime_motion_master
                     .add(Box::new(generator), RuntimeMovementSlot::Active);
             }
             self.runtime.runtime_represented_active = expected_key;
@@ -179,7 +183,8 @@ impl WorldCreature {
         self.tick_runtime_represented_motion_like_cpp(diff_ms);
         self.sync_runtime_motion_master_like_cpp();
         self.runtime.runtime_motion_master.update(diff_ms);
-        self.runtime.runtime_motion_master_ticks = self.runtime.runtime_motion_master_ticks.saturating_add(1);
+        self.runtime.runtime_motion_master_ticks =
+            self.runtime.runtime_motion_master_ticks.saturating_add(1);
         self.runtime.runtime_motion_master.current_kind()
     }
 

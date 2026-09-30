@@ -9,15 +9,29 @@ impl MapManager {
         token: &mut ObjectMapUpdateToken,
         continuation: ActorPathContinuation,
         response: Option<DetourPolyPath>,
-    ) -> Result<ActorMovementProgress, ActorMovementResumeFailure<ActorPathContinuation, Option<DetourPolyPath>>> {
-        let ActorPathContinuation { identity, continuation } = continuation;
+    ) -> Result<
+        ActorMovementProgress,
+        ActorMovementResumeFailure<ActorPathContinuation, Option<DetourPolyPath>>,
+    > {
+        let ActorPathContinuation {
+            identity,
+            continuation,
+        } = continuation;
         match self.resume_actor_step(
-            tick, token, identity, (continuation, response),
+            tick,
+            token,
+            identity,
+            (continuation, response),
             |actor, (continuation, response)| continuation.resume(actor, response),
         ) {
             Ok(progress) => Ok(progress),
             Err((error, identity, (continuation, response))) => Err(ActorMovementResumeFailure {
-                error: error.into(), continuation: ActorPathContinuation { identity, continuation }, response,
+                error: error.into(),
+                continuation: ActorPathContinuation {
+                    identity,
+                    continuation,
+                },
+                response,
             }),
         }
     }
@@ -28,15 +42,27 @@ impl MapManager {
         token: &mut ObjectMapUpdateToken,
         continuation: ActorStaticHeightContinuation,
         response: f32,
-    ) -> Result<ActorMovementProgress, ActorMovementResumeFailure<ActorStaticHeightContinuation, f32>> {
-        let ActorStaticHeightContinuation { identity, continuation } = continuation;
+    ) -> Result<ActorMovementProgress, ActorMovementResumeFailure<ActorStaticHeightContinuation, f32>>
+    {
+        let ActorStaticHeightContinuation {
+            identity,
+            continuation,
+        } = continuation;
         match self.resume_actor_step(
-            tick, token, identity, (continuation, response),
+            tick,
+            token,
+            identity,
+            (continuation, response),
             |actor, (continuation, response)| continuation.resume(actor, response),
         ) {
             Ok(progress) => Ok(progress),
             Err((error, identity, (continuation, response))) => Err(ActorMovementResumeFailure {
-                error: error.into(), continuation: ActorStaticHeightContinuation { identity, continuation }, response,
+                error: error.into(),
+                continuation: ActorStaticHeightContinuation {
+                    identity,
+                    continuation,
+                },
+                response,
             }),
         }
     }
@@ -47,15 +73,27 @@ impl MapManager {
         token: &mut ObjectMapUpdateToken,
         continuation: ActorGridHeightContinuation,
         response: f32,
-    ) -> Result<ActorMovementProgress, ActorMovementResumeFailure<ActorGridHeightContinuation, f32>> {
-        let ActorGridHeightContinuation { identity, continuation } = continuation;
+    ) -> Result<ActorMovementProgress, ActorMovementResumeFailure<ActorGridHeightContinuation, f32>>
+    {
+        let ActorGridHeightContinuation {
+            identity,
+            continuation,
+        } = continuation;
         match self.resume_actor_step(
-            tick, token, identity, (continuation, response),
+            tick,
+            token,
+            identity,
+            (continuation, response),
             |actor, (continuation, response)| continuation.resume(actor, response),
         ) {
             Ok(progress) => Ok(progress),
             Err((error, identity, (continuation, response))) => Err(ActorMovementResumeFailure {
-                error: error.into(), continuation: ActorGridHeightContinuation { identity, continuation }, response,
+                error: error.into(),
+                continuation: ActorGridHeightContinuation {
+                    identity,
+                    continuation,
+                },
+                response,
             }),
         }
     }

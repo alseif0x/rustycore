@@ -1,6 +1,6 @@
-mod catalogs;
-mod support;
+mod branches;
 mod cases;
+mod catalogs;
 mod failures;
 mod io;
-mod branches;
+mod support;

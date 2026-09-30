@@ -11,7 +11,6 @@ where
     Terrain: TerrainGridLoader,
     Lifecycle: GridLifecycle,
 {
-
     /// Bounded map-owned cleanup for the late C++ `Player::RemoveFromWorld()`
     /// `GetViewpoint()` -> `SetViewpoint(viewpoint, false)` branch.
     ///
@@ -188,5 +187,4 @@ where
             )),
         }
     }
-
 }

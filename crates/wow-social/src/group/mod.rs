@@ -25,5 +25,4 @@ pub use ready_check::*;
 pub use settings::*;
 
 #[cfg(test)]
-#[path = "tests.rs"]
 mod tests;

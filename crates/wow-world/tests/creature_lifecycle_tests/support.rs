@@ -128,5 +128,3 @@ pub(super) fn force_respawn_ready(session: &mut WorldSession) {
         }
     }
 }
-
-

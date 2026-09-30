@@ -7,20 +7,14 @@
 use super::PlayerCollectionStateLikeCpp;
 
 impl PlayerCollectionStateLikeCpp {
-    pub fn project_heirlooms<T>(
-        &self,
-        mut emit: impl FnMut(u32, u32, u32) -> Option<T>,
-    ) -> Vec<T> {
+    pub fn project_heirlooms<T>(&self, mut emit: impl FnMut(u32, u32, u32) -> Option<T>) -> Vec<T> {
         self.heirlooms
             .iter()
             .filter_map(|(item_id, data)| emit(*item_id, data.flags, data.bonus_id))
             .collect()
     }
 
-    pub fn project_toys<T>(
-        &self,
-        mut emit: impl FnMut(u32, u32) -> Option<T>,
-    ) -> Vec<T> {
+    pub fn project_toys<T>(&self, mut emit: impl FnMut(u32, u32) -> Option<T>) -> Vec<T> {
         self.toys
             .iter()
             .filter_map(|(item_id, flags)| emit(*item_id, *flags))
@@ -40,10 +34,7 @@ impl PlayerCollectionStateLikeCpp {
         })
     }
 
-    pub fn project_mounts<T>(
-        &self,
-        mut emit: impl FnMut(i32, u8) -> Option<T>,
-    ) -> Vec<T> {
+    pub fn project_mounts<T>(&self, mut emit: impl FnMut(i32, u8) -> Option<T>) -> Vec<T> {
         self.mounts
             .iter()
             .filter_map(|(spell_id, flags)| emit(*spell_id, *flags))

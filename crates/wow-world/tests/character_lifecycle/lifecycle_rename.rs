@@ -1,16 +1,14 @@
 use super::fixtures::*;
 // External application scenarios migrated with their original assertions.
 
-use wow_world::session::{SessionState, WorldSession};
-use wow_constants::character::CHAR_NAME_NO_NAME_LIKE_CPP;
 use wow_constants::ServerOpcodes;
+use wow_constants::character::CHAR_NAME_NO_NAME_LIKE_CPP;
 use wow_core::ObjectGuid;
-use wow_packet::packets::character::CharacterRenameRequest;
 use wow_packet::WorldPacket;
+use wow_packet::packets::character::CharacterRenameRequest;
+use wow_world::session::{SessionState, WorldSession};
 
-fn make_session_with_send_capacity(
-    capacity: usize,
-) -> (WorldSession, flume::Receiver<Vec<u8>>) {
+fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded::<WorldPacket>(1);
     let (send_tx, send_rx) = flume::bounded::<Vec<u8>>(capacity);
     (

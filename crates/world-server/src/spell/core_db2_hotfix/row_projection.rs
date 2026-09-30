@@ -1,45 +1,20 @@
 use wow_data::{
-    SpellNameEntry,
-    SpellCategoriesEntry,
-    SpellMiscEntry,
-    SpellEffectDb2Entry,
-    SpellShapeshiftEntry,
-    SpellInterruptsEntry,
-    SpellCastTimesEntry,
-    SpellCooldownsEntry,
-    SpellCastingRequirementsEntry,
-    SpellPowerEntry,
-    SpellPowerDifficultyEntry,
-    SpellAuraRestrictionsEntry,
-    SpellCategoryEntry,
-    SpellDurationEntry,
-    SpellRadiusEntry,
-    SpellRangeEntry,
-    SpellEquippedItemsEntry,
-    SpellTargetRestrictionsEntry,
-    SpellXSpellVisualEntry,
+    SpellAuraRestrictionsEntry, SpellCastTimesEntry, SpellCastingRequirementsEntry,
+    SpellCategoriesEntry, SpellCategoryEntry, SpellCooldownsEntry, SpellDurationEntry,
+    SpellEffectDb2Entry, SpellEquippedItemsEntry, SpellInterruptsEntry, SpellMiscEntry,
+    SpellNameEntry, SpellPowerDifficultyEntry, SpellPowerEntry, SpellRadiusEntry, SpellRangeEntry,
+    SpellShapeshiftEntry, SpellTargetRestrictionsEntry, SpellXSpellVisualEntry,
 };
 
 use wow_persistence::{
-    SpellNameHotfixRowLikeCpp,
-    SpellCategoriesHotfixRowLikeCpp,
-    SpellMiscHotfixRowLikeCpp,
-    SpellEffectHotfixRowLikeCpp,
-    SpellShapeshiftHotfixRowLikeCpp,
-    SpellInterruptsHotfixRowLikeCpp,
-    SpellCastTimesHotfixRowLikeCpp,
-    SpellCooldownsHotfixRowLikeCpp,
-    SpellCastingRequirementsHotfixRowLikeCpp,
-    SpellPowerHotfixRowLikeCpp,
-    SpellPowerDifficultyHotfixRowLikeCpp,
-    SpellAuraRestrictionsHotfixRowLikeCpp,
-    SpellCategoryHotfixRowLikeCpp,
-    SpellDurationHotfixRowLikeCpp,
-    SpellRadiusHotfixRowLikeCpp,
-    SpellRangeHotfixRowLikeCpp,
-    SpellEquippedItemsHotfixRowLikeCpp,
-    SpellTargetRestrictionsHotfixRowLikeCpp,
-    SpellXSpellVisualHotfixRowLikeCpp,
+    SpellAuraRestrictionsHotfixRowLikeCpp, SpellCastTimesHotfixRowLikeCpp,
+    SpellCastingRequirementsHotfixRowLikeCpp, SpellCategoriesHotfixRowLikeCpp,
+    SpellCategoryHotfixRowLikeCpp, SpellCooldownsHotfixRowLikeCpp, SpellDurationHotfixRowLikeCpp,
+    SpellEffectHotfixRowLikeCpp, SpellEquippedItemsHotfixRowLikeCpp,
+    SpellInterruptsHotfixRowLikeCpp, SpellMiscHotfixRowLikeCpp, SpellNameHotfixRowLikeCpp,
+    SpellPowerDifficultyHotfixRowLikeCpp, SpellPowerHotfixRowLikeCpp, SpellRadiusHotfixRowLikeCpp,
+    SpellRangeHotfixRowLikeCpp, SpellShapeshiftHotfixRowLikeCpp,
+    SpellTargetRestrictionsHotfixRowLikeCpp, SpellXSpellVisualHotfixRowLikeCpp,
 };
 
 pub(super) fn spell_name_entry_like_cpp(row: SpellNameHotfixRowLikeCpp) -> SpellNameEntry {
@@ -49,7 +24,9 @@ pub(super) fn spell_name_entry_like_cpp(row: SpellNameHotfixRowLikeCpp) -> Spell
     }
 }
 
-pub(super) fn spell_categories_entry_like_cpp(row: SpellCategoriesHotfixRowLikeCpp) -> SpellCategoriesEntry {
+pub(super) fn spell_categories_entry_like_cpp(
+    row: SpellCategoriesHotfixRowLikeCpp,
+) -> SpellCategoriesEntry {
     SpellCategoriesEntry {
         id: row.id,
         difficulty_id: row.difficulty_id,
@@ -119,7 +96,9 @@ pub(super) fn spell_effect_entry_like_cpp(row: SpellEffectHotfixRowLikeCpp) -> S
     }
 }
 
-pub(super) fn spell_shapeshift_entry_like_cpp(row: SpellShapeshiftHotfixRowLikeCpp) -> SpellShapeshiftEntry {
+pub(super) fn spell_shapeshift_entry_like_cpp(
+    row: SpellShapeshiftHotfixRowLikeCpp,
+) -> SpellShapeshiftEntry {
     SpellShapeshiftEntry {
         id: row.id,
         spell_id: row.spell_id,
@@ -129,7 +108,9 @@ pub(super) fn spell_shapeshift_entry_like_cpp(row: SpellShapeshiftHotfixRowLikeC
     }
 }
 
-pub(super) fn spell_interrupts_entry_like_cpp(row: SpellInterruptsHotfixRowLikeCpp) -> SpellInterruptsEntry {
+pub(super) fn spell_interrupts_entry_like_cpp(
+    row: SpellInterruptsHotfixRowLikeCpp,
+) -> SpellInterruptsEntry {
     SpellInterruptsEntry {
         id: row.id,
         difficulty_id: row.difficulty_id,
@@ -140,7 +121,9 @@ pub(super) fn spell_interrupts_entry_like_cpp(row: SpellInterruptsHotfixRowLikeC
     }
 }
 
-pub(super) fn spell_cast_times_entry_like_cpp(row: SpellCastTimesHotfixRowLikeCpp) -> SpellCastTimesEntry {
+pub(super) fn spell_cast_times_entry_like_cpp(
+    row: SpellCastTimesHotfixRowLikeCpp,
+) -> SpellCastTimesEntry {
     SpellCastTimesEntry {
         id: row.id,
         base: row.base,
@@ -149,7 +132,9 @@ pub(super) fn spell_cast_times_entry_like_cpp(row: SpellCastTimesHotfixRowLikeCp
     }
 }
 
-pub(super) fn spell_cooldowns_entry_like_cpp(row: SpellCooldownsHotfixRowLikeCpp) -> SpellCooldownsEntry {
+pub(super) fn spell_cooldowns_entry_like_cpp(
+    row: SpellCooldownsHotfixRowLikeCpp,
+) -> SpellCooldownsEntry {
     SpellCooldownsEntry {
         id: row.id,
         difficulty_id: row.difficulty_id,
@@ -222,7 +207,9 @@ pub(super) fn spell_aura_restrictions_entry_like_cpp(
     }
 }
 
-pub(super) fn spell_category_entry_like_cpp(row: SpellCategoryHotfixRowLikeCpp) -> SpellCategoryEntry {
+pub(super) fn spell_category_entry_like_cpp(
+    row: SpellCategoryHotfixRowLikeCpp,
+) -> SpellCategoryEntry {
     SpellCategoryEntry {
         id: row.id,
         name: row.name,
@@ -234,7 +221,9 @@ pub(super) fn spell_category_entry_like_cpp(row: SpellCategoryHotfixRowLikeCpp) 
     }
 }
 
-pub(super) fn spell_duration_entry_like_cpp(row: SpellDurationHotfixRowLikeCpp) -> SpellDurationEntry {
+pub(super) fn spell_duration_entry_like_cpp(
+    row: SpellDurationHotfixRowLikeCpp,
+) -> SpellDurationEntry {
     SpellDurationEntry {
         id: row.id,
         duration: row.duration,

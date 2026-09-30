@@ -9,15 +9,18 @@
 //! removal phases, logs and publication. Positivity, remove-mode, interruption
 //! exclusions/restarts and wall-clock versus C++ diff remain represented gaps.
 
+use super::{
+    AuraApplicationLikeCpp, AuraSubsystem, Instant, ObjectGuid, RepresentedAuraEffectLikeCpp,
+};
 use std::collections::HashMap;
-use super::{AuraApplicationLikeCpp, AuraSubsystem, Instant, ObjectGuid, RepresentedAuraEffectLikeCpp};
 
 impl AuraSubsystem {
     pub fn runtime_slots_for_spell(
         auras: &HashMap<u8, AuraApplicationLikeCpp>,
         spell_id: i32,
     ) -> Vec<u8> {
-        auras.values()
+        auras
+            .values()
             .filter_map(|aura| (aura.spell_id == spell_id).then_some(aura.slot))
             .collect()
     }
@@ -27,7 +30,8 @@ impl AuraSubsystem {
         attribute: u32,
         mut has_attribute: impl FnMut(i32, u32) -> bool,
     ) -> Vec<u8> {
-        auras.values()
+        auras
+            .values()
             .filter_map(|aura| has_attribute(aura.spell_id, attribute).then_some(aura.slot))
             .collect()
     }
@@ -37,7 +41,8 @@ impl AuraSubsystem {
         represented_effect: RepresentedAuraEffectLikeCpp,
         mut no_aura_cancel: impl FnMut(i32) -> bool,
     ) -> Vec<u8> {
-        auras.values()
+        auras
+            .values()
             .filter_map(|aura| {
                 // C++ removes SPELL_AURA_MOUNTED only when its SpellInfo is
                 // cancelable, positive, and non-passive; the same predicate is
@@ -61,10 +66,7 @@ impl AuraSubsystem {
         channeled: impl FnOnce(i32) -> bool,
         passive: impl FnOnce(i32) -> bool,
     ) -> bool {
-        exists(spell_id)
-            && !no_aura_cancel(spell_id)
-            && !channeled(spell_id)
-            && !passive(spell_id)
+        exists(spell_id) && !no_aura_cancel(spell_id) && !channeled(spell_id) && !passive(spell_id)
     }
 
     pub fn runtime_cancelable_owned_slots(
@@ -72,7 +74,8 @@ impl AuraSubsystem {
         spell_id: i32,
         caster_guid: ObjectGuid,
     ) -> Vec<u8> {
-        auras.values()
+        auras
+            .values()
             .filter_map(|aura| {
                 if aura.spell_id != spell_id {
                     return None;
@@ -104,7 +107,8 @@ impl AuraSubsystem {
         flags: u32,
         flags2: u32,
     ) -> Vec<u8> {
-        auras.values()
+        auras
+            .values()
             .filter(|aura| {
                 (flags != 0 && aura.aura_interrupt_flags & flags != 0)
                     || (flags2 != 0 && aura.aura_interrupt_flags2 & flags2 != 0)
@@ -117,7 +121,8 @@ impl AuraSubsystem {
         auras: &HashMap<u8, AuraApplicationLikeCpp>,
         mut elapsed_millis: impl FnMut(&Instant) -> u128,
     ) -> Vec<u8> {
-        auras.values()
+        auras
+            .values()
             .filter(|aura| {
                 // Permanent auras (duration_total == 0) never expire
                 aura.duration_total > 0
@@ -130,7 +135,8 @@ impl AuraSubsystem {
     pub fn runtime_stealth_or_invisibility_slots(
         auras: &HashMap<u8, AuraApplicationLikeCpp>,
     ) -> Vec<u8> {
-        auras.iter()
+        auras
+            .iter()
             .filter_map(|(slot, aura)| {
                 matches!(
                     aura.represented_effect,
@@ -142,4 +148,3 @@ impl AuraSubsystem {
             .collect()
     }
 }
-

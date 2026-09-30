@@ -38,10 +38,7 @@ pub fn find_unlooted_item(
 }
 
 /// Preserves the allowed-looter, blocked, then roll-winner rejection order.
-pub fn direct_item_rejection(
-    entry: &LootEntry,
-    player: ObjectGuid,
-) -> Option<DirectItemRejection> {
+pub fn direct_item_rejection(entry: &LootEntry, player: ObjectGuid) -> Option<DirectItemRejection> {
     if !entry.has_allowed_looter_like_cpp(player) {
         return Some(DirectItemRejection::NotAllowed);
     }

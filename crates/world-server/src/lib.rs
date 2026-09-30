@@ -39,8 +39,7 @@ use wow_database::{
 };
 use wow_instances::{InstanceLockMgr, MapDb2Entries, ResetSchedule};
 use wow_loot::{
-    LootStoreKind,
-    check_loot_condition_links_like_cpp, check_loot_condition_references_like_cpp,
+    LootStoreKind, check_loot_condition_links_like_cpp, check_loot_condition_references_like_cpp,
     check_loot_references_like_cpp, loot_store_kind_for_condition_source_type_like_cpp,
 };
 use wow_network::session_mgr::SessionManager;
@@ -88,34 +87,25 @@ mod player;
 mod realm_list;
 mod respawn_bootstrap;
 mod respawn_db_writer;
-mod session_supervision;
 mod session_resources;
+mod session_supervision;
 mod spawn_store_loader;
 mod spell;
 
 use realm_list::{
-    realms_state_update_delay_secs_like_cpp,
-    normalize_realm_type_like_cpp,
-    is_pvp_realm_type_like_cpp,
-    is_ffa_pvp_realm_type_like_cpp,
-    normalize_realm_security_level_like_cpp,
-    normalized_realm_name_like_cpp,
-    realm_list_entry_from_row_like_cpp,
-    realm_list_snapshot_from_result_like_cpp,
-    update_realm_list_once_like_cpp,
-    spawn_realm_list_update_loop_like_cpp,
+    is_ffa_pvp_realm_type_like_cpp, is_pvp_realm_type_like_cpp,
+    normalize_realm_security_level_like_cpp, normalize_realm_type_like_cpp,
+    normalized_realm_name_like_cpp, realm_list_entry_from_row_like_cpp,
+    realm_list_snapshot_from_result_like_cpp, realms_state_update_delay_secs_like_cpp,
+    spawn_realm_list_update_loop_like_cpp, update_realm_list_once_like_cpp,
 };
 use respawn_bootstrap::{
-    load_persisted_respawn_times_like_cpp,
+    install_canonical_spawn_group_initializer_like_cpp, load_persisted_respawn_times_like_cpp,
     persisted_respawn_info_from_row_like_cpp,
-    install_canonical_spawn_group_initializer_like_cpp,
 };
 use respawn_db_writer::{
-    respawn_db_retry_delay,
-    execute_respawn_db_attempt_like_cpp,
-    spawn_respawn_db_writer_like_cpp,
-    stop_respawn_db_producer_like_cpp,
-    drain_respawn_db_writer_like_cpp,
+    drain_respawn_db_writer_like_cpp, execute_respawn_db_attempt_like_cpp, respawn_db_retry_delay,
+    spawn_respawn_db_writer_like_cpp, stop_respawn_db_producer_like_cpp,
 };
 use session_resources::{
     SessionCoreCapabilitiesLikeCpp, SessionInventoryCapabilitiesLikeCpp,
@@ -895,21 +885,17 @@ mod shutdown;
 use shutdown::*;
 
 mod bootstrap;
+mod loot_catalog;
 mod skill_world_rules;
 mod static_data_overlay;
-mod loot_catalog;
 mod world;
 use bootstrap::*;
 
 pub(crate) use loot_catalog::{
-    load_condition_reference_template_ids_like_cpp,
-    load_loot_condition_ids_like_cpp,
-    load_loot_condition_reference_uses_like_cpp,
-    load_loot_stores_like_cpp,
-    load_loot_template_rows_like_cpp,
-    log_loot_condition_link_report_like_cpp,
-    log_loot_reference_report_like_cpp,
-    loot_quest_required_from_signed_db_like_cpp,
+    load_condition_reference_template_ids_like_cpp, load_loot_condition_ids_like_cpp,
+    load_loot_condition_reference_uses_like_cpp, load_loot_stores_like_cpp,
+    load_loot_template_rows_like_cpp, log_loot_condition_link_report_like_cpp,
+    log_loot_reference_report_like_cpp, loot_quest_required_from_signed_db_like_cpp,
     loot_store_all_rows_statement_like_cpp,
 };
 

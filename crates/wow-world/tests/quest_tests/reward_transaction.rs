@@ -25,7 +25,8 @@ fn complete_quest_session_like_cpp(
     quest.flags = QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP;
     quest.special_flags |= special_flags;
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
-    insert_player_quest_status_for_test(&mut session,
+    insert_player_quest_status_for_test(
+        &mut session,
         quest_id,
         PlayerQuestStatus {
             quest_id,
@@ -86,11 +87,13 @@ async fn quest_reward_reaches_the_database_once_with_its_status_row_like_cpp() {
 async fn a_rolled_back_quest_reward_transaction_is_not_reported_as_rewarded_like_cpp() {
     let quest_id = 7102;
     let (mut session, _send_rx) = complete_quest_session_like_cpp(quest_id, 0);
-    let fixture = Arc::new(player_quest_reward_persistence_fixture_with_outcome_for_test(
-        PlayerQuestRewardCommitOutcomeLikeCpp::DefinitelyRolledBack {
-            reason: "deadlock".to_string(),
-        },
-    ));
+    let fixture = Arc::new(
+        player_quest_reward_persistence_fixture_with_outcome_for_test(
+            PlayerQuestRewardCommitOutcomeLikeCpp::DefinitelyRolledBack {
+                reason: "deadlock".to_string(),
+            },
+        ),
+    );
     session.set_player_quest_reward_persistence_port_like_cpp(fixture.clone());
 
     choose_reward_like_cpp(&mut session, quest_id).await;
@@ -112,14 +115,16 @@ async fn a_lost_commit_reply_is_settled_by_the_durable_quest_status_like_cpp() {
     {
         let quest_id = 7103;
         let (mut session, _send_rx) = complete_quest_session_like_cpp(quest_id, 0);
-        let fixture = Arc::new(player_quest_reward_persistence_fixture_with_outcome_for_test(
-            PlayerQuestRewardCommitOutcomeLikeCpp::CommitOutcomeUnknown {
-                reason: "connection reset".to_string(),
-                witness: PlayerQuestRewardCommitWitnessLikeCpp::QuestStatus {
-                    observed_matches_request: observed,
+        let fixture = Arc::new(
+            player_quest_reward_persistence_fixture_with_outcome_for_test(
+                PlayerQuestRewardCommitOutcomeLikeCpp::CommitOutcomeUnknown {
+                    reason: "connection reset".to_string(),
+                    witness: PlayerQuestRewardCommitWitnessLikeCpp::QuestStatus {
+                        observed_matches_request: observed,
+                    },
                 },
-            },
-        ));
+            ),
+        );
         session.set_player_quest_reward_persistence_port_like_cpp(fixture);
 
         choose_reward_like_cpp(&mut session, quest_id).await;

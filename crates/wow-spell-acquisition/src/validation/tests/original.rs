@@ -5,17 +5,14 @@ use super::*;
 #[test]
 fn required_learning_publications_cannot_be_omitted() {
     let (_source, plan) = direct_learn_plan();
-    validate_acquisition_plan(&plan)
-        .expect("complete publication tape is valid");
+    validate_acquisition_plan(&plan).expect("complete publication tape is valid");
 
     for omitted_index in 0..plan.post_commit_actions.len() {
         let mut omitted = plan.clone();
         omitted.post_commit_actions.remove(omitted_index);
         assert!(matches!(
             validate_acquisition_plan(&omitted),
-            Err(
-                AcquisitionPlanError::PostCommitActionCausalityMismatch { .. }
-            )
+            Err(AcquisitionPlanError::PostCommitActionCausalityMismatch { .. })
         ));
     }
 }
@@ -49,8 +46,7 @@ fn skill_line_criteria_require_exact_occurrence_identity_and_cardinality() {
             },
         ],
     );
-    validate_acquisition_plan(&plan)
-        .expect("the exact C++ SkillLineAbility occurrence is valid");
+    validate_acquisition_plan(&plan).expect("the exact C++ SkillLineAbility occurrence is valid");
 
     let mut wrong_skill = plan.clone();
     for action in &mut wrong_skill.post_commit_actions[..2] {
@@ -66,26 +62,17 @@ fn skill_line_criteria_require_exact_occurrence_identity_and_cardinality() {
             _ => unreachable!(),
         }
     }
-    assert!(
-        validate_acquisition_plan(&wrong_skill)
-            .is_err()
-    );
+    assert!(validate_acquisition_plan(&wrong_skill).is_err());
 
     let mut duplicated = plan.clone();
     duplicated
         .post_commit_actions
         .splice(2..2, plan.post_commit_actions[..2].iter().cloned());
-    assert!(
-        validate_acquisition_plan(&duplicated)
-            .is_err()
-    );
+    assert!(validate_acquisition_plan(&duplicated).is_err());
 
     let mut omitted = plan.clone();
     omitted.post_commit_actions.drain(..2);
-    assert!(
-        validate_acquisition_plan(&omitted)
-            .is_err()
-    );
+    assert!(validate_acquisition_plan(&omitted).is_err());
 }
 
 #[test]
@@ -248,12 +235,10 @@ fn dual_wield_diagnostic_cannot_replace_live_cast_effect_authority() {
 
     assert_eq!(
         validate_acquisition_plan(&plan),
-        Err(
-            AcquisitionPlanError::PostCommitActionCausalityMismatch {
-                action: "GrantDualWield",
-                id: 100,
-            }
-        )
+        Err(AcquisitionPlanError::PostCommitActionCausalityMismatch {
+            action: "GrantDualWield",
+            id: 100,
+        })
     );
 }
 
@@ -317,9 +302,7 @@ fn unrelated_publication_actions_are_rejected_before_application() {
         assert!(
             matches!(
                 validate_acquisition_plan(&plan),
-                Err(
-                    AcquisitionPlanError::PostCommitActionCausalityMismatch { .. }
-                )
+                Err(AcquisitionPlanError::PostCommitActionCausalityMismatch { .. })
             ),
             "unrelated action reached the prepared boundary: {action:?}"
         );

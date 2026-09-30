@@ -1,10 +1,12 @@
 use super::*;
-use super::{read_quest_giver_query_quest as read_quest_giver_query_quest_like_cpp,
-    read_quest_giver_accept_quest as read_quest_giver_accept_quest_like_cpp};
+use super::{
+    read_quest_giver_accept_quest as read_quest_giver_accept_quest_like_cpp,
+    read_quest_giver_query_quest as read_quest_giver_query_quest_like_cpp,
+};
 use crate::{PacketError, WorldPacket};
 use wow_constants::quest::{
-    QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM as QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
     QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY as QUEST_CHOICE_LOOT_ITEM_TYPE_CURRENCY_LIKE_CPP,
+    QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM as QUEST_CHOICE_LOOT_ITEM_TYPE_ITEM_LIKE_CPP,
 };
 
 #[test]
@@ -92,11 +94,7 @@ fn quest_giver_choose_reward_choice_parser_skips_cpp_item_mods_and_bonus() {
     assert!(pkt.is_empty());
 }
 
-fn quest_giver_cmsg_packet(
-    guid: ObjectGuid,
-    quest_id: u32,
-    bit_byte: u8,
-) -> crate::WorldPacket {
+fn quest_giver_cmsg_packet(guid: ObjectGuid, quest_id: u32, bit_byte: u8) -> crate::WorldPacket {
     let mut packet = crate::WorldPacket::new_empty();
     packet.write_packed_guid(&guid);
     packet.write_uint32(quest_id);
@@ -146,14 +144,16 @@ fn write_cpp_quest_choice_item_like_cpp(
 }
 
 fn read_quest_choice_item_for_test(pkt: &mut WorldPacket) -> Result<(u8, u32, i32), PacketError> {
-    read_quest_choice_item(pkt).map(|choice| (choice.loot_item_type, choice.item_id, choice.quantity))
+    read_quest_choice_item(pkt)
+        .map(|choice| (choice.loot_item_type, choice.item_id, choice.quantity))
 }
 
 #[test]
 fn quest_request_readers_preserve_guid_errors_and_missing_scalar_defaults() {
     let guid = ObjectGuid::create_player(1, 42);
     for read in [
-        read_quest_giver_query_quest as fn(&mut WorldPacket) -> Result<(ObjectGuid, u32, bool), PacketError>,
+        read_quest_giver_query_quest
+            as fn(&mut WorldPacket) -> Result<(ObjectGuid, u32, bool), PacketError>,
         read_quest_giver_accept_quest,
     ] {
         let mut missing_guid = WorldPacket::from_bytes(&[]);

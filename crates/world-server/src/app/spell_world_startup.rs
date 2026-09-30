@@ -8,8 +8,10 @@ use tracing::info;
 pub(super) struct SpellWorldStartupInputs<'a> {
     pub(super) data_dir: &'a str,
     pub(super) locale: &'a str,
-    pub(super) spell_world_catalog_persistence: &'a dyn wow_persistence::SpellWorldCatalogPersistencePortLikeCpp,
-    pub(super) spell_acquisition_startup_persistence: &'a dyn wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp,
+    pub(super) spell_world_catalog_persistence:
+        &'a dyn wow_persistence::SpellWorldCatalogPersistencePortLikeCpp,
+    pub(super) spell_acquisition_startup_persistence:
+        &'a dyn wow_persistence::SpellAcquisitionStartupPersistencePortLikeCpp,
     pub(super) db2_hotfix_removals: &'a wow_data::Db2HotfixRemovalStoreLikeCpp,
     pub(super) spell_store: &'a wow_data::SpellStore,
     pub(super) map_store: &'a wow_data::MapStore,
@@ -343,30 +345,28 @@ pub(super) async fn load_world_spell_catalogs(
     spell_area_store: &wow_data::SpellAreaStoreLikeCpp,
     item_stats_store: &wow_data::ItemStatsStore,
 ) -> anyhow::Result<SpellWorldStartup> {
-    let spell_world = load_spell_world_startup(
-        SpellWorldStartupInputs {
-            data_dir: data_dir,
-            locale: locale,
-            spell_world_catalog_persistence: spell_world_catalog_persistence,
-            spell_acquisition_startup_persistence: spell_acquisition_startup_persistence,
-            db2_hotfix_removals: db2_hotfix_removals,
-            spell_store: spell_store,
-            map_store: map_store,
-            spell_chain_store: spell_acquisition.spell_chain_store.as_ref(),
-            spell_aura_options_store: spell_info.spell_aura_options_store.as_ref(),
-            spell_misc_store: spell_info.spell_misc_store.as_ref(),
-            spell_class_options_store: spell_info.spell_class_options_store.as_ref(),
-            spell_procs_per_minute_store: spell_procs_per_minute_store,
-            chr_races_store: chr_races_store,
-            creature_display_info_store: creature_display_info_store,
-            spell_acquisition_catalog: spell_acquisition.spell_acquisition_catalog.as_ref(),
-            spell_aura_restrictions_store: spell_info.spell_aura_restrictions_store.as_ref(),
-            spell_casting_requirements_store: spell_info.spell_casting_requirements_store.as_ref(),
-            spell_equipped_items_store: spell_info.spell_equipped_items_store.as_ref(),
-            spell_area_store: spell_area_store,
-            item_stats_store: item_stats_store,
-        },
-    )
+    let spell_world = load_spell_world_startup(SpellWorldStartupInputs {
+        data_dir: data_dir,
+        locale: locale,
+        spell_world_catalog_persistence: spell_world_catalog_persistence,
+        spell_acquisition_startup_persistence: spell_acquisition_startup_persistence,
+        db2_hotfix_removals: db2_hotfix_removals,
+        spell_store: spell_store,
+        map_store: map_store,
+        spell_chain_store: spell_acquisition.spell_chain_store.as_ref(),
+        spell_aura_options_store: spell_info.spell_aura_options_store.as_ref(),
+        spell_misc_store: spell_info.spell_misc_store.as_ref(),
+        spell_class_options_store: spell_info.spell_class_options_store.as_ref(),
+        spell_procs_per_minute_store: spell_procs_per_minute_store,
+        chr_races_store: chr_races_store,
+        creature_display_info_store: creature_display_info_store,
+        spell_acquisition_catalog: spell_acquisition.spell_acquisition_catalog.as_ref(),
+        spell_aura_restrictions_store: spell_info.spell_aura_restrictions_store.as_ref(),
+        spell_casting_requirements_store: spell_info.spell_casting_requirements_store.as_ref(),
+        spell_equipped_items_store: spell_info.spell_equipped_items_store.as_ref(),
+        spell_area_store: spell_area_store,
+        item_stats_store: item_stats_store,
+    })
     .await?;
     Ok(spell_world)
 }

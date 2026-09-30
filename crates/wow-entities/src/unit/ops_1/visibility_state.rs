@@ -134,7 +134,11 @@ impl Unit {
         check_alert: bool,
     ) -> bool {
         super::visibility::can_see_or_detect_unit(
-            self, target, implicit_detect, seer_is_player, check_alert,
+            self,
+            target,
+            implicit_detect,
+            seer_is_player,
+            check_alert,
         )
     }
 }

@@ -24,9 +24,9 @@ fn can_add_item_appearance_applies_can_use_item_template_gates_like_cpp() {
             transmog_source_type_enum: 0,
         })
         .collect();
-    fixture.modified = Some(Arc::new(
-        ItemModifiedAppearanceStore::from_entries(appearances),
-    ));
+    fixture.modified = Some(Arc::new(ItemModifiedAppearanceStore::from_entries(
+        appearances,
+    )));
     install_appearance_test_items(
         &mut fixture,
         [
@@ -129,8 +129,12 @@ fn can_add_item_appearance_applies_can_use_item_template_gates_like_cpp() {
         ),
     )));
     fixture.install_identity(571, 1, 1, 80, 0);
-    fixture.player.add_weapon_proficiency_like_cpp(1 << (ItemSubClassWeapon::Sword as u32));
-    fixture.player.replace_known_spell_ids_like_cpp(vec![12_345]);
+    fixture
+        .player
+        .add_weapon_proficiency_like_cpp(1 << (ItemSubClassWeapon::Sword as u32));
+    fixture
+        .player
+        .replace_known_spell_ids_like_cpp(vec![12_345]);
 
     assert!(
         PlayerCollectionStateLikeCpp::can_add_appearance(&fixture, 65),

@@ -138,10 +138,7 @@ struct ObjectMapInFlight {
     accounting_started: bool,
 }
 
-fn state_error(
-    expected_epoch: u64,
-    state: MapTickCoordinationStateLikeCpp,
-) -> ObjectMapTickError {
+fn state_error(expected_epoch: u64, state: MapTickCoordinationStateLikeCpp) -> ObjectMapTickError {
     match state {
         MapTickCoordinationStateLikeCpp::AwaitingSessions(actual_epoch)
         | MapTickCoordinationStateLikeCpp::Resuming(actual_epoch)
@@ -179,15 +176,15 @@ impl MapManager {
         }
         let epoch = plan.epoch_like_cpp();
         if !self.owns_tick_plan(&plan) {
-            return Err((ObjectMapTickError::OriginMismatch { plan_epoch: epoch }, plan));
+            return Err((
+                ObjectMapTickError::OriginMismatch { plan_epoch: epoch },
+                plan,
+            ));
         }
         if self.tick_coordination_like_cpp
             != MapTickCoordinationStateLikeCpp::AwaitingSessions(epoch)
         {
-            return Err((state_error(
-                epoch,
-                self.tick_coordination_like_cpp,
-            ), plan));
+            return Err((state_error(epoch, self.tick_coordination_like_cpp), plan));
         }
 
         let updated_maps = plan.updated_maps_like_cpp().to_vec();
@@ -244,13 +241,12 @@ impl MapManager {
             tick.in_flight = Some(in_flight);
 
             let Some(map) = self.maps.get_mut(&participant.key) else {
-                self.updater
-                    .finish_staged_object_map(accounting_started);
+                self.updater.finish_staged_object_map(accounting_started);
                 tick.in_flight = None;
                 continue;
             };
-            let continuation = map
-                .prepare_object_update(tick.effective_diff_ms, object_update_selection);
+            let continuation =
+                map.prepare_object_update(tick.effective_diff_ms, object_update_selection);
 
             return Ok(Some(ObjectMapUpdateToken {
                 origin: Arc::clone(&tick.origin),
@@ -307,22 +303,29 @@ impl MapManager {
             return Err((ObjectMapTickError::RespawnOperationInFlight, token));
         }
         if let Some(operation) = &token.actor_operation {
-            return Err((ObjectMapTickError::ActorOperationInFlight {
-                guid: operation.guid,
-            }, token));
+            return Err((
+                ObjectMapTickError::ActorOperationInFlight {
+                    guid: operation.guid,
+                },
+                token,
+            ));
         }
         if let Some(stale) = stale {
-            self.updater.finish_staged_object_map(token.accounting_started);
+            self.updater
+                .finish_staged_object_map(token.accounting_started);
             tick.in_flight = None;
             return Ok(stale);
         }
 
-        let map = self.maps.get_mut(&token.participant.key)
+        let map = self
+            .maps
+            .get_mut(&token.participant.key)
             .expect("current token validation retains the map under this exclusive manager borrow");
         map.run_creature_phase(&token.continuation, creature_update_owner);
         map.finish_object_update(token.continuation, pool_update, load_record);
 
-        self.updater.finish_staged_object_map(token.accounting_started);
+        self.updater
+            .finish_staged_object_map(token.accounting_started);
         tick.in_flight = None;
         tick.resumed_keys.push(token.participant.key);
         Ok(ObjectMapFinishOutcome::Completed)
@@ -398,15 +401,21 @@ impl MapManager {
             return Err((error, tick));
         }
         if let Some(in_flight) = tick.in_flight {
-            return Err((ObjectMapTickError::MapInFlight {
-                participant: in_flight.participant,
-            }, tick));
+            return Err((
+                ObjectMapTickError::MapInFlight {
+                    participant: in_flight.participant,
+                },
+                tick,
+            ));
         }
         if tick.next_participant < tick.updated_maps.len() {
-            return Err((ObjectMapTickError::Incomplete {
-                processed_participants: tick.next_participant,
-                total_participants: tick.updated_maps.len(),
-            }, tick));
+            return Err((
+                ObjectMapTickError::Incomplete {
+                    processed_participants: tick.next_participant,
+                    total_participants: tick.updated_maps.len(),
+                },
+                tick,
+            ));
         }
 
         if self.updater.activated() {

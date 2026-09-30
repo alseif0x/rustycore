@@ -21,12 +21,17 @@ fn non_alive_victim_rejects_before_consuming_the_iterator() {
         let health_before = player.unit().data().health;
         let revision_before = player.unit().health_state_revision_like_cpp();
         let consumed = Cell::new(0);
-        let damages = [5, 10].into_iter().inspect(|_| consumed.set(consumed.get() + 1));
+        let damages = [5, 10]
+            .into_iter()
+            .inspect(|_| consumed.set(consumed.get() + 1));
 
         assert_eq!(player.apply_melee_damage_batch(damages), None);
         assert_eq!(consumed.get(), 0);
         assert_eq!(player.unit().data().health, health_before);
-        assert_eq!(player.unit().health_state_revision_like_cpp(), revision_before);
+        assert_eq!(
+            player.unit().health_state_revision_like_cpp(),
+            revision_before
+        );
         assert_eq!(player.unit().death_state(), state);
         assert!(!player.unit().unit_data_changes_mask().is_any_set());
     }
@@ -37,9 +42,15 @@ fn alive_victim_accepts_empty_batch_without_a_health_write() {
     let mut player = victim(20, 80);
     let revision_before = player.unit().health_state_revision_like_cpp();
 
-    assert_eq!(player.apply_melee_damage_batch(std::iter::empty()), Some((Vec::new(), 80)));
+    assert_eq!(
+        player.apply_melee_damage_batch(std::iter::empty()),
+        Some((Vec::new(), 80))
+    );
     assert_eq!(player.unit().data().health, 20);
-    assert_eq!(player.unit().health_state_revision_like_cpp(), revision_before);
+    assert_eq!(
+        player.unit().health_state_revision_like_cpp(),
+        revision_before
+    );
     assert!(!player.unit().unit_data_changes_mask().is_any_set());
 }
 
@@ -48,9 +59,15 @@ fn zero_damage_reports_each_swing_without_changing_health_or_revision() {
     let mut player = victim(20, 80);
     let revision_before = player.unit().health_state_revision_like_cpp();
 
-    assert_eq!(player.apply_melee_damage_batch([0, 0].into_iter()), Some((vec![(0, -1), (0, -1)], 80)));
+    assert_eq!(
+        player.apply_melee_damage_batch([0, 0].into_iter()),
+        Some((vec![(0, -1), (0, -1)], 80))
+    );
     assert_eq!(player.unit().data().health, 20);
-    assert_eq!(player.unit().health_state_revision_like_cpp(), revision_before);
+    assert_eq!(
+        player.unit().health_state_revision_like_cpp(),
+        revision_before
+    );
     assert!(!player.unit().unit_data_changes_mask().is_any_set());
 }
 
@@ -59,7 +76,9 @@ fn ordered_batch_preserves_sublethal_exact_lethal_and_postlethal_results() {
     let mut player = victim(20, 80);
     let revision_before = player.unit().health_state_revision_like_cpp();
     let consumed = Cell::new(0);
-    let damages = [0, 7, 13, 0, 5].into_iter().inspect(|_| consumed.set(consumed.get() + 1));
+    let damages = [0, 7, 13, 0, 5]
+        .into_iter()
+        .inspect(|_| consumed.set(consumed.get() + 1));
 
     assert_eq!(
         player.apply_melee_damage_batch(damages),
@@ -67,7 +86,10 @@ fn ordered_batch_preserves_sublethal_exact_lethal_and_postlethal_results() {
     );
     assert_eq!(consumed.get(), 5);
     assert_eq!(player.unit().data().health, 0);
-    assert_eq!(player.unit().health_state_revision_like_cpp(), revision_before + 2);
+    assert_eq!(
+        player.unit().health_state_revision_like_cpp(),
+        revision_before + 2
+    );
     assert_eq!(player.unit().death_state(), DeathState::Alive);
     assert!(player.unit().unit_data_changes_mask().is_any_set());
 }
@@ -77,9 +99,15 @@ fn overkill_saturates_health_and_later_swings_read_zero() {
     let mut player = victim(3, 80);
     let revision_before = player.unit().health_state_revision_like_cpp();
 
-    assert_eq!(player.apply_melee_damage_batch([8, 2].into_iter()), Some((vec![(8, 5), (2, 2)], 80)));
+    assert_eq!(
+        player.apply_melee_damage_batch([8, 2].into_iter()),
+        Some((vec![(8, 5), (2, 2)], 80))
+    );
     assert_eq!(player.unit().data().health, 0);
-    assert_eq!(player.unit().health_state_revision_like_cpp(), revision_before + 1);
+    assert_eq!(
+        player.unit().health_state_revision_like_cpp(),
+        revision_before + 1
+    );
     assert_eq!(player.unit().death_state(), DeathState::Alive);
 }
 
@@ -93,7 +121,10 @@ fn health_above_u32_is_subtracted_without_narrowing() {
         Some((vec![(u32::MAX, -1), (1, -1), (1, 0)], 80)),
     );
     assert_eq!(player.unit().data().health, 0);
-    assert_eq!(player.unit().health_state_revision_like_cpp(), revision_before + 3);
+    assert_eq!(
+        player.unit().health_state_revision_like_cpp(),
+        revision_before + 3
+    );
     assert_eq!(player.unit().death_state(), DeathState::Alive);
 }
 
@@ -103,7 +134,10 @@ fn initial_level_preserves_reachable_clamp_endpoints() {
     // to manufacture negative or above-byte values for this extraction.
     for level in [0, 80, u8::MAX] {
         let mut player = victim(20, level);
-        assert_eq!(player.apply_melee_damage_batch([1].into_iter()), Some((vec![(1, -1)], level)));
+        assert_eq!(
+            player.apply_melee_damage_batch([1].into_iter()),
+            Some((vec![(1, -1)], level))
+        );
         assert_eq!(player.unit().data().level, i32::from(level));
     }
 }

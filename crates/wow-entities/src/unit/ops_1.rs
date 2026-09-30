@@ -3,10 +3,10 @@
 //! The inherent `Unit` impl is divided by responsibility under
 //! #636; every method keeps its original body.
 
-use super::*;
 use super::visibility;
+use super::*;
 
+mod combat_control;
+mod health_revisions;
 mod presence;
 mod visibility_state;
-mod health_revisions;
-mod combat_control;

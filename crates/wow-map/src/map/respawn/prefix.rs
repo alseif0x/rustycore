@@ -23,7 +23,11 @@ pub(super) fn prepare_canonical_creature_respawns(
 ) -> (ActorRespawnPhaseOutcome, VecDeque<PendingRespawn>) {
     let prefix = prepare(
         Memory::Canonical(map),
-        Clocks { now, conversion_now, conversion_now_secs },
+        Clocks {
+            now,
+            conversion_now,
+            conversion_now_secs,
+        },
         persistent_world_map,
     );
     (prefix.outcome, prefix.ready.into())
@@ -39,7 +43,11 @@ pub(crate) fn prepare_legacy_creature_respawns(
 ) -> LegacyCreatureRespawnPrefix {
     let prefix = prepare(
         Memory::Legacy { manager, key },
-        Clocks { now, conversion_now, conversion_now_secs },
+        Clocks {
+            now,
+            conversion_now,
+            conversion_now_secs,
+        },
         persistent_world_map,
     );
     LegacyCreatureRespawnPrefix {
@@ -61,7 +69,8 @@ fn prepare(mut memory: Memory<'_>, clocks: Clocks, persistent_world_map: bool) -
     if persistent_world_map {
         for guid in &guids {
             let pending = memory.actor(*guid).and_then(|actor| {
-                (!actor.is_alive() && actor.creature.spawn_id() != 0
+                (!actor.is_alive()
+                    && actor.creature.spawn_id() != 0
                     && actor.creature.runtime_state().save_respawn_requested)
                     .then(|| backend::capture_pending(actor, key.0, clocks))
             });
@@ -76,20 +85,27 @@ fn prepare(mut memory: Memory<'_>, clocks: Clocks, persistent_world_map: bool) -
         }
     }
 
-    let despawn_guids: Vec<_> = guids.into_iter().filter(|guid| {
-        memory.actor(*guid).is_some_and(|actor| {
-            !actor.is_alive() && actor.creature.unit().death_state() == DeathState::Corpse
-                && actor.corpse_despawn_due_like_cpp()
+    let despawn_guids: Vec<_> = guids
+        .into_iter()
+        .filter(|guid| {
+            memory.actor(*guid).is_some_and(|actor| {
+                !actor.is_alive()
+                    && actor.creature.unit().death_state() == DeathState::Corpse
+                    && actor.corpse_despawn_due_like_cpp()
+            })
         })
-    }).collect();
+        .collect();
     for guid in despawn_guids {
         let Some(captured) = memory.cleanup_and_capture(guid, key.0, clocks) else {
             continue;
         };
         let persistent_spawn = captured.pending.persistent_spawn;
         let spawn_id = captured.pending.spawn_id;
-        if persistent_world_map && persistent_spawn
-            && memory.saved_time(spawn_id).is_none_or(|stored| stored < captured.seconds)
+        if persistent_world_map
+            && persistent_spawn
+            && memory
+                .saved_time(spawn_id)
+                .is_none_or(|stored| stored < captured.seconds)
         {
             // Preserve the old in-memory replacement and single SQL upsert.
             // Legacy's removed-row Delete value is discarded, never published.
@@ -99,7 +115,12 @@ fn prepare(mut memory: Memory<'_>, clocks: Clocks, persistent_world_map: bool) -
             }
         }
         memory.queue(captured.pending);
-        if memory.finish_corpse(guid, captured.info, persistent_spawn, &mut prefix.removed_corpses) {
+        if memory.finish_corpse(
+            guid,
+            captured.info,
+            persistent_spawn,
+            &mut prefix.removed_corpses,
+        ) {
             prefix.outcome.corpses_removed += 1;
         } else {
             prefix.outcome.removal_failures += 1;

@@ -3,6 +3,10 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
+use crate::{
+    CreatureLoot, LootInstallOutcome, OwnedLootAuthority, OwnedLootAuthorityStamp,
+    OwnedLootSnapshot,
+};
 use wow_constants::{
     Class, CreatureChaseMovementType, CreatureFlagsExtra, CreatureFlightMovementType,
     CreatureGroundMovementType, CreatureRandomMovementType, CreatureStaticFlags,
@@ -11,10 +15,6 @@ use wow_constants::{
     UnitPvpFlags, UnitStandStateType, UnitState, WeaponAttackType, movement::MovementFlag,
 };
 use wow_core::{ObjectGuid, Position, guid::HighGuid};
-use crate::{
-    CreatureLoot, LootInstallOutcome, OwnedLootAuthority, OwnedLootAuthorityStamp,
-    OwnedLootSnapshot,
-};
 
 use crate::{
     BASE_MAXDAMAGE, BASE_MINDAMAGE, MoveFallPlan, MovementGeneratorKind,
@@ -28,12 +28,12 @@ pub use wow_data_model::creature::{
     CreatureAddonLifecycleRecordLikeCpp,
 };
 
+mod corpse_loot;
 mod ops_1;
 mod ops_2;
 mod ops_3;
 mod state_1;
 mod state_2;
-mod corpse_loot;
 pub use corpse_loot::looted_corpse_decay_seconds;
 #[allow(unused_imports)]
 pub use ops_1::*;

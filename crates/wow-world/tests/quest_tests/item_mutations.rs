@@ -2,8 +2,8 @@
 
 use super::*;
 use wow_constants::quest::{
-    QUEST_OBJECTIVE_ITEM_LIKE_CPP as QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL,
     QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP as QUEST_OBJECTIVE_FLAG_2_QUEST_BOUND_ITEM_LIKE_CPP_LOCAL,
+    QUEST_OBJECTIVE_ITEM_LIKE_CPP as QUEST_OBJECTIVE_ITEM_LIKE_CPP_LOCAL,
 };
 
 #[test]
@@ -110,14 +110,8 @@ fn quest_bound_withdrawal_plan_consumes_credit_without_physical_item() {
     }];
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     add_active_quest_in_slot(&mut session, quest_id, 0);
-    let (credited, planned) = plan_item_transfer_withdrawal_for_test(
-        &session,
-        &[],
-        &[],
-        item_id as u32,
-        0,
-        1,
-    );
+    let (credited, planned) =
+        plan_item_transfer_withdrawal_for_test(&session, &[], &[], item_id as u32, 0, 1);
     assert!(credited);
     assert_eq!(planned.len(), 1);
     assert_eq!(planned[0].status, QUEST_STATUS_COMPLETE_LIKE_CPP);

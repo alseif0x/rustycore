@@ -22,8 +22,7 @@ async fn represented_gameobject_personal_encounter_open_does_not_auto_allow_non_
     };
 
     prepare_money_player_residence_for_test(&mut session);
-    open_gameobject_loot_cycle_for_test(&mut session, gameobject_guid, source)
-        .await;
+    open_gameobject_loot_cycle_for_test(&mut session, gameobject_guid, source).await;
 
     assert!(send_rx.try_recv().is_err());
     assert!(!is_active_loot_guid_for_test(&session, gameobject_guid));
@@ -74,8 +73,7 @@ async fn represented_chest_use_syncs_state_to_same_map_viewers_like_cpp() {
     wow_world::test_fixtures::insert_client_visible_guid_for_test(&mut session, gameobject_guid);
 
     prepare_money_player_residence_for_test(&mut session);
-    open_gameobject_loot_cycle_for_test(&mut session, gameobject_guid, source)
-        .await;
+    open_gameobject_loot_cycle_for_test(&mut session, gameobject_guid, source).await;
 
     let command = match same_command_rx.try_recv() {
         Ok(SessionCommand::SyncChestGameobjectStateAndRefreshLikeCpp(command)) => command,
@@ -108,11 +106,12 @@ async fn represented_gameobject_chest_use_sets_activated_loot_state_like_cpp() {
     wow_world::test_fixtures::insert_client_visible_guid_for_test(&mut session, gameobject_guid);
 
     prepare_money_player_residence_for_test(&mut session);
-    open_gameobject_loot_cycle_for_test(&mut session, 
-            gameobject_guid,
-            GameObjectLootSource::default(),
-        )
-        .await;
+    open_gameobject_loot_cycle_for_test(
+        &mut session,
+        gameobject_guid,
+        GameObjectLootSource::default(),
+    )
+    .await;
 
     let state = gameobject_loot_release_snapshot_for_test(&session, gameobject_guid)
         .expect("represented chest use records GO loot state");
@@ -157,8 +156,7 @@ async fn represented_gathering_node_use_refreshes_same_map_gameobject_viewers_li
     };
 
     prepare_money_player_residence_for_test(&mut session);
-    open_gathering_loot_cycle_for_test(&mut session, gameobject_guid, 190_008, source)
-        .await;
+    open_gathering_loot_cycle_for_test(&mut session, gameobject_guid, 190_008, source).await;
 
     let command = match same_command_rx.try_recv() {
         Ok(SessionCommand::SyncGatheringNodeGameobjectStateAndRefreshLikeCpp(command)) => command,
@@ -182,4 +180,3 @@ async fn represented_gathering_node_use_refreshes_same_map_gameobject_viewers_li
     );
     assert!(other_command_rx.try_recv().is_err());
 }
-

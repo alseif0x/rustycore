@@ -3,7 +3,9 @@ use wow_constants::PhaseFlags;
 
 fn unit(low: u64) -> Unit {
     let mut unit = Unit::new(true);
-    unit.world_mut().object_mut().create(ObjectGuid::new(1, low));
+    unit.world_mut()
+        .object_mut()
+        .create(ObjectGuid::new(1, low));
     unit
 }
 
@@ -33,10 +35,15 @@ fn capture_keeps_smooth_replacement_and_uses_later_seer_guid() {
     let mut target = unit(3);
     let later_guid = ObjectGuid::new(1, 2);
     target.set_always_detectable_for_seer_like_cpp(true);
-    target.world_mut().get_or_create_smooth_phasing_like_cpp()
+    target
+        .world_mut()
+        .get_or_create_smooth_phasing_like_cpp()
         .set_viewer_dependent_info_like_cpp(later_guid, crate::SmoothPhasingInfoLikeCpp::default());
     let captured = target.capture_visibility_target();
-    target.world_mut().smooth_phasing_mut_like_cpp().unwrap()
+    target
+        .world_mut()
+        .smooth_phasing_mut_like_cpp()
+        .unwrap()
         .disable_replacement_for_seer_like_cpp(later_guid);
     assert!(sees(&seer, &captured));
     seer.world_mut().object_mut().create(later_guid);
@@ -50,11 +57,18 @@ fn capture_keeps_stalked_casters_and_uses_later_seer_guid() {
     let mut target = unit(3);
     let later_guid = ObjectGuid::new(1, 2);
     target.set_invisibility_like_cpp(0, 100);
-    target.subsystems_mut().auras.register_applied_aura_type_like_cpp(
-        AppliedAuraRef::new(53338, later_guid, 0, 1), SPELL_AURA_MOD_STALKED_LIKE_CPP,
-    );
+    target
+        .subsystems_mut()
+        .auras
+        .register_applied_aura_type_like_cpp(
+            AppliedAuraRef::new(53338, later_guid, 0, 1),
+            SPELL_AURA_MOD_STALKED_LIKE_CPP,
+        );
     let captured = target.capture_visibility_target();
-    target.subsystems_mut().auras.remove_auras_by_type_like_cpp(SPELL_AURA_MOD_STALKED_LIKE_CPP);
+    target
+        .subsystems_mut()
+        .auras
+        .remove_auras_by_type_like_cpp(SPELL_AURA_MOD_STALKED_LIKE_CPP);
     assert!(!sees(&seer, &captured));
     seer.world_mut().object_mut().create(later_guid);
     assert!(sees(&seer, &captured));
@@ -80,7 +94,10 @@ fn empty_guid_is_not_same_guid_shortcut_and_some_empty_owner_is_preserved() {
     let mut target = Unit::new(true);
     target.set_invisibility_like_cpp(0, 100);
     assert!(!sees(&seer, &target.capture_visibility_target()));
-    target.subsystems_mut().control.set_owner_guid(Some(ObjectGuid::EMPTY));
+    target
+        .subsystems_mut()
+        .control
+        .set_owner_guid(Some(ObjectGuid::EMPTY));
     let captured = target.capture_visibility_target();
     target.subsystems_mut().control.set_owner_guid(None);
     assert!(sees(&seer, &captured));
@@ -91,8 +108,14 @@ fn empty_guid_is_not_same_guid_shortcut_and_some_empty_owner_is_preserved() {
 fn charmer_precedes_owner_and_owner_group_visibility_precedes_private_gate() {
     let seer = unit(1);
     let mut target = unit(2);
-    target.subsystems_mut().control.set_owner_guid(Some(seer.world().guid()));
-    target.subsystems_mut().control.set_charmer(ObjectGuid::new(1, 3), false);
+    target
+        .subsystems_mut()
+        .control
+        .set_owner_guid(Some(seer.world().guid()));
+    target
+        .subsystems_mut()
+        .control
+        .set_charmer(ObjectGuid::new(1, 3), false);
     target.set_invisibility_like_cpp(0, 100);
     assert!(!sees(&seer, &target.capture_visibility_target()));
     target.subsystems_mut().control.remove_charmer();
@@ -189,15 +212,27 @@ fn phase_capture_keeps_personal_identity_and_observes_later_seer_phase() {
     let mut seer = unit(1);
     let mut target = unit(2);
     let phase_flags = PhaseFlags::PERSONAL;
-    target.world_mut().phase_shift_mut().add_phase_like_cpp(42, phase_flags, 1);
-    target.world_mut().phase_shift_mut().set_personal_guid_like_cpp(ObjectGuid::new(1, 3));
+    target
+        .world_mut()
+        .phase_shift_mut()
+        .add_phase_like_cpp(42, phase_flags, 1);
+    target
+        .world_mut()
+        .phase_shift_mut()
+        .set_personal_guid_like_cpp(ObjectGuid::new(1, 3));
     let captured = target.capture_visibility_target();
     target.world_mut().phase_shift_mut().clear();
     assert!(!sees(&seer, &captured));
-    seer.world_mut().phase_shift_mut().add_phase_like_cpp(42, phase_flags, 1);
-    seer.world_mut().phase_shift_mut().set_personal_guid_like_cpp(ObjectGuid::new(1, 4));
+    seer.world_mut()
+        .phase_shift_mut()
+        .add_phase_like_cpp(42, phase_flags, 1);
+    seer.world_mut()
+        .phase_shift_mut()
+        .set_personal_guid_like_cpp(ObjectGuid::new(1, 4));
     assert!(!sees(&seer, &captured));
-    seer.world_mut().phase_shift_mut().set_personal_guid_like_cpp(ObjectGuid::new(1, 3));
+    seer.world_mut()
+        .phase_shift_mut()
+        .set_personal_guid_like_cpp(ObjectGuid::new(1, 3));
     assert!(sees(&seer, &captured));
 }
 
@@ -224,10 +259,14 @@ fn high_stealth_flags_still_apply_geometry_before_the_38_slot_loop() {
     let mut target = unit(2);
     seer.data.combat_reach = 0.0;
     target.visibility_detection.stealth_flags = 1_u64 << 63;
-    target.world_mut().relocate(Position::new(-10.0, 0.0, 0.0, 0.0));
+    target
+        .world_mut()
+        .relocate(Position::new(-10.0, 0.0, 0.0, 0.0));
     assert!(!seer.can_detect_stealth_of_like_cpp(&target, true, false));
     assert!(!sees(&seer, &target.capture_visibility_target()));
-    target.world_mut().relocate(Position::new(10.0, 0.0, 0.0, 0.0));
+    target
+        .world_mut()
+        .relocate(Position::new(10.0, 0.0, 0.0, 0.0));
     assert!(seer.can_detect_stealth_of_like_cpp(&target, true, false));
     assert!(sees(&seer, &target.capture_visibility_target()));
 }
@@ -236,7 +275,8 @@ fn high_stealth_flags_still_apply_geometry_before_the_38_slot_loop() {
 fn legacy_empty_guid_self_reference_keeps_arc_identity_capture_is_distinct() {
     let mut seer = Unit::new(true);
     seer.data.combat_reach = 0.0;
-    seer.world_mut().relocate(Position::new(0.0, 0.0, 0.0, std::f32::consts::PI));
+    seer.world_mut()
+        .relocate(Position::new(0.0, 0.0, 0.0, std::f32::consts::PI));
     seer.set_stealth_like_cpp(0, 1);
     assert!(seer.can_detect_stealth_of_like_cpp(&seer, true, false));
     assert!(seer.can_see_or_detect_unit_like_cpp(&seer, false, true, false));
@@ -251,7 +291,9 @@ fn capture_keeps_3d_position_while_seer_level_reach_and_alert_are_late() {
     let mut target = unit(2);
     seer.data.combat_reach = 0.0;
     seer.set_level(1);
-    target.world_mut().relocate(Position::new(0.1, 0.0, 9.0, 0.0));
+    target
+        .world_mut()
+        .relocate(Position::new(0.1, 0.0, 9.0, 0.0));
     target.set_stealth_like_cpp(0, 1);
     let captured = target.capture_visibility_target();
     target.world_mut().relocate(Position::ZERO);
@@ -269,7 +311,9 @@ fn stealth_player_cap_and_implicit_detect_keep_their_original_positions() {
     let mut seer = unit(1);
     let mut target = unit(2);
     seer.set_level(80);
-    target.world_mut().relocate(Position::new(35.0, 0.0, 0.0, 0.0));
+    target
+        .world_mut()
+        .relocate(Position::new(35.0, 0.0, 0.0, 0.0));
     target.set_stealth_like_cpp(0, 1);
     let captured = target.capture_visibility_target();
     assert!(!sees(&seer, &captured));
@@ -285,10 +329,14 @@ fn nan_distance_is_not_normalized_and_infinite_distance_is_rejected() {
     let mut target = unit(2);
     seer.data.combat_reach = 0.0;
     target.set_stealth_like_cpp(0, 1);
-    target.world_mut().relocate(Position::new(1.0, 0.0, f32::NAN, 0.0));
+    target
+        .world_mut()
+        .relocate(Position::new(1.0, 0.0, f32::NAN, 0.0));
     assert!(seer.can_detect_stealth_of_like_cpp(&target, true, false));
     assert!(sees(&seer, &target.capture_visibility_target()));
-    target.world_mut().relocate(Position::new(1.0, 0.0, f32::INFINITY, 0.0));
+    target
+        .world_mut()
+        .relocate(Position::new(1.0, 0.0, f32::INFINITY, 0.0));
     assert!(!seer.can_detect_stealth_of_like_cpp(&target, true, false));
     assert!(!sees(&seer, &target.capture_visibility_target()));
 }

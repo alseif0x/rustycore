@@ -11,8 +11,8 @@
 //! and exposes the stable `map::*` paths for its private responsibility modules.
 
 mod actor_access;
-mod creature_loot;
 mod actor_transport;
+mod creature_loot;
 mod loaded_grid_admission;
 pub use actor_transport::{CreatureActorTransportError, CreatureActorTransportSummary};
 mod combat;
@@ -25,14 +25,12 @@ pub use creature_visibility::{
 };
 mod creature_melee;
 pub use self::creature_melee::{
-    CreatureMeleeCatalogsLikeCpp, CreatureMeleeReadiness, creature_melee_readiness,
-    is_creature_melee_los_clear_like_cpp,
-    CreatureDamageThreatOutcomeLikeCpp, CreatureMeleeVictimSyncIdentityLikeCpp,
-    CreatureMeleeVictimSyncStateLikeCpp,
-    PendingCreatureSwingLikeCpp, CreatureVictimCompatibilitySyncLikeCpp,
-    MeleeThreatSpellFacts, ShareAuraIdentityLikeCpp, ShareAuraSnapshotLikeCpp,
-    MeleeEffect, MeleePresentation, CreatureMeleePlayerHit,
-    CreatureMeleeSwingOutcome, MeleeAbsorbConsumption,
+    CreatureDamageThreatOutcomeLikeCpp, CreatureMeleeCatalogsLikeCpp, CreatureMeleePlayerHit,
+    CreatureMeleeReadiness, CreatureMeleeSwingOutcome, CreatureMeleeVictimSyncIdentityLikeCpp,
+    CreatureMeleeVictimSyncStateLikeCpp, CreatureVictimCompatibilitySyncLikeCpp,
+    MeleeAbsorbConsumption, MeleeEffect, MeleePresentation, MeleeThreatSpellFacts,
+    PendingCreatureSwingLikeCpp, ShareAuraIdentityLikeCpp, ShareAuraSnapshotLikeCpp,
+    creature_melee_readiness, is_creature_melee_los_clear_like_cpp,
 };
 mod entity_world;
 mod game_object;
@@ -41,21 +39,21 @@ mod grid_helpers;
 mod grid_host;
 mod map_update_plans;
 mod move_list;
-mod object_insertion;
 mod object_entry;
+mod object_insertion;
 mod object_operation_outcomes;
 mod object_record_support;
-mod object_views;
 mod object_removal;
 mod object_update_selection;
+mod object_views;
 mod other_object_updates;
 mod phase_outcomes;
 mod pool_data;
 mod relocation;
 mod relocation_plans;
 mod respawn;
-pub use respawn::prefix::{LegacyCreatureRespawnPrefix, RemovedCreatureCorpse};
 pub(crate) use respawn::prefix::prepare_legacy_creature_respawns;
+pub use respawn::prefix::{LegacyCreatureRespawnPrefix, RemovedCreatureCorpse};
 mod respawn_scaling;
 mod runtime;
 mod scripts_weather;
@@ -65,46 +63,33 @@ mod spawn_outcomes;
 mod storage;
 mod summon_position;
 mod update;
-mod visibility;
 mod viewpoint;
+mod visibility;
 
 use crate::map_rules::remove_spawn_id_index_entry_like_cpp;
 use std::collections::{BTreeMap, HashMap, HashSet, VecDeque};
 
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
-use self::entity_world::EntityWorld;
-use self::object_entry::ObjectEntry;
-pub(crate) use self::object_entry::CreatureActorWitness;
 pub(crate) use self::actor_access::{CreatureActorAdmission, CreatureActorAdmissionError};
 pub use self::actor_access::{FreshCreatureActorAdmission, FreshCreatureActorAdmissionError};
-pub use self::loaded_grid_admission::{
-    LoadedGridRespawnOutcome,
-    LoadedGridAttemptPlan, LoadedGridPoolOutcome,
-    LoadedGridConditionOutcome, LoadedGridSpawnAttempt,
-    LoadedGridSpawnAttemptResult, LoadedGridSpawnOutcome,
-    LoadedGridAdmission, LoadedGridMaterialization, LoadedGridPrimaryAdmission,
-};
-pub use self::object_entry::OwnedMapObject;
-pub use self::creature_snapshot::CreatureSnapshotReplaceError;
-use self::object_views::{ObjectMut, ObjectRef};
-pub use self::grid_helpers::{
-    cell_from_grid_center, cell_from_world, is_grid_id_loaded, total_cell_count,
-};
-use self::grid_helpers::{
-    active_cells_near_grid, checked_grid_index, grid_index, terrain_grid_coords,
-};
-use self::object_record_support::{
-    cleanup_map_object_record_before_delete_like_cpp, detach_typed_loot_authority_like_cpp,
-    insert_object_guid_in_cell_like_cpp, is_active_object_like_cpp,
-    map_record_is_world_object_like_cpp, remove_from_map_in_world_eligible_type_like_cpp,
-    remove_list_grid_kind_like_cpp, remove_object_guid_from_cell_like_cpp,
-    set_record_temp_world_object_like_cpp, switch_list_unit_kind_like_cpp,
-    typed_loot_authorities_share_storage_like_cpp,
-};
 pub use self::construction::{
     GridLifecycle, MapWorldObjectEnvironment, NoopGridLifecycle, NoopTerrainGridLoader,
     TerrainGridLoader,
+};
+pub use self::creature_snapshot::CreatureSnapshotReplaceError;
+use self::entity_world::EntityWorld;
+use self::grid_helpers::{
+    active_cells_near_grid, checked_grid_index, grid_index, terrain_grid_coords,
+};
+pub use self::grid_helpers::{
+    cell_from_grid_center, cell_from_world, is_grid_id_loaded, total_cell_count,
+};
+pub use self::loaded_grid_admission::{
+    LoadedGridAdmission, LoadedGridAttemptPlan, LoadedGridConditionOutcome,
+    LoadedGridMaterialization, LoadedGridPoolOutcome, LoadedGridPrimaryAdmission,
+    LoadedGridRespawnOutcome, LoadedGridSpawnAttempt, LoadedGridSpawnAttemptResult,
+    LoadedGridSpawnOutcome,
 };
 pub use self::map_update_plans::{
     MapUpdatePlayerSources, MapUpdateVisitPlan, NearbyCellGuids, NearbyCellVisitCenter,
@@ -116,20 +101,9 @@ pub use self::move_list::{
     MapObjectMoveListEntry, MapObjectMoveListFamilyLikeCpp, MapObjectMoveListPlan,
     MoveListDrainSummaryLikeCpp, PendingCellMoveLikeCpp, RemoveObjectFromMoveListOutcomeLikeCpp,
 };
-pub use self::relocation_plans::{
-    AIRelocationPlan, CreatureDelayedRelocationVisibilityPlan, CreatureRelocationVisibilityPlan,
-    DelayedCreatureRelocationContext, DelayedPlayerRelocationContext,
-    DelayedUnitRelocationCellPlan, DelayedUnitRelocationForCellsPlan, DelayedUnitRelocationPlan,
-    DelayedUnitRelocationVisibilityPlans, PlayerDelayedRelocationVisibilityPlan,
-    PlayerRelocationVisibilityPlan,
-};
-pub use self::runtime::{
-    MapCommandKindLikeCpp, MapCommandLikeCpp, MapCommandOutcomeLikeCpp, MapCommandStatusLikeCpp,
-};
-pub(crate) use self::runtime::{
-    MapRuntime, MapRuntimePlayerAttachErrorLikeCpp, MapRuntimePlayerDetachErrorLikeCpp,
-    MapRuntimePlayerRelocationErrorLikeCpp,
-};
+pub(crate) use self::object_entry::CreatureActorWitness;
+use self::object_entry::ObjectEntry;
+pub use self::object_entry::OwnedMapObject;
 pub use self::object_operation_outcomes::{
     ActiveNonPlayerMutationOutcomeLikeCpp, ActiveNonPlayerMutationStatusLikeCpp,
     ActiveNonPlayerUnloadLockOutcomeLikeCpp, AddObjectToRemoveListOutcomeLikeCpp,
@@ -146,46 +120,78 @@ pub use self::object_operation_outcomes::{
     GameObjectSetLootStateStatusLikeCpp, GameObjectSummonObjectForOwnerSlotOutcomeLikeCpp,
     GameObjectSummonObjectForOwnerSlotStatusLikeCpp, GameObjectUpdateModelOutcomeLikeCpp,
     GameObjectUpdateModelStatusLikeCpp, GameObjectZoneScriptCreateOutcomeLikeCpp,
-    GameObjectZoneScriptRemoveOutcomeLikeCpp, MapObjectRelocationError,
-    MapObjectRelocationOutcome, MapObjectStoreError, RemoveFromActiveOutcomeLikeCpp,
-    RemoveFromMapError, RemoveFromMapOutcome,
+    GameObjectZoneScriptRemoveOutcomeLikeCpp, MapObjectRelocationError, MapObjectRelocationOutcome,
+    MapObjectStoreError, RemoveFromActiveOutcomeLikeCpp, RemoveFromMapError, RemoveFromMapOutcome,
     RemoveFromMapVisibilityOnDestroyOutcomeLikeCpp, RemoveListOutcomeLikeCpp,
     RepresentedGameObjectModelKeyLikeCpp, SpellEffectSummonObjectWildOutcomeLikeCpp,
     SpellEffectSummonObjectWildStatusLikeCpp, UnitRemoveGameObjectsBySpellOutcomeLikeCpp,
     WorldObjectSummonGameObjectOutcomeLikeCpp, WorldObjectSummonGameObjectStatusLikeCpp,
 };
+use self::object_record_support::{
+    cleanup_map_object_record_before_delete_like_cpp, detach_typed_loot_authority_like_cpp,
+    insert_object_guid_in_cell_like_cpp, is_active_object_like_cpp,
+    map_record_is_world_object_like_cpp, remove_from_map_in_world_eligible_type_like_cpp,
+    remove_list_grid_kind_like_cpp, remove_object_guid_from_cell_like_cpp,
+    set_record_temp_world_object_like_cpp, switch_list_unit_kind_like_cpp,
+    typed_loot_authorities_share_storage_like_cpp,
+};
+use self::object_views::{ObjectMut, ObjectRef};
 pub use self::phase_outcomes::{
     AddObjectToSwitchListOutcomeLikeCpp, AddObjectToSwitchListStatusLikeCpp,
     AreaTriggerUpdateOutcomeLikeCpp, AreaTriggerUpdateStatusLikeCpp,
     AreaTriggersUpdateSummaryLikeCpp, ConversationUpdateOutcomeLikeCpp,
     ConversationUpdateStatusLikeCpp, ConversationsUpdateSummaryLikeCpp,
     CreatureTransformVitalsSnapshotLikeCpp, CreatureUpdateOutcomeLikeCpp,
-    CreatureUpdateStatusLikeCpp, CreatureUpdateSummaryLikeCpp,
-    DynamicMapTreeUpdateSummaryLikeCpp, DynamicObjectCasterViewpointOutcomeLikeCpp,
-    DynamicObjectCasterViewpointStatusLikeCpp, DynamicObjectUpdateOutcomeLikeCpp,
-    DynamicObjectUpdateStatusLikeCpp, DynamicObjectsUpdateSummaryLikeCpp,
-    FarSpellCallbackDrainSummaryLikeCpp, FarsightDynamicObjectCreateOutcomeLikeCpp,
-    FarsightDynamicObjectCreateStatusLikeCpp, GameEventChangeEquipOrModelLiveOutcomeLikeCpp,
-    GameEventNpcFlagLiveOutcomeLikeCpp, GameEventNpcFlagValuesUpdateLikeCpp,
-    GameEventSmartAiScriptCandidateSummaryLikeCpp, GameObjectCapturePointRemovedGuidsLikeCpp,
-    GameObjectDeleteOutcomeLikeCpp, GameObjectUpdateOutcomeLikeCpp,
-    GameObjectUpdateStatusLikeCpp, GameObjectVisibilityOnDestroyGuidsLikeCpp,
-    GameObjectVisualDespawnGuidsLikeCpp, GameObjectsUpdateSummaryLikeCpp,
-    GridStatesUpdateSummaryLikeCpp, MapUpdateMetricsSummaryLikeCpp,
-    PersonalPhaseTrackerUpdateSummaryLikeCpp,
+    CreatureUpdateStatusLikeCpp, CreatureUpdateSummaryLikeCpp, DynamicMapTreeUpdateSummaryLikeCpp,
+    DynamicObjectCasterViewpointOutcomeLikeCpp, DynamicObjectCasterViewpointStatusLikeCpp,
+    DynamicObjectUpdateOutcomeLikeCpp, DynamicObjectUpdateStatusLikeCpp,
+    DynamicObjectsUpdateSummaryLikeCpp, FarSpellCallbackDrainSummaryLikeCpp,
+    FarsightDynamicObjectCreateOutcomeLikeCpp, FarsightDynamicObjectCreateStatusLikeCpp,
+    GameEventChangeEquipOrModelLiveOutcomeLikeCpp, GameEventNpcFlagLiveOutcomeLikeCpp,
+    GameEventNpcFlagValuesUpdateLikeCpp, GameEventSmartAiScriptCandidateSummaryLikeCpp,
+    GameObjectCapturePointRemovedGuidsLikeCpp, GameObjectDeleteOutcomeLikeCpp,
+    GameObjectUpdateOutcomeLikeCpp, GameObjectUpdateStatusLikeCpp,
+    GameObjectVisibilityOnDestroyGuidsLikeCpp, GameObjectVisualDespawnGuidsLikeCpp,
+    GameObjectsUpdateSummaryLikeCpp, GridStatesUpdateSummaryLikeCpp,
+    MapUpdateMetricsSummaryLikeCpp, PersonalPhaseTrackerUpdateSummaryLikeCpp,
     PlayerRemoveFromWorldViewpointCleanupOutcomeLikeCpp,
     PlayerRemoveFromWorldViewpointCleanupStatusLikeCpp, PlayerSetViewpointOutcomeLikeCpp,
     PlayerSetViewpointStatusLikeCpp, RemoveAllAreaTriggersForCasterOutcomeLikeCpp,
-    RemoveAllDynamicObjectsForCasterOutcomeLikeCpp,
-    RemoveAllObjectsInRemoveListOutcomeLikeCpp, RepresentedFarSpellCallbackActionLikeCpp,
-    RepresentedFarSpellCallbackLikeCpp, RepresentedScriptScheduleActionLikeCpp,
-    RepresentedZoneDefaultWeatherLikeCpp, RepresentedZoneDynamicInfoLikeCpp,
-    SceneObjectUpdateContextLikeCpp, SceneObjectUpdateOutcomeLikeCpp,
-    SceneObjectUpdateStatusLikeCpp, SceneObjectsUpdateSummaryLikeCpp,
-    ScriptScheduleProcessSummaryLikeCpp, ScriptScheduleStartOutcomeLikeCpp,
-    SetWorldObjectOutcomeLikeCpp, SetWorldObjectStatusLikeCpp,
-    TransportUpdateOutcomeLikeCpp, TransportUpdateStatusLikeCpp,
-    TransportsUpdateSummaryLikeCpp, WeatherUpdateSummaryLikeCpp,
+    RemoveAllDynamicObjectsForCasterOutcomeLikeCpp, RemoveAllObjectsInRemoveListOutcomeLikeCpp,
+    RepresentedFarSpellCallbackActionLikeCpp, RepresentedFarSpellCallbackLikeCpp,
+    RepresentedScriptScheduleActionLikeCpp, RepresentedZoneDefaultWeatherLikeCpp,
+    RepresentedZoneDynamicInfoLikeCpp, SceneObjectUpdateContextLikeCpp,
+    SceneObjectUpdateOutcomeLikeCpp, SceneObjectUpdateStatusLikeCpp,
+    SceneObjectsUpdateSummaryLikeCpp, ScriptScheduleProcessSummaryLikeCpp,
+    ScriptScheduleStartOutcomeLikeCpp, SetWorldObjectOutcomeLikeCpp, SetWorldObjectStatusLikeCpp,
+    TransportUpdateOutcomeLikeCpp, TransportUpdateStatusLikeCpp, TransportsUpdateSummaryLikeCpp,
+    WeatherUpdateSummaryLikeCpp,
+};
+pub use self::pool_data::{SpawnedPoolDataErrorLikeCpp, SpawnedPoolDataLikeCpp};
+pub use self::relocation_plans::{
+    AIRelocationPlan, CreatureDelayedRelocationVisibilityPlan, CreatureRelocationVisibilityPlan,
+    DelayedCreatureRelocationContext, DelayedPlayerRelocationContext,
+    DelayedUnitRelocationCellPlan, DelayedUnitRelocationForCellsPlan, DelayedUnitRelocationPlan,
+    DelayedUnitRelocationVisibilityPlans, PlayerDelayedRelocationVisibilityPlan,
+    PlayerRelocationVisibilityPlan,
+};
+pub use self::respawn_scaling::{
+    DynamicRespawnScalingConfig, DynamicRespawnScalingContext, DynamicRespawnScalingNoopReason,
+    DynamicRespawnScalingOutcome, apply_dynamic_mode_respawn_scaling_like_cpp,
+};
+pub use self::runtime::{
+    MapCommandKindLikeCpp, MapCommandLikeCpp, MapCommandOutcomeLikeCpp, MapCommandStatusLikeCpp,
+};
+pub(crate) use self::runtime::{
+    MapRuntime, MapRuntimePlayerAttachErrorLikeCpp, MapRuntimePlayerDetachErrorLikeCpp,
+    MapRuntimePlayerRelocationErrorLikeCpp,
+};
+pub use self::send_object_updates::{
+    RepresentedAreaTriggerValuesUpdateLikeCpp, RepresentedConversationValuesUpdateLikeCpp,
+    RepresentedCorpseValuesUpdateLikeCpp, RepresentedDynamicObjectValuesUpdateLikeCpp,
+    RepresentedGameObjectValuesUpdateLikeCpp, RepresentedPlayerValuesUpdateLikeCpp,
+    RepresentedSceneObjectValuesUpdateLikeCpp, RepresentedUnitValuesUpdateLikeCpp,
+    SendObjectUpdatesSummaryLikeCpp,
 };
 pub use self::spawn_outcomes::{
     CheckRespawnCompositeOutcomeLikeCpp, CheckRespawnLinkedRespawnGuardOutcomeLikeCpp,
@@ -196,24 +202,11 @@ pub use self::spawn_outcomes::{
     SpawnGroupConditionUpdateOutcomeLikeCpp, SpawnGroupDespawnOutcomeLikeCpp,
     SpawnGroupSpawnLoadPlanLikeCpp, SpawnGroupSpawnOutcomeLikeCpp,
 };
-pub use self::pool_data::{SpawnedPoolDataErrorLikeCpp, SpawnedPoolDataLikeCpp};
-pub use self::respawn_scaling::{
-    DynamicRespawnScalingConfig, DynamicRespawnScalingContext,
-    DynamicRespawnScalingNoopReason, DynamicRespawnScalingOutcome,
-    apply_dynamic_mode_respawn_scaling_like_cpp,
-};
-pub use self::send_object_updates::{
-    RepresentedAreaTriggerValuesUpdateLikeCpp, RepresentedConversationValuesUpdateLikeCpp,
-    RepresentedCorpseValuesUpdateLikeCpp, RepresentedDynamicObjectValuesUpdateLikeCpp,
-    RepresentedGameObjectValuesUpdateLikeCpp, RepresentedPlayerValuesUpdateLikeCpp,
-    RepresentedSceneObjectValuesUpdateLikeCpp, RepresentedUnitValuesUpdateLikeCpp,
-    SendObjectUpdatesSummaryLikeCpp,
-};
 pub use self::summon_position::{
-    spell_effect_summon_object_wild_position_like_cpp,
-    world_object_summon_gameobject_position_from_coords_like_cpp,
     SpellEffectSummonObjectWildPositionOutcomeLikeCpp,
     WorldObjectSummonGameObjectPositionOutcomeLikeCpp,
+    spell_effect_summon_object_wild_position_like_cpp,
+    world_object_summon_gameobject_position_from_coords_like_cpp,
 };
 use crate::cell::{Cell, GridObjectGuids, WorldObjectGuids, calculate_cell_area_like_cpp};
 use crate::coords::{
@@ -256,8 +249,7 @@ use wow_entities::{
     GameObjectUpdateStatusLikeCpp as EntityGameObjectUpdateStatusLikeCpp, GoState, INVALID_HEIGHT,
     LineOfSightQuery, LootState, MAX_VISIBILITY_DISTANCE, MapBindingError, MapObjectRecord,
     ObjectAccessorError, ObjectNotifyFlags, Pet, Player, SceneObject, TransportUpdateLikeCpp, Unit,
-    UnitAddToWorldOutcomeLikeCpp, UnitRemoveFromWorldOutcomeLikeCpp,
-    UnitValuesUpdate,
+    UnitAddToWorldOutcomeLikeCpp, UnitRemoveFromWorldOutcomeLikeCpp, UnitValuesUpdate,
     VehicleKitAddToWorldResetOutcomeLikeCpp, VehicleKitInstallOutcomeLikeCpp,
     VehicleKitRemoveOutcomeLikeCpp, WorldObject, WorldObjectEnvironment, WorldObjectHeightQuery,
 };
@@ -278,8 +270,6 @@ pub const DEFAULT_PLAYER_BOUNDING_RADIUS_LIKE_CPP: f32 = 0.388_999_998_569_489;
 /// C++ `DynamicTree.cpp:34-38` `CHECK_TREE_PERIOD = 200`.
 const DYNAMIC_MAP_TREE_CHECK_PERIOD_MS_LIKE_CPP: u32 = 200;
 const WEATHER_UPDATE_INTERVAL_MS_LIKE_CPP: u32 = 1_000;
-
-
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum ActiveObjectKind {

@@ -37,7 +37,6 @@ fn queue_creature_loot_release_command_reliably_like_cpp(
     }
 }
 
-
 #[tokio::test]
 async fn creature_loot_release_command_retries_without_blocking_source_like_cpp() {
     let (command_tx, command_rx) = flume::bounded(1);

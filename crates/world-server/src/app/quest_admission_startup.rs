@@ -1,14 +1,15 @@
 //! Ordered quest admission startup composition.
 
+use crate::catalogs;
 use anyhow::Context;
 use std::sync::Arc;
 use tracing::info;
-use crate::catalogs;
 
 pub(super) struct QuestAdmissionCatalogs {
     pub(super) lfg_load_report: wow_data::LfgLoadReportLikeCpp,
     pub(super) lfg_dungeon_store_like_cpp: Arc<wow_data::LfgDungeonStoreLikeCpp>,
-    pub(super) lfg_world_catalog_persistence: wow_database::MariaDbLfgWorldCatalogPersistenceAdapterLikeCpp,
+    pub(super) lfg_world_catalog_persistence:
+        wow_database::MariaDbLfgWorldCatalogPersistenceAdapterLikeCpp,
     pub(super) quest_store: Arc<wow_data::quest::QuestStore>,
 }
 
@@ -83,7 +84,8 @@ pub(super) async fn load(
 
 pub(super) struct LfgDb2Catalog {
     pub(super) lfg_dungeons_store: Arc<wow_data::LfgDungeonsStore>,
-    pub(super) lfg_dungeons_hotfix_persistence: wow_database::MariaDbLfgDungeonsHotfixPersistenceAdapterLikeCpp,
+    pub(super) lfg_dungeons_hotfix_persistence:
+        wow_database::MariaDbLfgDungeonsHotfixPersistenceAdapterLikeCpp,
 }
 
 pub(super) async fn load_lfg_db2(
@@ -92,9 +94,7 @@ pub(super) async fn load_lfg_db2(
     hotfix_db: &Arc<wow_database::HotfixDatabase>,
 ) -> anyhow::Result<LfgDb2Catalog> {
     let lfg_dungeons_hotfix_persistence =
-        wow_database::MariaDbLfgDungeonsHotfixPersistenceAdapterLikeCpp::new(Arc::clone(
-            hotfix_db,
-        ));
+        wow_database::MariaDbLfgDungeonsHotfixPersistenceAdapterLikeCpp::new(Arc::clone(hotfix_db));
     let lfg_dungeons_store = Arc::new(
         crate::hotfix::lfg_dungeons::load_lfg_dungeons_like_cpp(
             data_dir,

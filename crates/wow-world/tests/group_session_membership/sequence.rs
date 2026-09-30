@@ -11,31 +11,30 @@ fn reset_group_update_sequence_does_not_reset_same_group_like_cpp() {
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
-    assert!(set_owned_player_group_like_cpp(&mut session, Some((group_guid, 0))));
+    assert!(set_owned_player_group_like_cpp(
+        &mut session,
+        Some((group_guid, 0))
+    ));
 
     assert!(session.group_reset_update_sequence_for_test());
     assert_eq!(
-        session.group_next_update_sequence_for_test(
-            wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
-        ),
+        session
+            .group_next_update_sequence_for_test(wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP),
         Some(1)
     );
     assert_eq!(
-        session.group_next_update_sequence_for_test(
-            wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
-        ),
+        session
+            .group_next_update_sequence_for_test(wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP),
         Some(2)
     );
 
     assert!(!session.group_reset_update_sequence_for_test());
     assert_eq!(
-        session.group_next_update_sequence_for_test(
-            wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
-        ),
+        session
+            .group_next_update_sequence_for_test(wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP),
         Some(3)
     );
 }
-
 
 #[test]
 fn reset_group_update_sequence_resets_when_group_changes_like_cpp() {
@@ -54,28 +53,24 @@ fn reset_group_update_sequence_resets_when_group_changes_like_cpp() {
     set_group_guid_for_test_like_cpp(&mut session, Some(first_group_guid));
     assert!(session.group_reset_update_sequence_for_test());
     assert_eq!(
-        session.group_next_update_sequence_for_test(
-            wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
-        ),
+        session
+            .group_next_update_sequence_for_test(wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP),
         Some(1)
     );
     assert_eq!(
-        session.group_next_update_sequence_for_test(
-            wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
-        ),
+        session
+            .group_next_update_sequence_for_test(wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP),
         Some(2)
     );
 
     set_group_guid_for_test_like_cpp(&mut session, Some(second_group_guid));
     assert!(session.group_reset_update_sequence_for_test());
     assert_eq!(
-        session.group_next_update_sequence_for_test(
-            wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
-        ),
+        session
+            .group_next_update_sequence_for_test(wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP),
         Some(1)
     );
 }
-
 
 #[test]
 fn reset_group_update_sequence_without_group_is_noop_like_cpp() {
@@ -83,11 +78,9 @@ fn reset_group_update_sequence_without_group_is_noop_like_cpp() {
 
     assert!(!session.group_reset_update_sequence_for_test());
     assert_eq!(
-        session.group_next_update_sequence_for_test(
-            wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP
-        ),
+        session
+            .group_next_update_sequence_for_test(wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP),
         Some(0)
     );
     assert_eq!(session.group_next_update_sequence_for_test(99), None);
 }
-

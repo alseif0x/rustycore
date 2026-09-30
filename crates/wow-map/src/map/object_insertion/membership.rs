@@ -104,9 +104,17 @@ where
         let mut set_true = false;
         let mut set_false = false;
         let final_is_new_object = if let Some(mut record) = self.entity_world.get_mut(&guid) {
-            record.reborrow().object_mut().object_mut().set_is_new_object(true);
+            record
+                .reborrow()
+                .object_mut()
+                .object_mut()
+                .set_is_new_object(true);
             set_true = true;
-            record.reborrow().object_mut().object_mut().set_is_new_object(false);
+            record
+                .reborrow()
+                .object_mut()
+                .object_mut()
+                .set_is_new_object(false);
             set_false = true;
             record.object().object().is_new_object()
         } else {
@@ -128,7 +136,10 @@ where
         })
     }
 
-    pub(in crate::map) fn index_map_object_record_by_spawn_id_like_cpp(&mut self, record: ObjectRef<'_>) {
+    pub(in crate::map) fn index_map_object_record_by_spawn_id_like_cpp(
+        &mut self,
+        record: ObjectRef<'_>,
+    ) {
         if let Some(creature) = record.creature() {
             let spawn_id = creature.spawn_id();
             if spawn_id != 0 {
@@ -162,7 +173,10 @@ where
         }
     }
 
-    pub(in crate::map) fn unindex_map_object_record_by_spawn_id_like_cpp(&mut self, record: ObjectRef<'_>) {
+    pub(in crate::map) fn unindex_map_object_record_by_spawn_id_like_cpp(
+        &mut self,
+        record: ObjectRef<'_>,
+    ) {
         if let Some(creature) = record.creature() {
             remove_spawn_id_index_entry_like_cpp(
                 &mut self.creatures_by_spawn_id,
@@ -208,5 +222,4 @@ where
         sort_dedup(&mut guids);
         guids
     }
-
 }

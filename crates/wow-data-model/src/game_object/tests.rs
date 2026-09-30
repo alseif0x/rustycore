@@ -3,7 +3,6 @@
 
 use super::*;
 
-
 #[test]
 fn gameobject_template_get_loot_id_matches_cpp_switch() {
     let mut data = [0; MAX_GAMEOBJECT_DATA];

@@ -3,8 +3,12 @@ use super::*;
 impl<'a> GameObjectUseValues<'a> {
     // GameObject.cpp UseDoorOrButton/SwitchDoorOrButton. Retain represented
     // Option defaults and supplied restore time; no template fallback is added.
-    pub fn use_door_or_button(self, user_guid: ObjectGuid, restore_time_ms: u32,
-        now: Instant) -> Option<GoState> {
+    pub fn use_door_or_button(
+        self,
+        user_guid: ObjectGuid,
+        restore_time_ms: u32,
+        now: Instant,
+    ) -> Option<GoState> {
         if self
             .loot_state
             .is_some_and(|loot_state| loot_state != LootState::Ready)
@@ -46,7 +50,8 @@ impl<'a> GameObjectUseValues<'a> {
     }
 
     pub fn tick_door_or_button(self, now: Instant) -> Option<GoState> {
-        let expired = self.cooldown_until
+        let expired = self
+            .cooldown_until
             .is_some_and(|cooldown_until| cooldown_until <= now);
         if !expired {
             return None;
@@ -56,8 +61,12 @@ impl<'a> GameObjectUseValues<'a> {
 
     // GameObject.cpp Use, trap branch. Emit at each original mutation boundary;
     // an interrupted caller must not receive a fully committed buffered result.
-    pub fn use_trap(self, source: TrapUseSource, now: Instant,
-        mut emit: impl FnMut(TrapUseEffect)) -> bool {
+    pub fn use_trap(
+        self,
+        source: TrapUseSource,
+        now: Instant,
+        mut emit: impl FnMut(TrapUseEffect),
+    ) -> bool {
         if self
             .cooldown_until
             .is_some_and(|cooldown_until| cooldown_until > now)
@@ -69,7 +78,9 @@ impl<'a> GameObjectUseValues<'a> {
         *self.trap_use_source = Some(source);
 
         if source.spell_id != 0 {
-            emit(TrapUseEffect::CastSpell { spell_id: source.spell_id });
+            emit(TrapUseEffect::CastSpell {
+                spell_id: source.spell_id,
+            });
         }
 
         let cooldown_secs = if source.cooldown_secs != 0 {
@@ -89,8 +100,10 @@ impl<'a> GameObjectUseValues<'a> {
     }
 
     // Zero must bypass both the caller's clock and entry preparation.
-    pub fn apply_cooldown(cooldown_secs: u32,
-        prepare: impl FnOnce() -> (Instant, &'a mut Option<Instant>)) -> CooldownOutcome {
+    pub fn apply_cooldown(
+        cooldown_secs: u32,
+        prepare: impl FnOnce() -> (Instant, &'a mut Option<Instant>),
+    ) -> CooldownOutcome {
         if cooldown_secs == 0 {
             return CooldownOutcome::NoCooldown;
         }
@@ -105,15 +118,18 @@ impl<'a> GameObjectUseValues<'a> {
 
     // The batch's type/Activated gates are deliberately stronger than the
     // standalone expired-door operation.
-    pub fn door_reset_due(go_type: Option<u8>, loot_state: Option<LootState>,
-        cooldown_until: Option<Instant>, now: Instant) -> bool {
+    pub fn door_reset_due(
+        go_type: Option<u8>,
+        loot_state: Option<LootState>,
+        cooldown_until: Option<Instant>,
+        now: Instant,
+    ) -> bool {
         let is_door_or_button = matches!(
             go_type.map(u32::from),
             Some(GAMEOBJECT_TYPE_DOOR | GAMEOBJECT_TYPE_BUTTON)
         );
         let is_activated = loot_state == Some(LootState::Activated);
-        let cooldown_expired = cooldown_until
-            .is_some_and(|cooldown_until| cooldown_until <= now);
+        let cooldown_expired = cooldown_until.is_some_and(|cooldown_until| cooldown_until <= now);
         is_door_or_button && is_activated && cooldown_expired
     }
 }

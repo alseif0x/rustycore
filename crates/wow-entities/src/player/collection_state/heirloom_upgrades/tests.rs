@@ -10,11 +10,7 @@ enum Read {
     Contains(u32),
 }
 
-fn select(
-    start: i32,
-    rows: &BTreeMap<u32, (i32, i32)>,
-    owned: &[u32],
-) -> Option<u32> {
+fn select(start: i32, rows: &BTreeMap<u32, (i32, i32)>, owned: &[u32]) -> Option<u32> {
     PlayerCollectionStateLikeCpp::static_heirloom_upgrade(
         start,
         |id| rows.get(&id),
@@ -108,11 +104,22 @@ fn static_heirloom_chain_preserves_lazy_query_and_inventory_order() {
     assert_eq!(
         reads.into_inner(),
         vec![
-            Read::Lookup(10), Read::Item(10), Read::Contains(10), Read::Static(20),
-            Read::Lookup(20), Read::Item(20),
-            Read::Lookup(20), Read::Item(20), Read::Contains(20), Read::Static(30),
-            Read::Lookup(30), Read::Item(30),
-            Read::Lookup(30), Read::Item(30), Read::Contains(30), Read::Static(0),
+            Read::Lookup(10),
+            Read::Item(10),
+            Read::Contains(10),
+            Read::Static(20),
+            Read::Lookup(20),
+            Read::Item(20),
+            Read::Lookup(20),
+            Read::Item(20),
+            Read::Contains(20),
+            Read::Static(30),
+            Read::Lookup(30),
+            Read::Item(30),
+            Read::Lookup(30),
+            Read::Item(30),
+            Read::Contains(30),
+            Read::Static(0),
             Read::Lookup(0),
         ],
     );

@@ -19,7 +19,8 @@ pub(crate) enum CanonicalMapProducerExit {
         cause: BeforeObjectsExitCause,
         plan: crate::runtime::map_tick::CanonicalMapSessionPassPlanLikeCpp,
         admission: TickAdmission,
-        unresolved_permits: Vec<std::sync::Arc<wow_world::session::mailbox::SessionPhasePermitLikeCpp>>,
+        unresolved_permits:
+            Vec<std::sync::Arc<wow_world::session::mailbox::SessionPhasePermitLikeCpp>>,
     },
 }
 
@@ -32,9 +33,9 @@ pub(super) fn take_retained_objects_on_stop(
     if !stop.load(Ordering::Acquire) {
         return None;
     }
-    held.take().map(|(failure, admission)| CanonicalMapProducerExit::RetainedObjects {
-        failure, admission,
-    })
+    held.take().map(
+        |(failure, admission)| CanonicalMapProducerExit::RetainedObjects { failure, admission },
+    )
 }
 
 /// Keep the original return in the supervisor's shutdown scope. A previously
@@ -69,15 +70,21 @@ pub(crate) async fn stop_canonical_map_producer(
     match exit.as_ref() {
         Some(CanonicalMapProducerExit::WithoutObjectFailure) => true,
         Some(CanonicalMapProducerExit::RetainedObjects { .. }) => {
-            tracing::error!("Canonical map producer returned original Objects owners; shutdown remains incomplete");
+            tracing::error!(
+                "Canonical map producer returned original Objects owners; shutdown remains incomplete"
+            );
             false
         }
         Some(CanonicalMapProducerExit::RetainedBeforeObjects { .. }) => {
-            tracing::error!("Canonical map producer returned original before-Objects owners; shutdown remains incomplete");
+            tracing::error!(
+                "Canonical map producer returned original before-Objects owners; shutdown remains incomplete"
+            );
             false
         }
         None => {
-            tracing::error!("Canonical map producer has no owned join result; shutdown remains incomplete");
+            tracing::error!(
+                "Canonical map producer has no owned join result; shutdown remains incomplete"
+            );
             false
         }
     }

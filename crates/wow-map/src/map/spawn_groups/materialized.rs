@@ -27,10 +27,15 @@ where
             SpawnObjectType,
             SpawnId,
             bool,
-        ) -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
+        )
+            -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
     {
         self.spawn_group_materialized_core(
-            group, ignore_respawn, force, spawn_store, load_record,
+            group,
+            ignore_respawn,
+            force,
+            spawn_store,
+            load_record,
             LoadedGridReceipts::Owned(Vec::new()),
         )
     }
@@ -50,13 +55,16 @@ where
             SpawnObjectType,
             SpawnId,
             bool,
-        ) -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
+        )
+            -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
     {
         let Some(group) = group else {
             return receipts.finish(SpawnGroupSpawnOutcomeLikeCpp::blocked_missing_group(0));
         };
         if group.is_system() {
-            return receipts.finish(SpawnGroupSpawnOutcomeLikeCpp::blocked_system_group(group.group_id));
+            return receipts.finish(SpawnGroupSpawnOutcomeLikeCpp::blocked_system_group(
+                group.group_id,
+            ));
         }
 
         let mut outcome = SpawnGroupSpawnOutcomeLikeCpp::executed(group.group_id);
@@ -136,21 +144,24 @@ where
                 });
 
                 let plan = SpawnGroupSpawnLoadPlanLikeCpp {
-                    object_type: member.object_type, spawn_id: member.spawn_id, force,
+                    object_type: member.object_type,
+                    spawn_id: member.spawn_id,
+                    force,
                 };
-                let materialization = match load_record(self, member.object_type, member.spawn_id, force) {
-                    Ok(Some(materialization)) => materialization,
-                    failure => {
-                        receipts.load_failed(plan, failure);
-                        outcome.blocked_loaded_grid_spawn_loads += 1;
-                        if member.object_type == SpawnObjectType::Creature {
-                            outcome.blocked_loaded_grid_creature_loads += 1;
-                        } else if member.object_type == SpawnObjectType::GameObject {
-                            outcome.blocked_loaded_grid_gameobject_loads += 1;
+                let materialization =
+                    match load_record(self, member.object_type, member.spawn_id, force) {
+                        Ok(Some(materialization)) => materialization,
+                        failure => {
+                            receipts.load_failed(plan, failure);
+                            outcome.blocked_loaded_grid_spawn_loads += 1;
+                            if member.object_type == SpawnObjectType::Creature {
+                                outcome.blocked_loaded_grid_creature_loads += 1;
+                            } else if member.object_type == SpawnObjectType::GameObject {
+                                outcome.blocked_loaded_grid_gameobject_loads += 1;
+                            }
+                            continue;
                         }
-                        continue;
-                    }
-                };
+                    };
 
                 let admission = self.admit_loaded_grid_materialization(materialization);
                 receipts.admitted(plan, admission, &mut outcome);
@@ -175,10 +186,14 @@ where
             SpawnObjectType,
             SpawnId,
             bool,
-        ) -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
+        )
+            -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
     {
         match self.update_spawn_group_conditions_core(
-            groups, spawn_store, meets_conditions, load_record,
+            groups,
+            spawn_store,
+            meets_conditions,
+            load_record,
             LoadedGridReceipts::Owned(Vec::new()),
         ) {
             ConditionResults::Owned(outcomes) => outcomes,
@@ -202,64 +217,68 @@ where
             SpawnObjectType,
             SpawnId,
             bool,
-        ) -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
+        )
+            -> Result<Option<LoadedGridMaterialization>, LoadedGridRespawnRecordsLikeCpp>,
     {
         let groups = groups.into_iter().collect::<Vec<_>>();
         let planned_actions = self
             .plan_update_spawn_group_conditions_like_cpp(groups.iter().copied(), meets_conditions);
 
-        let outcomes = planned_actions
-            .into_iter()
-            .zip(groups)
-            .map(|((group_id, action), group)| {
-                let mut applied_change = None;
-                let mut despawn_outcome = None;
-                let mut spawn_outcome = None;
-                match action {
-                    SpawnGroupConditionActionLikeCpp::SetInactive => {
-                        applied_change = Some(self.set_spawn_group_inactive_like_cpp(Some(group)));
-                    }
-                    SpawnGroupConditionActionLikeCpp::Despawn {
-                        delete_respawn_times,
-                    } => {
-                        despawn_outcome = Some(self.spawn_group_despawn_like_cpp(
-                            Some(group),
+        let outcomes =
+            planned_actions
+                .into_iter()
+                .zip(groups)
+                .map(|((group_id, action), group)| {
+                    let mut applied_change = None;
+                    let mut despawn_outcome = None;
+                    let mut spawn_outcome = None;
+                    match action {
+                        SpawnGroupConditionActionLikeCpp::SetInactive => {
+                            applied_change =
+                                Some(self.set_spawn_group_inactive_like_cpp(Some(group)));
+                        }
+                        SpawnGroupConditionActionLikeCpp::Despawn {
                             delete_respawn_times,
-                            spawn_store,
-                        ));
-                    }
-                    SpawnGroupConditionActionLikeCpp::Spawn {
-                        ignore_respawn,
-                        force,
-                    } => {
-                        spawn_outcome = Some(self.spawn_group_materialized_core(
-                            Some(group),
+                        } => {
+                            despawn_outcome = Some(self.spawn_group_despawn_like_cpp(
+                                Some(group),
+                                delete_respawn_times,
+                                spawn_store,
+                            ));
+                        }
+                        SpawnGroupConditionActionLikeCpp::Spawn {
                             ignore_respawn,
                             force,
-                            spawn_store,
-                            &mut load_record,
-                            receipts.for_operation(),
-                        ));
+                        } => {
+                            spawn_outcome = Some(self.spawn_group_materialized_core(
+                                Some(group),
+                                ignore_respawn,
+                                force,
+                                spawn_store,
+                                &mut load_record,
+                                receipts.for_operation(),
+                            ));
+                        }
+                        SpawnGroupConditionActionLikeCpp::Noop => {}
                     }
-                    SpawnGroupConditionActionLikeCpp::Noop => {}
-                }
 
-                LoadedGridConditionOutcome {
-                    group_id,
-                    action,
-                    applied_change,
-                    despawn_outcome,
-                    spawn_outcome,
-                }
-            });
+                    LoadedGridConditionOutcome {
+                        group_id,
+                        action,
+                        applied_change,
+                        despawn_outcome,
+                        spawn_outcome,
+                    }
+                });
         match receipts {
             LoadedGridReceipts::RecordCompatibility => ConditionResults::Record(
-                outcomes.map(LoadedGridConditionOutcome::into_record_outcome).collect(),
+                outcomes
+                    .map(LoadedGridConditionOutcome::into_record_outcome)
+                    .collect(),
             ),
             LoadedGridReceipts::Owned(_) => ConditionResults::Owned(outcomes.collect()),
         }
     }
-
 }
 
 #[cfg(test)]

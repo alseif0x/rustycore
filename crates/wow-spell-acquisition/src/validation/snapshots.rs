@@ -4,21 +4,14 @@ use super::*;
 
 pub(super) fn acquisition_spell_rows(
     snapshot: &PlayerSpellAcquisitionSnapshotLikeCpp,
-) -> Result<
-    BTreeMap<u32, PlayerSpellAcquisitionRowLikeCpp>,
-    AcquisitionPlanError,
-> {
+) -> Result<BTreeMap<u32, PlayerSpellAcquisitionRowLikeCpp>, AcquisitionPlanError> {
     let mut rows = BTreeMap::new();
     for row in &snapshot.spells {
         if i32::try_from(row.spell_id).is_err() || row.spell_id == 0 {
-            return Err(AcquisitionPlanError::InvalidSpellId(
-                row.spell_id,
-            ));
+            return Err(AcquisitionPlanError::InvalidSpellId(row.spell_id));
         }
         if rows.insert(row.spell_id, *row).is_some() {
-            return Err(AcquisitionPlanError::DuplicateSpell(
-                row.spell_id,
-            ));
+            return Err(AcquisitionPlanError::DuplicateSpell(row.spell_id));
         }
     }
     Ok(rows)
@@ -27,21 +20,14 @@ pub(super) fn acquisition_spell_rows(
 /// Project the skill rows consumed independently by application profession checks.
 pub fn acquisition_skill_rows(
     snapshot: &PlayerSpellAcquisitionSnapshotLikeCpp,
-) -> Result<
-    BTreeMap<u32, PlayerSkillAcquisitionRowLikeCpp>,
-    AcquisitionPlanError,
-> {
+) -> Result<BTreeMap<u32, PlayerSkillAcquisitionRowLikeCpp>, AcquisitionPlanError> {
     let mut rows = BTreeMap::new();
     for row in &snapshot.skills {
         if u16::try_from(row.skill_id).is_err() || row.skill_id == 0 {
-            return Err(AcquisitionPlanError::InvalidSkillId(
-                row.skill_id,
-            ));
+            return Err(AcquisitionPlanError::InvalidSkillId(row.skill_id));
         }
         if rows.insert(row.skill_id, *row).is_some() {
-            return Err(AcquisitionPlanError::DuplicateSkill(
-                row.skill_id,
-            ));
+            return Err(AcquisitionPlanError::DuplicateSkill(row.skill_id));
         }
     }
     Ok(rows)
@@ -53,21 +39,15 @@ pub(super) fn acquisition_override_pairs(
     let mut overrides = BTreeSet::new();
     for &(overridden, overriding) in &snapshot.overrides {
         if i32::try_from(overridden).is_err() || overridden == 0 {
-            return Err(AcquisitionPlanError::InvalidSpellId(
-                overridden,
-            ));
+            return Err(AcquisitionPlanError::InvalidSpellId(overridden));
         }
         if i32::try_from(overriding).is_err() || overriding == 0 {
-            return Err(AcquisitionPlanError::InvalidSpellId(
-                overriding,
-            ));
+            return Err(AcquisitionPlanError::InvalidSpellId(overriding));
         }
         if !overrides.insert((overridden, overriding)) {
-            return Err(
-                AcquisitionPlanError::DuplicateOverride(
-                    overridden, overriding,
-                ),
-            );
+            return Err(AcquisitionPlanError::DuplicateOverride(
+                overridden, overriding,
+            ));
         }
     }
     Ok(overrides)
@@ -110,9 +90,9 @@ pub(super) fn validate_snapshot(
         .character_guid
         .is_some_and(|guid| !guid.is_player() || guid.counter() == 0)
     {
-        return Err(
-            AcquisitionPlanError::SnapshotIdentityChanged("character_guid"),
-        );
+        return Err(AcquisitionPlanError::SnapshotIdentityChanged(
+            "character_guid",
+        ));
     }
     let spells = acquisition_spell_rows(snapshot)?;
     let skills = acquisition_skill_rows(snapshot)?;
@@ -130,11 +110,9 @@ pub(super) fn validate_snapshot(
                 })
             })
     {
-        return Err(
-            AcquisitionPlanError::ProfessionPlanMismatch(
-                "snapshot primary profession authority",
-            ),
-        );
+        return Err(AcquisitionPlanError::ProfessionPlanMismatch(
+            "snapshot primary profession authority",
+        ));
     }
     if let Some(invalid_skill_id) = snapshot
         .non_durable_skill_tombstone_ids
@@ -161,11 +139,9 @@ pub(super) fn validate_snapshot(
                 })
         })
     {
-        return Err(
-            AcquisitionPlanError::InvalidNonDurableSkillTombstone(
-                invalid_skill_id,
-            ),
-        );
+        return Err(AcquisitionPlanError::InvalidNonDurableSkillTombstone(
+            invalid_skill_id,
+        ));
     }
     if usize::from(snapshot.occupied_skill_slots) != skills.len()
         || snapshot.occupied_skill_slots > 256
@@ -181,32 +157,22 @@ pub(super) fn validate_snapshot(
                 || skill.maximum != 0
                 || skill.profession_association != ProfessionAssociationInputLikeCpp::Unassigned)
         {
-            return Err(
-                AcquisitionPlanError::InvalidDeletedSkill(skill.skill_id),
-            );
+            return Err(AcquisitionPlanError::InvalidDeletedSkill(skill.skill_id));
         }
         match skill.profession_association {
             ProfessionAssociationInputLikeCpp::Unassigned => {}
             ProfessionAssociationInputLikeCpp::Slot(slot @ 0..=1) => {
                 if profession_slots.insert(slot, skill.skill_id).is_some() {
-                    return Err(
-                        AcquisitionPlanError::ConflictingProfessionAssociation(
-                            slot,
-                        ),
-                    );
+                    return Err(AcquisitionPlanError::ConflictingProfessionAssociation(slot));
                 }
             }
             ProfessionAssociationInputLikeCpp::Slot(slot) => {
-                return Err(
-                    AcquisitionPlanError::InvalidProfessionAssociation(
-                        slot as i8,
-                    ),
-                );
+                return Err(AcquisitionPlanError::InvalidProfessionAssociation(
+                    slot as i8,
+                ));
             }
             ProfessionAssociationInputLikeCpp::Invalid(value) => {
-                return Err(
-                    AcquisitionPlanError::InvalidProfessionAssociation(value),
-                );
+                return Err(AcquisitionPlanError::InvalidProfessionAssociation(value));
             }
         }
     }
@@ -214,11 +180,9 @@ pub(super) fn validate_snapshot(
         if let Some(trait_definition_id) = spell.trait_definition_id
             && trait_definition_id <= 0
         {
-            return Err(
-                AcquisitionPlanError::InvalidTraitDefinitionId(
-                    trait_definition_id,
-                ),
-            );
+            return Err(AcquisitionPlanError::InvalidTraitDefinitionId(
+                trait_definition_id,
+            ));
         }
     }
     Ok(())

@@ -42,13 +42,13 @@ impl PlayerQuestGameplayState {
         data: i32,
         objectives: impl FnOnce(u32) -> Option<&'a [QuestObjective]>,
     ) {
-        if let (Some(status), Some(objectives)) = (
-            self.status_mut_like_cpp(quest_id),
-            objectives(quest_id),
-        ) {
-            if let Some(objective) = objectives.iter().find(|objective| {
-                u8::try_from(objective.storage_index).ok() == Some(storage_index)
-            }) {
+        if let (Some(status), Some(objectives)) =
+            (self.status_mut_like_cpp(quest_id), objectives(quest_id))
+        {
+            if let Some(objective) = objectives
+                .iter()
+                .find(|objective| u8::try_from(objective.storage_index).ok() == Some(storage_index))
+            {
                 let index = usize::from(storage_index);
                 if status.objective_counts.len() <= index {
                     status.objective_counts.resize(index + 1, 0);
@@ -79,7 +79,11 @@ impl QuestStatusHydration {
         end_time_secs: i64,
         objective_count: impl FnOnce(u32) -> usize,
     ) {
-        let status = if status < 7 { status } else { QUEST_STATUS_INCOMPLETE_LIKE_CPP };
+        let status = if status < 7 {
+            status
+        } else {
+            QUEST_STATUS_INCOMPLETE_LIKE_CPP
+        };
         let explored = explored != 0;
 
         if status == QUEST_STATUS_REWARDED_LIKE_CPP {
@@ -95,8 +99,13 @@ impl QuestStatusHydration {
             state.insert_status_like_cpp(
                 quest_id,
                 PlayerQuestStatusRecord {
-                    quest_id, status, explored, accept_time_secs, end_time_secs,
-                    objective_counts: vec![0; obj_count], slot,
+                    quest_id,
+                    status,
+                    explored,
+                    accept_time_secs,
+                    end_time_secs,
+                    objective_counts: vec![0; obj_count],
+                    slot,
                 },
             );
         }

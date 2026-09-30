@@ -66,7 +66,10 @@ fn damage_draw_precedes_attack_table_draw_with_original_inclusive_bounds() {
     );
 
     assert_eq!(result, (Outcome::Hit, (7, 0, 7)));
-    assert_eq!(*events.borrow(), vec![("damage", 5, 9), ("table", 0, 9_999)]);
+    assert_eq!(
+        *events.borrow(),
+        vec![("damage", 5, 9), ("table", 0, 9_999)]
+    );
 }
 
 #[test]
@@ -98,7 +101,10 @@ fn done_and_autoattack_remain_float_until_rounding_before_taken() {
                 9_999
             },
         );
-        assert_eq!(result, (Outcome::Hit, (expected_damage, 0, expected_damage)));
+        assert_eq!(
+            result,
+            (Outcome::Hit, (expected_damage, 0, expected_damage))
+        );
     }
 }
 
@@ -111,9 +117,15 @@ fn taken_runs_after_done_and_before_armor_reduction() {
         [100.0, 100.0],
         2.0,
         (10, 1.5),
-        ArmorMitigation { victim_armor: 400, ..ArmorMitigation::NONE },
+        ArmorMitigation {
+            victim_armor: 400,
+            ..ArmorMitigation::NONE
+        },
         (&Attacker::default(), &Victim::default()),
-        Taken { flat: -30, pct: 0.5 },
+        Taken {
+            flat: -30,
+            pct: 0.5,
+        },
         false,
         |min, max| {
             assert_eq!((min, max), (100, 100));
@@ -143,13 +155,36 @@ fn mainhand_and_offhand_select_distinct_critical_and_expertise_tables() {
         expertise_reduction_pct: [0.0, 100.0],
         ..attacker()
     };
-    let dodging_victim = Victim { dodge_pct: 100.0, ..player_victim };
+    let dodging_victim = Victim {
+        dodge_pct: 100.0,
+        ..player_victim
+    };
 
     for (attacker, victim, offhand, expected) in [
-        (critical_attacker, player_victim, false, (Outcome::Crit, (250, 0, 250))),
-        (critical_attacker, player_victim, true, (Outcome::Hit, (100, 0, 100))),
-        (expert_attacker, dodging_victim, false, (Outcome::Dodge, (0, 0, 100))),
-        (expert_attacker, dodging_victim, true, (Outcome::Hit, (100, 0, 100))),
+        (
+            critical_attacker,
+            player_victim,
+            false,
+            (Outcome::Crit, (250, 0, 250)),
+        ),
+        (
+            critical_attacker,
+            player_victim,
+            true,
+            (Outcome::Hit, (100, 0, 100)),
+        ),
+        (
+            expert_attacker,
+            dodging_victim,
+            false,
+            (Outcome::Dodge, (0, 0, 100)),
+        ),
+        (
+            expert_attacker,
+            dodging_victim,
+            true,
+            (Outcome::Hit, (100, 0, 100)),
+        ),
     ] {
         assert_eq!(
             calculate_white_swing(
@@ -210,8 +245,23 @@ fn immunity_and_evade_still_draw_twice_even_with_equal_weapon_bounds() {
 #[test]
 fn block_and_critical_damage_keep_the_existing_original_damage_convention() {
     for (attacker, victim, expected) in [
-        (attacker(), Victim { block_pct: 100.0, ..victim() }, (Outcome::Block, (70, 30, 100))),
-        (Attacker { crit_pct: [100.0; 2], crit_damage_multiplier: 1.75, ..attacker() }, victim(), (Outcome::Crit, (350, 0, 350))),
+        (
+            attacker(),
+            Victim {
+                block_pct: 100.0,
+                ..victim()
+            },
+            (Outcome::Block, (70, 30, 100)),
+        ),
+        (
+            Attacker {
+                crit_pct: [100.0; 2],
+                crit_damage_multiplier: 1.75,
+                ..attacker()
+            },
+            victim(),
+            (Outcome::Crit, (350, 0, 350)),
+        ),
     ] {
         assert_eq!(
             calculate_white_swing(
@@ -232,7 +282,10 @@ fn block_and_critical_damage_keep_the_existing_original_damage_convention() {
 
 #[test]
 fn attack_table_roll_conversion_retains_default_on_i32_overflow() {
-    let victim = Victim { block_pct: 100.0, ..victim() };
+    let victim = Victim {
+        block_pct: 100.0,
+        ..victim()
+    };
     let result = calculate_white_swing(
         [7.0, 7.0],
         1.0,

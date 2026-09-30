@@ -14,13 +14,14 @@ async fn remote_roll_timeout_then_release_fans_out_once_and_finalizes_corpse_lik
         ..LootDropRatesLikeCpp::default()
     });
     mutate_loot_creature_for_test(&mut first, owner, |creature| {
-            creature.creature.set_corpse_delay(120, false);
-            creature.apply_corpse_loot_flags_after_death_state_like_cpp(true, false);
-        })
-        .unwrap();
+        creature.creature.set_corpse_delay(120, false);
+        creature.apply_corpse_loot_flags_after_death_state_like_cpp(true, false);
+    })
+    .unwrap();
 
-    let authority = wow_world::test_fixtures::loot::loot_recovery_authority_for_test(&mut first, owner)
-        .unwrap();
+    let authority =
+        wow_world::test_fixtures::loot::loot_recovery_authority_for_test(&mut first, owner)
+            .unwrap();
     let generation = authority
         .snapshot_for_player_like_cpp(second_guid)
         .unwrap()
@@ -57,20 +58,23 @@ async fn remote_roll_timeout_then_release_fans_out_once_and_finalizes_corpse_lik
     let inventory_before = applied_loot_item_quantity_for_test(&second, granted_item);
     install_limited_test_item_template(&mut second, entry.item_id, 0);
     let commit_gate = Arc::new(tokio::sync::Notify::new());
-    install_storage_port(&mut second, PersistenceOutcomeLikeCpp::Applied { rows: 1 }, Some(Arc::clone(&commit_gate)));
-
-    let mut request = Box::pin(
-        request_roll_loot_store_for_test(&first, 
-            second_guid,
-            owner,
-            represented_loot_object_guid_like_cpp(owner),
-            0,
-            0,
-            vec![entry],
-            false,
-            Some(claim),
-        ),
+    install_storage_port(
+        &mut second,
+        PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+        Some(Arc::clone(&commit_gate)),
     );
+
+    let mut request = Box::pin(request_roll_loot_store_for_test(
+        &first,
+        second_guid,
+        owner,
+        represented_loot_object_guid_like_cpp(owner),
+        0,
+        0,
+        vec![entry],
+        false,
+        Some(claim),
+    ));
     let mut target = Box::pin(async {
         tokio::task::yield_now().await;
         process_pending_for_loot_test(&mut second).await;
@@ -86,7 +90,10 @@ async fn remote_roll_timeout_then_release_fans_out_once_and_finalizes_corpse_lik
     commit_gate.notify_one();
     target.await;
 
-    assert_eq!((applied_loot_item_quantity_for_test(&second, granted_item)) - inventory_before, 1);
+    assert_eq!(
+        (applied_loot_item_quantity_for_test(&second, granted_item)) - inventory_before,
+        1
+    );
     assert!(
         authority
             .snapshot_for_player_like_cpp(first_guid)
@@ -106,9 +113,9 @@ async fn remote_roll_timeout_then_release_fans_out_once_and_finalizes_corpse_lik
     );
     assert!(
         !mutate_loot_creature_for_test(&mut first, owner, |creature| {
-                creature.has_lootable_dynamic_flag_like_cpp()
-            })
-            .unwrap(),
+            creature.has_lootable_dynamic_flag_like_cpp()
+        })
+        .unwrap(),
         "post-COMMIT completion must finish the corpse lifecycle without an active view"
     );
 }
@@ -126,13 +133,14 @@ async fn remote_disenchant_timeout_then_release_fans_out_once_and_finalizes_corp
         ..LootDropRatesLikeCpp::default()
     });
     mutate_loot_creature_for_test(&mut first, owner, |creature| {
-            creature.creature.set_corpse_delay(120, false);
-            creature.apply_corpse_loot_flags_after_death_state_like_cpp(true, false);
-        })
-        .unwrap();
+        creature.creature.set_corpse_delay(120, false);
+        creature.apply_corpse_loot_flags_after_death_state_like_cpp(true, false);
+    })
+    .unwrap();
 
-    let authority = wow_world::test_fixtures::loot::loot_recovery_authority_for_test(&mut first, owner)
-        .unwrap();
+    let authority =
+        wow_world::test_fixtures::loot::loot_recovery_authority_for_test(&mut first, owner)
+            .unwrap();
     let generation = authority
         .snapshot_for_player_like_cpp(second_guid)
         .unwrap()
@@ -164,20 +172,23 @@ async fn remote_disenchant_timeout_then_release_fans_out_once_and_finalizes_corp
     let inventory_before = applied_loot_item_quantity_for_test(&second, granted_item);
     install_limited_test_item_template(&mut second, 700, 0);
     let commit_gate = Arc::new(tokio::sync::Notify::new());
-    install_storage_port(&mut second, PersistenceOutcomeLikeCpp::Applied { rows: 1 }, Some(Arc::clone(&commit_gate)));
-
-    let mut request = Box::pin(
-        request_roll_loot_store_for_test(&first, 
-            second_guid,
-            owner,
-            represented_loot_object_guid_like_cpp(owner),
-            0,
-            0,
-            materials,
-            true,
-            Some(claim),
-        ),
+    install_storage_port(
+        &mut second,
+        PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+        Some(Arc::clone(&commit_gate)),
     );
+
+    let mut request = Box::pin(request_roll_loot_store_for_test(
+        &first,
+        second_guid,
+        owner,
+        represented_loot_object_guid_like_cpp(owner),
+        0,
+        0,
+        materials,
+        true,
+        Some(claim),
+    ));
     let mut target = Box::pin(async {
         tokio::task::yield_now().await;
         process_pending_for_loot_test(&mut second).await;
@@ -193,7 +204,10 @@ async fn remote_disenchant_timeout_then_release_fans_out_once_and_finalizes_corp
     commit_gate.notify_one();
     target.await;
 
-    assert_eq!((applied_loot_item_quantity_for_test(&second, granted_item)) - inventory_before, 2);
+    assert_eq!(
+        (applied_loot_item_quantity_for_test(&second, granted_item)) - inventory_before,
+        2
+    );
     assert!(
         authority
             .reserve_item_for_award_like_cpp(second_guid, 0)
@@ -211,9 +225,9 @@ async fn remote_disenchant_timeout_then_release_fans_out_once_and_finalizes_corp
     );
     assert!(
         !mutate_loot_creature_for_test(&mut first, owner, |creature| {
-                creature.has_lootable_dynamic_flag_like_cpp()
-            })
-            .unwrap(),
+            creature.has_lootable_dynamic_flag_like_cpp()
+        })
+        .unwrap(),
         "post-COMMIT completion must finish the corpse lifecycle without an active view"
     );
 }
@@ -231,13 +245,14 @@ async fn remote_master_timeout_then_release_still_fans_out_and_finalizes_corpse_
         ..LootDropRatesLikeCpp::default()
     });
     mutate_loot_creature_for_test(&mut first, owner, |creature| {
-            creature.creature.set_corpse_delay(120, false);
-            creature.apply_corpse_loot_flags_after_death_state_like_cpp(true, false);
-        })
-        .unwrap();
+        creature.creature.set_corpse_delay(120, false);
+        creature.apply_corpse_loot_flags_after_death_state_like_cpp(true, false);
+    })
+    .unwrap();
 
-    let authority = wow_world::test_fixtures::loot::loot_recovery_authority_for_test(&mut first, owner)
-        .unwrap();
+    let authority =
+        wow_world::test_fixtures::loot::loot_recovery_authority_for_test(&mut first, owner)
+            .unwrap();
     let claim = authority
         .reserve_item_for_award_like_cpp(second_guid, 0)
         .await
@@ -266,9 +281,14 @@ async fn remote_master_timeout_then_release_still_fans_out_and_finalizes_corpse_
     let inventory_before = applied_loot_item_quantity_for_test(&second, granted_item);
     install_limited_test_item_template(&mut second, entry.item_id, 0);
     let commit_gate = Arc::new(tokio::sync::Notify::new());
-    install_storage_port(&mut second, PersistenceOutcomeLikeCpp::Applied { rows: 1 }, Some(Arc::clone(&commit_gate)));
+    install_storage_port(
+        &mut second,
+        PersistenceOutcomeLikeCpp::Applied { rows: 1 },
+        Some(Arc::clone(&commit_gate)),
+    );
 
-    let mut request = Box::pin(request_master_loot_store_for_test(&first, 
+    let mut request = Box::pin(request_master_loot_store_for_test(
+        &first,
         second_guid,
         owner,
         represented_loot_object_guid_like_cpp(owner),
@@ -292,7 +312,10 @@ async fn remote_master_timeout_then_release_still_fans_out_and_finalizes_corpse_
     commit_gate.notify_one();
     target.await;
 
-    assert_eq!((applied_loot_item_quantity_for_test(&second, granted_item)) - inventory_before, 1);
+    assert_eq!(
+        (applied_loot_item_quantity_for_test(&second, granted_item)) - inventory_before,
+        1
+    );
     assert!(
         authority
             .snapshot_for_player_like_cpp(first_guid)
@@ -308,9 +331,9 @@ async fn remote_master_timeout_then_release_still_fans_out_and_finalizes_corpse_
     );
     assert!(
         !mutate_loot_creature_for_test(&mut first, owner, |creature| {
-                creature.has_lootable_dynamic_flag_like_cpp()
-            })
-            .unwrap(),
+            creature.has_lootable_dynamic_flag_like_cpp()
+        })
+        .unwrap(),
         "completion must run AllLootRemovedFromCorpse without an active view"
     );
 }

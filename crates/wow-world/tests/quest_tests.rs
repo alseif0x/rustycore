@@ -12,28 +12,19 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use wow_world::handlers::quest::PlayerQuestStatus;
-use wow_world::session::{InventoryItem, WorldSession};
-use wow_world::test_fixtures::*;
-use wow_world::test_fixtures::{
-    PlayerQuestLoadStageFixtureLikeCpp, PlayerQuestPersistencePortFixtureLikeCpp,
-};
-use wow_world::session::directory::PlayerRegistry;
-use wow_world::session::mailbox::{SessionCommand, SetQuestSharingInfoAndSendDetailsCommand};
-use wow_world::session::registry::PacketHandlerEntry;
 use wow_constants::currency::CurrencyGainSourceLikeCpp;
-use wow_constants::{
-    ClientOpcodes, ComparisonType, ConditionSourceType, ConditionType, InventoryResult,
-    InventoryType, ItemBondingType, ItemClass, ItemContext, ItemFieldFlags, ItemFlags2, ItemFlags3,
-};
-use wow_constants::unit::NPCFlags1;
 use wow_constants::quest::{
     QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP as QUEST_OBJECTIVE_FLAG_OPTIONAL_LIKE_CPP_LOCAL,
     QUEST_OBJECTIVE_FLAG_PART_OF_PROGRESS_BAR_LIKE_CPP as QUEST_OBJECTIVE_FLAG_PART_OF_PROGRESS_BAR_LIKE_CPP_LOCAL,
     QUEST_OBJECTIVE_FLAG_SEQUENCED_LIKE_CPP as QUEST_OBJECTIVE_FLAG_SEQUENCED_LIKE_CPP_LOCAL,
     QUEST_OBJECTIVE_PROGRESS_BAR_LIKE_CPP as QUEST_OBJECTIVE_PROGRESS_BAR_LIKE_CPP_LOCAL,
-    QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_FAILED_LIKE_CPP,
-    QUEST_STATUS_INCOMPLETE_LIKE_CPP, QUEST_STATUS_REWARDED_LIKE_CPP,
+    QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_FAILED_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP,
+    QUEST_STATUS_REWARDED_LIKE_CPP,
+};
+use wow_constants::unit::NPCFlags1;
+use wow_constants::{
+    ClientOpcodes, ComparisonType, ConditionSourceType, ConditionType, InventoryResult,
+    InventoryType, ItemBondingType, ItemClass, ItemContext, ItemFieldFlags, ItemFlags2, ItemFlags3,
 };
 use wow_core::guid::HighGuid;
 use wow_core::{ObjectGuid, ObjectGuidGenerator, Position};
@@ -50,19 +41,18 @@ use wow_data::{
     ItemStore,
     progression_rewards::{
         FactionEntry, FactionStore, QUEST_PACKAGE_FILTER_EVERYONE_LIKE_CPP,
-        QUEST_PACKAGE_FILTER_UNMATCHED_LIKE_CPP,
-        QuestFactionRewardEntry, QuestFactionRewardStore, QuestInfoEntry, QuestInfoStore,
-        QuestPackageItemEntry, QuestPackageItemStore,
+        QUEST_PACKAGE_FILTER_UNMATCHED_LIKE_CPP, QuestFactionRewardEntry, QuestFactionRewardStore,
+        QuestInfoEntry, QuestInfoStore, QuestPackageItemEntry, QuestPackageItemStore,
     },
     reputation::{ReputationRewardRateEntryLikeCpp, ReputationRewardRateStoreLikeCpp},
 };
 use wow_entities::{Player, PlayerFactionStateLikeCpp};
+use wow_handler::{PacketProcessing, SessionStatus};
 use wow_packet::packets::item::InventoryChangeFailure;
 use wow_packet::packets::quest::{
-    quest_giver_status, quest_push_reason, QuestGiverQuestFailed, QuestPushResult,
+    QuestGiverQuestFailed, QuestPushResult, quest_giver_status, quest_push_reason,
 };
 use wow_packet::{ClientPacket, ServerPacket, WorldPacket};
-use wow_handler::{PacketProcessing, SessionStatus};
 use wow_persistence::{
     ItemTemplateAddonCatalogPersistencePortLikeCpp, ItemTemplateAddonCatalogRequestLikeCpp,
     ItemTemplateAddonLootMetadataOutcomeLikeCpp, ItemTemplateAddonMoneyOutcomeLikeCpp,
@@ -73,24 +63,35 @@ use wow_persistence::{
     QuestPoiPersistencePortLikeCpp, QuestPoiPointLoadRowLikeCpp,
 };
 use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
+use wow_world::handlers::quest::PlayerQuestStatus;
+use wow_world::session::directory::PlayerRegistry;
+use wow_world::session::mailbox::{SessionCommand, SetQuestSharingInfoAndSendDetailsCommand};
+use wow_world::session::registry::PacketHandlerEntry;
+use wow_world::session::{InventoryItem, WorldSession};
+use wow_world::test_fixtures::*;
+use wow_world::test_fixtures::{
+    PlayerQuestLoadStageFixtureLikeCpp, PlayerQuestPersistencePortFixtureLikeCpp,
+};
 
+#[path = "quest_tests/controller_binding.rs"]
+mod controller_binding;
 #[path = "quest_tests/eligibility.rs"]
 mod eligibility;
 #[path = "quest_tests/item_mutations.rs"]
 mod item_mutations;
-#[path = "quest_tests/reputation.rs"]
-mod reputation;
-#[path = "quest_tests/controller_binding.rs"]
-mod controller_binding;
 #[path = "quest_tests/objective_credits.rs"]
 mod objective_credits;
+#[path = "quest_tests/reputation.rs"]
+mod reputation;
 #[path = "quest_tests/reward_valuation_currency.rs"]
 mod reward_valuation_currency;
 
 #[path = "quest_tests/support.rs"]
 mod support;
-use support::{quest_template, quest_template_with_objective_count,
-    store_with_sharable_quest_objectives, store_with_sharable_timed_quest_objectives};
+use support::{
+    quest_template, quest_template_with_objective_count, store_with_sharable_quest_objectives,
+    store_with_sharable_timed_quest_objectives,
+};
 
 #[path = "quest_tests/source_items.rs"]
 mod source_items;
@@ -115,7 +116,8 @@ use party::{
 /// its `PacketHandlerEntry`, which now carries the call as well as the
 /// admission metadata. These tests used to assert the arm and the registration
 /// separately; there is one side left to assert.
-const QUEST_HANDLER_REGISTRATIONS: &str = include_str!("../src/handlers/quest/handlers/registrations.rs");
+const QUEST_HANDLER_REGISTRATIONS: &str =
+    include_str!("../src/handlers/quest/handlers/registrations.rs");
 
 fn make_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
     let (_pkt_tx, pkt_rx) = flume::bounded(8);
@@ -151,7 +153,6 @@ fn quest_giver_cmsg_packet(guid: ObjectGuid, quest_id: u32, bit_byte: u8) -> Wor
     packet.reset_read();
     packet
 }
-
 
 fn quest_info_entry_like_cpp(id: u32, quest_type: i8, modifiers: i32) -> QuestInfoEntry {
     QuestInfoEntry {
@@ -190,9 +191,6 @@ fn adventure_map_start_quest_packet(quest_id: i32) -> WorldPacket {
     pkt.write_int32(quest_id);
     pkt
 }
-
-
-
 
 fn creature_guid(entry: u32, counter: i64) -> ObjectGuid {
     ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, entry, counter)
@@ -866,6 +864,8 @@ fn assert_complete_status_update_like_cpp(
 
 #[path = "quest_tests/creature.rs"]
 mod creature;
+#[path = "quest_tests/directory_binding.rs"]
+mod directory_binding;
 #[path = "quest_tests/gameobject.rs"]
 mod gameobject;
 #[path = "quest_tests/item_1.rs"]
@@ -876,6 +876,12 @@ mod item_2;
 mod item_3;
 #[path = "quest_tests/item_4.rs"]
 mod item_4;
+#[path = "quest_tests/objectives.rs"]
+mod objectives;
+#[path = "quest_tests/persistence.rs"]
+mod persistence;
+#[path = "quest_tests/query_presentation.rs"]
+mod query_presentation;
 #[path = "quest_tests/quest_1.rs"]
 mod quest_1;
 #[path = "quest_tests/quest_2.rs"]
@@ -896,11 +902,3 @@ mod reward_transaction;
 mod spell;
 #[path = "quest_tests/state.rs"]
 mod state;
-#[path = "quest_tests/persistence.rs"]
-mod persistence;
-#[path = "quest_tests/objectives.rs"]
-mod objectives;
-#[path = "quest_tests/directory_binding.rs"]
-mod directory_binding;
-#[path = "quest_tests/query_presentation.rs"]
-mod query_presentation;

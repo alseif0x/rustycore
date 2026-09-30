@@ -108,7 +108,10 @@ impl<'a> TargetView<'a> {
             invisibility: &detection.invisibility,
             stealth: &detection.stealth,
             stalked_casters: StalkedCasters::Applied(
-                target.subsystems.auras.applied_aura_types
+                target
+                    .subsystems
+                    .auras
+                    .applied_aura_types
                     .get(&SPELL_AURA_MOD_STALKED_LIKE_CPP)
                     .map(Vec::as_slice)
                     .unwrap_or(&[]),
@@ -148,8 +151,14 @@ impl Unit {
         seer_is_player: bool,
         check_alert: bool,
     ) -> bool {
-        can_see(self, &TargetView::captured(target), false,
-            implicit_detect, seer_is_player, check_alert)
+        can_see(
+            self,
+            &TargetView::captured(target),
+            false,
+            implicit_detect,
+            seer_is_player,
+            check_alert,
+        )
     }
 }
 
@@ -158,17 +167,35 @@ pub(super) fn can_detect_invisibility_of(seer: &Unit, target: &Unit) -> bool {
 }
 
 pub(super) fn can_detect_stealth_of(
-    seer: &Unit, target: &Unit, seer_is_player: bool, check_alert: bool,
+    seer: &Unit,
+    target: &Unit,
+    seer_is_player: bool,
+    check_alert: bool,
 ) -> bool {
-    can_detect_stealth(seer, &TargetView::borrowed(target),
-        std::ptr::eq(&seer.world, &target.world), seer_is_player, check_alert)
+    can_detect_stealth(
+        seer,
+        &TargetView::borrowed(target),
+        std::ptr::eq(&seer.world, &target.world),
+        seer_is_player,
+        check_alert,
+    )
 }
 
 pub(super) fn can_see_or_detect_unit(
-    seer: &Unit, target: &Unit, implicit_detect: bool, seer_is_player: bool, check_alert: bool,
+    seer: &Unit,
+    target: &Unit,
+    implicit_detect: bool,
+    seer_is_player: bool,
+    check_alert: bool,
 ) -> bool {
-    can_see(seer, &TargetView::borrowed(target),
-        std::ptr::eq(&seer.world, &target.world), implicit_detect, seer_is_player, check_alert)
+    can_see(
+        seer,
+        &TargetView::borrowed(target),
+        std::ptr::eq(&seer.world, &target.world),
+        implicit_detect,
+        seer_is_player,
+        check_alert,
+    )
 }
 
 fn can_detect_invisibility(seer: &Unit, target: &TargetView<'_>) -> bool {
@@ -184,7 +211,8 @@ fn can_detect_invisibility(seer: &Unit, target: &TargetView<'_>) -> bool {
         if target_flags & flag == 0 {
             continue;
         }
-        if seer.visibility_detection.invisibility_detect[aura_type] < target.invisibility[aura_type] {
+        if seer.visibility_detection.invisibility_detect[aura_type] < target.invisibility[aura_type]
+        {
             return false;
         }
     }
@@ -192,8 +220,11 @@ fn can_detect_invisibility(seer: &Unit, target: &TargetView<'_>) -> bool {
 }
 
 fn can_detect_stealth(
-    seer: &Unit, target: &TargetView<'_>, same_world_reference: bool,
-    seer_is_player: bool, check_alert: bool,
+    seer: &Unit,
+    target: &TargetView<'_>,
+    same_world_reference: bool,
+    seer_is_player: bool,
+    check_alert: bool,
 ) -> bool {
     let target_flags = target.scalar.stealth_flags;
     if target_flags == 0 {
@@ -207,7 +238,9 @@ fn can_detect_stealth(
     // Legacy has_in_arc returns true for the same WorldObject reference.
     // Captured targets are distinct; the position helper has the same angle arithmetic.
     if !same_world_reference
-        && !seer.world.has_position_in_arc(std::f32::consts::PI, target.scalar.position, 2.0)
+        && !seer
+            .world
+            .has_position_in_arc(std::f32::consts::PI, target.scalar.position, 2.0)
     {
         return false;
     }
@@ -235,8 +268,12 @@ fn can_detect_stealth(
 }
 
 fn can_see(
-    seer: &Unit, target: &TargetView<'_>, same_world_reference: bool,
-    implicit_detect: bool, seer_is_player: bool, check_alert: bool,
+    seer: &Unit,
+    target: &TargetView<'_>,
+    same_world_reference: bool,
+    implicit_detect: bool,
+    seer_is_player: bool,
+    check_alert: bool,
 ) -> bool {
     let seer_guid = seer.world.object().guid();
     let target_scalar = &target.scalar;
@@ -257,9 +294,14 @@ fn can_see(
     }
     if target_scalar.always_visible_for_seer
         || seer.visibility_detection.seer_can_always_see_target
-        || target_scalar.charmer_or_owner_guid.is_some_and(|owner_guid| owner_guid == seer_guid)
+        || target_scalar
+            .charmer_or_owner_guid
+            .is_some_and(|owner_guid| owner_guid == seer_guid)
         || target_scalar.target_owner_group_visible_for_seer
-        || (!seer.visibility_detection.seer_can_always_see_target_guid.is_empty()
+        || (!seer
+            .visibility_detection
+            .seer_can_always_see_target_guid
+            .is_empty()
             && seer.visibility_detection.seer_can_always_see_target_guid == target_scalar.guid)
     {
         return true;
@@ -268,13 +310,16 @@ fn can_see(
     if !private_owner.is_empty()
         && private_owner != seer.world.object().guid()
         && private_owner != seer.visibility_detection.seer_private_object_owner
-        && !seer.visibility_detection.seer_group_visible_for_private_owner
+        && !seer
+            .visibility_detection
+            .seer_group_visible_for_private_owner
     {
         return false;
     }
-    if target.smooth_phasing.is_some_and(|smooth_phasing| {
-        smooth_phasing.is_being_replaced_for_seer_like_cpp(seer_guid)
-    }) {
+    if target
+        .smooth_phasing
+        .is_some_and(|smooth_phasing| smooth_phasing.is_being_replaced_for_seer_like_cpp(seer_guid))
+    {
         return false;
     }
     if private_owner.is_empty() && !target_scalar.object_id_visibility_conditions_met {
@@ -289,7 +334,10 @@ fn can_see(
         return seer.visibility_detection.server_side_visibility_detect_gm >= gm_visibility;
     }
     if target_scalar.server_side_visibility_ghost
-        & seer.visibility_detection.server_side_visibility_detect_ghost == 0
+        & seer
+            .visibility_detection
+            .server_side_visibility_detect_ghost
+        == 0
         && !(seer_is_player && target_scalar.ghost_visible_to_seer_by_group)
     {
         return false;
@@ -304,7 +352,13 @@ fn can_see(
         return false;
     }
     if !implicit_detect
-        && !can_detect_stealth(seer, target, same_world_reference, seer_is_player, check_alert)
+        && !can_detect_stealth(
+            seer,
+            target,
+            same_world_reference,
+            seer_is_player,
+            check_alert,
+        )
     {
         return false;
     }
