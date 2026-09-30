@@ -694,6 +694,15 @@ def validation_commands(
         "tools/architecture/hotspot_metrics.py",
     } for path in all_paths):
         add_command(planned, ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_check_architecture.py"])
+    # R1 "move, never copy" (#1241): a wow-world shrink must be matched by at
+    # most that much growth elsewhere. Final only: quick runs no architecture checks.
+    if profile == "final" and any(path.startswith("crates/wow-world/src/") for path in all_paths):
+        add_command(planned, ["python3", "tools/architecture/net_move.py", "check", "--base", base_commit])
+    if profile == "final" and any(path in {
+        "tools/architecture/net_move.py",
+        "tools/architecture/test_net_move.py",
+    } for path in all_paths):
+        add_command(planned, ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_net_move.py"])
     text_suffixes = {".json", ".lock", ".md", ".proto", ".py", ".rs", ".sh", ".toml", ".tsv", ".txt", ".yaml", ".yml"}
     text_files = existing(
         sorted(

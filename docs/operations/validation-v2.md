@@ -124,6 +124,13 @@ legacy entries, independently of the logical totals. Changes to the physical mod
 require the relevant final acceptance; shared checker/scanner changes are automatically routed
 through final's architecture/self-test coverage. See [module design guidelines](../architecture/module-design-guidelines.md).
 
+A `final` run whose diff touches `crates/wow-world/src/` also plans the R1 net-move check
+(#1241, "move, never copy"). With S the `.rs` line shrink of `crates/wow-world/src/` and G the
+net `.rs` growth of every other path, measured from the merge-base to the working tree, it
+fails unless `G <= S*(1+0.05)+300`; it does not apply when S <= 0. Quick does not plan it.
+During development run it manually with
+`python3 tools/architecture/net_move.py check --base origin/3.4.3`.
+
 Paths classified as `documentation` run no Cargo command. Classification is directory-first:
 even a README under `crates/`, `tools/wow-test-bot/` or
 `tools/architecture/handler-contract-check/` takes that directory's Cargo route. The standalone
