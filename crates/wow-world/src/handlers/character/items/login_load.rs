@@ -235,7 +235,8 @@ impl WorldSession {
                             );
                             item_object.set_state(ItemUpdateState::Unchanged);
                             let visible_item_fields = ((slot as usize) < 19).then(|| {
-                                self.loaded_inventory_item_visible_fields_like_cpp(&item_object)
+                                let (s, h) = crate::session::split_inventory_ref(self);
+                                s.loaded_inventory_item_visible_fields_like_cpp(h, &item_object)
                             });
                             self.insert_inventory_item_object(item_object);
                             loaded_inventory_item_guids.push(item_guid);
@@ -521,7 +522,10 @@ impl WorldSession {
         // ── Load equipment sets / transmog outfits ──
         // C++ `Player::_LoadEquipmentSets` and `_LoadTransmogOutfits` rebuild
         // one shared `_equipmentSets` container before `SendEquipmentSetList`.
-        self.clear_represented_equipment_sets_like_cpp();
+        {
+            let (s, mut h) = crate::session::split_inventory_mut(self);
+            s.clear_represented_equipment_sets_like_cpp(&mut h)
+        };
         let mut equipment_sets_loaded = true;
         match player_lifecycle_port
             .load_login_auxiliary_like_cpp(
@@ -580,15 +584,19 @@ impl WorldSession {
                     {
                         *appearance = loaded;
                     }
-                    self.load_represented_transmog_outfit_row_like_cpp(
-                        row.set_guid,
-                        u32::from(row.set_id),
-                        row.name,
-                        row.icon,
-                        row.ignore_mask,
-                        appearances,
-                        row.enchants,
-                    );
+                    {
+                        let (s, mut h) = crate::session::split_inventory_mut(self);
+                        s.load_represented_transmog_outfit_row_like_cpp(
+                            &mut h,
+                            row.set_guid,
+                            u32::from(row.set_id),
+                            row.name,
+                            row.icon,
+                            row.ignore_mask,
+                            appearances,
+                            row.enchants,
+                        )
+                    };
                 }
             }
             wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {

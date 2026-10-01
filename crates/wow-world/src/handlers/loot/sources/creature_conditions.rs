@@ -40,7 +40,10 @@ impl WorldSession {
             return false;
         };
 
-        let flags2 = self.item_template_flags2_like_cpp(context.item.item_id);
+        let flags2 = {
+            let (s, h) = crate::session::split_loot_ref(self);
+            s.item_template_flags2_like_cpp(h, context.item.item_id)
+        };
         if represented_item_faction_flags_block_player_like_cpp(flags2, player_context.race) {
             return false;
         }

@@ -746,14 +746,6 @@ impl WorldSession {
     ) {
         self.send_raw_packet(&command.packet_bytes);
     }
-
-    pub(crate) fn handle_send_represented_duel_requested_command_like_cpp(
-        &mut self,
-        command: SendRepresentedDuelRequestedLikeCppCommand,
-    ) {
-        let (state, mut hub) = crate::session::split_social_mut(self);
-        state.handle_send_represented_duel_requested_command_like_cpp(&mut hub, command)
-    }
 }
 
 impl crate::session::SessionSocialLimits {

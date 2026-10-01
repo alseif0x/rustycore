@@ -82,14 +82,6 @@ impl WorldSession {
 
         self.remove_represented_at_login_flag_like_cpp(AT_LOGIN_FIRST_LIKE_CPP, false)
     }
-    pub(crate) fn dispatch_module_player_login_like_cpp(
-        &self,
-        registry: &wow_module_api::ModuleRegistry,
-        first_login: bool,
-    ) {
-        let (state, hub) = crate::session::split_lifecycle_ref(self);
-        state.dispatch_module_player_login_like_cpp(hub, registry, first_login)
-    }
     pub(crate) fn ensure_login_player_controller_like_cpp(
         &mut self,
         guid: ObjectGuid,

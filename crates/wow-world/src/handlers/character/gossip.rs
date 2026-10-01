@@ -106,7 +106,10 @@ impl WorldSession {
         }
         // C++ closes gossip after attempting the triggered cast, even if the
         // spell execution itself cannot complete.
-        self.send_close_gossip_like_cpp();
+        {
+            let (s, h) = crate::session::split_interaction(self);
+            s.send_close_gossip_like_cpp(h)
+        };
     }
 
     #[cfg(test)]
@@ -596,11 +599,6 @@ impl WorldSession {
             gossip_options,
             gossip_text,
         })
-    }
-
-    pub(crate) fn send_close_gossip_like_cpp(&mut self) {
-        let (state, hub) = crate::session::split_interaction(self);
-        state.send_close_gossip_like_cpp(hub)
     }
 
     /// Handle CMSG_GOSSIP_SELECT_OPTION — player selects a gossip menu option.

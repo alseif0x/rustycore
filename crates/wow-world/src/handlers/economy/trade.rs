@@ -356,7 +356,10 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.handle_can_duel_like_cpp(packet.target_guid, packet.to_the_death);
+        {
+            let (s, mut h) = crate::session::split_social_mut(self);
+            s.handle_can_duel_like_cpp(&mut h, packet.target_guid, packet.to_the_death)
+        };
     }
 
     pub async fn handle_duel_response(&mut self, mut pkt: wow_packet::WorldPacket) {

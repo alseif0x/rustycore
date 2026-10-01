@@ -35,10 +35,6 @@ impl WorldSession {
 
         state.go_state.unwrap_or(wow_entities::GoState::Ready)
     }
-    fn send_represented_gameobject_despawn_like_cpp(&mut self, gameobject_guid: ObjectGuid) {
-        let (state, mut hub) = crate::session::split_world_entities_mut(self);
-        state.send_represented_gameobject_despawn_like_cpp(&mut hub, gameobject_guid)
-    }
     pub(in crate::session) fn send_represented_gameobject_despawn_to_visible_set_like_cpp(
         &mut self,
         gameobject_guid: ObjectGuid,
@@ -49,22 +45,14 @@ impl WorldSession {
             object_guid: gameobject_guid,
         };
         self.send_packet(&packet);
-        let _ = self.queue_visible_gameobject_packet_for_same_map_like_cpp(
-            gameobject_guid,
-            packet.to_bytes(),
-        );
-    }
-    pub(in crate::session) fn send_represented_gameobject_out_of_range_for_player_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        map_id: u16,
-    ) {
-        let (state, mut hub) = crate::session::split_world_entities_mut(self);
-        state.send_represented_gameobject_out_of_range_for_player_like_cpp(
-            &mut hub,
-            gameobject_guid,
-            map_id,
-        )
+        let _ = {
+            let (s, h) = crate::session::split_loot_ref(self);
+            s.queue_visible_gameobject_packet_for_same_map_like_cpp(
+                h,
+                gameobject_guid,
+                packet.to_bytes(),
+            )
+        };
     }
     pub(in crate::session) fn send_represented_gameobject_delete_packets_like_cpp(
         &mut self,
@@ -280,7 +268,10 @@ impl WorldSession {
             {
                 continue;
             }
-            self.send_represented_gameobject_despawn_like_cpp(guid);
+            {
+                let (s, mut h) = crate::session::split_world_entities_mut(self);
+                s.send_represented_gameobject_despawn_like_cpp(&mut h, guid)
+            };
             sent += 1;
         }
         sent

@@ -682,10 +682,14 @@ impl WorldSession {
             // retire only the child/parent objects this committed deposit is
             // about to remove.
             for destroyed in &deposit.destroyed_items {
-                self.retire_committed_destroyed_item_loot_like_cpp(
-                    destroyed.inventory_item.guid,
-                    player_guid,
-                );
+                {
+                    let (s, mut h) = crate::session::split_loot_mut(self);
+                    s.retire_committed_destroyed_item_loot_like_cpp(
+                        &mut h,
+                        destroyed.inventory_item.guid,
+                        player_guid,
+                    )
+                };
             }
             let Some((destroyed_guids, deposit_changed_quest_ids)) = self
                 .apply_committed_void_storage_destroyed_items_like_cpp(&deposit.destroyed_items)

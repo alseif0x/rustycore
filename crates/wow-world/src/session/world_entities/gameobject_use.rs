@@ -125,8 +125,10 @@ impl WorldSession {
             return false;
         }
 
-        let spell_lookup_difficulty_id =
-            self.represented_gameobject_spell_lookup_difficulty_id_like_cpp();
+        let spell_lookup_difficulty_id = {
+            let (s, h) = crate::session::split_world_entities_ref(self);
+            s.represented_gameobject_spell_lookup_difficulty_id_like_cpp(h)
+        };
         let spell_info_missing = self
             .spell_store()
             .is_some_and(|store| store.get(spell_id as i32).is_none());

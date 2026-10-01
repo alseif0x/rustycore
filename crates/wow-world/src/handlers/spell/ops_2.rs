@@ -299,13 +299,6 @@ impl WorldSession {
 
         None
     }
-    pub(super) async fn load_stored_item_items_like_cpp(
-        &self,
-        item_guid: wow_core::ObjectGuid,
-    ) -> Option<Vec<LootEntry>> {
-        let (state, hub) = crate::session::split_lifecycle_ref(self);
-        state.load_stored_item_items_like_cpp(hub, item_guid).await
-    }
     pub(super) async fn save_new_stored_item_loot_like_cpp(
         &self,
         item_guid: wow_core::ObjectGuid,
@@ -593,7 +586,10 @@ impl WorldSession {
             .await
             .is_ok()
         {
-            self.remove_represented_self_res_spell_like_cpp(request.spell_id);
+            {
+                let (s, mut h) = crate::session::split_spell_state_mut(self);
+                s.remove_represented_self_res_spell_like_cpp(&mut h, request.spell_id)
+            };
         }
     }
     #[cfg(test)]

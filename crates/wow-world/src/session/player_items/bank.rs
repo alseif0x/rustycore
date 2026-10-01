@@ -22,9 +22,10 @@ impl WorldSession {
             return false;
         }
 
-        let Some(mut repair_items) =
-            self.repairable_inventory_item_costs_like_cpp(discount, repair_cost_rate)
-        else {
+        let Some(mut repair_items) = ({
+            let (s, h) = crate::session::split_inventory_ref(self);
+            s.repairable_inventory_item_costs_like_cpp(h, discount, repair_cost_rate)
+        }) else {
             return false;
         };
         repair_items.sort_by_key(|(_, cost)| *cost);
@@ -78,14 +79,6 @@ impl WorldSession {
     pub(crate) fn represented_non_bank_item_count_like_cpp(&self, entry_id: u32) -> Option<u32> {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.represented_non_bank_item_count_like_cpp(hub, entry_id)
-    }
-    pub(crate) fn send_player_bank_bag_slots_update_like_cpp(&self, count: u8) {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.send_player_bank_bag_slots_update_like_cpp(hub, count)
-    }
-    pub(crate) fn send_player_bank_bag_slot_flag_update_like_cpp(&self, slot: usize, value: u32) {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.send_player_bank_bag_slot_flag_update_like_cpp(hub, slot, value)
     }
     pub(crate) fn plan_bank_existing_inventory_item_like_cpp(
         &self,

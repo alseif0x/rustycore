@@ -73,7 +73,8 @@ impl WorldSession {
                         )
                     })
                     .filter(|creature| {
-                        self.represented_can_see_or_detect_world_creature_like_cpp(creature)
+                        let (s, h) = crate::session::split_world_entities_ref(self);
+                        s.represented_can_see_or_detect_world_creature_like_cpp(h, creature)
                     })
                     .filter(|creature| seen.insert(creature.guid())),
             );
@@ -255,14 +256,6 @@ impl WorldSession {
     }
     pub fn set_creature_model_data_store(&mut self, store: Arc<CreatureModelDataStore>) {
         self.catalogs.creatures.model_data_store = Some(store);
-    }
-    #[allow(dead_code)]
-    pub(crate) fn represented_mount_creature_template_fallback_like_cpp(
-        &mut self,
-        creature_entry: u32,
-    ) -> Option<(i32, u32)> {
-        let (state, mut hub) = crate::session::split_world_entities_mut(self);
-        state.represented_mount_creature_template_fallback_like_cpp(&mut hub, creature_entry)
     }
 }
 

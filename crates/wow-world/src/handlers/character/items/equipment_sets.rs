@@ -25,9 +25,10 @@ impl WorldSession {
             }
         };
 
-        let Some(saved) =
-            self.save_represented_equipment_set_with_generator_like_cpp(generator, request.set)
-        else {
+        let Some(saved) = ({
+            let (s, mut h) = crate::session::split_inventory_mut(self);
+            s.save_represented_equipment_set_with_generator_like_cpp(&mut h, generator, request.set)
+        }) else {
             return;
         };
 
@@ -64,8 +65,14 @@ impl WorldSession {
             }
         };
 
-        let _assigned = self
-            .assign_represented_equipment_set_to_spec_like_cpp(request.set_id, request.spec_index);
+        let _assigned = {
+            let (s, mut h) = crate::session::split_inventory_mut(self);
+            s.assign_represented_equipment_set_to_spec_like_cpp(
+                &mut h,
+                request.set_id,
+                request.spec_index,
+            )
+        };
     }
 
     /// Handle CMSG_DELETE_EQUIPMENT_SET.

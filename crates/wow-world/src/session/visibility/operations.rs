@@ -70,7 +70,9 @@ impl WorldSession {
             .control
             .charmer_or_owner_guid()
             .is_some_and(|owner_guid| {
-                self.current_player_is_group_visible_for_owner_like_cpp(
+                let (s, h) = crate::session::split_social_ref(self);
+                s.current_player_is_group_visible_for_owner_like_cpp(
+                    h,
                     current_group_guid,
                     owner_guid,
                 )
@@ -186,18 +188,6 @@ impl WorldSession {
         self.resolved_visible_resting_like_cpp()
             .expect("test Player rest owner must resolve")
     }
-    pub(in crate::session) fn send_active_player_farsight_object_values_update_like_cpp(
-        &self,
-        player_guid: ObjectGuid,
-        farsight_guid: ObjectGuid,
-    ) {
-        let (state, hub) = crate::session::split_visibility_ref(self);
-        state.send_active_player_farsight_object_values_update_like_cpp(
-            hub,
-            player_guid,
-            farsight_guid,
-        )
-    }
     /// Resolve the current C++ `Player::m_seer` projection from the canonical
     /// Player. C++ keeps a pointer, but every Rust consumer in this boundary
     /// needs only its GUID; `ActivePlayerData::FarsightObject` is the durable
@@ -236,12 +226,6 @@ impl WorldSession {
         None
     }
 
-    pub(in crate::session) fn current_canonical_farsight_object_like_cpp(
-        &self,
-    ) -> Option<ObjectGuid> {
-        let (state, hub) = crate::session::split_visibility_ref(self);
-        state.current_canonical_farsight_object_like_cpp(hub)
-    }
     pub(crate) fn sync_represented_farsight_clear_from_canonical_like_cpp(&mut self) -> bool {
         let (state, mut hub) = crate::session::split_visibility_mut(self);
         state.sync_represented_farsight_clear_from_canonical_like_cpp(&mut hub)
@@ -253,10 +237,6 @@ impl WorldSession {
         self.visibility.last_visibility_pos = None;
         self.update_visibility_with_catalogs_like_cpp(creature_spawn_catalogs)
             .await;
-    }
-    pub(crate) fn clear_pending_visibility_refresh_like_cpp(&self) {
-        let (state, hub) = crate::session::split_visibility_ref(self);
-        state.clear_pending_visibility_refresh_like_cpp(hub)
     }
     pub(crate) async fn flush_pending_visibility_refresh_with_catalogs_like_cpp(
         &mut self,

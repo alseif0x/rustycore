@@ -29,22 +29,6 @@ impl WorldSession {
             target_lock_context,
         )
     }
-    pub(in crate::session) fn create_instance_lock_for_new_instance_side_effect_like_cpp(
-        &self,
-        map_id: u32,
-        difficulty_id: wow_map::Difficulty,
-        owner_guid: ObjectGuid,
-        instance_id: u32,
-    ) -> Option<()> {
-        let (state, hub) = crate::session::split_instances_ref(self);
-        state.create_instance_lock_for_new_instance_side_effect_like_cpp(
-            hub,
-            map_id,
-            difficulty_id,
-            owner_guid,
-            instance_id,
-        )
-    }
     pub(in crate::session) fn set_active_instance_lock_instance_id_side_effect_like_cpp(
         &self,
         map_id: u32,

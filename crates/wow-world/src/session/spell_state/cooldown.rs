@@ -6,18 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn represented_spell_cooldown_remaining_ms_like_cpp(
-        &self,
-        spell_id: i32,
-        cooldown_ms: u32,
-    ) -> Option<u32> {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.represented_spell_cooldown_remaining_ms_like_cpp(hub, spell_id, cooldown_ms)
-    }
-    pub(crate) fn reset_represented_character_spell_cooldowns_like_cpp(&mut self) {
-        let (state, mut hub) = crate::session::split_spell_state_mut(self);
-        state.reset_represented_character_spell_cooldowns_like_cpp(&mut hub)
-    }
     pub(crate) fn mark_represented_character_spell_cooldowns_loaded_like_cpp(&mut self) {
         let (state, mut hub) = crate::session::split_spell_state_mut(self);
         state.mark_represented_character_spell_cooldowns_loaded_like_cpp(&mut hub)

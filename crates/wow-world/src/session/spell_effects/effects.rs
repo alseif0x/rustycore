@@ -519,10 +519,14 @@ impl WorldSession {
             return false;
         };
 
-        self.send_active_player_farsight_object_values_update_like_cpp(
-            player_guid,
-            dynamic_object_guid,
-        );
+        {
+            let (s, h) = crate::session::split_visibility_ref(self);
+            s.send_active_player_farsight_object_values_update_like_cpp(
+                h,
+                player_guid,
+                dynamic_object_guid,
+            )
+        };
         // C++ `Player::SetViewpoint(target, true)` orders the direct
         // `UpdateVisibilityOf(target)` after writing `FarsightObject` and before
         // `SetSeer(target)`, so this represented target-only create is consumed

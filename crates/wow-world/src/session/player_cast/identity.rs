@@ -23,11 +23,6 @@ impl WorldSession {
             .map(|(guid, _)| guid)
     }
 
-    pub(crate) fn current_player_residence_revision_like_cpp(&self) -> Option<u64> {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.current_player_residence_revision_like_cpp(hub)
-    }
-
     pub(in crate::session) fn allocate_player_cast_identity_like_cpp(
         &self,
         spell_id: i32,

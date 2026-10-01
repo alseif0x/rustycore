@@ -378,14 +378,6 @@ impl WorldSession {
         self.sync_player_registry_state_like_cpp();
         true
     }
-    pub(crate) fn grant_dual_wield_after_spell_acquisition_like_cpp(&mut self) -> bool {
-        let (state, mut hub) = crate::session::split_spell_state_mut(self);
-        state.grant_dual_wield_after_spell_acquisition_like_cpp(&mut hub)
-    }
-    pub(crate) fn has_canonical_player_for_spell_acquisition_like_cpp(&self) -> bool {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.has_canonical_player_for_spell_acquisition_like_cpp(hub)
-    }
 }
 
 impl crate::session::state::SessionSpellState {

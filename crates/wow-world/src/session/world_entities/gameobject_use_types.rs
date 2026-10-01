@@ -136,8 +136,10 @@ impl WorldSession {
         source: wow_entities::SpellcasterUseSource,
     ) -> bool {
         if source.party_only {
-            let owner_guid =
-                self.represented_or_canonical_gameobject_owner_guid_like_cpp(gameobject_guid);
+            let owner_guid = {
+                let (s, h) = crate::session::split_world_entities_ref(self);
+                s.represented_or_canonical_gameobject_owner_guid_like_cpp(h, gameobject_guid)
+            };
             if !owner_guid.is_some_and(|owner_guid| {
                 self.represented_player_is_same_raid_with_like_cpp(player_guid, owner_guid)
             }) {

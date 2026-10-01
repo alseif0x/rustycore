@@ -82,7 +82,10 @@ impl WorldSession {
             return;
         }
 
-        self.apply_group_join_like_cpp(command.group_guid, command.subgroup);
+        {
+            let (s, mut h) = crate::session::split_social_mut(self);
+            s.apply_group_join_like_cpp(&mut h, command.group_guid, command.subgroup)
+        };
         self.send_player_party_type_update_like_cpp(command.category, command.party_type);
 
         if command.refresh_visible_gameobjects_or_spellclicks {

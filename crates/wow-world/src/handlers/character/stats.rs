@@ -50,14 +50,6 @@ pub(crate) struct RepresentedPlayerGearStatsLikeCpp {
 }
 
 impl WorldSession {
-    fn represented_spell_bonus_like_cpp(
-        &self,
-        gear: &RepresentedPlayerGearStatsLikeCpp,
-    ) -> PlayerSpellBonusInputLikeCpp {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_spell_bonus_like_cpp(hub, gear)
-    }
-
     pub(super) fn represented_player_gear_stats_like_cpp(
         &self,
         _include_represented_item_bonuses: bool,
@@ -84,7 +76,10 @@ impl WorldSession {
                     .combat_rating_multiplier_like_cpp(level, index as u32)
         });
         let (can_parry, can_block) = self.core.canonical_player_parry_block_snapshot_like_cpp();
-        let spell_bonus = self.represented_spell_bonus_like_cpp(gear);
+        let spell_bonus = {
+            let (s, h) = crate::session::split_inventory_ref(self);
+            s.represented_spell_bonus_like_cpp(h, gear)
+        };
 
         Some(
             self.apply_stats_limits_like_cpp(calculate_player_stat_system_like_cpp(
@@ -229,33 +224,6 @@ impl WorldSession {
         projection.ranged_crit_pct = limits.clamp_crit_like_cpp(projection.ranged_crit_pct);
         projection.offhand_crit_pct = limits.clamp_crit_like_cpp(projection.offhand_crit_pct);
         projection
-    }
-
-    pub(crate) fn publish_player_effective_combat_stats_like_cpp(
-        &self,
-        level: u8,
-        projection: PlayerStatSystemProjectionLikeCpp,
-        gear: &RepresentedPlayerGearStatsLikeCpp,
-    ) {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.publish_player_effective_combat_stats_like_cpp(hub, level, projection, gear)
-    }
-
-    pub(super) fn publish_effective_stats_like_cpp(
-        &self,
-        level: u8,
-        _include_represented_item_bonuses: bool,
-        projection: PlayerStatSystemProjectionLikeCpp,
-        gear: &RepresentedPlayerGearStatsLikeCpp,
-    ) {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.publish_effective_stats_like_cpp(
-            hub,
-            level,
-            _include_represented_item_bonuses,
-            projection,
-            gear,
-        )
     }
 }
 

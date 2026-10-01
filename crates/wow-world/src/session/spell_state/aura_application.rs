@@ -523,7 +523,10 @@ impl WorldSession {
         // C++ `AuraEffect::HandleAuraTransform` remove path
         // (`SpellAuraEffects.cpp:2129-2131`): the application is already gone,
         // so the aura that owns the transform spell clears it.
-        let _ = self.remove_represented_transform_aura_like_cpp(&aura);
+        let _ = {
+            let (s, mut h) = crate::session::split_spell_state_mut(self);
+            s.remove_represented_transform_aura_like_cpp(&mut h, &aura)
+        };
         self.sync_canonical_threat_relevant_aura_like_cpp(
             aura.spell_id,
             aura.caster_guid,
@@ -669,15 +672,20 @@ impl WorldSession {
         }
 
         // Send SMSG_AURA_UPDATE (removal)
-        self.send_aura_update_removed(slot);
+        {
+            let (s, h) = crate::session::split_spell_state_ref(self);
+            s.send_aura_update_removed(h, slot)
+        };
         if aura.spell_id == SPELL_PVP_RULES_ENABLED_LIKE_CPP {
             let _ = self.update_represented_item_level_area_based_scaling_like_cpp();
         }
         if self.core.state == SessionState::LoggedIn
             && self.aura_has_total_stat_percentage_effect_like_cpp(&aura)
         {
-            let preserve_health_pct =
-                self.total_stat_percentage_aura_preserves_health_pct_like_cpp(&aura);
+            let preserve_health_pct = {
+                let (s, h) = crate::session::split_spell_state_ref(self);
+                s.total_stat_percentage_aura_preserves_health_pct_like_cpp(h, &aura)
+            };
             self.send_total_stat_percentage_update_like_cpp(preserve_health_pct);
         }
         // C++ removes the aura's attack-time multiplier through the same
@@ -917,10 +925,6 @@ impl WorldSession {
                 "Aura expired"
             );
         }
-    }
-    fn send_aura_update_removed(&self, slot: u8) {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.send_aura_update_removed(hub, slot)
     }
     pub(in crate::session) fn remove_represented_stealth_or_invisibility_auras_by_type_like_cpp(
         &mut self,

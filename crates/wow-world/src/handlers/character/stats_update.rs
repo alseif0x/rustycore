@@ -34,7 +34,10 @@ impl WorldSession {
 
         let gear = self.represented_player_gear_stats_like_cpp(true)?;
         let projection = self.player_stat_system_projection_like_cpp(race, class, level, &gear)?;
-        self.publish_effective_stats_like_cpp(level, true, projection, &gear);
+        {
+            let (s, h) = crate::session::split_inventory_ref(self);
+            s.publish_effective_stats_like_cpp(h, level, true, projection, &gear)
+        };
         let computed_max_health_u32 = max_health_u32_like_cpp(projection.max_health);
         let (health, max_health_for_update) = crate::session::hub_mut(self)
             .sync_canonical_player_max_health_like_cpp(computed_max_health_u32)?;

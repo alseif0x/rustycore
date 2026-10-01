@@ -24,11 +24,15 @@ impl WorldSession {
         };
 
         self.set_represented_pending_quest_sharing_like_cpp(command.sender_guid, command.quest.id);
-        self.send_represented_quest_giver_quest_details_like_cpp(
-            receiver_guid,
-            &command.quest,
-            false,
-        );
+        {
+            let (s, mut h) = crate::session::split_quest_state_mut(self);
+            s.send_represented_quest_giver_quest_details_like_cpp(
+                &mut h,
+                receiver_guid,
+                &command.quest,
+                false,
+            )
+        };
     }
 
     /// CMSG_PUSH_QUEST_TO_PARTY — sender-side bounded quest share preflight.

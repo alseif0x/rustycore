@@ -708,7 +708,10 @@ impl WorldSession {
             attack_context.sanctuary_represented = true;
             attack_context.pvp_represented = true;
             attack_context.player_player_duel_in_progress = player_guid
-                .and_then(|guid| self.canonical_player_duel_in_progress_like_cpp(guid, victim))
+                .and_then(|guid| {
+                    let (s, h) = crate::session::split_social_ref(self);
+                    s.canonical_player_duel_in_progress_like_cpp(h, guid, victim)
+                })
                 .unwrap_or(false);
         }
         attack_context.attacker_is_player_uber = player_guid

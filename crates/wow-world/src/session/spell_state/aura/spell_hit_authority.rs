@@ -129,7 +129,10 @@ impl WorldSession {
             || !aura_subsystem
                 .runtime_applications_like_cpp()
                 .values()
-                .all(|aura| self.player_visible_aura_is_spell_hit_inert_like_cpp(aura))
+                .all(|aura| {
+                    let (s, h) = crate::session::split_spell_state_ref(self);
+                    s.player_visible_aura_is_spell_hit_inert_like_cpp(h, aura)
+                })
             || self
                 .resolved_inventory_items_like_cpp()
                 .is_none_or(|items| !items.is_empty())

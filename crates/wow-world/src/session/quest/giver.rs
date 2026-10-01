@@ -373,20 +373,6 @@ impl WorldSession {
             auto_launched,
         )
     }
-    pub(crate) fn send_represented_quest_giver_quest_details_like_cpp(
-        &mut self,
-        source_guid: ObjectGuid,
-        quest: &wow_data::quest::QuestTemplate,
-        auto_launched: bool,
-    ) {
-        let (state, mut hub) = crate::session::split_quest_state_mut(self);
-        state.send_represented_quest_giver_quest_details_like_cpp(
-            &mut hub,
-            source_guid,
-            quest,
-            auto_launched,
-        )
-    }
 }
 
 impl crate::session::QuestStateCxRef<'_> {

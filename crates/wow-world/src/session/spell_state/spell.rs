@@ -13,10 +13,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.search_spell_focus_like_cpp(hub, focus_id)
     }
-    pub(crate) fn reset_represented_character_spell_charges_like_cpp(&mut self) {
-        let (state, mut hub) = crate::session::split_spell_state_mut(self);
-        state.reset_represented_character_spell_charges_like_cpp(&mut hub)
-    }
     pub(crate) fn mark_represented_character_spell_charges_loaded_like_cpp(&mut self) {
         let (state, mut hub) = crate::session::split_spell_state_mut(self);
         state.mark_represented_character_spell_charges_loaded_like_cpp(&mut hub)
@@ -394,10 +390,6 @@ impl WorldSession {
             player.set_can_titan_grip(false, 0);
         });
     }
-    pub(in crate::session) fn cleanup_removed_spell_dual_wield_like_cpp(&mut self, spell_id: i32) {
-        let (state, mut hub) = crate::session::split_spell_state_mut(self);
-        state.cleanup_removed_spell_dual_wield_like_cpp(&mut hub, spell_id)
-    }
     pub(crate) fn add_represented_override_spell_like_cpp(
         &mut self,
         overriden_spell_id: i32,
@@ -744,10 +736,6 @@ impl WorldSession {
                 .represented_self_res_spells_like_cpp
                 .insert(spell_id);
         }
-    }
-    pub(crate) fn remove_represented_self_res_spell_like_cpp(&mut self, spell_id: i32) -> bool {
-        let (state, mut hub) = crate::session::split_spell_state_mut(self);
-        state.remove_represented_self_res_spell_like_cpp(&mut hub, spell_id)
     }
     pub(crate) fn has_represented_self_res_spell_like_cpp(&self, spell_id: i32) -> bool {
         self.player_resurrection_state_snapshot_like_cpp()

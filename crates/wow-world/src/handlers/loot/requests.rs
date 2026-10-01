@@ -245,11 +245,6 @@ impl WorldSession {
         }
     }
 
-    pub(crate) fn close_retired_active_loot_windows_like_cpp(&mut self, player_guid: ObjectGuid) {
-        let (state, mut hub) = crate::session::split_loot_mut(self);
-        state.close_retired_active_loot_windows_like_cpp(&mut hub, player_guid)
-    }
-
     pub(super) fn close_stale_active_loot_view_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,
@@ -418,3 +413,7 @@ impl crate::session::LootState {
         self.clear_active_loot_guid_if(owner_guid);
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/handlers/loot/requests/f3_shims.rs"]
+mod f3_shims;

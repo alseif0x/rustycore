@@ -14,7 +14,8 @@ impl WorldSession {
                 visible_items[slot as usize] = self
                     .resolved_inventory_item_object_like_cpp(item.guid)
                     .map(|item_object| {
-                        self.loaded_inventory_item_visible_fields_like_cpp(&item_object)
+                        let (s, h) = crate::session::split_inventory_ref(self);
+                        s.loaded_inventory_item_visible_fields_like_cpp(h, &item_object)
                     })
                     .unwrap_or((item.entry_id as i32, 0u16, 0u16));
             }

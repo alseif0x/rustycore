@@ -307,15 +307,6 @@ impl WorldSession {
             visibility_range,
         )
     }
-
-    pub(super) fn register_materialized_creature_spawn_like_cpp(
-        &mut self,
-        map_id: u16,
-        spawn: &MaterializedCreatureSpawnLikeCpp,
-    ) {
-        let (state, mut hub) = crate::session::split_world_entities_mut(self);
-        state.register_materialized_creature_spawn_like_cpp(&mut hub, map_id, spawn)
-    }
 }
 
 impl crate::session::WorldEntitiesState {

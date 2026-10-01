@@ -51,17 +51,6 @@ pub(crate) fn player_aura_info_like_cpp(
 }
 
 impl WorldSession {
-    pub(crate) fn send_initial_player_auras_like_cpp(&self) {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.send_initial_player_auras_like_cpp(hub)
-    }
-    pub(in crate::session) fn player_visible_aura_is_spell_hit_inert_like_cpp(
-        &self,
-        aura: &AuraApplication,
-    ) -> bool {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.player_visible_aura_is_spell_hit_inert_like_cpp(hub, aura)
-    }
     pub(crate) fn insert_player_visible_aura_like_cpp(&mut self, aura: AuraApplication) -> bool {
         let (state, mut hub) = crate::session::split_spell_state_mut(self);
         state.insert_player_visible_aura_like_cpp(&mut hub, aura)
@@ -95,10 +84,6 @@ impl WorldSession {
     ) -> bool {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.represented_update_area_pvp_rule_aura_source_is_empty_like_cpp(hub)
-    }
-    pub(in crate::session) fn send_on_cancel_expected_vehicle_ride_aura_like_cpp(&mut self) {
-        let (state, mut hub) = crate::session::split_spell_state_mut(self);
-        state.send_on_cancel_expected_vehicle_ride_aura_like_cpp(&mut hub)
     }
     pub(in crate::session) fn send_aura_update_applied(
         &self,

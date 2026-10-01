@@ -201,10 +201,6 @@ impl WorldSession {
         }
         learned
     }
-    pub(crate) fn apply_loaded_spell_learn_skills_like_cpp(&mut self, roots: &[i32]) -> bool {
-        let (state, mut hub) = crate::session::split_spell_state_mut(self);
-        state.apply_loaded_spell_learn_skills_like_cpp(&mut hub, roots)
-    }
     fn previous_spell_learn_skill_like_cpp(
         &self,
         mut prev_spell: u32,
@@ -548,7 +544,10 @@ impl WorldSession {
             }
         }
         self.cleanup_removed_spell_titan_grip_like_cpp(spell_id);
-        self.cleanup_removed_spell_dual_wield_like_cpp(spell_id);
+        {
+            let (s, mut h) = crate::session::split_spell_state_mut(self);
+            s.cleanup_removed_spell_dual_wield_like_cpp(&mut h, spell_id)
+        };
         if self
             .spell_state
             .represented_offhand_check_at_spell_unlearn_like_cpp

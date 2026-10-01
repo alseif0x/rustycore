@@ -61,7 +61,10 @@ impl WorldSession {
         else {
             return;
         };
-        let Some(loaded) = self.resolved_player_skill_records_loaded_like_cpp() else {
+        let Some(loaded) = ({
+            let (s, h) = crate::session::split_lifecycle_ref(self);
+            s.resolved_player_skill_records_loaded_like_cpp(h)
+        }) else {
             return;
         };
         let complete = crate::session::hub_ref(self)

@@ -216,15 +216,19 @@ impl WorldSession {
             self.send_packet(&talent_data);
         }
         if let Some(player_guid) = self.player_guid() {
-            self.record_represented_talent_respec_visual_spell_cast_like_cpp(
-                RepresentedTalentRespecVisualSpellCastLikeCpp {
-                    caster_guid: request.respec_master,
-                    target_guid: player_guid,
-                    spell_id: visual_spell_id,
-                    triggered: true,
-                    spell_runtime_unrepresented: true,
-                },
-            );
+            {
+                let (s, mut h) = crate::session::split_spell_state_mut(self);
+                s.record_represented_talent_respec_visual_spell_cast_like_cpp(
+                    &mut h,
+                    RepresentedTalentRespecVisualSpellCastLikeCpp {
+                        caster_guid: request.respec_master,
+                        target_guid: player_guid,
+                        spell_id: visual_spell_id,
+                        triggered: true,
+                        spell_runtime_unrepresented: true,
+                    },
+                )
+            };
         }
 
         drop(money_persistence);

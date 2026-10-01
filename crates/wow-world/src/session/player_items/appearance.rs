@@ -11,28 +11,6 @@ fn account_transmog_update_opcode_resolved_like_cpp() -> bool {
 }
 
 impl WorldSession {
-    pub(crate) fn load_represented_transmog_outfit_row_like_cpp(
-        &mut self,
-        guid: u64,
-        set_id: u32,
-        set_name: String,
-        set_icon: String,
-        ignore_mask: u32,
-        appearances: [i32; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
-        enchants: [i32; 2],
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.load_represented_transmog_outfit_row_like_cpp(
-            &mut hub,
-            guid,
-            set_id,
-            set_name,
-            set_icon,
-            ignore_mask,
-            appearances,
-            enchants,
-        )
-    }
     /// Set the item appearance store for this session.
     pub fn set_item_appearance_store(&mut self, store: Arc<ItemAppearanceStore>) {
         self.catalogs.items.appearance_store = Some(store);
@@ -514,14 +492,6 @@ impl WorldSession {
     ) -> Option<u32> {
         self.catalogs
             .item_modified_appearance_for_item(item_id, appearance_mod_id)
-    }
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_represented_alter_appearance_like_cpp(
-        &mut self,
-        request: RepresentedAlterAppearanceLikeCpp,
-    ) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.record_represented_alter_appearance_like_cpp(&mut hub, request)
     }
     #[cfg(test)]
     pub(crate) fn represented_alter_appearance_requests_like_cpp(

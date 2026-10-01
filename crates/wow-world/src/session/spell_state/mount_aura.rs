@@ -19,8 +19,10 @@ impl WorldSession {
             .and_then(|spell_id| self.select_represented_mount_aura_display_like_cpp(spell_id))
             .unwrap_or(0);
         let creature_entry = u32::try_from(effect.effect_misc_value_1).unwrap_or(0);
-        let creature_template_mount =
-            self.represented_mount_creature_template_fallback_like_cpp(creature_entry);
+        let creature_template_mount = {
+            let (s, mut h) = crate::session::split_world_entities_mut(self);
+            s.represented_mount_creature_template_fallback_like_cpp(&mut h, creature_entry)
+        };
         let display_id = if selected_display_id != 0 {
             selected_display_id
         } else {
@@ -76,7 +78,10 @@ impl WorldSession {
                     .saturating_add(1);
             }
             crate::session::hub_mut(self).send_set_vehicle_rec_id_like_cpp(vehicle_id);
-            self.send_on_cancel_expected_vehicle_ride_aura_like_cpp();
+            {
+                let (s, mut h) = crate::session::split_spell_state_mut(self);
+                s.send_on_cancel_expected_vehicle_ride_aura_like_cpp(&mut h)
+            };
         }
         #[cfg(test)]
         {

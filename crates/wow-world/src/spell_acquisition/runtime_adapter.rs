@@ -19,7 +19,8 @@ impl PlayerSpellAcquisitionRuntimeLikeCpp for crate::session::WorldSession {
     }
 
     fn has_canonical_player(&self) -> bool {
-        self.has_canonical_player_for_spell_acquisition_like_cpp()
+        let (s, h) = crate::session::split_spell_state_ref(self);
+        s.has_canonical_player_for_spell_acquisition_like_cpp(h)
     }
 
     fn install_snapshot(
@@ -156,7 +157,8 @@ impl PlayerSpellAcquisitionRuntimeLikeCpp for crate::session::WorldSession {
     }
 
     fn grant_dual_wield(&mut self) -> bool {
-        self.grant_dual_wield_after_spell_acquisition_like_cpp()
+        let (s, mut h) = crate::session::split_spell_state_mut(self);
+        s.grant_dual_wield_after_spell_acquisition_like_cpp(&mut h)
     }
 
     fn publish_action(

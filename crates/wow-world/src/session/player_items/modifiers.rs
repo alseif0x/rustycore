@@ -150,7 +150,10 @@ impl WorldSession {
         };
         let mut planned_actions = Vec::new();
 
-        let scaling_context = self.represented_scaling_stat_context_like_cpp(item_entry);
+        let scaling_context = {
+            let (s, h) = crate::session::split_inventory_ref(self);
+            s.represented_scaling_stat_context_like_cpp(h, item_entry)
+        };
         if let Some(context) = scaling_context {
             planned_actions.extend(
                 item_scaling_stat_bonus_actions_like_cpp(
@@ -423,7 +426,10 @@ impl WorldSession {
         // This is the initial C++ `_ApplyAllItemMods` replay for a newly
         // constructed Player. Start from the same empty modifier state even
         // after a failed/retried login that did not reach normal teardown.
-        self.reset_represented_item_bonus_runtime_like_cpp();
+        {
+            let (s, mut h) = crate::session::split_inventory_mut(self);
+            s.reset_represented_item_bonus_runtime_like_cpp(&mut h)
+        };
 
         let mut equipped = loaded_equipped_item_guids
             .iter()
@@ -507,12 +513,6 @@ impl WorldSession {
 
         recorded
     }
-    fn represented_item_bonus_player_stat_update_object_like_cpp(
-        &self,
-    ) -> Option<wow_packet::packets::update::UpdateObject> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_item_bonus_player_stat_update_object_like_cpp(hub)
-    }
     pub(crate) fn send_represented_item_bonus_player_stat_update_like_cpp(&mut self) -> bool {
         // Item changes alter derived stats, vital maxima and weapon ranges
         // together. Publish the same complete projection consumed by combat;
@@ -524,7 +524,10 @@ impl WorldSession {
         if self.send_stat_update() {
             return true;
         }
-        let Some(update) = self.represented_item_bonus_player_stat_update_object_like_cpp() else {
+        let Some(update) = ({
+            let (s, h) = crate::session::split_inventory_ref(self);
+            s.represented_item_bonus_player_stat_update_object_like_cpp(h)
+        }) else {
             return false;
         };
         self.send_packet(&update);
@@ -536,10 +539,6 @@ impl WorldSession {
     ) -> bool {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.apply_represented_item_bonus_action_state_like_cpp(&mut hub, action)
-    }
-    pub(in crate::session) fn reset_represented_item_bonus_runtime_like_cpp(&mut self) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.reset_represented_item_bonus_runtime_like_cpp(&mut hub)
     }
     pub(in crate::session) fn initial_loaded_item_mods_can_apply_like_cpp(
         &self,

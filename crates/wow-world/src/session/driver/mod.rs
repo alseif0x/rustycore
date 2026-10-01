@@ -229,7 +229,10 @@ impl WorldSession {
         // coordinated session therefore runs it at the end of its world pass,
         // not here, where its own packets have not been dispatched yet.
         if !self.is_map_phase_coordinated_like_cpp() {
-            self.run_logout_timer_like_cpp();
+            {
+                let (s, mut h) = crate::session::split_lifecycle_mut(self);
+                s.run_logout_timer_like_cpp(&mut h)
+            };
         }
 
         processed
@@ -272,7 +275,10 @@ impl WorldSession {
             self.core
                 .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::LoggedInGameplayTicks);
             if let Some(player_guid) = self.player_guid() {
-                self.close_retired_active_loot_windows_like_cpp(player_guid);
+                {
+                    let (s, mut h) = crate::session::split_loot_mut(self);
+                    s.close_retired_active_loot_windows_like_cpp(&mut h, player_guid)
+                };
             }
             self.tick_represented_loot_rolls_with_generator_like_cpp(
                 catalogs.id_generators.item.as_ref(),

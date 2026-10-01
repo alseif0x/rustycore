@@ -582,15 +582,6 @@ impl WorldSession {
         self.wait_for_active_loot_persistence_with_generator_like_cpp(generators.item.as_ref())
             .await;
     }
-
-    pub(crate) fn retire_committed_destroyed_item_loot_like_cpp(
-        &mut self,
-        item_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-    ) {
-        let (state, mut hub) = crate::session::split_loot_mut(self);
-        state.retire_committed_destroyed_item_loot_like_cpp(&mut hub, item_guid, player_guid)
-    }
 }
 
 impl crate::session::LootState {
@@ -612,3 +603,7 @@ impl crate::session::LootState {
         self.loot_table.remove(&item_guid);
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/handlers/loot/persistence/f3_shims.rs"]
+mod f3_shims;

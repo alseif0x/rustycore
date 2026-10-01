@@ -142,9 +142,13 @@ impl WorldSession {
                     error,
                     "Battle-pet purchase charge COMMIT outcome is unknown; quarantined the session"
                 );
-                self.quarantine_player_money_persistence_like_cpp(
-                    "battle-pet purchase charge COMMIT outcome is unknown; relog required",
-                );
+                {
+                    let (s, mut h) = crate::session::split_lifecycle_mut(self);
+                    s.quarantine_player_money_persistence_like_cpp(
+                        &mut h,
+                        "battle-pet purchase charge COMMIT outcome is unknown; relog required",
+                    )
+                };
                 return BattlePetPurchaseExecutionLikeCpp::ChargeIndeterminate;
             }
             Err(error) => {

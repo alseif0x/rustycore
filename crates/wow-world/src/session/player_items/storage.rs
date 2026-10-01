@@ -135,22 +135,6 @@ impl WorldSession {
 
         Some(item_mods_changed)
     }
-    pub(in crate::session) fn sync_canonical_direct_inventory_move_like_cpp(
-        &mut self,
-        src: u8,
-        dst_bag: u8,
-        dst_slot: u8,
-        item_guid: ObjectGuid,
-    ) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.sync_canonical_direct_inventory_move_like_cpp(
-            &mut hub, src, dst_bag, dst_slot, item_guid,
-        )
-    }
-    pub(in crate::session) fn sync_canonical_direct_inventory_remove_like_cpp(&mut self, src: u8) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.sync_canonical_direct_inventory_remove_like_cpp(&mut hub, src)
-    }
     pub(crate) fn record_destroyed_inventory_item_mod_remove_like_cpp(
         &mut self,
         bag: u8,
@@ -204,26 +188,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.apply_inventory_item_object_updates_like_cpp(&mut hub, item_guid, updates)
     }
-    pub(crate) fn clear_inventory_item_equipped_state_like_cpp(
-        &mut self,
-        item_guid: ObjectGuid,
-        cleared_enchantments: &[EnchantmentSlot],
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.clear_inventory_item_equipped_state_like_cpp(
-            &mut hub,
-            item_guid,
-            cleared_enchantments,
-        )
-    }
-    pub(crate) fn set_inventory_item_equipped_like_cpp(
-        &mut self,
-        item_guid: ObjectGuid,
-        equipped: bool,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.set_inventory_item_equipped_like_cpp(&mut hub, item_guid, equipped)
-    }
     pub(crate) fn remove_inventory_item_object(&mut self, item_guid: ObjectGuid) -> Option<Item> {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.remove_inventory_item_object(&mut hub, item_guid)
@@ -231,10 +195,6 @@ impl WorldSession {
     pub(crate) fn clear_inventory_items_and_objects_like_cpp(&mut self) {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.clear_inventory_items_and_objects_like_cpp(&mut hub)
-    }
-    pub(crate) fn clear_all_inventory_runtime_like_cpp(&mut self) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.clear_all_inventory_runtime_like_cpp(&mut hub)
     }
     pub(crate) fn insert_inventory_item_like_cpp(
         &mut self,
@@ -388,8 +348,14 @@ impl WorldSession {
         let _ = self.record_direct_inventory_item_set_remove_like_cpp(bag, slot, item_guid);
         let item_mods_changed =
             self.record_destroyed_inventory_item_mod_remove_like_cpp(bag, slot, item_guid);
-        let _ = self
-            .clear_inventory_item_equipped_state_like_cpp(item_guid, cleared_mainhand_enchantments);
+        let _ = {
+            let (s, mut h) = crate::session::split_inventory_mut(self);
+            s.clear_inventory_item_equipped_state_like_cpp(
+                &mut h,
+                item_guid,
+                cleared_mainhand_enchantments,
+            )
+        };
 
         if slot < PROFESSION_SLOT_END {
             self.inventory
@@ -410,7 +376,10 @@ impl WorldSession {
             return false;
         }
 
-        let _ = self.set_inventory_item_equipped_like_cpp(item_guid, true);
+        let _ = {
+            let (s, mut h) = crate::session::split_inventory_mut(self);
+            s.set_inventory_item_equipped_like_cpp(&mut h, item_guid, true)
+        };
         let _ = self.record_represented_items_set_item_like_cpp(item_guid, true);
         let item_mods_changed = if self
             .resolved_inventory_item_object_like_cpp(item_guid)

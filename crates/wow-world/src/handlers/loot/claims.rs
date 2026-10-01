@@ -290,21 +290,29 @@ impl WorldSession {
                     authority.clone(),
                 );
                 let authority_stamp = authority.stamp_like_cpp();
-                let _ = self.rebind_canonical_creature_loot_authority_like_cpp(
-                    owner_guid,
-                    &authority,
-                    authority_stamp,
-                    authority.clone(),
-                );
+                let _ = {
+                    let (s, h) = crate::session::split_loot_ref(self);
+                    s.rebind_canonical_creature_loot_authority_like_cpp(
+                        h,
+                        owner_guid,
+                        &authority,
+                        authority_stamp,
+                        authority.clone(),
+                    )
+                };
             }
         } else if owner_guid.is_game_object() {
             if let Some(authority) = self.represented_owned_loot_authority_like_cpp(owner_guid) {
-                let _ = self.rebind_canonical_gameobject_loot_authority_like_cpp(
-                    owner_guid,
-                    &authority,
-                    authority.stamp_like_cpp(),
-                    authority.clone(),
-                );
+                let _ = {
+                    let (s, h) = crate::session::split_loot_ref(self);
+                    s.rebind_canonical_gameobject_loot_authority_like_cpp(
+                        h,
+                        owner_guid,
+                        &authority,
+                        authority.stamp_like_cpp(),
+                        authority.clone(),
+                    )
+                };
             }
         }
     }

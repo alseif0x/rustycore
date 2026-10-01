@@ -205,8 +205,10 @@ impl WorldSession {
                 loaded_spell_side_effect_spells.push(spell_id);
             }
         }
-        let skills_complete =
-            self.apply_loaded_spell_learn_skills_like_cpp(loaded_spell_side_effect_spells);
+        let skills_complete = {
+            let (s, mut h) = crate::session::split_spell_state_mut(self);
+            s.apply_loaded_spell_learn_skills_like_cpp(&mut h, loaded_spell_side_effect_spells)
+        };
         (dependent_spell_count, skills_complete)
     }
     pub(crate) fn apply_loaded_spell_dependencies_from_roots_like_cpp(

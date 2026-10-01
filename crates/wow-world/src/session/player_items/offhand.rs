@@ -14,13 +14,6 @@ impl WorldSession {
         self.inventory
             .record_represented_auto_unequip_offhand_request_like_cpp(request)
     }
-    pub(crate) fn represented_auto_unequip_offhand_reason_like_cpp(
-        &self,
-        force: bool,
-    ) -> Option<RepresentedAutoUnequipOffhandReasonLikeCpp> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_auto_unequip_offhand_reason_like_cpp(hub, force)
-    }
     pub(in crate::session) fn represented_auto_unequip_offhand_if_need_like_cpp(
         &mut self,
         force: bool,
@@ -30,14 +23,20 @@ impl WorldSession {
             return false;
         };
 
-        let Some(reason) = self.represented_auto_unequip_offhand_reason_like_cpp(force) else {
+        let Some(reason) = ({
+            let (s, h) = crate::session::split_inventory_ref(self);
+            s.represented_auto_unequip_offhand_reason_like_cpp(h, force)
+        }) else {
             return false;
         };
         #[cfg(not(test))]
         let _ = reason;
 
         self.remove_inventory_item_duration_refs_like_cpp(offhand_item.guid);
-        self.clear_represented_offhand_equipped_flag_like_cpp(offhand_item.guid);
+        {
+            let (s, mut h) = crate::session::split_inventory_mut(self);
+            s.clear_represented_offhand_equipped_flag_like_cpp(&mut h, offhand_item.guid)
+        };
         self.remove_inventory_tradeable_item_like_cpp(offhand_item.guid);
         let _item_set_changed = self.record_direct_inventory_item_set_remove_like_cpp(
             INVENTORY_SLOT_BAG_0,
@@ -62,17 +61,28 @@ impl WorldSession {
                 bag,
                 slot,
             ) {
-                self.sync_canonical_direct_inventory_move_like_cpp(
-                    EQUIPMENT_SLOT_OFFHAND,
-                    bag,
-                    slot,
-                    offhand_item.guid,
-                );
-                self.send_auto_unequip_offhand_values_update_like_cpp(
-                    Some((bag, slot)),
-                    offhand_item.guid,
-                );
-                self.send_item_contained_in_values_update_like_cpp(offhand_item.guid);
+                {
+                    let (s, mut h) = crate::session::split_inventory_mut(self);
+                    s.sync_canonical_direct_inventory_move_like_cpp(
+                        &mut h,
+                        EQUIPMENT_SLOT_OFFHAND,
+                        bag,
+                        slot,
+                        offhand_item.guid,
+                    )
+                };
+                {
+                    let (s, h) = crate::session::split_inventory_ref(self);
+                    s.send_auto_unequip_offhand_values_update_like_cpp(
+                        h,
+                        Some((bag, slot)),
+                        offhand_item.guid,
+                    )
+                };
+                {
+                    let (s, h) = crate::session::split_inventory_ref(self);
+                    s.send_item_contained_in_values_update_like_cpp(h, offhand_item.guid)
+                };
                 if bag != INVENTORY_SLOT_BAG_0 {
                     self.send_bag_slot_values_update_like_cpp(bag, slot);
                 }
@@ -88,8 +98,14 @@ impl WorldSession {
         }
         if needs_mail_fallback {
             self.remove_inventory_item_like_cpp(EQUIPMENT_SLOT_OFFHAND);
-            self.sync_canonical_direct_inventory_remove_like_cpp(EQUIPMENT_SLOT_OFFHAND);
-            self.send_auto_unequip_offhand_values_update_like_cpp(None, offhand_item.guid);
+            {
+                let (s, mut h) = crate::session::split_inventory_mut(self);
+                s.sync_canonical_direct_inventory_remove_like_cpp(&mut h, EQUIPMENT_SLOT_OFFHAND)
+            };
+            {
+                let (s, h) = crate::session::split_inventory_ref(self);
+                s.send_auto_unequip_offhand_values_update_like_cpp(h, None, offhand_item.guid)
+            };
             let _ = self.apply_inventory_item_object_updates_like_cpp(
                 offhand_item.guid,
                 &[
@@ -98,7 +114,10 @@ impl WorldSession {
                     wow_entities::ItemObjectUpdateLikeCpp::SetSlot(NULL_SLOT),
                 ],
             );
-            self.send_item_contained_in_values_update_like_cpp(offhand_item.guid);
+            {
+                let (s, h) = crate::session::split_inventory_ref(self);
+                s.send_item_contained_in_values_update_like_cpp(h, offhand_item.guid)
+            };
             if item_mods_changed {
                 self.send_represented_item_bonus_player_stat_update_like_cpp();
             }
@@ -118,18 +137,6 @@ impl WorldSession {
                 needs_mail_fallback,
             });
         true
-    }
-    fn clear_represented_offhand_equipped_flag_like_cpp(&mut self, item_guid: ObjectGuid) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.clear_represented_offhand_equipped_flag_like_cpp(&mut hub, item_guid)
-    }
-    fn send_auto_unequip_offhand_values_update_like_cpp(
-        &self,
-        stored_destination: Option<(u8, u8)>,
-        item_guid: ObjectGuid,
-    ) {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.send_auto_unequip_offhand_values_update_like_cpp(hub, stored_destination, item_guid)
     }
 }
 

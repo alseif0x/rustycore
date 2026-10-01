@@ -91,13 +91,6 @@ impl WorldSession {
                 &player_phase_shift,
             )
     }
-    pub(in crate::session) fn represented_can_see_or_detect_world_creature_like_cpp(
-        &self,
-        creature: &crate::map_manager::WorldCreature,
-    ) -> bool {
-        let (state, hub) = crate::session::split_world_entities_ref(self);
-        state.represented_can_see_or_detect_world_creature_like_cpp(hub, creature)
-    }
     pub(in crate::session) fn represented_can_receive_creature_message_to_set_like_cpp(
         &self,
         guid: ObjectGuid,

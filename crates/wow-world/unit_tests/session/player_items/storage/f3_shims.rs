@@ -45,4 +45,8 @@ impl crate::session::WorldSession {
             item_guid, entry_id, owner_guid, count, durability, context, slot,
         )
     }
+    pub(crate) fn clear_all_inventory_runtime_like_cpp(&mut self) {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.clear_all_inventory_runtime_like_cpp(&mut hub)
+    }
 }

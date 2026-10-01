@@ -345,7 +345,10 @@ impl WorldSession {
         }
 
         if owner_guid.is_corpse() {
-            self.remove_canonical_corpse_lootable_dynamic_flag_like_cpp(owner_guid);
+            {
+                let (s, mut h) = crate::session::split_loot_mut(self);
+                s.remove_canonical_corpse_lootable_dynamic_flag_like_cpp(&mut h, owner_guid)
+            };
             return true;
         }
 
@@ -409,7 +412,9 @@ impl WorldSession {
             (marked, creature.creature.unit().values_update())
         };
         let lifecycle_update = if let Some(release) = authoritative_release.as_ref() {
-            self.mutate_world_creature_if_fully_looted_observation_like_cpp(
+            let (s, mut h) = crate::session::split_loot_mut(self);
+            s.mutate_world_creature_if_fully_looted_observation_like_cpp(
+                &mut h,
                 owner_guid,
                 &release.authority,
                 release.object_generation,

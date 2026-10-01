@@ -132,18 +132,16 @@ impl WorldSession {
         })
     }
 
-    pub(in crate::session) fn represented_attack_speed_multipliers_like_cpp(&self) -> [f32; 3] {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.represented_attack_speed_multipliers_like_cpp(hub)
-    }
-
     pub(in crate::session) fn represented_cast_speed_multiplier_like_cpp(&self) -> f32 {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.represented_cast_speed_multiplier_like_cpp(hub)
     }
 
     pub(in crate::session) fn sync_represented_attack_speed_like_cpp(&mut self) {
-        let multipliers = self.represented_attack_speed_multipliers_like_cpp();
+        let multipliers = {
+            let (s, h) = crate::session::split_spell_state_ref(self);
+            s.represented_attack_speed_multipliers_like_cpp(h)
+        };
         // C++ computes `Unit::MeleeDamageBonusDone`'s auto-attack factor from the
         // attacker's auras on every swing; the represented model keeps the same
         // value on the canonical Player so the map-owned swing path can apply it
@@ -429,14 +427,6 @@ impl WorldSession {
         candidates
             .choose(&mut self.core.driver.represented_runtime_rng_like_cpp)
             .copied()
-    }
-
-    pub(in crate::session) fn remove_represented_transform_aura_like_cpp(
-        &mut self,
-        aura: &AuraApplication,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_spell_state_mut(self);
-        state.remove_represented_transform_aura_like_cpp(&mut hub, aura)
     }
 
     pub(crate) fn represented_player_is_polymorphed_like_cpp(&self) -> Option<bool> {

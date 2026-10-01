@@ -84,4 +84,8 @@ impl crate::session::WorldSession {
             talent_group,
         )
     }
+    pub(crate) fn mark_represented_cuf_profiles_loaded_like_cpp(&mut self) {
+        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+        state.mark_represented_cuf_profiles_loaded_like_cpp(&mut hub)
+    }
 }

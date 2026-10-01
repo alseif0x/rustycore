@@ -208,7 +208,10 @@ impl WorldSession {
                 .lifecycle
                 .load_stored_item_money_like_cpp(item.guid)
                 .await;
-            let stored_items = self.load_stored_item_items_like_cpp(item.guid).await;
+            let stored_items = {
+                let (s, h) = crate::session::split_lifecycle_ref(self);
+                s.load_stored_item_items_like_cpp(h, item.guid).await
+            };
             let loaded_stored_loot = stored_money.is_some() || stored_items.is_some();
             let (coins, mut items) = if loaded_stored_loot {
                 (stored_money.unwrap_or(0), stored_items.unwrap_or_default())

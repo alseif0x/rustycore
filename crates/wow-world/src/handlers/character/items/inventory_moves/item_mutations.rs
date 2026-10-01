@@ -152,7 +152,10 @@ impl WorldSession {
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         creature_spawn_catalogs: &CreatureSpawnCatalogsLikeCpp,
     ) {
-        let Some(reason) = self.represented_auto_unequip_offhand_reason_like_cpp(false) else {
+        let Some(reason) = ({
+            let (s, h) = crate::session::split_inventory_ref(self);
+            s.represented_auto_unequip_offhand_reason_like_cpp(h, false)
+        }) else {
             return;
         };
         let Some(offhand) = self

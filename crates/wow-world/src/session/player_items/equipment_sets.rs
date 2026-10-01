@@ -10,10 +10,6 @@ fn ignored_equipment_set_item_guid_like_cpp() -> ObjectGuid {
 }
 
 impl WorldSession {
-    pub(crate) fn clear_represented_equipment_sets_like_cpp(&mut self) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.clear_represented_equipment_sets_like_cpp(&mut hub)
-    }
     pub(crate) fn mark_represented_equipment_sets_loaded_like_cpp(&mut self) {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.mark_represented_equipment_sets_loaded_like_cpp(&mut hub)
@@ -45,22 +41,6 @@ impl WorldSession {
     ) -> Option<wow_packet::packets::misc::LoadEquipmentSet> {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.represented_load_equipment_set_packet_like_cpp(hub)
-    }
-    pub(crate) fn save_represented_equipment_set_with_generator_like_cpp(
-        &mut self,
-        generator: &EquipmentSetGuidGeneratorLikeCpp,
-        set: wow_packet::packets::misc::EquipmentSetDataLikeCpp,
-    ) -> Option<RepresentedEquipmentSetSavedLikeCpp> {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.save_represented_equipment_set_with_generator_like_cpp(&mut hub, generator, set)
-    }
-    pub(crate) fn assign_represented_equipment_set_to_spec_like_cpp(
-        &mut self,
-        set_id: u32,
-        spec_index: u32,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.assign_represented_equipment_set_to_spec_like_cpp(&mut hub, set_id, spec_index)
     }
     pub(crate) fn delete_represented_equipment_set_like_cpp(&mut self, id: u64) -> bool {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
@@ -107,7 +87,10 @@ impl WorldSession {
             else {
                 continue;
             };
-            let Some(backpack_slot) = self.find_free_backpack_slot_like_cpp() else {
+            let Some(backpack_slot) = ({
+                let (s, h) = crate::session::split_inventory_ref(self);
+                s.find_free_backpack_slot_like_cpp(h)
+            }) else {
                 continue;
             };
             if let Some(item_mods_changed) = self

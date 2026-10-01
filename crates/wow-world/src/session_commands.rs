@@ -184,7 +184,10 @@ impl WorldSession {
                 self.handle_send_represented_duel_countdown_command_like_cpp(command);
             }
             SessionCommand::SendRepresentedDuelRequestedLikeCpp(command) => {
-                self.handle_send_represented_duel_requested_command_like_cpp(command);
+                {
+                    let (s, mut h) = crate::session::split_social_mut(self);
+                    s.handle_send_represented_duel_requested_command_like_cpp(&mut h, command)
+                };
             }
         }
     }

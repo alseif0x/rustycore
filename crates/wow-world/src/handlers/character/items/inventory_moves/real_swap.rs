@@ -378,8 +378,14 @@ impl WorldSession {
         }
         for (child_guid, _, full_guid, empty_guid, _, from_slot, to_slot) in &child_moves {
             self.send_item_relocation_values_update_like_cpp(*child_guid, false, &[]);
-            self.send_bag_object_slot_values_update_like_cpp(*full_guid, *from_slot);
-            self.send_bag_object_slot_values_update_like_cpp(*empty_guid, *to_slot);
+            {
+                let (s, h) = crate::session::split_inventory_ref(self);
+                s.send_bag_object_slot_values_update_like_cpp(h, *full_guid, *from_slot)
+            };
+            {
+                let (s, h) = crate::session::split_inventory_ref(self);
+                s.send_bag_object_slot_values_update_like_cpp(h, *empty_guid, *to_slot)
+            };
         }
         if removed_source_mods
             || removed_destination_mods

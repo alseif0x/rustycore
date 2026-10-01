@@ -50,15 +50,6 @@ impl WorldSession {
         state.delete_represented_void_storage_item_like_cpp(&mut hub, slot)
     }
 
-    pub(crate) fn swap_represented_void_storage_item_like_cpp(
-        &mut self,
-        old_slot: u8,
-        new_slot: u8,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.swap_represented_void_storage_item_like_cpp(&mut hub, old_slot, new_slot)
-    }
-
     pub(crate) fn next_represented_void_storage_item_id_with_generator_like_cpp(
         &self,
         generator: &VoidStorageItemIdGeneratorLikeCpp,

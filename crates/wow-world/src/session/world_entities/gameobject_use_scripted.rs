@@ -387,7 +387,10 @@ impl WorldSession {
                             gameobject_guid,
                             player_guid,
                         );
-                        self.set_canonical_gameobject_spell_id_like_cpp(gameobject_guid, 0);
+                        {
+                            let (s, mut h) = crate::session::split_world_entities_mut(self);
+                            s.set_canonical_gameobject_spell_id_like_cpp(&mut h, gameobject_guid, 0)
+                        };
                     }
 
                     if let Some(fishing_hole_guid) = fishing_hole_guid {
@@ -612,10 +615,14 @@ impl WorldSession {
                         .client_visible_guids_like_cpp
                         .remove(&gameobject_guid)
                 {
-                    self.send_represented_gameobject_out_of_range_for_player_like_cpp(
-                        gameobject_guid,
-                        map_id,
-                    );
+                    {
+                        let (s, mut h) = crate::session::split_world_entities_mut(self);
+                        s.send_represented_gameobject_out_of_range_for_player_like_cpp(
+                            &mut h,
+                            gameobject_guid,
+                            map_id,
+                        )
+                    };
                 }
             } else {
                 let state = self
@@ -680,10 +687,14 @@ impl WorldSession {
                     play_as_despawn: false,
                 };
                 self.send_packet(&packet);
-                let _ = self.queue_visible_gameobject_packet_for_same_map_like_cpp(
-                    gameobject_guid,
-                    packet.to_bytes(),
-                );
+                let _ = {
+                    let (s, h) = crate::session::split_loot_ref(self);
+                    s.queue_visible_gameobject_packet_for_same_map_like_cpp(
+                        h,
+                        gameobject_guid,
+                        packet.to_bytes(),
+                    )
+                };
             }
             self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::GooberUsed {

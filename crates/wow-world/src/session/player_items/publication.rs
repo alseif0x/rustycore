@@ -83,10 +83,6 @@ impl WorldSession {
 
         delivered
     }
-    pub(crate) fn send_item_contained_in_values_update_like_cpp(&self, item_guid: ObjectGuid) {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.send_item_contained_in_values_update_like_cpp(hub, item_guid)
-    }
     pub(crate) fn send_item_relocation_values_update_like_cpp(
         &self,
         item_guid: ObjectGuid,
@@ -112,7 +108,15 @@ impl WorldSession {
     ) {
         let can_complete = self.can_complete_repeatable_quest_represented_bounded_like_cpp(quest);
         if can_complete && !quest_has_represented_item_objective_like_cpp(quest) {
-            self.send_represented_quest_giver_offer_reward_like_cpp(sender_guid, quest, true);
+            {
+                let (s, mut h) = crate::session::split_quest_state_mut(self);
+                s.send_represented_quest_giver_offer_reward_like_cpp(
+                    &mut h,
+                    sender_guid,
+                    quest,
+                    true,
+                )
+            };
             return;
         }
 

@@ -455,20 +455,16 @@ impl WorldSession {
         )
         .await
     }
-    pub(crate) fn apply_represented_first_login_explored_zones_with_catalogs_like_cpp(
-        &mut self,
-        player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
-    ) -> usize {
-        let (state, mut hub) = crate::session::split_instances_mut(self);
-        state.apply_represented_first_login_explored_zones_with_catalogs_like_cpp(
-            &mut hub,
-            player_bootstrap,
-        )
-    }
     #[cfg(test)]
     pub(crate) fn apply_represented_first_login_explored_zones_like_cpp(&mut self) -> usize {
         let player_bootstrap = self.player_bootstrap_catalogs_for_test_like_cpp();
-        self.apply_represented_first_login_explored_zones_with_catalogs_like_cpp(&player_bootstrap)
+        {
+            let (s, mut h) = crate::session::split_instances_mut(self);
+            s.apply_represented_first_login_explored_zones_with_catalogs_like_cpp(
+                &mut h,
+                &player_bootstrap,
+            )
+        }
     }
     /// Check for area triggers at the player's current position.
     ///

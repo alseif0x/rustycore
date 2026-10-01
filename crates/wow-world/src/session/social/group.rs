@@ -14,18 +14,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_social_ref(self);
         state.current_player_is_in_group_guid_like_cpp(hub, current_group_guid, group_owner)
     }
-    pub(in crate::session) fn current_player_is_group_visible_for_owner_like_cpp(
-        &self,
-        current_group_guid: Option<u64>,
-        owner_guid: ObjectGuid,
-    ) -> bool {
-        let (state, hub) = crate::session::split_social_ref(self);
-        state.current_player_is_group_visible_for_owner_like_cpp(
-            hub,
-            current_group_guid,
-            owner_guid,
-        )
-    }
     pub(in crate::session) fn current_player_is_in_raid_group_like_cpp(&self) -> bool {
         let (Some(group_guid), Some(group_registry), Some(player_guid)) = (
             self.resolved_group_guid_like_cpp(),
@@ -131,10 +119,6 @@ impl WorldSession {
         }
         canonical.flatten()
     }
-    fn resolved_group_subgroup_like_cpp(&self) -> Option<u8> {
-        let (state, hub) = crate::session::split_social_ref(self);
-        state.resolved_group_subgroup_like_cpp(hub)
-    }
     pub(crate) fn set_owned_player_group_like_cpp(
         &mut self,
         membership: Option<(u64, u8)>,
@@ -148,10 +132,6 @@ impl WorldSession {
         {
             self.sync_player_registry_state_like_cpp();
         }
-    }
-    pub(crate) fn apply_group_join_like_cpp(&mut self, group_guid: u64, subgroup: u8) {
-        let (state, mut hub) = crate::session::split_social_mut(self);
-        state.apply_group_join_like_cpp(&mut hub, group_guid, subgroup)
     }
     pub(crate) fn sync_player_registry_party_member_party_type_like_cpp(&self) {
         let (state, hub) = crate::session::split_social_ref(self);
@@ -216,7 +196,10 @@ impl WorldSession {
     ) -> GroupReconciliationOutcomeLikeCpp {
         let authority = group_registry.member_group_state_like_cpp(player_guid);
         let current_group_guid = self.resolved_group_guid_like_cpp();
-        let current_subgroup = self.resolved_group_subgroup_like_cpp();
+        let current_subgroup = {
+            let (s, h) = crate::session::split_social_ref(self);
+            s.resolved_group_subgroup_like_cpp(h)
+        };
 
         let Some(authority) = authority else {
             let Some(previous_group_guid) = current_group_guid else {
@@ -396,13 +379,6 @@ impl WorldSession {
     }
     pub fn set_phase_group_store(&mut self, store: Arc<PhaseGroupStore>) {
         self.catalogs.phase_group_store = Some(store);
-    }
-    pub(in crate::session) fn represented_player_group_reward_state_like_cpp(
-        &self,
-        player_guid: ObjectGuid,
-    ) -> Option<(u8, u16, Position, bool)> {
-        let (state, hub) = crate::session::split_social_ref(self);
-        state.represented_player_group_reward_state_like_cpp(hub, player_guid)
     }
     /// Set the shared group registry and pending invites.
     pub fn set_group_registry(&mut self, reg: Arc<GroupRegistry>, invites: Arc<PendingInvites>) {

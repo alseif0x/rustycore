@@ -57,10 +57,14 @@ impl WorldSession {
             {
                 return Ok(());
             }
-            self.record_cast_character_spell_cooldown_like_cpp(
-                spell_id,
-                spell_info.recovery_time_ms.max(spell_info.cooldown_ms),
-            );
+            {
+                let (s, mut h) = crate::session::split_spell_state_mut(self);
+                s.record_cast_character_spell_cooldown_like_cpp(
+                    &mut h,
+                    spell_id,
+                    spell_info.recovery_time_ms.max(spell_info.cooldown_ms),
+                )
+            };
 
             // Notify the owning player so the action bar shows the cooldown.
             use wow_packet::packets::spell::CooldownEvent;

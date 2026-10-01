@@ -30,14 +30,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.send_bag_slot_values_update_like_cpp(hub, bag_slot, changed_slot)
     }
-    pub(crate) fn send_bag_object_slot_values_update_like_cpp(
-        &self,
-        bag_guid: ObjectGuid,
-        changed_slot: u8,
-    ) {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.send_bag_object_slot_values_update_like_cpp(hub, bag_guid, changed_slot)
-    }
 }
 
 impl crate::session::state::InventoryState {

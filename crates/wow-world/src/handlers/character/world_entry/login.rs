@@ -880,9 +880,13 @@ impl WorldSession {
                 player_bootstrap,
             )
             .await;
-            self.apply_represented_first_login_explored_zones_with_catalogs_like_cpp(
-                player_bootstrap,
-            );
+            {
+                let (s, mut h) = crate::session::split_instances_mut(self);
+                s.apply_represented_first_login_explored_zones_with_catalogs_like_cpp(
+                    &mut h,
+                    player_bootstrap,
+                )
+            };
             crate::session::hub_mut(self)
                 .apply_represented_first_login_reputation_with_catalogs_like_cpp(player_bootstrap);
         }
@@ -908,6 +912,9 @@ impl WorldSession {
         // C++ `sScriptMgr->OnPlayerLogin(pCurrChar, firstLogin)`
         // (`CharacterHandler.cpp:1452`), after the completed login and after
         // the login criteria update. Trusted linked modules observe here.
-        self.dispatch_module_player_login_like_cpp(modules, first_login);
+        {
+            let (s, h) = crate::session::split_lifecycle_ref(self);
+            s.dispatch_module_player_login_like_cpp(h, modules, first_login)
+        };
     }
 }

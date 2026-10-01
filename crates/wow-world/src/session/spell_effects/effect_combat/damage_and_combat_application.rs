@@ -479,7 +479,10 @@ impl WorldSession {
                 })
                 .unwrap_or((1, false));
             let xp = can_give_experience
-                .then(|| self.creature_kill_xp(mob_level))
+                .then(|| {
+                    let (s, h) = crate::session::split_world_entities_ref(self);
+                    s.creature_kill_xp(h, mob_level)
+                })
                 .unwrap_or(0);
             if caster_rewards_session_player && xp > 0 {
                 // This direct spell-damage kill path has no represented
