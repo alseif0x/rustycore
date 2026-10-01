@@ -68,13 +68,16 @@ or from older PRs.
   temporary thunk under the thunk rule.
 
 **The thunk rule.** Moved code never calls a `WorldSession` thunk; it calls the new owner. A thunk
-exists only while an unmoved caller remains. The PR that moves the last caller deletes it.
+stays only for a registered handler or external API, a permanent hub accessor (`player_guid()`),
+a `pub` fn with no production caller, or while an unmoved caller remains. The PR that moves the
+last caller deletes it.
 
 **Test-only code**
 - Test-only state goes in `fixtures.<group>`.
 - A test-only entry point that unit tests still call on `WorldSession` goes in a
-  `#[cfg(test)] impl WorldSession` shim in the unit_tests `f3_shims` file next to the mirrored
-  path (the f3 codemod creates and retires these).
+  `#[cfg(test)] impl WorldSession` shim at `unit_tests/<src path>/f3_shims.rs`, or at
+  `unit_tests/<src path>_f3_shims.rs` only where an ignore rule hides that directory. Never move
+  an existing mount. The f3 codemod creates and retires these.
 - New tests go at the mirrored unit_tests path.
 - #[path] nesting: a nested `mod x;` inside a #[path]-loaded file resolves next to that file,
   not under a directory named after it.
@@ -115,7 +118,8 @@ Read [refactor-rustycore-safely](../refactor-rustycore-safely/SKILL.md) first. F
 - A move is not a redesign (R2): no semantic change, no rename, no new canonical path. Behavior
   changes go to F6 with parity evidence.
 - Do mechanical moves with the compiler-guided codemods in `tools/codemods/` (R4): `f3_move_methods.py`,
-  its library `f3_codemod_lib.py` and its self-test `test_f3_move_methods.py`. The loop is:
+  its libraries `f3_codemod_model.py` (move-kind rules) and `f3_codemod_lib.py` (text and I/O
+  helpers), and its self-test `test_f3_move_methods.py`. The loop is:
   1. `plan --group <g>` and review it;
   2. `apply --group <g>`, then let the compiler loop finish;
   3. `cargo fmt --all`;
@@ -148,9 +152,10 @@ export CARGO_TARGET_DIR=<checkout>/target   # per worktree, absolute
    `--syntax-only` (the command is in AGENTS.md). Both also run inside step 8; on their own they
    are only a quick pre-check.
 6. `python3 tools/architecture/net_move.py check --base origin/3.4.3` for a move.
-7. `git diff --check` and `cargo fmt --all --check`.
-8. `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings --logs`, then
-   `./tools/validation-v2 verify --manifest <path> --require-profile final`.
+7. `git diff --check` and `cargo fmt --all --check` (format with `cargo fmt --all`, as above).
+8. Parent or validation owner only: `./tools/validation-v2 final --base origin/3.4.3 --architecture
+   --timings --logs`, then `./tools/validation-v2 verify --manifest <path> --require-profile final`.
+   The implementing worker runs steps 1–7 and reports them.
 
 Keep each command's real exit status. Save long output to a log; never let a pipe mask the exit.
 A zero-test filter proves nothing.
