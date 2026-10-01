@@ -154,7 +154,8 @@ pub(in crate::session) use fixtures::SessionFixtures;
 mod hub;
 pub(crate) use hub::{
     HubMut, HubRef, hub_mut, hub_ref, split_interaction, split_interaction_ref, split_social_mut,
-    split_social_ref, split_visibility_mut, split_visibility_ref,
+    split_social_ref, split_spell_state_mut, split_spell_state_ref, split_visibility_mut,
+    split_visibility_ref,
 };
 mod session_core;
 pub(crate) use session_core::SessionCore;

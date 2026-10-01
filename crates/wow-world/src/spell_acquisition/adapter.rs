@@ -245,322 +245,12 @@ impl crate::session::WorldSession {
         }
     }
 
-    /// Resolve the bounded normal-trainer wrapper against current represented
-    /// player state. C++ checks effect immunity per target in `AddUnitTarget`;
-    /// ordinary buffs do not suppress unrelated trainer effects. Until the
-    /// canonical Unit immunity containers exist, derive the bounded blockers
-    /// from complete active-aura effects and negative `SPELL_LINK_AURA` rows.
-    /// Missing aura/link authority still fails closed.
     fn resolve_trainer_wrapper_cast_acquisition_like_cpp(
         &self,
         spell_id: u32,
     ) -> Option<PlayerCastAcquisitionResolutionLikeCpp> {
-        let catalog = self.catalogs.spell_catalogs.spell_acquisition_catalog()?;
-        let difficulty_chain = self.current_map_difficulty_chain_for_acquisition_like_cpp();
-        let effective_effects = match catalog.resolved_effects_for_difficulty_chain_like_cpp(
-            spell_id,
-            difficulty_chain.iter().copied(),
-        ) {
-            SpellAcquisitionResolvedEffectsLookupLikeCpp::Covered(effects) => {
-                effects.into_iter().cloned().collect::<Vec<_>>()
-            }
-            SpellAcquisitionResolvedEffectsLookupLikeCpp::MissingCoverage { .. }
-            | SpellAcquisitionResolvedEffectsLookupLikeCpp::Indeterminate(_) => return None,
-        };
-        let map_id = u32::from(self.player_map_id_like_cpp());
-        let (_, area_id) = self.player_zone_area_like_cpp()?;
-        let map_instance_type = self
-            .map_store()
-            .and_then(|store| store.get(map_id))
-            .map(|entry| entry.instance_type);
-        if self.disable_mgr()?.is_disabled_for_like_cpp(
-            wow_data::DISABLE_TYPE_SPELL,
-            spell_id,
-            Some(wow_data::DisableWorldObjectRefLikeCpp {
-                // The C++ trainer path casts from the player, not the NPC.
-                type_id: wow_constants::TypeId::Player,
-                map_id,
-                area_id,
-                is_pet: false,
-                is_battle_arena: map_instance_type == Some(wow_data::MAP_ARENA_LIKE_CPP),
-                is_battleground: map_instance_type == Some(wow_data::MAP_BATTLEGROUND_LIKE_CPP),
-                player_map_difficulty: None,
-            }),
-            0,
-            self.map_store().map(AsRef::as_ref),
-        ) {
-            // Spell::prepare rejects disabled spells before CheckCast and any
-            // effect/pet hook. Trainer::TeachSpell has already charged and
-            // emitted both visuals, so this is a resolved no-effect cast even
-            // when later metadata is unsupported by the reduced projection.
-            return Some(failed_trainer_cast_resolution_like_cpp(effective_effects));
-        }
-        // C++ copies this single SpellInfo field from the first row in the
-        // active difficulty/fallback chain, then checks the player target's
-        // HUMANOID mask. Do not combine sibling difficulty rows: a heroic
-        // restriction cannot reject a normal cast (or vice versa).
-        if !trainer_target_restriction_admits_player_like_cpp(
-            self.catalogs
-                .spell_catalogs
-                .spell_target_restrictions_store()?,
-            spell_id,
-            difficulty_chain.iter().copied(),
-        ) {
-            // C++ charges and publishes both trainer visuals before the
-            // triggered cast reaches CheckExplicitTarget/CheckTarget.
-            return Some(failed_trainer_cast_resolution_like_cpp(effective_effects));
-        }
-        // An empty aura map proves absence only after both persisted aura
-        // tables completed successfully during login. This authority is also
-        // required before resolving positive/negative aura-spell gates.
-        if self.resolved_player_aura_authority_complete_like_cpp() != Some(true) {
-            return None;
-        }
-        // Startup proves only DIFFICULTY_NONE. Resolve the active row against
-        // the current self-target where the session owns exact aura-spell
-        // presence. A definite cast failure happens after fee/visuals in C++;
-        // state-based rows remain unavailable until Unit AuraState is owned.
-        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
-        let aura_restriction_result = self
-            .catalogs
-            .spell_catalogs
-            .spell_aura_restrictions_store()?
-            .resolved_for_difficulty_chain_like_cpp(spell_id, difficulty_chain.iter().copied())
-            .map_or(TrainerAuraRestrictionResultLikeCpp::Pass, |restriction| {
-                trainer_aura_restriction_result_like_cpp(restriction, |required_spell_id| {
-                    visible_auras
-                        .values()
-                        .any(|aura| aura.spell_id == required_spell_id)
-                })
-            });
-        match aura_restriction_result {
-            TrainerAuraRestrictionResultLikeCpp::Pass => {}
-            TrainerAuraRestrictionResultLikeCpp::Fail => {
-                return Some(failed_trainer_cast_resolution_like_cpp(effective_effects));
-            }
-            TrainerAuraRestrictionResultLikeCpp::Indeterminate => return None,
-        }
-        // Re-audit the active variant because startup's immutable authority
-        // proves the difficulty-none closure. C++ reaches these effect and
-        // pet-aura hooks only after CheckCast has accepted the target/aura
-        // gates above, so a definite pre-effect cast failure must win over an
-        // unsupported hook and preserve the paid, visualized no-effect cast.
-        let pet_auras = self.spell_pet_aura_store_like_cpp()?;
-        for effect in &effective_effects {
-            let effect_index = effect.effect_index_checked().ok()?;
-            if pet_auras
-                .get_pet_aura_like_cpp(spell_id, effect_index)
-                .is_some()
-            {
-                return None;
-            }
-            let effect_type = effect.effect_type_checked().ok()?;
-            match effect_type {
-                SPELL_EFFECT_LEARN_SPELL | SPELL_EFFECT_SKILL_STEP | SPELL_EFFECT_DUAL_WIELD => {
-                    if effect.effect_mechanic_raw != 0
-                        || effect.effect_aura_raw != 0
-                        || !effect.targets_player_like_cpp()
-                    {
-                        return None;
-                    }
-                }
-                // C++ `Trainer::TeachSpell` invokes castable wrappers as
-                // `player->CastSpell(player, ...)`. EffectSkill is HANDLE_HIT,
-                // has no implicit target, and mutates that player caster.
-                SPELL_EFFECT_SKILL => {
-                    if effect.effect_mechanic_raw != 0 || effect.effect_aura_raw != 0 {
-                        return None;
-                    }
-                }
-                0 => {}
-                3 if matches!(spell_id, 33_388 | 34_090) => {}
-                other if wow_data::spell::spell_effect_types::is_cpp_null_or_unused_noop(other) => {
-                }
-                _ => return None,
-            }
-        }
-        let (no_immunities, is_channeled) = match catalog
-            .resolved_misc_for_difficulty_chain_like_cpp(spell_id, difficulty_chain.iter().copied())
-        {
-            SpellAcquisitionResolvedMetadataLookupLikeCpp::Present(misc) => (
-                misc.no_immunities_checked().ok()?,
-                misc.is_channeled_checked().ok()?,
-            ),
-            SpellAcquisitionResolvedMetadataLookupLikeCpp::CoveredWithoutRow => (false, false),
-            SpellAcquisitionResolvedMetadataLookupLikeCpp::MissingCoverage { .. }
-            | SpellAcquisitionResolvedMetadataLookupLikeCpp::Indeterminate(_) => return None,
-        };
-        // C++ enters the channel lifecycle even for this triggered player
-        // cast. The reduced trainer projection cannot reproduce channel state
-        // or updates, so active-difficulty channel wrappers fail closed.
-        if is_channeled {
-            return None;
-        }
-        let immunized_effect_mask = self.active_auras_immunized_trainer_effect_mask_like_cpp(
-            catalog,
-            spell_id,
-            &effective_effects,
-            no_immunities,
-        )?;
-        let mut executed_hit_target_effect_mask = 0_u32;
-        let mut executed_dual_wield_effects = Vec::new();
-        for effect in &effective_effects {
-            let effect_type = effect.effect_type_checked().ok()?;
-            if !matches!(
-                effect_type,
-                SPELL_EFFECT_LEARN_SPELL
-                    | SPELL_EFFECT_SKILL_STEP
-                    | SPELL_EFFECT_SKILL
-                    | SPELL_EFFECT_DUAL_WIELD
-            ) {
-                continue;
-            }
-            let effect_index = effect.effect_index_checked().ok()?;
-            let effect_bit = 1_u32.checked_shl(u32::from(effect_index))?;
-            if immunized_effect_mask & effect_bit != 0 {
-                continue;
-            }
-            executed_hit_target_effect_mask |= effect_bit;
-            if effect_type == SPELL_EFFECT_DUAL_WIELD {
-                executed_dual_wield_effects.push(PlayerExecutedDualWieldEffectLikeCpp {
-                    effect_record_id: effect.record_id,
-                    effect_index,
-                });
-            }
-        }
-        Some(PlayerCastAcquisitionResolutionLikeCpp {
-            reached_immediate_phase: true,
-            executed_hit_target_effect_mask,
-            effective_effects,
-            executed_dual_wield_effects,
-        })
-    }
-
-    /// Build the C++ `SpellMgr::GetSpellInfo` fallback chain for a selected
-    /// difficulty. Casts use the current map difficulty; retained auras use
-    /// the difficulty whose `SpellInfo` was selected when they were created.
-    fn current_map_difficulty_chain_for_acquisition_like_cpp(&self) -> Vec<u32> {
-        self.difficulty_chain_for_acquisition_like_cpp(u32::from(
-            self.current_map_difficulty_id_like_cpp(),
-        ))
-    }
-
-    fn difficulty_chain_for_acquisition_like_cpp(&self, requested: u32) -> Vec<u32> {
-        let mut chain = vec![requested];
-        let mut visited = BTreeSet::from([requested]);
-        let mut current = requested;
-        while let Some(difficulty) = self.difficulty_store().and_then(|store| store.get(current)) {
-            let fallback = u32::from(difficulty.fallback_difficulty_id);
-            if !visited.insert(fallback) {
-                break;
-            }
-            chain.push(fallback);
-            current = fallback;
-        }
-        chain
-    }
-
-    fn active_auras_immunized_trainer_effect_mask_like_cpp(
-        &self,
-        catalog: &SpellAcquisitionCatalogLikeCpp,
-        trainer_spell_id: u32,
-        trainer_effects: &[SpellAcquisitionEffectLikeCpp],
-        no_immunities: bool,
-    ) -> Option<u32> {
-        let linked = self.catalogs.spell_catalogs.spell_linked_store_like_cpp()?;
-        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
-        let mut immunized_effect_mask = 0_u32;
-        for aura in visible_auras.values() {
-            let aura_spell_id = u32::try_from(aura.spell_id).ok().filter(|id| *id != 0)?;
-            if linked
-                .get_spell_linked_like_cpp(SpellLinkedTypeLikeCpp::Aura, aura_spell_id)
-                .is_some_and(|effects| {
-                    effects
-                        .iter()
-                        .any(|effect| *effect < 0 && effect.unsigned_abs() == trainer_spell_id)
-                })
-            {
-                // C++ `IMMUNITY_ID` rejects the spell rather than one effect.
-                return Some(u32::MAX);
-            }
-            if no_immunities {
-                // C++ checks IMMUNITY_ID before SPELL_ATTR0_NO_IMMUNITIES,
-                // then bypasses all remaining spell/effect immunities.
-                continue;
-            }
-
-            let aura_difficulty_chain =
-                self.difficulty_chain_for_acquisition_like_cpp(u32::from(aura.difficulty_id));
-            let effects = match catalog.resolved_effects_for_difficulty_chain_like_cpp(
-                aura_spell_id,
-                aura_difficulty_chain,
-            ) {
-                SpellAcquisitionResolvedEffectsLookupLikeCpp::Covered(effects) => effects,
-                SpellAcquisitionResolvedEffectsLookupLikeCpp::MissingCoverage { .. }
-                | SpellAcquisitionResolvedEffectsLookupLikeCpp::Indeterminate(_) => return None,
-            };
-            let mut unresolved_effect_mask = aura.effect_mask;
-            for effect in effects {
-                let effect_index = effect.effect_index_checked().ok()?;
-                let effect_bit = 1_u32.checked_shl(u32::from(effect_index))?;
-                if unresolved_effect_mask & effect_bit == 0 {
-                    continue;
-                }
-                unresolved_effect_mask &= !effect_bit;
-                match effect.effect_aura_raw {
-                    SPELL_AURA_EFFECT_IMMUNITY_LIKE_CPP => {
-                        for trainer_effect in trainer_effects {
-                            let trainer_effect_type = trainer_effect.effect_type_checked().ok()?;
-                            if trainer_effect.effect_attributes_raw
-                                & SPELL_EFFECT_ATTRIBUTE_NO_IMMUNITY_LIKE_CPP
-                                == 0
-                                && effect.effect_misc_value_raw[0] == i64::from(trainer_effect_type)
-                            {
-                                let trainer_effect_index =
-                                    trainer_effect.effect_index_checked().ok()?;
-                                immunized_effect_mask |=
-                                    1_u32.checked_shl(u32::from(trainer_effect_index))?;
-                            }
-                        }
-                    }
-                    SPELL_AURA_STATE_IMMUNITY_LIKE_CPP => {
-                        for trainer_effect in trainer_effects {
-                            if trainer_effect.effect_aura_raw != 0
-                                && effect.effect_misc_value_raw[0] == trainer_effect.effect_aura_raw
-                            {
-                                let trainer_effect_index =
-                                    trainer_effect.effect_index_checked().ok()?;
-                                immunized_effect_mask |=
-                                    1_u32.checked_shl(u32::from(trainer_effect_index))?;
-                            }
-                        }
-                    }
-                    SPELL_AURA_MECHANIC_IMMUNITY_LIKE_CPP
-                    | SPELL_AURA_MECHANIC_IMMUNITY_MASK_LIKE_CPP
-                        if trainer_effects
-                            .iter()
-                            .any(|trainer_effect| trainer_effect.effect_mechanic_raw != 0) =>
-                    {
-                        // Startup authority excludes this shape. If a stale or
-                        // injected catalog violates that invariant, do not
-                        // approximate C++'s mechanic-mask switch table.
-                        return None;
-                    }
-                    SPELL_AURA_MOD_IMMUNE_AURA_APPLY_SCHOOL_LIKE_CPP
-                        if trainer_effects
-                            .iter()
-                            .any(|trainer_effect| trainer_effect.effect_aura_raw != 0) =>
-                    {
-                        return None;
-                    }
-                    _ => {}
-                }
-            }
-            if unresolved_effect_mask != 0 {
-                return None;
-            }
-        }
-        Some(immunized_effect_mask)
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.resolve_trainer_wrapper_cast_acquisition_like_cpp(hub, spell_id)
     }
 
     pub(crate) fn spell_acquisition_snapshot_like_cpp(
@@ -730,6 +420,342 @@ impl crate::session::WorldSession {
             future_player_condition_resolutions,
             cast_resolutions,
         })
+    }
+}
+
+impl crate::session::SessionSpellState {
+    /// Resolve the bounded normal-trainer wrapper against current represented
+    /// player state. C++ checks effect immunity per target in `AddUnitTarget`;
+    /// ordinary buffs do not suppress unrelated trainer effects. Until the
+    /// canonical Unit immunity containers exist, derive the bounded blockers
+    /// from complete active-aura effects and negative `SPELL_LINK_AURA` rows.
+    /// Missing aura/link authority still fails closed.
+    fn resolve_trainer_wrapper_cast_acquisition_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        spell_id: u32,
+    ) -> Option<PlayerCastAcquisitionResolutionLikeCpp> {
+        let catalog = hub.catalogs.spell_catalogs.spell_acquisition_catalog()?;
+        let difficulty_chain = self.current_map_difficulty_chain_for_acquisition_like_cpp(hub);
+        let effective_effects = match catalog.resolved_effects_for_difficulty_chain_like_cpp(
+            spell_id,
+            difficulty_chain.iter().copied(),
+        ) {
+            SpellAcquisitionResolvedEffectsLookupLikeCpp::Covered(effects) => {
+                effects.into_iter().cloned().collect::<Vec<_>>()
+            }
+            SpellAcquisitionResolvedEffectsLookupLikeCpp::MissingCoverage { .. }
+            | SpellAcquisitionResolvedEffectsLookupLikeCpp::Indeterminate(_) => return None,
+        };
+        let map_id = u32::from(hub.core.player_map_id_like_cpp());
+        let (_, area_id) = hub.player_zone_area_like_cpp()?;
+        let map_instance_type = hub
+            .catalogs
+            .map_store()
+            .and_then(|store| store.get(map_id))
+            .map(|entry| entry.instance_type);
+        if hub.catalogs.disable_mgr()?.is_disabled_for_like_cpp(
+            wow_data::DISABLE_TYPE_SPELL,
+            spell_id,
+            Some(wow_data::DisableWorldObjectRefLikeCpp {
+                // The C++ trainer path casts from the player, not the NPC.
+                type_id: wow_constants::TypeId::Player,
+                map_id,
+                area_id,
+                is_pet: false,
+                is_battle_arena: map_instance_type == Some(wow_data::MAP_ARENA_LIKE_CPP),
+                is_battleground: map_instance_type == Some(wow_data::MAP_BATTLEGROUND_LIKE_CPP),
+                player_map_difficulty: None,
+            }),
+            0,
+            hub.catalogs.map_store().map(AsRef::as_ref),
+        ) {
+            // Spell::prepare rejects disabled spells before CheckCast and any
+            // effect/pet hook. Trainer::TeachSpell has already charged and
+            // emitted both visuals, so this is a resolved no-effect cast even
+            // when later metadata is unsupported by the reduced projection.
+            return Some(failed_trainer_cast_resolution_like_cpp(effective_effects));
+        }
+        // C++ copies this single SpellInfo field from the first row in the
+        // active difficulty/fallback chain, then checks the player target's
+        // HUMANOID mask. Do not combine sibling difficulty rows: a heroic
+        // restriction cannot reject a normal cast (or vice versa).
+        if !trainer_target_restriction_admits_player_like_cpp(
+            hub.catalogs
+                .spell_catalogs
+                .spell_target_restrictions_store()?,
+            spell_id,
+            difficulty_chain.iter().copied(),
+        ) {
+            // C++ charges and publishes both trainer visuals before the
+            // triggered cast reaches CheckExplicitTarget/CheckTarget.
+            return Some(failed_trainer_cast_resolution_like_cpp(effective_effects));
+        }
+        // An empty aura map proves absence only after both persisted aura
+        // tables completed successfully during login. This authority is also
+        // required before resolving positive/negative aura-spell gates.
+        if self.resolved_player_aura_authority_complete_like_cpp(hub) != Some(true) {
+            return None;
+        }
+        // Startup proves only DIFFICULTY_NONE. Resolve the active row against
+        // the current self-target where the session owns exact aura-spell
+        // presence. A definite cast failure happens after fee/visuals in C++;
+        // state-based rows remain unavailable until Unit AuraState is owned.
+        let visible_auras = hub.resolved_player_visible_auras_like_cpp()?;
+        let aura_restriction_result = hub
+            .catalogs
+            .spell_catalogs
+            .spell_aura_restrictions_store()?
+            .resolved_for_difficulty_chain_like_cpp(spell_id, difficulty_chain.iter().copied())
+            .map_or(TrainerAuraRestrictionResultLikeCpp::Pass, |restriction| {
+                trainer_aura_restriction_result_like_cpp(restriction, |required_spell_id| {
+                    visible_auras
+                        .values()
+                        .any(|aura| aura.spell_id == required_spell_id)
+                })
+            });
+        match aura_restriction_result {
+            TrainerAuraRestrictionResultLikeCpp::Pass => {}
+            TrainerAuraRestrictionResultLikeCpp::Fail => {
+                return Some(failed_trainer_cast_resolution_like_cpp(effective_effects));
+            }
+            TrainerAuraRestrictionResultLikeCpp::Indeterminate => return None,
+        }
+        // Re-audit the active variant because startup's immutable authority
+        // proves the difficulty-none closure. C++ reaches these effect and
+        // pet-aura hooks only after CheckCast has accepted the target/aura
+        // gates above, so a definite pre-effect cast failure must win over an
+        // unsupported hook and preserve the paid, visualized no-effect cast.
+        let pet_auras = hub.catalogs.spell_pet_aura_store_like_cpp()?;
+        for effect in &effective_effects {
+            let effect_index = effect.effect_index_checked().ok()?;
+            if pet_auras
+                .get_pet_aura_like_cpp(spell_id, effect_index)
+                .is_some()
+            {
+                return None;
+            }
+            let effect_type = effect.effect_type_checked().ok()?;
+            match effect_type {
+                SPELL_EFFECT_LEARN_SPELL | SPELL_EFFECT_SKILL_STEP | SPELL_EFFECT_DUAL_WIELD => {
+                    if effect.effect_mechanic_raw != 0
+                        || effect.effect_aura_raw != 0
+                        || !effect.targets_player_like_cpp()
+                    {
+                        return None;
+                    }
+                }
+                // C++ `Trainer::TeachSpell` invokes castable wrappers as
+                // `player->CastSpell(player, ...)`. EffectSkill is HANDLE_HIT,
+                // has no implicit target, and mutates that player caster.
+                SPELL_EFFECT_SKILL => {
+                    if effect.effect_mechanic_raw != 0 || effect.effect_aura_raw != 0 {
+                        return None;
+                    }
+                }
+                0 => {}
+                3 if matches!(spell_id, 33_388 | 34_090) => {}
+                other if wow_data::spell::spell_effect_types::is_cpp_null_or_unused_noop(other) => {
+                }
+                _ => return None,
+            }
+        }
+        let (no_immunities, is_channeled) = match catalog
+            .resolved_misc_for_difficulty_chain_like_cpp(spell_id, difficulty_chain.iter().copied())
+        {
+            SpellAcquisitionResolvedMetadataLookupLikeCpp::Present(misc) => (
+                misc.no_immunities_checked().ok()?,
+                misc.is_channeled_checked().ok()?,
+            ),
+            SpellAcquisitionResolvedMetadataLookupLikeCpp::CoveredWithoutRow => (false, false),
+            SpellAcquisitionResolvedMetadataLookupLikeCpp::MissingCoverage { .. }
+            | SpellAcquisitionResolvedMetadataLookupLikeCpp::Indeterminate(_) => return None,
+        };
+        // C++ enters the channel lifecycle even for this triggered player
+        // cast. The reduced trainer projection cannot reproduce channel state
+        // or updates, so active-difficulty channel wrappers fail closed.
+        if is_channeled {
+            return None;
+        }
+        let immunized_effect_mask = self.active_auras_immunized_trainer_effect_mask_like_cpp(
+            hub,
+            catalog,
+            spell_id,
+            &effective_effects,
+            no_immunities,
+        )?;
+        let mut executed_hit_target_effect_mask = 0_u32;
+        let mut executed_dual_wield_effects = Vec::new();
+        for effect in &effective_effects {
+            let effect_type = effect.effect_type_checked().ok()?;
+            if !matches!(
+                effect_type,
+                SPELL_EFFECT_LEARN_SPELL
+                    | SPELL_EFFECT_SKILL_STEP
+                    | SPELL_EFFECT_SKILL
+                    | SPELL_EFFECT_DUAL_WIELD
+            ) {
+                continue;
+            }
+            let effect_index = effect.effect_index_checked().ok()?;
+            let effect_bit = 1_u32.checked_shl(u32::from(effect_index))?;
+            if immunized_effect_mask & effect_bit != 0 {
+                continue;
+            }
+            executed_hit_target_effect_mask |= effect_bit;
+            if effect_type == SPELL_EFFECT_DUAL_WIELD {
+                executed_dual_wield_effects.push(PlayerExecutedDualWieldEffectLikeCpp {
+                    effect_record_id: effect.record_id,
+                    effect_index,
+                });
+            }
+        }
+        Some(PlayerCastAcquisitionResolutionLikeCpp {
+            reached_immediate_phase: true,
+            executed_hit_target_effect_mask,
+            effective_effects,
+            executed_dual_wield_effects,
+        })
+    }
+
+    /// Build the C++ `SpellMgr::GetSpellInfo` fallback chain for a selected
+    /// difficulty. Casts use the current map difficulty; retained auras use
+    /// the difficulty whose `SpellInfo` was selected when they were created.
+    fn current_map_difficulty_chain_for_acquisition_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Vec<u32> {
+        self.difficulty_chain_for_acquisition_like_cpp(
+            hub,
+            u32::from(hub.core.current_map_difficulty_id_like_cpp()),
+        )
+    }
+
+    fn difficulty_chain_for_acquisition_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        requested: u32,
+    ) -> Vec<u32> {
+        let mut chain = vec![requested];
+        let mut visited = BTreeSet::from([requested]);
+        let mut current = requested;
+        while let Some(difficulty) = hub
+            .catalogs
+            .difficulty_store()
+            .and_then(|store| store.get(current))
+        {
+            let fallback = u32::from(difficulty.fallback_difficulty_id);
+            if !visited.insert(fallback) {
+                break;
+            }
+            chain.push(fallback);
+            current = fallback;
+        }
+        chain
+    }
+
+    fn active_auras_immunized_trainer_effect_mask_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        catalog: &SpellAcquisitionCatalogLikeCpp,
+        trainer_spell_id: u32,
+        trainer_effects: &[SpellAcquisitionEffectLikeCpp],
+        no_immunities: bool,
+    ) -> Option<u32> {
+        let linked = hub.catalogs.spell_catalogs.spell_linked_store_like_cpp()?;
+        let visible_auras = hub.resolved_player_visible_auras_like_cpp()?;
+        let mut immunized_effect_mask = 0_u32;
+        for aura in visible_auras.values() {
+            let aura_spell_id = u32::try_from(aura.spell_id).ok().filter(|id| *id != 0)?;
+            if linked
+                .get_spell_linked_like_cpp(SpellLinkedTypeLikeCpp::Aura, aura_spell_id)
+                .is_some_and(|effects| {
+                    effects
+                        .iter()
+                        .any(|effect| *effect < 0 && effect.unsigned_abs() == trainer_spell_id)
+                })
+            {
+                // C++ `IMMUNITY_ID` rejects the spell rather than one effect.
+                return Some(u32::MAX);
+            }
+            if no_immunities {
+                // C++ checks IMMUNITY_ID before SPELL_ATTR0_NO_IMMUNITIES,
+                // then bypasses all remaining spell/effect immunities.
+                continue;
+            }
+
+            let aura_difficulty_chain =
+                self.difficulty_chain_for_acquisition_like_cpp(hub, u32::from(aura.difficulty_id));
+            let effects = match catalog.resolved_effects_for_difficulty_chain_like_cpp(
+                aura_spell_id,
+                aura_difficulty_chain,
+            ) {
+                SpellAcquisitionResolvedEffectsLookupLikeCpp::Covered(effects) => effects,
+                SpellAcquisitionResolvedEffectsLookupLikeCpp::MissingCoverage { .. }
+                | SpellAcquisitionResolvedEffectsLookupLikeCpp::Indeterminate(_) => return None,
+            };
+            let mut unresolved_effect_mask = aura.effect_mask;
+            for effect in effects {
+                let effect_index = effect.effect_index_checked().ok()?;
+                let effect_bit = 1_u32.checked_shl(u32::from(effect_index))?;
+                if unresolved_effect_mask & effect_bit == 0 {
+                    continue;
+                }
+                unresolved_effect_mask &= !effect_bit;
+                match effect.effect_aura_raw {
+                    SPELL_AURA_EFFECT_IMMUNITY_LIKE_CPP => {
+                        for trainer_effect in trainer_effects {
+                            let trainer_effect_type = trainer_effect.effect_type_checked().ok()?;
+                            if trainer_effect.effect_attributes_raw
+                                & SPELL_EFFECT_ATTRIBUTE_NO_IMMUNITY_LIKE_CPP
+                                == 0
+                                && effect.effect_misc_value_raw[0] == i64::from(trainer_effect_type)
+                            {
+                                let trainer_effect_index =
+                                    trainer_effect.effect_index_checked().ok()?;
+                                immunized_effect_mask |=
+                                    1_u32.checked_shl(u32::from(trainer_effect_index))?;
+                            }
+                        }
+                    }
+                    SPELL_AURA_STATE_IMMUNITY_LIKE_CPP => {
+                        for trainer_effect in trainer_effects {
+                            if trainer_effect.effect_aura_raw != 0
+                                && effect.effect_misc_value_raw[0] == trainer_effect.effect_aura_raw
+                            {
+                                let trainer_effect_index =
+                                    trainer_effect.effect_index_checked().ok()?;
+                                immunized_effect_mask |=
+                                    1_u32.checked_shl(u32::from(trainer_effect_index))?;
+                            }
+                        }
+                    }
+                    SPELL_AURA_MECHANIC_IMMUNITY_LIKE_CPP
+                    | SPELL_AURA_MECHANIC_IMMUNITY_MASK_LIKE_CPP
+                        if trainer_effects
+                            .iter()
+                            .any(|trainer_effect| trainer_effect.effect_mechanic_raw != 0) =>
+                    {
+                        // Startup authority excludes this shape. If a stale or
+                        // injected catalog violates that invariant, do not
+                        // approximate C++'s mechanic-mask switch table.
+                        return None;
+                    }
+                    SPELL_AURA_MOD_IMMUNE_AURA_APPLY_SCHOOL_LIKE_CPP
+                        if trainer_effects
+                            .iter()
+                            .any(|trainer_effect| trainer_effect.effect_aura_raw != 0) =>
+                    {
+                        return None;
+                    }
+                    _ => {}
+                }
+            }
+            if unresolved_effect_mask != 0 {
+                return None;
+            }
+        }
+        Some(immunized_effect_mask)
     }
 }
 

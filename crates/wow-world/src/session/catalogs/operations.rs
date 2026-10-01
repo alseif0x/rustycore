@@ -228,9 +228,6 @@ impl WorldSession {
     pub fn set_spell_pet_aura_store(&mut self, store: Arc<SpellPetAuraStoreLikeCpp>) {
         self.catalogs.spell_catalogs.spell_pet_aura_store = Some(store);
     }
-    pub(crate) fn spell_pet_aura_store_like_cpp(&self) -> Option<&SpellPetAuraStoreLikeCpp> {
-        self.catalogs.spell_pet_aura_store_like_cpp()
-    }
     pub fn set_movie_store(&mut self, store: Arc<MovieStore>) {
         self.catalogs.movie_store = Some(store);
     }

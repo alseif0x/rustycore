@@ -770,5 +770,5 @@ impl crate::session::state::SessionCatalogs {
 }
 
 #[cfg(test)]
-#[path = "../../../unit_tests/session/progression/skills/f3_shims.rs"]
+#[path = "../../../unit_tests/session/progression/skills_f3_shims.rs"]
 mod f3_shims;

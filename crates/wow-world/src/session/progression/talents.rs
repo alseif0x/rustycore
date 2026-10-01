@@ -9,9 +9,6 @@ impl WorldSession {
     pub fn set_talent_store(&mut self, store: Arc<TalentStore>) {
         self.catalogs.talent_store = Some(store);
     }
-    pub(crate) fn talent_store(&self) -> Option<&Arc<TalentStore>> {
-        self.catalogs.talent_store()
-    }
     pub fn set_num_talents_at_level_store(&mut self, store: Arc<NumTalentsAtLevelStore>) {
         self.catalogs.num_talents_at_level_store = Some(store);
         self.refresh_represented_talent_points_like_cpp();

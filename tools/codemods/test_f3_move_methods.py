@@ -146,6 +146,10 @@ class F3MoveMethodsTest(unittest.TestCase):
         self.assertTrue(F.upgrade(f, "state", {"P", "C-hub"}).startswith("writes catalogs/config"))
         f.update(target="config", store_rehomed=True, store_from="core", writes_store=False)
         self.assertEqual(F.upgrade(f, "state", {"P", "C-hub"}), ("C-hub", "hubref", "HubRef"))
+        f.update(target="config", store_rehomed=True, store_from="spell_effects", ret_borrow=False)
+        self.assertTrue(F.upgrade(f, "state", {"P", "C-hub"}).startswith("stateless group"))  # no state type
+        f.update(target="social", store_rehomed=False, ret_borrow=True)            # group state + hub param
+        self.assertTrue(F.upgrade(f, "state", {"P", "C-hub"}).startswith("returns a borrow"))
         self.assertTrue(F.STORE_WRITE.search("self.config.max_level = 3;"))
         self.assertTrue(F.STORE_WRITE.search("take(&mut self.catalogs.x)"))
         self.assertFalse(F.STORE_WRITE.search("if self.config.max_level == 3 {}"))
@@ -249,6 +253,29 @@ class F3MoveMethodsTest(unittest.TestCase):
         path = self.root / rel
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(text)
+
+    def test_guard_across_self_call_is_a_precondition(self):
+        self.assertTrue(F.guard_call("let g = self.core.m.lock().unwrap();\n self.other();\n g.x"))
+        self.assertFalse(F.guard_call("let g = self.core.m.lock().unwrap();\n drop(g);\n self.other();"))
+        self.assertFalse(F.guard_call("{ let g = m.write().unwrap(); g.x(); }\n self.other();"))
+        self.assertFalse(F.guard_call("let r = { let g = m.write().unwrap(); 1 };\n self.other();"))
+
+    def test_shims_avoid_gitignored_dirs(self):
+        import subprocess
+        subprocess.run(["git", "init", "-q", str(self.root)], check=True)
+        (self.root / ".gitignore").write_text("ops/\n")             # like the repo-wide `skills/` rule
+        self.assertEqual(self.apply("--demote-blocked")[0], 0)
+        shim = self.root / "crates/wow-world/unit_tests/session/catalogs/ops_f3_shims.rs"
+        self.assertIn("fn only_tests", shim.read_text())
+        self.assertIn('#[path = "../../../unit_tests/session/catalogs/ops_f3_shims.rs"]', self.ops.read_text())
+        old = self.root / "crates/wow-world/unit_tests/session/catalogs/ops/f3_shims.rs"   # relocation
+        old.parent.mkdir(parents=True)
+        old.write_text(shim.read_text())
+        shim.unlink()
+        self.ops.write_text(self.ops.read_text().replace("ops_f3_shims.rs", "ops/f3_shims.rs"))
+        F.relocate_ignored_shims(self.root, self.root / "crates/wow-world/src")
+        self.assertTrue(shim.exists() and not old.exists())
+        self.assertIn("ops_f3_shims.rs", self.ops.read_text())
 
     def test_precondition_aborts_before_any_write(self):
         before = digest(self.root)

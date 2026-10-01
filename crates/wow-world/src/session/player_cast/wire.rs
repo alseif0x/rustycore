@@ -76,19 +76,32 @@ pub(in crate::session) enum PlayerCastPublicationPhaseLikeCpp {
 }
 
 impl WorldSession {
+    pub(in crate::session) fn player_cast_publication_like_cpp(
+        &self,
+        spell: &wow_data::SpellInfo,
+        metadata: &SpellCastMetadata,
+        phase: PlayerCastPublicationPhaseLikeCpp,
+    ) -> (wow_packet::packets::spell::SpellCastData, u32) {
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.player_cast_publication_like_cpp(hub, spell, metadata, phase)
+    }
+}
+
+impl crate::session::state::SessionSpellState {
     /// C++ `SpellInfo::HasAttribute` for one attribute word at the caster's
     /// current map difficulty, matching the creature representation gate.
     fn represented_cast_spell_attribute_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         spell_id: i32,
         attribute_word: usize,
         attribute: u32,
     ) -> bool {
-        let config = &self.config.legacy_creature_aggro_config_like_cpp;
+        let config = &hub.config.legacy_creature_aggro_config_like_cpp;
         config.spell_store.as_ref().is_some_and(|store| {
             store.has_attribute_for_difficulty_like_cpp(
                 spell_id,
-                self.current_map_difficulty_id_like_cpp(),
+                hub.core.current_map_difficulty_id_like_cpp(),
                 config.difficulty_store.as_deref(),
                 attribute_word,
                 attribute,
@@ -97,8 +110,12 @@ impl WorldSession {
     }
 
     /// C++ `SPELL_ATTR0_CU_NEEDS_AMMO_DATA`, a `SpellMgr` custom attribute.
-    fn represented_cast_needs_ammo_data_like_cpp(&self, spell_id: i32) -> bool {
-        let config = &self.config.legacy_creature_aggro_config_like_cpp;
+    fn represented_cast_needs_ammo_data_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        spell_id: i32,
+    ) -> bool {
+        let config = &hub.config.legacy_creature_aggro_config_like_cpp;
         let Ok(spell_id) = u32::try_from(spell_id) else {
             return false;
         };
@@ -107,7 +124,7 @@ impl WorldSession {
             .as_ref()
             .is_some_and(|store| {
                 creature_ai_spell_difficulty_chain_like_cpp(
-                    self.current_map_difficulty_id_like_cpp(),
+                    hub.core.current_map_difficulty_id_like_cpp(),
                     config,
                 )
                 .into_iter()
@@ -122,43 +139,53 @@ impl WorldSession {
     }
 
     /// C++ `SendSpellStart`/`SendSpellGo` `CAST_FLAG_PROJECTILE` condition.
-    fn represented_cast_is_projectile_like_cpp(&self, spell_id: i32) -> bool {
+    fn represented_cast_is_projectile_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        spell_id: i32,
+    ) -> bool {
         self.represented_cast_spell_attribute_like_cpp(
+            hub,
             spell_id,
             0,
             SPELL_ATTR0_USES_RANGED_SLOT_LIKE_CPP,
         ) || self.represented_cast_spell_attribute_like_cpp(
+            hub,
             spell_id,
             10,
             SPELL_ATTR10_USES_RANGED_SLOT_COSMETIC_ONLY_LIKE_CPP,
-        ) || self.represented_cast_needs_ammo_data_like_cpp(spell_id)
+        ) || self.represented_cast_needs_ammo_data_like_cpp(hub, spell_id)
     }
 
     /// C++ `SendSpellGo` `CAST_FLAG_RUNE_LIST`: any `SPELL_EFFECT_ACTIVATE_RUNE`
     /// spell, or any Death Knight cast that does not ignore power cost. A
     /// represented normal request never ignores power cost.
-    fn represented_cast_needs_rune_list_like_cpp(&self, spell: &wow_data::SpellInfo) -> bool {
+    fn represented_cast_needs_rune_list_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        spell: &wow_data::SpellInfo,
+    ) -> bool {
         spell
             .effects()
             .iter()
             .any(|effect| effect.effect == SPELL_EFFECT_ACTIVATE_RUNE_LIKE_CPP)
-            || self.represented_player_class_id_like_cpp() == Some(CLASS_DEATH_KNIGHT_LIKE_CPP)
+            || self.represented_player_class_id_like_cpp(hub) == Some(CLASS_DEATH_KNIGHT_LIKE_CPP)
     }
 
-    fn represented_player_class_id_like_cpp(&self) -> Option<u8> {
-        self.with_owned_player_like_cpp(|player| player.unit().data().class_id)
+    fn represented_player_class_id_like_cpp(&self, hub: crate::session::HubRef<'_>) -> Option<u8> {
+        hub.core
+            .with_owned_player_like_cpp(|player| player.unit().data().class_id)
     }
 
     /// C++ `Unit::GetSchoolImmunityMask` over the represented aura owner.
-    fn represented_school_immunity_mask_like_cpp(&self) -> u32 {
-        self.with_owned_player_like_cpp(|player| {
-            player
-                .unit()
-                .subsystems()
-                .auras
-                .aura_school_mask_like_cpp(wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY)
-        })
-        .unwrap_or(0)
+    fn represented_school_immunity_mask_like_cpp(&self, hub: crate::session::HubRef<'_>) -> u32 {
+        hub.core
+            .with_owned_player_like_cpp(|player| {
+                player.unit().subsystems().auras.aura_school_mask_like_cpp(
+                    wow_data::spell::aura_types::SPELL_AURA_SCHOOL_IMMUNITY,
+                )
+            })
+            .unwrap_or(0)
     }
 
     /// C++ `SendSpellStart`/`SendSpellGo` `CAST_FLAG_POWER_LEFT_SELF` rows.
@@ -168,28 +195,32 @@ impl WorldSession {
     /// Start, after it for Go.
     fn represented_cast_remaining_power_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         spell: &wow_data::SpellInfo,
     ) -> Vec<wow_packet::packets::spell::SpellPowerData> {
-        self.with_owned_player_like_cpp(|player| {
-            let costs = spell.calc_power_costs_like_cpp(player.unit().get_create_mana_like_cpp());
-            if !costs
-                .iter()
-                .any(|cost| cost.power_type != PowerType::Health as i8)
-            {
-                return Vec::new();
-            }
-            costs
-                .iter()
-                .filter_map(|cost| {
-                    let power = <PowerType as num_traits::FromPrimitive>::from_i8(cost.power_type)?;
-                    Some(wow_packet::packets::spell::SpellPowerData {
-                        amount: player.get_power(power),
-                        power_type: cost.power_type,
+        hub.core
+            .with_owned_player_like_cpp(|player| {
+                let costs =
+                    spell.calc_power_costs_like_cpp(player.unit().get_create_mana_like_cpp());
+                if !costs
+                    .iter()
+                    .any(|cost| cost.power_type != PowerType::Health as i8)
+                {
+                    return Vec::new();
+                }
+                costs
+                    .iter()
+                    .filter_map(|cost| {
+                        let power =
+                            <PowerType as num_traits::FromPrimitive>::from_i8(cost.power_type)?;
+                        Some(wow_packet::packets::spell::SpellPowerData {
+                            amount: player.get_power(power),
+                            power_type: cost.power_type,
+                        })
                     })
-                })
-                .collect()
-        })
-        .unwrap_or_default()
+                    .collect()
+            })
+            .unwrap_or_default()
     }
 
     /// C++ `Spell::GetSpellCastDataAmmo` for a Player caster.
@@ -209,11 +240,12 @@ impl WorldSession {
     /// where the flag selected them, mirroring both C++ writers.
     pub(in crate::session) fn player_cast_publication_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         spell: &wow_data::SpellInfo,
         metadata: &SpellCastMetadata,
         phase: PlayerCastPublicationPhaseLikeCpp,
     ) -> (wow_packet::packets::spell::SpellCastData, u32) {
-        let remaining_power = self.represented_cast_remaining_power_like_cpp(spell);
+        let remaining_power = self.represented_cast_remaining_power_like_cpp(hub, spell);
         let mut cast_data = wow_packet::packets::spell::SpellCastData::default();
         let mut cast_flags = 0_u32;
 
@@ -224,7 +256,7 @@ impl WorldSession {
             cast_flags |= cast_flags_like_cpp::POWER_LEFT_SELF;
             cast_data.remaining_power = remaining_power;
         }
-        if self.represented_cast_is_projectile_like_cpp(spell.spell_id) {
+        if self.represented_cast_is_projectile_like_cpp(hub, spell.spell_id) {
             cast_flags |= cast_flags_like_cpp::PROJECTILE;
             cast_data.ammo_display_id = Some(self.represented_cast_ammo_display_id_like_cpp());
         }
@@ -234,7 +266,7 @@ impl WorldSession {
                 cast_flags |= cast_flags_like_cpp::HAS_TRAJECTORY;
                 // C++ samples both immunity masks only while `m_timer != 0`.
                 let school = if timed {
-                    self.represented_school_immunity_mask_like_cpp()
+                    self.represented_school_immunity_mask_like_cpp(hub)
                 } else {
                     0
                 };
@@ -245,6 +277,7 @@ impl WorldSession {
                 }
                 if timed
                     && self.represented_cast_spell_attribute_like_cpp(
+                        hub,
                         spell.spell_id,
                         8,
                         SPELL_ATTR8_HEAL_PREDICTION_LIKE_CPP,
@@ -257,9 +290,9 @@ impl WorldSession {
             }
             PlayerCastPublicationPhaseLikeCpp::Go => {
                 cast_flags |= cast_flags_like_cpp::UNKNOWN_9;
-                if self.represented_cast_needs_rune_list_like_cpp(spell) {
+                if self.represented_cast_needs_rune_list_like_cpp(hub, spell) {
                     cast_flags |= cast_flags_like_cpp::RUNE_LIST;
-                    if self.represented_player_class_id_like_cpp()
+                    if self.represented_player_class_id_like_cpp(hub)
                         == Some(CLASS_DEATH_KNIGHT_LIKE_CPP)
                     {
                         // C++ pairs NO_GCD with RUNE_LIST for the Death Knight

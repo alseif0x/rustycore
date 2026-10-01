@@ -10,31 +10,8 @@ impl WorldSession {
         &mut self,
         category_id: u32,
     ) -> bool {
-        self.mutate_player_spell_history_like_cpp(|history| {
-            if !history.charges_loaded {
-                return false;
-            }
-            let Some(charges) = history.charges.get_mut(&category_id) else {
-                return false;
-            };
-            if charges.pop_back().is_none() {
-                return false;
-            }
-            if charges.is_empty() {
-                history.charges.remove(&category_id);
-            }
-            true
-        })
-        .unwrap_or(false)
-    }
-    #[cfg(test)]
-    pub fn set_player_create_custom_spell_store_like_cpp(
-        &mut self,
-        store: Arc<PlayerCreateInfoCustomSpellStoreLikeCpp>,
-    ) {
-        self.catalogs
-            .player_bootstrap_catalog_test_fixture_like_cpp
-            .player_create_custom_spell_store_like_cpp = Some(store);
+        let (state, mut hub) = crate::session::split_spell_state_mut(self);
+        state.restore_represented_character_spell_charge_like_cpp(&mut hub, category_id)
     }
     /// Set the spell store for this session.
     pub fn set_spell_store(&mut self, store: Arc<SpellStore>) {
@@ -112,6 +89,42 @@ impl WorldSession {
     }
 }
 
+impl crate::session::state::SessionCatalogs {
+    #[cfg(test)]
+    pub fn set_player_create_custom_spell_store_like_cpp(
+        &mut self,
+        store: Arc<PlayerCreateInfoCustomSpellStoreLikeCpp>,
+    ) {
+        self.player_bootstrap_catalog_test_fixture_like_cpp
+            .player_create_custom_spell_store_like_cpp = Some(store);
+    }
+}
+
+impl crate::session::state::SessionSpellState {
+    pub(in crate::session) fn restore_represented_character_spell_charge_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        category_id: u32,
+    ) -> bool {
+        self.mutate_player_spell_history_like_cpp(hub, |history| {
+            if !history.charges_loaded {
+                return false;
+            }
+            let Some(charges) = history.charges.get_mut(&category_id) else {
+                return false;
+            };
+            if charges.pop_back().is_none() {
+                return false;
+            }
+            if charges.is_empty() {
+                history.charges.remove(&category_id);
+            }
+            true
+        })
+        .unwrap_or(false)
+    }
+}
+
 impl WorldSession {
     pub fn set_spell_aura_restrictions_store(&mut self, store: Arc<SpellAuraRestrictionsStore>) {
         self.catalogs
@@ -137,23 +150,11 @@ impl WorldSession {
     pub fn set_spell_duration_store(&mut self, store: Arc<SpellDurationStore>) {
         self.catalogs.spell_catalogs.set_spell_duration_store(store);
     }
-    #[cfg(test)]
-    pub fn set_spell_totem_model_store(&mut self, store: Arc<SpellTotemModelStoreLikeCpp>) {
-        self.catalogs
-            .spell_catalogs
-            .set_spell_totem_model_store(store);
-    }
     pub fn set_spell_required_store(&mut self, store: Arc<SpellRequiredStoreLikeCpp>) {
         self.catalogs.spell_catalogs.set_spell_required_store(store);
     }
     pub fn set_spell_proc_store(&mut self, store: Arc<SpellProcStoreLikeCpp>) {
         self.catalogs.spell_catalogs.set_spell_proc_store(store);
-    }
-    #[cfg(test)]
-    pub fn set_serverside_spell_store(&mut self, store: Arc<ServersideSpellStoreLikeCpp>) {
-        self.catalogs
-            .spell_catalogs
-            .set_serverside_spell_store(store);
     }
     pub fn set_spell_custom_attribute_store(
         &mut self,
@@ -198,11 +199,6 @@ impl WorldSession {
             .spell_catalogs
             .set_spell_shapeshift_form_store(store);
     }
-    /// C++ `SpellInfo::SpellFamilyName`/`SpellFamilyFlags` source
-    /// (`SpellClassOptions.db2`).
-    pub fn spell_class_options_store(&self) -> Option<&Arc<wow_data::SpellClassOptionsStore>> {
-        self.catalogs.spell_catalogs.spell_class_options_store()
-    }
     pub fn set_spell_class_options_store(&mut self, store: Arc<wow_data::SpellClassOptionsStore>) {
         self.catalogs
             .spell_catalogs
@@ -228,8 +224,30 @@ impl WorldSession {
 }
 
 impl crate::session::state::SessionCatalogs {
+    #[cfg(test)]
+    pub fn set_spell_totem_model_store(&mut self, store: Arc<SpellTotemModelStoreLikeCpp>) {
+        self.spell_catalogs.set_spell_totem_model_store(store);
+    }
+
+    #[cfg(test)]
+    pub fn set_serverside_spell_store(&mut self, store: Arc<ServersideSpellStoreLikeCpp>) {
+        self.spell_catalogs.set_serverside_spell_store(store);
+    }
+
+    /// C++ `SpellInfo::SpellFamilyName`/`SpellFamilyFlags` source
+    /// (`SpellClassOptions.db2`).
+    pub fn spell_class_options_store(&self) -> Option<&Arc<wow_data::SpellClassOptionsStore>> {
+        self.spell_catalogs.spell_class_options_store()
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
     /// Get the spell store reference.
     pub fn spell_store(&self) -> Option<&Arc<SpellStore>> {
         self.spell_catalogs.spell_store()
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/spell_state/catalog/f3_shims.rs"]
+mod f3_shims;

@@ -29,23 +29,14 @@ impl WorldSession {
         &self,
         spell_id: u32,
     ) -> SpellLearnSkillLookupLikeCpp<'_> {
-        self.catalogs
-            .spell_catalogs
-            .spell_learn_skill_store
-            .as_ref()
-            .map(|store| store.spell_learn_skill_lookup_like_cpp(spell_id))
-            .unwrap_or(SpellLearnSkillLookupLikeCpp::MissingCoverage)
+        self.catalogs.spell_learn_skill_lookup_like_cpp(spell_id)
     }
     pub(crate) fn spell_learn_spell_map_bounds_like_cpp(
         &self,
         spell_id: u32,
     ) -> &[SpellLearnSpellNodeLikeCpp] {
         self.catalogs
-            .spell_catalogs
-            .spell_learn_spell_store
-            .as_ref()
-            .map(|store| store.get_spell_learn_spell_map_bounds_like_cpp(spell_id))
-            .unwrap_or(&[])
+            .spell_learn_spell_map_bounds_like_cpp(spell_id)
     }
     pub(crate) fn is_spell_learn_spell_like_cpp(&self, spell_id: u32) -> bool {
         self.catalogs
@@ -65,34 +56,15 @@ impl WorldSession {
         &self,
         spell_id: i32,
     ) -> bool {
-        let Some(spell_store) = self.spell_store() else {
-            return false;
-        };
-        wow_data::represented_spell_valid_with_seen_like_cpp(
-            spell_store,
-            spell_id,
-            &mut HashSet::new(),
-        )
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.represented_spell_valid_for_learning_like_cpp(hub, spell_id)
     }
     pub(in crate::session) fn represented_direct_learn_spell_triggers_like_cpp(
         &self,
         spell_id: i32,
     ) -> Vec<i32> {
-        self.spell_store()
-            .and_then(|store| store.get(spell_id))
-            .map(|spell_info| {
-                spell_info
-                    .effects()
-                    .iter()
-                    .filter(|effect| {
-                        effect.effect
-                            == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL
-                            && effect.effect_trigger_spell > 0
-                    })
-                    .map(|effect| effect.effect_trigger_spell)
-                    .collect()
-            })
-            .unwrap_or_default()
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.represented_direct_learn_spell_triggers_like_cpp(hub, spell_id)
     }
     pub(crate) fn apply_loaded_known_spell_dependencies_like_cpp(
         &mut self,
@@ -105,32 +77,8 @@ impl WorldSession {
         &self,
         known_spells: &mut Vec<i32>,
     ) -> usize {
-        let Some(spell_chains) = self.catalogs.spell_catalogs.spell_chain_store() else {
-            return 0;
-        };
-
-        let known_set: HashSet<i32> = known_spells.iter().copied().collect();
-        let before = known_spells.len();
-        known_spells.retain(|spell_id| {
-            let Ok(mut next_spell_id) = u32::try_from(*spell_id) else {
-                return true;
-            };
-
-            loop {
-                next_spell_id = spell_chains.next_spell_in_chain_like_cpp(next_spell_id);
-                if next_spell_id == 0 {
-                    return true;
-                }
-
-                if let Ok(next_spell_i32) = i32::try_from(next_spell_id)
-                    && known_set.contains(&next_spell_i32)
-                {
-                    return false;
-                }
-            }
-        });
-
-        before - known_spells.len()
+        self.catalogs
+            .deactivate_lower_rank_known_spells_for_send_like_cpp(known_spells)
     }
     pub(crate) fn apply_login_known_spell_proficiencies_like_cpp(
         &mut self,
@@ -272,79 +220,8 @@ impl WorldSession {
         learned
     }
     pub(crate) fn apply_loaded_spell_learn_skills_like_cpp(&mut self, roots: &[i32]) -> bool {
-        for &spell_id in roots {
-            let Ok(spell_id) = u32::try_from(spell_id) else {
-                return false;
-            };
-            let learned_skill = match self.spell_learn_skill_lookup_like_cpp(spell_id) {
-                SpellLearnSkillLookupLikeCpp::Present(node) => *node,
-                SpellLearnSkillLookupLikeCpp::CoveredWithoutNode => continue,
-                SpellLearnSkillLookupLikeCpp::Indeterminate(_)
-                | SpellLearnSkillLookupLikeCpp::MissingCoverage => return false,
-            };
-            let Some(mut value) = self.resolved_player_skill_value_like_cpp(learned_skill.skill)
-            else {
-                return false;
-            };
-            value = value.max(learned_skill.value);
-            let Some(current_max) =
-                self.resolved_player_skill_max_value_like_cpp(learned_skill.skill)
-            else {
-                return false;
-            };
-            let mut new_max = learned_skill.maxvalue;
-            if new_max == 0 {
-                let (Some(skills), Some(lines), Some(tiers)) = (
-                    self.skill_store(),
-                    self.skill_line_store(),
-                    self.skill_tiers_store(),
-                ) else {
-                    return false;
-                };
-                let Some(rc_info) = skills.skill_race_class_info_like_cpp(
-                    learned_skill.skill,
-                    self.player_race_like_cpp(),
-                    self.player_class_like_cpp(),
-                ) else {
-                    return false;
-                };
-                match skills.skill_range_type_like_cpp(rc_info, lines, tiers) {
-                    SkillRangeTypeLikeCpp::Language => {
-                        value = 300;
-                        new_max = 300;
-                    }
-                    SkillRangeTypeLikeCpp::Level => {
-                        new_max = self.max_skill_value_for_level_like_cpp();
-                    }
-                    SkillRangeTypeLikeCpp::Mono => new_max = 1,
-                    SkillRangeTypeLikeCpp::Rank => {
-                        let Some(tier) = u32::try_from(rc_info.skill_tier_id)
-                            .ok()
-                            .and_then(|id| tiers.get_skill_tier_like_cpp(id))
-                        else {
-                            return false;
-                        };
-                        new_max = tier
-                            .get_value_for_tier_index_like_cpp(u32::from(
-                                learned_skill.step.saturating_sub(1),
-                            ))
-                            .try_into()
-                            .unwrap_or(u16::MAX);
-                    }
-                    SkillRangeTypeLikeCpp::None => return false,
-                }
-                if rc_info.flags & wow_data::SKILL_FLAG_ALWAYS_MAX_VALUE_LIKE_CPP != 0 {
-                    value = new_max;
-                }
-            }
-            self.set_represented_player_skill_like_cpp(
-                learned_skill.skill,
-                learned_skill.step,
-                value,
-                current_max.max(new_max),
-            );
-        }
-        true
+        let (state, mut hub) = crate::session::split_spell_state_mut(self);
+        state.apply_loaded_spell_learn_skills_like_cpp(&mut hub, roots)
     }
     fn previous_spell_learn_skill_like_cpp(
         &self,
@@ -691,13 +568,6 @@ impl WorldSession {
     pub(crate) fn known_spells_like_cpp(&self) -> Vec<i32> {
         self.resolved_known_spells_like_cpp().unwrap_or_default()
     }
-    #[cfg(test)]
-    pub(crate) fn known_spells_fixture_like_cpp(&self) -> Vec<i32> {
-        self.spell_state
-            .player_spell_test_fixture_like_cpp
-            .known_spells
-            .clone()
-    }
     pub(crate) fn represented_dependent_known_spells_like_cpp(&self) -> HashSet<i32> {
         self.with_player_spell_runtime_like_cpp(|runtime| {
             runtime
@@ -733,3 +603,191 @@ impl WorldSession {
         .unwrap_or_default()
     }
 }
+
+impl crate::session::state::SessionSpellState {
+    pub(in crate::session) fn represented_spell_valid_for_learning_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        spell_id: i32,
+    ) -> bool {
+        let Some(spell_store) = hub.catalogs.spell_store() else {
+            return false;
+        };
+        wow_data::represented_spell_valid_with_seen_like_cpp(
+            spell_store,
+            spell_id,
+            &mut HashSet::new(),
+        )
+    }
+
+    pub(in crate::session) fn represented_direct_learn_spell_triggers_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        spell_id: i32,
+    ) -> Vec<i32> {
+        hub.catalogs
+            .spell_store()
+            .and_then(|store| store.get(spell_id))
+            .map(|spell_info| {
+                spell_info
+                    .effects()
+                    .iter()
+                    .filter(|effect| {
+                        effect.effect
+                            == wow_data::spell::spell_effect_types::SPELL_EFFECT_LEARN_SPELL
+                            && effect.effect_trigger_spell > 0
+                    })
+                    .map(|effect| effect.effect_trigger_spell)
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn apply_loaded_spell_learn_skills_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        roots: &[i32],
+    ) -> bool {
+        for &spell_id in roots {
+            let Ok(spell_id) = u32::try_from(spell_id) else {
+                return false;
+            };
+            let learned_skill = match hub.catalogs.spell_learn_skill_lookup_like_cpp(spell_id) {
+                SpellLearnSkillLookupLikeCpp::Present(node) => *node,
+                SpellLearnSkillLookupLikeCpp::CoveredWithoutNode => continue,
+                SpellLearnSkillLookupLikeCpp::Indeterminate(_)
+                | SpellLearnSkillLookupLikeCpp::MissingCoverage => return false,
+            };
+            let Some(mut value) = hub
+                .shared()
+                .resolved_player_skill_value_like_cpp(learned_skill.skill)
+            else {
+                return false;
+            };
+            value = value.max(learned_skill.value);
+            let Some(current_max) = hub
+                .shared()
+                .resolved_player_skill_max_value_like_cpp(learned_skill.skill)
+            else {
+                return false;
+            };
+            let mut new_max = learned_skill.maxvalue;
+            if new_max == 0 {
+                let (Some(skills), Some(lines), Some(tiers)) = (
+                    hub.catalogs.skill_store(),
+                    hub.catalogs.skill_line_store(),
+                    hub.catalogs.skill_tiers_store(),
+                ) else {
+                    return false;
+                };
+                let Some(rc_info) = skills.skill_race_class_info_like_cpp(
+                    learned_skill.skill,
+                    hub.shared().player_race_like_cpp(),
+                    hub.shared().player_class_like_cpp(),
+                ) else {
+                    return false;
+                };
+                match skills.skill_range_type_like_cpp(rc_info, lines, tiers) {
+                    SkillRangeTypeLikeCpp::Language => {
+                        value = 300;
+                        new_max = 300;
+                    }
+                    SkillRangeTypeLikeCpp::Level => {
+                        new_max = hub.shared().max_skill_value_for_level_like_cpp();
+                    }
+                    SkillRangeTypeLikeCpp::Mono => new_max = 1,
+                    SkillRangeTypeLikeCpp::Rank => {
+                        let Some(tier) = u32::try_from(rc_info.skill_tier_id)
+                            .ok()
+                            .and_then(|id| tiers.get_skill_tier_like_cpp(id))
+                        else {
+                            return false;
+                        };
+                        new_max = tier
+                            .get_value_for_tier_index_like_cpp(u32::from(
+                                learned_skill.step.saturating_sub(1),
+                            ))
+                            .try_into()
+                            .unwrap_or(u16::MAX);
+                    }
+                    SkillRangeTypeLikeCpp::None => return false,
+                }
+                if rc_info.flags & wow_data::SKILL_FLAG_ALWAYS_MAX_VALUE_LIKE_CPP != 0 {
+                    value = new_max;
+                }
+            }
+            hub.set_represented_player_skill_like_cpp(
+                learned_skill.skill,
+                learned_skill.step,
+                value,
+                current_max.max(new_max),
+            );
+        }
+        true
+    }
+
+    #[cfg(test)]
+    pub(crate) fn known_spells_fixture_like_cpp(&self) -> Vec<i32> {
+        self.player_spell_test_fixture_like_cpp.known_spells.clone()
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    pub(crate) fn spell_learn_skill_lookup_like_cpp(
+        &self,
+        spell_id: u32,
+    ) -> SpellLearnSkillLookupLikeCpp<'_> {
+        self.spell_catalogs
+            .spell_learn_skill_store
+            .as_ref()
+            .map(|store| store.spell_learn_skill_lookup_like_cpp(spell_id))
+            .unwrap_or(SpellLearnSkillLookupLikeCpp::MissingCoverage)
+    }
+
+    pub(crate) fn spell_learn_spell_map_bounds_like_cpp(
+        &self,
+        spell_id: u32,
+    ) -> &[SpellLearnSpellNodeLikeCpp] {
+        self.spell_catalogs
+            .spell_learn_spell_store
+            .as_ref()
+            .map(|store| store.get_spell_learn_spell_map_bounds_like_cpp(spell_id))
+            .unwrap_or(&[])
+    }
+
+    pub(crate) fn deactivate_lower_rank_known_spells_for_send_like_cpp(
+        &self,
+        known_spells: &mut Vec<i32>,
+    ) -> usize {
+        let Some(spell_chains) = self.spell_catalogs.spell_chain_store() else {
+            return 0;
+        };
+
+        let known_set: HashSet<i32> = known_spells.iter().copied().collect();
+        let before = known_spells.len();
+        known_spells.retain(|spell_id| {
+            let Ok(mut next_spell_id) = u32::try_from(*spell_id) else {
+                return true;
+            };
+
+            loop {
+                next_spell_id = spell_chains.next_spell_in_chain_like_cpp(next_spell_id);
+                if next_spell_id == 0 {
+                    return true;
+                }
+
+                if let Ok(next_spell_i32) = i32::try_from(next_spell_id)
+                    && known_set.contains(&next_spell_i32)
+                {
+                    return false;
+                }
+            }
+        });
+
+        before - known_spells.len()
+    }
+}
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/spell_state/spellbook/f3_shims.rs"]
+mod f3_shims;
