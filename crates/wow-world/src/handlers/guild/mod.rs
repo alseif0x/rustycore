@@ -282,7 +282,7 @@ impl crate::session::WorldSession {
             }
         };
 
-        if self
+        if crate::session::cx_inventory_ref(self)
             .represented_guild_bank_gameobject_can_interact_like_cpp(packet.banker)
             .is_none()
         {
@@ -318,7 +318,7 @@ impl crate::session::WorldSession {
             }
         };
 
-        if self
+        if crate::session::cx_inventory_ref(self)
             .represented_guild_bank_gameobject_can_interact_like_cpp(packet.banker)
             .is_none()
         {

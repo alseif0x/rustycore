@@ -794,7 +794,7 @@ async fn push_quest_to_party_repeatable_turn_in_success_prompts_request_items_wi
         )
     );
     assert!(receiver_rx.try_recv().is_err());
-    let commands = receiver_session.drain_session_commands();
+    let commands = receiver_session.core.drain_session_commands();
     assert_eq!(commands.len(), 1);
     match &commands[0] {
         SessionCommand::SendRepeatableTurnInRequestItemsLikeCpp(command) => {

@@ -136,18 +136,19 @@ impl WorldSession {
         }
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
         let canonical = pet_guid.is_some_and(|pet_guid| {
-            self.with_canonical_pet_mut_like_cpp(pet_guid, |pet| {
-                pet.set_created_by_spell_id_like_cpp(created_by_spell);
-                pet.creature_mut()
-                    .set_react_state(react_state_from_db_like_cpp(react_state));
-                pet.creature_mut()
-                    .unit_mut()
-                    .subsystems_mut()
-                    .control
-                    .init_charm_info()
-                    .command_state = command_state;
-            })
-            .is_some()
+            self.core
+                .with_canonical_pet_mut_like_cpp(pet_guid, |pet| {
+                    pet.set_created_by_spell_id_like_cpp(created_by_spell);
+                    pet.creature_mut()
+                        .set_react_state(react_state_from_db_like_cpp(react_state));
+                    pet.creature_mut()
+                        .unit_mut()
+                        .subsystems_mut()
+                        .control
+                        .init_charm_info()
+                        .command_state = command_state;
+                })
+                .is_some()
         });
         #[cfg(test)]
         if !canonical {
@@ -173,49 +174,6 @@ impl WorldSession {
         let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
             state.temporary_mount_react_state = None;
         });
-    }
-
-    pub(crate) fn load_represented_pet_spell_rows_like_cpp(
-        &mut self,
-        pet_number: u32,
-        rows: impl IntoIterator<Item = CharacterPetSpellRowLikeCpp>,
-    ) -> usize {
-        crate::session::cx_pets(self).load_represented_pet_spell_rows_like_cpp(pet_number, rows)
-    }
-
-    pub(crate) fn load_represented_pet_spell_cooldown_rows_like_cpp(
-        &mut self,
-        pet_number: u32,
-        rows: impl IntoIterator<Item = CharacterPetSpellCooldownRowLikeCpp>,
-    ) -> usize {
-        crate::session::cx_pets(self)
-            .load_represented_pet_spell_cooldown_rows_like_cpp(pet_number, rows)
-    }
-
-    pub(crate) fn load_represented_pet_spell_charge_rows_like_cpp(
-        &mut self,
-        pet_number: u32,
-        rows: impl IntoIterator<Item = CharacterPetSpellChargeRowLikeCpp>,
-    ) -> usize {
-        crate::session::cx_pets(self)
-            .load_represented_pet_spell_charge_rows_like_cpp(pet_number, rows)
-    }
-
-    pub(crate) fn load_represented_pet_aura_rows_like_cpp(
-        &mut self,
-        pet_number: u32,
-        rows: impl IntoIterator<Item = CharacterPetAuraRowLikeCpp>,
-    ) -> usize {
-        crate::session::cx_pets(self).load_represented_pet_aura_rows_like_cpp(pet_number, rows)
-    }
-
-    pub(crate) fn load_represented_pet_aura_effect_rows_like_cpp(
-        &mut self,
-        pet_number: u32,
-        rows: impl IntoIterator<Item = CharacterPetAuraEffectRowLikeCpp>,
-    ) -> usize {
-        crate::session::cx_pets(self)
-            .load_represented_pet_aura_effect_rows_like_cpp(pet_number, rows)
     }
 }
 

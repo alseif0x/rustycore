@@ -21,14 +21,6 @@ impl WorldSession {
         let dispatcher = Arc::clone(dispatcher?);
         Some(dispatcher(self, script_id, trigger_id, entered))
     }
-    pub(crate) fn represented_is_tavern_area_trigger_like_cpp(
-        &self,
-        taverns: &TavernAreaTriggerStoreLikeCpp,
-        trigger_id: u32,
-    ) -> bool {
-        self.instances
-            .represented_is_tavern_area_trigger_like_cpp(taverns, trigger_id)
-    }
     /// C++ `Player::IsInAreaTriggerRadius`.
     pub(crate) fn player_is_in_area_trigger_radius_like_cpp(
         &self,
@@ -44,14 +36,14 @@ impl WorldSession {
         let Some(player_phase_shift) = self.represented_player_phase_shift_like_cpp() else {
             return false;
         };
-        if self.player_map_id_like_cpp() != trigger_map_id
+        if self.core.player_map_id_like_cpp() != trigger_map_id
             && !player_phase_shift.has_visible_map_id_like_cpp(u32::from(trigger_map_id))
         {
             return false;
         }
 
         if trigger.phase_id != 0 || trigger.phase_group_id != 0 || trigger.phase_use_flags != 0 {
-            let (trigger_phase_shift, _) = self.db_spawn_phase_shift_like_cpp(
+            let (trigger_phase_shift, _) = self.catalogs.db_spawn_phase_shift_like_cpp(
                 trigger_map_id,
                 trigger.phase_use_flags as u8,
                 u16::try_from(trigger.phase_id).unwrap_or_default(),
@@ -77,11 +69,9 @@ impl WorldSession {
         }
     }
     pub fn set_area_table_store(&mut self, store: Arc<AreaTableStore>) {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.catalogs.area_table_store = Some(store);
-    }
-    pub(crate) fn area_table_store(&self) -> Option<&Arc<AreaTableStore>> {
-        self.catalogs.area_table_store()
     }
     fn update_represented_hostile_area_state_like_cpp(&mut self, zone: &wow_data::AreaTableEntry) {
         let war_mode_active = self.player_war_mode_local_active_like_cpp();
@@ -131,7 +121,10 @@ impl WorldSession {
         trigger_id: u32,
         entered: bool,
     ) -> bool {
-        if !self.represented_is_tavern_area_trigger_like_cpp(taverns, trigger_id) {
+        if !self
+            .instances
+            .represented_is_tavern_area_trigger_like_cpp(taverns, trigger_id)
+        {
             return false;
         }
 
@@ -167,8 +160,9 @@ impl WorldSession {
     pub(crate) fn player_explored_zones_snapshot_like_cpp(
         &self,
     ) -> Option<[u64; PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP]> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| *player.explored_zones_blocks_like_cpp());
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| *player.explored_zones_blocks_like_cpp());
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(self.instances.represented_explored_zones_like_cpp);
@@ -199,13 +193,14 @@ impl WorldSession {
         };
         let old_area = world_local.area_id_like_cpp();
         if old_area != new_area {
-            self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+            self.core
+                .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
         if !self.set_player_area_id_like_cpp(new_area) {
             return false;
         }
         let zone_id = world_local.zone_id_like_cpp();
-        let _ = self.with_owned_player_mut_like_cpp(|player| {
+        let _ = self.core.with_owned_player_mut_like_cpp(|player| {
             player
                 .unit_mut()
                 .world_mut()
@@ -280,13 +275,14 @@ impl WorldSession {
         };
         let old_zone = world_local.zone_id_like_cpp();
         if old_zone != new_zone {
-            self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+            self.core
+                .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
         if !self.set_player_zone_id_like_cpp(new_zone) {
             return false;
         }
         let area_id = world_local.area_id_like_cpp();
-        let _ = self.with_owned_player_mut_like_cpp(|player| {
+        let _ = self.core.with_owned_player_mut_like_cpp(|player| {
             player
                 .unit_mut()
                 .world_mut()
@@ -405,11 +401,11 @@ impl WorldSession {
             .represented_reveal_world_map_overlay_criteria_like_cpp
             .push(area_id);
 
-        if let Some(update) = self.mutate_canonical_player_like_cpp(|player| {
+        if let Some(update) = self.core.mutate_canonical_player_like_cpp(|player| {
             player.add_explored_zones_like_cpp(offset, mask);
             player.values_update(true)
         }) {
-            self.send_player_values_update_like_cpp(&update);
+            self.core.send_player_values_update_like_cpp(&update);
         }
 
         if area_entry.exploration_level > 0 {
@@ -489,7 +485,7 @@ impl WorldSession {
 
         let (exited_trigger_id, entered_trigger) = {
             // Get all triggers at the current position on the player's current map.
-            let triggers = store.get_triggers_at_position(self.player_map_id_like_cpp(), &pos);
+            let triggers = store.get_triggers_at_position(self.core.player_map_id_like_cpp(), &pos);
             let exited_trigger_id = self.view.active_area_trigger.filter(|prev_trigger_id| {
                 !triggers
                     .iter()
@@ -562,7 +558,7 @@ impl WorldSession {
         state.set_area_spirit_healer_guid_like_cpp(&mut hub, healer_guid)
     }
     pub(crate) fn area_spirit_healer_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
             player.resurrection_state_like_cpp().area_spirit_healer_guid
         });
         #[cfg(test)]

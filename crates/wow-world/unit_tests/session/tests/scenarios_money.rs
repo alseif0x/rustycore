@@ -90,7 +90,9 @@ async fn money_changed_tracking_event_objective_auto_rewards_like_cpp() {
 
     assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
-        session.represented_quest_complete_status_updates_like_cpp(),
+        session
+            .quest_state
+            .represented_quest_complete_status_updates_like_cpp(),
         &[RepresentedQuestCompleteStatusUpdateLikeCpp {
             quest_id,
             old_status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,
@@ -727,7 +729,7 @@ async fn loot_money_consumes_only_current_active_loot_like_cpp() {
             looted_by_player: false,
         },
     );
-    session.set_active_loot_guid(active_guid);
+    session.loot.set_active_loot_guid(active_guid);
 
     let mut pkt = WorldPacket::new_empty();
     pkt.write_bit(false);

@@ -148,6 +148,7 @@ impl WorldSession {
             );
         }
         for (category, party_type) in self
+            .core
             .party_member_party_type_like_cpp()
             .into_iter()
             .enumerate()

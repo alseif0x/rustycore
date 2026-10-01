@@ -20,4 +20,8 @@ impl crate::session::WorldSession {
         let (state, mut hub) = crate::session::split_instances_mut(self);
         state.set_represented_dungeon_difficulty_id_for_test_like_cpp(&mut hub, difficulty_id)
     }
+    pub(crate) fn current_canonical_player_map_difficulty_id_like_cpp(&self) -> Option<u8> {
+        self.core
+            .current_canonical_player_map_difficulty_id_like_cpp()
+    }
 }

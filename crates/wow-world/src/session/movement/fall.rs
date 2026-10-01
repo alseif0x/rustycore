@@ -88,8 +88,9 @@ impl WorldSession {
         if final_damage > 0
             && let Some(player_guid) = self.player_guid()
         {
-            self.send_player_health_update_like_cpp(player_guid, u64::from(health_after));
-            self.send_environmental_damage_log_like_cpp(
+            self.core
+                .send_player_health_update_like_cpp(player_guid, u64::from(health_after));
+            self.core.send_environmental_damage_log_like_cpp(
                 player_guid,
                 DAMAGE_FALL_LIKE_CPP,
                 damage,
@@ -97,11 +98,12 @@ impl WorldSession {
                 0,
             );
             if killed_player {
-                self.send_player_health_values_update_like_cpp(player_guid, 0);
+                self.core
+                    .send_player_health_values_update_like_cpp(player_guid, 0);
                 // C++ `Player::EnvironmentalDamage` fall-to-death branch
                 // (`Player.cpp:663-670`): item durability loss plus the loss
                 // message. Non-fall environmental damage never wears items.
-                let loss_rate = self.durability_loss_on_death_rate_like_cpp();
+                let loss_rate = self.config.durability_loss_on_death_rate_like_cpp();
                 if loss_rate > 0.0 {
                     self.apply_represented_durability_loss_all_like_cpp(
                         f64::from(loss_rate),

@@ -111,7 +111,7 @@ impl WorldSession {
         // CONNECTION_TYPE_REALM in legacy C++ Opcodes.cpp:1829/1832.
         self.send_packet_realm(&command.party_update);
         for packet in command.member_full_state_packets {
-            self.send_raw_packet_realm(&packet);
+            self.core.send_raw_packet_realm(&packet);
         }
     }
 

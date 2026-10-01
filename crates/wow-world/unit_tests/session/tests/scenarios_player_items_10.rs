@@ -481,10 +481,10 @@ fn moved_bag_detects_active_child_item_loot_like_cpp_swap_item() {
 
     assert!(!session.represented_bag_contains_active_item_loot_like_cpp(bag_guid));
 
-    session.set_active_loot_guid(other_child);
+    session.loot.set_active_loot_guid(other_child);
     assert!(!session.represented_bag_contains_active_item_loot_like_cpp(bag_guid));
 
-    session.set_active_loot_guid(child_guid);
+    session.loot.set_active_loot_guid(child_guid);
     assert!(!session.represented_bag_contains_active_item_loot_like_cpp(bag_guid));
 
     session.loot.loot_table.insert(

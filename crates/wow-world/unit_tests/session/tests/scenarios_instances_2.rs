@@ -236,7 +236,7 @@ async fn dynamic_object_values_snapshot_uses_canonical_map_not_legacy_session_ma
         80,
         0,
     ));
-    assert_eq!(session.player_map_id_like_cpp(), 571);
+    assert_eq!(session.core.player_map_id_like_cpp(), 571);
     add_canonical_test_dynamic_object_on_map(
         &canonical,
         dynamic_guid,

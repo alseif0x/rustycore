@@ -65,7 +65,7 @@ impl WorldSession {
         // C++ exposes one live `Player*` per character GUID through
         // ObjectAccessor. Claim that ownership before ConnectTo/DB loading so
         // two sessions cannot become independent save authorities.
-        if !self.try_claim_character_login_like_cpp(pkt.guid) {
+        if !self.lifecycle.try_claim_character_login_like_cpp(pkt.guid) {
             warn!(
                 account = self.core.account_id,
                 guid = ?pkt.guid,
@@ -105,7 +105,8 @@ impl WorldSession {
             "TimeSyncResponse: seq={}, client_time={} for account {}",
             resp.sequence_index, resp.client_time, self.core.account_id
         );
-        self.record_time_sync_response_like_cpp(resp.sequence_index, resp.client_time);
+        self.core
+            .record_time_sync_response_like_cpp(resp.sequence_index, resp.client_time);
     }
 
     /// Handle CMSG_LOGOUT_REQUEST — player wants to log out.
@@ -255,6 +256,7 @@ impl WorldSession {
         // Drain that complete prefix before starting the realm-routed login
         // burst so the two physical sockets retain C++ call order.
         if !self
+            .core
             .wait_for_instance_send_before_realm_send_like_cpp()
             .await
         {
@@ -264,15 +266,18 @@ impl WorldSession {
         // C++ resends both account-scoped datasets here even though they were
         // already sent by `InitializeSessionCallback` on the glue screen.
         self.send_packet_realm(
-            &self.account_data_times_like_cpp(ObjectGuid::EMPTY, GLOBAL_CACHE_MASK_LIKE_CPP),
+            &self
+                .lifecycle
+                .account_data_times_like_cpp(ObjectGuid::EMPTY, GLOBAL_CACHE_MASK_LIKE_CPP),
         );
-        self.send_packet_realm(&self.tutorial_flags_packet_like_cpp());
+        self.send_packet_realm(&self.lifecycle.tutorial_flags_packet_like_cpp());
 
         let Some(dungeon_difficulty) = self.represented_dungeon_difficulty_packet_like_cpp() else {
             return false;
         };
         self.send_packet_realm(&dungeon_difficulty);
         if !self
+            .core
             .wait_for_realm_send_before_instance_update_like_cpp()
             .await
         {
@@ -284,15 +289,22 @@ impl WorldSession {
             reason: 0,
         });
         if !self
+            .core
             .wait_for_instance_send_before_realm_send_like_cpp()
             .await
         {
             return false;
         }
         self.send_packet_realm(
-            &self.account_data_times_like_cpp(guid, ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP),
+            &self
+                .lifecycle
+                .account_data_times_like_cpp(guid, ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP),
         );
-        self.send_packet_realm(&self.feature_system_status_with_policy_like_cpp(feature_policy));
+        self.send_packet_realm(
+            &self
+                .core
+                .feature_system_status_with_policy_like_cpp(feature_policy),
+        );
 
         for motd_line in motd_lines_like_cpp(motd) {
             self.send_packet_realm(&ChatServerMessage {
@@ -310,6 +322,7 @@ impl WorldSession {
         // it is bracketed by the same cross-socket ordering fences the rest
         // of the burst already uses.
         if !self
+            .core
             .wait_for_realm_send_before_instance_update_like_cpp()
             .await
         {
@@ -318,6 +331,7 @@ impl WorldSession {
         self.recover_battle_pet_trainer_purchases_with_generator_like_cpp(item_guid_generator)
             .await;
         if !self
+            .core
             .wait_for_instance_send_before_realm_send_like_cpp()
             .await
         {
@@ -326,8 +340,11 @@ impl WorldSession {
 
         // C++ sends the journal lock before
         // `Player::SendInitialPacketsBeforeAddToMap`.
-        self.send_battle_pet_journal_lock_status_like_cpp().await;
-        self.wait_for_realm_send_before_instance_update_like_cpp()
+        crate::session::cx_pets(self)
+            .send_battle_pet_journal_lock_status_like_cpp()
+            .await;
+        self.core
+            .wait_for_realm_send_before_instance_update_like_cpp()
             .await
     }
 }

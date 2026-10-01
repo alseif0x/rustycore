@@ -548,5 +548,5 @@ fn virtual_realm_address_uses_realmlist_region_and_battlegroup_like_cpp() {
     session.set_realm_handle_like_cpp(5, 6, 9);
 
     assert_eq!(session.realm_id(), 9);
-    assert_eq!(session.virtual_realm_address(), 0x0506_0009);
+    assert_eq!(session.core.virtual_realm_address(), 0x0506_0009);
 }

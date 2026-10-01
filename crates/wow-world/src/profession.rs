@@ -342,7 +342,7 @@ impl WorldSession {
         requested_skill_ids: impl IntoIterator<Item = u32>,
     ) -> Result<PrimaryProfessionCapacityPlanLikeCpp, PrimaryProfessionCapacityPlanErrorLikeCpp>
     {
-        let Some(skill_lines) = self.skill_line_store() else {
+        let Some(skill_lines) = self.catalogs.skill_line_store() else {
             return Err(PrimaryProfessionCapacityPlanErrorLikeCpp::MissingSkillLineStore);
         };
         let Some(skills_loaded) = self.resolved_player_skill_records_loaded_like_cpp() else {

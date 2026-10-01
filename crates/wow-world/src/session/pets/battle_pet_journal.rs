@@ -6,31 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) async fn battle_pet_try_acquire_journal_lease_like_cpp(&self) -> bool {
-        crate::session::cx_pets_ref(self)
-            .battle_pet_try_acquire_journal_lease_like_cpp()
-            .await
-    }
-    pub(crate) fn battle_pet_species_entry_like_cpp(
-        &self,
-        species: u32,
-    ) -> Option<wow_data::BattlePetSpeciesEntry> {
-        crate::session::cx_pets_ref(self).battle_pet_species_entry_like_cpp(species)
-    }
-    pub(in crate::session) fn battle_pet_xp_per_level_like_cpp(&self, level: u16) -> Option<u16> {
-        crate::session::cx_pets_ref(self).battle_pet_xp_per_level_like_cpp(level)
-    }
-    pub(crate) fn has_represented_battle_pet_journal_lock_like_cpp(&self) -> bool {
-        crate::session::cx_pets_ref(self).has_represented_battle_pet_journal_lock_like_cpp()
-    }
-    pub(crate) async fn send_battle_pet_journal_lock_status_like_cpp(&mut self) {
-        crate::session::cx_pets(self)
-            .send_battle_pet_journal_lock_status_like_cpp()
-            .await
-    }
-    pub(crate) fn battle_pet_max_pet_level_like_cpp(&self) -> Option<u16> {
-        crate::session::cx_pets_ref(self).battle_pet_max_pet_level_like_cpp()
-    }
     /// C++ `BattlePetMgr::ChangeBattlePetQuality`. `BattlePet::CalculateStats`
     /// may return early when breed-state DB2 rows are missing; that does not
     /// abort the quality change.
@@ -40,7 +15,7 @@ impl WorldSession {
         pet_guid: ObjectGuid,
         quality: u8,
     ) -> RepresentedBattlePetQualityOutcomeLikeCpp {
-        if !self.has_represented_battle_pet_journal_lock_like_cpp() {
+        if !crate::session::cx_pets_ref(self).has_represented_battle_pet_journal_lock_like_cpp() {
             return RepresentedBattlePetQualityOutcomeLikeCpp::NoJournalLock;
         }
 
@@ -162,7 +137,7 @@ impl WorldSession {
         pet_guid: ObjectGuid,
         granted_levels: u16,
     ) -> RepresentedBattlePetGrantLevelOutcomeLikeCpp {
-        if !self.has_represented_battle_pet_journal_lock_like_cpp() {
+        if !crate::session::cx_pets_ref(self).has_represented_battle_pet_journal_lock_like_cpp() {
             return RepresentedBattlePetGrantLevelOutcomeLikeCpp::NoJournalLock;
         }
 
@@ -310,11 +285,6 @@ impl WorldSession {
                 RepresentedBattlePetGrantLevelOutcomeLikeCpp::UnknownPet
             }
         }
-    }
-    pub(crate) fn represented_battle_pet_journal_like_cpp(
-        &self,
-    ) -> Option<wow_packet::packets::misc::BattlePetJournal> {
-        crate::session::cx_pets_ref(self).represented_battle_pet_journal_like_cpp()
     }
 }
 

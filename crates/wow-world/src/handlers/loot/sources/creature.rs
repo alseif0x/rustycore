@@ -59,6 +59,7 @@ impl WorldSession {
             .is_some()
         {
             return self
+                .core
                 .mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
                     creature.is_fully_looted_like_cpp()
                 })
@@ -78,6 +79,7 @@ impl WorldSession {
         };
 
         let mut candidates: Vec<ObjectGuid> = self
+            .core
             .world_creature_guids()
             .into_iter()
             .filter(|guid| {
@@ -111,7 +113,7 @@ impl WorldSession {
             }
 
             if self.loot.loot_table.get(&owner_guid).is_some_and(|loot| {
-                self.represented_loot_can_be_opened_by_player_like_cpp(
+                self.loot.represented_loot_can_be_opened_by_player_like_cpp(
                     owner_guid,
                     loot,
                     player_guid,
@@ -247,7 +249,7 @@ impl WorldSession {
                     OwnedLootScope::Personal(player_guid) => player_guid,
                     OwnedLootScope::Shared => loot_owner_guid,
                 };
-                self.cache_represented_owned_loot_snapshot_like_cpp(
+                self.loot.cache_represented_owned_loot_snapshot_like_cpp(
                     creature_guid,
                     cache_player,
                     snapshot,
@@ -589,16 +591,16 @@ impl WorldSession {
             return Some(Vec::new());
         }
 
-        let mut rng = self.represented_runtime_subrng_like_cpp();
+        let mut rng = self.core.represented_runtime_subrng_like_cpp();
         let stores = self.loot_stores()?;
         let store = stores.get(&LootStoreKind::Creature)?;
         let rates = self.loot_drop_rates_like_cpp();
         let condition_ids =
             store.condition_ids_for_fill_like_cpp(loot_id, LootStoreKind::Creature, stores);
-        let condition_rows = self
+        let condition_rows = crate::session::cx_loot_ref(self)
             .load_represented_creature_loot_condition_rows_like_cpp(&condition_ids)
             .await;
-        let condition_references = self
+        let condition_references = crate::session::cx_loot_ref(self)
             .load_represented_creature_loot_condition_reference_rows_like_cpp(&condition_rows)
             .await;
         let addon_metadata = self

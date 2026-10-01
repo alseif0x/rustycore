@@ -80,23 +80,24 @@ impl WorldSession {
                 sender_guid,
                 quest_push_reason::NOT_ALLOWED,
             );
-            self.record_represented_push_quest_to_party_outcome_like_cpp(
-                RepresentedPushQuestToPartyOutcomeLikeCpp {
-                    sender_guid,
-                    quest_id: packet.quest_id,
-                    target_guid: sender_guid,
-                    reason: RepresentedPushQuestToPartyOutcomeReasonLikeCpp::NotAllowed,
-                    quest_pool_active_check_unrepresented: false,
-                    group_runtime_unrepresented: false,
-                    receiver_fanout_unrepresented: false,
-                },
-            );
+            self.quest_state
+                .record_represented_push_quest_to_party_outcome_like_cpp(
+                    RepresentedPushQuestToPartyOutcomeLikeCpp {
+                        sender_guid,
+                        quest_id: packet.quest_id,
+                        target_guid: sender_guid,
+                        reason: RepresentedPushQuestToPartyOutcomeReasonLikeCpp::NotAllowed,
+                        quest_pool_active_check_unrepresented: false,
+                        group_runtime_unrepresented: false,
+                        receiver_fanout_unrepresented: false,
+                    },
+                );
             return;
         }
 
         let Some(quest_pool_store) = self.catalogs.quests.pool_store.as_ref().map(Arc::clone)
         else {
-            self.record_represented_push_quest_to_party_outcome_like_cpp(
+            self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
                 RepresentedPushQuestToPartyOutcomeLikeCpp {
                     sender_guid,
                     quest_id: packet.quest_id,
@@ -115,17 +116,18 @@ impl WorldSession {
                 sender_guid,
                 quest_push_reason::NOT_DAILY,
             );
-            self.record_represented_push_quest_to_party_outcome_like_cpp(
-                RepresentedPushQuestToPartyOutcomeLikeCpp {
-                    sender_guid,
-                    quest_id: packet.quest_id,
-                    target_guid: sender_guid,
-                    reason: RepresentedPushQuestToPartyOutcomeReasonLikeCpp::NotDaily,
-                    quest_pool_active_check_unrepresented: false,
-                    group_runtime_unrepresented: false,
-                    receiver_fanout_unrepresented: false,
-                },
-            );
+            self.quest_state
+                .record_represented_push_quest_to_party_outcome_like_cpp(
+                    RepresentedPushQuestToPartyOutcomeLikeCpp {
+                        sender_guid,
+                        quest_id: packet.quest_id,
+                        target_guid: sender_guid,
+                        reason: RepresentedPushQuestToPartyOutcomeReasonLikeCpp::NotDaily,
+                        quest_pool_active_check_unrepresented: false,
+                        group_runtime_unrepresented: false,
+                        receiver_fanout_unrepresented: false,
+                    },
+                );
             return;
         }
 
@@ -134,17 +136,18 @@ impl WorldSession {
                 sender_guid,
                 quest_push_reason::NOT_IN_PARTY,
             );
-            self.record_represented_push_quest_to_party_outcome_like_cpp(
-                RepresentedPushQuestToPartyOutcomeLikeCpp {
-                    sender_guid,
-                    quest_id: packet.quest_id,
-                    target_guid: sender_guid,
-                    reason: RepresentedPushQuestToPartyOutcomeReasonLikeCpp::NotInParty,
-                    quest_pool_active_check_unrepresented: false,
-                    group_runtime_unrepresented: false,
-                    receiver_fanout_unrepresented: false,
-                },
-            );
+            self.quest_state
+                .record_represented_push_quest_to_party_outcome_like_cpp(
+                    RepresentedPushQuestToPartyOutcomeLikeCpp {
+                        sender_guid,
+                        quest_id: packet.quest_id,
+                        target_guid: sender_guid,
+                        reason: RepresentedPushQuestToPartyOutcomeReasonLikeCpp::NotInParty,
+                        quest_pool_active_check_unrepresented: false,
+                        group_runtime_unrepresented: false,
+                        receiver_fanout_unrepresented: false,
+                    },
+                );
             return;
         }
 
@@ -153,7 +156,8 @@ impl WorldSession {
         };
 
         let Some(group_registry) = self.group_registry().map(Arc::clone) else {
-            self.record_represented_push_quest_to_party_outcome_like_cpp(
+            self.quest_state
+                .record_represented_push_quest_to_party_outcome_like_cpp(
                 RepresentedPushQuestToPartyOutcomeLikeCpp {
                     sender_guid,
                     quest_id: packet.quest_id,
@@ -169,7 +173,8 @@ impl WorldSession {
         };
 
         let Some(player_registry) = self.player_registry().map(Arc::clone) else {
-            self.record_represented_push_quest_to_party_outcome_like_cpp(
+            self.quest_state
+                .record_represented_push_quest_to_party_outcome_like_cpp(
                 RepresentedPushQuestToPartyOutcomeLikeCpp {
                     sender_guid,
                     quest_id: packet.quest_id,
@@ -185,7 +190,8 @@ impl WorldSession {
         };
 
         let Some(group_info) = group_registry.get(&group_guid).map(|entry| entry.clone()) else {
-            self.record_represented_push_quest_to_party_outcome_like_cpp(
+            self.quest_state
+                .record_represented_push_quest_to_party_outcome_like_cpp(
                 RepresentedPushQuestToPartyOutcomeLikeCpp {
                     sender_guid,
                     quest_id: packet.quest_id,
@@ -214,7 +220,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
 
         if receiver_snapshots.is_empty() {
-            self.record_represented_push_quest_to_party_outcome_like_cpp(
+            self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
                 RepresentedPushQuestToPartyOutcomeLikeCpp {
                     sender_guid,
                     quest_id: packet.quest_id,
@@ -236,17 +242,18 @@ impl WorldSession {
                     QUEST_PUSH_REASON_BUSY_LIKE_CPP,
                     String::new(),
                 );
-                self.record_represented_push_quest_to_party_outcome_like_cpp(
-                    RepresentedPushQuestToPartyOutcomeLikeCpp {
-                        sender_guid,
-                        quest_id: packet.quest_id,
-                        target_guid: Some(receiver_guid),
-                        reason: RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverBusy,
-                        quest_pool_active_check_unrepresented: false,
-                        group_runtime_unrepresented: false,
-                        receiver_fanout_unrepresented: false,
-                    },
-                );
+                self.quest_state
+                    .record_represented_push_quest_to_party_outcome_like_cpp(
+                        RepresentedPushQuestToPartyOutcomeLikeCpp {
+                            sender_guid,
+                            quest_id: packet.quest_id,
+                            target_guid: Some(receiver_guid),
+                            reason: RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverBusy,
+                            quest_pool_active_check_unrepresented: false,
+                            group_runtime_unrepresented: false,
+                            receiver_fanout_unrepresented: false,
+                        },
+                    );
                 continue;
             }
 
@@ -267,17 +274,18 @@ impl WorldSession {
                         .to_bytes(),
                     );
                 }
-                self.record_represented_push_quest_to_party_outcome_like_cpp(
-                    RepresentedPushQuestToPartyOutcomeLikeCpp {
-                        sender_guid,
-                        quest_id: packet.quest_id,
-                        target_guid: Some(receiver_guid),
-                        reason: RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverDead,
-                        quest_pool_active_check_unrepresented: false,
-                        group_runtime_unrepresented: false,
-                        receiver_fanout_unrepresented: false,
-                    },
-                );
+                self.quest_state
+                    .record_represented_push_quest_to_party_outcome_like_cpp(
+                        RepresentedPushQuestToPartyOutcomeLikeCpp {
+                            sender_guid,
+                            quest_id: packet.quest_id,
+                            target_guid: Some(receiver_guid),
+                            reason: RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverDead,
+                            quest_pool_active_check_unrepresented: false,
+                            group_runtime_unrepresented: false,
+                            receiver_fanout_unrepresented: false,
+                        },
+                    );
                 continue;
             }
 
@@ -301,7 +309,7 @@ impl WorldSession {
                     }
                     .to_bytes(),
                 );
-                self.record_represented_push_quest_to_party_outcome_like_cpp(
+                self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -343,7 +351,7 @@ impl WorldSession {
                         }
                         .to_bytes(),
                     );
-                    self.record_represented_push_quest_to_party_outcome_like_cpp(
+                    self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
                         RepresentedPushQuestToPartyOutcomeLikeCpp {
                             sender_guid,
                             quest_id: packet.quest_id,
@@ -383,17 +391,19 @@ impl WorldSession {
                     }
                     .to_bytes(),
                 );
-                self.record_represented_push_quest_to_party_outcome_like_cpp(
-                    RepresentedPushQuestToPartyOutcomeLikeCpp {
-                        sender_guid,
-                        quest_id: packet.quest_id,
-                        target_guid: Some(receiver_guid),
-                        reason: RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverLogFull,
-                        quest_pool_active_check_unrepresented: false,
-                        group_runtime_unrepresented: false,
-                        receiver_fanout_unrepresented: false,
-                    },
-                );
+                self.quest_state
+                    .record_represented_push_quest_to_party_outcome_like_cpp(
+                        RepresentedPushQuestToPartyOutcomeLikeCpp {
+                            sender_guid,
+                            quest_id: packet.quest_id,
+                            target_guid: Some(receiver_guid),
+                            reason:
+                                RepresentedPushQuestToPartyOutcomeReasonLikeCpp::ReceiverLogFull,
+                            quest_pool_active_check_unrepresented: false,
+                            group_runtime_unrepresented: false,
+                            receiver_fanout_unrepresented: false,
+                        },
+                    );
                 continue;
             }
 
@@ -430,7 +440,7 @@ impl WorldSession {
                     }
                     .to_bytes(),
                 );
-                self.record_represented_push_quest_to_party_outcome_like_cpp(
+                self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -468,7 +478,7 @@ impl WorldSession {
                     }
                     .to_bytes(),
                 );
-                self.record_represented_push_quest_to_party_outcome_like_cpp(
+                self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -502,7 +512,7 @@ impl WorldSession {
                     }
                     .to_bytes(),
                 );
-                self.record_represented_push_quest_to_party_outcome_like_cpp(
+                self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -542,7 +552,7 @@ impl WorldSession {
                     }
                     .to_bytes(),
                 );
-                self.record_represented_push_quest_to_party_outcome_like_cpp(
+                self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -577,7 +587,7 @@ impl WorldSession {
                     }
                     .to_bytes(),
                 );
-                self.record_represented_push_quest_to_party_outcome_like_cpp(
+                self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -598,7 +608,7 @@ impl WorldSession {
             // receiver's reputation is too low when it may well qualify, so report
             // the eligibility as unrepresented instead.
             let Some(receiver_reputation_standings) = receiver.reputation_standings.as_ref() else {
-                self.record_represented_push_quest_to_party_outcome_like_cpp(
+                self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -655,17 +665,18 @@ impl WorldSession {
                     }
                     .to_bytes(),
                 );
-                self.record_represented_push_quest_to_party_outcome_like_cpp(
-                    RepresentedPushQuestToPartyOutcomeLikeCpp {
-                        sender_guid,
-                        quest_id: packet.quest_id,
-                        target_guid: Some(receiver_guid),
-                        reason,
-                        quest_pool_active_check_unrepresented: false,
-                        group_runtime_unrepresented: false,
-                        receiver_fanout_unrepresented: false,
-                    },
-                );
+                self.quest_state
+                    .record_represented_push_quest_to_party_outcome_like_cpp(
+                        RepresentedPushQuestToPartyOutcomeLikeCpp {
+                            sender_guid,
+                            quest_id: packet.quest_id,
+                            target_guid: Some(receiver_guid),
+                            reason,
+                            quest_pool_active_check_unrepresented: false,
+                            group_runtime_unrepresented: false,
+                            receiver_fanout_unrepresented: false,
+                        },
+                    );
                 continue;
             }
 
@@ -710,7 +721,7 @@ impl WorldSession {
                 // `CanTakeQuest(target,false)`. Do not fake it here; keep the
                 // success path blocked until real/represented CanTakeQuest is available.
                 blocked_by_unsupported_success_path = true;
-                self.record_represented_push_quest_to_party_outcome_like_cpp(
+                self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -755,17 +766,18 @@ impl WorldSession {
                     }
                     .to_bytes(),
                 );
-                self.record_represented_push_quest_to_party_outcome_like_cpp(
-                    RepresentedPushQuestToPartyOutcomeLikeCpp {
-                        sender_guid,
-                        quest_id: packet.quest_id,
-                        target_guid: Some(receiver_guid),
-                        reason,
-                        quest_pool_active_check_unrepresented: false,
-                        group_runtime_unrepresented: false,
-                        receiver_fanout_unrepresented: false,
-                    },
-                );
+                self.quest_state
+                    .record_represented_push_quest_to_party_outcome_like_cpp(
+                        RepresentedPushQuestToPartyOutcomeLikeCpp {
+                            sender_guid,
+                            quest_id: packet.quest_id,
+                            target_guid: Some(receiver_guid),
+                            reason,
+                            quest_pool_active_check_unrepresented: false,
+                            group_runtime_unrepresented: false,
+                            receiver_fanout_unrepresented: false,
+                        },
+                    );
                 continue;
             }
 
@@ -789,7 +801,7 @@ impl WorldSession {
                     }
                     .to_bytes(),
                 );
-                self.record_represented_push_quest_to_party_outcome_like_cpp(
+                self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -824,7 +836,7 @@ impl WorldSession {
                     }
                     .to_bytes(),
                 );
-                self.record_represented_push_quest_to_party_outcome_like_cpp(
+                self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -844,7 +856,7 @@ impl WorldSession {
             {
                 let Some(sender_guid_for_receiver_command) = sender_guid else {
                     blocked_by_unsupported_success_path = true;
-                    self.record_represented_push_quest_to_party_outcome_like_cpp(
+                    self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
                         RepresentedPushQuestToPartyOutcomeLikeCpp {
                             sender_guid,
                             quest_id: packet.quest_id,
@@ -870,7 +882,7 @@ impl WorldSession {
                     .is_err()
                 {
                     blocked_by_unsupported_success_path = true;
-                    self.record_represented_push_quest_to_party_outcome_like_cpp(
+                    self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
                         RepresentedPushQuestToPartyOutcomeLikeCpp {
                             sender_guid,
                             quest_id: packet.quest_id,
@@ -894,7 +906,7 @@ impl WorldSession {
                     String::new(),
                 );
 
-                self.record_represented_push_quest_to_party_outcome_like_cpp(
+                self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -910,7 +922,7 @@ impl WorldSession {
 
             let Some(sender_guid_for_receiver_command) = sender_guid else {
                 blocked_by_unsupported_success_path = true;
-                self.record_represented_push_quest_to_party_outcome_like_cpp(
+                self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -936,7 +948,7 @@ impl WorldSession {
                 .is_err()
             {
                 blocked_by_unsupported_success_path = true;
-                self.record_represented_push_quest_to_party_outcome_like_cpp(
+                self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -955,7 +967,7 @@ impl WorldSession {
                 QUEST_PUSH_REASON_SUCCESS_LIKE_CPP,
                 String::new(),
             );
-            self.record_represented_push_quest_to_party_outcome_like_cpp(
+            self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
                 RepresentedPushQuestToPartyOutcomeLikeCpp {
                     sender_guid,
                     quest_id: packet.quest_id,
@@ -969,7 +981,7 @@ impl WorldSession {
         }
 
         if blocked_by_unsupported_success_path {
-            self.record_represented_push_quest_to_party_outcome_like_cpp(
+            self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
                 RepresentedPushQuestToPartyOutcomeLikeCpp {
                     sender_guid,
                     quest_id: packet.quest_id,

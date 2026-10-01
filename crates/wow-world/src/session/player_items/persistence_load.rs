@@ -81,7 +81,9 @@ impl WorldSession {
         else {
             return InventoryResult::ItemNotFound;
         };
-        let item_effect_spell_ids = self.represented_item_effect_spell_ids_like_cpp(item.entry_id);
+        let item_effect_spell_ids = self
+            .catalogs
+            .represented_item_effect_spell_ids_like_cpp(item.entry_id);
         let effect0_spell_id = item_effect_spell_ids
             .first()
             .and_then(|(_, spell_id)| u32::try_from(*spell_id).ok());
@@ -140,7 +142,8 @@ impl WorldSession {
         &mut self,
         item: &wow_entities::Item,
     ) {
-        let _ = self.check_account_heirloom_upgrades_like_cpp(item.object().entry());
+        let _ = crate::session::cx_lifecycle(self)
+            .check_account_heirloom_upgrades_like_cpp(item.object().entry());
         let _ = self.add_item_appearance_for_runtime_item_like_cpp(item);
     }
     pub(crate) fn loaded_inventory_item_visible_fields_like_cpp(

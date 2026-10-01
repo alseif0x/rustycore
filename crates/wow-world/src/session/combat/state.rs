@@ -44,14 +44,16 @@ impl WorldSession {
 
         if end_timer <= curr_time {
             #[cfg_attr(not(test), allow(unused_mut))]
-            let mut mutated = self.with_owned_player_mut_like_cpp(|player| {
+            let mut mutated = self.core.with_owned_player_mut_like_cpp(|player| {
                 player.expire_pvp_timer_like_cpp();
             });
             #[cfg(test)]
             if mutated.is_none() && self.core.player_handle_like_cpp.is_none() {
-                mutated = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
-                    player.expire_pvp_timer_like_cpp();
-                });
+                mutated = self
+                    .core
+                    .mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+                        player.expire_pvp_timer_like_cpp();
+                    });
             }
             #[cfg(test)]
             if self.core.player_handle_like_cpp.is_none() {
@@ -79,16 +81,18 @@ impl WorldSession {
 
         if enable_pvp {
             #[cfg_attr(not(test), allow(unused_mut))]
-            let mut mutated = self.with_owned_player_mut_like_cpp(|player| {
+            let mut mutated = self.core.with_owned_player_mut_like_cpp(|player| {
                 player.set_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
                 player.remove_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
             });
             #[cfg(test)]
             if mutated.is_none() && self.core.player_handle_like_cpp.is_none() {
-                mutated = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
-                    player.set_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
-                    player.remove_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
-                });
+                mutated = self
+                    .core
+                    .mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+                        player.set_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
+                        player.remove_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
+                    });
                 self.fixtures.combat.player_in_pvp_flag_like_cpp = true;
             }
             let _ = mutated;
@@ -102,16 +106,18 @@ impl WorldSession {
             }
         } else if !self.player_war_mode_local_active_like_cpp() {
             #[cfg_attr(not(test), allow(unused_mut))]
-            let mut mutated = self.with_owned_player_mut_like_cpp(|player| {
+            let mut mutated = self.core.with_owned_player_mut_like_cpp(|player| {
                 player.remove_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
                 player.set_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
             });
             #[cfg(test)]
             if mutated.is_none() && self.core.player_handle_like_cpp.is_none() {
-                mutated = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
-                    player.remove_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
-                    player.set_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
-                });
+                mutated = self
+                    .core
+                    .mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+                        player.remove_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
+                        player.set_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
+                    });
                 self.fixtures.combat.player_in_pvp_flag_like_cpp = false;
             }
             let _ = mutated;
@@ -164,7 +170,8 @@ impl WorldSession {
             let Ok(mut manager) = manager.lock() else {
                 return self.finish_combat_stop_like_cpp(player_guid, stopped_target, Vec::new());
             };
-            let Some(managed) = manager.find_map_mut(u32::from(self.player_map_id_like_cpp()), 0)
+            let Some(managed) =
+                manager.find_map_mut(u32::from(self.core.player_map_id_like_cpp()), 0)
             else {
                 drop(manager);
                 return self.finish_combat_stop_like_cpp(player_guid, stopped_target, Vec::new());
@@ -229,7 +236,7 @@ impl WorldSession {
         self.set_combat_target_like_cpp(None);
         self.set_in_combat_like_cpp(false);
         for owner_guid in owner_guids {
-            let _ = self.mutate_world_creature(owner_guid, |owner| {
+            let _ = self.core.mutate_world_creature(owner_guid, |owner| {
                 if owner.creature.unit().attacking() == Some(player_guid) {
                     let _ = owner.creature.unit_mut().attack_stop_like_cpp();
                 }
@@ -273,11 +280,6 @@ impl WorldSession {
         self.catalogs.regen_game_tables = Some(tables);
     }
 
-    pub(crate) fn combat_rating_multiplier_like_cpp(&self, level: u8, rating: u32) -> f32 {
-        self.catalogs
-            .combat_rating_multiplier_like_cpp(level, rating)
-    }
-
     pub(in crate::session) fn represented_has_pvp_rules_enabled_like_cpp(&self) -> bool {
         crate::session::hub_ref(self).represented_has_pvp_rules_enabled_like_cpp()
     }
@@ -287,14 +289,16 @@ impl WorldSession {
         };
 
         #[cfg_attr(not(test), allow(unused_mut))]
-        let mut mutated = self.with_owned_player_mut_like_cpp(|player| {
+        let mut mutated = self.core.with_owned_player_mut_like_cpp(|player| {
             player.clear_contested_pvp_like_cpp();
         });
         #[cfg(test)]
         if mutated.is_none() && self.core.player_handle_like_cpp.is_none() {
-            mutated = self.mutate_canonical_player_by_guid_like_cpp(_guid, |player| {
-                player.clear_contested_pvp_like_cpp();
-            });
+            mutated = self
+                .core
+                .mutate_canonical_player_by_guid_like_cpp(_guid, |player| {
+                    player.clear_contested_pvp_like_cpp();
+                });
             self.fixtures.combat.player_contested_pvp_timer_like_cpp = 0;
         }
         let _ = mutated;
@@ -311,6 +315,7 @@ impl WorldSession {
         enabled: bool,
     ) -> bool {
         let update = self
+            .core
             .mutate_canonical_player_like_cpp(|player| {
                 let before = player.unit().pvp_flags_like_cpp();
                 if before.contains(UnitPvpFlags::FFA_PVP) == enabled {
@@ -339,7 +344,7 @@ impl WorldSession {
             return false;
         };
 
-        self.send_player_values_update_like_cpp(&update);
+        self.core.send_player_values_update_like_cpp(&update);
         self.sync_player_registry_state_like_cpp();
         true
     }

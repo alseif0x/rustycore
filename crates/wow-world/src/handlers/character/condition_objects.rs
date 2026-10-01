@@ -20,7 +20,7 @@ impl WorldSession {
         &mut self,
         npc_guid: ObjectGuid,
     ) -> Option<(WorldObject, wow_conditions::ConditionUnitSnapshot)> {
-        self.mutate_world_creature(npc_guid, |creature| {
+        self.core.mutate_world_creature(npc_guid, |creature| {
             let mut source =
                 WorldObject::new(false, TypeId::Unit, TypeMask::OBJECT | TypeMask::UNIT);
             source.object_mut().create(creature.guid());

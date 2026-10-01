@@ -342,6 +342,7 @@ impl WorldSession {
                 || outcome.failed_casts > 0;
             if outcome.executed_casts > 0 {
                 let represented = if self
+                    .core
                     .mutate_world_creature(creature_guid, |creature| {
                         creature
                             .creature
@@ -351,10 +352,11 @@ impl WorldSession {
                 {
                     true
                 } else {
-                    self.mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
-                        creature.record_ai_spell_click_inform(player_guid, true);
-                    })
-                    .is_some()
+                    self.core
+                        .mutate_canonical_creature_by_guid_like_cpp(creature_guid, |creature| {
+                            creature.record_ai_spell_click_inform(player_guid, true);
+                        })
+                        .is_some()
                 };
                 outcome.ai_on_spell_click_represented = represented;
                 outcome.ai_on_spell_click_unrepresented =
@@ -429,7 +431,7 @@ impl WorldSession {
             packet_update.npc_flags = [creature.npc_flags, 0];
             let update = self.represented_unit_packet_update_to_update_object_like_cpp(
                 guid,
-                self.player_map_id_like_cpp(),
+                self.core.player_map_id_like_cpp(),
                 packet_update,
             );
             self.send_packet(&update);

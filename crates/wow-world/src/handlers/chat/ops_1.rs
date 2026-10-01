@@ -121,7 +121,7 @@ impl WorldSession {
         }
 
         let (sender_guid, sender_name) = self.player_name_and_guid();
-        let virtual_realm = self.virtual_realm_address();
+        let virtual_realm = self.core.virtual_realm_address();
 
         if matches!(
             msg_type,
@@ -248,7 +248,7 @@ impl WorldSession {
         }
 
         let (sender_guid, sender_name) = self.player_name_and_guid();
-        let virtual_realm = self.virtual_realm_address();
+        let virtual_realm = self.core.virtual_realm_address();
         let target_name = msg.target.clone();
 
         // Try to deliver to the target player via the registry.
@@ -509,7 +509,7 @@ impl WorldSession {
         };
 
         let (reporter_guid, reporter_name) = self.player_name_and_guid();
-        let virtual_realm = self.virtual_realm_address();
+        let virtual_realm = self.core.virtual_realm_address();
 
         let player_registry = self.player_registry().cloned();
         let ignored = player_registry
@@ -611,7 +611,7 @@ impl WorldSession {
         );
 
         let (sender_guid, sender_name) = self.player_name_and_guid();
-        let virtual_realm = self.virtual_realm_address();
+        let virtual_realm = self.core.virtual_realm_address();
 
         let chat = ChatPkt {
             msg_type: ChatMsg::Emote,
@@ -635,7 +635,7 @@ impl WorldSession {
         // EmoteClient has no body — read returns Ok(()) immediately.
         let _ = EmoteClient::read(&mut pkt);
         if self.resolved_player_is_alive_like_cpp() != Some(true)
-            || self.player_has_unit_state_like_cpp(UnitState::DIED)
+            || self.core.player_has_unit_state_like_cpp(UnitState::DIED)
         {
             return;
         }
@@ -716,7 +716,7 @@ impl WorldSession {
                 self.publish_player_emote_state_like_cpp(emote as u32);
                 None
             }
-            _ if self.player_has_unit_state_like_cpp(UnitState::DIED) => None,
+            _ if self.core.player_has_unit_state_like_cpp(UnitState::DIED) => None,
             _ => Some(EmoteMessage {
                 guid: player_guid,
                 emote_id: emote,

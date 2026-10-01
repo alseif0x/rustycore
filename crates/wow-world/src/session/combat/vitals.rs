@@ -6,12 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::session) fn with_owned_player_mut_for_power_like_cpp<R>(
-        &self,
-        f: impl FnOnce(&mut Player) -> R,
-    ) -> Option<R> {
-        self.core.with_owned_player_mut_for_power_like_cpp(f)
-    }
     pub(crate) fn sync_canonical_player_primary_power_like_cpp(
         &mut self,
         power_type: PowerType,
@@ -44,35 +38,13 @@ impl WorldSession {
     ) -> Option<(u32, u32)> {
         crate::session::hub_mut(self).sync_canonical_player_health_like_cpp(health, max_health)
     }
-    pub(crate) fn canonical_player_power_snapshot_like_cpp(
-        &self,
-        power_type: PowerType,
-    ) -> Option<(i32, i32)> {
-        self.core
-            .canonical_player_power_snapshot_like_cpp(power_type)
-    }
     pub(crate) fn canonical_player_health_snapshot_like_cpp(&self) -> Option<(u32, u32)> {
-        self.canonical_player_snapshot_like_cpp(|player| {
+        self.core.canonical_player_snapshot_like_cpp(|player| {
             (
                 player.unit().data().health.min(u64::from(u32::MAX)) as u32,
                 player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
             )
         })
-    }
-    pub(in crate::session) fn send_player_health_values_update_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        health: u64,
-    ) {
-        self.core
-            .send_player_health_values_update_like_cpp(guid, health)
-    }
-    pub(in crate::session) fn send_player_health_update_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        health: u64,
-    ) {
-        self.core.send_player_health_update_like_cpp(guid, health)
     }
     /// C++ `Unit::SetPower`'s `SMSG_POWER_UPDATE` publication
     /// (`Unit.cpp:9287-9312`). C++ also marks the changed `UnitData::Power`
@@ -102,9 +74,6 @@ impl WorldSession {
     pub fn set_power_type_store(&mut self, store: Arc<PowerTypeStore>) {
         self.catalogs.power_type_store = Some(store);
     }
-    pub(crate) fn power_type_store_like_cpp(&self) -> Option<&PowerTypeStore> {
-        self.catalogs.power_type_store_like_cpp()
-    }
     pub(crate) fn represented_player_power_values_like_cpp(
         &self,
     ) -> Option<[i32; MAX_POWERS_PER_CLASS]> {
@@ -118,10 +87,14 @@ impl WorldSession {
         canonical
     }
     fn resolved_player_power_values_like_cpp(&self) -> Option<[i32; MAX_POWERS_PER_CLASS]> {
-        let canonical = self.with_owned_player_like_cpp(|player| player.unit().data().power);
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.unit().data().power);
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return self.mutate_canonical_player_like_cpp(|player| player.unit().data().power);
+            return self
+                .core
+                .mutate_canonical_player_like_cpp(|player| player.unit().data().power);
         }
         canonical
     }

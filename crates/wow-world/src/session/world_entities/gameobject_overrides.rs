@@ -6,47 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn record_represented_gameobject_lock_id_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        lock_id: u32,
-    ) {
-        self.world_entities
-            .record_represented_gameobject_lock_id_like_cpp(guid, lock_id)
-    }
-    pub(crate) fn record_represented_gameobject_override_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        flags: u32,
-        faction_template: u32,
-        override_source_known: bool,
-    ) {
-        self.world_entities
-            .record_represented_gameobject_override_like_cpp(
-                guid,
-                flags,
-                faction_template,
-                override_source_known,
-            )
-    }
-    pub(crate) fn record_represented_gameobject_display_model_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        display_id: u32,
-        scale: f32,
-        rotation: [f32; 4],
-    ) {
-        self.world_entities
-            .record_represented_gameobject_display_model_like_cpp(guid, display_id, scale, rotation)
-    }
-    pub(crate) fn record_represented_gameobject_anim_progress_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        anim_progress: u8,
-    ) {
-        self.world_entities
-            .record_represented_gameobject_anim_progress_like_cpp(guid, anim_progress)
-    }
     #[allow(dead_code)]
     pub(crate) fn record_represented_gameobject_owner_guid_like_cpp(
         &mut self,

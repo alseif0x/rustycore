@@ -25,7 +25,8 @@ impl WorldSession {
         // The existing residence-specific health projection remains explicit
         // compatibility debt; map, instance and level come from the Player.
         manager.with_player_like_cpp(handle, |player| {
-            self.player_save_header_from_owner_like_cpp(player, residence)
+            self.lifecycle
+                .player_save_header_from_owner_like_cpp(player, residence)
         })
     }
     #[cfg(test)]
@@ -64,7 +65,7 @@ impl WorldSession {
                         (map_id, 0, position)
                     } else {
                         (
-                            self.player_map_id_like_cpp(),
+                            self.core.player_map_id_like_cpp(),
                             managed.instance_id(),
                             player.unit().world().position(),
                         )
@@ -106,8 +107,9 @@ impl WorldSession {
                 (map_id, 0, position)
             } else {
                 (
-                    self.player_map_id_like_cpp(),
-                    self.current_canonical_player_map_key_like_cpp()
+                    self.core.player_map_id_like_cpp(),
+                    self.core
+                        .current_canonical_player_map_key_like_cpp()
                         .map(|key| key.instance_id)
                         .unwrap_or(0),
                     self.player_position_like_cpp()?,
@@ -128,20 +130,16 @@ impl WorldSession {
             powers,
         })
     }
-    pub(crate) fn plan_player_currency_save_like_cpp(
-        &self,
-        character_guid: u64,
-        currencies: &mut HashMap<u32, PlayerCurrency>,
-    ) -> wow_persistence::PlayerCurrencySaveRequestLikeCpp {
-        self.catalogs
-            .plan_player_currency_save_like_cpp(character_guid, currencies)
-    }
     pub(crate) async fn persist_standalone_player_currency_save_like_cpp(
         &mut self,
         character_guid: u64,
         pre_save_snapshot: HashMap<u32, PlayerCurrency>,
     ) -> Result<(), wow_persistence::PersistenceOutcomeLikeCpp> {
-        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
+        let Some(port) = self
+            .lifecycle
+            .player_lifecycle_port_like_cpp()
+            .map(Arc::clone)
+        else {
             return Ok(());
         };
         let Some(mut currencies) = self.player_currencies_like_cpp() else {
@@ -149,7 +147,9 @@ impl WorldSession {
                 reason: "canonical Player currency owner is unavailable".to_string(),
             });
         };
-        let request = self.plan_player_currency_save_like_cpp(character_guid, &mut currencies);
+        let request = self
+            .catalogs
+            .plan_player_currency_save_like_cpp(character_guid, &mut currencies);
         if !self.set_player_currencies_like_cpp(currencies) {
             return Err(wow_persistence::PersistenceOutcomeLikeCpp::Failed {
                 reason: "canonical Player currency owner became unavailable".to_string(),
@@ -168,13 +168,7 @@ impl WorldSession {
     }
     pub fn set_player_save_interval_ms_like_cpp(&mut self, interval_ms: u32) {
         self.lifecycle.player_save_interval_ms_like_cpp = interval_ms;
-        self.reset_player_save_timer_like_cpp();
-    }
-    pub(in crate::session) fn reset_player_save_timer_like_cpp(&mut self) {
-        self.lifecycle.reset_player_save_timer_like_cpp()
-    }
-    pub(in crate::session) fn update_player_save_timer_like_cpp(&mut self, diff_ms: u32) {
-        self.lifecycle.update_player_save_timer_like_cpp(diff_ms)
+        self.lifecycle.reset_player_save_timer_like_cpp();
     }
     pub(in crate::session) fn resolved_player_flags_for_rest_state_save_like_cpp(
         &self,
@@ -189,7 +183,7 @@ impl WorldSession {
             }
             player_flags
         };
-        let canonical = self.with_owned_player_for_rest_like_cpp(|player| {
+        let canonical = self.core.with_owned_player_for_rest_like_cpp(|player| {
             resolve(player.data().player_flags, player.rest_state_like_cpp())
         });
         #[cfg(test)]

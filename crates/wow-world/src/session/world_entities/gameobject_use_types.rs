@@ -6,36 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn use_represented_gameobject_door_or_button_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        user_guid: ObjectGuid,
-        restore_time_ms: u32,
-    ) -> bool {
-        self.world_entities
-            .use_represented_gameobject_door_or_button_like_cpp(
-                gameobject_guid,
-                user_guid,
-                restore_time_ms,
-            )
-    }
-    #[allow(dead_code)]
-    pub(crate) fn reset_represented_gameobject_door_or_button_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-    ) -> bool {
-        self.world_entities
-            .reset_represented_gameobject_door_or_button_like_cpp(gameobject_guid)
-    }
-    pub(crate) fn use_represented_gameobject_trap_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        user_guid: ObjectGuid,
-        source: wow_entities::TrapUseSource,
-    ) -> bool {
-        self.world_entities
-            .use_represented_gameobject_trap_like_cpp(gameobject_guid, user_guid, source)
-    }
     pub(crate) fn use_represented_gameobject_chair_like_cpp(
         &mut self,
         gameobject_guid: ObjectGuid,
@@ -223,19 +193,6 @@ impl WorldSession {
         );
 
         true
-    }
-    pub(crate) fn use_represented_gameobject_spell_focus_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-        linked_trap_entry: u32,
-    ) -> bool {
-        self.world_entities
-            .use_represented_gameobject_spell_focus_like_cpp(
-                gameobject_guid,
-                player_guid,
-                linked_trap_entry,
-            )
     }
     pub(crate) fn use_represented_gameobject_camera_like_cpp(
         &mut self,

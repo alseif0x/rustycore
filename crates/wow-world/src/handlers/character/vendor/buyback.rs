@@ -27,8 +27,9 @@ impl WorldSession {
             Some(g) => g,
             None => return,
         };
-        let map_id = self.player_map_id_like_cpp();
+        let map_id = self.core.player_map_id_like_cpp();
         if self
+            .core
             .mutate_world_creature(buyback.vendor_guid, |_| ())
             .is_none()
         {
@@ -95,7 +96,7 @@ impl WorldSession {
             return;
         }
 
-        let vendor_trade_port = match self.vendor_trade_persistence_port_like_cpp() {
+        let vendor_trade_port = match self.lifecycle.vendor_trade_persistence_port_like_cpp() {
             Some(port) => port,
             None => return,
         };

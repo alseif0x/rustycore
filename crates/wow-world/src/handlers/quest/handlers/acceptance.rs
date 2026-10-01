@@ -41,11 +41,13 @@ impl WorldSession {
             Some(s) => Arc::clone(s),
             None => return,
         };
-        if !self.represented_quest_giver_accept_source_allows_quest_like_cpp(
-            guid,
-            quest_id,
-            &quest_store,
-        ) {
+        if !crate::session::cx_quest_state_ref(self)
+            .represented_quest_giver_accept_source_allows_quest_like_cpp(
+                guid,
+                quest_id,
+                &quest_store,
+            )
+        {
             warn!(
                 account = self.core.account_id,
                 ?guid,
@@ -222,23 +224,25 @@ impl WorldSession {
                       source_spell_unrepresented: bool,
                       represented_source_spell_id: Option<u32>,
                       represented_source_spell_self_casts: u8| {
-            session.record_represented_quest_confirm_accept_like_cpp(
-                RepresentedQuestConfirmAcceptLikeCpp {
-                    receiver_guid,
-                    sender_guid_before_clear: pending.sender_guid,
-                    quest_id: parsed_quest_id,
-                    raw_quest_id: packet.quest_id,
-                    reason,
-                    object_accessor_unrepresented: true,
-                    party_runtime_unrepresented: true,
-                    can_add_source_item_unrepresented,
-                    can_add_source_item_result,
-                    add_quest_runtime_unrepresented,
-                    source_spell_unrepresented,
-                    represented_source_spell_id,
-                    represented_source_spell_self_casts,
-                },
-            );
+            session
+                .quest_state
+                .record_represented_quest_confirm_accept_like_cpp(
+                    RepresentedQuestConfirmAcceptLikeCpp {
+                        receiver_guid,
+                        sender_guid_before_clear: pending.sender_guid,
+                        quest_id: parsed_quest_id,
+                        raw_quest_id: packet.quest_id,
+                        reason,
+                        object_accessor_unrepresented: true,
+                        party_runtime_unrepresented: true,
+                        can_add_source_item_unrepresented,
+                        can_add_source_item_result,
+                        add_quest_runtime_unrepresented,
+                        source_spell_unrepresented,
+                        represented_source_spell_id,
+                        represented_source_spell_self_casts,
+                    },
+                );
         };
 
         let Some(player_registry) = self.player_registry().map(Arc::clone) else {

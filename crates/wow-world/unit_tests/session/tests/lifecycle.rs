@@ -75,7 +75,7 @@ fn shared_runtime_cleanup_releases_the_login_claim_like_cpp() {
     let (mut next, _, _) = make_session();
     session.set_player_guid(Some(guid));
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 1, 0);
-    assert!(session.try_claim_character_login_like_cpp(guid));
+    assert!(session.lifecycle.try_claim_character_login_like_cpp(guid));
     assert!(!next.try_claim_character_login_like_cpp(guid));
 
     session.cleanup_shared_runtime_state();

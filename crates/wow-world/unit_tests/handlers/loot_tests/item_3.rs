@@ -359,7 +359,7 @@ async fn item_loot_releases_ae_view_and_tracks_multiple_items_like_cpp() {
         .open_active_item_loot_view_like_cpp(player_guid, second_item)
         .await;
 
-    assert!(session.is_active_loot_guid(first_item));
+    assert!(session.loot.is_active_loot_guid(first_item));
     assert_eq!(session.loot.active_loot_view_owners.len(), 2);
     assert!(session.loot.active_loot_view_owners.contains(&first_item));
     assert!(session.loot.active_loot_view_owners.contains(&second_item));
@@ -393,7 +393,7 @@ async fn loot_item_uses_active_loot_view_like_cpp() {
     let active_guid = test_creature_guid(19_001);
     let inactive_guid = test_creature_guid(19_002);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(active_guid);
+    session.loot.set_active_loot_guid(active_guid);
     session.loot.loot_table.insert(
         inactive_guid,
         CreatureLoot {
@@ -445,7 +445,7 @@ async fn loot_item_releases_blocked_item_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 42);
     let loot_guid = test_creature_guid(19_003);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     session.set_player_position_like_cpp(Position::ZERO);
     register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
     session.loot.loot_table.insert(
@@ -493,7 +493,7 @@ async fn loot_item_releases_blocked_item_like_cpp() {
         wow_constants::ServerOpcodes::LootReleaseAll as u16
     );
     assert_eq!(sent.remaining(), 0);
-    assert!(session.is_active_loot_guid(loot_guid));
+    assert!(session.loot.is_active_loot_guid(loot_guid));
     assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
 }
 #[tokio::test]
@@ -503,7 +503,7 @@ async fn loot_item_releases_when_player_is_not_allowed_looter_like_cpp() {
     let other_guid = ObjectGuid::create_player(1, 43);
     let loot_guid = test_creature_guid(19_004);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     session.set_player_position_like_cpp(Position::ZERO);
     register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
     session.loot.loot_table.insert(
@@ -548,7 +548,7 @@ async fn loot_item_releases_when_player_is_not_allowed_looter_like_cpp() {
         wow_constants::ServerOpcodes::LootReleaseAll as u16
     );
     assert_eq!(sent.remaining(), 0);
-    assert!(session.is_active_loot_guid(loot_guid));
+    assert!(session.loot.is_active_loot_guid(loot_guid));
     assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
 }
 #[tokio::test]
@@ -558,7 +558,7 @@ async fn loot_item_releases_when_roll_winner_is_different_like_cpp() {
     let winner_guid = ObjectGuid::create_player(1, 43);
     let loot_guid = test_creature_guid(19_005);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     session.set_player_position_like_cpp(Position::ZERO);
     register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
     session.loot.loot_table.insert(
@@ -603,7 +603,7 @@ async fn loot_item_releases_when_roll_winner_is_different_like_cpp() {
         wow_constants::ServerOpcodes::LootReleaseAll as u16
     );
     assert_eq!(sent.remaining(), 0);
-    assert!(session.is_active_loot_guid(loot_guid));
+    assert!(session.loot.is_active_loot_guid(loot_guid));
     assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
 }
 #[tokio::test]
@@ -736,7 +736,7 @@ async fn master_loot_item_non_master_loot_view_returns_silently_like_cpp() {
     session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));
-    session.set_active_loot_guid(loot_owner);
+    session.loot.set_active_loot_guid(loot_owner);
     session.loot.loot_table.insert(
         loot_owner,
         CreatureLoot {
@@ -804,7 +804,7 @@ async fn master_loot_item_ineligible_target_sends_master_other_like_cpp() {
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));
-    session.set_active_loot_guid(loot_owner);
+    session.loot.set_active_loot_guid(loot_owner);
     session.loot.loot_table.insert(
         loot_owner,
         CreatureLoot {

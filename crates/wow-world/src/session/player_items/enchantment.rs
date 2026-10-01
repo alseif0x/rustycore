@@ -6,22 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn item_disenchant_loot_with_catalogs_like_cpp(
-        &self,
-        catalogs: &ItemValuationCatalogsLikeCpp,
-        item_id: u32,
-        quality: u32,
-        item_level: u32,
-        can_disenchant_bonus: bool,
-    ) -> Option<(u32, u16)> {
-        self.catalogs.item_disenchant_loot_with_catalogs_like_cpp(
-            catalogs,
-            item_id,
-            quality,
-            item_level,
-            can_disenchant_bonus,
-        )
-    }
     /// Set the item random enchantment template store for this session.
     pub fn set_item_random_enchantment_template_store(
         &mut self,
@@ -284,6 +268,7 @@ impl WorldSession {
         let random_suffix =
             self.apply_enchantment_random_suffix_ref(item.data().random_properties_id);
         let actions = self
+            .core
             .mutate_canonical_player_like_cpp(|player| {
                 player.apply_enchantment_effect_actions_for_enchantment(
                     &item,

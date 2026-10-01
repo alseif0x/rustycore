@@ -39,8 +39,9 @@ impl WorldSession {
         publish: bool,
     ) -> Option<bool> {
         let map_pvp_activity = self
+            .catalogs
             .map_store()
-            .and_then(|store| store.get(u32::from(self.player_map_id_like_cpp())))
+            .and_then(|store| store.get(u32::from(self.core.player_map_id_like_cpp())))
             .is_some_and(|entry| {
                 entry.is_battleground_or_arena() || entry.activates_pvp_item_levels_like_cpp()
             });
@@ -259,10 +260,15 @@ impl WorldSession {
                     self.represented_player_level_curve_item_level_like_cpp(template, runtime_item)
                 })
                 .unwrap_or(template_item_level);
-            item_level += self.represented_item_level_bonus_like_cpp(runtime_item);
+            item_level += self
+                .catalogs
+                .represented_item_level_bonus_like_cpp(runtime_item);
             let item_level_before_upgrades = item_level;
             if using_pvp_item_levels {
-                item_level += i64::from(self.represented_pvp_item_level_bonus_like_cpp(entry_id));
+                item_level += i64::from(
+                    self.catalogs
+                        .represented_pvp_item_level_bonus_like_cpp(entry_id),
+                );
             }
 
             let inventory_type = sparse_template
@@ -313,14 +319,6 @@ impl WorldSession {
     ) -> Option<i64> {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.represented_player_level_curve_item_level_like_cpp(hub, template, runtime_item)
-    }
-    fn represented_item_level_bonus_like_cpp(&self, runtime_item: Option<&Item>) -> i64 {
-        self.catalogs
-            .represented_item_level_bonus_like_cpp(runtime_item)
-    }
-    fn represented_pvp_item_level_bonus_like_cpp(&self, entry_id: u32) -> u8 {
-        self.catalogs
-            .represented_pvp_item_level_bonus_like_cpp(entry_id)
     }
 }
 

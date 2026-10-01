@@ -63,7 +63,8 @@ impl WorldSession {
             );
             if healed != current {
                 self.sync_player_registry_state_like_cpp();
-                self.send_player_health_values_update_like_cpp(player_guid, u64::from(healed));
+                self.core
+                    .send_player_health_values_update_like_cpp(player_guid, u64::from(healed));
             }
             self.forward_heal_threat_like_cpp(spell_id, healer_guid, target_guid, effective_heal);
             return Ok(());
@@ -71,6 +72,7 @@ impl WorldSession {
 
         let account_id = self.core.account_id;
         let heal_outcome = self
+            .core
             .mutate_world_creature(target_guid, |creature| {
                 if !creature.is_alive() {
                     debug!(
@@ -120,7 +122,7 @@ impl WorldSession {
             .contains(&target_guid)
             && let Some(update) = self.represented_unit_values_update_to_update_object_like_cpp(
                 target_guid,
-                self.player_map_id_like_cpp(),
+                self.core.player_map_id_like_cpp(),
                 &values_update,
             )
         {
@@ -187,11 +189,11 @@ impl WorldSession {
         let Some(spell_store) = self.spell_store().cloned() else {
             return (heal_amount, 0);
         };
-        let school_mask = self.spell_school_mask_for_difficulty_like_cpp(
+        let school_mask = self.catalogs.spell_school_mask_for_difficulty_like_cpp(
             spell_id_key,
-            self.current_map_difficulty_id_like_cpp(),
+            self.core.current_map_difficulty_id_like_cpp(),
         );
-        let Some(auras) = self.canonical_player_snapshot_like_cpp(|player| {
+        let Some(auras) = self.core.canonical_player_snapshot_like_cpp(|player| {
             player
                 .unit()
                 .subsystems()
@@ -216,6 +218,7 @@ impl WorldSession {
         let original_heal = i32::try_from(heal_amount).unwrap_or(i32::MAX);
         for consumption in &absorb.consumed {
             let shield = self
+                .core
                 .canonical_player_snapshot_like_cpp(|player| {
                     player
                         .unit()
@@ -240,7 +243,7 @@ impl WorldSession {
                     original_heal,
                 });
             }
-            let _ = self.with_owned_player_mut_like_cpp(|player| {
+            let _ = self.core.with_owned_player_mut_like_cpp(|player| {
                 crate::session::combat::write_absorbed_shield_amount_like_cpp(
                     player,
                     consumption.slot,
@@ -274,6 +277,7 @@ impl WorldSession {
             player_vitals.1.saturating_sub(player_vitals.0)
         } else {
             let Some(target_missing_health) = self
+                .core
                 .mutate_world_creature(target_guid, |creature| {
                     creature
                         .is_alive()
@@ -326,6 +330,7 @@ impl WorldSession {
             max_health
         } else {
             let Some(max_health) = self
+                .core
                 .mutate_world_creature(target_guid, |creature| {
                     creature.is_alive().then(|| creature.max_hp())
                 })
@@ -363,6 +368,7 @@ impl WorldSession {
         let player_guid = self.player_guid().ok_or("No player GUID")?;
         let damage_amount = damage as u32;
         let Some(effective_damage) = self
+            .core
             .mutate_world_creature(target_guid, |creature| {
                 creature
                     .is_alive()

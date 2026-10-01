@@ -265,7 +265,8 @@ impl WorldSession {
                 && let Some(access_requirement) = access_requirement
                 && !access_requirement.quest_failed_text.is_empty()
             {
-                self.send_system_message_like_cpp(&access_requirement.quest_failed_text);
+                self.core
+                    .send_system_message_like_cpp(&access_requirement.quest_failed_text);
             } else if map_difficulty_has_message || failed_map_difficulty_x_condition != 0 {
                 return Some((
                     TRANSFER_ABORT_DIFFICULTY_LIKE_CPP,
@@ -274,21 +275,21 @@ impl WorldSession {
                 ));
             } else if missing_item != 0 {
                 let level_min_text = level_min.to_string();
-                let item_name = self.item_template_name_like_cpp(missing_item);
+                let item_name = self.catalogs.item_template_name_like_cpp(missing_item);
                 let notify_text = trinity_sprintf_like_cpp(
                     self.trinity_string_like_cpp(
                         wow_data::LANG_LEVEL_MINREQUIRED_AND_ITEM_LIKE_CPP,
                     ),
                     &[level_min_text.as_str(), item_name],
                 );
-                self.send_notification_like_cpp(notify_text);
+                self.core.send_notification_like_cpp(notify_text);
             } else if level_min != 0 {
                 let level_min_text = level_min.to_string();
                 let notify_text = trinity_sprintf_like_cpp(
                     self.trinity_string_like_cpp(wow_data::LANG_LEVEL_MINREQUIRED_LIKE_CPP),
                     &[level_min_text.as_str()],
                 );
-                self.send_notification_like_cpp(notify_text);
+                self.core.send_notification_like_cpp(notify_text);
             }
             return Some((TRANSFER_ABORT_ERROR_LIKE_CPP, 0, 0));
         }

@@ -14,8 +14,9 @@ impl WorldSession {
     ) {
         use wow_packet::ServerPacket;
 
-        let map_id = self.player_map_id_like_cpp();
+        let map_id = self.core.player_map_id_like_cpp();
         let instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -34,8 +35,8 @@ impl WorldSession {
             victim: victim_guid,
         }
         .to_bytes();
-        let Some((source_position, source_combat_reach, visibility_range)) = self
-            .mutate_world_creature(attacker_guid, |creature| {
+        let Some((source_position, source_combat_reach, visibility_range)) =
+            self.core.mutate_world_creature(attacker_guid, |creature| {
                 (
                     creature.position(),
                     creature.creature.unit().world().combat_reach(),
@@ -151,6 +152,7 @@ impl WorldSession {
         }
 
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.set_trade_spell_like_cpp(spell_id, cast_item_guid)
             })
@@ -177,7 +179,7 @@ impl WorldSession {
             TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
         self.send_raw_packet(&packet_bytes);
 
-        self.try_send_connected_player_command_like_cpp(
+        self.core.try_send_connected_player_command_like_cpp(
             partner_guid,
             SessionCommand::UnacceptRepresentedTradeLikeCpp(
                 crate::session::mailbox::UnacceptRepresentedTradeLikeCppCommand { packet_bytes },

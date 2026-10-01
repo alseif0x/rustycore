@@ -277,20 +277,21 @@ impl WorldSession {
             // Update server-side player position.
             self.set_player_position_like_cpp(info.position);
             let authoritative_grid_map_key = self
+                .core
                 .current_canonical_player_map_key_like_cpp()
-                .filter(|key| key.map_id == u32::from(self.player_map_id_like_cpp()));
+                .filter(|key| key.map_id == u32::from(self.core.player_map_id_like_cpp()));
             let grid_instance_id = authoritative_grid_map_key
                 .map(|key| key.instance_id)
                 .unwrap_or(0);
             if load_player_active_grid_like_cpp {
                 let outcome = player_grid_loader(
-                    self.player_map_id_like_cpp(),
+                    self.core.player_map_id_like_cpp(),
                     authoritative_grid_map_key.map(|key| key.instance_id),
                     pos,
                 );
                 trace!(
                     account = self.core.account_id,
-                    map_id = self.player_map_id_like_cpp(),
+                    map_id = self.core.player_map_id_like_cpp(),
                     instance_id = grid_instance_id,
                     old_grid_x = old_player_cell_like_cpp.as_ref().map(|cell| cell.grid_x()),
                     old_grid_y = old_player_cell_like_cpp.as_ref().map(|cell| cell.grid_y()),
@@ -324,7 +325,7 @@ impl WorldSession {
                 {
                     info!(
                         account = self.core.account_id,
-                        map_id = self.player_map_id_like_cpp(),
+                        map_id = self.core.player_map_id_like_cpp(),
                         instance_id = grid_instance_id,
                         x = pos.x,
                         y = pos.y,
@@ -357,12 +358,13 @@ impl WorldSession {
             }
             let area_id = match zone_and_area_for_position_like_cpp(
                 &self.mmap_runtime_config_like_cpp().data_dir,
-                u32::from(self.player_map_id_like_cpp()),
+                u32::from(self.core.player_map_id_like_cpp()),
                 info.position.x,
                 info.position.y,
-                self.area_table_store().map(|store| store.as_ref()),
+                self.catalogs.area_table_store().map(|store| store.as_ref()),
                 |map_id| {
-                    self.map_store()
+                    self.catalogs
+                        .map_store()
                         .as_deref()
                         .map(|store| u32::from(store.area_table_id_like_cpp(map_id)))
                         .unwrap_or(0)
@@ -385,7 +387,7 @@ impl WorldSession {
                     };
                     warn!(
                         account = self.core.account_id,
-                        map_id = self.player_map_id_like_cpp(),
+                        map_id = self.core.player_map_id_like_cpp(),
                         x = info.position.x,
                         y = info.position.y,
                         %error,
@@ -419,6 +421,7 @@ impl WorldSession {
                 .await;
         } else {
             let moved = self
+                .core
                 .mutate_world_creature(mover_guid, |creature| {
                     creature.creature.set_ai_position(info.position);
                     creature
@@ -456,8 +459,9 @@ impl WorldSession {
         if let Some(registry) = self.player_registry() {
             let move_update = MoveUpdate { info };
             let packet_bytes = move_update.to_bytes();
-            let map_id = self.player_map_id_like_cpp();
+            let map_id = self.core.player_map_id_like_cpp();
             let instance_id = self
+                .core
                 .current_canonical_player_map_key_like_cpp()
                 .map(|key| key.instance_id)
                 .unwrap_or(0);

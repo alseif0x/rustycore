@@ -15,8 +15,9 @@ impl WorldSession {
     }
 
     pub(crate) async fn recover_rejected_worldport_like_cpp(&mut self) {
-        let Some(state) =
-            self.with_owned_player_like_cpp(|player| *player.teleport_state_like_cpp())
+        let Some(state) = self
+            .core
+            .with_owned_player_like_cpp(|player| *player.teleport_state_like_cpp())
         else {
             self.kick("worldport recovery has no Player owner");
             return;

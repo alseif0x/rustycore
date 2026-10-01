@@ -47,6 +47,7 @@ impl WorldSession {
             return true;
         };
         if !self
+            .core
             .with_owned_player_like_cpp(|player| {
                 player.unit().world().map_id() == progress.map_id
                     && player.unit().world().position() == progress.position
@@ -73,12 +74,13 @@ impl WorldSession {
                 return false;
             }
         }
-        self.resummon_pet_temporary_unsummoned_like_cpp();
+        crate::session::cx_pets(self).resummon_pet_temporary_unsummoned_like_cpp();
         self.process_represented_delayed_resurrection_after_teleport_like_cpp();
-        self.with_owned_player_mut_like_cpp(|player| {
-            player.teleport_state_mut_like_cpp().post_add = None;
-        })
-        .is_some()
+        self.core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.teleport_state_mut_like_cpp().post_add = None;
+            })
+            .is_some()
     }
 
     /// C++ LogoutPlayer completes a pending far transfer without waiting for a client ACK.
@@ -292,7 +294,7 @@ mod tests {
         use crate::session::PlayerSaveOutcomeLikeCpp;
         let mut session = save_fixture();
         session.set_player_save_interval_ms_like_cpp(100);
-        session.update_player_save_timer_like_cpp(100);
+        session.lifecycle.update_player_save_timer_like_cpp(100);
         assert!(session.lifecycle.pending_periodic_player_save_like_cpp);
         assert!(session.update_player_teleport_state_like_cpp(|state| {
             state.far_pending = true;
@@ -304,7 +306,9 @@ mod tests {
                 PlayerSaveOutcomeLikeCpp::Deferred
             );
             assert_eq!(
-                session.with_owned_player_like_cpp(|p| p.has_deferred_player_save_like_cpp()),
+                session
+                    .core
+                    .with_owned_player_like_cpp(|p| p.has_deferred_player_save_like_cpp()),
                 Some(true)
             );
         }
@@ -317,7 +321,9 @@ mod tests {
             PlayerSaveOutcomeLikeCpp::Unavailable
         );
         assert_eq!(
-            session.with_owned_player_like_cpp(|p| p.has_deferred_player_save_like_cpp()),
+            session
+                .core
+                .with_owned_player_like_cpp(|p| p.has_deferred_player_save_like_cpp()),
             Some(true)
         );
     }

@@ -98,13 +98,6 @@ impl WorldSession {
         crate::session::hub_ref(self).player_can_never_see_target_like_cpp()
     }
 
-    pub(crate) fn set_canonical_chosen_title_like_cpp(
-        &mut self,
-        title_id: i32,
-    ) -> Option<wow_entities::PlayerValuesUpdate> {
-        self.core.set_canonical_chosen_title_like_cpp(title_id)
-    }
-
     pub(in crate::session) fn player_world_local_state_like_cpp(
         &self,
     ) -> Option<wow_entities::PlayerWorldLocalState> {
@@ -115,21 +108,14 @@ impl WorldSession {
         crate::session::hub_ref(self).player_war_mode_local_active_like_cpp()
     }
 
-    pub(crate) fn player_is_possessing_like_cpp(&self) -> bool {
-        self.core.player_is_possessing_like_cpp()
-    }
-
-    pub(crate) fn represented_player_charmed_guid_like_cpp(&self) -> ObjectGuid {
-        self.core.represented_player_charmed_guid_like_cpp()
-    }
-
     /// Set the logged-in player GUID.
     pub fn set_player_guid(&mut self, guid: Option<ObjectGuid>) {
         let previous_player_guid = self.core.player_guid;
         let player_changed = self.core.player_guid != guid;
         if player_changed {
             let _ = self.set_player_zone_area_authority_like_cpp(false);
-            self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+            self.core
+                .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
         self.core.player_guid = guid;
         if player_changed {
@@ -140,6 +126,7 @@ impl WorldSession {
             // identity boundary so a later character cannot inherit positive
             // or negative aura-spell authority from the previous one.
             let _canonical = self
+                .core
                 .with_owned_player_mut_like_cpp(|player| {
                     player.reset_player_aura_source_authority_like_cpp();
                 })
@@ -292,6 +279,7 @@ impl WorldSession {
     pub(crate) fn set_player_level_like_cpp(&mut self, level: u8) {
         let gray_level = self.gray_level(level);
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.set_level_and_gray_level_like_cpp(level, gray_level);
             })
@@ -316,9 +304,11 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn set_player_class_like_cpp(&mut self, class: u8) {
         if self.player_class_like_cpp() != class {
-            self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+            self.core
+                .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.unit_mut().set_class(class);
                 player.unit_mut().set_player_class(class);

@@ -92,6 +92,7 @@ impl WorldSession {
 
     pub(crate) fn represented_learn_title_like_cpp(&mut self, title_id: u32) {
         let _canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| player.learn_title_like_cpp(title_id))
             .is_some();
         #[cfg(test)]
@@ -104,8 +105,9 @@ impl WorldSession {
     }
 
     pub(crate) fn represented_has_title_like_cpp(&self, title_id: u32) -> bool {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.has_title_like_cpp(title_id));
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.has_title_like_cpp(title_id));
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return self
@@ -119,6 +121,7 @@ impl WorldSession {
 
     pub(crate) fn represented_set_chosen_title_like_cpp(&mut self, title_id: i32) {
         let _canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| player.set_chosen_title_like_cpp(title_id))
             .is_some();
         #[cfg(test)]
@@ -131,7 +134,9 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn represented_chosen_title_like_cpp(&self) -> i32 {
-        let canonical = self.with_owned_player_like_cpp(|player| player.data().player_title);
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.data().player_title);
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return self
                 .quest_state

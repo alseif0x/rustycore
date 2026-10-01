@@ -23,7 +23,7 @@ impl WorldSession {
         &mut self,
         status: &mut wow_packet::packets::movement::MovementInfo,
     ) -> bool {
-        let vehicle_guid = self.represented_player_charmed_guid_like_cpp();
+        let vehicle_guid = self.core.represented_player_charmed_guid_like_cpp();
         if vehicle_guid.is_empty() || self.player_vehicle_seat_state_like_cpp().is_none() {
             return false;
         }
@@ -94,6 +94,7 @@ impl WorldSession {
 
     pub(crate) fn remove_represented_feign_death_if_needed_like_cpp(&mut self) -> bool {
         let has_died_state = self
+            .core
             .mutate_canonical_player_like_cpp(|player| {
                 player.unit().has_unit_state(UnitState::DIED.bits())
             })
@@ -119,7 +120,7 @@ impl WorldSession {
         for slot in slots {
             let _ = self.remove_aura(slot);
         }
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
+        let _ = self.core.mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().clear_unit_state(UnitState::DIED.bits());
         });
         true
@@ -167,6 +168,7 @@ impl WorldSession {
 
     pub(crate) fn set_represented_mover_fixed_position_vehicle_like_cpp(&mut self, fixed: bool) {
         let _canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.set_mover_fixed_position_vehicle_like_cpp(fixed);
             })
@@ -355,6 +357,7 @@ impl WorldSession {
         persist: bool,
     ) -> bool {
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| player.remove_at_login_flags_like_cpp(flags));
         #[cfg(test)]
         let removed = canonical.or_else(|| {
@@ -399,7 +402,7 @@ impl WorldSession {
     }
 
     pub(in crate::session) fn resolved_movement_force_mod_magnitude_like_cpp(&self) -> Option<f32> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
             player.unit().movement_force_mod_magnitude_like_cpp()
         });
         #[cfg(test)]
@@ -432,7 +435,7 @@ impl WorldSession {
             }
             return;
         }
-        let _ = self.with_owned_player_mut_like_cpp(|player| {
+        let _ = self.core.with_owned_player_mut_like_cpp(|player| {
             if let Some(position) = position {
                 player.set_transport_position_like_cpp(position);
             }
@@ -455,7 +458,7 @@ impl WorldSession {
             return Some(player_position);
         }
 
-        let Some(key) = self.current_canonical_player_map_key_like_cpp() else {
+        let Some(key) = self.core.current_canonical_player_map_key_like_cpp() else {
             return Some(player_position);
         };
         let Some(manager) = self.core.canonical_map_manager.as_ref() else {

@@ -58,4 +58,16 @@ impl crate::session::WorldSession {
     ) {
         crate::session::cx_lifecycle(self).load_instance_time_restriction_rows_like_cpp(rows)
     }
+    pub(crate) fn load_represented_player_difficulties_like_cpp(
+        &mut self,
+        dungeon_difficulty_id: u32,
+        raid_difficulty_id: u32,
+        legacy_raid_difficulty_id: u32,
+    ) {
+        crate::session::cx_lifecycle(self).load_represented_player_difficulties_like_cpp(
+            dungeon_difficulty_id,
+            raid_difficulty_id,
+            legacy_raid_difficulty_id,
+        )
+    }
 }

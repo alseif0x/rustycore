@@ -29,7 +29,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        let Some(port) = self.void_storage_persistence_port_like_cpp() else {
+        let Some(port) = self.lifecycle.void_storage_persistence_port_like_cpp() else {
             return;
         };
         let Some(money_persistence) = self
@@ -106,7 +106,8 @@ impl WorldSession {
             )
             .is_none()
             || !self.void_storage_is_unlocked_like_cpp()
-            || self.represented_void_storage_loaded_like_cpp() != Some(true)
+            || crate::session::cx_lifecycle_ref(self).represented_void_storage_loaded_like_cpp()
+                != Some(true)
         {
             self.send_packet(&VoidStorageFailed::default());
             return;

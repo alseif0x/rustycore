@@ -53,7 +53,7 @@ impl WorldSession {
         ) {
             return outcome;
         }
-        self.release_character_login_claim_like_cpp();
+        self.lifecycle.release_character_login_claim_like_cpp();
         self.clear_inventory_items_and_objects_like_cpp();
         outcome
     }
@@ -66,7 +66,7 @@ impl WorldSession {
         self.wait_for_active_loot_persistence_with_generator_like_cpp(item_guid_generator)
             .await;
         if let Some(player_guid) = self.player_guid()
-            && self.has_active_loot_views_like_cpp()
+            && self.loot.has_active_loot_views_like_cpp()
         {
             self.do_loot_release_all_like_cpp(player_guid).await;
         }

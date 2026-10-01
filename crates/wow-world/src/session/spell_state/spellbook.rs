@@ -18,25 +18,12 @@ impl WorldSession {
         &self,
         spell_id: u32,
     ) -> Option<&SpellLearnSkillNodeLikeCpp> {
-        match self.spell_learn_skill_lookup_like_cpp(spell_id) {
+        match self.catalogs.spell_learn_skill_lookup_like_cpp(spell_id) {
             SpellLearnSkillLookupLikeCpp::Present(node) => Some(node),
             SpellLearnSkillLookupLikeCpp::CoveredWithoutNode
             | SpellLearnSkillLookupLikeCpp::Indeterminate(_)
             | SpellLearnSkillLookupLikeCpp::MissingCoverage => None,
         }
-    }
-    pub(crate) fn spell_learn_skill_lookup_like_cpp(
-        &self,
-        spell_id: u32,
-    ) -> SpellLearnSkillLookupLikeCpp<'_> {
-        self.catalogs.spell_learn_skill_lookup_like_cpp(spell_id)
-    }
-    pub(crate) fn spell_learn_spell_map_bounds_like_cpp(
-        &self,
-        spell_id: u32,
-    ) -> &[SpellLearnSpellNodeLikeCpp] {
-        self.catalogs
-            .spell_learn_spell_map_bounds_like_cpp(spell_id)
     }
     pub(crate) fn is_spell_learn_spell_like_cpp(&self, spell_id: u32) -> bool {
         self.catalogs
@@ -72,13 +59,6 @@ impl WorldSession {
     ) -> usize {
         let roots = known_spells.clone();
         self.apply_loaded_spell_dependencies_from_roots_like_cpp(&roots, known_spells)
-    }
-    pub(crate) fn deactivate_lower_rank_known_spells_for_send_like_cpp(
-        &self,
-        known_spells: &mut Vec<i32>,
-    ) -> usize {
-        self.catalogs
-            .deactivate_lower_rank_known_spells_for_send_like_cpp(known_spells)
     }
     pub(crate) fn apply_login_known_spell_proficiencies_like_cpp(
         &mut self,
@@ -143,7 +123,7 @@ impl WorldSession {
             return 0;
         };
 
-        let before = self.canonical_player_parry_block_snapshot_like_cpp();
+        let before = self.core.canonical_player_parry_block_snapshot_like_cpp();
         for &spell_id in known_spells {
             if !spell_store.is_passive_like_cpp(spell_id) {
                 continue;
@@ -164,11 +144,12 @@ impl WorldSession {
             }
         }
 
-        let after = self.canonical_player_parry_block_snapshot_like_cpp();
+        let after = self.core.canonical_player_parry_block_snapshot_like_cpp();
         usize::from(!before.0 && after.0) + usize::from(!before.1 && after.1)
     }
     pub(crate) fn set_known_spells_like_cpp(&mut self, spells: Vec<i32>) {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.invalidate_represented_player_spell_rows_like_cpp();
         let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
             runtime.replace_known_spell_ids_like_cpp(spells);
@@ -177,7 +158,8 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(in crate::session) fn fixture_set_known_spells_like_cpp(&mut self, spells: Vec<i32>) {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.invalidate_represented_player_spell_rows_like_cpp();
         let known_spells = spells.clone();
         let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
@@ -229,8 +211,8 @@ impl WorldSession {
     ) -> Option<SpellLearnSkillNodeLikeCpp> {
         let mut prev_skill = self.spell_learn_skill_like_cpp(prev_spell).copied();
         while prev_skill.is_none() && prev_spell != 0 {
-            prev_spell = self.prev_spell_in_chain_like_cpp(prev_spell);
-            let first_spell_id = self.first_spell_in_chain_like_cpp(prev_spell);
+            prev_spell = self.catalogs.prev_spell_in_chain_like_cpp(prev_spell);
+            let first_spell_id = self.catalogs.first_spell_in_chain_like_cpp(prev_spell);
             prev_skill = self.spell_learn_skill_like_cpp(first_spell_id).copied();
         }
         prev_skill
@@ -240,7 +222,7 @@ impl WorldSession {
         learned_skill: SpellLearnSkillNodeLikeCpp,
         current_spell_id: u32,
     ) {
-        let prev_spell = self.prev_spell_in_chain_like_cpp(current_spell_id);
+        let prev_spell = self.catalogs.prev_spell_in_chain_like_cpp(current_spell_id);
         if prev_spell == 0 {
             self.set_represented_player_skill_like_cpp(learned_skill.skill, 0, 0, 0);
             return;
@@ -265,8 +247,8 @@ impl WorldSession {
         if new_skill_max_value == 0 {
             if let (Some(skill_store), Some(skill_line_store), Some(skill_tiers_store)) = (
                 self.skill_store(),
-                self.skill_line_store(),
-                self.skill_tiers_store(),
+                self.catalogs.skill_line_store(),
+                self.catalogs.skill_tiers_store(),
             ) {
                 if let Some(rc_info) = skill_store.skill_race_class_info_like_cpp(
                     prev_skill.skill,
@@ -330,7 +312,8 @@ impl WorldSession {
     }
     pub(crate) fn learn_known_spell_like_cpp(&mut self, spell_id: i32) {
         if !self.known_spells_like_cpp().contains(&spell_id) {
-            self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+            self.core
+                .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
         // This low-level helper does not run the complete C++ AddSpell closure
         // (ranks, dependencies, skills, traits and overrides). Retaining exact
@@ -343,7 +326,8 @@ impl WorldSession {
     #[cfg(test)]
     pub(in crate::session) fn fixture_learn_known_spell_like_cpp(&mut self, spell_id: i32) {
         if !self.known_spells_like_cpp().contains(&spell_id) {
-            self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+            self.core
+                .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
         self.invalidate_represented_player_spell_rows_like_cpp();
         let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
@@ -375,7 +359,8 @@ impl WorldSession {
         suppress_messaging: bool,
     ) {
         if self.known_spells_like_cpp().contains(&spell_id) {
-            self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+            self.core
+                .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
         let mut seen = HashSet::new();
         self.remove_known_spell_with_seen_like_cpp(spell_id, true, suppress_messaging, &mut seen);
@@ -403,10 +388,11 @@ impl WorldSession {
         }
 
         if let Ok(current_spell_id) = u32::try_from(spell_id) {
-            let next_spell_id = self.next_spell_in_chain_like_cpp(current_spell_id);
+            let next_spell_id = self.catalogs.next_spell_in_chain_like_cpp(current_spell_id);
             if next_spell_id != 0 {
                 if let Ok(next_known_spell_id) = i32::try_from(next_spell_id) {
                     let next_spell_is_talent = self
+                        .catalogs
                         .spell_custom_attributes_for_difficulty_like_cpp(next_spell_id, 0)
                         & wow_data::SPELL_ATTR0_CU_IS_TALENT_LIKE_CPP
                         != 0;
@@ -424,6 +410,7 @@ impl WorldSession {
             }
 
             let spells_requiring_removed: Vec<i32> = self
+                .catalogs
                 .spells_requiring_spell_like_cpp(current_spell_id)
                 .iter()
                 .filter_map(|spell| i32::try_from(*spell).ok())
@@ -473,6 +460,7 @@ impl WorldSession {
             }
 
             let learned_spells: Vec<SpellLearnSpellNodeLikeCpp> = self
+                .catalogs
                 .spell_learn_spell_map_bounds_like_cpp(current_spell_id)
                 .to_vec();
             for learned_spell in learned_spells {
@@ -491,7 +479,7 @@ impl WorldSession {
             }
 
             if learn_low_rank {
-                let prev_spell_id = self.prev_spell_in_chain_like_cpp(current_spell_id);
+                let prev_spell_id = self.catalogs.prev_spell_in_chain_like_cpp(current_spell_id);
                 if prev_spell_id != 0 {
                     if let Ok(prev_known_spell_id) = i32::try_from(prev_spell_id) {
                         let current_spell_is_ranked = self
@@ -537,6 +525,7 @@ impl WorldSession {
         if let Some(trait_definition_id) = trait_definition_id {
             if let Ok(trait_definition_id) = u32::try_from(trait_definition_id) {
                 let override_spell_id = self
+                    .catalogs
                     .trait_definition_store()
                     .and_then(|store| store.get(trait_definition_id))
                     .map(|definition| definition.overrides_spell_id)

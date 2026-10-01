@@ -45,7 +45,8 @@ impl TrainerAcquisitionRuntimeLikeCpp for WorldSession {
     }
 
     async fn fence_instance_before_realm(&self) -> bool {
-        self.wait_for_instance_send_before_realm_send_like_cpp()
+        self.core
+            .wait_for_instance_send_before_realm_send_like_cpp()
             .await
     }
 
@@ -78,7 +79,8 @@ impl TrainerAcquisitionRuntimeLikeCpp for WorldSession {
     }
 
     async fn fence_realm_before_instance(&self) -> bool {
-        self.wait_for_realm_send_before_instance_update_like_cpp()
+        self.core
+            .wait_for_realm_send_before_instance_update_like_cpp()
             .await
     }
 

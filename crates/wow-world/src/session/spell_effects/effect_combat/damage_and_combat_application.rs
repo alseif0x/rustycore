@@ -31,9 +31,10 @@ impl WorldSession {
         };
         self.sync_player_registry_state_like_cpp();
         if health_after != original_health {
-            self.send_player_health_update_like_cpp(player_guid, u64::from(health_after));
+            self.core
+                .send_player_health_update_like_cpp(player_guid, u64::from(health_after));
         }
-        self.send_environmental_damage_log_like_cpp(
+        self.core.send_environmental_damage_log_like_cpp(
             player_guid,
             DAMAGE_FIRE_LIKE_CPP,
             damage,
@@ -51,13 +52,13 @@ impl WorldSession {
         provenance: wow_entities::AuraCastProvenanceLikeCpp,
     ) -> Result<(), &'static str> {
         let player_guid = self.player_guid().ok_or("No player GUID")?;
-        let difficulty = self.current_map_difficulty_id_like_cpp();
+        let difficulty = self.core.current_map_difficulty_id_like_cpp();
         let taunt_effect_mask = self.spell_store().and_then(|store| {
             store
                 .effects_for_difficulty_like_cpp(
                     spell_id,
                     difficulty,
-                    self.difficulty_store().map(AsRef::as_ref),
+                    self.catalogs.difficulty_store().map(AsRef::as_ref),
                 )
                 .and_then(|effects| {
                     effects.iter().find_map(|effect| {
@@ -79,7 +80,7 @@ impl WorldSession {
                 .and_then(|store| {
                     store.entry_for_spell_difficulty_like_cpp(
                         u32::try_from(spell_id).unwrap_or(0),
-                        self.current_map_difficulty_id_like_cpp(),
+                        self.core.current_map_difficulty_id_like_cpp(),
                     )
                 })
                 .map(|entry| u32::from(entry.duration_index))
@@ -91,6 +92,7 @@ impl WorldSession {
         };
 
         let Some((threat_value, taunt_slot)) = self
+            .core
             .mutate_world_creature(target_guid, |creature| {
                 let combat = &mut creature.creature.unit_mut().subsystems_mut().combat;
                 if !combat.owner_can_have_threat_list
@@ -141,7 +143,7 @@ impl WorldSession {
             let visible_duration_ms = u32::try_from(duration_ms).unwrap_or(u32::MAX);
             let aura = AuraApplication {
                 spell_id,
-                difficulty_id: self.current_map_difficulty_id_like_cpp(),
+                difficulty_id: self.core.current_map_difficulty_id_like_cpp(),
                 caster_guid: player_guid,
                 slot,
                 duration_total: visible_duration_ms,
@@ -164,7 +166,7 @@ impl WorldSession {
                 auras: vec![crate::session::player_aura_info_like_cpp(
                     &aura,
                     self.player_level_like_cpp(),
-                    self.player_map_id_like_cpp(),
+                    self.core.player_map_id_like_cpp(),
                 )],
             };
             self.send_packet(&packet);
@@ -246,23 +248,24 @@ impl WorldSession {
         let controlling_player_guid = if caster_guid.is_player() {
             Some(caster_guid)
         } else {
-            self.mutate_world_creature(caster_guid, |creature| {
-                creature
-                    .creature
-                    .unit()
-                    .subsystems()
-                    .control
-                    .charmer_or_owner_guid()
-                    .filter(|guid| guid.is_player())
-            })
-            .flatten()
+            self.core
+                .mutate_world_creature(caster_guid, |creature| {
+                    creature
+                        .creature
+                        .unit()
+                        .subsystems()
+                        .control
+                        .charmer_or_owner_guid()
+                        .filter(|guid| guid.is_player())
+                })
+                .flatten()
         };
         let caster_rewards_session_player = controlling_player_guid == Some(player_guid);
         let tap_group_guids = caster_rewards_session_player
             .then(|| self.current_group_member_guids_for_tap_like_cpp(player_guid))
             .unwrap_or_default();
-        let difficulty = self.current_map_difficulty_id_like_cpp();
-        let difficulty_store = self.difficulty_store().cloned();
+        let difficulty = self.core.current_map_difficulty_id_like_cpp();
+        let difficulty_store = self.catalogs.difficulty_store().cloned();
         let suppress_harmful_threat = spell_id.is_some_and(|spell_id| {
             self.spell_store().is_some_and(|store| {
                 store.has_attribute_for_difficulty_like_cpp(
@@ -293,36 +296,38 @@ impl WorldSession {
         });
         let spell_threat_entry = spell_id
             .and_then(|spell_id| u32::try_from(spell_id).ok())
-            .and_then(|spell_id| self.spell_threat_entry_like_cpp(spell_id))
+            .and_then(|spell_id| self.catalogs.spell_threat_entry_like_cpp(spell_id))
             .copied();
         let spell_threat_pct_mod = spell_threat_entry.map_or(1.0, |entry| entry.pct_mod);
         let spell_school_mask = spell_id
             .and_then(|spell_id| u32::try_from(spell_id).ok())
             .map_or(1, |spell_id| {
-                self.spell_school_mask_for_difficulty_like_cpp(
+                self.catalogs.spell_school_mask_for_difficulty_like_cpp(
                     spell_id,
-                    self.current_map_difficulty_id_like_cpp(),
+                    self.core.current_map_difficulty_id_like_cpp(),
                 )
             });
         let caster_school_threat_mod = if caster_is_session_player {
             self.hydrate_canonical_threat_relevant_auras_like_cpp();
-            self.mutate_canonical_player_like_cpp(|player| {
-                player
-                    .unit()
-                    .subsystems()
-                    .auras
-                    .total_aura_multiplier_by_misc_mask_like_cpp(
-                        wow_data::spell::aura_types::SPELL_AURA_MOD_THREAT,
-                        spell_school_mask,
-                    )
-            })
-            .unwrap_or(1.0)
+            self.core
+                .mutate_canonical_player_like_cpp(|player| {
+                    player
+                        .unit()
+                        .subsystems()
+                        .auras
+                        .total_aura_multiplier_by_misc_mask_like_cpp(
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_THREAT,
+                            spell_school_mask,
+                        )
+                })
+                .unwrap_or(1.0)
         } else {
             1.0
         };
 
         // Si target es otra criatura — mutate canonical shared map state.
         let damage_outcome = self
+            .core
             .mutate_world_creature(target_guid, |creature| {
                 if !creature.is_alive() {
                     debug!(
@@ -463,6 +468,7 @@ impl WorldSession {
                 .await;
             // Give XP for the kill
             let (mob_level, can_give_experience) = self
+                .core
                 .mutate_world_creature(guid, |creature| {
                     (
                         creature.level(),
@@ -509,7 +515,7 @@ impl WorldSession {
             .contains(&target_guid)
             && let Some(update) = self.represented_unit_values_update_to_update_object_like_cpp(
                 target_guid,
-                self.player_map_id_like_cpp(),
+                self.core.player_map_id_like_cpp(),
                 &values_update,
             )
         {

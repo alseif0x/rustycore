@@ -228,7 +228,7 @@ async fn far_sight_update_visibility_canonical_clear_resets_session_seer_like_cp
     );
     let expected_farsight_clear = expected_active_player_farsight_object_values_update_like_cpp(
         player_guid,
-        session.player_map_id_like_cpp(),
+        session.core.player_map_id_like_cpp(),
         ObjectGuid::EMPTY,
     );
     let packets = drain_server_packet_bytes(&send_rx);
@@ -281,7 +281,7 @@ async fn far_sight_update_visibility_non_empty_canonical_keeps_session_seer_like
     );
     let expected_farsight_clear = expected_active_player_farsight_object_values_update_like_cpp(
         player_guid,
-        session.player_map_id_like_cpp(),
+        session.core.player_map_id_like_cpp(),
         ObjectGuid::EMPTY,
     );
     let packets = drain_server_packet_bytes(&send_rx);
@@ -327,7 +327,7 @@ async fn far_sight_update_visibility_missing_canonical_player_keeps_session_seer
     );
     let expected_farsight_clear = expected_active_player_farsight_object_values_update_like_cpp(
         player_guid,
-        session.player_map_id_like_cpp(),
+        session.core.player_map_id_like_cpp(),
         ObjectGuid::EMPTY,
     );
     let packets = drain_server_packet_bytes(&send_rx);

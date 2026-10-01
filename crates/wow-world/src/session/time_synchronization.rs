@@ -37,20 +37,7 @@ pub(crate) fn game_time_ms_like_cpp() -> u32 {
     start.elapsed().as_millis() as u32
 }
 
-impl WorldSession {
-    pub(crate) fn reset_time_sync_like_cpp(&mut self) {
-        self.core.reset_time_sync_like_cpp()
-    }
-
-    pub(crate) fn record_time_sync_response_like_cpp(
-        &mut self,
-        sequence_index: u32,
-        client_time: u32,
-    ) {
-        self.core
-            .record_time_sync_response_like_cpp(sequence_index, client_time)
-    }
-}
+impl WorldSession {}
 
 impl crate::session::state::SessionCore {
     pub(crate) fn reset_time_sync_like_cpp(&mut self) {

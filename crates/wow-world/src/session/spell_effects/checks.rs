@@ -25,9 +25,9 @@ impl WorldSession {
             None => return,
         };
 
-        let guids = self.world_creature_guids();
+        let guids = self.core.world_creature_guids();
         let mut aggro_guid: Option<wow_core::ObjectGuid> = None;
-        let player_combat_reach = self.canonical_player_combat_reach_snapshot_like_cpp();
+        let player_combat_reach = self.core.canonical_player_combat_reach_snapshot_like_cpp();
         let player_level = self.player_level_like_cpp();
         let Some(player_detected_range_aura_mod) = self
             .resolved_total_represented_aura_modifier_like_cpp(
@@ -41,6 +41,7 @@ impl WorldSession {
 
         for guid in guids {
             let aggroed = self
+                .core
                 .mutate_world_creature(guid, |creature| {
                     if !creature.is_alive() || creature.creature.ai_ownership().aggro_radius <= 0.0
                     {
@@ -113,7 +114,8 @@ impl WorldSession {
                 return Some(SpellCastResult::BadTargets);
             };
 
-            if !self.has_represented_battle_pet_journal_lock_like_cpp() {
+            if !crate::session::cx_pets_ref(self).has_represented_battle_pet_journal_lock_like_cpp()
+            {
                 return Some(SpellCastResult::CantDoThatRightNow);
             }
 
@@ -126,11 +128,15 @@ impl WorldSession {
                 return Some(SpellCastResult::BadTargets);
             }
 
-            let Some(pet) = self.represented_battle_pet_like_cpp(companion_guid) else {
+            let Some(pet) =
+                crate::session::cx_pets_ref(self).represented_battle_pet_like_cpp(companion_guid)
+            else {
                 continue;
             };
 
-            if let Some(species) = self.battle_pet_species_entry_like_cpp(pet.species) {
+            if let Some(species) =
+                crate::session::cx_pets_ref(self).battle_pet_species_entry_like_cpp(pet.species)
+            {
                 let battle_pet_type = effect.effect_misc_value_1 as u32;
                 if battle_pet_type != 0 {
                     let type_mask = 1u32
@@ -198,7 +204,7 @@ impl WorldSession {
                             form_id = effect.effect_misc_value_1,
                             mount_type_id = form.mount_type_id,
                             riding_skill,
-                            map_id = self.player_map_id_like_cpp(),
+                            map_id = self.core.player_map_id_like_cpp(),
                             ?reject_reason,
                             "Rejecting represented shapeshift mount form cast: no mount capability"
                         );
@@ -271,7 +277,7 @@ impl WorldSession {
                         spell_id = spell_info.spell_id,
                         mount_type_id,
                         riding_skill,
-                        map_id = self.player_map_id_like_cpp(),
+                        map_id = self.core.player_map_id_like_cpp(),
                         area_id = current_area_id,
                         is_submerged,
                         is_in_water,
@@ -287,7 +293,7 @@ impl WorldSession {
                     spell_id = spell_info.spell_id,
                     mount_type_id,
                     riding_skill,
-                    map_id = self.player_map_id_like_cpp(),
+                    map_id = self.core.player_map_id_like_cpp(),
                     area_id = current_area_id,
                     is_submerged,
                     is_in_water,

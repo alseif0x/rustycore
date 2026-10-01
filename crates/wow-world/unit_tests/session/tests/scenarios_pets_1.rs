@@ -360,7 +360,7 @@ fn beginning_character_pet_load_replaces_pet_query_holder_rows_like_cpp() {
             .is_empty()
     );
 
-    session.begin_represented_character_pet_authority_load_like_cpp();
+    crate::session::cx_pets(&mut session).begin_represented_character_pet_authority_load_like_cpp();
 
     let holder = &session.lifecycle.pet_load_query_holder_rows_like_cpp;
     assert!(holder.spells.is_empty());
@@ -885,7 +885,9 @@ async fn battle_pet_cage_battle_pet_applies_cpp_gates_without_side_effects() {
         session.battle_pet_cage_battle_pet_represented_like_cpp(pet_guid, true, true),
         RepresentedBattlePetCageOutcomeLikeCpp::NoJournalLock
     );
-    session.send_battle_pet_journal_lock_status_like_cpp().await;
+    crate::session::cx_pets(&mut session)
+        .send_battle_pet_journal_lock_status_like_cpp()
+        .await;
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert_eq!(

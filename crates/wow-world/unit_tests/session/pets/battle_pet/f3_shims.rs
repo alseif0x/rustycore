@@ -112,4 +112,21 @@ impl crate::session::WorldSession {
     ) -> u8 {
         crate::session::cx_pets_ref(self).battle_pet_count_like_cpp(species, owner_guid)
     }
+    pub(crate) fn represented_battle_pet_like_cpp(
+        &self,
+        pet_guid: ObjectGuid,
+    ) -> Option<RepresentedBattlePetDataLikeCpp> {
+        crate::session::cx_pets_ref(self).represented_battle_pet_like_cpp(pet_guid)
+    }
+    pub(crate) fn battle_pet_account_owner_lease_like_cpp(
+        &self,
+    ) -> Option<(
+        Arc<crate::battle_pet_account::BattlePetAccountOwnerLikeCpp>,
+        crate::battle_pet_account::BattlePetLeaseIdLikeCpp,
+    )> {
+        crate::session::cx_pets_ref(self).battle_pet_account_owner_lease_like_cpp()
+    }
+    pub(crate) fn battle_pet_summon_toggle_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
+        crate::session::cx_pets(self).battle_pet_summon_toggle_like_cpp(pet_guid)
+    }
 }

@@ -151,11 +151,15 @@ impl crate::session::WorldSession {
             return;
         }
 
-        if !self.has_represented_battle_pet_journal_lock_like_cpp() {
-            self.send_battle_pet_journal_lock_status_like_cpp().await;
+        if !crate::session::cx_pets_ref(self).has_represented_battle_pet_journal_lock_like_cpp() {
+            crate::session::cx_pets(self)
+                .send_battle_pet_journal_lock_status_like_cpp()
+                .await;
         }
 
-        if let Some(journal) = self.represented_battle_pet_journal_like_cpp() {
+        if let Some(journal) =
+            crate::session::cx_pets_ref(self).represented_battle_pet_journal_like_cpp()
+        {
             self.send_packet_realm(&journal);
         }
     }
@@ -166,9 +170,13 @@ impl crate::session::WorldSession {
     /// lock is held, sends the journal.
 
     pub async fn handle_battle_pet_request_journal_lock(&mut self, _pkt: wow_packet::WorldPacket) {
-        self.send_battle_pet_journal_lock_status_like_cpp().await;
-        if self.has_represented_battle_pet_journal_lock_like_cpp() {
-            if let Some(journal) = self.represented_battle_pet_journal_like_cpp() {
+        crate::session::cx_pets(self)
+            .send_battle_pet_journal_lock_status_like_cpp()
+            .await;
+        if crate::session::cx_pets_ref(self).has_represented_battle_pet_journal_lock_like_cpp() {
+            if let Some(journal) =
+                crate::session::cx_pets_ref(self).represented_battle_pet_journal_like_cpp()
+            {
                 self.send_packet_realm(&journal);
             }
         }
@@ -192,7 +200,8 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.battle_pet_clear_fanfare_durable_like_cpp(request.pet_guid)
+        crate::session::cx_pets(self)
+            .battle_pet_clear_fanfare_durable_like_cpp(request.pet_guid)
             .await;
     }
 
@@ -260,16 +269,17 @@ impl crate::session::WorldSession {
             }
         };
 
-        if !self.has_represented_battle_pet_journal_lock_like_cpp() {
+        if !crate::session::cx_pets_ref(self).has_represented_battle_pet_journal_lock_like_cpp() {
             return;
         }
 
-        self.battle_pet_set_flags_durable_like_cpp(
-            request.pet_guid,
-            request.flags,
-            request.control_type,
-        )
-        .await;
+        crate::session::cx_pets(self)
+            .battle_pet_set_flags_durable_like_cpp(
+                request.pet_guid,
+                request.flags,
+                request.control_type,
+            )
+            .await;
     }
 
     /// CMSG_BATTLE_PET_SET_BATTLE_SLOT — assign an owned pet to a battle slot.
@@ -288,7 +298,8 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.battle_pet_set_battle_slot_durable_like_cpp(request.pet_guid, request.slot)
+        crate::session::cx_pets(self)
+            .battle_pet_set_battle_slot_durable_like_cpp(request.pet_guid, request.slot)
             .await;
     }
 
@@ -311,7 +322,7 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.battle_pet_summon_toggle_like_cpp(request.pet_guid);
+        crate::session::cx_pets(self).battle_pet_summon_toggle_like_cpp(request.pet_guid);
     }
 
     /// CMSG_BATTLE_PET_UPDATE_NOTIFY — represented update of active companion data.
@@ -332,7 +343,7 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.battle_pet_update_notify_like_cpp(request.pet_guid);
+        crate::session::cx_pets(self).battle_pet_update_notify_like_cpp(request.pet_guid);
     }
 
     /// CMSG_BATTLE_PET_UPDATE_DISPLAY_NOTIFY — explicit no-op.
@@ -409,7 +420,9 @@ impl crate::session::WorldSession {
         };
 
         if companion.owner_is_player {
-            if let Some(pet) = self.represented_battle_pet_like_cpp(request.battle_pet_id) {
+            if let Some(pet) = crate::session::cx_pets_ref(self)
+                .represented_battle_pet_like_cpp(request.battle_pet_id)
+            {
                 response.name = pet.name;
                 response.declined_names = pet.declined_names;
                 response.allow = !response.name.is_empty();

@@ -49,8 +49,8 @@ impl WorldSession {
         loot: CreatureLoot,
         replace: bool,
     ) -> Option<()> {
-        let observation =
-            self.represented_gameobject_loot_install_observation_like_cpp(gameobject_guid)?;
+        let observation = crate::session::cx_loot(self)
+            .represented_gameobject_loot_install_observation_like_cpp(gameobject_guid)?;
         self.upsert_represented_personal_gameobject_loot_authority_if_observed_like_cpp(
             gameobject_guid,
             player_guid,
@@ -58,22 +58,6 @@ impl WorldSession {
             replace,
             &observation,
         )
-    }
-
-    pub(in crate::handlers::loot) fn represented_gameobject_loot_install_observation_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-    ) -> Option<RepresentedGameObjectLootInstallObservationLikeCpp> {
-        crate::session::cx_loot(self)
-            .represented_gameobject_loot_install_observation_like_cpp(gameobject_guid)
-    }
-
-    pub(super) fn represented_gameobject_loot_install_observation_result_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-    ) -> Option<Option<RepresentedGameObjectLootInstallObservationLikeCpp>> {
-        crate::session::cx_loot(self)
-            .represented_gameobject_loot_install_observation_result_like_cpp(gameobject_guid)
     }
 
     pub(in crate::handlers::loot) fn upsert_represented_personal_gameobject_loot_authority_if_observed_like_cpp(
@@ -111,10 +95,11 @@ impl WorldSession {
         )?;
         let pool = personal.remove(&player_guid)?;
         if discard_empty_pool && loot_is_looted_like_cpp(&pool) {
-            self.discard_represented_personal_loot_cache_for_player_like_cpp(
-                gameobject_guid,
-                player_guid,
-            );
+            self.loot
+                .discard_represented_personal_loot_cache_for_player_like_cpp(
+                    gameobject_guid,
+                    player_guid,
+                );
             return None;
         }
         let installed =
@@ -129,10 +114,11 @@ impl WorldSession {
                 )
             });
         if installed != Some(true) {
-            self.discard_represented_personal_loot_cache_for_player_like_cpp(
-                gameobject_guid,
-                player_guid,
-            );
+            self.loot
+                .discard_represented_personal_loot_cache_for_player_like_cpp(
+                    gameobject_guid,
+                    player_guid,
+                );
             return None;
         }
         if !self.reconcile_represented_loot_cache_like_cpp(gameobject_guid, player_guid) {
@@ -151,7 +137,7 @@ impl WorldSession {
             .sync_represented_gameobject_loot_to_canonical_like_cpp(gameobject_guid, player_guid)
             .is_some()
         {
-            return self
+            return crate::session::cx_loot(self)
                 .canonical_gameobject_is_fully_looted_like_cpp(gameobject_guid)
                 .unwrap_or(fallback_fully_looted);
         }
@@ -159,23 +145,12 @@ impl WorldSession {
         fallback_fully_looted
     }
 
-    fn represented_gameobject_loot_state_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) -> Option<RepresentedGameObjectLootStateLikeCpp> {
-        crate::session::cx_loot_ref(self).represented_gameobject_loot_state_like_cpp(guid)
-    }
-
-    pub(super) fn represented_gameobject_exists_for_loot_like_cpp(&self, guid: ObjectGuid) -> bool {
-        crate::session::cx_loot_ref(self).represented_gameobject_exists_for_loot_like_cpp(guid)
-    }
-
     fn represented_gameobject_spell_lock_range_like_cpp(
         &self,
         lock_id: Option<u32>,
     ) -> Option<f32> {
         let lock_id = lock_id?;
-        let lock = self.lock_store()?.get(lock_id)?;
+        let lock = self.catalogs.lock_store()?.get(lock_id)?;
         for i in 0..wow_data::lock::MAX_LOCK_CASE {
             let lock_type = lock.lock_type[i];
             if lock_type == 0 {
@@ -183,7 +158,10 @@ impl WorldSession {
             }
 
             if lock_type == LOCK_KEY_SPELL_LIKE_CPP {
-                if let Some(range) = self.represented_spell_max_range_like_cpp(lock.index[i]) {
+                if let Some(range) = self
+                    .catalogs
+                    .represented_spell_max_range_like_cpp(lock.index[i])
+                {
                     return Some(range);
                 }
             }
@@ -202,7 +180,9 @@ impl WorldSession {
                         && effect.effect_base_points >= i32::from(lock.skill[i])
                 });
                 if can_open_lock {
-                    if let Some(range) = self.represented_spell_max_range_like_cpp(spell_id) {
+                    if let Some(range) =
+                        self.catalogs.represented_spell_max_range_like_cpp(spell_id)
+                    {
                         return Some(range);
                     }
                 }
@@ -217,7 +197,9 @@ impl WorldSession {
         guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) -> bool {
-        let Some(state) = self.represented_gameobject_loot_state_like_cpp(guid) else {
+        let Some(state) =
+            crate::session::cx_loot_ref(self).represented_gameobject_loot_state_like_cpp(guid)
+        else {
             return false;
         };
 
@@ -240,11 +222,15 @@ impl WorldSession {
                 let radius = self
                     .represented_gameobject_spell_lock_range_like_cpp(state.lock_id)
                     .unwrap_or(radius);
-                if let Some(display_info) = self.gameobject_display_info_store().and_then(|store| {
-                    state
-                        .display_id
-                        .and_then(|display_id| store.get(display_id))
-                }) {
+                if let Some(display_info) =
+                    self.catalogs
+                        .gameobject_display_info_store()
+                        .and_then(|store| {
+                            state
+                                .display_id
+                                .and_then(|display_id| store.get(display_id))
+                        })
+                {
                     represented_gameobject_display_box_contains_like_cpp(
                         position,
                         player,
@@ -367,3 +353,7 @@ impl crate::session::LootState {
         (!owner_guid.is_empty()).then_some(owner_guid)
     }
 }
+
+#[cfg(test)]
+#[path = "../../../../unit_tests/handlers/loot/sources/gameobject_authority/f3_shims.rs"]
+mod f3_shims;

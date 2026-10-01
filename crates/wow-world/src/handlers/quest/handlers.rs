@@ -381,7 +381,8 @@ impl WorldSession {
         self.clear_represented_pending_quest_sharing_like_cpp();
 
         if pending.sender_guid != packet.sender_guid {
-            self.record_represented_quest_push_result_sender_mismatch_like_cpp();
+            self.quest_state
+                .record_represented_quest_push_result_sender_mismatch_like_cpp();
             debug!(
                 account = self.core.account_id,
                 pending_sender_guid = ?pending.sender_guid,
@@ -400,15 +401,16 @@ impl WorldSession {
             return;
         };
 
-        self.record_represented_quest_push_result_response_like_cpp(
-            RepresentedQuestPushResultResponseLikeCpp {
-                receiver_guid,
-                sender_guid: packet.sender_guid,
-                parsed_quest_id: packet.quest_id,
-                pending_quest_id: pending.quest_id,
-                result: packet.result,
-            },
-        );
+        self.quest_state
+            .record_represented_quest_push_result_response_like_cpp(
+                RepresentedQuestPushResultResponseLikeCpp {
+                    receiver_guid,
+                    sender_guid: packet.sender_guid,
+                    parsed_quest_id: packet.quest_id,
+                    pending_quest_id: pending.quest_id,
+                    result: packet.result,
+                },
+            );
     }
 
     /// CMSG_QUEST_LOG_REMOVE_QUEST — abandon quest-log slot.
@@ -453,7 +455,9 @@ impl WorldSession {
 
         self.invalidate_player_quest_status_authority_like_cpp();
         let _ = self.remove_represented_quest_status_like_cpp(qid);
-        self.delete_quest_from_db(qid).await;
+        crate::session::cx_quest_state_ref(self)
+            .delete_quest_from_db(qid)
+            .await;
         self.sync_player_registry_state_like_cpp();
         self.send_represented_quest_log_slot_update_like_cpp(slot);
         info!(

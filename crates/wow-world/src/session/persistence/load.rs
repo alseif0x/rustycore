@@ -34,7 +34,7 @@ impl WorldSession {
             return false;
         }
         let item_entry = item.item_entry;
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+        let canonical = self.core.with_owned_player_mut_like_cpp(|player| {
             player.load_void_storage_item_like_cpp(slot, item.clone())
         });
         let inserted = match canonical {
@@ -75,9 +75,6 @@ impl WorldSession {
         let _ = self.add_item_appearance_for_item_like_cpp(item_entry, 0);
         true
     }
-    pub(crate) fn represented_void_storage_loaded_like_cpp(&self) -> Option<bool> {
-        crate::session::cx_lifecycle_ref(self).represented_void_storage_loaded_like_cpp()
-    }
     pub async fn load_instance_time_restrictions_like_cpp(&mut self) {
         crate::session::cx_lifecycle(self)
             .load_instance_time_restrictions_like_cpp()
@@ -89,18 +86,6 @@ impl WorldSession {
     ) -> bool {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
         state.load_character_reputation_rows_like_cpp(&mut hub, rows)
-    }
-    pub(crate) fn load_represented_player_difficulties_like_cpp(
-        &mut self,
-        dungeon_difficulty_id: u32,
-        raid_difficulty_id: u32,
-        legacy_raid_difficulty_id: u32,
-    ) {
-        crate::session::cx_lifecycle(self).load_represented_player_difficulties_like_cpp(
-            dungeon_difficulty_id,
-            raid_difficulty_id,
-            legacy_raid_difficulty_id,
-        )
     }
     /// C++ `Player::_LoadGroup` overwrites the loaded player difficulties with
     /// the current group values because the leader may change them while the
@@ -213,13 +198,14 @@ impl WorldSession {
             });
             return;
         }
-        let _ = self.with_owned_player_mut_like_cpp(|player| {
+        let _ = self.core.with_owned_player_mut_like_cpp(|player| {
             player.load_xp_rest_bonus_like_cpp(rest_state, rest_bonus);
         });
     }
     #[cfg(test)]
     fn clear_represented_rest_flags_for_character_load_like_cpp(&mut self) {
         let loaded_resting = self
+            .core
             .canonical_player_snapshot_like_cpp(|player| player.data().player_flags)
             .is_some_and(|flags| (flags & PLAYER_FLAGS_RESTING_LIKE_CPP) != 0);
         let _canonical = self.with_owned_player_mut_for_rest_like_cpp(|player| {
@@ -268,6 +254,7 @@ impl WorldSession {
         let changed = previous != blocks;
 
         let canonical = self
+            .core
             .mutate_canonical_player_like_cpp(|player| {
                 let applied = player.set_explored_zones_blocks_like_cpp(&blocks);
                 (applied > 0).then(|| player.values_update(true))
@@ -278,7 +265,7 @@ impl WorldSession {
             self.instances.represented_explored_zones_like_cpp = blocks;
         }
         if let Some(update) = canonical {
-            self.send_player_values_update_like_cpp(&update);
+            self.core.send_player_values_update_like_cpp(&update);
         }
 
         if changed {
@@ -321,9 +308,6 @@ impl WorldSession {
     pub fn player_loading(&self) -> Option<ObjectGuid> {
         self.lifecycle.player_loading()
     }
-    pub(crate) fn load_tutorials_data_values_like_cpp(&mut self, values: Option<[u32; 8]>) {
-        self.lifecycle.load_tutorials_data_values_like_cpp(values)
-    }
     pub async fn load_tutorials_data_like_cpp(&mut self) {
         self.lifecycle.tutorials_like_cpp = [0; 8];
         self.lifecycle.tutorials_loaded_from_db_like_cpp = false;
@@ -346,7 +330,7 @@ impl WorldSession {
 
         match port.load_tutorials_like_cpp(self.core.account_id).await {
             wow_persistence::SessionTutorialsLoadOutcomeLikeCpp::Loaded(values) => {
-                self.load_tutorials_data_values_like_cpp(values);
+                self.lifecycle.load_tutorials_data_values_like_cpp(values);
             }
             wow_persistence::SessionTutorialsLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(
@@ -385,20 +369,23 @@ impl WorldSession {
         let initialize_reputation = self.player_race_like_cpp() != race
             || self.player_class_like_cpp() != class
             || self
+                .core
                 .with_owned_player_like_cpp(|player| {
                     player.reputation_like_cpp().faction_count_like_cpp() == 0
                 })
                 .unwrap_or(true);
-        if self.player_map_id_like_cpp() != map_id
+        if self.core.player_map_id_like_cpp() != map_id
             || self.player_race_like_cpp() != race
             || self.player_class_like_cpp() != class
             || self.player_gender_like_cpp() != gender
         {
-            self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+            self.core
+                .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
         self.core.current_map_id = map_id;
         let gray_level = self.gray_level(level);
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.set_race_class_gender(race, class, crate::session::gender_from_u8(gender));
                 player.set_level_and_gray_level_like_cpp(level, gray_level);
@@ -456,6 +443,7 @@ impl WorldSession {
         &self,
     ) -> Option<[u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS]> {
         let canonical = self
+            .core
             .with_owned_player_like_cpp(|player| {
                 player
                     .action_buttons_loaded_like_cpp()
@@ -527,6 +515,7 @@ impl WorldSession {
         };
         let chosen_title = i32::try_from(chosen_title).unwrap_or(0);
         let _canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.replace_known_titles_like_cpp(known_title_ids.clone());
                 player.set_chosen_title_like_cpp(chosen_title);

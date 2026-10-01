@@ -17,12 +17,12 @@ impl WorldSession {
         self.send_spell_execute_log_like_cpp(spell_id, caster_guid);
 
         let mut threat_spell_info = spell_info.clone();
-        let difficulty = self.current_map_difficulty_id_like_cpp();
+        let difficulty = self.core.current_map_difficulty_id_like_cpp();
         if let Some(effects) = self.spell_store().and_then(|store| {
             store.effects_for_difficulty_like_cpp(
                 spell_id,
                 difficulty,
-                self.difficulty_store().map(AsRef::as_ref),
+                self.catalogs.difficulty_store().map(AsRef::as_ref),
             )
         }) {
             threat_spell_info.effects = effects.to_vec();

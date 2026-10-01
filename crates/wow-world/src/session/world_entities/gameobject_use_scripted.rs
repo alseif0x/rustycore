@@ -344,7 +344,8 @@ impl WorldSession {
                     )
                 };
                 let fishing_hole_guid = explicit_fishing_hole_guid.or_else(|| {
-                    self.lookup_represented_fishing_hole_around_like_cpp(gameobject_guid)
+                    self.world_entities
+                        .lookup_represented_fishing_hole_around_like_cpp(gameobject_guid)
                 });
                 self.world_entities.represented_gameobject_use_effects.push(
                     RepresentedGameObjectUseEffect::FishingNodeActivated {
@@ -520,7 +521,7 @@ impl WorldSession {
         for credit_guid in credit_guids {
             if self.represented_player_at_group_reward_distance_like_cpp(
                 credit_guid,
-                self.player_map_id_like_cpp(),
+                self.core.player_map_id_like_cpp(),
                 gameobject_position,
             ) {
                 self.world_entities.represented_gameobject_use_effects.push(
@@ -582,7 +583,7 @@ impl WorldSession {
     ) -> bool {
         if source.allow_multi_interact {
             if source.consumable {
-                let default_map_id = self.player_map_id_like_cpp();
+                let default_map_id = self.core.player_map_id_like_cpp();
                 let (despawn_secs, map_id) = {
                     let state = self
                         .world_entities
@@ -693,8 +694,8 @@ impl WorldSession {
                     go_state,
                 },
             );
-            let _ =
-                self.queue_goober_gameobject_state_refresh_for_same_map_like_cpp(gameobject_guid);
+            let _ = crate::session::cx_loot_ref(self)
+                .queue_goober_gameobject_state_refresh_for_same_map_like_cpp(gameobject_guid);
         }
 
         if source.spell_id != 0 {

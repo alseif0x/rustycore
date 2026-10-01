@@ -190,7 +190,7 @@ impl WorldSession {
             None => return,
         };
 
-        if target.map_id != self.player_map_id_like_cpp()
+        if target.map_id != self.core.player_map_id_like_cpp()
             || !target
                 .position
                 .is_within_dist_2d(&self_position, Self::INSPECT_DISTANCE_LIKE_CPP)

@@ -609,7 +609,9 @@ fn gameobject_loot_distance_uses_spell_lock_range_like_cpp() {
         Position::ZERO,
         GAMEOBJECT_TYPE_CHEST as u8,
     );
-    session.record_represented_gameobject_lock_id_like_cpp(gameobject_guid, 501);
+    session
+        .world_entities
+        .record_represented_gameobject_lock_id_like_cpp(gameobject_guid, 501);
     session.set_lock_store(Arc::new(wow_data::LockStore::from_entries([
         wow_data::LockEntry {
             id: 501,
@@ -690,7 +692,9 @@ fn gameobject_loot_distance_uses_known_open_lock_skill_spell_like_cpp() {
         Position::ZERO,
         GAMEOBJECT_TYPE_CHEST as u8,
     );
-    session.record_represented_gameobject_lock_id_like_cpp(gameobject_guid, 502);
+    session
+        .world_entities
+        .record_represented_gameobject_lock_id_like_cpp(gameobject_guid, 502);
     session.set_lock_store(Arc::new(wow_data::LockStore::from_entries([
         wow_data::LockEntry {
             id: 502,
@@ -768,7 +772,7 @@ async fn loot_item_missing_gameobject_uses_cpp_release() {
     let player_guid = ObjectGuid::create_player(1, 42);
     let loot_guid = test_gameobject_guid(19_010);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     session.loot.loot_table.insert(
         loot_guid,
         CreatureLoot {
@@ -813,7 +817,7 @@ async fn loot_item_missing_gameobject_uses_cpp_release() {
     assert_eq!(sent.read_packed_guid().unwrap(), loot_guid);
     assert_eq!(sent.read_packed_guid().unwrap(), player_guid);
     assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
-    assert!(session.is_active_loot_guid(loot_guid));
+    assert!(session.loot.is_active_loot_guid(loot_guid));
 }
 #[tokio::test]
 async fn loot_item_gameobject_too_far_uses_cpp_release() {
@@ -823,7 +827,7 @@ async fn loot_item_gameobject_too_far_uses_cpp_release() {
     let go_position = Position::new(6.0, 0.0, 0.0, 0.0);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     attach_canonical_map_object(
         &mut session,
         AccessorObjectKind::GameObject,
@@ -880,5 +884,5 @@ async fn loot_item_gameobject_too_far_uses_cpp_release() {
     assert_eq!(sent.read_packed_guid().unwrap(), loot_guid);
     assert_eq!(sent.read_packed_guid().unwrap(), player_guid);
     assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
-    assert!(session.is_active_loot_guid(loot_guid));
+    assert!(session.loot.is_active_loot_guid(loot_guid));
 }

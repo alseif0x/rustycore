@@ -102,8 +102,12 @@ async fn appearances_and_illusions_are_saved_through_the_port_like_cpp() {
     let (mut session, port) = session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
     session.set_player_guid(Some(ObjectGuid::create_player(1, 0x7400_0001)));
 
-    session.save_account_item_appearances_like_cpp().await;
-    session.save_account_transmog_illusions_like_cpp().await;
+    crate::session::cx_lifecycle(&mut session)
+        .save_account_item_appearances_like_cpp()
+        .await;
+    crate::session::cx_lifecycle(&mut session)
+        .save_account_transmog_illusions_like_cpp()
+        .await;
 
     for save in port.collection_saves() {
         assert_eq!(save.logical_database(), LogicalDatabaseLikeCpp::Login);

@@ -20,23 +20,24 @@ impl WorldSession {
         ) else {
             return false;
         };
-        self.record_represented_quest_complete_status_update_like_cpp(
-            RepresentedQuestCompleteStatusUpdateLikeCpp {
-                quest_id: quest.id,
-                old_status,
-                new_status: QUEST_STATUS_COMPLETE_LIKE_CPP,
-                send_quest_update_called: true,
-                quest_slot_state_complete_represented: true,
-                quest_slot_state_live_update_unrepresented: true,
-                visible_gameobjects_or_spellclicks_refresh_unrepresented: true,
-                spell_area_runtime_unrepresented: true,
-                tracking_event_auto_reward_unrepresented: (quest.flags
-                    & QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP)
-                    != 0,
-                quest_tracker_complete_time_unrepresented: true,
-                script_status_change_unrepresented: true,
-            },
-        );
+        self.quest_state
+            .record_represented_quest_complete_status_update_like_cpp(
+                RepresentedQuestCompleteStatusUpdateLikeCpp {
+                    quest_id: quest.id,
+                    old_status,
+                    new_status: QUEST_STATUS_COMPLETE_LIKE_CPP,
+                    send_quest_update_called: true,
+                    quest_slot_state_complete_represented: true,
+                    quest_slot_state_live_update_unrepresented: true,
+                    visible_gameobjects_or_spellclicks_refresh_unrepresented: true,
+                    spell_area_runtime_unrepresented: true,
+                    tracking_event_auto_reward_unrepresented: (quest.flags
+                        & QUEST_FLAGS_TRACKING_EVENT_LIKE_CPP)
+                        != 0,
+                    quest_tracker_complete_time_unrepresented: true,
+                    script_status_change_unrepresented: true,
+                },
+            );
         let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
         self.sync_player_registry_state_like_cpp();
         true
@@ -419,7 +420,7 @@ impl WorldSession {
 
         self.send_packet(&UpdateObject::full_player_values_update(
             guid,
-            self.player_map_id_like_cpp(),
+            self.core.player_map_id_like_cpp(),
             data,
         ));
     }

@@ -11,7 +11,7 @@ impl crate::session::WorldSession {
         let Some(pos) = self.player_position_like_cpp() else {
             return None;
         };
-        let map_id = self.player_map_id_like_cpp();
+        let map_id = self.core.player_map_id_like_cpp();
         let Some((zone_id, _area_id)) = self.player_zone_area_like_cpp() else {
             return None;
         };
@@ -72,7 +72,7 @@ impl crate::session::WorldSession {
                 },
             )
             .collect();
-        let party_type = self.party_member_party_type_like_cpp();
+        let party_type = self.core.party_member_party_type_like_cpp();
         let display_id = crate::handlers::character::default_display_id(race, gender);
 
         // Rebuild the active SkillInfo rows from the canonical login skill
@@ -82,8 +82,8 @@ impl crate::session::WorldSession {
         let skill_info: Vec<(u16, u16, u16, u16, u16, i16, u16)> =
             if let (Some(skill_store), Some(skill_line_store), Some(skill_tiers_store)) = (
                 self.skill_store(),
-                self.skill_line_store(),
-                self.skill_tiers_store(),
+                self.catalogs.skill_line_store(),
+                self.catalogs.skill_tiers_store(),
             ) {
                 let Some(player_skill_records) = self.resolved_player_skill_records_like_cpp()
                 else {

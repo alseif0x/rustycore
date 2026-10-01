@@ -43,4 +43,18 @@ impl crate::session::WorldSession {
     ) -> &[RepresentedAtLoginFlagRemovalLikeCpp] {
         self.lifecycle.represented_at_login_flag_removals_like_cpp()
     }
+    pub(crate) fn check_account_heirloom_upgrades_like_cpp(
+        &mut self,
+        item_id: u32,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        crate::session::cx_lifecycle(self).check_account_heirloom_upgrades_like_cpp(item_id)
+    }
+    pub(crate) fn account_data_times_like_cpp(
+        &self,
+        player_guid: ObjectGuid,
+        mask: u32,
+    ) -> wow_packet::packets::misc::AccountDataTimes {
+        self.lifecycle
+            .account_data_times_like_cpp(player_guid, mask)
+    }
 }

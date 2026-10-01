@@ -8,14 +8,6 @@
 use crate::{WorldSession, handlers::quest::PlayerQuestStatus};
 
 impl WorldSession {
-    pub(crate) fn represented_quest_status_persistence_like_cpp(
-        &self,
-        status: &PlayerQuestStatus,
-    ) -> wow_persistence::QuestStatusPersistenceLikeCpp {
-        self.catalogs
-            .represented_quest_status_persistence_like_cpp(status)
-    }
-
     pub(crate) fn represented_quest_status_persistence_rows_like_cpp(
         &self,
         statuses: &[PlayerQuestStatus],
@@ -80,3 +72,7 @@ impl crate::session::SessionCatalogs {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/player/quest_persistence_projection/f3_shims.rs"]
+mod f3_shims;

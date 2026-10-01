@@ -89,7 +89,7 @@ impl crate::session::WorldSession {
             return;
         }
 
-        let Some(account_data) = self.account_data_like_cpp(packet.data_type) else {
+        let Some(account_data) = self.lifecycle.account_data_like_cpp(packet.data_type) else {
             return;
         };
         let data = account_data.data.clone();

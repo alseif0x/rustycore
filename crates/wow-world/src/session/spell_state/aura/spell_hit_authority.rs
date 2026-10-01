@@ -115,7 +115,9 @@ impl WorldSession {
             || !self.represented_active_glyph_aura_source_is_empty_like_cpp()
             || !self.represented_battle_pet_login_spell_source_is_empty_like_cpp()
             || !self.represented_add_player_to_map_aura_source_is_empty_like_cpp()
-            || !self.represented_auto_push_quest_aura_source_is_empty_like_cpp()
+            || !self
+                .catalogs
+                .represented_auto_push_quest_aura_source_is_empty_like_cpp()
             || !self.represented_character_pet_aura_source_is_empty_like_cpp()
             || !self.represented_quest_login_aura_sources_are_hit_inert_like_cpp(difficulty_id)
             || !self.represented_spell_area_autocast_source_is_empty_like_cpp()
@@ -168,7 +170,7 @@ impl WorldSession {
 
     pub(crate) fn can_authorize_empty_player_spell_hit_aura_source_like_cpp(&self) -> bool {
         self.can_authorize_empty_player_spell_hit_aura_source_for_difficulty_like_cpp(
-            self.current_map_difficulty_id_like_cpp(),
+            self.core.current_map_difficulty_id_like_cpp(),
         )
     }
 
@@ -179,7 +181,7 @@ impl WorldSession {
         &mut self,
     ) -> Option<bool> {
         let complete = self.can_authorize_empty_player_spell_hit_aura_source_like_cpp();
-        self.mutate_canonical_player_like_cpp(|player| {
+        self.core.mutate_canonical_player_like_cpp(|player| {
             player
                 .unit_mut()
                 .subsystems_mut()
@@ -187,13 +189,6 @@ impl WorldSession {
                 .set_spell_hit_aura_authority_inert_like_cpp(complete);
             complete
         })
-    }
-
-    pub(in crate::session) fn invalidate_canonical_player_spell_hit_aura_authority_like_cpp(
-        &mut self,
-    ) {
-        self.core
-            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp()
     }
 }
 

@@ -184,7 +184,8 @@ impl WorldSession {
         }
         self.sync_player_registry_state_like_cpp();
         if health_after != original_health {
-            self.send_player_health_update_like_cpp(player_guid, u64::from(health_after));
+            self.core
+                .send_player_health_update_like_cpp(player_guid, u64::from(health_after));
         }
 
         Ok(())
@@ -196,8 +197,7 @@ impl WorldSession {
         damage_amount: u32,
     ) -> Result<(), &'static str> {
         let account_id = self.core.account_id;
-        let values_update = self
-            .mutate_world_creature(creature_guid, |creature| {
+        let values_update = self.core.mutate_world_creature(creature_guid, |creature| {
                 if !creature.is_alive() {
                     debug!(
                         account = account_id,
@@ -222,7 +222,7 @@ impl WorldSession {
             .contains(&creature_guid)
             && let Some(update) = self.represented_unit_values_update_to_update_object_like_cpp(
                 creature_guid,
-                self.player_map_id_like_cpp(),
+                self.core.player_map_id_like_cpp(),
                 &values_update,
             )
         {

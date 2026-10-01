@@ -42,6 +42,7 @@ impl WorldSession {
             .quest_source_item_quest_log_item_id_like_cpp(entry_id)
             .await;
         let completion_evidence_start = self
+            .quest_state
             .represented_quest_complete_status_updates_like_cpp()
             .len();
         if let Some(bound_preflight) = self
@@ -105,6 +106,7 @@ impl WorldSession {
             })
             .count();
         let Some(allocated_new_item_guids) = self
+            .core
             .allocate_item_instance_guids_with_generator_like_cpp(
                 item_guid_generator,
                 new_item_count,
@@ -230,7 +232,7 @@ impl WorldSession {
             }
         }
 
-        if let Some(port) = self.player_inventory_persistence_port_like_cpp() {
+        if let Some(port) = self.lifecycle.player_inventory_persistence_port_like_cpp() {
             let outcome = port
                 .persist_inventory_mutation_like_cpp(
                     wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::QuestItemGrant(
@@ -287,15 +289,16 @@ impl WorldSession {
                     },
                 );
             }
-            let mut item_object = self.make_inventory_item_object(
-                stack.item_guid,
-                entry_id,
-                player_guid,
-                stack.stack_count,
-                stack.max_durability,
-                ItemContext::None,
-                stack.slot,
-            );
+            let mut item_object = crate::session::cx_inventory_ref(self)
+                .make_inventory_item_object(
+                    stack.item_guid,
+                    entry_id,
+                    player_guid,
+                    stack.stack_count,
+                    stack.max_durability,
+                    ItemContext::None,
+                    stack.slot,
+                );
             if stack.bag != u8::from(wow_entities::INVENTORY_SLOT_BAG_0) {
                 item_object.set_container_guid_and_slot(stack.contained_in, stack.bag);
             }
@@ -308,7 +311,7 @@ impl WorldSession {
             self.insert_inventory_item_object(item_object);
         }
 
-        let map_id = self.player_map_id_like_cpp();
+        let map_id = self.core.player_map_id_like_cpp();
         if !new_stacks.is_empty() {
             let item_creates = new_stacks
                 .iter()

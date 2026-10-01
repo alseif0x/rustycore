@@ -611,7 +611,9 @@ async fn handle_player_login_prelude_resends_account_state_and_orders_packets_li
         },
     ];
     session.set_player_guid(Some(guid));
-    session.load_tutorials_data_values_like_cpp(Some(tutorials));
+    session
+        .lifecycle
+        .load_tutorials_data_values_like_cpp(Some(tutorials));
     let generators = session.id_generators_for_test_like_cpp();
     let feature_policy = session.support_feature_policy_for_test_like_cpp();
     assert!(
@@ -1128,7 +1130,9 @@ fn login_passive_parry_and_block_capabilities_feed_first_stat_projection_like_cp
     )));
 
     assert_eq!(
-        session.canonical_player_parry_block_snapshot_like_cpp(),
+        session
+            .core
+            .canonical_player_parry_block_snapshot_like_cpp(),
         (false, false)
     );
     assert_eq!(
@@ -1139,7 +1143,9 @@ fn login_passive_parry_and_block_capabilities_feed_first_stat_projection_like_cp
         2
     );
     assert_eq!(
-        session.canonical_player_parry_block_snapshot_like_cpp(),
+        session
+            .core
+            .canonical_player_parry_block_snapshot_like_cpp(),
         (true, true)
     );
     let projection = session

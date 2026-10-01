@@ -507,7 +507,9 @@ fn gameobject_use_fishing_node_finds_nearest_represented_fishing_hole_like_cpp()
         Position::new(12.0, 0.0, 0.0, 0.0),
         wow_entities::GAMEOBJECT_TYPE_FISHING_HOLE as u8,
     );
-    session.record_represented_fishing_hole_radius_like_cpp(farther_hole_guid, 20);
+    session
+        .world_entities
+        .record_represented_fishing_hole_radius_like_cpp(farther_hole_guid, 20);
     session.record_represented_gameobject_runtime_state_like_cpp(
         571,
         nearest_hole_guid,
@@ -515,7 +517,9 @@ fn gameobject_use_fishing_node_finds_nearest_represented_fishing_hole_like_cpp()
         Position::new(8.0, 0.0, 0.0, 0.0),
         wow_entities::GAMEOBJECT_TYPE_FISHING_HOLE as u8,
     );
-    session.record_represented_fishing_hole_radius_like_cpp(nearest_hole_guid, 20);
+    session
+        .world_entities
+        .record_represented_fishing_hole_radius_like_cpp(nearest_hole_guid, 20);
     {
         let state = session
             .world_entities
@@ -575,7 +579,9 @@ fn gameobject_use_fishing_node_requires_fishing_hole_radius_like_cpp() {
         Position::new(10.0, 0.0, 0.0, 0.0),
         wow_entities::GAMEOBJECT_TYPE_FISHING_HOLE as u8,
     );
-    session.record_represented_fishing_hole_radius_like_cpp(fishing_hole_guid, 5);
+    session
+        .world_entities
+        .record_represented_fishing_hole_radius_like_cpp(fishing_hole_guid, 5);
     {
         let state = session
             .world_entities

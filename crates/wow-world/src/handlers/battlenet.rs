@@ -83,7 +83,7 @@ impl WorldSession {
     /// Handle CMSG_CHANGE_REALM_TICKET like C++
     /// `WorldSession::HandleBattlenetChangeRealmTicket`.
     pub async fn handle_change_realm_ticket(&mut self, ticket: ChangeRealmTicket) {
-        self.set_realm_list_secret_like_cpp(ticket.secret);
+        self.core.set_realm_list_secret_like_cpp(ticket.secret);
         self.send_packet(
             &ChangeRealmTicketResponse::allow_worldserver_realm_list_ticket_like_cpp(ticket.token),
         );

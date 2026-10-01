@@ -10,7 +10,7 @@ impl WorldSession {
         // C++ `Player::EnvironmentalDamage` routes lethal damage through
         // `Unit::Kill` -> `Player::setDeathState(JUST_DIED)` before the client
         // proceeds into release/cemetery flows.
-        let _ = self.with_owned_player_mut_like_cpp(|player| {
+        let _ = self.core.with_owned_player_mut_like_cpp(|player| {
             player
                 .unit_mut()
                 .set_death_state(wow_constants::DeathState::JustDied);
@@ -33,8 +33,9 @@ impl WorldSession {
     pub(in crate::session) fn player_resurrection_state_snapshot_like_cpp(
         &self,
     ) -> Option<PlayerResurrectionStateLikeCpp> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.resurrection_state_like_cpp().clone());
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.resurrection_state_like_cpp().clone());
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(PlayerResurrectionStateLikeCpp {

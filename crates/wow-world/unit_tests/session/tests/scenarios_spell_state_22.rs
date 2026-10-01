@@ -35,7 +35,9 @@ async fn battle_pet_grant_experience_pet_battle_uses_owner_xp_aura_like_cpp() {
             )
         },
     );
-    session.send_battle_pet_journal_lock_status_like_cpp().await;
+    crate::session::cx_pets(&mut session)
+        .send_battle_pet_journal_lock_status_like_cpp()
+        .await;
     let _ = drain_server_packet_bytes(&send_rx);
     session
         .apply_represented_battle_pet_xp_pct_aura_like_cpp(
@@ -105,9 +107,21 @@ fn toy_item_spell_effect_guard_uses_item_effect_parent_like_cpp() {
         parent_item_id: 30_000,
     }])));
 
-    assert!(session.toy_item_has_spell_effect_like_cpp(30_000, 12_345));
-    assert!(!session.toy_item_has_spell_effect_like_cpp(30_000, 54_321));
-    assert!(!session.toy_item_has_spell_effect_like_cpp(30_001, 12_345));
+    assert!(
+        session
+            .catalogs
+            .toy_item_has_spell_effect_like_cpp(30_000, 12_345)
+    );
+    assert!(
+        !session
+            .catalogs
+            .toy_item_has_spell_effect_like_cpp(30_000, 54_321)
+    );
+    assert!(
+        !session
+            .catalogs
+            .toy_item_has_spell_effect_like_cpp(30_001, 12_345)
+    );
 }
 #[test]
 fn toy_item_spell_cooldown_uses_item_effect_override_like_cpp() {
@@ -147,11 +161,15 @@ fn toy_item_spell_cooldown_uses_item_effect_override_like_cpp() {
     ])));
 
     assert_eq!(
-        session.toy_item_spell_cooldown_ms_like_cpp(30_000, spell_id, &spell_info),
+        session
+            .catalogs
+            .toy_item_spell_cooldown_ms_like_cpp(30_000, spell_id, &spell_info),
         5_000
     );
     assert_eq!(
-        session.toy_item_spell_cooldown_ms_like_cpp(30_001, spell_id, &spell_info),
+        session
+            .catalogs
+            .toy_item_spell_cooldown_ms_like_cpp(30_001, spell_id, &spell_info),
         2_000
     );
 }

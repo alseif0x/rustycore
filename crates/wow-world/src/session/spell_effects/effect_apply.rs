@@ -29,7 +29,7 @@ impl WorldSession {
             );
             return;
         };
-        let request_already_committed = match self
+        let request_already_committed = match crate::session::cx_quest_state_ref(self)
             .battle_pet_add_request_committed_like_cpp(request_key)
             .await
         {
@@ -68,13 +68,16 @@ impl WorldSession {
             return;
         }
 
-        let Some(species_entry) = self.battle_pet_species_entry_like_cpp(modifiers.species_id)
+        let Some(species_entry) = crate::session::cx_pets_ref(self)
+            .battle_pet_species_entry_like_cpp(modifiers.species_id)
         else {
             return;
         };
 
         let creature_id = u32::try_from(species_entry.creature_id).unwrap_or_default();
-        let Some(max_pet_level) = self.battle_pet_max_pet_level_like_cpp() else {
+        let Some(max_pet_level) =
+            crate::session::cx_pets_ref(self).battle_pet_max_pet_level_like_cpp()
+        else {
             return;
         };
         if max_pet_level < modifiers.level {
@@ -93,8 +96,8 @@ impl WorldSession {
             return;
         }
 
-        let Some(has_max_pet_count) =
-            self.battle_pet_has_max_pet_count_like_cpp(modifiers.species_id, self.player_guid())
+        let Some(has_max_pet_count) = crate::session::cx_pets_ref(self)
+            .battle_pet_has_max_pet_count_like_cpp(modifiers.species_id, self.player_guid())
         else {
             return;
         };
@@ -194,7 +197,7 @@ impl WorldSession {
         let target_map = target_data
             .map_id
             .and_then(|map_id| u32::try_from(map_id).ok())
-            .unwrap_or_else(|| u32::from(self.player_map_id_like_cpp()));
+            .unwrap_or_else(|| u32::from(self.core.player_map_id_like_cpp()));
         let mut destination = destination;
         if destination.orientation == 0.0 {
             if let Some(player_position) = self.player_position_like_cpp() {
@@ -239,7 +242,7 @@ impl WorldSession {
         let map_id = target_data
             .map_id
             .and_then(|map_id| u32::try_from(map_id).ok())
-            .unwrap_or_else(|| u32::from(self.player_map_id_like_cpp()));
+            .unwrap_or_else(|| u32::from(self.core.player_map_id_like_cpp()));
 
         self.set_homebind_like_cpp(
             caster_guid,
@@ -289,7 +292,7 @@ impl WorldSession {
         );
         let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
         let mut manager = manager.lock().ok()?;
-        let map_id = u32::from(self.player_map_id_like_cpp());
+        let map_id = u32::from(self.core.player_map_id_like_cpp());
         let mut instance_id = None;
         manager.do_for_all_maps_with_map_id(map_id, |managed| {
             if instance_id.is_none() && managed.map().get_typed_player(player_guid).is_some() {
@@ -352,14 +355,15 @@ impl WorldSession {
         };
         if hearthstone_last_cast.is_some() {
             self.set_player_alive_like_cpp(false);
-            let values_update = self.mutate_canonical_player_like_cpp(|player| {
+            let values_update = self.core.mutate_canonical_player_like_cpp(|player| {
                 player.unit_mut().set_health(0);
                 player.values_update(true)
             });
             if let Some(values_update) = values_update {
-                self.send_player_values_update_like_cpp(&values_update);
+                self.core.send_player_values_update_like_cpp(&values_update);
             } else {
-                self.send_player_health_values_update_like_cpp(player_guid, 0);
+                self.core
+                    .send_player_health_values_update_like_cpp(player_guid, 0);
             }
             return;
         }

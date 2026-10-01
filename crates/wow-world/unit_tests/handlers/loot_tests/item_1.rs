@@ -769,7 +769,10 @@ async fn durable_item_completion_auto_releases_only_after_items_and_coins_are_em
             session.loot.loot_table.contains_key(&owner_guid),
             !should_release
         );
-        assert_eq!(session.is_active_loot_guid(owner_guid), !should_release);
+        assert_eq!(
+            session.loot.is_active_loot_guid(owner_guid),
+            !should_release
+        );
         if !should_release {
             let loot = session.loot.loot_table.get(&owner_guid).unwrap();
             assert!(loot.items[0].taken);
@@ -827,7 +830,7 @@ async fn cancelled_item_handler_after_commit_releases_and_forces_inventory_reloa
 
     assert!(session.is_disconnecting());
     assert!(!session.loot.loot_table.contains_key(&owner_guid));
-    assert!(!session.is_active_loot_guid(owner_guid));
+    assert!(!session.loot.is_active_loot_guid(owner_guid));
     assert_eq!(
         drain_server_opcodes_like_cpp(&send_rx)
             .into_iter()

@@ -138,7 +138,7 @@ impl Runtime for WorldSession {
         };
         let spell_id = u32::try_from(spell.spell_id).ok()?;
         for difficulty in creature_ai_spell_difficulty_chain_like_cpp(
-            self.current_map_difficulty_id_like_cpp(),
+            self.core.current_map_difficulty_id_like_cpp(),
             config,
         ) {
             let mut rows: Vec<_> = store

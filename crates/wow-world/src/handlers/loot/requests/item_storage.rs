@@ -141,7 +141,8 @@ impl WorldSession {
                         runtime_inventory_applied,
                     )| {
                         (
-                            self.begin_durable_item_loot_persistence_like_cpp(),
+                            crate::session::cx_inventory_ref(self)
+                                .begin_durable_item_loot_persistence_like_cpp(),
                             DurableItemLootCompletionLikeCpp {
                                 owner_guid,
                                 loot_list_id,
@@ -225,7 +226,9 @@ impl WorldSession {
             }
             return true;
         }
-        let Some(inventory_persistence) = self.player_inventory_persistence_port_like_cpp() else {
+        let Some(inventory_persistence) =
+            self.lifecycle.player_inventory_persistence_port_like_cpp()
+        else {
             return false;
         };
         if let Some(bound_objective_plan) = bound_objective_plan {
@@ -269,7 +272,8 @@ impl WorldSession {
                         runtime_inventory_applied,
                     )| {
                         (
-                            self.begin_durable_item_loot_persistence_like_cpp(),
+                            crate::session::cx_inventory_ref(self)
+                                .begin_durable_item_loot_persistence_like_cpp(),
                             DurableItemLootCompletionLikeCpp {
                                 owner_guid,
                                 loot_list_id,
@@ -361,7 +365,7 @@ impl WorldSession {
             return true;
         }
         let store_random_properties = {
-            let mut rng = self.represented_runtime_subrng_like_cpp();
+            let mut rng = self.core.represented_runtime_subrng_like_cpp();
             self.generate_loot_store_random_properties_with_rng_like_cpp(item_id, &mut rng)
         };
 
@@ -382,10 +386,12 @@ impl WorldSession {
                             })
                     })
         }) {
-            let Some(compatible_dest) = self.plan_direct_loot_item_preserving_cpp_store_metadata(
-                loot_entry,
-                store_random_properties,
-            ) else {
+            let Some(compatible_dest) = crate::session::cx_loot_ref(self)
+                .plan_direct_loot_item_preserving_cpp_store_metadata(
+                    loot_entry,
+                    store_random_properties,
+                )
+            else {
                 self.send_equip_error(InventoryResult::InvFull, None, None, 0, 0);
                 return false;
             };
@@ -490,10 +496,13 @@ impl WorldSession {
 
         let mut created_new_stacks = Vec::new();
         if !planned_new_stacks.is_empty() {
-            let Some(allocated_guids) = self.allocate_item_instance_guids_with_generator_like_cpp(
-                item_guid_generator,
-                planned_new_stacks.len(),
-            ) else {
+            let Some(allocated_guids) = self
+                .core
+                .allocate_item_instance_guids_with_generator_like_cpp(
+                    item_guid_generator,
+                    planned_new_stacks.len(),
+                )
+            else {
                 warn!(
                     count = planned_new_stacks.len(),
                     "loot item grant has no process-wide item GUID allocator"
@@ -574,7 +583,8 @@ impl WorldSession {
                     runtime_inventory_applied,
                 )| {
                     (
-                        self.begin_durable_item_loot_persistence_like_cpp(),
+                        crate::session::cx_inventory_ref(self)
+                            .begin_durable_item_loot_persistence_like_cpp(),
                         DurableItemLootCompletionLikeCpp {
                             owner_guid,
                             loot_list_id,
@@ -644,15 +654,16 @@ impl WorldSession {
                     inventory_type: self.item_template_inventory_type(stack.entry_id),
                 },
             );
-            let mut item_object = self.make_inventory_item_object(
-                *item_guid,
-                stack.entry_id,
-                player_guid,
-                stack.count,
-                stack.max_durability,
-                loot_item_context(stack.item_context),
-                stack.slot,
-            );
+            let mut item_object = crate::session::cx_inventory_ref(self)
+                .make_inventory_item_object(
+                    *item_guid,
+                    stack.entry_id,
+                    player_guid,
+                    stack.count,
+                    stack.max_durability,
+                    loot_item_context(stack.item_context),
+                    stack.slot,
+                );
             self.apply_stored_new_item_flags_like_cpp(stack.entry_id, stack.slot, &mut item_object);
             if stack.random_properties_id != 0 {
                 item_object.set_random_properties_id(stack.random_properties_id);
@@ -678,7 +689,7 @@ impl WorldSession {
         self.save_changed_represented_quest_statuses_like_cpp(&mut changed_quest_ids)
             .await;
 
-        let map_id = self.player_map_id_like_cpp();
+        let map_id = self.core.player_map_id_like_cpp();
         if !created_new_stacks.is_empty() {
             let item_creates = created_new_stacks
                 .iter()
@@ -730,6 +741,7 @@ impl WorldSession {
         }
 
         if !self
+            .core
             .wait_for_instance_send_before_realm_send_like_cpp()
             .await
         {
@@ -770,6 +782,7 @@ impl WorldSession {
 
         if (!created_new_stacks.is_empty() || !collection_updates.is_empty())
             && !self
+                .core
                 .wait_for_realm_send_before_instance_update_like_cpp()
                 .await
         {
@@ -786,20 +799,11 @@ impl WorldSession {
             self.send_player_values_update_from_entity_bridge(&changed_slots, &[], &[], &[], None);
         }
         for update in &collection_updates {
-            self.send_player_values_update_like_cpp(update);
+            self.core.send_player_values_update_like_cpp(update);
         }
 
         self.sync_player_registry_state_like_cpp();
         true
-    }
-
-    fn plan_direct_loot_item_preserving_cpp_store_metadata(
-        &self,
-        loot_entry: &LootEntry,
-        random_properties: LootStoreRandomProperties,
-    ) -> Option<Vec<ItemPosCount>> {
-        crate::session::cx_loot_ref(self)
-            .plan_direct_loot_item_preserving_cpp_store_metadata(loot_entry, random_properties)
     }
 
     pub(in crate::handlers::loot) async fn destroy_fully_looted_direct_item(

@@ -73,7 +73,8 @@ impl WorldSession {
             .void_storage_item_id_generator_like_cpp
             .as_deref()
             .map(|generator| {
-                self.next_represented_void_storage_item_id_with_generator_like_cpp(generator)
+                self.inventory
+                    .next_represented_void_storage_item_id_with_generator_like_cpp(generator)
             })
     }
 

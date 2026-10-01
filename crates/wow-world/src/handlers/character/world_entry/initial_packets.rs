@@ -40,11 +40,12 @@ impl WorldSession {
 
         // 6. TimeSyncRequest (critical — client needs time sync)
         //    Also initializes the periodic timer (5s first, then 10s).
-        self.reset_time_sync_like_cpp();
-        self.send_time_sync();
+        self.core.reset_time_sync_like_cpp();
+        self.core.send_time_sync();
 
         // 7. ContactList — C++ `GetSocial()->SendSocialList(this, SOCIAL_FLAG_ALL)`.
         if !self
+            .core
             .wait_for_instance_send_before_realm_send_like_cpp()
             .await
         {
@@ -56,6 +57,7 @@ impl WorldSession {
         // `m_homebind`/`m_homebindAreaId`, independently of the current login
         // location selected by `UpdatePositionData`.
         if !self
+            .core
             .wait_for_realm_send_before_instance_update_like_cpp()
             .await
         {
@@ -92,6 +94,7 @@ impl WorldSession {
 
         // 14. ActiveGlyphs — full update; bindable spell mapping is still pending.
         if !self
+            .core
             .wait_for_instance_send_before_realm_send_like_cpp()
             .await
         {
@@ -101,6 +104,7 @@ impl WorldSession {
 
         // 15. UpdateActionButtons — populated from character_action table
         if !self
+            .core
             .wait_for_realm_send_before_instance_update_like_cpp()
             .await
         {
@@ -288,14 +292,14 @@ impl WorldSession {
         map_id: i32,
         player_area_id: u32,
     ) -> Vec<(i32, i32)> {
-        let Some(port) = self.player_lifecycle_port_like_cpp() else {
+        let Some(port) = self.lifecycle.player_lifecycle_port_like_cpp() else {
             warn!("InitWorldStates: missing Player lifecycle persistence port");
             return Vec::new();
         };
         let loaded = port.load_initial_world_states_like_cpp().await;
 
-        let area_store = self.area_table_store().map(Arc::as_ref);
-        let map_store = self.map_store().map(Arc::as_ref);
+        let area_store = self.catalogs.area_table_store().map(Arc::as_ref);
+        let map_store = self.catalogs.map_store().map(Arc::as_ref);
 
         let mut templates = Vec::new();
         match loaded.templates {

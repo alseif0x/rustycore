@@ -120,7 +120,7 @@ pub(super) fn make_canonical_corpse_for_session(
     corpse.world_mut().object_mut().create(guid);
     corpse
         .world_mut()
-        .set_map(u32::from(session.player_map_id_like_cpp()), 0)
+        .set_map(u32::from(session.core.player_map_id_like_cpp()), 0)
         .unwrap();
     corpse.world_mut().relocate(Position::ZERO);
     corpse.world_mut().object_mut().add_to_world();
@@ -135,7 +135,7 @@ pub(super) fn canonical_corpse_snapshot(
 ) -> Option<Corpse> {
     let manager = session.core.canonical_map_manager.as_ref()?;
     let manager = manager.lock().ok()?;
-    let map = manager.find_map(u32::from(session.player_map_id_like_cpp()), 0)?;
+    let map = manager.find_map(u32::from(session.core.player_map_id_like_cpp()), 0)?;
     map.map().get_typed_corpse(guid).cloned()
 }
 
@@ -148,7 +148,7 @@ pub(super) fn make_canonical_creature_for_session(
     creature
         .unit_mut()
         .world_mut()
-        .set_map(u32::from(session.player_map_id_like_cpp()), 0)
+        .set_map(u32::from(session.core.player_map_id_like_cpp()), 0)
         .unwrap();
     creature.unit_mut().world_mut().relocate(Position::ZERO);
     creature.unit_mut().world_mut().object_mut().add_to_world();
@@ -161,7 +161,7 @@ pub(super) fn canonical_creature_snapshot(
 ) -> Option<Creature> {
     let manager = session.core.canonical_map_manager.as_ref()?;
     let manager = manager.lock().ok()?;
-    let map = manager.find_map(u32::from(session.player_map_id_like_cpp()), 0)?;
+    let map = manager.find_map(u32::from(session.core.player_map_id_like_cpp()), 0)?;
     map.map().with_creature_like_cpp(guid, Clone::clone)
 }
 
@@ -174,7 +174,7 @@ pub(super) fn make_canonical_gameobject_for_session(
     game_object.world_mut().object_mut().create(guid);
     game_object
         .world_mut()
-        .set_map(u32::from(session.player_map_id_like_cpp()), 0)
+        .set_map(u32::from(session.core.player_map_id_like_cpp()), 0)
         .unwrap();
     game_object.world_mut().relocate(Position::ZERO);
     game_object.world_mut().object_mut().add_to_world();
@@ -188,6 +188,6 @@ pub(super) fn canonical_gameobject_snapshot(
 ) -> Option<GameObject> {
     let manager = session.core.canonical_map_manager.as_ref()?;
     let manager = manager.lock().ok()?;
-    let map = manager.find_map(u32::from(session.player_map_id_like_cpp()), 0)?;
+    let map = manager.find_map(u32::from(session.core.player_map_id_like_cpp()), 0)?;
     map.map().get_typed_game_object(guid).cloned()
 }

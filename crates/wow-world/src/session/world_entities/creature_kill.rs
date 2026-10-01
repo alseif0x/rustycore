@@ -6,20 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn queue_pending_creature_kill_like_cpp(
-        &mut self,
-        killer_guid: ObjectGuid,
-        creature_guid: ObjectGuid,
-        creature_entry: u32,
-        creature_level: u8,
-    ) {
-        self.world_entities.queue_pending_creature_kill_like_cpp(
-            killer_guid,
-            creature_guid,
-            creature_entry,
-            creature_level,
-        )
-    }
     pub(crate) fn creature_kill_xp(&self, mob_level: u8) -> u32 {
         let (state, hub) = crate::session::split_world_entities_ref(self);
         state.creature_kill_xp(hub, mob_level)
@@ -51,6 +37,7 @@ impl WorldSession {
         };
 
         if self
+            .catalogs
             .map_store()
             .and_then(|store| store.get(u32::from(player_map_id)))
             .is_some_and(|entry| entry.is_dungeon())
@@ -59,6 +46,7 @@ impl WorldSession {
         }
 
         let (reward_map_id, reward_position) = self
+            .core
             .mutate_world_creature(creature_guid, |creature| {
                 (creature.map_id() as u16, creature.position())
             })
@@ -115,7 +103,7 @@ impl WorldSession {
             .represented_championing_faction_for_kill_like_cpp()
             .unwrap_or(faction_id);
 
-        let faction_store = match self.faction_store().map(Arc::clone) {
+        let faction_store = match self.catalogs.faction_store().map(Arc::clone) {
             Some(store) => store,
             None => return,
         };
@@ -150,10 +138,15 @@ impl WorldSession {
         };
         let spillover_only = current_rank.as_u8() > max_cap;
 
-        let reputation_spillover_template_store =
-            self.reputation_spillover_template_store().map(Arc::clone);
-        let friendship_rep_reaction_store = self.friendship_rep_reaction_store().map(Arc::clone);
-        let paragon_reputation_store = self.paragon_reputation_store().map(Arc::clone);
+        let reputation_spillover_template_store = self
+            .catalogs
+            .reputation_spillover_template_store()
+            .map(Arc::clone);
+        let friendship_rep_reaction_store = self
+            .catalogs
+            .friendship_rep_reaction_store()
+            .map(Arc::clone);
+        let paragon_reputation_store = self.catalogs.paragon_reputation_store().map(Arc::clone);
         let currency_types_store = self.currency_types_store().map(Arc::clone);
         let db_spillover_template = reputation_spillover_template_store
             .as_deref()
@@ -162,7 +155,7 @@ impl WorldSession {
             incremental: true,
             spillover_only,
             no_spillover: false,
-            reputation_gain_rate: self.reputation_rates_like_cpp().gain,
+            reputation_gain_rate: self.config.reputation_rates_like_cpp().gain,
             paragon_reward_quest_status_none_like_cpp: true,
             renown_current_level_like_cpp: 0,
             renown_currency_increased_cap_quantity_like_cpp: 0,
@@ -214,6 +207,7 @@ impl WorldSession {
         kill_reward_rate: f32,
     ) {
         if self
+            .core
             .mutate_world_creature(creature_guid, |creature| {
                 creature.creature.is_reputation_gain_disabled()
             })
@@ -223,6 +217,7 @@ impl WorldSession {
         }
 
         let Some(rep) = self
+            .catalogs
             .creature_onkill_reputation_store()
             .and_then(|store| store.get(creature_entry))
             .copied()
@@ -310,6 +305,7 @@ impl WorldSession {
         rewards.dedup_by_key(|reward| reward.creature_guid);
         for reward in rewards {
             let can_give_experience = self
+                .core
                 .mutate_world_creature(reward.creature_guid, |creature| {
                     creature.creature.can_give_experience_like_cpp()
                 })
@@ -355,7 +351,7 @@ impl WorldSession {
                     .contains(&reward.creature_guid)
                 && let Some(update) = self.represented_unit_values_update_to_update_object_like_cpp(
                     reward.creature_guid,
-                    self.player_map_id_like_cpp(),
+                    self.core.player_map_id_like_cpp(),
                     &values_update,
                 )
             {
@@ -370,17 +366,19 @@ impl WorldSession {
         creature_guid: ObjectGuid,
     ) {
         let reward_source = self
+            .core
             .mutate_world_creature(creature_guid, |creature| {
                 (creature.map_id() as u16, creature.position())
             })
             .or_else(|| {
                 self.player_position_like_cpp()
-                    .map(|position| (self.player_map_id_like_cpp(), position))
+                    .map(|position| (self.core.player_map_id_like_cpp(), position))
             });
         let Some(reward_source) = reward_source else {
             return;
         };
         let mut tappers = self
+            .core
             .mutate_world_creature(creature_guid, |creature| {
                 creature.creature.tap_list().to_vec()
             })
@@ -453,7 +451,7 @@ impl WorldSession {
             .get(&creature_guid)
             .is_some_and(|loot| loot.coins != 0 || loot.unlooted_count != 0);
         let can_skin = self.represented_creature_can_skin_after_death_state_like_cpp(creature_guid);
-        let values_update = self.mutate_world_creature(creature_guid, |creature| {
+        let values_update = self.core.mutate_world_creature(creature_guid, |creature| {
             creature.complete_death_state_after_kill_hooks_like_cpp();
             creature.apply_corpse_loot_flags_after_death_state_like_cpp(lootable, can_skin);
             creature.creature.unit().values_update()

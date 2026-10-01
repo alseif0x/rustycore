@@ -26,7 +26,7 @@ impl EffectLearningRuntimeLikeCpp for WorldSession {
         }
         // Existing represented limit: account mount acquisition has a richer
         // owner; neither planned nor fallback learning may install half of it.
-        self.mount_store().is_some_and(|mounts| {
+        self.catalogs.mount_store().is_some_and(|mounts| {
             mounts
                 .get_by_source_spell_id_like_cpp(spell as u32)
                 .is_none()
@@ -71,7 +71,7 @@ impl EffectLearningRuntimeLikeCpp for WorldSession {
     }
 
     fn fallback_traits(&self) -> Option<&wow_data::trait_tree::TraitDefinitionStore> {
-        self.trait_definition_store().map(AsRef::as_ref)
+        self.catalogs.trait_definition_store().map(AsRef::as_ref)
     }
 
     fn install_fallback_row(
@@ -84,7 +84,8 @@ impl EffectLearningRuntimeLikeCpp for WorldSession {
             && let Some(overridden) = u32::try_from(trait_id)
                 .ok()
                 .and_then(|id| {
-                    self.trait_definition_store()
+                    self.catalogs
+                        .trait_definition_store()
                         .and_then(|store| store.get(id))
                 })
                 .map(|definition| definition.overrides_spell_id)

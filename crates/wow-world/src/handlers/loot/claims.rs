@@ -54,8 +54,9 @@ impl WorldSession {
         else {
             return 0;
         };
-        let map_id = self.player_map_id_like_cpp();
+        let map_id = self.core.player_map_id_like_cpp();
         let instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -109,15 +110,6 @@ impl WorldSession {
         sent
     }
 
-    pub(super) fn record_represented_gameobject_chest_release_metadata_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        source: GameObjectLootSource,
-    ) {
-        crate::session::cx_loot(self)
-            .record_represented_gameobject_chest_release_metadata_like_cpp(gameobject_guid, source)
-    }
-
     /// Clone the object-owned authority while the map/entity lock is held,
     /// then release that lock before any reservation can await.
     pub(super) fn represented_owned_loot_authority_like_cpp(
@@ -130,15 +122,18 @@ impl WorldSession {
             // blind rebinding can otherwise clobber a newer respawn between
             // the read and write phases.
             for _ in 0..8 {
-                let canonical_player_map_key = self.current_canonical_player_map_key_like_cpp();
+                let canonical_player_map_key =
+                    self.core.current_canonical_player_map_key_like_cpp();
                 let map_key = canonical_player_map_key
                     .or_else(|| {
-                        self.canonical_object_lookup_map_key_like_cpp(u32::from(
-                            self.player_map_id_like_cpp(),
-                        ))
+                        self.core
+                            .canonical_object_lookup_map_key_like_cpp(u32::from(
+                                self.core.player_map_id_like_cpp(),
+                            ))
                     })
                     .unwrap_or_else(|| {
-                        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
+                        let (map_id, instance_id) =
+                            self.core.current_legacy_runtime_map_key_like_cpp();
                         wow_map::MapKey::new(u32::from(map_id), instance_id)
                     });
                 let map_key_still_valid = |session: &Self| {
@@ -192,6 +187,7 @@ impl WorldSession {
                     continue;
                 }
                 if self
+                    .core
                     .rebind_legacy_creature_loot_authority_on_map_like_cpp(
                         owner_guid,
                         map_key,
@@ -224,11 +220,12 @@ impl WorldSession {
         }
 
         if owner_guid.is_game_object() {
-            let canonical_player_map_key = self.current_canonical_player_map_key_like_cpp();
+            let canonical_player_map_key = self.core.current_canonical_player_map_key_like_cpp();
             let map_key = canonical_player_map_key.or_else(|| {
-                self.canonical_object_lookup_map_key_like_cpp(u32::from(
-                    self.player_map_id_like_cpp(),
-                ))
+                self.core
+                    .canonical_object_lookup_map_key_like_cpp(u32::from(
+                        self.core.player_map_id_like_cpp(),
+                    ))
             })?;
             let authority =
                 self.read_canonical_gameobject_loot_authority_on_map_like_cpp(owner_guid, map_key)?;
@@ -256,7 +253,7 @@ impl WorldSession {
             && authority.generation_like_cpp() == 0
             && self.loot.loot_table.contains_key(&owner_guid)
             && (self.loot.active_loot_view_owners.contains(&owner_guid)
-                || self.is_active_loot_guid(owner_guid));
+                || self.loot.is_active_loot_guid(owner_guid));
         if !can_install_first_generation {
             return Some(authority);
         }
@@ -283,23 +280,10 @@ impl WorldSession {
         Some(authority)
     }
 
-    pub(super) fn cache_represented_owned_loot_snapshot_like_cpp(
-        &mut self,
-        owner_guid: ObjectGuid,
-        _requested_player_guid: ObjectGuid,
-        snapshot: OwnedLootSnapshot,
-    ) {
-        self.loot.cache_represented_owned_loot_snapshot_like_cpp(
-            owner_guid,
-            _requested_player_guid,
-            snapshot,
-        )
-    }
-
     pub(super) fn refresh_owned_loot_summary_like_cpp(&mut self, owner_guid: ObjectGuid) {
         if owner_guid.is_creature_or_vehicle() {
             if let Some(authority) = self.represented_owned_loot_authority_like_cpp(owner_guid) {
-                let _ = self.rebind_legacy_creature_loot_authority_like_cpp(
+                let _ = self.core.rebind_legacy_creature_loot_authority_like_cpp(
                     owner_guid,
                     &authority,
                     authority.stamp_like_cpp(),
@@ -323,15 +307,6 @@ impl WorldSession {
                 );
             }
         }
-    }
-
-    pub(super) fn represented_active_loot_claim_generation_matches_like_cpp(
-        &self,
-        owner_guid: ObjectGuid,
-        claim: &LootClaimLease,
-    ) -> bool {
-        self.loot
-            .represented_active_loot_claim_generation_matches_like_cpp(owner_guid, claim)
     }
 
     #[cfg(test)]
@@ -406,7 +381,7 @@ impl WorldSession {
             return;
         };
 
-        let port = match self.stored_item_persistence_port_like_cpp() {
+        let port = match self.lifecycle.stored_item_persistence_port_like_cpp() {
             Some(port) => port,
             None => return,
         };
@@ -440,7 +415,7 @@ impl WorldSession {
             );
             self.send_packet(&UpdateObject::item_stack_count_update(
                 item_guid,
-                self.player_map_id_like_cpp(),
+                self.core.player_map_id_like_cpp(),
                 new_count,
             ));
             return;
@@ -619,3 +594,7 @@ impl crate::session::LootState {
                 .is_some_and(|opened| *opened == claim.generation_like_cpp())
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/handlers/loot/claims/f3_shims.rs"]
+mod f3_shims;

@@ -13,16 +13,9 @@ impl WorldSession {
         &mut self,
         attachment: BattlePetAccountAttachmentLikeCpp,
     ) {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.lifecycle.battle_pet_account_attachment_like_cpp = Some(attachment);
-    }
-    pub(crate) fn battle_pet_account_owner_lease_like_cpp(
-        &self,
-    ) -> Option<(
-        Arc<crate::battle_pet_account::BattlePetAccountOwnerLikeCpp>,
-        crate::battle_pet_account::BattlePetLeaseIdLikeCpp,
-    )> {
-        crate::session::cx_pets_ref(self).battle_pet_account_owner_lease_like_cpp()
     }
     /// Set the world-DB battle-pet breed/quality selection store (#161).
     #[cfg(test)]
@@ -34,11 +27,6 @@ impl WorldSession {
             .pets
             .battle_pet_test_fixture_like_cpp
             .battle_pet_selection_store_like_cpp = Some(store);
-    }
-    pub(crate) fn battle_pet_purchase_store_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp>> {
-        crate::session::cx_pets_ref(self).battle_pet_purchase_store_like_cpp()
     }
     pub(crate) fn battle_pet_calculate_stats_like_cpp(
         &self,
@@ -107,14 +95,6 @@ impl WorldSession {
         #[cfg(not(test))]
         false
     }
-    pub(crate) async fn battle_pet_clear_fanfare_durable_like_cpp(
-        &mut self,
-        pet_guid: ObjectGuid,
-    ) -> bool {
-        crate::session::cx_pets(self)
-            .battle_pet_clear_fanfare_durable_like_cpp(pet_guid)
-            .await
-    }
     /// C++ `BattlePetMgr::CageBattlePet`, represented at the battle-pet state
     /// boundary. Inventory placement is still external: the caller must pass
     /// the already-resolved `CanStoreNewItem`/`StoreNewItem` outcomes.
@@ -125,7 +105,7 @@ impl WorldSession {
         inventory_can_store: bool,
         item_stored: bool,
     ) -> RepresentedBattlePetCageOutcomeLikeCpp {
-        if !self.has_represented_battle_pet_journal_lock_like_cpp() {
+        if !crate::session::cx_pets_ref(self).has_represented_battle_pet_journal_lock_like_cpp() {
             return RepresentedBattlePetCageOutcomeLikeCpp::NoJournalLock;
         }
 
@@ -190,7 +170,7 @@ impl WorldSession {
         self.send_packet(&wow_packet::packets::misc::BattlePetDeleted { pet_guid });
 
         if self.represented_summoned_battle_pet_guid_like_cpp() == Some(pet_guid) {
-            let _cleared = self.mutate_canonical_player_like_cpp(|player| {
+            let _cleared = self.core.mutate_canonical_player_like_cpp(|player| {
                 player.clear_battle_pet_data_like_cpp();
             });
             #[cfg(test)]
@@ -204,16 +184,6 @@ impl WorldSession {
 
         RepresentedBattlePetCageOutcomeLikeCpp::Caged(cage_item)
     }
-    pub(crate) async fn battle_pet_set_flags_durable_like_cpp(
-        &mut self,
-        pet_guid: ObjectGuid,
-        flags: u16,
-        control_type: u8,
-    ) -> bool {
-        crate::session::cx_pets(self)
-            .battle_pet_set_flags_durable_like_cpp(pet_guid, flags, control_type)
-            .await
-    }
     pub(in crate::session) fn log_battle_pet_mutation_failure_like_cpp(
         &self,
         operation: &'static str,
@@ -222,13 +192,6 @@ impl WorldSession {
     ) {
         crate::session::hub_ref(self)
             .log_battle_pet_mutation_failure_like_cpp(operation, pet_guid, error)
-    }
-    pub(crate) fn battle_pet_has_max_pet_count_like_cpp(
-        &self,
-        species: u32,
-        owner_guid: Option<ObjectGuid>,
-    ) -> Option<bool> {
-        crate::session::cx_pets_ref(self).battle_pet_has_max_pet_count_like_cpp(species, owner_guid)
     }
     /// C++ `BattlePetMgr::AddPet`, represented without DB persistence and with
     /// a local GUID counter until `sObjectMgr->GetGenerator<HighGuid::BattlePet>()`
@@ -385,9 +348,6 @@ impl WorldSession {
             BattlePetAddOutcomeLikeCpp::Replayed(pet) => Ok(pet.guid),
         }
     }
-    pub(crate) fn record_battle_pet_trainer_purchase_criteria_like_cpp(&mut self, species: u32) {
-        crate::session::cx_pets(self).record_battle_pet_trainer_purchase_criteria_like_cpp(species)
-    }
     /// C++ `BattlePetMgr::GrantBattlePetExperience`, represented after
     /// external aura multiplier resolution.
     #[cfg(test)]
@@ -398,7 +358,7 @@ impl WorldSession {
         xp_source: RepresentedBattlePetXpSourceLikeCpp,
         pet_battle_xp_multiplier: f32,
     ) -> RepresentedBattlePetGrantExperienceOutcomeLikeCpp {
-        if !self.has_represented_battle_pet_journal_lock_like_cpp() {
+        if !crate::session::cx_pets_ref(self).has_represented_battle_pet_journal_lock_like_cpp() {
             return RepresentedBattlePetGrantExperienceOutcomeLikeCpp::NoJournalLock;
         }
 
@@ -428,7 +388,9 @@ impl WorldSession {
             return RepresentedBattlePetGrantExperienceOutcomeLikeCpp::AlreadyMaxLevel;
         }
 
-        let Some(mut next_level_xp) = self.battle_pet_xp_per_level_like_cpp(level) else {
+        let Some(mut next_level_xp) =
+            crate::session::cx_pets_ref(self).battle_pet_xp_per_level_like_cpp(level)
+        else {
             return RepresentedBattlePetGrantExperienceOutcomeLikeCpp::MissingXpRow;
         };
 
@@ -446,7 +408,9 @@ impl WorldSession {
             total_xp = total_xp.saturating_sub(next_level_xp);
             level += 1;
 
-            let Some(row_xp) = self.battle_pet_xp_per_level_like_cpp(level) else {
+            let Some(row_xp) =
+                crate::session::cx_pets_ref(self).battle_pet_xp_per_level_like_cpp(level)
+            else {
                 return RepresentedBattlePetGrantExperienceOutcomeLikeCpp::MissingXpRow;
             };
             next_level_xp = row_xp;
@@ -532,7 +496,9 @@ impl WorldSession {
         if pet.level >= MAX_BATTLE_PET_LEVEL_LIKE_CPP {
             return RepresentedBattlePetGrantExperienceOutcomeLikeCpp::AlreadyMaxLevel;
         }
-        let Some(mut next_level_xp) = self.battle_pet_xp_per_level_like_cpp(pet.level) else {
+        let Some(mut next_level_xp) =
+            crate::session::cx_pets_ref(self).battle_pet_xp_per_level_like_cpp(pet.level)
+        else {
             return RepresentedBattlePetGrantExperienceOutcomeLikeCpp::MissingXpRow;
         };
         let mut level = pet.level;
@@ -547,7 +513,9 @@ impl WorldSession {
         while total_xp >= next_level_xp && level < MAX_BATTLE_PET_LEVEL_LIKE_CPP {
             total_xp = total_xp.saturating_sub(next_level_xp);
             level += 1;
-            let Some(row_xp) = self.battle_pet_xp_per_level_like_cpp(level) else {
+            let Some(row_xp) =
+                crate::session::cx_pets_ref(self).battle_pet_xp_per_level_like_cpp(level)
+            else {
                 return RepresentedBattlePetGrantExperienceOutcomeLikeCpp::MissingXpRow;
             };
             next_level_xp = row_xp;
@@ -607,9 +575,6 @@ impl WorldSession {
             }
         }
     }
-    pub(crate) fn battle_pet_summon_toggle_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
-        crate::session::cx_pets(self).battle_pet_summon_toggle_like_cpp(pet_guid)
-    }
     pub(crate) fn represented_summoned_battle_pet_guid_like_cpp(&self) -> Option<ObjectGuid> {
         crate::session::hub_ref(self).represented_summoned_battle_pet_guid_like_cpp()
     }
@@ -618,12 +583,6 @@ impl WorldSession {
         unit_guid: ObjectGuid,
     ) -> Option<RepresentedBattlePetQueryCompanionLikeCpp> {
         crate::session::hub_ref(self).represented_battle_pet_query_companion_like_cpp(unit_guid)
-    }
-    pub(crate) fn represented_battle_pet_like_cpp(
-        &self,
-        pet_guid: ObjectGuid,
-    ) -> Option<RepresentedBattlePetDataLikeCpp> {
-        crate::session::cx_pets_ref(self).represented_battle_pet_like_cpp(pet_guid)
     }
 }
 

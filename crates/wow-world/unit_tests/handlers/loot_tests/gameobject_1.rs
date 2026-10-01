@@ -355,7 +355,7 @@ async fn represented_empty_non_encounter_personal_chest_still_opens_like_cpp() {
         .expect("C++ retains the empty non-encounter personal pool");
     assert!(loot_is_looted_like_cpp(&pool.loot));
     assert_eq!(pool.loot.allowed_looters, vec![player_guid]);
-    assert!(session.is_active_loot_guid(gameobject_guid));
+    assert!(session.loot.is_active_loot_guid(gameobject_guid));
     let _response = recv_packet_with_opcode(&send_rx, wow_constants::ServerOpcodes::LootResponse);
 }
 #[tokio::test]
@@ -405,7 +405,7 @@ async fn represented_empty_personal_encounter_chest_does_not_install_or_open_lik
             .represented_personal_loot_money
             .contains_key(&(gameobject_guid, player_guid))
     );
-    assert!(!session.is_active_loot_guid(gameobject_guid));
+    assert!(!session.loot.is_active_loot_guid(gameobject_guid));
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]
@@ -469,7 +469,7 @@ async fn represented_nonempty_personal_encounter_chest_keeps_live_canonical_pool
     assert_eq!(pool.loot.items.len(), 1);
     assert_eq!(pool.loot.items[0].item_id, item_id);
     assert!(!loot_is_looted_like_cpp(&pool.loot));
-    assert!(session.is_active_loot_guid(gameobject_guid));
+    assert!(session.loot.is_active_loot_guid(gameobject_guid));
 }
 #[tokio::test]
 async fn represented_gameobject_personal_encounter_loot_uses_current_player_when_no_tap_list_like_cpp()
@@ -657,7 +657,7 @@ async fn represented_gameobject_personal_encounter_open_does_not_auto_allow_non_
         .await;
 
     assert!(send_rx.try_recv().is_err());
-    assert!(!session.is_active_loot_guid(gameobject_guid));
+    assert!(!session.loot.is_active_loot_guid(gameobject_guid));
     assert_eq!(
         session
             .loot
@@ -741,7 +741,7 @@ async fn represented_gameobject_personal_encounter_money_pickup_consumes_only_pl
     let gameobject_guid = test_gameobject_guid(91_013);
     let loot_object = represented_loot_object_guid_like_cpp(gameobject_guid);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(gameobject_guid);
+    session.loot.set_active_loot_guid(gameobject_guid);
     session.loot.loot_table.insert(
         gameobject_guid,
         CreatureLoot {

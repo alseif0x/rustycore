@@ -220,7 +220,7 @@ fn stale_player_map_key_does_not_rebind_creature_loot_authorities_like_cpp() {
     let canonical_creature = make_canonical_creature_for_session(&session, owner_guid);
     attach_canonical_creature(&mut session, canonical_creature);
 
-    let (map_id, instance_id) = session.current_legacy_runtime_map_key_like_cpp();
+    let (map_id, instance_id) = session.core.current_legacy_runtime_map_key_like_cpp();
     let map_key = wow_map::MapKey::new(u32::from(map_id), instance_id);
     let legacy_before = session
         .read_legacy_creature_loot_authority_on_map_like_cpp(owner_guid, map_key)
@@ -260,7 +260,7 @@ async fn durable_item_completion_never_auto_releases_creature_or_gameobject_owne
         test_creature_guid(61_821),
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 0, 0, 1, 61_822),
     ] {
-        session.set_active_loot_guid(owner_guid);
+        session.loot.set_active_loot_guid(owner_guid);
         session.loot.loot_table.insert(
             owner_guid,
             CreatureLoot {
@@ -633,7 +633,7 @@ async fn loot_unit_live_creature_returns_silently_like_cpp() {
     session.handle_loot_unit(loot_unit_packet(loot_guid)).await;
 
     assert!(send_rx.try_recv().is_err());
-    assert!(!session.is_active_loot_guid(loot_guid));
+    assert!(!session.loot.is_active_loot_guid(loot_guid));
 }
 #[tokio::test]
 async fn loot_unit_non_creature_guid_returns_silently_like_cpp() {
@@ -645,7 +645,7 @@ async fn loot_unit_non_creature_guid_returns_silently_like_cpp() {
     session.handle_loot_unit(loot_unit_packet(loot_guid)).await;
 
     assert!(send_rx.try_recv().is_err());
-    assert!(!session.is_active_loot_guid(loot_guid));
+    assert!(!session.loot.is_active_loot_guid(loot_guid));
     assert!(!session.loot.loot_table.contains_key(&loot_guid));
 }
 #[tokio::test]
@@ -662,7 +662,7 @@ async fn loot_unit_creature_too_far_returns_silently_like_cpp() {
     session.handle_loot_unit(loot_unit_packet(loot_guid)).await;
 
     assert!(send_rx.try_recv().is_err());
-    assert!(!session.is_active_loot_guid(loot_guid));
+    assert!(!session.loot.is_active_loot_guid(loot_guid));
     assert!(!session.loot.loot_table.contains_key(&loot_guid));
 }
 #[tokio::test]
@@ -672,7 +672,7 @@ async fn loot_money_non_allowed_active_creature_does_not_take_coins_like_cpp() {
     let other_guid = ObjectGuid::create_player(1, 43);
     let loot_guid = test_creature_guid(19_100);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     insert_allowed_coin_loot_like_cpp(&mut session, loot_guid, other_guid, 7);
 
     session.handle_loot_money(loot_money_packet()).await;
@@ -688,7 +688,7 @@ async fn loot_item_creature_too_far_uses_cpp_error() {
     let loot_guid = test_creature_guid(19_008);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
 
     let mut creature = test_creature(loot_guid, false);
     creature.current_pos = Position::new(31.0, 0.0, 0.0, 0.0);
@@ -734,7 +734,7 @@ async fn loot_item_creature_too_far_uses_cpp_error() {
         LOOT_ERROR_TOO_FAR_LIKE_CPP
     );
     assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
-    assert!(session.is_active_loot_guid(loot_guid));
+    assert!(session.loot.is_active_loot_guid(loot_guid));
 }
 #[tokio::test]
 async fn loot_item_creature_distance_can_use_canonical_map_object_like_cpp() {
@@ -743,7 +743,7 @@ async fn loot_item_creature_distance_can_use_canonical_map_object_like_cpp() {
     let loot_guid = test_creature_guid(19_018);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     attach_canonical_map_object(
         &mut session,
         AccessorObjectKind::Creature,
@@ -790,7 +790,7 @@ async fn loot_item_creature_distance_can_use_canonical_map_object_like_cpp() {
         LOOT_ERROR_TOO_FAR_LIKE_CPP
     );
     assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
-    assert!(session.is_active_loot_guid(loot_guid));
+    assert!(session.loot.is_active_loot_guid(loot_guid));
 }
 #[tokio::test]
 async fn loot_item_creature_pickup_refreshes_canonical_owned_loot_like_cpp() {
@@ -843,7 +843,7 @@ async fn loot_item_missing_creature_uses_cpp_no_loot_error() {
     let player_guid = ObjectGuid::create_player(1, 42);
     let loot_guid = test_creature_guid(19_009);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     session.loot.loot_table.insert(
         loot_guid,
         CreatureLoot {
@@ -885,5 +885,5 @@ async fn loot_item_missing_creature_uses_cpp_no_loot_error() {
         LOOT_ERROR_NO_LOOT_LIKE_CPP
     );
     assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
-    assert!(session.is_active_loot_guid(loot_guid));
+    assert!(session.loot.is_active_loot_guid(loot_guid));
 }

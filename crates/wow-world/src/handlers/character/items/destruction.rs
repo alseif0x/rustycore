@@ -59,7 +59,7 @@ impl WorldSession {
         }
 
         // Delete from DB
-        let inventory_port = match self.player_inventory_persistence_port_like_cpp() {
+        let inventory_port = match self.lifecycle.player_inventory_persistence_port_like_cpp() {
             Some(port) => port,
             None => return,
         };
@@ -127,7 +127,7 @@ impl WorldSession {
             );
             self.send_packet(&UpdateObject::item_stack_count_update(
                 item.guid,
-                self.player_map_id_like_cpp(),
+                self.core.player_map_id_like_cpp(),
                 new_count,
             ));
             info!(
@@ -223,7 +223,7 @@ impl WorldSession {
             Some(guid) => guid,
             None => return false,
         };
-        let inventory_port = match self.player_inventory_persistence_port_like_cpp() {
+        let inventory_port = match self.lifecycle.player_inventory_persistence_port_like_cpp() {
             Some(port) => port,
             None => return false,
         };
@@ -391,7 +391,7 @@ impl WorldSession {
 
         self.send_packet(&UpdateObject::destroy_objects(
             destroyed_guids,
-            self.player_map_id_like_cpp(),
+            self.core.player_map_id_like_cpp(),
         ));
 
         if should_expire_refund {

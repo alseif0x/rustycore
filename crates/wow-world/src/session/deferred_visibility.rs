@@ -24,11 +24,11 @@ impl WorldSession {
         if self.state() != SessionState::LoggedIn
             || self.is_disconnecting()
             || (!command.object_guid.is_creature_or_pet() && !command.object_guid.is_corpse())
-            || self.player_map_id_like_cpp() != command.map_id
+            || self.core.player_map_id_like_cpp() != command.map_id
         {
             return;
         }
-        let Some(current_key) = self.current_canonical_player_map_key_like_cpp() else {
+        let Some(current_key) = self.core.current_canonical_player_map_key_like_cpp() else {
             return;
         };
         if current_key.instance_id != command.instance_id {
@@ -76,7 +76,7 @@ impl WorldSession {
         // MovementHandler.cpp:808 -> Player::UpdateObjectVisibility(false).
         // No scanner or packet fanout here: ProcessRelocationNotifies owns the
         // active-grid/timer phase and consumes this mark after selection.
-        self.with_owned_player_mut_like_cpp(|player| {
+        self.core.with_owned_player_mut_like_cpp(|player| {
             let object = player.unit_mut().world_mut().object_mut();
             if object.is_in_world() {
                 object.add_to_notify(ObjectNotifyFlags::VISIBILITY_CHANGED);

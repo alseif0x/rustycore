@@ -192,7 +192,11 @@ impl WorldSession {
         let lifecycle_port = if test_commit_result.is_some() {
             None
         } else {
-            let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
+            let Some(port) = self
+                .lifecycle
+                .player_lifecycle_port_like_cpp()
+                .map(Arc::clone)
+            else {
                 return;
             };
             Some(port)
@@ -266,18 +270,19 @@ impl WorldSession {
             return;
         }
         self.send_player_bank_bag_slots_update_like_cpp(new_count);
-        self.enqueue_represented_quest_objective_progress_like_cpp(
-            RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
-                old_money,
-                new_money,
-            },
-        );
+        self.quest_state
+            .enqueue_represented_quest_objective_progress_like_cpp(
+                RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
+                    old_money,
+                    new_money,
+                },
+            );
         self.sync_player_registry_state_like_cpp();
         drop(money_persistence);
 
         self.send_packet(&UpdateObject::player_money_update(
             player_guid,
-            self.player_map_id_like_cpp(),
+            self.core.player_map_id_like_cpp(),
             new_money,
             None,
         ));

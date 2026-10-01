@@ -102,7 +102,7 @@ fn gameobject_use_goober_multi_interact_matches_cpp_per_player_branch() {
             .expect("DespawnForPlayer out-of-range update"),
         wow_packet::packets::update::UpdateObject::out_of_range_objects(
             vec![gameobject_guid],
-            session.player_map_id_like_cpp(),
+            session.core.player_map_id_like_cpp(),
         )
         .to_bytes()
     );

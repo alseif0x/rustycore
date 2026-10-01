@@ -26,7 +26,7 @@ impl WorldSession {
         let Ok(faction_id) = u32::try_from(misc_value) else {
             return false;
         };
-        let Some(faction_store) = self.faction_store().map(Arc::clone) else {
+        let Some(faction_store) = self.catalogs.faction_store().map(Arc::clone) else {
             return false;
         };
         let Some(faction_entry) = faction_store.get(faction_id).cloned() else {
@@ -41,10 +41,15 @@ impl WorldSession {
             false,
         );
 
-        let reputation_spillover_template_store =
-            self.reputation_spillover_template_store().map(Arc::clone);
-        let friendship_rep_reaction_store = self.friendship_rep_reaction_store().map(Arc::clone);
-        let paragon_reputation_store = self.paragon_reputation_store().map(Arc::clone);
+        let reputation_spillover_template_store = self
+            .catalogs
+            .reputation_spillover_template_store()
+            .map(Arc::clone);
+        let friendship_rep_reaction_store = self
+            .catalogs
+            .friendship_rep_reaction_store()
+            .map(Arc::clone);
+        let paragon_reputation_store = self.catalogs.paragon_reputation_store().map(Arc::clone);
         let currency_types_store = self.currency_types_store().map(Arc::clone);
         let db_spillover_template = reputation_spillover_template_store
             .as_deref()
@@ -53,7 +58,7 @@ impl WorldSession {
             incremental: true,
             spillover_only: false,
             no_spillover: false,
-            reputation_gain_rate: self.reputation_rates_like_cpp().gain,
+            reputation_gain_rate: self.config.reputation_rates_like_cpp().gain,
             paragon_reward_quest_status_none_like_cpp: true,
             renown_current_level_like_cpp: 0,
             renown_currency_increased_cap_quantity_like_cpp: 0,
@@ -112,7 +117,7 @@ impl WorldSession {
             group_guid,
             player_guid,
             damage as u8,
-            u32::from(self.player_map_id_like_cpp()),
+            u32::from(self.core.player_map_id_like_cpp()),
             destination.position,
             destination.transport,
         ) {
@@ -179,7 +184,7 @@ impl WorldSession {
         }
 
         let update = if equipped.equipped_item_class == ItemClass::Weapon as i8 {
-            let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            let canonical = self.core.with_owned_player_mut_like_cpp(|player| {
                 player
                     .add_weapon_proficiency_like_cpp(sub_class_mask)
                     .map(|mask| (ItemClass::Weapon as u8, mask))
@@ -200,7 +205,7 @@ impl WorldSession {
             });
             canonical
         } else if equipped.equipped_item_class == ItemClass::Armor as i8 {
-            let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            let canonical = self.core.with_owned_player_mut_like_cpp(|player| {
                 player
                     .add_armor_proficiency_like_cpp(sub_class_mask)
                     .map(|mask| (ItemClass::Armor as u8, mask))

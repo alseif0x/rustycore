@@ -167,8 +167,12 @@ async fn logout_releases_active_loot_views_like_cpp_remove_from_world() {
         session.current_canonical_player_map_key_like_cpp(),
         Some(wow_map::MapKey::new(1, 0))
     );
-    assert!(session.try_claim_character_login_like_cpp(player_guid));
-    session.set_active_loot_guid(loot_guid);
+    assert!(
+        session
+            .lifecycle
+            .try_claim_character_login_like_cpp(player_guid)
+    );
+    session.loot.set_active_loot_guid(loot_guid);
     session.loot.loot_table.insert(
         loot_guid,
         CreatureLoot {
@@ -232,7 +236,7 @@ async fn logout_releases_active_loot_views_like_cpp_remove_from_world() {
         send_rx.try_recv().is_err(),
         "failed persistence must not publish LogoutComplete"
     );
-    assert!(!session.is_active_loot_guid(loot_guid));
+    assert!(!session.loot.is_active_loot_guid(loot_guid));
     assert!(
         !session.loot.loot_table.contains_key(&loot_guid),
         "loot release retires the packet-cache copy before persistence"

@@ -14,4 +14,11 @@ impl crate::session::WorldSession {
         self.spell_state
             .represented_spell_acquisition_post_commit_actions_like_cpp()
     }
+    pub(crate) fn record_spell_acquisition_post_commit_action_like_cpp(
+        &mut self,
+        action: crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp,
+    ) {
+        self.spell_state
+            .record_spell_acquisition_post_commit_action_like_cpp(action)
+    }
 }

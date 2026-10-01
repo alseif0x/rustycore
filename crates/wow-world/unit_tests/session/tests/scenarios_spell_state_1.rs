@@ -117,19 +117,19 @@ fn spell_proc_entry_walks_difficulty_fallback_like_cpp() {
 fn next_spell_in_chain_returns_zero_without_store_like_cpp() {
     let (session, _, _) = make_session();
 
-    assert_eq!(session.next_spell_in_chain_like_cpp(10), 0);
+    assert_eq!(session.catalogs.next_spell_in_chain_like_cpp(10), 0);
 }
 #[test]
 fn prev_spell_in_chain_returns_zero_without_store_like_cpp() {
     let (session, _, _) = make_session();
 
-    assert_eq!(session.prev_spell_in_chain_like_cpp(10), 0);
+    assert_eq!(session.catalogs.prev_spell_in_chain_like_cpp(10), 0);
 }
 #[test]
 fn first_spell_in_chain_returns_input_without_store_like_cpp() {
     let (session, _, _) = make_session();
 
-    assert_eq!(session.first_spell_in_chain_like_cpp(10), 10);
+    assert_eq!(session.catalogs.first_spell_in_chain_like_cpp(10), 10);
 }
 #[test]
 fn remove_known_spell_removes_non_talent_higher_ranks_like_cpp() {
@@ -191,7 +191,9 @@ fn login_known_spells_deactivate_lower_ranks_like_cpp_addspell() {
     let mut known_spells = vec![10, 40, 20, 100, 30];
 
     assert_eq!(
-        session.deactivate_lower_rank_known_spells_for_send_like_cpp(&mut known_spells),
+        session
+            .catalogs
+            .deactivate_lower_rank_known_spells_for_send_like_cpp(&mut known_spells),
         2
     );
     assert_eq!(
@@ -243,7 +245,12 @@ fn spell_required_queries_return_empty_without_store_like_cpp() {
     let (session, _, _) = make_session();
 
     assert!(session.spells_required_for_spell_like_cpp(100).is_empty());
-    assert!(session.spells_requiring_spell_like_cpp(10).is_empty());
+    assert!(
+        session
+            .catalogs
+            .spells_requiring_spell_like_cpp(10)
+            .is_empty()
+    );
     assert!(!session.is_spell_requiring_spell_like_cpp(100, 10));
 }
 #[test]
@@ -252,7 +259,10 @@ fn spell_required_queries_match_forward_reverse_maps_like_cpp() {
     session.set_spell_required_store(Arc::new(test_spell_required_store_like_cpp()));
 
     assert_eq!(session.spells_required_for_spell_like_cpp(100), &[10, 11]);
-    assert_eq!(session.spells_requiring_spell_like_cpp(10), &[100, 101]);
+    assert_eq!(
+        session.catalogs.spells_requiring_spell_like_cpp(10),
+        &[100, 101]
+    );
     assert!(session.is_spell_requiring_spell_like_cpp(100, 10));
     assert!(!session.is_spell_requiring_spell_like_cpp(11, 100));
 }

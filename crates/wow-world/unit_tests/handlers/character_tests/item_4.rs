@@ -291,7 +291,9 @@ fn vendor_item_current_count_updates_like_cpp() {
     let vendor_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 7, 1);
 
     assert_eq!(
-        session.vendor_item_current_count(vendor_guid, 700, 5, 60, 1),
+        session
+            .interaction
+            .vendor_item_current_count(vendor_guid, 700, 5, 60, 1),
         5
     );
     assert_eq!(
@@ -299,7 +301,9 @@ fn vendor_item_current_count_updates_like_cpp() {
         3
     );
     assert_eq!(
-        session.vendor_item_current_count(vendor_guid, 700, 5, 60, 1),
+        session
+            .interaction
+            .vendor_item_current_count(vendor_guid, 700, 5, 60, 1),
         3
     );
 
@@ -313,7 +317,9 @@ fn vendor_item_current_count_updates_like_cpp() {
     }
 
     assert_eq!(
-        session.vendor_item_current_count(vendor_guid, 700, 5, 60, 1),
+        session
+            .interaction
+            .vendor_item_current_count(vendor_guid, 700, 5, 60, 1),
         5
     );
     assert!(

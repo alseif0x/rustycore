@@ -63,7 +63,7 @@ async fn two_sessions_sharing_legacy_map_manager_see_same_creature_state() {
         "session2 must observe HP=60 after session1 applied 40 damage"
     );
 
-    let guids2 = session2.world_creature_guids();
+    let guids2 = session2.core.world_creature_guids();
     assert!(
         guids2.contains(&creature_guid),
         "session2 must see creature inserted via shared manager"

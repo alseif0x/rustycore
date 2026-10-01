@@ -14,7 +14,8 @@ impl WorldSession {
             .represented_npc_can_interact_with_like_cpp(swap.npc, NPCFlags1::VAULT_KEEPER.bits(), 0)
             .is_none()
             || !self.void_storage_is_unlocked_like_cpp()
-            || self.represented_void_storage_loaded_like_cpp() != Some(true)
+            || crate::session::cx_lifecycle_ref(self).represented_void_storage_loaded_like_cpp()
+                != Some(true)
         {
             return;
         }
@@ -39,7 +40,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        let Some(port) = self.void_storage_persistence_port_like_cpp() else {
+        let Some(port) = self.lifecycle.void_storage_persistence_port_like_cpp() else {
             return;
         };
         let Some(money_persistence) = self

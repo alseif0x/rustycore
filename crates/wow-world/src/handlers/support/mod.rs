@@ -363,7 +363,10 @@ impl crate::session::WorldSession {
             return;
         }
 
-        let Some(port) = self.support_bug_report_persistence_port_like_cpp() else {
+        let Some(port) = self
+            .lifecycle
+            .support_bug_report_persistence_port_like_cpp()
+        else {
             return;
         };
         let request = wow_persistence::SupportBugReportWriteRequestLikeCpp {

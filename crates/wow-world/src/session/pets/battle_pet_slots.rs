@@ -5,17 +5,7 @@
 
 use super::*;
 
-impl WorldSession {
-    pub(crate) async fn battle_pet_set_battle_slot_durable_like_cpp(
-        &mut self,
-        pet_guid: ObjectGuid,
-        slot: u8,
-    ) -> bool {
-        crate::session::cx_pets(self)
-            .battle_pet_set_battle_slot_durable_like_cpp(pet_guid, slot)
-            .await
-    }
-}
+impl WorldSession {}
 
 impl crate::session::PetsCx<'_> {
     pub(crate) async fn battle_pet_set_battle_slot_durable_like_cpp(

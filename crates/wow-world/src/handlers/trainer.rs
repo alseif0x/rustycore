@@ -409,7 +409,7 @@ impl WorldSession {
         };
         let entry = access.entry;
 
-        let trainer_store = match self.trainer_store_like_cpp() {
+        let trainer_store = match self.catalogs.trainer_store_like_cpp() {
             Some(store) => Arc::clone(store),
             None => return,
         };
@@ -499,7 +499,7 @@ impl WorldSession {
             trainer_id: trainer_id as i32,
             spells,
             greeting: trainer
-                .greeting_for_locale_name_like_cpp(self.session_locale_name_like_cpp())
+                .greeting_for_locale_name_like_cpp(self.core.session_locale_name_like_cpp())
                 .to_string(),
         });
     }
@@ -570,7 +570,7 @@ impl WorldSession {
         // performs known/level/money checks. The process-wide store excludes
         // orphan trainer_spell rows, so a generic gossip binding with ID 0 or
         // any stale/nonexistent trainer ID fails silently here.
-        let Some(trainer_store) = self.trainer_store_like_cpp() else {
+        let Some(trainer_store) = self.catalogs.trainer_store_like_cpp() else {
             return;
         };
         let Some(trainer) = trainer_store.get_trainer_like_cpp(trainer_id as u32) else {
@@ -631,6 +631,7 @@ impl WorldSession {
             return;
         }
         let Some(fresh_trainer_spell) = self
+            .catalogs
             .trainer_store_like_cpp()
             .and_then(|store| store.get_trainer_like_cpp(trainer_id as u32))
             .and_then(|trainer| trainer.get_spell_like_cpp(spell_id as u32))
@@ -678,7 +679,7 @@ impl WorldSession {
         // species — castable or not — applies the silent per-species
         // capacity gate (no packet, no charge) before the money check.
         if let Some(species_id) = offer.battle_pet_species_id {
-            let capped = self
+            let capped = crate::session::cx_pets_ref(self)
                 .battle_pet_account_owner_lease_like_cpp()
                 .map(|(owner, _)| owner.has_max_pet_count_like_cpp(species_id, self.player_guid()))
                 .unwrap_or(true);

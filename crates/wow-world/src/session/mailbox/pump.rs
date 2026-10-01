@@ -36,14 +36,6 @@ impl WorldSession {
         self.core.session_command_tx.clone()
     }
 
-    pub(crate) fn drain_session_commands(&self) -> Vec<SessionCommand> {
-        self.core.drain_session_commands()
-    }
-
-    pub(crate) fn take_durable_creature_runtime_overflow_like_cpp(&self) -> bool {
-        self.core.take_durable_creature_runtime_overflow_like_cpp()
-    }
-
     pub(crate) async fn process_represented_session_commands_with_catalogs_like_cpp(
         &mut self,
         catalogs: &SessionHandlerCatalogsLikeCpp,
@@ -52,14 +44,15 @@ impl WorldSession {
             catalogs.id_generators.item.as_ref(),
         )
         .await;
-        let creature_runtime_overflowed = self.take_durable_creature_runtime_overflow_like_cpp();
+        let creature_runtime_overflowed =
+            self.core.take_durable_creature_runtime_overflow_like_cpp();
         if creature_runtime_overflowed {
             self.kick(
                 "authoritative creature runtime command backlog overflowed; disconnecting desynchronized session",
             );
             return;
         }
-        let commands = self.drain_session_commands();
+        let commands = self.core.drain_session_commands();
         for command in commands {
             self.apply_session_command_with_catalogs_like_cpp(catalogs, command)
                 .await;

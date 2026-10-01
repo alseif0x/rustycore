@@ -8,14 +8,6 @@ use super::{ObjectGuid, RepresentedGameObjectAccessLikeCpp, RepresentedGameObjec
 use super::{WorldSession, quest};
 
 impl WorldSession {
-    pub(crate) fn represented_gameobject_questgiver_can_interact_with_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) -> Option<RepresentedGameObjectAccessLikeCpp> {
-        crate::session::cx_quest_state_ref(self)
-            .represented_gameobject_questgiver_can_interact_with_like_cpp(guid)
-    }
-
     pub(in crate::session) fn represented_has_quest_for_gameobject_like_cpp(
         &self,
         gameobject_entry: u32,
@@ -55,15 +47,6 @@ impl WorldSession {
         })
     }
 
-    pub(crate) fn record_represented_gameobject_template_quest_source_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        template: &wow_entities::GameObjectTemplateData,
-    ) {
-        crate::session::cx_quest_state(self)
-            .record_represented_gameobject_template_quest_source_like_cpp(guid, template)
-    }
-
     pub(in crate::session) fn represented_gameobject_is_for_quests_like_cpp(
         &self,
         gameobject_entry: u32,
@@ -78,9 +61,10 @@ impl WorldSession {
                         .chest_loot_source
                         .is_some_and(|source| source.chest_quest_id != 0)
                     || state.chest_loot_source.is_some_and(|source| {
-                        self.represented_gameobject_loot_ids_have_quest_loot_like_cpp(
-                            source.loot_ids_like_cpp(),
-                        )
+                        self.catalogs
+                            .represented_gameobject_loot_ids_have_quest_loot_like_cpp(
+                                source.loot_ids_like_cpp(),
+                            )
                     })
             }
             Some(wow_entities::GAMEOBJECT_TYPE_GENERIC) => {
@@ -90,6 +74,7 @@ impl WorldSession {
                 .goober_use_source
                 .is_some_and(|source| source.quest_id != 0),
             Some(wow_entities::GAMEOBJECT_TYPE_GATHERING_NODE) => self
+                .catalogs
                 .represented_gameobject_loot_ids_have_quest_loot_like_cpp(
                     state.gathering_node_loot_id,
                 ),

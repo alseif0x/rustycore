@@ -21,7 +21,7 @@ impl WorldSession {
         else {
             return false;
         };
-        let Some((disenchant_id, _)) = self.item_disenchant_loot_with_catalogs_like_cpp(
+        let Some((disenchant_id, _)) = self.catalogs.item_disenchant_loot_with_catalogs_like_cpp(
             item_valuation,
             entry.item_id,
             template.quality as u32,
@@ -138,7 +138,8 @@ impl WorldSession {
                 .zip(runtime_inventory_applied.as_ref().map(Arc::clone))
                 .map(|(context, runtime_inventory_applied)| {
                     (
-                        self.begin_durable_item_loot_persistence_like_cpp(),
+                        crate::session::cx_inventory_ref(self)
+                            .begin_durable_item_loot_persistence_like_cpp(),
                         DurableItemLootCompletionLikeCpp {
                             owner_guid: context.owner_guid,
                             loot_list_id: context.loot_list_id,
@@ -201,7 +202,9 @@ impl WorldSession {
             return true;
         }
 
-        let Some(inventory_persistence) = self.player_inventory_persistence_port_like_cpp() else {
+        let Some(inventory_persistence) =
+            self.lifecycle.player_inventory_persistence_port_like_cpp()
+        else {
             return false;
         };
 
@@ -242,7 +245,7 @@ impl WorldSession {
 
         for loot_entry in loot_entries {
             let random_properties = {
-                let mut rng = self.represented_runtime_subrng_like_cpp();
+                let mut rng = self.core.represented_runtime_subrng_like_cpp();
                 self.generate_loot_store_random_properties_with_rng_like_cpp(
                     loot_entry.item_id,
                     &mut rng,
@@ -388,10 +391,13 @@ impl WorldSession {
 
         let mut created_new_stacks = Vec::with_capacity(planned_new_stacks.len());
         if !planned_new_stacks.is_empty() {
-            let Some(allocated_guids) = self.allocate_item_instance_guids_with_generator_like_cpp(
-                item_guid_generator,
-                planned_new_stacks.len(),
-            ) else {
+            let Some(allocated_guids) = self
+                .core
+                .allocate_item_instance_guids_with_generator_like_cpp(
+                    item_guid_generator,
+                    planned_new_stacks.len(),
+                )
+            else {
                 warn!(
                     count = planned_new_stacks.len(),
                     "disenchant item grant has no process-wide item GUID allocator"
@@ -444,7 +450,8 @@ impl WorldSession {
             .zip(runtime_inventory_applied.as_ref().map(Arc::clone))
             .map(|(context, runtime_inventory_applied)| {
                 (
-                    self.begin_durable_item_loot_persistence_like_cpp(),
+                    crate::session::cx_inventory_ref(self)
+                        .begin_durable_item_loot_persistence_like_cpp(),
                     DurableItemLootCompletionLikeCpp {
                         owner_guid: context.owner_guid,
                         loot_list_id: context.loot_list_id,
@@ -509,15 +516,16 @@ impl WorldSession {
                     inventory_type: self.item_template_inventory_type(stack.entry_id),
                 },
             );
-            let mut item_object = self.make_inventory_item_object(
-                *item_guid,
-                stack.entry_id,
-                player_guid,
-                stack.count,
-                stack.max_durability,
-                loot_item_context(stack.item_context),
-                stack.slot,
-            );
+            let mut item_object = crate::session::cx_inventory_ref(self)
+                .make_inventory_item_object(
+                    *item_guid,
+                    stack.entry_id,
+                    player_guid,
+                    stack.count,
+                    stack.max_durability,
+                    loot_item_context(stack.item_context),
+                    stack.slot,
+                );
             self.apply_stored_new_item_flags_like_cpp(stack.entry_id, stack.slot, &mut item_object);
             if stack.random_properties_id != 0 {
                 item_object.set_random_properties_id(stack.random_properties_id);
@@ -551,7 +559,7 @@ impl WorldSession {
                 .await;
         }
 
-        let map_id = self.player_map_id_like_cpp();
+        let map_id = self.core.player_map_id_like_cpp();
         if !created_new_stacks.is_empty() {
             let item_creates = created_new_stacks
                 .iter()
@@ -592,6 +600,7 @@ impl WorldSession {
         // C++ writes each material's item update on the instance connection
         // before `SendNewItem` routes its push result to the realm connection.
         if !self
+            .core
             .wait_for_instance_send_before_realm_send_like_cpp()
             .await
         {
@@ -642,6 +651,7 @@ impl WorldSession {
         // connection. Do not publish the later instance packets without the
         // writer acknowledgement; reconnect will reload the durable grant.
         if !self
+            .core
             .wait_for_realm_send_before_instance_update_like_cpp()
             .await
         {
@@ -670,7 +680,7 @@ impl WorldSession {
             self.send_player_values_update_from_entity_bridge(&changed_slots, &[], &[], &[], None);
         }
         for update in &collection_updates {
-            self.send_player_values_update_like_cpp(update);
+            self.core.send_player_values_update_like_cpp(update);
         }
         self.sync_player_registry_state_like_cpp();
         true

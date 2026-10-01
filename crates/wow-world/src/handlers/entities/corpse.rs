@@ -88,7 +88,7 @@ impl crate::session::WorldSession {
                 state = ?self.state(),
                 zone = zone_id,
                 area = area_id,
-                map_id = self.player_map_id_like_cpp(),
+                map_id = self.core.player_map_id_like_cpp(),
                 player = ?self.player_guid(),
                 "RUST_CEMETERY_TRACE handler resolved zone_area"
             );
@@ -97,7 +97,7 @@ impl crate::session::WorldSession {
             info!(
                 zone = zone_id,
                 area = area_id,
-                map_id = self.player_map_id_like_cpp(),
+                map_id = self.core.player_map_id_like_cpp(),
                 player = ?self.player_guid(),
                 "No graveyards found in CMSG_REQUEST_CEMETERY_LIST"
             );
@@ -118,7 +118,7 @@ impl crate::session::WorldSession {
             info!(
                 zone = zone_id,
                 area = area_id,
-                map_id = self.player_map_id_like_cpp(),
+                map_id = self.core.player_map_id_like_cpp(),
                 candidate_count = graveyards.len(),
                 player = ?self.player_guid(),
                 "No graveyards passed conditions in CMSG_REQUEST_CEMETERY_LIST"
@@ -129,7 +129,7 @@ impl crate::session::WorldSession {
         info!(
             zone = zone_id,
             area = area_id,
-            map_id = self.player_map_id_like_cpp(),
+            map_id = self.core.player_map_id_like_cpp(),
             candidate_count = graveyards.len(),
             accepted_count = cemetery_ids.len(),
             cemetery_ids = ?cemetery_ids,

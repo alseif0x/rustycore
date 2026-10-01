@@ -62,22 +62,6 @@ impl WorldSession {
             .set_send_write_fence_like_cpp(fence);
     }
 
-    pub(crate) fn packet_rx(&self) -> &flume::Receiver<wow_packet::WorldPacket> {
-        self.core.packet_rx()
-    }
-
-    pub(crate) fn realm_route_tx(&self) -> &flume::Sender<Vec<u8>> {
-        self.core.realm_route_tx()
-    }
-
-    pub(crate) fn realm_packet_rx(&self) -> Option<flume::Receiver<wow_packet::WorldPacket>> {
-        self.core.realm_packet_rx()
-    }
-
-    pub(crate) fn clear_realm_packet_rx(&mut self) {
-        self.core.clear_realm_packet_rx()
-    }
-
     /// Poll the instance link, then perform the session step it reports.
     ///
     /// The kernel swaps the channels; continuing the login and releasing the
@@ -116,7 +100,7 @@ impl WorldSession {
             }
             InstanceLinkPollOutcome::Failed => {
                 self.lifecycle.player_loading = None;
-                self.release_character_login_claim_like_cpp();
+                self.lifecycle.release_character_login_claim_like_cpp();
             }
         }
     }
@@ -149,22 +133,6 @@ impl WorldSession {
 
     pub fn send_packet_realm(&self, pkt: &impl wow_packet::ServerPacket) {
         self.core.send_packet_realm(pkt)
-    }
-
-    pub(crate) fn send_raw_packet_realm(&self, data: &[u8]) {
-        self.core.send_raw_packet_realm(data)
-    }
-
-    pub(crate) async fn wait_for_instance_send_before_realm_send_like_cpp(&self) -> bool {
-        self.core
-            .wait_for_instance_send_before_realm_send_like_cpp()
-            .await
-    }
-
-    pub(crate) async fn wait_for_realm_send_before_instance_update_like_cpp(&self) -> bool {
-        self.core
-            .wait_for_realm_send_before_instance_update_like_cpp()
-            .await
     }
 
     pub(crate) fn restore_realm_channels(&mut self) {

@@ -20,7 +20,11 @@ impl WorldSession {
         }) {
             return;
         }
-        let options = if self.current_canonical_player_map_key_like_cpp().is_none() {
+        let options = if self
+            .core
+            .current_canonical_player_map_key_like_cpp()
+            .is_none()
+        {
             options & !TELE_TO_SEAMLESS_LIKE_CPP
         } else {
             options
@@ -68,6 +72,7 @@ impl WorldSession {
         if !self.lifecycle.player_logout_like_cpp {
             if options & TELE_TO_SEAMLESS_LIKE_CPP == 0
                 && !self
+                    .core
                     .wait_for_realm_send_before_instance_update_like_cpp()
                     .await
             {

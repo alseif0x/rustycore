@@ -114,7 +114,7 @@ impl WorldSession {
             prefix: String::new(),
             channel: String::new(),
             text,
-            virtual_realm: self.virtual_realm_address(),
+            virtual_realm: self.core.virtual_realm_address(),
         };
         self.send_packet(&packet);
     }

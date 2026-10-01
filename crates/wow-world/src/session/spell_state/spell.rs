@@ -48,7 +48,8 @@ impl WorldSession {
         legacy_spell_ids: Arc<BTreeSet<u32>>,
         rejected_linked_trigger_spell_ids: Arc<BTreeSet<u32>>,
     ) {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.spell_state.spell_script_exact_spell_ids_like_cpp = Some(exact_spell_ids);
         self.spell_state
             .spell_script_all_rank_root_spell_ids_like_cpp = Some(all_rank_root_spell_ids);
@@ -64,15 +65,6 @@ impl WorldSession {
     ) -> bool {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.player_target_spell_is_hit_inert_like_cpp(hub, spell_id, difficulty_id)
-    }
-    pub(crate) fn next_spell_in_chain_like_cpp(&self, spell_id: u32) -> u32 {
-        self.catalogs.next_spell_in_chain_like_cpp(spell_id)
-    }
-    pub(crate) fn first_spell_in_chain_like_cpp(&self, spell_id: u32) -> u32 {
-        self.catalogs.first_spell_in_chain_like_cpp(spell_id)
-    }
-    pub(crate) fn prev_spell_in_chain_like_cpp(&self, spell_id: u32) -> u32 {
-        self.catalogs.prev_spell_in_chain_like_cpp(spell_id)
     }
     pub(in crate::session) fn player_spell_hit_source_identity_complete_like_cpp(&self) -> bool {
         let Some(player_guid) = self.core.player_guid else {
@@ -114,14 +106,6 @@ impl WorldSession {
             .map(|store| store.spell_area_for_area_map_bounds_like_cpp(area_id))
             .unwrap_or_default()
     }
-    pub(crate) fn spell_custom_attributes_for_difficulty_like_cpp(
-        &self,
-        spell_id: u32,
-        difficulty: u32,
-    ) -> u32 {
-        self.catalogs
-            .spell_custom_attributes_for_difficulty_like_cpp(spell_id, difficulty)
-    }
     pub(crate) fn spell_proc_entry_like_cpp(
         &self,
         spell_id: u32,
@@ -144,9 +128,6 @@ impl WorldSession {
             .map(|store| store.spells_required_for_spell_like_cpp(spell_id))
             .unwrap_or(&[])
     }
-    pub(crate) fn spells_requiring_spell_like_cpp(&self, req_spell: u32) -> &[u32] {
-        self.catalogs.spells_requiring_spell_like_cpp(req_spell)
-    }
     pub(crate) fn is_spell_requiring_spell_like_cpp(&self, spell_id: u32, req_spell: u32) -> bool {
         self.catalogs
             .spell_catalogs
@@ -154,14 +135,6 @@ impl WorldSession {
             .as_ref()
             .map(|store| store.is_spell_requiring_spell_like_cpp(spell_id, req_spell))
             .unwrap_or(false)
-    }
-    pub(in crate::session) fn spell_school_mask_for_difficulty_like_cpp(
-        &self,
-        spell_id: u32,
-        difficulty: u8,
-    ) -> u32 {
-        self.catalogs
-            .spell_school_mask_for_difficulty_like_cpp(spell_id, difficulty)
     }
     pub(in crate::session) fn represented_talent_spell_id_like_cpp(
         &self,
@@ -177,13 +150,6 @@ impl WorldSession {
     ) -> Option<(i32, i32)> {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.represented_talent_override_spell_pair_like_cpp(hub, talent_id)
-    }
-    pub(in crate::session) fn represented_mount_capability_mod_spell_like_cpp(
-        &self,
-        mount_capability_id: i32,
-    ) -> Option<i32> {
-        self.catalogs
-            .represented_mount_capability_mod_spell_like_cpp(mount_capability_id)
     }
     pub(in crate::session) fn reset_spells_notification_text_like_cpp(&self) -> String {
         let text = self.trinity_string_like_cpp(LANG_RESET_SPELLS_LIKE_CPP);
@@ -385,7 +351,8 @@ impl WorldSession {
                 .copied()
                 != Some(trait_definition_id)
             {
-                self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+                self.core
+                    .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
             }
             let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
                 runtime.set_trait_definition_id_like_cpp(spell_id, Some(trait_definition_id));
@@ -406,7 +373,7 @@ impl WorldSession {
             return;
         }
 
-        let Some(penalty_spell_id) = self.mutate_canonical_player_like_cpp(|player| {
+        let Some(penalty_spell_id) = self.core.mutate_canonical_player_like_cpp(|player| {
             player
                 .can_titan_grip()
                 .then_some(player.titan_grip_penalty_spell_id())
@@ -423,7 +390,7 @@ impl WorldSession {
             );
         }
 
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
+        let _ = self.core.mutate_canonical_player_like_cpp(|player| {
             player.set_can_titan_grip(false, 0);
         });
     }
@@ -504,7 +471,8 @@ impl WorldSession {
         &mut self,
         traits: impl IntoIterator<Item = (i32, i32)>,
     ) -> bool {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         // Keep caller-provided iteration outside the owner guard. The login
         // loader supplies its already materialized exact-traits Vec here.
         let traits = traits.into_iter().collect();
@@ -518,7 +486,8 @@ impl WorldSession {
         &mut self,
         traits: impl IntoIterator<Item = (i32, i32)>,
     ) -> bool {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         let mut exact_traits = HashMap::new();
         for (spell_id, trait_definition_id) in traits {
             if spell_id <= 0
@@ -564,7 +533,7 @@ impl WorldSession {
     pub(in crate::session) fn player_spell_runtime_snapshot_like_cpp(
         &self,
     ) -> Option<RepresentedPlayerSpellRuntimeLikeCpp> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
             represented_player_spell_runtime_like_cpp(player.spell_runtime_like_cpp())
         });
         #[cfg(test)]
@@ -657,7 +626,8 @@ impl WorldSession {
             return Some(query(&runtime));
         }
         // C++ Player::GetSpellMap returns the owner's map, not a Session copy.
-        self.with_owned_player_like_cpp(|player| query(player.spell_runtime_like_cpp()))
+        self.core
+            .with_owned_player_like_cpp(|player| query(player.spell_runtime_like_cpp()))
     }
     /// Incarnation dispatch for one named spell-runtime transition.
     ///
@@ -682,7 +652,8 @@ impl WorldSession {
         }
         // Player::AddSpell/RemoveSpell change the Player's own spell map.
         // Keep this callback inside the one generation-checked owner access.
-        self.with_owned_player_mut_like_cpp(|player| f(&mut player.gameplay_state_mut().spells))
+        self.core
+            .with_owned_player_mut_like_cpp(|player| f(&mut player.gameplay_state_mut().spells))
     }
     #[allow(dead_code)]
     pub(crate) fn represented_player_spell_rows_like_cpp(
@@ -759,6 +730,7 @@ impl WorldSession {
             return;
         }
         let _canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player
                     .resurrection_state_mut_like_cpp()
@@ -784,6 +756,7 @@ impl WorldSession {
     pub(crate) fn interrupt_non_melee_spells_for_far_teleport_like_cpp(&mut self) -> bool {
         let session_cast_interrupted = self.interrupt_player_cast_like_cpp(None);
         let canonical_spells_interrupted = self
+            .core
             .mutate_canonical_player_like_cpp(|player| {
                 let unit = player.unit_mut();
                 if !unit.is_non_melee_spell_cast_like_cpp(true, false, false, true) {
@@ -804,6 +777,7 @@ impl WorldSession {
         }
 
         let interrupted = self
+            .core
             .mutate_canonical_player_like_cpp(|player| {
                 let unit = player.unit_mut();
                 if unit

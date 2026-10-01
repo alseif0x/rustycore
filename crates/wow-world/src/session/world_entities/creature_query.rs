@@ -20,6 +20,7 @@ impl WorldSession {
         position: &wow_core::Position,
     ) -> Vec<crate::map_manager::WorldCreature> {
         if self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .is_some_and(|key| key.map_id != u32::from(map_id))
         {
@@ -34,8 +35,8 @@ impl WorldSession {
         };
 
         if let Some(manager) = &self.core.map_manager {
-            let (_, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-            let visibility_range = self.player_map_visibility_range_like_cpp(map_id);
+            let (_, instance_id) = self.core.current_legacy_runtime_map_key_like_cpp();
+            let visibility_range = self.config.player_map_visibility_range_like_cpp(map_id);
             // Materialize the legacy candidates and release its map-manager
             // read guard before visibility filters consult canonical Player
             // state. Spell validation takes these managers in the opposite
@@ -96,20 +97,21 @@ impl WorldSession {
         position: &wow_core::Position,
     ) -> Option<Vec<crate::map_manager::WorldCreature>> {
         let requested_map_id = u32::from(map_id);
-        let player_map_key = self.current_canonical_player_map_key_like_cpp();
+        let player_map_key = self.core.current_canonical_player_map_key_like_cpp();
         let player_map_key = player_map_key?;
         if player_map_key.map_id != requested_map_id {
             return Some(Vec::new());
         }
-        let source_combat_reach =
-            self.with_owned_player_like_cpp(|player| player.unit().world().combat_reach())?;
+        let source_combat_reach = self
+            .core
+            .with_owned_player_like_cpp(|player| player.unit().world().combat_reach())?;
         let player_phase_shift = self.represented_player_phase_shift_like_cpp()?;
         let manager = self.core.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
             return None;
         };
         let map = manager.find_map(player_map_key.map_id, player_map_key.instance_id)?;
-        let visibility_range = self.player_map_visibility_range_like_cpp(map_id);
+        let visibility_range = self.config.player_map_visibility_range_like_cpp(map_id);
         let nearby = map.map().nearby_cell_guids_like_cpp(
             position.x,
             position.y,
@@ -151,7 +153,7 @@ impl WorldSession {
         }
         drop(manager);
 
-        self.with_owned_player_like_cpp(move |player| {
+        self.core.with_owned_player_like_cpp(move |player| {
             candidates
                 .into_iter()
                 .filter(|creature| {
@@ -178,11 +180,6 @@ impl WorldSession {
     ) {
         self.catalogs.creatures.onkill_reputation_store = Some(store);
     }
-    pub(crate) fn creature_onkill_reputation_store(
-        &self,
-    ) -> Option<&Arc<CreatureOnKillReputationStoreLikeCpp>> {
-        self.catalogs.creature_onkill_reputation_store()
-    }
     pub fn set_creature_template_mount_store(
         &mut self,
         store: Arc<CreatureTemplateMountStoreLikeCpp>,
@@ -194,11 +191,6 @@ impl WorldSession {
         store: Arc<CreatureTemplateLifecycleStoreLikeCpp>,
     ) {
         self.catalogs.creatures.template_lifecycle_store_like_cpp = Some(store);
-    }
-    pub(crate) fn creature_template_lifecycle_store_like_cpp(
-        &self,
-    ) -> Option<&Arc<CreatureTemplateLifecycleStoreLikeCpp>> {
-        self.catalogs.creature_template_lifecycle_store_like_cpp()
     }
     pub fn set_creature_display_info_store(&mut self, store: Arc<CreatureDisplayInfoStore>) {
         self.catalogs.creatures.display_info_store = Some(store);

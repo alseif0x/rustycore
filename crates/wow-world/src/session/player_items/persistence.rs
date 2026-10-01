@@ -103,7 +103,7 @@ impl WorldSession {
         }
 
         let item_guid = inventory_item.guid;
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
+        let _ = self.core.mutate_canonical_player_like_cpp(|player| {
             if source_bag == INVENTORY_SLOT_BAG_0 {
                 let _ = player.remove_top_level_item(source_slot);
             } else {
@@ -259,7 +259,7 @@ impl WorldSession {
             );
         }
 
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
+        let _ = self.core.mutate_canonical_player_like_cpp(|player| {
             if source_bag == INVENTORY_SLOT_BAG_0 {
                 let _ = player.remove_top_level_item(source_slot);
             } else {
@@ -323,7 +323,7 @@ impl WorldSession {
             self.remove_inventory_item_like_cpp(source_slot);
         }
         self.remove_inventory_item_object(item_guid);
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
+        let _ = self.core.mutate_canonical_player_like_cpp(|player| {
             if source_bag == INVENTORY_SLOT_BAG_0 {
                 let _ = player.remove_top_level_item(source_slot);
             } else {
@@ -338,23 +338,12 @@ impl WorldSession {
     ) {
         crate::session::cx_inventory(self).set_stored_item_money_persistence_port_like_cpp(port)
     }
-    pub(crate) fn stored_item_money_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>> {
-        crate::session::cx_inventory_ref(self).stored_item_money_persistence_port_like_cpp()
-    }
     pub fn set_item_template_addon_catalog_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp>,
     ) {
         crate::session::cx_inventory(self)
             .set_item_template_addon_catalog_persistence_port_like_cpp(port)
-    }
-    pub(crate) fn item_template_addon_catalog_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp>> {
-        crate::session::cx_inventory_ref(self)
-            .item_template_addon_catalog_persistence_port_like_cpp()
     }
     pub(crate) fn apply_committed_new_inventory_item_at_like_cpp(
         &mut self,
@@ -660,21 +649,6 @@ impl WorldSession {
 
         Some((outcome.result, dest, outcome.no_space_count))
     }
-    pub(crate) fn begin_durable_item_loot_persistence_like_cpp(
-        &self,
-    ) -> DurableItemLootPersistenceGuardLikeCpp {
-        crate::session::cx_inventory_ref(self).begin_durable_item_loot_persistence_like_cpp()
-    }
-    pub(crate) async fn wait_for_durable_item_loot_persistence_like_cpp(&self) {
-        crate::session::cx_inventory_ref(self)
-            .wait_for_durable_item_loot_persistence_like_cpp()
-            .await
-    }
-    pub(crate) fn take_durable_item_loot_completions_like_cpp(
-        &self,
-    ) -> Vec<DurableItemLootCompletionLikeCpp> {
-        crate::session::cx_inventory_ref(self).take_durable_item_loot_completions_like_cpp()
-    }
     #[cfg(test)]
     pub(crate) fn set_loot_item_store_test_commit_gate_like_cpp(
         &mut self,
@@ -934,3 +908,7 @@ impl crate::session::state::InventoryState {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/player_items/persistence/f3_shims.rs"]
+mod f3_shims;

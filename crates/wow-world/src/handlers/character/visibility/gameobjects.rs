@@ -50,7 +50,10 @@ impl WorldSession {
             return;
         }
 
-        let port = match self.visibility_spawn_catalog_persistence_port_like_cpp() {
+        let port = match self
+            .lifecycle
+            .visibility_spawn_catalog_persistence_port_like_cpp()
+        {
             Some(port) => port,
             None => return,
         };
@@ -132,7 +135,7 @@ impl WorldSession {
                 continue;
             }
 
-            let (target_phase_shift, _) = self.db_spawn_phase_shift_like_cpp(
+            let (target_phase_shift, _) = self.catalogs.db_spawn_phase_shift_like_cpp(
                 map_id,
                 phase_use_flags,
                 phase_id,
@@ -196,36 +199,43 @@ impl WorldSession {
             self.record_represented_gameobject_runtime_state_like_cpp(
                 map_id, guid, entry, go_pos, go_type,
             );
-            self.record_represented_gameobject_override_like_cpp(
-                guid,
-                effective_flags,
-                effective_faction,
-                override_source_known,
-            );
+            self.world_entities
+                .record_represented_gameobject_override_like_cpp(
+                    guid,
+                    effective_flags,
+                    effective_faction,
+                    override_source_known,
+                );
             if u32::from(go_type) == GAMEOBJECT_TYPE_FISHING_HOLE {
                 let max_opens = if data2 <= data3 {
-                    self.represented_urand_u32_like_cpp(data2, data3)
+                    self.core.represented_urand_u32_like_cpp(data2, data3)
                 } else {
                     data2
                 };
-                self.record_represented_fishing_hole_max_opens_like_cpp(guid, max_opens);
-                self.record_represented_fishing_hole_radius_like_cpp(guid, template_data[0]);
+                self.world_entities
+                    .record_represented_fishing_hole_max_opens_like_cpp(guid, max_opens);
+                self.world_entities
+                    .record_represented_fishing_hole_radius_like_cpp(guid, template_data[0]);
             }
-            self.record_represented_gameobject_interact_radius_override_like_cpp(
-                guid,
-                template.get_interact_radius_override_like_cpp(),
-            );
-            self.record_represented_gameobject_lock_id_like_cpp(
-                guid,
-                template.get_lock_id_like_cpp(),
-            );
-            self.record_represented_gameobject_display_model_like_cpp(
-                guid,
-                display_id,
-                scale,
-                [rot0, rot1, rot2, rot3],
-            );
-            self.record_represented_gameobject_anim_progress_like_cpp(guid, anim_progress);
+            self.world_entities
+                .record_represented_gameobject_interact_radius_override_like_cpp(
+                    guid,
+                    template.get_interact_radius_override_like_cpp(),
+                );
+            self.world_entities
+                .record_represented_gameobject_lock_id_like_cpp(
+                    guid,
+                    template.get_lock_id_like_cpp(),
+                );
+            self.world_entities
+                .record_represented_gameobject_display_model_like_cpp(
+                    guid,
+                    display_id,
+                    scale,
+                    [rot0, rot1, rot2, rot3],
+                );
+            self.world_entities
+                .record_represented_gameobject_anim_progress_like_cpp(guid, anim_progress);
         }
 
         if blocks.is_empty() {

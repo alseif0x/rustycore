@@ -49,6 +49,7 @@ impl WorldSession {
     }
     pub(crate) fn clear_player_gossip_options_like_cpp(&mut self) -> bool {
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| player.clear_gossip_options_like_cpp())
             .is_some();
         #[cfg(test)]
@@ -65,6 +66,7 @@ impl WorldSession {
         let fixture_options = options.clone();
         let mut options = Some(options);
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.replace_gossip_options_like_cpp(
                     options.take().expect("gossip option mutation runs once"),
@@ -81,7 +83,7 @@ impl WorldSession {
         &self,
         gossip_option_id: i32,
     ) -> Option<GossipOptionInfo> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
             player
                 .gossip_options_like_cpp()
                 .iter()

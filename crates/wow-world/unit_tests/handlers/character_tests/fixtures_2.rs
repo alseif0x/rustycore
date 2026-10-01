@@ -488,7 +488,7 @@ pub(super) fn attach_stat_update_player_with_mana_and_health(
     // it after adoption so stat projections read the same canonical owner as
     // production does after Player::LoadFromDB.
     let identity = (
-        session.player_map_id_like_cpp(),
+        session.core.player_map_id_like_cpp(),
         session.player_race_like_cpp(),
         session.player_class_like_cpp(),
         session.player_level_like_cpp(),

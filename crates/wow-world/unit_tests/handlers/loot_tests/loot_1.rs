@@ -433,7 +433,7 @@ async fn full_loot_response_queue_rolls_back_open_without_blocking_authority_lik
     let authority = session
         .represented_owned_loot_authority_like_cpp(owner_guid)
         .unwrap();
-    session.set_active_loot_guid(owner_guid);
+    session.loot.set_active_loot_guid(owner_guid);
     let response = authoritative_test_loot_response_like_cpp(
         owner_guid,
         &session.loot.loot_table[&owner_guid],
@@ -495,7 +495,7 @@ async fn successful_loot_open_queues_response_before_claim_removal_like_cpp() {
     let authority = session
         .represented_owned_loot_authority_like_cpp(owner_guid)
         .unwrap();
-    session.set_active_loot_guid(owner_guid);
+    session.loot.set_active_loot_guid(owner_guid);
     let response = authoritative_test_loot_response_like_cpp(
         owner_guid,
         &session.loot.loot_table[&owner_guid],

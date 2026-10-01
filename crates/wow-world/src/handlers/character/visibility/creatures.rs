@@ -29,7 +29,7 @@ impl WorldSession {
         _zone_id: u32,
     ) {
         let map_creatures = self.visible_world_creatures_from_map_like_cpp(map_id, position);
-        if self.has_world_map_manager_like_cpp() {
+        if self.core.has_world_map_manager_like_cpp() {
             let mut blocks = Vec::with_capacity(map_creatures.len());
             let mut visible_guids = Vec::with_capacity(map_creatures.len());
             for creature in &map_creatures {
@@ -90,7 +90,10 @@ impl WorldSession {
             return;
         }
 
-        let port = match self.visibility_spawn_catalog_persistence_port_like_cpp() {
+        let port = match self
+            .lifecycle
+            .visibility_spawn_catalog_persistence_port_like_cpp()
+        {
             Some(port) => port,
             None => {
                 self.core
@@ -183,7 +186,8 @@ impl WorldSession {
         let mob_count = visible_guids
             .iter()
             .filter(|g| {
-                self.mutate_world_creature(**g, |creature| creature.npc_flags() == 0)
+                self.core
+                    .mutate_world_creature(**g, |creature| creature.npc_flags() == 0)
                     .unwrap_or(false)
             })
             .count();
@@ -215,7 +219,9 @@ impl WorldSession {
             Some(p) => p,
             None => return,
         };
-        let forced_refresh = self.consume_movement_visibility_refresh_request_like_cpp();
+        let forced_refresh = self
+            .quest_state
+            .consume_movement_visibility_refresh_request_like_cpp();
 
         if !forced_refresh && let Some(last) = self.visibility.last_visibility_pos {
             let dx = pos.x - last.x;
@@ -225,7 +231,7 @@ impl WorldSession {
             }
         }
 
-        let map_id = self.player_map_id_like_cpp();
+        let map_id = self.core.player_map_id_like_cpp();
         let realm_id = self.realm_id();
 
         let range = self.player_map_visibility_range_like_cpp(map_id);
@@ -247,7 +253,7 @@ impl WorldSession {
         let transports_visibility_available = canonical_transports.is_some();
         let visible_other_players =
             self.visible_other_players_from_registry_like_cpp(map_id, &pos, range);
-        if self.has_world_map_manager_like_cpp()
+        if self.core.has_world_map_manager_like_cpp()
             || canonical_gameobjects.is_some()
             || canonical_dynamic_objects.is_some()
             || canonical_area_triggers.is_some()
@@ -677,7 +683,10 @@ impl WorldSession {
         }
 
         // ── CREATURES ───────────────────────────────────────────────────
-        let port = match self.visibility_spawn_catalog_persistence_port_like_cpp() {
+        let port = match self
+            .lifecycle
+            .visibility_spawn_catalog_persistence_port_like_cpp()
+        {
             Some(port) => port,
             None => return,
         };
@@ -805,7 +814,7 @@ impl WorldSession {
                     continue;
                 }
 
-                let (target_phase_shift, _) = self.db_spawn_phase_shift_like_cpp(
+                let (target_phase_shift, _) = self.catalogs.db_spawn_phase_shift_like_cpp(
                     map_id,
                     phase_use_flags,
                     phase_id,
@@ -825,7 +834,10 @@ impl WorldSession {
                     entry,
                     spawn_guid as i64,
                 );
-                if self.represented_gameobject_is_per_player_despawned_like_cpp(guid) {
+                if self
+                    .world_entities
+                    .represented_gameobject_is_per_player_despawned_like_cpp(guid)
+                {
                     continue;
                 }
                 new_visible_gos.insert(guid);
@@ -883,36 +895,43 @@ impl WorldSession {
                         go_type,
                     );
                 }
-                self.record_represented_gameobject_override_like_cpp(
-                    guid,
-                    effective_flags,
-                    effective_faction,
-                    override_source_known,
-                );
+                self.world_entities
+                    .record_represented_gameobject_override_like_cpp(
+                        guid,
+                        effective_flags,
+                        effective_faction,
+                        override_source_known,
+                    );
                 if u32::from(go_type) == GAMEOBJECT_TYPE_FISHING_HOLE {
                     let max_opens = if data2 <= data3 {
-                        self.represented_urand_u32_like_cpp(data2, data3)
+                        self.core.represented_urand_u32_like_cpp(data2, data3)
                     } else {
                         data2
                     };
-                    self.record_represented_fishing_hole_max_opens_like_cpp(guid, max_opens);
-                    self.record_represented_fishing_hole_radius_like_cpp(guid, template_data[0]);
+                    self.world_entities
+                        .record_represented_fishing_hole_max_opens_like_cpp(guid, max_opens);
+                    self.world_entities
+                        .record_represented_fishing_hole_radius_like_cpp(guid, template_data[0]);
                 }
-                self.record_represented_gameobject_interact_radius_override_like_cpp(
-                    guid,
-                    template.get_interact_radius_override_like_cpp(),
-                );
-                self.record_represented_gameobject_lock_id_like_cpp(
-                    guid,
-                    template.get_lock_id_like_cpp(),
-                );
-                self.record_represented_gameobject_display_model_like_cpp(
-                    guid,
-                    display_id,
-                    scale,
-                    [rot0, rot1, rot2, rot3],
-                );
-                self.record_represented_gameobject_anim_progress_like_cpp(guid, anim_progress);
+                self.world_entities
+                    .record_represented_gameobject_interact_radius_override_like_cpp(
+                        guid,
+                        template.get_interact_radius_override_like_cpp(),
+                    );
+                self.world_entities
+                    .record_represented_gameobject_lock_id_like_cpp(
+                        guid,
+                        template.get_lock_id_like_cpp(),
+                    );
+                self.world_entities
+                    .record_represented_gameobject_display_model_like_cpp(
+                        guid,
+                        display_id,
+                        scale,
+                        [rot0, rot1, rot2, rot3],
+                    );
+                self.world_entities
+                    .record_represented_gameobject_anim_progress_like_cpp(guid, anim_progress);
             }
         }
 

@@ -31,4 +31,18 @@ impl crate::session::WorldSession {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.mutate_player_inventory_runtime_like_cpp(&mut hub, update)
     }
+    pub(crate) fn make_inventory_item_object(
+        &self,
+        item_guid: ObjectGuid,
+        entry_id: u32,
+        owner_guid: ObjectGuid,
+        count: u32,
+        durability: u32,
+        context: ItemContext,
+        slot: u8,
+    ) -> Item {
+        crate::session::cx_inventory_ref(self).make_inventory_item_object(
+            item_guid, entry_id, owner_guid, count, durability, context, slot,
+        )
+    }
 }

@@ -305,7 +305,7 @@ fn rejected_entry_preserves_source_coordinates_and_exact_detached_owner() {
                 .try_attach_worldport_destination_like_cpp(1, Position::new(10.0, 20.0, 30.0, 0.0))
         );
         assert_eq!(session.core.player_handle_like_cpp, Some(handle));
-        assert_eq!(session.player_map_id_like_cpp(), 0);
+        assert_eq!(session.core.player_map_id_like_cpp(), 0);
         let manager = manager.try_lock().expect("failure releases map guards");
         assert_eq!(
             manager.player_residence_like_cpp(handle),

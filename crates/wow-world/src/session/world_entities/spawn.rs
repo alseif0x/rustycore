@@ -24,22 +24,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_world_entities_mut(self);
         state.drain_ready_map_respawns_like_cpp(&mut hub, map_id, instance_id, now)
     }
-    pub(crate) fn db_spawn_phase_shift_like_cpp(
-        &self,
-        map_id: u16,
-        phase_use_flags: u8,
-        phase_id: u16,
-        phase_group_id: u32,
-        terrain_swap_map: i32,
-    ) -> (PhaseShift, i32) {
-        self.catalogs.db_spawn_phase_shift_like_cpp(
-            map_id,
-            phase_use_flags,
-            phase_id,
-            phase_group_id,
-            terrain_swap_map,
-        )
-    }
     pub(in crate::session) fn despawn_represented_linked_trap_by_guid_like_cpp(
         &mut self,
         trap_guid: ObjectGuid,

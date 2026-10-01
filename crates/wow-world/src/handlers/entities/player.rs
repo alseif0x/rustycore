@@ -409,7 +409,7 @@ impl crate::session::WorldSession {
             return;
         }
 
-        let Some(port) = self.represented_group_persistence_port_like_cpp() else {
+        let Some(port) = self.lifecycle.represented_group_persistence_port_like_cpp() else {
             return;
         };
         let outcome = port
@@ -452,11 +452,14 @@ impl crate::session::WorldSession {
         }
 
         self.represented_set_chosen_title_like_cpp(packet.title_id);
-        if let Some(update) = self.set_canonical_chosen_title_like_cpp(packet.title_id) {
+        if let Some(update) = self
+            .core
+            .set_canonical_chosen_title_like_cpp(packet.title_id)
+        {
             if let Some(player_guid) = self.player_guid() {
                 if let Some(packet) = player_values_update_to_update_object(
                     player_guid,
-                    self.player_map_id_like_cpp(),
+                    self.core.player_map_id_like_cpp(),
                     &update,
                 ) {
                     self.send_packet(&packet);

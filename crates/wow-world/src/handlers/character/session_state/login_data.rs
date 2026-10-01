@@ -78,7 +78,10 @@ impl WorldSession {
     ) -> (Vec<SpellHistoryEntry>, Vec<SpellChargeEntry>) {
         let now = unix_now_secs_like_cpp();
         let guid_counter = guid.counter() as u64;
-        let port = self.player_lifecycle_port_like_cpp().map(Arc::clone);
+        let port = self
+            .lifecycle
+            .player_lifecycle_port_like_cpp()
+            .map(Arc::clone);
         let mut history_entries = Vec::new();
         self.reset_represented_character_spell_cooldowns_like_cpp();
 
@@ -208,7 +211,7 @@ impl WorldSession {
         guid: ObjectGuid,
     ) -> Vec<TraitConfigCreateData> {
         self.begin_represented_trait_config_authority_load_like_cpp();
-        let port = self.player_lifecycle_port_like_cpp().cloned();
+        let port = self.lifecycle.player_lifecycle_port_like_cpp().cloned();
         let player_guid = guid.counter() as u64;
 
         let mut entries_by_config = BTreeMap::<i32, Vec<TraitEntryCreateData>>::new();
@@ -378,7 +381,7 @@ impl WorldSession {
 
         if trait_query_authority_complete_like_cpp {
             let _ = self.retain_loaded_trait_configs_like_cpp(effective_configs);
-            let exact_traits = self.trait_definition_store().map(|definitions| {
+            let exact_traits = self.catalogs.trait_definition_store().map(|definitions| {
                 let mut exact = BTreeMap::<i32, i32>::new();
                 for entry in effective_configs
                     .iter()

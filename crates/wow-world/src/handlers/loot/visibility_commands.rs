@@ -27,10 +27,11 @@ impl WorldSession {
         if self.state() != crate::session::SessionState::LoggedIn {
             return;
         }
-        if self.player_map_id_like_cpp() != command.map_id {
+        if self.core.player_map_id_like_cpp() != command.map_id {
             return;
         }
         let session_instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|k| k.instance_id)
             .unwrap_or(0);
@@ -49,7 +50,7 @@ impl WorldSession {
         if self.state() != crate::session::SessionState::LoggedIn {
             return;
         }
-        if self.player_map_id_like_cpp() != command.map_id {
+        if self.core.player_map_id_like_cpp() != command.map_id {
             return;
         }
         let client_has_object = if command.object_guid.is_mo_transport() {
@@ -108,7 +109,7 @@ impl WorldSession {
             );
         }
         if realm_connection {
-            self.send_raw_packet_realm(&command.packet_bytes);
+            self.core.send_raw_packet_realm(&command.packet_bytes);
         } else {
             self.send_raw_packet(&command.packet_bytes);
         }
@@ -157,10 +158,11 @@ impl WorldSession {
         if self.state() != crate::session::SessionState::LoggedIn {
             return;
         }
-        if self.player_map_id_like_cpp() != command.map_id {
+        if self.core.player_map_id_like_cpp() != command.map_id {
             return;
         }
         let session_instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -187,7 +189,7 @@ impl WorldSession {
         if self.state() != crate::session::SessionState::LoggedIn {
             return;
         }
-        if self.is_addon_registered_like_cpp(&command.prefix) {
+        if self.social.is_addon_registered_like_cpp(&command.prefix) {
             self.send_raw_packet(&command.packet_bytes);
         }
     }

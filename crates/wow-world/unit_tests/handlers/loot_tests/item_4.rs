@@ -23,7 +23,7 @@ async fn master_loot_item_target_not_allowed_for_loot_sends_master_other_like_cp
     session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));
-    session.set_active_loot_guid(loot_owner);
+    session.loot.set_active_loot_guid(loot_owner);
     session.loot.loot_table.insert(
         loot_owner,
         CreatureLoot {
@@ -115,7 +115,7 @@ async fn master_loot_item_self_target_can_store_maps_unique_error_like_cpp() {
     session.social.group_guid = Some(group_guid);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));
-    session.set_active_loot_guid(loot_owner);
+    session.loot.set_active_loot_guid(loot_owner);
     install_limited_test_item_template(&mut session, 700, 1);
     session.insert_inventory_item_like_cpp(
         35,
@@ -281,7 +281,7 @@ async fn master_loot_item_remote_target_can_store_error_is_reported_by_target_se
     );
     master_session.set_player_registry(Arc::clone(&player_registry));
     master_session.set_player_guid(Some(master_guid));
-    master_session.set_active_loot_guid(loot_owner);
+    master_session.loot.set_active_loot_guid(loot_owner);
     master_session.loot.loot_table.insert(
         loot_owner,
         CreatureLoot {
@@ -399,7 +399,7 @@ async fn master_loot_item_remote_target_unavailable_command_reports_player_not_f
     master_session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     master_session.set_player_registry(player_registry);
     master_session.set_player_guid(Some(master_guid));
-    master_session.set_active_loot_guid(loot_owner);
+    master_session.loot.set_active_loot_guid(loot_owner);
     master_session.loot.loot_table.insert(
         loot_owner,
         CreatureLoot {
@@ -461,7 +461,7 @@ async fn loot_item_request_uses_loot_object_to_find_active_owner_like_cpp() {
     let owner_guid = test_creature_guid(19_023);
     let loot_object_guid = represented_loot_object_guid_like_cpp(owner_guid);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(owner_guid);
+    session.loot.set_active_loot_guid(owner_guid);
     session.loot.loot_table.insert(
         owner_guid,
         CreatureLoot {
@@ -507,7 +507,7 @@ async fn loot_item_request_uses_loot_object_to_find_active_owner_like_cpp() {
     assert_eq!(sent.read_packed_guid().unwrap(), loot_object_guid);
     assert_eq!(sent.read_uint8().unwrap(), LOOT_ERROR_NO_LOOT_LIKE_CPP);
     assert!(!session.loot.loot_table.get(&owner_guid).unwrap().items[0].taken);
-    assert!(session.is_active_loot_guid(owner_guid));
+    assert!(session.loot.is_active_loot_guid(owner_guid));
 }
 #[tokio::test]
 async fn loot_item_request_can_use_secondary_active_loot_object_like_cpp() {
@@ -517,8 +517,10 @@ async fn loot_item_request_can_use_secondary_active_loot_object_like_cpp() {
     let secondary_owner = test_creature_guid(19_028);
     let secondary_loot_object = represented_loot_object_guid_like_cpp(secondary_owner);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(primary_owner);
-    session.add_active_loot_view_owner_like_cpp(secondary_owner);
+    session.loot.set_active_loot_guid(primary_owner);
+    session
+        .loot
+        .add_active_loot_view_owner_like_cpp(secondary_owner);
     session.loot.loot_table.insert(
         secondary_owner,
         CreatureLoot {

@@ -9,7 +9,10 @@ impl WorldSession {
         &mut self,
         policy: &crate::session::SupportFeaturePolicyLikeCpp,
     ) {
-        let port = match self.character_enumeration_persistence_port_like_cpp() {
+        let port = match self
+            .lifecycle
+            .character_enumeration_persistence_port_like_cpp()
+        {
             Some(port) => port,
             None => {
                 warn!(
@@ -84,7 +87,8 @@ impl WorldSession {
                 row.pet_entry,
                 row.pet_display_id,
                 row.pet_level,
-                self.creature_template_lifecycle_store_like_cpp()
+                self.catalogs
+                    .creature_template_lifecycle_store_like_cpp()
                     .map(Arc::as_ref),
             );
 

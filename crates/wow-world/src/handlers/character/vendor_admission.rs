@@ -9,23 +9,6 @@ use super::vendor::rules::vendor_buy_stock_refill_count;
 use super::*;
 
 impl WorldSession {
-    pub(super) fn vendor_item_current_count(
-        &mut self,
-        vendor_guid: ObjectGuid,
-        item_id: u32,
-        max_count: u32,
-        incr_time: u32,
-        buy_count: u32,
-    ) -> u32 {
-        self.interaction.vendor_item_current_count(
-            vendor_guid,
-            item_id,
-            max_count,
-            incr_time,
-            buy_count,
-        )
-    }
-
     pub(super) fn update_vendor_item_current_count(
         &mut self,
         vendor_guid: ObjectGuid,

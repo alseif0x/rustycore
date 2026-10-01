@@ -241,7 +241,7 @@ fn player_is_possessing_requires_possessed_charmed_unit_like_cpp() {
         );
     }
 
-    assert!(!session.player_is_possessing_like_cpp());
+    assert!(!session.core.player_is_possessing_like_cpp());
 
     {
         let mut guard = canonical.lock().unwrap();
@@ -257,7 +257,7 @@ fn player_is_possessing_requires_possessed_charmed_unit_like_cpp() {
             .charm_type = Some(CharmType::Possess);
     }
 
-    assert!(session.player_is_possessing_like_cpp());
+    assert!(session.core.player_is_possessing_like_cpp());
 }
 #[test]
 fn appearance_favorite_state_transitions_match_collection_mgr_like_cpp() {
@@ -778,11 +778,11 @@ fn realm_id_and_virtual_address_defaults() {
     let (mut session, _, _) = make_session();
 
     assert_eq!(session.realm_id(), 1);
-    assert_eq!(session.virtual_realm_address(), 0x0101_0001);
+    assert_eq!(session.core.virtual_realm_address(), 0x0101_0001);
 
     session.set_realm_id(5);
     assert_eq!(session.realm_id(), 5);
-    assert_eq!(session.virtual_realm_address(), 0x0101_0005);
+    assert_eq!(session.core.virtual_realm_address(), 0x0101_0005);
 }
 #[test]
 fn realm_query_response_uses_realm_list_names_like_cpp() {

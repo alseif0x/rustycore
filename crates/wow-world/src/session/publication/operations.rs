@@ -6,14 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn represented_void_storage_item_packet_like_cpp(
-        &self,
-        slot: u8,
-        item: &RepresentedVoidStorageItemLikeCpp,
-    ) -> wow_packet::packets::void_storage::VoidItem {
-        self.core
-            .represented_void_storage_item_packet_like_cpp(slot, item)
-    }
     pub(crate) fn represented_unit_values_update_to_update_object_like_cpp(
         &self,
         unit_guid: ObjectGuid,
@@ -135,12 +127,6 @@ impl WorldSession {
             coinage,
         )
     }
-    pub(crate) fn send_player_values_update_like_cpp(
-        &self,
-        update: &wow_entities::PlayerValuesUpdate,
-    ) {
-        self.core.send_player_values_update_like_cpp(update)
-    }
     pub(crate) fn send_represented_cinematic_start_like_cpp(&mut self, cinematic_id: u32) {
         if self.player_cinematic_state_snapshot_like_cpp().is_none() {
             return;
@@ -177,20 +163,8 @@ impl WorldSession {
     ) {
         crate::session::hub_mut(self).send_represented_mount_unit_update_like_cpp(display_id)
     }
-    pub(crate) fn send_time_sync(&mut self) {
-        self.core.send_time_sync()
-    }
     pub fn send_packet<P: wow_packet::ServerPacket>(&self, pkt: &P) -> bool {
         self.core.send_packet(pkt)
-    }
-    pub(crate) fn try_send_packet<P: wow_packet::ServerPacket>(&self, pkt: &P) -> bool {
-        self.core.try_send_packet(pkt)
-    }
-    pub(in crate::session) fn send_system_message_like_cpp(&self, text: &str) {
-        self.core.send_system_message_like_cpp(text)
-    }
-    pub(in crate::session) fn send_notification_like_cpp(&self, text: String) {
-        self.core.send_notification_like_cpp(text)
     }
     pub fn send_update_world_state_like_cpp(&self, variable_id: u32, value: i32, hidden: bool) {
         self.core
@@ -209,19 +183,6 @@ impl WorldSession {
         item_guid: ObjectGuid,
     ) {
         self.core.send_sell_error(result, creature_guid, item_guid)
-    }
-    pub(crate) fn tutorial_flags_packet_like_cpp(
-        &self,
-    ) -> wow_packet::packets::misc::TutorialFlags {
-        self.lifecycle.tutorial_flags_packet_like_cpp()
-    }
-    pub(in crate::session) fn try_send_connected_player_command_like_cpp(
-        &self,
-        target_guid: ObjectGuid,
-        command: SessionCommand,
-    ) {
-        self.core
-            .try_send_connected_player_command_like_cpp(target_guid, command)
     }
 }
 

@@ -63,7 +63,7 @@ impl WorldSession {
         let spawn_difficulties = &row.spawn_difficulties;
         if !spawn_difficulties_contains_spawn_mode_like_cpp(
             spawn_difficulties,
-            self.current_map_difficulty_id_like_cpp(),
+            self.core.current_map_difficulty_id_like_cpp(),
         ) {
             return None;
         }
@@ -129,7 +129,7 @@ impl WorldSession {
             normalized_creature_wander_distance_like_cpp(default_movement_type, wander_distance);
         let waypoint_path_id = row.waypoint_path_id;
 
-        let Some(display_selection) = self.choose_creature_display_like_cpp(
+        let Some(display_selection) = self.catalogs.choose_creature_display_like_cpp(
             entry,
             model_id,
             flags_extra,
@@ -139,7 +139,7 @@ impl WorldSession {
             return None;
         };
         let display_id = display_selection.display_id;
-        let Some(model_scalars) = self.creature_create_model_scalars_like_cpp(
+        let Some(model_scalars) = self.catalogs.creature_create_model_scalars_like_cpp(
             display_id,
             scale,
             display_selection.display_scale,
@@ -151,7 +151,7 @@ impl WorldSession {
             return None;
         };
 
-        let (target_phase_shift, _) = self.db_spawn_phase_shift_like_cpp(
+        let (target_phase_shift, _) = self.catalogs.db_spawn_phase_shift_like_cpp(
             map_id,
             phase_use_flags,
             phase_id,

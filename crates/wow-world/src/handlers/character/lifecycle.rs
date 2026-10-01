@@ -13,7 +13,11 @@ impl WorldSession {
     /// Counts how many characters this account has on the character DB, then
     /// upserts the count into `realmcharacters` in the login DB.
     pub(crate) async fn update_realm_characters(&self) {
-        let port = match self.player_lifecycle_port_like_cpp().map(Arc::clone) {
+        let port = match self
+            .lifecycle
+            .player_lifecycle_port_like_cpp()
+            .map(Arc::clone)
+        {
             Some(port) => port,
             None => return,
         };
@@ -42,7 +46,10 @@ impl WorldSession {
         generator: &wow_core::ObjectGuidGenerator,
         pkt: CreateCharacter,
     ) {
-        let port = match self.character_administration_persistence_port_like_cpp() {
+        let port = match self
+            .lifecycle
+            .character_administration_persistence_port_like_cpp()
+        {
             Some(port) => port,
             None => {
                 self.send_packet(&CreateChar {
@@ -131,8 +138,8 @@ impl WorldSession {
             class: pkt.class,
             sex,
             rest_state: initial_character_rest_state_like_cpp(
-                self.is_a_recruiter_like_cpp(),
-                self.recruiter_id_like_cpp(),
+                self.core.is_a_recruiter_like_cpp(),
+                self.core.recruiter_id_like_cpp(),
             ),
             map_id,
             position: [x, y, z, o],
@@ -197,7 +204,10 @@ impl WorldSession {
 
     /// Handle CMSG_CHAR_DELETE — delete a character.
     pub async fn handle_char_delete(&mut self, pkt: CharDelete) {
-        let port = match self.character_administration_persistence_port_like_cpp() {
+        let port = match self
+            .lifecycle
+            .character_administration_persistence_port_like_cpp()
+        {
             Some(port) => port,
             None => {
                 self.send_packet(&DeleteChar {
@@ -280,7 +290,10 @@ impl WorldSession {
             return;
         }
 
-        let port = match self.character_administration_persistence_port_like_cpp() {
+        let port = match self
+            .lifecycle
+            .character_administration_persistence_port_like_cpp()
+        {
             Some(port) => port,
             None => {
                 self.send_character_rename_like_cpp(
@@ -292,7 +305,10 @@ impl WorldSession {
             }
         };
 
-        if !self.submit_character_rename_like_cpp(port, pkt.guid, pkt.new_name.clone()) {
+        if !self
+            .lifecycle
+            .submit_character_rename_like_cpp(port, pkt.guid, pkt.new_name.clone())
+        {
             self.send_character_rename_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, pkt.guid, pkt.new_name);
         }
     }
@@ -362,7 +378,10 @@ impl WorldSession {
             return;
         }
 
-        let port = match self.character_administration_persistence_port_like_cpp() {
+        let port = match self
+            .lifecycle
+            .character_administration_persistence_port_like_cpp()
+        {
             Some(port) => port,
             None => {
                 self.send_char_customize_failure_like_cpp(CHAR_CREATE_ERROR_LIKE_CPP, request.guid);
@@ -584,7 +603,7 @@ impl WorldSession {
         let Some((_, area_id)) = self.player_zone_area_like_cpp() else {
             return;
         };
-        let Some(area_table_store) = self.area_table_store() else {
+        let Some(area_table_store) = self.catalogs.area_table_store() else {
             debug!(
                 account = self.core.account_id,
                 area_id, "HearthAndResurrect ignored without represented AreaTableStore"
@@ -616,7 +635,11 @@ impl WorldSession {
         &self,
         guid: ObjectGuid,
     ) -> Vec<ChrCustomizationChoiceValuesUpdate> {
-        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
+        let Some(port) = self
+            .lifecycle
+            .player_lifecycle_port_like_cpp()
+            .map(Arc::clone)
+        else {
             return Vec::new();
         };
 
@@ -669,7 +692,7 @@ impl WorldSession {
         let [primary_safe_loc_id, neutral_pandaren_safe_loc_id] =
             default_graveyard_safe_loc_ids_for_race_like_cpp(race);
         let primary_safe_loc_id = primary_safe_loc_id?;
-        let store = self.world_safe_loc_store_like_cpp()?;
+        let store = self.catalogs.world_safe_loc_store_like_cpp()?;
         store
             .get(primary_safe_loc_id)
             .or_else(|| neutral_pandaren_safe_loc_id.and_then(|id| store.get(id)))

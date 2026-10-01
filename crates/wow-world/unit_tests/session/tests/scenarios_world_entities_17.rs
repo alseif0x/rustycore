@@ -552,7 +552,9 @@ async fn gameobject_use_goober_tracking_event_objective_auto_rewards_like_cpp() 
             .contains(&quest_id)
     );
     assert_eq!(
-        session.represented_quest_complete_status_updates_like_cpp(),
+        session
+            .quest_state
+            .represented_quest_complete_status_updates_like_cpp(),
         &[RepresentedQuestCompleteStatusUpdateLikeCpp {
             quest_id,
             old_status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,

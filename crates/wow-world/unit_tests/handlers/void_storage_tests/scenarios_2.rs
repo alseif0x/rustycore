@@ -627,7 +627,7 @@ async fn deposit_definite_rollback_retains_active_item_loot_view_atomically() {
             looted_by_player: false,
         },
     );
-    session.set_active_loot_guid(item_guid);
+    session.loot.set_active_loot_guid(item_guid);
 
     let port = Arc::new(RecordingVoidStoragePersistencePortLikeCpp::new(
         wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp::DefinitelyRolledBack {
@@ -643,7 +643,7 @@ async fn deposit_definite_rollback_retains_active_item_loot_view_atomically() {
     packet.write_packed_guid(&item_guid);
     session.handle_void_storage_transfer(packet).await;
 
-    assert!(session.has_active_loot_views_like_cpp());
+    assert!(session.loot.has_active_loot_views_like_cpp());
     assert!(session.loot.loot_table.contains_key(&item_guid));
     assert!(
         session
@@ -689,7 +689,7 @@ fn committed_void_deposit_retires_only_its_destroyed_item_loot_like_cpp() {
                 looted_by_player: false,
             },
         );
-        session.add_active_loot_view_owner_like_cpp(item_guid);
+        session.loot.add_active_loot_view_owner_like_cpp(item_guid);
     }
 
     session.retire_committed_destroyed_item_loot_like_cpp(destroyed_item, player_guid);

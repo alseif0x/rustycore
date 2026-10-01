@@ -7,7 +7,9 @@ use super::*;
 
 impl WorldSession {
     fn player_guild_state_snapshot_like_cpp(&self) -> Option<wow_entities::PlayerGuildState> {
-        let canonical = self.with_owned_player_like_cpp(|player| player.guild_state_like_cpp());
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.guild_state_like_cpp());
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(wow_entities::PlayerGuildState {
@@ -59,8 +61,10 @@ impl WorldSession {
         Some(result)
     }
     pub(crate) fn set_represented_guild_id_like_cpp(&mut self, guild_id: u64) -> bool {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| player.set_guild_id_like_cpp(guild_id))
             .is_some();
         #[cfg(test)]
@@ -87,6 +91,7 @@ impl WorldSession {
     }
     pub(crate) fn set_represented_guild_id_invited_like_cpp(&mut self, guild_id: u64) -> bool {
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| player.set_guild_id_invited_like_cpp(guild_id))
             .is_some();
         #[cfg(test)]
@@ -135,6 +140,7 @@ impl WorldSession {
         }
 
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| player.clear_guild_invitation_like_cpp())
             .is_some();
         #[cfg(test)]
@@ -154,6 +160,7 @@ impl WorldSession {
         };
 
         let changed = self
+            .core
             .mutate_canonical_player_like_cpp(|player| {
                 if allow {
                     player.set_player_flag(PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP);
@@ -167,11 +174,12 @@ impl WorldSession {
             self.sync_player_registry_state_like_cpp();
         }
 
-        self.canonical_player_has_player_flag_like_cpp(
-            guid,
-            PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP,
-        )
-        .unwrap_or(false)
+        self.core
+            .canonical_player_has_player_flag_like_cpp(
+                guid,
+                PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP,
+            )
+            .unwrap_or(false)
             == allow
     }
 }

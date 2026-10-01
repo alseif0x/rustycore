@@ -33,7 +33,9 @@ async fn battle_pet_remove_pet_requires_lock_and_marks_removed_like_cpp() {
         ))
     );
 
-    session.send_battle_pet_journal_lock_status_like_cpp().await;
+    crate::session::cx_pets(&mut session)
+        .send_battle_pet_journal_lock_status_like_cpp()
+        .await;
     assert!(!session.battle_pet_remove_pet_like_cpp(unknown_guid));
     assert!(session.battle_pet_remove_pet_like_cpp(pet_guid));
     assert!(session.battle_pet_remove_pet_like_cpp(new_pet_guid));

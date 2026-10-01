@@ -51,13 +51,14 @@ impl WorldSession {
         catalogs: &SessionHandlerCatalogsLikeCpp,
     ) -> usize {
         let mut processed = 0;
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::DrainPrimaryPackets);
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::DrainPrimaryPackets);
 
         // Drain the primary (instance) packet channel
         while processed < MAX_PACKETS_PER_UPDATE
             && self.core.admission.pending_packets.len() < MAX_PACKETS_PER_UPDATE
         {
-            let pkt = match self.packet_rx().try_recv() {
+            let pkt = match self.core.packet_rx().try_recv() {
                 Ok(p) => p,
                 Err(flume::TryRecvError::Empty) => break,
                 Err(flume::TryRecvError::Disconnected) => {
@@ -71,7 +72,8 @@ impl WorldSession {
             };
 
             self.core.admission.last_packet_time = Instant::now();
-            self.reset_timeout_time_for_packet_like_cpp(pkt.opcode_raw());
+            self.core
+                .reset_timeout_time_for_packet_like_cpp(pkt.opcode_raw());
             if !self.evaluate_packet_spoof_like_cpp(&pkt) {
                 break;
             }
@@ -91,15 +93,17 @@ impl WorldSession {
 
         // Also drain the realm socket channel (after ConnectTo, realm-type
         // packets like BattlenetRequest, Ping, etc. arrive here)
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::DrainRealmPackets);
-        if let Some(realm_rx) = self.realm_packet_rx() {
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::DrainRealmPackets);
+        if let Some(realm_rx) = self.core.realm_packet_rx() {
             while processed < MAX_PACKETS_PER_UPDATE
                 && self.core.admission.pending_packets.len() < MAX_PACKETS_PER_UPDATE
             {
                 match realm_rx.try_recv() {
                     Ok(pkt) => {
                         self.core.admission.last_packet_time = Instant::now();
-                        self.reset_timeout_time_for_packet_like_cpp(pkt.opcode_raw());
+                        self.core
+                            .reset_timeout_time_for_packet_like_cpp(pkt.opcode_raw());
                         if !self.evaluate_packet_spoof_like_cpp(&pkt) {
                             break;
                         }
@@ -124,15 +128,16 @@ impl WorldSession {
                         );
                         // Realm dropped — don't disconnect immediately, the
                         // instance socket may still be fine.
-                        self.clear_realm_packet_rx();
+                        self.core.clear_realm_packet_rx();
                         break;
                     }
                 }
             }
         }
 
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::ConnectionTimeout);
-        if self.is_connection_idle_like_cpp() {
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::ConnectionTimeout);
+        if self.core.is_connection_idle_like_cpp() {
             debug!(
                 "Session account {} timed out by SocketTimeOutTime-like deadline",
                 self.core.account_id
@@ -145,7 +150,8 @@ impl WorldSession {
         // Player auto-attack remains session-owned here: C++ Player::Update
         // calls DoMeleeAttackIfReady before Map::Update runs ObjectUpdater.
         if self.core.state == SessionState::LoggedIn {
-            self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::SessionOwnedTicks);
+            self.core
+                .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::SessionOwnedTicks);
             self.update_pvp_flag_like_cpp(wow_entities::game_time_secs_like_cpp());
             let _ = self.set_represented_can_delay_teleport_like_cpp(true);
             // Read the tick owner once; the lock is taken and released inside
@@ -181,7 +187,7 @@ impl WorldSession {
             if self.world_entities.creature_tick % 4 == 0 {
                 self.tick_auras();
             }
-            self.update_player_save_timer_like_cpp(diff_ms);
+            self.lifecycle.update_player_save_timer_like_cpp(diff_ms);
             self.revalidate_represented_tavern_resting_with_catalog_like_cpp(
                 catalogs.area_triggers.db2.as_ref(),
             );
@@ -206,9 +212,10 @@ impl WorldSession {
             && self.core.driver.time_synchronization.timer_ms > 0
             && !self.is_map_phase_coordinated_like_cpp()
         {
-            self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::TimeSync);
+            self.core
+                .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::TimeSync);
             if diff_ms >= self.core.driver.time_synchronization.timer_ms {
-                self.send_time_sync();
+                self.core.send_time_sync();
             } else {
                 self.core.driver.time_synchronization.timer_ms -= diff_ms;
             }
@@ -238,17 +245,21 @@ impl WorldSession {
         &mut self,
         catalogs: &SessionHandlerCatalogsLikeCpp,
     ) {
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::FlushPacketSpoofBan);
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::FlushPacketSpoofBan);
         self.flush_packet_spoof_ban_like_cpp().await;
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::SessionCommands);
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::SessionCommands);
         self.process_represented_session_commands_with_catalogs_like_cpp(catalogs)
             .await;
         // #743: a group state change the authority could not hand to this
         // session is applied here, after the mailbox drain that would have
         // carried it, so a delivered command is never applied twice.
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::ReconcileGroupState);
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::ReconcileGroupState);
         self.reconcile_group_state_like_cpp();
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::CreatureKills);
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::CreatureKills);
         self.process_pending_creature_kills_with_generator_like_cpp(
             catalogs.id_generators.item.as_ref(),
         )
@@ -257,7 +268,8 @@ impl WorldSession {
         // ── Spell casting tick ─────────────────────────────────────────
         // Check if an active spell cast has completed and execute it.
         if self.core.state == SessionState::LoggedIn {
-            self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::LoggedInGameplayTicks);
+            self.core
+                .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::LoggedInGameplayTicks);
             if let Some(player_guid) = self.player_guid() {
                 self.close_retired_active_loot_windows_like_cpp(player_guid);
             }
@@ -286,7 +298,8 @@ impl WorldSession {
         }
 
         // Check for instance link delivery (ConnectTo flow)
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PollInstanceLink);
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PollInstanceLink);
         self.poll_instance_link_with_module_registry_like_cpp(
             catalogs.id_generators.item.as_ref(),
             catalogs.modules.as_ref(),
@@ -300,7 +313,8 @@ impl WorldSession {
         .await;
 
         // Process pending creature/gameobject spawn (async DB query)
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PendingCreatureSpawn);
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PendingCreatureSpawn);
         if let Some(spawn) = self.world_entities.pending_creature_spawn.take() {
             self.send_nearby_creatures_with_catalogs_like_cpp(
                 catalogs.creature_spawns.as_ref(),
@@ -313,7 +327,8 @@ impl WorldSession {
                 .await;
         }
 
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::DispatchQueuedPackets);
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::DispatchQueuedPackets);
         // C++ LockedQueue::next selects only the head. Keep unselected packets
         // on Session if this future is cancelled; never replay the in-flight
         // handler, which may already have produced effects. A coordinated pass
@@ -334,9 +349,11 @@ impl WorldSession {
         }
         let _world_pass = self.run_world_phase_dispatch_like_cpp(catalogs).await;
 
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::CharacterRenameCallbacks);
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::CharacterRenameCallbacks);
         self.process_ready_character_rename_callbacks_like_cpp();
-        self.record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PeriodicPlayerSave);
+        self.core
+            .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::PeriodicPlayerSave);
         self.process_pending_periodic_player_save_with_generator_like_cpp(
             catalogs.id_generators.item.as_ref(),
         )

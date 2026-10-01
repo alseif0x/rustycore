@@ -87,7 +87,7 @@ impl WorldSession {
         if !(coefficient_from_ap > 0.0) {
             return 0;
         }
-        let Some(attack_power) = self.canonical_player_total_attack_power_like_cpp() else {
+        let Some(attack_power) = self.core.canonical_player_total_attack_power_like_cpp() else {
             return 0;
         };
         (coefficient_from_ap * attack_power) as i32
@@ -108,8 +108,8 @@ impl WorldSession {
         };
         spell_store.has_attribute_for_difficulty_like_cpp(
             spell_id,
-            self.current_map_difficulty_id_like_cpp(),
-            self.difficulty_store().map(AsRef::as_ref),
+            self.core.current_map_difficulty_id_like_cpp(),
+            self.catalogs.difficulty_store().map(AsRef::as_ref),
             attribute_word,
             attribute,
         )
@@ -154,7 +154,9 @@ impl WorldSession {
         ) {
             return Some(1.0);
         }
-        let snapshot = self.canonical_player_effective_combat_stats_like_cpp()?;
+        let snapshot = self
+            .core
+            .canonical_player_effective_combat_stats_like_cpp()?;
         let mask = u32::from(school_mask);
         let mut max_mod = 0.0_f32;
         for (school, percent) in snapshot.mod_damage_done_percent.iter().enumerate() {
@@ -263,8 +265,8 @@ impl WorldSession {
         let spell_store = self.spell_store()?;
         let metadata = spell_store.hit_metadata_for_difficulty_like_cpp(
             spell_id,
-            self.current_map_difficulty_id_like_cpp(),
-            self.difficulty_store().map(AsRef::as_ref),
+            self.core.current_map_difficulty_id_like_cpp(),
+            self.catalogs.difficulty_store().map(AsRef::as_ref),
         )?;
         let effect_mechanic = metadata
             .effect_mechanics
@@ -290,7 +292,7 @@ impl WorldSession {
         let Some(spell_store) = self.spell_store() else {
             return 0;
         };
-        let difficulty_store = self.difficulty_store();
+        let difficulty_store = self.catalogs.difficulty_store();
         let difficulty_store = difficulty_store.map(AsRef::as_ref);
         if Some(target_guid) == self.player_guid() {
             let Some(auras) = self.resolved_player_visible_auras_like_cpp() else {
@@ -305,8 +307,9 @@ impl WorldSession {
         let Some(manager) = self.core.map_manager.as_ref() else {
             return 0;
         };
-        let difficulty_id = self.current_map_difficulty_id_like_cpp();
+        let difficulty_id = self.core.current_map_difficulty_id_like_cpp();
         let instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -315,7 +318,7 @@ impl WorldSession {
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
             let Some(creature) =
-                manager.find_creature(self.player_map_id_like_cpp(), instance_id, target_guid)
+                manager.find_creature(self.core.player_map_id_like_cpp(), instance_id, target_guid)
             else {
                 return 0;
             };
@@ -355,6 +358,7 @@ impl WorldSession {
         }
         let manager = self.core.map_manager.as_ref()?;
         let instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -362,7 +366,7 @@ impl WorldSession {
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         let creature =
-            manager.find_creature(self.player_map_id_like_cpp(), instance_id, target_guid)?;
+            manager.find_creature(self.core.player_map_id_like_cpp(), instance_id, target_guid)?;
         let max_health = creature.max_hp();
         (max_health > 0).then(|| 100.0 * creature.current_hp() as f32 / max_health as f32)
     }
@@ -378,6 +382,7 @@ impl WorldSession {
             return 0;
         };
         let instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -386,13 +391,14 @@ impl WorldSession {
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
             let Some(creature) =
-                manager.find_creature(self.player_map_id_like_cpp(), instance_id, target_guid)
+                manager.find_creature(self.core.player_map_id_like_cpp(), instance_id, target_guid)
             else {
                 return 0;
             };
             creature.create_data.entry
         };
-        self.creature_template_lifecycle_store_like_cpp()
+        self.catalogs
+            .creature_template_lifecycle_store_like_cpp()
             .and_then(|store| store.get(entry))
             .map(|template| {
                 if template.creature_type >= 1 {
@@ -455,7 +461,7 @@ impl WorldSession {
                 .sum::<i32>(),
             );
         }
-        let Some(snapshot) = self.canonical_player_effective_combat_stats_like_cpp() else {
+        let Some(snapshot) = self.core.canonical_player_effective_combat_stats_like_cpp() else {
             return base_heal;
         };
         let done_total = (benefit as f32 * coefficient) as i32
@@ -528,7 +534,9 @@ impl WorldSession {
     /// school mask, plus `GetBaseSpellPowerBonus()`, the mana-class intellect
     /// term and the `SPELL_AURA_MOD_SPELL_HEALING_OF_STAT_PERCENT` percentages.
     fn represented_spell_base_healing_bonus_done_like_cpp(&self, school_mask: u8) -> Option<i32> {
-        let snapshot = self.canonical_player_effective_combat_stats_like_cpp()?;
+        let snapshot = self
+            .core
+            .canonical_player_effective_combat_stats_like_cpp()?;
         let mask = i32::from(school_mask);
         if snapshot.override_spell_power_by_ap_percent > 0.0 {
             let total_attack_power = snapshot
@@ -628,7 +636,9 @@ impl WorldSession {
     /// plus `GetBaseSpellPowerBonus()` plus the
     /// `SPELL_AURA_MOD_SPELL_DAMAGE_OF_STAT_PERCENT` terms.
     fn represented_spell_base_damage_bonus_done_like_cpp(&self, school_mask: u8) -> Option<i32> {
-        let snapshot = self.canonical_player_effective_combat_stats_like_cpp()?;
+        let snapshot = self
+            .core
+            .canonical_player_effective_combat_stats_like_cpp()?;
         let mask = i32::from(school_mask);
         if snapshot.override_spell_power_by_ap_percent > 0.0 {
             let total_attack_power = snapshot

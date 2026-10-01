@@ -8,31 +8,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::handlers::loot) fn apply_represented_gameobject_loot_release_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        player_guid: ObjectGuid,
-        selected_pool_looted: bool,
-        whole_object_fully_looted: bool,
-        authoritative_release: Option<&AuthoritativeLootReleaseLikeCpp>,
-    ) {
-        crate::session::cx_loot(self).apply_represented_gameobject_loot_release_like_cpp(
-            guid,
-            player_guid,
-            selected_pool_looted,
-            whole_object_fully_looted,
-            authoritative_release,
-        )
-    }
-
-    pub(in crate::handlers::loot) fn hide_represented_gameobject_for_player_after_loot_release_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-    ) {
-        crate::session::cx_loot(self)
-            .hide_represented_gameobject_for_player_after_loot_release_like_cpp(guid)
-    }
-
     pub(in crate::handlers::loot) fn send_gathering_node_loot_release_dynamic_flags_update_like_cpp(
         &self,
         guid: ObjectGuid,
@@ -40,7 +15,7 @@ impl WorldSession {
         if !self.core.client_visible_guids_like_cpp.contains(&guid) {
             return;
         }
-        let Some(access) = self.canonical_gameobject_access_like_cpp(guid) else {
+        let Some(access) = self.core.canonical_gameobject_access_like_cpp(guid) else {
             return;
         };
         let Some(state) = self
@@ -89,7 +64,7 @@ impl WorldSession {
         };
         let update = UpdateObject::game_object_values_update(
             guid,
-            self.player_map_id_like_cpp(),
+            self.core.player_map_id_like_cpp(),
             packet_update,
         );
         self.send_packet(&update);
@@ -115,7 +90,7 @@ impl WorldSession {
         player_guid: ObjectGuid,
     ) -> bool {
         if !self.loot.active_loot_view_owners.contains(&owner_guid)
-            && !self.is_active_loot_guid(owner_guid)
+            && !self.loot.is_active_loot_guid(owner_guid)
         {
             return false;
         }
@@ -210,26 +185,28 @@ impl WorldSession {
         self.send_packet(&release);
 
         if owner_guid.is_game_object() {
-            self.clear_active_loot_guid_if(owner_guid);
+            self.loot.clear_active_loot_guid_if(owner_guid);
             if !self
                 .represented_gameobject_can_autostore_loot_item_like_cpp(owner_guid, player_guid)
             {
                 if authoritative_release.is_some() {
-                    self.discard_represented_personal_loot_cache_for_player_like_cpp(
-                        owner_guid,
-                        player_guid,
-                    );
+                    self.loot
+                        .discard_represented_personal_loot_cache_for_player_like_cpp(
+                            owner_guid,
+                            player_guid,
+                        );
                 }
                 return true;
             }
-            self.apply_represented_gameobject_loot_release_like_cpp(
+            crate::session::cx_loot(self).apply_represented_gameobject_loot_release_like_cpp(
                 owner_guid,
                 player_guid,
                 selected_pool_looted,
                 whole_object_fully_looted,
                 authoritative_release.as_ref(),
             );
-            let _ = self.queue_chest_gameobject_state_refresh_for_same_map_like_cpp(owner_guid);
+            let _ = crate::session::cx_loot_ref(self)
+                .queue_chest_gameobject_state_refresh_for_same_map_like_cpp(owner_guid);
             let go_type = self
                 .world_entities
                 .represented_gameobject_use_states
@@ -243,23 +220,26 @@ impl WorldSession {
                 );
             if !selected_release_branch {
                 if authoritative_release.is_some() {
-                    self.discard_represented_personal_loot_cache_for_player_like_cpp(
-                        owner_guid,
-                        player_guid,
-                    );
+                    self.loot
+                        .discard_represented_personal_loot_cache_for_player_like_cpp(
+                            owner_guid,
+                            player_guid,
+                        );
                 }
                 return true;
             }
 
-            self.hide_represented_gameobject_for_player_after_loot_release_like_cpp(owner_guid);
+            crate::session::cx_loot(self)
+                .hide_represented_gameobject_for_player_after_loot_release_like_cpp(owner_guid);
             if go_type == Some(GAMEOBJECT_TYPE_GATHERING_NODE) {
                 self.send_gathering_node_loot_release_dynamic_flags_update_like_cpp(owner_guid);
             }
             if authoritative_release.is_some() {
-                self.discard_represented_personal_loot_cache_for_player_like_cpp(
-                    owner_guid,
-                    player_guid,
-                );
+                self.loot
+                    .discard_represented_personal_loot_cache_for_player_like_cpp(
+                        owner_guid,
+                        player_guid,
+                    );
             } else {
                 self.loot.loot_table.remove(&owner_guid);
             }
@@ -275,7 +255,7 @@ impl WorldSession {
             // C++ always clears the generated Loot and consumes at most five
             // source items for prospecting/milling, even if the window closes
             // before every generated entry was taken.
-            self.clear_active_loot_guid_if(owner_guid);
+            self.loot.clear_active_loot_guid_if(owner_guid);
             self.loot.loot_table.remove(&owner_guid);
             let _ = self.apply_inventory_item_object_updates_like_cpp(
                 owner_guid,
@@ -287,7 +267,7 @@ impl WorldSession {
         }
 
         if owner_guid.is_item() && !selected_pool_looted {
-            self.clear_active_loot_guid_if(owner_guid);
+            self.loot.clear_active_loot_guid_if(owner_guid);
             let item_has_loot_flag = self
                 .resolved_inventory_items_like_cpp()
                 .and_then(|items| items.values().find(|item| item.guid == owner_guid).cloned())
@@ -299,7 +279,7 @@ impl WorldSession {
             return true;
         }
 
-        self.clear_active_loot_guid_if(owner_guid);
+        self.loot.clear_active_loot_guid_if(owner_guid);
 
         if !selected_pool_looted {
             let round_robin_released = if let Some(release) = authoritative_release.as_ref() {
@@ -332,7 +312,7 @@ impl WorldSession {
                 self.represented_notify_loot_list_like_cpp(owner_guid);
             }
             if owner_guid.is_creature_or_vehicle() {
-                let values_update = self.mutate_world_creature(owner_guid, |creature| {
+                let values_update = self.core.mutate_world_creature(owner_guid, |creature| {
                     creature.force_dynamic_flags_update_like_cpp();
                     creature.creature.unit().values_update()
                 });
@@ -347,10 +327,11 @@ impl WorldSession {
                 }
             }
             if authoritative_release.is_some() {
-                self.discard_represented_personal_loot_cache_for_player_like_cpp(
-                    owner_guid,
-                    player_guid,
-                );
+                self.loot
+                    .discard_represented_personal_loot_cache_for_player_like_cpp(
+                        owner_guid,
+                        player_guid,
+                    );
             }
             return true;
         }
@@ -371,7 +352,7 @@ impl WorldSession {
         // C++ forces the viewer-dependent DynamicFlags field after every
         // creature release, including a selected personal pool that completed
         // while another pool remains.
-        let forced_values_update = self.mutate_world_creature(owner_guid, |creature| {
+        let forced_values_update = self.core.mutate_world_creature(owner_guid, |creature| {
             creature.force_dynamic_flags_update_like_cpp();
             creature.creature.unit().values_update()
         });
@@ -387,10 +368,11 @@ impl WorldSession {
                 );
             }
             if authoritative_release.is_some() {
-                self.discard_represented_personal_loot_cache_for_player_like_cpp(
-                    owner_guid,
-                    player_guid,
-                );
+                self.loot
+                    .discard_represented_personal_loot_cache_for_player_like_cpp(
+                        owner_guid,
+                        player_guid,
+                    );
             }
             return true;
         }
@@ -435,7 +417,7 @@ impl WorldSession {
                 apply_lifecycle,
             )
         } else {
-            self.mutate_world_creature(owner_guid, apply_lifecycle)
+            self.core.mutate_world_creature(owner_guid, apply_lifecycle)
         };
 
         if let Some((_, values_update)) = lifecycle_update.as_ref() {
@@ -457,10 +439,11 @@ impl WorldSession {
         }
 
         if authoritative_release.is_some() {
-            self.discard_represented_personal_loot_cache_for_player_like_cpp(
-                owner_guid,
-                player_guid,
-            );
+            self.loot
+                .discard_represented_personal_loot_cache_for_player_like_cpp(
+                    owner_guid,
+                    player_guid,
+                );
         }
 
         true
@@ -737,3 +720,7 @@ impl crate::session::LootCx<'_> {
             .send_packet(&UpdateObject::out_of_range_objects(vec![guid], map_id));
     }
 }
+
+#[cfg(test)]
+#[path = "../../../../unit_tests/handlers/loot/claims/release/f3_shims.rs"]
+mod f3_shims;

@@ -101,8 +101,11 @@ impl WorldSession {
         caster_guid: ObjectGuid,
     ) -> Option<(u32, ObjectGuid, Position)> {
         let map_key = self
+            .core
             .current_canonical_player_map_key_like_cpp()
-            .unwrap_or_else(|| wow_map::MapKey::new(u32::from(self.player_map_id_like_cpp()), 0));
+            .unwrap_or_else(|| {
+                wow_map::MapKey::new(u32::from(self.core.player_map_id_like_cpp()), 0)
+            });
         let legacy_map_id = u16::try_from(map_key.map_id).ok()?;
         let canonical_destination = self
             .core
@@ -174,7 +177,7 @@ impl WorldSession {
         transport_guid: ObjectGuid,
         transport_offset: Position,
     ) -> Option<Position> {
-        let map_key = self.current_canonical_player_map_key_like_cpp()?;
+        let map_key = self.core.current_canonical_player_map_key_like_cpp()?;
         let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
         let map = manager.find_map(map_key.map_id, map_key.instance_id)?;
         let map = map.map();
@@ -319,7 +322,7 @@ impl WorldSession {
             self.catalogs.spell_catalogs.spell_radius_store.as_deref(),
         );
         let position = if let Some(target_position) = target_position {
-            if target_position.target_map_id == self.player_map_id_like_cpp()
+            if target_position.target_map_id == self.core.player_map_id_like_cpp()
                 && caster_position.distance(&target_position.position) <= range
             {
                 target_position.position
@@ -433,7 +436,7 @@ impl WorldSession {
             return None;
         }
 
-        let Some(player_map_key) = self.current_canonical_player_map_key_like_cpp() else {
+        let Some(player_map_key) = self.core.current_canonical_player_map_key_like_cpp() else {
             return None;
         };
         let has_implicit_conditions =

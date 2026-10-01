@@ -489,7 +489,7 @@ impl WorldSession {
             level = self.player_level_like_cpp(),
             ender_candidates = ?ender_candidates,
             starter_candidates = ?starter_candidates,
-            menu_items = ?self.represented_quest_menu_item_log_rows_like_cpp(&menu_items),
+            menu_items = ?self.quest_state.represented_quest_menu_item_log_rows_like_cpp(&menu_items),
             "Prepared creature questgiver fallback menu like C++"
         );
         if menu_items.is_empty() {
@@ -671,14 +671,6 @@ impl WorldSession {
             has_starter_relation: true,
             has_involved_relation: false,
         })
-    }
-
-    pub(in crate::session) fn represented_quest_menu_item_log_rows_like_cpp(
-        &self,
-        menu_items: &[RepresentedPreparedQuestMenuItemLikeCpp],
-    ) -> Vec<(u32, String, u8, bool, bool, u32, u32)> {
-        self.quest_state
-            .represented_quest_menu_item_log_rows_like_cpp(menu_items)
     }
 
     pub(in crate::session) fn quest_list_entry_from_menu_item_like_cpp(

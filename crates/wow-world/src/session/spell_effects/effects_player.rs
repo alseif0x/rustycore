@@ -37,12 +37,13 @@ impl WorldSession {
         let Some(pos) = self.player_position_like_cpp() else {
             return;
         };
-        let map_id = self.player_map_id_like_cpp();
+        let map_id = self.core.player_map_id_like_cpp();
         let instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
-        let visibility_range = self.player_map_visibility_range_like_cpp(map_id);
+        let visibility_range = self.config.player_map_visibility_range_like_cpp(map_id);
         let target_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
         let mut broadcast_count = 0;
 
@@ -84,8 +85,9 @@ impl WorldSession {
         }
     }
     pub(crate) fn player_current_map_instanceable_like_cpp(&self) -> bool {
-        let map_id = u32::from(self.player_map_id_like_cpp());
-        self.map_store()
+        let map_id = u32::from(self.core.player_map_id_like_cpp());
+        self.catalogs
+            .map_store()
             .and_then(|store| store.get(map_id))
             .is_some_and(|entry| entry.instance_type != wow_data::map::MAP_COMMON)
     }
@@ -95,7 +97,9 @@ impl WorldSession {
     ) {
         let (Some(player_guid), Some(port)) = (
             self.player_guid(),
-            self.player_lifecycle_port_like_cpp().map(Arc::clone),
+            self.lifecycle
+                .player_lifecycle_port_like_cpp()
+                .map(Arc::clone),
         ) else {
             return;
         };
@@ -148,12 +152,13 @@ impl WorldSession {
     ) -> Option<wow_entities::PlayerValuesUpdate> {
         let xp = u32::try_from(xp).ok()?;
         let player_level = self.player_level_like_cpp();
-        self.mutate_canonical_player_like_cpp(|player| {
-            player
-                .add_honor_xp_like_cpp(xp, player_level)
-                .then(|| player.values_update(true))
-        })
-        .flatten()
+        self.core
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .add_honor_xp_like_cpp(xp, player_level)
+                    .then(|| player.values_update(true))
+            })
+            .flatten()
     }
     pub(in crate::session) fn apply_self_resurrect_effect_like_cpp(
         &mut self,
@@ -163,11 +168,12 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        if !self.player_is_in_world_for_registry_like_cpp() {
+        if !self.core.player_is_in_world_for_registry_like_cpp() {
             return;
         }
 
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 if player.unit().is_alive() {
                     return None;
@@ -232,9 +238,10 @@ impl WorldSession {
         };
         self.sync_player_registry_state_like_cpp();
         if let Some(values_update) = values_update {
-            self.send_player_values_update_like_cpp(&values_update);
+            self.core.send_player_values_update_like_cpp(&values_update);
         } else {
-            self.send_player_health_values_update_like_cpp(player_guid, u64::from(health));
+            self.core
+                .send_player_health_values_update_like_cpp(player_guid, u64::from(health));
         }
     }
 }

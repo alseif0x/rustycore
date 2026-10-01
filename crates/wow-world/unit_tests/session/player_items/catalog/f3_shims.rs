@@ -15,4 +15,12 @@ impl crate::session::WorldSession {
     pub fn set_item_class_store(&mut self, store: Arc<ItemClassStore>) {
         self.catalogs.set_item_class_store(store)
     }
+    pub(crate) fn cache_item_template_addon_quest_log_item_id_like_cpp(
+        &mut self,
+        item_id: u32,
+        quest_log_item_id: u32,
+    ) {
+        self.catalogs
+            .cache_item_template_addon_quest_log_item_id_like_cpp(item_id, quest_log_item_id)
+    }
 }

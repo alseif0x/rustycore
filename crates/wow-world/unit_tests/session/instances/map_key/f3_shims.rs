@@ -20,4 +20,7 @@ impl crate::session::WorldSession {
         self.instances
             .represented_reveal_world_map_overlay_criteria_like_cpp()
     }
+    pub(crate) fn player_map_id_like_cpp(&self) -> u16 {
+        self.core.player_map_id_like_cpp()
+    }
 }

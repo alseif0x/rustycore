@@ -608,7 +608,7 @@ fn gameobject_use_flagdrop_triggers_event_and_delete_like_cpp() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 27);
     session.set_player_battleground_type_id_like_cpp(BATTLEGROUND_WS_LIKE_CPP);
-    let map_id = session.player_map_id_like_cpp();
+    let map_id = session.core.player_map_id_like_cpp();
 
     assert!(session.use_represented_gameobject_flagdrop_like_cpp(
         gameobject_guid,

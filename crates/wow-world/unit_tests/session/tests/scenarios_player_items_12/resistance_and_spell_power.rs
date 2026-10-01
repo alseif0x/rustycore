@@ -185,7 +185,7 @@ async fn attack_power_aura_producers_follow_update_attack_power_like_cpp() {
     assert_eq!(with_auras.ranged_attack_power_mod_pos, 30);
     assert_eq!(with_auras.ranged_attack_power_multiplier, 1.0);
     assert_eq!(
-        session.canonical_player_total_attack_power_like_cpp(),
+        session.core.canonical_player_total_attack_power_like_cpp(),
         Some(405.0),
         "C++ GetTotalAttackPowerValue clamps the base plus modifier then applies the multiplier"
     );

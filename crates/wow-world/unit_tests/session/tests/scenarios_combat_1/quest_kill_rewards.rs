@@ -47,7 +47,9 @@ async fn player_kill_tracking_event_objective_auto_rewards_like_cpp() {
 
     assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
-        session.represented_quest_complete_status_updates_like_cpp(),
+        session
+            .quest_state
+            .represented_quest_complete_status_updates_like_cpp(),
         &[RepresentedQuestCompleteStatusUpdateLikeCpp {
             quest_id,
             old_status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,

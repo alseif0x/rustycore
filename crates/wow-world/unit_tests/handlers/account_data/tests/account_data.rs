@@ -24,7 +24,7 @@ async fn update_account_data_stores_decompressed_cstring_like_cpp() {
         ))
         .await;
 
-    let account_data = session.account_data_like_cpp(4).unwrap();
+    let account_data = session.lifecycle.account_data_like_cpp(4).unwrap();
     assert_eq!(account_data.time, 1234);
     assert_eq!(account_data.data, "macros-cache");
 }
@@ -43,7 +43,7 @@ async fn update_account_data_size_zero_erases_like_cpp() {
 
     session.handle_update_account_data(pkt).await;
 
-    let account_data = session.account_data_like_cpp(4).unwrap();
+    let account_data = session.lifecycle.account_data_like_cpp(4).unwrap();
     assert_eq!(account_data.time, 0);
     assert!(account_data.data.is_empty());
 }
@@ -62,7 +62,7 @@ async fn update_account_data_ignores_per_character_data_without_recent_player_gu
         ))
         .await;
 
-    let account_data = session.account_data_like_cpp(1).unwrap();
+    let account_data = session.lifecycle.account_data_like_cpp(1).unwrap();
     assert_eq!(account_data.time, 0);
     assert!(account_data.data.is_empty());
 }
@@ -83,7 +83,7 @@ async fn update_account_data_accepts_per_character_data_after_logout_like_cpp() 
         ))
         .await;
 
-    let account_data = session.account_data_like_cpp(1).unwrap();
+    let account_data = session.lifecycle.account_data_like_cpp(1).unwrap();
     assert_eq!(account_data.time, 1234);
     assert_eq!(account_data.data, "SET trackedQuests \"v11#|h#|U$2=\"\r\n");
 }
@@ -101,7 +101,14 @@ async fn update_account_data_rejects_invalid_type_and_oversize_like_cpp() {
             "ignored",
         ))
         .await;
-    assert!(session.account_data_like_cpp(0).unwrap().data.is_empty());
+    assert!(
+        session
+            .lifecycle
+            .account_data_like_cpp(0)
+            .unwrap()
+            .data
+            .is_empty()
+    );
 
     let compressed_data = compress_account_data_like_cpp("ignored").unwrap();
     let mut oversized = WorldPacket::new_empty();
@@ -113,7 +120,14 @@ async fn update_account_data_rejects_invalid_type_and_oversize_like_cpp() {
     oversized.write_bytes(&compressed_data);
 
     session.handle_update_account_data(oversized).await;
-    assert!(session.account_data_like_cpp(4).unwrap().data.is_empty());
+    assert!(
+        session
+            .lifecycle
+            .account_data_like_cpp(4)
+            .unwrap()
+            .data
+            .is_empty()
+    );
 }
 
 #[tokio::test]
@@ -169,7 +183,7 @@ async fn unregister_all_addon_prefixes_preserves_filter_flag_like_cpp() {
     let (mut session, _send_rx) = make_session();
     session.social.addon_filter.registered_addon_prefixes = vec!["ABC".to_string()];
     session.social.addon_filter.filter_addon_messages = true;
-    assert!(session.is_addon_registered_like_cpp("ABC"));
+    assert!(session.social.is_addon_registered_like_cpp("ABC"));
 
     session
         .handle_chat_unregister_all_addon_prefixes(WorldPacket::from_bytes(&[]))
@@ -183,7 +197,7 @@ async fn unregister_all_addon_prefixes_preserves_filter_flag_like_cpp() {
             .is_empty()
     );
     assert!(session.social.addon_filter.filter_addon_messages);
-    assert!(!session.is_addon_registered_like_cpp("ABC"));
+    assert!(!session.social.is_addon_registered_like_cpp("ABC"));
 }
 
 #[tokio::test]

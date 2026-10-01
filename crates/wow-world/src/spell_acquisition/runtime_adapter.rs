@@ -146,11 +146,13 @@ impl PlayerSpellAcquisitionRuntimeLikeCpp for crate::session::WorldSession {
     }
 
     fn begin_action_batch(&mut self) {
-        self.begin_spell_acquisition_post_commit_action_batch_like_cpp();
+        self.spell_state
+            .begin_spell_acquisition_post_commit_action_batch_like_cpp();
     }
 
     fn record_action(&mut self, action: SpellAcquisitionPostCommitActionLikeCpp) {
-        self.record_spell_acquisition_post_commit_action_like_cpp(action);
+        self.spell_state
+            .record_spell_acquisition_post_commit_action_like_cpp(action);
     }
 
     fn grant_dual_wield(&mut self) -> bool {

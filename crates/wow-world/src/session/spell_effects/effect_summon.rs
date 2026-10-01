@@ -108,7 +108,7 @@ impl WorldSession {
                 // caster combat reach.
                 0.0
             } else {
-                self.canonical_player_combat_reach_snapshot_like_cpp()
+                self.core.canonical_player_combat_reach_snapshot_like_cpp()
             };
             wow_map::map::spell_effect_summon_object_wild_position_like_cpp(
                 close_point_source_position,
@@ -129,7 +129,7 @@ impl WorldSession {
         };
         let Some(player_map_key) = focus_object
             .map(|focus| focus.map_key)
-            .or_else(|| self.current_canonical_player_map_key_like_cpp())
+            .or_else(|| self.core.current_canonical_player_map_key_like_cpp())
         else {
             return Some(ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
                 status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingCanonicalPlayerMap,
@@ -298,7 +298,7 @@ impl WorldSession {
             };
             wow_map::map::spell_effect_summon_object_wild_position_like_cpp(
                 caster_position,
-                self.canonical_player_combat_reach_snapshot_like_cpp(),
+                self.core.canonical_player_combat_reach_snapshot_like_cpp(),
                 caster_position.orientation,
                 None,
             )
@@ -315,7 +315,7 @@ impl WorldSession {
                 map_outcome: None,
             });
         };
-        let Some(player_map_key) = self.current_canonical_player_map_key_like_cpp() else {
+        let Some(player_map_key) = self.core.current_canonical_player_map_key_like_cpp() else {
             return Some(ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp {
                 status: ApplyEffectSummonObjectSlotSessionStatusLikeCpp::MissingCanonicalPlayerMap,
                 slot: Some(slot),

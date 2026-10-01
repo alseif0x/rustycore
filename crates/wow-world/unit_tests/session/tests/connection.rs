@@ -16,7 +16,7 @@ use wow_network::InstanceLink;
 fn primary_only_realm_sends_fall_back_to_the_primary_connection_like_cpp() {
     let (session, _, primary_rx) = make_session();
 
-    session.send_raw_packet_realm(&[0x11, 0x22]);
+    session.core.send_raw_packet_realm(&[0x11, 0x22]);
 
     assert_eq!(primary_rx.try_recv().unwrap(), vec![0x11, 0x22]);
     assert!(primary_rx.try_recv().is_err());
@@ -45,7 +45,7 @@ async fn instance_link_attach_parks_the_previous_primary_as_realm_like_cpp() {
     // Switch: the default route now reaches the instance socket, while the
     // realm-routed variant still reaches the parked realm socket.
     session.send_raw_packet(&[0xAA]);
-    session.send_raw_packet_realm(&[0xBB]);
+    session.core.send_raw_packet_realm(&[0xBB]);
 
     assert_eq!(instance_rx.try_recv().unwrap(), vec![0xAA]);
     assert_eq!(realm_rx.try_recv().unwrap(), vec![0xBB]);
@@ -131,7 +131,7 @@ fn closed_channels_fail_the_send_without_panicking_like_cpp() {
     session.install_realm_send_channel_for_test(realm_tx);
 
     drop(realm_rx);
-    session.send_raw_packet_realm(&[0x01]);
+    session.core.send_raw_packet_realm(&[0x01]);
     assert!(primary_rx.try_recv().is_err());
 
     drop(primary_rx);

@@ -62,9 +62,6 @@ impl WorldSession {
     ) {
         self.core.mmap_pathfinder_like_cpp = Some(pathfinder);
     }
-    pub(crate) fn has_world_map_manager_like_cpp(&self) -> bool {
-        self.core.has_world_map_manager_like_cpp()
-    }
     /// Snapshot every in-world transport on the player's canonical map that
     /// survives the viewer phase check.  C++ `Map::SendInitTransports` and the
     /// transport add/remove fan-out use the map reference list rather than a
@@ -74,7 +71,7 @@ impl WorldSession {
         map_id: u16,
     ) -> Option<Vec<wow_packet::packets::update::GameObjectCreateData>> {
         let requested_map_id = u32::from(map_id);
-        let player_map_key = self.current_canonical_player_map_key_like_cpp();
+        let player_map_key = self.core.current_canonical_player_map_key_like_cpp();
         let viewer_phase_shift = self.represented_player_phase_shift_like_cpp();
         let manager = self.core.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
@@ -115,7 +112,7 @@ impl WorldSession {
         visibility_radius: f32,
     ) -> Option<Vec<wow_packet::packets::update::DynamicObjectCreateData>> {
         let requested_map_id = u32::from(map_id);
-        let player_map_key = self.current_canonical_player_map_key_like_cpp();
+        let player_map_key = self.core.current_canonical_player_map_key_like_cpp();
         let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
         let manager = self.core.canonical_map_manager.as_ref()?;
         let Ok(manager) = manager.lock() else {
@@ -174,7 +171,7 @@ impl WorldSession {
         visibility_radius: f32,
     ) -> Option<Vec<wow_packet::packets::update::AreaTriggerCreateData>> {
         let requested_map_id = u32::from(map_id);
-        let player_map_key = self.current_canonical_player_map_key_like_cpp();
+        let player_map_key = self.core.current_canonical_player_map_key_like_cpp();
         let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
         let viewer_phase_shift = self.represented_player_phase_shift_like_cpp();
         let manager = self.core.canonical_map_manager.as_ref()?;
@@ -243,7 +240,7 @@ impl WorldSession {
         Vec<wow_packet::packets::update::ConversationCreateData>,
     )> {
         let requested_map_id = u32::from(map_id);
-        let player_map_key = self.current_canonical_player_map_key_like_cpp();
+        let player_map_key = self.core.current_canonical_player_map_key_like_cpp();
         let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
         let viewer_phase_shift = self.represented_player_phase_shift_like_cpp();
         let manager = self.core.canonical_map_manager.as_ref()?;
@@ -330,16 +327,6 @@ impl WorldSession {
         }
 
         Some((corpses, scene_objects, conversations))
-    }
-    pub(crate) fn current_canonical_player_map_key_like_cpp(&self) -> Option<wow_map::MapKey> {
-        self.core.current_canonical_player_map_key_like_cpp()
-    }
-    pub(crate) fn canonical_object_lookup_map_key_like_cpp(
-        &self,
-        fallback_map_id: u32,
-    ) -> Option<wow_map::MapKey> {
-        self.core
-            .canonical_object_lookup_map_key_like_cpp(fallback_map_id)
     }
     pub(in crate::session) fn canonical_map_has_seer_like_object_like_cpp(
         &self,
@@ -471,3 +458,7 @@ impl crate::session::state::SessionCore {
         (!ambiguous).then_some(fallback_key).flatten()
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/instances/map_resolution/f3_shims.rs"]
+mod f3_shims;

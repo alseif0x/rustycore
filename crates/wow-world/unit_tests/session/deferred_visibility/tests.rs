@@ -655,7 +655,7 @@ fn retained_visibility_preserves_committed_prefix_before_presentation() {
         .session_command_tx()
         .try_send(SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp)
         .unwrap();
-    let commands = fixture.session.drain_session_commands();
+    let commands = fixture.session.core.drain_session_commands();
     assert!(matches!(
         commands.as_slice(),
         [

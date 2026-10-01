@@ -6,14 +6,12 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn record_represented_trade_cancel_like_cpp(&mut self, status: u8) {
-        self.social.record_represented_trade_cancel_like_cpp(status)
-    }
     pub(in crate::session) fn player_trade_state_snapshot_like_cpp(
         &self,
     ) -> Option<Option<wow_entities::PlayerTradeStateLikeCpp>> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.trade_state_snapshot_like_cpp());
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.trade_state_snapshot_like_cpp());
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
@@ -67,6 +65,7 @@ impl WorldSession {
         let mut state = self.player_trade_state_snapshot_like_cpp()?;
         let result = mutate(&mut state);
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.install_trade_state_like_cpp(state.clone())
             })
@@ -141,12 +140,13 @@ impl WorldSession {
     ) -> bool {
         let canonical = partner_guid
             .map(|partner_guid| {
-                self.with_owned_player_mut_like_cpp(|player| {
+                self.core.with_owned_player_mut_like_cpp(|player| {
                     player.open_trade_like_cpp(partner_guid)
                 })
             })
             .unwrap_or_else(|| {
-                self.with_owned_player_mut_like_cpp(|player| player.clear_trade_like_cpp())
+                self.core
+                    .with_owned_player_mut_like_cpp(|player| player.clear_trade_like_cpp())
             })
             .is_some();
         #[cfg(test)]
@@ -161,6 +161,7 @@ impl WorldSession {
     }
     pub(crate) fn clear_represented_active_trade_partner_like_cpp(&mut self) -> bool {
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| player.clear_trade_like_cpp())
             .is_some();
         #[cfg(test)]
@@ -209,6 +210,7 @@ impl WorldSession {
         accepted: bool,
     ) -> bool {
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| player.set_trade_accepted_like_cpp(accepted))
             .is_some_and(|changed| changed);
         #[cfg(test)]
@@ -250,7 +252,7 @@ impl WorldSession {
         let partner_guid = trade.partner_guid;
 
         let packet_bytes = TradeStatus::cancel_like_cpp(status).to_bytes();
-        self.record_represented_trade_cancel_like_cpp(status);
+        self.social.record_represented_trade_cancel_like_cpp(status);
         if !self.clear_represented_active_trade_partner_like_cpp() {
             return;
         }
@@ -259,7 +261,7 @@ impl WorldSession {
             self.send_raw_packet(&packet_bytes);
         }
 
-        self.try_send_connected_player_command_like_cpp(
+        self.core.try_send_connected_player_command_like_cpp(
             partner_guid,
             SessionCommand::CancelRepresentedTradeLikeCpp(
                 crate::session::mailbox::CancelRepresentedTradeLikeCppCommand {
@@ -275,6 +277,7 @@ impl WorldSession {
         affordable: bool,
     ) -> bool {
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.set_trade_gold_like_cpp(coinage, affordable)
             })
@@ -329,7 +332,7 @@ impl WorldSession {
             TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
         self.send_raw_packet(&packet_bytes);
 
-        self.try_send_connected_player_command_like_cpp(
+        self.core.try_send_connected_player_command_like_cpp(
             partner_guid,
             SessionCommand::UnacceptRepresentedTradeLikeCpp(
                 crate::session::mailbox::UnacceptRepresentedTradeLikeCppCommand { packet_bytes },
@@ -358,7 +361,7 @@ impl WorldSession {
 
         let packet_bytes =
             TradeStatus::status_only_like_cpp(TRADE_STATUS_ACCEPTED_LIKE_CPP).to_bytes();
-        self.try_send_connected_player_command_like_cpp(
+        self.core.try_send_connected_player_command_like_cpp(
             partner_guid,
             SessionCommand::SendRepresentedTradeStatusLikeCpp(
                 crate::session::mailbox::SendRepresentedTradeStatusLikeCppCommand { packet_bytes },
@@ -379,7 +382,7 @@ impl WorldSession {
 
         let packet_bytes =
             TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
-        self.try_send_connected_player_command_like_cpp(
+        self.core.try_send_connected_player_command_like_cpp(
             partner_guid,
             SessionCommand::SendRepresentedTradeStatusLikeCpp(
                 crate::session::mailbox::SendRepresentedTradeStatusLikeCppCommand { packet_bytes },
@@ -397,7 +400,7 @@ impl WorldSession {
         let packet_bytes = TradeStatus::initiated_like_cpp(0).to_bytes();
         self.send_raw_packet(&packet_bytes);
 
-        self.try_send_connected_player_command_like_cpp(
+        self.core.try_send_connected_player_command_like_cpp(
             partner_guid,
             SessionCommand::SendRepresentedTradeStatusLikeCpp(
                 crate::session::mailbox::SendRepresentedTradeStatusLikeCppCommand { packet_bytes },

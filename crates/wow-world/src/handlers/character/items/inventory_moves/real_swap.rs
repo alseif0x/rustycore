@@ -131,7 +131,7 @@ impl WorldSession {
             planned_source.count(),
             planned_source.item_flags_bits(),
             source_enchantments,
-            self.item_effect_count_like_cpp(source.entry_id),
+            self.catalogs.item_effect_count_like_cpp(source.entry_id),
         );
         let destination_mutable = item_storage_mutable_persistence_like_cpp(
             destination.db_guid,
@@ -139,7 +139,8 @@ impl WorldSession {
             planned_destination.count(),
             planned_destination.item_flags_bits(),
             destination_enchantments,
-            self.item_effect_count_like_cpp(destination.entry_id),
+            self.catalogs
+                .item_effect_count_like_cpp(destination.entry_id),
         );
 
         // C++ exchanges the contents when an empty bag outside a bag slot is
@@ -241,7 +242,8 @@ impl WorldSession {
             }
         }
 
-        let Some(inventory_port) = self.player_inventory_persistence_port_like_cpp() else {
+        let Some(inventory_port) = self.lifecycle.player_inventory_persistence_port_like_cpp()
+        else {
             self.send_equip_error(
                 InventoryResult::InternalBagError,
                 Some(source.guid),

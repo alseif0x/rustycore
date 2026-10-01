@@ -43,12 +43,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
         state.upgrade_account_heirloom_like_cpp(&mut hub, item_id, cast_item)
     }
-    pub(crate) fn check_account_heirloom_upgrades_like_cpp(
-        &mut self,
-        item_id: u32,
-    ) -> Option<wow_entities::PlayerValuesUpdate> {
-        crate::session::cx_lifecycle(self).check_account_heirloom_upgrades_like_cpp(item_id)
-    }
     pub(crate) fn account_toy_active_player_rows_like_cpp(&self) -> Vec<i32> {
         let (state, hub) = crate::session::split_lifecycle_ref(self);
         state.account_toy_active_player_rows_like_cpp(hub)
@@ -95,17 +89,6 @@ impl WorldSession {
     ) {
         let (state, hub) = crate::session::split_lifecycle_ref(self);
         state.dispatch_module_player_login_like_cpp(hub, registry, first_login)
-    }
-    pub(crate) fn account_data_like_cpp(&self, data_type: u8) -> Option<&AccountDataLikeCpp> {
-        self.lifecycle.account_data_like_cpp(data_type)
-    }
-    pub(crate) fn account_data_times_like_cpp(
-        &self,
-        player_guid: ObjectGuid,
-        mask: u32,
-    ) -> wow_packet::packets::misc::AccountDataTimes {
-        self.lifecycle
-            .account_data_times_like_cpp(player_guid, mask)
     }
     pub(crate) fn ensure_login_player_controller_like_cpp(
         &mut self,
@@ -190,6 +173,7 @@ impl WorldSession {
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn set_represented_at_login_flags_like_cpp(&mut self, flags: u16) -> bool {
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| player.set_at_login_flags_like_cpp(flags))
             .is_some();
         #[cfg(test)]

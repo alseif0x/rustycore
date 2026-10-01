@@ -19,9 +19,6 @@ impl WorldSession {
     ) {
         crate::session::hub_mut(self).battle_pet_send_error_like_cpp(error, creature_id)
     }
-    pub(crate) fn battle_pet_update_notify_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
-        crate::session::cx_pets(self).battle_pet_update_notify_like_cpp(pet_guid)
-    }
 }
 
 impl crate::session::PetsCx<'_> {

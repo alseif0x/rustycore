@@ -178,7 +178,9 @@ impl WorldSession {
 
         let (Some(guid), Some(port)) = (
             self.player_guid(),
-            self.player_lifecycle_port_like_cpp().map(Arc::clone),
+            self.lifecycle
+                .player_lifecycle_port_like_cpp()
+                .map(Arc::clone),
         ) else {
             return;
         };

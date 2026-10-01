@@ -61,21 +61,6 @@ impl WorldSession {
     pub fn item_effect_store(&self) -> Option<&Arc<ItemEffectStore>> {
         self.catalogs.items.effect_store.as_ref()
     }
-    pub(crate) fn item_template_addon_quest_log_item_id_like_cpp(
-        &self,
-        item_id: u32,
-    ) -> Option<u32> {
-        self.catalogs
-            .item_template_addon_quest_log_item_id_like_cpp(item_id)
-    }
-    pub(crate) fn cache_item_template_addon_quest_log_item_id_like_cpp(
-        &mut self,
-        item_id: u32,
-        quest_log_item_id: u32,
-    ) {
-        self.catalogs
-            .cache_item_template_addon_quest_log_item_id_like_cpp(item_id, quest_log_item_id)
-    }
     pub fn item_template_flags(&self, item_id: u32) -> Option<ItemFlags> {
         self.catalogs.item_template_flags(item_id)
     }
@@ -123,9 +108,6 @@ impl WorldSession {
     ) {
         self.loot.loot_item_store_test_grants_like_cpp = Some(grants);
         self.loot.loot_item_store_test_success_like_cpp = success;
-    }
-    pub(in crate::session) fn item_template_name_like_cpp(&self, item_id: u32) -> &str {
-        self.catalogs.item_template_name_like_cpp(item_id)
     }
 }
 

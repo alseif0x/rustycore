@@ -76,7 +76,7 @@ impl WorldSession {
         if self.player_guid().is_none() {
             return PlayerPacketResidence::Missing;
         }
-        if self.player_is_strictly_in_world_like_cpp() {
+        if self.core.player_is_strictly_in_world_like_cpp() {
             PlayerPacketResidence::InWorld
         } else {
             PlayerPacketResidence::OutsideWorld

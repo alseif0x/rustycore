@@ -8,7 +8,9 @@ use super::*;
 fn void_item_packet_uses_cpp_void_instance_fields_only() {
     let (session, _, _) = make_void_storage_session();
     let item = represented_void_item(77, 19019);
-    let packet = session.represented_void_storage_item_packet_like_cpp(3, &item);
+    let packet = session
+        .core
+        .represented_void_storage_item_packet_like_cpp(3, &item);
 
     assert_eq!(packet.item.item_id, 19019);
     assert_eq!(packet.item.random_properties_id, 0);
@@ -207,7 +209,7 @@ fn locked_login_discards_residual_void_rows_and_initializes_empty_storage_like_c
     session.set_loaded_player_flags_like_cpp(0);
     assert!(!session.prepare_represented_void_storage_login_load_like_cpp());
     assert_eq!(
-        session.represented_void_storage_loaded_like_cpp(),
+        crate::session::cx_lifecycle_ref(&session).represented_void_storage_loaded_like_cpp(),
         Some(true)
     );
     assert_eq!(
@@ -218,7 +220,7 @@ fn locked_login_discards_residual_void_rows_and_initializes_empty_storage_like_c
     session.apply_committed_void_storage_unlock_like_cpp();
     assert!(session.void_storage_is_unlocked_like_cpp());
     assert_eq!(
-        session.represented_void_storage_loaded_like_cpp(),
+        crate::session::cx_lifecycle_ref(&session).represented_void_storage_loaded_like_cpp(),
         Some(true)
     );
     assert_eq!(

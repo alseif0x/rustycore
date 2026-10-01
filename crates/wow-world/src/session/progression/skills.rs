@@ -19,20 +19,11 @@ impl WorldSession {
     pub fn set_skill_line_store(&mut self, store: Arc<SkillLineStore>) {
         self.catalogs.skill_line_store = Some(store);
     }
-    pub(crate) fn skill_line_store(&self) -> Option<&Arc<SkillLineStore>> {
-        self.catalogs.skill_line_store()
-    }
     pub fn set_skill_tiers_store(&mut self, store: Arc<SkillTiersStoreLikeCpp>) {
         self.catalogs.skill_tiers_store = Some(store);
     }
-    pub(crate) fn skill_tiers_store(&self) -> Option<&Arc<SkillTiersStoreLikeCpp>> {
-        self.catalogs.skill_tiers_store()
-    }
     pub fn set_fishing_base_skill_store(&mut self, store: Arc<FishingBaseSkillStoreLikeCpp>) {
         self.catalogs.fishing_base_skill_store = Some(store);
-    }
-    pub(crate) fn fishing_base_skill_store(&self) -> Option<&Arc<FishingBaseSkillStoreLikeCpp>> {
-        self.catalogs.fishing_base_skill_store()
     }
     pub fn set_max_primary_trade_skills_like_cpp(&mut self, configured: u8) {
         self.config.max_primary_trade_skills_like_cpp =
@@ -71,7 +62,7 @@ impl WorldSession {
             self.fixture_clear_player_skill_tombstones_like_cpp();
             return;
         }
-        let _ = self.with_owned_player_mut_like_cpp(
+        let _ = self.core.with_owned_player_mut_like_cpp(
             Player::clear_skill_tombstones_for_identity_change_like_cpp,
         );
     }
@@ -145,8 +136,8 @@ impl WorldSession {
             .represented_gameobject_use_states
             .get(&gameobject_guid)
             .and_then(|state| state.area_id)?;
-        let area_store = self.area_table_store()?;
-        let fishing_store = self.fishing_base_skill_store()?;
+        let area_store = self.catalogs.area_table_store()?;
+        let fishing_store = self.catalogs.fishing_base_skill_store()?;
         Some(fishing_store.base_skill_level_like_cpp(area_store, area_id))
     }
     pub(in crate::session) fn player_profession_skill_value_for_exp_like_cpp(

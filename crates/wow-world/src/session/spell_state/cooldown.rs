@@ -70,15 +70,6 @@ impl WorldSession {
 
         false
     }
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_login_spell_history_packets_like_cpp(
-        &mut self,
-        history: Vec<SpellHistoryEntry>,
-        charges: Vec<SpellChargeEntry>,
-    ) {
-        self.spell_state
-            .record_login_spell_history_packets_like_cpp(history, charges)
-    }
     /// Login snapshot of spell-history + charge packet entries
     /// (see `record_login_spell_history_packets_like_cpp`).
     #[cfg(test)]

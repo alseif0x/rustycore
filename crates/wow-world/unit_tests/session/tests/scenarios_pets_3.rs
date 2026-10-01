@@ -33,7 +33,9 @@ async fn battle_pet_grant_level_caps_at_max_resets_xp_and_sends_update_like_cpp(
             save_info: RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
         },
     );
-    session.send_battle_pet_journal_lock_status_like_cpp().await;
+    crate::session::cx_pets(&mut session)
+        .send_battle_pet_journal_lock_status_like_cpp()
+        .await;
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert_eq!(
@@ -113,7 +115,9 @@ async fn battle_pet_grant_level_does_not_abort_when_calculate_stats_returns_earl
             )
         },
     );
-    session.send_battle_pet_journal_lock_status_like_cpp().await;
+    crate::session::cx_pets(&mut session)
+        .send_battle_pet_journal_lock_status_like_cpp()
+        .await;
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert_eq!(
@@ -188,7 +192,9 @@ async fn battle_pet_grant_experience_applies_cpp_gates_without_side_effects() {
         ),
         RepresentedBattlePetGrantExperienceOutcomeLikeCpp::NoJournalLock
     );
-    session.send_battle_pet_journal_lock_status_like_cpp().await;
+    crate::session::cx_pets(&mut session)
+        .send_battle_pet_journal_lock_status_like_cpp()
+        .await;
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert_eq!(
@@ -312,7 +318,9 @@ async fn battle_pet_grant_experience_prefers_real_game_table_over_represented_pr
             )
         },
     );
-    session.send_battle_pet_journal_lock_status_like_cpp().await;
+    crate::session::cx_pets(&mut session)
+        .send_battle_pet_journal_lock_status_like_cpp()
+        .await;
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert_eq!(
@@ -359,7 +367,9 @@ async fn battle_pet_grant_experience_pet_battle_applies_multiplier_and_active_cr
             )
         },
     );
-    session.send_battle_pet_journal_lock_status_like_cpp().await;
+    crate::session::cx_pets(&mut session)
+        .send_battle_pet_journal_lock_status_like_cpp()
+        .await;
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert_eq!(
@@ -427,7 +437,9 @@ async fn battle_pet_grant_experience_missing_later_xp_row_keeps_prior_criteria_b
             )
         },
     );
-    session.send_battle_pet_journal_lock_status_like_cpp().await;
+    crate::session::cx_pets(&mut session)
+        .send_battle_pet_journal_lock_status_like_cpp()
+        .await;
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert_eq!(
@@ -523,15 +535,15 @@ fn battle_pet_update_notify_requires_known_active_pet_like_cpp() {
         RepresentedBattlePetSaveInfoLikeCpp::Unchanged,
     );
 
-    assert!(!session.battle_pet_update_notify_like_cpp(pet_guid));
+    assert!(!crate::session::cx_pets(&mut session).battle_pet_update_notify_like_cpp(pet_guid));
     assert_eq!(session.represented_battle_pet_data_updates_like_cpp(), &[]);
 
     assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
-    assert!(!session.battle_pet_update_notify_like_cpp(other_guid));
-    assert!(!session.battle_pet_update_notify_like_cpp(unknown_guid));
+    assert!(!crate::session::cx_pets(&mut session).battle_pet_update_notify_like_cpp(other_guid));
+    assert!(!crate::session::cx_pets(&mut session).battle_pet_update_notify_like_cpp(unknown_guid));
     assert_eq!(session.represented_battle_pet_data_updates_like_cpp(), &[]);
 
-    assert!(session.battle_pet_update_notify_like_cpp(pet_guid));
+    assert!(crate::session::cx_pets(&mut session).battle_pet_update_notify_like_cpp(pet_guid));
     assert_eq!(
         session.represented_battle_pet_data_updates_like_cpp(),
         &[pet_guid]
@@ -592,7 +604,7 @@ fn battle_pet_update_notify_sets_canonical_player_pet_data_like_cpp() {
     );
     assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
 
-    assert!(session.battle_pet_update_notify_like_cpp(pet_guid));
+    assert!(crate::session::cx_pets(&mut session).battle_pet_update_notify_like_cpp(pet_guid));
 
     let (summoned_guid, quality, level, player_mask, active_mask, unit_mask) = session
         .mutate_canonical_player_like_cpp(|player| {

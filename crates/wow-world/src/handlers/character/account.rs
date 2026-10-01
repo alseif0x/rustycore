@@ -209,7 +209,7 @@ impl WorldSession {
                 self.core.account_id
             );
             self.set_player_loading(None);
-            self.release_character_login_claim_like_cpp();
+            self.lifecycle.release_character_login_claim_like_cpp();
             self.set_connect_to_key(None);
             self.set_connect_to_serial(None);
             self.send_packet(&CharacterLoginFailed {

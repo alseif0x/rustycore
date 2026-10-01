@@ -24,8 +24,7 @@ impl WorldSession {
         item_id: u32,
     ) -> bool {
         self.represented_current_player_has_incomplete_quest_objective_for_item_like_cpp(item_id)
-            || self
-                .item_template_addon_quest_log_item_id_like_cpp(item_id)
+            || self.catalogs.item_template_addon_quest_log_item_id_like_cpp(item_id)
                 .is_some_and(|quest_log_item_id| {
                     quest_log_item_id != 0
                         && self
@@ -124,13 +123,6 @@ impl WorldSession {
 
         updates
     }
-    pub(in crate::session) fn item_spec_class_mask_from_overrides_like_cpp(
-        &self,
-        item_id: u32,
-    ) -> Option<u32> {
-        self.catalogs
-            .item_spec_class_mask_from_overrides_like_cpp(item_id)
-    }
     pub fn item_display_id(&self, item_id: u32, appearance_mod_id: u32) -> Option<u32> {
         self.catalogs.item_display_id(item_id, appearance_mod_id)
     }
@@ -160,7 +152,11 @@ impl WorldSession {
         else {
             return Vec::new();
         };
-        let Some(item_set) = self.item_set_for_item_id_like_cpp(item_entry).cloned() else {
+        let Some(item_set) = self
+            .catalogs
+            .item_set_for_item_id_like_cpp(item_entry)
+            .cloned()
+        else {
             return Vec::new();
         };
 
@@ -207,6 +203,7 @@ impl WorldSession {
 
         let primary_spec = self.represented_primary_specialization_id_like_cpp();
         let spells: Vec<_> = self
+            .catalogs
             .item_set_spells_like_cpp(item_set.id)
             .into_iter()
             .cloned()
@@ -215,7 +212,10 @@ impl WorldSession {
             if usize::from(item_set_spell.threshold) > equipped_count_after {
                 continue;
             }
-            if !self.represented_item_set_spell_exists_like_cpp(item_set_spell.spell_id) {
+            if !self
+                .catalogs
+                .represented_item_set_spell_exists_like_cpp(item_set_spell.spell_id)
+            {
                 continue;
             }
             let inserted = self
@@ -252,15 +252,9 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.item_drop_rate_like_cpp(hub, item_id)
     }
-    pub(crate) fn item_effect_count_like_cpp(&self, item_entry: u32) -> usize {
-        self.catalogs.item_effect_count_like_cpp(item_entry)
-    }
     pub fn is_item_bound_account_wide(&self, item_id: u32) -> bool {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.is_item_bound_account_wide(hub, item_id)
-    }
-    pub(in crate::session) fn item_shield_block_value_like_cpp(&self, item_id: u32) -> Option<i16> {
-        self.catalogs.item_shield_block_value_like_cpp(item_id)
     }
     pub(crate) fn insert_buyback_item_like_cpp(
         &mut self,
@@ -306,14 +300,6 @@ impl WorldSession {
                 .active_loot_view_owners
                 .iter()
                 .any(|guid| !guid.is_item())
-    }
-    pub(crate) fn allocate_item_instance_guids_with_generator_like_cpp(
-        &self,
-        generator: &ObjectGuidGenerator,
-        count: usize,
-    ) -> Option<Vec<(u64, ObjectGuid)>> {
-        self.core
-            .allocate_item_instance_guids_with_generator_like_cpp(generator, count)
     }
     pub(in crate::session) fn represented_has_item_fit_to_spell_requirements_like_cpp(
         &self,
@@ -374,7 +360,11 @@ impl WorldSession {
         player_db_guid: u64,
         item_db_guid: u64,
     ) -> wow_persistence::PlayerUncageItemStateLoadOutcomeLikeCpp {
-        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
+        let Some(port) = self
+            .lifecycle
+            .player_lifecycle_port_like_cpp()
+            .map(Arc::clone)
+        else {
             return wow_persistence::PlayerUncageItemStateLoadOutcomeLikeCpp::Failed {
                 reason: "Player lifecycle persistence port is unavailable".to_owned(),
             };

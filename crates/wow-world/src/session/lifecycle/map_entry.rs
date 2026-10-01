@@ -64,7 +64,7 @@ impl WorldSession {
     pub(crate) fn ensure_canonical_world_map_for_current_player_like_cpp(
         &mut self,
     ) -> Option<wow_map::CreateMapDecision> {
-        let map_id = u32::from(self.player_map_id_like_cpp());
+        let map_id = u32::from(self.core.player_map_id_like_cpp());
         let position = self.player_position_like_cpp()?;
         let decision = self.prepare_canonical_map_entry_like_cpp(map_id)?;
         if let wow_map::CreateMapDecision::Existing { key, .. }

@@ -193,8 +193,9 @@ impl WorldSession {
         let target_is_player_with_vehicle_kit = vehicle_guid.is_player() && target.has_vehicle_kit;
         let target_is_raid_member =
             self.represented_player_is_same_raid_with_like_cpp(player_guid, vehicle_guid);
-        let current_map_id = self.player_map_id_like_cpp();
+        let current_map_id = self.core.player_map_id_like_cpp();
         let current_instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -204,6 +205,7 @@ impl WorldSession {
                 .position
                 .is_within_dist(&player_position, INTERACTION_DISTANCE_LIKE_CPP);
         let current_map_entry = self
+            .catalogs
             .map_store()
             .and_then(|store| store.get(u32::from(current_map_id)));
         let map_exists = current_map_entry.is_some();
@@ -265,6 +267,7 @@ impl WorldSession {
         };
 
         let changed = self
+            .core
             .mutate_canonical_player_like_cpp(|player| {
                 if enable {
                     player.set_player_flag(PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP);
@@ -278,7 +281,8 @@ impl WorldSession {
             self.sync_player_registry_state_like_cpp();
         }
 
-        self.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP)
+        self.core
+            .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP)
             .unwrap_or(false)
             == enable
     }

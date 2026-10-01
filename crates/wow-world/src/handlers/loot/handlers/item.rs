@@ -31,7 +31,9 @@ impl WorldSession {
         let mut canonical_loot_sync: Vec<ObjectGuid> = Vec::new();
 
         for loot_req in &req.requests {
-            let Some(owner_guid) = self.active_loot_owner_for_loot_object_like_cpp(loot_req.object)
+            let Some(owner_guid) = self
+                .loot
+                .active_loot_owner_for_loot_object_like_cpp(loot_req.object)
             else {
                 self.send_packet(&SLootRelease {
                     loot_obj: ObjectGuid::EMPTY,
@@ -103,7 +105,8 @@ impl WorldSession {
                 }
                 let _ = self.reconcile_represented_loot_cache_like_cpp(owner_guid, player_guid);
             }
-            self.ensure_represented_player_looting_like_cpp(owner_guid, player_guid);
+            self.loot
+                .ensure_represented_player_looting_like_cpp(owner_guid, player_guid);
 
             let Some((cached_entry, dungeon_encounter_id)) =
                 self.loot.loot_table.get(&owner_guid).and_then(|loot| {
@@ -167,6 +170,7 @@ impl WorldSession {
                     }
                 };
                 if !self
+                    .loot
                     .represented_active_loot_claim_generation_matches_like_cpp(owner_guid, &claim)
                 {
                     claim.rollback_like_cpp();

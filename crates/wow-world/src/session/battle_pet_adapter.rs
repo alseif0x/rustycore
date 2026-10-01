@@ -243,7 +243,7 @@ impl WorldSession {
         let multiplier = 1.0 + (effect.effect_base_points as f32 / 100.0);
         let aura = AuraApplication {
             spell_id,
-            difficulty_id: self.current_map_difficulty_id_like_cpp(),
+            difficulty_id: self.core.current_map_difficulty_id_like_cpp(),
             caster_guid,
             slot,
             duration_total: 30_000,

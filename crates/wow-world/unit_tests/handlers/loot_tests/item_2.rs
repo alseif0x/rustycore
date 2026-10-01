@@ -38,7 +38,7 @@ async fn failed_item_persistence_publishes_no_removal_or_release_like_cpp() {
     session.wait_for_active_loot_persistence_like_cpp().await;
 
     assert!(!session.is_disconnecting());
-    assert!(session.is_active_loot_guid(owner_guid));
+    assert!(session.loot.is_active_loot_guid(owner_guid));
     assert!(!session.loot.loot_table.get(&owner_guid).unwrap().items[0].taken);
     assert!(
         !drain_server_opcodes_like_cpp(&send_rx)
@@ -133,7 +133,7 @@ async fn cancelled_stored_item_money_before_commit_retries_without_local_consump
     assert_eq!(session.player_gold_like_cpp(), 107);
     assert_eq!(session.loot.loot_table.get(&owner_guid).unwrap().coins, 0);
     assert!(retry_runtime_applied.load(Ordering::Acquire));
-    assert!(session.is_active_loot_guid(owner_guid));
+    assert!(session.loot.is_active_loot_guid(owner_guid));
 }
 #[tokio::test]
 async fn cancelled_stored_item_money_after_commit_is_replayed_before_disconnect_save_like_cpp() {

@@ -27,7 +27,7 @@ impl WorldSession {
             "BinderActivate {:?} account {}",
             hello.unit, self.core.account_id
         );
-        if !self.player_is_strictly_in_world_like_cpp()
+        if !self.core.player_is_strictly_in_world_like_cpp()
             || self.resolved_player_is_alive_like_cpp() != Some(true)
         {
             return;
@@ -50,7 +50,7 @@ impl WorldSession {
         if self.player_current_map_instanceable_like_cpp() {
             debug!(
                 innkeeper_guid = ?hello.unit,
-                map_id = self.player_map_id_like_cpp(),
+                map_id = self.core.player_map_id_like_cpp(),
                 "BinderActivate rejected: current map is instanceable like C++ SendBindPoint"
             );
             return;
@@ -202,7 +202,7 @@ impl WorldSession {
 
         // C++ pauses the creature and clears PlayerMenu only after
         // GetNPCIfCanInteractWith has accepted the source.
-        self.mutate_world_creature(hello.unit, |creature| {
+        self.core.mutate_world_creature(hello.unit, |creature| {
             creature.pause_interaction_movement_like_cpp();
         });
         self.clear_player_gossip_options_like_cpp();
@@ -396,7 +396,7 @@ impl WorldSession {
         use crate::session::GossipOptionInfo;
         use wow_packet::packets::gossip::ClientGossipOption;
 
-        let catalog = self.gossip_catalog_persistence_port_like_cpp()?;
+        let catalog = self.lifecycle.gossip_catalog_persistence_port_like_cpp()?;
 
         // 1. Get MenuID from creature_template_gossip
         let menu_id = match tokio::time::timeout(

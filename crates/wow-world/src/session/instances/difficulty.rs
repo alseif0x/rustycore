@@ -44,11 +44,9 @@ impl WorldSession {
     }
     /// Set the C++ Difficulty.db2 store used by `sDifficultyStore`.
     pub fn set_difficulty_store(&mut self, store: Arc<DifficultyStore>) {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.catalogs.difficulty_store = Some(store);
-    }
-    pub(crate) fn difficulty_store(&self) -> Option<&Arc<DifficultyStore>> {
-        self.catalogs.difficulty_store()
     }
     pub(crate) fn player_difficulty_preferences_snapshot_like_cpp(
         &self,
@@ -170,6 +168,7 @@ impl WorldSession {
             return Vec::new();
         };
         let Some(entry) = self
+            .catalogs
             .difficulty_store()
             .and_then(|store| store.get(difficulty_id))
             .copied()
@@ -301,6 +300,7 @@ impl WorldSession {
         difficulty_id: u32,
     ) -> Option<ObjectGuid> {
         let entry = self
+            .catalogs
             .difficulty_store()
             .and_then(|store| store.get(difficulty_id))
             .copied()?;
@@ -362,16 +362,6 @@ impl WorldSession {
         store: Arc<MapDifficultyXConditionStore>,
     ) {
         self.catalogs.maps.difficulty_x_condition_store = Some(store);
-    }
-    pub(crate) fn map_difficulty_store(&self) -> Option<&Arc<MapDifficultyStore>> {
-        self.catalogs.map_difficulty_store()
-    }
-    pub(crate) fn current_map_difficulty_id_like_cpp(&self) -> u8 {
-        self.core.current_map_difficulty_id_like_cpp()
-    }
-    pub(crate) fn current_canonical_player_map_difficulty_id_like_cpp(&self) -> Option<u8> {
-        self.core
-            .current_canonical_player_map_difficulty_id_like_cpp()
     }
     #[allow(dead_code)]
     pub(crate) fn represented_failed_map_difficulty_x_condition_like_cpp(

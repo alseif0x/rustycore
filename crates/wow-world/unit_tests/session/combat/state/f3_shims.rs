@@ -30,4 +30,8 @@ impl crate::session::WorldSession {
             in_pvp_flag,
         )
     }
+    pub(crate) fn combat_rating_multiplier_like_cpp(&self, level: u8, rating: u32) -> f32 {
+        self.catalogs
+            .combat_rating_multiplier_like_cpp(level, rating)
+    }
 }

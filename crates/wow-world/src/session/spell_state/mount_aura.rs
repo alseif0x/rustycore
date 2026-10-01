@@ -38,7 +38,7 @@ impl WorldSession {
 
         let aura = AuraApplication {
             spell_id,
-            difficulty_id: self.current_map_difficulty_id_like_cpp(),
+            difficulty_id: self.core.current_map_difficulty_id_like_cpp(),
             caster_guid,
             slot,
             duration_total: 0,
@@ -123,8 +123,9 @@ impl WorldSession {
         mount_capability_id: i32,
         caster_guid: ObjectGuid,
     ) {
-        let Some(mod_spell_aura_id) =
-            self.represented_mount_capability_mod_spell_like_cpp(mount_capability_id)
+        let Some(mod_spell_aura_id) = self
+            .catalogs
+            .represented_mount_capability_mod_spell_like_cpp(mount_capability_id)
         else {
             return;
         };
@@ -186,8 +187,9 @@ impl WorldSession {
         &mut self,
         mount_capability_id: i32,
     ) {
-        let Some(mod_spell_aura_id) =
-            self.represented_mount_capability_mod_spell_like_cpp(mount_capability_id)
+        let Some(mod_spell_aura_id) = self
+            .catalogs
+            .represented_mount_capability_mod_spell_like_cpp(mount_capability_id)
         else {
             return;
         };

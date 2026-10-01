@@ -322,7 +322,7 @@ impl WorldSession {
             let using_two_handed_weapon_in_one_hand =
                 two_handed_in_one_hand_like_cpp(main_template.as_ref(), off_template.as_ref());
 
-            let Some(action) = self.canonical_player_snapshot_like_cpp(|player| {
+            let Some(action) = self.core.canonical_player_snapshot_like_cpp(|player| {
                 let penalty_spell_id = player.titan_grip_penalty_spell_id();
                 let has_penalty_aura = penalty_spell_id > 0
                     && self

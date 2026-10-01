@@ -107,7 +107,7 @@ impl WorldSession {
             && self.core.driver.time_synchronization.timer_ms > 0
         {
             if diff_ms >= self.core.driver.time_synchronization.timer_ms {
-                self.send_time_sync();
+                self.core.send_time_sync();
             } else {
                 self.core.driver.time_synchronization.timer_ms -= diff_ms;
             }

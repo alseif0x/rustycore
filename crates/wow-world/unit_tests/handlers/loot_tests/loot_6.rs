@@ -12,8 +12,10 @@ async fn loot_release_accepts_secondary_active_owner_like_cpp() {
     let primary_guid = test_creature_guid(19_029);
     let secondary_guid = test_creature_guid(19_030);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(primary_guid);
-    session.add_active_loot_view_owner_like_cpp(secondary_guid);
+    session.loot.set_active_loot_guid(primary_guid);
+    session
+        .loot
+        .add_active_loot_view_owner_like_cpp(secondary_guid);
     session.loot.loot_table.insert(
         secondary_guid,
         CreatureLoot {
@@ -45,7 +47,7 @@ async fn loot_release_accepts_secondary_active_owner_like_cpp() {
     );
     assert_eq!(sent.read_packed_guid().unwrap(), secondary_guid);
     assert_eq!(sent.read_packed_guid().unwrap(), player_guid);
-    assert!(session.is_active_loot_guid(primary_guid));
+    assert!(session.loot.is_active_loot_guid(primary_guid));
     assert!(session.loot.active_loot_view_owners.contains(&primary_guid));
     assert!(
         !session
@@ -79,7 +81,7 @@ async fn player_corpse_loot_release_removes_corpse_lootable_dynflag_like_cpp() {
     let corpse = make_canonical_corpse_for_session(&session, corpse_guid);
     attach_canonical_corpse(&mut session, corpse);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(corpse_guid);
+    session.loot.set_active_loot_guid(corpse_guid);
     session.loot.loot_table.insert(
         corpse_guid,
         CreatureLoot {
@@ -131,7 +133,7 @@ async fn loot_release_fishing_hole_just_deactivates_at_max_opens_like_cpp() {
     let fishing_hole = test_gameobject_guid(19_037);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    session.set_active_loot_guid(fishing_hole);
+    session.loot.set_active_loot_guid(fishing_hole);
     session.record_represented_gameobject_runtime_state_like_cpp(
         0,
         fishing_hole,
@@ -139,7 +141,9 @@ async fn loot_release_fishing_hole_just_deactivates_at_max_opens_like_cpp() {
         Position::ZERO,
         GAMEOBJECT_TYPE_FISHING_HOLE as u8,
     );
-    session.record_represented_fishing_hole_max_opens_like_cpp(fishing_hole, 1);
+    session
+        .world_entities
+        .record_represented_fishing_hole_max_opens_like_cpp(fishing_hole, 1);
     session.loot.loot_table.insert(
         fishing_hole,
         CreatureLoot {
@@ -198,7 +202,7 @@ async fn loot_release_gathering_node_sets_local_active_state_like_cpp() {
         GAMEOBJECT_TYPE_GATHERING_NODE as u8,
     );
     attach_canonical_gameobject(&mut session, game_object);
-    session.set_active_loot_guid(gathering_node);
+    session.loot.set_active_loot_guid(gathering_node);
     session
         .core
         .client_visible_guids_like_cpp

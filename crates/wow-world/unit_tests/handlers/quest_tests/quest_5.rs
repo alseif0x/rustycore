@@ -709,7 +709,7 @@ async fn push_quest_to_party_success_prompts_receiver_details_and_sets_pending_l
         )
     );
     assert!(receiver_rx.try_recv().is_err());
-    let commands = receiver_session.drain_session_commands();
+    let commands = receiver_session.core.drain_session_commands();
     assert_eq!(commands.len(), 1);
     match &commands[0] {
         SessionCommand::SetQuestSharingInfoAndSendDetails(command) => {
@@ -804,7 +804,7 @@ async fn push_quest_to_party_repeatable_turn_in_command_queue_failure_sends_no_s
 
     assert!(sender_rx.try_recv().is_err());
     assert!(receiver_rx.try_recv().is_err());
-    assert_eq!(receiver_session.drain_session_commands().len(), 256);
+    assert_eq!(receiver_session.core.drain_session_commands().len(), 256);
     assert!(session.represented_push_quest_to_party_outcomes_like_cpp().iter().any(
         |outcome| outcome.target_guid == Some(receiver_guid)
             && matches!(

@@ -15,25 +15,6 @@ impl WorldSession {
             gameobject.use_times()
         })
     }
-    pub(crate) fn record_represented_gameobject_interact_radius_override_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        interact_radius_override: u32,
-    ) {
-        self.world_entities
-            .record_represented_gameobject_interact_radius_override_like_cpp(
-                guid,
-                interact_radius_override,
-            )
-    }
-    pub(crate) fn record_represented_gameobject_icon_interaction_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        allows_interaction: bool,
-    ) {
-        self.world_entities
-            .record_represented_gameobject_icon_interaction_like_cpp(guid, allows_interaction)
-    }
     pub(crate) fn represented_gameobject_can_interact_with_like_cpp(
         &self,
         guid: ObjectGuid,
@@ -48,14 +29,6 @@ impl WorldSession {
     ) -> bool {
         let (state, hub) = crate::session::split_world_entities_ref(self);
         state.represented_gameobject_use_allowed_by_mover_like_cpp(hub, gameobject_usable_mounted)
-    }
-    pub(crate) fn record_represented_gameobject_report_use_ai_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-    ) -> bool {
-        self.world_entities
-            .record_represented_gameobject_report_use_ai_like_cpp(gameobject_guid, player_guid)
     }
     pub(crate) fn apply_represented_gameobject_player_use_preamble_like_cpp(
         &mut self,

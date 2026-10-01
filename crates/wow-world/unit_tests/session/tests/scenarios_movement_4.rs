@@ -536,7 +536,10 @@ fn logged_in_loot_lookup_does_not_fallback_when_canonical_player_is_absent_like_
     add_canonical_test_creature_on_map(&canonical, creature_guid, 9_108, position, 0, 571, 7);
 
     assert_eq!(session.current_canonical_player_map_key_like_cpp(), None);
-    assert_eq!(session.canonical_object_lookup_map_key_like_cpp(571), None);
+    assert_eq!(
+        session.core.canonical_object_lookup_map_key_like_cpp(571),
+        None
+    );
     assert!(
         session
             .read_canonical_creature_loot_authority_like_cpp(creature_guid)

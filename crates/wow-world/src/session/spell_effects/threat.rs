@@ -49,8 +49,8 @@ impl WorldSession {
         base_amount: f32,
         ignore_modifiers: bool,
     ) {
-        let difficulty = self.current_map_difficulty_id_like_cpp();
-        let difficulty_store = self.difficulty_store().cloned();
+        let difficulty = self.core.current_map_difficulty_id_like_cpp();
+        let difficulty_store = self.catalogs.difficulty_store().cloned();
         if spell_id.is_some_and(|spell_id| {
             self.spell_store().is_some_and(|store| {
                 store.has_attribute_for_difficulty_like_cpp(
@@ -72,7 +72,7 @@ impl WorldSession {
         }
         let spell_threat_entry = spell_id
             .and_then(|spell_id| u32::try_from(spell_id).ok())
-            .and_then(|spell_id| self.spell_threat_entry_like_cpp(spell_id))
+            .and_then(|spell_id| self.catalogs.spell_threat_entry_like_cpp(spell_id))
             .copied();
         let spell_threat_pct_mod = if ignore_modifiers {
             1.0
@@ -82,25 +82,26 @@ impl WorldSession {
         let spell_school_mask = spell_id
             .and_then(|spell_id| u32::try_from(spell_id).ok())
             .map_or(1, |spell_id| {
-                self.spell_school_mask_for_difficulty_like_cpp(
+                self.catalogs.spell_school_mask_for_difficulty_like_cpp(
                     spell_id,
-                    self.current_map_difficulty_id_like_cpp(),
+                    self.core.current_map_difficulty_id_like_cpp(),
                 )
             });
         let caster_school_threat_mod =
             if !ignore_modifiers && self.player_guid() == Some(assistant_guid) {
                 self.hydrate_canonical_threat_relevant_auras_like_cpp();
-                self.mutate_canonical_player_like_cpp(|player| {
-                    player
-                        .unit()
-                        .subsystems()
-                        .auras
-                        .total_aura_multiplier_by_misc_mask_like_cpp(
-                            wow_data::spell::aura_types::SPELL_AURA_MOD_THREAT,
-                            spell_school_mask,
-                        )
-                })
-                .unwrap_or(1.0)
+                self.core
+                    .mutate_canonical_player_like_cpp(|player| {
+                        player
+                            .unit()
+                            .subsystems()
+                            .auras
+                            .total_aura_multiplier_by_misc_mask_like_cpp(
+                                wow_data::spell::aura_types::SPELL_AURA_MOD_THREAT,
+                                spell_school_mask,
+                            )
+                    })
+                    .unwrap_or(1.0)
             } else {
                 1.0
             };
@@ -124,10 +125,12 @@ impl WorldSession {
         let eligible_count = owner_guids
             .iter()
             .filter(|owner_guid| {
-                self.mutate_world_creature(**owner_guid, |creature| {
-                    creature.is_alive() && !creature.creature.unit().has_unit_state(controlled_mask)
-                })
-                .unwrap_or(false)
+                self.core
+                    .mutate_world_creature(**owner_guid, |creature| {
+                        creature.is_alive()
+                            && !creature.creature.unit().has_unit_state(controlled_mask)
+                    })
+                    .unwrap_or(false)
             })
             .count();
         let per_owner = if eligible_count == 0 {
@@ -138,6 +141,7 @@ impl WorldSession {
 
         for owner_guid in owner_guids {
             let threat_value = self
+                .core
                 .mutate_world_creature(owner_guid, |creature| {
                     if !creature.is_alive() {
                         return None;
@@ -181,7 +185,7 @@ impl WorldSession {
             );
         }
 
-        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
+        let Some(map_key) = self.core.current_canonical_player_map_key_like_cpp() else {
             return;
         };
         let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {
@@ -267,6 +271,7 @@ impl WorldSession {
         }
 
         let Some(threat_value) = self
+            .core
             .mutate_world_creature(target_guid, |creature| {
                 creature
                     .creature
@@ -301,6 +306,7 @@ impl WorldSession {
     ) -> Result<(), &'static str> {
         let player_guid = self.player_guid().ok_or("No player GUID")?;
         let Some(threat_value) = self
+            .core
             .mutate_world_creature(target_guid, |creature| {
                 creature
                     .creature
@@ -325,7 +331,7 @@ impl WorldSession {
         &self,
         target_guid: ObjectGuid,
     ) -> Vec<ObjectGuid> {
-        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
+        let Some(map_key) = self.core.current_canonical_player_map_key_like_cpp() else {
             return Vec::new();
         };
         let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {
@@ -361,7 +367,7 @@ impl WorldSession {
         owner_guid: ObjectGuid,
         target_guid: ObjectGuid,
     ) {
-        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
+        let Some(map_key) = self.core.current_canonical_player_map_key_like_cpp() else {
             return;
         };
         let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {

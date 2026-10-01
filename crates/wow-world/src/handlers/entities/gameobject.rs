@@ -97,7 +97,10 @@ impl crate::session::WorldSession {
         }
 
         let gameobject_access = if self.core.canonical_map_manager.is_some() {
-            match self.canonical_gameobject_access_like_cpp(gameobject_guid) {
+            match self
+                .core
+                .canonical_gameobject_access_like_cpp(gameobject_guid)
+            {
                 Some(access) => access,
                 None => return,
             }
@@ -129,16 +132,18 @@ impl crate::session::WorldSession {
         };
         let data = row.data.map(|value| u32::try_from(value).unwrap_or(0));
         let template = GameObjectTemplateData::new(go_type, data);
-        self.record_represented_gameobject_template_quest_source_like_cpp(
-            gameobject_guid,
-            &template,
-        );
+        crate::session::cx_quest_state(self)
+            .record_represented_gameobject_template_quest_source_like_cpp(
+                gameobject_guid,
+                &template,
+            );
         let icon_allows_interaction =
             represented_gameobject_icon_allows_interaction_like_cpp(&row.icon_name);
-        self.record_represented_gameobject_icon_interaction_like_cpp(
-            gameobject_guid,
-            icon_allows_interaction,
-        );
+        self.world_entities
+            .record_represented_gameobject_icon_interaction_like_cpp(
+                gameobject_guid,
+                icon_allows_interaction,
+            );
         if !icon_allows_interaction {
             return;
         }
@@ -194,21 +199,24 @@ impl crate::session::WorldSession {
             return;
         }
         if go_type != GAMEOBJECT_TYPE_TRAP
-            && !self.apply_represented_gameobject_cooldown_like_cpp(
-                gameobject_guid,
-                template.get_cooldown_like_cpp(),
-            )
+            && !self
+                .world_entities
+                .apply_represented_gameobject_cooldown_like_cpp(
+                    gameobject_guid,
+                    template.get_cooldown_like_cpp(),
+                )
         {
             return;
         }
 
         match go_type {
             GAMEOBJECT_TYPE_DOOR | GAMEOBJECT_TYPE_BUTTON => {
-                self.use_represented_gameobject_door_or_button_like_cpp(
-                    gameobject_guid,
-                    player_guid,
-                    template.get_auto_close_time_like_cpp(),
-                );
+                self.world_entities
+                    .use_represented_gameobject_door_or_button_like_cpp(
+                        gameobject_guid,
+                        player_guid,
+                        template.get_auto_close_time_like_cpp(),
+                    );
                 return;
             }
             GAMEOBJECT_TYPE_QUESTGIVER => {
@@ -224,11 +232,12 @@ impl crate::session::WorldSession {
             }
             GAMEOBJECT_TYPE_TRAP => {
                 if let Some(source) = template.trap_use_source_like_cpp() {
-                    self.use_represented_gameobject_trap_like_cpp(
-                        gameobject_guid,
-                        player_guid,
-                        source,
-                    );
+                    self.world_entities
+                        .use_represented_gameobject_trap_like_cpp(
+                            gameobject_guid,
+                            player_guid,
+                            source,
+                        );
                 }
                 return;
             }
@@ -397,11 +406,12 @@ impl crate::session::WorldSession {
                 return;
             }
             GAMEOBJECT_TYPE_SPELL_FOCUS => {
-                self.use_represented_gameobject_spell_focus_like_cpp(
-                    gameobject_guid,
-                    player_guid,
-                    template.spell_focus_linked_trap_like_cpp(),
-                );
+                self.world_entities
+                    .use_represented_gameobject_spell_focus_like_cpp(
+                        gameobject_guid,
+                        player_guid,
+                        template.spell_focus_linked_trap_like_cpp(),
+                    );
                 return;
             }
             GAMEOBJECT_TYPE_SPELLCASTER => {
@@ -584,7 +594,10 @@ impl crate::session::WorldSession {
         #[cfg(not(test))]
         let _ = gameobject_access;
 
-        if self.record_represented_gameobject_report_use_ai_like_cpp(gameobject_guid, player_guid) {
+        if self
+            .world_entities
+            .record_represented_gameobject_report_use_ai_like_cpp(gameobject_guid, player_guid)
+        {
             return;
         }
 
@@ -611,7 +624,7 @@ impl crate::session::WorldSession {
         // menus remains an explicit runtime boundary.
         if !gameobject_guid.is_game_object()
             || self.resolved_is_in_taxi_flight_like_cpp() != Some(false)
-            || !self.player_is_strictly_in_world_like_cpp()
+            || !self.core.player_is_strictly_in_world_like_cpp()
         {
             return None;
         }
@@ -630,7 +643,7 @@ impl crate::session::WorldSession {
             return None;
         }
 
-        let map_key = self.current_canonical_player_map_key_like_cpp()?;
+        let map_key = self.core.current_canonical_player_map_key_like_cpp()?;
         {
             let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
             let map = manager.find_map(map_key.map_id, map_key.instance_id)?;

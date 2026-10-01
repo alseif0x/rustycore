@@ -34,6 +34,7 @@ impl WorldSession {
             return;
         };
         let _canonical = self
+            .core
             .mutate_canonical_player_like_cpp(|player| {
                 player.set_player_flag(PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP);
             })
@@ -50,7 +51,7 @@ impl WorldSession {
         }
 
         if let Some(update) = values_update {
-            self.send_player_values_update_like_cpp(&update);
+            self.core.send_player_values_update_like_cpp(&update);
         }
     }
     pub(crate) async fn commit_represented_talent_reset_like_cpp(
@@ -103,14 +104,14 @@ impl WorldSession {
         #[cfg(test)]
         let bypass_database_like_cpp = self.lifecycle.loot_money_persistence_test_result_like_cpp
             == Some(true)
-            || self.player_lifecycle_port_like_cpp().is_none();
+            || self.lifecycle.player_lifecycle_port_like_cpp().is_none();
         #[cfg(not(test))]
         let bypass_database_like_cpp = false;
 
         let money_persistence = if bypass_database_like_cpp {
             money_persistence
         } else {
-            let port = self.player_lifecycle_port_like_cpp().cloned()?;
+            let port = self.lifecycle.player_lifecycle_port_like_cpp().cloned()?;
             let mut cancellation_fence = PlayerMoneyCommitCancellationFenceLikeCpp::new(
                 Arc::clone(&self.lifecycle.durable_loot_money_persistence_like_cpp),
             );

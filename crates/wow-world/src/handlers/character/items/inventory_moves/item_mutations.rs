@@ -46,13 +46,14 @@ impl WorldSession {
             planned_item.count(),
             planned_item.item_flags_bits(),
             enchantments,
-            self.item_effect_count_like_cpp(source.entry_id),
+            self.catalogs.item_effect_count_like_cpp(source.entry_id),
         );
         let Some(container_db_guid) = self.inventory_container_db_guid_like_cpp(destination_bag)
         else {
             return;
         };
-        let Some(inventory_port) = self.player_inventory_persistence_port_like_cpp() else {
+        let Some(inventory_port) = self.lifecycle.player_inventory_persistence_port_like_cpp()
+        else {
             self.send_equip_error(
                 InventoryResult::InternalBagError,
                 Some(source.guid),
@@ -248,7 +249,7 @@ impl WorldSession {
             source_count,
             source_object.item_flags_bits(),
             source_enchantments,
-            self.item_effect_count_like_cpp(source.entry_id),
+            self.catalogs.item_effect_count_like_cpp(source.entry_id),
         );
         let destination_mutable = item_storage_mutable_persistence_like_cpp(
             destination.db_guid,
@@ -256,9 +257,11 @@ impl WorldSession {
             destination_count,
             destination_object.item_flags_bits(),
             destination_enchantments,
-            self.item_effect_count_like_cpp(destination.entry_id),
+            self.catalogs
+                .item_effect_count_like_cpp(destination.entry_id),
         );
-        let Some(inventory_port) = self.player_inventory_persistence_port_like_cpp() else {
+        let Some(inventory_port) = self.lifecycle.player_inventory_persistence_port_like_cpp()
+        else {
             self.send_equip_error(
                 InventoryResult::InternalBagError,
                 Some(source.guid),
@@ -314,7 +317,7 @@ impl WorldSession {
         );
         self.send_packet(&UpdateObject::item_stack_count_update(
             destination.guid,
-            self.player_map_id_like_cpp(),
+            self.core.player_map_id_like_cpp(),
             destination_count,
         ));
         if source_count > 0 {
@@ -330,7 +333,7 @@ impl WorldSession {
             let _ = self.apply_inventory_item_object_updates_like_cpp(source.guid, &updates);
             self.send_packet(&UpdateObject::item_stack_count_update(
                 source.guid,
-                self.player_map_id_like_cpp(),
+                self.core.player_map_id_like_cpp(),
                 source_count,
             ));
         } else {
@@ -348,7 +351,7 @@ impl WorldSession {
             debug_assert!(removed);
             self.send_packet(&UpdateObject::destroy_objects(
                 vec![source.guid],
-                self.player_map_id_like_cpp(),
+                self.core.player_map_id_like_cpp(),
             ));
             self.publish_inventory_position_changes_like_cpp(&[(source_bag, source_slot)]);
             if removed_mods {

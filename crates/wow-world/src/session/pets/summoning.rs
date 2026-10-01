@@ -28,9 +28,6 @@ impl WorldSession {
     pub(in crate::session) fn unsummon_represented_pet_temporary_if_any_like_cpp(&mut self) {
         crate::session::hub_mut(self).unsummon_represented_pet_temporary_if_any_like_cpp()
     }
-    pub(crate) fn resummon_pet_temporary_unsummoned_like_cpp(&mut self) {
-        crate::session::cx_pets(self).resummon_pet_temporary_unsummoned_like_cpp()
-    }
 }
 
 impl crate::session::PetsCx<'_> {

@@ -46,7 +46,8 @@ impl WorldSession {
         );
         let item_mods_changed =
             self.record_represented_offhand_item_mod_remove_like_cpp(offhand_item.guid);
-        self.record_inventory_item_combat_stat_recalculations_like_cpp(EQUIPMENT_SLOT_OFFHAND);
+        self.inventory
+            .record_inventory_item_combat_stat_recalculations_like_cpp(EQUIPMENT_SLOT_OFFHAND);
 
         #[cfg(test)]
         let mut stored_destination = None;

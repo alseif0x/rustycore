@@ -11,4 +11,12 @@ impl crate::session::WorldSession {
         self.catalogs
             .creature_display_power_for_class_like_cpp(unit_class)
     }
+    pub(crate) fn mutate_canonical_creature_by_guid_like_cpp<R>(
+        &mut self,
+        guid: ObjectGuid,
+        f: impl FnOnce(&mut wow_entities::Creature) -> R,
+    ) -> Option<R> {
+        self.core
+            .mutate_canonical_creature_by_guid_like_cpp(guid, f)
+    }
 }

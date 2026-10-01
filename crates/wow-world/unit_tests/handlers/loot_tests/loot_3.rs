@@ -69,7 +69,7 @@ async fn represented_fishing_node_loot_walks_parent_area_like_cpp() {
     assert_eq!(loot.loot_type, LOOT_TYPE_FISHING_LIKE_CPP);
     assert_eq!(loot.items.len(), 1);
     assert_eq!(loot.items[0].item_id, item_id);
-    assert!(session.is_active_loot_guid(gameobject_guid));
+    assert!(session.loot.is_active_loot_guid(gameobject_guid));
 }
 #[tokio::test]
 async fn represented_fishing_node_junk_loot_uses_default_zone_like_cpp() {
@@ -114,7 +114,7 @@ async fn represented_fishing_node_junk_loot_uses_default_zone_like_cpp() {
     assert_eq!(loot.loot_type, LOOT_TYPE_FISHING_JUNK_LIKE_CPP);
     assert_eq!(loot.items.len(), 1);
     assert_eq!(loot.items[0].item_id, item_id);
-    assert!(session.is_active_loot_guid(gameobject_guid));
+    assert!(session.loot.is_active_loot_guid(gameobject_guid));
 }
 #[tokio::test]
 async fn loot_unit_dead_player_returns_silently_like_cpp() {
@@ -136,7 +136,7 @@ async fn loot_unit_dead_player_returns_silently_like_cpp() {
     session.handle_loot_unit(loot_unit_packet(loot_guid)).await;
 
     assert!(send_rx.try_recv().is_err());
-    assert!(!session.is_active_loot_guid(loot_guid));
+    assert!(!session.loot.is_active_loot_guid(loot_guid));
     assert!(!session.loot.loot_table.contains_key(&loot_guid));
     assert!(session.active_spell_cast_snapshot_like_cpp().is_some());
     assert!(session.fixtures.auras.visible_auras.contains_key(&3));
