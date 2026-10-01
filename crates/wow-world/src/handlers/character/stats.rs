@@ -133,12 +133,15 @@ impl WorldSession {
     ) -> Option<PlayerStatSystemProjectionLikeCpp> {
         let base = *self.player_stats()?.get(race, class, level)?;
         let (attack_power_per_strength, attack_power_per_agility, ranged_attack_power_per_agility) =
-            self.player_class_attack_power_coefficients_like_cpp(class)?;
+            self.catalogs
+                .player_class_attack_power_coefficients_like_cpp(class)?;
         let rating_bonuses = std::array::from_fn(|index| {
             gear.combat_ratings[index] as f32
-                * self.combat_rating_multiplier_like_cpp(level, index as u32)
+                * self
+                    .catalogs
+                    .combat_rating_multiplier_like_cpp(level, index as u32)
         });
-        let (can_parry, can_block) = self.canonical_player_parry_block_snapshot_like_cpp();
+        let (can_parry, can_block) = self.core.canonical_player_parry_block_snapshot_like_cpp();
         let spell_bonus = self.represented_spell_bonus_like_cpp(gear);
 
         Some(

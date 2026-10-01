@@ -19,15 +19,16 @@ impl WorldSession {
     ) -> Vec<LootEntry> {
         let mut loot_items = Vec::new();
         let mut frames = vec![disenchant_loot_template_frame_like_cpp(
-            self.load_represented_disenchant_loot_template_rows_like_cpp(
-                DisenchantLootTemplateTable::Disenchant,
-                disenchant_id,
-            )
-            .await,
+            crate::session::cx_loot_ref(self)
+                .load_represented_disenchant_loot_template_rows_like_cpp(
+                    DisenchantLootTemplateTable::Disenchant,
+                    disenchant_id,
+                )
+                .await,
             0,
         )];
 
-        let mut rng = self.represented_runtime_subrng_like_cpp();
+        let mut rng = self.core.represented_runtime_subrng_like_cpp();
         let mut processed_frames = 0u32;
         while let Some(mut frame) = frames.pop() {
             if frame.requested_group_id > 0 {
@@ -108,7 +109,7 @@ impl WorldSession {
                     continue;
                 }
 
-                let reference_rows = self
+                let reference_rows = crate::session::cx_loot_ref(self)
                     .load_represented_disenchant_loot_template_rows_like_cpp(
                         DisenchantLootTemplateTable::Reference,
                         row.reference,
@@ -177,16 +178,6 @@ impl WorldSession {
         loot_items
     }
 
-    async fn load_represented_disenchant_loot_template_rows_like_cpp(
-        &self,
-        table: DisenchantLootTemplateTable,
-        entry: u32,
-    ) -> Vec<LootStoreItem> {
-        crate::session::cx_loot_ref(self)
-            .load_represented_disenchant_loot_template_rows_like_cpp(table, entry)
-            .await
-    }
-
     pub(super) fn has_incomplete_quest_item_drop_for_item_like_cpp(&self, item_id: u32) -> bool {
         let Some(quest_store) = &self.catalogs.quests.store else {
             return false;
@@ -227,20 +218,12 @@ impl WorldSession {
                                     max_allowed_count.min(template.max_count as u32);
                             }
 
-                            self.direct_inventory_item_count_like_cpp(item_id)
+                            crate::session::cx_loot_ref(self)
+                                .direct_inventory_item_count_like_cpp(item_id)
                                 .is_some_and(|count| count < max_allowed_count)
                         })
                 })
             })
-    }
-
-    pub(super) fn remote_has_incomplete_quest_item_drop_for_item_like_cpp(
-        &self,
-        item_id: u32,
-        player_context: &RepresentedLootPlayerContext,
-    ) -> bool {
-        self.catalogs
-            .remote_has_incomplete_quest_item_drop_for_item_like_cpp(item_id, player_context)
     }
 }
 

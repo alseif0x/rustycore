@@ -45,4 +45,14 @@ impl crate::session::WorldSession {
     ) {
         self.core.install_realm_send_write_fence_for_test(fence)
     }
+    pub(crate) async fn wait_for_instance_send_before_realm_send_like_cpp(&self) -> bool {
+        self.core
+            .wait_for_instance_send_before_realm_send_like_cpp()
+            .await
+    }
+    pub(crate) async fn wait_for_realm_send_before_instance_update_like_cpp(&self) -> bool {
+        self.core
+            .wait_for_realm_send_before_instance_update_like_cpp()
+            .await
+    }
 }

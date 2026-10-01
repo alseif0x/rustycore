@@ -21,7 +21,8 @@ impl WorldSession {
         if self.core.player_handle_like_cpp.is_none() {
             return Some(self.player_quest_gameplay_fixture_like_cpp());
         }
-        self.with_owned_player_like_cpp(|player| player.gameplay_state().quests.clone())
+        self.core
+            .with_owned_player_like_cpp(|player| player.gameplay_state().quests.clone())
     }
     /// C++ `Player::SetQuestStatus` (`Player.cpp:15557`) installing one record.
     pub(crate) fn insert_represented_quest_status_like_cpp(
@@ -248,15 +249,16 @@ impl WorldSession {
             self.apply_player_quest_gameplay_fixture_like_cpp(fixture);
             return Some(result);
         }
-        let canonical = self.mutate_canonical_player_like_cpp(|player| {
+        let canonical = self.core.mutate_canonical_player_like_cpp(|player| {
             mutate.take().expect("Player quest mutation executes once")(
                 &mut player.gameplay_state_mut().quests,
             )
         });
         if canonical.is_some() {
             #[cfg(test)]
-            if let Some(state) =
-                self.with_owned_player_like_cpp(|player| player.gameplay_state().quests.clone())
+            if let Some(state) = self
+                .core
+                .with_owned_player_like_cpp(|player| player.gameplay_state().quests.clone())
             {
                 self.apply_player_quest_core_compatibility_like_cpp(&state);
             }
@@ -386,12 +388,6 @@ impl WorldSession {
                     .player_target_spell_is_hit_inert_like_cpp(quest.source_spell_id, difficulty_id)
         })
     }
-    pub(in crate::session) fn represented_auto_push_quest_aura_source_is_empty_like_cpp(
-        &self,
-    ) -> bool {
-        self.catalogs
-            .represented_auto_push_quest_aura_source_is_empty_like_cpp()
-    }
     pub(crate) fn spell_area_for_quest_map_bounds_like_cpp(
         &self,
         quest_id: u32,
@@ -416,7 +412,8 @@ impl WorldSession {
     }
     /// Set the quest store shared reference.
     pub fn set_quest_store(&mut self, store: Arc<wow_data::quest::QuestStore>) {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.catalogs.quests.store = Some(store);
     }
     /// Set the QuestV2 store shared reference used for C++ quest unique-bit lookups.
@@ -458,14 +455,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_quest_state_ref(self);
         state.calculate_quest_xp(hub, difficulty, quest_level, xp_multiplier)
     }
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_represented_auction_replicate_request_like_cpp(
-        &mut self,
-        request: RepresentedAuctionReplicateRequestLikeCpp,
-    ) {
-        crate::session::cx_quest_state(self)
-            .record_represented_auction_replicate_request_like_cpp(request)
-    }
     #[cfg(test)]
     pub(crate) fn represented_auction_replicate_requests_like_cpp(
         &self,
@@ -491,6 +480,7 @@ impl WorldSession {
         request: PlayerResurrectionRequestLikeCpp,
     ) -> bool {
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.set_resurrection_request_like_cpp(request)
             })
@@ -522,6 +512,7 @@ impl WorldSession {
         resurrecter: ObjectGuid,
     ) -> Option<PlayerResurrectionRequestLikeCpp> {
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.take_resurrection_request_if_requested_by_like_cpp(resurrecter)
             })
@@ -642,18 +633,6 @@ impl WorldSession {
         );
         self.record_represented_vehicle_seat_action_like_cpp(action)
     }
-    pub(in crate::session) async fn battle_pet_add_request_committed_like_cpp(
-        &self,
-        request_key: BattlePetAddRequestKeyLikeCpp,
-    ) -> Result<bool, BattlePetAddFailureLikeCpp> {
-        crate::session::cx_quest_state_ref(self)
-            .battle_pet_add_request_committed_like_cpp(request_key)
-            .await
-    }
-    pub(crate) fn consume_movement_visibility_refresh_request_like_cpp(&mut self) -> bool {
-        self.quest_state
-            .consume_movement_visibility_refresh_request_like_cpp()
-    }
     #[cfg(test)]
     pub(crate) fn represented_activate_taxi_requests_like_cpp(
         &self,
@@ -758,31 +737,6 @@ impl WorldSession {
             }
         });
         self.sync_player_registry_state_like_cpp();
-    }
-    pub(crate) fn record_represented_quest_push_result_response_like_cpp(
-        &mut self,
-        response: RepresentedQuestPushResultResponseLikeCpp,
-    ) {
-        self.quest_state
-            .record_represented_quest_push_result_response_like_cpp(response)
-    }
-    pub(crate) fn record_represented_quest_push_result_sender_mismatch_like_cpp(&mut self) {
-        self.quest_state
-            .record_represented_quest_push_result_sender_mismatch_like_cpp()
-    }
-    pub(crate) fn record_represented_quest_confirm_accept_like_cpp(
-        &mut self,
-        evidence: RepresentedQuestConfirmAcceptLikeCpp,
-    ) {
-        self.quest_state
-            .record_represented_quest_confirm_accept_like_cpp(evidence)
-    }
-    pub(crate) fn record_represented_push_quest_to_party_outcome_like_cpp(
-        &mut self,
-        outcome: RepresentedPushQuestToPartyOutcomeLikeCpp,
-    ) {
-        self.quest_state
-            .record_represented_push_quest_to_party_outcome_like_cpp(outcome)
     }
 }
 

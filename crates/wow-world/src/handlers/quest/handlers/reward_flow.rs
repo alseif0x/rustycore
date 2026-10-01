@@ -62,11 +62,12 @@ impl WorldSession {
         }
 
         if quest.flags & QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP == 0
-            && !self.represented_quest_giver_involved_source_allows_quest_like_cpp(
-                guid,
-                quest_id,
-                &quest_store,
-            )
+            && !crate::session::cx_quest_state_ref(self)
+                .represented_quest_giver_involved_source_allows_quest_like_cpp(
+                    guid,
+                    quest_id,
+                    &quest_store,
+                )
         {
             warn!(
                 account = self.core.account_id,
@@ -204,11 +205,12 @@ impl WorldSession {
 
         if quest.flags & QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP == 0 {
             if from_script
-                || !self.represented_quest_giver_involved_source_allows_quest_like_cpp(
-                    guid,
-                    quest_id,
-                    &quest_store,
-                )
+                || !crate::session::cx_quest_state_ref(self)
+                    .represented_quest_giver_involved_source_allows_quest_like_cpp(
+                        guid,
+                        quest_id,
+                        &quest_store,
+                    )
             {
                 warn!(
                     account = self.core.account_id,
@@ -437,11 +439,12 @@ impl WorldSession {
         // This represented-partial slice intentionally keeps bounded choice/package validation
         // only; full CanRewardQuest/RewardQuest side effects remain open.
         if quest.flags & QUEST_FLAGS_AUTO_COMPLETE_LIKE_CPP == 0
-            && !self.represented_quest_giver_involved_source_allows_quest_like_cpp(
-                guid,
-                quest_id,
-                &quest_store,
-            )
+            && !crate::session::cx_quest_state_ref(self)
+                .represented_quest_giver_involved_source_allows_quest_like_cpp(
+                    guid,
+                    quest_id,
+                    &quest_store,
+                )
         {
             warn!(
                 account = self.core.account_id,

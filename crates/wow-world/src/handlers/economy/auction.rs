@@ -371,7 +371,7 @@ impl crate::session::WorldSession {
             return;
         };
 
-        self.record_represented_auction_replicate_request_like_cpp(
+        crate::session::cx_quest_state(self).record_represented_auction_replicate_request_like_cpp(
             RepresentedAuctionReplicateRequestLikeCpp {
                 auctioneer: packet.auctioneer,
                 change_number_global: packet.change_number_global,

@@ -178,21 +178,22 @@ impl WorldSession {
                             } else {
                                 self.insert_inventory_item_like_cpp(slot, inventory_item);
                             }
-                            let mut item_object = self.make_inventory_item_object(
-                                item_guid,
-                                item_entry,
-                                guid,
-                                item_count,
-                                item_durability,
-                                item_context,
-                                slot,
-                            );
+                            let mut item_object = crate::session::cx_inventory_ref(self)
+                                .make_inventory_item_object(
+                                    item_guid,
+                                    item_entry,
+                                    guid,
+                                    item_count,
+                                    item_durability,
+                                    item_context,
+                                    slot,
+                                );
                             item_object.set_create_played_time(item_played_time);
                             let template_expiration = self
                                 .item_stats_store()
                                 .and_then(|store| store.duration_in_inventory(item_entry))
                                 .unwrap_or(0);
-                            let effect_count = self.item_effect_count_like_cpp(item_entry);
+                            let effect_count = self.catalogs.item_effect_count_like_cpp(item_entry);
                             let expiration_needs_save =
                                 apply_loaded_item_storage_mutable_fields_like_cpp(
                                     &mut item_object,
@@ -341,21 +342,23 @@ impl WorldSession {
                                     let item_max_durability = self
                                         .item_template_max_durability(item_entry)
                                         .max(item_durability);
-                                    let mut item_object = self.make_inventory_item_object(
-                                        item_guid,
-                                        item_entry,
-                                        guid,
-                                        item_count,
-                                        item_durability,
-                                        item_context,
-                                        inner_slot,
-                                    );
+                                    let mut item_object = crate::session::cx_inventory_ref(self)
+                                        .make_inventory_item_object(
+                                            item_guid,
+                                            item_entry,
+                                            guid,
+                                            item_count,
+                                            item_durability,
+                                            item_context,
+                                            inner_slot,
+                                        );
                                     item_object.set_create_played_time(item_played_time);
                                     let template_expiration = self
                                         .item_stats_store()
                                         .and_then(|store| store.duration_in_inventory(item_entry))
                                         .unwrap_or(0);
-                                    let effect_count = self.item_effect_count_like_cpp(item_entry);
+                                    let effect_count =
+                                        self.catalogs.item_effect_count_like_cpp(item_entry);
                                     let expiration_needs_save =
                                         apply_loaded_item_storage_mutable_fields_like_cpp(
                                             &mut item_object,

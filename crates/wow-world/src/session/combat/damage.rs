@@ -97,6 +97,7 @@ impl WorldSession {
     ) {
         for consumption in consumptions {
             let shield = self
+                .core
                 .canonical_player_snapshot_like_cpp(|player| {
                     player
                         .unit()
@@ -137,7 +138,7 @@ impl WorldSession {
             // `SMSG_POWER_UPDATE` from the same call that drains the mana
             // (`Unit.cpp:1913-1918`, `Unit.cpp:9287-9312`). The map-owned stage
             // committed the drain; this session publishes the resulting value.
-            if let Some(mana) = self.canonical_player_snapshot_like_cpp(|player| {
+            if let Some(mana) = self.core.canonical_player_snapshot_like_cpp(|player| {
                 player.unit().get_power(wow_constants::PowerType::Mana)
             }) {
                 self.send_player_power_update_like_cpp(
@@ -151,22 +152,6 @@ impl WorldSession {
             self.send_raw_packet(packet);
             self.broadcast_player_packet_to_visible_set_realm_like_cpp(packet.clone());
         }
-    }
-    pub(in crate::session) fn send_environmental_damage_log_like_cpp(
-        &self,
-        victim: ObjectGuid,
-        damage_type: u8,
-        amount: u32,
-        resisted: u32,
-        absorbed: u32,
-    ) {
-        self.core.send_environmental_damage_log_like_cpp(
-            victim,
-            damage_type,
-            amount,
-            resisted,
-            absorbed,
-        )
     }
     pub(in crate::session) fn apply_owned_player_damage_like_cpp(
         &mut self,

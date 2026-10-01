@@ -41,7 +41,7 @@ impl WorldSession {
 
         info!(
             ?source_guid,
-            quests = ?self.represented_quest_menu_item_log_rows_like_cpp(&menu_items),
+            quests = ?self.quest_state.represented_quest_menu_item_log_rows_like_cpp(&menu_items),
             "Sending represented QuestGiverQuestList like C++"
         );
         self.send_packet(&QuestGiverQuestList {

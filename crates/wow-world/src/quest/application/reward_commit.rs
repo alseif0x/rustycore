@@ -43,7 +43,9 @@ impl WorldSession {
         // currency state once. Project it from a copy so the change flags are
         // only cleared once the batch is known to have committed.
         let mut currencies = self.player_currencies_like_cpp()?;
-        let currency_save = self.plan_player_currency_save_like_cpp(owner_guid, &mut currencies);
+        let currency_save = self
+            .catalogs
+            .plan_player_currency_save_like_cpp(owner_guid, &mut currencies);
         let currency_rows_present = !currency_save.rows.is_empty();
         if currency_rows_present {
             plan.set_currencies(currency_save);
@@ -52,7 +54,9 @@ impl WorldSession {
         let money = plan.money();
         let request = plan.into_request()?;
 
-        let port = self.player_quest_reward_persistence_port_like_cpp();
+        let port = self
+            .lifecycle
+            .player_quest_reward_persistence_port_like_cpp();
 
         // Narrow unit fixtures that install no durable owner keep the explicit
         // no-I/O money seam, so assertions unrelated to durability still run

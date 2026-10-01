@@ -231,7 +231,7 @@ impl WorldSession {
         // Create aura
         let aura = AuraApplication {
             spell_id,
-            difficulty_id: self.current_map_difficulty_id_like_cpp(),
+            difficulty_id: self.core.current_map_difficulty_id_like_cpp(),
             caster_guid,
             slot,
             duration_total: duration_ms,
@@ -369,8 +369,8 @@ impl WorldSession {
 
         let mut applied = 0usize;
         for &spell_id in known_spells {
-            let Ok(mut previous_spell_id) =
-                u32::try_from(spell_id).map(|spell_id| self.prev_spell_in_chain_like_cpp(spell_id))
+            let Ok(mut previous_spell_id) = u32::try_from(spell_id)
+                .map(|spell_id| self.catalogs.prev_spell_in_chain_like_cpp(spell_id))
             else {
                 continue;
             };
@@ -401,7 +401,9 @@ impl WorldSession {
                     }
                 }
 
-                previous_spell_id = self.prev_spell_in_chain_like_cpp(previous_spell_id);
+                previous_spell_id = self
+                    .catalogs
+                    .prev_spell_in_chain_like_cpp(previous_spell_id);
             }
         }
 
@@ -419,7 +421,7 @@ impl WorldSession {
 
         let aura = AuraApplication {
             spell_id,
-            difficulty_id: self.current_map_difficulty_id_like_cpp(),
+            difficulty_id: self.core.current_map_difficulty_id_like_cpp(),
             caster_guid,
             slot,
             duration_total: 30_000,
@@ -458,7 +460,7 @@ impl WorldSession {
 
         let aura = AuraApplication {
             spell_id,
-            difficulty_id: self.current_map_difficulty_id_like_cpp(),
+            difficulty_id: self.core.current_map_difficulty_id_like_cpp(),
             caster_guid,
             slot,
             duration_total: duration_ms,
@@ -720,6 +722,7 @@ impl WorldSession {
             0,
         );
         let canonical_removed = self
+            .core
             .mutate_canonical_player_like_cpp(|player| {
                 player
                     .unit_mut()

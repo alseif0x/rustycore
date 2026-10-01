@@ -298,14 +298,14 @@ pub(super) fn current_player_party_invite_map_instance_like_cpp(
     registry: &PlayerRegistry,
     player_guid: ObjectGuid,
 ) -> (u16, u32) {
-    if let Some(key) = session.current_canonical_player_map_key_like_cpp() {
+    if let Some(key) = session.core.current_canonical_player_map_key_like_cpp() {
         return (key.map_id.min(u32::from(u16::MAX)) as u16, key.instance_id);
     }
 
     registry
         .group_presence(player_guid)
         .map(|entry| (entry.map_id, entry.instance_id))
-        .unwrap_or_else(|| (session.player_map_id_like_cpp(), 0))
+        .unwrap_or_else(|| (session.core.player_map_id_like_cpp(), 0))
 }
 
 pub(super) async fn target_social_ignores_inviter_like_cpp(

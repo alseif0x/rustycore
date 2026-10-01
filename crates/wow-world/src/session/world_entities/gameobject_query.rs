@@ -6,13 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn restore_represented_gameobject_override_flags_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-    ) {
-        self.world_entities
-            .restore_represented_gameobject_override_flags_like_cpp(guid)
-    }
     pub(crate) fn update_visible_gameobjects_like_cpp(&mut self) -> usize {
         let mut sent = 0;
         let visible_guids = self
@@ -25,7 +18,7 @@ impl WorldSession {
             if !guid.is_game_object() {
                 continue;
             }
-            let Some(access) = self.canonical_gameobject_access_like_cpp(guid) else {
+            let Some(access) = self.core.canonical_gameobject_access_like_cpp(guid) else {
                 continue;
             };
             let Some(state) = self
@@ -48,7 +41,7 @@ impl WorldSession {
                 self.represented_gameobject_dynamic_flags_for_player_like_cpp(access.entry, &state);
             let Some(update) = crate::session::represented_gameobject_dynamic_flags_update_like_cpp(
                 guid,
-                self.player_map_id_like_cpp(),
+                self.core.player_map_id_like_cpp(),
                 dynamic_flags,
             ) else {
                 continue;
@@ -69,7 +62,7 @@ impl WorldSession {
         visibility_radius: f32,
     ) -> Option<Vec<wow_packet::packets::update::GameObjectCreateData>> {
         let requested_map_id = u32::from(map_id);
-        let player_map_key = self.current_canonical_player_map_key_like_cpp();
+        let player_map_key = self.core.current_canonical_player_map_key_like_cpp();
         let source_combat_reach = self.represented_visibility_source_combat_reach_like_cpp();
         // Resolve Player-owned phase state before entering the map. The
         // canonical Player handle uses this same manager mutex, so consulting
@@ -192,9 +185,6 @@ impl WorldSession {
     pub fn set_gameobject_display_info_store(&mut self, store: Arc<GameObjectDisplayInfoStore>) {
         self.catalogs.gameobjects.display_info_store = Some(store);
     }
-    pub(crate) fn gameobject_display_info_store(&self) -> Option<&Arc<GameObjectDisplayInfoStore>> {
-        self.catalogs.gameobject_display_info_store()
-    }
     pub fn set_gameobject_template_lifecycle_store(
         &mut self,
         store: Arc<GameObjectTemplateLifecycleStoreLikeCpp>,
@@ -208,7 +198,7 @@ impl WorldSession {
     where
         F: FnOnce(&wow_map::map::GameObjectsUpdateSummaryLikeCpp) -> Vec<ObjectGuid>,
     {
-        let key = self.current_canonical_player_map_key_like_cpp()?;
+        let key = self.core.current_canonical_player_map_key_like_cpp()?;
         let manager = self.core.canonical_map_manager.as_ref()?;
         let player_guid = self.player_guid()?;
         let represented_seer_guid = self.current_seer_guid_like_cpp();

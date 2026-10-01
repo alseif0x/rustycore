@@ -42,7 +42,7 @@ async fn authoritative_partial_gameobject_release_drops_cache_and_reopen_rehydra
     };
     session.record_represented_gameobject_chest_release_metadata_like_cpp(owner_guid, source);
     assert!(session.reconcile_represented_loot_cache_like_cpp(owner_guid, player_guid));
-    session.set_active_loot_guid(owner_guid);
+    session.loot.set_active_loot_guid(owner_guid);
     let response = authoritative_test_loot_response_like_cpp(
         owner_guid,
         &session.loot.loot_table[&owner_guid],
@@ -92,7 +92,7 @@ async fn authoritative_partial_gameobject_release_drops_cache_and_reopen_rehydra
             .get(&(owner_guid, player_guid)),
         Some(&11)
     );
-    assert!(session.is_active_loot_guid(owner_guid));
+    assert!(session.loot.is_active_loot_guid(owner_guid));
 
     let slot = before_reopen.loot.items[0].loot_list_id;
     authority
@@ -166,7 +166,7 @@ async fn personal_gameobject_release_deactivates_only_after_every_pool_is_looted
 
     session.set_player_guid(Some(first_player));
     assert!(session.reconcile_represented_loot_cache_like_cpp(owner_guid, first_player));
-    session.set_active_loot_guid(owner_guid);
+    session.loot.set_active_loot_guid(owner_guid);
     let response = authoritative_test_loot_response_like_cpp(
         owner_guid,
         &session.loot.loot_table[&owner_guid],
@@ -202,7 +202,7 @@ async fn personal_gameobject_release_deactivates_only_after_every_pool_is_looted
 
     session.set_player_guid(Some(second_player));
     assert!(session.reconcile_represented_loot_cache_like_cpp(owner_guid, second_player));
-    session.set_active_loot_guid(owner_guid);
+    session.loot.set_active_loot_guid(owner_guid);
     let response = authoritative_test_loot_response_like_cpp(
         owner_guid,
         &session.loot.loot_table[&owner_guid],
@@ -234,7 +234,7 @@ async fn personal_gameobject_release_deactivates_only_after_every_pool_is_looted
     let manager = Arc::clone(session.core.canonical_map_manager.as_ref().unwrap());
     let mut manager = manager.lock().unwrap();
     manager
-        .find_map_mut(u32::from(session.player_map_id_like_cpp()), 0)
+        .find_map_mut(u32::from(session.core.player_map_id_like_cpp()), 0)
         .unwrap()
         .map_mut()
         .update_game_object_like_cpp(owner_guid, 1, 0);
@@ -400,8 +400,10 @@ async fn loot_release_fishing_gameobjects_follow_cpp_state_branches() {
     let fishing_hole = test_gameobject_guid(19_034);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    session.set_active_loot_guid(fishing_node);
-    session.add_active_loot_view_owner_like_cpp(fishing_hole);
+    session.loot.set_active_loot_guid(fishing_node);
+    session
+        .loot
+        .add_active_loot_view_owner_like_cpp(fishing_hole);
     for (guid, go_type, loot_type) in [
         (
             fishing_node,
@@ -494,7 +496,7 @@ async fn gameobject_loot_release_fishing_hole_uses_canonical_use_count_when_repr
     attach_canonical_gameobject(&mut session, game_object);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    session.set_active_loot_guid(fishing_hole);
+    session.loot.set_active_loot_guid(fishing_hole);
     session.record_represented_gameobject_runtime_state_like_cpp(
         0,
         fishing_hole,
@@ -502,7 +504,9 @@ async fn gameobject_loot_release_fishing_hole_uses_canonical_use_count_when_repr
         Position::ZERO,
         GAMEOBJECT_TYPE_FISHING_HOLE as u8,
     );
-    session.record_represented_fishing_hole_max_opens_like_cpp(fishing_hole, 2);
+    session
+        .world_entities
+        .record_represented_fishing_hole_max_opens_like_cpp(fishing_hole, 2);
     session.loot.loot_table.insert(
         fishing_hole,
         CreatureLoot {
@@ -558,8 +562,10 @@ async fn loot_release_personal_chest_records_per_player_despawn_like_cpp() {
     let fallback_chest = test_gameobject_guid(19_040);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    session.set_active_loot_guid(restocked_chest);
-    session.add_active_loot_view_owner_like_cpp(fallback_chest);
+    session.loot.set_active_loot_guid(restocked_chest);
+    session
+        .loot
+        .add_active_loot_view_owner_like_cpp(fallback_chest);
     session
         .core
         .client_visible_guids_like_cpp
@@ -665,7 +671,7 @@ async fn loot_release_personal_chest_without_have_at_client_sends_no_out_of_rang
     let chest_guid = test_gameobject_guid(19_137);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    session.set_active_loot_guid(chest_guid);
+    session.loot.set_active_loot_guid(chest_guid);
     session.record_represented_gameobject_runtime_state_like_cpp(
         0,
         chest_guid,
@@ -728,8 +734,8 @@ async fn loot_release_shared_chest_restock_starts_like_cpp() {
     let partial_chest = test_gameobject_guid(19_041);
     let full_chest = test_gameobject_guid(19_042);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(partial_chest);
-    session.add_active_loot_view_owner_like_cpp(full_chest);
+    session.loot.set_active_loot_guid(partial_chest);
+    session.loot.add_active_loot_view_owner_like_cpp(full_chest);
 
     for guid in [partial_chest, full_chest] {
         session.record_represented_gameobject_runtime_state_like_cpp(

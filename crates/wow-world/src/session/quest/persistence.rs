@@ -12,11 +12,6 @@ impl WorldSession {
     ) {
         crate::session::cx_quest_state(self).set_quest_poi_persistence_port_like_cpp(port)
     }
-    pub(crate) fn quest_poi_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>> {
-        crate::session::cx_quest_state_ref(self).quest_poi_persistence_port_like_cpp()
-    }
     pub(in crate::session) fn resolved_current_player_xp_persistence_request_like_cpp(
         &self,
         level_changed: bool,

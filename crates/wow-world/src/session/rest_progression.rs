@@ -145,10 +145,11 @@ impl WorldSession {
         }
         let at_max = self.player_is_at_configured_max_level_like_cpp();
         let raf = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
-        self.with_owned_player_mut_like_cpp(|player| {
-            player.set_xp_rest_bonus_like_cpp(rest_bonus, at_max, raf)
-        })
-        .unwrap_or(0)
+        self.core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_xp_rest_bonus_like_cpp(rest_bonus, at_max, raf)
+            })
+            .unwrap_or(0)
     }
 
     pub(crate) fn add_represented_xp_rest_bonus_like_cpp(&mut self, rest_bonus: f32) -> u8 {
@@ -161,10 +162,11 @@ impl WorldSession {
         }
         let at_max = self.player_is_at_configured_max_level_like_cpp();
         let raf = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
-        self.with_owned_player_mut_like_cpp(|player| {
-            player.add_xp_rest_bonus_like_cpp(rest_bonus, at_max, raf)
-        })
-        .unwrap_or(0)
+        self.core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.add_xp_rest_bonus_like_cpp(rest_bonus, at_max, raf)
+            })
+            .unwrap_or(0)
     }
 
     #[cfg(test)]
@@ -217,9 +219,10 @@ impl WorldSession {
     }
 
     pub(crate) fn represented_player_has_flag_like_cpp(&self, flag: u32) -> bool {
-        let canonical = self
-            .player_guid()
-            .and_then(|guid| self.canonical_player_has_player_flag_like_cpp(guid, flag));
+        let canonical = self.player_guid().and_then(|guid| {
+            self.core
+                .canonical_player_has_player_flag_like_cpp(guid, flag)
+        });
         if let Some(value) = canonical {
             return value;
         }
@@ -235,8 +238,9 @@ impl WorldSession {
     }
 
     pub(crate) fn represented_player_flags_value_like_cpp(&self) -> Option<u32> {
-        let canonical =
-            self.canonical_player_snapshot_like_cpp(|player| player.data().player_flags);
+        let canonical = self
+            .core
+            .canonical_player_snapshot_like_cpp(|player| player.data().player_flags);
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return self
@@ -270,10 +274,11 @@ impl WorldSession {
         };
         let at_max = self.player_is_at_configured_max_level_like_cpp();
         let raf = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
-        self.with_owned_player_mut_like_cpp(|player| {
-            player.take_xp_rest_bonus_like_cpp(xp, pct, at_max, raf)
-        })
-        .unwrap_or((0, 0))
+        self.core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.take_xp_rest_bonus_like_cpp(xp, pct, at_max, raf)
+            })
+            .unwrap_or((0, 0))
     }
 
     pub(crate) fn resolved_xp_rest_bonus_like_cpp(&self) -> Option<f32> {
@@ -322,8 +327,9 @@ impl WorldSession {
 
     pub(crate) fn resolved_player_flags_for_create_like_cpp(&self) -> Option<(u32, u32)> {
         let player_flags = self.resolved_player_flags_for_rest_state_save_like_cpp()?;
-        let canonical_flags_ex =
-            self.with_owned_player_for_rest_like_cpp(|player| player.data().player_flags_ex);
+        let canonical_flags_ex = self
+            .core
+            .with_owned_player_for_rest_like_cpp(|player| player.data().player_flags_ex);
         #[cfg(test)]
         let canonical_flags_ex =
             if canonical_flags_ex.is_none() && self.core.player_handle_like_cpp.is_none() {

@@ -14,12 +14,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_world_entities_mut(self);
         state.mutate_canonical_gameobject_by_guid_like_cpp(&mut hub, guid, f)
     }
-    pub(crate) fn canonical_gameobject_access_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) -> Option<RepresentedGameObjectAccessLikeCpp> {
-        self.core.canonical_gameobject_access_like_cpp(guid)
-    }
     pub(crate) fn represented_gameobject_dynamic_flags_for_player_like_cpp(
         &self,
         gameobject_entry: u32,
@@ -194,19 +188,11 @@ impl WorldSession {
         let (state, hub) = crate::session::split_world_entities_ref(self);
         state.represented_gameobject_is_friendly_to_player_like_cpp(hub, gameobject_guid)
     }
-    pub(crate) fn apply_represented_gameobject_cooldown_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        cooldown_secs: u32,
-    ) -> bool {
-        self.world_entities
-            .apply_represented_gameobject_cooldown_like_cpp(gameobject_guid, cooldown_secs)
-    }
     pub(in crate::session) fn tick_represented_gameobject_update_like_cpp(&mut self) {
         let now = Instant::now();
         let current_player_guid = self.player_guid();
         let current_player_position = self.player_position_like_cpp();
-        let current_map_id = self.player_map_id_like_cpp();
+        let current_map_id = self.core.player_map_id_like_cpp();
         let expired_per_player_states = self
             .world_entities
             .represented_gameobject_use_states
@@ -588,7 +574,8 @@ impl WorldSession {
             self.core.client_visible_guids_like_cpp.insert(guid);
         }
         for guid in expired_door_or_button_guids {
-            self.reset_represented_gameobject_door_or_button_like_cpp(guid);
+            self.world_entities
+                .reset_represented_gameobject_door_or_button_like_cpp(guid);
         }
         for (guid, max_charges) in charge_depleted_guids {
             if let Some(state) = self
@@ -666,7 +653,8 @@ impl WorldSession {
                 state.loot_state_unit_guid = wow_core::ObjectGuid::EMPTY;
             }
             self.loot.loot_table.remove(&guid);
-            let _ = self.queue_chest_gameobject_state_refresh_for_same_map_like_cpp(guid);
+            let _ = crate::session::cx_loot_ref(self)
+                .queue_chest_gameobject_state_refresh_for_same_map_like_cpp(guid);
         }
         for guid in ready_bomb_trap_guids {
             if let Some(state) = self
@@ -785,7 +773,8 @@ impl WorldSession {
         for (guid, source) in just_deactivated_goobers {
             self.apply_represented_gameobject_goober_just_deactivated_like_cpp(guid, source);
             if !source.consumable {
-                let _ = self.queue_goober_gameobject_state_refresh_for_same_map_like_cpp(guid);
+                let _ = crate::session::cx_loot_ref(self)
+                    .queue_goober_gameobject_state_refresh_for_same_map_like_cpp(guid);
             }
         }
         for (
@@ -865,7 +854,8 @@ impl WorldSession {
             let send_despawn_at_action = is_despawn_at_action || go_anim_progress > 0;
             if send_despawn_at_action && !delete_after_clear && !schedule_respawn {
                 self.send_represented_gameobject_despawn_to_visible_set_like_cpp(guid);
-                self.restore_represented_gameobject_override_flags_like_cpp(guid);
+                self.world_entities
+                    .restore_represented_gameobject_override_flags_like_cpp(guid);
             }
             if delete_after_clear || schedule_respawn {
                 self.core.client_visible_guids_like_cpp.remove(&guid);
@@ -1148,3 +1138,7 @@ impl crate::session::state::SessionCore {
         })
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/world_entities/gameobject/f3_shims.rs"]
+mod f3_shims;

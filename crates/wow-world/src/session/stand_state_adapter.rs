@@ -116,6 +116,7 @@ impl WorldSession {
             return RepresentedLiveIntentApplyOutcomeLikeCpp::RejectedMissingCanonicalPlayer;
         };
         let spell_difficulty_id = self
+            .core
             .current_canonical_player_map_difficulty_id_like_cpp()
             .unwrap_or(0);
         let standing_flag = wow_entities::SPELL_AURA_INTERRUPT_FLAG_STANDING_LIKE_CPP;
@@ -125,7 +126,7 @@ impl WorldSession {
             canonical_removed_visible_slots,
             mut channel_cancellation_boundary,
             canonical_interrupted_spell_ids,
-        )) = self.mutate_canonical_player_like_cpp(|player| {
+        )) = self.core.mutate_canonical_player_like_cpp(|player| {
             let previous = player.unit().stand_state_like_cpp();
             let unit = player.unit_mut();
             unit.set_stand_state_like_cpp(state);
@@ -353,7 +354,7 @@ impl WorldSession {
             values.stand_state = state as u8;
             let update = wow_packet::packets::update::UpdateObject::unit_values_update(
                 player_guid,
-                self.player_map_id_like_cpp(),
+                self.core.player_map_id_like_cpp(),
                 values,
             );
             let bytes = update.to_bytes();

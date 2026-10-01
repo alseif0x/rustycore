@@ -9,7 +9,7 @@ impl WorldSession {
     #[cfg(test)]
     pub(in crate::session) fn initial_player_fixture_like_cpp(&self) -> Option<Player> {
         self.build_initial_player_for_owner_like_cpp(
-            wow_map::MapKey::new(u32::from(self.player_map_id_like_cpp()), 0),
+            wow_map::MapKey::new(u32::from(self.core.player_map_id_like_cpp()), 0),
             None,
         )
     }
@@ -30,7 +30,7 @@ impl WorldSession {
         drop(manager);
         self.core.player_handle_like_cpp = Some(handle);
         self.core.player_identity_bootstrap_like_cpp = None;
-        self.with_owned_player_like_cpp(Player::guid) == Some(guid)
+        self.core.with_owned_player_like_cpp(Player::guid) == Some(guid)
     }
     #[cfg(test)]
     pub(crate) fn id_generators_for_test_like_cpp(&self) -> SessionIdGeneratorsLikeCpp {

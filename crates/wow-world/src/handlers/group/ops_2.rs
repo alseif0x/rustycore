@@ -35,7 +35,7 @@ impl WorldSession {
             Some(registry) => std::sync::Arc::clone(registry),
             None => return,
         };
-        let vra = self.virtual_realm_address();
+        let vra = self.core.virtual_realm_address();
 
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
@@ -56,7 +56,8 @@ impl WorldSession {
             Err(_) => return,
         };
         let (target_guid, new_subgroup) = outcome.facts;
-        self.persist_group_intents_like_cpp(group_guid, outcome.persistence)
+        self.lifecycle
+            .persist_group_intents_like_cpp(group_guid, outcome.persistence)
             .await;
 
         if target_guid == sender_guid {
@@ -109,7 +110,7 @@ impl WorldSession {
             Some(registry) => std::sync::Arc::clone(registry),
             None => return,
         };
-        let vra = self.virtual_realm_address();
+        let vra = self.core.virtual_realm_address();
 
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
@@ -130,7 +131,8 @@ impl WorldSession {
             Err(_) => return,
         };
         let subgroup_updates = outcome.facts;
-        self.persist_group_intents_like_cpp(group_guid, outcome.persistence)
+        self.lifecycle
+            .persist_group_intents_like_cpp(group_guid, outcome.persistence)
             .await;
 
         for (member_guid, subgroup) in subgroup_updates {
@@ -190,7 +192,7 @@ impl WorldSession {
             return;
         };
         let target_name = target.player_name;
-        let vra = self.virtual_realm_address();
+        let vra = self.core.virtual_realm_address();
 
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
@@ -209,7 +211,8 @@ impl WorldSession {
             Ok(outcome) => outcome,
             Err(_) => return,
         };
-        self.persist_group_intents_like_cpp(group_guid, outcome.persistence)
+        self.lifecycle
+            .persist_group_intents_like_cpp(group_guid, outcome.persistence)
             .await;
 
         send_group_new_leader_like_cpp(&outcome.group, &registry, &target_name).await;
@@ -244,7 +247,7 @@ impl WorldSession {
             Some(registry) => std::sync::Arc::clone(registry),
             None => return,
         };
-        let vra = self.virtual_realm_address();
+        let vra = self.core.virtual_realm_address();
 
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
@@ -265,7 +268,8 @@ impl WorldSession {
             Ok(outcome) => outcome,
             Err(_) => return,
         };
-        self.persist_group_intents_like_cpp(group_guid, outcome.persistence)
+        self.lifecycle
+            .persist_group_intents_like_cpp(group_guid, outcome.persistence)
             .await;
 
         send_party_update(&outcome.group, &registry, vra);
@@ -296,7 +300,7 @@ impl WorldSession {
             Some(registry) => std::sync::Arc::clone(registry),
             None => return,
         };
-        let vra = self.virtual_realm_address();
+        let vra = self.core.virtual_realm_address();
 
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
@@ -315,7 +319,8 @@ impl WorldSession {
             Ok(outcome) => outcome,
             Err(_) => return,
         };
-        self.persist_group_intents_like_cpp(group_guid, outcome.persistence)
+        self.lifecycle
+            .persist_group_intents_like_cpp(group_guid, outcome.persistence)
             .await;
 
         send_party_update(&outcome.group, &registry, vra);
@@ -358,7 +363,8 @@ impl WorldSession {
             return;
         }
 
-        self.record_represented_silence_party_talker_like_cpp(silence.target, silence.silent);
+        self.social
+            .record_represented_silence_party_talker_like_cpp(silence.target, silence.silent);
     }
     /// CMSG_DO_READY_CHECK.
     ///
@@ -488,7 +494,7 @@ impl WorldSession {
             Some(registry) => std::sync::Arc::clone(registry),
             None => return,
         };
-        let vra = self.virtual_realm_address();
+        let vra = self.core.virtual_realm_address();
 
         let Some(group_guid) = current_group_guid_like_cpp(
             &group_reg,
@@ -509,7 +515,8 @@ impl WorldSession {
             Ok(outcome) => outcome,
             Err(_) => return,
         };
-        self.persist_group_intents_like_cpp(group_guid, outcome.persistence)
+        self.lifecycle
+            .persist_group_intents_like_cpp(group_guid, outcome.persistence)
             .await;
 
         send_party_update(&outcome.group, &registry, vra);
@@ -603,7 +610,7 @@ impl WorldSession {
 
         if lfg_roles_mutated_existing_target {
             if let Some(registry) = registry.as_ref() {
-                let vra = self.virtual_realm_address();
+                let vra = self.core.virtual_realm_address();
                 send_party_update(&outcome.group, registry, vra);
             }
         }

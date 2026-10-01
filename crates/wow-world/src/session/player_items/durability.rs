@@ -25,10 +25,6 @@ impl WorldSession {
     pub fn set_durability_loss_on_death_rate_like_cpp(&mut self, rate: f32) {
         self.config.durability_loss_on_death_rate_like_cpp = rate.clamp(0.0, 1.0);
     }
-    #[must_use]
-    pub(crate) fn durability_loss_on_death_rate_like_cpp(&self) -> f32 {
-        self.config.durability_loss_on_death_rate_like_cpp()
-    }
     /// Set the C++ `CONFIG_STATS_LIMITS_*` values (`World.cpp:1664-1668`).
     pub fn set_stats_limits_like_cpp(&mut self, limits: wow_data::StatsLimitsLikeCpp) {
         self.config.stats_limits_like_cpp = limits;
@@ -260,7 +256,7 @@ impl WorldSession {
     /// C++ truncates that value to `uint32`, so with no aura the message percent
     /// is 0; that legacy behaviour is reproduced rather than repaired.
     pub(crate) fn apply_represented_durability_loss_on_death_like_cpp(&mut self) -> u32 {
-        let base_loss = f64::from(self.durability_loss_on_death_rate_like_cpp());
+        let base_loss = f64::from(self.config.durability_loss_on_death_rate_like_cpp());
         let multiplier = f64::from(self.represented_durability_loss_aura_multiplier_like_cpp());
         let loss = (base_loss - base_loss * multiplier) as u32;
         self.apply_represented_durability_loss_all_like_cpp(base_loss, false);
@@ -298,22 +294,6 @@ impl WorldSession {
     pub fn durability_quality_store(&self) -> Option<&Arc<DurabilityQualityStore>> {
         self.catalogs.durability_quality_store.as_ref()
     }
-    pub(crate) fn item_durability_repair_cost_like_cpp(
-        &self,
-        item_id: u32,
-        current_durability: u32,
-        max_durability: u32,
-        discount: f32,
-        repair_cost_rate: f32,
-    ) -> u64 {
-        self.catalogs.item_durability_repair_cost_like_cpp(
-            item_id,
-            current_durability,
-            max_durability,
-            discount,
-            repair_cost_rate,
-        )
-    }
     /// C++ `Player::DurabilityRepair(pos, takeCost, discountMod)` for one represented item.
     pub(crate) async fn repair_inventory_item_durability_with_generator_like_cpp(
         &mut self,
@@ -345,7 +325,7 @@ impl WorldSession {
             .unwrap_or_else(|| item_guid.counter() as u64);
         let current_durability = item_object.data().durability;
         let max_durability = item_object.data().max_durability;
-        let cost = self.item_durability_repair_cost_like_cpp(
+        let cost = self.catalogs.item_durability_repair_cost_like_cpp(
             item_entry_id,
             current_durability,
             max_durability,
@@ -369,8 +349,10 @@ impl WorldSession {
             }
             let new_money = old_money - cost;
 
-            let money_persistence = if let Some(port) =
-                self.player_lifecycle_port_like_cpp().map(Arc::clone)
+            let money_persistence = if let Some(port) = self
+                .lifecycle
+                .player_lifecycle_port_like_cpp()
+                .map(Arc::clone)
             {
                 let Some(player_guid) = self.player_guid() else {
                     return false;
@@ -418,7 +400,11 @@ impl WorldSession {
             )
             .await;
             return repaired;
-        } else if let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) {
+        } else if let Some(port) = self
+            .lifecycle
+            .player_lifecycle_port_like_cpp()
+            .map(Arc::clone)
+        {
             match port
                 .persist_durability_repair_like_cpp(
                     wow_persistence::PlayerDurabilityRepairSaveLikeCpp {
@@ -498,7 +484,7 @@ impl WorldSession {
                 };
                 if let Some(update) = item_values_update_to_update_object(
                     item_guid,
-                    self.player_map_id_like_cpp(),
+                    self.core.player_map_id_like_cpp(),
                     &durability_update,
                 ) {
                     self.send_packet(&update);
@@ -567,40 +553,43 @@ impl WorldSession {
         }
         let new_money = old_money - total_cost;
 
-        let money_persistence =
-            if let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) {
-                let Some(player_guid) = self.player_guid() else {
-                    return false;
-                };
-                let request = wow_persistence::PlayerMoneyTransactionRequestLikeCpp {
-                    player_guid: player_guid.counter() as u64,
-                    money_after: new_money,
-                    durability_repairs: planned_repairs
-                        .iter()
-                        .map(|&(_, item_db_guid, durability)| {
-                            wow_persistence::PlayerDurabilityRepairSaveLikeCpp {
-                                item_db_guid,
-                                durability,
-                            }
-                        })
-                        .collect(),
-                };
-                let Some(money_persistence) = self
-                    .await_exclusive_player_money_transaction_outcome_like_cpp(
-                        money_persistence,
-                        port.persist_money_transaction_like_cpp(request),
-                        old_money,
-                        new_money,
-                        "all-items durability repair",
-                    )
-                    .await
-                else {
-                    return false;
-                };
-                money_persistence
-            } else {
-                money_persistence
+        let money_persistence = if let Some(port) = self
+            .lifecycle
+            .player_lifecycle_port_like_cpp()
+            .map(Arc::clone)
+        {
+            let Some(player_guid) = self.player_guid() else {
+                return false;
             };
+            let request = wow_persistence::PlayerMoneyTransactionRequestLikeCpp {
+                player_guid: player_guid.counter() as u64,
+                money_after: new_money,
+                durability_repairs: planned_repairs
+                    .iter()
+                    .map(|&(_, item_db_guid, durability)| {
+                        wow_persistence::PlayerDurabilityRepairSaveLikeCpp {
+                            item_db_guid,
+                            durability,
+                        }
+                    })
+                    .collect(),
+            };
+            let Some(money_persistence) = self
+                .await_exclusive_player_money_transaction_outcome_like_cpp(
+                    money_persistence,
+                    port.persist_money_transaction_like_cpp(request),
+                    old_money,
+                    new_money,
+                    "all-items durability repair",
+                )
+                .await
+            else {
+                return false;
+            };
+            money_persistence
+        } else {
+            money_persistence
+        };
 
         // Money and every durability row share one COMMIT. Mirror all of those
         // rows in runtime while admission is still fenced and before the first

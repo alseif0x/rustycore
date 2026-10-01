@@ -14,15 +14,7 @@ use std::sync::Arc;
 
 use super::super::{ACTIVE_CHARACTER_LOGIN_CLAIMS_LIKE_CPP, ObjectGuid, WorldSession};
 
-impl WorldSession {
-    pub(crate) fn try_claim_character_login_like_cpp(&mut self, guid: ObjectGuid) -> bool {
-        self.lifecycle.try_claim_character_login_like_cpp(guid)
-    }
-
-    pub(crate) fn release_character_login_claim_like_cpp(&mut self) {
-        self.lifecycle.release_character_login_claim_like_cpp()
-    }
-}
+impl WorldSession {}
 
 impl crate::session::state::SessionLifecycleState {
     /// Atomically reserve the only live runtime authority for `guid`.
@@ -82,3 +74,7 @@ impl crate::session::state::SessionLifecycleState {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/lifecycle/login/f3_shims.rs"]
+mod f3_shims;

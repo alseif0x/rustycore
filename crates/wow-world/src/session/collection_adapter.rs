@@ -105,25 +105,6 @@ impl WorldSession {
         crate::session::hub_mut(self).add_player_heirloom_dynamic_fields_like_cpp(item_id, flags)
     }
 
-    pub(crate) fn is_toy_item_like_cpp(&self, item_id: u32) -> bool {
-        self.catalogs.is_toy_item_like_cpp(item_id)
-    }
-
-    pub(crate) fn toy_item_has_spell_effect_like_cpp(&self, item_id: u32, spell_id: i32) -> bool {
-        self.catalogs
-            .toy_item_has_spell_effect_like_cpp(item_id, spell_id)
-    }
-
-    pub(crate) fn toy_item_spell_cooldown_ms_like_cpp(
-        &self,
-        item_id: u32,
-        spell_id: i32,
-        spell_info: &wow_data::SpellInfo,
-    ) -> u32 {
-        self.catalogs
-            .toy_item_spell_cooldown_ms_like_cpp(item_id, spell_id, spell_info)
-    }
-
     pub(crate) fn add_player_toy_dynamic_field_like_cpp(
         &mut self,
         item_id: u32,

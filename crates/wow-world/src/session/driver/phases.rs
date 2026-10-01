@@ -58,11 +58,6 @@ pub(crate) enum SessionDriverPhaseLikeCpp {
 }
 
 impl super::super::WorldSession {
-    #[inline]
-    pub(crate) fn record_driver_phase_like_cpp(&mut self, phase: SessionDriverPhaseLikeCpp) {
-        self.core.record_driver_phase_like_cpp(phase)
-    }
-
     /// The phases recorded since the last reset, in execution order.
     #[cfg(test)]
     pub(crate) fn driver_phase_trace_like_cpp(&self) -> &[SessionDriverPhaseLikeCpp] {

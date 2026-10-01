@@ -138,7 +138,7 @@ impl crate::session::WorldSession {
             let Some(dungeon) = store.get(dungeon_id) else {
                 continue;
             };
-            if self.map_store().is_some_and(|map_store| {
+            if self.catalogs.map_store().is_some_and(|map_store| {
                 !wow_data::lfg_dungeon_is_known_map_like_cpp(dungeon, map_store)
             }) {
                 continue;
@@ -163,7 +163,7 @@ impl crate::session::WorldSession {
         for slot in store.random_and_active_seasonal_dungeon_entries_like_cpp(
             level,
             expansion,
-            |dungeon_id| self.lfg_season_is_active_like_cpp(dungeon_id),
+            |dungeon_id| self.core.lfg_season_is_active_like_cpp(dungeon_id),
         ) {
             let mut dungeon_info = LfgPlayerDungeonInfo::random_dungeon_like_cpp(slot);
             if let Some(reward) = store.random_dungeon_reward_like_cpp(slot, level) {
@@ -183,10 +183,6 @@ impl crate::session::WorldSession {
             .unwrap_or_default();
         self.handle_df_get_system_info_with_catalog_like_cpp(store.as_ref(), pkt)
             .await;
-    }
-
-    fn lfg_season_is_active_like_cpp(&self, _dungeon_id: u32) -> bool {
-        self.core.lfg_season_is_active_like_cpp(_dungeon_id)
     }
 
     pub(in crate::handlers::dungeon_finding) fn lfg_lock_status_like_cpp(
@@ -221,7 +217,7 @@ impl crate::session::WorldSession {
         if dungeon.max_level < level {
             return Some(LFG_LOCKSTATUS_TOO_HIGH_LEVEL_LIKE_CPP);
         }
-        if dungeon.seasonal && !self.lfg_season_is_active_like_cpp(dungeon.id) {
+        if dungeon.seasonal && !self.core.lfg_season_is_active_like_cpp(dungeon.id) {
             return Some(LFG_LOCKSTATUS_NOT_IN_SEASON_LIKE_CPP);
         }
         let Some(current_item_level) = self.represented_average_item_level_like_cpp() else {
@@ -231,6 +227,7 @@ impl crate::session::WorldSession {
             return Some(LFG_LOCKSTATUS_TOO_LOW_GEAR_SCORE_LIKE_CPP);
         }
         if let Some(requirement) = self
+            .catalogs
             .access_requirement_store()
             .and_then(|store| store.get(dungeon.map, dungeon.difficulty))
         {
@@ -295,11 +292,11 @@ impl crate::session::WorldSession {
         let Some(disable_mgr) = self.disable_mgr() else {
             return false;
         };
-        let Some(map_store) = self.map_store() else {
+        let Some(map_store) = self.catalogs.map_store() else {
             return false;
         };
 
-        let current_map_id = u32::from(self.player_map_id_like_cpp());
+        let current_map_id = u32::from(self.core.player_map_id_like_cpp());
         let Some((_, area_id)) = self.player_zone_area_like_cpp() else {
             return true;
         };

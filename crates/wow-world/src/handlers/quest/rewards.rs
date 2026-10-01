@@ -15,15 +15,6 @@ mod items;
 mod validation;
 
 impl WorldSession {
-    fn plan_quest_destroy_item_count_direct_like_cpp(
-        &self,
-        item_entry: u32,
-        count: u32,
-    ) -> Option<Vec<ExtendedCostItemTurninChange>> {
-        crate::session::cx_quest_state_ref(self)
-            .plan_quest_destroy_item_count_direct_like_cpp(item_entry, count)
-    }
-
     async fn remove_quest_required_items_and_currencies_like_cpp(
         &mut self,
         plan: &mut QuestRewardDurablePlanLikeCpp,
@@ -32,7 +23,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return false;
         };
-        let map_id = self.player_map_id_like_cpp();
+        let map_id = self.core.player_map_id_like_cpp();
         let mut item_changes = Vec::new();
         let Some(currency_snapshot) = self.player_currencies_like_cpp() else {
             return false;
@@ -50,8 +41,8 @@ impl WorldSession {
                     } else {
                         u32::try_from(objective.amount).unwrap_or(u32::MAX)
                     };
-                    let Some(mut changes) =
-                        self.plan_quest_destroy_item_count_direct_like_cpp(item_entry, count)
+                    let Some(mut changes) = crate::session::cx_quest_state_ref(self)
+                        .plan_quest_destroy_item_count_direct_like_cpp(item_entry, count)
                     else {
                         return false;
                     };
@@ -91,8 +82,8 @@ impl WorldSession {
                     continue;
                 }
                 let count = if *count == 0 { u32::MAX } else { *count };
-                let Some(mut changes) =
-                    self.plan_quest_destroy_item_count_direct_like_cpp(*item_entry, count)
+                let Some(mut changes) = crate::session::cx_quest_state_ref(self)
+                    .plan_quest_destroy_item_count_direct_like_cpp(*item_entry, count)
                 else {
                     self.set_player_currencies_like_cpp(currency_snapshot);
                     return false;
@@ -315,18 +306,24 @@ impl WorldSession {
                 ReputationGainSourceLikeCpp::RepeatableQuest
             }
         };
-        let faction_store = self.faction_store().map(Arc::clone);
+        let faction_store = self.catalogs.faction_store().map(Arc::clone);
         let quest_faction_reward_store = self
             .catalogs
             .quests
             .faction_reward_store
             .as_ref()
             .map(Arc::clone);
-        let reputation_reward_rate_store = self.reputation_reward_rate_store().map(Arc::clone);
-        let reputation_spillover_template_store =
-            self.reputation_spillover_template_store().map(Arc::clone);
-        let friendship_rep_reaction_store = self.friendship_rep_reaction_store().map(Arc::clone);
-        let paragon_reputation_store = self.paragon_reputation_store().map(Arc::clone);
+        let reputation_reward_rate_store =
+            self.catalogs.reputation_reward_rate_store().map(Arc::clone);
+        let reputation_spillover_template_store = self
+            .catalogs
+            .reputation_spillover_template_store()
+            .map(Arc::clone);
+        let friendship_rep_reaction_store = self
+            .catalogs
+            .friendship_rep_reaction_store()
+            .map(Arc::clone);
+        let paragon_reputation_store = self.catalogs.paragon_reputation_store().map(Arc::clone);
         let currency_types_store = self.currency_types_store().map(Arc::clone);
 
         for slot in 0..wow_data::quest::QUEST_REWARD_REPUTATIONS_COUNT {
@@ -819,12 +816,13 @@ impl WorldSession {
             return false;
         }
         if let Some(committed_money) = committed_money {
-            self.enqueue_represented_quest_objective_progress_like_cpp(
-                RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
-                    old_money: committed_money.money_before,
-                    new_money: committed_money.money_after,
-                },
-            );
+            self.quest_state
+                .enqueue_represented_quest_objective_progress_like_cpp(
+                    RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
+                        old_money: committed_money.money_before,
+                        new_money: committed_money.money_after,
+                    },
+                );
         }
 
         self.sync_player_registry_state_like_cpp();

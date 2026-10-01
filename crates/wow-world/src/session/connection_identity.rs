@@ -131,17 +131,6 @@ impl WorldSession {
             .collect();
     }
 
-    pub(crate) fn virtual_realm_address(&self) -> u32 {
-        self.core.virtual_realm_address()
-    }
-
-    pub(crate) fn realm_names_for_address_like_cpp(
-        &self,
-        realm_address: u32,
-    ) -> Option<(&str, &str)> {
-        self.core.realm_names_for_address_like_cpp(realm_address)
-    }
-
     /// Set the GUID generator for new characters.
     #[cfg(test)]
     pub fn set_guid_generator(&mut self, generator: Arc<ObjectGuidGenerator>) {
@@ -155,46 +144,16 @@ impl WorldSession {
         self.lifecycle.set_player_lifecycle_port_like_cpp(port)
     }
 
-    pub(crate) fn player_lifecycle_port_like_cpp(
-        &self,
-    ) -> Option<&Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>> {
-        self.lifecycle.player_lifecycle_port_like_cpp()
-    }
-
-    pub(crate) fn set_realm_list_secret_like_cpp(&mut self, secret: [u8; 32]) {
-        self.core.set_realm_list_secret_like_cpp(secret)
-    }
-
     pub fn set_mute_time_like_cpp(&mut self, mute_time: i64) {
         self.core.account_state.mute_time_like_cpp = mute_time;
-    }
-
-    pub(crate) fn can_speak_like_cpp(&self) -> bool {
-        self.core.can_speak_like_cpp()
-    }
-
-    pub(crate) fn mute_time_remaining_secs_like_cpp(&self) -> Option<u64> {
-        self.core.mute_time_remaining_secs_like_cpp()
     }
 
     pub fn set_recruiter_id_like_cpp(&mut self, recruiter_id: u32) {
         self.core.account_state.recruiter_id_like_cpp = recruiter_id;
     }
 
-    pub(crate) fn recruiter_id_like_cpp(&self) -> u32 {
-        self.core.recruiter_id_like_cpp()
-    }
-
     pub fn set_is_a_recruiter_like_cpp(&mut self, is_a_recruiter: bool) {
         self.core.account_state.is_a_recruiter_like_cpp = is_a_recruiter;
-    }
-
-    pub(crate) fn is_a_recruiter_like_cpp(&self) -> bool {
-        self.core.is_a_recruiter_like_cpp()
-    }
-
-    pub(crate) fn session_locale_name_like_cpp(&self) -> &str {
-        self.core.session_locale_name_like_cpp()
     }
 
     pub fn realm_id(&self) -> u16 {
@@ -208,10 +167,6 @@ impl WorldSession {
 
     pub fn session_mgr(&self) -> Option<&Arc<SessionManager>> {
         self.core.session_mgr()
-    }
-
-    pub(crate) fn is_addon_registered_like_cpp(&self, prefix: &str) -> bool {
-        self.social.is_addon_registered_like_cpp(prefix)
     }
 
     #[cfg(test)]

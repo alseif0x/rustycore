@@ -124,15 +124,21 @@ fn item_spec_class_mask_from_overrides_uses_chr_specialization_like_cpp() {
     ])));
 
     assert_eq!(
-        session.item_spec_class_mask_from_overrides_like_cpp(777),
+        session
+            .catalogs
+            .item_spec_class_mask_from_overrides_like_cpp(777),
         Some((1 << 1) | (1 << 2))
     );
     assert_eq!(
-        session.item_spec_class_mask_from_overrides_like_cpp(778),
+        session
+            .catalogs
+            .item_spec_class_mask_from_overrides_like_cpp(778),
         Some(0)
     );
     assert_eq!(
-        session.item_spec_class_mask_from_overrides_like_cpp(999),
+        session
+            .catalogs
+            .item_spec_class_mask_from_overrides_like_cpp(999),
         None
     );
 }

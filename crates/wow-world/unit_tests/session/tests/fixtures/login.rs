@@ -279,7 +279,7 @@ pub(in crate::session::tests) fn install_xp_victim_like_cpp(
         .player_guid()
         .unwrap_or_else(|| ObjectGuid::create_player(1, 0xE1C0));
     session.set_player_guid(Some(player_guid));
-    let map_id = session.player_map_id_like_cpp();
+    let map_id = session.core.player_map_id_like_cpp();
     session.set_map_manager(shared_map_manager());
     if session.player_position_like_cpp().is_none() {
         session.set_player_map_position_like_cpp(map_id, Position::new(10.0, 10.0, 0.0, 0.0));

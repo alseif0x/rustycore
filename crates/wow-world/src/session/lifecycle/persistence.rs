@@ -71,7 +71,7 @@ impl WorldSession {
     ) -> PlayerSaveOutcomeLikeCpp {
         // C++ `Player::SaveToDB` delays the next autosave for manual, code, and
         // autosave callers before it appends statements.
-        self.reset_player_save_timer_like_cpp();
+        self.lifecycle.reset_player_save_timer_like_cpp();
         if let Some(outcome) = self.defer_player_save_for_transfer_like_cpp() {
             return outcome;
         }
@@ -79,7 +79,9 @@ impl WorldSession {
         let money_tracker = Arc::clone(&self.lifecycle.durable_loot_money_persistence_like_cpp);
         let money_save_fence = money_tracker.close_admission_for_save_like_cpp();
         trace!(fence = "player.save.mutations_closed", "persistence fence");
-        self.wait_for_durable_item_loot_persistence_like_cpp().await;
+        crate::session::cx_inventory_ref(self)
+            .wait_for_durable_item_loot_persistence_like_cpp()
+            .await;
         self.apply_pending_durable_item_loot_completions_with_objective_drain_like_cpp(
             item_guid_generator,
             false,
@@ -137,7 +139,10 @@ impl WorldSession {
             .await;
             return outcome;
         };
-        let Some(player_lifecycle_port) = self.player_lifecycle_port_like_cpp().map(Arc::clone)
+        let Some(player_lifecycle_port) = self
+            .lifecycle
+            .player_lifecycle_port_like_cpp()
+            .map(Arc::clone)
         else {
             warn!(
                 account = self.core.account_id,

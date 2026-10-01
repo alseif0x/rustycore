@@ -49,6 +49,7 @@ impl WorldSession {
         // target Player's regeneration before `ModifyPower` for a power whose
         // DB2 entry carries `PowerTypeFlags::UseRegenInterrupt`.
         if self
+            .catalogs
             .power_type_store_like_cpp()
             .is_some_and(|store| store.uses_regen_interrupt_like_cpp(power as i8))
         {
@@ -56,6 +57,7 @@ impl WorldSession {
         }
 
         let outcome = self
+            .core
             .mutate_canonical_player_like_cpp(|player| {
                 let max_power = player.get_max_power(power);
                 if max_power <= 0 {
@@ -104,7 +106,7 @@ impl WorldSession {
     /// publish `SMSG_INTERRUPT_POWER_REGEN` with the `Powers` value.
     fn interrupt_player_power_regen_like_cpp(&mut self, power: PowerType, power_type: i32) {
         let now_ms = crate::session::game_time_ms_like_cpp();
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
+        let _ = self.core.mutate_canonical_player_like_cpp(|player| {
             player
                 .unit_mut()
                 .interrupt_power_regen_like_cpp(power, now_ms);
@@ -352,6 +354,7 @@ impl WorldSession {
         // chain applies only to player victims.
         if target_guid.is_creature() {
             let drained = self
+                .core
                 .mutate_canonical_creature_by_guid_like_cpp(target_guid, |creature| {
                     if !creature.is_alive()
                         || party_member_power_kind_from_u8_like_cpp(
@@ -378,7 +381,7 @@ impl WorldSession {
                     .contains(&target_guid)
                 && let Some(update) = self.represented_unit_values_update_to_update_object_like_cpp(
                     target_guid,
-                    self.player_map_id_like_cpp(),
+                    self.core.player_map_id_like_cpp(),
                     &values_update,
                 )
             {
@@ -431,6 +434,7 @@ impl WorldSession {
         }
 
         let drained = self
+            .core
             .mutate_canonical_player_like_cpp(|player| {
                 if party_member_power_kind_from_u8_like_cpp(player.unit().data().display_power)
                     != power
@@ -505,6 +509,7 @@ impl WorldSession {
         }
 
         let restored = self
+            .core
             .mutate_canonical_player_like_cpp(|player| {
                 let history = &mut player.unit_mut().subsystems_mut().spells.history;
                 let mut restored = 0;

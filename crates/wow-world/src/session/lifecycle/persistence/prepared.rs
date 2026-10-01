@@ -57,7 +57,9 @@ impl WorldSession {
             {
                 return None;
             }
-            let header = self.player_save_header_from_owner_like_cpp(player, residence);
+            let header = self
+                .lifecycle
+                .player_save_header_from_owner_like_cpp(player, residence);
             if player.teleport_state_like_cpp().recovery
                 == wow_entities::PlayerTransferRecovery::Terminal
             {
@@ -82,15 +84,6 @@ impl WorldSession {
                 header,
             })
         })?
-    }
-
-    pub(in crate::session) fn player_save_header_from_owner_like_cpp(
-        &self,
-        player: &wow_entities::Player,
-        residence: wow_map::PlayerResidenceLikeCpp,
-    ) -> PlayerSaveToDbSnapshotLikeCpp {
-        self.lifecycle
-            .player_save_header_from_owner_like_cpp(player, residence)
     }
 }
 

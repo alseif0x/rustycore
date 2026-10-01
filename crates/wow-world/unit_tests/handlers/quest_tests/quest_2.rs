@@ -462,7 +462,7 @@ async fn quest_giver_choose_reward_applies_reputation_reward_rate_like_cpp() {
                     spell_rate: 1.0,
                 },
             }],
-            session.faction_store().unwrap(),
+            session.catalogs.faction_store().unwrap(),
         )
         .0,
     ));
@@ -614,7 +614,7 @@ async fn quest_giver_choose_reward_skips_zero_reputation_reward_rate_like_cpp() 
                     spell_rate: 1.0,
                 },
             }],
-            session.faction_store().unwrap(),
+            session.catalogs.faction_store().unwrap(),
         )
         .0,
     ));

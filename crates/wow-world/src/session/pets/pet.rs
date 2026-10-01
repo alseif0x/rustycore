@@ -26,13 +26,6 @@ impl WorldSession {
     pub(in crate::session) fn enable_pet_controls_on_dismount_like_cpp(&mut self) {
         crate::session::hub_mut(self).enable_pet_controls_on_dismount_like_cpp()
     }
-    pub(in crate::session) fn with_canonical_pet_mut_like_cpp<R>(
-        &self,
-        pet_guid: ObjectGuid,
-        mutate: impl FnOnce(&mut Pet) -> R,
-    ) -> Option<R> {
-        self.core.with_canonical_pet_mut_like_cpp(pet_guid, mutate)
-    }
     pub(in crate::session) fn update_player_pet_lifecycle_state_like_cpp(
         &mut self,
         update: impl FnOnce(&mut PlayerPetLifecycleStateLikeCpp),
@@ -93,40 +86,15 @@ impl WorldSession {
     pub(crate) fn remove_represented_pet_not_in_slot_like_cpp(&mut self) {
         crate::session::hub_mut(self).remove_represented_pet_not_in_slot_like_cpp()
     }
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_represented_sign_petition_like_cpp(
-        &mut self,
-        petition_guid: ObjectGuid,
-        choice: u8,
-    ) {
-        crate::session::cx_pets(self)
-            .record_represented_sign_petition_like_cpp(petition_guid, choice)
-    }
     #[cfg(test)]
     pub(crate) fn represented_sign_petitions_like_cpp(&self) -> &[RepresentedSignPetitionLikeCpp] {
         &self.social.represented_sign_petitions_like_cpp
-    }
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_represented_decline_petition_like_cpp(
-        &mut self,
-        petition_guid: ObjectGuid,
-    ) {
-        crate::session::cx_pets(self).record_represented_decline_petition_like_cpp(petition_guid)
     }
     #[cfg(test)]
     pub(crate) fn represented_decline_petitions_like_cpp(
         &self,
     ) -> &[RepresentedDeclinePetitionLikeCpp] {
         &self.social.represented_decline_petitions_like_cpp
-    }
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_represented_query_petition_like_cpp(
-        &mut self,
-        petition_id: u32,
-        item_guid: ObjectGuid,
-    ) {
-        crate::session::cx_pets(self)
-            .record_represented_query_petition_like_cpp(petition_id, item_guid)
     }
     #[cfg(test)]
     pub(crate) fn represented_query_petitions_like_cpp(
@@ -146,6 +114,7 @@ impl WorldSession {
             return;
         };
         let tapper_has_current_player = self
+            .core
             .mutate_world_creature(creature_guid, |creature| {
                 creature.creature.tap_list().contains(&player_guid)
             })

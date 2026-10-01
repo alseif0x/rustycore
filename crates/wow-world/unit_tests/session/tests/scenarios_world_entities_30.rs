@@ -369,7 +369,7 @@ fn respawn_queue_lives_in_map_not_in_session_like_cpp() {
     session.flush_runtime_output(output);
 
     // Verify the pending respawn is in the map, not in a session field.
-    let map_id = session.player_map_id_like_cpp();
+    let map_id = session.core.player_map_id_like_cpp();
     let queue_len = session
         .core
         .map_manager

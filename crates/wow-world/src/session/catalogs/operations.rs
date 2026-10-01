@@ -9,9 +9,6 @@ impl WorldSession {
     pub fn set_trainer_store_like_cpp(&mut self, store: Arc<TrainerStoreLikeCpp>) {
         self.catalogs.trainer_store_like_cpp = Some(store);
     }
-    pub(crate) fn trainer_store_like_cpp(&self) -> Option<&Arc<TrainerStoreLikeCpp>> {
-        self.catalogs.trainer_store_like_cpp()
-    }
     pub fn set_trinity_string_store(&mut self, store: Arc<TrinityStringStoreLikeCpp>) {
         self.catalogs.trinity_string_store = Some(store);
     }
@@ -72,9 +69,11 @@ impl WorldSession {
         ) else {
             return;
         };
-        if let Some(packet) =
-            item_values_update_to_update_object(item_guid, self.player_map_id_like_cpp(), &update)
-        {
+        if let Some(packet) = item_values_update_to_update_object(
+            item_guid,
+            self.core.player_map_id_like_cpp(),
+            &update,
+        ) {
             self.send_packet(&packet);
         }
     }
@@ -121,15 +120,13 @@ impl WorldSession {
     pub fn set_lock_store(&mut self, store: Arc<LockStore>) {
         self.catalogs.lock_store = Some(store);
     }
-    pub(crate) fn lock_store(&self) -> Option<&Arc<LockStore>> {
-        self.catalogs.lock_store()
-    }
     pub fn set_gem_properties_store(&mut self, store: Arc<GemPropertiesStore>) {
         self.catalogs.gem_properties_store = Some(store);
     }
     /// Set the ChrSpecialization store for this session.
     pub fn set_chr_specialization_store(&mut self, store: Arc<ChrSpecializationStore>) {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.catalogs.chr.specialization_store = Some(store);
     }
     pub fn chr_specialization_store(&self) -> Option<&Arc<ChrSpecializationStore>> {
@@ -138,14 +135,8 @@ impl WorldSession {
     pub fn set_world_safe_loc_store_like_cpp(&mut self, store: Arc<WorldSafeLocStore>) {
         self.catalogs.world_safe_loc_store_like_cpp = Some(store);
     }
-    pub(crate) fn world_safe_loc_store_like_cpp(&self) -> Option<&Arc<WorldSafeLocStore>> {
-        self.catalogs.world_safe_loc_store_like_cpp()
-    }
     pub fn set_access_requirement_store(&mut self, store: Arc<AccessRequirementStoreLikeCpp>) {
         self.catalogs.access_requirement_store = Some(store);
-    }
-    pub(crate) fn access_requirement_store(&self) -> Option<&Arc<AccessRequirementStoreLikeCpp>> {
-        self.catalogs.access_requirement_store()
     }
     pub fn set_lfg_dungeons_store(&mut self, store: Arc<LfgDungeonsStore>) {
         self.catalogs.lfg_dungeons_store = Some(store);
@@ -161,9 +152,6 @@ impl WorldSession {
         self.catalogs.factions.store = Some(store);
         self.initialize_reputation_mgr_like_cpp();
     }
-    pub(crate) fn faction_store(&self) -> Option<&Arc<FactionStore>> {
-        self.catalogs.faction_store()
-    }
     pub fn set_faction_template_store(&mut self, store: Arc<FactionTemplateStore>) {
         self.catalogs.factions.template_store = Some(store);
     }
@@ -171,9 +159,6 @@ impl WorldSession {
         self.catalogs.mount_store = Some(store);
         self.expand_account_mount_faction_definitions_like_cpp();
         self.learn_account_mount_spells_like_cpp();
-    }
-    pub(crate) fn mount_store(&self) -> Option<&Arc<MountStore>> {
-        self.catalogs.mount_store()
     }
     pub fn set_mount_definition_store_like_cpp(&mut self, store: Arc<MountDefinitionStoreLikeCpp>) {
         self.catalogs.mount_definition_store_like_cpp = Some(store);
@@ -207,9 +192,6 @@ impl WorldSession {
     pub fn set_trait_definition_store(&mut self, store: Arc<TraitDefinitionStore>) {
         self.catalogs.trait_definition_store = Some(store);
     }
-    pub(crate) fn trait_definition_store(&self) -> Option<&Arc<TraitDefinitionStore>> {
-        self.catalogs.trait_definition_store()
-    }
     pub fn set_trait_tree_skill_line_index(
         &mut self,
         index: Arc<wow_data::trait_tree::TraitTreeSkillLineIndexLikeCpp>,
@@ -240,19 +222,6 @@ impl WorldSession {
     pub fn set_cinematic_sequences_store(&mut self, store: Arc<CinematicSequencesStore>) {
         self.catalogs.set_cinematic_sequences_store(store)
     }
-    pub(crate) fn feature_system_status_with_policy_like_cpp(
-        &self,
-        policy: &SupportFeaturePolicyLikeCpp,
-    ) -> FeatureSystemStatus {
-        self.core.feature_system_status_with_policy_like_cpp(policy)
-    }
-    pub(crate) fn feature_system_status_glue_screen_with_policy_like_cpp(
-        &self,
-        policy: &SupportFeaturePolicyLikeCpp,
-    ) -> FeatureSystemStatusGlueScreen {
-        self.core
-            .feature_system_status_glue_screen_with_policy_like_cpp(policy)
-    }
     pub(in crate::session) fn player_is_at_configured_max_level_like_cpp(&self) -> bool {
         crate::session::hub_ref(self).player_is_at_configured_max_level_like_cpp()
     }
@@ -279,16 +248,17 @@ impl WorldSession {
         };
         let at_max = self.player_is_at_configured_max_level_like_cpp();
         let raf = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
-        self.with_owned_player_mut_like_cpp(|player| {
-            player.apply_offline_xp_rest_bonus_like_cpp(
-                logout_time_secs,
-                now_secs,
-                bubble,
-                at_max,
-                raf,
-            )
-        })
-        .unwrap_or(0.0)
+        self.core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.apply_offline_xp_rest_bonus_like_cpp(
+                    logout_time_secs,
+                    now_secs,
+                    bubble,
+                    at_max,
+                    raf,
+                )
+            })
+            .unwrap_or(0.0)
     }
     pub(in crate::session) fn update_represented_online_xp_rest_bonus_with_policy_like_cpp(
         &mut self,
@@ -302,10 +272,11 @@ impl WorldSession {
         let bubble = REST_ONLINE_INGAME_BUBBLE_LIKE_CPP * policy.ingame;
         let at_max = self.player_is_at_configured_max_level_like_cpp();
         let raf = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
-        self.with_owned_player_mut_like_cpp(|player| {
-            player.update_online_xp_rest_bonus_like_cpp(now_secs, bubble, at_max, raf)
-        })
-        .unwrap_or((0.0, 0))
+        self.core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.update_online_xp_rest_bonus_like_cpp(now_secs, bubble, at_max, raf)
+            })
+            .unwrap_or((0.0, 0))
     }
     pub(in crate::session) fn tick_represented_online_xp_rest_bonus_with_policy_like_cpp(
         &mut self,
@@ -315,7 +286,7 @@ impl WorldSession {
         // C++ `RestMgr::Update` freezes the elapsed-time update behind
         // `roll_chance_i(3)`. Use the session's runtime RNG so the gate is
         // probabilistic in production and seedable in focused tests.
-        let update_roll_passed = self.represented_urand_u32_like_cpp(1, 100) <= 3;
+        let update_roll_passed = self.core.represented_urand_u32_like_cpp(1, 100) <= 3;
         self.tick_represented_online_xp_rest_bonus_with_roll_and_policy_like_cpp(
             policy,
             now_secs,
@@ -419,8 +390,9 @@ impl WorldSession {
         use wow_packet::packets::auth::*;
         use wow_packet::packets::misc::*;
 
-        let vra = self.virtual_realm_address();
+        let vra = self.core.virtual_realm_address();
         let (realm_name_actual, realm_name_normalized) = self
+            .core
             .realm_names_for_address_like_cpp(vra)
             .unwrap_or(("RustyCore", "RustyCore"));
 
@@ -464,7 +436,11 @@ impl WorldSession {
         self.send_packet(&SetTimeZoneInformation::utc());
 
         // 3. FeatureSystemStatusGlueScreen (character select version, NOT in-game)
-        self.send_packet(&self.feature_system_status_glue_screen_with_policy_like_cpp(policy));
+        self.send_packet(
+            &self
+                .core
+                .feature_system_status_glue_screen_with_policy_like_cpp(policy),
+        );
 
         // 4. ClientCacheVersion (from world DB version.cache_id = 24081)
         self.send_packet(&ClientCacheVersion {
@@ -488,11 +464,13 @@ impl WorldSession {
 
         // 6. AccountDataTimes (global)
         self.send_packet(
-            &self.account_data_times_like_cpp(ObjectGuid::EMPTY, GLOBAL_CACHE_MASK_LIKE_CPP),
+            &self
+                .lifecycle
+                .account_data_times_like_cpp(ObjectGuid::EMPTY, GLOBAL_CACHE_MASK_LIKE_CPP),
         );
 
         // 7. TutorialFlags
-        self.send_packet(&self.tutorial_flags_packet_like_cpp());
+        self.send_packet(&self.lifecycle.tutorial_flags_packet_like_cpp());
 
         // 8. ConnectionStatus (State=1, SuppressNotification=true)
         // This compatibility packet has no ConnectionType override,

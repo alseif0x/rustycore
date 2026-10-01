@@ -19,23 +19,16 @@ impl WorldSession {
             return false;
         };
         let Some(snapshot) = authority.snapshot_for_player_like_cpp(player_guid) else {
-            self.discard_represented_personal_loot_cache_for_player_like_cpp(
-                owner_guid,
-                player_guid,
-            );
+            self.loot
+                .discard_represented_personal_loot_cache_for_player_like_cpp(
+                    owner_guid,
+                    player_guid,
+                );
             return false;
         };
-        self.cache_represented_owned_loot_snapshot_like_cpp(owner_guid, player_guid, snapshot);
-        true
-    }
-
-    pub(super) fn discard_represented_personal_loot_cache_for_player_like_cpp(
-        &mut self,
-        owner_guid: ObjectGuid,
-        _player_guid: ObjectGuid,
-    ) {
         self.loot
-            .discard_represented_personal_loot_cache_for_player_like_cpp(owner_guid, _player_guid)
+            .cache_represented_owned_loot_snapshot_like_cpp(owner_guid, player_guid, snapshot);
+        true
     }
 
     pub(super) fn next_represented_loot_object_guid_like_cpp(
@@ -63,7 +56,9 @@ impl WorldSession {
     ) -> Option<ObjectGuid> {
         (|| {
             let owner_map_id = u32::from(owner_guid.map_id());
-            let key = self.canonical_object_lookup_map_key_like_cpp(owner_map_id)?;
+            let key = self
+                .core
+                .canonical_object_lookup_map_key_like_cpp(owner_map_id)?;
             if key.map_id != owner_map_id {
                 return None;
             }

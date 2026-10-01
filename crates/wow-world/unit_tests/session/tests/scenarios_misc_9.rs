@@ -555,10 +555,13 @@ fn canonical_player_cuf_profiles_follow_active_detached_and_stale_handle_ownersh
 #[test]
 fn tutorial_flags_default_to_zeroes_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.load_tutorials_data_values_like_cpp(None);
+    session.lifecycle.load_tutorials_data_values_like_cpp(None);
 
     assert_eq!(
-        session.tutorial_flags_packet_like_cpp().tutorial_data,
+        session
+            .lifecycle
+            .tutorial_flags_packet_like_cpp()
+            .tutorial_data,
         [0; 8],
         "C++ LoadTutorialsData zeroes _tutorials when account_tutorial has no row"
     );
@@ -566,14 +569,19 @@ fn tutorial_flags_default_to_zeroes_like_cpp() {
 #[test]
 fn tutorial_clear_and_reset_match_cpp_actions() {
     let (mut session, _, _) = make_session();
-    session.load_tutorials_data_values_like_cpp(Some([1, 2, 3, 4, 5, 6, 7, 8]));
+    session
+        .lifecycle
+        .load_tutorials_data_values_like_cpp(Some([1, 2, 3, 4, 5, 6, 7, 8]));
 
     assert!(session.apply_tutorial_action_like_cpp(
         wow_packet::packets::misc::TUTORIAL_ACTION_CLEAR_LIKE_CPP,
         None
     ));
     assert_eq!(
-        session.tutorial_flags_packet_like_cpp().tutorial_data,
+        session
+            .lifecycle
+            .tutorial_flags_packet_like_cpp()
+            .tutorial_data,
         [u32::MAX; 8]
     );
 
@@ -582,7 +590,10 @@ fn tutorial_clear_and_reset_match_cpp_actions() {
         None
     ));
     assert_eq!(
-        session.tutorial_flags_packet_like_cpp().tutorial_data,
+        session
+            .lifecycle
+            .tutorial_flags_packet_like_cpp()
+            .tutorial_data,
         [0; 8]
     );
 }

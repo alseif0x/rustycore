@@ -69,7 +69,7 @@ async fn exercise(outcome: PersistenceOutcomeLikeCpp, cancel: bool, periodic: bo
     session.set_state(SessionState::Transfer);
     if periodic {
         session.set_player_save_interval_ms_like_cpp(100);
-        session.update_player_save_timer_like_cpp(100);
+        session.lifecycle.update_player_save_timer_like_cpp(100);
     } else {
         for _ in 0..2 {
             assert_eq!(
@@ -158,7 +158,7 @@ async fn exercise(outcome: PersistenceOutcomeLikeCpp, cancel: bool, periodic: bo
             .process_pending_periodic_player_save_like_cpp()
             .await;
         assert_eq!(port.character_saves().len(), 1, "no every-tick retry");
-        session.update_player_save_timer_like_cpp(100);
+        session.lifecycle.update_player_save_timer_like_cpp(100);
         session
             .process_pending_periodic_player_save_like_cpp()
             .await;

@@ -197,7 +197,7 @@ impl WorldSession {
             Some(guid) => guid,
             None => return,
         };
-        let map_id = self.player_map_id_like_cpp();
+        let map_id = self.core.player_map_id_like_cpp();
 
         let Some(inventory_items) = self.resolved_inventory_items_like_cpp() else {
             return;
@@ -223,7 +223,7 @@ impl WorldSession {
             return;
         };
 
-        if self.is_active_loot_guid(refund.item_guid)
+        if self.loot.is_active_loot_guid(refund.item_guid)
             || item_is_currently_looted_like_cpp(&refund_item)
         {
             return;
@@ -232,7 +232,7 @@ impl WorldSession {
             return;
         }
 
-        let vendor_trade_port = match self.vendor_trade_persistence_port_like_cpp() {
+        let vendor_trade_port = match self.lifecycle.vendor_trade_persistence_port_like_cpp() {
             Some(port) => port,
             None => return,
         };
@@ -490,10 +490,13 @@ impl WorldSession {
         let mut created_new_stacks = Vec::new();
         let mut persistence_new_stacks = Vec::new();
         if !planned_new_stacks.is_empty() {
-            let Some(allocated_guids) = self.allocate_item_instance_guids_with_generator_like_cpp(
-                item_guid_generator,
-                planned_new_stacks.len(),
-            ) else {
+            let Some(allocated_guids) = self
+                .core
+                .allocate_item_instance_guids_with_generator_like_cpp(
+                    item_guid_generator,
+                    planned_new_stacks.len(),
+                )
+            else {
                 warn!(
                     count = planned_new_stacks.len(),
                     "ItemPurchaseRefund: process-wide item GUID allocator is unavailable"
@@ -545,7 +548,7 @@ impl WorldSession {
             self.set_player_currencies_like_cpp(currency_snapshot);
             return;
         };
-        let currency_save = self.plan_player_currency_save_like_cpp(
+        let currency_save = self.catalogs.plan_player_currency_save_like_cpp(
             player_guid.counter() as u64,
             &mut persisted_currencies,
         );
@@ -619,7 +622,7 @@ impl WorldSession {
                     inventory_type: self.item_template_inventory_type(stack.entry_id),
                 },
             );
-            let item_object = self.make_inventory_item_object(
+            let item_object = crate::session::cx_inventory_ref(self).make_inventory_item_object(
                 *item_guid,
                 stack.entry_id,
                 player_guid,

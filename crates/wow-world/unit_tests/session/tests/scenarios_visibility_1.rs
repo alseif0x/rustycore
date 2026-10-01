@@ -275,7 +275,7 @@ fn visibility_gated_durable_packets_follow_older_general_refresh_like_cpp() {
         ))
         .expect("refresh queued");
 
-    let commands = session.drain_session_commands();
+    let commands = session.core.drain_session_commands();
     assert!(matches!(
         commands.first(),
         Some(SessionCommand::RefreshVisibleWorldCreaturesLikeCpp(_))
@@ -349,7 +349,7 @@ fn visibility_barrier_preserves_entire_durable_suffix_fifo_like_cpp() {
         ))
         .expect("refresh queued");
 
-    let commands = session.drain_session_commands();
+    let commands = session.core.drain_session_commands();
     assert_eq!(commands.len(), 5);
     assert!(matches!(
         &commands[0],
@@ -868,7 +868,7 @@ fn add_farsight_set_viewpoint_target_visibility_sends_far_dynamic_object_like_cp
         "direct C++ UpdateVisibilityOf(target) consumption should mark far DynamicObject visible"
     );
     let expected_create = expected_dynamic_object_create_packet_like_cpp(
-        session.player_map_id_like_cpp(),
+        session.core.player_map_id_like_cpp(),
         create_data,
     );
     let packets = drain_server_packet_bytes(&send_rx);

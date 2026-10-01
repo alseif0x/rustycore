@@ -40,7 +40,9 @@ async fn battle_pet_cage_battle_pet_creates_cage_item_removes_and_deletes_like_c
         },
     );
     assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
-    session.send_battle_pet_journal_lock_status_like_cpp().await;
+    crate::session::cx_pets(&mut session)
+        .send_battle_pet_journal_lock_status_like_cpp()
+        .await;
     let _ = drain_server_packet_bytes(&send_rx);
 
     assert_eq!(
@@ -85,8 +87,8 @@ fn is_toy_item_uses_toy_db2_item_id_like_cpp() {
         source_type_enum: 0,
     }])));
 
-    assert!(session.is_toy_item_like_cpp(30_000));
-    assert!(!session.is_toy_item_like_cpp(30_001));
+    assert!(session.catalogs.is_toy_item_like_cpp(30_000));
+    assert!(!session.catalogs.is_toy_item_like_cpp(30_001));
 }
 #[test]
 fn load_account_item_appearances_rebuilds_blocks_and_favorites_like_cpp() {
@@ -827,15 +829,21 @@ fn item_durability_repair_cost_uses_cpp_db2_cost_and_quality() {
     ])));
 
     assert_eq!(
-        session.item_durability_repair_cost_like_cpp(100, 40, 50, 0.8, 2.0),
+        session
+            .catalogs
+            .item_durability_repair_cost_like_cpp(100, 40, 50, 0.8, 2.0),
         260
     );
     assert_eq!(
-        session.item_durability_repair_cost_like_cpp(101, 10, 13, 1.0, 1.0),
+        session
+            .catalogs
+            .item_durability_repair_cost_like_cpp(101, 10, 13, 1.0, 1.0),
         19
     );
     assert_eq!(
-        session.item_durability_repair_cost_like_cpp(100, 50, 50, 1.0, 1.0),
+        session
+            .catalogs
+            .item_durability_repair_cost_like_cpp(100, 50, 50, 1.0, 1.0),
         0
     );
 }

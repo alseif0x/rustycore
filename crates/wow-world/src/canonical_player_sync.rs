@@ -38,13 +38,13 @@ pub(crate) fn hydrate_player_presentation_like_cpp(
 }
 
 pub(crate) fn sync_player_liquid_status_like_cpp(session: &WorldSession, status: u32) {
-    let _ = session.mutate_canonical_player_like_cpp(|player| {
+    let _ = session.core.mutate_canonical_player_like_cpp(|player| {
         player.set_liquid_status_like_cpp(status);
     });
 }
 
 pub(crate) fn sync_player_level_like_cpp(session: &WorldSession, level: u8, gray_level: u8) {
-    let _ = session.mutate_canonical_player_like_cpp(|player| {
+    let _ = session.core.mutate_canonical_player_like_cpp(|player| {
         player.set_level_and_gray_level_like_cpp(level, gray_level);
     });
 }
@@ -61,7 +61,7 @@ pub(crate) fn hydrate_player_directory_fixture_like_cpp(session: &WorldSession) 
     let vehicle_seat_flags = session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp;
     let vehicle_seat_id = session.fixtures.vehicles.player_vehicle_seat_id_like_cpp;
     let pet_guid = session.fixtures.pets.represented_pet_guid_like_cpp;
-    let _ = session.mutate_canonical_player_like_cpp(|player| {
+    let _ = session.core.mutate_canonical_player_like_cpp(|player| {
         let state = player.gameplay_state_mut();
         let rows = known_spells
             .iter()

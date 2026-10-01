@@ -218,7 +218,7 @@ async fn wrapper_with_full_immunity_still_charges_and_publishes_visuals_like_cpp
         fixture.send_rx.try_recv().unwrap(),
         wow_packet::packets::update::UpdateObject::player_money_update(
             fixture.session.player_guid().unwrap(),
-            fixture.session.player_map_id_like_cpp(),
+            fixture.session.core.player_map_id_like_cpp(),
             75,
             None,
         )
@@ -327,7 +327,7 @@ async fn wrapper_immunity_aura_preserves_its_creation_difficulty_like_cpp() {
         ))
         .await;
 
-    assert_eq!(fixture.session.current_map_difficulty_id_like_cpp(), 2);
+    assert_eq!(fixture.session.core.current_map_difficulty_id_like_cpp(), 2);
     assert_eq!(fixture.session.player_gold_like_cpp(), 75);
     assert!(
         fixture

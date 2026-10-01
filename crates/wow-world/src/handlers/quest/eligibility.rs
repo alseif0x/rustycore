@@ -8,14 +8,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn represented_quest_giver_status_query_source_like_cpp(
-        &self,
-        guid: wow_core::ObjectGuid,
-    ) -> Option<RepresentedQuestGiverStatusSourceLikeCpp> {
-        crate::session::cx_quest_state_ref(self)
-            .represented_quest_giver_status_query_source_like_cpp(guid)
-    }
-
     /// Bounded representation of C++ `Player::GetQuestDialogStatus(Object const*)`.
     /// Creature sources use Creature starter/ender relations; GameObject sources use
     /// GO starter/ender relations. AI status, ConditionMgr, events and journey remain gaps;
@@ -204,7 +196,7 @@ impl WorldSession {
         else {
             return false;
         };
-        let area_table_store = self.area_table_store().cloned();
+        let area_table_store = self.catalogs.area_table_store().cloned();
 
         let mut source_info =
             wow_conditions::ConditionSourceInfo::from_targets(Some(&player_object), None, None);

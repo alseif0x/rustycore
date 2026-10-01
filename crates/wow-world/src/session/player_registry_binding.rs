@@ -26,18 +26,6 @@ impl WorldSession {
         self.core.pending_invites()
     }
 
-    pub(crate) fn player_is_in_world_for_registry_like_cpp(&self) -> bool {
-        self.core.player_is_in_world_for_registry_like_cpp()
-    }
-
-    pub(crate) fn player_is_strictly_in_world_like_cpp(&self) -> bool {
-        self.core.player_is_strictly_in_world_like_cpp()
-    }
-
-    pub(crate) fn player_has_unit_state_like_cpp(&self, state: UnitState) -> bool {
-        self.core.player_has_unit_state_like_cpp(state)
-    }
-
     /// Register this session in the player registry.
     /// Called after player login is complete (player_guid + position both set).
     pub(crate) fn register_in_player_registry(&self) {
@@ -51,7 +39,7 @@ impl WorldSession {
         ) else {
             return;
         };
-        let map_id = self.player_map_id_like_cpp();
+        let map_id = self.core.player_map_id_like_cpp();
         let race = self.player_race_like_cpp();
         let class = self.player_class_like_cpp();
         let gender = self.player_gender_like_cpp();
@@ -62,6 +50,7 @@ impl WorldSession {
         // Fallback to 0 (world/default instance) when no canonical map key is
         // available — mirrors C++ world-map phase where instance_id == 0.
         let instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|k| k.instance_id)
             .unwrap_or(0);
@@ -88,13 +77,13 @@ impl WorldSession {
                     map_id,
                     instance_id,
                     position: pos,
-                    is_in_world: self.player_is_in_world_for_registry_like_cpp(),
+                    is_in_world: self.core.player_is_in_world_for_registry_like_cpp(),
                     level,
                     is_alive,
                 },
                 active_loot_rolls,
                 send_tx: self.send_tx().clone(),
-                realm_send_tx: self.realm_route_tx().clone(),
+                realm_send_tx: self.core.realm_route_tx().clone(),
                 command_tx: self.core.session_command_tx.clone(),
                 session_phase_tx: self.phase.tx.clone(),
                 durable_creature_runtime_commands_like_cpp: Arc::clone(

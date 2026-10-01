@@ -10,18 +10,6 @@ use super::{
 use std::vec::Vec;
 
 impl super::WorldSession {
-    pub(crate) fn reset_timeout_time_like_cpp(&mut self, only_active: bool) {
-        self.core.reset_timeout_time_like_cpp(only_active)
-    }
-
-    pub(super) fn reset_timeout_time_for_packet_like_cpp(&mut self, opcode_raw: u16) {
-        self.core.reset_timeout_time_for_packet_like_cpp(opcode_raw)
-    }
-
-    pub(crate) fn is_connection_idle_like_cpp(&self) -> bool {
-        self.core.is_connection_idle_like_cpp()
-    }
-
     fn packet_spoof_now_secs_like_cpp() -> u64 {
         SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -286,16 +274,12 @@ impl super::WorldSession {
                 false
             }
             PacketSpoofConfigLikeCpp::POLICY_BAN => {
-                self.stage_packet_spoof_ban_like_cpp();
+                self.core.stage_packet_spoof_ban_like_cpp();
                 self.kick("WorldSession::DosProtection::EvaluateOpcode AntiDOS");
                 false
             }
             _ => true,
         }
-    }
-
-    fn stage_packet_spoof_ban_like_cpp(&mut self) {
-        self.core.stage_packet_spoof_ban_like_cpp()
     }
 
     pub(super) async fn flush_packet_spoof_ban_like_cpp(&mut self) {

@@ -279,7 +279,7 @@ impl WorldSession {
         if self.has_active_non_item_loot_views_like_cpp() {
             self.do_loot_release_all_like_cpp(player_guid).await;
         }
-        self.set_active_loot_guid(req.unit);
+        self.loot.set_active_loot_guid(req.unit);
         self.represented_on_loot_opened_with_catalogs_like_cpp(
             item_valuation,
             req.unit,
@@ -295,7 +295,7 @@ impl WorldSession {
                     .represented_loot_response_for_owner_like_cpp(owner_guid, player_guid, true)
                     .await
                 {
-                    self.add_active_loot_view_owner_like_cpp(owner_guid);
+                    self.loot.add_active_loot_view_owner_like_cpp(owner_guid);
                     self.represented_on_loot_opened_with_catalogs_like_cpp(
                         item_valuation,
                         owner_guid,
@@ -316,11 +316,12 @@ impl WorldSession {
         command: SendCreatureLootReleaseValuesUpdateLikeCppCommand,
     ) {
         if self.state() != crate::session::SessionState::LoggedIn
-            || self.player_map_id_like_cpp() != command.map_id
+            || self.core.player_map_id_like_cpp() != command.map_id
         {
             return;
         }
         let instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -460,7 +461,9 @@ impl WorldSession {
         let mut current_session_assignments = 0_u32;
 
         for req in &master_loot_item.loot {
-            let Some(owner_guid) = self.active_loot_owner_for_loot_object_like_cpp(req.object)
+            let Some(owner_guid) = self
+                .loot
+                .active_loot_owner_for_loot_object_like_cpp(req.object)
             else {
                 return;
             };
@@ -586,6 +589,7 @@ impl WorldSession {
                     }
                 };
                 if !self
+                    .loot
                     .represented_active_loot_claim_generation_matches_like_cpp(owner_guid, &claim)
                 {
                     claim.rollback_like_cpp();
@@ -705,10 +709,11 @@ impl WorldSession {
         if self.player_guid() != Some(command.victim_guid) {
             return;
         }
-        if self.player_map_id_like_cpp() != command.map_id {
+        if self.core.player_map_id_like_cpp() != command.map_id {
             return;
         }
         let session_instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);

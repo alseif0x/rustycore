@@ -65,7 +65,7 @@ async fn loot_item_fishing_hole_skips_gameobject_distance_like_cpp() {
     let go_position = Position::new(100.0, 0.0, 0.0, 0.0);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     attach_canonical_map_object(
         &mut session,
         AccessorObjectKind::GameObject,
@@ -124,7 +124,7 @@ async fn loot_item_fishing_hole_skips_gameobject_distance_like_cpp() {
     );
     assert_eq!(sent.remaining(), 0);
     assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
-    assert!(session.is_active_loot_guid(loot_guid));
+    assert!(session.loot.is_active_loot_guid(loot_guid));
 }
 #[tokio::test]
 async fn loot_item_owned_gameobject_skips_distance_like_cpp() {
@@ -134,7 +134,7 @@ async fn loot_item_owned_gameobject_skips_distance_like_cpp() {
     let go_position = Position::new(100.0, 0.0, 0.0, 0.0);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     session.record_represented_gameobject_runtime_state_like_cpp(
         0,
         loot_guid,
@@ -189,7 +189,7 @@ async fn loot_item_owned_gameobject_skips_distance_like_cpp() {
     );
     assert_eq!(sent.remaining(), 0);
     assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
-    assert!(session.is_active_loot_guid(loot_guid));
+    assert!(session.loot.is_active_loot_guid(loot_guid));
 }
 #[tokio::test]
 async fn loot_item_owned_gameobject_skips_distance_from_canonical_created_by_like_cpp() {
@@ -200,7 +200,7 @@ async fn loot_item_owned_gameobject_skips_distance_from_canonical_created_by_lik
     game_object.world_mut().object_mut().create(loot_guid);
     game_object
         .world_mut()
-        .set_map(u32::from(session.player_map_id_like_cpp()), 0)
+        .set_map(u32::from(session.core.player_map_id_like_cpp()), 0)
         .unwrap();
     game_object
         .world_mut()
@@ -210,7 +210,7 @@ async fn loot_item_owned_gameobject_skips_distance_from_canonical_created_by_lik
 
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     attach_canonical_gameobject(&mut session, game_object);
     session.loot.loot_table.insert(
         loot_guid,
@@ -258,7 +258,7 @@ async fn loot_item_owned_gameobject_skips_distance_from_canonical_created_by_lik
     );
     assert_eq!(sent.remaining(), 0);
     assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
-    assert!(session.is_active_loot_guid(loot_guid));
+    assert!(session.loot.is_active_loot_guid(loot_guid));
 }
 #[tokio::test]
 async fn loot_release_keeps_unlooted_gameobject_loot_like_cpp() {
@@ -266,7 +266,7 @@ async fn loot_release_keeps_unlooted_gameobject_loot_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 42);
     let loot_guid = test_gameobject_guid(19_014);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     session.core.client_visible_guids_like_cpp.insert(loot_guid);
     session.record_represented_gameobject_runtime_state_like_cpp(
         0,
@@ -318,7 +318,7 @@ async fn loot_release_keeps_unlooted_gameobject_loot_like_cpp() {
     );
     assert_eq!(sent.read_packed_guid().unwrap(), loot_guid);
     assert_eq!(sent.read_packed_guid().unwrap(), player_guid);
-    assert!(!session.is_active_loot_guid(loot_guid));
+    assert!(!session.loot.is_active_loot_guid(loot_guid));
     assert!(!session.loot.loot_table.get(&loot_guid).unwrap().items[0].taken);
     let state = session
         .world_entities
@@ -336,7 +336,7 @@ async fn loot_release_gameobject_too_far_keeps_state_and_loot_like_cpp() {
     let go_position = Position::new(6.0, 0.0, 0.0, 0.0);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     session.record_represented_gameobject_runtime_state_like_cpp(
         0,
         loot_guid,
@@ -375,7 +375,7 @@ async fn loot_release_gameobject_too_far_keeps_state_and_loot_like_cpp() {
     );
     assert_eq!(sent.read_packed_guid().unwrap(), loot_guid);
     assert_eq!(sent.read_packed_guid().unwrap(), player_guid);
-    assert!(!session.is_active_loot_guid(loot_guid));
+    assert!(!session.loot.is_active_loot_guid(loot_guid));
     assert!(session.loot.loot_table.contains_key(&loot_guid));
     assert_eq!(
         session
@@ -395,7 +395,7 @@ async fn loot_release_owned_gameobject_skips_distance_like_cpp() {
     let go_position = Position::new(100.0, 0.0, 0.0, 0.0);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     session.record_represented_gameobject_runtime_state_like_cpp(
         0,
         loot_guid,
@@ -451,7 +451,7 @@ async fn loot_release_fully_looted_gameobject_just_deactivates_like_cpp() {
     let loot_guid = test_gameobject_guid(19_032);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     session.record_represented_gameobject_runtime_state_like_cpp(
         0,
         loot_guid,
@@ -510,7 +510,7 @@ async fn gameobject_owned_loot_release_partial_chest_uses_canonical_is_fully_loo
     attach_canonical_gameobject(&mut session, game_object);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     session.record_represented_gameobject_runtime_state_like_cpp(
         0,
         loot_guid,
@@ -595,7 +595,7 @@ async fn loot_release_partial_chest_syncs_state_to_same_map_viewers_like_cpp() {
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
     session.set_player_map_position_like_cpp(571, Position::ZERO);
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     session.record_represented_gameobject_runtime_state_like_cpp(
         0,
         loot_guid,
@@ -679,7 +679,7 @@ async fn gameobject_owned_loot_release_fully_consumed_chest_uses_canonical_is_fu
     attach_canonical_gameobject(&mut session, game_object);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     session.record_represented_gameobject_runtime_state_like_cpp(
         0,
         loot_guid,
@@ -787,7 +787,7 @@ async fn gameobject_owned_loot_release_personal_chest_syncs_current_player_and_d
     attach_canonical_gameobject(&mut session, game_object);
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     session.record_represented_gameobject_runtime_state_like_cpp(
         0,
         loot_guid,

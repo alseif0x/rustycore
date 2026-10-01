@@ -378,7 +378,7 @@ fn install_active_item_loot_completion_fixture_like_cpp(
 ) {
     assert!(owner_guid.is_item());
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(owner_guid);
+    session.loot.set_active_loot_guid(owner_guid);
     session.loot.loot_table.insert(
         owner_guid,
         CreatureLoot {
@@ -519,7 +519,7 @@ fn register_test_creature_like_cpp(session: &mut WorldSession, creature: Creatur
     let guid = creature.guid;
     let is_alive = creature.is_alive;
     session.register_world_creature(
-        session.player_map_id_like_cpp(),
+        session.core.player_map_id_like_cpp(),
         creature.current_pos,
         create_data,
         creature.min_dmg,
@@ -824,7 +824,7 @@ async fn open_test_ae_pair_like_cpp(
         .handle_loot_unit(loot_unit_packet(primary_guid))
         .await;
 
-    assert!(session.is_active_loot_guid(primary_guid));
+    assert!(session.loot.is_active_loot_guid(primary_guid));
     assert!(
         session
             .loot

@@ -39,7 +39,7 @@ impl WorldSession {
             }
         }
 
-        self.begin_represented_character_pet_authority_load_like_cpp();
+        crate::session::cx_pets(self).begin_represented_character_pet_authority_load_like_cpp();
         match player_lifecycle_port
             .load_login_auxiliary_like_cpp(
                 wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::PetStable {
@@ -108,8 +108,8 @@ impl WorldSession {
                         remain_time_ms: row.remain_time_ms,
                         remain_charges: row.remain_charges,
                     });
-                    let loaded =
-                        self.load_represented_pet_aura_rows_like_cpp(summoned_pet_number, rows);
+                    let loaded = crate::session::cx_pets(self)
+                        .load_represented_pet_aura_rows_like_cpp(summoned_pet_number, rows);
                     trace!(
                         player_guid = guid.counter(),
                         summoned_pet_number, loaded, "loaded represented pet_aura rows like C++"
@@ -144,7 +144,7 @@ impl WorldSession {
                             amount: row.amount,
                             base_amount: row.base_amount,
                         });
-                    let loaded = self
+                    let loaded = crate::session::cx_pets(self)
                         .load_represented_pet_aura_effect_rows_like_cpp(summoned_pet_number, rows);
                     trace!(
                         player_guid = guid.counter(),
@@ -174,8 +174,8 @@ impl WorldSession {
                         spell_id: row.spell_id,
                         active: row.active,
                     });
-                    let loaded =
-                        self.load_represented_pet_spell_rows_like_cpp(summoned_pet_number, rows);
+                    let loaded = crate::session::cx_pets(self)
+                        .load_represented_pet_spell_rows_like_cpp(summoned_pet_number, rows);
                     trace!(
                         player_guid = guid.counter(),
                         summoned_pet_number, loaded, "loaded represented pet_spell rows like C++"
@@ -206,10 +206,11 @@ impl WorldSession {
                             category_id: row.category_id,
                             category_end_unix_secs: row.category_end_unix_secs,
                         });
-                    let loaded = self.load_represented_pet_spell_cooldown_rows_like_cpp(
-                        summoned_pet_number,
-                        rows,
-                    );
+                    let loaded = crate::session::cx_pets(self)
+                        .load_represented_pet_spell_cooldown_rows_like_cpp(
+                            summoned_pet_number,
+                            rows,
+                        );
                     trace!(
                         player_guid = guid.counter(),
                         summoned_pet_number,
@@ -241,7 +242,7 @@ impl WorldSession {
                             recharge_start_unix_secs: row.recharge_start_unix_secs,
                             recharge_end_unix_secs: row.recharge_end_unix_secs,
                         });
-                    let loaded = self
+                    let loaded = crate::session::cx_pets(self)
                         .load_represented_pet_spell_charge_rows_like_cpp(summoned_pet_number, rows);
                     trace!(
                         player_guid = guid.counter(),
@@ -272,8 +273,8 @@ impl WorldSession {
                         .into_iter()
                         .next()
                         .map(|row| CharacterPetDeclinedNamesRowLikeCpp { names: row.names });
-                    let loaded =
-                        self.load_represented_pet_declined_names_like_cpp(summoned_pet_number, row);
+                    let loaded = crate::session::cx_pets(self)
+                        .load_represented_pet_declined_names_like_cpp(summoned_pet_number, row);
                     trace!(
                         player_guid = guid.counter(),
                         summoned_pet_number,

@@ -28,7 +28,7 @@ impl WorldSession {
             Some(g) => g,
             None => return,
         };
-        let map_id = self.player_map_id_like_cpp();
+        let map_id = self.core.player_map_id_like_cpp();
 
         // ── Find item in inventory by GUID ──
         let Some(inventory_items) = self.resolved_inventory_items_like_cpp() else {
@@ -61,7 +61,7 @@ impl WorldSession {
             return;
         }
 
-        let vendor_trade_port = match self.vendor_trade_persistence_port_like_cpp() {
+        let vendor_trade_port = match self.lifecycle.vendor_trade_persistence_port_like_cpp() {
             Some(port) => port,
             None => return,
         };
@@ -88,7 +88,9 @@ impl WorldSession {
             );
             return;
         }
-        if self.is_active_loot_guid(item.guid) || item_is_currently_looted_like_cpp(&runtime_item) {
+        if self.loot.is_active_loot_guid(item.guid)
+            || item_is_currently_looted_like_cpp(&runtime_item)
+        {
             self.send_sell_error(
                 SellResult::CantSellItem,
                 Some(sell.vendor_guid),
@@ -118,7 +120,7 @@ impl WorldSession {
 
         // ── Get sell price from item_sparse directly ──
         let sell_price: u64 = {
-            let port = match self.vendor_catalog_persistence_port_like_cpp() {
+            let port = match self.lifecycle.vendor_catalog_persistence_port_like_cpp() {
                 Some(port) => port,
                 None => return,
             };
@@ -182,6 +184,7 @@ impl WorldSession {
             }
             SellItemAmountAction::PartialStack { remaining, amount } => {
                 let Some((new_db_guid, new_item_guid)) = self
+                    .core
                     .allocate_item_instance_guids_with_generator_like_cpp(item_guid_generator, 1)
                     .and_then(|mut allocated| allocated.pop())
                 else {
@@ -198,7 +201,7 @@ impl WorldSession {
                 let cloned_data = cloned_item.data();
                 let charges = item_spell_charges_db_string(
                     &cloned_data.spell_charges,
-                    self.item_effect_count_like_cpp(item.entry_id),
+                    self.catalogs.item_effect_count_like_cpp(item.entry_id),
                 );
                 let Some((enchantments, _)) =
                     self.inventory_remove_enchantment_persistence_like_cpp(item.guid, false)

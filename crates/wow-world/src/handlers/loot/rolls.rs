@@ -128,10 +128,14 @@ impl WorldSession {
 
         let (roll_number, stored_roll_number) = match roll.roll_type {
             ROLL_VOTE_PASS_LIKE_CPP => (-1, None),
-            ROLL_VOTE_NEED_LIKE_CPP => (0, Some(self.represented_urand_u32_like_cpp(1, 100) as u8)),
-            ROLL_VOTE_GREED_LIKE_CPP | ROLL_VOTE_DISENCHANT_LIKE_CPP => {
-                (-1, Some(self.represented_urand_u32_like_cpp(1, 100) as u8))
-            }
+            ROLL_VOTE_NEED_LIKE_CPP => (
+                0,
+                Some(self.core.represented_urand_u32_like_cpp(1, 100) as u8),
+            ),
+            ROLL_VOTE_GREED_LIKE_CPP | ROLL_VOTE_DISENCHANT_LIKE_CPP => (
+                -1,
+                Some(self.core.represented_urand_u32_like_cpp(1, 100) as u8),
+            ),
             _ => return false,
         };
 
@@ -163,7 +167,8 @@ impl WorldSession {
 
         let finish = represented_loot_roll_finish_winner_like_cpp(&state.voters);
         let finished_state = finish.as_ref().map(|_| state.clone());
-        self.update_represented_loot_roll_vote_criteria_like_cpp(player_guid, roll.roll_type);
+        self.loot
+            .update_represented_loot_roll_vote_criteria_like_cpp(player_guid, roll.roll_type);
         self.broadcast_represented_loot_roll_packet_like_cpp(&packet, &entry, None);
         if let Some(winner) = finish {
             self.finish_represented_loot_roll_like_cpp(
@@ -355,11 +360,12 @@ impl WorldSession {
             ..locked
         };
         self.send_represented_loot_roll_packet_to_player_like_cpp(&allow, winner_guid);
-        self.update_represented_loot_roll_winner_criteria_like_cpp(
-            winner_guid,
-            entry.item_id,
-            winner_vote,
-        );
+        self.loot
+            .update_represented_loot_roll_winner_criteria_like_cpp(
+                winner_guid,
+                entry.item_id,
+                winner_vote,
+            );
         self.store_represented_loot_roll_winner_item_like_cpp(
             item_guid_generator,
             item_valuation,
@@ -438,7 +444,11 @@ impl WorldSession {
             return;
         }
 
-        if self.player_inventory_persistence_port_like_cpp().is_none() {
+        if self
+            .lifecycle
+            .player_inventory_persistence_port_like_cpp()
+            .is_none()
+        {
             return;
         }
 
@@ -579,8 +589,9 @@ impl WorldSession {
         };
         let authority_generation = authority_snapshot.generation;
         let authority_scope = authority_snapshot.scope;
-        let current_map_id = self.player_map_id_like_cpp();
+        let current_map_id = self.core.player_map_id_like_cpp();
         let current_instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -782,7 +793,7 @@ impl WorldSession {
             };
             let Some(registration) = registry.loot_delivery_recipient(
                 looter,
-                self.player_map_id_like_cpp(),
+                self.core.player_map_id_like_cpp(),
                 current_instance_id,
             ) else {
                 continue;

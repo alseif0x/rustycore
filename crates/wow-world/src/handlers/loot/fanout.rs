@@ -61,12 +61,12 @@ impl WorldSession {
             }
         }
         // Gate 2: map must match.
-        if self.player_map_id_like_cpp() != map_id {
+        if self.core.player_map_id_like_cpp() != map_id {
             if is_monster_move {
                 tracing::info!(
                     account = self.core.account_id,
                     source_guid = ?source_guid,
-                    player_map = self.player_map_id_like_cpp(),
+                    player_map = self.core.player_map_id_like_cpp(),
                     command_map = map_id,
                     "RUST_MONSTER_MOVE_DELIVERY rejected: wrong map"
                 );
@@ -75,6 +75,7 @@ impl WorldSession {
         }
         // Gate 3: instance must match.
         let session_instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|k| k.instance_id)
             .unwrap_or(0);
@@ -173,6 +174,7 @@ impl WorldSession {
         };
         let bytes = packet.to_bytes();
         let instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -188,7 +190,7 @@ impl WorldSession {
             };
             let Some(registration) = registry.loot_delivery_recipient(
                 *allowed_looter,
-                self.player_map_id_like_cpp(),
+                self.core.player_map_id_like_cpp(),
                 instance_id,
             ) else {
                 continue;

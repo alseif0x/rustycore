@@ -11,13 +11,15 @@ impl WorldSession {
             state.set_status_authority_complete_like_cpp(false);
             state.clear_rewarded_quest_rows_like_cpp();
         });
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
     }
     pub(crate) fn invalidate_player_quest_status_authority_like_cpp(&mut self) {
         let _ = self.mutate_player_quest_gameplay_like_cpp(|state| {
             state.set_status_authority_complete_like_cpp(false);
         });
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
     }
     pub(crate) fn represented_player_quest_status_like_cpp(
         &self,
@@ -41,7 +43,9 @@ impl WorldSession {
         }
 
         if state.rewarded_quest_ids_like_cpp().contains(&quest_id)
-            && self.represented_quest_can_increase_rewarded_counters_like_cpp(quest_id)?
+            && self
+                .catalogs
+                .represented_quest_can_increase_rewarded_counters_like_cpp(quest_id)?
         {
             return Some(wow_conditions::QUEST_STATUS_REWARDED_LIKE_CPP);
         }
@@ -260,32 +264,6 @@ impl WorldSession {
             state.seed_seasonal_quest_like_cpp(event_id, quest_id, completed_time);
         });
     }
-    pub(crate) fn represented_quest_giver_involved_source_allows_quest_like_cpp(
-        &self,
-        source_guid: ObjectGuid,
-        quest_id: u32,
-        quest_store: &wow_data::quest::QuestStore,
-    ) -> bool {
-        crate::session::cx_quest_state_ref(self)
-            .represented_quest_giver_involved_source_allows_quest_like_cpp(
-                source_guid,
-                quest_id,
-                quest_store,
-            )
-    }
-    pub(crate) fn represented_quest_giver_accept_source_allows_quest_like_cpp(
-        &self,
-        source_guid: ObjectGuid,
-        quest_id: u32,
-        quest_store: &wow_data::quest::QuestStore,
-    ) -> bool {
-        crate::session::cx_quest_state_ref(self)
-            .represented_quest_giver_accept_source_allows_quest_like_cpp(
-                source_guid,
-                quest_id,
-                quest_store,
-            )
-    }
     pub(crate) fn send_represented_quest_giver_query_quest_like_cpp(
         &mut self,
         source_guid: ObjectGuid,
@@ -331,8 +309,8 @@ impl WorldSession {
                 &quest,
             )
         } else if source_guid.is_game_object() {
-            let Some(access) =
-                self.represented_gameobject_questgiver_can_interact_with_like_cpp(source_guid)
+            let Some(access) = crate::session::cx_quest_state_ref(self)
+                .represented_gameobject_questgiver_can_interact_with_like_cpp(source_guid)
             else {
                 debug!(
                     account = self.core.account_id,
@@ -598,3 +576,7 @@ impl crate::session::state::SessionQuestState {
         });
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/quest/giver/f3_shims.rs"]
+mod f3_shims;

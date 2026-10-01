@@ -282,7 +282,7 @@ async fn reset_seasonal_command_processing_drains_session_command_like_cpp() {
         .process_represented_session_commands_like_cpp()
         .await;
 
-    assert!(session.drain_session_commands().is_empty());
+    assert!(session.core.drain_session_commands().is_empty());
     let bucket = session
         .seasonal_quest_bucket_like_cpp(7)
         .expect("bucket kept");
@@ -338,7 +338,9 @@ async fn criteria_tree_tracking_event_objective_auto_rewards_like_cpp() {
 
     assert_canonical_quest_status_like_cpp(&session, quest_id, None, true);
     assert_eq!(
-        session.represented_quest_complete_status_updates_like_cpp(),
+        session
+            .quest_state
+            .represented_quest_complete_status_updates_like_cpp(),
         &[RepresentedQuestCompleteStatusUpdateLikeCpp {
             quest_id,
             old_status: crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP,

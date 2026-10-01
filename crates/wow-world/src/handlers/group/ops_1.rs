@@ -6,15 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(super) async fn persist_group_intents_like_cpp(
-        &self,
-        group_guid: u64,
-        intents: Vec<GroupPersistenceIntentLikeCpp>,
-    ) {
-        self.lifecycle
-            .persist_group_intents_like_cpp(group_guid, intents)
-            .await
-    }
     /// CMSG_PARTY_INVITE (0x3604)
     ///
     /// Parse layout from C++ `WorldPackets::Party::PartyInviteClient::Read`
@@ -162,7 +153,7 @@ impl WorldSession {
             }
         }
 
-        let social_port = self.social_persistence_port_like_cpp();
+        let social_port = self.lifecycle.social_persistence_port_like_cpp();
         if target_social_ignores_inviter_like_cpp(
             social_port.clone(),
             real_target_guid,
@@ -191,8 +182,9 @@ impl WorldSession {
         };
 
         let inviter_name = self.player_name_like_cpp().unwrap_or_default();
-        let vra = self.virtual_realm_address();
+        let vra = self.core.virtual_realm_address();
         let (realm_name, realm_name_normalized) = self
+            .core
             .realm_names_for_address_like_cpp(vra)
             .map(|(actual, normalized)| (actual.to_string(), normalized.to_string()))
             .unwrap_or_default();
@@ -459,12 +451,13 @@ impl WorldSession {
         }
 
         if !persistence.is_empty() {
-            self.persist_group_intents_like_cpp(group_guid, persistence)
+            self.lifecycle
+                .persist_group_intents_like_cpp(group_guid, persistence)
                 .await;
         }
 
         // 4. Send PartyUpdate + PartyMemberFullState to all members.
-        let vra = self.virtual_realm_address();
+        let vra = self.core.virtual_realm_address();
         if let Some(group) = group_reg.get(&group_guid) {
             send_party_update(&group, &registry, vra);
         }
@@ -522,8 +515,9 @@ impl WorldSession {
         let target_has_loot_rolls = registry
             .group_presence(uninvite.target_guid)
             .is_some_and(|target| target.has_active_loot_rolls);
-        let sender_map_id = self.player_map_id_like_cpp();
+        let sender_map_id = self.core.player_map_id_like_cpp();
         let sender_instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -606,7 +600,8 @@ impl WorldSession {
             Err(_) => return,
         };
         let should_disband = outcome.facts.disbanded;
-        self.persist_group_intents_like_cpp(group_guid, outcome.persistence)
+        self.lifecycle
+            .persist_group_intents_like_cpp(group_guid, outcome.persistence)
             .await;
 
         let cleanup_command = ApplyGroupRemovalLikeCppCommand {
@@ -647,7 +642,7 @@ impl WorldSession {
             return;
         }
 
-        send_party_update(&outcome.group, &registry, self.virtual_realm_address());
+        send_party_update(&outcome.group, &registry, self.core.virtual_realm_address());
     }
     /// CMSG_LEAVE_GROUP (0x364c)
     ///
@@ -679,7 +674,7 @@ impl WorldSession {
             None => return,
         };
         let pending_invites = self.pending_invites().map(std::sync::Arc::clone);
-        let vra = self.virtual_realm_address();
+        let vra = self.core.virtual_realm_address();
 
         // 1. Find the real group or the C++ `GroupInvite` we're currently in.
         let real_group_guid = current_group_guid_like_cpp(
@@ -756,7 +751,8 @@ impl WorldSession {
             .facts
             .disbanded
             .then(|| outcome.facts.remaining_members.clone());
-        self.persist_group_intents_like_cpp(gid, outcome.persistence)
+        self.lifecycle
+            .persist_group_intents_like_cpp(gid, outcome.persistence)
             .await;
 
         if let Some(remaining) = dissolve_remaining {
@@ -840,7 +836,7 @@ impl WorldSession {
             Some(registry) => std::sync::Arc::clone(registry),
             None => return,
         };
-        let vra = self.virtual_realm_address();
+        let vra = self.core.virtual_realm_address();
 
         let outcome = match group_reg.convert_group_like_cpp(group_guid, my_guid, convert.raid) {
             Ok(outcome) => outcome,
@@ -863,7 +859,8 @@ impl WorldSession {
             result_data: 0,
             result_guid: ObjectGuid::EMPTY,
         });
-        self.persist_group_intents_like_cpp(group_guid, outcome.persistence)
+        self.lifecycle
+            .persist_group_intents_like_cpp(group_guid, outcome.persistence)
             .await;
 
         // `queue_visible...` may wait on a full member command channel. Clone
@@ -909,3 +906,7 @@ impl crate::session::SessionLifecycleState {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/handlers/group/ops_1/f3_shims.rs"]
+mod f3_shims;

@@ -53,16 +53,6 @@ impl WorldSession {
         Some((None, personal_loot))
     }
 
-    pub(super) fn represented_loot_can_be_opened_by_player_like_cpp(
-        &self,
-        loot_guid: ObjectGuid,
-        loot: &CreatureLoot,
-        player_guid: ObjectGuid,
-    ) -> bool {
-        self.loot
-            .represented_loot_can_be_opened_by_player_like_cpp(loot_guid, loot, player_guid)
-    }
-
     pub(super) async fn request_represented_remote_master_loot_give_like_cpp(
         &self,
         target: ObjectGuid,

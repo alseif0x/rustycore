@@ -844,7 +844,7 @@ fn move_spline_done_taxi_far_teleport_matches_cpp_represented_branch() {
 
     let action = session.handle_move_spline_done_taxi_like_cpp(&mut status, 56);
     assert_eq!(action, MoveSplineDoneTaxiActionLikeCpp::TeleportRequested);
-    assert_eq!(session.player_map_id_like_cpp(), 1);
+    assert_eq!(session.core.player_map_id_like_cpp(), 1);
     assert_eq!(
         session.player_position_like_cpp().unwrap(),
         wow_core::Position::new(50.0, 60.0, 70.0, 1.0)

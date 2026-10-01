@@ -37,7 +37,11 @@ impl WorldSession {
 
     pub(in crate::handlers::character) async fn load_account_mounts_like_cpp(&mut self) -> bool {
         self.set_account_mounts_like_cpp(Vec::new());
-        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
+        let Some(port) = self
+            .lifecycle
+            .player_lifecycle_port_like_cpp()
+            .map(Arc::clone)
+        else {
             return false;
         };
 
@@ -96,7 +100,7 @@ impl WorldSession {
             }
 
             let has_mount = spell_id > 0
-                && self.mount_store().is_none_or(|store| {
+                && self.catalogs.mount_store().is_none_or(|store| {
                     store
                         .get_by_source_spell_id_like_cpp(spell_id as u32)
                         .is_some()
@@ -134,7 +138,11 @@ impl WorldSession {
     }
 
     pub(in crate::handlers::character) async fn load_account_item_appearances_like_cpp(&mut self) {
-        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
+        let Some(port) = self
+            .lifecycle
+            .player_lifecycle_port_like_cpp()
+            .map(Arc::clone)
+        else {
             self.load_represented_account_item_appearances_like_cpp([], []);
             return;
         };
@@ -206,7 +214,11 @@ impl WorldSession {
     pub(in crate::handlers::character) async fn load_account_transmog_illusions_like_cpp(
         &mut self,
     ) {
-        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
+        let Some(port) = self
+            .lifecycle
+            .player_lifecycle_port_like_cpp()
+            .map(Arc::clone)
+        else {
             self.load_represented_account_transmog_illusions_like_cpp([]);
             return;
         };

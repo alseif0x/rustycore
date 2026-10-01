@@ -1105,14 +1105,6 @@ impl WorldSession {
     pub(crate) fn seed_represented_runtime_rng_like_cpp(&mut self, seed: u64) {
         self.core.driver.represented_runtime_rng_like_cpp = StdRng::seed_from_u64(seed);
     }
-
-    pub(crate) fn represented_urand_u32_like_cpp(&mut self, min: u32, max: u32) -> u32 {
-        self.core.represented_urand_u32_like_cpp(min, max)
-    }
-
-    pub(crate) fn represented_runtime_subrng_like_cpp(&mut self) -> StdRng {
-        self.core.represented_runtime_subrng_like_cpp()
-    }
 }
 
 impl crate::session::state::SessionCore {

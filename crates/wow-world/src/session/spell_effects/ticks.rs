@@ -33,10 +33,11 @@ impl WorldSession {
         let despawn_guids: Vec<wow_core::ObjectGuid> = guids
             .iter()
             .filter(|g| {
-                self.mutate_world_creature(**g, |c| {
-                    !c.is_alive() && c.corpse_despawn_due_like_cpp()
-                })
-                .unwrap_or(false)
+                self.core
+                    .mutate_world_creature(**g, |c| {
+                        !c.is_alive() && c.corpse_despawn_due_like_cpp()
+                    })
+                    .unwrap_or(false)
             })
             .copied()
             .collect();
@@ -45,7 +46,7 @@ impl WorldSession {
             use wow_packet::ServerPacket;
             use wow_packet::packets::update::UpdateObject;
 
-            let map_id = self.player_map_id_like_cpp();
+            let map_id = self.core.player_map_id_like_cpp();
             for g in &despawn_guids {
                 // Before removing, save data needed for respawn.
                 if let Some(c) = self.remove_world_creature(*g) {
@@ -83,7 +84,7 @@ impl WorldSession {
         // before returning; register_world_creature and packet building happen below,
         // outside the lock.
         // instance_id=0: legacy path — consistent with register/remove/mutate_world_creature.
-        let current_map_id = self.player_map_id_like_cpp();
+        let current_map_id = self.core.player_map_id_like_cpp();
         let ready: Vec<PendingRespawn> =
             self.drain_ready_map_respawns_like_cpp(current_map_id, 0, now);
 
@@ -163,14 +164,15 @@ impl WorldSession {
         });
         let visible_guids = self.core.client_visible_guids_like_cpp.snapshot_like_cpp();
         let player_position = self.player_position_like_cpp();
-        let player_map_id = u32::from(self.player_map_id_like_cpp());
+        let player_map_id = u32::from(self.core.player_map_id_like_cpp());
         let player_instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
         let monster_move_trace = std::env::var_os("RUSTYCORE_MONSTER_MOVE_TRACE").is_some();
         for guid in guids {
-            let _ = self.mutate_world_creature(guid, |creature| {
+            let _ = self.core.mutate_world_creature(guid, |creature| {
                 let Some(player_position) = player_position else {
                     if monster_move_trace {
                         tracing::info!(
@@ -324,6 +326,7 @@ impl WorldSession {
         }
 
         let target_runtime = self
+            .core
             .mutate_world_creature(combat_target, |creature| {
                 let unit_data = creature.creature.unit().data();
                 CombatTargetRuntimeLikeCpp::WorldCreature {
@@ -333,17 +336,18 @@ impl WorldSession {
                 }
             })
             .or_else(|| {
-                self.mutate_canonical_player_by_guid_like_cpp(combat_target, |player| {
-                    let unit_data = player.unit().data();
-                    CombatTargetRuntimeLikeCpp::CanonicalPlayer {
-                        position: player.unit().world().position(),
-                        combat_reach: unit_data.combat_reach,
-                        bounding_radius: unit_data.bounding_radius,
-                    }
-                })
+                self.core
+                    .mutate_canonical_player_by_guid_like_cpp(combat_target, |player| {
+                        let unit_data = player.unit().data();
+                        CombatTargetRuntimeLikeCpp::CanonicalPlayer {
+                            position: player.unit().world().position(),
+                            combat_reach: unit_data.combat_reach,
+                            bounding_radius: unit_data.bounding_radius,
+                        }
+                    })
             });
         let Some(target_runtime) = target_runtime else {
-            let _ = self.mutate_canonical_player_like_cpp(|player| {
+            let _ = self.core.mutate_canonical_player_like_cpp(|player| {
                 let unit = player.unit_mut();
                 unit.attack_stop_like_cpp();
                 unit.subsystems_mut()
@@ -368,6 +372,7 @@ impl WorldSession {
         };
         let player_position = self.player_position_like_cpp();
         let player_combat_reach = self
+            .core
             .mutate_canonical_player_like_cpp(|player| player.unit().data().combat_reach)
             .unwrap_or(0.0);
         let in_melee_range = player_position
@@ -408,11 +413,13 @@ impl WorldSession {
             None => (None, None),
         };
         if let Some(swing_error) = swing_error_update {
-            self.set_player_attack_swing_error_like_cpp(swing_error);
+            self.core
+                .set_player_attack_swing_error_like_cpp(swing_error);
         }
 
         if let CombatTargetRuntimeLikeCpp::CanonicalPlayer { .. } = target_runtime {
             let Some((swings, target_level)) = self
+                .core
                 .mutate_canonical_player_by_guid_like_cpp(combat_target, |victim| {
                     apply_player_melee_to_canonical_player_like_cpp(
                         victim,
@@ -421,7 +428,7 @@ impl WorldSession {
                 })
                 .flatten()
             else {
-                let _ = self.mutate_canonical_player_like_cpp(|player| {
+                let _ = self.core.mutate_canonical_player_like_cpp(|player| {
                     player.unit_mut().attack_stop_like_cpp()
                 });
                 self.set_combat_target_like_cpp(None);
@@ -430,7 +437,7 @@ impl WorldSession {
             };
 
             if !swings.is_empty() {
-                let _ = self.mutate_canonical_player_like_cpp(|player| {
+                let _ = self.core.mutate_canonical_player_like_cpp(|player| {
                     player
                         .unit_mut()
                         .set_last_damaged_target_like_cpp(Some(combat_target));
@@ -485,6 +492,7 @@ impl WorldSession {
             move_stop,
             values_update,
         }) = self
+            .core
             .mutate_world_creature(combat_target, |creature| {
                 apply_player_melee_to_legacy_creature_like_cpp(
                     creature,
@@ -499,7 +507,7 @@ impl WorldSession {
         };
 
         if !swings.is_empty() {
-            let _ = self.mutate_canonical_player_like_cpp(|player| {
+            let _ = self.core.mutate_canonical_player_like_cpp(|player| {
                 player
                     .unit_mut()
                     .set_last_damaged_target_like_cpp(Some(combat_target));
@@ -542,7 +550,7 @@ impl WorldSession {
             .contains(&combat_target)
             && let Some(update) = self.represented_unit_values_update_to_update_object_like_cpp(
                 combat_target,
-                self.player_map_id_like_cpp(),
+                self.core.player_map_id_like_cpp(),
                 &values_update,
             )
         {
@@ -550,7 +558,7 @@ impl WorldSession {
         }
 
         if now_dead {
-            self.queue_pending_creature_kill_like_cpp(
+            self.world_entities.queue_pending_creature_kill_like_cpp(
                 player_guid,
                 combat_target,
                 target_entry,
@@ -572,7 +580,7 @@ impl WorldSession {
                 now_dead: true,
             };
             output.packets.push(stop.to_bytes());
-            let _ = self.mutate_canonical_player_like_cpp(|player| {
+            let _ = self.core.mutate_canonical_player_like_cpp(|player| {
                 let unit = player.unit_mut();
                 unit.attack_stop_like_cpp();
                 unit.subsystems_mut()

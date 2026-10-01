@@ -46,17 +46,8 @@ impl WorldSession {
     ) {
         self.config.legacy_creature_aggro_config_like_cpp = config;
     }
-    pub(crate) fn canonical_player_combat_reach_snapshot_like_cpp(&self) -> f32 {
-        self.core.canonical_player_combat_reach_snapshot_like_cpp()
-    }
     pub fn set_spell_threat_store(&mut self, store: Arc<SpellThreatStoreLikeCpp>) {
         self.catalogs.spell_catalogs.spell_threat_store = Some(store);
-    }
-    pub(crate) fn spell_threat_entry_like_cpp(
-        &self,
-        spell_id: u32,
-    ) -> Option<&SpellThreatEntryLikeCpp> {
-        self.catalogs.spell_threat_entry_like_cpp(spell_id)
     }
     fn spell_initial_threat_like_cpp(
         &self,
@@ -80,8 +71,8 @@ impl WorldSession {
         let Ok(spell_id_u32) = u32::try_from(spell_id) else {
             return;
         };
-        let difficulty = self.current_map_difficulty_id_like_cpp();
-        let difficulty_store = self.difficulty_store().cloned();
+        let difficulty = self.core.current_map_difficulty_id_like_cpp();
+        let difficulty_store = self.catalogs.difficulty_store().cloned();
         // C++ `Spell::HandleThreatSpells` performs this unconditional
         // `!SpellInfo::HasInitialAggro()` return before calling
         // `ThreatManager::AddThreat`. The latter's engaged-owner exception
@@ -117,7 +108,10 @@ impl WorldSession {
             return;
         }
 
-        let threat_entry = self.spell_threat_entry_like_cpp(spell_id_u32).copied();
+        let threat_entry = self
+            .catalogs
+            .spell_threat_entry_like_cpp(spell_id_u32)
+            .copied();
         let Some(base_amount) =
             self.spell_initial_threat_like_cpp(spell_id_u32, threat_entry, caster_guid)
         else {
@@ -128,6 +122,7 @@ impl WorldSession {
         }
         if !is_positive {
             let threat_outcome = self
+                .core
                 .mutate_world_creature(target_guid, |creature| {
                     if !creature.is_alive() {
                         return None;
@@ -178,23 +173,24 @@ impl WorldSession {
         }) {
             return;
         }
-        let spell_school_mask = self.spell_school_mask_for_difficulty_like_cpp(
+        let spell_school_mask = self.catalogs.spell_school_mask_for_difficulty_like_cpp(
             spell_id_u32,
-            self.current_map_difficulty_id_like_cpp(),
+            self.core.current_map_difficulty_id_like_cpp(),
         );
         let caster_school_threat_mod = if self.player_guid() == Some(caster_guid) {
             self.hydrate_canonical_threat_relevant_auras_like_cpp();
-            self.mutate_canonical_player_like_cpp(|player| {
-                player
-                    .unit()
-                    .subsystems()
-                    .auras
-                    .total_aura_multiplier_by_misc_mask_like_cpp(
-                        wow_data::spell::aura_types::SPELL_AURA_MOD_THREAT,
-                        spell_school_mask,
-                    )
-            })
-            .unwrap_or(1.0)
+            self.core
+                .mutate_canonical_player_like_cpp(|player| {
+                    player
+                        .unit()
+                        .subsystems()
+                        .auras
+                        .total_aura_multiplier_by_misc_mask_like_cpp(
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_THREAT,
+                            spell_school_mask,
+                        )
+                })
+                .unwrap_or(1.0)
         } else {
             1.0
         };
@@ -209,15 +205,18 @@ impl WorldSession {
         let eligible_count = owner_guids
             .iter()
             .filter(|owner_guid| {
-                self.mutate_world_creature(**owner_guid, |creature| {
-                    creature.is_alive() && !creature.creature.unit().has_unit_state(controlled_mask)
-                })
-                .unwrap_or(false)
+                self.core
+                    .mutate_world_creature(**owner_guid, |creature| {
+                        creature.is_alive()
+                            && !creature.creature.unit().has_unit_state(controlled_mask)
+                    })
+                    .unwrap_or(false)
             })
             .count();
         let per_owner = (eligible_count != 0).then(|| amount / eligible_count as f32);
         for owner_guid in owner_guids {
             let threat_value = self
+                .core
                 .mutate_world_creature(owner_guid, |creature| {
                     if !creature.is_alive() {
                         return None;
@@ -274,6 +273,7 @@ impl WorldSession {
                 return;
             };
             let _canonical = self
+                .core
                 .with_owned_player_mut_like_cpp(|player| {
                     player.remove_player_threat_aura_like_cpp(
                         spell_id,
@@ -306,7 +306,7 @@ impl WorldSession {
             .player_aura_subsystem_snapshot_like_cpp()
             .and_then(|auras| auras.threat_snapshot_like_cpp(slot).cloned())
             .unwrap_or_else(|| {
-                let difficulty = self.current_map_difficulty_id_like_cpp();
+                let difficulty = self.core.current_map_difficulty_id_like_cpp();
                 self.canonical_threat_aura_snapshot_for_difficulty_like_cpp(
                     spell_id,
                     difficulty,
@@ -318,6 +318,7 @@ impl WorldSession {
             return;
         };
         let _canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.apply_player_threat_aura_like_cpp(
                     spell_id,
@@ -370,7 +371,7 @@ impl WorldSession {
             .unwrap_or(player_guid);
 
         if let (Some(key), Some(manager)) = (
-            self.current_canonical_player_map_key_like_cpp(),
+            self.core.current_canonical_player_map_key_like_cpp(),
             self.core.canonical_map_manager.as_ref(),
         ) && let Ok(manager) = manager.lock()
             && let Some(reach) = manager
@@ -386,7 +387,8 @@ impl WorldSession {
             return reach.max(0.0);
         }
 
-        self.canonical_player_combat_reach_snapshot_like_cpp()
+        self.core
+            .canonical_player_combat_reach_snapshot_like_cpp()
             .max(0.0)
     }
 }
@@ -605,3 +607,7 @@ impl crate::session::state::SessionCore {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/world_entities/aggro/f3_shims.rs"]
+mod f3_shims;

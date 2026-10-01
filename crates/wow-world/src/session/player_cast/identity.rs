@@ -38,7 +38,7 @@ impl WorldSession {
             return Some((
                 represented_spell_cast_guid_for_map_like_cpp(
                     self.realm_id(),
-                    self.player_map_id_like_cpp(),
+                    self.core.player_map_id_like_cpp(),
                     spell_id,
                     NEXT_REPRESENTED_SPELL_CAST_COUNTER_LIKE_CPP.fetch_add(1, Ordering::Relaxed),
                 ),

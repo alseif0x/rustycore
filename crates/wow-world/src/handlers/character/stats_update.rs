@@ -64,7 +64,8 @@ impl WorldSession {
                 base_mana,
             )
             .or_else(|| {
-                self.canonical_player_power_snapshot_like_cpp(primary_power_type)
+                self.core
+                    .canonical_player_power_snapshot_like_cpp(primary_power_type)
                     .map(|(current, _)| {
                         (current.max(0).min(computed_max_power0), computed_max_power0)
                     })
@@ -76,11 +77,12 @@ impl WorldSession {
         // Keep the raw calculation only for test/early-login sessions that
         // have no canonical Player owner yet.
         let (mainhand_expertise, offhand_expertise) = self
+            .core
             .canonical_player_effective_combat_stats_like_cpp()
             .map(|stats| (stats.mainhand_expertise, stats.offhand_expertise))
             .unwrap_or_else(|| {
                 let rating = (gear.combat_ratings[23] as f32
-                    * self.combat_rating_multiplier_like_cpp(level, 23))
+                    * self.catalogs.combat_rating_multiplier_like_cpp(level, 23))
                 .trunc()
                 .max(0.0);
                 (rating, rating)
@@ -98,6 +100,7 @@ impl WorldSession {
         // values in both normal and interrupted flat regen fields.
         let represented_mana_regen_per_second = gear.mana_regen_bonus as f32 / 5.0;
         let (mana_regen, mana_regen_combat, mana_regen_mp5) = self
+            .core
             .canonical_player_effective_combat_stats_like_cpp()
             .map(|stats| {
                 (
@@ -217,8 +220,11 @@ impl WorldSession {
             return false;
         };
 
-        let update =
-            UpdateObject::player_stat_update(player_guid, self.player_map_id_like_cpp(), changes);
+        let update = UpdateObject::player_stat_update(
+            player_guid,
+            self.core.player_map_id_like_cpp(),
+            changes,
+        );
         self.send_packet(&update)
     }
 
@@ -249,8 +255,11 @@ impl WorldSession {
             changes.health = i64::from(restored);
         }
 
-        let update =
-            UpdateObject::player_stat_update(player_guid, self.player_map_id_like_cpp(), changes);
+        let update = UpdateObject::player_stat_update(
+            player_guid,
+            self.core.player_map_id_like_cpp(),
+            changes,
+        );
         self.send_packet(&update);
     }
 
@@ -279,8 +288,11 @@ impl WorldSession {
             );
         }
 
-        let update =
-            UpdateObject::player_stat_update(player_guid, self.player_map_id_like_cpp(), changes);
+        let update = UpdateObject::player_stat_update(
+            player_guid,
+            self.core.player_map_id_like_cpp(),
+            changes,
+        );
         self.send_packet(&update);
     }
 
@@ -291,8 +303,11 @@ impl WorldSession {
             return;
         };
 
-        let update =
-            UpdateObject::player_stat_update(player_guid, self.player_map_id_like_cpp(), changes);
+        let update = UpdateObject::player_stat_update(
+            player_guid,
+            self.core.player_map_id_like_cpp(),
+            changes,
+        );
         self.send_packet(&update);
     }
 }

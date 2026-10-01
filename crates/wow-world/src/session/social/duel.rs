@@ -47,12 +47,14 @@ impl WorldSession {
         opponent_guid: ObjectGuid,
         state: wow_entities::PlayerDuelStateLikeCpp,
     ) {
-        let _ = self.mutate_canonical_player_by_guid_like_cpp(player_guid, |player| {
-            player.set_duel_info_like_cpp(Some(wow_entities::PlayerDuelInfoLikeCpp {
-                opponent: opponent_guid,
-                state,
-            }));
-        });
+        let _ = self
+            .core
+            .mutate_canonical_player_by_guid_like_cpp(player_guid, |player| {
+                player.set_duel_info_like_cpp(Some(wow_entities::PlayerDuelInfoLikeCpp {
+                    opponent: opponent_guid,
+                    state,
+                }));
+            });
     }
     fn send_represented_duel_countdown_to_opponent_like_cpp(
         &self,
@@ -84,6 +86,7 @@ impl WorldSession {
             return false;
         }
         if self
+            .core
             .mutate_canonical_player_by_guid_like_cpp(player_guid, |player| {
                 player.duel_info_like_cpp()
             })
@@ -93,6 +96,7 @@ impl WorldSession {
             return false;
         }
         let Some(target_duel) = self
+            .core
             .mutate_canonical_player_by_guid_like_cpp(target_guid, |player| {
                 player.duel_info_like_cpp()
             })
@@ -103,7 +107,7 @@ impl WorldSession {
             return false;
         }
 
-        let map_id = self.player_map_id_like_cpp();
+        let map_id = self.core.player_map_id_like_cpp();
         let arbiter_guid = ObjectGuid::create_world_object(
             HighGuid::GameObject,
             0,

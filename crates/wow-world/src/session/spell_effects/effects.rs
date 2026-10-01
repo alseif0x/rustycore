@@ -104,7 +104,7 @@ impl WorldSession {
         };
         if let Some(packet) = player_values_update_to_update_object(
             player_guid,
-            self.player_map_id_like_cpp(),
+            self.core.player_map_id_like_cpp(),
             &update,
         ) {
             self.send_packet(&packet);
@@ -130,7 +130,7 @@ impl WorldSession {
         };
         if let Some(packet) = player_values_update_to_update_object(
             player_guid,
-            self.player_map_id_like_cpp(),
+            self.core.player_map_id_like_cpp(),
             &update,
         ) {
             self.send_packet(&packet);
@@ -207,7 +207,7 @@ impl WorldSession {
             }
         }
 
-        let (display_id, native_display_id) = self.canonical_player_display_ids_like_cpp()?;
+        let (display_id, native_display_id) = self.core.canonical_player_display_ids_like_cpp()?;
         if display_id == 0 || display_id == native_display_id {
             return Some(None);
         }
@@ -293,6 +293,7 @@ impl WorldSession {
     }
     pub(crate) fn represented_homebind_like_cpp(&self) -> Option<RepresentedHomebindLikeCpp> {
         let canonical = self
+            .core
             .with_owned_player_like_cpp(|player| player.gameplay_state().homebind)
             .flatten();
         if canonical.is_some() {
@@ -309,6 +310,7 @@ impl WorldSession {
         homebind: RepresentedHomebindLikeCpp,
     ) -> bool {
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| player.set_homebind_like_cpp(homebind))
             .is_some();
         if canonical {
@@ -329,7 +331,7 @@ impl WorldSession {
         if target_guid.is_empty() {
             return None;
         }
-        let player_map_key = self.current_canonical_player_map_key_like_cpp()?;
+        let player_map_key = self.core.current_canonical_player_map_key_like_cpp()?;
         let manager = self.core.canonical_map_manager.as_ref()?;
         let manager = manager.lock().ok()?;
         let map = manager.find_map(player_map_key.map_id, player_map_key.instance_id)?;
@@ -446,7 +448,7 @@ impl WorldSession {
             return false;
         }
 
-        let Some(player_map_key) = self.current_canonical_player_map_key_like_cpp() else {
+        let Some(player_map_key) = self.core.current_canonical_player_map_key_like_cpp() else {
             return false;
         };
         let Ok(packet_map_id) = u16::try_from(player_map_key.map_id) else {
@@ -555,6 +557,7 @@ impl WorldSession {
         }
         let count = damage as u32;
         let queued = self
+            .core
             .mutate_canonical_player_like_cpp(|player| {
                 player
                     .unit_mut()
@@ -591,16 +594,17 @@ impl WorldSession {
             return false;
         }
 
-        self.mutate_canonical_player_like_cpp(|player| {
-            let current = i32::from(player.inebriation_like_cpp());
-            let next = (current + damage).clamp(0, 100) as u8;
-            if next == player.inebriation_like_cpp() {
-                return false;
-            }
-            player.set_inebriation_like_cpp(next);
-            true
-        })
-        .unwrap_or(false)
+        self.core
+            .mutate_canonical_player_like_cpp(|player| {
+                let current = i32::from(player.inebriation_like_cpp());
+                let next = (current + damage).clamp(0, 100) as u8;
+                if next == player.inebriation_like_cpp() {
+                    return false;
+                }
+                player.set_inebriation_like_cpp(next);
+                true
+            })
+            .unwrap_or(false)
     }
     /// C++ `Spell::EffectDismissPet`.
     ///
@@ -674,7 +678,7 @@ impl WorldSession {
             return Ok(());
         }
 
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
+        let _ = self.core.mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_can_dual_wield_like_cpp(true);
         });
 
@@ -687,7 +691,7 @@ impl WorldSession {
         let _ = self.player_guid().ok_or("No player GUID")?;
 
         let penalty_spell_id = u32::try_from(penalty_spell_id).unwrap_or(0);
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
+        let _ = self.core.mutate_canonical_player_like_cpp(|player| {
             player.set_can_titan_grip(true, penalty_spell_id);
         });
 
@@ -696,7 +700,7 @@ impl WorldSession {
     pub(in crate::session) fn apply_parry_effect_like_cpp(&mut self) -> Result<(), &'static str> {
         let _ = self.player_guid().ok_or("No player GUID")?;
 
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
+        let _ = self.core.mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_can_parry_like_cpp(true);
         });
 
@@ -705,7 +709,7 @@ impl WorldSession {
     pub(in crate::session) fn apply_block_effect_like_cpp(&mut self) -> Result<(), &'static str> {
         let _ = self.player_guid().ok_or("No player GUID")?;
 
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
+        let _ = self.core.mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().set_can_block_like_cpp(true);
         });
 
@@ -735,7 +739,7 @@ impl WorldSession {
         if let Some(update) = honor_update
             && let Some(packet) = player_values_update_to_update_object(
                 player_guid,
-                self.player_map_id_like_cpp(),
+                self.core.player_map_id_like_cpp(),
                 &update,
             )
         {
@@ -768,15 +772,16 @@ impl WorldSession {
         }
 
         let now_ms = u64::from(crate::session::game_time_ms_like_cpp());
-        self.mutate_canonical_player_like_cpp(|player| {
-            player
-                .unit_mut()
-                .subsystems_mut()
-                .spells
-                .history
-                .modify_cooldown(trigger_spell_id, i64::from(damage), false, now_ms)
-        })
-        .unwrap_or(false)
+        self.core
+            .mutate_canonical_player_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .subsystems_mut()
+                    .spells
+                    .history
+                    .modify_cooldown(trigger_spell_id, i64::from(damage), false, now_ms)
+            })
+            .unwrap_or(false)
     }
     pub(crate) fn current_map_is_dungeon_like_cpp(&self) -> bool {
         self.current_map_dungeon_state_like_cpp().unwrap_or(false)
@@ -788,7 +793,7 @@ impl WorldSession {
             .maps
             .store
             .as_ref()
-            .and_then(|store| store.get(u32::from(self.player_map_id_like_cpp())))
+            .and_then(|store| store.get(u32::from(self.core.player_map_id_like_cpp())))
             .map(|entry| entry.is_dungeon())
     }
     /// C++ `Spell::EffectDistract` / `SPELL_EFFECT_DISTRACT`.
@@ -809,6 +814,7 @@ impl WorldSession {
             .saturating_mul(1_000);
 
         let packet = self
+            .core
             .mutate_world_creature(target_guid, |creature| {
                 if creature.creature.ai_ownership().combat_target.is_some() {
                     return None;
@@ -856,7 +862,7 @@ impl WorldSession {
         let owner_guids = self.canonical_threatened_by_me_owner_guids_like_cpp(target_guid);
         for owner_guid in owner_guids {
             self.scale_canonical_owner_threat_to_target_zero_like_cpp(owner_guid, target_guid);
-            let _ = self.mutate_world_creature(owner_guid, |owner| {
+            let _ = self.core.mutate_world_creature(owner_guid, |owner| {
                 owner
                     .creature
                     .unit_mut()
@@ -913,6 +919,7 @@ impl WorldSession {
     ) -> Result<(), &'static str> {
         let caster = self.player_guid().ok_or("No player GUID")?;
         let Some(current_hp) = self
+            .core
             .mutate_world_creature(target_guid, |creature| {
                 creature.is_alive().then_some(creature.current_hp())
             })

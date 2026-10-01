@@ -6,13 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::session) fn attack_reputation_faction_snapshot_like_cpp(
-        &self,
-        creature: &wow_entities::Creature,
-    ) -> Option<AttackReputationFactionSnapshotLikeCpp> {
-        self.catalogs
-            .attack_reputation_faction_snapshot_like_cpp(creature)
-    }
     pub fn set_reputation_rates_like_cpp(&mut self, rates: ReputationRatesLikeCpp) {
         self.config.reputation_rates = rates;
     }
@@ -66,9 +59,6 @@ impl WorldSession {
         self.catalogs.paragon_reputation_store = Some(store);
         self.initialize_reputation_mgr_like_cpp();
     }
-    pub(crate) fn paragon_reputation_store(&self) -> Option<&Arc<ParagonReputationStore>> {
-        self.catalogs.paragon_reputation_store()
-    }
     pub(in crate::session) fn initialize_reputation_mgr_like_cpp(&mut self) {
         crate::session::hub_mut(self).initialize_reputation_mgr_like_cpp()
     }
@@ -78,21 +68,11 @@ impl WorldSession {
     ) {
         self.catalogs.reputation_reward_rate_store = Some(store);
     }
-    pub(crate) fn reputation_reward_rate_store(
-        &self,
-    ) -> Option<&Arc<ReputationRewardRateStoreLikeCpp>> {
-        self.catalogs.reputation_reward_rate_store()
-    }
     pub fn set_reputation_spillover_template_store(
         &mut self,
         store: Arc<RepSpilloverTemplateStoreLikeCpp>,
     ) {
         self.catalogs.reputation_spillover_template_store = Some(store);
-    }
-    pub(crate) fn reputation_spillover_template_store(
-        &self,
-    ) -> Option<&Arc<RepSpilloverTemplateStoreLikeCpp>> {
-        self.catalogs.reputation_spillover_template_store()
     }
     pub(crate) fn apply_represented_first_login_reputation_with_catalogs_like_cpp(
         &mut self,
@@ -146,7 +126,7 @@ impl WorldSession {
 
         percent += if rep > 0 { rep_mod } else { -rep_mod };
 
-        let reputation_rates = self.reputation_rates_like_cpp();
+        let reputation_rates = self.config.reputation_rates_like_cpp();
         let low_level_rate = match source {
             ReputationGainSourceLikeCpp::Kill => reputation_rates.low_level_kill,
             ReputationGainSourceLikeCpp::Quest
@@ -209,7 +189,11 @@ impl WorldSession {
         if source != ReputationGainSourceLikeCpp::Spell
             && self.gets_recruit_a_friend_reputation_bonus_like_cpp()
         {
-            percent *= 1.0 + self.reputation_rates_like_cpp().recruit_a_friend_bonus;
+            percent *= 1.0
+                + self
+                    .config
+                    .reputation_rates_like_cpp()
+                    .recruit_a_friend_bonus;
         }
         percent
     }
@@ -218,9 +202,13 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) async fn reputation_changed_like_cpp(&mut self, faction_id: u32, change: i32) {
-        self.enqueue_represented_quest_objective_progress_like_cpp(
-            RepresentedQuestObjectiveProgressEventLikeCpp::ReputationChanged { faction_id, change },
-        );
+        self.quest_state
+            .enqueue_represented_quest_objective_progress_like_cpp(
+                RepresentedQuestObjectiveProgressEventLikeCpp::ReputationChanged {
+                    faction_id,
+                    change,
+                },
+            );
         self.drain_represented_quest_objective_progress_like_cpp()
             .await;
     }

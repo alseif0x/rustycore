@@ -26,7 +26,7 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn feature_system_status_like_cpp(&self) -> FeatureSystemStatus {
-        self.feature_system_status_with_policy_like_cpp(
+        self.core.feature_system_status_with_policy_like_cpp(
             &self.support_feature_policy_for_test_like_cpp(),
         )
     }
@@ -35,9 +35,10 @@ impl WorldSession {
     pub(crate) fn feature_system_status_glue_screen_like_cpp(
         &self,
     ) -> FeatureSystemStatusGlueScreen {
-        self.feature_system_status_glue_screen_with_policy_like_cpp(
-            &self.support_feature_policy_for_test_like_cpp(),
-        )
+        self.core
+            .feature_system_status_glue_screen_with_policy_like_cpp(
+                &self.support_feature_policy_for_test_like_cpp(),
+            )
     }
 }
 

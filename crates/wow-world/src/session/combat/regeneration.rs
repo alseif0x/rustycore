@@ -53,15 +53,16 @@ fn resolve_health_regeneration_input_like_cpp(
     regen_game_tables: &wow_data::RegenGameTablesLikeCpp,
     rates: &PlayerRegenerationRatesLikeCpp,
 ) -> Option<wow_entities::UnitHealthRegenInputLikeCpp> {
-    let (is_in_combat, is_stand_state) = session.canonical_player_snapshot_like_cpp(|player| {
-        (
-            player
-                .unit()
-                .unit_flags_like_cpp()
-                .contains(UnitFlags::IN_COMBAT),
-            player.unit().is_stand_state_like_cpp(),
-        )
-    })?;
+    let (is_in_combat, is_stand_state) =
+        session.core.canonical_player_snapshot_like_cpp(|player| {
+            (
+                player
+                    .unit()
+                    .unit_flags_like_cpp()
+                    .contains(UnitFlags::IN_COMBAT),
+                player.unit().is_stand_state_like_cpp(),
+            )
+        })?;
 
     let effects_for = |aura_type: i32| {
         session
@@ -132,9 +133,10 @@ fn has_standing_interruptible_aura_of_type_like_cpp(
         return false;
     };
     let difficulty_id = session
+        .core
         .current_canonical_player_map_difficulty_id_like_cpp()
         .unwrap_or(0);
-    let difficulty_store = session.difficulty_store().map(AsRef::as_ref);
+    let difficulty_store = session.catalogs.difficulty_store().map(AsRef::as_ref);
     visible_auras.values().any(|aura| {
         let carries_effect = spell_store.get(aura.spell_id).is_some_and(|spell| {
             spell.effects().iter().any(|effect| {
@@ -219,6 +221,7 @@ impl WorldSession {
         // C++ `Player::Update` guards the regen block with `IsAlive()`; the map
         // loop additionally requires `IsInWorld()`.
         let in_world = self
+            .core
             .with_owned_player_like_cpp(|player| {
                 player.unit().is_alive() && player.unit().world().object().is_in_world()
             })
@@ -246,7 +249,7 @@ impl WorldSession {
             )
             .unwrap_or_default();
 
-        let stats = self.canonical_player_effective_combat_stats_like_cpp();
+        let stats = self.core.canonical_player_effective_combat_stats_like_cpp();
         let health_input = match (stats.as_ref(), regen_game_tables) {
             (Some(stats), Some(regen_game_tables)) => {
                 resolve_health_regeneration_input_like_cpp(self, stats, regen_game_tables, rates)
@@ -260,6 +263,7 @@ impl WorldSession {
         // primary power index is represented today, so an alternate power is
         // skipped exactly like a `GetPowerIndex` miss.
         let represented_powers = self
+            .core
             .with_owned_player_like_cpp(|player| {
                 (0..wow_entities::MAX_POWERS as i8)
                     .filter_map(|raw| <PowerType as num_traits::FromPrimitive>::from_i8(raw))
@@ -322,60 +326,62 @@ impl WorldSession {
             });
         }
 
-        let outcome = self.with_owned_player_mut_for_power_like_cpp(|player| {
-            // C++ `m_regenTimer += p_time; m_regenTimerCount += m_regenTimer;
-            // m_foodEmoteTimerCount += m_regenTimer`.
-            player
-                .unit_mut()
-                .accumulate_power_regen_timer_like_cpp(diff_ms);
-
-            let mut published = Vec::new();
-            for represented in &prepared {
-                let mut input = represented.input;
-                input.interrupted_by_mp5_rule = represented.power == PowerType::Mana
-                    && player
-                        .unit()
-                        .is_power_regen_interrupted_by_mp5_rule_like_cpp(now_ms);
-                if let wow_entities::UnitPowerRegenOutcomeLikeCpp::Applied {
-                    power: new_power,
-                    publish: true,
-                } = player
+        let outcome = self
+            .core
+            .with_owned_player_mut_for_power_like_cpp(|player| {
+                // C++ `m_regenTimer += p_time; m_regenTimerCount += m_regenTimer;
+                // m_foodEmoteTimerCount += m_regenTimer`.
+                player
                     .unit_mut()
-                    .regenerate_power_like_cpp(represented.power, input)
+                    .accumulate_power_regen_timer_like_cpp(diff_ms);
+
+                let mut published = Vec::new();
+                for represented in &prepared {
+                    let mut input = represented.input;
+                    input.interrupted_by_mp5_rule = represented.power == PowerType::Mana
+                        && player
+                            .unit()
+                            .is_power_regen_interrupted_by_mp5_rule_like_cpp(now_ms);
+                    if let wow_entities::UnitPowerRegenOutcomeLikeCpp::Applied {
+                        power: new_power,
+                        publish: true,
+                    } = player
+                        .unit_mut()
+                        .regenerate_power_like_cpp(represented.power, input)
+                    {
+                        published.push((represented.power, new_power));
+                    }
+                }
+
+                // C++ `if (m_regenTimerCount >= 2000)` health branch. The gate is
+                // kept explicit so the `RegenerateHealth` call sites match
+                // `Player::RegenerateAll`; the inner function would otherwise
+                // compute the same no-op.
+                if player.unit().power_regen_timer_ready_like_cpp()
+                    && let Some(input) = health_input
                 {
-                    published.push((represented.power, new_power));
+                    let passes_gate = !input.is_in_combat
+                        || input.is_polymorphed
+                        || input.base_health_regen != 0
+                        || input.has_mod_regen_during_combat
+                        || input.has_mod_health_regen_in_combat;
+                    if passes_gate {
+                        let _ = player.unit_mut().regenerate_health_like_cpp(input);
+                    }
                 }
-            }
 
-            // C++ `if (m_regenTimerCount >= 2000)` health branch. The gate is
-            // kept explicit so the `RegenerateHealth` call sites match
-            // `Player::RegenerateAll`; the inner function would otherwise
-            // compute the same no-op.
-            if player.unit().power_regen_timer_ready_like_cpp()
-                && let Some(input) = health_input
-            {
-                let passes_gate = !input.is_in_combat
-                    || input.is_polymorphed
-                    || input.base_health_regen != 0
-                    || input.has_mod_regen_during_combat
-                    || input.has_mod_health_regen_in_combat;
-                if passes_gate {
-                    let _ = player.unit_mut().regenerate_health_like_cpp(input);
+                player.unit_mut().finish_power_regen_tick_like_cpp();
+
+                // C++ `if (m_foodEmoteTimerCount >= 5000)` block. The accumulator
+                // and its one-window subtraction live on the canonical Unit; the
+                // aura-driven kit selection and publication run after the mutation
+                // boundary, like the power updates.
+                let food_emote_ready = player.unit().food_emote_timer_ready_like_cpp();
+                if food_emote_ready {
+                    player.unit_mut().finish_food_emote_tick_like_cpp();
                 }
-            }
-
-            player.unit_mut().finish_power_regen_tick_like_cpp();
-
-            // C++ `if (m_foodEmoteTimerCount >= 5000)` block. The accumulator
-            // and its one-window subtraction live on the canonical Unit; the
-            // aura-driven kit selection and publication run after the mutation
-            // boundary, like the power updates.
-            let food_emote_ready = player.unit().food_emote_timer_ready_like_cpp();
-            if food_emote_ready {
-                player.unit_mut().finish_food_emote_tick_like_cpp();
-            }
-            (published, food_emote_ready)
-        });
+                (published, food_emote_ready)
+            });
 
         let Some((published, food_emote_ready)) = outcome else {
             return;

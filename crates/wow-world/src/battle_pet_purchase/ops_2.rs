@@ -108,7 +108,9 @@ impl WorldSession {
                 }
                 if !command.published
                     && !account_mismatch
-                    && self.battle_pet_try_acquire_journal_lease_like_cpp().await
+                    && crate::session::cx_pets_ref(self)
+                        .battle_pet_try_acquire_journal_lease_like_cpp()
+                        .await
                 {
                     let replay = owner
                         .try_add_pet_like_cpp(
@@ -167,7 +169,8 @@ impl WorldSession {
         else {
             return BattlePetPurchaseExecutionLikeCpp::CompensationDeferred;
         };
-        let money_tracker = self.durable_loot_money_persistence_tracker_like_cpp();
+        let money_tracker =
+            crate::session::cx_loot_ref(self).durable_loot_money_persistence_tracker_like_cpp();
         let compensated = retry_battle_pet_purchase_step_like_cpp(
             || {
                 store.compensate(
@@ -283,7 +286,7 @@ impl WorldSession {
         // C++ `BattlePetMgr::AddPet`: SendUpdates first, then the two set-like
         // criteria hooks. Their represented bridge derives current durable
         // state, making receipt and packet-publication recovery idempotent.
-        self.record_battle_pet_trainer_purchase_criteria_like_cpp(species);
+        crate::session::cx_pets(self).record_battle_pet_trainer_purchase_criteria_like_cpp(species);
         self.learn_dependent_known_spell_like_cpp(spell_id as i32);
         let learned_enqueued = self
             .send_tx()

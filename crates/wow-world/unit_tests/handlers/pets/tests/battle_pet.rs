@@ -72,7 +72,9 @@ async fn battle_pet_request_journal_acquires_lock_then_sends_empty_journal_like_
 #[tokio::test]
 async fn battle_pet_request_journal_with_lock_sends_only_journal_like_cpp() {
     let (mut session, send_rx) = make_session();
-    session.send_battle_pet_journal_lock_status_like_cpp().await;
+    crate::session::cx_pets(&mut session)
+        .send_battle_pet_journal_lock_status_like_cpp()
+        .await;
     let _ = send_rx.try_recv().expect("initial lock packet");
 
     session

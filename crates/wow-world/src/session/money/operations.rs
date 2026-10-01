@@ -231,7 +231,8 @@ impl WorldSession {
             None
         } else {
             Some(
-                self.group_loot_money_persistence_port_like_cpp()
+                crate::session::cx_loot_ref(self)
+                    .group_loot_money_persistence_port_like_cpp()
                     .ok_or(LootMoneyPersistenceErrorLikeCpp::MissingCharacterDatabase)?,
             )
         };
@@ -469,12 +470,13 @@ impl WorldSession {
         let Some(old_money) = self.resolved_player_money_like_cpp() else {
             return;
         };
-        self.enqueue_represented_quest_objective_progress_like_cpp(
-            RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
-                old_money,
-                new_money,
-            },
-        );
+        self.quest_state
+            .enqueue_represented_quest_objective_progress_like_cpp(
+                RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
+                    old_money,
+                    new_money,
+                },
+            );
         self.drain_represented_quest_objective_progress_like_cpp()
             .await;
     }
@@ -503,23 +505,25 @@ impl WorldSession {
             return false;
         }
         if old_money != new_money {
-            self.enqueue_represented_quest_objective_progress_like_cpp(
-                RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
-                    old_money,
-                    new_money,
-                },
-            );
+            self.quest_state
+                .enqueue_represented_quest_objective_progress_like_cpp(
+                    RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
+                        old_money,
+                        new_money,
+                    },
+                );
         }
         true
     }
     #[cfg(test)]
     pub(crate) async fn currency_changed_like_cpp(&mut self, currency_id: u32, change: i32) {
-        self.enqueue_represented_quest_objective_progress_like_cpp(
-            RepresentedQuestObjectiveProgressEventLikeCpp::CurrencyChanged {
-                currency_id,
-                change,
-            },
-        );
+        self.quest_state
+            .enqueue_represented_quest_objective_progress_like_cpp(
+                RepresentedQuestObjectiveProgressEventLikeCpp::CurrencyChanged {
+                    currency_id,
+                    change,
+                },
+            );
         self.drain_represented_quest_objective_progress_like_cpp()
             .await;
     }

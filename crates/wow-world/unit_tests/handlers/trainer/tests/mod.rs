@@ -244,7 +244,7 @@ fn assert_trainer_charge_and_visuals_like_cpp(fixture: &mut TrainerFixture) {
         fixture.send_rx.try_recv().unwrap(),
         wow_packet::packets::update::UpdateObject::player_money_update(
             fixture.session.player_guid().unwrap(),
-            fixture.session.player_map_id_like_cpp(),
+            fixture.session.core.player_map_id_like_cpp(),
             75,
             None,
         )

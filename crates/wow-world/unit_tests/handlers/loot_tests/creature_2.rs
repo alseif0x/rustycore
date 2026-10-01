@@ -12,7 +12,7 @@ async fn loot_release_keeps_unlooted_creature_loot_like_cpp() {
     let other_guid = ObjectGuid::create_player(1, 77);
     let loot_guid = test_creature_guid(19_013);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
     let _ = session.mutate_world_creature(loot_guid, |world_creature| {
         world_creature
@@ -56,7 +56,7 @@ async fn loot_release_keeps_unlooted_creature_loot_like_cpp() {
     );
     assert_eq!(sent.read_packed_guid().unwrap(), loot_guid);
     assert_eq!(sent.read_packed_guid().unwrap(), player_guid);
-    assert!(!session.is_active_loot_guid(loot_guid));
+    assert!(!session.loot.is_active_loot_guid(loot_guid));
     assert!(
         !session.loot.loot_table.contains_key(&loot_guid),
         "the closed session view is a discardable cache; the creature authority keeps loot"
@@ -92,7 +92,7 @@ async fn creature_owned_loot_release_partial_uses_canonical_is_fully_looted_like
     let creature = make_canonical_creature_for_session(&session, loot_guid);
     attach_canonical_creature(&mut session, creature);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
     let corpse_despawn_before = session
         .mutate_world_creature(loot_guid, |creature| {
@@ -124,7 +124,7 @@ async fn creature_owned_loot_release_partial_uses_canonical_is_fully_looted_like
         .await;
 
     assert!(send_rx.try_recv().is_ok());
-    assert!(!session.is_active_loot_guid(loot_guid));
+    assert!(!session.loot.is_active_loot_guid(loot_guid));
     assert!(!session.loot.loot_table.contains_key(&loot_guid));
     let canonical = canonical_creature_snapshot(&session, loot_guid).unwrap();
     assert_eq!(
@@ -158,7 +158,7 @@ async fn creature_owned_loot_release_fully_consumed_uses_canonical_is_fully_loot
     let creature = make_canonical_creature_for_session(&session, loot_guid);
     attach_canonical_creature(&mut session, creature);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     session.set_loot_drop_rates_like_cpp(LootDropRatesLikeCpp {
         corpse_decay_looted: 0.5,
         ..LootDropRatesLikeCpp::default()
@@ -197,7 +197,7 @@ async fn creature_owned_loot_release_fully_consumed_uses_canonical_is_fully_loot
         .await;
 
     assert!(send_rx.try_recv().is_ok());
-    assert!(!session.is_active_loot_guid(loot_guid));
+    assert!(!session.loot.is_active_loot_guid(loot_guid));
     assert!(!session.loot.loot_table.contains_key(&loot_guid));
     let canonical = canonical_creature_snapshot(&session, loot_guid).unwrap();
     assert_eq!(
@@ -266,7 +266,7 @@ async fn personal_creature_release_starts_decay_only_after_every_pool_is_looted_
 
     session.set_player_guid(Some(first_player));
     assert!(session.reconcile_represented_loot_cache_like_cpp(owner_guid, first_player));
-    session.set_active_loot_guid(owner_guid);
+    session.loot.set_active_loot_guid(owner_guid);
     let response = authoritative_test_loot_response_like_cpp(
         owner_guid,
         &session.loot.loot_table[&owner_guid],
@@ -293,7 +293,7 @@ async fn personal_creature_release_starts_decay_only_after_every_pool_is_looted_
 
     session.set_player_guid(Some(second_player));
     assert!(session.reconcile_represented_loot_cache_like_cpp(owner_guid, second_player));
-    session.set_active_loot_guid(owner_guid);
+    session.loot.set_active_loot_guid(owner_guid);
     let response = authoritative_test_loot_response_like_cpp(
         owner_guid,
         &session.loot.loot_table[&owner_guid],
@@ -439,7 +439,7 @@ async fn creature_owned_loot_release_does_not_extend_expired_corpse_like_cpp() {
     let creature = make_canonical_creature_for_session(&session, loot_guid);
     attach_canonical_creature(&mut session, creature);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     session.set_loot_drop_rates_like_cpp(LootDropRatesLikeCpp {
         corpse_decay_looted: 0.5,
         ..LootDropRatesLikeCpp::default()
@@ -506,7 +506,7 @@ async fn creature_owned_loot_release_fully_consumed_removes_lootable_dynflag_lik
     let creature = make_canonical_creature_for_session(&session, loot_guid);
     attach_canonical_creature(&mut session, creature);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     session.core.client_visible_guids_like_cpp.insert(loot_guid);
     register_test_creature_like_cpp(&mut session, test_creature(loot_guid, false));
     let _ = session.mutate_world_creature(loot_guid, |creature| {
@@ -565,7 +565,7 @@ async fn creature_skinning_loot_release_despawns_corpse_immediately_like_cpp() {
     let creature = make_canonical_creature_for_session(&session, loot_guid);
     attach_canonical_creature(&mut session, creature);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     session.set_loot_drop_rates_like_cpp(LootDropRatesLikeCpp {
         corpse_decay_looted: 0.5,
         ..LootDropRatesLikeCpp::default()
@@ -639,7 +639,10 @@ async fn authoritative_partial_personal_creature_release_drops_cache_and_reopen_
     let opened = authority
         .add_viewer_like_cpp(fixture.first_tapper)
         .expect("the authoritative personal pool opens");
-    fixture.session.set_active_loot_guid(fixture.owner_guid);
+    fixture
+        .session
+        .loot
+        .set_active_loot_guid(fixture.owner_guid);
     fixture
         .session
         .loot

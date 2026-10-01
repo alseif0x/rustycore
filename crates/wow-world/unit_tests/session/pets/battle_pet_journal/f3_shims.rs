@@ -52,4 +52,17 @@ impl crate::session::WorldSession {
             timestamp,
         )
     }
+    pub(crate) fn has_represented_battle_pet_journal_lock_like_cpp(&self) -> bool {
+        crate::session::cx_pets_ref(self).has_represented_battle_pet_journal_lock_like_cpp()
+    }
+    pub(crate) fn represented_battle_pet_journal_like_cpp(
+        &self,
+    ) -> Option<wow_packet::packets::misc::BattlePetJournal> {
+        crate::session::cx_pets_ref(self).represented_battle_pet_journal_like_cpp()
+    }
+    pub(crate) async fn battle_pet_try_acquire_journal_lease_like_cpp(&self) -> bool {
+        crate::session::cx_pets_ref(self)
+            .battle_pet_try_acquire_journal_lease_like_cpp()
+            .await
+    }
 }

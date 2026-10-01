@@ -203,7 +203,7 @@ async fn disconnect_cleanup_releases_active_loot_views_like_cpp_logout_player() 
     let player_guid = ObjectGuid::create_player(1, 42);
     let loot_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 1, 19_040);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     session.loot.loot_table.insert(
         loot_guid,
         CreatureLoot {
@@ -247,7 +247,7 @@ async fn disconnect_cleanup_releases_active_loot_views_like_cpp_logout_player() 
     );
     assert_eq!(sent.read_packed_guid().unwrap(), loot_guid);
     assert_eq!(sent.read_packed_guid().unwrap(), player_guid);
-    assert!(!session.is_active_loot_guid(loot_guid));
+    assert!(!session.loot.is_active_loot_guid(loot_guid));
     assert!(
         !session.loot.loot_table.contains_key(&loot_guid),
         "full disconnect release retires the session packet-cache copy like C++"

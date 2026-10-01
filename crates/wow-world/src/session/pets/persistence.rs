@@ -6,17 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn begin_represented_character_pet_authority_load_like_cpp(&mut self) {
-        crate::session::cx_pets(self).begin_represented_character_pet_authority_load_like_cpp()
-    }
-    pub(crate) fn load_represented_pet_declined_names_like_cpp(
-        &mut self,
-        pet_number: u32,
-        row: Option<CharacterPetDeclinedNamesRowLikeCpp>,
-    ) -> bool {
-        crate::session::cx_pets(self).load_represented_pet_declined_names_like_cpp(pet_number, row)
-    }
-
     pub fn set_battle_pet_purchase_persistence_port_like_cpp(
         &mut self,
         store: Arc<dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp>,
@@ -66,3 +55,7 @@ impl crate::session::PetsCx<'_> {
             .battle_pet_purchase = Some(store);
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/pets/persistence/f3_shims.rs"]
+mod f3_shims;

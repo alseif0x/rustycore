@@ -63,6 +63,7 @@ impl WorldSession {
             return 0;
         };
         let instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -70,7 +71,7 @@ impl WorldSession {
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         manager
-            .find_creature(self.player_map_id_like_cpp(), instance_id, unit_guid)
+            .find_creature(self.core.player_map_id_like_cpp(), instance_id, unit_guid)
             .map(|creature| {
                 creature.creature.unit().subsystems().auras.aura_state_mask
                     | crate::map_manager::WorldCreature::health_aura_state_like_cpp(
@@ -152,7 +153,7 @@ impl WorldSession {
         let autoattack_damage_multiplier = self
             .represented_player_autoattack_damage_multiplier_like_cpp()
             .max(0.0);
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
+        let _ = self.core.mutate_canonical_player_like_cpp(|player| {
             player
                 .unit_mut()
                 .apply_attack_time_multipliers_like_cpp(multipliers);
@@ -210,7 +211,7 @@ impl WorldSession {
             return 0;
         };
         let spell_store = self.spell_store().cloned();
-        let difficulty_store = self.difficulty_store().cloned();
+        let difficulty_store = self.catalogs.difficulty_store().cloned();
         let aura_options_store = self
             .catalogs
             .spell_catalogs
@@ -344,6 +345,7 @@ impl WorldSession {
             let _fallback_snapshot = canonical_snapshot.clone();
             let _fallback_aura = aura.clone();
             let _canonical = self
+                .core
                 .with_owned_player_mut_like_cpp(|player| {
                     player.install_player_threat_aura_like_cpp(slot, canonical_snapshot, aura);
                     player

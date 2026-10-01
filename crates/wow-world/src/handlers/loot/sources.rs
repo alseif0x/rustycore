@@ -33,7 +33,9 @@ impl WorldSession {
         if loot_id == 0 || self.resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
-        if !self.represented_gameobject_exists_for_loot_like_cpp(gameobject_guid) {
+        if !crate::session::cx_loot_ref(self)
+            .represented_gameobject_exists_for_loot_like_cpp(gameobject_guid)
+        {
             return;
         }
 
@@ -47,8 +49,8 @@ impl WorldSession {
         // C++ serializes template generation and `ClearLoot` on the map
         // thread. Rust awaits database-backed template generation, so retain
         // the exact object lifetime and authority tombstone across that await.
-        let install_observation =
-            self.represented_gameobject_loot_install_observation_like_cpp(gameobject_guid);
+        let install_observation = crate::session::cx_loot(self)
+            .represented_gameobject_loot_install_observation_like_cpp(gameobject_guid);
         if install_observation.is_none() && !represented_local_loot_fixture_allowed_like_cpp() {
             return;
         }
@@ -133,7 +135,7 @@ impl WorldSession {
         let Some(loot) = self.loot.loot_table.get(&gameobject_guid) else {
             return;
         };
-        if !self.represented_loot_can_be_opened_by_player_like_cpp(
+        if !self.loot.represented_loot_can_be_opened_by_player_like_cpp(
             gameobject_guid,
             loot,
             player_guid,
@@ -158,7 +160,7 @@ impl WorldSession {
         if !replace_existing && self.has_active_non_item_loot_views_like_cpp() {
             self.do_loot_release_all_like_cpp(player_guid).await;
         }
-        self.set_active_loot_guid(gameobject_guid);
+        self.loot.set_active_loot_guid(gameobject_guid);
         self.represented_on_loot_opened_with_catalogs_like_cpp(
             item_valuation,
             gameobject_guid,
@@ -179,7 +181,7 @@ impl WorldSession {
         // (`GameObject.cpp:2559-2575`). Capture the exact map-owned lifetime
         // before async template work, then revalidate it under the map lock at
         // install time so `ClearLoot`/restock cannot be crossed.
-        let install_observation = match self
+        let install_observation = match crate::session::cx_loot(self)
             .represented_gameobject_loot_install_observation_result_like_cpp(gameobject_guid)
         {
             Some(Some(observation)) => Some(observation),
@@ -229,7 +231,7 @@ impl WorldSession {
                 }
             }
             if let Some(snapshot) = authority.snapshot_for_player_like_cpp(player_guid) {
-                self.cache_represented_owned_loot_snapshot_like_cpp(
+                self.loot.cache_represented_owned_loot_snapshot_like_cpp(
                     gameobject_guid,
                     player_guid,
                     snapshot,
@@ -661,15 +663,15 @@ impl WorldSession {
             return Some(Vec::new());
         }
 
-        let mut rng = self.represented_runtime_subrng_like_cpp();
+        let mut rng = self.core.represented_runtime_subrng_like_cpp();
         let stores = self.loot_stores()?;
         let store = stores.get(&store_kind)?;
         let rates = self.loot_drop_rates_like_cpp();
         let condition_ids = store.condition_ids_for_fill_like_cpp(loot_id, store_kind, stores);
-        let condition_rows = self
+        let condition_rows = crate::session::cx_loot_ref(self)
             .load_represented_creature_loot_condition_rows_like_cpp(&condition_ids)
             .await;
-        let condition_references = self
+        let condition_references = crate::session::cx_loot_ref(self)
             .load_represented_creature_loot_condition_reference_rows_like_cpp(&condition_rows)
             .await;
         let addon_metadata = self
@@ -772,6 +774,7 @@ impl WorldSession {
                 return Some(items);
             }
             let Some(parent_area_id) = self
+                .catalogs
                 .area_table_store()
                 .and_then(|store| store.get(current_area_id))
                 .map(|entry| u32::from(entry.parent_area_id))
@@ -799,16 +802,16 @@ impl WorldSession {
             return Some(Vec::new());
         }
 
-        let mut rng = self.represented_runtime_subrng_like_cpp();
+        let mut rng = self.core.represented_runtime_subrng_like_cpp();
         let stores = self.loot_stores()?;
         let store = stores.get(&LootStoreKind::Gameobject)?;
         let rates = self.loot_drop_rates_like_cpp();
         let condition_ids =
             store.condition_ids_for_fill_like_cpp(loot_id, LootStoreKind::Gameobject, stores);
-        let condition_rows = self
+        let condition_rows = crate::session::cx_loot_ref(self)
             .load_represented_creature_loot_condition_rows_like_cpp(&condition_ids)
             .await;
-        let condition_references = self
+        let condition_references = crate::session::cx_loot_ref(self)
             .load_represented_creature_loot_condition_reference_rows_like_cpp(&condition_rows)
             .await;
         let addon_metadata = self

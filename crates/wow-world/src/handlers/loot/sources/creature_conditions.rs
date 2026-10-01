@@ -8,24 +8,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::handlers::loot) async fn load_represented_creature_loot_condition_rows_like_cpp(
-        &self,
-        condition_ids: &[LootConditionId],
-    ) -> HashMap<LootConditionId, Vec<LootConditionRowLikeCpp>> {
-        crate::session::cx_loot_ref(self)
-            .load_represented_creature_loot_condition_rows_like_cpp(condition_ids)
-            .await
-    }
-
-    pub(in crate::handlers::loot) async fn load_represented_creature_loot_condition_reference_rows_like_cpp(
-        &self,
-        condition_rows: &HashMap<LootConditionId, Vec<LootConditionRowLikeCpp>>,
-    ) -> HashMap<u32, Vec<LootConditionRowLikeCpp>> {
-        crate::session::cx_loot_ref(self)
-            .load_represented_creature_loot_condition_reference_rows_like_cpp(condition_rows)
-            .await
-    }
-
     pub(in crate::handlers::loot) fn represented_creature_loot_item_allowed_like_cpp(
         &self,
         context: LootStoreItemContext,
@@ -110,7 +92,8 @@ impl WorldSession {
                     return None;
                 }
                 let item_count = if player_context.is_current {
-                    self.direct_inventory_item_count_like_cpp(condition.value1)
+                    crate::session::cx_loot_ref(self)
+                        .direct_inventory_item_count_like_cpp(condition.value1)
                 } else {
                     Some(player_context.inventory_item_count(condition.value1))
                 }?;
@@ -159,10 +142,11 @@ impl WorldSession {
                 let progress = if player_context.is_current {
                     self.player_quest_objective_progress_like_cpp(condition.value1)
                 } else {
-                    self.remote_player_quest_objective_progress_like_cpp(
-                        condition.value1,
-                        player_context,
-                    )
+                    self.catalogs
+                        .remote_player_quest_objective_progress_like_cpp(
+                            condition.value1,
+                            player_context,
+                        )
                 };
                 Some(progress == Some(condition.value3 as i32))
             }
@@ -178,7 +162,9 @@ impl WorldSession {
         &self,
         item_id: u32,
     ) -> ItemTemplateAddonLootMetadataLikeCpp {
-        let Some(port) = self.item_template_addon_catalog_persistence_port_like_cpp() else {
+        let Some(port) = crate::session::cx_inventory_ref(self)
+            .item_template_addon_catalog_persistence_port_like_cpp()
+        else {
             return ItemTemplateAddonLootMetadataLikeCpp::default();
         };
 

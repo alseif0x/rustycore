@@ -100,7 +100,7 @@ impl WorldSession {
         self.config.party_level_req_like_cpp
     }
     pub(crate) fn canonical_player_party_power_snapshot_like_cpp(&self) -> Option<(u8, u16, u16)> {
-        self.canonical_player_snapshot_like_cpp(|player| {
+        self.core.canonical_player_snapshot_like_cpp(|player| {
             let power_type = player.unit().data().display_power;
             let power = party_member_power_kind_from_u8_like_cpp(power_type);
             (
@@ -118,7 +118,7 @@ impl WorldSession {
     /// generation-checked canonical Player handle. An unresolved owner never
     /// falls back in production.
     pub(crate) fn resolved_group_guid_like_cpp(&self) -> Option<u64> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
             player
                 .gameplay_state()
                 .group
@@ -328,7 +328,7 @@ impl WorldSession {
             return false;
         }
 
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+        let canonical = self.core.with_owned_player_mut_like_cpp(|player| {
             player.reset_group_update_sequence_if_needed_like_cpp(usize::from(category), group_guid)
         });
         #[cfg(test)]
@@ -378,6 +378,7 @@ impl WorldSession {
             .is_some_and(|leader_guid| leader_guid == player_guid);
 
         let updated = self
+            .core
             .mutate_canonical_player_like_cpp(|player| {
                 if is_group_leader {
                     player.set_player_flag(PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP);
@@ -411,9 +412,6 @@ impl WorldSession {
     pub fn group_registry(&self) -> Option<&Arc<GroupRegistry>> {
         self.core.group_registry()
     }
-    pub(crate) fn party_member_party_type_like_cpp(&self) -> [u8; 2] {
-        self.core.party_member_party_type_like_cpp()
-    }
     pub(in crate::session) fn represented_player_at_group_reward_distance_like_cpp(
         &self,
         player_guid: ObjectGuid,
@@ -427,14 +425,6 @@ impl WorldSession {
             reward_map_id,
             reward_position,
         )
-    }
-    pub(crate) fn record_represented_silence_party_talker_like_cpp(
-        &mut self,
-        target: ObjectGuid,
-        silent: bool,
-    ) {
-        self.social
-            .record_represented_silence_party_talker_like_cpp(target, silent)
     }
 }
 

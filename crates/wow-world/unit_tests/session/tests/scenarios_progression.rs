@@ -503,7 +503,11 @@ fn first_login_start_all_reputation_applies_cpp_common_and_alliance_lists() {
         FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP.len()
             + FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP.len()
     );
-    let faction_store = session.faction_store().expect("faction store").clone();
+    let faction_store = session
+        .catalogs
+        .faction_store()
+        .expect("faction store")
+        .clone();
     for faction_id in FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP
         .iter()
         .chain(FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP.iter())
@@ -565,7 +569,11 @@ fn first_login_start_all_reputation_is_config_gated_and_uses_horde_branch() {
         FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP.len()
             + FIRST_LOGIN_START_REPUTATION_HORDE_FACTIONS_LIKE_CPP.len()
     );
-    let faction_store = session.faction_store().expect("faction store").clone();
+    let faction_store = session
+        .catalogs
+        .faction_store()
+        .expect("faction store")
+        .clone();
     let orgrimmar = faction_store.get(76).expect("horde faction");
     assert_eq!(
         session

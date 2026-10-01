@@ -48,14 +48,17 @@ impl WorldSession {
             Some(g) => g,
             None => return,
         };
-        let map_id = self.player_map_id_like_cpp();
+        let map_id = self.core.player_map_id_like_cpp();
         let vendor_slot = match vendor_buy_muid_to_cpp_slot(buy.muid) {
             Some(slot) => slot,
             None => return,
         };
 
         // ── Get vendor NPC entry from creature GUID ──
-        let vendor_entry = match self.mutate_world_creature(buy.vendor_guid, |c| c.entry()) {
+        let vendor_entry = match self
+            .core
+            .mutate_world_creature(buy.vendor_guid, |c| c.entry())
+        {
             Some(entry) => entry,
             None => {
                 warn!("BuyItem: vendor {:?} not in creatures", buy.vendor_guid);
@@ -68,7 +71,7 @@ impl WorldSession {
             }
         };
 
-        let vendor_catalog = self.vendor_catalog_persistence_port_like_cpp();
+        let vendor_catalog = self.lifecycle.vendor_catalog_persistence_port_like_cpp();
 
         let condition_store = self.condition_store().cloned();
         let player_condition_store = self.player_condition_store().cloned();
@@ -204,7 +207,7 @@ impl WorldSession {
                 vendor_item.max_count,
                 quantity,
             );
-            let vendor_trade_port = match self.vendor_trade_persistence_port_like_cpp() {
+            let vendor_trade_port = match self.lifecycle.vendor_trade_persistence_port_like_cpp() {
                 Some(port) => port,
                 None => return,
             };
@@ -245,7 +248,7 @@ impl WorldSession {
                 }
             }
 
-            let currency_save = self.plan_player_currency_save_like_cpp(
+            let currency_save = self.catalogs.plan_player_currency_save_like_cpp(
                 player_guid.counter() as u64,
                 &mut planned_currencies,
             );
@@ -365,7 +368,7 @@ impl WorldSession {
                 }
             };
 
-        let vendor_trade_port = match self.vendor_trade_persistence_port_like_cpp() {
+        let vendor_trade_port = match self.lifecycle.vendor_trade_persistence_port_like_cpp() {
             Some(port) => port,
             None => return,
         };
@@ -433,7 +436,7 @@ impl WorldSession {
             self.send_equip_error(result, None, None, 0, 0);
             return;
         }
-        let vendor_current_count = self.vendor_item_current_count(
+        let vendor_current_count = self.interaction.vendor_item_current_count(
             buy.vendor_guid,
             vendor_item.item_id,
             vendor_item.max_count,
@@ -555,6 +558,7 @@ impl WorldSession {
             })
             .count();
         let Some(allocated_new_item_guids) = self
+            .core
             .allocate_item_instance_guids_with_generator_like_cpp(
                 item_guid_generator,
                 new_item_count,
@@ -676,7 +680,7 @@ impl WorldSession {
                 return;
             }
         }
-        let currency_save = self.plan_player_currency_save_like_cpp(
+        let currency_save = self.catalogs.plan_player_currency_save_like_cpp(
             player_guid.counter() as u64,
             &mut planned_currencies,
         );
@@ -765,15 +769,16 @@ impl WorldSession {
                     inventory_type: inv_type,
                 },
             );
-            let mut item_object = self.make_inventory_item_object(
-                item_guid,
-                buy.item_id as u32,
-                player_guid,
-                stack_count,
-                max_durability,
-                ItemContext::Vendor,
-                slot,
-            );
+            let mut item_object = crate::session::cx_inventory_ref(self)
+                .make_inventory_item_object(
+                    item_guid,
+                    buy.item_id as u32,
+                    player_guid,
+                    stack_count,
+                    max_durability,
+                    ItemContext::Vendor,
+                    slot,
+                );
             item_object.replace_all_item_flags(ItemFieldFlags::from_bits_retain(item_flags));
             if refund_item_db_guid.is_some_and(|(refund_db_guid, _)| refund_db_guid == db_guid) {
                 item_object.set_refund_recipient(player_guid);
@@ -931,6 +936,7 @@ impl WorldSession {
         // socket before `_StoreOrEquipNewItem` emits its two realm-routed
         // result packets. Preserve that physical cross-socket order.
         if !self
+            .core
             .wait_for_instance_send_before_realm_send_like_cpp()
             .await
         {
@@ -946,6 +952,7 @@ impl WorldSession {
         });
         self.send_new_item_plan(&purchased_item_plan);
         if !self
+            .core
             .wait_for_realm_send_before_instance_update_like_cpp()
             .await
         {
@@ -962,7 +969,7 @@ impl WorldSession {
             vendor_buy_coinage_update_like_cpp(buy_price, new_gold),
         );
         for update in &collection_updates {
-            self.send_player_values_update_like_cpp(update);
+            self.core.send_player_values_update_like_cpp(update);
         }
     }
 }

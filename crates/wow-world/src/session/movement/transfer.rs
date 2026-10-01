@@ -142,8 +142,8 @@ impl WorldSession {
         self.reset_teleport_movement_state_like_cpp();
 
         if self.player_class_like_cpp() == CLASS_DEATH_KNIGHT_LIKE_CPP
-            && self.player_map_id_like_cpp() == DEATH_KNIGHT_START_MAP_LIKE_CPP
-            && u32::from(self.player_map_id_like_cpp()) != new_map
+            && self.core.player_map_id_like_cpp() == DEATH_KNIGHT_START_MAP_LIKE_CPP
+            && u32::from(self.core.player_map_id_like_cpp()) != new_map
             && self.player_is_game_master_like_cpp() != Some(true)
             && !self
                 .known_spells_like_cpp()
@@ -160,7 +160,7 @@ impl WorldSession {
 
         // Approved recovery exception: a detached Player needs AddPlayerToMap,
         // even when returning to its old map. A near ACK only relocates it.
-        let active_map = self.current_canonical_player_map_key_like_cpp();
+        let active_map = self.core.current_canonical_player_map_key_like_cpp();
         let same_map_near_teleport = active_map.is_some_and(|key| key.map_id == new_map);
         if same_map_near_teleport {
             if !self.set_represented_far_teleport_pending_like_cpp(false) {
@@ -225,7 +225,7 @@ impl WorldSession {
 
         info!(
             account = self.core.account_id,
-            old_map = self.player_map_id_like_cpp(),
+            old_map = self.core.player_map_id_like_cpp(),
             new_map = new_map,
             old_pos = format!(
                 "({:.2}, {:.2}, {:.2})",
@@ -272,6 +272,7 @@ impl WorldSession {
         if !self.lifecycle.player_logout_like_cpp {
             if options & TELE_TO_SEAMLESS_LIKE_CPP == 0
                 && !self
+                    .core
                     .wait_for_realm_send_before_instance_update_like_cpp()
                     .await
             {
@@ -294,7 +295,7 @@ impl WorldSession {
         info!(
             account = self.core.account_id,
             "Teleport initiated: map {} → {} dest ({:.2}, {:.2}, {:.2}); awaiting WorldPortResponse",
-            self.player_map_id_like_cpp(),
+            self.core.player_map_id_like_cpp(),
             new_map,
             new_pos.x,
             new_pos.y,
@@ -345,7 +346,7 @@ impl WorldSession {
             return;
         }
         if can_delay {
-            let map_id_u16 = u16::try_from(map_id).unwrap_or(self.player_map_id_like_cpp());
+            let map_id_u16 = u16::try_from(map_id).unwrap_or(self.core.player_map_id_like_cpp());
             let _ = self.update_player_teleport_state_like_cpp(|state| {
                 state.near_pending = true;
                 state.near_destination = Some((map_id_u16, destination));
@@ -370,7 +371,7 @@ impl WorldSession {
             self.combat_stop_like_cpp();
         }
 
-        let map_id = u16::try_from(map_id).unwrap_or(self.player_map_id_like_cpp());
+        let map_id = u16::try_from(map_id).unwrap_or(self.core.player_map_id_like_cpp());
         if !self.update_player_teleport_state_like_cpp(|state| {
             state.far_destination = None;
             state.near_pending = true;
@@ -435,6 +436,7 @@ impl WorldSession {
             return false;
         }
         if self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .is_some_and(|key| key.map_id == map_id)
         {
@@ -446,7 +448,7 @@ impl WorldSession {
         true
     }
     fn resurrect_player_percent_for_teleport_like_cpp(&mut self, restore_percent: f32) {
-        let restored = self.with_owned_player_mut_like_cpp(|player| {
+        let restored = self.core.with_owned_player_mut_like_cpp(|player| {
             let max_health = player
                 .unit()
                 .data()
@@ -485,6 +487,7 @@ impl WorldSession {
         request: PlayerResurrectionRequestLikeCpp,
     ) -> bool {
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player
                     .resurrection_state_mut_like_cpp()
@@ -501,6 +504,7 @@ impl WorldSession {
     }
     pub(crate) fn process_represented_delayed_resurrection_after_teleport_like_cpp(&mut self) {
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player
                     .resurrection_state_mut_like_cpp()
@@ -744,7 +748,7 @@ impl WorldSession {
             self.update_player_pvp_like_cpp(false, true);
         }
 
-        self.resummon_pet_temporary_unsummoned_like_cpp();
+        crate::session::cx_pets(self).resummon_pet_temporary_unsummoned_like_cpp();
         self.process_represented_delayed_resurrection_after_teleport_like_cpp();
         #[cfg(test)]
         {

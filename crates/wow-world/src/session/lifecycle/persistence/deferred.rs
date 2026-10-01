@@ -36,7 +36,10 @@ impl WorldSession {
         {
             return Some(PlayerSaveOutcomeLikeCpp::Unavailable);
         }
-        match self.with_owned_player_like_cpp(|player| player.has_deferred_player_save_like_cpp()) {
+        match self
+            .core
+            .with_owned_player_like_cpp(|player| player.has_deferred_player_save_like_cpp())
+        {
             Some(false) => None,
             Some(true) => Some(
                 self.save_current_player_to_db_with_generator_like_cpp(item_guid_generator)

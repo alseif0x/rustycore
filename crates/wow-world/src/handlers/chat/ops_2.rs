@@ -20,7 +20,7 @@ impl WorldSession {
         if !chat_policy.addon_channel {
             return;
         }
-        if !self.can_speak_like_cpp() {
+        if !self.core.can_speak_like_cpp() {
             return;
         }
         self.update_speak_time_with_policy_like_cpp(
@@ -155,7 +155,7 @@ impl WorldSession {
             prefix: prefix.clone(),
             channel: String::new(),
             text: message,
-            virtual_realm: self.virtual_realm_address(),
+            virtual_realm: self.core.virtual_realm_address(),
         };
 
         let command =
@@ -239,7 +239,7 @@ impl WorldSession {
         });
     }
     pub(super) fn send_wait_before_speaking_notification_if_muted_like_cpp(&self) -> bool {
-        let Some(remaining_secs) = self.mute_time_remaining_secs_like_cpp() else {
+        let Some(remaining_secs) = self.core.mute_time_remaining_secs_like_cpp() else {
             return false;
         };
         self.send_packet(&PrintNotification {
@@ -353,7 +353,7 @@ impl WorldSession {
             prefix: packet.prefix.clone(),
             channel: String::new(),
             text: packet.text,
-            virtual_realm: self.virtual_realm_address(),
+            virtual_realm: self.core.virtual_realm_address(),
         };
         self.broadcast_group_addon_packet_like_cpp(
             &group,
@@ -442,12 +442,13 @@ impl WorldSession {
 
         let sender_guid = self.player_guid().unwrap_or(ObjectGuid::EMPTY);
         let sender_pos = self.player_position_like_cpp();
-        let sender_map = self.player_map_id_like_cpp();
+        let sender_map = self.core.player_map_id_like_cpp();
         let sender_instance = registry
             .runtime_recipient(sender_guid)
             .map(|recipient| recipient.instance_id)
             .or_else(|| {
-                self.current_canonical_player_map_key_like_cpp()
+                self.core
+                    .current_canonical_player_map_key_like_cpp()
                     .map(|key| key.instance_id)
             })
             .unwrap_or(0);

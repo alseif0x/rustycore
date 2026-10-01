@@ -64,7 +64,7 @@ async fn drain_presents_the_durable_prefix_then_the_general_rail_then_the_suffix
         .send(SessionCommand::RefreshVisibleGameobjectsOrSpellClicksLikeCpp)
         .expect("general rail accepts the command");
 
-    let drained = session.drain_session_commands();
+    let drained = session.core.drain_session_commands();
     let shapes: Vec<&'static str> = drained
         .iter()
         .map(|command| match command {

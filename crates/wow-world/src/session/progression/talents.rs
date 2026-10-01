@@ -13,9 +13,6 @@ impl WorldSession {
         self.catalogs.num_talents_at_level_store = Some(store);
         self.refresh_represented_talent_points_like_cpp();
     }
-    pub(crate) fn num_talents_at_level_store(&self) -> Option<&Arc<NumTalentsAtLevelStore>> {
-        self.catalogs.num_talents_at_level_store()
-    }
     pub(crate) fn player_talent_runtime_snapshot_like_cpp(
         &self,
     ) -> Option<wow_entities::PlayerTalentRuntimeState> {
@@ -107,7 +104,8 @@ impl WorldSession {
                 return false;
             };
             self.send_packet(&talent_data);
-            self.send_notification_like_cpp(self.reset_talents_notification_text_like_cpp());
+            self.core
+                .send_notification_like_cpp(self.reset_talents_notification_text_like_cpp());
             return true;
         }
 
@@ -157,6 +155,7 @@ impl WorldSession {
     #[cfg(test)]
     fn represented_calculate_talents_points_like_cpp(&self) -> Option<u32> {
         let base_points = self
+            .catalogs
             .num_talents_at_level_store()
             .map(|store| {
                 store.num_talents_at_level_like_cpp(
@@ -183,6 +182,7 @@ impl WorldSession {
             return;
         }
         let base_points = self
+            .catalogs
             .num_talents_at_level_store()
             .map(|store| {
                 store.num_talents_at_level_like_cpp(
@@ -192,7 +192,7 @@ impl WorldSession {
             })
             .unwrap_or(0);
         // Borrow immutable catalog policy; Player owns counting and field mutation.
-        let _points = self.with_owned_player_mut_like_cpp(|player| {
+        let _points = self.core.with_owned_player_mut_like_cpp(|player| {
             player.refresh_represented_talent_points_like_cpp(base_points, |talent_id, rank| {
                 self.represented_talent_info_like_cpp(talent_id, rank)
                     .is_some()

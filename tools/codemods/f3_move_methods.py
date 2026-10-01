@@ -114,7 +114,7 @@ def scan(root):
             if "include_str!" in text:                       # source-text tests pin `name(args` literally
                 for lit in re.findall(r'"((?:[^"\\\n]|\\.)*)"', text):
                     PINNED.update(re.findall(r"\b(" + IDENT + r")\(", lit))
-                    PINNED_SELF.update(re.findall(r"\bself\.(" + IDENT + r")\(", lit))
+                    PINNED_SELF.update(re.findall(r"\bself\.(" + IDENT + r")\b(?!\s*\.)", lit))  # `self.m` too
                     PINNED_FN.update(re.findall(r"\bfn\s+(" + IDENT + r")\b", lit))   # body split markers
     return W, src, raw, code, groups, fns, owned, handlers, ext, tests
 
@@ -359,7 +359,7 @@ def plan(root, groups_wanted, classes, rehome=None, keep=(), cx_siblings=None):
                 stale_shims[name] = p
     return dict(W=W, src=src, raw=raw, code=code, by=by, cand=cand, blocked=blocked, rows=rows, loc=loc,
                 count=count, thunks=thunks, stale=stale, stale_shims=stale_shims, test_called={
-                    t for t in stale if any(in_test(rel, pos) for rel, pos in sites.get(t, ()))}, modpaths=module_paths(src, code), tests=tests,
+                    t for t in stale if any(in_test(rel, pos) and not moved.find(rel, pos) for rel, pos in sites.get(t, ()))}, modpaths=module_paths(src, code), tests=tests,
                 allfns={f["name"]: f for f in fns})
 
 

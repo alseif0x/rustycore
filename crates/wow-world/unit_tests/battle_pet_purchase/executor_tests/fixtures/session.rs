@@ -140,7 +140,7 @@ pub(crate) fn expect_money_update_packet_like_cpp(
 ) -> Vec<u8> {
     wow_packet::packets::update::UpdateObject::player_money_update(
         fixture.session.player_guid().expect("player guid"),
-        fixture.session.player_map_id_like_cpp(),
+        fixture.session.core.player_map_id_like_cpp(),
         money,
         None,
     )

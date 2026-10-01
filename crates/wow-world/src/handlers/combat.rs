@@ -80,10 +80,11 @@ impl WorldSession {
         if self.player_guid() != Some(command.attacker_guid) {
             return;
         }
-        if self.player_map_id_like_cpp() != command.map_id {
+        if self.core.player_map_id_like_cpp() != command.map_id {
             return;
         }
         let session_instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -92,7 +93,8 @@ impl WorldSession {
         }
 
         if let Some(swing_error) = command.swing_error_after {
-            self.set_player_attack_swing_error_like_cpp(swing_error);
+            self.core
+                .set_player_attack_swing_error_like_cpp(swing_error);
         }
 
         // The construction below is `run_combat_tick`'s tail verbatim; the
@@ -135,7 +137,7 @@ impl WorldSession {
         }
 
         if let Some(kill) = command.killed_creature.as_ref() {
-            self.queue_pending_creature_kill_like_cpp(
+            self.world_entities.queue_pending_creature_kill_like_cpp(
                 command.attacker_guid,
                 kill.creature_guid,
                 kill.creature_entry,
@@ -198,6 +200,7 @@ impl WorldSession {
 
         // Check the creature exists and is alive.
         let creature_alive = self
+            .core
             .mutate_world_creature(swing.victim, |c| c.is_alive())
             .unwrap_or(false);
 
@@ -227,7 +230,7 @@ impl WorldSession {
 
         // Start combat with the canonical map-owned creature after C++-style
         // attack validation succeeds.
-        let _ = self.mutate_world_creature(swing.victim, |creature| {
+        let _ = self.core.mutate_world_creature(swing.victim, |creature| {
             creature.enter_combat(player_guid);
         });
 

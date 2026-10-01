@@ -28,12 +28,6 @@ impl WorldSession {
         self.lifecycle
             .set_character_enumeration_persistence_port_like_cpp(port)
     }
-    pub(crate) fn character_enumeration_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::CharacterEnumerationPersistencePortLikeCpp>> {
-        self.lifecycle
-            .character_enumeration_persistence_port_like_cpp()
-    }
     pub fn set_packet_spoof_ban_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::PacketSpoofBanPersistencePortLikeCpp>,
@@ -48,21 +42,11 @@ impl WorldSession {
         self.lifecycle
             .set_void_storage_persistence_port_like_cpp(port)
     }
-    pub(crate) fn void_storage_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::VoidStoragePersistencePortLikeCpp>> {
-        self.lifecycle.void_storage_persistence_port_like_cpp()
-    }
     pub fn set_social_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::SocialPersistencePortLikeCpp>,
     ) {
         self.lifecycle.set_social_persistence_port_like_cpp(port)
-    }
-    pub(crate) fn social_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::SocialPersistencePortLikeCpp>> {
-        self.lifecycle.social_persistence_port_like_cpp()
     }
     pub fn set_map_corpse_persistence_port_like_cpp(
         &mut self,
@@ -78,23 +62,12 @@ impl WorldSession {
         self.lifecycle
             .set_represented_group_persistence_port_like_cpp(port)
     }
-    pub(crate) fn represented_group_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::RepresentedGroupPersistencePortLikeCpp>> {
-        self.lifecycle.represented_group_persistence_port_like_cpp()
-    }
     pub fn set_support_bug_report_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::SupportBugReportPersistencePortLikeCpp>,
     ) {
         self.lifecycle
             .set_support_bug_report_persistence_port_like_cpp(port)
-    }
-    pub(crate) fn support_bug_report_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::SupportBugReportPersistencePortLikeCpp>> {
-        self.lifecycle
-            .support_bug_report_persistence_port_like_cpp()
     }
     pub fn set_gossip_catalog_persistence_port_like_cpp(
         &mut self,
@@ -103,11 +76,6 @@ impl WorldSession {
         self.lifecycle
             .set_gossip_catalog_persistence_port_like_cpp(port)
     }
-    pub(crate) fn gossip_catalog_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::GossipCatalogPersistencePortLikeCpp>> {
-        self.lifecycle.gossip_catalog_persistence_port_like_cpp()
-    }
     pub fn set_player_name_query_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::PlayerNameQueryPersistencePortLikeCpp>,
@@ -115,22 +83,12 @@ impl WorldSession {
         self.lifecycle
             .set_player_name_query_persistence_port_like_cpp(port)
     }
-    pub(crate) fn player_name_query_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::PlayerNameQueryPersistencePortLikeCpp>> {
-        self.lifecycle.player_name_query_persistence_port_like_cpp()
-    }
     pub fn set_instance_lock_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::InstanceLockPersistencePortLikeCpp>,
     ) {
         self.lifecycle
             .set_instance_lock_persistence_port_like_cpp(port)
-    }
-    pub(crate) fn instance_lock_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::InstanceLockPersistencePortLikeCpp>> {
-        self.lifecycle.instance_lock_persistence_port_like_cpp()
     }
     pub(crate) fn quarantine_player_money_persistence_like_cpp(&mut self, reason: &'static str) {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
@@ -202,7 +160,10 @@ impl WorldSession {
             return Some((old_money, new_money));
         }
 
-        let port = self.player_lifecycle_port_like_cpp().map(Arc::clone)?;
+        let port = self
+            .lifecycle
+            .player_lifecycle_port_like_cpp()
+            .map(Arc::clone)?;
         let request = wow_persistence::PlayerMoneyTransactionRequestLikeCpp {
             player_guid: guid,
             money_after: new_money,
@@ -259,8 +220,9 @@ impl WorldSession {
     pub(in crate::session) fn player_persistent_capability_state_snapshot_like_cpp(
         &self,
     ) -> Option<wow_entities::PlayerPersistentCapabilityStateLikeCpp> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.persistent_capability_state_like_cpp());
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.persistent_capability_state_like_cpp());
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(wow_entities::PlayerPersistentCapabilityStateLikeCpp {

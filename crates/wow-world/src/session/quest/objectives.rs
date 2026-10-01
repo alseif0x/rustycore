@@ -6,13 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn represented_quest_can_increase_rewarded_counters_like_cpp(
-        &self,
-        quest_id: u32,
-    ) -> Option<bool> {
-        self.catalogs
-            .represented_quest_can_increase_rewarded_counters_like_cpp(quest_id)
-    }
     pub(in crate::session) async fn update_represented_storing_value_quest_objective_progress_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
@@ -662,13 +655,6 @@ impl WorldSession {
         self.save_changed_represented_quest_statuses_like_cpp(&mut quests_to_save)
             .await;
         self.sync_player_registry_state_like_cpp();
-    }
-    pub(crate) fn enqueue_represented_quest_objective_progress_like_cpp(
-        &mut self,
-        event: RepresentedQuestObjectiveProgressEventLikeCpp,
-    ) {
-        self.quest_state
-            .enqueue_represented_quest_objective_progress_like_cpp(event)
     }
     pub(crate) async fn drain_represented_quest_objective_progress_with_generator_like_cpp(
         &mut self,

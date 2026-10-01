@@ -15,11 +15,12 @@ impl WorldSession {
         if self.state() != crate::session::SessionState::LoggedIn
             || self.player_guid() != Some(command.victim_guid)
             || self.resolved_player_is_alive_like_cpp() != Some(true)
-            || self.player_map_id_like_cpp() != command.map_id
+            || self.core.player_map_id_like_cpp() != command.map_id
         {
             return;
         }
         let session_instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -46,11 +47,11 @@ impl WorldSession {
     ) {
         if self.state() != crate::session::SessionState::LoggedIn
             || self.player_guid() != Some(command.victim_guid)
-            || self.player_map_id_like_cpp() != command.map_id
+            || self.core.player_map_id_like_cpp() != command.map_id
         {
             return;
         }
-        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
+        let Some(map_key) = self.core.current_canonical_player_map_key_like_cpp() else {
             return;
         };
         if map_key.instance_id != command.instance_id {
@@ -68,11 +69,11 @@ impl WorldSession {
     ) {
         if self.state() != crate::session::SessionState::LoggedIn
             || self.player_guid() != Some(command.player_guid)
-            || self.player_map_id_like_cpp() != command.map_id
+            || self.core.player_map_id_like_cpp() != command.map_id
         {
             return;
         }
-        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
+        let Some(map_key) = self.core.current_canonical_player_map_key_like_cpp() else {
             return;
         };
         if map_key.instance_id != command.instance_id {

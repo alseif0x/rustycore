@@ -176,7 +176,7 @@ pub(in crate::session::tests) fn setup_dead_creature_past_despawn(
 /// After despawn, force the pending respawn entry to be immediately ready
 /// by rewriting its `respawn_at` to the past via the map's queue.
 pub(in crate::session::tests) fn force_respawn_ready(session: &mut WorldSession) {
-    let map_id = session.player_map_id_like_cpp();
+    let map_id = session.core.player_map_id_like_cpp();
     let past = Instant::now() - Duration::from_secs(1);
     // Drain whatever is in the queue, rewrite respawn_at, push back.
     if let Some(manager) = &session.core.map_manager {

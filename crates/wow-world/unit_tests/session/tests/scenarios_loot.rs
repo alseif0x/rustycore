@@ -139,13 +139,13 @@ fn active_loot_guid_tracks_cpp_loot_target_guid_comparisons() {
     let loot_guid = ObjectGuid::create_item(1, 700);
     let other_guid = ObjectGuid::create_item(1, 701);
 
-    assert!(!session.is_active_loot_guid(loot_guid));
-    session.set_active_loot_guid(loot_guid);
-    assert!(session.is_active_loot_guid(loot_guid));
-    assert!(!session.is_active_loot_guid(other_guid));
+    assert!(!session.loot.is_active_loot_guid(loot_guid));
+    session.loot.set_active_loot_guid(loot_guid);
+    assert!(session.loot.is_active_loot_guid(loot_guid));
+    assert!(!session.loot.is_active_loot_guid(other_guid));
 
-    session.clear_active_loot_guid_if(other_guid);
-    assert!(session.is_active_loot_guid(loot_guid));
-    session.clear_active_loot_guid_if(loot_guid);
-    assert!(!session.is_active_loot_guid(loot_guid));
+    session.loot.clear_active_loot_guid_if(other_guid);
+    assert!(session.loot.is_active_loot_guid(loot_guid));
+    session.loot.clear_active_loot_guid_if(loot_guid);
+    assert!(!session.loot.is_active_loot_guid(loot_guid));
 }

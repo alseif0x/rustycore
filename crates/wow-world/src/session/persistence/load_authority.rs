@@ -13,25 +13,29 @@ impl WorldSession {
     }
     pub(crate) fn begin_represented_trait_config_authority_load_like_cpp(&mut self) {
         let _ = self.begin_represented_trait_config_load_like_cpp();
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
     }
     #[cfg(test)]
     pub(in crate::session) fn fixture_begin_trait_config_authority_load_like_cpp(&mut self) {
         let _ = self.begin_represented_trait_authority_load_like_cpp();
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
     }
     pub(crate) fn complete_represented_trait_config_authority_load_like_cpp(
         &mut self,
         configs: impl IntoIterator<Item = (i32, i32, i32, i32)>,
         entries_empty: bool,
     ) -> bool {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         let configs = configs.into_iter().collect();
         let result = self.complete_represented_trait_config_rows_like_cpp(configs, entries_empty);
         if result == Some(false) {
             // Invalid input has reset the source proof. Keep the previous
             // post-reset invalidation outside the exclusive Player access.
-            self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+            self.core
+                .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
         result.unwrap_or(false)
     }
@@ -41,7 +45,8 @@ impl WorldSession {
         configs: impl IntoIterator<Item = (i32, i32, i32, i32)>,
         entries_empty: bool,
     ) -> bool {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         let mut exact_configs = BTreeMap::new();
         for (config_id, config_type, specialization_id, combat_flags) in configs {
             if config_id <= 0

@@ -832,7 +832,10 @@ fn canonical_loot_lookup_fails_closed_while_player_is_in_two_maps_like_cpp() {
     add_canonical_test_gameobject_on_map(&canonical, gameobject_guid, 9_207, position, 571, 7);
 
     assert_eq!(session.current_canonical_player_map_key_like_cpp(), None);
-    assert_eq!(session.canonical_object_lookup_map_key_like_cpp(571), None);
+    assert_eq!(
+        session.core.canonical_object_lookup_map_key_like_cpp(571),
+        None
+    );
     assert!(
         session
             .read_canonical_creature_loot_authority_like_cpp(creature_guid)

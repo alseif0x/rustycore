@@ -111,7 +111,7 @@ impl WorldSession {
             }
 
             if guid.is_game_object() {
-                let Some(access) = self.canonical_gameobject_access_like_cpp(guid) else {
+                let Some(access) = self.core.canonical_gameobject_access_like_cpp(guid) else {
                     continue;
                 };
                 let Some(state) = self
@@ -435,7 +435,7 @@ impl WorldSession {
         unit_guid: ObjectGuid,
     ) -> Option<(String, u32)> {
         let player_guid = self.player_guid()?;
-        let key = self.current_canonical_player_map_key_like_cpp()?;
+        let key = self.core.current_canonical_player_map_key_like_cpp()?;
         let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
         let manager = manager.lock().ok()?;
         let managed = manager.find_map(key.map_id, key.instance_id)?;
@@ -459,7 +459,7 @@ impl WorldSession {
     /// The client sends this after receiving UpdateObject for a player whose
     /// name isn't cached. Without a response, the player's nameplate is blank.
     pub async fn handle_query_player_names(&mut self, query: QueryPlayerNames) {
-        let port = match self.player_name_query_persistence_port_like_cpp() {
+        let port = match self.lifecycle.player_name_query_persistence_port_like_cpp() {
             Some(port) => port,
             None => {
                 // Send failure response for all queried players
@@ -560,7 +560,7 @@ impl WorldSession {
             // Use the session VRA (region << 24 | battlegroup << 16 | realmId)
             // to match what every other packet sends. The wrong formula caused
             // "Unknown Entity" because the client rejected the mismatched VRA.
-            let vra = self.virtual_realm_address();
+            let vra = self.core.virtual_realm_address();
 
             results.push(NameCacheLookupResult {
                 player: *guid,
@@ -594,8 +594,8 @@ impl WorldSession {
         debug!(
             "QueryRealmName: VRA=0x{:08X}, ours=0x{:08X}, local={}",
             query.virtual_realm_address,
-            self.virtual_realm_address(),
-            query.virtual_realm_address == self.virtual_realm_address()
+            self.core.virtual_realm_address(),
+            query.virtual_realm_address == self.core.virtual_realm_address()
         );
 
         let resp = self.realm_query_response_like_cpp(query.virtual_realm_address);
@@ -606,15 +606,16 @@ impl WorldSession {
         &self,
         virtual_realm_address: u32,
     ) -> RealmQueryResponse {
-        if let Some((realm_name_actual, realm_name_normalized)) =
-            self.realm_names_for_address_like_cpp(virtual_realm_address)
+        if let Some((realm_name_actual, realm_name_normalized)) = self
+            .core
+            .realm_names_for_address_like_cpp(virtual_realm_address)
         {
             RealmQueryResponse {
                 virtual_realm_address,
                 lookup_state: 0, // RESPONSE_SUCCESS
                 realm_name_actual: realm_name_actual.to_string(),
                 realm_name_normalized: realm_name_normalized.to_string(),
-                is_local: virtual_realm_address == self.virtual_realm_address(),
+                is_local: virtual_realm_address == self.core.virtual_realm_address(),
             }
         } else {
             RealmQueryResponse {

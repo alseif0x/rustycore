@@ -30,6 +30,7 @@ impl WorldSession {
 
         if trade_slot >= TRADE_SLOT_COUNT_LIKE_CPP {
             let canonical = self
+                .core
                 .with_owned_player_mut_like_cpp(|player| {
                     player.advance_trade_client_state_index_like_cpp()
                 })
@@ -48,6 +49,7 @@ impl WorldSession {
         let slot = trade_slot as usize;
         if trade.items[slot].is_none() {
             let canonical = self
+                .core
                 .with_owned_player_mut_like_cpp(|player| {
                     player.advance_trade_client_state_index_like_cpp()
                 })
@@ -64,6 +66,7 @@ impl WorldSession {
         }
 
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| player.clear_trade_item_like_cpp(trade_slot))
             .is_some();
         #[cfg(test)]
@@ -87,7 +90,7 @@ impl WorldSession {
             TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
         self.send_raw_packet(&packet_bytes);
 
-        self.try_send_connected_player_command_like_cpp(
+        self.core.try_send_connected_player_command_like_cpp(
             partner_guid,
             SessionCommand::UnacceptRepresentedTradeLikeCpp(
                 crate::session::mailbox::UnacceptRepresentedTradeLikeCppCommand { packet_bytes },
@@ -130,6 +133,7 @@ impl WorldSession {
         }
 
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.set_trade_item_like_cpp(trade_slot, item.guid)
             })
@@ -155,7 +159,7 @@ impl WorldSession {
             TradeStatus::status_only_like_cpp(TRADE_STATUS_UNACCEPTED_LIKE_CPP).to_bytes();
         self.send_raw_packet(&packet_bytes);
 
-        self.try_send_connected_player_command_like_cpp(
+        self.core.try_send_connected_player_command_like_cpp(
             partner_guid,
             SessionCommand::UnacceptRepresentedTradeLikeCpp(
                 crate::session::mailbox::UnacceptRepresentedTradeLikeCppCommand { packet_bytes },

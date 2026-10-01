@@ -62,7 +62,7 @@ impl WorldSession {
         };
 
         let mount_display_id = u32::try_from(mount_display_id).unwrap_or(0);
-        let _canonical_height = self.with_owned_player_mut_like_cpp(|player| {
+        let _canonical_height = self.core.with_owned_player_mut_like_cpp(|player| {
             let unit = player.unit_mut();
             unit.set_mount_display_id(mount_display_id);
             if let Some(height) = computed_height {
@@ -83,6 +83,7 @@ impl WorldSession {
     /// readers.
     pub(crate) fn set_represented_shapeshift_form_like_cpp(&mut self, form_id: u32) -> bool {
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player
                     .unit_mut()
@@ -99,7 +100,9 @@ impl WorldSession {
     }
 
     pub(crate) fn represented_primary_specialization_id_like_cpp(&self) -> Option<u32> {
-        let canonical = self.with_owned_player_like_cpp(Player::primary_specialization_id_like_cpp);
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(Player::primary_specialization_id_like_cpp);
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
@@ -116,6 +119,7 @@ impl WorldSession {
         spec_id: u32,
     ) -> bool {
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| player.set_primary_specialization(spec_id))
             .is_some();
         #[cfg(test)]
@@ -161,7 +165,7 @@ impl WorldSession {
             .as_ref()
             .ok_or(wow_data::MountCapabilityRejectLikeCpp::Area)?;
 
-        let map_id = u32::from(self.player_map_id_like_cpp());
+        let map_id = u32::from(self.core.player_map_id_like_cpp());
         let map = self
             .catalogs
             .maps

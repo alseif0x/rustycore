@@ -12,7 +12,7 @@ fn gameobject_use_new_flag_drop_records_owner_state_and_delete_like_cpp() {
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 37);
     let owner_guid = ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 36);
-    let map_id = session.player_map_id_like_cpp();
+    let map_id = session.core.player_map_id_like_cpp();
     session.record_represented_gameobject_owner_guid_like_cpp(gameobject_guid, owner_guid);
     {
         let owner_state = session

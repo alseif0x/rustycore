@@ -204,14 +204,17 @@ impl WorldSession {
         };
 
         if !self.loot.loot_table.contains_key(&item.guid) {
-            let stored_money = self.load_stored_item_money_like_cpp(item.guid).await;
+            let stored_money = self
+                .lifecycle
+                .load_stored_item_money_like_cpp(item.guid)
+                .await;
             let stored_items = self.load_stored_item_items_like_cpp(item.guid).await;
             let loaded_stored_loot = stored_money.is_some() || stored_items.is_some();
             let (coins, mut items) = if loaded_stored_loot {
                 (stored_money.unwrap_or(0), stored_items.unwrap_or_default())
             } else {
                 let coins = {
-                    let (min_money, max_money) = self
+                    let (min_money, max_money) = crate::session::cx_inventory_ref(self)
                         .load_item_template_addon_money_loot_like_cpp(item.entry_id)
                         .await;
                     self.represented_money_loot_with_rate_like_cpp(
@@ -319,7 +322,7 @@ impl WorldSession {
         if self.has_active_non_item_loot_views_like_cpp() {
             self.do_loot_release_all_like_cpp(player_guid).await;
         }
-        self.add_active_loot_view_owner_like_cpp(item_guid);
+        self.loot.add_active_loot_view_owner_like_cpp(item_guid);
     }
     pub(super) async fn open_wrapped_gift_like_cpp(
         &mut self,
@@ -327,7 +330,11 @@ impl WorldSession {
         slot: u8,
         item_guid: ObjectGuid,
     ) {
-        let gift = match self.load_wrapped_gift_row_like_cpp(item_guid).await {
+        let gift = match self
+            .lifecycle
+            .load_wrapped_gift_row_like_cpp(item_guid)
+            .await
+        {
             WrappedGiftLoad::Found(gift) => gift,
             WrappedGiftLoad::Missing => {
                 self.destroy_stale_wrapped_gift_like_cpp(bag, slot, item_guid)
@@ -343,7 +350,8 @@ impl WorldSession {
             return;
         };
 
-        self.persist_wrapped_gift_open_like_cpp(item_guid, gift.entry, gift.flags, durability)
+        self.lifecycle
+            .persist_wrapped_gift_open_like_cpp(item_guid, gift.entry, gift.flags, durability)
             .await;
     }
     pub(crate) fn apply_wrapped_gift_row_to_runtime_item_like_cpp(
@@ -358,14 +366,6 @@ impl WorldSession {
         state.apply_wrapped_gift_row_to_runtime_item_like_cpp(
             &mut hub, bag, item_guid, slot, entry, flags,
         )
-    }
-    pub(super) async fn load_wrapped_gift_row_like_cpp(
-        &self,
-        item_guid: ObjectGuid,
-    ) -> WrappedGiftLoad {
-        self.lifecycle
-            .load_wrapped_gift_row_like_cpp(item_guid)
-            .await
     }
     pub(super) async fn destroy_stale_wrapped_gift_like_cpp(
         &mut self,
@@ -382,7 +382,7 @@ impl WorldSession {
         if item.guid != item_guid {
             return;
         }
-        let Some(port) = self.stored_item_persistence_port_like_cpp() else {
+        let Some(port) = self.lifecycle.stored_item_persistence_port_like_cpp() else {
             return;
         };
 
@@ -440,41 +440,6 @@ impl WorldSession {
             }
         }
     }
-    pub(super) async fn persist_wrapped_gift_open_like_cpp(
-        &self,
-        item_guid: ObjectGuid,
-        entry: u32,
-        flags: u32,
-        durability: u32,
-    ) {
-        self.lifecycle
-            .persist_wrapped_gift_open_like_cpp(item_guid, entry, flags, durability)
-            .await
-    }
-    pub(super) async fn load_item_template_addon_money_loot_like_cpp(
-        &self,
-        item_entry: u32,
-    ) -> (u32, u32) {
-        crate::session::cx_inventory_ref(self)
-            .load_item_template_addon_money_loot_like_cpp(item_entry)
-            .await
-    }
-    pub(super) async fn load_item_template_addon_loot_metadata_like_cpp(
-        &self,
-        item_entry: u32,
-    ) -> ItemTemplateAddonLootMetadataLikeCpp {
-        crate::session::cx_inventory_ref(self)
-            .load_item_template_addon_loot_metadata_like_cpp(item_entry)
-            .await
-    }
-    pub(super) async fn load_item_template_addon_loot_metadata_for_rows_like_cpp(
-        &self,
-        rows: &[LootTemplateRow],
-    ) -> HashMap<u32, ItemTemplateAddonLootMetadataLikeCpp> {
-        crate::session::cx_inventory_ref(self)
-            .load_item_template_addon_loot_metadata_for_rows_like_cpp(rows)
-            .await
-    }
     pub(super) async fn generate_item_loot_template_entries_like_cpp(
         &mut self,
         item_entry: u32,
@@ -482,9 +447,11 @@ impl WorldSession {
         let mut loot_items = Vec::new();
         let mut frames = Vec::new();
         let rows = self
+            .lifecycle
             .load_loot_template_rows_like_cpp(LootTemplateTable::Item, item_entry)
             .await;
         let condition_references = self
+            .lifecycle
             .load_loot_template_condition_reference_rows_like_cpp(&rows)
             .await;
         frames.push(LootTemplateFrame {
@@ -495,11 +462,11 @@ impl WorldSession {
             groups_enqueued: false,
         });
 
-        let mut rng = self.represented_runtime_subrng_like_cpp();
+        let mut rng = self.core.represented_runtime_subrng_like_cpp();
         let mut processed_frames = 0u32;
         while let Some(mut frame) = frames.pop() {
             if frame.group_id != 0 {
-                let addon_metadata = self
+                let addon_metadata = crate::session::cx_inventory_ref(self)
                     .load_item_template_addon_loot_metadata_for_rows_like_cpp(&frame.rows)
                     .await;
                 if let Some(row) = roll_group_loot_row_like_cpp(
@@ -604,9 +571,11 @@ impl WorldSession {
                 }
 
                 let reference_rows = self
+                    .lifecycle
                     .load_loot_template_rows_like_cpp(LootTemplateTable::Reference, row.reference)
                     .await;
                 let reference_condition_references = self
+                    .lifecycle
                     .load_loot_template_condition_reference_rows_like_cpp(&reference_rows)
                     .await;
                 let max_count = referenced_loot_max_count_like_cpp(
@@ -634,7 +603,7 @@ impl WorldSession {
                 continue;
             }
 
-            let addon_metadata = self
+            let addon_metadata = crate::session::cx_inventory_ref(self)
                 .load_item_template_addon_loot_metadata_like_cpp(row.item_id)
                 .await;
             if !loot_template_plain_row_can_roll_like_cpp(
@@ -679,15 +648,6 @@ impl WorldSession {
         }
 
         loot_items
-    }
-    pub(super) async fn load_loot_template_rows_like_cpp(
-        &self,
-        table: LootTemplateTable,
-        entry: u32,
-    ) -> Vec<LootTemplateRow> {
-        self.lifecycle
-            .load_loot_template_rows_like_cpp(table, entry)
-            .await
     }
 }
 
@@ -952,3 +912,7 @@ impl crate::session::SessionLifecycleState {
         rows
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/handlers/spell/ops_1/f3_shims.rs"]
+mod f3_shims;

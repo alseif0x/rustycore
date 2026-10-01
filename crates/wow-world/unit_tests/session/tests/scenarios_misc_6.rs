@@ -118,7 +118,7 @@ fn player_bootstrap_is_consumed_without_a_second_runtime_owner_like_cpp() {
     assert_eq!(session.player_guid(), Some(guid));
     assert_eq!(session.player_name_like_cpp(), Some("Jaina".to_string()));
     assert_eq!(session.player_position_like_cpp(), Some(start));
-    assert_eq!(session.player_map_id_like_cpp(), 571);
+    assert_eq!(session.core.player_map_id_like_cpp(), 571);
     assert_eq!(session.player_race_like_cpp(), 1);
     assert_eq!(session.player_class_like_cpp(), 8);
     assert_eq!(session.player_level_like_cpp(), 70);
@@ -154,7 +154,7 @@ fn player_bootstrap_is_consumed_without_a_second_runtime_owner_like_cpp() {
     session.remove_inventory_item_like_cpp(23);
 
     assert_eq!(session.player_position_like_cpp(), Some(moved));
-    assert_eq!(session.player_map_id_like_cpp(), 1);
+    assert_eq!(session.core.player_map_id_like_cpp(), 1);
     assert_eq!(session.player_level_like_cpp(), 71);
     assert_eq!(session.player_gold_like_cpp(), 2000);
     assert_eq!(session.player_xp_like_cpp(), 66);

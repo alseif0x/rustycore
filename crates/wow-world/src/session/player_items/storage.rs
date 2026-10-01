@@ -192,20 +192,6 @@ impl WorldSession {
     pub fn item_template_inventory_type(&self, item_id: u32) -> Option<u8> {
         crate::session::hub_ref(self).item_template_inventory_type(item_id)
     }
-    pub(crate) fn make_inventory_item_object(
-        &self,
-        item_guid: ObjectGuid,
-        entry_id: u32,
-        owner_guid: ObjectGuid,
-        count: u32,
-        durability: u32,
-        context: ItemContext,
-        slot: u8,
-    ) -> Item {
-        crate::session::cx_inventory_ref(self).make_inventory_item_object(
-            item_guid, entry_id, owner_guid, count, durability, context, slot,
-        )
-    }
     pub(crate) fn insert_inventory_item_object(&mut self, item: Item) -> Option<Item> {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.insert_inventory_item_object(&mut hub, item)
@@ -264,7 +250,7 @@ impl WorldSession {
         };
         if let Some(packet) = item_values_update_to_update_object(
             item_guid,
-            self.player_map_id_like_cpp(),
+            self.core.player_map_id_like_cpp(),
             &item.values_update(),
         ) {
             self.send_packet(&packet);
@@ -404,7 +390,8 @@ impl WorldSession {
             .clear_inventory_item_equipped_state_like_cpp(item_guid, cleared_mainhand_enchantments);
 
         if slot < PROFESSION_SLOT_END {
-            self.record_inventory_item_combat_stat_recalculations_like_cpp(slot);
+            self.inventory
+                .record_inventory_item_combat_stat_recalculations_like_cpp(slot);
         }
         item_mods_changed
     }
@@ -432,14 +419,10 @@ impl WorldSession {
             false
         };
         if slot < PROFESSION_SLOT_END {
-            self.record_inventory_item_combat_stat_recalculations_like_cpp(slot);
+            self.inventory
+                .record_inventory_item_combat_stat_recalculations_like_cpp(slot);
         }
         item_mods_changed
-    }
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_inventory_item_combat_stat_recalculations_like_cpp(&mut self, slot: u8) {
-        self.inventory
-            .record_inventory_item_combat_stat_recalculations_like_cpp(slot)
     }
     pub(crate) fn resolved_inventory_items_like_cpp(&self) -> Option<HashMap<u8, InventoryItem>> {
         let (state, hub) = crate::session::split_inventory_ref(self);

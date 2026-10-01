@@ -386,7 +386,7 @@ fn canonical_access_requirement_quest_failed_text_sends_system_message_like_cpp(
             prefix: String::new(),
             channel: String::new(),
             text: "Finish the attunement first.".to_string(),
-            virtual_realm: session.virtual_realm_address(),
+            virtual_realm: session.core.virtual_realm_address(),
         }
         .to_bytes()
     );

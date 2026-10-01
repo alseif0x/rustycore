@@ -821,7 +821,7 @@ fn assert_success_command_queued_like_cpp(
         )
     );
     assert!(receiver_rx.try_recv().is_err());
-    let commands = receiver_session.drain_session_commands();
+    let commands = receiver_session.core.drain_session_commands();
     assert_eq!(commands.len(), 1);
     match &commands[0] {
         SessionCommand::SetQuestSharingInfoAndSendDetails(command) => {
@@ -914,7 +914,9 @@ fn assert_complete_status_update_like_cpp(
     tracking_event_auto_reward_unrepresented: bool,
 ) {
     assert_eq!(
-        session.represented_quest_complete_status_updates_like_cpp(),
+        session
+            .quest_state
+            .represented_quest_complete_status_updates_like_cpp(),
         &[RepresentedQuestCompleteStatusUpdateLikeCpp {
             quest_id,
             old_status: QUEST_STATUS_INCOMPLETE_LIKE_CPP,

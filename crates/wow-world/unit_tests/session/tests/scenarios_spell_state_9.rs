@@ -454,7 +454,7 @@ async fn add_farsight_live_spell_sets_session_seer_to_created_dynamic_object_lik
 
     let expected_farsight_update = expected_active_player_farsight_object_values_update_like_cpp(
         player_guid,
-        session.player_map_id_like_cpp(),
+        session.core.player_map_id_like_cpp(),
         seer_guid,
     );
     let packets = drain_server_packet_bytes(&send_rx);

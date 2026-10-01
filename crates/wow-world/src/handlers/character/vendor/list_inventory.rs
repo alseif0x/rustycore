@@ -26,13 +26,13 @@ impl WorldSession {
             vendor_guid, self.core.account_id
         );
 
-        let vendor_catalog = match self.vendor_catalog_persistence_port_like_cpp() {
+        let vendor_catalog = match self.lifecycle.vendor_catalog_persistence_port_like_cpp() {
             Some(port) => port,
             None => return,
         };
 
         // Resolve creature entry: first from map-owned creature state, then fallback from DB by spawn GUID.
-        let entry = match self.mutate_world_creature(vendor_guid, |creature| {
+        let entry = match self.core.mutate_world_creature(vendor_guid, |creature| {
             creature.pause_interaction_movement_like_cpp();
             creature.entry()
         }) {
@@ -176,7 +176,7 @@ impl WorldSession {
                         );
                         continue;
                     }
-                    let current_count = self.vendor_item_current_count(
+                    let current_count = self.interaction.vendor_item_current_count(
                         vendor_guid,
                         item_id as u32,
                         maxcount.max(0) as u32,

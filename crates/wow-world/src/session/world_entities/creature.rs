@@ -41,20 +41,13 @@ pub(crate) fn creature_message_to_set_target_allows_like_cpp(
 }
 
 impl WorldSession {
-    pub(crate) fn mutate_canonical_creature_by_guid_like_cpp<R>(
-        &mut self,
-        guid: ObjectGuid,
-        f: impl FnOnce(&mut wow_entities::Creature) -> R,
-    ) -> Option<R> {
-        self.core
-            .mutate_canonical_creature_by_guid_like_cpp(guid, f)
-    }
     pub fn set_canonical_creature_private_object_owner_like_cpp(
         &mut self,
         guid: ObjectGuid,
         owner: ObjectGuid,
     ) -> bool {
         let mut updated = self
+            .core
             .mutate_canonical_creature_by_guid_like_cpp(guid, |creature| {
                 creature.unit_mut().set_private_object_owner_like_cpp(owner);
             })
@@ -65,7 +58,7 @@ impl WorldSession {
                 .write()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
             if let Some(creature) =
-                manager.find_creature_mut(self.player_map_id_like_cpp(), 0, guid)
+                manager.find_creature_mut(self.core.player_map_id_like_cpp(), 0, guid)
             {
                 creature
                     .creature
@@ -77,9 +70,6 @@ impl WorldSession {
 
         updated
     }
-    pub(crate) fn world_creature_guids(&self) -> Vec<ObjectGuid> {
-        self.core.world_creature_guids()
-    }
     pub(crate) fn active_world_creature_guids_for_update_like_cpp(&self) -> Vec<ObjectGuid> {
         let Some(player_position) = self.player_position_like_cpp() else {
             return Vec::new();
@@ -90,7 +80,7 @@ impl WorldSession {
         let Some(player_phase_shift) = self.represented_player_phase_shift_like_cpp() else {
             return Vec::new();
         };
-        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
+        let (map_id, instance_id) = self.core.current_legacy_runtime_map_key_like_cpp();
         manager
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner())
@@ -121,8 +111,9 @@ impl WorldSession {
         let Some(player_position) = self.player_position_like_cpp() else {
             return false;
         };
-        let player_map_id = u32::from(self.player_map_id_like_cpp());
+        let player_map_id = u32::from(self.core.player_map_id_like_cpp());
         let player_instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -226,34 +217,6 @@ impl WorldSession {
     ) {
         self.config.creature_health_rates_like_cpp = rates;
     }
-    pub(crate) fn creature_create_model_scalars_like_cpp(
-        &self,
-        display_id: u32,
-        object_scale: f32,
-        display_scale: f32,
-    ) -> Option<CreatureCreateModelScalarsLikeCpp> {
-        self.catalogs.creature_create_model_scalars_like_cpp(
-            display_id,
-            object_scale,
-            display_scale,
-        )
-    }
-    pub(crate) fn choose_creature_display_like_cpp(
-        &self,
-        entry: u32,
-        spawn_display_id: u32,
-        template_flags_extra: u32,
-        fallback_template_display_id: u32,
-        fallback_template_display_scale: f32,
-    ) -> Option<CreatureCreateDisplaySelectionLikeCpp> {
-        self.catalogs.choose_creature_display_like_cpp(
-            entry,
-            spawn_display_id,
-            template_flags_extra,
-            fallback_template_display_id,
-            fallback_template_display_scale,
-        )
-    }
     #[cfg(test)]
     pub(crate) fn creature_create_stats_like_cpp(
         &self,
@@ -329,7 +292,7 @@ impl WorldSession {
             return None;
         }
 
-        let canonical = self.with_owned_player_like_cpp(|player| {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
             (
                 player.unit().health_state_revision_like_cpp(),
                 player.unit().data().health,
@@ -342,7 +305,7 @@ impl WorldSession {
             if self.core.player_handle_like_cpp.is_some() {
                 return None;
             }
-            self.mutate_canonical_player_like_cpp(|player| {
+            self.core.mutate_canonical_player_like_cpp(|player| {
                 (
                     player.unit().health_state_revision_like_cpp(),
                     player.unit().data().health,
@@ -670,6 +633,7 @@ impl WorldSession {
             return Err("no represented effects for this aura");
         }
         let applied = self
+            .core
             .mutate_canonical_creature_by_guid_like_cpp(target_guid, |creature| {
                 let auras = &mut creature.unit_mut().subsystems_mut().auras;
                 if auras
@@ -775,8 +739,11 @@ impl WorldSession {
         applied: bool,
     ) {
         use wow_packet::ServerPacket;
-        let Some(map_key) =
-            self.canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))
+        let Some(map_key) = self
+            .core
+            .canonical_object_lookup_map_key_like_cpp(u32::from(
+                self.core.player_map_id_like_cpp(),
+            ))
         else {
             return;
         };
@@ -842,6 +809,7 @@ impl WorldSession {
             .collect();
         for aura in expired {
             let removed = self
+                .core
                 .mutate_canonical_creature_by_guid_like_cpp(aura.target_guid, |creature| {
                     let auras = &mut creature.unit_mut().subsystems_mut().auras;
                     let spell_id = u32::try_from(aura.spell_id).unwrap_or(0);

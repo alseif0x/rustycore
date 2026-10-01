@@ -70,9 +70,11 @@ impl crate::session::WorldSession {
                 instance_lock_mgr
                     .read()
                     .map(|mgr| {
-                        let map_store = self.map_store().map(|store| store.as_ref());
-                        let map_difficulty_store =
-                            self.map_difficulty_store().map(|store| store.as_ref());
+                        let map_store = self.catalogs.map_store().map(|store| store.as_ref());
+                        let map_difficulty_store = self
+                            .catalogs
+                            .map_difficulty_store()
+                            .map(|store| store.as_ref());
                         mgr.get_raid_info_locks_for_player_at(
                             player_guid,
                             now,
@@ -127,8 +129,9 @@ impl crate::session::WorldSession {
         };
 
         if self
+            .catalogs
             .map_store()
-            .and_then(|store| store.get(u32::from(self.player_map_id_like_cpp())))
+            .and_then(|store| store.get(u32::from(self.core.player_map_id_like_cpp())))
             .is_some_and(|map| map.instance_type != 0)
         {
             return;
@@ -179,8 +182,11 @@ impl crate::session::WorldSession {
                 .player_lock_map_difficulties(reset_owner_guid)
                 .into_iter()
                 .filter_map(|(map_id, difficulty_id)| {
-                    let map = self.map_store()?.get(map_id)?;
-                    let map_difficulty = self.map_difficulty_store()?.get(map_id, difficulty_id)?;
+                    let map = self.catalogs.map_store()?.get(map_id)?;
+                    let map_difficulty = self
+                        .catalogs
+                        .map_difficulty_store()?
+                        .get(map_id, difficulty_id)?;
                     let entries = wow_instances::MapDb2Entries {
                         map_id,
                         difficulty_id,
@@ -213,7 +219,7 @@ impl crate::session::WorldSession {
         };
 
         if !persistence_plan.is_empty() {
-            if let Some(port) = self.instance_lock_persistence_port_like_cpp()
+            if let Some(port) = self.lifecycle.instance_lock_persistence_port_like_cpp()
                 && let InstanceLockPersistenceOutcomeLikeCpp::Failed { reason } =
                     port.commit_plan_like_cpp(persistence_plan).await
             {
@@ -291,7 +297,7 @@ impl crate::session::WorldSession {
         &mut self,
         pending_bind: crate::session::RepresentedPendingBind,
     ) -> bool {
-        if u32::from(self.player_map_id_like_cpp()) != pending_bind.map_id {
+        if u32::from(self.core.player_map_id_like_cpp()) != pending_bind.map_id {
             return false;
         }
 
@@ -361,7 +367,7 @@ impl crate::session::WorldSession {
         };
 
         if !persistence_plan.is_empty() {
-            if let Some(port) = self.instance_lock_persistence_port_like_cpp()
+            if let Some(port) = self.lifecycle.instance_lock_persistence_port_like_cpp()
                 && let InstanceLockPersistenceOutcomeLikeCpp::Failed { reason } =
                     port.commit_plan_like_cpp(persistence_plan).await
             {
@@ -413,7 +419,7 @@ impl crate::session::WorldSession {
         let Ok(map_id) = u32::try_from(query.map_id) else {
             return;
         };
-        if u32::from(self.player_map_id_like_cpp()) == map_id {
+        if u32::from(self.core.player_map_id_like_cpp()) == map_id {
             return;
         }
 
@@ -450,7 +456,7 @@ impl crate::session::WorldSession {
         };
 
         if !persistence_plan.is_empty()
-            && let Some(port) = self.instance_lock_persistence_port_like_cpp()
+            && let Some(port) = self.lifecycle.instance_lock_persistence_port_like_cpp()
             && let InstanceLockPersistenceOutcomeLikeCpp::Failed { reason } =
                 port.commit_plan_like_cpp(persistence_plan).await
         {

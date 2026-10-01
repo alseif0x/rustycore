@@ -23,7 +23,7 @@ impl WorldSession {
 
     pub fn set_socket_timeouts_like_cpp(&mut self, timeouts: SocketTimeoutsLikeCpp) {
         self.core.admission.socket_timeouts_like_cpp = timeouts;
-        self.reset_timeout_time_like_cpp(false);
+        self.core.reset_timeout_time_like_cpp(false);
     }
 
     pub fn set_server_expansion_like_cpp(&mut self, expansion: u8) {

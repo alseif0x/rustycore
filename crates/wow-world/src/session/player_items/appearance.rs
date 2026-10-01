@@ -242,7 +242,9 @@ impl WorldSession {
         // C++ `CanUseItem` learning-effect pair (`Player.cpp:11110-11113`): a
         // recipe, mount or pet item whose second effect is already known cannot
         // be used again.
-        let effect_spell_ids = self.represented_item_effect_spell_ids_like_cpp(item_id);
+        let effect_spell_ids = self
+            .catalogs
+            .represented_item_effect_spell_ids_like_cpp(item_id);
         if let (Some((_, first)), Some((_, second))) =
             (effect_spell_ids.first(), effect_spell_ids.get(1))
             && matches!(*first, 483 | 55_884)
@@ -284,6 +286,7 @@ impl WorldSession {
                 // `Player::GetWeaponProficiency` mask, not the class default
                 // the client receives at creation.
                 let weapon_proficiency = self
+                    .core
                     .represented_player_weapon_proficiency_like_cpp()
                     .unwrap_or(0);
                 if (weapon_proficiency & (1_u32 << subclass)) == 0 {
@@ -377,8 +380,9 @@ impl WorldSession {
             .unwrap_or_default();
 
         for item_id in package_item_ids {
-            let Some(item_spec_class_mask) =
-                self.item_spec_class_mask_from_overrides_like_cpp(item_id)
+            let Some(item_spec_class_mask) = self
+                .catalogs
+                .item_spec_class_mask_from_overrides_like_cpp(item_id)
             else {
                 continue;
             };

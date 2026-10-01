@@ -59,7 +59,10 @@ impl WorldSession {
                 if count == 0 {
                     None
                 } else {
-                    let index = self.represented_urand_u32_like_cpp(0, (count - 1) as u32) as usize;
+                    let index = self
+                        .core
+                        .represented_urand_u32_like_cpp(0, (count - 1) as u32)
+                        as usize;
                     store.nth_for_entry(entry, index).map(|(id, info)| {
                         equipment_id = i16::from(id);
                         info
@@ -201,7 +204,8 @@ impl WorldSession {
             }
             None => return,
         };
-        let Some(inventory_port) = self.player_inventory_persistence_port_like_cpp() else {
+        let Some(inventory_port) = self.lifecycle.player_inventory_persistence_port_like_cpp()
+        else {
             return;
         };
 
@@ -348,7 +352,8 @@ impl WorldSession {
                 update.new_count,
                 planned_flags(update.item.guid, item.item_flags_bits()),
                 enchantments,
-                self.item_effect_count_like_cpp(update.item.entry_id),
+                self.catalogs
+                    .item_effect_count_like_cpp(update.item.entry_id),
             ));
         }
         if let Some((_, _, moved_count)) = plan.moved_destination {
@@ -378,7 +383,8 @@ impl WorldSession {
                 moved_count,
                 planned_flags(plan.source.guid, item.item_flags_bits()),
                 enchantments.clone(),
-                self.item_effect_count_like_cpp(plan.source.entry_id),
+                self.catalogs
+                    .item_effect_count_like_cpp(plan.source.entry_id),
             ));
         }
 
@@ -443,7 +449,7 @@ impl WorldSession {
             return;
         }
 
-        let map_id = self.player_map_id_like_cpp();
+        let map_id = self.core.player_map_id_like_cpp();
         for (item_guid, _, _) in &binding_updates {
             let _ = self.apply_inventory_item_object_updates_like_cpp(
                 *item_guid,

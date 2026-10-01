@@ -22,7 +22,8 @@ impl WorldSession {
             self.remove_known_spell_like_cpp(spell_id);
         }
         self.apply_represented_quest_rewarded_spells_like_cpp();
-        self.send_notification_like_cpp(self.reset_spells_notification_text_like_cpp());
+        self.core
+            .send_notification_like_cpp(self.reset_spells_notification_text_like_cpp());
         true
     }
     /// Represented C++ `Player::LearnCustomSpells` / `CONFIG_START_ALL_SPELLS`.
@@ -212,6 +213,7 @@ impl WorldSession {
                 continue;
             };
             let learned_spells = self
+                .catalogs
                 .spell_learn_spell_map_bounds_like_cpp(spell_id_u32)
                 .to_vec();
             for learned_spell in learned_spells {

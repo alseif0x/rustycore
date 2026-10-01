@@ -700,11 +700,11 @@ fn player_save_timer_marks_periodic_save_due_like_cpp() {
     assert_eq!(session.lifecycle.next_player_save_ms_like_cpp, 100);
     assert!(!session.lifecycle.pending_periodic_player_save_like_cpp);
 
-    session.update_player_save_timer_like_cpp(99);
+    session.lifecycle.update_player_save_timer_like_cpp(99);
     assert_eq!(session.lifecycle.next_player_save_ms_like_cpp, 1);
     assert!(!session.lifecycle.pending_periodic_player_save_like_cpp);
 
-    session.update_player_save_timer_like_cpp(1);
+    session.lifecycle.update_player_save_timer_like_cpp(1);
     assert_eq!(session.lifecycle.next_player_save_ms_like_cpp, 0);
     assert!(
         session.lifecycle.pending_periodic_player_save_like_cpp,

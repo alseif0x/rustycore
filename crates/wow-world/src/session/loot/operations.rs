@@ -15,19 +15,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_loot_mut(self);
         state.represented_money_loot_with_rate_like_cpp(&mut hub, min_amount, max_amount, rate)
     }
-    pub(crate) fn canonical_gameobject_is_fully_looted_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-    ) -> Option<bool> {
-        crate::session::cx_loot(self).canonical_gameobject_is_fully_looted_like_cpp(guid)
-    }
-    pub(in crate::session) fn represented_gameobject_loot_ids_have_quest_loot_like_cpp(
-        &self,
-        loot_ids: impl IntoIterator<Item = u32>,
-    ) -> bool {
-        self.catalogs
-            .represented_gameobject_loot_ids_have_quest_loot_like_cpp(loot_ids)
-    }
     pub(in crate::session) fn represented_gameobject_loot_ids_have_quest_loot_for_player_like_cpp(
         &self,
         loot_ids: impl IntoIterator<Item = u32>,
@@ -51,37 +38,6 @@ impl WorldSession {
     ) -> Option<OwnedLootAuthority> {
         let (state, hub) = crate::session::split_loot_ref(self);
         state.read_legacy_creature_loot_authority_on_map_like_cpp(hub, guid, map_key)
-    }
-    pub(crate) fn rebind_legacy_creature_loot_authority_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        expected: &OwnedLootAuthority,
-        expected_stamp: OwnedLootAuthorityStamp,
-        authority: OwnedLootAuthority,
-    ) -> Option<bool> {
-        self.core.rebind_legacy_creature_loot_authority_like_cpp(
-            guid,
-            expected,
-            expected_stamp,
-            authority,
-        )
-    }
-    pub(crate) fn rebind_legacy_creature_loot_authority_on_map_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        map_key: wow_map::MapKey,
-        expected: &OwnedLootAuthority,
-        expected_stamp: OwnedLootAuthorityStamp,
-        authority: OwnedLootAuthority,
-    ) -> Option<bool> {
-        self.core
-            .rebind_legacy_creature_loot_authority_on_map_like_cpp(
-                guid,
-                map_key,
-                expected,
-                expected_stamp,
-                authority,
-            )
     }
     pub(crate) fn read_canonical_creature_loot_authority_on_map_like_cpp(
         &self,
@@ -197,11 +153,6 @@ impl WorldSession {
     ) {
         crate::session::cx_loot(self).set_group_loot_money_persistence_port_like_cpp(port)
     }
-    pub(crate) fn group_loot_money_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>> {
-        crate::session::cx_loot_ref(self).group_loot_money_persistence_port_like_cpp()
-    }
     pub fn set_loot_drop_rates_like_cpp(&mut self, rates: LootDropRatesLikeCpp) {
         self.config.loot_drop_rates = rates;
     }
@@ -213,21 +164,6 @@ impl WorldSession {
     }
     pub fn loot_drop_rates_like_cpp(&self) -> LootDropRatesLikeCpp {
         self.config.loot_drop_rates_like_cpp()
-    }
-    pub(crate) fn set_active_loot_guid(&mut self, guid: ObjectGuid) {
-        self.loot.set_active_loot_guid(guid)
-    }
-    pub(crate) fn has_active_loot_views_like_cpp(&self) -> bool {
-        self.loot.has_active_loot_views_like_cpp()
-    }
-    pub(crate) fn add_active_loot_view_owner_like_cpp(&mut self, guid: ObjectGuid) {
-        self.loot.add_active_loot_view_owner_like_cpp(guid)
-    }
-    pub(crate) fn clear_active_loot_guid_if(&mut self, guid: ObjectGuid) {
-        self.loot.clear_active_loot_guid_if(guid)
-    }
-    pub(crate) fn is_active_loot_guid(&self, guid: ObjectGuid) -> bool {
-        self.loot.is_active_loot_guid(guid)
     }
     /// Set the C++ LootTemplates_* foundation stores for this session.
     pub fn set_loot_stores(&mut self, stores: Arc<LootStores>) {
@@ -275,12 +211,13 @@ impl WorldSession {
                 return false;
             }
             if old_money != new_money {
-                self.enqueue_represented_quest_objective_progress_like_cpp(
-                    RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
-                        old_money,
-                        new_money,
-                    },
-                );
+                self.quest_state
+                    .enqueue_represented_quest_objective_progress_like_cpp(
+                        RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
+                            old_money,
+                            new_money,
+                        },
+                    );
             }
         }
 
@@ -296,11 +233,6 @@ impl WorldSession {
         }
         true
     }
-    pub(crate) fn durable_loot_money_persistence_tracker_like_cpp(
-        &self,
-    ) -> Arc<DurableLootMoneyPersistenceTrackerLikeCpp> {
-        crate::session::cx_loot_ref(self).durable_loot_money_persistence_tracker_like_cpp()
-    }
     pub(in crate::session) fn represented_creature_has_loot_recipient_like_cpp(
         &self,
         creature_guid: wow_core::ObjectGuid,
@@ -310,16 +242,17 @@ impl WorldSession {
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
             if let Some(creature) =
-                manager.find_creature(self.player_map_id_like_cpp(), 0, creature_guid)
+                manager.find_creature(self.core.player_map_id_like_cpp(), 0, creature_guid)
             {
                 return Some(creature.creature.has_loot_recipient());
             }
         }
 
         let key = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .unwrap_or(wow_map::MapKey::new(
-                u32::from(self.player_map_id_like_cpp()),
+                u32::from(self.core.player_map_id_like_cpp()),
                 0,
             ));
         let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;

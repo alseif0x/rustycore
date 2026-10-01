@@ -210,7 +210,7 @@ impl WorldSession {
             None => return,
         };
 
-        let port = match self.social_persistence_port_like_cpp() {
+        let port = match self.lifecycle.social_persistence_port_like_cpp() {
             Some(port) => port,
             None => {
                 // C++ sends `ContactList` even when the loaded social map is
@@ -233,7 +233,7 @@ impl WorldSession {
             }
         };
 
-        let vra = self.virtual_realm_address();
+        let vra = self.core.virtual_realm_address();
 
         let mut contacts: Vec<ContactInfo> = Vec::new();
 
@@ -297,12 +297,12 @@ impl WorldSession {
             None => return,
         };
 
-        let port = match self.social_persistence_port_like_cpp() {
+        let port = match self.lifecycle.social_persistence_port_like_cpp() {
             Some(port) => port,
             None => return,
         };
 
-        let vra = self.virtual_realm_address();
+        let vra = self.core.virtual_realm_address();
 
         macro_rules! send_status {
             ($result:expr, $guid:expr) => {
@@ -429,12 +429,12 @@ impl WorldSession {
             None => return,
         };
 
-        let port = match self.social_persistence_port_like_cpp() {
+        let port = match self.lifecycle.social_persistence_port_like_cpp() {
             Some(port) => port,
             None => return,
         };
 
-        let vra = self.virtual_realm_address();
+        let vra = self.core.virtual_realm_address();
         macro_rules! send_status {
             ($result:expr, $guid:expr) => {
                 self.send_packet(&FriendStatusPkt {
@@ -531,7 +531,7 @@ impl WorldSession {
             None => return,
         };
 
-        let port = match self.social_persistence_port_like_cpp() {
+        let port = match self.lifecycle.social_persistence_port_like_cpp() {
             Some(port) => port,
             None => return,
         };
@@ -555,7 +555,7 @@ impl WorldSession {
             result: FriendsResult::Removed,
             guid: friend_guid,
             account_guid: ObjectGuid::EMPTY,
-            virtual_realm_address: self.virtual_realm_address(),
+            virtual_realm_address: self.core.virtual_realm_address(),
             status: 0,
             area_id: 0,
             level: 0,
@@ -577,7 +577,7 @@ impl WorldSession {
             None => return,
         };
 
-        let port = match self.social_persistence_port_like_cpp() {
+        let port = match self.lifecycle.social_persistence_port_like_cpp() {
             Some(port) => port,
             None => return,
         };
@@ -605,7 +605,7 @@ impl WorldSession {
             result: FriendsResult::IgnoreRemoved,
             guid: target_guid,
             account_guid: ObjectGuid::EMPTY,
-            virtual_realm_address: self.virtual_realm_address(),
+            virtual_realm_address: self.core.virtual_realm_address(),
             status: 0,
             area_id: 0,
             level: 0,
@@ -625,7 +625,7 @@ impl WorldSession {
             None => return,
         };
 
-        let port = match self.social_persistence_port_like_cpp() {
+        let port = match self.lifecycle.social_persistence_port_like_cpp() {
             Some(port) => port,
             None => return,
         };
@@ -700,7 +700,8 @@ impl WorldSession {
             return;
         }
 
-        self.record_represented_trade_cancel_like_cpp(command.status);
+        self.social
+            .record_represented_trade_cancel_like_cpp(command.status);
         if !self.clear_represented_active_trade_partner_like_cpp() {
             return;
         }

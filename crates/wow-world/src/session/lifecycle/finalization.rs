@@ -123,13 +123,17 @@ impl WorldSession {
                 self.wait_for_active_loot_persistence_with_generator_like_cpp(item_guid_generator)
                     .await;
                 if let Some(guid) = self.player_guid() {
-                    if self.has_active_loot_views_like_cpp() {
+                    if self.loot.has_active_loot_views_like_cpp() {
                         self.do_loot_release_all_like_cpp(guid).await;
                     }
                 }
                 FinalizationOutcome::Applied
             }
-            Buyback => self.clear_buyback_on_logout().await,
+            Buyback => {
+                crate::session::cx_lifecycle(self)
+                    .clear_buyback_on_logout()
+                    .await
+            }
             CharacterSave => match self
                 .save_current_player_to_db_with_generator_like_cpp(item_guid_generator)
                 .await
@@ -143,8 +147,16 @@ impl WorldSession {
             Mounts => self.save_account_mounts_like_cpp().await,
             Toys => self.save_account_toys_like_cpp().await,
             Heirlooms => self.save_account_heirlooms_like_cpp().await,
-            Appearances => self.save_account_item_appearances_like_cpp().await,
-            Illusions => self.save_account_transmog_illusions_like_cpp().await,
+            Appearances => {
+                crate::session::cx_lifecycle(self)
+                    .save_account_item_appearances_like_cpp()
+                    .await
+            }
+            Illusions => {
+                crate::session::cx_lifecycle(self)
+                    .save_account_transmog_illusions_like_cpp()
+                    .await
+            }
             CharacterOffline => self.mark_character_offline().await,
             CharacterAccountOffline => self.mark_character_account_offline_like_cpp().await,
             LoginAccountOffline => {
@@ -160,6 +172,7 @@ impl WorldSession {
                 // Separate writers must finish the earlier instance response first.
                 // A failed/cancelled fence cannot authorize completion publication.
                 if !self
+                    .core
                     .wait_for_instance_send_before_realm_send_like_cpp()
                     .await
                 {
@@ -169,7 +182,7 @@ impl WorldSession {
                 // Saturation yields instead of blocking the executor thread.
                 // Success proves channel acceptance, not client receipt.
                 let bytes = wow_packet::ServerPacket::to_bytes(&LogoutComplete);
-                match self.realm_route_tx().send_async(bytes).await {
+                match self.core.realm_route_tx().send_async(bytes).await {
                     Ok(()) => FinalizationOutcome::Applied,
                     Err(_) => FinalizationOutcome::Unavailable,
                 }
@@ -177,15 +190,15 @@ impl WorldSession {
             Release => {
                 if mode == FinalizationMode::CharacterSelection {
                     self.set_player_guid(None);
-                    self.release_character_login_claim_like_cpp();
+                    self.lifecycle.release_character_login_claim_like_cpp();
                     self.clear_all_inventory_runtime_like_cpp();
                     let _ = self.clear_player_currencies_like_cpp();
-                    self.set_active_loot_guid(ObjectGuid::EMPTY);
+                    self.loot.set_active_loot_guid(ObjectGuid::EMPTY);
                     self.restore_realm_channels();
                     self.set_player_logout_like_cpp(false);
                     self.set_state(SessionState::Authed);
                 } else {
-                    self.release_character_login_claim_like_cpp();
+                    self.lifecycle.release_character_login_claim_like_cpp();
                     self.clear_inventory_items_and_objects_like_cpp();
                 }
                 FinalizationOutcome::Applied

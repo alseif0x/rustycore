@@ -6,57 +6,15 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn mutate_canonical_player_like_cpp<R>(
-        &self,
-        f: impl FnOnce(&mut Player) -> R,
-    ) -> Option<R> {
-        self.core.mutate_canonical_player_like_cpp(f)
-    }
-    pub(in crate::session) fn with_owned_player_like_cpp<R>(
-        &self,
-        f: impl FnOnce(&Player) -> R,
-    ) -> Option<R> {
-        self.core.with_owned_player_like_cpp(f)
-    }
-    pub(in crate::session) fn with_owned_player_mut_like_cpp<R>(
-        &self,
-        f: impl FnOnce(&mut Player) -> R,
-    ) -> Option<R> {
-        self.core.with_owned_player_mut_like_cpp(f)
-    }
-    pub(in crate::session) fn with_owned_player_for_rest_like_cpp<R>(
-        &self,
-        f: impl FnOnce(&Player) -> R,
-    ) -> Option<R> {
-        self.core.with_owned_player_for_rest_like_cpp(f)
-    }
     pub(in crate::session) fn with_owned_player_mut_for_rest_like_cpp<R>(
         &self,
         f: impl FnOnce(&mut Player) -> R,
     ) -> Option<R> {
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
-            return self.mutate_canonical_player_like_cpp(f);
+            return self.core.mutate_canonical_player_like_cpp(f);
         }
-        self.with_owned_player_mut_like_cpp(f)
-    }
-    pub(crate) fn mutate_canonical_player_by_guid_like_cpp<R>(
-        &self,
-        guid: ObjectGuid,
-        f: impl FnOnce(&mut Player) -> R,
-    ) -> Option<R> {
-        self.core.mutate_canonical_player_by_guid_like_cpp(guid, f)
-    }
-    pub(in crate::session) fn canonical_player_has_player_flag_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        flag: u32,
-    ) -> Option<bool> {
-        self.core
-            .canonical_player_has_player_flag_like_cpp(guid, flag)
-    }
-    pub(in crate::session) fn canonical_player_display_ids_like_cpp(&self) -> Option<(u32, u32)> {
-        self.core.canonical_player_display_ids_like_cpp()
+        self.core.with_owned_player_mut_like_cpp(f)
     }
     pub(in crate::session) fn set_player_zone_id_like_cpp(&mut self, zone_id: u32) -> bool {
         crate::session::hub_mut(self).set_player_zone_id_like_cpp(zone_id)
@@ -146,7 +104,7 @@ impl WorldSession {
         {
             let rows =
                 std::mem::take(&mut self.instances.represented_instance_reset_times_like_cpp);
-            let _ = self.with_owned_player_mut_like_cpp(|player| {
+            let _ = self.core.with_owned_player_mut_like_cpp(|player| {
                 player.replace_instance_reset_times_like_cpp(rows);
             });
         }
@@ -158,29 +116,7 @@ impl WorldSession {
     ) -> Option<R> {
         crate::session::hub_mut(self).mutate_player_collection_state_like_cpp(mutate)
     }
-    pub(in crate::session) fn canonical_player_snapshot_like_cpp<R>(
-        &self,
-        f: impl FnOnce(&Player) -> R,
-    ) -> Option<R> {
-        self.core.canonical_player_snapshot_like_cpp(f)
-    }
-    pub(crate) fn canonical_player_parry_block_snapshot_like_cpp(&self) -> (bool, bool) {
-        self.core.canonical_player_parry_block_snapshot_like_cpp()
-    }
 
-    pub(crate) fn represented_player_weapon_proficiency_like_cpp(&self) -> Option<u32> {
-        self.core.represented_player_weapon_proficiency_like_cpp()
-    }
-
-    pub(crate) fn canonical_player_effective_combat_stats_like_cpp(
-        &self,
-    ) -> Option<wow_entities::PlayerEffectiveCombatStatsLikeCpp> {
-        self.core.canonical_player_effective_combat_stats_like_cpp()
-    }
-
-    pub(crate) fn canonical_player_total_attack_power_like_cpp(&self) -> Option<f32> {
-        self.core.canonical_player_total_attack_power_like_cpp()
-    }
     pub(in crate::session) fn with_player_cinematic_state_like_cpp<R>(
         &mut self,
         apply: impl FnMut(&mut wow_entities::PlayerCinematicStateLikeCpp) -> R,
@@ -200,7 +136,8 @@ impl WorldSession {
                 .replace_player_rest_state_like_cpp(state)
                 .then_some(result);
         }
-        self.with_owned_player_mut_like_cpp(|player| player.mutate_rest_state_like_cpp(f))
+        self.core
+            .with_owned_player_mut_like_cpp(|player| player.mutate_rest_state_like_cpp(f))
     }
 
     pub(in crate::session) fn set_player_rest_flag_like_cpp(
@@ -208,7 +145,7 @@ impl WorldSession {
         rest_flag: u32,
         trigger_id: u32,
     ) -> bool {
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+        let canonical = self.core.with_owned_player_mut_like_cpp(|player| {
             player.set_rest_flag_like_cpp(rest_flag, trigger_id, || {
                 wow_core::GameTime::now().as_secs()
             })
@@ -231,6 +168,7 @@ impl WorldSession {
 
     pub(in crate::session) fn remove_player_rest_flag_like_cpp(&mut self, rest_flag: u32) -> bool {
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| player.remove_rest_flag_like_cpp(rest_flag));
         if let Some(changed) = canonical {
             return changed;
@@ -246,6 +184,7 @@ impl WorldSession {
 
     pub(in crate::session) fn defer_player_rest_flag_sync_like_cpp(&mut self) -> bool {
         if self
+            .core
             .with_owned_player_mut_like_cpp(|player| player.defer_rest_flag_sync_like_cpp())
             .is_some()
         {
@@ -262,6 +201,7 @@ impl WorldSession {
 
     pub(in crate::session) fn end_player_rest_flag_sync_like_cpp(&mut self) -> bool {
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| player.end_deferred_rest_flag_sync_like_cpp());
         if let Some(dirty) = canonical {
             return dirty;
@@ -277,6 +217,7 @@ impl WorldSession {
 
     pub(in crate::session) fn clear_player_deferred_rest_flag_update_like_cpp(&mut self) -> bool {
         if self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.clear_deferred_rest_flag_update_like_cpp()
             })
@@ -298,7 +239,7 @@ impl WorldSession {
     pub(in crate::session) fn take_player_deferred_rest_flag_update_dirty_like_cpp(
         &mut self,
     ) -> bool {
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+        let canonical = self.core.with_owned_player_mut_like_cpp(|player| {
             player.take_deferred_rest_flag_update_dirty_like_cpp()
         });
         if let Some(dirty) = canonical {
@@ -365,7 +306,7 @@ impl WorldSession {
     pub(crate) fn owned_player_cuf_profiles_like_cpp(
         &self,
     ) -> Option<(Vec<Option<wow_entities::PlayerCufProfile>>, bool)> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
             let state = player.gameplay_state();
             (state.cuf_profiles.clone(), state.cuf_profiles_loaded)
         });

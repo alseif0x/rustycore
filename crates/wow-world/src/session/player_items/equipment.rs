@@ -6,13 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn item_child_equipment_for_parent_like_cpp(
-        &self,
-        parent_item_id: u32,
-    ) -> Option<&ItemChildEquipmentEntry> {
-        self.catalogs
-            .item_child_equipment_for_parent_like_cpp(parent_item_id)
-    }
     pub(in crate::session) fn represented_equip_spell_fits_shapeshift_like_cpp(
         &self,
         spell_id: u32,
@@ -506,6 +499,7 @@ impl WorldSession {
             .is_some_and(|flags| (flags & ItemFlags3::AlwaysAllowDualWield as u32) != 0);
         let limit_category = self.item_limit_category_template_like_cpp(proto.item_limit_category);
         let (is_stunned, is_charmed) = self
+            .core
             .canonical_player_snapshot_like_cpp(|player| {
                 (
                     player.unit().has_unit_state(UnitState::STUNNED.bits()),
@@ -517,8 +511,9 @@ impl WorldSession {
             .player_battleground_state_snapshot_like_cpp()
             .is_some_and(|state| state.battleground_status_like_cpp() == Some(3))
             && self
+                .catalogs
                 .map_store()
-                .and_then(|store| store.get(u32::from(self.player_map_id_like_cpp())))
+                .and_then(|store| store.get(u32::from(self.core.player_map_id_like_cpp())))
                 .is_some_and(|entry| entry.instance_type == wow_data::map::MAP_ARENA);
 
         let offhand_item =

@@ -77,7 +77,7 @@ impl WorldSession {
                 .get(&destination_node_id)
                 .copied();
             let should_teleport = destination_map_id
-                .map(|map_id| map_id != self.player_map_id_like_cpp())
+                .map(|map_id| map_id != self.core.player_map_id_like_cpp())
                 .unwrap_or(false)
                 || flight.current_node.teleport_flag;
 

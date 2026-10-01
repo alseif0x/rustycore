@@ -11,12 +11,6 @@ use wow_persistence::{
 };
 
 impl WorldSession {
-    pub(crate) async fn clear_buyback_on_logout(&mut self) -> crate::FinalizationOutcome {
-        crate::session::cx_lifecycle(self)
-            .clear_buyback_on_logout()
-            .await
-    }
-
     pub(crate) async fn mark_character_offline(&mut self) -> FinalizationOutcome {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
         state.mark_character_offline(&mut hub).await
@@ -51,18 +45,6 @@ impl WorldSession {
     pub(crate) async fn save_account_heirlooms_like_cpp(&mut self) -> FinalizationOutcome {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
         state.save_account_heirlooms_like_cpp(&mut hub).await
-    }
-
-    pub(crate) async fn save_account_item_appearances_like_cpp(&mut self) -> FinalizationOutcome {
-        crate::session::cx_lifecycle(self)
-            .save_account_item_appearances_like_cpp()
-            .await
-    }
-
-    pub(crate) async fn save_account_transmog_illusions_like_cpp(&mut self) -> FinalizationOutcome {
-        crate::session::cx_lifecycle(self)
-            .save_account_transmog_illusions_like_cpp()
-            .await
     }
 }
 

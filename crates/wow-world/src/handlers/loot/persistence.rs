@@ -28,6 +28,7 @@ impl WorldSession {
                         .any(|entry| entry.loot_list_id == context.loot_list_id)
             })?;
         let instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -43,7 +44,7 @@ impl WorldSession {
             committed_snapshot: Arc::new(std::sync::OnceLock::new()),
             source_send_tx: self.send_tx().clone(),
             player_registry: self.player_registry().cloned(),
-            map_id: self.player_map_id_like_cpp(),
+            map_id: self.core.player_map_id_like_cpp(),
             instance_id,
             published: Arc::new(AtomicBool::new(false)),
         })
@@ -199,18 +200,19 @@ impl WorldSession {
                 lifecycle_revision: observation.lifecycle_revision,
                 require_no_viewers: true,
             };
-            self.apply_represented_gameobject_loot_release_like_cpp(
+            crate::session::cx_loot(self).apply_represented_gameobject_loot_release_like_cpp(
                 route.owner_guid,
                 route.player_guid,
                 true,
                 true,
                 Some(&release),
             );
-            let _ =
-                self.queue_chest_gameobject_state_refresh_for_same_map_like_cpp(route.owner_guid);
-            self.hide_represented_gameobject_for_player_after_loot_release_like_cpp(
-                route.owner_guid,
-            );
+            let _ = crate::session::cx_loot_ref(self)
+                .queue_chest_gameobject_state_refresh_for_same_map_like_cpp(route.owner_guid);
+            crate::session::cx_loot(self)
+                .hide_represented_gameobject_for_player_after_loot_release_like_cpp(
+                    route.owner_guid,
+                );
             if self
                 .world_entities
                 .represented_gameobject_use_states
@@ -388,7 +390,8 @@ impl WorldSession {
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         drain_money_objectives: bool,
     ) {
-        let completions = self.take_durable_item_loot_completions_like_cpp();
+        let completions =
+            crate::session::cx_inventory_ref(self).take_durable_item_loot_completions_like_cpp();
         for completion in completions {
             if let Some(fanout) = completion.item_fanout.as_ref() {
                 let _ = self.publish_durable_loot_item_fanout_like_cpp(fanout);
@@ -424,12 +427,13 @@ impl WorldSession {
                         continue;
                     }
                     if old_money != new_money {
-                        self.enqueue_represented_quest_objective_progress_like_cpp(
-                            RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
-                                old_money,
-                                new_money,
-                            },
-                        );
+                        self.quest_state
+                            .enqueue_represented_quest_objective_progress_like_cpp(
+                                RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
+                                    old_money,
+                                    new_money,
+                                },
+                            );
                     }
                 }
                 if publish {
@@ -563,7 +567,9 @@ impl WorldSession {
         for authority in authorities {
             authority.wait_for_persisting_claims_like_cpp().await;
         }
-        self.wait_for_durable_item_loot_persistence_like_cpp().await;
+        crate::session::cx_inventory_ref(self)
+            .wait_for_durable_item_loot_persistence_like_cpp()
+            .await;
         self.apply_pending_durable_item_loot_completions_with_generator_like_cpp(
             item_guid_generator,
         )

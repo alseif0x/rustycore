@@ -22,6 +22,7 @@ impl WorldSession {
         saved_map_id: i32,
     ) -> Option<LoginAdmissionDataLikeCpp> {
         let saved_character_map_is_battleground = self
+            .catalogs
             .map_store()
             .and_then(|store| store.get(saved_map_id as u32))
             .is_some_and(|entry| entry.is_battleground_or_arena());

@@ -9,9 +9,6 @@ impl WorldSession {
     pub fn set_friendship_rep_reaction_store(&mut self, store: Arc<FriendshipRepReactionStore>) {
         self.catalogs.friendship_rep_reaction_store = Some(store);
     }
-    pub(crate) fn friendship_rep_reaction_store(&self) -> Option<&Arc<FriendshipRepReactionStore>> {
-        self.catalogs.friendship_rep_reaction_store()
-    }
     pub(in crate::session) fn represented_recruit_a_friend_xp_rest_state_applies_like_cpp(
         &self,
     ) -> bool {
@@ -51,12 +48,16 @@ impl WorldSession {
         let Some(player_position) = self.player_position_like_cpp() else {
             return false;
         };
-        let player_map_id = self.player_map_id_like_cpp();
+        let player_map_id = self.core.player_map_id_like_cpp();
         let player_instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
-        let max_distance = self.reputation_rates_like_cpp().recruit_a_friend_distance;
+        let max_distance = self
+            .config
+            .reputation_rates_like_cpp()
+            .recruit_a_friend_distance;
 
         for member_guid in group_members {
             if member_guid == player_guid {
@@ -99,7 +100,7 @@ impl WorldSession {
             }
 
             let member_recruited_self = member.recruiter_id == self.core.account_id;
-            let self_recruited_member = self.recruiter_id_like_cpp() == member.account_id;
+            let self_recruited_member = self.core.recruiter_id_like_cpp() == member.account_id;
             if member_recruited_self || self_recruited_member {
                 return true;
             }

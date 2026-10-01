@@ -314,8 +314,9 @@ impl WorldSession {
         let Some(parent) = self.resolved_inventory_item_object_like_cpp(parent_guid) else {
             return Ok(None);
         };
-        let Some(child_equipment) =
-            self.item_child_equipment_for_parent_like_cpp(parent.object().entry())
+        let Some(child_equipment) = self
+            .catalogs
+            .item_child_equipment_for_parent_like_cpp(parent.object().entry())
         else {
             return Ok(None);
         };

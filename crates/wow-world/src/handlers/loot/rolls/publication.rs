@@ -8,29 +8,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(super) fn update_represented_loot_roll_vote_criteria_like_cpp(
-        &mut self,
-        player_guid: ObjectGuid,
-        roll_type: u8,
-    ) {
-        self.loot
-            .update_represented_loot_roll_vote_criteria_like_cpp(player_guid, roll_type)
-    }
-
-    pub(super) fn update_represented_loot_roll_winner_criteria_like_cpp(
-        &mut self,
-        player_guid: ObjectGuid,
-        item_id: u32,
-        winner_vote: RepresentedLootRollVote,
-    ) {
-        self.loot
-            .update_represented_loot_roll_winner_criteria_like_cpp(
-                player_guid,
-                item_id,
-                winner_vote,
-            )
-    }
-
     pub(super) fn send_represented_loot_roll_final_values_like_cpp(
         &self,
         loot_obj: ObjectGuid,

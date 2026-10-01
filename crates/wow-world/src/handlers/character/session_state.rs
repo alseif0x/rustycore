@@ -21,7 +21,7 @@ impl WorldSession {
         saved_map_id: u16,
         offset: Position,
     ) -> Option<PersistedTransportLoginLikeCpp> {
-        let port = self.player_lifecycle_port_like_cpp()?;
+        let port = self.lifecycle.player_lifecycle_port_like_cpp()?;
         let rows = match port
             .load_login_transports_like_cpp(PlayerLoginTransportLoadRequestLikeCpp::ByGuid {
                 guid_low,
@@ -77,6 +77,7 @@ impl WorldSession {
             return Vec::new();
         };
         let instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -129,7 +130,7 @@ impl WorldSession {
                 self.set_player_transport_info_like_cpp(None);
             }
         }
-        let Some(port) = self.player_lifecycle_port_like_cpp().cloned() else {
+        let Some(port) = self.lifecycle.player_lifecycle_port_like_cpp().cloned() else {
             return plan;
         };
 
@@ -208,7 +209,7 @@ impl WorldSession {
                 continue;
             }
 
-            let (target_phase_shift, _) = self.db_spawn_phase_shift_like_cpp(
+            let (target_phase_shift, _) = self.catalogs.db_spawn_phase_shift_like_cpp(
                 map_id,
                 transport.phase_use_flags,
                 transport.phase_id,
@@ -292,6 +293,7 @@ impl WorldSession {
     ) -> bool {
         let updateobject_trace_enabled = std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some();
         let authoritative_grid_map_key = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .filter(|key| u32::try_from(map_id).ok() == Some(key.map_id));
         let grid_instance_id = authoritative_grid_map_key
@@ -480,7 +482,7 @@ impl WorldSession {
         // Clear per-session loot/combat state as part of the Rust AddToWorld
         // equivalent, before C++ would build `Map::SendInitSelf`.
         self.loot.loot_table.clear();
-        self.set_active_loot_guid(ObjectGuid::EMPTY);
+        self.loot.set_active_loot_guid(ObjectGuid::EMPTY);
         self.set_combat_target_like_cpp(None);
         self.set_in_combat_like_cpp(false);
         info!(
@@ -547,7 +549,7 @@ impl WorldSession {
                 skill_info,
                 player_money,
                 quest_log,
-                self.party_member_party_type_like_cpp(),
+                self.core.party_member_party_type_like_cpp(),
             );
             let Some((player_flags, player_flags_ex)) =
                 self.resolved_player_flags_for_create_like_cpp()

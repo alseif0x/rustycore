@@ -177,8 +177,9 @@ impl crate::session::WorldSession {
         let Some(registry) = self.player_registry() else {
             return;
         };
-        let map_id = self.player_map_id_like_cpp();
+        let map_id = self.core.player_map_id_like_cpp();
         let instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -328,7 +329,10 @@ impl crate::session::WorldSession {
             return;
         }
 
-        if !self.toy_item_has_spell_effect_like_cpp(item_id, request.cast.spell_id) {
+        if !self
+            .catalogs
+            .toy_item_has_spell_effect_like_cpp(item_id, request.cast.spell_id)
+        {
             return;
         }
 
@@ -345,12 +349,15 @@ impl crate::session::WorldSession {
             return;
         };
 
-        if self.player_is_possessing_like_cpp() {
+        if self.core.player_is_possessing_like_cpp() {
             return;
         }
 
-        let toy_cooldown_ms =
-            self.toy_item_spell_cooldown_ms_like_cpp(item_id, request.cast.spell_id, &spell_info);
+        let toy_cooldown_ms = self.catalogs.toy_item_spell_cooldown_ms_like_cpp(
+            item_id,
+            request.cast.spell_id,
+            &spell_info,
+        );
         let Some(remaining_ms) = self.represented_spell_cooldown_remaining_ms_like_cpp(
             request.cast.spell_id,
             toy_cooldown_ms,
@@ -506,7 +513,7 @@ impl crate::session::WorldSession {
             return;
         };
 
-        if !self.is_toy_item_like_cpp(item.entry_id) {
+        if !self.catalogs.is_toy_item_like_cpp(item.entry_id) {
             return;
         }
 
@@ -533,7 +540,7 @@ impl crate::session::WorldSession {
                 if let Some(guid) = self.player_guid() {
                     if let Some(packet) = player_values_update_to_update_object(
                         guid,
-                        self.player_map_id_like_cpp(),
+                        self.core.player_map_id_like_cpp(),
                         &update,
                     ) {
                         self.send_packet(&packet);

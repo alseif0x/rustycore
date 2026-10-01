@@ -205,7 +205,9 @@ fn vendor_currency_purchase_plan_does_not_publish_before_commit_like_cpp() {
         4
     ));
 
-    let request = session.plan_player_currency_save_like_cpp(42, &mut planned);
+    let request = session
+        .catalogs
+        .plan_player_currency_save_like_cpp(42, &mut planned);
 
     assert_eq!(gain.quantity, 3);
     assert_eq!(planned.get(&395).map(|currency| currency.quantity), Some(3));
@@ -254,7 +256,9 @@ fn vendor_currency_purchase_publishes_only_committed_plan_like_cpp() {
         396,
         4
     ));
-    let request = session.plan_player_currency_save_like_cpp(42, &mut planned);
+    let request = session
+        .catalogs
+        .plan_player_currency_save_like_cpp(42, &mut planned);
     assert_eq!(request.rows.len(), 2);
 
     // This synchronous publication is the post-COMMIT half used by

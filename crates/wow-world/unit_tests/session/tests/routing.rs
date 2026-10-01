@@ -55,7 +55,7 @@ fn borrowed_hotfix_catalog_preserves_init_order_locale_and_realm_delivery() {
         assert_eq!(
             packets[4],
             AvailableHotfixes {
-                virtual_realm_address: session.virtual_realm_address(),
+                virtual_realm_address: session.core.virtual_realm_address(),
                 hotfixes: push_id
                     .into_iter()
                     .map(|id| HotfixId {

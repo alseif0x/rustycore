@@ -19,13 +19,6 @@ impl WorldSession {
             &mut hub, map_id, guid, entry, position, go_type,
         )
     }
-    pub(crate) fn represented_gameobject_is_per_player_despawned_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-    ) -> bool {
-        self.world_entities
-            .represented_gameobject_is_per_player_despawned_like_cpp(guid)
-    }
     pub(in crate::session) fn represented_gameobject_go_state_for_viewer_like_cpp(
         &self,
         state: &RepresentedGameObjectUseState,
@@ -78,13 +71,14 @@ impl WorldSession {
         gameobject_guid: ObjectGuid,
     ) {
         self.send_represented_gameobject_despawn_to_visible_set_like_cpp(gameobject_guid);
-        self.restore_represented_gameobject_override_flags_like_cpp(gameobject_guid);
+        self.world_entities
+            .restore_represented_gameobject_override_flags_like_cpp(gameobject_guid);
         let map_id = self
             .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)
             .and_then(|state| state.map_id)
-            .unwrap_or_else(|| self.player_map_id_like_cpp());
+            .unwrap_or_else(|| self.core.player_map_id_like_cpp());
         self.send_packet(&wow_packet::packets::update::UpdateObject::destroy_objects(
             vec![gameobject_guid],
             map_id,
@@ -129,7 +123,7 @@ impl WorldSession {
     pub(crate) fn send_represented_gameobject_visual_despawn_from_last_update_like_cpp(
         &mut self,
     ) -> usize {
-        let Some(key) = self.current_canonical_player_map_key_like_cpp() else {
+        let Some(key) = self.core.current_canonical_player_map_key_like_cpp() else {
             return 0;
         };
         let Some(manager) = self.core.canonical_map_manager.as_ref() else {
@@ -461,3 +455,7 @@ impl crate::session::state::WorldEntitiesState {
         sent
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/world_entities/gameobject_state/f3_shims.rs"]
+mod f3_shims;

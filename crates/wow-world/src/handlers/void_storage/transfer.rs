@@ -22,7 +22,8 @@ impl WorldSession {
             )
             .is_none()
             || !self.void_storage_is_unlocked_like_cpp()
-            || self.represented_void_storage_loaded_like_cpp() != Some(true)
+            || crate::session::cx_lifecycle_ref(self).represented_void_storage_loaded_like_cpp()
+                != Some(true)
         {
             return;
         }
@@ -64,7 +65,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        let Some(port) = self.void_storage_persistence_port_like_cpp() else {
+        let Some(port) = self.lifecycle.void_storage_persistence_port_like_cpp() else {
             return;
         };
 
@@ -271,6 +272,7 @@ impl WorldSession {
                 continue;
             }
             let Some((db_guid, item_guid)) = self
+                .core
                 .allocate_item_instance_guids_with_generator_like_cpp(generators.item.as_ref(), 1)
                 .and_then(|mut ids| ids.pop())
             else {
@@ -324,15 +326,16 @@ impl WorldSession {
                     );
                     return;
                 };
-                let mut item_object = self.make_inventory_item_object(
-                    item_guid,
-                    void_item.item_entry,
-                    player_guid,
-                    1,
-                    self.item_template_max_durability(void_item.item_entry),
-                    context,
-                    slot,
-                );
+                let mut item_object = crate::session::cx_inventory_ref(self)
+                    .make_inventory_item_object(
+                        item_guid,
+                        void_item.item_entry,
+                        player_guid,
+                        1,
+                        self.item_template_max_durability(void_item.item_entry),
+                        context,
+                        slot,
+                    );
                 // C++ `HandleVoidStorageTransfer` does not pass the stored
                 // FixedScalingLevel to `StoreNewItem`; that path recomputes
                 // fixed level from the current player instead. Do not restore
@@ -513,8 +516,9 @@ impl WorldSession {
             });
         }
 
-        let planned_quest_statuses =
-            self.finish_item_transfer_quest_persistence_like_cpp(quest_persistence_plan);
+        let planned_quest_statuses = self
+            .quest_state
+            .finish_item_transfer_quest_persistence_like_cpp(quest_persistence_plan);
 
         let Some(money_persistence) = self
             .begin_exclusive_player_money_persistence_like_cpp()
@@ -630,7 +634,9 @@ impl WorldSession {
             money_after: new_money,
             deposits,
             withdrawals,
-            quest_statuses: self.void_storage_quest_status_writes_like_cpp(&planned_quest_statuses),
+            quest_statuses: self
+                .catalogs
+                .void_storage_quest_status_writes_like_cpp(&planned_quest_statuses),
         };
 
         let Some(money_persistence) = self
@@ -662,7 +668,7 @@ impl WorldSession {
         let mut collection_updates = Vec::new();
         let mut changed_quest_ids = Vec::new();
         let mut added_changed_quest_ids = Vec::new();
-        let map_id = self.player_map_id_like_cpp();
+        let map_id = self.core.player_map_id_like_cpp();
         for deposit in &planned_deposits {
             let parent = deposit
                 .destroyed_items
@@ -694,7 +700,7 @@ impl WorldSession {
             let inserted_slot =
                 self.add_represented_void_storage_item_like_cpp(deposit.void_item.clone());
             debug_assert_eq!(inserted_slot, Some(deposit.void_slot));
-            added_items.push(self.represented_void_storage_item_packet_like_cpp(
+            added_items.push(self.core.represented_void_storage_item_packet_like_cpp(
                 deposit.void_slot,
                 &deposit.void_item,
             ));
@@ -844,7 +850,7 @@ impl WorldSession {
         );
         self.publish_quest_item_added_status_changes_like_cpp(&added_changed_quest_ids);
         for update in &collection_updates {
-            self.send_player_values_update_like_cpp(update);
+            self.core.send_player_values_update_like_cpp(update);
         }
         for withdrawal in &planned_withdrawals {
             if let PlannedVoidWithdrawalDestinationLikeCpp::New {

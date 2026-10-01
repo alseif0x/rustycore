@@ -29,9 +29,10 @@ impl WorldSession {
             map_id as u32,
             position.x,
             position.y,
-            self.area_table_store().map(|store| store.as_ref()),
+            self.catalogs.area_table_store().map(|store| store.as_ref()),
             |map_id| {
-                self.map_store()
+                self.catalogs
+                    .map_store()
                     .as_deref()
                     .map(|store| u32::from(store.area_table_id_like_cpp(map_id)))
                     .unwrap_or(0)

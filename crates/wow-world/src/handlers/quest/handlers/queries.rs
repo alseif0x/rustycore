@@ -28,7 +28,9 @@ impl WorldSession {
             }
         };
 
-        let Some(source) = self.represented_quest_giver_status_query_source_like_cpp(guid) else {
+        let Some(source) = crate::session::cx_quest_state_ref(self)
+            .represented_quest_giver_status_query_source_like_cpp(guid)
+        else {
             debug!(
                 account = self.core.account_id,
                 ?guid,

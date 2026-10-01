@@ -435,7 +435,11 @@ async fn add_toy_rolls_back_without_player_toys_update_when_destroy_fails_like_c
     let (_, _, preflight_item) = session
         .get_inventory_item_by_guid_like_cpp(toy_guid)
         .expect("toy item guid should resolve before AddToy");
-    assert!(session.is_toy_item_like_cpp(preflight_item.entry_id));
+    assert!(
+        session
+            .catalogs
+            .is_toy_item_like_cpp(preflight_item.entry_id)
+    );
     let runtime_item = session
         .inventory_item_objects_like_cpp()
         .get(&preflight_item.guid)
@@ -502,7 +506,7 @@ async fn add_player_toy_dynamic_field_sends_update_object_like_cpp() {
         .expect("canonical current player should receive Player::AddToy dynamic field");
     if let Some(packet) = player_values_update_to_update_object(
         player_guid,
-        session.player_map_id_like_cpp(),
+        session.core.player_map_id_like_cpp(),
         &update,
     ) {
         session.send_packet(&packet);

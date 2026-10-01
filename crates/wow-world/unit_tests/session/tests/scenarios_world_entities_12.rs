@@ -444,7 +444,9 @@ async fn spell_effect_grant_battle_pet_experience_requires_creature_target_like_
             )
         },
     );
-    session.send_battle_pet_journal_lock_status_like_cpp().await;
+    crate::session::cx_pets(&mut session)
+        .send_battle_pet_journal_lock_status_like_cpp()
+        .await;
     let _ = drain_server_packet_bytes(&send_rx);
 
     let mut spell_store = wow_data::SpellStore::new();

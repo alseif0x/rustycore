@@ -22,12 +22,15 @@ impl WorldSession {
         trainer_id: u32,
         offer: PreparedBattlePetTrainerOfferLikeCpp,
     ) -> BattlePetPurchaseExecutionLikeCpp {
-        let Some((owner, lease_id)) = self.battle_pet_account_owner_lease_like_cpp() else {
+        let Some((owner, lease_id)) =
+            crate::session::cx_pets_ref(self).battle_pet_account_owner_lease_like_cpp()
+        else {
             return BattlePetPurchaseExecutionLikeCpp::Unavailable(
                 BattlePetPurchaseAdmissionFailureLikeCpp::NoJournalAuthority,
             );
         };
-        let Some(store) = self.battle_pet_purchase_store_like_cpp() else {
+        let Some(store) = crate::session::cx_pets_ref(self).battle_pet_purchase_store_like_cpp()
+        else {
             return BattlePetPurchaseExecutionLikeCpp::Unavailable(
                 BattlePetPurchaseAdmissionFailureLikeCpp::StoreUnavailable,
             );
@@ -37,7 +40,9 @@ impl WorldSession {
                 BattlePetPurchaseAdmissionFailureLikeCpp::StoreUnavailable,
             );
         };
-        let Some(species_entry) = self.battle_pet_species_entry_like_cpp(offer.species_id) else {
+        let Some(species_entry) =
+            crate::session::cx_pets_ref(self).battle_pet_species_entry_like_cpp(offer.species_id)
+        else {
             return BattlePetPurchaseExecutionLikeCpp::Unavailable(
                 BattlePetPurchaseAdmissionFailureLikeCpp::SelectionUnavailable,
             );
@@ -52,7 +57,10 @@ impl WorldSession {
                 BattlePetPurchaseAdmissionFailureLikeCpp::Capacity,
             );
         }
-        if !self.battle_pet_try_acquire_journal_lease_like_cpp().await {
+        if !crate::session::cx_pets_ref(self)
+            .battle_pet_try_acquire_journal_lease_like_cpp()
+            .await
+        {
             return BattlePetPurchaseExecutionLikeCpp::Unavailable(
                 BattlePetPurchaseAdmissionFailureLikeCpp::JournalLocked,
             );
@@ -107,7 +115,8 @@ impl WorldSession {
             published: false,
             failure_reason: None,
         };
-        let money_tracker = self.durable_loot_money_persistence_tracker_like_cpp();
+        let money_tracker =
+            crate::session::cx_loot_ref(self).durable_loot_money_persistence_tracker_like_cpp();
         let charge = retry_battle_pet_purchase_step_like_cpp(
             || {
                 store.charge_and_insert_command(
@@ -286,8 +295,9 @@ impl WorldSession {
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
     ) -> Option<BattlePetPurchaseRecoveryLikeCpp> {
-        let (owner, lease_id) = self.battle_pet_account_owner_lease_like_cpp()?;
-        let store = self.battle_pet_purchase_store_like_cpp()?;
+        let (owner, lease_id) =
+            crate::session::cx_pets_ref(self).battle_pet_account_owner_lease_like_cpp()?;
+        let store = crate::session::cx_pets_ref(self).battle_pet_purchase_store_like_cpp()?;
         let player_guid = self.player_guid()?;
         let commands = match store
             .load_pending_commands(
@@ -430,7 +440,10 @@ impl WorldSession {
                     }
                 }
                 BattlePetPurchaseStatusLikeCpp::PendingApplication => {
-                    if !self.battle_pet_try_acquire_journal_lease_like_cpp().await {
+                    if !crate::session::cx_pets_ref(self)
+                        .battle_pet_try_acquire_journal_lease_like_cpp()
+                        .await
+                    {
                         summary.deferred += 1;
                         break;
                     }
@@ -523,7 +536,10 @@ impl WorldSession {
                     if command.published {
                         continue;
                     }
-                    if !self.battle_pet_try_acquire_journal_lease_like_cpp().await {
+                    if !crate::session::cx_pets_ref(self)
+                        .battle_pet_try_acquire_journal_lease_like_cpp()
+                        .await
+                    {
                         summary.deferred += 1;
                         break;
                     }

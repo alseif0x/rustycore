@@ -11,4 +11,11 @@ impl crate::session::WorldSession {
     pub(crate) fn player_health_like_cpp(&self) -> u32 {
         crate::session::hub_ref(self).player_health_like_cpp()
     }
+    pub(crate) fn canonical_player_power_snapshot_like_cpp(
+        &self,
+        power_type: PowerType,
+    ) -> Option<(i32, i32)> {
+        self.core
+            .canonical_player_power_snapshot_like_cpp(power_type)
+    }
 }

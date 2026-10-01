@@ -342,7 +342,7 @@ impl WorldSession {
         guid: ObjectGuid,
         position: wow_core::Position,
     ) {
-        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
+        let (map_id, instance_id) = self.core.current_legacy_runtime_map_key_like_cpp();
         let Some(manager) = self.core.canonical_map_manager.as_ref() else {
             return;
         };
@@ -353,12 +353,6 @@ impl WorldSession {
             guid,
             position,
         );
-    }
-    pub(crate) fn mutate_world_creature<F, R>(&mut self, guid: ObjectGuid, f: F) -> Option<R>
-    where
-        F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
-    {
-        self.core.mutate_world_creature(guid, f)
     }
 }
 
@@ -721,3 +715,7 @@ impl crate::session::state::SessionCore {
         None
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/world_entities/creature_registry/f3_shims.rs"]
+mod f3_shims;

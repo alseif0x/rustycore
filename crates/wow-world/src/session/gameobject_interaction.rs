@@ -656,32 +656,6 @@ impl WorldSession {
 
         caster_guid
     }
-
-    pub(crate) fn record_represented_fishing_hole_max_opens_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        max_opens: u32,
-    ) {
-        self.world_entities
-            .record_represented_fishing_hole_max_opens_like_cpp(guid, max_opens)
-    }
-
-    pub(crate) fn record_represented_fishing_hole_radius_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        radius: u32,
-    ) {
-        self.world_entities
-            .record_represented_fishing_hole_radius_like_cpp(guid, radius)
-    }
-
-    pub(in crate::session) fn lookup_represented_fishing_hole_around_like_cpp(
-        &self,
-        gameobject_guid: ObjectGuid,
-    ) -> Option<ObjectGuid> {
-        self.world_entities
-            .lookup_represented_fishing_hole_around_like_cpp(gameobject_guid)
-    }
 }
 
 impl crate::session::state::WorldEntitiesState {

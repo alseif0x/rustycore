@@ -455,7 +455,9 @@ async fn battle_pet_spell_check_cast_uses_cpp_error_order_like_cpp() {
         SpellCastResult::CantDoThatRightNow as i32
     );
 
-    session.send_battle_pet_journal_lock_status_like_cpp().await;
+    crate::session::cx_pets(&mut session)
+        .send_battle_pet_journal_lock_status_like_cpp()
+        .await;
     let _ = drain_server_packet_bytes(&send_rx);
     session
         .execute_spell_with_visual_and_target_data_with_metadata(
@@ -526,7 +528,9 @@ async fn battle_pet_spell_check_cast_species_type_and_level_like_cpp() {
             loadout_ui_model_scene_id: 0,
         }],
     )));
-    session.send_battle_pet_journal_lock_status_like_cpp().await;
+    crate::session::cx_pets(&mut session)
+        .send_battle_pet_journal_lock_status_like_cpp()
+        .await;
     let _ = drain_server_packet_bytes(&send_rx);
     assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
 
@@ -684,7 +688,9 @@ async fn spell_effect_grant_battle_pet_level_uses_unit_companion_guid_like_cpp()
             )
         },
     );
-    session.send_battle_pet_journal_lock_status_like_cpp().await;
+    crate::session::cx_pets(&mut session)
+        .send_battle_pet_journal_lock_status_like_cpp()
+        .await;
     let _ = drain_server_packet_bytes(&send_rx);
     assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
 
@@ -788,7 +794,9 @@ async fn spell_effect_change_battle_pet_quality_is_empty_handler_like_cpp() {
             )
         },
     );
-    session.send_battle_pet_journal_lock_status_like_cpp().await;
+    crate::session::cx_pets(&mut session)
+        .send_battle_pet_journal_lock_status_like_cpp()
+        .await;
     let _ = drain_server_packet_bytes(&send_rx);
     assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
 

@@ -12,13 +12,16 @@ impl WorldSession {
         &mut self,
         entry_id: u32,
     ) -> u32 {
-        if let Some(quest_log_item_id) =
-            self.item_template_addon_quest_log_item_id_like_cpp(entry_id)
+        if let Some(quest_log_item_id) = self
+            .catalogs
+            .item_template_addon_quest_log_item_id_like_cpp(entry_id)
         {
             return quest_log_item_id;
         }
 
-        let Some(port) = self.item_template_addon_catalog_persistence_port_like_cpp() else {
+        let Some(port) = crate::session::cx_inventory_ref(self)
+            .item_template_addon_catalog_persistence_port_like_cpp()
+        else {
             return 0;
         };
 
@@ -44,7 +47,8 @@ impl WorldSession {
                 0
             }
         };
-        self.cache_item_template_addon_quest_log_item_id_like_cpp(entry_id, quest_log_item_id);
+        self.catalogs
+            .cache_item_template_addon_quest_log_item_id_like_cpp(entry_id, quest_log_item_id);
         quest_log_item_id
     }
 

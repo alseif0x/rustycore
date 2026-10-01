@@ -250,7 +250,7 @@ impl WorldSession {
     pub(in crate::session) fn represented_quest_rewarded_talent_points_like_cpp(
         &self,
     ) -> Option<u32> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
             player.gameplay_state().quest_rewarded_talent_points
         });
         #[cfg(test)]
@@ -272,6 +272,7 @@ impl WorldSession {
         points: u32,
     ) -> bool {
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.add_quest_rewarded_talent_points_like_cpp(points);
             })
@@ -462,19 +463,6 @@ impl WorldSession {
             }
         });
         self.sync_player_registry_state_like_cpp();
-    }
-    pub(crate) fn represented_quest_complete_status_updates_like_cpp(
-        &self,
-    ) -> &[RepresentedQuestCompleteStatusUpdateLikeCpp] {
-        self.quest_state
-            .represented_quest_complete_status_updates_like_cpp()
-    }
-    pub(crate) fn record_represented_quest_complete_status_update_like_cpp(
-        &mut self,
-        evidence: RepresentedQuestCompleteStatusUpdateLikeCpp,
-    ) {
-        self.quest_state
-            .record_represented_quest_complete_status_update_like_cpp(evidence)
     }
 }
 

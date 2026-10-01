@@ -277,22 +277,6 @@ impl WorldSession {
         false
     }
 
-    pub(crate) fn finish_item_transfer_quest_persistence_like_cpp(
-        &self,
-        plan: ItemTransferQuestPersistencePlanLikeCpp,
-    ) -> Vec<PlayerQuestStatus> {
-        self.quest_state
-            .finish_item_transfer_quest_persistence_like_cpp(plan)
-    }
-
-    pub(crate) fn void_storage_quest_status_writes_like_cpp(
-        &self,
-        statuses: &[PlayerQuestStatus],
-    ) -> Vec<wow_persistence::VoidStorageQuestStatusWriteLikeCpp> {
-        self.catalogs
-            .void_storage_quest_status_writes_like_cpp(statuses)
-    }
-
     pub(crate) fn plan_item_transfer_quest_persistence_like_cpp(
         &self,
         removed_entries_in_order: &[u32],
@@ -311,7 +295,8 @@ impl WorldSession {
                 count,
             );
         }
-        self.finish_item_transfer_quest_persistence_like_cpp(plan)
+        self.quest_state
+            .finish_item_transfer_quest_persistence_like_cpp(plan)
     }
 
     /// Pure form of the first C++ `Player::StoreNewItem` quest pass:

@@ -6,14 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(super) async fn load_loot_template_condition_reference_rows_like_cpp(
-        &self,
-        rows: &[LootTemplateRow],
-    ) -> HashMap<u32, Vec<LootConditionRowLikeCpp>> {
-        self.lifecycle
-            .load_loot_template_condition_reference_rows_like_cpp(rows)
-            .await
-    }
     pub(super) fn item_loot_allowed_for_player_like_cpp_representable(
         &self,
         item_id: u32,
@@ -302,14 +294,6 @@ impl WorldSession {
         }
 
         None
-    }
-    pub(super) async fn load_stored_item_money_like_cpp(
-        &self,
-        item_guid: wow_core::ObjectGuid,
-    ) -> Option<u32> {
-        self.lifecycle
-            .load_stored_item_money_like_cpp(item_guid)
-            .await
     }
     pub(super) async fn load_stored_item_items_like_cpp(
         &self,
@@ -664,11 +648,12 @@ impl WorldSession {
             return false;
         };
 
-        let map_id = u32::from(self.player_map_id_like_cpp());
+        let map_id = u32::from(self.core.player_map_id_like_cpp());
         let Some((_, area_id)) = self.player_zone_area_like_cpp() else {
             return true;
         };
         let map_instance_type = self
+            .catalogs
             .map_store()
             .and_then(|store| store.get(map_id))
             .map(|entry| entry.instance_type);
@@ -686,7 +671,7 @@ impl WorldSession {
                 player_map_difficulty: None,
             }),
             0,
-            self.map_store().map(|store| store.as_ref()),
+            self.catalogs.map_store().map(|store| store.as_ref()),
         )
     }
 }

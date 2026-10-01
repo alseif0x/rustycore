@@ -35,7 +35,11 @@ impl WorldSession {
         }
 
         let loot = self.loot.loot_table.get(&owner_guid)?;
-        if !self.represented_loot_can_be_opened_by_player_like_cpp(owner_guid, loot, player_guid) {
+        if !self.loot.represented_loot_can_be_opened_by_player_like_cpp(
+            owner_guid,
+            loot,
+            player_guid,
+        ) {
             return None;
         }
 
@@ -46,7 +50,11 @@ impl WorldSession {
             acquire_reason: loot_type_for_client_like_cpp(loot.loot_type),
             loot_method: loot.loot_method,
             threshold: LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP,
-            coins: self.represented_loot_money_for_player_like_cpp(owner_guid, loot, player_guid),
+            coins: self.loot.represented_loot_money_for_player_like_cpp(
+                owner_guid,
+                loot,
+                player_guid,
+            ),
             items: represented_loot_response_items_like_cpp(loot, player_guid),
             currencies: vec![],
             acquired: true,
@@ -88,7 +96,7 @@ impl WorldSession {
                     // lock is held. Reject a saturated/disconnected socket
                     // queue immediately; the authority method rolls back its
                     // tentative viewer and first-open mutations before unlock.
-                    if !self.try_send_packet(&response) {
+                    if !self.core.try_send_packet(&response) {
                         return None;
                     }
 
@@ -114,11 +122,12 @@ impl WorldSession {
                     // Do not attempt a blocking release on the same saturated
                     // queue. The client never observed this view, so dropping
                     // every local mirror is the closed state.
-                    self.discard_represented_personal_loot_cache_for_player_like_cpp(
-                        owner_guid,
-                        player_guid,
-                    );
-                    self.clear_active_loot_guid_if(owner_guid);
+                    self.loot
+                        .discard_represented_personal_loot_cache_for_player_like_cpp(
+                            owner_guid,
+                            player_guid,
+                        );
+                    self.loot.clear_active_loot_guid_if(owner_guid);
                     return;
                 }
                 Err(_) => None,
@@ -134,7 +143,8 @@ impl WorldSession {
                 return;
             }
             self.send_packet(&response);
-            self.ensure_represented_player_looting_like_cpp(owner_guid, player_guid);
+            self.loot
+                .ensure_represented_player_looting_like_cpp(owner_guid, player_guid);
         } else if let Some(authority) = authority.as_ref() {
             if !self
                 .loot
@@ -198,15 +208,6 @@ impl WorldSession {
         state.represented_active_loot_generation_matches_like_cpp(hub, owner_guid, authority)
     }
 
-    pub(super) fn ensure_represented_player_looting_like_cpp(
-        &mut self,
-        owner_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-    ) {
-        self.loot
-            .ensure_represented_player_looting_like_cpp(owner_guid, player_guid)
-    }
-
     pub(super) fn represented_player_unlocked_for_dungeon_encounter_like_cpp(
         &self,
         player_guid: ObjectGuid,
@@ -242,18 +243,6 @@ impl WorldSession {
             // here. Missing authority is indeterminate and must not grant loot.
             false
         }
-    }
-
-    pub(super) fn active_loot_owner_for_loot_object_like_cpp(
-        &self,
-        loot_object: ObjectGuid,
-    ) -> Option<ObjectGuid> {
-        self.loot
-            .active_loot_owner_for_loot_object_like_cpp(loot_object)
-    }
-
-    pub(super) fn represented_spell_max_range_like_cpp(&self, spell_id: i32) -> Option<f32> {
-        self.catalogs.represented_spell_max_range_like_cpp(spell_id)
     }
 
     pub(crate) fn close_retired_active_loot_windows_like_cpp(&mut self, player_guid: ObjectGuid) {

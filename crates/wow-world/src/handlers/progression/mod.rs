@@ -129,14 +129,14 @@ impl crate::session::WorldSession {
             }
         };
 
-        let Some(faction_store) = self.faction_store().cloned() else {
+        let Some(faction_store) = self.catalogs.faction_store().cloned() else {
             warn!(
                 account = self.core.account_id,
                 faction_index, "SetFactionAtWar ignored without Faction.db2 store"
             );
             return;
         };
-        let friendship_rep_reaction_store = self.friendship_rep_reaction_store().cloned();
+        let friendship_rep_reaction_store = self.catalogs.friendship_rep_reaction_store().cloned();
         let race = self.player_race_like_cpp();
         let class = self.player_class_like_cpp();
 

@@ -113,7 +113,8 @@ impl WorldSession {
     pub(in crate::session) fn invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp(
         &mut self,
     ) {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         let _ = self.mutate_player_spell_runtime_like_cpp(|runtime| {
             runtime.set_acquisition_snapshot_completeness_like_cpp(false, false);
         });
@@ -235,8 +236,10 @@ impl WorldSession {
         ) else {
             return false;
         };
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         if self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.apply_prepared_spell_acquisition_like_cpp(prepared)
             })
@@ -335,7 +338,8 @@ impl WorldSession {
             .map(|spell| spell.spell_id)
             .collect();
 
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         if self
             .mutate_player_spell_runtime_like_cpp(|runtime| {
                 runtime.install_acquisition_snapshot_like_cpp(
@@ -373,17 +377,6 @@ impl WorldSession {
         // the committed snapshot there before any acquisition action packet.
         self.sync_player_registry_state_like_cpp();
         true
-    }
-    pub(crate) fn record_spell_acquisition_post_commit_action_like_cpp(
-        &mut self,
-        action: crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp,
-    ) {
-        self.spell_state
-            .record_spell_acquisition_post_commit_action_like_cpp(action)
-    }
-    pub(crate) fn begin_spell_acquisition_post_commit_action_batch_like_cpp(&mut self) {
-        self.spell_state
-            .begin_spell_acquisition_post_commit_action_batch_like_cpp()
     }
     pub(crate) fn grant_dual_wield_after_spell_acquisition_like_cpp(&mut self) -> bool {
         let (state, mut hub) = crate::session::split_spell_state_mut(self);

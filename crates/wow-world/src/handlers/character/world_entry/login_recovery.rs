@@ -19,6 +19,7 @@ impl WorldSession {
         position: Position,
     ) -> u32 {
         let map_area_id = self
+            .catalogs
             .map_store()
             .as_deref()
             .map(|store| u32::from(store.area_table_id_like_cpp(map_id)))
@@ -28,9 +29,10 @@ impl WorldSession {
             map_id,
             position.x,
             position.y,
-            self.area_table_store().map(|store| store.as_ref()),
+            self.catalogs.area_table_store().map(|store| store.as_ref()),
             |map_id| {
-                self.map_store()
+                self.catalogs
+                    .map_store()
                     .as_deref()
                     .map(|store| u32::from(store.area_table_id_like_cpp(map_id)))
                     .unwrap_or(0)
@@ -46,7 +48,7 @@ impl WorldSession {
         &self,
         guid: ObjectGuid,
     ) {
-        let Some(port) = self.player_lifecycle_port_like_cpp() else {
+        let Some(port) = self.lifecycle.player_lifecycle_port_like_cpp() else {
             return;
         };
         match port
@@ -77,9 +79,10 @@ impl WorldSession {
                 map_id,
                 position.x,
                 position.y,
-                self.area_table_store().map(|store| store.as_ref()),
+                self.catalogs.area_table_store().map(|store| store.as_ref()),
                 |map_id| {
-                    self.map_store()
+                    self.catalogs
+                        .map_store()
                         .as_deref()
                         .map(|store| u32::from(store.area_table_id_like_cpp(map_id)))
                         .unwrap_or(0)
@@ -87,14 +90,15 @@ impl WorldSession {
             )
         });
         let fallback_area_id = location.bind_area_id.unwrap_or_else(|| {
-            self.map_store()
+            self.catalogs
+                .map_store()
                 .as_deref()
                 .map(|store| u32::from(store.area_table_id_like_cpp(location.map_id)))
                 .unwrap_or(0)
         });
         let (fallback_zone_id, fallback_area_id) = zone_and_area_from_area_id_like_cpp(
             fallback_area_id,
-            self.area_table_store().map(Arc::as_ref),
+            self.catalogs.area_table_store().map(Arc::as_ref),
         );
 
         match resolved {
@@ -140,12 +144,16 @@ impl WorldSession {
         position: &mut Position,
         homebind: CharacterLoginLocationLikeCpp,
     ) -> bool {
-        if self.current_canonical_player_map_key_like_cpp().is_some() {
+        if self
+            .core
+            .current_canonical_player_map_key_like_cpp()
+            .is_some()
+        {
             return false;
         }
         if !usable_character_homebind_like_cpp(
             homebind,
-            self.map_store().map(Arc::as_ref),
+            self.catalogs.map_store().map(Arc::as_ref),
             self.core.expansion,
         ) {
             return false;
@@ -158,7 +166,9 @@ impl WorldSession {
         self.seed_login_location_zone_area_like_cpp(zone_id, homebind);
         self.set_player_map_position_like_cpp(homebind_map_id, homebind.position);
         let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
-        self.current_canonical_player_map_key_like_cpp().is_some()
+        self.core
+            .current_canonical_player_map_key_like_cpp()
+            .is_some()
     }
 
     /// A failed cross-socket ordering fence means the successful-login burst
@@ -234,7 +244,7 @@ impl WorldSession {
             return;
         };
 
-        let Some(port) = self.player_lifecycle_port_like_cpp() else {
+        let Some(port) = self.lifecycle.player_lifecycle_port_like_cpp() else {
             return;
         };
         match port

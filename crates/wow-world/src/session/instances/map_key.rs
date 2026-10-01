@@ -170,16 +170,14 @@ impl WorldSession {
         self.config.mmap_runtime_config_like_cpp()
     }
     pub fn set_map_store(&mut self, store: Arc<MapStore>) {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.catalogs.maps.store = Some(store);
     }
     /// Set the immutable C++ `sDungeonEncounterStore` catalog used by
     /// `Player::IsLockedToDungeonEncounter`.
     pub fn set_dungeon_encounter_store(&mut self, store: Arc<DungeonEncounterStore>) {
         self.catalogs.dungeon_encounter_store = Some(store);
-    }
-    pub(crate) fn map_store(&self) -> Option<&Arc<MapStore>> {
-        self.catalogs.map_store()
     }
     pub(in crate::session) fn player_cannot_enter_target_map_like_cpp(
         &self,
@@ -317,9 +315,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_instances_ref(self);
         state.is_map_disabled_for_player_like_cpp(hub, map_id)
     }
-    pub(crate) fn player_map_id_like_cpp(&self) -> u16 {
-        self.core.player_map_id_like_cpp()
-    }
     pub(crate) fn handle_under_map_like_cpp(
         &mut self,
         movement_info: &wow_packet::packets::movement::MovementInfo,
@@ -349,8 +344,9 @@ impl WorldSession {
         if health_after != original_health
             && let Some(player_guid) = self.player_guid()
         {
-            self.send_player_health_update_like_cpp(player_guid, u64::from(health_after));
-            self.send_environmental_damage_log_like_cpp(
+            self.core
+                .send_player_health_update_like_cpp(player_guid, u64::from(health_after));
+            self.core.send_environmental_damage_log_like_cpp(
                 player_guid,
                 DAMAGE_FALL_TO_VOID_LIKE_CPP,
                 damage,
@@ -358,7 +354,8 @@ impl WorldSession {
                 0,
             );
             if killed_player {
-                self.send_player_health_values_update_like_cpp(player_guid, 0);
+                self.core
+                    .send_player_health_values_update_like_cpp(player_guid, 0);
             }
         }
 
@@ -389,9 +386,6 @@ impl WorldSession {
     pub(crate) fn set_taxi_node_map_id_like_cpp(&mut self, node_id: u32, map_id: u16) {
         self.view.taxi_node_map_ids_like_cpp.insert(node_id, map_id);
     }
-    pub(crate) fn current_legacy_runtime_map_key_like_cpp(&self) -> (u16, u32) {
-        self.core.current_legacy_runtime_map_key_like_cpp()
-    }
     /// Consume the last map-owned represented `Map::SendObjectUpdates` stable
     /// DynamicObject VALUES snapshot into this session's outbound packet stream.
     ///
@@ -405,7 +399,7 @@ impl WorldSession {
     pub(crate) fn send_represented_dynamic_object_values_updates_from_last_map_send_object_updates_like_cpp(
         &mut self,
     ) -> usize {
-        let Some(key) = self.current_canonical_player_map_key_like_cpp() else {
+        let Some(key) = self.core.current_canonical_player_map_key_like_cpp() else {
             return 0;
         };
         let Ok(packet_map_id) = u16::try_from(key.map_id) else {

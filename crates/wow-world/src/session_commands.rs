@@ -135,7 +135,7 @@ impl WorldSession {
                 if self.state() == SessionState::LoggedIn
                     && self.player_guid() == Some(command.recipient)
                 {
-                    self.send_raw_packet_realm(&command.packet_bytes);
+                    self.core.send_raw_packet_realm(&command.packet_bytes);
                 }
             }
             SessionCommand::SendPartyUpdateLikeCpp(command) => {

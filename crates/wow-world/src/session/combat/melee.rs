@@ -75,9 +75,6 @@ impl WorldSession {
     ) -> Option<Option<ObjectGuid>> {
         crate::session::hub_ref(self).canonical_player_attack_state_like_cpp()
     }
-    pub(crate) fn set_player_attack_swing_error_like_cpp(&mut self, error: Option<u8>) {
-        self.core.set_player_attack_swing_error_like_cpp(error)
-    }
     pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
         &mut self,
         diff_ms: u32,
@@ -94,20 +91,21 @@ impl WorldSession {
         let armor_mitigation = self.represented_melee_armor_mitigation_like_cpp();
         let outcome_facts = self.represented_melee_outcome_facts_like_cpp();
         let damage_taken = self.represented_melee_damage_taken_like_cpp();
-        self.mutate_canonical_player_like_cpp(|player| {
-            take_canonical_player_attack_swings_like_cpp(
-                player,
-                diff_ms,
-                in_melee_range,
-                facing_target,
-                within_los,
-                melee_damage_bonus,
-                armor_mitigation,
-                outcome_facts,
-                damage_taken,
-            )
-        })
-        .flatten()
+        self.core
+            .mutate_canonical_player_like_cpp(|player| {
+                take_canonical_player_attack_swings_like_cpp(
+                    player,
+                    diff_ms,
+                    in_melee_range,
+                    facing_target,
+                    within_los,
+                    melee_damage_bonus,
+                    armor_mitigation,
+                    outcome_facts,
+                    damage_taken,
+                )
+            })
+            .flatten()
     }
 
     /// C++ `Unit::MeleeDamageBonusTaken` (`Unit.cpp:1687-1759`) inputs for the
@@ -120,8 +118,9 @@ impl WorldSession {
     ) -> crate::session_rules::RepresentedMeleeDamageTakenLikeCpp {
         use crate::session_rules::RepresentedMeleeDamageTakenLikeCpp;
 
-        let Some(target_guid) =
-            self.canonical_player_snapshot_like_cpp(|player| player.unit().attacking())
+        let Some(target_guid) = self
+            .core
+            .canonical_player_snapshot_like_cpp(|player| player.unit().attacking())
         else {
             return RepresentedMeleeDamageTakenLikeCpp::NONE;
         };
@@ -138,6 +137,7 @@ impl WorldSession {
             return RepresentedMeleeDamageTakenLikeCpp::NONE;
         };
         let instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -146,13 +146,13 @@ impl WorldSession {
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
             manager
-                .find_creature(self.player_map_id_like_cpp(), instance_id, target_guid)
+                .find_creature(self.core.player_map_id_like_cpp(), instance_id, target_guid)
                 .map(|creature| {
                     crate::session_rules::creature_aura_effects_like_cpp(
                         &creature.creature.unit().subsystems().auras.applied_auras,
                         spell_store,
-                        self.current_map_difficulty_id_like_cpp(),
-                        self.difficulty_store().map(AsRef::as_ref),
+                        self.core.current_map_difficulty_id_like_cpp(),
+                        self.catalogs.difficulty_store().map(AsRef::as_ref),
                     )
                 })
                 .unwrap_or_default()
@@ -189,8 +189,9 @@ impl WorldSession {
             RepresentedMeleeVictimFactsLikeCpp as VictimFacts,
         };
 
-        let Some(target_guid) =
-            self.canonical_player_snapshot_like_cpp(|player| player.unit().attacking())
+        let Some(target_guid) = self
+            .core
+            .canonical_player_snapshot_like_cpp(|player| player.unit().attacking())
         else {
             return (AttackerFacts::default(), VictimFacts::default());
         };
@@ -206,7 +207,7 @@ impl WorldSession {
             mainhand_expertise,
             offhand_expertise,
             attacker_position,
-        )) = self.canonical_player_snapshot_like_cpp(|player| {
+        )) = self.core.canonical_player_snapshot_like_cpp(|player| {
             let stats = player.effective_combat_stats_like_cpp();
             (
                 player.level_like_cpp(),
@@ -275,6 +276,7 @@ impl WorldSession {
             return (attacker, VictimFacts::default());
         };
         let instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -283,7 +285,7 @@ impl WorldSession {
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
             manager
-                .find_creature(self.player_map_id_like_cpp(), instance_id, target_guid)
+                .find_creature(self.core.player_map_id_like_cpp(), instance_id, target_guid)
                 .map(|creature| {
                     let victim_position = creature.position();
                     // The victim's avoidance and attacker-facing aura terms
@@ -293,8 +295,8 @@ impl WorldSession {
                             crate::session_rules::creature_aura_effects_like_cpp(
                                 &creature.creature.unit().subsystems().auras.applied_auras,
                                 spell_store,
-                                self.current_map_difficulty_id_like_cpp(),
-                                self.difficulty_store().map(AsRef::as_ref),
+                                self.core.current_map_difficulty_id_like_cpp(),
+                                self.catalogs.difficulty_store().map(AsRef::as_ref),
                             )
                             .into_iter()
                             .filter(|effect| effect.aura_type == aura_type)
@@ -345,8 +347,8 @@ impl WorldSession {
                                 crate::session_rules::creature_aura_effects_like_cpp(
                                     &creature.creature.unit().subsystems().auras.applied_auras,
                                     spell_store,
-                                    self.current_map_difficulty_id_like_cpp(),
-                                    self.difficulty_store().map(AsRef::as_ref),
+                                    self.core.current_map_difficulty_id_like_cpp(),
+                                    self.catalogs.difficulty_store().map(AsRef::as_ref),
                                 )
                                 .into_iter()
                                 .filter(|effect| {
@@ -365,8 +367,8 @@ impl WorldSession {
                                 crate::session_rules::creature_aura_effects_like_cpp(
                                     &creature.creature.unit().subsystems().auras.applied_auras,
                                     spell_store,
-                                    self.current_map_difficulty_id_like_cpp(),
-                                    self.difficulty_store().map(AsRef::as_ref),
+                                    self.core.current_map_difficulty_id_like_cpp(),
+                                    self.catalogs.difficulty_store().map(AsRef::as_ref),
                                 )
                                 .into_iter()
                                 .filter(|effect| {
@@ -403,23 +405,25 @@ impl WorldSession {
     pub(in crate::session) fn represented_melee_armor_mitigation_like_cpp(
         &self,
     ) -> RepresentedArmorMitigationLikeCpp {
-        let Some(target_guid) =
-            self.canonical_player_snapshot_like_cpp(|player| player.unit().attacking())
+        let Some(target_guid) = self
+            .core
+            .canonical_player_snapshot_like_cpp(|player| player.unit().attacking())
         else {
             return RepresentedArmorMitigationLikeCpp::NONE;
         };
         let Some(target_guid) = target_guid else {
             return RepresentedArmorMitigationLikeCpp::NONE;
         };
-        let Some(armor_penetration_pct) = self.canonical_player_snapshot_like_cpp(|player| {
+        let Some(armor_penetration_pct) = self.core.canonical_player_snapshot_like_cpp(|player| {
             player
                 .effective_combat_stats_like_cpp()
                 .armor_penetration_pct
         }) else {
             return RepresentedArmorMitigationLikeCpp::NONE;
         };
-        let Some(attacker_level) =
-            self.canonical_player_snapshot_like_cpp(|player| player.level_like_cpp())
+        let Some(attacker_level) = self
+            .core
+            .canonical_player_snapshot_like_cpp(|player| player.level_like_cpp())
         else {
             return RepresentedArmorMitigationLikeCpp::NONE;
         };
@@ -448,6 +452,7 @@ impl WorldSession {
             return RepresentedArmorMitigationLikeCpp::NONE;
         };
         let instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -456,7 +461,7 @@ impl WorldSession {
                 .read()
                 .unwrap_or_else(|poisoned| poisoned.into_inner());
             manager
-                .find_creature(self.player_map_id_like_cpp(), instance_id, target_guid)
+                .find_creature(self.core.player_map_id_like_cpp(), instance_id, target_guid)
                 .map(|creature| {
                     (
                         creature.creature.combat_log_stats_like_cpp().armor,
@@ -496,8 +501,9 @@ impl WorldSession {
         ) else {
             return [RepresentedMeleeDamageBonusLikeCpp::NONE; 2];
         };
-        let Some(target_guid) =
-            self.canonical_player_snapshot_like_cpp(|player| player.unit().attacking())
+        let Some(target_guid) = self
+            .core
+            .canonical_player_snapshot_like_cpp(|player| player.unit().attacking())
         else {
             return [RepresentedMeleeDamageBonusLikeCpp::NONE; 2];
         };
@@ -508,6 +514,7 @@ impl WorldSession {
         let victim_aura_state_mask = self.represented_target_aura_state_mask_like_cpp(target_guid);
         let victim_mechanic_mask = self.represented_target_mechanic_mask_like_cpp(target_guid);
         let base_attack_speed = self
+            .core
             .canonical_player_snapshot_like_cpp(|player| player.unit().base_attack_speed())
             .unwrap_or([0; 3]);
         std::array::from_fn(|index| {
@@ -552,7 +559,7 @@ impl WorldSession {
                 wow_entities::UnitAttackContextLikeCpp::default(),
             );
         };
-        let Some(map) = manager.find_map(u32::from(self.player_map_id_like_cpp()), 0) else {
+        let Some(map) = manager.find_map(u32::from(self.core.player_map_id_like_cpp()), 0) else {
             return (
                 true,
                 true,
@@ -624,8 +631,9 @@ impl WorldSession {
                 attacker_can_see_or_detect_target,
                 ..Default::default()
             };
-            if let Some(reputation_snapshot) =
-                self.attack_reputation_faction_snapshot_like_cpp(creature)
+            if let Some(reputation_snapshot) = self
+                .catalogs
+                .attack_reputation_faction_snapshot_like_cpp(creature)
                 && let Some(attacker_guid) = self.player_guid()
                 && let Some(attacker) = map.map().get_typed_player(attacker_guid)
             {
@@ -698,8 +706,9 @@ impl WorldSession {
         attack_context.attacker_unit_flags = attacker_unit_flags.bits();
         attack_context.attacker_has_affecting_player = true;
         #[cfg_attr(not(test), allow(unused_mut))]
-        let mut attacker_pvp_flags =
-            self.with_owned_player_like_cpp(|player| player.unit().pvp_flags_like_cpp());
+        let mut attacker_pvp_flags = self
+            .core
+            .with_owned_player_like_cpp(|player| player.unit().pvp_flags_like_cpp());
         #[cfg(test)]
         if attacker_pvp_flags.is_none() && self.core.player_handle_like_cpp.is_none() {
             attacker_pvp_flags =
@@ -718,14 +727,15 @@ impl WorldSession {
         }
         attack_context.attacker_is_player_uber = player_guid
             .and_then(|guid| {
-                self.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_UBER_LIKE_CPP)
+                self.core
+                    .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_UBER_LIKE_CPP)
             })
             .unwrap_or(false);
         let combat_relation_represented = attack_context.relation_represented;
         let combat_attacker_is_friendly_to_victim = attack_context.attacker_is_friendly_to_victim;
         let combat_victim_is_friendly_to_attacker = attack_context.victim_is_friendly_to_attacker;
         self.set_selection_guid_like_cpp(Some(victim));
-        let outcome = self.mutate_canonical_player_like_cpp(|player| {
+        let outcome = self.core.mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().attack_with_context_like_cpp(
                 victim,
                 victim_alive,
@@ -766,7 +776,7 @@ impl WorldSession {
                 self.remove_canonical_attacker_like_cpp(previous, player_guid);
             }
             self.add_canonical_attacker_like_cpp(victim, player_guid);
-            let _ = self.mutate_world_creature(victim, |victim| {
+            let _ = self.core.mutate_world_creature(victim, |victim| {
                 victim
                     .creature
                     .unit_mut()
@@ -792,13 +802,6 @@ impl WorldSession {
     }
     pub(crate) fn stop_player_attack_like_cpp(&mut self) -> Option<ObjectGuid> {
         crate::session::hub_mut(self).stop_player_attack_like_cpp()
-    }
-    pub(crate) fn player_class_attack_power_coefficients_like_cpp(
-        &self,
-        class: u8,
-    ) -> Option<(u8, u8, u8)> {
-        self.catalogs
-            .player_class_attack_power_coefficients_like_cpp(class)
     }
 }
 

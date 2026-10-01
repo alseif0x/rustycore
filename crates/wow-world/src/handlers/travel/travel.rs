@@ -162,6 +162,7 @@ impl crate::session::WorldSession {
             reason: 16, // C++ Player.h NEW_WORLD_NORMAL (not the seamless value 21).
         };
         if self
+            .core
             .realm_route_tx()
             .send(wow_packet::ServerPacket::to_bytes(&packet))
             .is_err()
@@ -274,7 +275,7 @@ impl crate::session::WorldSession {
         // not proven client retention. Its DB-backed login helper needs separation.
         self.reset_movement_counter_like_cpp();
         self.send_packet(&wow_packet::packets::misc::MoveSetActiveMover { mover_guid: guid });
-        self.send_time_sync();
+        self.core.send_time_sync();
 
         // C++ Map::AddPlayerToMap(initPlayer=true) -> SendInitSelf (Map.cpp:446): re-send the
         // player's OWN object (ActivePlayer create block) for the destination map. Without it
@@ -528,7 +529,7 @@ impl crate::session::WorldSession {
             return false;
         };
         let player_snapshot = self.condition_player_snapshot_like_cpp();
-        let area_table_store = self.area_table_store().cloned();
+        let area_table_store = self.catalogs.area_table_store().cloned();
 
         let mut source_info =
             wow_conditions::ConditionSourceInfo::from_targets(Some(&player_object), None, None);
@@ -631,6 +632,7 @@ impl crate::session::WorldSession {
             .represented_npc_can_interact_with_like_cpp(activate.vendor, NPC_FLAG_FLIGHT_MASTER, 0)
             .is_some()
             || self
+                .core
                 .mutate_world_creature(activate.vendor, |creature| {
                     creature.npc_flags() & NPC_FLAG_FLIGHT_MASTER != 0
                 })
@@ -679,6 +681,7 @@ impl crate::session::WorldSession {
 
         const NPC_FLAG_FLIGHT_MASTER: u32 = 0x2000;
         let is_flight_master = self
+            .core
             .mutate_world_creature(unit_guid, |creature| {
                 creature.npc_flags() & NPC_FLAG_FLIGHT_MASTER != 0
             })

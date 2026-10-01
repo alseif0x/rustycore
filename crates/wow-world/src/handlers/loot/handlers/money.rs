@@ -51,7 +51,11 @@ impl WorldSession {
                 Some((
                     loot_guid,
                     loot.loot_guid,
-                    self.represented_loot_money_for_player_like_cpp(loot_guid, loot, player_guid),
+                    self.loot.represented_loot_money_for_player_like_cpp(
+                        loot_guid,
+                        loot,
+                        player_guid,
+                    ),
                 ))
             })
             .collect();
@@ -95,7 +99,8 @@ impl WorldSession {
                     continue;
                 }
                 let _ = self.reconcile_represented_loot_cache_like_cpp(*loot_guid, player_guid);
-                self.ensure_represented_player_looting_like_cpp(*loot_guid, player_guid);
+                self.loot
+                    .ensure_represented_player_looting_like_cpp(*loot_guid, player_guid);
 
                 let Some(expected_generation) = self
                     .loot
@@ -117,6 +122,7 @@ impl WorldSession {
                     }
                 };
                 if !self
+                    .loot
                     .represented_active_loot_claim_generation_matches_like_cpp(*loot_guid, &claim)
                 {
                     claim.rollback_like_cpp();
@@ -155,7 +161,7 @@ impl WorldSession {
                             loot_obj: *loot_obj,
                             amount: money_per_player,
                             durable_applied_amount,
-                            durable_persistence_tracker: self
+                            durable_persistence_tracker: crate::session::cx_loot_ref(self)
                                 .durable_loot_money_persistence_tracker_like_cpp(),
                             sole_looter,
                             authority: authority.clone(),
@@ -214,8 +220,9 @@ impl WorldSession {
                     continue;
                 }
 
-                let current_map = self.player_map_id_like_cpp();
+                let current_map = self.core.player_map_id_like_cpp();
                 let current_instance = self
+                    .core
                     .current_canonical_player_map_key_like_cpp()
                     .map(|key| key.instance_id)
                     .unwrap_or(0);
@@ -286,7 +293,8 @@ impl WorldSession {
                 continue;
             }
 
-            self.ensure_represented_player_looting_like_cpp(*loot_guid, player_guid);
+            self.loot
+                .ensure_represented_player_looting_like_cpp(*loot_guid, player_guid);
 
             if loot_guid.is_item() {
                 let cached_amount = u64::from(*money);
@@ -319,12 +327,13 @@ impl WorldSession {
                         continue;
                     }
                     if applied_delta != 0 {
-                        self.enqueue_represented_quest_objective_progress_like_cpp(
-                            RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
-                                old_money,
-                                new_money,
-                            },
-                        );
+                        self.quest_state
+                            .enqueue_represented_quest_objective_progress_like_cpp(
+                                RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
+                                    old_money,
+                                    new_money,
+                                },
+                            );
                     }
                 }
                 if publish {
@@ -421,12 +430,13 @@ impl WorldSession {
                 .await
             {
                 if old_money != new_money {
-                    self.enqueue_represented_quest_objective_progress_like_cpp(
-                        RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
-                            old_money,
-                            new_money,
-                        },
-                    );
+                    self.quest_state
+                        .enqueue_represented_quest_objective_progress_like_cpp(
+                            RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
+                                old_money,
+                                new_money,
+                            },
+                        );
                 }
             }
             self.drain_represented_quest_objective_progress_with_generator_like_cpp(
@@ -437,7 +447,7 @@ impl WorldSession {
 
         for loot_guid in item_release {
             self.loot.loot_table.remove(&loot_guid);
-            self.clear_active_loot_guid_if(loot_guid);
+            self.loot.clear_active_loot_guid_if(loot_guid);
             self.send_packet(&SLootRelease {
                 loot_obj: loot_guid,
                 owner: player_guid,

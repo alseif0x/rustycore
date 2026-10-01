@@ -188,16 +188,6 @@ impl RenameCallbacks {
 }
 
 impl WorldSession {
-    pub(crate) fn submit_character_rename_like_cpp(
-        &mut self,
-        port: std::sync::Arc<dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp>,
-        guid: wow_core::ObjectGuid,
-        name: String,
-    ) -> bool {
-        self.lifecycle
-            .submit_character_rename_like_cpp(port, guid, name)
-    }
-
     /// The production driver invokes this after packet dispatch. Full World/Map
     /// coordination remains separate; this method never waits for a DB worker.
     pub fn process_ready_character_rename_callbacks_like_cpp(&mut self) {

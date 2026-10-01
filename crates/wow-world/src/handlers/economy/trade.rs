@@ -268,7 +268,8 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.record_represented_sign_petition_like_cpp(packet.petition_guid, packet.choice);
+        crate::session::cx_pets(self)
+            .record_represented_sign_petition_like_cpp(packet.petition_guid, packet.choice);
     }
 
     pub async fn handle_decline_petition(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -283,7 +284,8 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.record_represented_decline_petition_like_cpp(packet.petition_guid);
+        crate::session::cx_pets(self)
+            .record_represented_decline_petition_like_cpp(packet.petition_guid);
     }
 
     pub async fn handle_query_petition(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -298,7 +300,8 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.record_represented_query_petition_like_cpp(packet.petition_id, packet.item_guid);
+        crate::session::cx_pets(self)
+            .record_represented_query_petition_like_cpp(packet.petition_id, packet.item_guid);
         self.send_packet(&QueryPetitionResponse::not_found_like_cpp(packet.item_guid));
     }
 

@@ -236,16 +236,10 @@ impl WorldSession {
         &self,
         banker: ObjectGuid,
     ) -> Option<u64> {
-        self.represented_guild_bank_gameobject_can_interact_like_cpp(banker)?;
+        crate::session::cx_inventory_ref(self)
+            .represented_guild_bank_gameobject_can_interact_like_cpp(banker)?;
         let guild_id = self.resolved_represented_guild_id_like_cpp()?;
         (guild_id != 0).then_some(guild_id)
-    }
-    pub(crate) fn represented_guild_bank_gameobject_can_interact_like_cpp(
-        &self,
-        banker: ObjectGuid,
-    ) -> Option<()> {
-        crate::session::cx_inventory_ref(self)
-            .represented_guild_bank_gameobject_can_interact_like_cpp(banker)
     }
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_guild_bank_list_request_like_cpp(
@@ -342,7 +336,7 @@ impl WorldSession {
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn guild_bank_buy_tab_like_cpp(&mut self, banker: ObjectGuid, tab: u8) -> bool {
         if !banker.is_empty()
-            && self
+            && crate::session::cx_inventory_ref(self)
                 .represented_guild_bank_gameobject_can_interact_like_cpp(banker)
                 .is_none()
         {

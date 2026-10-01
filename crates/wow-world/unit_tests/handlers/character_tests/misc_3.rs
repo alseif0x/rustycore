@@ -298,7 +298,7 @@ async fn query_player_names_uses_typed_port_and_preserves_exact_mixed_packet_lik
                         guid_actual: found,
                         account_id,
                         bnet_account_id,
-                        virtual_realm_address: session.virtual_realm_address(),
+                        virtual_realm_address: session.core.virtual_realm_address(),
                         is_deleted: true,
                         ..Default::default()
                     }),
@@ -372,7 +372,7 @@ async fn query_player_names_connected_target_overlays_live_identity_like_cpp() {
                     guid_actual: found,
                     account_id,
                     bnet_account_id,
-                    virtual_realm_address: session.virtual_realm_address(),
+                    virtual_realm_address: session.core.virtual_realm_address(),
                     ..Default::default()
                 }),
             }],

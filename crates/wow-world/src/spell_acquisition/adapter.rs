@@ -200,10 +200,10 @@ impl crate::session::WorldSession {
             self.catalogs
                 .spell_catalogs
                 .spell_custom_attribute_store_like_cpp(),
-            self.trait_definition_store(),
+            self.catalogs.trait_definition_store(),
             self.skill_store(),
-            self.skill_line_store(),
-            self.skill_tiers_store(),
+            self.catalogs.skill_line_store(),
+            self.catalogs.skill_tiers_store(),
         )
         else {
             return SpellAcquisitionOutcomeLikeCpp::Indeterminate(
@@ -230,7 +230,7 @@ impl crate::session::WorldSession {
             trait_definitions,
             cast_authority,
             craft_validity_authority,
-            mounts: self.mount_store().map(AsRef::as_ref),
+            mounts: self.catalogs.mount_store().map(AsRef::as_ref),
             skills,
             skill_lines,
             skill_tiers,
@@ -388,7 +388,8 @@ impl crate::session::WorldSession {
                 skill.state != PlayerSkillPersistenceStateLikeCpp::Deleted && skill.value != 0
             })
             .filter_map(|skill| {
-                self.skill_line_store()
+                self.catalogs
+                    .skill_line_store()
                     .and_then(|store| {
                         store
                             .is_primary_profession_skill_like_cpp(skill.skill_id)

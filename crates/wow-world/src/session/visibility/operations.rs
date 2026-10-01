@@ -28,21 +28,15 @@ impl WorldSession {
         };
         let never_visible_for_seer = self.player_session_never_visible_for_seer_like_cpp(guid);
         let seer_can_never_see_target = self.player_can_never_see_target_like_cpp();
-        let _ = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
-            apply_player_session_visibility_detection_like_cpp(
-                player,
-                never_visible_for_seer,
-                seer_can_never_see_target,
-            );
-        });
-    }
-    fn object_id_visibility_conditions_met_like_cpp(
-        &self,
-        target: &WorldObject,
-        seer: &WorldObject,
-    ) -> bool {
-        self.catalogs
-            .object_id_visibility_conditions_met_like_cpp(target, seer)
+        let _ = self
+            .core
+            .mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+                apply_player_session_visibility_detection_like_cpp(
+                    player,
+                    never_visible_for_seer,
+                    seer_can_never_see_target,
+                );
+            });
     }
     pub(in crate::session) fn apply_target_visibility_context_for_current_player_like_cpp(
         &self,
@@ -52,7 +46,7 @@ impl WorldSession {
         current_group_guid: Option<u64>,
     ) {
         target_unit.set_object_id_visibility_conditions_met_like_cpp(
-            self.object_id_visibility_conditions_met_like_cpp(
+            self.catalogs.object_id_visibility_conditions_met_like_cpp(
                 target_unit.world(),
                 seer_unit.world(),
             ),
@@ -95,6 +89,7 @@ impl WorldSession {
             return Vec::new();
         };
         let instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -140,8 +135,9 @@ impl WorldSession {
         self.catalogs.phase_store = Some(store);
     }
     pub(crate) fn represented_player_phase_shift_like_cpp(&self) -> Option<PhaseShift> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.unit().world().phase_shift().clone());
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.unit().world().phase_shift().clone());
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
@@ -160,7 +156,7 @@ impl WorldSession {
     pub(crate) fn resolved_visible_resting_like_cpp(&self) -> Option<bool> {
         // RestMgr::SetRestFlag/RemoveRestFlag (RestMgr.cpp:99-125): the
         // mask and Player flag belong to the same Player. Read them together.
-        let canonical = self.with_owned_player_for_rest_like_cpp(|player| {
+        let canonical = self.core.with_owned_player_for_rest_like_cpp(|player| {
             let rest = player.rest_state_like_cpp();
             if rest.is_location_initialized_like_cpp() {
                 rest.is_resting_by_flag_like_cpp()
@@ -207,7 +203,10 @@ impl WorldSession {
     /// owner and an empty value means the Player itself.
     pub(in crate::session) fn current_seer_guid_like_cpp(&self) -> Option<ObjectGuid> {
         let player_guid = self.player_guid()?;
-        if let Some(farsight) = self.current_canonical_player_farsight_object_value_like_cpp() {
+        if let Some(farsight) = self
+            .core
+            .current_canonical_player_farsight_object_value_like_cpp()
+        {
             if !farsight.is_empty() {
                 return Some(farsight);
             }
@@ -236,10 +235,6 @@ impl WorldSession {
         None
     }
 
-    fn current_canonical_player_farsight_object_value_like_cpp(&self) -> Option<ObjectGuid> {
-        self.core
-            .current_canonical_player_farsight_object_value_like_cpp()
-    }
     pub(in crate::session) fn current_canonical_farsight_object_like_cpp(
         &self,
     ) -> Option<ObjectGuid> {

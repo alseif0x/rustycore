@@ -46,6 +46,7 @@ impl WorldSession {
             return vec![player_guid];
         };
         let mut source_instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id);
         // Old packet fixtures have no canonical map resident. They must still
@@ -77,7 +78,7 @@ impl WorldSession {
             };
 
             if !member.is_in_world
-                || member.map_id != self.player_map_id_like_cpp()
+                || member.map_id != self.core.player_map_id_like_cpp()
                 || member.instance_id != source_instance_id
             {
                 continue;
@@ -95,16 +96,6 @@ impl WorldSession {
         }
 
         recipients
-    }
-
-    pub(super) fn represented_loot_money_for_player_like_cpp(
-        &self,
-        loot_guid: ObjectGuid,
-        loot: &CreatureLoot,
-        player_guid: ObjectGuid,
-    ) -> u32 {
-        self.loot
-            .represented_loot_money_for_player_like_cpp(loot_guid, loot, player_guid)
     }
 
     pub(super) fn represented_loot_money_command_targets_active_generation_like_cpp(
@@ -166,12 +157,13 @@ impl WorldSession {
             return ApplyLootMoneyResultLikeCpp::TargetMismatch;
         }
         if apply_money && durable_applied_amount != 0 {
-            self.enqueue_represented_quest_objective_progress_like_cpp(
-                RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
-                    old_money,
-                    new_money,
-                },
-            );
+            self.quest_state
+                .enqueue_represented_quest_objective_progress_like_cpp(
+                    RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
+                        old_money,
+                        new_money,
+                    },
+                );
         }
         if publish {
             self.send_packet(&LootMoneyNotify {
@@ -204,8 +196,9 @@ impl WorldSession {
         let bytes = packet.to_bytes();
         let players_looting = loot.players_looting.clone();
         let current_player = self.player_guid();
-        let current_map = self.player_map_id_like_cpp();
+        let current_map = self.core.player_map_id_like_cpp();
         let current_instance = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -306,13 +299,18 @@ impl WorldSession {
         let persistence_port = if test_result.is_some() {
             None
         } else {
-            Some(self.stored_item_money_persistence_port_like_cpp()?)
+            Some(
+                crate::session::cx_inventory_ref(self)
+                    .stored_item_money_persistence_port_like_cpp()?,
+            )
         };
         let test_current_money = self.resolved_player_money_like_cpp()?;
         let balance_applied = Arc::new(AtomicBool::new(false));
         let publication_applied = Arc::new(AtomicBool::new(false));
-        let mut item_persistence_guard = self.begin_durable_item_loot_persistence_like_cpp();
-        let money_persistence_tracker = self.durable_loot_money_persistence_tracker_like_cpp();
+        let mut item_persistence_guard =
+            crate::session::cx_inventory_ref(self).begin_durable_item_loot_persistence_like_cpp();
+        let money_persistence_tracker =
+            crate::session::cx_loot_ref(self).durable_loot_money_persistence_tracker_like_cpp();
         let mut money_persistence_guard = money_persistence_tracker.begin_like_cpp().ok()?;
         let command_tx = self.session_command_tx();
         let worker_balance_applied = Arc::clone(&balance_applied);

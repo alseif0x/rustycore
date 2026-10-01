@@ -832,7 +832,7 @@ async fn periodic_player_save_defers_while_teleport_pending_like_cpp() {
     session.core.state = SessionState::LoggedIn;
     session.set_player_save_interval_ms_like_cpp(100);
     assert!(session.set_pending_teleport_like_cpp(Some((0, Position::new(10.0, 20.0, 30.0, 1.5)))));
-    session.update_player_save_timer_like_cpp(100);
+    session.lifecycle.update_player_save_timer_like_cpp(100);
 
     session
         .process_pending_periodic_player_save_like_cpp()
@@ -902,7 +902,9 @@ fn player_currency_remove_and_save_state_match_cpp() {
     assert!(!session.remove_currency(999, 1));
 
     let mut persisted_currencies = session.player_currencies_like_cpp().unwrap();
-    let request = session.plan_player_currency_save_like_cpp(1, &mut persisted_currencies);
+    let request = session
+        .catalogs
+        .plan_player_currency_save_like_cpp(1, &mut persisted_currencies);
     session.set_player_currencies_like_cpp(persisted_currencies);
     assert_eq!(request.rows.len(), 2);
     assert_eq!(

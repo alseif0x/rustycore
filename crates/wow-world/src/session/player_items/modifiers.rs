@@ -67,18 +67,6 @@ impl WorldSession {
     pub fn set_item_set_spell_store(&mut self, store: Arc<ItemSetSpellStore>) {
         self.catalogs.spell_catalogs.item_set_spell_store = Some(store);
     }
-    pub(crate) fn item_set_for_item_id_like_cpp(
-        &self,
-        item_id: u32,
-    ) -> Option<&wow_data::ItemSetEntry> {
-        self.catalogs.item_set_for_item_id_like_cpp(item_id)
-    }
-    pub(crate) fn item_set_spells_like_cpp(
-        &self,
-        item_set_id: u32,
-    ) -> Vec<&wow_data::ItemSetSpellEntry> {
-        self.catalogs.item_set_spells_like_cpp(item_set_id)
-    }
     pub(in crate::session) fn player_item_modifier_runtime_snapshot_like_cpp(
         &self,
     ) -> Option<wow_entities::PlayerItemModifierRuntimeStateLikeCpp> {
@@ -108,7 +96,7 @@ impl WorldSession {
         &mut self,
         caps: wow_entities::PlayerItemLevelCapsLikeCpp,
     ) -> bool {
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+        let canonical = self.core.with_owned_player_mut_like_cpp(|player| {
             player.set_item_level_caps_like_cpp(caps);
         });
         if canonical.is_some() {
@@ -226,11 +214,12 @@ impl WorldSession {
             );
         }
 
-        if let Some(action) =
-            self.item_shield_block_value_like_cpp(item_entry)
-                .and_then(|shield_block_value| {
-                    item_shield_block_bonus_action_like_cpp(shield_block_value, true, apply)
-                })
+        if let Some(action) = self
+            .catalogs
+            .item_shield_block_value_like_cpp(item_entry)
+            .and_then(|shield_block_value| {
+                item_shield_block_bonus_action_like_cpp(shield_block_value, true, apply)
+            })
         {
             planned_actions.push(RepresentedItemBonusActionLikeCpp {
                 item_guid,
@@ -249,6 +238,7 @@ impl WorldSession {
             // disarm gate in feral form and keeps the existing attack time while
             // the active form carries a `CombatRoundTime`.
             let is_in_feral_form = self
+                .core
                 .canonical_player_snapshot_like_cpp(|player| player.is_in_feral_form_like_cpp())
                 .unwrap_or(false);
             // C++ reaches `_ApplyWeaponDamage` for any unit that is not
@@ -292,13 +282,6 @@ impl WorldSession {
         }
         action_count
     }
-    pub(in crate::session) fn represented_item_set_spell_exists_like_cpp(
-        &self,
-        spell_id: u32,
-    ) -> bool {
-        self.catalogs
-            .represented_item_set_spell_exists_like_cpp(spell_id)
-    }
     pub(in crate::session) fn represented_heirloom_item_set_bonus_over_level_cap_like_cpp(
         &self,
         item_guid: ObjectGuid,
@@ -340,6 +323,7 @@ impl WorldSession {
         for effect in active_effects {
             let active_bonus_ids = effect.set_bonuses.clone();
             let spells: Vec<_> = self
+                .catalogs
                 .item_set_spells_like_cpp(effect.item_set_id)
                 .into_iter()
                 .filter(|spell| active_bonus_ids.contains(&spell.id))
@@ -575,14 +559,6 @@ impl WorldSession {
     ) -> Option<u32> {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.represented_item_reputation_rank_like_cpp(hub, required_reputation_faction)
-    }
-
-    pub(crate) fn represented_item_effect_spell_ids_like_cpp(
-        &self,
-        item_id: u32,
-    ) -> Vec<(u8, i32)> {
-        self.catalogs
-            .represented_item_effect_spell_ids_like_cpp(item_id)
     }
 }
 

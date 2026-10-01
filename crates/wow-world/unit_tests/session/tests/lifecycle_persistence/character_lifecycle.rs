@@ -198,7 +198,9 @@ async fn logout_buyback_clear_reaches_port_and_publishes_only_after_apply_like_c
     session.set_player_guid(Some(ObjectGuid::create_player(1, 0x7500_0101)));
     session.insert_buyback_item_like_cpp(94, represented_buyback_item_like_cpp(0x8100_0001));
 
-    session.clear_buyback_on_logout().await;
+    crate::session::cx_lifecycle(&mut session)
+        .clear_buyback_on_logout()
+        .await;
 
     assert_eq!(
         port.buyback_clears(),
@@ -224,7 +226,9 @@ async fn logout_buyback_clear_preserves_runtime_for_failed_and_unknown_durabilit
         session.set_player_guid(Some(ObjectGuid::create_player(1, 0x7500_0102)));
         session.insert_buyback_item_like_cpp(94, represented_buyback_item_like_cpp(0x8100_0002));
 
-        session.clear_buyback_on_logout().await;
+        crate::session::cx_lifecycle(&mut session)
+            .clear_buyback_on_logout()
+            .await;
 
         assert_eq!(port.buyback_clears().len(), 1);
         assert!(session.buyback_items_like_cpp().contains_key(&94));
@@ -237,7 +241,9 @@ async fn logout_buyback_clear_without_port_does_not_fabricate_durable_success_li
     session.set_player_guid(Some(ObjectGuid::create_player(1, 0x7500_0103)));
     session.insert_buyback_item_like_cpp(94, represented_buyback_item_like_cpp(0x8100_0003));
 
-    session.clear_buyback_on_logout().await;
+    crate::session::cx_lifecycle(&mut session)
+        .clear_buyback_on_logout()
+        .await;
 
     assert!(session.buyback_items_like_cpp().contains_key(&94));
 }

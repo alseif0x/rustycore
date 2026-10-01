@@ -14,6 +14,7 @@ impl WorldSession {
     pub(crate) fn interrupt_non_melee_spell_cast_for_loot_like_cpp(&mut self) -> bool {
         let session_cast_interrupted = self.interrupt_player_cast_like_cpp(None);
         let canonical_spells_interrupted = self
+            .core
             .mutate_canonical_player_like_cpp(|player| {
                 let unit = player.unit_mut();
                 if !unit.is_non_melee_spell_cast_like_cpp(false, false, false, true) {
@@ -45,7 +46,7 @@ impl WorldSession {
             self.spell_state.last_spell_cast_time_per_spell = state.last_cast_time_per_spell;
             return Some(result);
         }
-        self.with_owned_player_mut_like_cpp(|player| {
+        self.core.with_owned_player_mut_like_cpp(|player| {
             f(&mut player.unit_mut().subsystems_mut().spells.execution)
         })
     }
@@ -110,7 +111,7 @@ impl WorldSession {
                     .represented_pending_spell_cast_request_like_cpp,
             ));
         }
-        self.with_owned_player_mut_like_cpp(canonical)
+        self.core.with_owned_player_mut_like_cpp(canonical)
     }
 
     pub(crate) fn remaining_global_cooldown_ms_like_cpp(

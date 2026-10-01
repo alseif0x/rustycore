@@ -253,7 +253,7 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
 
     assert_eq!(session.pending_teleport_like_cpp(), None);
     assert!(!session.represented_far_teleport_pending_like_cpp());
-    assert_eq!(session.player_map_id_like_cpp(), 0);
+    assert_eq!(session.core.player_map_id_like_cpp(), 0);
     assert_eq!(session.player_position_like_cpp(), Some(destination));
     // This partial fixture lacks stat catalogs: attachment is not client readiness.
     assert_eq!(session.state(), crate::session::SessionState::Disconnecting);

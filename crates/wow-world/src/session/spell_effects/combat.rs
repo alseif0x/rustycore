@@ -25,7 +25,8 @@ impl WorldSession {
             let Ok(mut manager) = manager.lock() else {
                 return;
             };
-            let Some(managed) = manager.find_map_mut(u32::from(self.player_map_id_like_cpp()), 0)
+            let Some(managed) =
+                manager.find_map_mut(u32::from(self.core.player_map_id_like_cpp()), 0)
             else {
                 return;
             };
@@ -78,7 +79,7 @@ impl WorldSession {
         };
 
         for owner_guid in pve_refs {
-            let _ = self.mutate_world_creature(owner_guid, |owner| {
+            let _ = self.core.mutate_world_creature(owner_guid, |owner| {
                 owner
                     .creature
                     .unit_mut()

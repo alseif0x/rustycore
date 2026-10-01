@@ -43,7 +43,7 @@ fn player_spell_hit_source_authority_requires_complete_empty_character_pets_like
     let mut session = complete_empty_player_spell_hit_authority_fixture_like_cpp();
     assert!(session.can_authorize_empty_player_spell_hit_aura_source_like_cpp());
 
-    session.begin_represented_character_pet_authority_load_like_cpp();
+    crate::session::cx_pets(&mut session).begin_represented_character_pet_authority_load_like_cpp();
     assert!(
         !session.can_authorize_empty_player_spell_hit_aura_source_like_cpp(),
         "an incomplete character_pet query cannot exclude pet-to-owner aura casts"

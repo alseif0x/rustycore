@@ -55,7 +55,7 @@ impl WorldSession {
                 .core
                 .client_visible_guids_like_cpp
                 .shares_storage_like_cpp(&command.committed_visibility_like_cpp)
-            || self.current_canonical_player_map_key_like_cpp()
+            || self.core.current_canonical_player_map_key_like_cpp()
                 != Some(wow_map::MapKey::new(
                     u32::from(command.map_id),
                     command.instance_id,

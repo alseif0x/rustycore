@@ -797,7 +797,9 @@ fn time_sync_response_sets_initial_clock_delta_like_cpp() {
         .pending_requests
         .insert(7, sent_time);
 
-    session.record_time_sync_response_like_cpp(7, sent_time.saturating_sub(1));
+    session
+        .core
+        .record_time_sync_response_like_cpp(7, sent_time.saturating_sub(1));
 
     assert!(
         session
@@ -825,7 +827,7 @@ fn time_sync_response_sets_initial_clock_delta_like_cpp() {
 fn send_time_sync_uses_cpp_timer_sequence() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
 
-    session.send_time_sync();
+    session.core.send_time_sync();
     assert_eq!(session.core.driver.time_synchronization.next_counter, 1);
     assert_eq!(session.core.driver.time_synchronization.timer_ms, 5_000);
     assert!(
@@ -837,7 +839,7 @@ fn send_time_sync_uses_cpp_timer_sequence() {
             .contains_key(&0)
     );
 
-    session.send_time_sync();
+    session.core.send_time_sync();
     assert_eq!(session.core.driver.time_synchronization.next_counter, 2);
     assert_eq!(session.core.driver.time_synchronization.timer_ms, 10_000);
     assert!(

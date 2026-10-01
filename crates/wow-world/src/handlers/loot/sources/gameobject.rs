@@ -18,10 +18,11 @@ impl WorldSession {
         if self.state() != SessionState::LoggedIn {
             return;
         }
-        if command.map_id != self.player_map_id_like_cpp() {
+        if command.map_id != self.core.player_map_id_like_cpp() {
             return;
         }
         let current_instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -80,10 +81,11 @@ impl WorldSession {
         if self.state() != SessionState::LoggedIn {
             return;
         }
-        if command.map_id != self.player_map_id_like_cpp() {
+        if command.map_id != self.core.player_map_id_like_cpp() {
             return;
         }
         let current_instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -146,10 +148,11 @@ impl WorldSession {
         if self.state() != SessionState::LoggedIn {
             return;
         }
-        if command.map_id != self.player_map_id_like_cpp() {
+        if command.map_id != self.core.player_map_id_like_cpp() {
             return;
         }
         let current_instance_id = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -211,11 +214,14 @@ impl WorldSession {
         if self.resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
-        if !self.represented_gameobject_exists_for_loot_like_cpp(gameobject_guid) {
+        if !crate::session::cx_loot_ref(self)
+            .represented_gameobject_exists_for_loot_like_cpp(gameobject_guid)
+        {
             return;
         }
 
-        self.record_represented_gameobject_chest_release_metadata_like_cpp(gameobject_guid, source);
+        crate::session::cx_loot(self)
+            .record_represented_gameobject_chest_release_metadata_like_cpp(gameobject_guid, source);
 
         let is_first_represented_unique_use = !self
             .loot
@@ -236,18 +242,18 @@ impl WorldSession {
                 )
                 .await;
             }
-            self.record_represented_gameobject_use_effects_like_cpp(
+            crate::session::cx_loot(self).record_represented_gameobject_use_effects_like_cpp(
                 gameobject_guid,
                 player_guid,
                 source.triggered_event_id,
                 source.linked_trap_entry,
             );
         }
-        let activated_now = self
+        let activated_now = crate::session::cx_loot(self)
             .set_represented_gameobject_loot_state_activated_like_cpp(gameobject_guid, player_guid);
         if activated_now {
-            let _ =
-                self.queue_chest_gameobject_state_refresh_for_same_map_like_cpp(gameobject_guid);
+            let _ = crate::session::cx_loot_ref(self)
+                .queue_chest_gameobject_state_refresh_for_same_map_like_cpp(gameobject_guid);
         }
         if !source.has_open_loot_like_cpp() {
             return;
@@ -275,7 +281,7 @@ impl WorldSession {
         )
         .await;
         if should_record_generation_effects && self.loot.loot_table.contains_key(&gameobject_guid) {
-            self.record_represented_gameobject_use_effects_like_cpp(
+            crate::session::cx_loot(self).record_represented_gameobject_use_effects_like_cpp(
                 gameobject_guid,
                 player_guid,
                 source.triggered_event_id,
@@ -302,7 +308,7 @@ impl WorldSession {
             && !source.is_personal_encounter_loot_like_cpp()
             && loot.allowed_looters.contains(&player_guid);
         if !empty_non_encounter_personal_pool
-            && !self.represented_loot_can_be_opened_by_player_like_cpp(
+            && !self.loot.represented_loot_can_be_opened_by_player_like_cpp(
                 gameobject_guid,
                 loot,
                 player_guid,
@@ -318,7 +324,7 @@ impl WorldSession {
             acquire_reason: loot_type_for_client_like_cpp(loot.loot_type),
             loot_method: loot.loot_method,
             threshold: LOOT_RESPONSE_DEFAULT_THRESHOLD_LIKE_CPP,
-            coins: self.represented_loot_money_for_player_like_cpp(
+            coins: self.loot.represented_loot_money_for_player_like_cpp(
                 gameobject_guid,
                 loot,
                 player_guid,
@@ -332,7 +338,7 @@ impl WorldSession {
         if self.has_active_non_item_loot_views_like_cpp() {
             self.do_loot_release_all_like_cpp(player_guid).await;
         }
-        self.set_active_loot_guid(gameobject_guid);
+        self.loot.set_active_loot_guid(gameobject_guid);
         self.represented_on_loot_opened_with_catalogs_like_cpp(
             item_valuation,
             gameobject_guid,
@@ -352,7 +358,8 @@ impl WorldSession {
         let should_update_criteria = player_guid.is_some()
             && loot_id != 0
             && self.resolved_player_is_alive_like_cpp() == Some(true)
-            && self.represented_gameobject_exists_for_loot_like_cpp(gameobject_guid);
+            && crate::session::cx_loot_ref(self)
+                .represented_gameobject_exists_for_loot_like_cpp(gameobject_guid);
         self.open_represented_gameobject_personal_loot_like_cpp(
             item_valuation,
             gameobject_guid,
@@ -403,11 +410,13 @@ impl WorldSession {
         if self.resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
-        if !self.represented_gameobject_exists_for_loot_like_cpp(gameobject_guid) {
+        if !crate::session::cx_loot_ref(self)
+            .represented_gameobject_exists_for_loot_like_cpp(gameobject_guid)
+        {
             return;
         }
-        let install_observation =
-            self.represented_gameobject_loot_install_observation_like_cpp(gameobject_guid);
+        let install_observation = crate::session::cx_loot(self)
+            .represented_gameobject_loot_install_observation_like_cpp(gameobject_guid);
         if install_observation.is_none() && !represented_local_loot_fixture_allowed_like_cpp() {
             return;
         }
@@ -485,7 +494,7 @@ impl WorldSession {
         let Some(loot) = self.loot.loot_table.get(&gameobject_guid) else {
             return;
         };
-        if !self.represented_loot_can_be_opened_by_player_like_cpp(
+        if !self.loot.represented_loot_can_be_opened_by_player_like_cpp(
             gameobject_guid,
             loot,
             player_guid,
@@ -510,7 +519,7 @@ impl WorldSession {
         if self.has_active_non_item_loot_views_like_cpp() {
             self.do_loot_release_all_like_cpp(player_guid).await;
         }
-        self.set_active_loot_guid(gameobject_guid);
+        self.loot.set_active_loot_guid(gameobject_guid);
         self.represented_on_loot_opened_with_catalogs_like_cpp(
             item_valuation,
             gameobject_guid,
@@ -549,7 +558,9 @@ impl WorldSession {
         if self.resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
-        if !self.represented_gameobject_exists_for_loot_like_cpp(gameobject_guid) {
+        if !crate::session::cx_loot_ref(self)
+            .represented_gameobject_exists_for_loot_like_cpp(gameobject_guid)
+        {
             return;
         }
 
@@ -580,7 +591,7 @@ impl WorldSession {
             if xp != 0 {
                 self.give_xp(xp, ObjectGuid::EMPTY, 1.0).await;
             }
-            self.record_represented_gameobject_use_effects_like_cpp(
+            crate::session::cx_loot(self).record_represented_gameobject_use_effects_like_cpp(
                 gameobject_guid,
                 player_guid,
                 source.triggered_event_id,
@@ -594,24 +605,8 @@ impl WorldSession {
             source,
             is_first_represented_use,
         );
-        let _ = self
+        let _ = crate::session::cx_loot_ref(self)
             .queue_gathering_node_gameobject_state_refresh_for_same_map_like_cpp(gameobject_guid);
-    }
-
-    pub(crate) fn queue_chest_gameobject_state_refresh_for_same_map_like_cpp(
-        &self,
-        gameobject_guid: ObjectGuid,
-    ) -> usize {
-        crate::session::cx_loot_ref(self)
-            .queue_chest_gameobject_state_refresh_for_same_map_like_cpp(gameobject_guid)
-    }
-
-    pub(crate) fn queue_goober_gameobject_state_refresh_for_same_map_like_cpp(
-        &self,
-        gameobject_guid: ObjectGuid,
-    ) -> usize {
-        crate::session::cx_loot_ref(self)
-            .queue_goober_gameobject_state_refresh_for_same_map_like_cpp(gameobject_guid)
     }
 
     pub(crate) fn queue_visible_gameobject_packet_for_same_map_like_cpp(
@@ -625,23 +620,6 @@ impl WorldSession {
             gameobject_guid,
             packet_bytes,
         )
-    }
-
-    fn queue_gathering_node_gameobject_state_refresh_for_same_map_like_cpp(
-        &self,
-        gameobject_guid: ObjectGuid,
-    ) -> usize {
-        crate::session::cx_loot_ref(self)
-            .queue_gathering_node_gameobject_state_refresh_for_same_map_like_cpp(gameobject_guid)
-    }
-
-    fn set_represented_gameobject_loot_state_activated_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-    ) -> bool {
-        crate::session::cx_loot(self)
-            .set_represented_gameobject_loot_state_activated_like_cpp(gameobject_guid, player_guid)
     }
 
     fn record_represented_gathering_node_runtime_state_like_cpp(
@@ -671,7 +649,7 @@ impl WorldSession {
                 (source.linked_trap_entry != 0).then_some(source.linked_trap_entry);
         }
 
-        let activated_now = self
+        let activated_now = crate::session::cx_loot(self)
             .set_represented_gameobject_loot_state_activated_like_cpp(gameobject_guid, player_guid);
         if activated_now && source.despawn_delay_secs != 0 {
             if let Some(state) = self
@@ -715,21 +693,6 @@ impl WorldSession {
             source,
         )
         .await;
-    }
-
-    fn record_represented_gameobject_use_effects_like_cpp(
-        &mut self,
-        gameobject_guid: ObjectGuid,
-        player_guid: ObjectGuid,
-        triggered_event_id: u32,
-        linked_trap_entry: u32,
-    ) {
-        crate::session::cx_loot(self).record_represented_gameobject_use_effects_like_cpp(
-            gameobject_guid,
-            player_guid,
-            triggered_event_id,
-            linked_trap_entry,
-        )
     }
 
     fn represented_gathering_node_xp_like_cpp(&self, xp_difficulty: u32) -> u32 {

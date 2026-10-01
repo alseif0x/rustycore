@@ -65,10 +65,13 @@ impl WorldSession {
             self.send_packet(&ResumeComms);
         }
 
-        let Some(player_lifecycle_port) = self.player_lifecycle_port_like_cpp().map(Arc::clone)
+        let Some(player_lifecycle_port) = self
+            .lifecycle
+            .player_lifecycle_port_like_cpp()
+            .map(Arc::clone)
         else {
             warn!("No player lifecycle persistence port for continue login");
-            self.release_character_login_claim_like_cpp();
+            self.lifecycle.release_character_login_claim_like_cpp();
             return;
         };
         let base_row = match player_lifecycle_port
@@ -80,12 +83,12 @@ impl WorldSession {
             wow_persistence::PlayerCharacterBaseLoadOutcomeLikeCpp::Loaded(Some(row)) => row,
             wow_persistence::PlayerCharacterBaseLoadOutcomeLikeCpp::Loaded(None) => {
                 warn!("Character {:?} not found in database", guid);
-                self.release_character_login_claim_like_cpp();
+                self.lifecycle.release_character_login_claim_like_cpp();
                 return;
             }
             wow_persistence::PlayerCharacterBaseLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!("Failed to load character {:?}: {reason}", guid);
-                self.release_character_login_claim_like_cpp();
+                self.lifecycle.release_character_login_claim_like_cpp();
                 return;
             }
         };
@@ -133,7 +136,7 @@ impl WorldSession {
         let valid_login_homebind = loaded_login_homebind.filter(|homebind| {
             usable_character_homebind_like_cpp(
                 *homebind,
-                self.map_store().map(Arc::as_ref),
+                self.catalogs.map_store().map(Arc::as_ref),
                 self.core.expansion,
             )
         });
@@ -269,7 +272,7 @@ impl WorldSession {
                 return;
             }
         }
-        self.load_represented_player_difficulties_like_cpp(
+        crate::session::cx_lifecycle(self).load_represented_player_difficulties_like_cpp(
             base_row.dungeon_difficulty.unwrap_or(0),
             base_row.raid_difficulty.unwrap_or(0),
             base_row.legacy_raid_difficulty.unwrap_or(0),
@@ -293,7 +296,7 @@ impl WorldSession {
             let fallback = battleground_login_fallback_location_like_cpp(
                 battleground_login_data,
                 Some(login_homebind),
-                self.map_store().map(Arc::as_ref),
+                self.catalogs.map_store().map(Arc::as_ref),
             );
             if let Some(fallback) = fallback {
                 let fallback_map_id = u16::try_from(fallback.map_id)
@@ -416,8 +419,8 @@ impl WorldSession {
         // ALWAYS_MAX_VALUE before learning the skill-rewarded spells.
         if let (Some(skill_store), Some(skill_line_store), Some(skill_tiers_store)) = (
             self.skill_store().cloned(),
-            self.skill_line_store().cloned(),
-            self.skill_tiers_store().cloned(),
+            self.catalogs.skill_line_store().cloned(),
+            self.catalogs.skill_tiers_store().cloned(),
         ) {
             let mut normalized_records = HashMap::new();
             let mut persisted_records: Vec<_> = skill_records.into_values().collect();
@@ -547,8 +550,9 @@ impl WorldSession {
                 "Applied represented login parry/block capabilities like C++ Player::_LoadSpells/AddSpell"
             );
         }
-        let inactive_lower_rank_count =
-            self.deactivate_lower_rank_known_spells_for_send_like_cpp(&mut known_spells);
+        let inactive_lower_rank_count = self
+            .catalogs
+            .deactivate_lower_rank_known_spells_for_send_like_cpp(&mut known_spells);
         if inactive_lower_rank_count > 0 {
             info!(
                 player_guid = guid.counter(),
@@ -690,8 +694,9 @@ impl WorldSession {
                 );
             }
         }
-        let default_inactive_lower_rank_count =
-            self.deactivate_lower_rank_known_spells_for_send_like_cpp(&mut known_spells);
+        let default_inactive_lower_rank_count = self
+            .catalogs
+            .deactivate_lower_rank_known_spells_for_send_like_cpp(&mut known_spells);
         self.set_known_spells_like_cpp(known_spells.clone());
         self.apply_login_known_spell_proficiencies_like_cpp(&loaded_spell_side_effect_spells);
         self.apply_login_known_spell_combat_capabilities_like_cpp(&loaded_spell_side_effect_spells);
@@ -816,10 +821,11 @@ impl WorldSession {
             .await;
         // Persist the login snapshot so the before-add init helper can re-send spell
         // history/charges on far teleport without a DB round trip. #NEXT.R8.ENTITIES.1229.
-        self.record_login_spell_history_packets_like_cpp(
-            spell_history_entries.clone(),
-            spell_charge_entries.clone(),
-        );
+        self.spell_state
+            .record_login_spell_history_packets_like_cpp(
+                spell_history_entries.clone(),
+                spell_charge_entries.clone(),
+            );
 
         if !self
             .send_login_sequence(

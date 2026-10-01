@@ -12,6 +12,7 @@ use super::{WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP, WorldSession, catalogs};
 impl WorldSession {
     pub(crate) fn set_championing_faction_like_cpp(&mut self, faction_id: u32) {
         let _canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.set_championing_faction_like_cpp(faction_id);
             })

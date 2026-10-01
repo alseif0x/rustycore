@@ -13,7 +13,7 @@ async fn loot_unit_new_main_target_releases_existing_view_like_cpp() {
     let old_guid = test_creature_guid(19_036);
     let new_guid = test_creature_guid(19_037);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(old_guid);
+    session.loot.set_active_loot_guid(old_guid);
     insert_allowed_coin_loot_like_cpp(&mut session, old_guid, player_guid, 7);
     register_test_creature_like_cpp(&mut session, test_creature(new_guid, false));
     insert_allowed_coin_loot_like_cpp(&mut session, new_guid, player_guid, 7);
@@ -35,8 +35,8 @@ async fn loot_unit_new_main_target_releases_existing_view_like_cpp() {
         sent.read_uint16().unwrap(),
         wow_constants::ServerOpcodes::LootResponse as u16
     );
-    assert!(!session.is_active_loot_guid(old_guid));
-    assert!(session.is_active_loot_guid(new_guid));
+    assert!(!session.loot.is_active_loot_guid(old_guid));
+    assert!(session.loot.is_active_loot_guid(new_guid));
     assert!(session.loot.loot_table.contains_key(&old_guid));
 }
 #[tokio::test]
@@ -66,7 +66,7 @@ async fn loot_unit_response_uses_loot_owner_not_player_like_cpp() {
         session.loot.loot_table.get(&owner_guid).unwrap().loot_guid,
         response_loot_obj
     );
-    assert!(session.is_active_loot_guid(owner_guid));
+    assert!(session.loot.is_active_loot_guid(owner_guid));
 }
 #[tokio::test]
 async fn loot_unit_ae_loot_sends_targets_and_secondary_ack_like_cpp() {
@@ -144,7 +144,7 @@ async fn loot_unit_ae_loot_sends_targets_and_secondary_ack_like_cpp() {
         sent.read_uint16().unwrap(),
         wow_constants::ServerOpcodes::AeLootTargetAck as u16
     );
-    assert!(session.is_active_loot_guid(main_guid));
+    assert!(session.loot.is_active_loot_guid(main_guid));
     assert!(session.loot.active_loot_view_owners.contains(&main_guid));
     assert!(
         session
@@ -179,7 +179,7 @@ async fn new_loot_after_primary_ae_release_closes_secondary_before_replacing_tra
     insert_allowed_coin_loot_like_cpp(&mut session, new_guid, player_guid, 7);
     session.handle_loot_unit(loot_unit_packet(new_guid)).await;
 
-    assert!(session.is_active_loot_guid(new_guid));
+    assert!(session.loot.is_active_loot_guid(new_guid));
     assert_eq!(session.loot.active_loot_view_owners.len(), 1);
     assert!(
         !session
@@ -234,7 +234,7 @@ async fn loot_unit_empty_visible_loot_returns_silently_like_cpp() {
     session.handle_loot_unit(loot_unit_packet(loot_guid)).await;
 
     assert!(send_rx.try_recv().is_err());
-    assert!(!session.is_active_loot_guid(loot_guid));
+    assert!(!session.loot.is_active_loot_guid(loot_guid));
 }
 #[tokio::test]
 async fn loot_unit_fully_looted_existing_loot_returns_silently_like_cpp() {
@@ -277,7 +277,7 @@ async fn loot_unit_fully_looted_existing_loot_returns_silently_like_cpp() {
     session.handle_loot_unit(loot_unit_packet(loot_guid)).await;
 
     assert!(send_rx.try_recv().is_err());
-    assert!(!session.is_active_loot_guid(loot_guid));
+    assert!(!session.loot.is_active_loot_guid(loot_guid));
 }
 #[tokio::test]
 async fn loot_unit_without_allowed_loot_for_player_returns_silently_like_cpp() {
@@ -326,7 +326,7 @@ async fn loot_unit_without_allowed_loot_for_player_returns_silently_like_cpp() {
         session.loot.loot_table.get(&loot_guid).unwrap().items[0].allowed_looters,
         vec![other_guid]
     );
-    assert!(!session.is_active_loot_guid(loot_guid));
+    assert!(!session.loot.is_active_loot_guid(loot_guid));
 }
 #[tokio::test]
 async fn loot_unit_non_tapper_existing_tap_list_returns_silently_like_cpp() {
@@ -341,7 +341,7 @@ async fn loot_unit_non_tapper_existing_tap_list_returns_silently_like_cpp() {
     session.handle_loot_unit(loot_unit_packet(loot_guid)).await;
 
     assert!(send_rx.try_recv().is_err());
-    assert!(!session.is_active_loot_guid(loot_guid));
+    assert!(!session.loot.is_active_loot_guid(loot_guid));
     assert!(!session.loot.loot_table.contains_key(&loot_guid));
 }
 #[tokio::test]
@@ -357,7 +357,7 @@ async fn loot_unit_existing_coin_loot_without_allowed_looter_returns_silently_li
     session.handle_loot_unit(loot_unit_packet(loot_guid)).await;
 
     assert!(send_rx.try_recv().is_err());
-    assert!(!session.is_active_loot_guid(loot_guid));
+    assert!(!session.loot.is_active_loot_guid(loot_guid));
     assert_eq!(session.loot.loot_table.get(&loot_guid).unwrap().coins, 7);
     assert_eq!(
         session
@@ -375,11 +375,11 @@ async fn loot_money_stale_active_without_loot_view_returns_silently_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 42);
     let loot_guid = test_creature_guid(19_020);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
 
     session.handle_loot_money(loot_money_packet()).await;
 
-    assert!(session.is_active_loot_guid(loot_guid));
+    assert!(session.loot.is_active_loot_guid(loot_guid));
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]
@@ -388,7 +388,7 @@ async fn loot_money_zero_money_still_notifies_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 42);
     let loot_guid = test_creature_guid(19_021);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     session.loot.loot_table.insert(
         loot_guid,
         CreatureLoot {
@@ -440,7 +440,7 @@ async fn loot_money_zero_money_still_notifies_like_cpp() {
     assert_eq!(sent.read_uint64().unwrap(), 0);
     assert!(sent.read_bit().unwrap());
     assert_eq!(session.player_gold_like_cpp(), 0);
-    assert!(session.is_active_loot_guid(loot_guid));
+    assert!(session.loot.is_active_loot_guid(loot_guid));
 }
 #[tokio::test]
 async fn loot_money_coin_removed_uses_loot_object_like_cpp() {
@@ -449,7 +449,7 @@ async fn loot_money_coin_removed_uses_loot_object_like_cpp() {
     let owner_guid = test_creature_guid(19_024);
     let loot_object_guid = represented_loot_object_guid_like_cpp(owner_guid);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(owner_guid);
+    session.loot.set_active_loot_guid(owner_guid);
     session.loot.loot_table.insert(
         owner_guid,
         CreatureLoot {
@@ -478,7 +478,7 @@ async fn loot_money_coin_removed_uses_loot_object_like_cpp() {
         wow_constants::ServerOpcodes::CoinRemoved as u16
     );
     assert_eq!(sent.read_packed_guid().unwrap(), loot_object_guid);
-    assert!(session.is_active_loot_guid(owner_guid));
+    assert!(session.loot.is_active_loot_guid(owner_guid));
 }
 #[tokio::test]
 async fn loot_money_consumes_all_active_loot_views_like_cpp() {
@@ -490,8 +490,8 @@ async fn loot_money_consumes_all_active_loot_views_like_cpp() {
     let loot_object_one = represented_loot_object_guid_like_cpp(owner_one);
     let loot_object_two = represented_loot_object_guid_like_cpp(owner_two);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(owner_one);
-    session.add_active_loot_view_owner_like_cpp(owner_two);
+    session.loot.set_active_loot_guid(owner_one);
+    session.loot.add_active_loot_view_owner_like_cpp(owner_two);
     session.loot.loot_table.insert(
         owner_one,
         CreatureLoot {
@@ -591,7 +591,7 @@ async fn loot_money_gain_completes_money_tracking_event_objective_like_cpp() {
         description: String::new(),
     });
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
@@ -693,7 +693,7 @@ async fn loot_money_splits_corpse_gold_to_near_group_members_like_cpp() {
     session.social.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
-    session.set_active_loot_guid(loot_guid);
+    session.loot.set_active_loot_guid(loot_guid);
     session.loot.loot_table.insert(
         loot_guid,
         CreatureLoot {
@@ -839,7 +839,7 @@ async fn loot_release_ignores_guid_outside_active_view_like_cpp() {
     let active_guid = test_creature_guid(19_011);
     let spoofed_guid = test_creature_guid(19_012);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(active_guid);
+    session.loot.set_active_loot_guid(active_guid);
     session.loot.loot_table.insert(
         spoofed_guid,
         CreatureLoot {
@@ -863,7 +863,7 @@ async fn loot_release_ignores_guid_outside_active_view_like_cpp() {
         .handle_loot_release(loot_release_packet(spoofed_guid))
         .await;
 
-    assert!(session.is_active_loot_guid(active_guid));
+    assert!(session.loot.is_active_loot_guid(active_guid));
     assert!(session.loot.loot_table.contains_key(&spoofed_guid));
     assert!(send_rx.try_recv().is_err());
 }
@@ -873,12 +873,12 @@ async fn loot_release_ignores_active_guid_without_represented_loot_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 42);
     let active_guid = test_creature_guid(19_015);
     session.set_player_guid(Some(player_guid));
-    session.set_active_loot_guid(active_guid);
+    session.loot.set_active_loot_guid(active_guid);
 
     session
         .handle_loot_release(loot_release_packet(active_guid))
         .await;
 
-    assert!(session.is_active_loot_guid(active_guid));
+    assert!(session.loot.is_active_loot_guid(active_guid));
     assert!(send_rx.try_recv().is_err());
 }

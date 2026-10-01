@@ -27,8 +27,9 @@ impl WorldSession {
         let Some(source_position) = self.player_position_like_cpp() else {
             return vec![player_guid];
         };
-        let map_id = self.player_map_id_like_cpp();
+        let map_id = self.core.player_map_id_like_cpp();
         let Some(instance_id) = self
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
         else {
@@ -272,34 +273,21 @@ impl WorldSession {
         let Ok(item_object_id) = i32::try_from(item_id) else {
             return false;
         };
-        self.remote_has_incomplete_quest_objective_for_object_id_like_cpp(
-            item_object_id,
-            player_context,
-        ) || (addon_metadata.quest_log_item_id != 0
-            && self.remote_has_incomplete_quest_objective_for_object_id_like_cpp(
-                addon_metadata.quest_log_item_id,
-                player_context,
-            ))
-            || self.remote_has_incomplete_quest_item_drop_for_item_like_cpp(item_id, player_context)
-    }
-
-    fn remote_has_incomplete_quest_objective_for_object_id_like_cpp(
-        &self,
-        item_object_id: i32,
-        player_context: &RepresentedLootPlayerContext,
-    ) -> bool {
         self.catalogs
             .remote_has_incomplete_quest_objective_for_object_id_like_cpp(
                 item_object_id,
                 player_context,
             )
-    }
-
-    pub(in crate::handlers::loot) fn direct_inventory_item_count_like_cpp(
-        &self,
-        item_id: u32,
-    ) -> Option<u32> {
-        crate::session::cx_loot_ref(self).direct_inventory_item_count_like_cpp(item_id)
+            || (addon_metadata.quest_log_item_id != 0
+                && self
+                    .catalogs
+                    .remote_has_incomplete_quest_objective_for_object_id_like_cpp(
+                        addon_metadata.quest_log_item_id,
+                        player_context,
+                    ))
+            || self
+                .catalogs
+                .remote_has_incomplete_quest_item_drop_for_item_like_cpp(item_id, player_context)
     }
 
     pub(in crate::handlers::loot) fn player_quest_objective_progress_like_cpp(
@@ -335,15 +323,6 @@ impl WorldSession {
         }
 
         None
-    }
-
-    pub(in crate::handlers::loot) fn remote_player_quest_objective_progress_like_cpp(
-        &self,
-        objective_id: u32,
-        player_context: &RepresentedLootPlayerContext,
-    ) -> Option<i32> {
-        self.catalogs
-            .remote_player_quest_objective_progress_like_cpp(objective_id, player_context)
     }
 
     pub(in crate::handlers::loot) async fn load_item_template_addon_loot_metadata_for_item_ids_like_cpp<

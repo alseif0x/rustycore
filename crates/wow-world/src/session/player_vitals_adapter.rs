@@ -8,7 +8,7 @@ use super::{PLAYER_FLAGS_GHOST_LIKE_CPP, UnitFlags, WorldSession};
 
 impl WorldSession {
     pub fn set_player_alive_like_cpp(&mut self, alive: bool) {
-        let resolved = self.with_owned_player_mut_like_cpp(|player| {
+        let resolved = self.core.with_owned_player_mut_like_cpp(|player| {
             if !alive {
                 player
                     .unit_mut()
@@ -71,7 +71,7 @@ impl WorldSession {
 
     pub(crate) fn set_player_ghost_flag_like_cpp(&mut self, ghost: bool) {
         if self.player_guid().is_some() {
-            let _ = self.mutate_canonical_player_like_cpp(|player| {
+            let _ = self.core.mutate_canonical_player_like_cpp(|player| {
                 if ghost {
                     player.set_player_flag(PLAYER_FLAGS_GHOST_LIKE_CPP);
                 } else {

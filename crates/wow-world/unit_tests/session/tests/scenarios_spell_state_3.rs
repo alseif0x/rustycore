@@ -693,7 +693,9 @@ fn spell_custom_attributes_return_zero_without_store_like_cpp() {
     let (session, _, _) = make_session();
 
     assert_eq!(
-        session.spell_custom_attributes_for_difficulty_like_cpp(100, 0),
+        session
+            .catalogs
+            .spell_custom_attributes_for_difficulty_like_cpp(100, 0),
         0
     );
 }
@@ -704,17 +706,23 @@ fn spell_custom_attributes_lookup_exact_difficulty_like_cpp() {
         .set_spell_custom_attribute_store(Arc::new(test_spell_custom_attribute_store_like_cpp()));
 
     assert_eq!(
-        session.spell_custom_attributes_for_difficulty_like_cpp(100, 0),
+        session
+            .catalogs
+            .spell_custom_attributes_for_difficulty_like_cpp(100, 0),
         wow_data::SPELL_ATTR0_CU_CAN_CRIT_LIKE_CPP
             | wow_data::SPELL_ATTR0_CU_DIRECT_DAMAGE_LIKE_CPP
     );
     assert_eq!(
-        session.spell_custom_attributes_for_difficulty_like_cpp(100, 2),
+        session
+            .catalogs
+            .spell_custom_attributes_for_difficulty_like_cpp(100, 2),
         wow_data::SPELL_ATTR0_CU_CAN_CRIT_LIKE_CPP
             | wow_data::SPELL_ATTR0_CU_DIRECT_DAMAGE_LIKE_CPP
     );
     assert_eq!(
-        session.spell_custom_attributes_for_difficulty_like_cpp(100, 1),
+        session
+            .catalogs
+            .spell_custom_attributes_for_difficulty_like_cpp(100, 1),
         0
     );
 }
@@ -745,7 +753,7 @@ fn spell_learn_skill_query_returns_none_without_store_like_cpp() {
 
     assert!(session.spell_learn_skill_like_cpp(10).is_none());
     assert_eq!(
-        session.spell_learn_skill_lookup_like_cpp(10),
+        session.catalogs.spell_learn_skill_lookup_like_cpp(10),
         wow_data::SpellLearnSkillLookupLikeCpp::MissingCoverage
     );
 }
@@ -774,7 +782,7 @@ fn spell_learn_skill_query_matches_loaded_effects_like_cpp() {
     );
     assert!(session.spell_learn_skill_like_cpp(21).is_none());
     assert_eq!(
-        session.spell_learn_skill_lookup_like_cpp(21),
+        session.catalogs.spell_learn_skill_lookup_like_cpp(21),
         wow_data::SpellLearnSkillLookupLikeCpp::MissingCoverage
     );
 }
@@ -782,7 +790,12 @@ fn spell_learn_skill_query_matches_loaded_effects_like_cpp() {
 fn spell_learn_spell_queries_return_empty_without_store_like_cpp() {
     let (session, _, _) = make_session();
 
-    assert!(session.spell_learn_spell_map_bounds_like_cpp(10).is_empty());
+    assert!(
+        session
+            .catalogs
+            .spell_learn_spell_map_bounds_like_cpp(10)
+            .is_empty()
+    );
     assert!(!session.is_spell_learn_spell_like_cpp(10));
     assert!(!session.is_spell_learn_to_spell_like_cpp(10, 20));
 }
@@ -792,7 +805,7 @@ fn spell_learn_spell_queries_match_loaded_multimap_like_cpp() {
     session.set_spell_learn_spell_store(Arc::new(test_spell_learn_spell_store_like_cpp()));
 
     assert_eq!(
-        session.spell_learn_spell_map_bounds_like_cpp(10),
+        session.catalogs.spell_learn_spell_map_bounds_like_cpp(10),
         &[wow_data::SpellLearnSpellNodeLikeCpp {
             spell: 20,
             overrides_spell: 0,
