@@ -243,7 +243,8 @@ class F3MoveMethodsTest(unittest.TestCase):
                       "--demote-blocked")
         self.assertEqual(rc, 0, out)
         bg = (self.root / "crates/wow-world/src/session/battleground_adapter.rs").read_text()
-        self.assertIn("#[cfg(test)]\nimpl crate::session::state::BattlegroundState {\n    #[cfg(test)]\n"
+        self.assertIn('#[cfg(any(test, feature = "test-fixtures"))]\nimpl crate::session::state::BattlegroundState {\n'
+                      "    #[cfg(test)]\n"
                       "    pub(crate) fn bg_hellos(&self) -> usize {\n        self.hellos.len()\n", bg)
         shim = (self.root / "crates/wow-world/unit_tests/session/battleground_adapter/f3_shims.rs").read_text()
         self.assertIn("    #[cfg(test)]\n    pub(crate) fn bg_hellos(&self) -> usize {\n"

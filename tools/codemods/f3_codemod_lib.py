@@ -14,12 +14,21 @@ import re
 import subprocess
 
 IDENT = r"[A-Za-z_][A-Za-z0-9_]*"
+# #1241 F4a-P2: code that moves to wow-world-core is gated on the `test-fixtures` feature as well as
+# `test`, so a dependent crate's tests still see it. TEST_PRED matches either predicate, on raw text
+# or on text whose string contents are blanked (`"test-fixtures"` -> 13 spaces between the quotes).
+FIXTURES_GATE = 'any(test, feature = "test-fixtures")'
+FIXTURES_ATTR = f"#[cfg({FIXTURES_GATE})]"
+TEST_PRED = r'(?:test|any\s*\(\s*test\s*,\s*feature\s*=\s*"(?:test-fixtures| {13})"\s*\))'
+TEST_ATTR = re.compile(r"#\s*\[\s*cfg\s*\(\s*" + TEST_PRED + r"\s*\)\s*\]")
+TEST_CFG = re.compile(r"cfg\s*\(\s*" + TEST_PRED + r"\s*\)")
 
 
 def strip_cfg_test(body):
-    """Blank `#[cfg(test)]` statements/blocks so production accesses remain."""
+    """Blank `#[cfg(test)]` and `#[cfg(any(test, feature = "test-fixtures"))]` statements/blocks so
+    production accesses remain."""
     out = list(body)
-    for m in re.finditer(r"#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]", body):
+    for m in TEST_ATTR.finditer(body):
         k = m.end()
         while k < len(body) and body[k].isspace():
             k += 1
@@ -177,7 +186,7 @@ pub(crate) struct HubRef<'a> {
     pub(crate) core: &'a SessionCore,
     pub(crate) catalogs: &'a SessionCatalogs,
     pub(in crate::session) config: &'a SessionWorldConfig,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fixtures: &'a SessionFixtures,
 }
 
@@ -186,24 +195,24 @@ pub(crate) struct HubMut<'a> {
     pub(crate) core: &'a mut SessionCore,
     pub(crate) catalogs: &'a SessionCatalogs,
     pub(in crate::session) config: &'a SessionWorldConfig,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fixtures: &'a mut SessionFixtures,
 }
 
 impl HubMut<'_> {
     pub(crate) fn shared(&self) -> HubRef<'_> {
         HubRef { core: &*self.core, catalogs: self.catalogs, config: self.config,
-                 #[cfg(test)] fixtures: &*self.fixtures }
+                 #[cfg(any(test, feature = "test-fixtures"))] fixtures: &*self.fixtures }
     }
 }
 
 /// Builds the shared view from disjoint WorldSession fields (free fn: not an `impl WorldSession` item).
 pub(crate) fn hub_ref(s: &WorldSession) -> HubRef<'_> {
-    HubRef { core: &s.core, catalogs: &s.catalogs, config: &s.config, #[cfg(test)] fixtures: &s.fixtures }
+    HubRef { core: &s.core, catalogs: &s.catalogs, config: &s.config, #[cfg(any(test, feature = "test-fixtures"))] fixtures: &s.fixtures }
 }
 
 pub(crate) fn hub_mut(s: &mut WorldSession) -> HubMut<'_> {
-    HubMut { core: &mut s.core, catalogs: &s.catalogs, config: &s.config, #[cfg(test)] fixtures: &mut s.fixtures }
+    HubMut { core: &mut s.core, catalogs: &s.catalogs, config: &s.config, #[cfg(any(test, feature = "test-fixtures"))] fixtures: &mut s.fixtures }
 }
 '''
 
@@ -211,13 +220,13 @@ pub(crate) fn hub_mut(s: &mut WorldSession) -> HubMut<'_> {
 SPLIT_FN = '''
 /// `&mut` group state plus the shared hub, borrowed from disjoint WorldSession fields.
 pub(crate) fn split_{g}(s: &mut WorldSession) -> (&mut {t}, HubRef<'_>) {{
-    (&mut s.{g}, HubRef {{ core: &s.core, catalogs: &s.catalogs, config: &s.config, #[cfg(test)] fixtures: &s.fixtures }})
+    (&mut s.{g}, HubRef {{ core: &s.core, catalogs: &s.catalogs, config: &s.config, #[cfg(any(test, feature = "test-fixtures"))] fixtures: &s.fixtures }})
 }}
 '''
 SPLIT_MUT_FN = '''
 /// `&mut` group state plus the mutable hub (core and fixtures), borrowed from disjoint fields.
 pub(crate) fn split_{g}_mut(s: &mut WorldSession) -> (&mut {t}, HubMut<'_>) {{
-    (&mut s.{g}, HubMut {{ core: &mut s.core, catalogs: &s.catalogs, config: &s.config, #[cfg(test)] fixtures: &mut s.fixtures }})
+    (&mut s.{g}, HubMut {{ core: &mut s.core, catalogs: &s.catalogs, config: &s.config, #[cfg(any(test, feature = "test-fixtures"))] fixtures: &mut s.fixtures }})
 }}
 '''
 SPLIT_REF_FN = '''
@@ -285,7 +294,7 @@ def add_cx_items(text, g, siblings, variant, shared, state_type, own_state=True)
                  f"/// from disjoint WorldSession fields.\npub(crate) struct {t_mut}<'a> {{\n{fields}"
                  f"    pub(crate) hub: HubMut<'a>,\n}}\n\npub(crate) fn cx_{g}(s: &mut WorldSession) -> {t_mut}<'_> {{\n"
                  f"    {t_mut} {{ {init} hub: HubMut {{ core: &mut s.core, catalogs: &s.catalogs, config: &s.config, "
-                 f"#[cfg(test)] fixtures: &mut s.fixtures }} }}\n}}\n")
+                 f"{FIXTURES_ATTR} fixtures: &mut s.fixtures }} }}\n}}\n")
     if (variant == "cx-ref" or shared) and f"pub(crate) struct {t_ref}<" not in text:
         fields = "".join(f"    pub(crate) {m}: &'a {state_type[m]},\n" for m in members)
         init = " ".join(f"{m}: &s.{m}," for m in members)
@@ -324,7 +333,7 @@ class Spans:
         return spans[i] if i >= 0 and spans[i][0] <= pos <= spans[i][1] else None
 
 
-CX_IMPL = re.compile(r"(#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*)?\bimpl\s+crate::session::(" + IDENT + r"Cx(?:Ref)?)<'_>\s*\{")
+CX_IMPL = re.compile(r"(" + TEST_ATTR.pattern + r"\s*)?\bimpl\s+crate::session::(" + IDENT + r"Cx(?:Ref)?)<'_>\s*\{")
 CX_BUILDER = re.compile(r"\bcx_(" + IDENT + r"?)(_ref)?\s*\(")
 
 
@@ -345,7 +354,8 @@ def _drop_item(text, head):
 def regen_cx_items(text, src, W, groups, state_type):
     """Rebuild every `<G>Cx`/`<G>CxRef` item in hub.rs from what moved code really reads (#1241 F3):
     members (own state, siblings, `hub`) only when a Cx impl body reads them, builders/`shared()` only
-    when called; test-only uses get `#[cfg(test)]`. Unread members would be dead fields."""
+    when called; test-only uses get `#[cfg(test)]` (a test-only `hub` member gets the `test-fixtures`
+    gate, matching what F4a-P2 gave hub-typed fields). Unread members would be dead fields."""
     uses = collections.defaultdict(lambda: collections.defaultdict(bool))   # type -> member -> prod?
     calls = collections.defaultdict(bool)                                   # builder -> prod?
     files = [(p, False) for p in sorted(src.rglob("*.rs")) if p.name != "hub.rs"]
@@ -382,7 +392,7 @@ def regen_cx_items(text, src, W, groups, state_type):
             if not built:
                 continue
             name, amp = (f"{t}Cx", "&'a mut ") if variant == "cx" else (f"{t}CxRef", "&'a ")
-            cfg = lambda k: "" if ms[k] else "#[cfg(test)] "
+            cfg = lambda k: "" if ms[k] else (FIXTURES_ATTR + " " if k == "hub" else "#[cfg(test)] ")
             hub_ty = "HubMut<'a>" if variant == "cx" else "HubRef<'a>"
             fields = "".join(f"    {cfg(k)}pub(crate) {k}: {hub_ty if k == 'hub' else amp + state_type[k]},\n"
                              for k in order(ms))
@@ -393,14 +403,14 @@ def regen_cx_items(text, src, W, groups, state_type):
             bname = f"cx_{g}" + ("" if variant == "cx" else "_ref")
             if bname in calls:
                 hub = ("HubMut { core: &mut s.core, catalogs: &s.catalogs, config: &s.config, "
-                       "#[cfg(test)] fixtures: &mut s.fixtures }") if variant == "cx" else "hub_ref(s)"
+                       f"{FIXTURES_ATTR} fixtures: &mut s.fixtures }}") if variant == "cx" else "hub_ref(s)"
                 init = " ".join(f"{cfg(k)}{k}: {hub if k == 'hub' else ('&mut s.' if variant == 'cx' else '&s.') + k},"
                                 for k in order(ms))
                 arg = "&mut WorldSession" if variant == "cx" else "&WorldSession"
                 text += (f"\n{'' if calls[bname] else '#[cfg(test)]' + chr(10)}pub(crate) fn {bname}(s: {arg}) -> "
                          f"{name}<'_> {{\n    {name} {{ {init} }}\n}}\n")
             if variant == "cx" and shared:
-                init = " ".join(f"{'' if ref[k] else '#[cfg(test)] '}{k}: "
+                init = " ".join(f"{'' if ref[k] else (FIXTURES_ATTR + ' ' if k == 'hub' else '#[cfg(test)] ')}{k}: "
                                 f"{'self.hub.shared()' if k == 'hub' else '&*self.' + k}," for k in order(ref))
                 text += (f"\n{'' if mut['shared'] else '#[cfg(test)]' + chr(10)}impl {name}<'_> {{\n"
                          f"    pub(crate) fn shared(&self) -> {t}CxRef<'_> {{\n        {t}CxRef {{ {init} }}\n    }}\n}}\n")

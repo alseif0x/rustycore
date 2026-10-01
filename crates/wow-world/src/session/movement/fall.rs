@@ -161,14 +161,14 @@ impl WorldSession {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl crate::session::state::MovementState {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn fall_damage_events_like_cpp(&self) -> &[MovementFallDamageEvent] {
         &self.fall_damage_events_like_cpp
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn player_movement_jump_like_cpp(&self) -> &wow_packet::packets::movement::JumpInfo {
         &self.player_movement_jump_like_cpp
     }
@@ -179,7 +179,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.fall_information_like_cpp());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some((
                 self.fixtures.movement.last_fall_time_like_cpp,
@@ -189,7 +189,7 @@ impl crate::session::HubRef<'_> {
         canonical
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn fall_information_like_cpp(&self) -> (u32, f32) {
         self.resolved_fall_information_like_cpp()
             .expect("test Player fall-information owner must resolve")
@@ -201,11 +201,11 @@ impl crate::session::HubMut<'_> {
         &mut self,
         jump: wow_packet::packets::movement::JumpInfo,
     ) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             self.fixtures.movement.player_movement_jump_like_cpp = jump;
         }
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         let _ = jump;
     }
 
@@ -256,12 +256,14 @@ impl crate::session::HubMut<'_> {
                 player.set_fall_information_like_cpp(time, z);
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical || self.core.player_handle_like_cpp.is_none() {
             self.fixtures.movement.last_fall_time_like_cpp = time;
             self.fixtures.movement.last_fall_z_like_cpp = z;
         }
-        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
+        canonical
+            || cfg!(any(test, feature = "test-fixtures"))
+                && self.core.player_handle_like_cpp.is_none()
     }
 }
 

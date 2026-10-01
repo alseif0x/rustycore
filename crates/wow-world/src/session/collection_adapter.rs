@@ -7,7 +7,7 @@
 use super::{AccountMount, AccountMountUpdate, HeirloomEntry, TOY_FLAG_FAVORITE_LIKE_CPP};
 use super::{TOY_FLAG_HAS_FANFARE_LIKE_CPP, WorldSession, collections};
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedTransmogCriteriaEvent {
     LearnAnyTransmogInSlot {
@@ -231,7 +231,7 @@ impl crate::session::HubMut<'_> {
                 player.install_collection_state_like_cpp(state.clone());
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             self.fixtures.collections.account_mounts_like_cpp = state.mounts_like_cpp().clone();
             self.fixtures
@@ -273,7 +273,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.gameplay_state().collections.clone());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(self.represented_player_collection_state_like_cpp());
         }
@@ -282,7 +282,7 @@ impl crate::session::HubRef<'_> {
 
     /// Collect the session's represented collection fields into the canonical
     /// collection state, as C++ hands the loaded `CollectionMgr` to the Player.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn represented_player_collection_state_like_cpp(
         &self,
     ) -> wow_entities::PlayerCollectionStateLikeCpp {

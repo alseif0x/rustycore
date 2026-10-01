@@ -772,7 +772,7 @@ impl crate::session::state::SessionCatalogs {
     }
 
     /// Set the item disenchant loot store for this session.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_item_disenchant_loot_store(&mut self, store: Arc<ItemDisenchantLootStore>) {
         self.item_disenchant_loot_store = Some(store);
     }
@@ -800,12 +800,12 @@ impl crate::session::state::SessionCatalogs {
             })
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_spell_enchant_proc_store(&mut self, store: Arc<SpellEnchantProcStoreLikeCpp>) {
         self.spell_catalogs.spell_enchant_proc_store = Some(store);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn spell_enchant_proc_event_like_cpp(
         &self,
         enchantment_id: u32,

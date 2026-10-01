@@ -408,7 +408,7 @@ impl WorldSession {
 
 impl crate::session::HubRef<'_> {
     /// Test accessor for the canonical five-second-rule state after a cast.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_player_mp5_regen_interrupted_like_cpp(&self) -> bool {
         self.core
             .with_owned_player_like_cpp(|player| {

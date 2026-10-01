@@ -184,16 +184,16 @@ impl WorldSession {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl crate::session::state::ProgressionState {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_talent_reset_script_hooks_like_cpp(
         &self,
     ) -> &[RepresentedTalentResetScriptHookLikeCpp] {
         &self.represented_talent_reset_script_hooks_like_cpp
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_talent_respec_criteria_events_like_cpp(
         &self,
     ) -> &[RepresentedTalentRespecCriteriaEventLikeCpp] {
@@ -347,7 +347,7 @@ impl crate::session::HubRef<'_> {
         })
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_update_talent_data_packet_like_cpp(
         &self,
     ) -> wow_packet::packets::misc::UpdateTalentData {
@@ -364,7 +364,7 @@ impl crate::session::HubRef<'_> {
                 .talent_runtime_like_cpp()
                 .next_reset_talents_cost_like_cpp(now_secs)
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             return self
                 .player_talent_runtime_snapshot_like_cpp()
@@ -379,7 +379,7 @@ impl crate::session::HubRef<'_> {
                 .talent_runtime_like_cpp()
                 .reset_talents_cost_like_cpp()
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             return Some(
                 self.fixtures
@@ -396,7 +396,7 @@ impl crate::session::HubRef<'_> {
                 .talent_runtime_like_cpp()
                 .reset_talents_time_secs_like_cpp()
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             return Some(
                 self.fixtures
@@ -426,7 +426,7 @@ impl crate::session::HubMut<'_> {
     /// Production has no such caller: every transition goes through a named
     /// operation. This exists so the active/detached/replacement coverage can
     /// still exercise the dispatch itself (#752).
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn mutate_player_talent_runtime_for_test_like_cpp<R>(
         &mut self,
         apply: impl FnOnce(&mut wow_entities::PlayerTalentRuntimeState) -> R,
@@ -506,19 +506,19 @@ impl crate::session::HubMut<'_> {
         &mut self,
         cost: u32,
     ) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         self.fixtures
             .progression
             .represented_talent_respec_criteria_events_like_cpp
             .push(
                 RepresentedTalentRespecCriteriaEventLikeCpp::MoneySpentOnRespecs { amount: cost },
             );
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         self.fixtures
             .progression
             .represented_talent_respec_criteria_events_like_cpp
             .push(RepresentedTalentRespecCriteriaEventLikeCpp::TotalRespecs { quantity: 1 });
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         let _ = cost;
     }
 
@@ -533,9 +533,9 @@ impl crate::session::HubMut<'_> {
         .is_some()
     }
 
-    #[cfg_attr(not(test), allow(unused_variables))]
+    #[cfg_attr(not(any(test, feature = "test-fixtures")), allow(unused_variables))]
     pub(crate) fn record_represented_talent_reset_script_hook_like_cpp(&mut self, no_cost: bool) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         self.fixtures
             .progression
             .represented_talent_reset_script_hooks_like_cpp
@@ -552,7 +552,7 @@ impl crate::session::HubMut<'_> {
 }
 
 impl crate::session::HubMut<'_> {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     fn store_player_talent_fixture_like_cpp(
         &mut self,
         runtime: wow_entities::PlayerTalentRuntimeState,
@@ -594,7 +594,7 @@ impl crate::session::HubMut<'_> {
         &mut self,
         f: impl FnOnce(&mut wow_entities::PlayerTalentRuntimeState) -> R,
     ) -> Option<R> {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             let mut runtime = self.shared().player_talent_runtime_snapshot_like_cpp()?;
             let result = f(&mut runtime);
@@ -629,7 +629,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.talent_runtime_like_cpp().clone());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             let mut runtime = wow_entities::PlayerTalentRuntimeState::default();
             runtime.replace_talent_groups_like_cpp(
@@ -679,7 +679,7 @@ impl crate::session::HubRef<'_> {
             .map(|runtime| runtime.active_group_like_cpp())
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     fn represented_spent_talent_points_count_like_cpp(&self) -> Option<u32> {
         let runtime = self.player_talent_runtime_snapshot_like_cpp()?;
         Some(

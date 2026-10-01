@@ -924,7 +924,7 @@ impl crate::session::HubMut<'_> {
     /// damaged `BATTLE_PET_REMOVED` row to `BATTLE_PET_CHANGED`. Rust keeps the
     /// represented removed row immutable here; if we decide to patch that legacy
     /// bug upstream, this is the intended shared behavior.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn battle_pet_heal_battle_pets_pct_like_cpp(&mut self, pct: u8) -> usize {
         let mut updated = Vec::new();
 
@@ -968,7 +968,7 @@ impl crate::session::HubMut<'_> {
         {
             return true;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             self.fixtures
                 .pets
@@ -976,7 +976,7 @@ impl crate::session::HubMut<'_> {
                 .represented_summoned_battle_pet_guid_like_cpp = pet_guid;
             true
         }
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         {
             false
         }
@@ -1014,14 +1014,14 @@ impl crate::session::HubRef<'_> {
         {
             return guid;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             self.fixtures
                 .pets
                 .battle_pet_test_fixture_like_cpp
                 .represented_summoned_battle_pet_guid_like_cpp
         }
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         {
             None
         }
@@ -1063,7 +1063,7 @@ impl crate::session::HubRef<'_> {
                 return snapshot;
             }
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             self.fixtures
                 .pets
@@ -1072,16 +1072,16 @@ impl crate::session::HubRef<'_> {
                 .get(&unit_guid)
                 .copied()
         }
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         {
             None
         }
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl crate::session::state::PetState {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn battle_pet_selection_store_like_cpp(
         &self,
     ) -> Option<&Arc<wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp>> {
@@ -1090,7 +1090,7 @@ impl crate::session::state::PetState {
             .as_ref()
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_battle_pet_purchase_selection_override_like_cpp(
         &mut self,
         selection: Option<wow_data::battle_pet_selection::BattlePetTrainerSelectionLikeCpp>,
@@ -1099,7 +1099,7 @@ impl crate::session::state::PetState {
             .battle_pet_purchase_selection_override_like_cpp = selection;
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn battle_pet_purchase_selection_override_like_cpp(
         &self,
     ) -> Option<wow_data::battle_pet_selection::BattlePetTrainerSelectionLikeCpp> {
@@ -1107,32 +1107,32 @@ impl crate::session::state::PetState {
             .battle_pet_purchase_selection_override_like_cpp
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_battle_pet_breed_state_store(&mut self, store: Arc<BattlePetBreedStateStore>) {
         self.battle_pet_test_fixture_like_cpp
             .battle_pet_breed_state_store = Some(store);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_battle_pet_species_store(&mut self, store: Arc<BattlePetSpeciesStore>) {
         self.battle_pet_test_fixture_like_cpp
             .battle_pet_species_store = Some(store);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_battle_pet_species_state_store(&mut self, store: Arc<BattlePetSpeciesStateStore>) {
         self.battle_pet_test_fixture_like_cpp
             .battle_pet_species_state_store = Some(store);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_battle_pet_xp_game_table(&mut self, table: Arc<BattlePetXpGameTableLikeCpp>) {
         self.battle_pet_test_fixture_like_cpp
             .battle_pet_xp_game_table = Some(table);
     }
 
     /// Test/setup seam for represented `BattlePetMgr::_pets`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn add_represented_battle_pet_like_cpp(
         &mut self,
         pet_guid: ObjectGuid,
@@ -1148,7 +1148,7 @@ impl crate::session::state::PetState {
     }
 
     /// C++ `BattlePetMgr::ClearFanfare`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn battle_pet_clear_fanfare_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
         let Some(pet) = self
             .battle_pet_test_fixture_like_cpp
@@ -1166,7 +1166,7 @@ impl crate::session::state::PetState {
     }
 
     /// C++ `WorldSession::HandleBattlePetSetFlags` flag mutation.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn battle_pet_set_flags_like_cpp(
         &mut self,
         pet_guid: ObjectGuid,
@@ -1193,20 +1193,20 @@ impl crate::session::state::PetState {
         true
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_battle_pet_unique_owned_criteria_like_cpp(&self) -> u32 {
         self.battle_pet_test_fixture_like_cpp
             .represented_battle_pet_unique_owned_criteria_like_cpp
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_battle_pet_learned_new_pet_criteria_like_cpp(&self) -> &[u32] {
         &self
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pet_learned_new_pet_criteria_like_cpp
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_battle_pet_cage_items_like_cpp(
         &self,
     ) -> &[RepresentedBattlePetCageItemLikeCpp] {
@@ -1215,7 +1215,7 @@ impl crate::session::state::PetState {
             .represented_battle_pet_cage_items_like_cpp
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_represented_battle_pet_query_companion_like_cpp(
         &mut self,
         unit_guid: ObjectGuid,

@@ -24,7 +24,7 @@ pub(crate) struct RepresentedPlayerSkillLikeCpp {
     pub state: RepresentedPlayerSkillStateLikeCpp,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) fn is_non_durable_skill_tombstone_like_cpp(
     skill: &RepresentedPlayerSkillLikeCpp,
 ) -> bool {

@@ -54,7 +54,7 @@ impl crate::session::HubMut<'_> {
             .core
             .with_owned_player_like_cpp(|player| player.unit().collision_height_like_cpp())
             .or_else(|| {
-                #[cfg(test)]
+                #[cfg(any(test, feature = "test-fixtures"))]
                 {
                     return self
                         .core
@@ -62,7 +62,7 @@ impl crate::session::HubMut<'_> {
                         .is_none()
                         .then_some(self.fixtures.movement.player_collision_height_like_cpp);
                 }
-                #[cfg(not(test))]
+                #[cfg(not(any(test, feature = "test-fixtures")))]
                 {
                     None
                 }

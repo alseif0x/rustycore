@@ -34,7 +34,7 @@ pub(crate) use wow_persistence::{
     DurableBattlePetAddLikeCpp, DurableBattlePetRowLikeCpp, DurableBattlePetSlotLikeCpp,
     LoadedBattlePetAccountLikeCpp, PersistBattlePetAddOutcomeLikeCpp,
 };
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use wow_persistence::{
     DurableBattlePetAddReceiptLikeCpp, PersistenceFutureLikeCpp as PersistenceFuture,
 };

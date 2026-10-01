@@ -708,7 +708,7 @@ impl crate::session::HubRef<'_> {
         store: &wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp,
         species_entry: &wow_data::BattlePetSpeciesEntry,
     ) -> Option<BattlePetTrainerSelectionLikeCpp> {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if let Some(selection) = self
             .fixtures
             .pets

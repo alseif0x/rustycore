@@ -281,7 +281,7 @@ impl crate::session::state::SessionCore {
     }
 
     /// Install the process-wide C++ `sObjectMgr->GenerateVoidStorageItemId()` mirror.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_void_storage_item_id_generator_like_cpp(
         &mut self,
         generator: Arc<VoidStorageItemIdGeneratorLikeCpp>,
@@ -327,7 +327,7 @@ impl crate::session::state::SessionCore {
     }
 
     /// Get the GUID generator test fixture.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn guid_generator(&self) -> Option<&Arc<ObjectGuidGenerator>> {
         self.guid_generator.as_ref()
     }

@@ -257,9 +257,9 @@ impl WorldSession {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl crate::session::state::TaxiVehicleState {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_player_on_transport_like_cpp(&mut self, on_transport: bool) {
         self.player_on_transport_like_cpp = on_transport;
     }
@@ -301,14 +301,14 @@ impl crate::session::HubRef<'_> {
             ));
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn active_player_transport_server_time_like_cpp(&self) -> i32 {
         self.active_player_update_state_like_cpp()
             .expect("test active Player owner must resolve")
             .1
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_taxi_benchmark_mode_like_cpp(&self) -> bool {
         let Some(guid) = self.core.player_guid() else {
             return false;
@@ -319,21 +319,21 @@ impl crate::session::HubRef<'_> {
             .unwrap_or(false)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn taxi_destinations_like_cpp(&self) -> Vec<u32> {
         self.player_taxi_state_snapshot_like_cpp()
             .map(|taxi| taxi.destinations_like_cpp().to_vec())
             .expect("test Player taxi owner must resolve")
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn taxi_unit_flags_like_cpp(&self) -> UnitFlags {
         self.player_taxi_state_snapshot_like_cpp()
             .map(|taxi| UnitFlags::from_bits_retain(taxi.unit_flags_like_cpp()))
             .expect("test Player taxi owner must resolve")
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn taxi_mounted_like_cpp(&self) -> bool {
         self.player_taxi_state_snapshot_like_cpp()
             .map(|taxi| taxi.mounted_like_cpp())
@@ -347,7 +347,7 @@ impl crate::session::HubRef<'_> {
     }
 
     pub(in crate::session) fn player_on_transport_state_like_cpp(&self) -> Option<bool> {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             return Some(self.fixtures.vehicles.player_on_transport_like_cpp);
         }
@@ -381,11 +381,11 @@ impl crate::session::HubMut<'_> {
                 );
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical {
             return true;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             self.fixtures.vehicles.player_mount_vehicle_kit_like_cpp = vehicle_kit;
             return true;
@@ -398,11 +398,11 @@ impl crate::session::HubMut<'_> {
             .core
             .with_owned_player_mut_like_cpp(|player| player.clear_mount_vehicle_kit_like_cpp())
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical {
             return true;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             self.fixtures.vehicles.player_mount_vehicle_kit_like_cpp = None;
             return true;
@@ -415,11 +415,11 @@ impl crate::session::HubMut<'_> {
             .core
             .with_owned_player_mut_like_cpp(|player| player.remove_mount_vehicle_kit_like_cpp())
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical {
             return true;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             if let Some(vehicle_kit) = self
                 .fixtures
@@ -448,7 +448,7 @@ impl crate::session::HubMut<'_> {
                 player.eject_mount_vehicle_passenger_like_cpp(passenger_guid)
             })
             .unwrap_or(false);
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             return self
                 .fixtures
@@ -479,7 +479,7 @@ impl crate::session::HubMut<'_> {
         canonical
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn mutate_player_mount_vehicle_kit_like_cpp<R>(
         &mut self,
         update: impl FnOnce(&mut Option<Vehicle>) -> R,
@@ -512,9 +512,9 @@ impl crate::session::HubMut<'_> {
             .as_ref()
             .and_then(|store| store.get(vehicle_id))
         else {
-            #[cfg(not(test))]
+            #[cfg(not(any(test, feature = "test-fixtures")))]
             return false;
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             {
                 if self.catalogs.vehicle_store.is_some() {
                     return false;
@@ -567,7 +567,7 @@ impl crate::session::HubMut<'_> {
             .unwrap_or_default();
         let _accessory_plan =
             vehicle_kit.install_all_accessories_plan_like_cpp(false, &accessories);
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             self.fixtures.vehicles.player_mount_vehicle_id_like_cpp = vehicle_id;
             self.fixtures
@@ -607,14 +607,14 @@ impl crate::session::HubMut<'_> {
             });
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_active_player_transport_server_time_like_cpp(&mut self, value: i32) {
         let _ = self.mutate_active_player_update_state_like_cpp(|state| {
             state.active_transport_server_time = value;
         });
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn replace_player_taxi_state_like_cpp(
         &mut self,
         state: wow_entities::PlayerTaxiState,
@@ -625,7 +625,7 @@ impl crate::session::HubMut<'_> {
                 player.replace_taxi_state_like_cpp(state.clone())
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             self.fixtures.vehicles.taxi_destinations_like_cpp =
                 state.destinations_like_cpp().to_vec();
@@ -640,12 +640,12 @@ impl crate::session::HubMut<'_> {
         canonical
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn mutate_player_taxi_state_like_cpp<R>(
         &mut self,
         f: impl FnOnce(&mut wow_entities::PlayerTaxiState) -> R,
     ) -> Option<R> {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             let mut state = self.shared().player_taxi_state_snapshot_like_cpp()?;
             let result = f(&mut state);
@@ -667,7 +667,7 @@ impl crate::session::HubMut<'_> {
         if let Some(result) = canonical {
             return result;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_taxi_state_like_cpp(|taxi| {
@@ -689,7 +689,7 @@ impl crate::session::HubMut<'_> {
         if canonical {
             return true;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_taxi_state_like_cpp(|taxi| {
@@ -700,26 +700,26 @@ impl crate::session::HubMut<'_> {
         false
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_taxi_destinations_like_cpp(&mut self, destinations: Vec<u32>) {
         let _ = self.mutate_player_taxi_state_like_cpp(|taxi| {
             taxi.replace_destinations_like_cpp(destinations);
         });
     }
 
-    #[cfg_attr(not(test), allow(unused_variables))]
+    #[cfg_attr(not(any(test, feature = "test-fixtures")), allow(unused_variables))]
     pub(crate) fn record_represented_activate_taxi_like_cpp(
         &mut self,
         request: RepresentedActivateTaxiLikeCpp,
     ) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         self.fixtures
             .vehicles
             .represented_activate_taxi_requests_like_cpp
             .push(request);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_taxi_flight_state_like_cpp(
         &mut self,
         current_node: RepresentedTaxiFlightNodeLikeCpp,
@@ -733,7 +733,7 @@ impl crate::session::HubMut<'_> {
         });
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_taxi_cleanup_state_like_cpp(&mut self, unit_flags: UnitFlags, mounted: bool) {
         let _ = self.mutate_player_taxi_state_like_cpp(|taxi| {
             taxi.set_taxi_cleanup_state_like_cpp(unit_flags.bits(), mounted);
@@ -761,7 +761,7 @@ impl crate::session::HubMut<'_> {
         info: Option<wow_packet::packets::movement::TransportInfo>,
     ) {
         let info = info.filter(|info| !info.guid.is_empty());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             self.fixtures.vehicles.player_on_transport_like_cpp = info.is_some();
             self.fixtures.vehicles.player_transport_login_state_like_cpp =
@@ -797,7 +797,7 @@ impl crate::session::HubMut<'_> {
                 player.set_vehicle_seat_like_cpp(flags, seat_id);
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical || self.core.player_handle_like_cpp.is_none() {
             self.fixtures.vehicles.player_vehicle_seat_flags_like_cpp = flags;
             self.fixtures.vehicles.player_vehicle_seat_id_like_cpp = seat_id;
@@ -815,7 +815,7 @@ impl crate::session::HubRef<'_> {
             let state = player.gameplay_state();
             (state.vehicle_seat_flags, state.vehicle_seat_id)
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some((
                 self.fixtures.vehicles.player_vehicle_seat_flags_like_cpp,
@@ -831,7 +831,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.mount_vehicle_kit_snapshot_like_cpp());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
                 self.fixtures
@@ -868,7 +868,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.taxi_state_like_cpp().clone());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
                 wow_entities::PlayerTaxiState::from_represented_parts_like_cpp(
@@ -911,7 +911,7 @@ impl crate::session::HubRef<'_> {
     pub(in crate::session) fn player_transport_state_like_cpp(
         &self,
     ) -> Option<Option<wow_entities::PlayerTransportState>> {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             return Some(
                 self.fixtures

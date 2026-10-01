@@ -76,7 +76,7 @@ impl SessionPlayerController {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) struct PlayerTransportLoginStateLikeCpp {
     pub(in crate::session) info: wow_packet::packets::movement::TransportInfo,
 }
@@ -355,7 +355,7 @@ impl crate::session::HubMut<'_> {
         let _canonical = self.core.with_owned_player_mut_like_cpp(|player| {
             player.unit_mut().set_faction(faction_template);
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if _canonical.is_some() || self.core.player_handle_like_cpp.is_none() {
             self.fixtures.identity.player_faction_template_like_cpp =
                 (faction_template != 0).then_some(faction_template);
@@ -367,7 +367,7 @@ impl crate::session::HubMut<'_> {
             .core
             .with_owned_player_mut_like_cpp(|player| player.set_create_mode_like_cpp(create_mode))
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if _canonical || self.core.player_handle_like_cpp.is_none() {
             self.fixtures.identity.player_create_mode_like_cpp = create_mode;
             return true;
@@ -375,7 +375,7 @@ impl crate::session::HubMut<'_> {
         _canonical
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_player_character_points_like_cpp(&mut self, points: i32) -> bool {
         let canonical = self
             .core
@@ -383,14 +383,16 @@ impl crate::session::HubMut<'_> {
                 player.set_character_points_like_cpp(points);
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical || self.core.player_handle_like_cpp.is_none() {
             self.fixtures.progression.player_character_points_like_cpp = points;
         }
-        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
+        canonical
+            || cfg!(any(test, feature = "test-fixtures"))
+                && self.core.player_handle_like_cpp.is_none()
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_player_faction_template_like_cpp(&mut self, faction_template: u32) {
         self.fixtures.identity.player_faction_template_like_cpp =
             (faction_template != 0).then_some(faction_template);
@@ -517,7 +519,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.gameplay_state().world_local);
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
                 wow_entities::PlayerWorldLocalState::from_represented_parts_like_cpp(
@@ -548,7 +550,7 @@ impl crate::session::HubRef<'_> {
         {
             return Some(name);
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             return self.fixtures.identity.player_name.clone();
         }
@@ -567,14 +569,14 @@ impl crate::session::HubRef<'_> {
                 .ok()
                 .filter(|faction| *faction != 0)
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return self.fixtures.identity.player_faction_template_like_cpp;
         }
         canonical.flatten()
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_can_swim_to_fly_transition_like_cpp(&self) -> bool {
         self.resolved_can_swim_to_fly_transition_like_cpp()
             .expect("test Player movement owner must resolve")
@@ -587,7 +589,7 @@ impl crate::session::HubRef<'_> {
                 .movement_control
                 .can_swim_to_fly_transition
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
                 self.fixtures
@@ -602,7 +604,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self.core.with_owned_player_like_cpp(|player| {
             player.gameplay_state().movement_control.scale_duration
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(self.fixtures.identity.player_scale_duration_like_cpp);
         }
@@ -616,11 +618,11 @@ impl crate::session::HubRef<'_> {
         {
             return race;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             return self.fixtures.identity.player_race;
         }
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         if self.core.player_handle_like_cpp.is_some() {
             return 0;
         }
@@ -638,11 +640,11 @@ impl crate::session::HubRef<'_> {
         {
             return class;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             return self.fixtures.identity.player_class;
         }
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         if self.core.player_handle_like_cpp.is_some() {
             return 0;
         }
@@ -657,7 +659,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(Player::create_mode_like_cpp);
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(self.fixtures.identity.player_create_mode_like_cpp);
         }
@@ -671,11 +673,11 @@ impl crate::session::HubRef<'_> {
         {
             return level;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             return self.fixtures.identity.player_level;
         }
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         if self.core.player_handle_like_cpp.is_some() {
             return 0;
         }
@@ -693,11 +695,11 @@ impl crate::session::HubRef<'_> {
         {
             return gender;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             return self.fixtures.identity.player_gender;
         }
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         if self.core.player_handle_like_cpp.is_some() {
             return 0;
         }

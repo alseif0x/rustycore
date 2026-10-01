@@ -12,7 +12,7 @@ pub(crate) struct HubRef<'a> {
     pub(crate) core: &'a SessionCore,
     pub(crate) catalogs: &'a SessionCatalogs,
     pub(in crate::session) config: &'a SessionWorldConfig,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fixtures: &'a SessionFixtures,
 }
 
@@ -21,7 +21,7 @@ pub(crate) struct HubMut<'a> {
     pub(crate) core: &'a mut SessionCore,
     pub(crate) catalogs: &'a SessionCatalogs,
     pub(in crate::session) config: &'a SessionWorldConfig,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fixtures: &'a mut SessionFixtures,
 }
 
@@ -31,7 +31,7 @@ impl HubMut<'_> {
             core: &*self.core,
             catalogs: self.catalogs,
             config: self.config,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             fixtures: &*self.fixtures,
         }
     }
@@ -43,7 +43,7 @@ pub(crate) fn hub_ref(s: &WorldSession) -> HubRef<'_> {
         core: &s.core,
         catalogs: &s.catalogs,
         config: &s.config,
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         fixtures: &s.fixtures,
     }
 }
@@ -53,7 +53,7 @@ pub(crate) fn hub_mut(s: &mut WorldSession) -> HubMut<'_> {
         core: &mut s.core,
         catalogs: &s.catalogs,
         config: &s.config,
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         fixtures: &mut s.fixtures,
     }
 }
@@ -66,7 +66,7 @@ pub(crate) fn split_interaction(s: &mut WorldSession) -> (&mut InteractionState,
             core: &s.core,
             catalogs: &s.catalogs,
             config: &s.config,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             fixtures: &s.fixtures,
         },
     )
@@ -85,7 +85,7 @@ pub(crate) fn split_social_mut(s: &mut WorldSession) -> (&mut SessionSocialLimit
             core: &mut s.core,
             catalogs: &s.catalogs,
             config: &s.config,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             fixtures: &mut s.fixtures,
         },
     )
@@ -104,7 +104,7 @@ pub(crate) fn split_visibility_mut(s: &mut WorldSession) -> (&mut VisibilityStat
             core: &mut s.core,
             catalogs: &s.catalogs,
             config: &s.config,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             fixtures: &mut s.fixtures,
         },
     )
@@ -123,7 +123,7 @@ pub(crate) fn split_spell_state_mut(s: &mut WorldSession) -> (&mut SessionSpellS
             core: &mut s.core,
             catalogs: &s.catalogs,
             config: &s.config,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             fixtures: &mut s.fixtures,
         },
     )
@@ -142,7 +142,7 @@ pub(crate) fn split_instances_mut(s: &mut WorldSession) -> (&mut InstanceState, 
             core: &mut s.core,
             catalogs: &s.catalogs,
             config: &s.config,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             fixtures: &mut s.fixtures,
         },
     )
@@ -163,7 +163,7 @@ pub(crate) fn split_lifecycle_mut(
             core: &mut s.core,
             catalogs: &s.catalogs,
             config: &s.config,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             fixtures: &mut s.fixtures,
         },
     )
@@ -184,7 +184,7 @@ pub(crate) fn split_world_entities_mut(
             core: &mut s.core,
             catalogs: &s.catalogs,
             config: &s.config,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             fixtures: &mut s.fixtures,
         },
     )
@@ -203,7 +203,7 @@ pub(crate) fn split_inventory_mut(s: &mut WorldSession) -> (&mut InventoryState,
             core: &mut s.core,
             catalogs: &s.catalogs,
             config: &s.config,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             fixtures: &mut s.fixtures,
         },
     )
@@ -222,7 +222,7 @@ pub(crate) fn split_loot_mut(s: &mut WorldSession) -> (&mut LootState, HubMut<'_
             core: &mut s.core,
             catalogs: &s.catalogs,
             config: &s.config,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             fixtures: &mut s.fixtures,
         },
     )
@@ -241,7 +241,7 @@ pub(crate) fn split_quest_state_mut(s: &mut WorldSession) -> (&mut SessionQuestS
             core: &mut s.core,
             catalogs: &s.catalogs,
             config: &s.config,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             fixtures: &mut s.fixtures,
         },
     )
@@ -297,7 +297,7 @@ pub(crate) fn cx_lifecycle(s: &mut WorldSession) -> LifecycleCx<'_> {
             core: &mut s.core,
             catalogs: &s.catalogs,
             config: &s.config,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             fixtures: &mut s.fixtures,
         },
     }
@@ -334,7 +334,7 @@ pub(crate) fn cx_loot(s: &mut WorldSession) -> LootCx<'_> {
             core: &mut s.core,
             catalogs: &s.catalogs,
             config: &s.config,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             fixtures: &mut s.fixtures,
         },
     }
@@ -377,7 +377,7 @@ pub(crate) fn cx_pets(s: &mut WorldSession) -> PetsCx<'_> {
             core: &mut s.core,
             catalogs: &s.catalogs,
             config: &s.config,
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             fixtures: &mut s.fixtures,
         },
     }

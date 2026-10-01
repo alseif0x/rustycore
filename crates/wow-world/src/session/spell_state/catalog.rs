@@ -94,7 +94,7 @@ impl WorldSession {
 }
 
 impl crate::session::state::SessionCatalogs {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_player_create_custom_spell_store_like_cpp(
         &mut self,
         store: Arc<PlayerCreateInfoCustomSpellStoreLikeCpp>,
@@ -228,12 +228,12 @@ impl WorldSession {
 }
 
 impl crate::session::state::SessionCatalogs {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_spell_totem_model_store(&mut self, store: Arc<SpellTotemModelStoreLikeCpp>) {
         self.spell_catalogs.set_spell_totem_model_store(store);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_serverside_spell_store(&mut self, store: Arc<ServersideSpellStoreLikeCpp>) {
         self.spell_catalogs.set_serverside_spell_store(store);
     }

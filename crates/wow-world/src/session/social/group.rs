@@ -405,7 +405,7 @@ impl WorldSession {
 }
 
 impl crate::session::state::SessionWorldConfig {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn group_invite_policy_for_test_like_cpp(&self) -> GroupInvitePolicyLikeCpp {
         GroupInvitePolicyLikeCpp {
             allow_gm_group: self.allow_gm_group_like_cpp,
@@ -414,17 +414,17 @@ impl crate::session::state::SessionWorldConfig {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_party_raid_warnings_like_cpp(&mut self, enabled: bool) {
         self.party_raid_warnings_like_cpp = enabled;
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_allow_gm_group_like_cpp(&mut self, enabled: bool) {
         self.allow_gm_group_like_cpp = enabled;
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_party_level_req_like_cpp(&mut self, level: u32) {
         self.party_level_req_like_cpp = level;
     }

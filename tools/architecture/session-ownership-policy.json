@@ -44,7 +44,7 @@
           "type": "SessionFixtures",
           "visibility": "pub (crate)",
           "cfg": [
-            "cfg (test)"
+            "cfg (any (test , feature = \"test-fixtures\"))"
           ],
           "source_class": "test_fixture"
         },
@@ -54988,21 +54988,6 @@
         },
         {
           "package": "wow-world",
-          "module": "crate::player::directory_test_fixtures",
-          "source": "crates/wow-world/src/player/directory_test_fixtures.rs",
-          "enclosing": "module",
-          "registry": "PlayerRegistry",
-          "operation": "import_alias",
-          "symbol": "PlayerRegistry",
-          "visibility": "",
-          "cfg": [
-            "cfg (any (test , feature = \"test-fixtures\"))"
-          ],
-          "fingerprint": "crate::{SharedCanonicalMapManager,player_directory::{PlayerRegistry,PlayerSessionRegistrationLikeCpp}}",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
           "module": "crate::player_directory::group_state",
           "source": "crates/wow-world/src/lib.rs",
           "enclosing": "module",
@@ -68730,7 +68715,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:crate :: session :: HubRef < '_ >::fn mover_movement_force_mod_magnitude_like_cpp (& self , mover_guid : ObjectGuid ,) -> Option < f32 >|body=fnv1a64x2:7fbd9eebb26684f09652512e9a40bd33:len=1222|evidence=fnv1a64x2:27c38cc1c7a92a7e8d381e22e84fd5e5:len=795",
+          "fingerprint": "signature=impl:crate :: session :: HubRef < '_ >::fn mover_movement_force_mod_magnitude_like_cpp (& self , mover_guid : ObjectGuid ,) -> Option < f32 >|body=fnv1a64x2:20115af6dfc38825f6e8462762beeb74:len=1256|evidence=fnv1a64x2:27c38cc1c7a92a7e8d381e22e84fd5e5:len=795",
           "cfg": [],
           "multiplicity": 1
         },
@@ -68898,7 +68883,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:crate :: session :: HubRef < '_ >::fn mover_spline_finalized_like_cpp (& self , mover_guid : ObjectGuid) -> Option < bool >|body=fnv1a64x2:213d2a59638a27772eb24905d47bca3c:len=1123|evidence=fnv1a64x2:f9da871a27e20fad549d81320b85520e:len=795",
+          "fingerprint": "signature=impl:crate :: session :: HubRef < '_ >::fn mover_spline_finalized_like_cpp (& self , mover_guid : ObjectGuid) -> Option < bool >|body=fnv1a64x2:fe20a9394f711faa859ee59965cef31d:len=1157|evidence=fnv1a64x2:f9da871a27e20fad549d81320b85520e:len=795",
           "cfg": [],
           "multiplicity": 1
         },
@@ -69010,7 +68995,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=struct::SessionCore|surface=fnv1a64x2:6124a707ee49ba12a7709d1d8ea28cb5:len=5420|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
+          "fingerprint": "signature=struct::SessionCore|surface=fnv1a64x2:2f179fecce2820df674c795f49f9f6d2:len=5658|evidence=fnv1a64x2:2e6cfac122e1f70b6b6193924d25bd6c:len=187",
           "cfg": [],
           "multiplicity": 1
         },

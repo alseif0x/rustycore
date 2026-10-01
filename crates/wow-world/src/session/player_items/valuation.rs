@@ -603,7 +603,7 @@ impl crate::session::state::SessionCatalogs {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn item_valuation_catalogs_for_test_like_cpp(&self) -> ItemValuationCatalogsLikeCpp {
         let mut catalogs = ItemValuationCatalogsLikeCpp::default();
         if let Some(store) = &self.import_price_stores {

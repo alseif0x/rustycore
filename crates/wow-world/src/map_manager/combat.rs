@@ -363,7 +363,7 @@ impl WorldCreature {
             .map(|(slot, _)| slot)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn creature_spell_due_in_ms_for_test(&self, slot: usize) -> Option<u64> {
         self.creature_spell_due_at_ms_like_cpp
             .get(slot)

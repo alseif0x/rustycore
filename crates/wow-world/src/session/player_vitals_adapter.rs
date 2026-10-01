@@ -72,7 +72,7 @@ impl WorldSession {
 }
 
 impl crate::session::HubMut<'_> {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_player_game_master_like_cpp(&mut self, is_game_master: bool) {
         let mut canonical = self
             .core
@@ -96,13 +96,13 @@ impl crate::session::HubMut<'_> {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_player_mounted_like_cpp(&mut self, mounted: bool) {
         let display_id = if mounted { 1 } else { 0 };
         let _ = self.set_player_mount_presentation_like_cpp(display_id, mounted);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_player_cheat_god_like_cpp(&mut self, enabled: bool) {
         let canonical = self
             .core
@@ -115,7 +115,7 @@ impl crate::session::HubMut<'_> {
 }
 
 impl crate::session::HubRef<'_> {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn player_is_alive_like_cpp(&self) -> bool {
         self.resolved_player_is_alive_like_cpp().unwrap()
     }
@@ -130,7 +130,7 @@ impl crate::session::HubRef<'_> {
             .unwrap_or(false)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn player_mounted_like_cpp(&self) -> bool {
         self.resolved_player_mounted_like_cpp()
             .expect("test Player presentation owner must resolve")
@@ -148,7 +148,7 @@ impl crate::session::HubRef<'_> {
             let health = player.unit().data().health.min(u64::from(max_health)) as u32;
             (health, max_health, player.unit().is_alive() && health > 0)
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some((
                 self.fixtures.combat.player_health_like_cpp,

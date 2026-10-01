@@ -143,9 +143,9 @@ impl crate::session::PetsCx<'_> {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl crate::session::state::PetState {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_pet_speed_propagations_like_cpp(&self) -> u32 {
         self.represented_pet_speed_propagations_like_cpp
     }
@@ -236,7 +236,7 @@ impl crate::session::HubRef<'_> {
                 });
             (react_state, command_state)
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some((
                 self.fixtures.pets.represented_pet_react_state_like_cpp,
@@ -246,12 +246,12 @@ impl crate::session::HubRef<'_> {
         canonical
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_pet_guid_like_cpp(&self) -> Option<ObjectGuid> {
         self.player_pet_guid_state_like_cpp().flatten()
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_pet_movement_speed_rate_like_cpp(
         &self,
         move_type: UnitMoveTypeLikeCpp,
@@ -352,7 +352,7 @@ impl crate::session::HubMut<'_> {
                     .command_state = command_state;
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if !canonical && self.core.player_handle_like_cpp.is_none() {
             self.fixtures.pets.represented_pet_react_state_like_cpp = react_state;
             self.fixtures.pets.represented_pet_command_state_like_cpp = command_state;
@@ -409,7 +409,7 @@ impl crate::session::HubMut<'_> {
                 player.set_pet_guid_like_cpp(pet_guid);
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical || self.core.player_handle_like_cpp.is_none() {
             self.fixtures.pets.represented_pet_guid_like_cpp = pet_guid;
             return true;
@@ -429,7 +429,7 @@ impl crate::session::HubMut<'_> {
                 })
                 .is_some();
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             let mut state = self
                 .shared()
@@ -450,7 +450,7 @@ impl crate::session::HubMut<'_> {
                 state.temporary_mount_react_state;
             true
         }
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         {
             let _ = update;
             false
@@ -500,7 +500,7 @@ impl crate::session::HubMut<'_> {
             .is_some()
         {
             let _ = self.set_player_pet_guid_like_cpp(None);
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             {
                 self.fixtures.pets.represented_pet_created_by_spell_like_cpp = 0;
                 self.fixtures.pets.represented_pet_react_state_like_cpp =
@@ -511,7 +511,7 @@ impl crate::session::HubMut<'_> {
             let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
                 state.temporary_mount_react_state = None;
             });
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             {
                 self.fixtures
                     .pets
@@ -548,7 +548,7 @@ impl crate::session::HubMut<'_> {
         let changed = match canonical_changed {
             Some(changed) => changed,
             None => {
-                #[cfg(test)]
+                #[cfg(any(test, feature = "test-fixtures"))]
                 {
                     if self.core.player_handle_like_cpp.is_none() {
                         if self
@@ -567,7 +567,7 @@ impl crate::session::HubMut<'_> {
                         false
                     }
                 }
-                #[cfg(not(test))]
+                #[cfg(not(any(test, feature = "test-fixtures")))]
                 {
                     false
                 }
@@ -576,7 +576,7 @@ impl crate::session::HubMut<'_> {
         if !changed {
             return;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             self.fixtures
                 .pets
@@ -596,7 +596,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.gameplay_state().pet_guid);
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(self.fixtures.pets.represented_pet_guid_like_cpp);
         }
@@ -609,7 +609,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.pet_lifecycle_state_like_cpp().clone());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(PlayerPetLifecycleStateLikeCpp {
                 stable: self.fixtures.pets.represented_pet_stable_like_cpp.clone(),

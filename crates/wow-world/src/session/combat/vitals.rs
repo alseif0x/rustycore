@@ -93,7 +93,7 @@ impl WorldSession {
 }
 
 impl crate::session::HubRef<'_> {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn player_health_like_cpp(&self) -> u32 {
         self.resolved_player_vitals_like_cpp().unwrap().0
     }
@@ -126,7 +126,7 @@ impl crate::session::HubMut<'_> {
                 player.unit_mut().set_power(power_type, current.max(0));
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if synced || self.core.player_handle_like_cpp.is_none() {
             self.fixtures.combat.represented_player_base_mana_like_cpp = base_mana.max(0);
             self.set_represented_player_power_slot_like_cpp(0, current, Some(max));
@@ -163,7 +163,7 @@ impl crate::session::HubMut<'_> {
                 player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
             )
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         let result = canonical.or_else(|| {
             if self.core.player_handle_like_cpp.is_some() {
                 return None;
@@ -182,9 +182,9 @@ impl crate::session::HubMut<'_> {
                 )
             })
         });
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         let result = canonical;
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             let (current, max) = result.unwrap_or((health, max_health));
             self.fixtures.combat.player_health_like_cpp = current;
@@ -217,7 +217,7 @@ impl crate::session::HubMut<'_> {
                     player.unit().get_max_power(power_type),
                 )
             });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if let Some((current, max)) = result.or_else(|| {
             (self.core.player_handle_like_cpp.is_none()).then_some((
                 self.fixtures.combat.represented_player_powers_like_cpp[0].unwrap_or(0),
@@ -243,7 +243,7 @@ impl crate::session::HubMut<'_> {
                 player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
             )
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         let result = canonical.or_else(|| {
             if self.core.player_handle_like_cpp.is_some() {
                 return None;
@@ -263,9 +263,9 @@ impl crate::session::HubMut<'_> {
                     ))
                 })
         });
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         let result = canonical;
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if let Some((current, max)) = result {
             self.fixtures.combat.player_health_like_cpp = current;
             self.fixtures.combat.player_max_health_like_cpp = max;
@@ -274,7 +274,7 @@ impl crate::session::HubMut<'_> {
         result
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_represented_player_power_slot_like_cpp(
         &mut self,
         slot: usize,
@@ -300,7 +300,7 @@ impl crate::session::state::SessionCore {
         &self,
         f: impl FnOnce(&mut Player) -> R,
     ) -> Option<R> {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.player_handle_like_cpp.is_none() {
             return self.mutate_canonical_player_like_cpp(f);
         }

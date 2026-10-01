@@ -10,61 +10,61 @@ use super::*;
 pub(in crate::session) struct PlayerPresentationState {
     /// Handle-less unit-test fallback; production C++ `Player::_CUFProfiles` lives on canonical
     /// `wow_entities::Player`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) cuf_profiles_like_cpp:
         Vec<Option<wow_packet::packets::misc::CufProfile>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) cuf_profiles_loaded_like_cpp: bool,
     /// Represented stand state used by movement side effects until UnitData owns it.
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_stand_state_like_cpp: UnitStandStateType,
     /// Test-only successful represented->live evidence. Production emits
     /// bounded structured telemetry instead of retaining client-controlled
     /// history for the lifetime of the session.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_live_applications_like_cpp:
         Vec<RepresentedLiveApplicationLikeCpp>,
     /// Represented `UnitData::EmoteState`, used to clear stateful emotes on movement like C++.
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_emote_state_like_cpp: u32,
     /// Represented `ActivePlayerData::LocalFlags`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) active_player_local_flags_like_cpp: u32,
     /// Represented `ActivePlayerData::TransportServerTime`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) active_player_transport_server_time_like_cpp: i32,
     /// Represented `ActivePlayerData::MultiActionBars`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) active_player_multi_action_bars_like_cpp: u8,
     /// Test-only action-button owner for fixtures without a canonical Player.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_action_buttons_like_cpp:
         [u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS],
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_action_buttons_loaded_like_cpp: bool,
     /// Represented accepted barber-shop requests until ChrCustomization DB2/cost/update runtime is canonical.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_alter_appearance_requests_like_cpp:
         Vec<RepresentedAlterAppearanceLikeCpp>,
     /// Represented accepted barber confirmation requests until Player::SetCustomizations is canonical.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_confirm_barbers_choice_requests_like_cpp:
         Vec<RepresentedConfirmBarbersChoiceLikeCpp>,
     /// Handle-less fixture for C++ `Object::GetObjectScale()`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_object_scale_like_cpp: f32,
     /// Handle-less fixture for C++ `UnitData::Flags`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_unit_flags_like_cpp: UnitFlags,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_cinematic_state_like_cpp:
         wow_entities::PlayerCinematicStateLikeCpp,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_cinematic_next_camera_events_like_cpp: Vec<u16>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_cinematic_end_events_like_cpp: Vec<u32>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_movie_complete_events_like_cpp: Vec<u32>,
 }

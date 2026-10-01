@@ -46,9 +46,9 @@ pub(in crate::session) fn player_cuf_profile_to_packet_like_cpp(
 
 impl WorldSession {}
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl crate::session::state::PlayerPresentationState {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_cuf_profiles_like_cpp(
         &self,
     ) -> &[Option<wow_packet::packets::misc::CufProfile>] {
@@ -64,7 +64,7 @@ impl crate::session::HubMut<'_> {
         if canonical.is_some() {
             return;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             self.fixtures.presentation.cuf_profiles_like_cpp =
                 vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];

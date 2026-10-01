@@ -1,0 +1,1229 @@
+{
+ "comment": "#1241 F4a-P2 base set (wow-world-core P4a+P4b targets) derived at a5bf213c (F4a P1) by the F4-E/F4a-P analyzer; regenerate at the PR base.",
+ "files": [
+  "crates/wow-world/src/battle_pet_account.rs",
+  "crates/wow-world/src/battle_pet_account/add.rs",
+  "crates/wow-world/src/battle_pet_account/lifecycle.rs",
+  "crates/wow-world/src/battle_pet_account/mutate.rs",
+  "crates/wow-world/src/battle_pet_account/queries.rs",
+  "crates/wow-world/src/catalogs/chr.rs",
+  "crates/wow-world/src/catalogs/creature.rs",
+  "crates/wow-world/src/catalogs/faction.rs",
+  "crates/wow-world/src/catalogs/gameobject.rs",
+  "crates/wow-world/src/catalogs/item.rs",
+  "crates/wow-world/src/catalogs/map.rs",
+  "crates/wow-world/src/catalogs/quest.rs",
+  "crates/wow-world/src/catalogs/spell.rs",
+  "crates/wow-world/src/loot_persistence.rs",
+  "crates/wow-world/src/map_manager/combat.rs",
+  "crates/wow-world/src/map_manager/grid.rs",
+  "crates/wow-world/src/map_manager/mod.rs",
+  "crates/wow-world/src/map_manager/movement.rs",
+  "crates/wow-world/src/map_manager/movement/corpse_loot.rs",
+  "crates/wow-world/src/map_manager/movement/home_and_chase.rs",
+  "crates/wow-world/src/map_manager/movement/motion_master.rs",
+  "crates/wow-world/src/map_manager/movement/point_and_effects.rs",
+  "crates/wow-world/src/map_manager/movement/random_and_waypoint.rs",
+  "crates/wow-world/src/map_manager/movement/spline.rs",
+  "crates/wow-world/src/map_manager/movement/terrain.rs",
+  "crates/wow-world/src/map_manager/pathfinder.rs",
+  "crates/wow-world/src/map_manager/pending_respawn.rs",
+  "crates/wow-world/src/map_manager/respawn.rs",
+  "crates/wow-world/src/map_manager/runtime/creature.rs",
+  "crates/wow-world/src/map_manager/runtime/instance.rs",
+  "crates/wow-world/src/map_manager/runtime/manager.rs",
+  "crates/wow-world/src/map_manager/runtime_state.rs",
+  "crates/wow-world/src/map_manager/terrain.rs",
+  "crates/wow-world/src/player/directory_canonical_queries.rs",
+  "crates/wow-world/src/player/directory_test_fixtures.rs",
+  "crates/wow-world/src/session/directory.rs",
+  "crates/wow-world/src/session/directory/deferred_visibility.rs",
+  "crates/wow-world/src/session/directory/delivery.rs",
+  "crates/wow-world/src/session/directory/group_state.rs",
+  "crates/wow-world/src/session/directory/identity.rs",
+  "crates/wow-world/src/session/directory/loot.rs",
+  "crates/wow-world/src/session/directory/name_query.rs",
+  "crates/wow-world/src/session/directory/recipient_queries.rs",
+  "crates/wow-world/src/session/directory/test_fixtures.rs",
+  "crates/wow-world/src/session/mailbox/durable.rs",
+  "crates/wow-world/src/session/mailbox/protocol.rs",
+  "crates/wow-world/src/session/mailbox/session_phase_permit.rs",
+  "crates/wow-world/src/session/mailbox/session_phase_rail.rs",
+  "crates/wow-world/src/session/pets/test_fixtures.rs",
+  "crates/wow-world/src/session/state/auras.rs",
+  "crates/wow-world/src/session/state/battleground.rs",
+  "crates/wow-world/src/session/state/catalogs.rs",
+  "crates/wow-world/src/session/state/collections.rs",
+  "crates/wow-world/src/session/state/combat.rs",
+  "crates/wow-world/src/session/state/config.rs",
+  "crates/wow-world/src/session/state/fixtures.rs",
+  "crates/wow-world/src/session/state/identity.rs",
+  "crates/wow-world/src/session/state/movement.rs",
+  "crates/wow-world/src/session/state/pets.rs",
+  "crates/wow-world/src/session/state/presentation.rs",
+  "crates/wow-world/src/session/state/progression.rs",
+  "crates/wow-world/src/session/state/session_core.rs",
+  "crates/wow-world/src/session/state/teleport.rs",
+  "crates/wow-world/src/session/state/vehicles.rs",
+  "crates/wow-world/src/session/taxi_contracts.rs",
+  "crates/wow-world/src/session/test_support/test_fixtures.rs",
+  "crates/wow-world/src/session_policy.rs"
+ ],
+ "impl_types": [
+  "AuraState",
+  "BattlegroundState",
+  "CollectionsState",
+  "CombatState",
+  "HubMut",
+  "HubRef",
+  "MovementState",
+  "PetState",
+  "PlayerIdentityState",
+  "PlayerPresentationState",
+  "ProgressionState",
+  "SessionAccountState",
+  "SessionAdmissionState",
+  "SessionCatalogs",
+  "SessionCore",
+  "SessionDirectory",
+  "SessionDriverServices",
+  "SessionFixtures",
+  "SessionRealmPolicy",
+  "SessionSharedFlags",
+  "SessionTransport",
+  "SessionWorldConfig",
+  "TaxiVehicleState",
+  "TeleportState"
+ ],
+ "items": [
+  {
+   "file": "crates/wow-world/src/canonical_player_access.rs",
+   "name": "canonical_unit_party_member_visible_auras_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/canonical_player_access.rs",
+   "name": "with_canonical_player_at_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/canonical_player_access.rs",
+   "name": "with_canonical_player_at_mut_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/canonical_player_access.rs",
+   "name": "CanonicalPlayerVitalsLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/canonical_player_access.rs",
+   "name": "CanonicalPlayerPartyStateLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/canonical_player_access.rs",
+   "name": "CanonicalPlayerPresentationLikeCpp",
+   "kind": "type"
+  },
+  {
+   "file": "crates/wow-world/src/canonical_player_access.rs",
+   "name": "canonical_player_presentation_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/canonical_player_access.rs",
+   "name": "canonical_player_aggro_unit_state_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/canonical_player_access.rs",
+   "name": "power_kind_from_u8_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/canonical_player_access.rs",
+   "name": "power_to_u16_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/canonical_player_access.rs",
+   "name": "canonical_player_vitals_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/canonical_player_access.rs",
+   "name": "HonorStatsLikeCpp",
+   "kind": "type"
+  },
+  {
+   "file": "crates/wow-world/src/canonical_player_access.rs",
+   "name": "PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/entity_update_bridge/state_1.rs",
+   "name": "VISIBLE_ITEM_FULL_UPDATE_MASK",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/entity_update_bridge/state_1.rs",
+   "name": "player_values_update_to_packet",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/entity_update_bridge/state_1.rs",
+   "name": "player_values_update_to_update_object",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/entity_update_bridge/state_1.rs",
+   "name": "object_data_update_to_packet",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/entity_update_bridge/state_1.rs",
+   "name": "object_data_update_to_packet_with_type_mask",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/entity_update_bridge/state_1.rs",
+   "name": "copy_player_data_update",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/entity_update_bridge/state_1.rs",
+   "name": "unit_data_update_to_packet",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/entity_update_bridge/state_2.rs",
+   "name": "active_player_data_update_to_packet",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/entity_update_bridge/state_2.rs",
+   "name": "copy_mask_blocks",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/handlers/character/mod.rs",
+   "name": "PLAYER_FLAGS_GHOST_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/handlers/character/mod.rs",
+   "name": "player_class_mask",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/handlers/character/mod.rs",
+   "name": "player_team_for_race_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/handlers/character/stats.rs",
+   "name": "SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/handlers/character/stats.rs",
+   "name": "class_uses_wands_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/handlers/character/stats.rs",
+   "name": "RepresentedPlayerGearStatsLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/handlers/loot/mod.rs",
+   "name": "RepresentedLootPlayerContext",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/phasing.rs",
+   "name": "PHASE_USE_FLAGS_ALWAYS_VISIBLE",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/phasing.rs",
+   "name": "PHASE_USE_FLAGS_INVERSE",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/phasing.rs",
+   "name": "DEFAULT_PHASE",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/phasing.rs",
+   "name": "PhaseShiftPacketBuildError",
+   "kind": "enum"
+  },
+  {
+   "file": "crates/wow-world/src/phasing.rs",
+   "name": "phase_flags_for_id_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/phasing.rs",
+   "name": "init_db_phase_shift_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/phasing.rs",
+   "name": "init_db_visible_map_id_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/phasing.rs",
+   "name": "party_member_phase_states_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/action_bar_adapter.rs",
+   "name": "rounded_median_u32",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/action_bar_adapter.rs",
+   "name": "set_active_player_update_bit_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/action_bar_adapter.rs",
+   "name": "action_button_action_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/action_bar_adapter.rs",
+   "name": "action_button_type_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/action_bar_adapter.rs",
+   "name": "make_action_button_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/aura_effect_values.rs",
+   "name": "CanonicalThreatAuraSnapshotLikeCpp",
+   "kind": "type"
+  },
+  {
+   "file": "crates/wow-world/src/session/battle_pet_adapter.rs",
+   "name": "RepresentedBattlePetSaveInfoLikeCpp",
+   "kind": "enum"
+  },
+  {
+   "file": "crates/wow-world/src/session/battle_pet_adapter.rs",
+   "name": "RepresentedBattlePetCageItemLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/battle_pet_adapter.rs",
+   "name": "RepresentedBattlePetCalculatedStatsLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/battle_pet_adapter.rs",
+   "name": "RepresentedBattlePetLevelCriteriaLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/battle_pet_adapter.rs",
+   "name": "RepresentedBattlePetDataLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/battle_pet_adapter.rs",
+   "name": "RepresentedBattlePetQueryCompanionLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/battle_pet_adapter.rs",
+   "name": "RepresentedBattlePetSlotLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/battleground_adapter.rs",
+   "name": "RepresentedBattlemasterHelloLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/battleground_adapter.rs",
+   "name": "RepresentedBattlefieldListLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/battleground_adapter.rs",
+   "name": "RepresentedBattlegroundQueueTypeIdLikeCpp",
+   "kind": "type"
+  },
+  {
+   "file": "crates/wow-world/src/session/battleground_adapter.rs",
+   "name": "RepresentedBattlemasterJoinLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/battleground_adapter.rs",
+   "name": "RepresentedBattlemasterJoinArenaLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/battleground_adapter.rs",
+   "name": "RepresentedBattlemasterJoinSkirmishLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/battleground_adapter.rs",
+   "name": "RepresentedBattlegroundQueueSlotLikeCpp",
+   "kind": "type"
+  },
+  {
+   "file": "crates/wow-world/src/session/battleground_adapter.rs",
+   "name": "RepresentedBattlefieldPortLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/battleground_adapter.rs",
+   "name": "battleground_queue_type_id_from_packed_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/catalog_capabilities.rs",
+   "name": "ObjectMgrCatalogsLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/catalog_capabilities.rs",
+   "name": "ItemValuationCatalogsLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/catalog_capabilities.rs",
+   "name": "PlayerBootstrapCatalogsLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/catalog_capabilities.rs",
+   "name": "ProgressionCatalogsLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/catalog_capabilities.rs",
+   "name": "GroupInvitePolicyLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/catalog_capabilities.rs",
+   "name": "SupportFeaturePolicyLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/character_customization.rs",
+   "name": "RepresentedAlterAppearanceLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/character_customization.rs",
+   "name": "RepresentedConfirmBarbersChoiceLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/character_customization.rs",
+   "name": "RepresentedConfirmRespecWipeLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/character_customization.rs",
+   "name": "RepresentedTalentResetScriptHookLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/character_customization.rs",
+   "name": "RepresentedTalentRespecVisualSpellCastLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/character_customization.rs",
+   "name": "RepresentedTalentRespecCriteriaEventLikeCpp",
+   "kind": "enum"
+  },
+  {
+   "file": "crates/wow-world/src/session/connection_identity.rs",
+   "name": "PacketCounterLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/connection_identity.rs",
+   "name": "PacketSpoofPendingBanTargetLikeCpp",
+   "kind": "enum"
+  },
+  {
+   "file": "crates/wow-world/src/session/connection_identity.rs",
+   "name": "PacketSpoofPendingBanLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/connection_identity.rs",
+   "name": "SessionState",
+   "kind": "enum"
+  },
+  {
+   "file": "crates/wow-world/src/session/connection_identity.rs",
+   "name": "unix_now",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/creature_aggro_contracts.rs",
+   "name": "DEFAULT_VISIBILITY_BGARENAS_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/creature_aggro_contracts.rs",
+   "name": "spell_has_no_unrepresented_runtime_hooks_from_authority_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/creature_aggro_contracts.rs",
+   "name": "LegacyCreatureAggroConfigLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/creature_canonical_adapter.rs",
+   "name": "sync_canonical_creature_entity_on_map_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/creature_canonical_adapter.rs",
+   "name": "reconcile_creature_loot_authority_mirrors_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/creature_spawn_contracts.rs",
+   "name": "PendingCreatureSpawn",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/creature_spawn_contracts.rs",
+   "name": "CreatureCreateModelScalarsLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/creature_spawn_contracts.rs",
+   "name": "CreatureCreateDisplaySelectionLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/creature_spell_metadata.rs",
+   "name": "creature_ai_spell_difficulty_chain_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/currency_adapter.rs",
+   "name": "player_team_for_race_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/driver/phases.rs",
+   "name": "SessionDriverPhaseLikeCpp",
+   "kind": "enum"
+  },
+  {
+   "file": "crates/wow-world/src/session/faction_reactions.rs",
+   "name": "RepresentedFactionReactionInputLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/faction_reactions.rs",
+   "name": "RepresentedGetReactionInputLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/faction_reactions.rs",
+   "name": "AttackReputationFactionSnapshotLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/faction_reactions.rs",
+   "name": "ReputationGainSourceLikeCpp",
+   "kind": "enum"
+  },
+  {
+   "file": "crates/wow-world/src/session/instance_bind_contracts.rs",
+   "name": "RepresentedHomebindLikeCpp",
+   "kind": "type"
+  },
+  {
+   "file": "crates/wow-world/src/session/item_modifiers.rs",
+   "name": "RepresentedScalingStatContextLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/item_modifiers.rs",
+   "name": "player_class_mask_for_transmog_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/item_modifiers.rs",
+   "name": "player_class_mask_for_talent_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/map_admission.rs",
+   "name": "MMapRuntimeConfigLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/map_admission.rs",
+   "name": "WaypointPathResolverLikeCpp",
+   "kind": "type"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "MAX_SPECIALIZATIONS_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "NEEDED_TALENT_POINT_PER_TIER_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "PLAYER_FLAGS_AFK_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "PLAYER_FLAGS_DND_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "PLAYER_FLAGS_GHOST_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "GivePlayerXpScriptDispatcherLikeCpp",
+   "kind": "type"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "REST_BONUS_MAX_NEXT_LEVEL_XP_FACTOR_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "PLAYER_FLAGS_IN_PVP_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "SPELL_PVP_RULES_ENABLED_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "TeleportToOptionsLikeCpp",
+   "kind": "type"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "TELE_TO_SEAMLESS_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "DEFAULT_PLAYER_COMBAT_REACH_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "NOMINAL_MELEE_RANGE_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "BATTLE_PET_SLOT_COUNT_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "DEFAULT_MAX_BATTLE_PETS_PER_SPECIES_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "SKILL_ENCHANTING_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "LIQUID_MAP_IN_WATER_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "LIQUID_MAP_UNDER_WATER_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "TOY_FLAG_FAVORITE_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "TOY_FLAG_HAS_FANFARE_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "DAMAGE_FALL_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "DAMAGE_FALL_TO_VOID_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "SharedCanonicalMapManager",
+   "kind": "type"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "FIRST_LOGIN_START_REPUTATION_STANDING_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "FIRST_LOGIN_START_REPUTATION_HORDE_FACTIONS_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "AFLAG_SCALABLE_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/mod.rs",
+   "name": "PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/movement/state.rs",
+   "name": "MovementTransportMembershipLikeCpp",
+   "kind": "enum"
+  },
+  {
+   "file": "crates/wow-world/src/session/movement_protocol.rs",
+   "name": "MovementAckEventLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/movement_protocol.rs",
+   "name": "MoveSplineDoneTaxiActionLikeCpp",
+   "kind": "enum"
+  },
+  {
+   "file": "crates/wow-world/src/session/movement_protocol.rs",
+   "name": "RepresentedTaxiFlightNodeLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/movement_protocol.rs",
+   "name": "MoveSplineDoneTaxiEventLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/movement_protocol.rs",
+   "name": "MoveTeleportAckActionLikeCpp",
+   "kind": "enum"
+  },
+  {
+   "file": "crates/wow-world/src/session/movement_protocol.rs",
+   "name": "MoveTeleportAckEventLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/movement_protocol.rs",
+   "name": "RepresentedTaxiFlightStateLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/movement_protocol.rs",
+   "name": "canonical_taxi_flight_node_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/movement_protocol.rs",
+   "name": "MovementSpeedAckActionLikeCpp",
+   "kind": "enum"
+  },
+  {
+   "file": "crates/wow-world/src/session/movement_protocol.rs",
+   "name": "UnitMoveTypeLikeCpp",
+   "kind": "enum"
+  },
+  {
+   "file": "crates/wow-world/src/session/movement_protocol.rs",
+   "name": "player_movement_speed_opcodes_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/movement_protocol.rs",
+   "name": "creature_movement_spline_speed_opcode_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/movement_protocol.rs",
+   "name": "MovementSpeedAckEventLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/movement_protocol.rs",
+   "name": "PLAYER_BASE_MOVE_SPEED_LIKE_CPP",
+   "kind": "const"
+  },
+  {
+   "file": "crates/wow-world/src/session/movement_protocol.rs",
+   "name": "MovementFallDamageEvent",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/movement_protocol.rs",
+   "name": "MovementUnderMapDamageEvent",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/persistence_capabilities.rs",
+   "name": "CharacterPowerSnapshotLikeCpp",
+   "kind": "type"
+  },
+  {
+   "file": "crates/wow-world/src/session/pet_loading.rs",
+   "name": "CharacterPetStableRowLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/player_binding.rs",
+   "name": "PlayerTransportLoginStateLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/player_binding.rs",
+   "name": "PlayerIdentityBootstrapLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/player_items/valuation.rs",
+   "name": "item_price_base_with_catalogs_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/player_melee_application.rs",
+   "name": "begin_combat_ref_on_map_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/player_spell_records.rs",
+   "name": "RepresentedPlayerSkillStateLikeCpp",
+   "kind": "enum"
+  },
+  {
+   "file": "crates/wow-world/src/session/player_spell_records.rs",
+   "name": "RepresentedPlayerSkillLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/player_spell_records.rs",
+   "name": "is_non_durable_skill_tombstone_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/player_spell_records.rs",
+   "name": "canonical_player_skill_record_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/player_spell_records.rs",
+   "name": "represented_skill_records_from_values_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/player_spell_records.rs",
+   "name": "represented_skill_values_from_records_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/progression/mod.rs",
+   "name": "PlayerSkillTestFixtureLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/quest_dialog.rs",
+   "name": "react_state_from_db_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/quest_dialog.rs",
+   "name": "pet_type_from_db_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/quest_dialog.rs",
+   "name": "power_type_from_u8_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/rest_progression.rs",
+   "name": "RestMgrTestFixtureLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/social_requests.rs",
+   "name": "RepresentedWargameInviteAcceptanceLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/spell_click_values.rs",
+   "name": "RepresentedGameObjectAccessLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/spell_click_values.rs",
+   "name": "RepresentedCreatureAccessLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/spell_click_values.rs",
+   "name": "RepresentedVehicleSeatChangeRequestLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/spell_click_values.rs",
+   "name": "RepresentedVehicleSeatSpellClickRequestLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/spell_click_values.rs",
+   "name": "RepresentedVehicleEnterRequestLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/spell_click_values.rs",
+   "name": "RepresentedVehicleDismissMovementLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/spell_click_values.rs",
+   "name": "RepresentedVehicleBaseMovementLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/stand_state_adapter.rs",
+   "name": "RepresentedLiveIntentLikeCpp",
+   "kind": "enum"
+  },
+  {
+   "file": "crates/wow-world/src/session/stand_state_adapter.rs",
+   "name": "RepresentedStandStateChangedLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/stand_state_adapter.rs",
+   "name": "RepresentedStandChannelCancellationBoundary",
+   "kind": "enum"
+  },
+  {
+   "file": "crates/wow-world/src/session/stand_state_adapter.rs",
+   "name": "RepresentedLiveIntentAppliedLikeCpp",
+   "kind": "enum"
+  },
+  {
+   "file": "crates/wow-world/src/session/stand_state_adapter.rs",
+   "name": "RepresentedLiveIntentApplyOutcomeLikeCpp",
+   "kind": "enum"
+  },
+  {
+   "file": "crates/wow-world/src/session/stand_state_adapter.rs",
+   "name": "RepresentedLiveApplicationLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/time_synchronization.rs",
+   "name": "TimeSynchronizationStateLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session/time_synchronization.rs",
+   "name": "game_time_ms_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session_rules/rules_3/aura_effects.rs",
+   "name": "PlayerAuraEffectLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session_rules/rules_3/aura_effects.rs",
+   "name": "player_aura_effects_full_by_spell_aura_type_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session_rules/rules_3/aura_effects.rs",
+   "name": "player_aura_effects_filtered_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session_rules/rules_3/aura_effects.rs",
+   "name": "player_aura_effects_by_spell_aura_type_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session_rules/rules_3/aura_effects.rs",
+   "name": "AppliedAuraEffectLikeCpp",
+   "kind": "struct"
+  },
+  {
+   "file": "crates/wow-world/src/session_rules/rules_3/melee_damage.rs",
+   "name": "represented_autoattack_damage_multiplier_like_cpp",
+   "kind": "fn"
+  },
+  {
+   "file": "crates/wow-world/src/session/movement_protocol.rs",
+   "name": "represented_taxi_flight_state_like_cpp",
+   "kind": "auto"
+  },
+  {
+   "file": "crates/wow-world/src/session/movement_protocol.rs",
+   "name": "canonical_taxi_flight_state_like_cpp",
+   "kind": "auto"
+  },
+  {
+   "file": "crates/wow-world/src/session/persistence_capabilities.rs",
+   "name": "empty_character_power_snapshot_like_cpp",
+   "kind": "auto"
+  },
+  {
+   "file": "crates/wow-world/src/session/movement_protocol.rs",
+   "name": "represented_taxi_flight_node_like_cpp",
+   "kind": "auto"
+  },
+  {
+   "file": "crates/wow-world/src/session/loot_delivery_contracts.rs",
+   "name": "RepresentedLootRollCriteriaEvent",
+   "kind": "auto"
+  },
+  {
+   "file": "crates/wow-world/src/session/collection_adapter.rs",
+   "name": "RepresentedTransmogCriteriaEvent",
+   "kind": "auto"
+  },
+  {
+   "file": "crates/wow-world/src/session/quest_dialog.rs",
+   "name": "RepresentedQuestRewardMailLikeCpp",
+   "kind": "auto"
+  },
+  {
+   "file": "crates/wow-world/src/session/quest_dialog.rs",
+   "name": "RepresentedQuestRewardReputationLikeCpp",
+   "kind": "auto"
+  },
+  {
+   "file": "crates/wow-world/src/session/quest_dialog.rs",
+   "name": "RepresentedQuestRewardSpellCastLikeCpp",
+   "kind": "auto"
+  },
+  {
+   "file": "crates/wow-world/src/session/quest_dialog.rs",
+   "name": "RepresentedQuestRewardSpellKindLikeCpp",
+   "kind": "auto"
+  },
+  {
+   "file": "crates/wow-world/src/session/quest_dialog.rs",
+   "name": "RepresentedQuestRewardTalentPointsLikeCpp",
+   "kind": "auto"
+  },
+  {
+   "file": "crates/wow-world/src/session/quest_dialog.rs",
+   "name": "RepresentedQuestRewardTitleLikeCpp",
+   "kind": "auto"
+  },
+  {
+   "file": "crates/wow-world/src/session/inventory_request_contracts.rs",
+   "name": "VendorBuyItemTestOverrideLikeCpp",
+   "kind": "auto"
+  },
+  {
+   "file": "crates/wow-world/src/session/quest_dialog.rs",
+   "name": "RepresentedForceDeselectLikeCpp",
+   "kind": "auto"
+  }
+ ],
+ "impls": [
+  {
+   "file": "crates/wow-world/src/handlers/loot/mod.rs",
+   "self": "RepresentedLootPlayerContext"
+  },
+  {
+   "file": "crates/wow-world/src/phasing.rs",
+   "self": "PhaseShiftPacketBuildError"
+  },
+  {
+   "file": "crates/wow-world/src/session/battle_pet_adapter.rs",
+   "self": "RepresentedBattlePetDataLikeCpp"
+  },
+  {
+   "file": "crates/wow-world/src/session/battle_pet_adapter.rs",
+   "self": "RepresentedBattlePetSlotLikeCpp"
+  },
+  {
+   "file": "crates/wow-world/src/session/catalog_capabilities.rs",
+   "self": "GroupInvitePolicyLikeCpp"
+  },
+  {
+   "file": "crates/wow-world/src/session/catalog_capabilities.rs",
+   "self": "ItemValuationCatalogsLikeCpp"
+  },
+  {
+   "file": "crates/wow-world/src/session/catalog_capabilities.rs",
+   "self": "PlayerBootstrapCatalogsLikeCpp"
+  },
+  {
+   "file": "crates/wow-world/src/session/catalog_capabilities.rs",
+   "self": "SupportFeaturePolicyLikeCpp"
+  },
+  {
+   "file": "crates/wow-world/src/session/creature_aggro_contracts.rs",
+   "self": "LegacyCreatureAggroConfigLikeCpp"
+  },
+  {
+   "file": "crates/wow-world/src/session/map_admission.rs",
+   "self": "MMapRuntimeConfigLikeCpp"
+  },
+  {
+   "file": "crates/wow-world/src/session/movement_protocol.rs",
+   "self": "UnitMoveTypeLikeCpp"
+  },
+  {
+   "file": "crates/wow-world/src/session/progression/mod.rs",
+   "self": "PlayerSkillTestFixtureLikeCpp"
+  },
+  {
+   "file": "crates/wow-world/src/session/rest_progression.rs",
+   "self": "RestMgrTestFixtureLikeCpp"
+  },
+  {
+   "file": "crates/wow-world/src/session/time_synchronization.rs",
+   "self": "TimeSynchronizationStateLikeCpp"
+  },
+  {
+   "file": "crates/wow-world/src/session_rules/rules_3/aura_effects.rs",
+   "self": "PlayerAuraEffectLikeCpp"
+  }
+ ],
+ "literal_types": [],
+ "struct_fields": [],
+ "use_names": [
+  "BattlePetBreedQualityStore",
+  "BattlePetBreedStateStore",
+  "BattlePetSpeciesStateStore",
+  "BattlePetSpeciesStore",
+  "BattlePetXpGameTableLikeCpp",
+  "RepresentedBattlePetCageItemLikeCpp",
+  "empty_character_power_snapshot_like_cpp",
+  "RepresentedBattlegroundQueueSlotLikeCpp",
+  "RepresentedVehicleSeatSpellClickRequestLikeCpp",
+  "MoveSplineDoneTaxiEventLikeCpp",
+  "MoveTeleportAckEventLikeCpp",
+  "PlayerTransportLoginStateLikeCpp",
+  "RepresentedLiveApplicationLikeCpp",
+  "RepresentedLootRollCriteriaEvent",
+  "RepresentedTalentResetScriptHookLikeCpp",
+  "RepresentedTalentRespecCriteriaEventLikeCpp",
+  "RepresentedTaxiFlightStateLikeCpp",
+  "RepresentedTransmogCriteriaEvent",
+  "RepresentedVehicleBaseMovementLikeCpp",
+  "RepresentedVehicleDismissMovementLikeCpp",
+  "RepresentedVehicleEnterRequestLikeCpp",
+  "RepresentedVehicleSeatChangeRequestLikeCpp",
+  "PetLevelupSpellStoreLikeCpp",
+  "PetDefaultSpellStoreLikeCpp",
+  "PetFamilySpellStoreLikeCpp",
+  "SpellEnchantProcStoreLikeCpp",
+  "SpellEnchantProcEntryLikeCpp",
+  "is_non_durable_skill_tombstone_like_cpp",
+  "SpellTotemModelStoreLikeCpp",
+  "ServersideSpellStoreLikeCpp",
+  "ServersideSpellInfoLikeCpp",
+  "represented_taxi_flight_state_like_cpp",
+  "RepresentedTaxiFlightNodeLikeCpp",
+  "canonical_taxi_flight_node_like_cpp",
+  "canonical_taxi_flight_state_like_cpp",
+  "PlayerBootstrapCatalogTestFixtureLikeCpp",
+  "BattlePetTestFixtureLikeCpp",
+  "PetLevelupSpellSetLikeCpp",
+  "PetDefaultSpellsEntryLikeCpp",
+  "VehicleTemplateStoreLikeCpp",
+  "RepresentedQuestRewardMailLikeCpp",
+  "RepresentedQuestRewardReputationLikeCpp",
+  "RepresentedQuestRewardSpellCastLikeCpp",
+  "RepresentedQuestRewardSpellKindLikeCpp",
+  "RepresentedQuestRewardTalentPointsLikeCpp",
+  "RepresentedQuestRewardTitleLikeCpp",
+  "VendorBuyItemTestOverrideLikeCpp",
+  "RepresentedForceDeselectLikeCpp"
+ ]
+}

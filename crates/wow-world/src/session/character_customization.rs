@@ -28,7 +28,7 @@ pub(crate) struct RepresentedConfirmRespecWipeLikeCpp {
 }
 
 /// Evidence for C++ `sScriptMgr->OnPlayerTalentsReset(this, noCost)`.
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedTalentResetScriptHookLikeCpp {
     pub no_cost: bool,
@@ -57,7 +57,7 @@ pub(crate) struct RepresentedTalentRespecVisualSpellCastLikeCpp {
 }
 
 /// Evidence for the two C++ `Player::ResetTalents` achievement criteria updates.
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedTalentRespecCriteriaEventLikeCpp {
     MoneySpentOnRespecs { amount: u32 },
@@ -140,12 +140,12 @@ impl WorldSession {
 }
 
 impl crate::session::HubMut<'_> {
-    #[cfg_attr(not(test), allow(unused_variables))]
+    #[cfg_attr(not(any(test, feature = "test-fixtures")), allow(unused_variables))]
     pub(crate) fn record_represented_confirm_barbers_choice_like_cpp(
         &mut self,
         request: RepresentedConfirmBarbersChoiceLikeCpp,
     ) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             self.fixtures
                 .presentation

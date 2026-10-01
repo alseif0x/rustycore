@@ -1045,7 +1045,7 @@ impl crate::session::state::SessionQuestState {
 impl crate::session::HubMut<'_> {
     pub(crate) fn request_temporary_pet_unsummon_like_cpp(&mut self) {
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             self.fixtures.pets.temporary_pet_unsummon_requests_like_cpp = self
                 .fixtures

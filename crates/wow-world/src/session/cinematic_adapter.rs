@@ -32,19 +32,19 @@ impl WorldSession {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl crate::session::state::PlayerPresentationState {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_cinematic_next_camera_events_like_cpp(&self) -> &[u16] {
         &self.represented_cinematic_next_camera_events_like_cpp
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_cinematic_end_events_like_cpp(&self) -> &[u32] {
         &self.represented_cinematic_end_events_like_cpp
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_movie_complete_events_like_cpp(&self) -> &[u32] {
         &self.represented_movie_complete_events_like_cpp
     }
@@ -61,9 +61,9 @@ impl crate::session::HubMut<'_> {
             return;
         };
         {
-            #[cfg(not(test))]
+            #[cfg(not(any(test, feature = "test-fixtures")))]
             let _ = cinematic_id;
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             self.fixtures
                 .presentation
                 .represented_cinematic_end_events_like_cpp
@@ -83,7 +83,7 @@ impl crate::session::HubMut<'_> {
         if camera_id == 0 {
             return;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         self.fixtures
             .presentation
             .represented_cinematic_next_camera_events_like_cpp
@@ -100,9 +100,9 @@ impl crate::session::HubMut<'_> {
             return;
         };
         {
-            #[cfg(not(test))]
+            #[cfg(not(any(test, feature = "test-fixtures")))]
             let _ = movie_id;
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             self.fixtures
                 .presentation
                 .represented_movie_complete_events_like_cpp
@@ -121,7 +121,7 @@ impl crate::session::HubRef<'_> {
         if canonical.is_some() {
             return canonical;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             return Some(
                 self.fixtures
@@ -132,19 +132,19 @@ impl crate::session::HubRef<'_> {
         None
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_cinematic_like_cpp(&self) -> Option<u32> {
         self.player_cinematic_state_snapshot_like_cpp()
             .and_then(|state| state.cinematic_id_like_cpp())
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_cinematic_camera_index_like_cpp(&self) -> i32 {
         self.player_cinematic_state_snapshot_like_cpp()
             .map_or(-1, |state| state.camera_index_like_cpp())
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_movie_like_cpp(&self) -> Option<u32> {
         self.player_cinematic_state_snapshot_like_cpp()
             .and_then(|state| state.movie_id_like_cpp())

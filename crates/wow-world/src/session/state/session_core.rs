@@ -37,7 +37,7 @@ pub(crate) struct SessionCore {
     /// Ordered record of the driver phases this session has run. Test-only:
     /// it exists so tests assert on the production sequence in
     /// `session::driver` instead of reimplementing it.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) driver_phase_trace_like_cpp:
         Vec<crate::session::driver::phases::SessionDriverPhaseLikeCpp>,
 
@@ -69,17 +69,17 @@ pub(crate) struct SessionCore {
     pub(in crate::session) realm_id: u16,
 
     // Process-owned GUID generators retained only as test fixtures.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) guid_generator: Option<Arc<ObjectGuidGenerator>>,
     // Process-wide C++ ObjectMgr generator retained only as a test fixture.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) item_guid_generator_like_cpp: Option<Arc<ObjectGuidGenerator>>,
     // Process-wide C++ ObjectMgr generator shared by equipment and transmog sets.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) equipment_set_guid_generator_like_cpp:
         Option<Arc<EquipmentSetGuidGeneratorLikeCpp>>,
     // Process-wide C++ ObjectMgr generator for character_void_storage.itemId.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) void_storage_item_id_generator_like_cpp:
         Option<Arc<VoidStorageItemIdGeneratorLikeCpp>>,
 
@@ -89,7 +89,7 @@ pub(crate) struct SessionCore {
     /// Test fixtures may attach a Player bootstrap before injecting the
     /// production MapManager. Production attachment is represented solely by
     /// the generation-checked PlayerHandle.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_bootstrap_attached_like_cpp: bool,
 
     /// Current map ID for VALUES update packets.
@@ -119,7 +119,7 @@ pub(crate) struct SessionCore {
 
     /// Test fixture for the process-owned linked-module registry. Production
     /// borrows the required registry from the session driver.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) module_registry_like_cpp: Option<Arc<wow_module_api::ModuleRegistry>>,
 
     // ── Dynamic visibility tracking ───────────────────────────────

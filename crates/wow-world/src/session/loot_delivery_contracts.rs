@@ -332,7 +332,7 @@ pub(crate) struct RepresentedLootRollState {
     pub voters: HashMap<ObjectGuid, RepresentedLootRollVote>,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedLootRollCriteriaEvent {
     RollAnyNeed {

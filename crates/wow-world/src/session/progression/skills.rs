@@ -138,7 +138,7 @@ impl crate::session::HubMut<'_> {
     ) -> bool {
         self.core
             .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             return self.fixture_replace_player_skill_records_like_cpp(
                 skill_records,
@@ -157,7 +157,7 @@ impl crate::session::HubMut<'_> {
             .is_some()
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn fixture_replace_player_skill_records_like_cpp(
         &mut self,
         skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
@@ -207,7 +207,7 @@ impl crate::session::HubMut<'_> {
                 );
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             self.fixtures
                 .progression
@@ -243,7 +243,7 @@ impl crate::session::HubMut<'_> {
         _canonical
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn replace_player_skill_runtime_exact_like_cpp(
         &mut self,
         skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
@@ -269,7 +269,7 @@ impl crate::session::HubMut<'_> {
                 );
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             self.fixtures
                 .progression
@@ -308,7 +308,7 @@ impl crate::session::HubMut<'_> {
     pub(crate) fn set_player_skill_occupied_slots_like_cpp(&mut self, occupied_slots: u16) -> bool {
         self.core
             .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             return self.fixture_set_player_skill_occupied_slots_like_cpp(occupied_slots);
         }
@@ -320,7 +320,7 @@ impl crate::session::HubMut<'_> {
     }
 
     // Frozen previous route for differential owner tests and handleless fixtures.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn fixture_set_player_skill_occupied_slots_like_cpp(
         &mut self,
         occupied_slots: u16,
@@ -334,7 +334,7 @@ impl crate::session::HubMut<'_> {
         let canonical_complete = self
             .core
             .with_owned_player_like_cpp(Player::skill_records_complete_like_cpp);
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         let canonical_complete = canonical_complete.or_else(|| {
             self.core.player_handle_like_cpp.is_none().then_some(
                 self.fixtures
@@ -353,7 +353,7 @@ impl crate::session::HubMut<'_> {
                 let tombstones = player.non_durable_skill_tombstones_like_cpp().clone();
                 player.replace_skill_records_like_cpp(records, loaded, complete, None, tombstones);
             });
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             if self.core.player_handle_like_cpp.is_none() {
                 self.fixtures
                     .progression
@@ -378,7 +378,7 @@ impl crate::session::HubMut<'_> {
                 );
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             self.fixtures
                 .progression
@@ -566,7 +566,7 @@ impl crate::session::HubRef<'_> {
         )
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn player_skill_max_value_like_cpp(&self, skill_id: u16) -> u16 {
         self.resolved_player_skill_max_value_like_cpp(skill_id)
             .expect("test Player skill owner must resolve")
@@ -576,7 +576,7 @@ impl crate::session::HubRef<'_> {
         u16::from(self.player_level_like_cpp()).saturating_mul(5)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn player_skill_records_like_cpp(
         &self,
     ) -> HashMap<u16, RepresentedPlayerSkillLikeCpp> {
@@ -584,7 +584,7 @@ impl crate::session::HubRef<'_> {
             .expect("test Player skill owner must resolve")
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn player_skill_value_like_cpp(&self, skill_id: u16) -> u16 {
         self.resolved_player_skill_value_like_cpp(skill_id)
             .expect("test Player skill owner must resolve")
@@ -619,7 +619,7 @@ impl crate::session::HubRef<'_> {
                 .then(|| player.occupied_skill_slots_like_cpp())
                 .flatten()
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return self
                 .fixtures
@@ -644,7 +644,7 @@ impl crate::session::HubRef<'_> {
         let complete = self
             .core
             .with_owned_player_like_cpp(Player::skill_records_complete_like_cpp);
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         let complete = complete.or_else(|| {
             self.core.player_handle_like_cpp.is_none().then_some(
                 self.fixtures
@@ -673,7 +673,7 @@ impl crate::session::HubRef<'_> {
                 .map(|skill| (skill.skill_id, skill))
                 .collect()
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
                 self.fixtures

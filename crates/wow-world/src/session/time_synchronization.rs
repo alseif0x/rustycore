@@ -151,7 +151,7 @@ impl crate::session::state::SessionCore {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_time_sync_clock_delta_for_test_like_cpp(&mut self, clock_delta: i64) {
         self.driver.time_synchronization.clock_delta = clock_delta;
     }

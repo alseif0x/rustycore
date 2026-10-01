@@ -9,7 +9,7 @@ use super::*;
 /// after construction.
 pub(crate) struct SessionCatalogs {
     /// Detached Player bootstrap-catalog inputs used only by tests.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_bootstrap_catalog_test_fixture_like_cpp:
         PlayerBootstrapCatalogTestFixtureLikeCpp,
 
@@ -23,28 +23,28 @@ pub(crate) struct SessionCatalogs {
     pub(in crate::session) trainer_store_like_cpp: Option<Arc<TrainerStoreLikeCpp>>,
 
     // BankBagSlotPrices.db2 store used by C++ HandleBuyBankSlotOpcode.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) bank_bag_slot_prices_store: Option<Arc<BankBagSlotPricesStore>>,
 
     // Currency types store (CurrencyTypes.db2 data)
     pub(in crate::session) currency_types_store: Option<Arc<CurrencyTypesStore>>,
 
     // Import price stores (ImportPrice*.db2 data)
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) import_price_stores: Option<Arc<ImportPriceStores>>,
 
     // Emotes.db2 / EmotesText.db2 stores used by C++ chat text-emote handling.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) emotes_store: Option<Arc<EmotesStore>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) emotes_text_store: Option<Arc<EmotesTextStore>>,
 
     // Item class store (ItemClass.db2 data)
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) item_class_store: Option<Arc<ItemClassStore>>,
 
     // Item currency cost store (ItemCurrencyCost.db2 data)
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) item_currency_cost_store: Option<Arc<ItemCurrencyCostStore>>,
 
     /// Item template and item-data catalogs a session reads. Owned by one type (#670).
@@ -78,7 +78,7 @@ pub(crate) struct SessionCatalogs {
     pub(in crate::session) transmog_set_item_store: Option<Arc<TransmogSetItemStore>>,
 
     // Item price base store (ItemPriceBase.db2 data)
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) item_price_base_store: Option<Arc<ItemPriceBaseStore>>,
 
     // Player level stats store (race/class/level → base stats)
@@ -95,7 +95,7 @@ pub(crate) struct SessionCatalogs {
     pub(in crate::session) rand_prop_points_store: Option<Arc<RandPropPointsStore>>,
 
     // ItemDisenchantLoot store (ItemDisenchantLoot.db2 data)
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) item_disenchant_loot_store: Option<Arc<ItemDisenchantLootStore>>,
 
     // C++ LootTemplates_* store foundation.
@@ -108,7 +108,7 @@ pub(crate) struct SessionCatalogs {
     pub(in crate::session) player_condition_store: Option<Arc<PlayerConditionStore>>,
 
     // C++ AdventureMapPOI.db2 store used by Adventure Map quest starts.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) adventure_map_poi_store: Option<Arc<AdventureMapPoiStore>>,
 
     // C++ ContentTuning.db2 store used by level gates such as Meeting Stone.
@@ -130,7 +130,7 @@ pub(crate) struct SessionCatalogs {
 
     pub(in crate::session) gem_properties_store: Option<Arc<GemPropertiesStore>>,
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) tact_key_store: Option<Arc<TactKeyStore>>,
 
     // Skill store (auto-learned spells from SkillLineAbility.db2 + SkillRaceClassInfo.db2)
@@ -157,17 +157,17 @@ pub(crate) struct SessionCatalogs {
 
     // Area-trigger catalogs are process-owned and borrowed for each
     // production session pass. These retained fields are test fixtures only.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) area_trigger_db2_store: Option<Arc<AreaTriggerDb2Store>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) area_trigger_store: Option<Arc<AreaTriggerStore>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) area_trigger_script_store: Option<Arc<AreaTriggerScriptStoreLikeCpp>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) tavern_area_trigger_store: Option<Arc<TavernAreaTriggerStoreLikeCpp>>,
 
     // C++ ObjectMgr::GraveyardStore loaded from graveyard_zone plus attached conditions.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) graveyard_store: Option<Arc<GraveyardStore>>,
 
     /// Character race/class catalogs a session reads. Owned by one type (#670).
@@ -181,9 +181,9 @@ pub(crate) struct SessionCatalogs {
     pub(in crate::session) world_safe_loc_store_like_cpp: Option<Arc<WorldSafeLocStore>>,
     pub(in crate::session) access_requirement_store: Option<Arc<AccessRequirementStoreLikeCpp>>,
     pub(in crate::session) lfg_dungeons_store: Option<Arc<LfgDungeonsStore>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) lfg_dungeon_store_like_cpp: Option<Arc<LfgDungeonStoreLikeCpp>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) battlemaster_list_store: Option<Arc<BattlemasterListStore>>,
     /// Faction and reputation catalogs a session reads. Owned by one type (#670).
     pub(crate) factions: crate::catalogs::faction::FactionCatalogsLikeCpp,
@@ -195,17 +195,17 @@ pub(crate) struct SessionCatalogs {
     pub(crate) creatures: crate::catalogs::creature::CreatureCatalogsLikeCpp,
     pub(in crate::session) reputation_spillover_template_store:
         Option<Arc<RepSpilloverTemplateStoreLikeCpp>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) creature_equipment_store_like_cpp:
         Option<Arc<CreatureEquipmentStoreLikeCpp>>,
     /// GameObject template catalogs a session reads. Owned by one type (#670).
     pub(crate) gameobjects: crate::catalogs::gameobject::GameObjectCatalogsLikeCpp,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) creature_addon_store_like_cpp: Option<Arc<CreatureAddonStoreLikeCpp>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) creature_difficulty_store_like_cpp:
         Option<Arc<CreatureDifficultyStoreLikeCpp>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) creature_base_stats_store_like_cpp:
         Option<Arc<CreatureBaseStatsStoreLikeCpp>>,
     pub(in crate::session) mount_store: Option<Arc<MountStore>>,
@@ -216,7 +216,7 @@ pub(crate) struct SessionCatalogs {
     pub(in crate::session) mount_x_display_store: Option<Arc<MountXDisplayStore>>,
     pub(in crate::session) vehicle_store: Option<Arc<VehicleStore>>,
     pub(in crate::session) vehicle_seat_store: Option<Arc<VehicleSeatStore>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) vehicle_template_store: Option<Arc<VehicleTemplateStoreLikeCpp>>,
     pub(in crate::session) vehicle_accessory_store: Option<Arc<VehicleAccessoryStoreLikeCpp>>,
     pub(in crate::session) terrain_swap_store: Option<Arc<wow_data::TerrainSwapStore>>,
@@ -229,7 +229,7 @@ pub(crate) struct SessionCatalogs {
     pub(in crate::session) cinematic_sequences_store: Option<Arc<CinematicSequencesStore>>,
     pub(in crate::session) movie_store: Option<Arc<MovieStore>>,
     pub(in crate::session) script_name_interner: Option<Arc<ScriptNameInternerLikeCpp>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) object_mgr_catalogs_like_cpp: Option<Arc<ObjectMgrCatalogsLikeCpp>>,
     pub(in crate::session) gameobject_template_lifecycle_store_like_cpp:
         Option<Arc<GameObjectTemplateLifecycleStoreLikeCpp>>,
@@ -239,9 +239,9 @@ pub(crate) struct SessionCatalogs {
     /// C++ `ObjectMgr::_questPOIStore`, loaded from `quest_poi` / `quest_poi_points`.
     pub(crate) quest_poi_store_like_cpp:
         Option<Arc<HashMap<i32, wow_packet::packets::query::QuestPoiData>>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) player_xp_table: Option<Arc<Vec<u32>>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) exploration_base_xp_store: Option<Arc<ExplorationBaseXpStoreLikeCpp>>,
     /// C++ `sWaypointMgr->GetPath(pathId)` resolver for session-created legacy `WorldCreature`
     /// compatibility objects. The canonical path store is owned by `world-server`.

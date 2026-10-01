@@ -48,7 +48,7 @@ pub(crate) struct LootState {
     /// and release while the authority claim is already persistence-owned.
     #[cfg(test)]
     pub(crate) loot_item_store_test_commit_gate_like_cpp: Option<Arc<tokio::sync::Notify>>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) represented_loot_roll_criteria_events: Vec<RepresentedLootRollCriteriaEvent>,
     /// Session-local representation of `GameObject::m_unique_users` for no-GetLootId chest uses.
     pub(crate) represented_unique_gameobject_uses: std::collections::HashSet<wow_core::ObjectGuid>,

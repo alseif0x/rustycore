@@ -237,11 +237,11 @@ impl crate::session::HubMut<'_> {
                 player.mark_scaling_player_level_delta_changed_like_cpp();
             })
             .is_some();
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         if !owner_marked {
             return;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if !owner_marked && self.core.player_handle_like_cpp.is_some() {
             // A stale handle is an unknown owner in tests too. Only legacy
             // handle-less fixtures may exercise the isolated packet adapter.
