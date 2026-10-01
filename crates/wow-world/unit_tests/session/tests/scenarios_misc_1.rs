@@ -48,10 +48,14 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
     let trainer = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 100, 1);
     session.set_player_guid(Some(first_player));
     session
+        .fixtures
         .auras
         .visible_auras
         .insert(0, test_visible_aura(0, 999));
-    session.auras.player_aura_authority_complete_like_cpp = true;
+    session
+        .fixtures
+        .auras
+        .player_aura_authority_complete_like_cpp = true;
     assert!(session.set_complete_player_skill_records_like_cpp(
         HashMap::from([(
             95,
@@ -68,6 +72,7 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
     ));
     assert!(
         session
+            .fixtures
             .progression
             .player_skill_test_fixture_like_cpp
             .player_skill_non_durable_tombstones_like_cpp
@@ -95,6 +100,7 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
     assert_eq!(session.interaction.gossip_options.len(), 1);
     assert_eq!(
         session
+            .fixtures
             .auras
             .visible_auras
             .get(&0)
@@ -104,6 +110,7 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
     assert!(session.player_aura_authority_complete_like_cpp());
     assert!(
         session
+            .fixtures
             .progression
             .player_skill_test_fixture_like_cpp
             .player_skill_non_durable_tombstones_like_cpp
@@ -117,7 +124,7 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
     assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
     assert!(session.interaction.gossip_options.is_empty());
     assert!(
-        session.auras.visible_auras.is_empty(),
+        session.fixtures.auras.visible_auras.is_empty(),
         "active auras cannot cross a C++ Player lifetime"
     );
     assert!(
@@ -126,6 +133,7 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
     );
     assert!(
         session
+            .fixtures
             .progression
             .player_skill_test_fixture_like_cpp
             .player_skill_non_durable_tombstones_like_cpp
@@ -142,7 +150,7 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
     session.set_player_guid(Some(second_player));
     assert!(session.player_interaction_source_guid_like_cpp().is_none());
     assert!(session.interaction.gossip_options.is_empty());
-    assert!(session.auras.visible_auras.is_empty());
+    assert!(session.fixtures.auras.visible_auras.is_empty());
     assert!(!session.player_aura_authority_complete_like_cpp());
 }
 #[test]
@@ -358,7 +366,7 @@ async fn criteria_tree_tracking_event_objective_auto_rewards_like_cpp() {
 #[test]
 fn represented_player_condition_id_matches_cpp_lookup_semantics() {
     let (mut session, _, _) = make_session();
-    session.identity.player_class = 1;
+    session.fixtures.identity.player_class = 1;
     assert!(!session.represented_meets_player_condition_id_like_cpp(42));
 
     session.set_player_condition_store(Arc::new(wow_data::PlayerConditionStore::from_entries([
@@ -464,7 +472,7 @@ fn represented_player_condition_area_uses_parent_chain_like_cpp() {
 #[test]
 fn represented_taxi_edge_distance_matches_cpp_condition_filter() {
     let (mut session, _, _) = make_session();
-    session.identity.player_class = 1;
+    session.fixtures.identity.player_class = 1;
     session.set_player_condition_store(Arc::new(wow_data::PlayerConditionStore::from_entries([
         wow_data::PlayerConditionEntry {
             id: 42,
@@ -498,7 +506,7 @@ fn represented_taxi_edge_distance_matches_cpp_condition_filter() {
 #[test]
 fn represented_mount_x_display_usable_matches_cpp_condition_filter() {
     let (mut session, _, _) = make_session();
-    session.identity.player_class = 1;
+    session.fixtures.identity.player_class = 1;
     session.set_player_condition_store(Arc::new(wow_data::PlayerConditionStore::from_entries([
         wow_data::PlayerConditionEntry {
             id: 42,
@@ -520,7 +528,7 @@ fn represented_mount_x_display_usable_matches_cpp_condition_filter() {
 #[test]
 fn represented_taxi_usable_mount_displays_match_cpp_filter() {
     let (mut session, _, _) = make_session();
-    session.identity.player_class = 1;
+    session.fixtures.identity.player_class = 1;
     session.set_known_spells_like_cpp(vec![100]);
     session.set_mount_store(Arc::new(wow_data::MountStore::from_entries([
         wow_data::MountEntry {

@@ -90,18 +90,20 @@ fn validate_movement_info_keeps_root_for_fixed_position_vehicle_like_cpp() {
 fn validate_movement_info_keeps_represented_allowed_aura_flags() {
     let mut session = make_session();
     session
+        .fixtures
         .auras
         .visible_auras
         .insert(1, fall_aura(1, RepresentedAuraEffectLikeCpp::Hover, 0, 1.0));
-    session.auras.visible_auras.insert(
+    session.fixtures.auras.visible_auras.insert(
         2,
         fall_aura(2, RepresentedAuraEffectLikeCpp::FeatherFall, 0, 1.0),
     );
     session
+        .fixtures
         .auras
         .visible_auras
         .insert(3, fall_aura(3, RepresentedAuraEffectLikeCpp::Fly, 0, 1.0));
-    session.auras.visible_auras.insert(
+    session.fixtures.auras.visible_auras.insert(
         4,
         fall_aura(4, RepresentedAuraEffectLikeCpp::WaterWalk, 0, 1.0),
     );
@@ -131,6 +133,7 @@ fn validate_movement_info_keeps_represented_allowed_aura_flags() {
 fn validate_movement_info_keeps_water_walk_for_ghost_like_cpp() {
     let mut session = make_session();
     session
+        .fixtures
         .auras
         .visible_auras
         .insert(1, fall_aura(1, RepresentedAuraEffectLikeCpp::Ghost, 0, 1.0));
@@ -166,7 +169,7 @@ fn validate_movement_info_keeps_fly_for_gm_like_cpp() {
 #[test]
 fn validate_movement_info_keeps_fly_for_mounted_flight_speed_aura_like_cpp() {
     let mut session = make_session();
-    session.auras.visible_auras.insert(
+    session.fixtures.auras.visible_auras.insert(
         1,
         fall_aura(1, RepresentedAuraEffectLikeCpp::MountedFlightSpeed, 0, 1.0),
     );

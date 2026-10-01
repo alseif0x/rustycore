@@ -540,7 +540,11 @@ async fn valid_direct_service_hello_replaces_stale_trainer_provenance_like_cpp()
         "C++ removes fake death before dispatching the selected direct service"
     );
     assert!(
-        !session.auras.visible_auras.contains_key(&FEIGN_SLOT),
+        !session
+            .fixtures
+            .auras
+            .visible_auras
+            .contains_key(&FEIGN_SLOT),
         "the direct-service shortcut represents a successful C++ gossip selection"
     );
     assert!(!canonical_player_has_died_state_like_cpp(&mut session));
@@ -764,7 +768,13 @@ async fn gossip_select_trainer_only_source_opens_resolved_trainer_without_close_
         "the target fork's trainer-only generated option must be usable and must not pre-send GossipComplete"
     );
     assert!(session.player_trainer_interaction_matches_like_cpp(guid, TRAINER_ID as i32));
-    assert!(!session.auras.visible_auras.contains_key(&FEIGN_SLOT));
+    assert!(
+        !session
+            .fixtures
+            .auras
+            .visible_auras
+            .contains_key(&FEIGN_SLOT)
+    );
     assert!(!canonical_player_has_died_state_like_cpp(&mut session));
 }
 #[tokio::test]
@@ -872,6 +882,12 @@ async fn gossip_select_requires_exact_active_menu_id_like_cpp() {
         "a mismatched packet GossipID must not route or replace InteractionData"
     );
     assert_eq!(session.interaction.gossip_options.len(), 1);
-    assert!(!session.auras.visible_auras.contains_key(&FEIGN_SLOT));
+    assert!(
+        !session
+            .fixtures
+            .auras
+            .visible_auras
+            .contains_key(&FEIGN_SLOT)
+    );
     assert!(!canonical_player_has_died_state_like_cpp(&mut session));
 }

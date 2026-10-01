@@ -175,7 +175,7 @@ fn cuf_profile_loader_rejects_cpp_oob_id_bug() {
 #[test]
 fn vendor_currency_purchase_plan_does_not_publish_before_commit_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.identity.player_race = 1;
+    session.fixtures.identity.player_race = 1;
     session.set_currency_types_store(Arc::new(wow_data::CurrencyTypesStore::from_entries([
         currency_entry(395),
         currency_entry(396),
@@ -228,7 +228,7 @@ fn vendor_currency_purchase_plan_does_not_publish_before_commit_like_cpp() {
 #[test]
 fn vendor_currency_purchase_publishes_only_committed_plan_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.identity.player_race = 1;
+    session.fixtures.identity.player_race = 1;
     session.set_currency_types_store(Arc::new(wow_data::CurrencyTypesStore::from_entries([
         currency_entry(395),
         currency_entry(396),
@@ -400,6 +400,7 @@ fn loaded_total_stat_percentage_uses_persisted_effect_amount_like_cpp() {
     );
 
     let aura = session
+        .fixtures
         .auras
         .visible_auras
         .values()

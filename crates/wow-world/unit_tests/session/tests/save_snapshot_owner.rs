@@ -7,7 +7,7 @@ fn save_request_consumes_frozen_header_without_replaying_or_rereading_runtime() 
     let (mut session, _, _) = make_session();
     install_canonical_player_owner_for_test(&mut session, 571, 0);
     session.core.current_map_id = 571;
-    session.identity.player_level = 17;
+    session.fixtures.identity.player_level = 17;
     session
         .with_owned_player_mut_like_cpp(|player| {
             player.unit_mut().set_level(17);
@@ -18,7 +18,7 @@ fn save_request_consumes_frozen_header_without_replaying_or_rereading_runtime() 
     let snapshot = session
         .current_player_save_to_db_snapshot_like_cpp()
         .unwrap();
-    session.identity.player_level = 70;
+    session.fixtures.identity.player_level = 70;
     session
         .with_owned_player_mut_like_cpp(|player| {
             player.set_xp(30);
@@ -51,7 +51,7 @@ fn save_snapshot_reads_active_and_detached_owner_without_changing_state() {
     let (mut session, _, send_rx) = make_session();
     let guid = install_canonical_player_owner_for_test(&mut session, 571, 7);
     session.core.current_map_id = 571;
-    session.identity.player_level = 17;
+    session.fixtures.identity.player_level = 17;
     session.set_loaded_player_powers_like_cpp([111, 222, 0, 0, 0, 0, 0, 0, 0, 0]);
     let position = Position::new(1.0, 2.0, 3.0, 0.5);
     session

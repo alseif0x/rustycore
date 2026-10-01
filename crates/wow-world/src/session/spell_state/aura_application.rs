@@ -554,7 +554,7 @@ impl WorldSession {
                 .unwrap_or(0);
             #[cfg(test)]
             let vehicle_id = if vehicle_id == 0 {
-                self.vehicles.player_mount_vehicle_id_like_cpp
+                self.fixtures.vehicles.player_mount_vehicle_id_like_cpp
             } else {
                 vehicle_id
             };
@@ -562,19 +562,26 @@ impl WorldSession {
             let _ = self.remove_player_mount_vehicle_kit_like_cpp();
             #[cfg(test)]
             {
-                self.vehicles.player_mount_vehicle_id_like_cpp = 0;
-                self.vehicles
+                self.fixtures.vehicles.player_mount_vehicle_id_like_cpp = 0;
+                self.fixtures
+                    .vehicles
                     .player_mount_vehicle_accessories_like_cpp
                     .clear();
-                self.vehicles.player_mount_vehicle_seat_count_like_cpp = 0;
-                self.vehicles
+                self.fixtures
+                    .vehicles
+                    .player_mount_vehicle_seat_count_like_cpp = 0;
+                self.fixtures
+                    .vehicles
                     .player_mount_vehicle_usable_seat_count_like_cpp = 0;
             }
             if was_mounted {
                 if vehicle_id != 0 {
                     #[cfg(test)]
                     {
-                        self.vehicles.mount_vehicle_remove_requests_like_cpp = self
+                        self.fixtures
+                            .vehicles
+                            .mount_vehicle_remove_requests_like_cpp = self
+                            .fixtures
                             .vehicles
                             .mount_vehicle_remove_requests_like_cpp
                             .saturating_add(1);
@@ -583,7 +590,10 @@ impl WorldSession {
                 }
                 #[cfg(test)]
                 {
-                    self.pets.mount_pet_control_enable_requests_like_cpp = self
+                    self.fixtures
+                        .pets
+                        .mount_pet_control_enable_requests_like_cpp = self
+                        .fixtures
                         .pets
                         .mount_pet_control_enable_requests_like_cpp
                         .saturating_add(1);
@@ -591,12 +601,15 @@ impl WorldSession {
                 self.enable_pet_controls_on_dismount_like_cpp();
                 #[cfg(test)]
                 {
-                    self.pets.mount_pet_resummon_requests_like_cpp = self
+                    self.fixtures.pets.mount_pet_resummon_requests_like_cpp = self
+                        .fixtures
                         .pets
                         .mount_pet_resummon_requests_like_cpp
                         .saturating_add(1);
-                    self.vehicles
+                    self.fixtures
+                        .vehicles
                         .mount_collision_height_update_requests_like_cpp = self
+                        .fixtures
                         .vehicles
                         .mount_collision_height_update_requests_like_cpp
                         .saturating_add(1);

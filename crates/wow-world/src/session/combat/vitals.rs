@@ -41,7 +41,7 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if synced || self.core.player_handle_like_cpp.is_none() {
-            self.combat.represented_player_base_mana_like_cpp = base_mana.max(0);
+            self.fixtures.combat.represented_player_base_mana_like_cpp = base_mana.max(0);
             self.set_represented_player_power_slot_like_cpp(0, current, Some(max));
         }
         synced
@@ -68,11 +68,11 @@ impl WorldSession {
         #[cfg(test)]
         if let Some((current, max)) = result.or_else(|| {
             (self.core.player_handle_like_cpp.is_none()).then_some((
-                self.combat.represented_player_powers_like_cpp[0].unwrap_or(0),
+                self.fixtures.combat.represented_player_powers_like_cpp[0].unwrap_or(0),
                 max.max(0),
             ))
         }) {
-            self.combat.represented_player_base_mana_like_cpp = base_mana.max(0);
+            self.fixtures.combat.represented_player_base_mana_like_cpp = base_mana.max(0);
             self.set_represented_player_power_slot_like_cpp(0, current, Some(max));
         }
         result
@@ -104,7 +104,7 @@ impl WorldSession {
             })
             .or_else(|| {
                 Some((
-                    self.combat.player_health_like_cpp.min(max_health),
+                    self.fixtures.combat.player_health_like_cpp.min(max_health),
                     max_health,
                 ))
             })
@@ -113,9 +113,9 @@ impl WorldSession {
         let result = canonical;
         #[cfg(test)]
         if let Some((current, max)) = result {
-            self.combat.player_health_like_cpp = current;
-            self.combat.player_max_health_like_cpp = max;
-            self.combat.player_alive_like_cpp = current > 0;
+            self.fixtures.combat.player_health_like_cpp = current;
+            self.fixtures.combat.player_max_health_like_cpp = max;
+            self.fixtures.combat.player_alive_like_cpp = current > 0;
         }
         result
     }
@@ -170,9 +170,9 @@ impl WorldSession {
         #[cfg(test)]
         {
             let (current, max) = result.unwrap_or((health, max_health));
-            self.combat.player_health_like_cpp = current;
-            self.combat.player_max_health_like_cpp = max;
-            self.combat.player_alive_like_cpp = current > 0;
+            self.fixtures.combat.player_health_like_cpp = current;
+            self.fixtures.combat.player_max_health_like_cpp = max;
+            self.fixtures.combat.player_alive_like_cpp = current > 0;
         }
         result
     }
@@ -273,9 +273,9 @@ impl WorldSession {
         if slot >= MAX_POWERS_PER_CLASS {
             return;
         }
-        self.combat.represented_player_powers_like_cpp[slot] = Some(current.max(0));
+        self.fixtures.combat.represented_player_powers_like_cpp[slot] = Some(current.max(0));
         if let Some(max) = max {
-            self.combat.represented_player_max_powers_like_cpp[slot] = Some(max.max(0));
+            self.fixtures.combat.represented_player_max_powers_like_cpp[slot] = Some(max.max(0));
         }
     }
     pub(crate) fn represented_player_power_values_like_cpp(
@@ -285,7 +285,7 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return character_power_snapshot_values_like_cpp(
-                &self.combat.represented_player_powers_like_cpp,
+                &self.fixtures.combat.represented_player_powers_like_cpp,
             );
         }
         canonical
@@ -306,7 +306,7 @@ impl WorldSession {
             .map(loaded_character_power_snapshot_like_cpp);
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.combat.represented_player_powers_like_cpp);
+            return Some(self.fixtures.combat.represented_player_powers_like_cpp);
         }
         canonical
     }

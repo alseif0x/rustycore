@@ -98,7 +98,7 @@ impl WorldSession {
                         .core
                         .player_handle_like_cpp
                         .is_none()
-                        .then_some(self.movement.player_collision_height_like_cpp);
+                        .then_some(self.fixtures.movement.player_collision_height_like_cpp);
                 }
                 #[cfg(not(test))]
                 {

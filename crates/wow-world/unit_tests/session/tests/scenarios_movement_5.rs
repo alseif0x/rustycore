@@ -91,7 +91,7 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
                 .add_unit_state(UnitState::ATTACK_PLAYER.bits());
         })
         .unwrap();
-    session.combat.player_contested_pvp_timer_like_cpp = 77;
+    session.fixtures.combat.player_contested_pvp_timer_like_cpp = 77;
     session.register_in_player_registry();
     session.set_selection_guid_like_cpp(Some(selected_guid));
     session.register_world_creature(
@@ -124,7 +124,7 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
                 .add_threat(player_guid, 25.0);
         })
         .unwrap();
-    assert!(session.combat.in_combat);
+    assert!(session.fixtures.combat.in_combat);
     session
         .instances
         .instance_test_fixture_like_cpp
@@ -153,7 +153,7 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
         "C++ far Player::TeleportTo clears selection after entry preflight and before transfer"
     );
     assert_eq!(
-        session.combat.player_contested_pvp_timer_like_cpp, 0,
+        session.fixtures.combat.player_contested_pvp_timer_like_cpp, 0,
         "C++ far Player::TeleportTo calls ResetContestedPvP before transfer"
     );
     {
@@ -190,8 +190,8 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
             Some(0.0)
         );
     }
-    assert_eq!(session.combat.combat_target, None);
-    assert!(!session.combat.in_combat);
+    assert_eq!(session.fixtures.combat.combat_target, None);
+    assert!(!session.fixtures.combat.in_combat);
     assert!(
         canonical.lock().unwrap().find_map(631, 0).is_none(),
         "C++ Player::TeleportTo only preflights entry rights; map materialization happens later"
@@ -270,9 +270,9 @@ async fn teleport_to_expansion_abort_preserves_vehicle_state_like_cpp() {
         80,
         0,
     ));
-    session.vehicles.player_vehicle_seat_flags_like_cpp =
+    session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp =
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
-    session.vehicles.player_vehicle_seat_id_like_cpp = Some(1004);
+    session.fixtures.vehicles.player_vehicle_seat_id_like_cpp = Some(1004);
     session.register_in_player_registry();
 
     session.teleport_to(870, destination).await;
@@ -288,11 +288,14 @@ async fn teleport_to_expansion_abort_preserves_vehicle_state_like_cpp() {
         .to_bytes()
     );
     assert_eq!(
-        session.vehicles.player_vehicle_seat_flags_like_cpp,
+        session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp,
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK),
         "C++ returns from the expansion gate before Player::TeleportTo calls ExitVehicle"
     );
-    assert_eq!(session.vehicles.player_vehicle_seat_id_like_cpp, Some(1004));
+    assert_eq!(
+        session.fixtures.vehicles.player_vehicle_seat_id_like_cpp,
+        Some(1004)
+    );
     let info = registry
         .party_member(player_guid)
         .expect("registered player");
@@ -555,14 +558,18 @@ async fn teleport_to_far_map_requests_temporary_pet_unsummon_like_cpp() {
     );
     assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
     assert_eq!(session.temporary_pet_unsummon_requests_like_cpp(), 1);
-    assert_eq!(session.pets.represented_pet_guid_like_cpp, None);
+    assert_eq!(session.fixtures.pets.represented_pet_guid_like_cpp, None);
     assert_eq!(
         session
+            .fixtures
             .pets
             .represented_temporary_unsummoned_pet_number_like_cpp,
         42
     );
-    assert_eq!(session.pets.represented_old_pet_spell_like_cpp, 6_889);
+    assert_eq!(
+        session.fixtures.pets.represented_old_pet_spell_like_cpp,
+        6_889
+    );
     {
         let manager = canonical.lock().unwrap();
         assert!(
@@ -645,14 +652,15 @@ async fn teleport_to_far_map_removes_temporary_pet_without_storing_pet_number_li
         ]
     );
     assert_eq!(session.temporary_pet_unsummon_requests_like_cpp(), 1);
-    assert_eq!(session.pets.represented_pet_guid_like_cpp, None);
+    assert_eq!(session.fixtures.pets.represented_pet_guid_like_cpp, None);
     assert_eq!(
         session
+            .fixtures
             .pets
             .represented_temporary_unsummoned_pet_number_like_cpp,
         0
     );
-    assert_eq!(session.pets.represented_old_pet_spell_like_cpp, 0);
+    assert_eq!(session.fixtures.pets.represented_old_pet_spell_like_cpp, 0);
     {
         let manager = canonical.lock().unwrap();
         assert!(
@@ -757,7 +765,7 @@ async fn teleport_to_far_map_delays_when_can_delay_teleport_is_set_like_cpp() {
         wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
         wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
     );
-    session.combat.in_combat = true;
+    session.fixtures.combat.in_combat = true;
     session.set_represented_can_delay_teleport_like_cpp(true);
 
     session.teleport_to(0, destination).await;
@@ -774,7 +782,7 @@ async fn teleport_to_far_map_delays_when_can_delay_teleport_is_set_like_cpp() {
     assert!(session.represented_far_teleport_pending_like_cpp());
     assert_eq!(session.pending_teleport_like_cpp(), None);
     assert!(
-        session.combat.in_combat,
+        session.fixtures.combat.in_combat,
         "C++ delayed far branch returns before CombatStop"
     );
     assert_eq!(
@@ -824,7 +832,7 @@ async fn update_processes_alive_delayed_far_teleport_like_cpp() {
         0,
     ));
     session.set_player_health_like_cpp(100, 100);
-    session.combat.in_combat = true;
+    session.fixtures.combat.in_combat = true;
     session.set_represented_can_delay_teleport_like_cpp(true);
     session.teleport_to(0, destination).await;
     assert!(send_rx.try_recv().is_err());
@@ -844,5 +852,5 @@ async fn update_processes_alive_delayed_far_teleport_like_cpp() {
     assert!(session.represented_far_teleport_pending_like_cpp());
     assert!(!session.represented_has_delayed_teleport_like_cpp());
     assert_eq!(session.represented_delayed_teleport_like_cpp(), None);
-    assert!(!session.combat.in_combat);
+    assert!(!session.fixtures.combat.in_combat);
 }

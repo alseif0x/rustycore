@@ -218,27 +218,33 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
-            self.progression
+            self.fixtures
+                .progression
                 .player_skill_test_fixture_like_cpp
                 .player_skill_values_like_cpp =
                 represented_skill_values_from_records_like_cpp(&skill_records);
-            self.progression.represented_enchanting_skill = skill_records
+            self.fixtures.progression.represented_enchanting_skill = skill_records
                 .get(&SKILL_ENCHANTING_LIKE_CPP)
                 .map(|skill| skill.value)
                 .unwrap_or(0);
-            self.progression
+            self.fixtures
+                .progression
                 .player_skill_test_fixture_like_cpp
                 .player_skill_records_like_cpp = skill_records;
-            self.progression
+            self.fixtures
+                .progression
                 .player_skill_test_fixture_like_cpp
                 .player_skill_non_durable_tombstones_like_cpp = tombstones;
-            self.progression
+            self.fixtures
+                .progression
                 .player_skill_test_fixture_like_cpp
                 .player_skill_records_loaded_like_cpp = loaded;
-            self.progression
+            self.fixtures
+                .progression
                 .player_skill_test_fixture_like_cpp
                 .player_skill_records_complete_like_cpp = complete;
-            self.progression
+            self.fixtures
+                .progression
                 .player_skill_test_fixture_like_cpp
                 .player_skill_occupied_slots_like_cpp = None;
             return true;
@@ -272,27 +278,33 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
-            self.progression
+            self.fixtures
+                .progression
                 .player_skill_test_fixture_like_cpp
                 .player_skill_values_like_cpp =
                 represented_skill_values_from_records_like_cpp(&skill_records);
-            self.progression.represented_enchanting_skill = skill_records
+            self.fixtures.progression.represented_enchanting_skill = skill_records
                 .get(&SKILL_ENCHANTING_LIKE_CPP)
                 .map(|skill| skill.value)
                 .unwrap_or(0);
-            self.progression
+            self.fixtures
+                .progression
                 .player_skill_test_fixture_like_cpp
                 .player_skill_records_like_cpp = skill_records;
-            self.progression
+            self.fixtures
+                .progression
                 .player_skill_test_fixture_like_cpp
                 .player_skill_non_durable_tombstones_like_cpp = tombstones;
-            self.progression
+            self.fixtures
+                .progression
                 .player_skill_test_fixture_like_cpp
                 .player_skill_records_loaded_like_cpp = loaded;
-            self.progression
+            self.fixtures
+                .progression
                 .player_skill_test_fixture_like_cpp
                 .player_skill_records_complete_like_cpp = loaded && complete;
-            self.progression
+            self.fixtures
+                .progression
                 .player_skill_test_fixture_like_cpp
                 .player_skill_occupied_slots_like_cpp = occupied_slots;
             return true;
@@ -355,7 +367,8 @@ impl WorldSession {
         #[cfg(test)]
         let canonical_complete = canonical_complete.or_else(|| {
             self.core.player_handle_like_cpp.is_none().then_some(
-                self.progression
+                self.fixtures
+                    .progression
                     .player_skill_test_fixture_like_cpp
                     .player_skill_records_complete_like_cpp,
             )
@@ -372,7 +385,8 @@ impl WorldSession {
             });
             #[cfg(test)]
             if self.core.player_handle_like_cpp.is_none() {
-                self.progression
+                self.fixtures
+                    .progression
                     .player_skill_test_fixture_like_cpp
                     .player_skill_occupied_slots_like_cpp = None;
             }
@@ -395,7 +409,8 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
-            self.progression
+            self.fixtures
+                .progression
                 .player_skill_test_fixture_like_cpp
                 .player_skill_occupied_slots_like_cpp = Some(occupied_slots);
             return true;
@@ -412,11 +427,13 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return self
+                .fixtures
                 .progression
                 .player_skill_test_fixture_like_cpp
                 .player_skill_records_complete_like_cpp
                 .then_some(
-                    self.progression
+                    self.fixtures
+                        .progression
                         .player_skill_test_fixture_like_cpp
                         .player_skill_occupied_slots_like_cpp,
                 )
@@ -432,7 +449,8 @@ impl WorldSession {
         #[cfg(test)]
         let complete = complete.or_else(|| {
             self.core.player_handle_like_cpp.is_none().then_some(
-                self.progression
+                self.fixtures
+                    .progression
                     .player_skill_test_fixture_like_cpp
                     .player_skill_records_complete_like_cpp,
             )
@@ -546,7 +564,8 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.progression
+                self.fixtures
+                    .progression
                     .player_skill_test_fixture_like_cpp
                     .player_skill_records_like_cpp
                     .clone(),

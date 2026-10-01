@@ -61,6 +61,7 @@ fn update_zone_coalesces_faction_to_city_zero_crossings_into_one_final_update_li
     );
     assert_eq!(
         session
+            .fixtures
             .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_rest_flag_mask_like_cpp,
@@ -123,6 +124,7 @@ fn update_zone_with_overlapping_tavern_flag_does_not_dirty_player_flags_like_cpp
     assert_eq!(update_count, 0, "the RestMgr mask never crossed zero");
     assert_eq!(
         session
+            .fixtures
             .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_rest_flag_mask_like_cpp,
@@ -418,6 +420,7 @@ async fn check_area_explore_indoor_outdoor_removal_is_config_gated_like_cpp() {
     spell_store.insert_spell_misc_attributes_like_cpp(9_201, indoor_attributes);
     session.set_spell_store(Arc::new(spell_store));
     session
+        .fixtures
         .auras
         .visible_auras
         .insert(1, test_visible_aura(1, 9_201));
@@ -429,7 +432,7 @@ async fn check_area_explore_indoor_outdoor_removal_is_config_gated_like_cpp() {
             .await
     );
     assert!(
-        session.auras.visible_auras.contains_key(&1),
+        session.fixtures.auras.visible_auras.contains_key(&1),
         "C++ only calls RemoveAurasWithAttribute when CONFIG_VMAP_INDOOR_CHECK is enabled"
     );
 }
@@ -659,8 +662,8 @@ fn player_attack_game_master_typed_player_is_rejected_like_cpp() {
             .unit()
             .has_attacker_like_cpp(attacker)
     );
-    assert_eq!(session.combat.combat_target, None);
-    assert!(!session.combat.in_combat);
+    assert_eq!(session.fixtures.combat.combat_target, None);
+    assert!(!session.fixtures.combat.in_combat);
 }
 #[test]
 fn mounted_player_attack_is_rejected_like_cpp() {
@@ -705,8 +708,8 @@ fn mounted_player_attack_is_rejected_like_cpp() {
         .unwrap();
     assert_eq!(player_entity.unit().attacking(), None);
     assert_eq!(player_entity.unit().data().target, ObjectGuid::EMPTY);
-    assert_eq!(session.combat.combat_target, None);
-    assert!(!session.combat.in_combat);
+    assert_eq!(session.fixtures.combat.combat_target, None);
+    assert!(!session.fixtures.combat.in_combat);
 }
 #[test]
 fn player_attack_rejects_canonical_uber_player_flag_like_cpp() {
@@ -756,8 +759,8 @@ fn player_attack_rejects_canonical_uber_player_flag_like_cpp() {
         .unwrap();
     assert_eq!(player_entity.unit().attacking(), None);
     assert_eq!(player_entity.unit().data().target, ObjectGuid::EMPTY);
-    assert_eq!(session.combat.combat_target, None);
-    assert!(!session.combat.in_combat);
+    assert_eq!(session.fixtures.combat.combat_target, None);
+    assert!(!session.fixtures.combat.in_combat);
 }
 #[tokio::test]
 async fn handle_attack_swing_invalid_vehicle_seat_sends_stop_without_start_like_cpp() {
@@ -790,7 +793,7 @@ async fn handle_attack_swing_invalid_vehicle_seat_sends_stop_without_start_like_
         80,
         0,
     ));
-    session.vehicles.player_vehicle_seat_flags_like_cpp = Some(0);
+    session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp = Some(0);
     register_test_creature(&mut session, manager.clone(), victim, 40);
 
     let mut pkt = WorldPacket::new_empty();
@@ -801,8 +804,8 @@ async fn handle_attack_swing_invalid_vehicle_seat_sends_stop_without_start_like_
     let opcode = u16::from_le_bytes([sent[0], sent[1]]);
     assert_eq!(opcode, ServerOpcodes::AttackStop as u16);
     assert!(send_rx.try_recv().is_err());
-    assert_eq!(session.combat.combat_target, None);
-    assert!(!session.combat.in_combat);
+    assert_eq!(session.fixtures.combat.combat_target, None);
+    assert!(!session.fixtures.combat.in_combat);
     let guard = manager.read().unwrap();
     assert_ne!(
         guard

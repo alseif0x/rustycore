@@ -652,7 +652,7 @@ fn represented_player_speed_change_does_not_propagate_to_pet_in_combat_like_cpp(
         wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP,
         wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
     );
-    session.combat.in_combat = true;
+    session.fixtures.combat.in_combat = true;
 
     session.set_player_movement_speed_rate_and_notify_like_cpp(UnitMoveTypeLikeCpp::Run, 2.0);
 
@@ -869,6 +869,7 @@ fn represented_non_mounted_flight_speed_removal_recomputes_like_cpp() {
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Flight) - 10.5).abs() < 0.0001
     );
     let vehicle_flight_slot = session
+        .fixtures
         .auras
         .visible_auras
         .iter()

@@ -12,18 +12,19 @@ impl WorldSession {
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             let mut auras = wow_entities::AuraSubsystem::default();
             auras.set_persisted_player_aura_authority_complete_like_cpp(
-                self.auras.player_aura_authority_complete_like_cpp,
+                self.fixtures.auras.player_aura_authority_complete_like_cpp,
             );
             if self
+                .fixtures
                 .auras
                 .player_spell_hit_aura_authority_tombstoned_like_cpp
             {
                 auras.tombstone_spell_hit_aura_authority_like_cpp();
             }
-            for aura in self.auras.visible_auras.values().cloned() {
+            for aura in self.fixtures.auras.visible_auras.values().cloned() {
                 auras.insert_runtime_application_like_cpp(aura);
             }
-            for (&slot, snapshot) in &self.auras.canonical_threat_aura_snapshots_like_cpp {
+            for (&slot, snapshot) in &self.fixtures.auras.canonical_threat_aura_snapshots_like_cpp {
                 auras.insert_threat_snapshot_like_cpp(slot, snapshot.clone());
             }
             return Some(auras);
@@ -44,16 +45,21 @@ impl WorldSession {
                 mutate
                     .take()
                     .expect("test Player aura mutation executes once")(&mut auras);
-            self.auras.player_aura_authority_complete_like_cpp =
+            self.fixtures.auras.player_aura_authority_complete_like_cpp =
                 auras.persisted_player_aura_authority_complete_like_cpp();
-            self.auras
+            self.fixtures
+                .auras
                 .player_spell_hit_aura_authority_tombstoned_like_cpp =
                 auras.spell_hit_aura_authority_tombstoned_like_cpp();
-            self.auras.visible_auras = auras.runtime_applications_like_cpp().clone();
-            self.auras.canonical_threat_aura_snapshots_like_cpp.clear();
+            self.fixtures.auras.visible_auras = auras.runtime_applications_like_cpp().clone();
+            self.fixtures
+                .auras
+                .canonical_threat_aura_snapshots_like_cpp
+                .clear();
             for slot in 0..=u8::MAX {
                 if let Some(snapshot) = auras.threat_snapshot_like_cpp(slot) {
-                    self.auras
+                    self.fixtures
+                        .auras
                         .canonical_threat_aura_snapshots_like_cpp
                         .insert(slot, snapshot.clone());
                 }
@@ -86,7 +92,7 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn player_aura_authority_complete_like_cpp(&self) -> bool {
-        self.auras.player_aura_authority_complete_like_cpp
+        self.fixtures.auras.player_aura_authority_complete_like_cpp
     }
 
     pub(crate) fn resolved_player_aura_authority_complete_like_cpp(&self) -> Option<bool> {

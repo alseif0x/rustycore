@@ -434,7 +434,7 @@ async fn dispatch_routes_send_text_emote_to_handler_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 101);
     session.set_state(SessionState::LoggedIn);
     session.set_player_guid(Some(player_guid));
-    session.identity.player_name = Some("Emoter".to_string());
+    session.fixtures.identity.player_name = Some("Emoter".to_string());
     let catalogs = SessionHandlerCatalogsLikeCpp {
         emotes_text: Arc::new(wow_data::EmotesTextStore::from_entries([
             wow_data::EmotesTextEntry {

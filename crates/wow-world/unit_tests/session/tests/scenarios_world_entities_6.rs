@@ -276,7 +276,7 @@ async fn gameobject_visual_despawn_mismatched_seer_with_vehicle_sends_like_cpp()
         std::iter::empty(),
     );
     vehicle_kit.install();
-    session.vehicles.player_mount_vehicle_kit_like_cpp = Some(vehicle_kit);
+    session.fixtures.vehicles.player_mount_vehicle_kit_like_cpp = Some(vehicle_kit);
 
     session.process_pending().await;
 

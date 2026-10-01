@@ -14,7 +14,8 @@ impl WorldSession {
         pet_guid: ObjectGuid,
         packet_info: RepresentedBattlePetDataLikeCpp,
     ) {
-        self.pets
+        self.fixtures
+            .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pets_like_cpp
             .insert(pet_guid, packet_info);
@@ -30,6 +31,7 @@ impl WorldSession {
             .iter()
             .filter_map(|pet_guid| {
                 let pet = self
+                    .fixtures
                     .pets
                     .battle_pet_test_fixture_like_cpp
                     .represented_battle_pets_like_cpp
@@ -92,7 +94,8 @@ impl WorldSession {
             player.set_battle_pet_data_like_cpp(pet_guid, pet.quality, pet.level);
         });
         #[cfg(test)]
-        self.pets
+        self.fixtures
+            .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pet_data_updates_like_cpp
             .push(pet_guid);
@@ -101,6 +104,7 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_battle_pet_data_updates_like_cpp(&self) -> &[ObjectGuid] {
         &self
+            .fixtures
             .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pet_data_updates_like_cpp

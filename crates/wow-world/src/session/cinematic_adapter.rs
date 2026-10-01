@@ -16,7 +16,11 @@ impl WorldSession {
         }
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
-            return Some(self.presentation.represented_cinematic_state_like_cpp);
+            return Some(
+                self.fixtures
+                    .presentation
+                    .represented_cinematic_state_like_cpp,
+            );
         }
         None
     }
@@ -54,7 +58,8 @@ impl WorldSession {
             #[cfg(not(test))]
             let _ = cinematic_id;
             #[cfg(test)]
-            self.presentation
+            self.fixtures
+                .presentation
                 .represented_cinematic_end_events_like_cpp
                 .push(cinematic_id);
         }
@@ -73,7 +78,8 @@ impl WorldSession {
             return;
         }
         #[cfg(test)]
-        self.presentation
+        self.fixtures
+            .presentation
             .represented_cinematic_next_camera_events_like_cpp
             .push(camera_id);
     }
@@ -91,7 +97,8 @@ impl WorldSession {
             #[cfg(not(test))]
             let _ = movie_id;
             #[cfg(test)]
-            self.presentation
+            self.fixtures
+                .presentation
                 .represented_movie_complete_events_like_cpp
                 .push(movie_id);
         }
@@ -112,13 +119,17 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn represented_cinematic_next_camera_events_like_cpp(&self) -> &[u16] {
         &self
+            .fixtures
             .presentation
             .represented_cinematic_next_camera_events_like_cpp
     }
 
     #[cfg(test)]
     pub(crate) fn represented_cinematic_end_events_like_cpp(&self) -> &[u32] {
-        &self.presentation.represented_cinematic_end_events_like_cpp
+        &self
+            .fixtures
+            .presentation
+            .represented_cinematic_end_events_like_cpp
     }
 
     #[cfg(test)]
@@ -129,6 +140,9 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn represented_movie_complete_events_like_cpp(&self) -> &[u32] {
-        &self.presentation.represented_movie_complete_events_like_cpp
+        &self
+            .fixtures
+            .presentation
+            .represented_movie_complete_events_like_cpp
     }
 }

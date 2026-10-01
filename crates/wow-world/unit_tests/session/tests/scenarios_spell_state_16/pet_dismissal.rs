@@ -41,13 +41,13 @@ async fn spell_dismiss_pet_effect_row_clears_represented_pet_like_cpp() {
         .await
         .expect("represented dismiss-pet spell row should execute");
 
-    assert_eq!(session.pets.represented_pet_guid_like_cpp, None);
+    assert_eq!(session.fixtures.pets.represented_pet_guid_like_cpp, None);
     assert_eq!(
-        session.pets.represented_pet_react_state_like_cpp,
+        session.fixtures.pets.represented_pet_react_state_like_cpp,
         wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP
     );
     assert_eq!(
-        session.pets.represented_pet_command_state_like_cpp,
+        session.fixtures.pets.represented_pet_command_state_like_cpp,
         wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP
     );
     assert_eq!(
@@ -98,13 +98,16 @@ async fn spell_dismiss_pet_effect_row_requires_represented_pet_target_like_cpp()
         .await
         .expect("represented dismiss-pet non-active pet target should no-op");
 
-    assert_eq!(session.pets.represented_pet_guid_like_cpp, Some(pet_guid));
     assert_eq!(
-        session.pets.represented_pet_react_state_like_cpp,
+        session.fixtures.pets.represented_pet_guid_like_cpp,
+        Some(pet_guid)
+    );
+    assert_eq!(
+        session.fixtures.pets.represented_pet_react_state_like_cpp,
         wow_packet::packets::pet::REACT_PASSIVE_LIKE_CPP
     );
     assert_eq!(
-        session.pets.represented_pet_command_state_like_cpp,
+        session.fixtures.pets.represented_pet_command_state_like_cpp,
         wow_packet::packets::pet::COMMAND_STAY_LIKE_CPP
     );
     assert_eq!(

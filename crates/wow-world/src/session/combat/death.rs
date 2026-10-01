@@ -18,8 +18,8 @@ impl WorldSession {
         });
         #[cfg(test)]
         {
-            self.combat.player_health_like_cpp = 0;
-            self.combat.player_alive_like_cpp = false;
+            self.fixtures.combat.player_health_like_cpp = 0;
+            self.fixtures.combat.player_alive_like_cpp = false;
         }
         self.sync_player_registry_state_like_cpp();
     }
@@ -45,16 +45,20 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(PlayerResurrectionStateLikeCpp {
-                request: self.combat.represented_resurrection_request_like_cpp,
+                request: self
+                    .fixtures
+                    .combat
+                    .represented_resurrection_request_like_cpp,
                 delayed_after_teleport: self
+                    .fixtures
                     .combat
                     .represented_delayed_resurrection_after_teleport_like_cpp,
                 self_res_spells: self
                     .spell_state
                     .represented_self_res_spells_like_cpp
                     .clone(),
-                death_timer_active: self.combat.represented_death_timer_active_like_cpp,
-                area_spirit_healer_guid: self.combat.area_spirit_healer_guid_like_cpp,
+                death_timer_active: self.fixtures.combat.represented_death_timer_active_like_cpp,
+                area_spirit_healer_guid: self.fixtures.combat.area_spirit_healer_guid_like_cpp,
             });
         }
         canonical

@@ -756,7 +756,7 @@ fn represented_mount_liquid_state_uses_cpp_liquid_bits_and_swimming_flag() {
     let player_guid = ObjectGuid::create_player(1, 21_861);
     let canonical = shared_canonical_map_manager();
     session.set_player_guid(Some(player_guid));
-    session.movement.player_position = Some(Position::ZERO);
+    session.fixtures.movement.player_position = Some(Position::ZERO);
     session.set_canonical_map_manager(Arc::clone(&canonical));
     add_canonical_test_player_on_map(&canonical, player_guid, Position::ZERO, 0, 0);
 

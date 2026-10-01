@@ -565,8 +565,10 @@ impl WorldSession {
     pub(crate) fn request_represented_battleground_leave_like_cpp(&mut self) {
         #[cfg(test)]
         {
-            self.battleground
+            self.fixtures
+                .battleground
                 .represented_battleground_leave_requests_like_cpp = self
+                .fixtures
                 .battleground
                 .represented_battleground_leave_requests_like_cpp
                 .saturating_add(1);
@@ -574,7 +576,8 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn represented_battleground_leave_requests_like_cpp(&self) -> u32 {
-        self.battleground
+        self.fixtures
+            .battleground
             .represented_battleground_leave_requests_like_cpp
     }
     pub(crate) fn set_represented_resurrection_request_like_cpp(
@@ -588,7 +591,9 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.combat.represented_resurrection_request_like_cpp = Some(request);
+            self.fixtures
+                .combat
+                .represented_resurrection_request_like_cpp = Some(request);
         }
         canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
@@ -598,7 +603,9 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.combat.represented_resurrection_request_like_cpp = None;
+            self.fixtures
+                .combat
+                .represented_resurrection_request_like_cpp = None;
         }
         canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
@@ -626,7 +633,11 @@ impl WorldSession {
             if !self.represented_resurrection_requested_by_like_cpp(resurrecter) {
                 return None;
             }
-            return self.combat.represented_resurrection_request_like_cpp.take();
+            return self
+                .fixtures
+                .combat
+                .represented_resurrection_request_like_cpp
+                .take();
         }
         canonical
     }
@@ -641,7 +652,8 @@ impl WorldSession {
         self.invalidate_represented_character_pet_empty_authority_like_cpp();
         #[cfg(test)]
         {
-            self.pets.temporary_pet_unsummon_requests_like_cpp = self
+            self.fixtures.pets.temporary_pet_unsummon_requests_like_cpp = self
+                .fixtures
                 .pets
                 .temporary_pet_unsummon_requests_like_cpp
                 .saturating_add(1);
@@ -649,12 +661,13 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn temporary_pet_unsummon_requests_like_cpp(&self) -> u32 {
-        self.pets.temporary_pet_unsummon_requests_like_cpp
+        self.fixtures.pets.temporary_pet_unsummon_requests_like_cpp
     }
     pub(crate) fn request_jump_proc_like_cpp(&mut self) {
         #[cfg(test)]
         {
-            self.movement.movement_jump_proc_requests_like_cpp = self
+            self.fixtures.movement.movement_jump_proc_requests_like_cpp = self
+                .fixtures
                 .movement
                 .movement_jump_proc_requests_like_cpp
                 .saturating_add(1);
@@ -662,7 +675,7 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn movement_jump_proc_requests_like_cpp(&self) -> u32 {
-        self.movement.movement_jump_proc_requests_like_cpp
+        self.fixtures.movement.movement_jump_proc_requests_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn represented_duel_requests_like_cpp(&self) -> &[RepresentedDuelRequestedLikeCpp] {
@@ -701,7 +714,8 @@ impl WorldSession {
         ) {
             crate::handlers::vehicle::VehicleHandlerAction::ChangeSeat { seat_id, next } => {
                 #[cfg(test)]
-                self.vehicles
+                self.fixtures
+                    .vehicles
                     .represented_vehicle_seat_change_requests_like_cpp
                     .push(RepresentedVehicleSeatChangeRequestLikeCpp { seat_id, next });
                 #[cfg(not(test))]
@@ -716,6 +730,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedVehicleSeatChangeRequestLikeCpp] {
         &self
+            .fixtures
             .vehicles
             .represented_vehicle_seat_change_requests_like_cpp
     }
@@ -724,6 +739,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedVehicleSeatSpellClickRequestLikeCpp] {
         &self
+            .fixtures
             .vehicles
             .represented_vehicle_seat_spell_click_requests_like_cpp
     }
@@ -731,7 +747,10 @@ impl WorldSession {
     pub(crate) fn represented_vehicle_enter_requests_like_cpp(
         &self,
     ) -> &[RepresentedVehicleEnterRequestLikeCpp] {
-        &self.vehicles.represented_vehicle_enter_requests_like_cpp
+        &self
+            .fixtures
+            .vehicles
+            .represented_vehicle_enter_requests_like_cpp
     }
     pub(crate) fn represented_request_vehicle_switch_seat_like_cpp(
         &mut self,
@@ -794,13 +813,17 @@ impl WorldSession {
     pub(crate) fn represented_activate_taxi_requests_like_cpp(
         &self,
     ) -> &[RepresentedActivateTaxiLikeCpp] {
-        &self.vehicles.represented_activate_taxi_requests_like_cpp
+        &self
+            .fixtures
+            .vehicles
+            .represented_activate_taxi_requests_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn represented_confirm_respec_wipe_requests_like_cpp(
         &self,
     ) -> &[RepresentedConfirmRespecWipeLikeCpp] {
         &self
+            .fixtures
             .progression
             .represented_confirm_respec_wipe_requests_like_cpp
     }
@@ -824,7 +847,7 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn temporary_pet_resummon_requests_like_cpp(&self) -> u32 {
-        self.pets.temporary_pet_resummon_requests_like_cpp
+        self.fixtures.pets.temporary_pet_resummon_requests_like_cpp
     }
     pub(crate) fn set_represented_pending_quest_sharing_like_cpp(
         &mut self,

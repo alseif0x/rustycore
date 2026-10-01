@@ -474,7 +474,10 @@ async fn instance_lock_response_accept_confirms_and_clears_pending_bind_like_cpp
         session.instances.represented_confirmed_pending_binds,
         vec![9001]
     );
-    assert_eq!(session.combat.represented_repop_at_graveyard_count, 0);
+    assert_eq!(
+        session.fixtures.combat.represented_repop_at_graveyard_count,
+        0
+    );
 
     let entries = session.create_map_db2_entries_like_cpp(631, 4).unwrap();
     let now = std::time::SystemTime::now()

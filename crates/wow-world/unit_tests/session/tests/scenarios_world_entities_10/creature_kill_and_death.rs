@@ -24,7 +24,7 @@ async fn creature_kill_target_dies_proc_filters_group_reward_distance_like_cpp()
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
     session.core.player_guid = Some(player);
-    session.movement.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
+    session.fixtures.movement.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
     session.social.group_guid = Some(group_guid);
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));

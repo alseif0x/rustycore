@@ -190,10 +190,10 @@ impl WorldSession {
         let _ = self.set_player_pet_guid_like_cpp(None);
         #[cfg(test)]
         {
-            self.pets.represented_pet_created_by_spell_like_cpp = 0;
-            self.pets.represented_pet_react_state_like_cpp =
+            self.fixtures.pets.represented_pet_created_by_spell_like_cpp = 0;
+            self.fixtures.pets.represented_pet_react_state_like_cpp =
                 wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
-            self.pets.represented_pet_command_state_like_cpp =
+            self.fixtures.pets.represented_pet_command_state_like_cpp =
                 wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
         }
         let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
@@ -232,7 +232,8 @@ impl WorldSession {
     pub(crate) fn resummon_pet_temporary_unsummoned_like_cpp(&mut self) {
         #[cfg(test)]
         {
-            self.pets.temporary_pet_resummon_requests_like_cpp = self
+            self.fixtures.pets.temporary_pet_resummon_requests_like_cpp = self
+                .fixtures
                 .pets
                 .temporary_pet_resummon_requests_like_cpp
                 .saturating_add(1);
@@ -512,8 +513,9 @@ impl WorldSession {
             let _ = self.set_player_pet_guid_like_cpp(Some(pet_guid));
             #[cfg(test)]
             if let Some(info) = self.represented_pet_stable_info_by_number_like_cpp(pet_number) {
-                self.pets.represented_pet_created_by_spell_like_cpp = info.created_by_spell_id;
-                self.pets.represented_pet_react_state_like_cpp = info.react_state as u8;
+                self.fixtures.pets.represented_pet_created_by_spell_like_cpp =
+                    info.created_by_spell_id;
+                self.fixtures.pets.represented_pet_react_state_like_cpp = info.react_state as u8;
             }
         }
     }

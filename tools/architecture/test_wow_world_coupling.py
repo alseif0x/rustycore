@@ -208,8 +208,13 @@ class CouplingTests(unittest.TestCase):
             pub struct WorldSession {
                 pub core: SessionCore,
                 #[cfg(test)]
-                pub(crate) movement: MovementState,
+                pub(crate) fixtures: SessionFixtures,
                 pub(crate) plain: u32,
+            }
+        """)
+        self.write("session/state/fixtures.rs", """
+            pub(crate) struct SessionFixtures {
+                pub(crate) movement: MovementState,
             }
         """)
         self.write("session/state/session_core.rs", """
@@ -229,7 +234,8 @@ class CouplingTests(unittest.TestCase):
                 fn alpha(&self) -> u32 {
                     let _ = self.core.fixture;
                     let _ = self.core.helper();
-                    let _ = self.movement.position;
+                    let _ = self.fixtures.movement.position;
+                    let _ = self.fixtures.movement;
                     self.core
                         .account_id + self.plain
                 }

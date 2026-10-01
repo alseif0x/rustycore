@@ -67,9 +67,9 @@ fn account_data_times_respect_global_and_character_masks_like_cpp() {
 #[test]
 fn represented_player_condition_context_uses_live_session_state_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.identity.player_race = 1;
-    session.identity.player_class = 2;
-    session.identity.player_gender = 1;
+    session.fixtures.identity.player_race = 1;
+    session.fixtures.identity.player_class = 2;
+    session.fixtures.identity.player_gender = 1;
     session.set_known_spells_like_cpp(vec![635, -1, 19740]);
     session
         .set_player_skill_values_like_cpp(HashMap::from([(SKILL_RIDING_LIKE_CPP, 75), (333, 125)]));
@@ -490,6 +490,7 @@ fn logout_resting_only_selects_offline_rate_and_does_not_restore_online_rest_lik
     assert!(!session.represented_is_resting_like_cpp());
     assert_eq!(
         session
+            .fixtures
             .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_inn_area_trigger_id_like_cpp,
@@ -497,6 +498,7 @@ fn logout_resting_only_selects_offline_rate_and_does_not_restore_online_rest_lik
     );
     assert_eq!(
         session
+            .fixtures
             .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_rest_time_secs_like_cpp,
@@ -620,6 +622,7 @@ fn login_update_zone_rebuilds_city_and_faction_rest_when_ids_are_preseeded_like_
     assert!(session.represented_is_resting_like_cpp());
     assert_ne!(
         session
+            .fixtures
             .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_rest_flag_mask_like_cpp
@@ -628,6 +631,7 @@ fn login_update_zone_rebuilds_city_and_faction_rest_when_ids_are_preseeded_like_
     );
     assert_ne!(
         session
+            .fixtures
             .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_rest_flag_mask_like_cpp
@@ -636,6 +640,7 @@ fn login_update_zone_rebuilds_city_and_faction_rest_when_ids_are_preseeded_like_
     );
     assert_ne!(
         session
+            .fixtures
             .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_rest_time_secs_like_cpp,

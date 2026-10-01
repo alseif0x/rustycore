@@ -85,6 +85,7 @@ fn tavern_rest_revalidation_clears_stale_trigger_like_cpp() {
     assert!(session.represented_is_resting_like_cpp());
     assert_eq!(
         session
+            .fixtures
             .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_inn_area_trigger_id_like_cpp,
@@ -102,6 +103,7 @@ fn tavern_rest_revalidation_clears_stale_trigger_like_cpp() {
     assert!(!session.represented_is_resting_like_cpp());
     assert_eq!(
         session
+            .fixtures
             .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_inn_area_trigger_id_like_cpp,

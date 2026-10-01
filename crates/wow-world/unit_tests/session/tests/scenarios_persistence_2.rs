@@ -566,6 +566,7 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
 fn load_completed_achievement_rows_like_cpp_clears_stale_and_deduplicates() {
     let (mut session, _, _) = make_session();
     session
+        .fixtures
         .collections
         .represented_completed_achievements_like_cpp
         .insert(7777);
@@ -574,6 +575,7 @@ fn load_completed_achievement_rows_like_cpp_clears_stale_and_deduplicates() {
 
     assert_eq!(
         session
+            .fixtures
             .collections
             .represented_completed_achievements_like_cpp
             .len(),
@@ -581,24 +583,28 @@ fn load_completed_achievement_rows_like_cpp_clears_stale_and_deduplicates() {
     );
     assert!(
         session
+            .fixtures
             .collections
             .represented_completed_achievements_like_cpp
             .contains(&9001)
     );
     assert!(
         session
+            .fixtures
             .collections
             .represented_completed_achievements_like_cpp
             .contains(&9002)
     );
     assert!(
         !session
+            .fixtures
             .collections
             .represented_completed_achievements_like_cpp
             .contains(&7777)
     );
     assert!(
         !session
+            .fixtures
             .collections
             .represented_completed_achievements_like_cpp
             .contains(&0)
@@ -773,7 +779,7 @@ fn player_attack_rejects_player_loading_visibility_like_cpp() {
         attacker_session.start_player_attack_like_cpp(victim),
         PlayerAttackStartLikeCppResult::Rejected
     );
-    assert_eq!(attacker_session.combat.combat_target, None);
+    assert_eq!(attacker_session.fixtures.combat.combat_target, None);
 
     victim_session.set_player_loading(None);
     assert_eq!(

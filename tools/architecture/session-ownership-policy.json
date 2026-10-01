@@ -12,47 +12,11 @@
       },
       "fields": [
         {
-          "name": "auras",
-          "type": "AuraState",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "battleground",
-          "type": "BattlegroundState",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
           "name": "catalogs",
           "type": "SessionCatalogs",
           "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
-        },
-        {
-          "name": "collections",
-          "type": "CollectionsState",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "combat",
-          "type": "CombatState",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
         },
         {
           "name": "config",
@@ -69,9 +33,9 @@
           "source_class": "production"
         },
         {
-          "name": "identity",
-          "type": "PlayerIdentityState",
-          "visibility": "pub (in crate :: session)",
+          "name": "fixtures",
+          "type": "SessionFixtures",
+          "visibility": "pub (crate)",
           "cfg": [
             "cfg (test)"
           ],
@@ -113,47 +77,11 @@
           "source_class": "production"
         },
         {
-          "name": "movement",
-          "type": "MovementState",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "pets",
-          "type": "PetState",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
           "name": "phase",
           "type": "SessionPhaseRail",
           "visibility": "pub (in crate :: session)",
           "cfg": [],
           "source_class": "production"
-        },
-        {
-          "name": "presentation",
-          "type": "PlayerPresentationState",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "progression",
-          "type": "ProgressionState",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
         },
         {
           "name": "quest_state",
@@ -175,24 +103,6 @@
           "visibility": "pub (crate)",
           "cfg": [],
           "source_class": "production"
-        },
-        {
-          "name": "teleport",
-          "type": "TeleportState",
-          "visibility": "pub (in crate :: session)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
-        },
-        {
-          "name": "vehicles",
-          "type": "TaxiVehicleState",
-          "visibility": "pub (crate)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture"
         },
         {
           "name": "view",
@@ -77983,7 +77893,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn mover_movement_force_mod_magnitude_like_cpp (& self , mover_guid : ObjectGuid ,) -> Option < f32 >|body=fnv1a64x2:842e339288ff492ad0e38e3e92a306ad:len=1183|evidence=fnv1a64x2:27c38cc1c7a92a7e8d381e22e84fd5e5:len=795",
+          "fingerprint": "signature=impl:WorldSession::fn mover_movement_force_mod_magnitude_like_cpp (& self , mover_guid : ObjectGuid ,) -> Option < f32 >|body=fnv1a64x2:6fb34a08bd04602a33b57f0ec9f58599:len=1194|evidence=fnv1a64x2:27c38cc1c7a92a7e8d381e22e84fd5e5:len=795",
           "cfg": [],
           "multiplicity": 1
         },

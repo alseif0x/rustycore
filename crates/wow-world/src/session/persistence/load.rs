@@ -371,22 +371,28 @@ impl WorldSession {
         });
         #[cfg(test)]
         if _canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            self.progression
+            self.fixtures
+                .progression
                 .rest_mgr_test_fixture_like_cpp
                 .represented_rest_flag_mask_like_cpp = 0;
-            self.progression
+            self.fixtures
+                .progression
                 .rest_mgr_test_fixture_like_cpp
                 .represented_rest_location_initialized_like_cpp = false;
-            self.progression
+            self.fixtures
+                .progression
                 .rest_mgr_test_fixture_like_cpp
                 .represented_defer_rest_flag_sync_like_cpp = false;
-            self.progression
+            self.fixtures
+                .progression
                 .rest_mgr_test_fixture_like_cpp
                 .represented_deferred_rest_flag_update_dirty_like_cpp = false;
-            self.progression
+            self.fixtures
+                .progression
                 .rest_mgr_test_fixture_like_cpp
                 .represented_inn_area_trigger_id_like_cpp = 0;
-            self.progression
+            self.fixtures
+                .progression
                 .rest_mgr_test_fixture_like_cpp
                 .represented_rest_time_secs_like_cpp = 0;
         }
@@ -668,7 +674,7 @@ impl WorldSession {
             .name = Some(name.clone());
         #[cfg(test)]
         {
-            self.identity.player_name = Some(name);
+            self.fixtures.identity.player_name = Some(name);
         }
     }
     pub(crate) fn set_loaded_player_identity_like_cpp(
@@ -718,10 +724,10 @@ impl WorldSession {
                 });
             #[cfg(test)]
             {
-                self.identity.player_race = race;
-                self.identity.player_class = class;
-                self.identity.player_level = level;
-                self.identity.player_gender = gender;
+                self.fixtures.identity.player_race = race;
+                self.fixtures.identity.player_class = class;
+                self.fixtures.identity.player_level = level;
+                self.fixtures.identity.player_gender = gender;
             }
         }
         self.set_player_faction_for_race_like_cpp(race);
@@ -806,7 +812,7 @@ impl WorldSession {
         });
         #[cfg(test)]
         if _canonical.is_some() || self.core.player_handle_like_cpp.is_none() {
-            self.combat.represented_player_powers_like_cpp =
+            self.fixtures.combat.represented_player_powers_like_cpp =
                 loaded_character_power_snapshot_like_cpp(powers);
         }
     }
@@ -815,7 +821,8 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.progression
+                self.fixtures
+                    .progression
                     .player_skill_test_fixture_like_cpp
                     .player_skill_records_loaded_like_cpp,
             );
@@ -833,7 +840,9 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
-            self.presentation.represented_action_buttons_loaded_like_cpp = true;
+            self.fixtures
+                .presentation
+                .represented_action_buttons_loaded_like_cpp = true;
         }
     }
     pub(crate) fn loaded_action_buttons_snapshot_like_cpp(
@@ -849,9 +858,16 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none()
             && self.core.player_handle_like_cpp.is_none()
-            && self.presentation.represented_action_buttons_loaded_like_cpp
+            && self
+                .fixtures
+                .presentation
+                .represented_action_buttons_loaded_like_cpp
         {
-            return Some(self.presentation.represented_action_buttons_like_cpp);
+            return Some(
+                self.fixtures
+                    .presentation
+                    .represented_action_buttons_like_cpp,
+            );
         }
         canonical
     }
@@ -875,7 +891,7 @@ impl WorldSession {
         }
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
-            self.presentation.cuf_profiles_loaded_like_cpp = true;
+            self.fixtures.presentation.cuf_profiles_loaded_like_cpp = true;
         }
     }
     pub(crate) fn load_represented_cuf_profile_like_cpp(
@@ -900,13 +916,13 @@ impl WorldSession {
 
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
-            if self.presentation.cuf_profiles_like_cpp.len()
+            if self.fixtures.presentation.cuf_profiles_like_cpp.len()
                 != wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP
             {
-                self.presentation.cuf_profiles_like_cpp =
+                self.fixtures.presentation.cuf_profiles_like_cpp =
                     vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
             }
-            self.presentation.cuf_profiles_like_cpp[index] = Some(fixture_profile);
+            self.fixtures.presentation.cuf_profiles_like_cpp[index] = Some(fixture_profile);
             return true;
         }
         false
@@ -933,6 +949,7 @@ impl WorldSession {
         if self.core.player_handle_like_cpp.is_none() {
             return Some(wow_packet::packets::misc::LoadCufProfiles {
                 profiles: self
+                    .fixtures
                     .presentation
                     .cuf_profiles_like_cpp
                     .iter()

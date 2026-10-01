@@ -250,7 +250,8 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.progression
+                self.fixtures
+                    .progression
                     .player_skill_test_fixture_like_cpp
                     .player_skill_non_durable_tombstones_like_cpp
                     .clone(),

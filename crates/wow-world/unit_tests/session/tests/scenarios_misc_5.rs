@@ -836,7 +836,7 @@ fn initial_canonical_player_sets_display_mount_collision_shape_like_cpp() {
     ));
     configure_player_shape_mount_collision_stores_like_cpp(&mut session);
     session.update_player_collision_height_like_cpp();
-    session.vehicles.player_mount_display_id_like_cpp = 4321;
+    session.fixtures.vehicles.player_mount_display_id_like_cpp = 4321;
     session.update_player_collision_height_like_cpp();
     session
         .ensure_canonical_world_map_for_current_player_like_cpp()
@@ -861,19 +861,19 @@ fn initial_canonical_player_sets_display_mount_collision_shape_like_cpp() {
     assert_eq!(player.unit().data().mount_display_id, 4321);
     assert!(
         (player.unit().collision_height_like_cpp()
-            - session.movement.player_collision_height_like_cpp)
+            - session.fixtures.movement.player_collision_height_like_cpp)
             .abs()
             < 0.0001
     );
     assert!(
         (player.unit().world().collision_height_like_cpp()
-            - session.movement.player_collision_height_like_cpp)
+            - session.fixtures.movement.player_collision_height_like_cpp)
             .abs()
             < 0.0001
     );
     assert!(
         (player.unit().world().object().scale()
-            - session.presentation.player_object_scale_like_cpp)
+            - session.fixtures.presentation.player_object_scale_like_cpp)
             .abs()
             < 0.0001
     );

@@ -49,8 +49,11 @@ fn canonical_player_existing_sync_receives_mount_collision_update_like_cpp() {
         .apply_represented_mounted_aura_like_cpp(100, ObjectGuid::EMPTY, &effect)
         .unwrap();
 
-    assert_eq!(session.vehicles.player_mount_display_id_like_cpp, 4321);
-    assert!((session.movement.player_collision_height_like_cpp - 7.32).abs() < 0.0001);
+    assert_eq!(
+        session.fixtures.vehicles.player_mount_display_id_like_cpp,
+        4321
+    );
+    assert!((session.fixtures.movement.player_collision_height_like_cpp - 7.32).abs() < 0.0001);
     let manager = canonical.lock().unwrap();
     let player = manager
         .find_map(571, 0)
@@ -135,8 +138,11 @@ fn player_bootstrap_is_consumed_without_a_second_runtime_owner_like_cpp() {
         2
     );
     assert_eq!(session.core.player_guid, Some(guid));
-    assert_eq!(session.identity.player_name.as_deref(), Some("Jaina"));
-    assert_eq!(session.movement.player_position, Some(start));
+    assert_eq!(
+        session.fixtures.identity.player_name.as_deref(),
+        Some("Jaina")
+    );
+    assert_eq!(session.fixtures.movement.player_position, Some(start));
     assert_eq!(session.core.current_map_id, 571);
 
     let moved = Position::new(5.0, 6.0, 7.0, 8.0);
@@ -154,9 +160,9 @@ fn player_bootstrap_is_consumed_without_a_second_runtime_owner_like_cpp() {
     assert_eq!(session.player_xp_like_cpp(), 66);
     assert!(session.known_spells_like_cpp().contains(&116));
     assert!(!session.inventory_items_like_cpp().contains_key(&23));
-    assert_eq!(session.movement.player_position, Some(moved));
+    assert_eq!(session.fixtures.movement.player_position, Some(moved));
     assert_eq!(session.core.current_map_id, 1);
-    assert_eq!(session.identity.player_level, 71);
+    assert_eq!(session.fixtures.identity.player_level, 71);
 
     session.set_player_guid(None);
     assert_eq!(session.player_guid(), None);
@@ -187,11 +193,11 @@ fn canonical_player_identity_is_the_post_install_authority_like_cpp() {
         })
         .expect("canonical player");
 
-    session.identity.player_name = Some("stale fixture name".into());
-    session.identity.player_race = 1;
-    session.identity.player_class = 1;
-    session.identity.player_level = 1;
-    session.identity.player_gender = 0;
+    session.fixtures.identity.player_name = Some("stale fixture name".into());
+    session.fixtures.identity.player_race = 1;
+    session.fixtures.identity.player_class = 1;
+    session.fixtures.identity.player_level = 1;
+    session.fixtures.identity.player_gender = 0;
     assert_eq!(
         session.player_name_like_cpp(),
         Some("CanonicalOwner".into())
@@ -406,14 +412,14 @@ fn represented_current_vehicle_seat_switch_gate_matches_cpp() {
 
     assert!(!session.represented_current_vehicle_seat_can_switch_from_like_cpp());
 
-    session.vehicles.player_vehicle_seat_flags_like_cpp =
+    session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp =
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
     assert!(
         !session.represented_current_vehicle_seat_can_switch_from_like_cpp(),
         "C++ VehicleSeatEntry::CanSwitchFromSeat only checks VEHICLE_SEAT_FLAG_CAN_SWITCH"
     );
 
-    session.vehicles.player_vehicle_seat_flags_like_cpp =
+    session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp =
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK | wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
     assert!(session.represented_current_vehicle_seat_can_switch_from_like_cpp());
 }
@@ -422,7 +428,7 @@ fn represented_vehicle_switch_same_vehicle_records_cpp_change_seat_plan() {
     let (mut session, _, _) = make_session();
     let base = test_creature_guid(61_001);
 
-    session.vehicles.player_vehicle_seat_flags_like_cpp =
+    session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp =
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
     session.set_player_moved_unit_guid_like_cpp(base);
 
@@ -502,7 +508,7 @@ fn represented_vehicle_switch_same_vehicle_records_cpp_change_seat_plan() {
 async fn vehicle_switch_handlers_record_same_vehicle_change_seat_like_cpp() {
     let (mut session, _, _) = make_session();
     let base = test_creature_guid(61_101);
-    session.vehicles.player_vehicle_seat_flags_like_cpp =
+    session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp =
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_SWITCH);
     session.set_player_moved_unit_guid_like_cpp(base);
 
@@ -569,7 +575,7 @@ fn player_registry_publishes_player_vehicle_kit_snapshot_like_cpp() {
     session.set_player_registry(Arc::clone(&registry));
 
     session.register_in_player_registry();
-    session.vehicles.player_mount_vehicle_kit_like_cpp = Some(
+    session.fixtures.vehicles.player_mount_vehicle_kit_like_cpp = Some(
         represented_vehicle_kit_with_passenger_like_cpp(guid, test_creature_guid(62_051), true),
     );
     session.sync_player_registry_state_like_cpp();
@@ -652,7 +658,7 @@ fn represented_eject_passenger_removes_ejectable_passenger_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 55);
     let passenger_guid = ObjectGuid::create_player(1, 56);
     session.set_player_guid(Some(player_guid));
-    session.vehicles.player_mount_vehicle_kit_like_cpp = Some(
+    session.fixtures.vehicles.player_mount_vehicle_kit_like_cpp = Some(
         represented_vehicle_kit_with_passenger_like_cpp(player_guid, passenger_guid, true),
     );
 
@@ -660,6 +666,7 @@ fn represented_eject_passenger_removes_ejectable_passenger_like_cpp() {
 
     assert!(
         session
+            .fixtures
             .vehicles
             .player_mount_vehicle_kit_like_cpp
             .as_ref()
@@ -675,13 +682,14 @@ fn represented_eject_passenger_rejects_non_ejectable_seat_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 57);
     let passenger_guid = ObjectGuid::create_player(1, 58);
     session.set_player_guid(Some(player_guid));
-    session.vehicles.player_mount_vehicle_kit_like_cpp = Some(
+    session.fixtures.vehicles.player_mount_vehicle_kit_like_cpp = Some(
         represented_vehicle_kit_with_passenger_like_cpp(player_guid, passenger_guid, false),
     );
 
     assert!(!session.represented_eject_passenger_like_cpp(passenger_guid));
     assert_eq!(
         session
+            .fixtures
             .vehicles
             .player_mount_vehicle_kit_like_cpp
             .as_ref()
@@ -698,13 +706,14 @@ fn represented_eject_passenger_rejects_without_vehicle_kit_or_unit_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 59);
     let passenger_guid = ObjectGuid::create_player(1, 60);
     session.set_player_guid(Some(player_guid));
-    session.vehicles.player_mount_vehicle_kit_like_cpp = Some(
+    session.fixtures.vehicles.player_mount_vehicle_kit_like_cpp = Some(
         represented_vehicle_kit_with_passenger_like_cpp(player_guid, passenger_guid, true),
     );
 
     assert!(!session.represented_eject_passenger_like_cpp(ObjectGuid::EMPTY));
     assert_eq!(
         session
+            .fixtures
             .vehicles
             .player_mount_vehicle_kit_like_cpp
             .as_ref()
@@ -897,6 +906,6 @@ fn player_attack_rejects_typed_player_victim_without_pvp_snapshot_like_cpp() {
         assert_eq!(attacker_entity.unit().data().target, ObjectGuid::EMPTY);
         assert!(!victim_entity.unit().has_attacker_like_cpp(attacker));
     }
-    assert_eq!(session.combat.combat_target, None);
-    assert!(!session.combat.in_combat);
+    assert_eq!(session.fixtures.combat.combat_target, None);
+    assert!(!session.fixtures.combat.in_combat);
 }

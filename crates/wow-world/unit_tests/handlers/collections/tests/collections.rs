@@ -525,6 +525,7 @@ async fn add_player_toy_dynamic_field_sends_update_object_like_cpp() {
 async fn collection_item_set_favorite_marks_permanent_appearance_like_cpp() {
     let (mut session, send_rx) = make_session();
     session
+        .fixtures
         .collections
         .represented_item_appearances_like_cpp
         .insert(65);
@@ -587,6 +588,7 @@ async fn collection_item_set_favorite_ignores_unknown_toy_like_cpp() {
 async fn collection_item_set_favorite_ignores_temporary_or_unknown_appearance_like_cpp() {
     let (mut session, send_rx) = make_session();
     session
+        .fixtures
         .collections
         .represented_temporary_item_appearances_like_cpp
         .insert(65, HashSet::from([ObjectGuid::create_item(1, 900)]));

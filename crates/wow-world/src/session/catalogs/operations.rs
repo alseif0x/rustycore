@@ -481,13 +481,16 @@ impl WorldSession {
         rest_ingame_rate: f32,
     ) {
         self.config.max_player_level_config_like_cpp = max_player_level_config;
-        self.progression
+        self.fixtures
+            .progression
             .rest_mgr_test_fixture_like_cpp
             .rest_offline_wilderness_rate_like_cpp = rest_offline_wilderness_rate;
-        self.progression
+        self.fixtures
+            .progression
             .rest_mgr_test_fixture_like_cpp
             .rest_offline_tavern_or_city_rate_like_cpp = rest_offline_tavern_or_city_rate;
-        self.progression
+        self.fixtures
+            .progression
             .rest_mgr_test_fixture_like_cpp
             .rest_ingame_rate_like_cpp = rest_ingame_rate;
     }

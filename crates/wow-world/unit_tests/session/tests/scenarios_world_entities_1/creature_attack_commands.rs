@@ -141,10 +141,10 @@ async fn creature_attack_start_command_sets_combat_and_sends_packet_like_cpp() {
         .await;
 
     assert_eq!(
-        session.combat.combat_target, None,
+        session.fixtures.combat.combat_target, None,
         "incoming attacks must not select the attacker as the player's target"
     );
-    assert!(session.combat.in_combat);
+    assert!(session.fixtures.combat.in_combat);
     let packet = send_rx.try_recv().expect("attack start packet");
     let opcode = u16::from_le_bytes([packet[0], packet[1]]);
     assert_eq!(opcode, ServerOpcodes::AttackStart as u16);
@@ -179,10 +179,10 @@ async fn creature_attack_start_command_syncs_combat_when_attacker_is_no_longer_v
         .await;
 
     assert_eq!(
-        session.combat.combat_target, None,
+        session.fixtures.combat.combat_target, None,
         "incoming attacks must not select the attacker as the player's target"
     );
-    assert!(session.combat.in_combat);
+    assert!(session.fixtures.combat.in_combat);
     assert!(
         send_rx.try_recv().is_err(),
         "an attacker no longer visible to the client must not emit AttackStart"

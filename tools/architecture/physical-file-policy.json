@@ -629,9 +629,9 @@
     },
     {
       "path": "crates/wow-world/src/session/state.rs",
-      "observed_lines": 674,
-      "ceiling_lines": 674,
-      "split": "Bounded aggregate exception: this file is the single WorldSession field declaration, including its private canonical/session delivery state. Moving fields into nested mirrors or synthetic accessors would change the owner surface and require broad reader/writer churn without a semantic boundary. Exit at 584:C4: extract a named capability aggregate only when all readers, writers, construction, persistence and fixture paths can migrate together; no physical growth is permitted before that review. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here. #1241 F2 moved the WorldSession field declarations into the named sub-state structs under session/state/ (the capability-aggregate exit named above); WorldSession keeps 26 top-level fields. Ceiling lowered to the live size.",
+      "observed_lines": 639,
+      "ceiling_lines": 639,
+      "split": "Bounded aggregate exception: this file is the single WorldSession field declaration, including its private canonical/session delivery state. Moving fields into nested mirrors or synthetic accessors would change the owner surface and require broad reader/writer churn without a semantic boundary. Exit at 584:C4: extract a named capability aggregate only when all readers, writers, construction, persistence and fixture paths can migrate together; no physical growth is permitted before that review. Ceiling tightened to the observed size on 2026-09-25: the wave A/B splits and retirements left this row above the live figure, so the ratchet was not guarding it; no growth is permitted from here. #1241 F2 moved the WorldSession field declarations into the named sub-state structs under session/state/ (the capability-aggregate exit named above); WorldSession keeps 26 top-level fields. Ceiling lowered to the live size. #1241 F3-0 moves the 11 test-only groups behind `fixtures`; ceiling tightened to the observed size.",
       "review_checkpoint": "584:C4"
     },
     {

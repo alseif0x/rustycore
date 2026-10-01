@@ -24,6 +24,7 @@ impl WorldSession {
         }
         #[cfg(test)]
         return self
+            .fixtures
             .pets
             .battle_pet_test_fixture_like_cpp
             .battle_pet_species_store
@@ -35,7 +36,8 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub fn set_battle_pet_breed_quality_store(&mut self, store: Arc<BattlePetBreedQualityStore>) {
-        self.pets
+        self.fixtures
+            .pets
             .battle_pet_test_fixture_like_cpp
             .battle_pet_breed_quality_store = Some(store);
     }
@@ -47,13 +49,15 @@ impl WorldSession {
             .and_then(|attachment| attachment.owner_like_cpp().xp_per_level_like_cpp(level));
         #[cfg(test)]
         return canonical.or_else(|| {
-            self.pets
+            self.fixtures
+                .pets
                 .battle_pet_test_fixture_like_cpp
                 .battle_pet_xp_game_table
                 .as_ref()
                 .and_then(|table| table.xp_per_level_like_cpp(level))
                 .or_else(|| {
-                    self.pets
+                    self.fixtures
+                        .pets
                         .battle_pet_test_fixture_like_cpp
                         .represented_battle_pet_xp_per_level_like_cpp
                         .get(&level)
@@ -70,6 +74,7 @@ impl WorldSession {
         }
         #[cfg(test)]
         return self
+            .fixtures
             .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pet_journal_lock_like_cpp;
@@ -90,7 +95,8 @@ impl WorldSession {
         }
         #[cfg(test)]
         {
-            self.pets
+            self.fixtures
+                .pets
                 .battle_pet_test_fixture_like_cpp
                 .represented_battle_pet_journal_lock_like_cpp = true;
             self.send_packet_realm(&wow_packet::packets::misc::BattlePetJournalLockAcquired);
@@ -113,6 +119,7 @@ impl WorldSession {
         }
 
         let Some(pet) = self
+            .fixtures
             .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pets_like_cpp
@@ -166,7 +173,8 @@ impl WorldSession {
         }
         #[cfg(test)]
         return Some(
-            self.pets
+            self.fixtures
+                .pets
                 .battle_pet_test_fixture_like_cpp
                 .represented_battle_pets_like_cpp
                 .values()
@@ -192,6 +200,7 @@ impl WorldSession {
         }
 
         let Some(pet) = self
+            .fixtures
             .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pets_like_cpp
@@ -222,6 +231,7 @@ impl WorldSession {
             self.battle_pet_calculate_stats_like_cpp(breed, species, quality, level);
 
         let pet = self
+            .fixtures
             .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pets_like_cpp
@@ -312,6 +322,7 @@ impl WorldSession {
         }
 
         let Some(pet) = self
+            .fixtures
             .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pets_like_cpp
@@ -344,7 +355,8 @@ impl WorldSession {
             level += 1;
             remaining_levels -= 1;
             #[cfg(test)]
-            self.pets
+            self.fixtures
+                .pets
                 .battle_pet_test_fixture_like_cpp
                 .represented_battle_pet_level_criteria_like_cpp
                 .push(RepresentedBattlePetLevelCriteriaLikeCpp { species, level });
@@ -354,6 +366,7 @@ impl WorldSession {
             self.battle_pet_calculate_stats_like_cpp(breed, species, quality, level);
 
         let pet = self
+            .fixtures
             .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pets_like_cpp
@@ -429,7 +442,8 @@ impl WorldSession {
         {
             Ok(((), packet)) => {
                 #[cfg(test)]
-                self.pets
+                self.fixtures
+                    .pets
                     .battle_pet_test_fixture_like_cpp
                     .represented_battle_pet_level_criteria_like_cpp
                     .extend(criteria);
@@ -458,7 +472,8 @@ impl WorldSession {
         level: u16,
         xp_per_level: u16,
     ) {
-        self.pets
+        self.fixtures
+            .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pet_xp_per_level_like_cpp
             .insert(level, xp_per_level);
@@ -468,6 +483,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedBattlePetLevelCriteriaLikeCpp] {
         &self
+            .fixtures
             .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pet_level_criteria_like_cpp
@@ -477,6 +493,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedBattlePetLevelCriteriaLikeCpp] {
         &self
+            .fixtures
             .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pet_active_level_criteria_like_cpp
@@ -505,6 +522,7 @@ impl WorldSession {
             };
 
             for (pet_guid, pet) in &self
+                .fixtures
                 .pets
                 .battle_pet_test_fixture_like_cpp
                 .represented_battle_pets_like_cpp
@@ -524,6 +542,7 @@ impl WorldSession {
             }
 
             for slot in &self
+                .fixtures
                 .pets
                 .battle_pet_test_fixture_like_cpp
                 .represented_battle_pet_slots_like_cpp
@@ -532,6 +551,7 @@ impl WorldSession {
                 if packet_slot.pet_guid
                     != wow_packet::packets::misc::empty_battle_pet_guid_like_cpp()
                     && !self
+                        .fixtures
                         .pets
                         .battle_pet_test_fixture_like_cpp
                         .represented_battle_pets_like_cpp

@@ -11,11 +11,11 @@ fn creature_kill_reputation_applies_generic_and_faction_auras_like_cpp() {
     let creature_guid = test_creature_guid(69_501);
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
     configure_single_creature_kill_reputation_for_test(&mut session);
-    session.auras.visible_auras.insert(
+    session.fixtures.auras.visible_auras.insert(
         1,
         reputation_aura_for_test(1, RepresentedAuraEffectLikeCpp::ModReputationGain, 20, None),
     );
-    session.auras.visible_auras.insert(
+    session.fixtures.auras.visible_auras.insert(
         2,
         reputation_aura_for_test(
             2,
@@ -24,7 +24,7 @@ fn creature_kill_reputation_applies_generic_and_faction_auras_like_cpp() {
             Some(7),
         ),
     );
-    session.auras.visible_auras.insert(
+    session.fixtures.auras.visible_auras.insert(
         3,
         reputation_aura_for_test(
             3,

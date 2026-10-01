@@ -666,8 +666,8 @@ fn player_registry_reputation_snapshot_syncs_from_canonical_player_like_cpp() {
     let player_guid = ObjectGuid::create_player(1, 604);
 
     session.set_player_guid(Some(player_guid));
-    session.identity.player_name = Some("RepSnapshot".into());
-    session.movement.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
+    session.fixtures.identity.player_name = Some("RepSnapshot".into());
+    session.fixtures.movement.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
     session.core.current_map_id = 571;
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_player_registry(Arc::clone(&player_registry));

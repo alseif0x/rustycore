@@ -518,6 +518,7 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedConfirmBarbersChoiceLikeCpp] {
         &self
+            .fixtures
             .presentation
             .represented_confirm_barbers_choice_requests_like_cpp
     }

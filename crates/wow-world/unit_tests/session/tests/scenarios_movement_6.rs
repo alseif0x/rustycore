@@ -806,9 +806,9 @@ async fn teleport_to_same_map_forces_vehicle_exit_before_near_teleport_like_cpp(
         80,
         0,
     ));
-    session.vehicles.player_vehicle_seat_flags_like_cpp =
+    session.fixtures.vehicles.player_vehicle_seat_flags_like_cpp =
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK);
-    session.vehicles.player_vehicle_seat_id_like_cpp = Some(1004);
+    session.fixtures.vehicles.player_vehicle_seat_id_like_cpp = Some(1004);
     session.register_in_player_registry();
 
     session.teleport_to(571, destination).await;
@@ -819,12 +819,19 @@ async fn teleport_to_same_map_forces_vehicle_exit_before_near_teleport_like_cpp(
     );
     assert!(
         session
+            .fixtures
             .vehicles
             .player_vehicle_seat_flags_like_cpp
             .is_none(),
         "C++ Player::TeleportTo calls ExitVehicle directly; this is not gated by client seat-exit permissions"
     );
-    assert!(session.vehicles.player_vehicle_seat_id_like_cpp.is_none());
+    assert!(
+        session
+            .fixtures
+            .vehicles
+            .player_vehicle_seat_id_like_cpp
+            .is_none()
+    );
     let info = registry
         .party_member(player_guid)
         .expect("registered player");

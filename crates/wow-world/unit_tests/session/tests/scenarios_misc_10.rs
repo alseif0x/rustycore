@@ -36,8 +36,8 @@ fn stop_player_attack_canonical_no_victim_ignores_stale_session_target_like_cpp(
         0,
     ));
     let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
-    session.combat.combat_target = Some(stale_victim);
-    session.combat.in_combat = true;
+    session.fixtures.combat.combat_target = Some(stale_victim);
+    session.fixtures.combat.in_combat = true;
 
     assert_eq!(session.stop_player_attack_like_cpp(), None);
     assert_eq!(session.resolved_combat_target_like_cpp(), Some(None));
@@ -282,6 +282,7 @@ fn appearance_favorite_state_transitions_match_collection_mgr_like_cpp() {
     assert!(send_rx.try_recv().is_err());
 
     session
+        .fixtures
         .collections
         .represented_favorite_item_appearances_like_cpp
         .insert(96, FavoriteAppearanceStateLikeCpp::Unchanged);
@@ -357,6 +358,7 @@ fn total_stat_percentage_uses_each_active_effect_amount_and_selector_like_cpp() 
         [1.1, 1.2, 1.0, 1.0, 1.0]
     );
     let aura = session
+        .fixtures
         .auras
         .visible_auras
         .values()
@@ -384,8 +386,8 @@ fn player_registry_relation_snapshot_syncs_from_session_and_canonical_like_cpp()
     let player_guid = ObjectGuid::create_player(1, 606);
 
     session.set_player_guid(Some(player_guid));
-    session.identity.player_name = Some("RelationSnapshot".into());
-    session.movement.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
+    session.fixtures.identity.player_name = Some("RelationSnapshot".into());
+    session.fixtures.movement.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
     session.core.current_map_id = 571;
     session.set_player_faction_template_like_cpp(1);
     session.set_canonical_map_manager(Arc::clone(&canonical));
@@ -435,10 +437,11 @@ fn player_registry_targetability_snapshot_syncs_from_session_and_canonical_like_
     let player_guid = ObjectGuid::create_player(1, 605);
 
     session.set_player_guid(Some(player_guid));
-    session.identity.player_name = Some("TargetabilitySnapshot".into());
-    session.movement.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
+    session.fixtures.identity.player_name = Some("TargetabilitySnapshot".into());
+    session.fixtures.movement.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
     session.core.current_map_id = 571;
     session
+        .fixtures
         .presentation
         .player_unit_flags_like_cpp
         .insert(UnitFlags::PLAYER_CONTROLLED | UnitFlags::ON_TAXI);
@@ -472,8 +475,8 @@ fn toggle_pvp_sets_in_pvp_flag_and_enables_pvp_like_cpp() {
             player.set_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
         })
         .unwrap();
-    session.combat.player_pvp_enabled_like_cpp = false;
-    session.combat.player_pvp_end_timer_like_cpp = Some(123);
+    session.fixtures.combat.player_pvp_enabled_like_cpp = false;
+    session.fixtures.combat.player_pvp_end_timer_like_cpp = Some(123);
 
     session.apply_toggle_pvp_like_cpp();
 
@@ -487,9 +490,9 @@ fn toggle_pvp_sets_in_pvp_flag_and_enables_pvp_like_cpp() {
     assert!(player.has_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP));
     assert!(!player.has_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP));
     assert!(player.unit().is_pvp_like_cpp());
-    assert!(session.combat.player_in_pvp_flag_like_cpp);
-    assert!(session.combat.player_pvp_enabled_like_cpp);
-    assert_eq!(session.combat.player_pvp_end_timer_like_cpp, None);
+    assert!(session.fixtures.combat.player_in_pvp_flag_like_cpp);
+    assert!(session.fixtures.combat.player_pvp_enabled_like_cpp);
+    assert_eq!(session.fixtures.combat.player_pvp_end_timer_like_cpp, None);
 }
 #[test]
 fn toggle_pvp_removes_in_pvp_and_starts_timer_when_not_hostile_like_cpp() {
@@ -500,9 +503,9 @@ fn toggle_pvp_removes_in_pvp_and_starts_timer_when_not_hostile_like_cpp() {
             player.unit_mut().set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
         })
         .unwrap();
-    session.combat.player_in_pvp_flag_like_cpp = true;
-    session.combat.player_pvp_enabled_like_cpp = true;
-    session.combat.player_pvp_hostile_like_cpp = false;
+    session.fixtures.combat.player_in_pvp_flag_like_cpp = true;
+    session.fixtures.combat.player_pvp_enabled_like_cpp = true;
+    session.fixtures.combat.player_pvp_hostile_like_cpp = false;
 
     session.apply_toggle_pvp_like_cpp();
 
@@ -516,9 +519,15 @@ fn toggle_pvp_removes_in_pvp_and_starts_timer_when_not_hostile_like_cpp() {
     assert!(!player.has_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP));
     assert!(player.has_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP));
     assert!(player.unit().is_pvp_like_cpp());
-    assert!(!session.combat.player_in_pvp_flag_like_cpp);
-    assert_eq!(session.combat.player_pvp_enabled_like_cpp, true);
-    assert!(session.combat.player_pvp_end_timer_like_cpp.is_some());
+    assert!(!session.fixtures.combat.player_in_pvp_flag_like_cpp);
+    assert_eq!(session.fixtures.combat.player_pvp_enabled_like_cpp, true);
+    assert!(
+        session
+            .fixtures
+            .combat
+            .player_pvp_end_timer_like_cpp
+            .is_some()
+    );
 }
 #[test]
 fn toggle_pvp_does_not_toggle_off_with_war_mode_local_active_like_cpp() {
@@ -529,8 +538,8 @@ fn toggle_pvp_does_not_toggle_off_with_war_mode_local_active_like_cpp() {
             player.unit_mut().set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
         })
         .unwrap();
-    session.combat.player_in_pvp_flag_like_cpp = true;
-    session.combat.player_pvp_enabled_like_cpp = true;
+    session.fixtures.combat.player_in_pvp_flag_like_cpp = true;
+    session.fixtures.combat.player_pvp_enabled_like_cpp = true;
     session.set_active_player_local_flags_like_cpp(PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP);
 
     session.apply_toggle_pvp_like_cpp();
@@ -545,7 +554,7 @@ fn toggle_pvp_does_not_toggle_off_with_war_mode_local_active_like_cpp() {
     assert!(player.has_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP));
     assert!(!player.has_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP));
     assert!(player.unit().is_pvp_like_cpp());
-    assert_eq!(session.combat.player_pvp_end_timer_like_cpp, None);
+    assert_eq!(session.fixtures.combat.player_pvp_end_timer_like_cpp, None);
 }
 #[test]
 fn set_pvp_enable_sets_in_pvp_flag_like_cpp() {
@@ -555,8 +564,8 @@ fn set_pvp_enable_sets_in_pvp_flag_like_cpp() {
             player.set_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP);
         })
         .unwrap();
-    session.combat.player_pvp_enabled_like_cpp = false;
-    session.combat.player_pvp_end_timer_like_cpp = Some(123);
+    session.fixtures.combat.player_pvp_enabled_like_cpp = false;
+    session.fixtures.combat.player_pvp_end_timer_like_cpp = Some(123);
 
     session.apply_set_pvp_like_cpp(true);
 
@@ -570,9 +579,9 @@ fn set_pvp_enable_sets_in_pvp_flag_like_cpp() {
     assert!(player.has_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP));
     assert!(!player.has_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP));
     assert!(player.unit().is_pvp_like_cpp());
-    assert!(session.combat.player_in_pvp_flag_like_cpp);
-    assert!(session.combat.player_pvp_enabled_like_cpp);
-    assert_eq!(session.combat.player_pvp_end_timer_like_cpp, None);
+    assert!(session.fixtures.combat.player_in_pvp_flag_like_cpp);
+    assert!(session.fixtures.combat.player_pvp_enabled_like_cpp);
+    assert_eq!(session.fixtures.combat.player_pvp_end_timer_like_cpp, None);
 }
 #[test]
 fn set_pvp_disable_starts_timer_without_toggling_back_on_like_cpp() {
@@ -583,9 +592,9 @@ fn set_pvp_disable_starts_timer_without_toggling_back_on_like_cpp() {
             player.unit_mut().set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
         })
         .unwrap();
-    session.combat.player_in_pvp_flag_like_cpp = true;
-    session.combat.player_pvp_enabled_like_cpp = true;
-    session.combat.player_pvp_hostile_like_cpp = false;
+    session.fixtures.combat.player_in_pvp_flag_like_cpp = true;
+    session.fixtures.combat.player_pvp_enabled_like_cpp = true;
+    session.fixtures.combat.player_pvp_hostile_like_cpp = false;
 
     session.apply_set_pvp_like_cpp(false);
 
@@ -599,9 +608,15 @@ fn set_pvp_disable_starts_timer_without_toggling_back_on_like_cpp() {
     assert!(!player.has_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP));
     assert!(player.has_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP));
     assert!(player.unit().is_pvp_like_cpp());
-    assert!(!session.combat.player_in_pvp_flag_like_cpp);
-    assert_eq!(session.combat.player_pvp_enabled_like_cpp, true);
-    assert!(session.combat.player_pvp_end_timer_like_cpp.is_some());
+    assert!(!session.fixtures.combat.player_in_pvp_flag_like_cpp);
+    assert_eq!(session.fixtures.combat.player_pvp_enabled_like_cpp, true);
+    assert!(
+        session
+            .fixtures
+            .combat
+            .player_pvp_end_timer_like_cpp
+            .is_some()
+    );
 }
 #[test]
 fn update_pvp_flag_expires_timer_after_five_minutes_like_cpp() {
@@ -612,9 +627,9 @@ fn update_pvp_flag_expires_timer_after_five_minutes_like_cpp() {
             player.unit_mut().set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
         })
         .unwrap();
-    session.combat.player_pvp_enabled_like_cpp = true;
-    session.combat.player_pvp_hostile_like_cpp = false;
-    session.combat.player_pvp_end_timer_like_cpp = Some(1_000);
+    session.fixtures.combat.player_pvp_enabled_like_cpp = true;
+    session.fixtures.combat.player_pvp_hostile_like_cpp = false;
+    session.fixtures.combat.player_pvp_end_timer_like_cpp = Some(1_000);
 
     session.update_pvp_flag_like_cpp(1_300);
 
@@ -627,8 +642,8 @@ fn update_pvp_flag_expires_timer_after_five_minutes_like_cpp() {
         .unwrap();
     assert!(!player.has_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP));
     assert!(!player.unit().is_pvp_like_cpp());
-    assert!(!session.combat.player_pvp_enabled_like_cpp);
-    assert_eq!(session.combat.player_pvp_end_timer_like_cpp, None);
+    assert!(!session.fixtures.combat.player_pvp_enabled_like_cpp);
+    assert_eq!(session.fixtures.combat.player_pvp_end_timer_like_cpp, None);
 }
 #[test]
 fn update_pvp_flag_keeps_timer_before_five_minutes_like_cpp() {
@@ -639,9 +654,9 @@ fn update_pvp_flag_keeps_timer_before_five_minutes_like_cpp() {
             player.unit_mut().set_pvp_flag_like_cpp(UnitPvpFlags::PVP);
         })
         .unwrap();
-    session.combat.player_pvp_enabled_like_cpp = true;
-    session.combat.player_pvp_hostile_like_cpp = false;
-    session.combat.player_pvp_end_timer_like_cpp = Some(1_000);
+    session.fixtures.combat.player_pvp_enabled_like_cpp = true;
+    session.fixtures.combat.player_pvp_hostile_like_cpp = false;
+    session.fixtures.combat.player_pvp_end_timer_like_cpp = Some(1_000);
 
     session.update_pvp_flag_like_cpp(1_299);
 
@@ -654,8 +669,11 @@ fn update_pvp_flag_keeps_timer_before_five_minutes_like_cpp() {
         .unwrap();
     assert!(player.has_player_flag(PLAYER_FLAGS_PVP_TIMER_LIKE_CPP));
     assert!(player.unit().is_pvp_like_cpp());
-    assert!(session.combat.player_pvp_enabled_like_cpp);
-    assert_eq!(session.combat.player_pvp_end_timer_like_cpp, Some(1_000));
+    assert!(session.fixtures.combat.player_pvp_enabled_like_cpp);
+    assert_eq!(
+        session.fixtures.combat.player_pvp_end_timer_like_cpp,
+        Some(1_000)
+    );
 }
 #[tokio::test]
 async fn logged_in_update_consumes_expired_pvp_timer_like_cpp() {
@@ -671,14 +689,14 @@ async fn logged_in_update_consumes_expired_pvp_timer_like_cpp() {
         })
         .unwrap();
     let now = wow_entities::game_time_secs_like_cpp();
-    session.combat.player_pvp_enabled_like_cpp = true;
-    session.combat.player_pvp_hostile_like_cpp = false;
-    session.combat.player_pvp_end_timer_like_cpp = Some(now - 301);
+    session.fixtures.combat.player_pvp_enabled_like_cpp = true;
+    session.fixtures.combat.player_pvp_hostile_like_cpp = false;
+    session.fixtures.combat.player_pvp_end_timer_like_cpp = Some(now - 301);
 
     assert_eq!(session.state(), SessionState::LoggedIn);
     let _ = session.update(50).await;
 
-    assert_eq!(session.combat.player_pvp_end_timer_like_cpp, None);
+    assert_eq!(session.fixtures.combat.player_pvp_end_timer_like_cpp, None);
     let manager = canonical.lock().unwrap();
     let player = manager
         .find_map(571, 0)

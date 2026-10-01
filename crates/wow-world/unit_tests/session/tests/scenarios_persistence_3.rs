@@ -93,8 +93,8 @@ fn logout_save_snapshot_ignores_stale_test_fixture_death_and_reads_canonical_pla
 
     // C++ has a single Player object. Deliberately poison the test-only legacy
     // fixture and prove SaveToDB still reads the canonical owner.
-    session.combat.player_health_like_cpp = 0;
-    session.combat.player_alive_like_cpp = false;
+    session.fixtures.combat.player_health_like_cpp = 0;
+    session.fixtures.combat.player_alive_like_cpp = false;
 
     let snapshot = session
         .current_player_save_to_db_snapshot_like_cpp()
@@ -734,6 +734,7 @@ fn load_rest_state_clears_stale_rest_flags_between_characters_like_cpp() {
     assert!(session.represented_is_resting_like_cpp());
     assert_eq!(
         session
+            .fixtures
             .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_inn_area_trigger_id_like_cpp,
@@ -741,6 +742,7 @@ fn load_rest_state_clears_stale_rest_flags_between_characters_like_cpp() {
     );
     assert_ne!(
         session
+            .fixtures
             .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_rest_time_secs_like_cpp,
@@ -757,6 +759,7 @@ fn load_rest_state_clears_stale_rest_flags_between_characters_like_cpp() {
     assert!(!session.represented_is_resting_like_cpp());
     assert_eq!(
         session
+            .fixtures
             .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_inn_area_trigger_id_like_cpp,
@@ -764,6 +767,7 @@ fn load_rest_state_clears_stale_rest_flags_between_characters_like_cpp() {
     );
     assert_eq!(
         session
+            .fixtures
             .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_rest_time_secs_like_cpp,

@@ -80,6 +80,7 @@ fn battleground_object_use_guard_matches_cpp_faction_and_player_state() {
         .clear();
     session.record_represented_gameobject_faction_template_like_cpp(gameobject_guid, 0);
     session
+        .fixtures
         .presentation
         .player_unit_flags_like_cpp
         .insert(UnitFlags::IMMUNE);
@@ -103,6 +104,7 @@ fn battleground_object_use_guard_matches_cpp_faction_and_player_state() {
         .represented_gameobject_use_effects
         .clear();
     session
+        .fixtures
         .presentation
         .player_unit_flags_like_cpp
         .remove(UnitFlags::IMMUNE);
@@ -125,7 +127,7 @@ fn battleground_object_use_guard_matches_cpp_faction_and_player_state() {
         )
     );
 
-    session.auras.visible_auras.clear();
+    session.fixtures.auras.visible_auras.clear();
     session
         .world_entities
         .represented_gameobject_use_effects
@@ -909,8 +911,8 @@ fn run_tick_returns_output_without_sending() {
     let guid_m = test_creature_guid(90_006);
     let player_m = ObjectGuid::create_player(1, 90_006);
     session_m.core.player_guid = Some(player_m);
-    session_m.combat.combat_target = Some(guid_m);
-    session_m.combat.in_combat = true;
+    session_m.fixtures.combat.combat_target = Some(guid_m);
+    session_m.fixtures.combat.in_combat = true;
     session_m.core.client_visible_guids_like_cpp.insert(guid_m);
     register_test_creature(&mut session_m, manager.clone(), guid_m, 40);
     session_m

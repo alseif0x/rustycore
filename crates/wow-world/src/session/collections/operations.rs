@@ -34,7 +34,8 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.collections
+                self.fixtures
+                    .collections
                     .represented_completed_achievements_like_cpp
                     .clone(),
             );
@@ -64,7 +65,9 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
-            self.collections.represented_completed_achievements_like_cpp = achievement_ids;
+            self.fixtures
+                .collections
+                .represented_completed_achievements_like_cpp = achievement_ids;
             return true;
         }
         canonical

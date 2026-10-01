@@ -62,7 +62,8 @@ impl WorldSession {
         self.set_player_position_like_cpp(status.position);
         self.update_registry_position();
         #[cfg(test)]
-        self.movement
+        self.fixtures
+            .movement
             .represented_vehicle_dismiss_movements_like_cpp
             .push(RepresentedVehicleDismissMovementLikeCpp {
                 vehicle_guid,
@@ -246,7 +247,7 @@ impl WorldSession {
         if self.core.player_handle_like_cpp.is_none()
             || self.player_position_like_cpp() == Some(position)
         {
-            self.movement.player_position = Some(position);
+            self.fixtures.movement.player_position = Some(position);
         }
     }
 
@@ -301,7 +302,7 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.movement.player_position = Some(position);
+            self.fixtures.movement.player_position = Some(position);
         }
         canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
@@ -314,7 +315,7 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if _canonical || self.core.player_handle_like_cpp.is_none() {
-            self.movement.player_movement_time_like_cpp = time;
+            self.fixtures.movement.player_movement_time_like_cpp = time;
         }
     }
 
@@ -326,7 +327,7 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if _canonical || self.core.player_handle_like_cpp.is_none() {
-            self.movement.player_movement_flags_like_cpp = flags;
+            self.fixtures.movement.player_movement_flags_like_cpp = flags;
         }
     }
 
@@ -338,7 +339,8 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if _canonical || self.core.player_handle_like_cpp.is_none() {
-            self.movement
+            self.fixtures
+                .movement
                 .represented_mover_fixed_position_vehicle_like_cpp = fixed;
         }
     }
@@ -352,9 +354,12 @@ impl WorldSession {
         });
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            let sequence_index = self.movement.movement_counter_like_cpp;
-            self.movement.movement_counter_like_cpp =
-                self.movement.movement_counter_like_cpp.wrapping_add(1);
+            let sequence_index = self.fixtures.movement.movement_counter_like_cpp;
+            self.fixtures.movement.movement_counter_like_cpp = self
+                .fixtures
+                .movement
+                .movement_counter_like_cpp
+                .wrapping_add(1);
             return Some(sequence_index);
         }
         canonical
@@ -370,7 +375,7 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.movement.movement_counter_like_cpp = 0;
+            self.fixtures.movement.movement_counter_like_cpp = 0;
         }
         canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
@@ -383,7 +388,7 @@ impl WorldSession {
             self.with_owned_player_like_cpp(|player| player.unit().movement_counter_like_cpp());
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.movement.movement_counter_like_cpp);
+            return Some(self.fixtures.movement.movement_counter_like_cpp);
         }
         canonical
     }
@@ -392,7 +397,7 @@ impl WorldSession {
         let canonical = self.with_owned_player_like_cpp(|player| player.unit().world().position());
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return self.movement.player_position;
+            return self.fixtures.movement.player_position;
         }
         canonical
     }
@@ -404,7 +409,7 @@ impl WorldSession {
             self.with_owned_player_like_cpp(|player| player.unit().movement_flags_like_cpp());
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.movement.player_movement_flags_like_cpp);
+            return Some(self.fixtures.movement.player_movement_flags_like_cpp);
         }
         canonical
     }
@@ -427,7 +432,8 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.movement
+                self.fixtures
+                    .movement
                     .represented_mover_fixed_position_vehicle_like_cpp,
             );
         }
@@ -459,10 +465,15 @@ impl WorldSession {
         });
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            let guid = if self.movement.player_moved_unit_guid_like_cpp.is_empty() {
+            let guid = if self
+                .fixtures
+                .movement
+                .player_moved_unit_guid_like_cpp
+                .is_empty()
+            {
                 self.player_guid()?
             } else {
-                self.movement.player_moved_unit_guid_like_cpp
+                self.fixtures.movement.player_moved_unit_guid_like_cpp
             };
             return Some(guid);
         }
@@ -564,7 +575,7 @@ impl WorldSession {
             });
             #[cfg(test)]
             if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-                return Some(self.movement.movement_force_mod_magnitude_like_cpp);
+                return Some(self.fixtures.movement.movement_force_mod_magnitude_like_cpp);
             }
             return canonical;
         }
@@ -674,7 +685,7 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.movement.player_moved_unit_guid_like_cpp = guid;
+            self.fixtures.movement.player_moved_unit_guid_like_cpp = guid;
         }
     }
 
@@ -682,14 +693,20 @@ impl WorldSession {
     pub(crate) fn represented_vehicle_dismiss_movements_like_cpp(
         &self,
     ) -> &[RepresentedVehicleDismissMovementLikeCpp] {
-        &self.movement.represented_vehicle_dismiss_movements_like_cpp
+        &self
+            .fixtures
+            .movement
+            .represented_vehicle_dismiss_movements_like_cpp
     }
 
     #[cfg(test)]
     pub(crate) fn represented_vehicle_base_movements_like_cpp(
         &self,
     ) -> &[RepresentedVehicleBaseMovementLikeCpp] {
-        &self.movement.represented_vehicle_base_movements_like_cpp
+        &self
+            .fixtures
+            .movement
+            .represented_vehicle_base_movements_like_cpp
     }
 
     pub(crate) fn represented_move_change_vehicle_seats_like_cpp(
@@ -728,7 +745,8 @@ impl WorldSession {
         );
 
         #[cfg(test)]
-        self.movement
+        self.fixtures
+            .movement
             .represented_vehicle_base_movements_like_cpp
             .push(RepresentedVehicleBaseMovementLikeCpp {
                 vehicle_guid: vehicle_base_guid,
@@ -829,7 +847,7 @@ impl WorldSession {
             self.with_owned_player_like_cpp(|player| player.unit().movement_time_like_cpp());
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.movement.player_movement_time_like_cpp);
+            return Some(self.fixtures.movement.player_movement_time_like_cpp);
         }
         canonical
     }
@@ -848,7 +866,11 @@ impl WorldSession {
         });
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.movement.movement_force_mod_magnitude_changes_like_cpp);
+            return Some(
+                self.fixtures
+                    .movement
+                    .movement_force_mod_magnitude_changes_like_cpp,
+            );
         }
         canonical
     }
@@ -859,7 +881,7 @@ impl WorldSession {
         });
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.movement.movement_force_mod_magnitude_like_cpp);
+            return Some(self.fixtures.movement.movement_force_mod_magnitude_like_cpp);
         }
         canonical
     }
@@ -872,13 +894,25 @@ impl WorldSession {
         });
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            if self.movement.movement_force_mod_magnitude_changes_like_cpp > 0 {
-                self.movement.movement_force_mod_magnitude_changes_like_cpp = self
+            if self
+                .fixtures
+                .movement
+                .movement_force_mod_magnitude_changes_like_cpp
+                > 0
+            {
+                self.fixtures
+                    .movement
+                    .movement_force_mod_magnitude_changes_like_cpp = self
+                    .fixtures
                     .movement
                     .movement_force_mod_magnitude_changes_like_cpp
                     .saturating_sub(1);
             }
-            return Some(self.movement.movement_force_mod_magnitude_changes_like_cpp);
+            return Some(
+                self.fixtures
+                    .movement
+                    .movement_force_mod_magnitude_changes_like_cpp,
+            );
         }
         canonical
     }
@@ -887,7 +921,10 @@ impl WorldSession {
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
             if let (Some(state), Some(position)) = (
-                self.vehicles.player_transport_login_state_like_cpp.as_mut(),
+                self.fixtures
+                    .vehicles
+                    .player_transport_login_state_like_cpp
+                    .as_mut(),
                 position,
             ) {
                 state.info.x = position.x;
@@ -918,7 +955,9 @@ impl WorldSession {
             })
             .is_some();
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.movement.movement_force_mod_magnitude_changes_like_cpp = count;
+            self.fixtures
+                .movement
+                .movement_force_mod_magnitude_changes_like_cpp = count;
         }
     }
 
@@ -932,7 +971,7 @@ impl WorldSession {
             })
             .is_some();
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.movement.movement_force_mod_magnitude_like_cpp = magnitude;
+            self.fixtures.movement.movement_force_mod_magnitude_like_cpp = magnitude;
         }
     }
 

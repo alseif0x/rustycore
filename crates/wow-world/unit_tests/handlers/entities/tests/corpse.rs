@@ -249,7 +249,10 @@ async fn repop_request_dead_non_ghost_sets_ghost_and_repop_count_like_cpp() {
 
     assert!(!session.player_is_alive_like_cpp());
     assert!(session.player_has_ghost_flag_like_cpp());
-    assert_eq!(session.combat.represented_repop_at_graveyard_count, 1);
+    assert_eq!(
+        session.fixtures.combat.represented_repop_at_graveyard_count,
+        1
+    );
     assert!(send_rx.try_recv().is_err());
 }
 
@@ -273,7 +276,10 @@ async fn repop_request_alive_or_already_ghost_returns_like_cpp() {
     session
         .handle_repop_request(repop_request_packet(false))
         .await;
-    assert_eq!(session.combat.represented_repop_at_graveyard_count, 0);
+    assert_eq!(
+        session.fixtures.combat.represented_repop_at_graveyard_count,
+        0
+    );
     assert!(!session.player_has_ghost_flag_like_cpp());
 
     session.set_player_alive_like_cpp(false);
@@ -281,7 +287,10 @@ async fn repop_request_alive_or_already_ghost_returns_like_cpp() {
     session
         .handle_repop_request(repop_request_packet(false))
         .await;
-    assert_eq!(session.combat.represented_repop_at_graveyard_count, 0);
+    assert_eq!(
+        session.fixtures.combat.represented_repop_at_graveyard_count,
+        0
+    );
     assert!(session.player_has_ghost_flag_like_cpp());
 }
 
@@ -310,7 +319,10 @@ async fn client_port_graveyard_dead_ghost_repops_like_cpp() {
     assert!(handled);
     assert!(!session.player_is_alive_like_cpp());
     assert!(session.player_has_ghost_flag_like_cpp());
-    assert_eq!(session.combat.represented_repop_at_graveyard_count, 1);
+    assert_eq!(
+        session.fixtures.combat.represented_repop_at_graveyard_count,
+        1
+    );
     assert!(send_rx.try_recv().is_err());
 }
 
@@ -336,7 +348,10 @@ async fn client_port_graveyard_alive_or_not_ghost_returns_like_cpp() {
             .try_handle_client_port_graveyard_like_cpp(port_graveyard_packet())
             .await
     );
-    assert_eq!(session.combat.represented_repop_at_graveyard_count, 0);
+    assert_eq!(
+        session.fixtures.combat.represented_repop_at_graveyard_count,
+        0
+    );
     assert!(session.player_is_alive_like_cpp());
 
     session.set_player_alive_like_cpp(false);
@@ -346,7 +361,10 @@ async fn client_port_graveyard_alive_or_not_ghost_returns_like_cpp() {
             .try_handle_client_port_graveyard_like_cpp(port_graveyard_packet())
             .await
     );
-    assert_eq!(session.combat.represented_repop_at_graveyard_count, 0);
+    assert_eq!(
+        session.fixtures.combat.represented_repop_at_graveyard_count,
+        0
+    );
     assert!(!session.player_has_ghost_flag_like_cpp());
 
     let mut non_empty = WorldPacket::new_empty();
@@ -445,5 +463,8 @@ async fn instance_lock_response_decline_repops_and_clears_pending_bind_like_cpp(
             .represented_confirmed_pending_binds
             .is_empty()
     );
-    assert_eq!(session.combat.represented_repop_at_graveyard_count, 1);
+    assert_eq!(
+        session.fixtures.combat.represented_repop_at_graveyard_count,
+        1
+    );
 }

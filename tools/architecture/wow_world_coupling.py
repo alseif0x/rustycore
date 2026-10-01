@@ -198,34 +198,46 @@ def type_ident(field_type: str) -> str:
     return field_type.split("<", 1)[0].strip().split("::")[-1].strip()
 
 
+# Test-only container members whose own members are sub-state groups (#1241 F3-0):
+# `self.fixtures.<group>.<leaf>` attributes to `fixtures.<group>`'s leaf.
+CONTAINER_FIELDS = frozenset({"fixtures"})
+
+
 def substate_leaves(
     fields: list[dict[str, Any]], sources: list[tuple[str, str, str]]
 ) -> dict[str, dict[str, Any]]:
-    """Leaf fields per top-level WorldSession field (#1241 F2 sub-states).
+    """Leaf fields per WorldSession sub-state group (#1241 F2 sub-states).
 
-    A top-level field whose type is a struct defined in the crate contributes
-    that struct's named fields as leaves (one level: `self.<group>.<leaf>`);
-    any other top-level field is its own leaf. A leaf inherits the cfg of its
-    top-level field.
+    A top-level field whose type is a struct defined in the crate is a group:
+    its named fields are leaves (`self.<group>.<leaf>`). A container field
+    (`fixtures`) nests groups one level deeper, so its groups are
+    `fixtures.<group>` and their fields the leaves. Any other top-level field
+    is its own leaf. A leaf inherits the cfg of the fields above it.
     """
-    wanted = {type_ident(f["type"]) for f in fields}
     structs: dict[str, list[dict[str, Any]]] = {}
     for _rel, _text, code in sources:
         for m in re.finditer(r"\bstruct\s+(" + IDENT + r")\b[^{;()]*\{", code):
-            if m.group(1) in wanted and m.group(1) not in structs:
+            if m.group(1) not in structs:
                 structs[m.group(1)] = struct_fields(code, m)
-    leaves: dict[str, dict[str, Any]] = {}
+    groups: list[tuple[str, list[str], list[dict[str, Any]] | None]] = []
     for field in fields:
         members = structs.get(type_ident(field["type"]))
+        if members and field["name"] in CONTAINER_FIELDS:
+            for group in members:
+                groups.append((f"{field['name']}.{group['name']}", field["cfg"] + group["cfg"],
+                               structs.get(type_ident(group["type"]))))
+        else:
+            groups.append((field["name"], field["cfg"], members))
+    leaves: dict[str, dict[str, Any]] = {}
+    for path, cfg, members in groups:
         if not members:
-            leaves[field["name"]] = {"group": None, "cfg": field["cfg"]}
+            leaves[path] = {"group": None, "cfg": cfg}
             continue
         for member in members:
             name = member["name"]
             if name in leaves:
-                name = f"{field['name']}.{name}"
-            leaves[name] = {"group": field["name"], "cfg": field["cfg"] + member["cfg"],
-                            "leaf": member["name"]}
+                name = f"{path}.{name}"
+            leaves[name] = {"group": path, "cfg": cfg + member["cfg"], "leaf": member["name"]}
     return leaves
 
 
@@ -350,9 +362,14 @@ def analyze(root: pathlib.Path, hub_threshold: int = DEFAULT_HUB_THRESHOLD,
         for name in names:
             defs[name].add(dom)
         for m in FIELD_ACCESS.finditer(code):
-            name = m.group(1)
+            name, end = m.group(1), m.end()
+            if name in CONTAINER_FIELDS:
+                inner = LEAF_ACCESS.match(code, end)
+                if not inner:
+                    continue
+                name, end = f"{name}.{inner.group(1)}", inner.end()
             if name in group_leaves:
-                leaf = LEAF_ACCESS.match(code, m.end())
+                leaf = LEAF_ACCESS.match(code, end)
                 if leaf and leaf.group(1) in group_leaves[name]:
                     access[group_leaves[name][leaf.group(1)]][dom] += 1
             elif name in plain:

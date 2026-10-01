@@ -200,7 +200,7 @@ async fn checked_money_write_uses_the_nontransactional_lifecycle_port_contract()
 async fn quest_currency_save_reaches_the_sqlx_free_port_before_publication_like_cpp() {
     let (mut session, port) = session_with_port(PersistenceOutcomeLikeCpp::Applied { rows: 1 });
     session.set_player_guid(Some(ObjectGuid::create_player(1, 0x7400_0201)));
-    session.identity.player_race = 1;
+    session.fixtures.identity.player_race = 1;
     session.set_currency_types_store(Arc::new(CurrencyTypesStore::from_entries([
         currency_entry(395),
     ])));
@@ -242,7 +242,7 @@ async fn quest_currency_save_reaches_the_sqlx_free_port_before_publication_like_
 async fn missing_currency_persistence_port_keeps_the_existing_unsaved_state_like_cpp() {
     let (mut session, _, _) = make_session();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 0x7400_0203)));
-    session.identity.player_race = 1;
+    session.fixtures.identity.player_race = 1;
     session.set_currency_types_store(Arc::new(CurrencyTypesStore::from_entries([
         currency_entry(395),
     ])));
@@ -276,7 +276,7 @@ async fn unknown_quest_currency_commit_restores_the_pre_save_snapshot_like_cpp()
         reason: "lost COMMIT reply".to_owned(),
     });
     session.set_player_guid(Some(ObjectGuid::create_player(1, 0x7400_0202)));
-    session.identity.player_race = 1;
+    session.fixtures.identity.player_race = 1;
     session.set_currency_types_store(Arc::new(CurrencyTypesStore::from_entries([
         currency_entry(395),
     ])));

@@ -615,7 +615,7 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.combat.area_spirit_healer_guid_like_cpp = healer_guid;
+            self.fixtures.combat.area_spirit_healer_guid_like_cpp = healer_guid;
         }
         canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
@@ -625,7 +625,7 @@ impl WorldSession {
         });
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.combat.area_spirit_healer_guid_like_cpp);
+            return Some(self.fixtures.combat.area_spirit_healer_guid_like_cpp);
         }
         canonical
     }

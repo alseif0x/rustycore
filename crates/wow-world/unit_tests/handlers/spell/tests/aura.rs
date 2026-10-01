@@ -131,7 +131,7 @@ async fn cancel_growth_aura_removes_represented_mod_scale_like_cpp() {
         .expect("represented mod-scale aura should apply");
     let _ = drain_server_opcodes(&send_rx);
     assert!(
-        session.auras.visible_auras.values().any(|aura| {
+        session.fixtures.auras.visible_auras.values().any(|aura| {
             aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModScale)
         })
     );
@@ -141,7 +141,7 @@ async fn cancel_growth_aura_removes_represented_mod_scale_like_cpp() {
         .await;
 
     assert!(
-        !session.auras.visible_auras.values().any(|aura| {
+        !session.fixtures.auras.visible_auras.values().any(|aura| {
             aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModScale)
         })
     );
@@ -164,7 +164,7 @@ async fn cancel_growth_aura_no_aura_cancel_preserves_mod_scale_like_cpp() {
         .await;
 
     assert!(
-        session.auras.visible_auras.values().any(|aura| {
+        session.fixtures.auras.visible_auras.values().any(|aura| {
             aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModScale)
         })
     );
@@ -181,7 +181,7 @@ async fn cancel_mod_speed_no_control_removes_matching_mover_aura_like_cpp() {
         .await
         .expect("represented mod-speed-no-control aura should apply");
     let _ = drain_server_opcodes(&send_rx);
-    assert!(session.auras.visible_auras.values().any(|aura| {
+    assert!(session.fixtures.auras.visible_auras.values().any(|aura| {
         aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModSpeedNoControl)
     }));
 
@@ -193,7 +193,7 @@ async fn cancel_mod_speed_no_control_removes_matching_mover_aura_like_cpp() {
             .await
     );
 
-    assert!(!session.auras.visible_auras.values().any(|aura| {
+    assert!(!session.fixtures.auras.visible_auras.values().any(|aura| {
         aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModSpeedNoControl)
     }));
 }
@@ -218,7 +218,7 @@ async fn cancel_mod_speed_no_control_no_aura_cancel_preserves_aura_like_cpp() {
             .await
     );
 
-    assert!(session.auras.visible_auras.values().any(|aura| {
+    assert!(session.fixtures.auras.visible_auras.values().any(|aura| {
         aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::ModSpeedNoControl)
     }));
 }

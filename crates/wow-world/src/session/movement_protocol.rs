@@ -285,7 +285,7 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn player_out_of_bounds_like_cpp(&self) -> bool {
-        self.movement.player_out_of_bounds_like_cpp
+        self.fixtures.movement.player_out_of_bounds_like_cpp
     }
 
     pub(in crate::session) fn set_represented_can_fly_like_cpp(&mut self, enable: bool) -> bool {
@@ -327,13 +327,15 @@ impl WorldSession {
         let changed = canonical_changed.unwrap_or_else(|| {
             if self.core.player_handle_like_cpp.is_some()
                 || self
+                    .fixtures
                     .movement
                     .represented_can_swim_to_fly_transition_like_cpp
                     == enable
             {
                 return false;
             }
-            self.movement
+            self.fixtures
+                .movement
                 .represented_can_swim_to_fly_transition_like_cpp = enable;
             true
         });
@@ -347,7 +349,8 @@ impl WorldSession {
 
         #[cfg(test)]
         if canonical_changed.is_some() {
-            self.movement
+            self.fixtures
+                .movement
                 .represented_can_swim_to_fly_transition_like_cpp = enable;
         }
         self.send_player_move_set_flag_like_cpp(if enable {

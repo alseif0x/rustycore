@@ -113,8 +113,8 @@ async fn loot_unit_valid_target_removes_looting_interrupt_auras_like_cpp() {
 
     session.handle_loot_unit(loot_unit_packet(loot_guid)).await;
 
-    assert!(!session.auras.visible_auras.contains_key(&3));
-    assert!(session.auras.visible_auras.contains_key(&4));
+    assert!(!session.fixtures.auras.visible_auras.contains_key(&3));
+    assert!(session.fixtures.auras.visible_auras.contains_key(&4));
 }
 #[tokio::test]
 async fn loot_roll_need_vote_broadcasts_immediate_roll_like_cpp() {

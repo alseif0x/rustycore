@@ -602,7 +602,7 @@ impl WorldSession {
         });
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.progression.represented_enchanting_skill);
+            return Some(self.fixtures.progression.represented_enchanting_skill);
         }
         canonical
     }

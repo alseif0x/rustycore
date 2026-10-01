@@ -599,19 +599,32 @@ fn login_pet_talent_reset_clears_pet_spells_and_specs_without_clearing_flag_like
         "C++ deletes pet_spell rows for all pets owned by the player"
     );
     assert_eq!(
-        session.pets.represented_pet_stable_like_cpp.active_pets[0]
+        session
+            .fixtures
+            .pets
+            .represented_pet_stable_like_cpp
+            .active_pets[0]
             .as_ref()
             .map(|pet| pet.specialization_id),
         Some(0)
     );
     assert_eq!(
-        session.pets.represented_pet_stable_like_cpp.stabled_pets[0]
+        session
+            .fixtures
+            .pets
+            .represented_pet_stable_like_cpp
+            .stabled_pets[0]
             .as_ref()
             .map(|pet| pet.specialization_id),
         Some(0)
     );
     assert_eq!(
-        session.pets.represented_pet_stable_like_cpp.unslotted_pets[0].specialization_id,
+        session
+            .fixtures
+            .pets
+            .represented_pet_stable_like_cpp
+            .unslotted_pets[0]
+            .specialization_id,
         0
     );
     assert!(

@@ -535,8 +535,14 @@ impl WorldSession {
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(wow_entities::PlayerPersistentCapabilityStateLikeCpp {
                 at_login_flags: self.lifecycle.represented_at_login_flags_like_cpp,
-                weapon_proficiency: self.progression.represented_weapon_proficiency_like_cpp,
-                armor_proficiency: self.progression.represented_armor_proficiency_like_cpp,
+                weapon_proficiency: self
+                    .fixtures
+                    .progression
+                    .represented_weapon_proficiency_like_cpp,
+                armor_proficiency: self
+                    .fixtures
+                    .progression
+                    .represented_armor_proficiency_like_cpp,
             });
         }
         canonical
@@ -549,8 +555,12 @@ impl WorldSession {
         let mut state = self.player_persistent_capability_state_snapshot_like_cpp()?;
         let result = mutate(&mut state);
         self.lifecycle.represented_at_login_flags_like_cpp = state.at_login_flags;
-        self.progression.represented_weapon_proficiency_like_cpp = state.weapon_proficiency;
-        self.progression.represented_armor_proficiency_like_cpp = state.armor_proficiency;
+        self.fixtures
+            .progression
+            .represented_weapon_proficiency_like_cpp = state.weapon_proficiency;
+        self.fixtures
+            .progression
+            .represented_armor_proficiency_like_cpp = state.armor_proficiency;
         Some(result)
     }
 }

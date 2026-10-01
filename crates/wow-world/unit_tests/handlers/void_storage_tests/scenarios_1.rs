@@ -188,6 +188,7 @@ fn login_load_adds_default_void_item_appearance_like_cpp() {
     );
     assert!(
         session
+            .fixtures
             .collections
             .represented_item_appearances_like_cpp
             .contains(&65)

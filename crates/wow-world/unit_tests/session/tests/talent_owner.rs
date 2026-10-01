@@ -174,12 +174,27 @@ fn talent_points_refresh_rejects_stale_and_missing_owner_without_fixture_fallbac
         .unwrap()
         .install_detached_player_like_cpp(replacement)
         .unwrap();
-    session.progression.player_character_points_like_cpp = 456;
+    session
+        .fixtures
+        .progression
+        .player_character_points_like_cpp = 456;
     session.refresh_represented_talent_points_like_cpp();
-    assert_eq!(session.progression.player_character_points_like_cpp, 456);
+    assert_eq!(
+        session
+            .fixtures
+            .progression
+            .player_character_points_like_cpp,
+        456
+    );
     session.core.canonical_map_manager = None;
     session.refresh_represented_talent_points_like_cpp();
-    assert_eq!(session.progression.player_character_points_like_cpp, 456);
+    assert_eq!(
+        session
+            .fixtures
+            .progression
+            .player_character_points_like_cpp,
+        456
+    );
     assert_eq!(
         manager
             .lock()

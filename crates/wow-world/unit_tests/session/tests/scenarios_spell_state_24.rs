@@ -13,10 +13,12 @@ fn represented_item_set_aura_refresh_materializes_remove_then_apply_like_cpp() {
 
     session.set_player_guid(Some(player_guid));
     session
+        .fixtures
         .auras
         .visible_auras
         .insert(1, test_visible_aura(1, 9044));
     session
+        .fixtures
         .auras
         .visible_auras
         .insert(2, test_visible_aura(2, 9999));
@@ -52,6 +54,7 @@ fn represented_item_set_aura_refresh_materializes_remove_then_apply_like_cpp() {
     );
     assert_eq!(
         session
+            .fixtures
             .auras
             .visible_auras
             .values()
@@ -62,6 +65,7 @@ fn represented_item_set_aura_refresh_materializes_remove_then_apply_like_cpp() {
     );
     assert!(
         session
+            .fixtures
             .auras
             .visible_auras
             .values()
@@ -82,6 +86,7 @@ fn represented_item_set_aura_refresh_form_change_does_not_duplicate_active_aura_
     session.set_spell_store(Arc::new(spell_store));
     session.set_represented_shapeshift_form_like_cpp(5);
     session
+        .fixtures
         .auras
         .visible_auras
         .insert(1, test_visible_aura(1, 9045));
@@ -117,6 +122,7 @@ fn represented_item_set_aura_refresh_form_change_does_not_duplicate_active_aura_
     );
     assert_eq!(
         session
+            .fixtures
             .auras
             .visible_auras
             .values()
@@ -291,7 +297,7 @@ fn loaded_equipped_item_enchantments_apply_equip_spell_aura_like_cpp() {
         session.represented_item_bonus_actions_like_cpp(),
         outcome.effect_actions.as_slice()
     );
-    assert!(session.auras.visible_auras.values().any(|aura| {
+    assert!(session.fixtures.auras.visible_auras.values().any(|aura| {
         aura.spell_id == 1234 && aura.caster_guid == item_guid && aura.effect_mask == 1
     }));
     assert!(

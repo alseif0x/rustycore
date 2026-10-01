@@ -393,14 +393,17 @@ async fn login_spell_reset_reward_spell_minus_one_removes_source_spell_auras_lik
         .rewarded_quests
         .insert(quest_id);
     session
+        .fixtures
         .auras
         .visible_auras
         .insert(1, test_visible_aura_like_cpp(1, source_spell_id));
     session
+        .fixtures
         .auras
         .visible_auras
         .insert(2, test_visible_aura_like_cpp(2, source_spell_id));
     session
+        .fixtures
         .auras
         .visible_auras
         .insert(3, test_visible_aura_like_cpp(3, other_spell_id));
@@ -423,6 +426,7 @@ async fn login_spell_reset_reward_spell_minus_one_removes_source_spell_auras_lik
 
     assert!(
         session
+            .fixtures
             .auras
             .visible_auras
             .values()
@@ -431,6 +435,7 @@ async fn login_spell_reset_reward_spell_minus_one_removes_source_spell_auras_lik
     );
     assert!(
         session
+            .fixtures
             .auras
             .visible_auras
             .values()
@@ -865,11 +870,15 @@ async fn learn_talent_removes_change_talent_interrupt_auras_like_cpp() {
     let (mut session, send_rx) = make_session_with_send_capacity(4);
     let talent_tabs = install_test_talent_store(&mut session, &[(101, 0, 50_101)]);
     session.mark_represented_talents_loaded_like_cpp();
-    session.auras.visible_auras.insert(
+    session.fixtures.auras.visible_auras.insert(
         1,
         visible_aura(1, SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP),
     );
-    session.auras.visible_auras.insert(2, visible_aura(2, 0));
+    session
+        .fixtures
+        .auras
+        .visible_auras
+        .insert(2, visible_aura(2, 0));
 
     session
         .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 0))
@@ -880,11 +889,11 @@ async fn learn_talent_removes_change_talent_interrupt_auras_like_cpp() {
         "C++ sends updates after successful AddTalent and aura removal"
     );
     assert!(
-        !session.auras.visible_auras.contains_key(&1),
+        !session.fixtures.auras.visible_auras.contains_key(&1),
         "C++ Player::AddTalent(learning=true) removes ChangeTalent interrupt auras"
     );
     assert!(
-        session.auras.visible_auras.contains_key(&2),
+        session.fixtures.auras.visible_auras.contains_key(&2),
         "unrelated auras survive ChangeTalent interrupt removal"
     );
 }

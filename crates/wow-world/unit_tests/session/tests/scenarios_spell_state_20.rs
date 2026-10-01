@@ -14,7 +14,7 @@ fn spell_acquisition_snapshot_adapter_is_exact_or_fails_closed() {
     };
 
     let (mut session, _, _) = make_session();
-    session.identity.player_race = 1;
+    session.fixtures.identity.player_race = 1;
     session.set_player_class_like_cpp(1);
     session.set_player_level_like_cpp(40);
     assert!(
@@ -184,6 +184,7 @@ fn spell_acquisition_snapshot_adapter_is_exact_or_fails_closed() {
     );
 
     session
+        .fixtures
         .progression
         .player_skill_test_fixture_like_cpp
         .player_skill_records_complete_like_cpp = false;
@@ -196,11 +197,13 @@ fn spell_acquisition_snapshot_adapter_is_exact_or_fails_closed() {
         Err(SpellAcquisitionSnapshotAdapterErrorLikeCpp::IncompleteSkillRows)
     );
     session
+        .fixtures
         .progression
         .player_skill_test_fixture_like_cpp
         .player_skill_records_complete_like_cpp = true;
 
     session
+        .fixtures
         .progression
         .player_skill_test_fixture_like_cpp
         .player_skill_occupied_slots_like_cpp = None;
@@ -213,6 +216,7 @@ fn spell_acquisition_snapshot_adapter_is_exact_or_fails_closed() {
         Err(SpellAcquisitionSnapshotAdapterErrorLikeCpp::MissingSkillSlotOccupancy)
     );
     session
+        .fixtures
         .progression
         .player_skill_test_fixture_like_cpp
         .player_skill_occupied_slots_like_cpp = Some(2);
@@ -823,6 +827,7 @@ async fn spell_effect_uncage_battle_pet_rejects_disappeared_cast_item_like_cpp()
 
     assert!(
         session
+            .fixtures
             .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pets_like_cpp

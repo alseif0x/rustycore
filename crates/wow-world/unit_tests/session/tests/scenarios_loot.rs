@@ -11,7 +11,7 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
     let guid = ObjectGuid::create_player(1, 42);
     let registry = Arc::new(PlayerRegistry::default());
     session.set_player_guid(Some(guid));
-    session.movement.player_position = Some(Position::ZERO);
+    session.fixtures.movement.player_position = Some(Position::ZERO);
     session.core.current_map_id = 0;
     bind_canonical_test_player_to_registry_like_cpp(
         &mut session,
@@ -21,7 +21,7 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
         0,
     );
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
-    session.identity.player_name = Some("Tester".to_string());
+    session.fixtures.identity.player_name = Some("Tester".to_string());
     session
         .spell_state
         .player_spell_test_fixture_like_cpp

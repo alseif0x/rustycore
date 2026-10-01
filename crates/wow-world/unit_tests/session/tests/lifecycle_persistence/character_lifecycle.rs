@@ -126,7 +126,7 @@ async fn character_save_does_not_reapply_save_destination_or_progression_to_runt
         let (mut session, port) = character_save_session_with_port(outcome, 0x7500_0004);
         install_canonical_player_owner_for_test(&mut session, 571, 0);
         session.core.current_map_id = 571;
-        session.identity.player_level = 17;
+        session.fixtures.identity.player_level = 17;
         let original = Position::new(1.0, 2.0, 3.0, 0.5);
         let destination = Position::new(11.0, 22.0, 33.0, 1.5);
         session

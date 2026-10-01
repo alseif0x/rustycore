@@ -15,8 +15,8 @@ fn far_sight_enable_rejects_cross_instance_target_like_cpp() {
 
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_player_guid(Some(player_guid));
-    session.identity.player_name = Some("FarSightCrossInstance".into());
-    session.movement.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
+    session.fixtures.identity.player_name = Some("FarSightCrossInstance".into());
+    session.fixtures.movement.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
     session.core.current_map_id = 571;
     session
         .visibility
@@ -65,8 +65,8 @@ fn far_sight_enable_same_nonzero_instance_sets_seer_like_cpp() {
 
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_player_guid(Some(player_guid));
-    session.identity.player_name = Some("FarSightSameInstance".into());
-    session.movement.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
+    session.fixtures.identity.player_name = Some("FarSightSameInstance".into());
+    session.fixtures.movement.player_position = Some(Position::new(10.0, 10.0, 0.0, 0.0));
     session.core.current_map_id = 571;
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 13);
     add_canonical_test_creature_on_map(
@@ -102,13 +102,13 @@ fn canonical_player_logout_cleanup_preserves_other_map_objects_like_cpp() {
 
         session.set_canonical_map_manager(Arc::clone(&canonical));
         session.set_player_guid(Some(player_guid));
-        session.identity.player_name = Some("LogoutOnlySelf".into());
-        session.movement.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
+        session.fixtures.identity.player_name = Some("LogoutOnlySelf".into());
+        session.fixtures.movement.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
         session.core.current_map_id = 571;
 
         other_session.set_player_guid(Some(other_player_guid));
-        other_session.identity.player_name = Some("OtherStays".into());
-        other_session.movement.player_position = Some(Position::new(4.0, 5.0, 6.0, 0.0));
+        other_session.fixtures.identity.player_name = Some("OtherStays".into());
+        other_session.fixtures.movement.player_position = Some(Position::new(4.0, 5.0, 6.0, 0.0));
         other_session.core.current_map_id = 571;
 
         insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
@@ -143,8 +143,8 @@ fn canonical_player_logout_cleanup_missing_map_is_noop_like_cpp() {
 
         session.set_canonical_map_manager(Arc::clone(&canonical));
         session.set_player_guid(Some(player_guid));
-        session.identity.player_name = Some("NoMap".into());
-        session.movement.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
+        session.fixtures.identity.player_name = Some("NoMap".into());
+        session.fixtures.movement.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
         session.core.current_map_id = 571;
 
         assert!(canonical.lock().unwrap().find_map(571, 0).is_none());
@@ -166,8 +166,8 @@ fn canonical_player_logout_disconnect_cleanup_removes_player_from_map_like_cpp()
 
                 session.set_canonical_map_manager(Arc::clone(&canonical));
                 session.set_player_guid(Some(player_guid));
-                session.identity.player_name = Some("DisconnectMap".into());
-                session.movement.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
+                session.fixtures.identity.player_name = Some("DisconnectMap".into());
+                session.fixtures.movement.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
                 session.core.current_map_id = 571;
 
                 insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);

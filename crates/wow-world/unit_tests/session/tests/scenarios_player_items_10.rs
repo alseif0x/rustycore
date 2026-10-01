@@ -410,7 +410,7 @@ fn direct_destroy_uses_cpp_can_unequip_gate_for_equipment_and_bags() {
     );
     session.insert_inventory_item_object(chest_item);
     let chest_proto = session.item_storage_template(100);
-    session.combat.in_combat = true;
+    session.fixtures.combat.in_combat = true;
     assert_eq!(
         session.can_destroy_direct_item_like_cpp(
             EQUIPMENT_SLOT_CHEST,
@@ -420,7 +420,7 @@ fn direct_destroy_uses_cpp_can_unequip_gate_for_equipment_and_bags() {
         ),
         InventoryResult::NotInCombat
     );
-    session.combat.in_combat = false;
+    session.fixtures.combat.in_combat = false;
 
     let bag_guid = ObjectGuid::create_item(1, 1001);
     session
@@ -612,8 +612,8 @@ fn canonical_player_logout_cleanup_removes_player_before_session_inventory_like_
 
         session.set_canonical_map_manager(Arc::clone(&canonical));
         session.set_player_guid(Some(player_guid));
-        session.identity.player_name = Some("LogoutMap".into());
-        session.movement.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
+        session.fixtures.identity.player_name = Some("LogoutMap".into());
+        session.fixtures.movement.player_position = Some(Position::new(1.0, 2.0, 3.0, 0.0));
         session.core.current_map_id = 571;
         session
             .inventory

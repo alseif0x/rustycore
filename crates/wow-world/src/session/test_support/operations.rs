@@ -106,14 +106,17 @@ impl WorldSession {
     pub(crate) fn player_rest_rate_policy_for_test_like_cpp(&self) -> PlayerRestRatePolicyLikeCpp {
         PlayerRestRatePolicyLikeCpp {
             offline_wilderness: self
+                .fixtures
                 .progression
                 .rest_mgr_test_fixture_like_cpp
                 .rest_offline_wilderness_rate_like_cpp,
             offline_tavern_or_city: self
+                .fixtures
                 .progression
                 .rest_mgr_test_fixture_like_cpp
                 .rest_offline_tavern_or_city_rate_like_cpp,
             ingame: self
+                .fixtures
                 .progression
                 .rest_mgr_test_fixture_like_cpp
                 .rest_ingame_rate_like_cpp,
@@ -417,7 +420,7 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn install_detached_canonical_player_for_test_like_cpp(&mut self) -> bool {
-        let Some(position) = self.movement.player_position else {
+        let Some(position) = self.fixtures.movement.player_position else {
             return false;
         };
         self.install_detached_canonical_player_from_session_like_cpp(position)

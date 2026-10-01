@@ -10,7 +10,7 @@ impl WorldSession {
         let canonical = self.with_owned_player_like_cpp(|player| player.gameplay_state().pet_guid);
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.pets.represented_pet_guid_like_cpp);
+            return Some(self.fixtures.pets.represented_pet_guid_like_cpp);
         }
         canonical
     }
@@ -25,7 +25,7 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.pets.represented_pet_guid_like_cpp = pet_guid;
+            self.fixtures.pets.represented_pet_guid_like_cpp = pet_guid;
             return true;
         }
         canonical
@@ -136,8 +136,8 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some((
-                self.pets.represented_pet_react_state_like_cpp,
-                self.pets.represented_pet_command_state_like_cpp,
+                self.fixtures.pets.represented_pet_react_state_like_cpp,
+                self.fixtures.pets.represented_pet_command_state_like_cpp,
             ));
         }
         canonical
@@ -164,8 +164,8 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if !canonical && self.core.player_handle_like_cpp.is_none() {
-            self.pets.represented_pet_react_state_like_cpp = react_state;
-            self.pets.represented_pet_command_state_like_cpp = command_state;
+            self.fixtures.pets.represented_pet_react_state_like_cpp = react_state;
+            self.fixtures.pets.represented_pet_command_state_like_cpp = command_state;
             return true;
         }
         canonical
@@ -178,15 +178,20 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(PlayerPetLifecycleStateLikeCpp {
-                stable: self.pets.represented_pet_stable_like_cpp.clone(),
+                stable: self.fixtures.pets.represented_pet_stable_like_cpp.clone(),
                 character_rows_empty_authority_complete: self
+                    .fixtures
                     .pets
                     .represented_character_pet_rows_empty_authority_complete_like_cpp,
                 temporary_unsummoned_pet_number: self
+                    .fixtures
                     .pets
                     .represented_temporary_unsummoned_pet_number_like_cpp,
-                old_pet_spell: self.pets.represented_old_pet_spell_like_cpp,
-                temporary_mount_react_state: self.pets.temporary_mount_pet_react_state_like_cpp,
+                old_pet_spell: self.fixtures.pets.represented_old_pet_spell_like_cpp,
+                temporary_mount_react_state: self
+                    .fixtures
+                    .pets
+                    .temporary_mount_pet_react_state_like_cpp,
             });
         }
         canonical
@@ -208,15 +213,18 @@ impl WorldSession {
                 .player_pet_lifecycle_state_snapshot_like_cpp()
                 .unwrap_or_default();
             update(&mut state);
-            self.pets.represented_pet_stable_like_cpp = state.stable;
-            self.pets
+            self.fixtures.pets.represented_pet_stable_like_cpp = state.stable;
+            self.fixtures
+                .pets
                 .represented_character_pet_rows_empty_authority_complete_like_cpp =
                 state.character_rows_empty_authority_complete;
-            self.pets
+            self.fixtures
+                .pets
                 .represented_temporary_unsummoned_pet_number_like_cpp =
                 state.temporary_unsummoned_pet_number;
-            self.pets.represented_old_pet_spell_like_cpp = state.old_pet_spell;
-            self.pets.temporary_mount_pet_react_state_like_cpp = state.temporary_mount_react_state;
+            self.fixtures.pets.represented_old_pet_spell_like_cpp = state.old_pet_spell;
+            self.fixtures.pets.temporary_mount_pet_react_state_like_cpp =
+                state.temporary_mount_react_state;
             true
         }
         #[cfg(not(test))]
@@ -308,10 +316,10 @@ impl WorldSession {
             let _ = self.set_player_pet_guid_like_cpp(None);
             #[cfg(test)]
             {
-                self.pets.represented_pet_created_by_spell_like_cpp = 0;
-                self.pets.represented_pet_react_state_like_cpp =
+                self.fixtures.pets.represented_pet_created_by_spell_like_cpp = 0;
+                self.fixtures.pets.represented_pet_react_state_like_cpp =
                     wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
-                self.pets.represented_pet_command_state_like_cpp =
+                self.fixtures.pets.represented_pet_command_state_like_cpp =
                     wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
             }
             let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
@@ -319,7 +327,9 @@ impl WorldSession {
             });
             #[cfg(test)]
             {
-                self.pets.represented_pet_movement_speed_rates_like_cpp =
+                self.fixtures
+                    .pets
+                    .represented_pet_movement_speed_rates_like_cpp =
                     [1.0; UnitMoveTypeLikeCpp::COUNT];
             }
         }
@@ -558,10 +568,17 @@ impl WorldSession {
                 #[cfg(test)]
                 {
                     if self.core.player_handle_like_cpp.is_none() {
-                        if self.pets.represented_pet_movement_speed_rates_like_cpp[index] == rate {
+                        if self
+                            .fixtures
+                            .pets
+                            .represented_pet_movement_speed_rates_like_cpp[index]
+                            == rate
+                        {
                             return;
                         }
-                        self.pets.represented_pet_movement_speed_rates_like_cpp[index] = rate;
+                        self.fixtures
+                            .pets
+                            .represented_pet_movement_speed_rates_like_cpp[index] = rate;
                         true
                     } else {
                         false
@@ -578,7 +595,10 @@ impl WorldSession {
         }
         #[cfg(test)]
         {
-            self.pets.represented_pet_speed_propagations_like_cpp = self
+            self.fixtures
+                .pets
+                .represented_pet_speed_propagations_like_cpp = self
+                .fixtures
                 .pets
                 .represented_pet_speed_propagations_like_cpp
                 .saturating_add(1);
@@ -601,11 +621,16 @@ impl WorldSession {
                 })
                 .flatten()
             });
-        canonical
-            .unwrap_or(self.pets.represented_pet_movement_speed_rates_like_cpp[move_type.index()])
+        canonical.unwrap_or(
+            self.fixtures
+                .pets
+                .represented_pet_movement_speed_rates_like_cpp[move_type.index()],
+        )
     }
     #[cfg(test)]
     pub(crate) fn represented_pet_speed_propagations_like_cpp(&self) -> u32 {
-        self.pets.represented_pet_speed_propagations_like_cpp
+        self.fixtures
+            .pets
+            .represented_pet_speed_propagations_like_cpp
     }
 }

@@ -214,16 +214,16 @@ impl WorldSession {
         });
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            let max_health = self.combat.player_max_health_like_cpp.max(1);
-            let before = self.combat.player_health_like_cpp.min(max_health);
-            if !self.combat.player_alive_like_cpp || before == 0 {
+            let max_health = self.fixtures.combat.player_max_health_like_cpp.max(1);
+            let before = self.fixtures.combat.player_health_like_cpp.min(max_health);
+            if !self.fixtures.combat.player_alive_like_cpp || before == 0 {
                 return Some((before, before, max_health, 0, false));
             }
             let applied = requested_damage.min(before);
             let after = before.saturating_sub(applied);
             let killed = applied > 0 && after == 0;
-            self.combat.player_health_like_cpp = after;
-            self.combat.player_alive_like_cpp = !killed;
+            self.fixtures.combat.player_health_like_cpp = after;
+            self.fixtures.combat.player_alive_like_cpp = !killed;
             return Some((before, after, max_health, applied, killed));
         }
         canonical
@@ -236,7 +236,7 @@ impl WorldSession {
             })
             .is_some();
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.combat.player_normal_damage_immune_like_cpp = immune;
+            self.fixtures.combat.player_normal_damage_immune_like_cpp = immune;
         }
     }
     #[cfg(test)]
@@ -247,7 +247,9 @@ impl WorldSession {
             })
             .is_some();
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.combat.player_environmental_damage_immune_like_cpp = immune;
+            self.fixtures
+                .combat
+                .player_environmental_damage_immune_like_cpp = immune;
         }
     }
     pub(in crate::session) fn resolved_player_damage_control_like_cpp(
@@ -257,9 +259,10 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(wow_entities::PlayerDamageControlStateLikeCpp {
-                cheat_god: self.combat.player_cheat_god_like_cpp,
-                normal_damage_immune: self.combat.player_normal_damage_immune_like_cpp,
+                cheat_god: self.fixtures.combat.player_cheat_god_like_cpp,
+                normal_damage_immune: self.fixtures.combat.player_normal_damage_immune_like_cpp,
                 environmental_damage_immune: self
+                    .fixtures
                     .combat
                     .player_environmental_damage_immune_like_cpp,
             });

@@ -129,6 +129,7 @@ fn represented_run_speed_minimum_speed_removal_recomputes_like_cpp() {
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 5.25).abs() < 0.0001
     );
     let minimum_slot = session
+        .fixtures
         .auras
         .visible_auras
         .iter()
@@ -237,6 +238,7 @@ fn represented_run_speed_minimum_speed_rate_removal_recomputes_like_cpp() {
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 5.0).abs() < 0.0001
     );
     let minimum_rate_slot = session
+        .fixtures
         .auras
         .visible_auras
         .iter()
@@ -635,8 +637,9 @@ fn canonical_player_map_transfer_sync_removes_stale_old_map_like_cpp() {
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
 
     other_session.set_player_guid(Some(other_player_guid));
-    other_session.identity.player_name = Some("TransferOther".into());
-    other_session.movement.player_position = Some(Position::new(3710.0, 1510.0, 120.0, 0.0));
+    other_session.fixtures.identity.player_name = Some("TransferOther".into());
+    other_session.fixtures.movement.player_position =
+        Some(Position::new(3710.0, 1510.0, 120.0, 0.0));
     other_session.core.current_map_id = 571;
     insert_session_player_into_canonical_map_like_cpp(&other_session, &canonical, 571, 0);
     add_canonical_test_creature(

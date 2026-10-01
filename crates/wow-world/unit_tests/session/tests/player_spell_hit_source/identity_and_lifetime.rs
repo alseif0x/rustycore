@@ -97,6 +97,7 @@ fn player_spell_hit_source_tombstone_does_not_cross_player_lifetimes_like_cpp() 
     session.tombstone_player_spell_hit_aura_authority_like_cpp();
     assert!(
         session
+            .fixtures
             .auras
             .player_spell_hit_aura_authority_tombstoned_like_cpp
     );
@@ -104,6 +105,7 @@ fn player_spell_hit_source_tombstone_does_not_cross_player_lifetimes_like_cpp() 
     session.set_player_guid(Some(second));
     assert!(
         !session
+            .fixtures
             .auras
             .player_spell_hit_aura_authority_tombstoned_like_cpp,
         "FIRST-login loss belongs to the old C++ Player, not the surviving WorldSession"

@@ -103,28 +103,36 @@ impl WorldSession {
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
                 wow_entities::PlayerRestState::from_represented_parts_like_cpp(
-                    self.progression
+                    self.fixtures
+                        .progression
                         .rest_mgr_test_fixture_like_cpp
                         .represented_rest_state_xp_like_cpp,
-                    self.progression
+                    self.fixtures
+                        .progression
                         .rest_mgr_test_fixture_like_cpp
                         .represented_rest_bonus_xp_like_cpp,
-                    self.progression
+                    self.fixtures
+                        .progression
                         .rest_mgr_test_fixture_like_cpp
                         .represented_rest_flag_mask_like_cpp,
-                    self.progression
+                    self.fixtures
+                        .progression
                         .rest_mgr_test_fixture_like_cpp
                         .represented_rest_location_initialized_like_cpp,
-                    self.progression
+                    self.fixtures
+                        .progression
                         .rest_mgr_test_fixture_like_cpp
                         .represented_defer_rest_flag_sync_like_cpp,
-                    self.progression
+                    self.fixtures
+                        .progression
                         .rest_mgr_test_fixture_like_cpp
                         .represented_deferred_rest_flag_update_dirty_like_cpp,
-                    self.progression
+                    self.fixtures
+                        .progression
                         .rest_mgr_test_fixture_like_cpp
                         .represented_inn_area_trigger_id_like_cpp,
-                    self.progression
+                    self.fixtures
+                        .progression
                         .rest_mgr_test_fixture_like_cpp
                         .represented_rest_time_secs_like_cpp,
                 ),
@@ -156,30 +164,38 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
-            self.progression
+            self.fixtures
+                .progression
                 .rest_mgr_test_fixture_like_cpp
                 .represented_rest_bonus_xp_like_cpp = state.rest_bonus_like_cpp();
-            self.progression
+            self.fixtures
+                .progression
                 .rest_mgr_test_fixture_like_cpp
                 .represented_rest_state_xp_like_cpp = state.rest_state_like_cpp();
-            self.progression
+            self.fixtures
+                .progression
                 .rest_mgr_test_fixture_like_cpp
                 .represented_rest_flag_mask_like_cpp = state.rest_flag_mask_like_cpp();
-            self.progression
+            self.fixtures
+                .progression
                 .rest_mgr_test_fixture_like_cpp
                 .represented_rest_location_initialized_like_cpp =
                 state.is_location_initialized_like_cpp();
-            self.progression
+            self.fixtures
+                .progression
                 .rest_mgr_test_fixture_like_cpp
                 .represented_defer_rest_flag_sync_like_cpp = state.defers_flag_sync_like_cpp();
-            self.progression
+            self.fixtures
+                .progression
                 .rest_mgr_test_fixture_like_cpp
                 .represented_deferred_rest_flag_update_dirty_like_cpp =
                 state.deferred_flag_update_dirty_like_cpp();
-            self.progression
+            self.fixtures
+                .progression
                 .rest_mgr_test_fixture_like_cpp
                 .represented_inn_area_trigger_id_like_cpp = state.inn_trigger_id_like_cpp();
-            self.progression
+            self.fixtures
+                .progression
                 .rest_mgr_test_fixture_like_cpp
                 .represented_rest_time_secs_like_cpp = state.rest_time_secs_like_cpp();
             return true;

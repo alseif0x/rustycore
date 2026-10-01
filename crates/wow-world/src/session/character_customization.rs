@@ -72,7 +72,8 @@ impl WorldSession {
     ) {
         #[cfg(test)]
         {
-            self.presentation
+            self.fixtures
+                .presentation
                 .represented_confirm_barbers_choice_requests_like_cpp
                 .push(request);
         }
@@ -84,14 +85,15 @@ impl WorldSession {
         request: RepresentedConfirmRespecWipeLikeCpp,
     ) {
         #[cfg(test)]
-        self.progression
+        self.fixtures
+            .progression
             .represented_confirm_respec_wipe_requests_like_cpp
             .push(request);
     }
 
     #[cfg(test)]
     pub(crate) fn delayed_operations_processed_like_cpp(&self) -> u32 {
-        self.movement.delayed_operations_processed_like_cpp
+        self.fixtures.movement.delayed_operations_processed_like_cpp
     }
 
     pub(crate) fn represented_learn_title_like_cpp(&mut self, title_id: u32) {

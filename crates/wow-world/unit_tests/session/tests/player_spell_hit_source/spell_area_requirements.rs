@@ -85,6 +85,7 @@ fn player_spell_hit_source_authority_evaluates_spell_area_aura_requirement_like_
     );
 
     session
+        .fixtures
         .auras
         .visible_auras
         .insert(0, test_visible_aura(0, 33_795));
@@ -104,7 +105,7 @@ fn player_spell_hit_source_authority_evaluates_spell_area_aura_requirement_like_
         "a present aura disproves a negative C++ SpellArea prerequisite"
     );
 
-    session.auras.visible_auras.clear();
+    session.fixtures.auras.visible_auras.clear();
     assert!(
         !session.can_authorize_empty_player_spell_hit_aura_source_like_cpp(),
         "an absent aura makes the negative prerequisite fit"

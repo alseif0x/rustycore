@@ -68,6 +68,7 @@ async fn post_add_flushes_deferred_rest_flag_update_after_world_states_like_cpp(
     assert!(rest_update_indices[0] > init_world_states_index);
     assert_eq!(
         session
+            .fixtures
             .progression
             .rest_mgr_test_fixture_like_cpp
             .represented_rest_flag_mask_like_cpp,

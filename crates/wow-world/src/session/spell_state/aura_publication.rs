@@ -306,8 +306,10 @@ impl WorldSession {
     pub(in crate::session) fn send_on_cancel_expected_vehicle_ride_aura_like_cpp(&mut self) {
         #[cfg(test)]
         {
-            self.vehicles
+            self.fixtures
+                .vehicles
                 .mount_cancel_expected_vehicle_aura_packets_like_cpp = self
+                .fixtures
                 .vehicles
                 .mount_cancel_expected_vehicle_aura_packets_like_cpp
                 .saturating_add(1);
