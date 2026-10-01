@@ -18,13 +18,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_instances_mut(self);
         state.add_instance_enter_time_like_cpp(&mut hub, instance_id, enter_time)
     }
-    pub(in crate::session) fn replace_instance_reset_times_like_cpp(
-        &mut self,
-        rows: impl IntoIterator<Item = (u32, u64)>,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_instances_mut(self);
-        state.replace_instance_reset_times_like_cpp(&mut hub, rows)
-    }
     pub(in crate::session) fn create_map_instance_owner_guid_like_cpp(
         &self,
         map_id: u32,

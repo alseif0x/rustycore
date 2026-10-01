@@ -371,6 +371,139 @@ class F3MoveMethodsTest(unittest.TestCase):
         self.assertEqual(rc, 0, out)
         self.assertIn("kept on WorldSession by review", out)
 
+    def cx_tree(self):
+        """Mini tree for the capped Cx kind: interaction (own), loot and visibility (siblings)."""
+        self.write("crates/wow-world/src/session/state.rs", (
+            "mod session_core;\npub(in crate::session) use session_core::SessionCore;\n"
+            "mod catalogs;\npub(in crate::session) use catalogs::SessionCatalogs;\n"
+            "mod interaction;\npub(in crate::session) use interaction::InteractionState;\n"
+            "mod loot;\npub(in crate::session) use loot::LootState;\n"
+            "mod visibility;\npub(in crate::session) use visibility::VisibilityState;\n\n"
+            "pub struct WorldSession {\n    pub(crate) core: SessionCore,\n    pub(crate) catalogs: SessionCatalogs,\n"
+            "    pub(crate) interaction: InteractionState,\n    pub(crate) loot: LootState,\n"
+            "    pub(crate) visibility: VisibilityState,\n}\n"))
+        for g, t, f in (("interaction", "InteractionState", "source"), ("loot", "LootState", "gold"),
+                        ("visibility", "VisibilityState", "seen")):
+            self.write(f"crates/wow-world/src/session/state/{g}.rs",
+                       f"pub(crate) struct {t} {{\n    pub(crate) {f}: u32,\n}}\n")
+        mod = self.root / "crates/wow-world/src/session/mod.rs"
+        mod.write_text("mod npc_interaction;\nmod loot;\n" + mod.read_text())
+        self.write("crates/wow-world/src/session/loot.rs", (
+            "impl WorldSession {\n    pub(crate) fn loot_plus(&self, x: u32) -> u32 {\n"
+            "        self.loot.gold + self.core.account_id + x\n    }\n}\n"))
+        self.write("crates/wow-world/src/session/npc_interaction.rs", (
+            "impl WorldSession {\n"
+            "    pub(crate) fn mix(&mut self) {\n        self.interaction.source = self.loot.gold + self.core.account_id;\n    }\n"
+            "    pub(crate) fn mix2(&mut self) -> u32 {\n        self.interaction.source + self.loot_plus(1)\n    }\n"
+            "    pub(crate) fn peek(&self) -> u32 {\n        self.interaction.source + self.loot.gold\n    }\n"
+            "    pub(crate) fn wide(&self) -> u32 {\n        self.interaction.source + self.visibility.seen\n    }\n"
+            "    pub(crate) fn source_ref(&self) -> &u32 {\n        let _ = self.loot.gold;\n"
+            "        &self.interaction.source\n    }\n"
+            "    pub(crate) fn guarded(&mut self) -> u32 {\n        let g = self.loot.gold.lock();\n"
+            "        self.peek()\n    }\n}\n"))
+        conn = self.root / "crates/wow-world/src/session/connection.rs"
+        conn.write_text(conn.read_text().replace(
+            "    pub fn account_plus_foo(&self) -> u32 {\n",
+            "    pub fn cx_user(&mut self) -> u32 {\n        self.mix();\n"
+            "        self.mix2() + self.peek() + self.wide() + *self.source_ref() + self.guarded()\n    }\n"
+            "    pub fn account_plus_foo(&self) -> u32 {\n"))
+
+    def test_capped_cx_kind(self):
+        self.cx_tree()
+        args = ("--group", "interaction,loot", "--classes", "P,C-hub,Cx", "--cx-siblings", "interaction=loot",
+                "--root", str(self.root))
+        P = F.plan(self.root, {"interaction", "loot"}, {"P", "C-hub", "Cx"}, None, (), {"interaction": ["loot"]})
+        self.assertEqual(P["cand"]["mix"], ("Cx", "cx", "InteractionCx"))          # 1. own + sibling field
+        self.assertEqual(P["cand"]["peek"], ("Cx", "cx-ref", "InteractionCxRef"))  # 3. `&self` -> CxRef
+        self.assertTrue(P["blocked"]["wide"].startswith("class C (exceeds the Cx cap"))   # 4. not a chosen sibling
+        self.assertTrue(P["blocked"]["source_ref"].startswith("returns a borrow"))       # 6. preconditions
+        self.assertTrue(P["blocked"]["guarded"].startswith("holds a std lock guard"))
+        rc, out = run("apply", *args, "--text-only", "--demote-blocked")
+        self.assertEqual(rc, 0, out)
+        npc = (self.root / "crates/wow-world/src/session/npc_interaction.rs").read_text()
+        self.assertIn("impl crate::session::InteractionCx<'_> {", npc)
+        self.assertIn("self.interaction.source = self.loot.gold + self.hub.core.account_id;", npc)  # 1. paths kept
+        self.assertIn("self.interaction.source + self.loot.loot_plus(self.hub.shared(), 1)", npc)  # 2. sibling call
+        self.assertIn("impl crate::session::InteractionCxRef<'_> {", npc)
+        self.assertIn("        crate::session::cx_interaction(self).mix()\n", npc)                  # 5. thunks
+        self.assertIn("        crate::session::cx_interaction_ref(self).peek()\n", npc)
+        hub = (self.root / "crates/wow-world/src/session/state/hub.rs").read_text()
+        self.assertIn("pub(crate) struct InteractionCx<'a> {\n    pub(crate) interaction: &'a mut InteractionState,\n"
+                      "    pub(crate) loot: &'a mut LootState,\n    pub(crate) hub: HubMut<'a>,\n}", hub)
+        self.assertIn("pub(crate) fn cx_interaction(s: &mut WorldSession) -> InteractionCx<'_>", hub)
+        self.assertIn("pub(crate) fn cx_interaction_ref(s: &WorldSession) -> InteractionCxRef<'_>", hub)
+        self.assertNotIn("LootCx", hub)                                             # 5. only used variants
+        self.assertNotIn("fn shared(&self) -> InteractionCxRef", hub)
+        exports = (self.root / "crates/wow-world/src/session/mod.rs").read_text()
+        self.assertIn("InteractionCx, InteractionCxRef", exports)
+        before = digest(self.root)                                                    # 7. idempotent
+        rc, out = run("apply", *args, "--text-only", "--demote-blocked")
+        self.assertEqual((rc, "already applied (no-op)" in out, digest(self.root)), (0, True, before), out)
+        P = F.plan(self.root, {"interaction"}, {"P", "C-hub", "Cx"})             # siblings read back from hub.rs
+        self.assertEqual(F.CX_SIBLINGS["interaction"], ("loot",))
+
+    def test_hub_argument_before_a_line_break_leaves_no_trailing_blank(self):
+        self.cx_tree()
+        npc = self.root / "crates/wow-world/src/session/npc_interaction.rs"
+        npc.write_text(npc.read_text().replace("self.loot_plus(1)", "self.loot_plus(\n            1,\n        )"))
+        rc, out = run("apply", "--group", "interaction,loot", "--classes", "P,C-hub,Cx", "--cx-siblings",
+                      "interaction=loot", "--root", str(self.root), "--text-only", "--demote-blocked")
+        self.assertEqual(rc, 0, out)
+        text = npc.read_text()
+        self.assertIn("self.loot.loot_plus(self.hub.shared(),\n            1,\n        )", text)
+        self.assertNotIn(", \n", text)
+
+    def test_cx_items_hold_only_what_moved_code_reads(self):
+        self.cx_tree()
+        rc, out = run("apply", "--group", "interaction,loot", "--classes", "P,C-hub,Cx", "--cx-siblings",
+                      "interaction=loot+social", "--root", str(self.root), "--text-only", "--demote-blocked")
+        self.assertEqual(rc, 0, out)
+        hub = (self.root / "crates/wow-world/src/session/state/hub.rs").read_text()
+        self.assertIn("pub(crate) struct InteractionCx<'a> {\n    pub(crate) interaction: &'a mut InteractionState,\n"
+                      "    pub(crate) loot: &'a mut LootState,\n    pub(crate) hub: HubMut<'a>,\n}", hub)
+        self.assertIn("pub(crate) struct InteractionCxRef<'a> {\n    pub(crate) interaction: &'a InteractionState,\n"
+                      "    pub(crate) loot: &'a LootState,\n}", hub)   # `peek` reads no hub member
+        self.assertNotIn("social", hub)                                 # a chosen but unread sibling
+        self.assertIn("InteractionCxRef { interaction: &s.interaction, loot: &s.loot, }", hub)
+        before = digest(self.root)
+        rc, out = run("apply", "--group", "interaction,loot", "--classes", "P,C-hub,Cx", "--root", str(self.root),
+                      "--text-only", "--demote-blocked")
+        self.assertEqual((rc, digest(self.root)), (0, before), out)
+
+    def test_source_text_body_marker_pins_the_fn(self):
+        self.cx_tree()
+        self.write("crates/wow-world/unit_tests/body_pin.rs", 'const SRC: &str = include_str!("npc.rs");\n'
+                   'fn t() { assert!(SRC.split_once("pub(crate) fn peek").is_some()); }\n')
+        P = F.plan(self.root, {"interaction", "loot"}, {"P", "C-hub", "Cx"}, None, (), {"interaction": ["loot"]})
+        self.assertEqual(P["blocked"]["peek"], "source-text test pins its body (`fn peek` marker)")
+        self.assertIn("mix", P["cand"])
+
+    def test_fixture_domain_cx_has_siblings_only(self):
+        self.cx_tree()
+        state = self.root / "crates/wow-world/src/session/state.rs"
+        state.write_text(state.read_text().replace(
+            "    pub(crate) loot: LootState,\n", "    pub(crate) loot: LootState,\n    #[cfg(test)]\n"
+            "    pub(crate) fixtures: SessionFixtures,\n"))
+        mod = self.root / "crates/wow-world/src/session/mod.rs"
+        mod.write_text("mod battleground_adapter;\n" + mod.read_text())
+        self.write("crates/wow-world/src/session/battleground_adapter.rs", (
+            "impl WorldSession {\n    pub(crate) fn bg_gold(&mut self) -> u32 {\n"
+            "        #[cfg(test)]\n        self.fixtures.battleground.hellos.push(1);\n"
+            "        self.loot.gold + self.core.account_id\n    }\n}\n"))
+        conn = self.root / "crates/wow-world/src/session/connection.rs"
+        conn.write_text(conn.read_text().replace("self.mix();\n", "self.mix();\n        self.bg_gold();\n"))
+        rc, out = run("apply", "--group", "battleground", "--classes", "P,C-hub,Cx", "--cx-siblings",
+                      "battleground=loot", "--root", str(self.root), "--text-only", "--demote-blocked")
+        self.assertEqual(rc, 0, out)
+        bg = (self.root / "crates/wow-world/src/session/battleground_adapter.rs").read_text()
+        self.assertIn("impl crate::session::BattlegroundCx<'_> {", bg)
+        self.assertIn("self.hub.fixtures.battleground.hellos.push(1);\n        self.loot.gold + self.hub.core.account_id", bg)
+        self.assertIn("crate::session::cx_battleground(self).bg_gold()", bg)
+        hub = (self.root / "crates/wow-world/src/session/state/hub.rs").read_text()
+        self.assertIn("pub(crate) struct BattlegroundCx<'a> {\n    pub(crate) loot: &'a mut LootState,\n"
+                      "    pub(crate) hub: HubMut<'a>,\n}", hub)               # siblings only: no own state member
+        self.assertNotIn("battleground: &'a", hub)
+
     def test_precondition_aborts_before_any_write(self):
         before = digest(self.root)
         rc, out = self.apply()

@@ -64,26 +64,16 @@ impl WorldSession {
         &mut self,
         gameobject_guid: ObjectGuid,
     ) -> Option<RepresentedGameObjectLootInstallObservationLikeCpp> {
-        self.represented_gameobject_loot_install_observation_result_like_cpp(gameobject_guid)?
+        crate::session::cx_loot(self)
+            .represented_gameobject_loot_install_observation_like_cpp(gameobject_guid)
     }
 
-    /// Preserves the distinction between a missing canonical owner (`None`)
-    /// and an owner whose current lifecycle rejects generation (`Some(None)`).
-    /// Test-only packet fixtures may fall back only for the former.
     pub(super) fn represented_gameobject_loot_install_observation_result_like_cpp(
         &mut self,
         gameobject_guid: ObjectGuid,
     ) -> Option<Option<RepresentedGameObjectLootInstallObservationLikeCpp>> {
-        self.mutate_canonical_gameobject_by_guid_like_cpp(gameobject_guid, |gameobject| {
-            (gameobject.loot_state() != LootState::JustDeactivated).then(|| {
-                let authority = gameobject.loot_authority_like_cpp().clone();
-                RepresentedGameObjectLootInstallObservationLikeCpp {
-                    object_generation: authority.generation_like_cpp(),
-                    authority,
-                    loot_lifecycle_revision: gameobject.loot_lifecycle_revision_like_cpp(),
-                }
-            })
-        })
+        crate::session::cx_loot(self)
+            .represented_gameobject_loot_install_observation_result_like_cpp(gameobject_guid)
     }
 
     pub(in crate::handlers::loot) fn upsert_represented_personal_gameobject_loot_authority_if_observed_like_cpp(
@@ -169,58 +159,15 @@ impl WorldSession {
         fallback_fully_looted
     }
 
-    fn canonical_gameobject_owner_for_loot_like_cpp(&self, guid: ObjectGuid) -> Option<ObjectGuid> {
-        let (state, hub) = crate::session::split_loot_ref(self);
-        state.canonical_gameobject_owner_for_loot_like_cpp(hub, guid)
-    }
-
     fn represented_gameobject_loot_state_like_cpp(
         &self,
         guid: ObjectGuid,
     ) -> Option<RepresentedGameObjectLootStateLikeCpp> {
-        if !guid.is_game_object() {
-            return None;
-        }
-
-        let canonical_position = self.canonical_map_object_position_for_loot_like_cpp(
-            guid,
-            &[
-                AccessorObjectKind::GameObject,
-                AccessorObjectKind::Transport,
-            ],
-        );
-        let canonical_owner = self.canonical_gameobject_owner_for_loot_like_cpp(guid);
-        let represented_state = self
-            .world_entities
-            .represented_gameobject_use_states
-            .get(&guid);
-        if canonical_position.is_none()
-            && represented_state.and_then(|state| state.position).is_none()
-            && !self.core.client_visible_guids_like_cpp.contains(&guid)
-        {
-            return None;
-        }
-
-        Some(RepresentedGameObjectLootStateLikeCpp {
-            position: canonical_position
-                .or_else(|| represented_state.and_then(|state| state.position)),
-            display_id: represented_state.and_then(|state| state.display_id),
-            scale: represented_state.map(|state| state.scale).unwrap_or(1.0),
-            rotation: represented_state
-                .map(|state| state.rotation)
-                .unwrap_or([0.0, 0.0, 0.0, 1.0]),
-            go_type: represented_state.and_then(|state| state.go_type),
-            interact_radius_override: represented_state
-                .and_then(|state| state.interact_radius_override),
-            lock_id: represented_state.and_then(|state| state.lock_id),
-            owner_guid: canonical_owner
-                .or_else(|| represented_state.and_then(|state| state.owner_guid)),
-        })
+        crate::session::cx_loot_ref(self).represented_gameobject_loot_state_like_cpp(guid)
     }
 
     pub(super) fn represented_gameobject_exists_for_loot_like_cpp(&self, guid: ObjectGuid) -> bool {
-        self.represented_gameobject_loot_state_like_cpp(guid)
-            .is_some()
+        crate::session::cx_loot_ref(self).represented_gameobject_exists_for_loot_like_cpp(guid)
     }
 
     fn represented_gameobject_spell_lock_range_like_cpp(
@@ -312,6 +259,93 @@ impl WorldSession {
             }
             _ => true,
         }
+    }
+}
+
+impl crate::session::LootCxRef<'_> {
+    fn represented_gameobject_loot_state_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) -> Option<RepresentedGameObjectLootStateLikeCpp> {
+        if !guid.is_game_object() {
+            return None;
+        }
+
+        let canonical_position = self.loot.canonical_map_object_position_for_loot_like_cpp(
+            self.hub,
+            guid,
+            &[
+                AccessorObjectKind::GameObject,
+                AccessorObjectKind::Transport,
+            ],
+        );
+        let canonical_owner = self
+            .loot
+            .canonical_gameobject_owner_for_loot_like_cpp(self.hub, guid);
+        let represented_state = self
+            .world_entities
+            .represented_gameobject_use_states
+            .get(&guid);
+        if canonical_position.is_none()
+            && represented_state.and_then(|state| state.position).is_none()
+            && !self.hub.core.client_visible_guids_like_cpp.contains(&guid)
+        {
+            return None;
+        }
+
+        Some(RepresentedGameObjectLootStateLikeCpp {
+            position: canonical_position
+                .or_else(|| represented_state.and_then(|state| state.position)),
+            display_id: represented_state.and_then(|state| state.display_id),
+            scale: represented_state.map(|state| state.scale).unwrap_or(1.0),
+            rotation: represented_state
+                .map(|state| state.rotation)
+                .unwrap_or([0.0, 0.0, 0.0, 1.0]),
+            go_type: represented_state.and_then(|state| state.go_type),
+            interact_radius_override: represented_state
+                .and_then(|state| state.interact_radius_override),
+            lock_id: represented_state.and_then(|state| state.lock_id),
+            owner_guid: canonical_owner
+                .or_else(|| represented_state.and_then(|state| state.owner_guid)),
+        })
+    }
+
+    pub(super) fn represented_gameobject_exists_for_loot_like_cpp(&self, guid: ObjectGuid) -> bool {
+        self.represented_gameobject_loot_state_like_cpp(guid)
+            .is_some()
+    }
+}
+
+impl crate::session::LootCx<'_> {
+    pub(in crate::handlers::loot) fn represented_gameobject_loot_install_observation_like_cpp(
+        &mut self,
+        gameobject_guid: ObjectGuid,
+    ) -> Option<RepresentedGameObjectLootInstallObservationLikeCpp> {
+        self.represented_gameobject_loot_install_observation_result_like_cpp(gameobject_guid)?
+    }
+
+    /// Preserves the distinction between a missing canonical owner (`None`)
+    /// and an owner whose current lifecycle rejects generation (`Some(None)`).
+    /// Test-only packet fixtures may fall back only for the former.
+    pub(super) fn represented_gameobject_loot_install_observation_result_like_cpp(
+        &mut self,
+        gameobject_guid: ObjectGuid,
+    ) -> Option<Option<RepresentedGameObjectLootInstallObservationLikeCpp>> {
+        self.world_entities
+            .mutate_canonical_gameobject_by_guid_like_cpp(
+                &mut self.hub,
+                gameobject_guid,
+                |gameobject| {
+                    (gameobject.loot_state() != LootState::JustDeactivated).then(|| {
+                        let authority = gameobject.loot_authority_like_cpp().clone();
+                        RepresentedGameObjectLootInstallObservationLikeCpp {
+                            object_generation: authority.generation_like_cpp(),
+                            authority,
+                            loot_lifecycle_revision: gameobject.loot_lifecycle_revision_like_cpp(),
+                        }
+                    })
+                },
+            )
     }
 }
 

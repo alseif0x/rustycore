@@ -16,23 +16,13 @@ impl WorldSession {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.lifecycle.battle_pet_account_attachment_like_cpp = Some(attachment);
     }
-    /// The #160 account owner and this session's journal lease id, when the
-    /// canonical journal is attached (issue #161 purchase saga).
     pub(crate) fn battle_pet_account_owner_lease_like_cpp(
         &self,
     ) -> Option<(
         Arc<crate::battle_pet_account::BattlePetAccountOwnerLikeCpp>,
         crate::battle_pet_account::BattlePetLeaseIdLikeCpp,
     )> {
-        self.lifecycle
-            .battle_pet_account_attachment_like_cpp
-            .as_ref()
-            .map(|attachment| {
-                (
-                    Arc::clone(attachment.owner_like_cpp()),
-                    attachment.lease_id_like_cpp(),
-                )
-            })
+        crate::session::cx_pets_ref(self).battle_pet_account_owner_lease_like_cpp()
     }
     /// Set the world-DB battle-pet breed/quality selection store (#161).
     #[cfg(test)]
@@ -48,12 +38,7 @@ impl WorldSession {
     pub(crate) fn battle_pet_purchase_store_like_cpp(
         &self,
     ) -> Option<Arc<dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp>> {
-        self.lifecycle
-            .persistence_ports_like_cpp
-            .player
-            .battle_pet_purchase
-            .as_ref()
-            .map(Arc::clone)
+        crate::session::cx_pets_ref(self).battle_pet_purchase_store_like_cpp()
     }
     pub(crate) fn battle_pet_calculate_stats_like_cpp(
         &self,
@@ -126,65 +111,9 @@ impl WorldSession {
         &mut self,
         pet_guid: ObjectGuid,
     ) -> bool {
-        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
-            #[cfg(test)]
-            return self.battle_pet_clear_fanfare_like_cpp(pet_guid);
-            #[cfg(not(test))]
-            return false;
-        };
-        let owner = Arc::clone(attachment.owner_like_cpp());
-        match owner
-            .try_mutate_pet_without_lease_like_cpp(pet_guid, |pet| {
-                pet.flags &= !BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP;
-            })
+        crate::session::cx_pets(self)
+            .battle_pet_clear_fanfare_durable_like_cpp(pet_guid)
             .await
-        {
-            Ok(_) => true,
-            Err(error) => {
-                self.log_battle_pet_mutation_failure_like_cpp("clear fanfare", pet_guid, &error);
-                false
-            }
-        }
-    }
-    /// C++ `BattlePetMgr::RemovePet`.
-    #[cfg(test)]
-    pub(crate) fn battle_pet_remove_pet_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
-        if !self.has_represented_battle_pet_journal_lock_like_cpp() {
-            return false;
-        }
-
-        let Some(pet) = self
-            .fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .represented_battle_pets_like_cpp
-            .get_mut(&pet_guid)
-        else {
-            return false;
-        };
-
-        pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Removed;
-        true
-    }
-    pub(crate) async fn battle_pet_remove_pet_durable_like_cpp(
-        &mut self,
-        pet_guid: ObjectGuid,
-    ) -> bool {
-        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
-            #[cfg(test)]
-            return self.battle_pet_remove_pet_like_cpp(pet_guid);
-            #[cfg(not(test))]
-            return false;
-        };
-        let owner = Arc::clone(attachment.owner_like_cpp());
-        let lease = attachment.lease_id_like_cpp();
-        match owner.try_remove_pet_like_cpp(lease, pet_guid).await {
-            Ok(()) => true,
-            Err(error) => {
-                self.log_battle_pet_mutation_failure_like_cpp("remove", pet_guid, &error);
-                false
-            }
-        }
     }
     /// C++ `BattlePetMgr::CageBattlePet`, represented at the battle-pet state
     /// boundary. Inventory placement is still external: the caller must pass
@@ -281,30 +210,9 @@ impl WorldSession {
         flags: u16,
         control_type: u8,
     ) -> bool {
-        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
-            #[cfg(test)]
-            return self.battle_pet_set_flags_like_cpp(pet_guid, flags, control_type);
-            #[cfg(not(test))]
-            return false;
-        };
-        let owner = Arc::clone(attachment.owner_like_cpp());
-        let lease = attachment.lease_id_like_cpp();
-        match owner
-            .try_mutate_pet_like_cpp(lease, pet_guid, move |pet| {
-                if control_type == BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP {
-                    pet.flags |= flags;
-                } else {
-                    pet.flags &= !flags;
-                }
-            })
+        crate::session::cx_pets(self)
+            .battle_pet_set_flags_durable_like_cpp(pet_guid, flags, control_type)
             .await
-        {
-            Ok(_) => true,
-            Err(error) => {
-                self.log_battle_pet_mutation_failure_like_cpp("set flags", pet_guid, &error);
-                false
-            }
-        }
     }
     pub(in crate::session) fn log_battle_pet_mutation_failure_like_cpp(
         &self,
@@ -315,90 +223,12 @@ impl WorldSession {
         crate::session::hub_ref(self)
             .log_battle_pet_mutation_failure_like_cpp(operation, pet_guid, error)
     }
-    /// C++ `BattlePetMgr::GetPetCount`.
-    #[cfg(test)]
-    pub(crate) fn battle_pet_count_like_cpp(
-        &self,
-        species: u32,
-        owner_guid: Option<ObjectGuid>,
-    ) -> u8 {
-        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
-            return attachment
-                .owner_like_cpp()
-                .pet_count_like_cpp(species, owner_guid);
-        }
-        let species_flags = self
-            .fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .battle_pet_species_store
-            .as_ref()
-            .and_then(|store| store.get(species))
-            .map(|entry| entry.flags)
-            .unwrap_or(0);
-        let not_account_wide =
-            species_flags & wow_data::BATTLE_PET_SPECIES_FLAG_NOT_ACCOUNT_WIDE_LIKE_CPP != 0;
-
-        let count = self
-            .fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .represented_battle_pets_like_cpp
-            .values()
-            .filter(|pet| pet.species == species)
-            .filter(|pet| pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::Removed)
-            .filter(|pet| {
-                if not_account_wide {
-                    if let (Some(owner_guid), Some(owner_info)) = (owner_guid, pet.owner_info) {
-                        return owner_info.guid == owner_guid;
-                    }
-                }
-                true
-            })
-            .count();
-
-        u8::try_from(count).unwrap_or(u8::MAX)
-    }
-    /// C++ `BattlePetMgr::HasMaxPetCount`.
     pub(crate) fn battle_pet_has_max_pet_count_like_cpp(
         &self,
         species: u32,
         owner_guid: Option<ObjectGuid>,
     ) -> Option<bool> {
-        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
-            return Some(
-                attachment
-                    .owner_like_cpp()
-                    .has_max_pet_count_like_cpp(species, owner_guid),
-            );
-        }
-        #[cfg(test)]
-        {
-            let Some(species_entry) = self
-                .fixtures
-                .pets
-                .battle_pet_test_fixture_like_cpp
-                .battle_pet_species_store
-                .as_ref()
-                .and_then(|store| store.get(species))
-            else {
-                return Some(false);
-            };
-
-            let max_pets_per_species = if species_entry
-                .has_flag_like_cpp(wow_data::BATTLE_PET_SPECIES_FLAG_LEGACY_ACCOUNT_UNIQUE_LIKE_CPP)
-            {
-                1
-            } else {
-                DEFAULT_MAX_BATTLE_PETS_PER_SPECIES_LIKE_CPP
-            };
-
-            return Some(
-                self.battle_pet_count_like_cpp(species, owner_guid) >= max_pets_per_species,
-            );
-        }
-        #[cfg(not(test))]
-        None
+        crate::session::cx_pets_ref(self).battle_pet_has_max_pet_count_like_cpp(species, owner_guid)
     }
     /// C++ `BattlePetMgr::AddPet`, represented without DB persistence and with
     /// a local GUID counter until `sObjectMgr->GetGenerator<HighGuid::BattlePet>()`
@@ -555,50 +385,8 @@ impl WorldSession {
             BattlePetAddOutcomeLikeCpp::Replayed(pet) => Ok(pet.guid),
         }
     }
-    /// Record the C++ `BattlePetMgr::AddPet` criteria hooks from durable
-    /// current state. Both C++ criteria are set-like (`UniquePetsOwned` uses
-    /// the current unique-species count and `LearnedNewPet` sets one species
-    /// to 1), so receipt recovery and packet re-sends are idempotent.
     pub(crate) fn record_battle_pet_trainer_purchase_criteria_like_cpp(&mut self, species: u32) {
-        #[cfg(not(test))]
-        let _ = species;
-        #[cfg(test)]
-        {
-            self.fixtures
-                .pets
-                .battle_pet_test_fixture_like_cpp
-                .represented_battle_pet_unique_owned_criteria_like_cpp = self
-                .lifecycle
-                .battle_pet_account_attachment_like_cpp
-                .as_ref()
-                .map(|attachment| attachment.owner_like_cpp().unique_species_count_like_cpp())
-                .unwrap_or_else(|| {
-                    u32::try_from(
-                        self.fixtures
-                            .pets
-                            .battle_pet_test_fixture_like_cpp
-                            .represented_battle_pets_like_cpp
-                            .values()
-                            .map(|pet| pet.species)
-                            .collect::<BTreeSet<_>>()
-                            .len(),
-                    )
-                    .unwrap_or(u32::MAX)
-                });
-            if !self
-                .fixtures
-                .pets
-                .battle_pet_test_fixture_like_cpp
-                .represented_battle_pet_learned_new_pet_criteria_like_cpp
-                .contains(&species)
-            {
-                self.fixtures
-                    .pets
-                    .battle_pet_test_fixture_like_cpp
-                    .represented_battle_pet_learned_new_pet_criteria_like_cpp
-                    .push(species);
-            }
-        }
+        crate::session::cx_pets(self).record_battle_pet_trainer_purchase_criteria_like_cpp(species)
     }
     /// C++ `BattlePetMgr::GrantBattlePetExperience`, represented after
     /// external aura multiplier resolution.
@@ -819,29 +607,11 @@ impl WorldSession {
             }
         }
     }
-    /// C++ `WorldSession::HandleBattlePetSummon` represented toggle.
-    ///
-    /// `BattlePetMgr::SummonPet` silently ignores unknown pets before casting
-    /// the summon spell; `DismissPet` clears the active summoned companion.
     pub(crate) fn battle_pet_summon_toggle_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
-        if self.represented_summoned_battle_pet_guid_like_cpp() == Some(pet_guid) {
-            return self.set_represented_summoned_battle_pet_guid_like_cpp(None);
-        }
-
-        if self.represented_battle_pet_like_cpp(pet_guid).is_none() {
-            return false;
-        }
-
-        self.set_represented_summoned_battle_pet_guid_like_cpp(Some(pet_guid))
+        crate::session::cx_pets(self).battle_pet_summon_toggle_like_cpp(pet_guid)
     }
     pub(crate) fn represented_summoned_battle_pet_guid_like_cpp(&self) -> Option<ObjectGuid> {
         crate::session::hub_ref(self).represented_summoned_battle_pet_guid_like_cpp()
-    }
-    pub(in crate::session) fn set_represented_summoned_battle_pet_guid_like_cpp(
-        &mut self,
-        pet_guid: Option<ObjectGuid>,
-    ) -> bool {
-        crate::session::hub_mut(self).set_represented_summoned_battle_pet_guid_like_cpp(pet_guid)
     }
     pub(crate) fn represented_battle_pet_query_companion_like_cpp(
         &self,
@@ -853,11 +623,342 @@ impl WorldSession {
         &self,
         pet_guid: ObjectGuid,
     ) -> Option<RepresentedBattlePetDataLikeCpp> {
+        crate::session::cx_pets_ref(self).represented_battle_pet_like_cpp(pet_guid)
+    }
+}
+
+impl crate::session::PetsCx<'_> {
+    pub(crate) async fn battle_pet_clear_fanfare_durable_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+    ) -> bool {
+        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
+            #[cfg(test)]
+            return self
+                .hub
+                .fixtures
+                .pets
+                .battle_pet_clear_fanfare_like_cpp(pet_guid);
+            #[cfg(not(test))]
+            return false;
+        };
+        let owner = Arc::clone(attachment.owner_like_cpp());
+        match owner
+            .try_mutate_pet_without_lease_like_cpp(pet_guid, |pet| {
+                pet.flags &= !BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP;
+            })
+            .await
+        {
+            Ok(_) => true,
+            Err(error) => {
+                self.hub.shared().log_battle_pet_mutation_failure_like_cpp(
+                    "clear fanfare",
+                    pet_guid,
+                    &error,
+                );
+                false
+            }
+        }
+    }
+
+    /// C++ `BattlePetMgr::RemovePet`.
+    #[cfg(test)]
+    pub(crate) fn battle_pet_remove_pet_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
+        if !self
+            .shared()
+            .has_represented_battle_pet_journal_lock_like_cpp()
+        {
+            return false;
+        }
+
+        let Some(pet) = self
+            .hub
+            .fixtures
+            .pets
+            .battle_pet_test_fixture_like_cpp
+            .represented_battle_pets_like_cpp
+            .get_mut(&pet_guid)
+        else {
+            return false;
+        };
+
+        pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Removed;
+        true
+    }
+
+    pub(crate) async fn battle_pet_remove_pet_durable_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+    ) -> bool {
+        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
+            #[cfg(test)]
+            return self.battle_pet_remove_pet_like_cpp(pet_guid);
+            #[cfg(not(test))]
+            return false;
+        };
+        let owner = Arc::clone(attachment.owner_like_cpp());
+        let lease = attachment.lease_id_like_cpp();
+        match owner.try_remove_pet_like_cpp(lease, pet_guid).await {
+            Ok(()) => true,
+            Err(error) => {
+                self.hub
+                    .shared()
+                    .log_battle_pet_mutation_failure_like_cpp("remove", pet_guid, &error);
+                false
+            }
+        }
+    }
+
+    pub(crate) async fn battle_pet_set_flags_durable_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        flags: u16,
+        control_type: u8,
+    ) -> bool {
+        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
+            #[cfg(test)]
+            return self.hub.fixtures.pets.battle_pet_set_flags_like_cpp(
+                pet_guid,
+                flags,
+                control_type,
+            );
+            #[cfg(not(test))]
+            return false;
+        };
+        let owner = Arc::clone(attachment.owner_like_cpp());
+        let lease = attachment.lease_id_like_cpp();
+        match owner
+            .try_mutate_pet_like_cpp(lease, pet_guid, move |pet| {
+                if control_type == BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP {
+                    pet.flags |= flags;
+                } else {
+                    pet.flags &= !flags;
+                }
+            })
+            .await
+        {
+            Ok(_) => true,
+            Err(error) => {
+                self.hub.shared().log_battle_pet_mutation_failure_like_cpp(
+                    "set flags",
+                    pet_guid,
+                    &error,
+                );
+                false
+            }
+        }
+    }
+
+    /// Record the C++ `BattlePetMgr::AddPet` criteria hooks from durable
+    /// current state. Both C++ criteria are set-like (`UniquePetsOwned` uses
+    /// the current unique-species count and `LearnedNewPet` sets one species
+    /// to 1), so receipt recovery and packet re-sends are idempotent.
+    pub(crate) fn record_battle_pet_trainer_purchase_criteria_like_cpp(&mut self, species: u32) {
+        #[cfg(not(test))]
+        let _ = species;
+        #[cfg(test)]
+        {
+            self.hub
+                .fixtures
+                .pets
+                .battle_pet_test_fixture_like_cpp
+                .represented_battle_pet_unique_owned_criteria_like_cpp = self
+                .lifecycle
+                .battle_pet_account_attachment_like_cpp
+                .as_ref()
+                .map(|attachment| attachment.owner_like_cpp().unique_species_count_like_cpp())
+                .unwrap_or_else(|| {
+                    u32::try_from(
+                        self.hub
+                            .fixtures
+                            .pets
+                            .battle_pet_test_fixture_like_cpp
+                            .represented_battle_pets_like_cpp
+                            .values()
+                            .map(|pet| pet.species)
+                            .collect::<BTreeSet<_>>()
+                            .len(),
+                    )
+                    .unwrap_or(u32::MAX)
+                });
+            if !self
+                .hub
+                .fixtures
+                .pets
+                .battle_pet_test_fixture_like_cpp
+                .represented_battle_pet_learned_new_pet_criteria_like_cpp
+                .contains(&species)
+            {
+                self.hub
+                    .fixtures
+                    .pets
+                    .battle_pet_test_fixture_like_cpp
+                    .represented_battle_pet_learned_new_pet_criteria_like_cpp
+                    .push(species);
+            }
+        }
+    }
+
+    /// C++ `WorldSession::HandleBattlePetSummon` represented toggle.
+    ///
+    /// `BattlePetMgr::SummonPet` silently ignores unknown pets before casting
+    /// the summon spell; `DismissPet` clears the active summoned companion.
+    pub(crate) fn battle_pet_summon_toggle_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
+        if self
+            .hub
+            .shared()
+            .represented_summoned_battle_pet_guid_like_cpp()
+            == Some(pet_guid)
+        {
+            return self
+                .hub
+                .set_represented_summoned_battle_pet_guid_like_cpp(None);
+        }
+
+        if self
+            .shared()
+            .represented_battle_pet_like_cpp(pet_guid)
+            .is_none()
+        {
+            return false;
+        }
+
+        self.hub
+            .set_represented_summoned_battle_pet_guid_like_cpp(Some(pet_guid))
+    }
+}
+
+impl crate::session::PetsCxRef<'_> {
+    /// The #160 account owner and this session's journal lease id, when the
+    /// canonical journal is attached (issue #161 purchase saga).
+    pub(crate) fn battle_pet_account_owner_lease_like_cpp(
+        &self,
+    ) -> Option<(
+        Arc<crate::battle_pet_account::BattlePetAccountOwnerLikeCpp>,
+        crate::battle_pet_account::BattlePetLeaseIdLikeCpp,
+    )> {
+        self.lifecycle
+            .battle_pet_account_attachment_like_cpp
+            .as_ref()
+            .map(|attachment| {
+                (
+                    Arc::clone(attachment.owner_like_cpp()),
+                    attachment.lease_id_like_cpp(),
+                )
+            })
+    }
+
+    pub(crate) fn battle_pet_purchase_store_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp>> {
+        self.lifecycle
+            .persistence_ports_like_cpp
+            .player
+            .battle_pet_purchase
+            .as_ref()
+            .map(Arc::clone)
+    }
+
+    /// C++ `BattlePetMgr::GetPetCount`.
+    #[cfg(test)]
+    pub(crate) fn battle_pet_count_like_cpp(
+        &self,
+        species: u32,
+        owner_guid: Option<ObjectGuid>,
+    ) -> u8 {
+        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
+            return attachment
+                .owner_like_cpp()
+                .pet_count_like_cpp(species, owner_guid);
+        }
+        let species_flags = self
+            .hub
+            .fixtures
+            .pets
+            .battle_pet_test_fixture_like_cpp
+            .battle_pet_species_store
+            .as_ref()
+            .and_then(|store| store.get(species))
+            .map(|entry| entry.flags)
+            .unwrap_or(0);
+        let not_account_wide =
+            species_flags & wow_data::BATTLE_PET_SPECIES_FLAG_NOT_ACCOUNT_WIDE_LIKE_CPP != 0;
+
+        let count = self
+            .hub
+            .fixtures
+            .pets
+            .battle_pet_test_fixture_like_cpp
+            .represented_battle_pets_like_cpp
+            .values()
+            .filter(|pet| pet.species == species)
+            .filter(|pet| pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::Removed)
+            .filter(|pet| {
+                if not_account_wide {
+                    if let (Some(owner_guid), Some(owner_info)) = (owner_guid, pet.owner_info) {
+                        return owner_info.guid == owner_guid;
+                    }
+                }
+                true
+            })
+            .count();
+
+        u8::try_from(count).unwrap_or(u8::MAX)
+    }
+
+    /// C++ `BattlePetMgr::HasMaxPetCount`.
+    pub(crate) fn battle_pet_has_max_pet_count_like_cpp(
+        &self,
+        species: u32,
+        owner_guid: Option<ObjectGuid>,
+    ) -> Option<bool> {
+        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
+            return Some(
+                attachment
+                    .owner_like_cpp()
+                    .has_max_pet_count_like_cpp(species, owner_guid),
+            );
+        }
+        #[cfg(test)]
+        {
+            let Some(species_entry) = self
+                .hub
+                .fixtures
+                .pets
+                .battle_pet_test_fixture_like_cpp
+                .battle_pet_species_store
+                .as_ref()
+                .and_then(|store| store.get(species))
+            else {
+                return Some(false);
+            };
+
+            let max_pets_per_species = if species_entry
+                .has_flag_like_cpp(wow_data::BATTLE_PET_SPECIES_FLAG_LEGACY_ACCOUNT_UNIQUE_LIKE_CPP)
+            {
+                1
+            } else {
+                DEFAULT_MAX_BATTLE_PETS_PER_SPECIES_LIKE_CPP
+            };
+
+            return Some(
+                self.battle_pet_count_like_cpp(species, owner_guid) >= max_pets_per_species,
+            );
+        }
+        #[cfg(not(test))]
+        None
+    }
+
+    pub(crate) fn represented_battle_pet_like_cpp(
+        &self,
+        pet_guid: ObjectGuid,
+    ) -> Option<RepresentedBattlePetDataLikeCpp> {
         if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
             return attachment.owner_like_cpp().pet_snapshot_like_cpp(pet_guid);
         }
         #[cfg(test)]
         return self
+            .hub
             .fixtures
             .pets
             .battle_pet_test_fixture_like_cpp

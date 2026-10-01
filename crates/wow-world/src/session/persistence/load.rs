@@ -76,65 +76,12 @@ impl WorldSession {
         true
     }
     pub(crate) fn represented_void_storage_loaded_like_cpp(&self) -> Option<bool> {
-        self.with_owned_void_storage_like_cpp(|_, loaded| loaded)
-    }
-    #[cfg(test)]
-    pub(in crate::session) fn load_instance_time_restriction_rows_like_cpp(
-        &mut self,
-        rows: impl IntoIterator<Item = (u32, u64)>,
-    ) {
-        self.instances
-            .represented_instance_reset_times_like_cpp
-            .clear();
-        for (instance_id, release_time) in rows {
-            self.instances
-                .represented_instance_reset_times_like_cpp
-                .entry(instance_id)
-                .or_insert(release_time);
-        }
+        crate::session::cx_lifecycle_ref(self).represented_void_storage_loaded_like_cpp()
     }
     pub async fn load_instance_time_restrictions_like_cpp(&mut self) {
-        let _ = self.replace_instance_reset_times_like_cpp([]);
-
-        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
-            warn!(
-                account = self.core.account_id,
-                "LoadInstanceTimeRestrictions skipped: Player lifecycle port unavailable"
-            );
-            return;
-        };
-
-        let rows = match port
-            .load_login_auxiliary_like_cpp(
-                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::InstanceTimeRestrictions {
-                    account_id: self.core.account_id,
-                },
-            )
+        crate::session::cx_lifecycle(self)
+            .load_instance_time_restrictions_like_cpp()
             .await
-        {
-            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
-                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::InstanceTimeRestrictions(rows),
-            ) => rows,
-            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
-                warn!(
-                    account = self.core.account_id,
-                    "LoadInstanceTimeRestrictions query failed: {reason}"
-                );
-                return;
-            }
-            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(_) => {
-                warn!(
-                    account = self.core.account_id,
-                    "Player lifecycle port returned the wrong auxiliary login data for instance time restrictions"
-                );
-                return;
-            }
-        };
-
-        let _ = self.replace_instance_reset_times_like_cpp(
-            rows.into_iter()
-                .map(|row| (row.instance_id, row.release_time)),
-        );
     }
     pub(crate) fn load_character_reputation_rows_like_cpp(
         &mut self,
@@ -143,34 +90,17 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
         state.load_character_reputation_rows_like_cpp(&mut hub, rows)
     }
-    /// C++ `Player::LoadFromDB` applies `CheckLoaded*DifficultyID` to the raw
-    /// `characters` columns before any login packets are sent.
     pub(crate) fn load_represented_player_difficulties_like_cpp(
         &mut self,
         dungeon_difficulty_id: u32,
         raid_difficulty_id: u32,
         legacy_raid_difficulty_id: u32,
     ) {
-        let Some(store) = self.difficulty_store() else {
-            let _ = self.replace_player_difficulty_preferences_like_cpp(
-                DIFFICULTY_NORMAL_LIKE_CPP,
-                DIFFICULTY_NORMAL_RAID_LIKE_CPP,
-                DIFFICULTY_10_N_LIKE_CPP,
-            );
-            return;
-        };
-
-        let dungeon_difficulty_id =
-            store.check_loaded_dungeon_difficulty_id_like_cpp(dungeon_difficulty_id);
-        let raid_difficulty_id = store.check_loaded_raid_difficulty_id_like_cpp(raid_difficulty_id);
-        let legacy_raid_difficulty_id =
-            store.check_loaded_legacy_raid_difficulty_id_like_cpp(legacy_raid_difficulty_id);
-
-        let _ = self.replace_player_difficulty_preferences_like_cpp(
+        crate::session::cx_lifecycle(self).load_represented_player_difficulties_like_cpp(
             dungeon_difficulty_id,
             raid_difficulty_id,
             legacy_raid_difficulty_id,
-        );
+        )
     }
     /// C++ `Player::_LoadGroup` overwrites the loaded player difficulties with
     /// the current group values because the leader may change them while the
@@ -522,10 +452,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_lifecycle_ref(self);
         state.resolved_player_skill_records_loaded_like_cpp(hub)
     }
-    pub(crate) fn mark_represented_action_buttons_loaded_like_cpp(&mut self) {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.mark_represented_action_buttons_loaded_like_cpp(&mut hub)
-    }
     pub(crate) fn loaded_action_buttons_snapshot_like_cpp(
         &self,
     ) -> Option<[u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS]> {
@@ -551,17 +477,6 @@ impl WorldSession {
             );
         }
         canonical
-    }
-    pub(crate) fn record_loaded_action_button_like_cpp(
-        &mut self,
-        index: u8,
-        action: u32,
-        action_type: u8,
-    ) -> bool {
-        self.represented_set_action_button_like_cpp(
-            index,
-            make_action_button_like_cpp(action, action_type),
-        )
     }
     pub(crate) fn mark_represented_cuf_profiles_loaded_like_cpp(&mut self) {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
@@ -626,6 +541,133 @@ impl WorldSession {
                 .quest_test_fixture_like_cpp
                 .represented_chosen_title_like_cpp = chosen_title;
         }
+    }
+}
+
+impl crate::session::state::SessionLifecycleState {
+    pub(crate) fn record_loaded_action_button_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        index: u8,
+        action: u32,
+        action_type: u8,
+    ) -> bool {
+        hub.represented_set_action_button_like_cpp(
+            index,
+            make_action_button_like_cpp(action, action_type),
+        )
+    }
+}
+
+impl crate::session::LifecycleCx<'_> {
+    #[cfg(test)]
+    pub(in crate::session) fn load_instance_time_restriction_rows_like_cpp(
+        &mut self,
+        rows: impl IntoIterator<Item = (u32, u64)>,
+    ) {
+        self.instances
+            .represented_instance_reset_times_like_cpp
+            .clear();
+        for (instance_id, release_time) in rows {
+            self.instances
+                .represented_instance_reset_times_like_cpp
+                .entry(instance_id)
+                .or_insert(release_time);
+        }
+    }
+
+    pub async fn load_instance_time_restrictions_like_cpp(&mut self) {
+        let _ = self
+            .instances
+            .replace_instance_reset_times_like_cpp(&mut self.hub, []);
+
+        let Some(port) = self
+            .lifecycle
+            .player_lifecycle_port_like_cpp()
+            .map(Arc::clone)
+        else {
+            warn!(
+                account = self.hub.core.account_id,
+                "LoadInstanceTimeRestrictions skipped: Player lifecycle port unavailable"
+            );
+            return;
+        };
+
+        let rows = match port
+            .load_login_auxiliary_like_cpp(
+                wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::InstanceTimeRestrictions {
+                    account_id: self.hub.core.account_id,
+                },
+            )
+            .await
+        {
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(
+                wow_persistence::PlayerLoginAuxiliaryLoadedLikeCpp::InstanceTimeRestrictions(rows),
+            ) => rows,
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!(
+                    account = self.hub.core.account_id,
+                    "LoadInstanceTimeRestrictions query failed: {reason}"
+                );
+                return;
+            }
+            wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Loaded(_) => {
+                warn!(
+                    account = self.hub.core.account_id,
+                    "Player lifecycle port returned the wrong auxiliary login data for instance time restrictions"
+                );
+                return;
+            }
+        };
+
+        let _ = self.instances.replace_instance_reset_times_like_cpp(
+            &mut self.hub,
+            rows.into_iter()
+                .map(|row| (row.instance_id, row.release_time)),
+        );
+    }
+
+    /// C++ `Player::LoadFromDB` applies `CheckLoaded*DifficultyID` to the raw
+    /// `characters` columns before any login packets are sent.
+    pub(crate) fn load_represented_player_difficulties_like_cpp(
+        &mut self,
+        dungeon_difficulty_id: u32,
+        raid_difficulty_id: u32,
+        legacy_raid_difficulty_id: u32,
+    ) {
+        let Some(store) = self.hub.catalogs.difficulty_store() else {
+            let _ = self
+                .instances
+                .replace_player_difficulty_preferences_like_cpp(
+                    &mut self.hub,
+                    DIFFICULTY_NORMAL_LIKE_CPP,
+                    DIFFICULTY_NORMAL_RAID_LIKE_CPP,
+                    DIFFICULTY_10_N_LIKE_CPP,
+                );
+            return;
+        };
+
+        let dungeon_difficulty_id =
+            store.check_loaded_dungeon_difficulty_id_like_cpp(dungeon_difficulty_id);
+        let raid_difficulty_id = store.check_loaded_raid_difficulty_id_like_cpp(raid_difficulty_id);
+        let legacy_raid_difficulty_id =
+            store.check_loaded_legacy_raid_difficulty_id_like_cpp(legacy_raid_difficulty_id);
+
+        let _ = self
+            .instances
+            .replace_player_difficulty_preferences_like_cpp(
+                &mut self.hub,
+                dungeon_difficulty_id,
+                raid_difficulty_id,
+                legacy_raid_difficulty_id,
+            );
+    }
+}
+
+impl crate::session::LifecycleCxRef<'_> {
+    pub(crate) fn represented_void_storage_loaded_like_cpp(&self) -> Option<bool> {
+        self.inventory
+            .with_owned_void_storage_like_cpp(self.hub, |_, loaded| loaded)
     }
 }
 

@@ -5,7 +5,8 @@
 Kinds: P of a real-state group -> `impl <State>` (`self.<g>.` -> `self.`, bare `self.<g>` ->
 `(*self)`); C-hub of core -> `impl HubRef<'_>` (`&self`) / `impl HubMut<'_>` (`&mut self`),
 fields unchanged; C-hub of another real-state group -> `impl <State>` plus a `hub: HubRef<'_>`
-parameter (`self.<hub>` -> `hub.<hub>`). Fixture-only groups are planned, not applied.
+parameter (`self.<hub>` -> `hub.<hub>`). Cx (`--classes ..,Cx`): a capped `<G>Cx`/`<G>CxRef` context of
+<= 3 sibling states plus the hub; its hub.rs members/builders are re-derived from what moved code reads.
 Moved code calls moved fns through their new owner, never a WorldSession thunk. A thunk stays
 only for H/external API, while an unmoved caller remains, or for a `pub` fn with no production
 caller. unit_tests callers get shims in `unit_tests/<src path>/f3_shims.rs`, mounted as a child
@@ -17,9 +18,10 @@ from __future__ import annotations
 import argparse, bisect, collections, json, os, pathlib, re, subprocess, sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from f3_codemod_lib import (HUB_RS, SPLIT_FN, SPLIT_MUT_FN, SPLIT_REF_FN, abs_vis, cargo_check, item_segments,  # noqa: E402
-                            git_ignored, line_start, module_paths, param_span, relocate_ignored_shims, ret_type,
-                            shim_path, split_params, strip_cfg_test)
+from f3_codemod_lib import (  # noqa: E402
+    add_cx_items, HUB_RS, Spans, regen_cx_items, remove_shim_fn, SPLIT_FN, SPLIT_MUT_FN, SPLIT_REF_FN,
+    abs_vis, cargo_check, item_segments, git_ignored, line_start, module_paths, param_span,
+    relocate_ignored_shims, ret_type, shim_path, split_params, strip_cfg_test)
 from f3_codemod_model import *  # noqa: E402,F401,F403  (groups, owner types, patterns, kind rules)
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
@@ -46,7 +48,7 @@ def scan(root):
             continue
         for h in IMPL_ANY.finditer(c):
             tname = h.group(1)
-            if tname != "WorldSession" and tname not in OWNER_TYPES:
+            if tname != "WorldSession" and not is_owner_type(tname):
                 continue
             close = W.matching_close(c, h.end() - 1)
             pre = c[max(0, h.start() - 160):h.start()].rstrip()
@@ -103,8 +105,7 @@ def scan(root):
             if x in names and "session" in recv_name:
                 ext[x] += 1
     tests = collections.Counter()
-    PINNED.clear()
-    PINNED_SELF.clear()
+    PINNED.clear(), PINNED_SELF.clear(), PINNED_FN.clear()
     for p in (root / "crates/wow-world/unit_tests").rglob("*.rs"):
         if p.name != "f3_shims.rs":                          # a shim delegating is not a test caller
             text = p.read_text(errors="replace")
@@ -114,6 +115,7 @@ def scan(root):
                 for lit in re.findall(r'"((?:[^"\\\n]|\\.)*)"', text):
                     PINNED.update(re.findall(r"\b(" + IDENT + r")\(", lit))
                     PINNED_SELF.update(re.findall(r"\bself\.(" + IDENT + r")\(", lit))
+                    PINNED_FN.update(re.findall(r"\bfn\s+(" + IDENT + r")\b", lit))   # body split markers
     return W, src, raw, code, groups, fns, owned, handlers, ext, tests
 
 
@@ -175,7 +177,7 @@ def targets(fns):
         seeds.extend(f["calls"])
 
 
-def plan(root, groups_wanted, classes, rehome=None, keep=()):
+def plan(root, groups_wanted, classes, rehome=None, keep=(), cx_siblings=None):
     """`rehome` maps fn name -> group: an explicit, reviewed override of the derived target."""
     global HANDLERS, EXT
     W, src, raw, code, groups, fns, owned, HANDLERS, EXT, tests = scan(root)
@@ -190,6 +192,7 @@ def plan(root, groups_wanted, classes, rehome=None, keep=()):
         elif name not in owned:                              # already moved by an earlier pass: fine
             raise CodemodError(f"--rehome: {name} is not a WorldSession fn")
     loc = {n: sorted(o)[0][0] for n, o in owned.items()}
+    choose_cx_siblings(code, live, loc, groups_wanted, classes, cx_siblings or {})
     cand, blocked = {}, {}
     for f in live:
         if f["target"] not in groups_wanted or f["H"]:
@@ -241,7 +244,7 @@ def plan(root, groups_wanted, classes, rehome=None, keep=()):
     group_of = {f["name"]: (f["file"], f["impl_start"]) for f in fns}
     owner_spans = Spans((f["file"], f["seg"], f["body_close"], f["name"]) for f in fns)
     owner_impls = Spans((rel, h.start(), W.matching_close(c, h.end() - 1)) for rel, c in code.items()
-                        for h in IMPL_ANY.finditer(c) if h.group(1) in OWNER_TYPES)
+                        for h in IMPL_ANY.finditer(c) if is_owner_type(h.group(1)))
     sites = call_sites(code)
     prod_sites = collections.defaultdict(list)               # production WorldSession call sites -> caller fn
     any_sites = collections.Counter()                        # any context, excluding recursion
@@ -298,6 +301,9 @@ def plan(root, groups_wanted, classes, rehome=None, keep=()):
                                    by[x]["recv"] if x in by else "&self")
                 return isinstance(pref, tuple) and x in PINNED or pref not in (None, "self.") and x in PINNED_SELF
             pinned = [x for x in by[n]["calls"] if changes(x)]
+            if n in PINNED_FN:
+                bad.append((n, f"source-text test pins its body (`fn {n}` marker)"))
+                continue
             if pinned:
                 bad.append((n, f"source-text test pins the call `{pinned[0]}(`"))
                 continue
@@ -314,7 +320,7 @@ def plan(root, groups_wanted, classes, rehome=None, keep=()):
     fixed = []
     for rel, c in code.items():                              # bodies already on target impls are moved code
         for h in IMPL_ANY.finditer(c):
-            if h.group(1) in OWNER_TYPES:
+            if is_owner_type(h.group(1)):
                 fixed.append((rel, h.start(), W.matching_close(c, h.end() - 1)))
     fixed += [(f["file"], f["seg"], f["body_close"]) for f in fns if f["name"] in thunks]
     while True:
@@ -364,7 +370,7 @@ def prod_dead_names(W, code, fns, in_test):
         spans[f["file"]].append((f["seg"], f["body_close"], f["name"]))
     for rel, c in code.items():                              # moved fns carry their thunk's name
         for h in IMPL_ANY.finditer(c):
-            if h.group(1) in OWNER_TYPES:
+            if is_owner_type(h.group(1)):
                 for seg, m, _bo, bc in item_segments(W, c, h.end() - 1, W.matching_close(c, h.end() - 1)):
                     spans[rel].append((seg, bc, m.group(1)))
     names = {f["name"] for f in fns}
@@ -388,26 +394,6 @@ def prod_dead_names(W, code, fns, in_test):
                 live.add(x)
                 work.append(x)
     return {f["name"] for f in fns if not f["cfg_test"] and f["name"] not in live}
-
-
-class Spans:
-    """Non-overlapping (start, end[, tag]) ranges per file with a bisect lookup."""
-
-    def __init__(self, items):
-        self.by_file = collections.defaultdict(list)
-        for rel, a, b, *tag in items:
-            self.by_file[rel].append((a, b, tag[0] if tag else None))
-        for spans in self.by_file.values():
-            spans.sort(key=lambda span: span[:2])
-        self.starts = {rel: [a for a, _b, _t in spans] for rel, spans in self.by_file.items()}
-
-    def find(self, rel, pos):
-        """(start, end, tag) of the range holding pos, or None."""
-        spans = self.by_file.get(rel)
-        if not spans:
-            return None
-        i = bisect.bisect_right(self.starts[rel], pos) - 1
-        return spans[i] if i >= 0 and spans[i][0] <= pos <= spans[i][1] else None
 
 
 def call_sites(code):
@@ -444,12 +430,6 @@ def signature(f, code, raw, hub_kind=False):
     return attrs, raw[f["file"]][sig_start:f["body_open"]].rstrip(), names, k
 
 
-def type_path(tname, rel):
-    if tname in HUB_TYPES:
-        return f"crate::session::{tname}"
-    return f"crate::session::state::{tname}" if rel.startswith("session/") else f"crate::session::{tname}"
-
-
 def rewrite_body(P, f, kind, tname):
     """Rewritten raw text of [seg, body_close] for the moved fn."""
     rel, c, r = f["file"], P["code"][f["file"]], P["raw"][f["file"]]
@@ -471,7 +451,8 @@ def rewrite_body(P, f, kind, tname):
             if isinstance(pref, tuple):
                 paren = e + c[e:].index("(") + 1
                 edits.append((s, e - len(name), pref[0]))
-                edits.append((paren, paren, pref[1] + (", " if c[paren:paren + 1] != ")" else "")))
+                nxt = c[paren:paren + 1]                    # args on their own lines keep no trailing blank
+                edits.append((paren, paren, pref[1] + ("" if nxt == ")" else "," if nxt.isspace() else ", ")))
             else:
                 edits.append((s, e - len(name), pref))
         elif kind == "state" and g in FIXTURE_TYPE and name == "fixtures":
@@ -481,6 +462,8 @@ def rewrite_body(P, f, kind, tname):
         elif kind in ("state", *SH) and name == g:
             dot = re.match(r"\s*\.", after)
             edits.append((s, e + (dot.end() if dot else 0), "self." if dot else "(*self)"))
+        elif kind in CX and name in HUB:                    # the Cx carries the hub as a member
+            edits.append((s, s + len("self"), "self.hub"))
         elif kind in SH and name in HUB:
             edits.append((s, s + len("self"), "hub"))
     text = r[a:b]
@@ -511,6 +494,8 @@ def thunk_text(P, f, kind, tname, indent="    ", vis=None):
              "hubmut": [f"crate::session::hub_mut(self).{n}({args}){aw}"],
              "state-hub": [f"let ({st}, hub) = crate::session::split_{g}_ref(self);",
                            f"{st}.{n}(hub{', ' if args else ''}{args}){aw}"],
+             "cx": [f"crate::session::cx_{g}(self).{n}({args}){aw}"],
+             "cx-ref": [f"crate::session::cx_{g}_ref(self).{n}({args}){aw}"],
              "state-hubmut": [f"let ({st}, mut hub) = crate::session::split_{g}_mut(self);",
                               f"{st}.{n}(&mut hub{', ' if args else ''}{args}){aw}"]}[kind]
     head = "".join(indent + a.strip() + "\n" for a in attrs.splitlines() if a.strip())
@@ -519,14 +504,16 @@ def thunk_text(P, f, kind, tname, indent="    ", vis=None):
     return head + indent + sig + " {\n" + "".join(indent + "    " + x + "\n" for x in lines) + indent + "}"
 
 
-def ensure_prelude(src, kinds, groups_state_hub, outside_types):
+def ensure_prelude(src, kinds, groups_state_hub, outside_types, cx_used=()):
     """Create hub.rs and the re-exports the moved code needs. Returns the paths written."""
     written = []
     state, mod = src / "session/state.rs", src / "session/mod.rs"
     st, md = state.read_text(), mod.read_text()
     hub = src / "session/state/hub.rs"
-    if kinds & {"hubref", "hubmut", *SH}:
+    if kinds & {"hubref", "hubmut", *SH, *CX}:
         text = hub.read_text() if hub.exists() else HUB_RS
+        for g, variant, shared in sorted(cx_used):
+            text = add_cx_items(text, g, CX_SIBLINGS[g], variant, shared, STATE_TYPE, g in STATE_TYPE)
         for g, variant in sorted(groups_state_hub):
             if f"fn split_{g}{variant}(" not in text:
                 text += {"_ref": SPLIT_REF_FN, "_mut": SPLIT_MUT_FN, "": SPLIT_FN}[variant].format(g=g, t=STATE_TYPE[g])
@@ -536,7 +523,8 @@ def ensure_prelude(src, kinds, groups_state_hub, outside_types):
         line = "mod hub;\npub(crate) use hub::{HubMut, HubRef, hub_mut, hub_ref"
         if "mod hub;" not in st:
             st = st.replace("mod session_core;", line + "};\nmod session_core;", 1)
-        exports = ["HubMut", "HubRef"] + sorted(re.findall(r"(?m)^pub\(crate\) fn (" + IDENT + r")\(", text))
+        exports = ["HubMut", "HubRef"] + sorted(re.findall(r"(?m)^pub\(crate\) struct (\w+Cx(?:Ref)?)<", text)) + \
+            sorted(re.findall(r"(?m)^pub\(crate\) fn (" + IDENT + r")\(", text))
         st = re.sub(r"pub\(crate\) use hub::\{[^}]*\};", "pub(crate) use hub::{" + ", ".join(exports) + "};", st)
         md_line = "pub(crate) use state::{" + ", ".join(exports) + "};"
         md = re.sub(r"pub\(crate\) use state::\{\s*Hub[^}]*\};\n", "", md)
@@ -556,10 +544,10 @@ def apply_text(root, P):
     rows = P["rows"]
     relocated = relocate_ignored_shims(root, P["src"])
     if not rows and not P["stale"] and not P["stale_shims"]:
-        return relocated
+        return relocated + refresh_cx(root)
     written = relocated
     for name, shim in P["stale_shims"].items():               # remove shims nobody calls any more
-        remove_shim_fn(shim, name)
+        remove_shim_fn(lib(REPO), shim, name)
         P["manifest"].setdefault("retired_shims", []).append(name)
         written.append(shim)
     by, src = P["by"], P["src"]
@@ -567,13 +555,19 @@ def apply_text(root, P):
     sh_groups = {(by[r["name"]]["target"], "_ref" if r["kind"] == "state-hub" else "_mut")
                  for r in rows if r["kind"] in SH}
     outside = {r["type"] for r in rows if r["kind"] in ("state", *SH) and not r["file"].startswith("session/")}
+    cx_rows = [r for r in rows if r["kind"] in CX]
+    cx_used = {(by[r["name"]]["target"], r["kind"], any(                                   # shared(): a cx fn
+        x in P["cand"] and P["cand"][x][1] == "cx-ref" for x in by[r["name"]]["calls"]))   # calls a cx-ref fn
+        for r in cx_rows}
+    cx_used = {(g, k, any(sh for gg, kk, sh in cx_used if gg == g)) for g, k, _sh in cx_used}
+    outside |= {STATE_TYPE[x] for g, _k, _sh in cx_used for x in (g, *CX_SIBLINGS[g]) if x in STATE_TYPE}
     for t in sorted(outside):                                # the owner type must be nameable crate-wide
         for decl in sorted((src / "session/state").glob("*.rs")):
             text = decl.read_text()
             if f"pub(in crate::session) struct {t} " in text:
                 decl.write_text(text.replace(f"pub(in crate::session) struct {t} ", f"pub(crate) struct {t} ", 1))
                 written.append(decl)
-    written += ensure_prelude(src, kinds, sh_groups, outside)
+    written += ensure_prelude(src, kinds, sh_groups, outside, cx_used)
     per_file = collections.defaultdict(list)
     for r in rows:
         per_file[r["file"]].append(r)
@@ -607,7 +601,7 @@ def apply_text(root, P):
         for (impl_start, tname), parts in blocks.items():
             close = P["W"].matching_close(P["code"][rel], P["code"][rel].index("{", impl_start)) + 1
             attrs = next(f for f in by.values() if f["file"] == rel and f["impl_start"] == impl_start)["impl_attr"]
-            lt = "<'_>" if tname in HUB_TYPES else ""
+            lt = "<'_>" if tname in HUB_TYPES or tname.endswith(("Cx", "CxRef")) else ""
             attrs = list(attrs) + (["#[cfg(test)]"] if tname in FIXTURE_OF and not any(
                 re.search(r"cfg\s*\(\s*test\s*\)", x) for x in attrs) else [])
             head = "".join(x.strip() + "\n" for x in attrs) + f"impl {type_path(tname, rel)}{lt} {{\n"
@@ -641,20 +635,24 @@ def apply_text(root, P):
         if "mod f3_shims;" not in s:
             srcfile.write_text(s.rstrip("\n") + f'\n\n#[cfg(test)]\n#[path = "{mount}"]\nmod f3_shims;\n')
         written += [shim, srcfile]
-    return written
+    return written + refresh_cx(root)
+
+
+def refresh_cx(root):
+    """Re-derive the Cx items from the moved code (members, builders, `shared()`), then the exports."""
+    src, hub = root / "crates/wow-world/src", root / "crates/wow-world/src/session/state/hub.rs"
+    if not hub.exists() or "Cx<'a>" not in hub.read_text():
+        return []
+    text = hub.read_text()
+    new = regen_cx_items(text, src, lib(root), set(STATE_TYPE) | set(FIXTURE_TYPE), STATE_TYPE)
+    norm = lambda t: re.sub(r",\}", "}", re.sub(r"\s+", "", t))      # rustfmt layout is not a change
+    if norm(new) == norm(text):
+        return []
+    hub.write_text(new)
+    return [hub] + ensure_prelude(src, {"cx"}, set(), set())
 
 
 NO_METHOD = re.compile(r"no method named `(" + IDENT + r")` found for (?:mutable )?(?:reference|struct) `[^`]*WorldSession")
-
-
-def remove_shim_fn(shim, name):
-    W = lib(REPO)
-    t = shim.read_text()
-    code = W.blank_noncode(t)
-    m = re.search(r"(?m)^[ \t]*(?:#\[[^\]]*\][ \t]*\n[ \t]*)*(?:pub[^\n]*?)?fn\s+" + name + r"\b", code)
-    if m:
-        close = W.matching_close(code, code.index("{", m.end())) + 1
-        shim.write_text(t[:m.start()] + t[close:].lstrip("\n"))
 
 
 def compile_loop(root, group, manifest, max_rounds, log_dir):
@@ -676,13 +674,15 @@ def compile_loop(root, group, manifest, max_rounds, log_dir):
             elif not m["message"].startswith("aborting"):
                 other.append(f"{code}: {m['message']}")
         for name, shim in dead.items():
-            remove_shim_fn(shim.resolve(), name)
+            remove_shim_fn(lib(REPO), shim.resolve(), name)
             manifest.setdefault("retired_shims", []).append(name)
         for name in restore:                                   # the tool removed this thunk: put it back
             manifest["unthunked"].remove(name)
             manifest["restored"].append(name)
         if restore:
             restore_thunks(root, manifest, restore)
+        if restore or dead:
+            refresh_cx(root)
         rounds.append(len(restore) + len(dead))
         print(f"round {i + 1}: exit {rc}, {rounds[-1]} tool-caused spans patched", file=sys.stderr)
         if rounds[-1] == 0:
@@ -729,7 +729,9 @@ def report(P, groups):
         rw = {"state": f"self.{f['target']}. -> self.", "hubref": "fields unchanged; moved-callee receivers",
               "hubmut": "fields unchanged; HubRef callees via self.shared()",
               "state-hub": f"self.{f['target']}. -> self.; self.<hub> -> hub.<hub>; +HubRef param",
-              "state-hubmut": f"self.{f['target']}. -> self.; self.<hub> -> hub.<hub>; +&mut HubMut param"}[r["kind"]]
+              "state-hubmut": f"self.{f['target']}. -> self.; self.<hub> -> hub.<hub>; +&mut HubMut param",
+              "cx": f"impl {r['type']} (siblings {'+'.join(CX_SIBLINGS.get(f['target'], ()))}); self.<hub> -> self.hub.<hub>",
+              "cx-ref": f"impl {r['type']} (shared); self.<hub> -> self.hub.<hub>"}[r["kind"]]
         out.append(f"{r['file']}:{r['line']}\t{r['name']}\t{r['cls']}\timpl {r['type']}\t{rw}\t"
                    f"thunk={'yes (' + r['thunk'] + ')' if r['thunk'] else 'no'}\tshim={'yes' if r['shim'] else 'no'}")
     return "\n".join(out)
@@ -744,6 +746,7 @@ def main(argv=None):
         p.add_argument("--classes", default="P,C-hub")
         p.add_argument("--rehome", default="", help="name=group[,name=group]: reviewed target overrides")
         p.add_argument("--keep", default="", help="name[,name]: reviewed fences that stay on WorldSession")
+        p.add_argument("--cx-siblings", default="", help="group=a+b[,group=c]: reviewed Cx sibling sets (<= 3)")
         p.add_argument("--root", default=str(REPO))
         p.add_argument("--json", action="store_true")
         if name == "apply":
@@ -756,8 +759,9 @@ def main(argv=None):
     groups, classes = set(a.group.split(",")), set(a.classes.split(","))
     rehome = dict(item.split("=", 1) for item in a.rehome.split(",") if item)
     keep = {item for item in a.keep.split(",") if item}
+    cx_override = {g: s.split("+") for g, s in (item.split("=", 1) for item in a.cx_siblings.split(",") if item)}
     try:
-        P = plan(root, groups, classes, rehome, keep)
+        P = plan(root, groups, classes, rehome, keep, cx_override)
         if a.cmd == "plan":
             print(json.dumps({"rows": P["rows"], "blocked": P["blocked"], "count": P["count"]}, indent=1)
                   if a.json else report(P, groups))
@@ -779,7 +783,7 @@ def main(argv=None):
             if not step:
                 break
             written, moved = written + step, moved + len(P["rows"])
-            P = plan(root, groups, classes, rehome, keep)
+            P = plan(root, groups, classes, rehome, keep, cx_override)
         mpath.write_text(json.dumps(manifest, indent=1))
         print(f"text step: {moved} fns moved, {len(set(written))} files written" if written
               else "text step: already applied (no-op)", file=sys.stderr)
@@ -793,6 +797,6 @@ def main(argv=None):
     return 0
 
 
-HANDLERS, EXT, PINNED, PINNED_SELF, OWNED_KIND = set(), collections.Counter(), set(), set(), {}
+HANDLERS, EXT, PINNED, PINNED_SELF, PINNED_FN, OWNED_KIND = set(), collections.Counter(), set(), set(), set(), {}
 if __name__ == "__main__":
     sys.exit(main())

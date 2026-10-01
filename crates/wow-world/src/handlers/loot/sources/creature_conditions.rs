@@ -12,120 +12,18 @@ impl WorldSession {
         &self,
         condition_ids: &[LootConditionId],
     ) -> HashMap<LootConditionId, Vec<LootConditionRowLikeCpp>> {
-        let mut rows_by_id = HashMap::new();
-        for &condition_id in condition_ids {
-            let rows = self
-                .load_represented_creature_loot_condition_rows_for_id_like_cpp(condition_id)
-                .await;
-            if !rows.is_empty() {
-                rows_by_id.insert(condition_id, rows);
-            }
-        }
-        rows_by_id
+        crate::session::cx_loot_ref(self)
+            .load_represented_creature_loot_condition_rows_like_cpp(condition_ids)
+            .await
     }
 
     pub(in crate::handlers::loot) async fn load_represented_creature_loot_condition_reference_rows_like_cpp(
         &self,
         condition_rows: &HashMap<LootConditionId, Vec<LootConditionRowLikeCpp>>,
     ) -> HashMap<u32, Vec<LootConditionRowLikeCpp>> {
-        let mut references = HashMap::new();
-        let mut pending = Vec::new();
-        for rows in condition_rows.values() {
-            pending.extend(loot_condition_reference_ids_like_cpp(rows));
-        }
-
-        while let Some(reference_id) = pending.pop() {
-            if references.contains_key(&reference_id) {
-                continue;
-            }
-
-            let rows = self
-                .load_represented_creature_loot_condition_reference_rows_for_id_like_cpp(
-                    reference_id,
-                )
-                .await;
-            for nested_reference_id in loot_condition_reference_ids_like_cpp(&rows) {
-                if !references.contains_key(&nested_reference_id) {
-                    pending.push(nested_reference_id);
-                }
-            }
-            references.insert(reference_id, rows);
-        }
-
-        references
-    }
-
-    async fn load_represented_creature_loot_condition_reference_rows_for_id_like_cpp(
-        &self,
-        reference_id: u32,
-    ) -> Vec<LootConditionRowLikeCpp> {
-        let Ok(reference_source_type) = i32::try_from(reference_id).map(|id| -id) else {
-            return Vec::new();
-        };
-
-        self.load_represented_creature_loot_condition_rows_for_id_like_cpp(LootConditionId {
-            source_type: reference_source_type,
-            source_group: 0,
-            source_entry: 0,
-        })
-        .await
-    }
-
-    async fn load_represented_creature_loot_condition_rows_for_id_like_cpp(
-        &self,
-        condition_id: LootConditionId,
-    ) -> Vec<LootConditionRowLikeCpp> {
-        let Some(port) = self.loot_template_catalog_persistence_port_like_cpp() else {
-            return Vec::new();
-        };
-
-        let rows = match port
-            .load_loot_condition_rows_like_cpp(
-                condition_id.source_type,
-                condition_id.source_group,
-                condition_id.source_entry,
-            )
+        crate::session::cx_loot_ref(self)
+            .load_represented_creature_loot_condition_reference_rows_like_cpp(condition_rows)
             .await
-        {
-            wow_persistence::LootTemplateCatalogOutcomeLikeCpp::Loaded(rows) => rows,
-            wow_persistence::LootTemplateCatalogOutcomeLikeCpp::Failed { reason } => {
-                warn!(
-                    source_type = condition_id.source_type,
-                    source_group = condition_id.source_group,
-                    source_entry = condition_id.source_entry,
-                    error = %reason,
-                    "failed to load represented creature loot conditions"
-                );
-                return Vec::new();
-            }
-        };
-
-        let mut conditions = Vec::new();
-        for row in rows {
-            let condition = LootConditionRowLikeCpp {
-                else_group: row.else_group,
-                condition_type_or_reference: row.condition_type_or_reference,
-                condition_target: row.condition_target,
-                value1: row.value1,
-                value2: row.value2,
-                value3: row.value3,
-                string_value1: row.string_value1,
-                negative: row.negative,
-                script_name: row.script_name,
-            };
-            if !loot_condition_reference_self_references_like_cpp(
-                condition_id.source_type,
-                condition.condition_type_or_reference,
-            ) {
-                if let Some(condition) =
-                    loot_condition_row_normalize_without_external_stores_like_cpp(condition)
-                {
-                    conditions.push(condition);
-                }
-            }
-        }
-
-        conditions
     }
 
     pub(in crate::handlers::loot) fn represented_creature_loot_item_allowed_like_cpp(
@@ -310,5 +208,130 @@ impl WorldSession {
                 ItemTemplateAddonLootMetadataLikeCpp::default()
             }
         }
+    }
+}
+
+impl crate::session::LootCxRef<'_> {
+    pub(in crate::handlers::loot) async fn load_represented_creature_loot_condition_rows_like_cpp(
+        &self,
+        condition_ids: &[LootConditionId],
+    ) -> HashMap<LootConditionId, Vec<LootConditionRowLikeCpp>> {
+        let mut rows_by_id = HashMap::new();
+        for &condition_id in condition_ids {
+            let rows = self
+                .load_represented_creature_loot_condition_rows_for_id_like_cpp(condition_id)
+                .await;
+            if !rows.is_empty() {
+                rows_by_id.insert(condition_id, rows);
+            }
+        }
+        rows_by_id
+    }
+
+    pub(in crate::handlers::loot) async fn load_represented_creature_loot_condition_reference_rows_like_cpp(
+        &self,
+        condition_rows: &HashMap<LootConditionId, Vec<LootConditionRowLikeCpp>>,
+    ) -> HashMap<u32, Vec<LootConditionRowLikeCpp>> {
+        let mut references = HashMap::new();
+        let mut pending = Vec::new();
+        for rows in condition_rows.values() {
+            pending.extend(loot_condition_reference_ids_like_cpp(rows));
+        }
+
+        while let Some(reference_id) = pending.pop() {
+            if references.contains_key(&reference_id) {
+                continue;
+            }
+
+            let rows = self
+                .load_represented_creature_loot_condition_reference_rows_for_id_like_cpp(
+                    reference_id,
+                )
+                .await;
+            for nested_reference_id in loot_condition_reference_ids_like_cpp(&rows) {
+                if !references.contains_key(&nested_reference_id) {
+                    pending.push(nested_reference_id);
+                }
+            }
+            references.insert(reference_id, rows);
+        }
+
+        references
+    }
+
+    async fn load_represented_creature_loot_condition_reference_rows_for_id_like_cpp(
+        &self,
+        reference_id: u32,
+    ) -> Vec<LootConditionRowLikeCpp> {
+        let Ok(reference_source_type) = i32::try_from(reference_id).map(|id| -id) else {
+            return Vec::new();
+        };
+
+        self.load_represented_creature_loot_condition_rows_for_id_like_cpp(LootConditionId {
+            source_type: reference_source_type,
+            source_group: 0,
+            source_entry: 0,
+        })
+        .await
+    }
+
+    async fn load_represented_creature_loot_condition_rows_for_id_like_cpp(
+        &self,
+        condition_id: LootConditionId,
+    ) -> Vec<LootConditionRowLikeCpp> {
+        let Some(port) = self
+            .lifecycle
+            .loot_template_catalog_persistence_port_like_cpp()
+        else {
+            return Vec::new();
+        };
+
+        let rows = match port
+            .load_loot_condition_rows_like_cpp(
+                condition_id.source_type,
+                condition_id.source_group,
+                condition_id.source_entry,
+            )
+            .await
+        {
+            wow_persistence::LootTemplateCatalogOutcomeLikeCpp::Loaded(rows) => rows,
+            wow_persistence::LootTemplateCatalogOutcomeLikeCpp::Failed { reason } => {
+                warn!(
+                    source_type = condition_id.source_type,
+                    source_group = condition_id.source_group,
+                    source_entry = condition_id.source_entry,
+                    error = %reason,
+                    "failed to load represented creature loot conditions"
+                );
+                return Vec::new();
+            }
+        };
+
+        let mut conditions = Vec::new();
+        for row in rows {
+            let condition = LootConditionRowLikeCpp {
+                else_group: row.else_group,
+                condition_type_or_reference: row.condition_type_or_reference,
+                condition_target: row.condition_target,
+                value1: row.value1,
+                value2: row.value2,
+                value3: row.value3,
+                string_value1: row.string_value1,
+                negative: row.negative,
+                script_name: row.script_name,
+            };
+            if !loot_condition_reference_self_references_like_cpp(
+                condition_id.source_type,
+                condition.condition_type_or_reference,
+            ) {
+                if let Some(condition) =
+                    loot_condition_row_normalize_without_external_stores_like_cpp(condition)
+                {
+                    conditions.push(condition);
+                }
+            }
+        }
+
+        conditions
     }
 }

@@ -5,6 +5,8 @@ Standard library only; split out so the codemod stays a reviewable size.
 """
 from __future__ import annotations
 
+import bisect
+import collections
 import json
 import os
 import pathlib
@@ -267,3 +269,149 @@ def relocate_ignored_shims(root, src):
             p.write_text(text.replace(m.group(1), os.path.relpath(new, p.parent)))
             moved += [p, new]
     return moved
+
+
+def add_cx_items(text, g, siblings, variant, shared, state_type, own_state=True):
+    """Append the capped Cx struct + builder for one variant (and `shared()`) unless present.
+    A fixture domain has no production state of its own (`own_state=False`): it reaches
+    `fixtures.<g>` through the hub, so its Cx holds the siblings and the hub only."""
+    stem = "".join(part.capitalize() for part in g.split("_"))
+    members = (g, *siblings) if own_state else tuple(siblings)
+    t_mut, t_ref = f"{stem}Cx", f"{stem}CxRef"
+    if variant == "cx" and f"pub(crate) struct {t_mut}<" not in text:
+        fields = "".join(f"    pub(crate) {m}: &'a mut {state_type[m]},\n" for m in members)
+        init = " ".join(f"{m}: &mut s.{m}," for m in members)
+        text += (f"\n/// Capped group context (#1241 F3): `{g}` state, its sibling states and the hub, borrowed\n"
+                 f"/// from disjoint WorldSession fields.\npub(crate) struct {t_mut}<'a> {{\n{fields}"
+                 f"    pub(crate) hub: HubMut<'a>,\n}}\n\npub(crate) fn cx_{g}(s: &mut WorldSession) -> {t_mut}<'_> {{\n"
+                 f"    {t_mut} {{ {init} hub: HubMut {{ core: &mut s.core, catalogs: &s.catalogs, config: &s.config, "
+                 f"#[cfg(test)] fixtures: &mut s.fixtures }} }}\n}}\n")
+    if (variant == "cx-ref" or shared) and f"pub(crate) struct {t_ref}<" not in text:
+        fields = "".join(f"    pub(crate) {m}: &'a {state_type[m]},\n" for m in members)
+        init = " ".join(f"{m}: &s.{m}," for m in members)
+        text += (f"\n/// Shared counterpart of `{t_mut}` for `&self` methods.\npub(crate) struct {t_ref}<'a> {{\n{fields}"
+                 f"    pub(crate) hub: HubRef<'a>,\n}}\n")
+        if variant == "cx-ref":
+            text += (f"\npub(crate) fn cx_{g}_ref(s: &WorldSession) -> {t_ref}<'_> {{\n"
+                     f"    {t_ref} {{ {init} hub: hub_ref(s) }}\n}}\n")
+    if variant == "cx-ref" and f"fn cx_{g}_ref(" not in text:
+        init = " ".join(f"{m}: &s.{m}," for m in members)
+        text += f"\npub(crate) fn cx_{g}_ref(s: &WorldSession) -> {t_ref}<'_> {{\n    {t_ref} {{ {init} hub: hub_ref(s) }}\n}}\n"
+    if shared and f"impl {t_mut}<'_> {{" not in text:
+        init = " ".join(f"{m}: &*self.{m}," for m in members)
+        text += (f"\nimpl {t_mut}<'_> {{\n    pub(crate) fn shared(&self) -> {t_ref}<'_> {{\n"
+                 f"        {t_ref} {{ {init} hub: self.hub.shared() }}\n    }}\n}}\n")
+    return text
+
+
+class Spans:
+    """Non-overlapping (start, end[, tag]) ranges per file with a bisect lookup."""
+
+    def __init__(self, items):
+        self.by_file = collections.defaultdict(list)
+        for rel, a, b, *tag in items:
+            self.by_file[rel].append((a, b, tag[0] if tag else None))
+        for spans in self.by_file.values():
+            spans.sort(key=lambda span: span[:2])
+        self.starts = {rel: [a for a, _b, _t in spans] for rel, spans in self.by_file.items()}
+
+    def find(self, rel, pos):
+        """(start, end, tag) of the range holding pos, or None."""
+        spans = self.by_file.get(rel)
+        if not spans:
+            return None
+        i = bisect.bisect_right(self.starts[rel], pos) - 1
+        return spans[i] if i >= 0 and spans[i][0] <= pos <= spans[i][1] else None
+
+
+CX_IMPL = re.compile(r"(#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]\s*)?\bimpl\s+crate::session::(" + IDENT + r"Cx(?:Ref)?)<'_>\s*\{")
+CX_BUILDER = re.compile(r"\bcx_(" + IDENT + r"?)(_ref)?\s*\(")
+
+
+def _drop_item(text, head):
+    """Remove one generated hub.rs item (and its `///`/attribute lines) whose first line matches `head`."""
+    m = re.search(r"(?m)^(?:(?:///[^\n]*|#\[[^\n]*\])\n)*" + head, text)
+    if not m:
+        return text
+    depth, k = 0, text.index("{", m.end() - 1)
+    for k in range(k, len(text)):
+        depth += {"{": 1, "}": -1}.get(text[k], 0)
+        if depth == 0:
+            break
+    head_text, tail = text[:m.start()].rstrip("\n"), text[k + 1:].lstrip("\n")
+    return head_text + ("\n\n" + tail if tail else "\n")
+
+
+def regen_cx_items(text, src, W, groups, state_type):
+    """Rebuild every `<G>Cx`/`<G>CxRef` item in hub.rs from what moved code really reads (#1241 F3):
+    members (own state, siblings, `hub`) only when a Cx impl body reads them, builders/`shared()` only
+    when called; test-only uses get `#[cfg(test)]`. Unread members would be dead fields."""
+    uses = collections.defaultdict(lambda: collections.defaultdict(bool))   # type -> member -> prod?
+    calls = collections.defaultdict(bool)                                   # builder -> prod?
+    files = [(p, False) for p in sorted(src.rglob("*.rs")) if p.name != "hub.rs"]
+    files += [(p, True) for p in sorted((src.parent / "unit_tests").rglob("*.rs"))]
+    for p, test_only in files:
+        code = W.blank_noncode(p.read_text())
+        prod = strip_cfg_test(code)
+        for m in CX_IMPL.finditer(code):
+            close = W.matching_close(code, m.end() - 1)
+            live = not test_only and not m.group(1)
+            for b in re.finditer(r"\bself\s*\.\s*(" + IDENT + r")", code[m.end():close]):
+                pos = m.end() + b.start()
+                uses[m.group(2)][b.group(1)] |= live and prod[pos:pos + 4] == "self"
+        for m in CX_BUILDER.finditer(code):
+            calls["cx_" + m.group(1) + (m.group(2) or "")] |= not test_only and prod[m.start():m.start() + 3] == "cx_"
+    stems = {"".join(x.capitalize() for x in g.split("_")): g for g in groups}
+    for t in sorted({t for t in re.findall(r"(?m)^pub\(crate\) struct (\w+)Cx(?:Ref)?<", text)} | {
+            t.removesuffix("Ref").removesuffix("Cx") for t in uses}):
+        g = stems.get(t)
+        if g is None:
+            continue
+        for head in (rf"pub\(crate\) struct {t}Cx<", rf"pub\(crate\) fn cx_{g}\(", rf"impl {t}Cx<'_> \{{",
+                     rf"pub\(crate\) struct {t}CxRef<", rf"pub\(crate\) fn cx_{g}_ref\("):
+            text = _drop_item(text, head)
+        mut, ref = uses.get(f"{t}Cx", {}), uses.get(f"{t}CxRef", {})
+        shared = "shared" in mut
+        members = {k: v for k, v in ref.items()} if shared else {}
+        for k, v in mut.items():
+            members[k] = members.get(k, False) or v
+        order = lambda ms: [x for x in dict.fromkeys((g, *sorted(state_type))) if x in ms] + \
+            (["hub"] if "hub" in ms else [])
+        text = text.rstrip("\n") + "\n"
+        for variant, ms, built in (("cx", members, f"{t}Cx" in uses), ("cx-ref", ref, f"{t}CxRef" in uses)):
+            if not built:
+                continue
+            name, amp = (f"{t}Cx", "&'a mut ") if variant == "cx" else (f"{t}CxRef", "&'a ")
+            cfg = lambda k: "" if ms[k] else "#[cfg(test)] "
+            hub_ty = "HubMut<'a>" if variant == "cx" else "HubRef<'a>"
+            fields = "".join(f"    {cfg(k)}pub(crate) {k}: {hub_ty if k == 'hub' else amp + state_type[k]},\n"
+                             for k in order(ms))
+            doc = (f"/// Capped group context (#1241 F3): the `{g}` state, sibling states and hub members its\n"
+                   f"/// moved fns read, borrowed from disjoint WorldSession fields.\n") if variant == "cx" else \
+                f"/// Shared counterpart of `{t}Cx` for `&self` methods.\n"
+            text += f"\n{doc}pub(crate) struct {name}<'a> {{\n{fields}}}\n"
+            bname = f"cx_{g}" + ("" if variant == "cx" else "_ref")
+            if bname in calls:
+                hub = ("HubMut { core: &mut s.core, catalogs: &s.catalogs, config: &s.config, "
+                       "#[cfg(test)] fixtures: &mut s.fixtures }") if variant == "cx" else "hub_ref(s)"
+                init = " ".join(f"{cfg(k)}{k}: {hub if k == 'hub' else ('&mut s.' if variant == 'cx' else '&s.') + k},"
+                                for k in order(ms))
+                arg = "&mut WorldSession" if variant == "cx" else "&WorldSession"
+                text += (f"\n{'' if calls[bname] else '#[cfg(test)]' + chr(10)}pub(crate) fn {bname}(s: {arg}) -> "
+                         f"{name}<'_> {{\n    {name} {{ {init} }}\n}}\n")
+            if variant == "cx" and shared:
+                init = " ".join(f"{'' if ref[k] else '#[cfg(test)] '}{k}: "
+                                f"{'self.hub.shared()' if k == 'hub' else '&*self.' + k}," for k in order(ref))
+                text += (f"\n{'' if mut['shared'] else '#[cfg(test)]' + chr(10)}impl {name}<'_> {{\n"
+                         f"    pub(crate) fn shared(&self) -> {t}CxRef<'_> {{\n        {t}CxRef {{ {init} }}\n    }}\n}}\n")
+    return text
+
+
+def remove_shim_fn(W, shim, name):
+    """Delete one fn from a unit_tests shim file."""
+    t = shim.read_text()
+    code = W.blank_noncode(t)
+    m = re.search(r"(?m)^[ \t]*(?:#\[[^\]]*\][ \t]*\n[ \t]*)*(?:pub[^\n]*?)?fn\s+" + name + r"\b", code)
+    if m:
+        close = W.matching_close(code, code.index("{", m.end())) + 1
+        shim.write_text(t[:m.start()] + t[close:].lstrip("\n"))

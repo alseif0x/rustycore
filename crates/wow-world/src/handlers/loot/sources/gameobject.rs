@@ -598,163 +598,20 @@ impl WorldSession {
             .queue_gathering_node_gameobject_state_refresh_for_same_map_like_cpp(gameobject_guid);
     }
 
-    fn gathering_node_gameobject_state_refresh_command_like_cpp(
-        &self,
-        gameobject_guid: ObjectGuid,
-    ) -> Option<SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand> {
-        let state = self
-            .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)?;
-        Some(SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand {
-            gameobject_guid,
-            map_id: self.player_map_id_like_cpp(),
-            instance_id: self
-                .current_canonical_player_map_key_like_cpp()
-                .map(|key| key.instance_id)
-                .unwrap_or(0),
-            go_type: state.go_type?,
-            loot_state: state.loot_state.map(|loot_state| loot_state as u8),
-            loot_state_unit_guid: state.loot_state_unit_guid,
-            go_state: state.go_state.map(|go_state| go_state as i8),
-            dynamic_flags: state.dynamic_flags,
-            gathering_node_loot_id: state.gathering_node_loot_id,
-            personal_loot_uses: state.personal_loot_uses,
-            linked_trap_entry: state.linked_trap_entry,
-            linked_trap_guid: state.linked_trap_guid,
-        })
-    }
-
-    fn chest_gameobject_state_refresh_command_like_cpp(
-        &self,
-        gameobject_guid: ObjectGuid,
-    ) -> Option<SyncChestGameobjectStateAndRefreshLikeCppCommand> {
-        let state = self
-            .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)?;
-        let source = state.chest_loot_source?;
-        Some(SyncChestGameobjectStateAndRefreshLikeCppCommand {
-            gameobject_guid,
-            map_id: self.player_map_id_like_cpp(),
-            instance_id: self
-                .current_canonical_player_map_key_like_cpp()
-                .map(|key| key.instance_id)
-                .unwrap_or(0),
-            go_type: state.go_type.unwrap_or(GAMEOBJECT_TYPE_CHEST as u8),
-            loot_state: state.loot_state.map(|loot_state| loot_state as u8),
-            loot_state_unit_guid: state.loot_state_unit_guid,
-            chest_loot_id: source.loot_id,
-            chest_personal_loot_id: source.personal_loot_id,
-            chest_push_loot_id: source.push_loot_id,
-            chest_quest_id: source.chest_quest_id,
-            chest_restock_time_secs: source.chest_restock_time_secs,
-            chest_consumable: source.chest_consumable,
-            linked_trap_entry: state.linked_trap_entry,
-            linked_trap_guid: state.linked_trap_guid,
-        })
-    }
-
-    fn goober_gameobject_state_refresh_command_like_cpp(
-        &self,
-        gameobject_guid: ObjectGuid,
-    ) -> Option<SyncGooberGameobjectStateAndRefreshLikeCppCommand> {
-        let state = self
-            .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)?;
-        Some(SyncGooberGameobjectStateAndRefreshLikeCppCommand {
-            gameobject_guid,
-            map_id: self.player_map_id_like_cpp(),
-            instance_id: self
-                .current_canonical_player_map_key_like_cpp()
-                .map(|key| key.instance_id)
-                .unwrap_or(0),
-            go_type: state.go_type.unwrap_or(GAMEOBJECT_TYPE_GOOBER as u8),
-            gameobject_flags: state.gameobject_flags,
-            loot_state: state.loot_state.map(|loot_state| loot_state as u8),
-            loot_state_unit_guid: state.loot_state_unit_guid,
-            go_state: state.go_state.map(|go_state| go_state as i8),
-            dynamic_flags: state.dynamic_flags,
-            linked_trap_entry: state.linked_trap_entry,
-            linked_trap_guid: state.linked_trap_guid,
-        })
-    }
-
     pub(crate) fn queue_chest_gameobject_state_refresh_for_same_map_like_cpp(
         &self,
         gameobject_guid: ObjectGuid,
     ) -> usize {
-        let Some(player_guid) = self.player_guid() else {
-            return 0;
-        };
-        let Some(registry) = self.player_registry() else {
-            return 0;
-        };
-        let Some(command) = self.chest_gameobject_state_refresh_command_like_cpp(gameobject_guid)
-        else {
-            return 0;
-        };
-        let current_map_id = self.player_map_id_like_cpp();
-        let current_instance_id = self
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        let mut queued = 0;
-
-        for registration in
-            registry.same_map_loot_recipients(player_guid, current_map_id, current_instance_id)
-        {
-            if registry
-                .try_send_current_command(
-                    registration,
-                    SessionCommand::SyncChestGameobjectStateAndRefreshLikeCpp(command.clone()),
-                )
-                .is_ok()
-            {
-                queued += 1;
-            }
-        }
-
-        queued
+        crate::session::cx_loot_ref(self)
+            .queue_chest_gameobject_state_refresh_for_same_map_like_cpp(gameobject_guid)
     }
 
     pub(crate) fn queue_goober_gameobject_state_refresh_for_same_map_like_cpp(
         &self,
         gameobject_guid: ObjectGuid,
     ) -> usize {
-        let Some(player_guid) = self.player_guid() else {
-            return 0;
-        };
-        let Some(registry) = self.player_registry() else {
-            return 0;
-        };
-        let Some(command) = self.goober_gameobject_state_refresh_command_like_cpp(gameobject_guid)
-        else {
-            return 0;
-        };
-        let current_map_id = self.player_map_id_like_cpp();
-        let current_instance_id = self
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        let mut queued = 0;
-
-        for registration in
-            registry.same_map_loot_recipients(player_guid, current_map_id, current_instance_id)
-        {
-            if registry
-                .try_send_current_command(
-                    registration,
-                    SessionCommand::SyncGooberGameobjectStateAndRefreshLikeCpp(command.clone()),
-                )
-                .is_ok()
-            {
-                queued += 1;
-            }
-        }
-
-        queued
+        crate::session::cx_loot_ref(self)
+            .queue_goober_gameobject_state_refresh_for_same_map_like_cpp(gameobject_guid)
     }
 
     pub(crate) fn queue_visible_gameobject_packet_for_same_map_like_cpp(
@@ -774,41 +631,8 @@ impl WorldSession {
         &self,
         gameobject_guid: ObjectGuid,
     ) -> usize {
-        let Some(player_guid) = self.player_guid() else {
-            return 0;
-        };
-        let Some(registry) = self.player_registry() else {
-            return 0;
-        };
-        let Some(command) =
-            self.gathering_node_gameobject_state_refresh_command_like_cpp(gameobject_guid)
-        else {
-            return 0;
-        };
-        let current_map_id = self.player_map_id_like_cpp();
-        let current_instance_id = self
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        let mut queued = 0;
-
-        for registration in
-            registry.same_map_loot_recipients(player_guid, current_map_id, current_instance_id)
-        {
-            if registry
-                .try_send_current_command(
-                    registration,
-                    SessionCommand::SyncGatheringNodeGameobjectStateAndRefreshLikeCpp(
-                        command.clone(),
-                    ),
-                )
-                .is_ok()
-            {
-                queued += 1;
-            }
-        }
-
-        queued
+        crate::session::cx_loot_ref(self)
+            .queue_gathering_node_gameobject_state_refresh_for_same_map_like_cpp(gameobject_guid)
     }
 
     fn set_represented_gameobject_loot_state_activated_like_cpp(
@@ -816,18 +640,8 @@ impl WorldSession {
         gameobject_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) -> bool {
-        let state = self
-            .world_entities
-            .represented_gameobject_use_states
-            .entry(gameobject_guid)
-            .or_default();
-        if state.loot_state == Some(LootState::Activated) {
-            return false;
-        }
-
-        state.loot_state = Some(LootState::Activated);
-        state.loot_state_unit_guid = player_guid;
-        true
+        crate::session::cx_loot(self)
+            .set_represented_gameobject_loot_state_activated_like_cpp(gameobject_guid, player_guid)
     }
 
     fn record_represented_gathering_node_runtime_state_like_cpp(
@@ -910,6 +724,47 @@ impl WorldSession {
         triggered_event_id: u32,
         linked_trap_entry: u32,
     ) {
+        crate::session::cx_loot(self).record_represented_gameobject_use_effects_like_cpp(
+            gameobject_guid,
+            player_guid,
+            triggered_event_id,
+            linked_trap_entry,
+        )
+    }
+
+    fn represented_gathering_node_xp_like_cpp(&self, xp_difficulty: u32) -> u32 {
+        let (state, hub) = crate::session::split_loot_ref(self);
+        state.represented_gathering_node_xp_like_cpp(hub, xp_difficulty)
+    }
+}
+
+impl crate::session::LootCx<'_> {
+    fn set_represented_gameobject_loot_state_activated_like_cpp(
+        &mut self,
+        gameobject_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+    ) -> bool {
+        let state = self
+            .world_entities
+            .represented_gameobject_use_states
+            .entry(gameobject_guid)
+            .or_default();
+        if state.loot_state == Some(LootState::Activated) {
+            return false;
+        }
+
+        state.loot_state = Some(LootState::Activated);
+        state.loot_state_unit_guid = player_guid;
+        true
+    }
+
+    fn record_represented_gameobject_use_effects_like_cpp(
+        &mut self,
+        gameobject_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+        triggered_event_id: u32,
+        linked_trap_entry: u32,
+    ) {
         if triggered_event_id != 0 {
             self.world_entities.represented_gameobject_use_effects.push(
                 RepresentedGameObjectUseEffect::TriggerGameEvent {
@@ -929,10 +784,219 @@ impl WorldSession {
             );
         }
     }
+}
 
-    fn represented_gathering_node_xp_like_cpp(&self, xp_difficulty: u32) -> u32 {
-        let (state, hub) = crate::session::split_loot_ref(self);
-        state.represented_gathering_node_xp_like_cpp(hub, xp_difficulty)
+impl crate::session::LootCxRef<'_> {
+    fn gathering_node_gameobject_state_refresh_command_like_cpp(
+        &self,
+        gameobject_guid: ObjectGuid,
+    ) -> Option<SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand> {
+        let state = self
+            .world_entities
+            .represented_gameobject_use_states
+            .get(&gameobject_guid)?;
+        Some(SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand {
+            gameobject_guid,
+            map_id: self.hub.core.player_map_id_like_cpp(),
+            instance_id: self
+                .hub
+                .core
+                .current_canonical_player_map_key_like_cpp()
+                .map(|key| key.instance_id)
+                .unwrap_or(0),
+            go_type: state.go_type?,
+            loot_state: state.loot_state.map(|loot_state| loot_state as u8),
+            loot_state_unit_guid: state.loot_state_unit_guid,
+            go_state: state.go_state.map(|go_state| go_state as i8),
+            dynamic_flags: state.dynamic_flags,
+            gathering_node_loot_id: state.gathering_node_loot_id,
+            personal_loot_uses: state.personal_loot_uses,
+            linked_trap_entry: state.linked_trap_entry,
+            linked_trap_guid: state.linked_trap_guid,
+        })
+    }
+
+    fn chest_gameobject_state_refresh_command_like_cpp(
+        &self,
+        gameobject_guid: ObjectGuid,
+    ) -> Option<SyncChestGameobjectStateAndRefreshLikeCppCommand> {
+        let state = self
+            .world_entities
+            .represented_gameobject_use_states
+            .get(&gameobject_guid)?;
+        let source = state.chest_loot_source?;
+        Some(SyncChestGameobjectStateAndRefreshLikeCppCommand {
+            gameobject_guid,
+            map_id: self.hub.core.player_map_id_like_cpp(),
+            instance_id: self
+                .hub
+                .core
+                .current_canonical_player_map_key_like_cpp()
+                .map(|key| key.instance_id)
+                .unwrap_or(0),
+            go_type: state.go_type.unwrap_or(GAMEOBJECT_TYPE_CHEST as u8),
+            loot_state: state.loot_state.map(|loot_state| loot_state as u8),
+            loot_state_unit_guid: state.loot_state_unit_guid,
+            chest_loot_id: source.loot_id,
+            chest_personal_loot_id: source.personal_loot_id,
+            chest_push_loot_id: source.push_loot_id,
+            chest_quest_id: source.chest_quest_id,
+            chest_restock_time_secs: source.chest_restock_time_secs,
+            chest_consumable: source.chest_consumable,
+            linked_trap_entry: state.linked_trap_entry,
+            linked_trap_guid: state.linked_trap_guid,
+        })
+    }
+
+    fn goober_gameobject_state_refresh_command_like_cpp(
+        &self,
+        gameobject_guid: ObjectGuid,
+    ) -> Option<SyncGooberGameobjectStateAndRefreshLikeCppCommand> {
+        let state = self
+            .world_entities
+            .represented_gameobject_use_states
+            .get(&gameobject_guid)?;
+        Some(SyncGooberGameobjectStateAndRefreshLikeCppCommand {
+            gameobject_guid,
+            map_id: self.hub.core.player_map_id_like_cpp(),
+            instance_id: self
+                .hub
+                .core
+                .current_canonical_player_map_key_like_cpp()
+                .map(|key| key.instance_id)
+                .unwrap_or(0),
+            go_type: state.go_type.unwrap_or(GAMEOBJECT_TYPE_GOOBER as u8),
+            gameobject_flags: state.gameobject_flags,
+            loot_state: state.loot_state.map(|loot_state| loot_state as u8),
+            loot_state_unit_guid: state.loot_state_unit_guid,
+            go_state: state.go_state.map(|go_state| go_state as i8),
+            dynamic_flags: state.dynamic_flags,
+            linked_trap_entry: state.linked_trap_entry,
+            linked_trap_guid: state.linked_trap_guid,
+        })
+    }
+
+    pub(crate) fn queue_chest_gameobject_state_refresh_for_same_map_like_cpp(
+        &self,
+        gameobject_guid: ObjectGuid,
+    ) -> usize {
+        let Some(player_guid) = self.hub.core.player_guid() else {
+            return 0;
+        };
+        let Some(registry) = self.hub.core.player_registry() else {
+            return 0;
+        };
+        let Some(command) = self.chest_gameobject_state_refresh_command_like_cpp(gameobject_guid)
+        else {
+            return 0;
+        };
+        let current_map_id = self.hub.core.player_map_id_like_cpp();
+        let current_instance_id = self
+            .hub
+            .core
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let mut queued = 0;
+
+        for registration in
+            registry.same_map_loot_recipients(player_guid, current_map_id, current_instance_id)
+        {
+            if registry
+                .try_send_current_command(
+                    registration,
+                    SessionCommand::SyncChestGameobjectStateAndRefreshLikeCpp(command.clone()),
+                )
+                .is_ok()
+            {
+                queued += 1;
+            }
+        }
+
+        queued
+    }
+
+    pub(crate) fn queue_goober_gameobject_state_refresh_for_same_map_like_cpp(
+        &self,
+        gameobject_guid: ObjectGuid,
+    ) -> usize {
+        let Some(player_guid) = self.hub.core.player_guid() else {
+            return 0;
+        };
+        let Some(registry) = self.hub.core.player_registry() else {
+            return 0;
+        };
+        let Some(command) = self.goober_gameobject_state_refresh_command_like_cpp(gameobject_guid)
+        else {
+            return 0;
+        };
+        let current_map_id = self.hub.core.player_map_id_like_cpp();
+        let current_instance_id = self
+            .hub
+            .core
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let mut queued = 0;
+
+        for registration in
+            registry.same_map_loot_recipients(player_guid, current_map_id, current_instance_id)
+        {
+            if registry
+                .try_send_current_command(
+                    registration,
+                    SessionCommand::SyncGooberGameobjectStateAndRefreshLikeCpp(command.clone()),
+                )
+                .is_ok()
+            {
+                queued += 1;
+            }
+        }
+
+        queued
+    }
+
+    fn queue_gathering_node_gameobject_state_refresh_for_same_map_like_cpp(
+        &self,
+        gameobject_guid: ObjectGuid,
+    ) -> usize {
+        let Some(player_guid) = self.hub.core.player_guid() else {
+            return 0;
+        };
+        let Some(registry) = self.hub.core.player_registry() else {
+            return 0;
+        };
+        let Some(command) =
+            self.gathering_node_gameobject_state_refresh_command_like_cpp(gameobject_guid)
+        else {
+            return 0;
+        };
+        let current_map_id = self.hub.core.player_map_id_like_cpp();
+        let current_instance_id = self
+            .hub
+            .core
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let mut queued = 0;
+
+        for registration in
+            registry.same_map_loot_recipients(player_guid, current_map_id, current_instance_id)
+        {
+            if registry
+                .try_send_current_command(
+                    registration,
+                    SessionCommand::SyncGatheringNodeGameobjectStateAndRefreshLikeCpp(
+                        command.clone(),
+                    ),
+                )
+                .is_ok()
+            {
+                queued += 1;
+            }
+        }
+
+        queued
     }
 }
 

@@ -8,32 +8,12 @@
 use super::*;
 
 impl WorldSession {
-    /// Resolves CMSG_QUEST_GIVER_STATUS_QUERY through the represented equivalent of
-    /// C++ `ObjectAccessor::GetObjectByTypeMask(*_player, guid, TYPEMASK_UNIT | TYPEMASK_GAMEOBJECT)`.
-    /// Missing canonical objects and unsupported Player/Item/other GUID types fail closed with no packet.
     pub(crate) fn represented_quest_giver_status_query_source_like_cpp(
         &self,
         guid: wow_core::ObjectGuid,
     ) -> Option<RepresentedQuestGiverStatusSourceLikeCpp> {
-        if guid.is_any_type_creature() {
-            // C++ TYPEID_UNIT branch also checks Creature::IsHostileTo before computing
-            // dialog status. Exact faction/hostility is not represented here yet; a
-            // resolved canonical Creature is treated as non-hostile only for this
-            // bounded represented status calculation.
-            let access = self.canonical_creature_access_like_cpp(guid)?;
-            return Some(RepresentedQuestGiverStatusSourceLikeCpp::Creature {
-                entry: access.entry,
-            });
-        }
-
-        if guid.is_game_object() {
-            let access = self.canonical_gameobject_access_like_cpp(guid)?;
-            return Some(RepresentedQuestGiverStatusSourceLikeCpp::GameObject {
-                entry: access.entry,
-            });
-        }
-
-        None
+        crate::session::cx_quest_state_ref(self)
+            .represented_quest_giver_status_query_source_like_cpp(guid)
     }
 
     /// Bounded representation of C++ `Player::GetQuestDialogStatus(Object const*)`.
@@ -713,6 +693,38 @@ impl WorldSession {
     pub(crate) fn is_quest_disabled_like_cpp(&self, quest_id: u32) -> bool {
         let (state, hub) = crate::session::split_quest_state_ref(self);
         state.is_quest_disabled_like_cpp(hub, quest_id)
+    }
+}
+
+impl crate::session::QuestStateCxRef<'_> {
+    /// Resolves CMSG_QUEST_GIVER_STATUS_QUERY through the represented equivalent of
+    /// C++ `ObjectAccessor::GetObjectByTypeMask(*_player, guid, TYPEMASK_UNIT | TYPEMASK_GAMEOBJECT)`.
+    /// Missing canonical objects and unsupported Player/Item/other GUID types fail closed with no packet.
+    pub(crate) fn represented_quest_giver_status_query_source_like_cpp(
+        &self,
+        guid: wow_core::ObjectGuid,
+    ) -> Option<RepresentedQuestGiverStatusSourceLikeCpp> {
+        if guid.is_any_type_creature() {
+            // C++ TYPEID_UNIT branch also checks Creature::IsHostileTo before computing
+            // dialog status. Exact faction/hostility is not represented here yet; a
+            // resolved canonical Creature is treated as non-hostile only for this
+            // bounded represented status calculation.
+            let access = self
+                .world_entities
+                .canonical_creature_access_like_cpp(self.hub, guid)?;
+            return Some(RepresentedQuestGiverStatusSourceLikeCpp::Creature {
+                entry: access.entry,
+            });
+        }
+
+        if guid.is_game_object() {
+            let access = self.hub.core.canonical_gameobject_access_like_cpp(guid)?;
+            return Some(RepresentedQuestGiverStatusSourceLikeCpp::GameObject {
+                entry: access.entry,
+            });
+        }
+
+        None
     }
 }
 

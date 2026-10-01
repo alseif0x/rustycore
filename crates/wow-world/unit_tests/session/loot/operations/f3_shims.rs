@@ -32,4 +32,28 @@ impl crate::session::WorldSession {
         let (state, hub) = crate::session::split_loot_ref(self);
         state.loot_specialization_id_like_cpp(hub)
     }
+    pub(crate) fn set_canonical_gameobject_loot_state_if_fully_looted_observation_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        authority: &OwnedLootAuthority,
+        object_generation: u64,
+        lifecycle_revision: u64,
+        state: wow_entities::LootState,
+        unit_guid: Option<ObjectGuid>,
+        chest_restock_time_secs: u32,
+        shared_loot_is_changed_like_cpp: bool,
+    ) -> Option<wow_map::map::GameObjectSetLootStateOutcomeLikeCpp> {
+        let (owner, mut hub) = crate::session::split_loot_mut(self);
+        owner.set_canonical_gameobject_loot_state_if_fully_looted_observation_like_cpp(
+            &mut hub,
+            guid,
+            authority,
+            object_generation,
+            lifecycle_revision,
+            state,
+            unit_guid,
+            chest_restock_time_secs,
+            shared_loot_is_changed_like_cpp,
+        )
+    }
 }

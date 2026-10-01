@@ -16,12 +16,6 @@ impl WorldSession {
     ) -> Option<HashSet<u32>> {
         crate::session::hub_ref(self).completed_achievement_ids_snapshot_like_cpp()
     }
-    pub(in crate::session) fn replace_completed_achievement_ids_like_cpp(
-        &mut self,
-        achievement_ids: impl IntoIterator<Item = u32>,
-    ) -> bool {
-        crate::session::hub_mut(self).replace_completed_achievement_ids_like_cpp(achievement_ids)
-    }
     pub(crate) fn access_requirement_leader_has_achievement_like_cpp(
         &self,
         achievement_id: u32,

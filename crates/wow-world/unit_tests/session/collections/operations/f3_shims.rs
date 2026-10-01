@@ -13,4 +13,10 @@ impl crate::session::WorldSession {
     ) -> bool {
         crate::session::hub_ref(self).replace_owned_player_mails_like_cpp(mails)
     }
+    pub(in crate::session) fn replace_completed_achievement_ids_like_cpp(
+        &mut self,
+        achievement_ids: impl IntoIterator<Item = u32>,
+    ) -> bool {
+        crate::session::hub_mut(self).replace_completed_achievement_ids_like_cpp(achievement_ids)
+    }
 }

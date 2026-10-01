@@ -364,6 +364,8 @@ def analyze(root: pathlib.Path, hub_threshold: int = DEFAULT_HUB_THRESHOLD,
                 if m:
                     owner_types |= {type_ident(x["type"]) for x in struct_fields(code, m)}
                     break
+    for _rel, _text, code in sources:  # capped group contexts (`<G>Cx` / `<G>CxRef`) own moved fns
+        owner_types |= set(re.findall(r"\bstruct\s+(" + IDENT + r"Cx(?:Ref)?)\s*<", code))
     owner_head = impl_head(owner_types)
     owned_names: set[str] = set()
     owned_total = 0

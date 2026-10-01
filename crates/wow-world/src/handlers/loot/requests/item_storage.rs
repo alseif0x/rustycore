@@ -798,7 +798,28 @@ impl WorldSession {
         loot_entry: &LootEntry,
         random_properties: LootStoreRandomProperties,
     ) -> Option<Vec<ItemPosCount>> {
+        crate::session::cx_loot_ref(self)
+            .plan_direct_loot_item_preserving_cpp_store_metadata(loot_entry, random_properties)
+    }
+
+    pub(in crate::handlers::loot) async fn destroy_fully_looted_direct_item(
+        &mut self,
+        item_guid: ObjectGuid,
+    ) {
+        self.destroy_direct_item_count_after_loot_release_like_cpp(item_guid, None)
+            .await;
+    }
+}
+
+impl crate::session::LootCxRef<'_> {
+    fn plan_direct_loot_item_preserving_cpp_store_metadata(
+        &self,
+        loot_entry: &LootEntry,
+        random_properties: LootStoreRandomProperties,
+    ) -> Option<Vec<ItemPosCount>> {
         let max_stack = self
+            .hub
+            .catalogs
             .item_storage_template(loot_entry.item_id)
             .map(|template| template.max_stack_size)
             .unwrap_or(1)
@@ -807,7 +828,8 @@ impl WorldSession {
         let mut dest = Vec::new();
 
         let mut existing_slots: Vec<u8> = self
-            .resolved_inventory_items_like_cpp()?
+            .inventory
+            .resolved_inventory_items_like_cpp(self.hub)?
             .keys()
             .copied()
             .collect();
@@ -816,10 +838,15 @@ impl WorldSession {
             if remaining == 0 {
                 break;
             }
-            let Some(existing) = self.resolved_inventory_item_like_cpp(slot) else {
+            let Some(existing) = self
+                .inventory
+                .resolved_inventory_item_like_cpp(self.hub, slot)
+            else {
                 continue;
             };
-            let Some(existing_object) = self.resolved_inventory_item_object_like_cpp(existing.guid)
+            let Some(existing_object) = self
+                .inventory
+                .resolved_inventory_item_object_like_cpp(self.hub, existing.guid)
             else {
                 continue;
             };
@@ -853,7 +880,8 @@ impl WorldSession {
                 break;
             }
             if self
-                .resolved_inventory_items_like_cpp()
+                .inventory
+                .resolved_inventory_items_like_cpp(self.hub)
                 .is_none_or(|items| items.contains_key(&slot))
             {
                 continue;
@@ -867,14 +895,6 @@ impl WorldSession {
         }
 
         (remaining == 0).then_some(dest)
-    }
-
-    pub(in crate::handlers::loot) async fn destroy_fully_looted_direct_item(
-        &mut self,
-        item_guid: ObjectGuid,
-    ) {
-        self.destroy_direct_item_count_after_loot_release_like_cpp(item_guid, None)
-            .await;
     }
 }
 
