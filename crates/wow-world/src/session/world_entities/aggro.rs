@@ -60,16 +60,7 @@ impl WorldSession {
         self.config.legacy_creature_aggro_config_like_cpp = config;
     }
     pub(crate) fn canonical_player_combat_reach_snapshot_like_cpp(&self) -> f32 {
-        self.canonical_player_snapshot_like_cpp(|player| player.unit().data().combat_reach)
-            .unwrap_or(0.0)
-    }
-    pub(in crate::session) fn player_interaction_combat_reach_like_cpp(&self) -> f32 {
-        let canonical_reach = self.canonical_player_combat_reach_snapshot_like_cpp();
-        if canonical_reach > 0.0 {
-            canonical_reach
-        } else {
-            DEFAULT_PLAYER_COMBAT_REACH_LIKE_CPP
-        }
+        self.core.canonical_player_combat_reach_snapshot_like_cpp()
     }
     pub fn set_spell_threat_store(&mut self, store: Arc<SpellThreatStoreLikeCpp>) {
         self.catalogs.spell_catalogs.spell_threat_store = Some(store);
@@ -508,5 +499,21 @@ impl WorldSession {
 
         self.canonical_player_combat_reach_snapshot_like_cpp()
             .max(0.0)
+    }
+}
+
+impl crate::session::state::SessionCore {
+    pub(crate) fn canonical_player_combat_reach_snapshot_like_cpp(&self) -> f32 {
+        self.canonical_player_snapshot_like_cpp(|player| player.unit().data().combat_reach)
+            .unwrap_or(0.0)
+    }
+
+    pub(in crate::session) fn player_interaction_combat_reach_like_cpp(&self) -> f32 {
+        let canonical_reach = self.canonical_player_combat_reach_snapshot_like_cpp();
+        if canonical_reach > 0.0 {
+            canonical_reach
+        } else {
+            DEFAULT_PLAYER_COMBAT_REACH_LIKE_CPP
+        }
     }
 }

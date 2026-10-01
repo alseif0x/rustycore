@@ -46,39 +46,8 @@ impl WorldSession {
         }
     }
 
-    /// Update this session's position (and map) in the player registry.
-    /// Called whenever `player_position` changes.
     pub(crate) fn update_registry_position(&self) {
-        let (Some(guid), Some(pos), Some(reg)) = (
-            self.player_guid(),
-            self.player_position_like_cpp(),
-            &self.core.player_registry,
-        ) else {
-            return;
-        };
-        let map_id = self.player_map_id_like_cpp();
-        let Some(is_alive) = self.resolved_player_is_alive_like_cpp() else {
-            return;
-        };
-        // Fallback to 0 (world/default instance) when no canonical map key is
-        // available — mirrors C++ world-map phase where instance_id == 0.
-        let instance_id = self
-            .current_canonical_player_map_key_like_cpp()
-            .map(|k| k.instance_id)
-            .unwrap_or(0);
-        let _ = reg.publish_movement_for_control_channel(
-            guid,
-            &self.core.session_command_tx,
-            crate::session::directory::PlayerMovementDirectoryUpdate {
-                position: pos,
-                map_id,
-                instance_id,
-                is_in_world: self.player_is_in_world_for_registry_like_cpp(),
-                level: self.player_level_like_cpp(),
-                is_alive,
-                transport: self.player_transport_info_like_cpp(),
-            },
-        );
+        crate::session::hub_ref(self).update_registry_position()
     }
     pub(in crate::session) fn send_movement_set_collision_height_like_cpp(&mut self, reason: u8) {
         let Some(player_guid) = self.player_guid() else {
@@ -204,5 +173,43 @@ impl WorldSession {
             sent += 1;
         }
         sent
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    /// Update this session's position (and map) in the player registry.
+    /// Called whenever `player_position` changes.
+    pub(crate) fn update_registry_position(&self) {
+        let (Some(guid), Some(pos), Some(reg)) = (
+            self.core.player_guid(),
+            self.player_position_like_cpp(),
+            &self.core.player_registry,
+        ) else {
+            return;
+        };
+        let map_id = self.core.player_map_id_like_cpp();
+        let Some(is_alive) = self.resolved_player_is_alive_like_cpp() else {
+            return;
+        };
+        // Fallback to 0 (world/default instance) when no canonical map key is
+        // available — mirrors C++ world-map phase where instance_id == 0.
+        let instance_id = self
+            .core
+            .current_canonical_player_map_key_like_cpp()
+            .map(|k| k.instance_id)
+            .unwrap_or(0);
+        let _ = reg.publish_movement_for_control_channel(
+            guid,
+            &self.core.session_command_tx,
+            crate::session::directory::PlayerMovementDirectoryUpdate {
+                position: pos,
+                map_id,
+                instance_id,
+                is_in_world: self.core.player_is_in_world_for_registry_like_cpp(),
+                level: self.player_level_like_cpp(),
+                is_alive,
+                transport: self.player_transport_info_like_cpp(),
+            },
+        );
     }
 }

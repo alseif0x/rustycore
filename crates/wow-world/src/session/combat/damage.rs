@@ -174,18 +174,86 @@ impl WorldSession {
         resisted: u32,
         absorbed: u32,
     ) {
-        self.send_packet(&wow_packet::packets::combat::EnvironmentalDamageLog {
+        self.core.send_environmental_damage_log_like_cpp(
             victim,
-            damage_type: if damage_type == DAMAGE_FALL_TO_VOID_LIKE_CPP {
-                DAMAGE_FALL_LIKE_CPP
-            } else {
-                damage_type
-            },
-            amount: amount.min(i32::MAX as u32) as i32,
-            resisted: resisted.min(i32::MAX as u32) as i32,
-            absorbed: absorbed.min(i32::MAX as u32) as i32,
-        });
+            damage_type,
+            amount,
+            resisted,
+            absorbed,
+        )
     }
+    pub(in crate::session) fn apply_owned_player_damage_like_cpp(
+        &mut self,
+        requested_damage: u32,
+        lethal_death_state: wow_constants::DeathState,
+    ) -> Option<(u32, u32, u32, u32, bool)> {
+        crate::session::hub_mut(self)
+            .apply_owned_player_damage_like_cpp(requested_damage, lethal_death_state)
+    }
+    #[cfg(test)]
+    pub(crate) fn set_player_normal_damage_immune_like_cpp(&mut self, immune: bool) {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_normal_damage_immune_like_cpp(immune)
+            })
+            .is_some();
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.combat.player_normal_damage_immune_like_cpp = immune;
+        }
+    }
+    #[cfg(test)]
+    pub(crate) fn set_player_environmental_damage_immune_like_cpp(&mut self, immune: bool) {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_environmental_damage_immune_like_cpp(immune)
+            })
+            .is_some();
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.fixtures
+                .combat
+                .player_environmental_damage_immune_like_cpp = immune;
+        }
+    }
+    pub(in crate::session) fn resolved_player_damage_control_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerDamageControlStateLikeCpp> {
+        crate::session::hub_ref(self).resolved_player_damage_control_like_cpp()
+    }
+    pub(crate) fn set_player_health_after_runtime_damage_like_cpp(&mut self, health_after: u64) {
+        let Some((_, max_health, _)) = self.resolved_player_vitals_like_cpp() else {
+            return;
+        };
+        let _ = self.sync_canonical_player_health_like_cpp(
+            health_after.min(u64::from(max_health)) as u32,
+            max_health,
+        );
+        self.sync_player_registry_state_like_cpp();
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(in crate::session) fn resolved_player_damage_control_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerDamageControlStateLikeCpp> {
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.damage_control_like_cpp());
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(wow_entities::PlayerDamageControlStateLikeCpp {
+                cheat_god: self.fixtures.combat.player_cheat_god_like_cpp,
+                normal_damage_immune: self.fixtures.combat.player_normal_damage_immune_like_cpp,
+                environmental_damage_immune: self
+                    .fixtures
+                    .combat
+                    .player_environmental_damage_immune_like_cpp,
+            });
+        }
+        canonical
+    }
+}
+
+impl crate::session::HubMut<'_> {
     /// Apply damage to the canonical Player owner and return
     /// `(before, after, max, applied, killed)`.
     pub(in crate::session) fn apply_owned_player_damage_like_cpp(
@@ -193,7 +261,7 @@ impl WorldSession {
         requested_damage: u32,
         lethal_death_state: wow_constants::DeathState,
     ) -> Option<(u32, u32, u32, u32, bool)> {
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+        let canonical = self.core.with_owned_player_mut_like_cpp(|player| {
             let max_health = player
                 .unit()
                 .data()
@@ -228,55 +296,27 @@ impl WorldSession {
         }
         canonical
     }
-    #[cfg(test)]
-    pub(crate) fn set_player_normal_damage_immune_like_cpp(&mut self, immune: bool) {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_normal_damage_immune_like_cpp(immune)
-            })
-            .is_some();
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.combat.player_normal_damage_immune_like_cpp = immune;
-        }
-    }
-    #[cfg(test)]
-    pub(crate) fn set_player_environmental_damage_immune_like_cpp(&mut self, immune: bool) {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_environmental_damage_immune_like_cpp(immune)
-            })
-            .is_some();
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures
-                .combat
-                .player_environmental_damage_immune_like_cpp = immune;
-        }
-    }
-    pub(in crate::session) fn resolved_player_damage_control_like_cpp(
+}
+
+impl crate::session::state::SessionCore {
+    pub(in crate::session) fn send_environmental_damage_log_like_cpp(
         &self,
-    ) -> Option<wow_entities::PlayerDamageControlStateLikeCpp> {
-        let canonical = self.with_owned_player_like_cpp(|player| player.damage_control_like_cpp());
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(wow_entities::PlayerDamageControlStateLikeCpp {
-                cheat_god: self.fixtures.combat.player_cheat_god_like_cpp,
-                normal_damage_immune: self.fixtures.combat.player_normal_damage_immune_like_cpp,
-                environmental_damage_immune: self
-                    .fixtures
-                    .combat
-                    .player_environmental_damage_immune_like_cpp,
-            });
-        }
-        canonical
-    }
-    pub(crate) fn set_player_health_after_runtime_damage_like_cpp(&mut self, health_after: u64) {
-        let Some((_, max_health, _)) = self.resolved_player_vitals_like_cpp() else {
-            return;
-        };
-        let _ = self.sync_canonical_player_health_like_cpp(
-            health_after.min(u64::from(max_health)) as u32,
-            max_health,
-        );
-        self.sync_player_registry_state_like_cpp();
+        victim: ObjectGuid,
+        damage_type: u8,
+        amount: u32,
+        resisted: u32,
+        absorbed: u32,
+    ) {
+        self.send_packet(&wow_packet::packets::combat::EnvironmentalDamageLog {
+            victim,
+            damage_type: if damage_type == DAMAGE_FALL_TO_VOID_LIKE_CPP {
+                DAMAGE_FALL_LIKE_CPP
+            } else {
+                damage_type
+            },
+            amount: amount.min(i32::MAX as u32) as i32,
+            resisted: resisted.min(i32::MAX as u32) as i32,
+            absorbed: absorbed.min(i32::MAX as u32) as i32,
+        });
     }
 }

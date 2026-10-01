@@ -30,17 +30,7 @@ impl WorldSession {
         canonical
     }
     pub(crate) fn set_fall_information_like_cpp(&mut self, time: u32, z: f32) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_fall_information_like_cpp(time, z);
-            })
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.movement.last_fall_time_like_cpp = time;
-            self.fixtures.movement.last_fall_z_like_cpp = z;
-        }
-        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
+        crate::session::hub_mut(self).set_fall_information_like_cpp(time, z)
     }
     pub(crate) fn update_fall_information_if_needed_like_cpp(
         &mut self,
@@ -231,5 +221,22 @@ impl WorldSession {
             self.set_fall_information_like_cpp(0, position.z);
         }
         true
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(crate) fn set_fall_information_like_cpp(&mut self, time: u32, z: f32) -> bool {
+        let canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_fall_information_like_cpp(time, z);
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.movement.last_fall_time_like_cpp = time;
+            self.fixtures.movement.last_fall_z_like_cpp = z;
+        }
+        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
 }

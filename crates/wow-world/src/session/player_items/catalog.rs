@@ -110,9 +110,8 @@ impl WorldSession {
     pub fn set_item_effect_store(&mut self, store: Arc<ItemEffectStore>) {
         self.catalogs.items.effect_store = Some(store);
     }
-    /// Get the item stats store reference.
     pub fn item_stats_store(&self) -> Option<&Arc<ItemStatsStore>> {
-        self.catalogs.items.stats_store.as_ref()
+        self.catalogs.item_stats_store()
     }
     pub fn item_effect_store(&self) -> Option<&Arc<ItemEffectStore>> {
         self.catalogs.items.effect_store.as_ref()
@@ -173,12 +172,7 @@ impl WorldSession {
             .map(|template| template.lock_id)
     }
     pub fn item_template_start_quest_id(&self, item_id: u32) -> Option<i32> {
-        self.catalogs
-            .items
-            .stats_store
-            .as_ref()
-            .and_then(|store| store.sparse_template(item_id))
-            .map(|template| template.start_quest_id)
+        self.catalogs.item_template_start_quest_id(item_id)
     }
     pub fn item_template_quality(&self, item_id: u32) -> Option<i8> {
         self.catalogs
@@ -188,35 +182,8 @@ impl WorldSession {
             .and_then(|store| store.random_property_template(item_id))
             .map(|template| template.quality)
     }
-    /// Resolve the C++ `ItemTemplate` subset used by storage validation.
     pub fn item_storage_template(&self, item_id: u32) -> Option<ItemStorageTemplate> {
-        let basic = self.catalogs.items.store.as_ref()?.get(item_id)?;
-        let sparse = self
-            .catalogs
-            .items
-            .stats_store
-            .as_ref()?
-            .sparse_template(item_id)?;
-        let class_id = <ItemClass as num_traits::FromPrimitive>::from_u8(basic.class_id)?;
-        let inventory_type =
-            <InventoryType as num_traits::FromPrimitive>::from_i8(sparse.inventory_type)?;
-        let bonding = <ItemBondingType as num_traits::FromPrimitive>::from_u8(sparse.bonding)?;
-
-        Some(ItemStorageTemplate {
-            entry: item_id,
-            class_id,
-            subclass_id: u32::from(basic.subclass_id),
-            inventory_type,
-            bonding,
-            bag_family: BagFamilyMask::from_bits_retain(sparse.bag_family),
-            max_stack_size: sparse.max_stack_size(),
-            max_count: sparse.max_count,
-            item_limit_category: u32::from(sparse.limit_category),
-            container_slots: sparse.container_slots,
-            sell_price: sparse.sell_price,
-            is_crafting_reagent: (sparse.flags[1] & ItemFlags2::UsedInATradeskill as u32) != 0,
-            flags: sparse.item_flags(),
-        })
+        self.catalogs.item_storage_template(item_id)
     }
     /// Resolve C++ `ItemSparseEntry` data used by random-property generation.
     pub(crate) fn item_random_property_template(
@@ -268,5 +235,46 @@ impl WorldSession {
             .map(|entry| entry.display.as_str())
             .filter(|name| !name.is_empty())
             .unwrap_or("<error>")
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    /// Get the item stats store reference.
+    pub fn item_stats_store(&self) -> Option<&Arc<ItemStatsStore>> {
+        self.items.stats_store.as_ref()
+    }
+
+    pub fn item_template_start_quest_id(&self, item_id: u32) -> Option<i32> {
+        self.items
+            .stats_store
+            .as_ref()
+            .and_then(|store| store.sparse_template(item_id))
+            .map(|template| template.start_quest_id)
+    }
+
+    /// Resolve the C++ `ItemTemplate` subset used by storage validation.
+    pub fn item_storage_template(&self, item_id: u32) -> Option<ItemStorageTemplate> {
+        let basic = self.items.store.as_ref()?.get(item_id)?;
+        let sparse = self.items.stats_store.as_ref()?.sparse_template(item_id)?;
+        let class_id = <ItemClass as num_traits::FromPrimitive>::from_u8(basic.class_id)?;
+        let inventory_type =
+            <InventoryType as num_traits::FromPrimitive>::from_i8(sparse.inventory_type)?;
+        let bonding = <ItemBondingType as num_traits::FromPrimitive>::from_u8(sparse.bonding)?;
+
+        Some(ItemStorageTemplate {
+            entry: item_id,
+            class_id,
+            subclass_id: u32::from(basic.subclass_id),
+            inventory_type,
+            bonding,
+            bag_family: BagFamilyMask::from_bits_retain(sparse.bag_family),
+            max_stack_size: sparse.max_stack_size(),
+            max_count: sparse.max_count,
+            item_limit_category: u32::from(sparse.limit_category),
+            container_slots: sparse.container_slots,
+            sell_price: sparse.sell_price,
+            is_crafting_reagent: (sparse.flags[1] & ItemFlags2::UsedInATradeskill as u32) != 0,
+            flags: sparse.item_flags(),
+        })
     }
 }

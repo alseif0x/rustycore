@@ -9,52 +9,19 @@ impl WorldSession {
     pub(in crate::session) fn player_vehicle_seat_state_like_cpp(
         &self,
     ) -> Option<(Option<i32>, Option<u32>)> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            let state = player.gameplay_state();
-            (state.vehicle_seat_flags, state.vehicle_seat_id)
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some((
-                self.fixtures.vehicles.player_vehicle_seat_flags_like_cpp,
-                self.fixtures.vehicles.player_vehicle_seat_id_like_cpp,
-            ));
-        }
-        canonical
+        crate::session::hub_ref(self).player_vehicle_seat_state_like_cpp()
     }
     pub(in crate::session) fn set_player_vehicle_seat_state_like_cpp(
         &mut self,
         flags: Option<i32>,
         seat_id: Option<u32>,
     ) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_vehicle_seat_like_cpp(flags, seat_id);
-            })
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.vehicles.player_vehicle_seat_flags_like_cpp = flags;
-            self.fixtures.vehicles.player_vehicle_seat_id_like_cpp = seat_id;
-            return true;
-        }
-        canonical
+        crate::session::hub_mut(self).set_player_vehicle_seat_state_like_cpp(flags, seat_id)
     }
     pub(in crate::session) fn player_mount_vehicle_kit_snapshot_like_cpp(
         &self,
     ) -> Option<Option<Vehicle>> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.mount_vehicle_kit_snapshot_like_cpp());
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.fixtures
-                    .vehicles
-                    .player_mount_vehicle_kit_like_cpp
-                    .clone(),
-            );
-        }
-        canonical
+        crate::session::hub_ref(self).player_mount_vehicle_kit_snapshot_like_cpp()
     }
     pub(in crate::session) fn install_player_mount_vehicle_kit_like_cpp(
         &mut self,
@@ -354,9 +321,7 @@ impl WorldSession {
             .collect()
     }
     pub(crate) fn represented_current_vehicle_seat_can_switch_from_like_cpp(&self) -> bool {
-        self.player_vehicle_seat_state_like_cpp()
-            .and_then(|(flags, _)| flags)
-            .is_some_and(wow_data::vehicle_seat_flags_can_switch_from_seat_like_cpp)
+        crate::session::hub_ref(self).represented_current_vehicle_seat_can_switch_from_like_cpp()
     }
     /// C++ `MovementHandler.cpp:408-421` allows a passenger to update only its
     /// facing when the current `VehicleSeatEntry` has `ALLOW_TURNING`.
@@ -368,14 +333,7 @@ impl WorldSession {
     pub(in crate::session) fn represented_vehicle_base_guid_for_switch_like_cpp(
         &self,
     ) -> Option<ObjectGuid> {
-        if self
-            .player_vehicle_seat_state_like_cpp()
-            .and_then(|(flags, _)| flags)
-            .is_none()
-        {
-            return None;
-        }
-        self.player_moved_unit_guid_like_cpp()
+        crate::session::hub_ref(self).represented_vehicle_base_guid_for_switch_like_cpp()
     }
     pub(in crate::session) fn record_represented_vehicle_seat_action_like_cpp(
         &mut self,
@@ -585,23 +543,7 @@ impl WorldSession {
     pub(crate) fn player_taxi_state_snapshot_like_cpp(
         &self,
     ) -> Option<wow_entities::PlayerTaxiState> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.taxi_state_like_cpp().clone());
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                wow_entities::PlayerTaxiState::from_represented_parts_like_cpp(
-                    self.fixtures.vehicles.taxi_destinations_like_cpp.clone(),
-                    self.fixtures
-                        .vehicles
-                        .taxi_flight_state_like_cpp
-                        .map(canonical_taxi_flight_state_like_cpp),
-                    self.fixtures.vehicles.taxi_unit_flags_like_cpp.bits(),
-                    self.fixtures.vehicles.taxi_mounted_like_cpp,
-                ),
-            );
-        }
-        canonical
+        crate::session::hub_ref(self).player_taxi_state_snapshot_like_cpp()
     }
     #[cfg(test)]
     pub(in crate::session) fn replace_player_taxi_state_like_cpp(
@@ -706,8 +648,7 @@ impl WorldSession {
             .push(request);
     }
     pub(crate) fn resolved_is_in_taxi_flight_like_cpp(&self) -> Option<bool> {
-        self.player_taxi_state_snapshot_like_cpp()
-            .map(|taxi| taxi.is_in_flight_like_cpp())
+        crate::session::hub_ref(self).resolved_is_in_taxi_flight_like_cpp()
     }
     #[cfg(test)]
     pub(crate) fn is_in_taxi_flight_like_cpp(&self) -> bool {
@@ -792,47 +733,10 @@ impl WorldSession {
             .flatten()
             .map(|state| state.guid)
     }
-    pub(crate) fn player_transport_info_like_cpp(
-        &self,
-    ) -> Option<wow_packet::packets::movement::TransportInfo> {
-        self.player_transport_state_like_cpp()
-            .flatten()
-            .map(|state| wow_packet::packets::movement::TransportInfo {
-                guid: state.guid,
-                x: state.x,
-                y: state.y,
-                z: state.z,
-                o: state.orientation,
-                seat: state.seat,
-                time: state.time,
-                prev_time: state.prev_time,
-                vehicle_id: state.vehicle_id,
-            })
-    }
     pub(in crate::session) fn player_transport_state_like_cpp(
         &self,
     ) -> Option<Option<wow_entities::PlayerTransportState>> {
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.fixtures
-                    .vehicles
-                    .player_transport_login_state_like_cpp
-                    .as_ref()
-                    .map(|state| wow_entities::PlayerTransportState {
-                        guid: state.info.guid,
-                        x: state.info.x,
-                        y: state.info.y,
-                        z: state.info.z,
-                        orientation: state.info.o,
-                        seat: state.info.seat,
-                        time: state.info.time,
-                        prev_time: state.info.prev_time,
-                        vehicle_id: state.info.vehicle_id,
-                    }),
-            );
-        }
-        self.with_owned_player_like_cpp(|player| player.gameplay_state().transport.clone())
+        crate::session::hub_ref(self).player_transport_state_like_cpp()
     }
     pub(in crate::session) fn player_on_transport_state_like_cpp(&self) -> Option<bool> {
         #[cfg(test)]
@@ -860,5 +764,156 @@ impl WorldSession {
             .is_some_and(|vehicle_kit| {
                 vehicle_kit.status() == wow_entities::VehicleStatus::Installed
             })
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(in crate::session) fn set_player_vehicle_seat_state_like_cpp(
+        &mut self,
+        flags: Option<i32>,
+        seat_id: Option<u32>,
+    ) -> bool {
+        let canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_vehicle_seat_like_cpp(flags, seat_id);
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.vehicles.player_vehicle_seat_flags_like_cpp = flags;
+            self.fixtures.vehicles.player_vehicle_seat_id_like_cpp = seat_id;
+            return true;
+        }
+        canonical
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(in crate::session) fn player_vehicle_seat_state_like_cpp(
+        &self,
+    ) -> Option<(Option<i32>, Option<u32>)> {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
+            let state = player.gameplay_state();
+            (state.vehicle_seat_flags, state.vehicle_seat_id)
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some((
+                self.fixtures.vehicles.player_vehicle_seat_flags_like_cpp,
+                self.fixtures.vehicles.player_vehicle_seat_id_like_cpp,
+            ));
+        }
+        canonical
+    }
+
+    pub(in crate::session) fn player_mount_vehicle_kit_snapshot_like_cpp(
+        &self,
+    ) -> Option<Option<Vehicle>> {
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.mount_vehicle_kit_snapshot_like_cpp());
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(
+                self.fixtures
+                    .vehicles
+                    .player_mount_vehicle_kit_like_cpp
+                    .clone(),
+            );
+        }
+        canonical
+    }
+
+    pub(crate) fn represented_current_vehicle_seat_can_switch_from_like_cpp(&self) -> bool {
+        self.player_vehicle_seat_state_like_cpp()
+            .and_then(|(flags, _)| flags)
+            .is_some_and(wow_data::vehicle_seat_flags_can_switch_from_seat_like_cpp)
+    }
+
+    pub(in crate::session) fn represented_vehicle_base_guid_for_switch_like_cpp(
+        &self,
+    ) -> Option<ObjectGuid> {
+        if self
+            .player_vehicle_seat_state_like_cpp()
+            .and_then(|(flags, _)| flags)
+            .is_none()
+        {
+            return None;
+        }
+        self.player_moved_unit_guid_like_cpp()
+    }
+
+    pub(crate) fn player_taxi_state_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerTaxiState> {
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.taxi_state_like_cpp().clone());
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(
+                wow_entities::PlayerTaxiState::from_represented_parts_like_cpp(
+                    self.fixtures.vehicles.taxi_destinations_like_cpp.clone(),
+                    self.fixtures
+                        .vehicles
+                        .taxi_flight_state_like_cpp
+                        .map(canonical_taxi_flight_state_like_cpp),
+                    self.fixtures.vehicles.taxi_unit_flags_like_cpp.bits(),
+                    self.fixtures.vehicles.taxi_mounted_like_cpp,
+                ),
+            );
+        }
+        canonical
+    }
+
+    pub(crate) fn resolved_is_in_taxi_flight_like_cpp(&self) -> Option<bool> {
+        self.player_taxi_state_snapshot_like_cpp()
+            .map(|taxi| taxi.is_in_flight_like_cpp())
+    }
+
+    pub(crate) fn player_transport_info_like_cpp(
+        &self,
+    ) -> Option<wow_packet::packets::movement::TransportInfo> {
+        self.player_transport_state_like_cpp()
+            .flatten()
+            .map(|state| wow_packet::packets::movement::TransportInfo {
+                guid: state.guid,
+                x: state.x,
+                y: state.y,
+                z: state.z,
+                o: state.orientation,
+                seat: state.seat,
+                time: state.time,
+                prev_time: state.prev_time,
+                vehicle_id: state.vehicle_id,
+            })
+    }
+
+    pub(in crate::session) fn player_transport_state_like_cpp(
+        &self,
+    ) -> Option<Option<wow_entities::PlayerTransportState>> {
+        #[cfg(test)]
+        if self.core.player_handle_like_cpp.is_none() {
+            return Some(
+                self.fixtures
+                    .vehicles
+                    .player_transport_login_state_like_cpp
+                    .as_ref()
+                    .map(|state| wow_entities::PlayerTransportState {
+                        guid: state.info.guid,
+                        x: state.info.x,
+                        y: state.info.y,
+                        z: state.info.z,
+                        orientation: state.info.o,
+                        seat: state.info.seat,
+                        time: state.info.time,
+                        prev_time: state.info.prev_time,
+                        vehicle_id: state.info.vehicle_id,
+                    }),
+            );
+        }
+        self.core
+            .with_owned_player_like_cpp(|player| player.gameplay_state().transport.clone())
     }
 }

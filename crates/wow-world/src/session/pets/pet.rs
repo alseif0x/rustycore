@@ -7,28 +7,13 @@ use super::*;
 
 impl WorldSession {
     pub(in crate::session) fn player_pet_guid_state_like_cpp(&self) -> Option<Option<ObjectGuid>> {
-        let canonical = self.with_owned_player_like_cpp(|player| player.gameplay_state().pet_guid);
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.pets.represented_pet_guid_like_cpp);
-        }
-        canonical
+        crate::session::hub_ref(self).player_pet_guid_state_like_cpp()
     }
     pub(in crate::session) fn set_player_pet_guid_like_cpp(
         &mut self,
         pet_guid: Option<ObjectGuid>,
     ) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_pet_guid_like_cpp(pet_guid);
-            })
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.pets.represented_pet_guid_like_cpp = pet_guid;
-            return true;
-        }
-        canonical
+        crate::session::hub_mut(self).set_player_pet_guid_like_cpp(pet_guid)
     }
     pub(in crate::session) fn disable_pet_controls_on_mount_like_cpp(
         &mut self,
@@ -104,18 +89,7 @@ impl WorldSession {
         pet_guid: ObjectGuid,
         mutate: impl FnOnce(&mut Pet) -> R,
     ) -> Option<R> {
-        let mut manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
-        let mut mutate = Some(mutate);
-        let mut result = None;
-        manager.do_for_all_maps_mut(|managed| {
-            if result.is_some() {
-                return;
-            }
-            if let Some(pet) = managed.map_mut().get_typed_pet_mut(pet_guid) {
-                result = Some(mutate.take().expect("pet mutation consumed once")(pet));
-            }
-        });
-        result
+        self.core.with_canonical_pet_mut_like_cpp(pet_guid, mutate)
     }
     fn canonical_pet_mode_state_like_cpp(&self) -> Option<(u8, u8)> {
         let pet_guid = self.player_pet_guid_state_like_cpp().flatten()?;
@@ -173,73 +147,19 @@ impl WorldSession {
     pub(in crate::session) fn player_pet_lifecycle_state_snapshot_like_cpp(
         &self,
     ) -> Option<PlayerPetLifecycleStateLikeCpp> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.pet_lifecycle_state_like_cpp().clone());
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(PlayerPetLifecycleStateLikeCpp {
-                stable: self.fixtures.pets.represented_pet_stable_like_cpp.clone(),
-                character_rows_empty_authority_complete: self
-                    .fixtures
-                    .pets
-                    .represented_character_pet_rows_empty_authority_complete_like_cpp,
-                temporary_unsummoned_pet_number: self
-                    .fixtures
-                    .pets
-                    .represented_temporary_unsummoned_pet_number_like_cpp,
-                old_pet_spell: self.fixtures.pets.represented_old_pet_spell_like_cpp,
-                temporary_mount_react_state: self
-                    .fixtures
-                    .pets
-                    .temporary_mount_pet_react_state_like_cpp,
-            });
-        }
-        canonical
+        crate::session::hub_ref(self).player_pet_lifecycle_state_snapshot_like_cpp()
     }
     pub(in crate::session) fn update_player_pet_lifecycle_state_like_cpp(
         &mut self,
         update: impl FnOnce(&mut PlayerPetLifecycleStateLikeCpp),
     ) -> bool {
-        if self.core.player_handle_like_cpp.is_some() {
-            return self
-                .with_owned_player_mut_like_cpp(|player| {
-                    update(player.pet_lifecycle_state_mut_like_cpp())
-                })
-                .is_some();
-        }
-        #[cfg(test)]
-        {
-            let mut state = self
-                .player_pet_lifecycle_state_snapshot_like_cpp()
-                .unwrap_or_default();
-            update(&mut state);
-            self.fixtures.pets.represented_pet_stable_like_cpp = state.stable;
-            self.fixtures
-                .pets
-                .represented_character_pet_rows_empty_authority_complete_like_cpp =
-                state.character_rows_empty_authority_complete;
-            self.fixtures
-                .pets
-                .represented_temporary_unsummoned_pet_number_like_cpp =
-                state.temporary_unsummoned_pet_number;
-            self.fixtures.pets.represented_old_pet_spell_like_cpp = state.old_pet_spell;
-            self.fixtures.pets.temporary_mount_pet_react_state_like_cpp =
-                state.temporary_mount_react_state;
-            true
-        }
-        #[cfg(not(test))]
-        {
-            let _ = update;
-            false
-        }
+        crate::session::hub_mut(self).update_player_pet_lifecycle_state_like_cpp(update)
     }
     pub(in crate::session) fn invalidate_represented_character_pet_empty_authority_like_cpp(
         &mut self,
     ) {
-        let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
-            state.character_rows_empty_authority_complete = false;
-        });
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        crate::session::hub_mut(self)
+            .invalidate_represented_character_pet_empty_authority_like_cpp()
     }
     #[allow(dead_code)]
     pub(crate) fn set_represented_pet_mode_state_like_cpp(
@@ -286,56 +206,8 @@ impl WorldSession {
             .clear();
         true
     }
-    /// C++ `Player::RemovePet(nullptr, PET_SAVE_NOT_IN_SLOT, true)`.
-    ///
-    /// Represented boundary: clears the active represented pet link, resets
-    /// `PetStable::CurrentPetIndex`, and removes the live typed pet from the
-    /// canonical map if present. Reagent return and exact `Pet::SavePetToDB`
-    /// remain owned by the future full pet/inventory persistence runtime.
     pub(crate) fn remove_represented_pet_not_in_slot_like_cpp(&mut self) {
-        self.invalidate_represented_character_pet_empty_authority_like_cpp();
-        let pet_guid = self.player_pet_guid_state_like_cpp().flatten();
-        if let Some(pet_guid) = pet_guid
-            && let Some(manager) = self.core.canonical_map_manager.as_ref().map(Arc::clone)
-            && let Ok(mut manager) = manager.lock()
-        {
-            let mut removed = false;
-            manager.do_for_all_maps_mut(|managed| {
-                if removed {
-                    return;
-                }
-                match managed.map_mut().remove_from_map_like_cpp(pet_guid, false) {
-                    Ok(_) => removed = true,
-                    Err(wow_map::RemoveFromMapError::ObjectNotFound { .. }) => {}
-                    Err(_) => {}
-                }
-            });
-        }
-
-        if self.player_pet_guid_state_like_cpp().flatten().is_some() {
-            let _ = self.set_player_pet_guid_like_cpp(None);
-            #[cfg(test)]
-            {
-                self.fixtures.pets.represented_pet_created_by_spell_like_cpp = 0;
-                self.fixtures.pets.represented_pet_react_state_like_cpp =
-                    wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
-                self.fixtures.pets.represented_pet_command_state_like_cpp =
-                    wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
-            }
-            let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
-                state.temporary_mount_react_state = None;
-            });
-            #[cfg(test)]
-            {
-                self.fixtures
-                    .pets
-                    .represented_pet_movement_speed_rates_like_cpp =
-                    [1.0; UnitMoveTypeLikeCpp::COUNT];
-            }
-        }
-        let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
-            state.stable.current_pet_index = None;
-        });
+        crate::session::hub_mut(self).remove_represented_pet_not_in_slot_like_cpp()
     }
     #[cfg(test)]
     pub(crate) fn represented_pet_guid_like_cpp(&self) -> Option<ObjectGuid> {
@@ -469,13 +341,63 @@ impl WorldSession {
                 victim_guid: creature_guid,
             });
     }
+    #[cfg(test)]
+    pub(crate) fn represented_pet_movement_speed_rate_like_cpp(
+        &self,
+        move_type: UnitMoveTypeLikeCpp,
+    ) -> f32 {
+        let canonical = self
+            .player_pet_guid_state_like_cpp()
+            .flatten()
+            .and_then(|pet_guid| {
+                self.with_canonical_pet_like_cpp(pet_guid, |pet| {
+                    pet.creature()
+                        .unit()
+                        .speed_rate_at_like_cpp(move_type.index())
+                })
+                .flatten()
+            });
+        canonical.unwrap_or(
+            self.fixtures
+                .pets
+                .represented_pet_movement_speed_rates_like_cpp[move_type.index()],
+        )
+    }
+    #[cfg(test)]
+    pub(crate) fn represented_pet_speed_propagations_like_cpp(&self) -> u32 {
+        self.fixtures
+            .pets
+            .represented_pet_speed_propagations_like_cpp
+    }
+}
+
+impl crate::session::state::SessionCore {
+    pub(in crate::session) fn with_canonical_pet_mut_like_cpp<R>(
+        &self,
+        pet_guid: ObjectGuid,
+        mutate: impl FnOnce(&mut Pet) -> R,
+    ) -> Option<R> {
+        let mut manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
+        let mut mutate = Some(mutate);
+        let mut result = None;
+        manager.do_for_all_maps_mut(|managed| {
+            if result.is_some() {
+                return;
+            }
+            if let Some(pet) = managed.map_mut().get_typed_pet_mut(pet_guid) {
+                result = Some(mutate.take().expect("pet mutation consumed once")(pet));
+            }
+        });
+        result
+    }
+
     fn represented_pet_position_like_cpp(&self, pet_guid: ObjectGuid) -> Option<Position> {
         let map_id = u32::from(self.player_map_id_like_cpp());
         let instance_id = self
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
-        let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
+        let manager = self.canonical_map_manager.as_ref()?.lock().ok()?;
         let managed = manager.find_map(map_id, instance_id)?;
         managed.map().with_world_object_by_kinds_like_cpp(
             pet_guid,
@@ -483,79 +405,149 @@ impl WorldSession {
             |object| object.position(),
         )
     }
-    fn send_represented_pet_spline_speed_like_cpp(
-        &self,
-        pet_guid: ObjectGuid,
-        move_type: UnitMoveTypeLikeCpp,
-        rate: f32,
-    ) {
-        let Some(opcode) =
-            crate::session::creature_movement_spline_speed_opcode_like_cpp(move_type)
-        else {
-            return;
-        };
-        let packet_bytes = wow_packet::packets::movement::MoveSplineSetSpeed {
-            opcode,
-            mover_guid: pet_guid,
-            speed: PLAYER_BASE_MOVE_SPEED_LIKE_CPP[move_type.index()] * rate,
-        }
-        .to_bytes();
-        let map_id = self.player_map_id_like_cpp();
-        let instance_id = self
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
+}
 
-        if self.core.client_visible_guids_like_cpp.contains(&pet_guid)
-            && self.send_tx().send(packet_bytes.clone()).is_err()
+impl crate::session::HubMut<'_> {
+    pub(in crate::session) fn set_player_pet_guid_like_cpp(
+        &mut self,
+        pet_guid: Option<ObjectGuid>,
+    ) -> bool {
+        let canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_pet_guid_like_cpp(pet_guid);
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.pets.represented_pet_guid_like_cpp = pet_guid;
+            return true;
+        }
+        canonical
+    }
+
+    pub(in crate::session) fn update_player_pet_lifecycle_state_like_cpp(
+        &mut self,
+        update: impl FnOnce(&mut PlayerPetLifecycleStateLikeCpp),
+    ) -> bool {
+        if self.core.player_handle_like_cpp.is_some() {
+            return self
+                .core
+                .with_owned_player_mut_like_cpp(|player| {
+                    update(player.pet_lifecycle_state_mut_like_cpp())
+                })
+                .is_some();
+        }
+        #[cfg(test)]
         {
-            warn!("Send channel closed for account {}", self.core.account_id);
+            let mut state = self
+                .shared()
+                .player_pet_lifecycle_state_snapshot_like_cpp()
+                .unwrap_or_default();
+            update(&mut state);
+            self.fixtures.pets.represented_pet_stable_like_cpp = state.stable;
+            self.fixtures
+                .pets
+                .represented_character_pet_rows_empty_authority_complete_like_cpp =
+                state.character_rows_empty_authority_complete;
+            self.fixtures
+                .pets
+                .represented_temporary_unsummoned_pet_number_like_cpp =
+                state.temporary_unsummoned_pet_number;
+            self.fixtures.pets.represented_old_pet_spell_like_cpp = state.old_pet_spell;
+            self.fixtures.pets.temporary_mount_pet_react_state_like_cpp =
+                state.temporary_mount_react_state;
+            true
         }
-
-        let (Some(player_guid), Some(registry)) = (self.player_guid(), self.player_registry())
-        else {
-            return;
-        };
-        let Some(source_position) = self
-            .represented_pet_position_like_cpp(pet_guid)
-            .or_else(|| self.player_position_like_cpp())
-        else {
-            return;
-        };
-        for registration in registry.movement_recipients_within_range(
-            player_guid,
-            map_id,
-            instance_id,
-            source_position,
-            crate::map_manager::VISIBILITY_RADIUS,
-        ) {
-            let _ = registry.try_send_current_command(
-                registration,
-                SessionCommand::SendIfVisibleLikeCpp(SendIfVisibleLikeCppCommand {
-                    queued_at: Instant::now(),
-                    source_guid: pet_guid,
-                    map_id,
-                    instance_id,
-                    packet_bytes: packet_bytes.clone(),
-                }),
-            );
+        #[cfg(not(test))]
+        {
+            let _ = update;
+            false
         }
     }
+
+    pub(in crate::session) fn invalidate_represented_character_pet_empty_authority_like_cpp(
+        &mut self,
+    ) {
+        let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
+            state.character_rows_empty_authority_complete = false;
+        });
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+    }
+
+    /// C++ `Player::RemovePet(nullptr, PET_SAVE_NOT_IN_SLOT, true)`.
+    ///
+    /// Represented boundary: clears the active represented pet link, resets
+    /// `PetStable::CurrentPetIndex`, and removes the live typed pet from the
+    /// canonical map if present. Reagent return and exact `Pet::SavePetToDB`
+    /// remain owned by the future full pet/inventory persistence runtime.
+    pub(crate) fn remove_represented_pet_not_in_slot_like_cpp(&mut self) {
+        self.invalidate_represented_character_pet_empty_authority_like_cpp();
+        let pet_guid = self.shared().player_pet_guid_state_like_cpp().flatten();
+        if let Some(pet_guid) = pet_guid
+            && let Some(manager) = self.core.canonical_map_manager.as_ref().map(Arc::clone)
+            && let Ok(mut manager) = manager.lock()
+        {
+            let mut removed = false;
+            manager.do_for_all_maps_mut(|managed| {
+                if removed {
+                    return;
+                }
+                match managed.map_mut().remove_from_map_like_cpp(pet_guid, false) {
+                    Ok(_) => removed = true,
+                    Err(wow_map::RemoveFromMapError::ObjectNotFound { .. }) => {}
+                    Err(_) => {}
+                }
+            });
+        }
+
+        if self
+            .shared()
+            .player_pet_guid_state_like_cpp()
+            .flatten()
+            .is_some()
+        {
+            let _ = self.set_player_pet_guid_like_cpp(None);
+            #[cfg(test)]
+            {
+                self.fixtures.pets.represented_pet_created_by_spell_like_cpp = 0;
+                self.fixtures.pets.represented_pet_react_state_like_cpp =
+                    wow_packet::packets::pet::REACT_DEFENSIVE_LIKE_CPP;
+                self.fixtures.pets.represented_pet_command_state_like_cpp =
+                    wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
+            }
+            let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
+                state.temporary_mount_react_state = None;
+            });
+            #[cfg(test)]
+            {
+                self.fixtures
+                    .pets
+                    .represented_pet_movement_speed_rates_like_cpp =
+                    [1.0; UnitMoveTypeLikeCpp::COUNT];
+            }
+        }
+        let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
+            state.stable.current_pet_index = None;
+        });
+    }
+
     pub(in crate::session) fn propagate_represented_player_speed_to_pet_like_cpp(
         &mut self,
         move_type: UnitMoveTypeLikeCpp,
         rate: f32,
     ) {
-        let Some(pet_guid) = self.player_pet_guid_state_like_cpp().flatten() else {
+        let Some(pet_guid) = self.shared().player_pet_guid_state_like_cpp().flatten() else {
             return;
         };
-        if self.resolved_in_combat_like_cpp() != Some(false) {
+        if self.shared().resolved_in_combat_like_cpp() != Some(false) {
             return;
         }
 
         let rate = rate.max(0.01);
         let index = move_type.index();
-        let canonical_changed = self.with_canonical_pet_mut_like_cpp(pet_guid, |pet| {
+        let canonical_changed = self.core.with_canonical_pet_mut_like_cpp(pet_guid, |pet| {
             let unit = pet.creature_mut().unit_mut();
             if unit.speed_rate_at_like_cpp(index) == Some(rate) {
                 return false;
@@ -603,34 +595,110 @@ impl WorldSession {
                 .represented_pet_speed_propagations_like_cpp
                 .saturating_add(1);
         }
-        self.send_represented_pet_spline_speed_like_cpp(pet_guid, move_type, rate);
+        self.shared()
+            .send_represented_pet_spline_speed_like_cpp(pet_guid, move_type, rate);
     }
-    #[cfg(test)]
-    pub(crate) fn represented_pet_movement_speed_rate_like_cpp(
-        &self,
-        move_type: UnitMoveTypeLikeCpp,
-    ) -> f32 {
+}
+
+impl crate::session::HubRef<'_> {
+    pub(in crate::session) fn player_pet_guid_state_like_cpp(&self) -> Option<Option<ObjectGuid>> {
         let canonical = self
-            .player_pet_guid_state_like_cpp()
-            .flatten()
-            .and_then(|pet_guid| {
-                self.with_canonical_pet_like_cpp(pet_guid, |pet| {
-                    pet.creature()
-                        .unit()
-                        .speed_rate_at_like_cpp(move_type.index())
-                })
-                .flatten()
-            });
-        canonical.unwrap_or(
-            self.fixtures
-                .pets
-                .represented_pet_movement_speed_rates_like_cpp[move_type.index()],
-        )
+            .core
+            .with_owned_player_like_cpp(|player| player.gameplay_state().pet_guid);
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.fixtures.pets.represented_pet_guid_like_cpp);
+        }
+        canonical
     }
-    #[cfg(test)]
-    pub(crate) fn represented_pet_speed_propagations_like_cpp(&self) -> u32 {
-        self.fixtures
-            .pets
-            .represented_pet_speed_propagations_like_cpp
+
+    pub(in crate::session) fn player_pet_lifecycle_state_snapshot_like_cpp(
+        &self,
+    ) -> Option<PlayerPetLifecycleStateLikeCpp> {
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.pet_lifecycle_state_like_cpp().clone());
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(PlayerPetLifecycleStateLikeCpp {
+                stable: self.fixtures.pets.represented_pet_stable_like_cpp.clone(),
+                character_rows_empty_authority_complete: self
+                    .fixtures
+                    .pets
+                    .represented_character_pet_rows_empty_authority_complete_like_cpp,
+                temporary_unsummoned_pet_number: self
+                    .fixtures
+                    .pets
+                    .represented_temporary_unsummoned_pet_number_like_cpp,
+                old_pet_spell: self.fixtures.pets.represented_old_pet_spell_like_cpp,
+                temporary_mount_react_state: self
+                    .fixtures
+                    .pets
+                    .temporary_mount_pet_react_state_like_cpp,
+            });
+        }
+        canonical
+    }
+
+    fn send_represented_pet_spline_speed_like_cpp(
+        &self,
+        pet_guid: ObjectGuid,
+        move_type: UnitMoveTypeLikeCpp,
+        rate: f32,
+    ) {
+        let Some(opcode) =
+            crate::session::creature_movement_spline_speed_opcode_like_cpp(move_type)
+        else {
+            return;
+        };
+        let packet_bytes = wow_packet::packets::movement::MoveSplineSetSpeed {
+            opcode,
+            mover_guid: pet_guid,
+            speed: PLAYER_BASE_MOVE_SPEED_LIKE_CPP[move_type.index()] * rate,
+        }
+        .to_bytes();
+        let map_id = self.core.player_map_id_like_cpp();
+        let instance_id = self
+            .core
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+
+        if self.core.client_visible_guids_like_cpp.contains(&pet_guid)
+            && self.core.send_tx().send(packet_bytes.clone()).is_err()
+        {
+            warn!("Send channel closed for account {}", self.core.account_id);
+        }
+
+        let (Some(player_guid), Some(registry)) =
+            (self.core.player_guid(), self.core.player_registry())
+        else {
+            return;
+        };
+        let Some(source_position) = self
+            .core
+            .represented_pet_position_like_cpp(pet_guid)
+            .or_else(|| self.player_position_like_cpp())
+        else {
+            return;
+        };
+        for registration in registry.movement_recipients_within_range(
+            player_guid,
+            map_id,
+            instance_id,
+            source_position,
+            crate::map_manager::VISIBILITY_RADIUS,
+        ) {
+            let _ = registry.try_send_current_command(
+                registration,
+                SessionCommand::SendIfVisibleLikeCpp(SendIfVisibleLikeCppCommand {
+                    queued_at: Instant::now(),
+                    source_guid: pet_guid,
+                    map_id,
+                    instance_id,
+                    packet_bytes: packet_bytes.clone(),
+                }),
+            );
+        }
     }
 }

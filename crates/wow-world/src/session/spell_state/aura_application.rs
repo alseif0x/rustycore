@@ -30,10 +30,7 @@ impl WorldSession {
         group_id: u32,
     ) -> Option<&BTreeSet<i32>> {
         self.catalogs
-            .spell_catalogs
-            .spell_group_stack_rule_store
-            .as_ref()
-            .and_then(|store| store.same_effect_stack_rule_aura_types_like_cpp(group_id))
+            .same_effect_stack_rule_aura_types_like_cpp(group_id)
     }
     pub(in crate::session) fn remove_indoor_outdoor_auras_for_current_position_represented_like_cpp(
         &mut self,
@@ -953,5 +950,17 @@ impl WorldSession {
             let _ = self.remove_aura(slot);
         }
         Some(removed)
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    pub(crate) fn same_effect_stack_rule_aura_types_like_cpp(
+        &self,
+        group_id: u32,
+    ) -> Option<&BTreeSet<i32>> {
+        self.spell_catalogs
+            .spell_group_stack_rule_store
+            .as_ref()
+            .and_then(|store| store.same_effect_stack_rule_aura_types_like_cpp(group_id))
     }
 }

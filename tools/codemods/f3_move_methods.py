@@ -26,6 +26,7 @@ STATE_TYPE = {"core": "SessionCore", "catalogs": "SessionCatalogs", "config": "S
               "interaction": "InteractionState", "quest_state": "SessionQuestState", "view": "SessionWorldView",
               "phase": "SessionPhaseRail"}
 HUB_TYPES = {"HubRef", "HubMut"}
+PERMANENT_THUNKS = {"player_guid"}                           # hot hub accessors: an inline thunk forever
 SHELL = "shell"
 # File-domain -> default group (F3-E design.md, section 1). Domains not listed are handler shells.
 DOMAIN_MAP = {g: d.split() for g, d in {
@@ -62,6 +63,8 @@ DOMAIN = {d: g for g, ds in DOMAIN_MAP.items() for d in ds}
 
 SELF_FIELD = re.compile(r"\bself\s*\.\s*(" + IDENT + r")\b(?!\s*(?:\(|::\s*<))")
 SELF_CALL = re.compile(r"\bself\s*\.\s*(" + IDENT + r")(\s*(?:::\s*<[^;{}()]*>\s*)?)\(")
+STORE_WRITE = re.compile(r"&\s*mut\s+self\s*\.\s*(?:catalogs|config)\b|\bself\s*\.\s*(?:catalogs|config)"
+                         r"(?:\s*\.\s*" + IDENT + r")*\s*(?:\[[^\]]*\]\s*)?[-+*/|&^]?=(?!=)")
 TYPE_PATH = re.compile(r"\b(?:Self|WorldSession)\s*::\s*(" + IDENT + r")")
 BARE_SELF = re.compile(r"\bself\b(?!\s*(?:\.|::))")
 ANY_CALL = re.compile(r"(?:\.|::)\s*(" + IDENT + r")\s*(?:::\s*<[^;{}()]*>\s*)?\(")
@@ -70,7 +73,7 @@ IMPL_ANY = re.compile(r"(?m)^[ \t]*impl\s*(?:<[^{};]*?>)?\s*(?:" + IDENT + r"\s*
                       r")\b\s*(?:<[^{};]*>)?\s*\{")
 
 
-PRECONDITIONS = ("unsupported parameter", "unexpected receiver", "whole-self", "`Self::`", "macro-generated", "returns a borrow",
+PRECONDITIONS = ("writes catalogs/config", "unsupported parameter", "unexpected receiver", "whole-self", "`Self::`", "macro-generated", "returns a borrow",
                  "reads config")
 
 
@@ -102,7 +105,7 @@ def strip_cfg_test(body):
                 depth -= 1
                 if depth < 0:
                     break
-                if depth == 0 and ch == "}" and body[k] == "{":
+                if depth == 0 and ch == "}":                    # a block, item or impl ends here
                     e += 1
                     break
             elif ch in ";," and depth == 0:
@@ -117,10 +120,14 @@ def strip_cfg_test(body):
 
 def item_segments(W, code, open_i, close):
     """(segment_start, fn_name_match_start, body_open, body_close) for fns directly in an impl body."""
-    out, depth, seg, j = [], 0, open_i + 1, open_i + 1
+    out, depth, nest, seg, j = [], 0, 0, open_i + 1, open_i + 1
     while j < close:
         ch = code[j]
-        if ch == "{" and depth == 0:
+        if ch in "([" and depth == 0:                         # `-> [u8; 3]`: a `;` inside brackets
+            nest += 1
+        elif ch in ")]" and depth == 0:
+            nest -= 1
+        elif ch == "{" and depth == 0:
             m = W.FN_ITEM.search(code, seg, j)
             if m:
                 bclose = W.matching_close(code, j)
@@ -134,7 +141,7 @@ def item_segments(W, code, open_i, close):
             depth -= 1
             if depth == 0:
                 seg = j + 1
-        elif ch == ";" and depth == 0:
+        elif ch == ";" and depth == 0 and nest == 0:
             seg = j + 1
         j += 1
     return out
@@ -221,7 +228,7 @@ def scan(root):
                                 cfg_test=cfg_test, acc=dict(acc), pacc=dict(pacc),
                                 calls=sorted({x for x, _ in SELF_CALL.findall(body)}),
                                 whole_self=len(BARE_SELF.findall(body)), type_path=bool(TYPE_PATH.search(body)),
-                                macro="$" in sig + body, sig_end=bo,
+                                macro="$" in sig + body, sig_end=bo, writes_store=bool(STORE_WRITE.search(body)),
                                 ret_borrow=bool(re.search(r"(&|'[a-z_])", ret_type(c, m.end(), bo))),
                                 domain=W.domain_of(rel)))
     names = {f["name"] for f in fns}
@@ -334,12 +341,21 @@ def kind_of(f, classes):
         return "`Self::`/`WorldSession::` path in body"
     if f["macro"]:
         return "macro-generated fn"
-    if kind in ("hubref", "hubmut") and f["ret_borrow"]:
-        return "returns a borrow (would borrow a temporary hub view)"
-    if kind in ("hubref", "hubmut", "state-hub") and "config" in fields and not f["file"].startswith("session/"):
-        return "reads config outside crate::session"
+    if hub_check(f, kind):
+        return hub_check(f, kind)
     tname = {"hubref": "HubRef", "hubmut": "HubMut"}.get(kind, STATE_TYPE[g])
     return cls, kind, tname
+
+
+def hub_check(f, kind):
+    """Precondition failures specific to the hub kinds (also applied when a P fn is upgraded)."""
+    if kind in ("hubref", "hubmut") and f["ret_borrow"]:
+        return "returns a borrow (would borrow a temporary hub view)"
+    if kind in ("hubref", "hubmut", "state-hub") and f.get("writes_store"):
+        return "writes catalogs/config (shared in every hub view)"
+    if kind in ("hubref", "hubmut", "state-hub") and "config" in f["acc"] and not f["file"].startswith("session/"):
+        return "reads config outside crate::session"
+    return None
 
 
 def upgrade(f, kind, classes):
@@ -349,10 +365,10 @@ def upgrade(f, kind, classes):
     if kind != "state" or "C-hub" not in classes or f["target"] in ("catalogs", "config"):
         return None
     if f["target"] != "core":
-        return "C-hub", "state-hub", STATE_TYPE[f["target"]]
-    if f["ret_borrow"]:
-        return "returns a borrow (would borrow a temporary hub view)"
-    return ("C-hub", "hubref", "HubRef") if f["recv"] == "&self" else ("C-hub", "hubmut", "HubMut")
+        up = "C-hub", "state-hub", STATE_TYPE[f["target"]]
+    else:
+        up = ("C-hub", "hubref", "HubRef") if f["recv"] == "&self" else ("C-hub", "hubmut", "HubMut")
+    return hub_check(f, up[1]) or up
 
 
 def owner_kind(tname):
@@ -401,31 +417,72 @@ def plan(root, groups_wanted, classes):
         kind, tname = cand[n][1], cand[n][2]
         for x in by[n]["calls"]:
             ct = cand[x][2] if x in cand else loc.get(x)
-            if ct is not None and x != n and \
-                    call_prefix(kind, tname, ct, cand[x][1] if x in cand else owner_kind(ct)) is None:
-                return True
+            if ct is None or x == n:
+                continue
+            pref = call_prefix(kind, tname, ct, cand[x][1] if x in cand else owner_kind(ct))
+            if pref is None or ("config." in str(pref) and not by[n]["file"].startswith("session/")):
+                return True                                   # `HubRef::config` is crate::session-only
         return False
-    for final in (False, True):                               # monotone upgrades first, then blocking
-        changed = True
-        while changed:
-            changed = False
-            for n in list(cand):
-                if not unreachable(n) and not (final and any(x not in cand and x not in loc for x in by[n]["calls"])):
-                    continue
-                up = upgrade(by[n], cand[n][1], classes) if unreachable(n) else None
-                if isinstance(up, tuple):
-                    cand[n], changed = up, True
-                elif final:
+    def settle():
+        for final in (False, True):                           # monotone upgrades first, then blocking
+            changed = True
+            while changed:
+                changed = False
+                for n in list(cand):
                     missing = [x for x in by[n]["calls"] if x not in cand and x not in loc]
-                    blocked[n] = f"callee {missing[0]} not moved" if missing else "callee on an unreachable owner"
-                    del cand[n]
-                    changed = True
-    for n in list(cand):
-        try:
-            signature(by[n], code, raw, cand[n][1] == "state-hub")
-        except CodemodError as e:
-            blocked[n] = "unsupported parameter pattern: " + str(e).rsplit(": ", 1)[-1]
+                    if not unreachable(n) and not (final and missing):
+                        continue
+                    up = upgrade(by[n], cand[n][1], classes) if unreachable(n) else None
+                    if isinstance(up, tuple):
+                        cand[n], changed = up, True
+                    elif final:
+                        blocked[n] = up or (f"callee {missing[0]} not moved" if missing
+                                            else "callee on an unreachable owner")
+                        del cand[n]
+                        changed = True
+    test_spans = collections.defaultdict(list)                # cfg(test) code: its callers get shims
+    for f in fns:
+        if f["cfg_test"]:
+            test_spans[f["file"]].append((f["seg"], f["body_close"]))
+    masks = {rel: strip_cfg_test(c) for rel, c in code.items() if "cfg" in c}
+
+    def in_test(rel, pos):
+        mask = masks.get(rel)
+        return bool(mask and mask[pos] == " " and code[rel][pos] != " ") or \
+            any(a <= pos <= b for a, b in test_spans.get(rel, []))
+
+    dead_prod = prod_dead_names(W, code, fns, in_test)
+    group_of = {f["name"]: (f["file"], f["impl_start"]) for f in fns}
+
+    def lint_groups():
+        """Dead-in-production fns move as whole lint groups; returns the names it demoted."""
+        drop = set()
+        for n in cand:
+            if n in dead_prod and by[n]["vis"] != "pub":
+                peers = {f["name"] for f in fns if group_of[f["name"]] == group_of[n] and f["name"] in dead_prod
+                         and f["vis"] != "pub"}
+                if any(x not in cand or cand[x][2] != cand[n][2] for x in peers):
+                    drop |= {x for x in peers if x in cand}
+        for n in list(drop):                                  # a staying dead caller keeps its dead callees
+            drop |= {x for x in by[n]["calls"] if x in cand and x in dead_prod and by[x]["vis"] != "pub"}
+        for n in drop:
+            blocked[n] = "dead in non-test builds; moving would split its dead-code lint group"
+            cand.pop(n, None)
+        return drop
+
+    while True:                                               # a signature failure re-blocks its callers
+        settle()
+        bad = []
+        for n in cand:
+            try:
+                signature(by[n], code, raw, cand[n][1] == "state-hub")
+            except CodemodError as e:
+                bad.append((n, "unsupported parameter pattern: " + str(e).rsplit(": ", 1)[-1]))
+        for n, why in bad:
+            blocked[n] = why
             del cand[n]
+        if not bad and not lint_groups():
+            break
     # thunk rule: count callers outside moved code; moving uncalled code would only regroup lints
     fixed = []
     for rel, c in code.items():                              # bodies already on target impls are moved code
@@ -437,14 +494,14 @@ def plan(root, groups_wanted, classes):
         moved_spans = collections.defaultdict(list)
         for rel, a, b in fixed + [(by[n]["file"], by[n]["seg"], by[n]["body_close"]) for n in cand]:
             moved_spans[rel].append((a, b))
-        resident = collections.Counter()
+        resident, tcallers = collections.Counter(), collections.Counter()
         for rel, c in code.items():
             spans = moved_spans.get(rel, [])
             for m in ANY_CALL.finditer(c):
                 if m.group(1) in cand and not any(a <= m.start() <= b for a, b in spans):
-                    resident[m.group(1)] += 1
+                    (tcallers if in_test(rel, m.start()) else resident)[m.group(1)] += 1
         callers = collections.Counter(x for n in cand for x in by[n]["calls"] if x != n)
-        dead = [n for n in cand if not (resident[n] or callers[n] or tests[n] or EXT[n])]
+        dead = [n for n in cand if not (resident[n] or callers[n] or tests[n] or tcallers[n] or EXT[n])]
         if not dead:
             break
         for n in dead:
@@ -454,24 +511,60 @@ def plan(root, groups_wanted, classes):
     rows = []
     for n, (cls, kind, tname) in sorted(cand.items(), key=lambda kv: (by[kv[0]]["file"], by[kv[0]]["line"])):
         f = by[n]
-        keep = "H/ext" if EXT[n] else (f"{resident[n]} resident caller(s)" if resident[n] else
+        keep = "permanent inline thunk" if n in PERMANENT_THUNKS else "H/ext" if EXT[n] else (f"{resident[n]} resident caller(s)" if resident[n] else
                                         "pub API, no production caller" if f["vis"] == "pub" and not f["cfg_test"]
                                         and not moved_callers[n] else "")
-        shim = tests[n] if not keep and tests[n] else 0
+        shim = 0 if keep else tests[n] + tcallers[n]
         rows.append(dict(name=n, file=f["file"], line=f["line"], cls=cls, kind=kind, type=tname,
                          thunk=keep, shim=shim, recv=f["recv"], is_async=f["is_async"]))
-    stale = [t for t in thunks if t not in HANDLERS and not resident_thunk(t, code, moved_spans, EXT)
+    stale = [t for t in thunks if t not in HANDLERS | PERMANENT_THUNKS
+             and not resident_thunk(t, code, moved_spans, EXT, in_test)
              and not (all_by[t]["vis"] == "pub" and not all_by[t]["cfg_test"])]
     return dict(W=W, src=src, raw=raw, code=code, by=by, cand=cand, blocked=blocked, rows=rows, loc=loc,
-                count=count, thunks=thunks, stale=stale, modpaths=module_paths(src, code), tests=tests,
+                count=count, thunks=thunks, stale=stale, test_called={
+                    t for t in stale if any(m.group(1) == t and in_test(rel, m.start())
+                                            for rel, c in code.items() for m in ANY_CALL.finditer(c))}, modpaths=module_paths(src, code), tests=tests,
                 allfns={f["name"]: f for f in fns})
 
 
-def resident_thunk(name, code, spans, ext):
+def prod_dead_names(W, code, fns, in_test):
+    """WorldSession fn names no live production code reaches (rustc's dead-code view, lexically)."""
+    spans = collections.defaultdict(list)
+    for f in fns:
+        spans[f["file"]].append((f["seg"], f["body_close"], f["name"]))
+    for rel, c in code.items():                              # moved fns carry their thunk's name
+        for h in IMPL_ANY.finditer(c):
+            if h.group(1) in STATE_TYPE.values() or h.group(1) in HUB_TYPES:
+                for seg, m, _bo, bc in item_segments(W, c, h.end() - 1, W.matching_close(c, h.end() - 1)):
+                    spans[rel].append((seg, bc, m.group(1)))
+    names = {f["name"] for f in fns}
+    live = {f["name"] for f in fns if f["name"] in HANDLERS or EXT[f["name"]] or f["name"] in PERMANENT_THUNKS
+            or (f["vis"] == "pub" and not f["cfg_test"])}
+    edges = collections.defaultdict(set)
+    for rel, c in code.items():
+        for m in ANY_CALL.finditer(c):
+            x = m.group(1)
+            if x not in names or in_test(rel, m.start()):
+                continue
+            owner = next((n for a, b, n in spans.get(rel, []) if a <= m.start() <= b), None)
+            if owner is None:
+                live.add(x)
+            elif owner != x:
+                edges[owner].add(x)
+    work = list(live)
+    while work:
+        for x in edges.get(work.pop(), ()):
+            if x not in live:
+                live.add(x)
+                work.append(x)
+    return {f["name"] for f in fns if not f["cfg_test"] and f["name"] not in live}
+
+
+def resident_thunk(name, code, spans, ext, in_test):
     if ext[name]:
         return True
     return any(m.group(1) == name and not any(a <= m.start() <= b for a, b in spans.get(rel, []))
-               for rel, c in code.items() for m in ANY_CALL.finditer(c))
+               and not in_test(rel, m.start()) for rel, c in code.items() for m in ANY_CALL.finditer(c))
 
 
 def split_params(text):
@@ -566,6 +659,8 @@ def thunk_text(P, f, kind, tname, indent="    ", vis=None):
     attrs, sig, names, _ = signature(f, P["code"], P["raw"])
     if vis is not None:
         sig = vis + " " + re.sub(r"^pub\s*(?:\([^)]*\))?\s*", "", sig)
+    for name in names:                                       # the thunk only forwards: no `mut` binding
+        sig = re.sub(r"\bmut\s+(" + name + r"\s*:)", r"\1", sig)
     args, g, n = ", ".join(names), f["target"], f["name"]
     aw = ".await" if f["is_async"] else ""
     lines = {"state": [f"self.{g}.{n}({args}){aw}"],
@@ -574,6 +669,8 @@ def thunk_text(P, f, kind, tname, indent="    ", vis=None):
              "state-hub": [f"let (state, hub) = crate::session::split_{g}(self);",
                            f"state.{n}(hub{', ' if args else ''}{args}){aw}"]}[kind]
     head = "".join(indent + a.strip() + "\n" for a in attrs.splitlines() if a.strip())
+    if n in PERMANENT_THUNKS and vis is None:
+        head += indent + "#[inline]\n"
     return head + indent + sig + " {\n" + "".join(indent + "    " + x + "\n" for x in lines) + indent + "}"
 
 
@@ -700,7 +797,7 @@ def apply_text(root, P):
                 edits.append((a, b + (raw[b:b + 1] == "\n"), ""))
                 P["manifest"]["unthunked"].append(r["name"])
                 P["manifest"]["thunk_text"][r["name"]] = (rel, raw[a:b], f["impl_attr"])
-                if P["tests"][r["name"]]:
+                if P["tests"][r["name"]] or r["name"] in P["test_called"]:
                     shims[rel].append((f, None, raw[a:b]))
                 continue
             f = by[r["name"]]
@@ -772,26 +869,20 @@ def cargo_check(root, log):
 
 
 NO_METHOD = re.compile(r"no method named `(" + IDENT + r")` found for (?:mutable )?(?:reference|struct) `[^`]*WorldSession")
-NO_FIELD = re.compile(r"(?:no field `(" + IDENT + r")`|attempted to take value of method `(" + IDENT + r")`) on type `[^`]*"
-                      r"(SessionCore|SessionCatalogs|SessionWorldConfig|HubRef|HubMut)")
 
 
 def compile_loop(root, group, manifest, max_rounds, log_dir):
-    """Patch only what the text step caused: restore a removed thunk (E0599 on WorldSession) and drop a
-    leftover hub segment (E0609/E0615 on a target type). Anything else stops the loop with a report."""
+    """Patch only what the text step caused: restore a thunk it removed (E0599 on WorldSession).
+    Anything else stops the loop with a report; the text step itself rewrites every hub segment."""
     rounds = []
     for i in range(max_rounds):
         rc, msgs = cargo_check(root, log_dir / f"f3-{group}-round-{i + 1}.jsonl")
-        restore, drops, other = set(), [], []
+        restore, other = set(), []
         for m in msgs:
             code = (m.get("code") or {}).get("code")
             mm = NO_METHOD.match(m["message"])
-            fm = NO_FIELD.match(m["message"])
             if code == "E0599" and mm and mm.group(1) in manifest["unthunked"]:
                 restore.add(mm.group(1))
-            elif code in ("E0609", "E0615") and fm and (fm.group(1) or fm.group(2)) in HUB:
-                sp = next(s for s in m["spans"] if s["is_primary"])
-                drops.append((sp["file_name"], sp["byte_start"], fm.group(1) or fm.group(2)))
             elif not m["message"].startswith("aborting"):
                 other.append(f"{code}: {m['message']}")
         for name in restore:                                   # the tool removed this thunk: put it back
@@ -799,23 +890,7 @@ def compile_loop(root, group, manifest, max_rounds, log_dir):
             manifest["restored"].append(name)
         if restore:
             restore_thunks(root, manifest, restore)
-        by_file = collections.defaultdict(list)
-        for fn, start, name in drops:
-            by_file[fn].append((start, name))
-        for fn, items in by_file.items():
-            p = root / fn
-            data = p.read_bytes()
-            for start, name in sorted(items, reverse=True):
-                if data[start:start + len(name)] != name.encode():
-                    raise CodemodError(f"{fn}:{start}: span is not `{name}`")
-                dot = start - 1
-                while dot > 0 and data[dot:dot + 1].isspace():
-                    dot -= 1
-                if data[dot:dot + 1] != b".":
-                    raise CodemodError(f"{fn}:{start}: `{name}` is not a field segment")
-                data = data[:dot] + data[start + len(name):]          # `x.core.y` -> `x.y`, `x.core` -> `x`
-            p.write_bytes(data)
-        rounds.append(len(restore) + len(drops))
+        rounds.append(len(restore))
         print(f"round {i + 1}: exit {rc}, {rounds[-1]} tool-caused spans patched", file=sys.stderr)
         if rounds[-1] == 0:
             if rc != 0:

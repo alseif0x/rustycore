@@ -13,21 +13,7 @@ impl WorldSession {
     }
 
     pub fn set_represented_is_outdoors_like_cpp(&mut self, is_outdoors: bool) {
-        let _ = self.set_player_is_outdoors_like_cpp(is_outdoors);
-    }
-
-    #[cfg(test)]
-    pub fn set_start_all_explored_like_cpp(&mut self, enabled: bool) {
-        self.catalogs
-            .player_bootstrap_catalog_test_fixture_like_cpp
-            .start_all_explored_like_cpp = enabled;
-    }
-
-    #[cfg(test)]
-    pub(crate) fn start_all_explored_like_cpp(&self) -> bool {
-        self.catalogs
-            .player_bootstrap_catalog_test_fixture_like_cpp
-            .start_all_explored_like_cpp
+        crate::session::hub_mut(self).set_represented_is_outdoors_like_cpp(is_outdoors)
     }
 
     #[cfg(test)]
@@ -79,17 +65,12 @@ impl WorldSession {
         self.catalogs.disable_mgr = Some(store);
     }
 
-    /// Get the loaded DisableMgr store reference.
     pub fn disable_mgr(&self) -> Option<&Arc<DisableMgrLikeCpp>> {
-        self.catalogs.disable_mgr.as_ref()
+        self.catalogs.disable_mgr()
     }
 
-    /// C++ `sLockStore.LookupEntry(lockId)`.
     pub fn lock_entry_exists_like_cpp(&self, lock_id: u32) -> bool {
-        self.catalogs
-            .lock_store
-            .as_ref()
-            .is_some_and(|store| store.contains(lock_id))
+        self.catalogs.lock_entry_exists_like_cpp(lock_id)
     }
 
     /// Share the process-wide trusted module registry with this session.
@@ -107,6 +88,38 @@ impl WorldSession {
             .as_ref()
             .map(|store| store.get_like_cpp(entry, &self.core.locale))
             .unwrap_or("<error>")
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    #[cfg(test)]
+    pub fn set_start_all_explored_like_cpp(&mut self, enabled: bool) {
+        self.player_bootstrap_catalog_test_fixture_like_cpp
+            .start_all_explored_like_cpp = enabled;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn start_all_explored_like_cpp(&self) -> bool {
+        self.player_bootstrap_catalog_test_fixture_like_cpp
+            .start_all_explored_like_cpp
+    }
+
+    /// Get the loaded DisableMgr store reference.
+    pub fn disable_mgr(&self) -> Option<&Arc<DisableMgrLikeCpp>> {
+        self.disable_mgr.as_ref()
+    }
+
+    /// C++ `sLockStore.LookupEntry(lockId)`.
+    pub fn lock_entry_exists_like_cpp(&self, lock_id: u32) -> bool {
+        self.lock_store
+            .as_ref()
+            .is_some_and(|store| store.contains(lock_id))
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub fn set_represented_is_outdoors_like_cpp(&mut self, is_outdoors: bool) {
+        let _ = self.set_player_is_outdoors_like_cpp(is_outdoors);
     }
 }
 

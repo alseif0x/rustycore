@@ -301,9 +301,8 @@ impl WorldSession {
         self.catalogs.player_stats = Some(store);
     }
 
-    /// Get the player stats store reference.
     pub fn player_stats(&self) -> Option<&Arc<PlayerStatsStore>> {
-        self.catalogs.player_stats.as_ref()
+        self.catalogs.player_stats()
     }
 
     pub(in crate::session) fn represented_scaling_stat_context_like_cpp(
@@ -386,12 +385,36 @@ impl WorldSession {
         }
     }
 
+    pub(crate) fn resolved_represented_total_stat_multipliers_like_cpp(&self) -> Option<[f32; 5]> {
+        crate::session::hub_ref(self).resolved_represented_total_stat_multipliers_like_cpp()
+    }
+
+    pub(crate) fn resolved_represented_total_stat_buff_multipliers_like_cpp(
+        &self,
+    ) -> Option<[f32; 5]> {
+        crate::session::hub_ref(self).resolved_represented_total_stat_buff_multipliers_like_cpp()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_total_stat_multipliers_like_cpp(&self) -> [f32; 5] {
+        self.resolved_represented_total_stat_multipliers_like_cpp()
+            .expect("test Player aura owner must resolve")
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_total_stat_buff_multipliers_like_cpp(&self) -> [f32; 5] {
+        self.resolved_represented_total_stat_buff_multipliers_like_cpp()
+            .expect("test Player aura owner must resolve")
+    }
+}
+
+impl crate::session::HubRef<'_> {
     pub(in crate::session) fn resolved_represented_total_stat_multiplier_for_stat_like_cpp(
         &self,
         stat: usize,
         uses_misc_value_b: bool,
     ) -> Option<f32> {
-        let spell_store = self.spell_store()?;
+        let spell_store = self.catalogs.spell_store()?;
         let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
         let aura_type = wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE;
         let mut multiplier = 1.0f32;
@@ -422,11 +445,13 @@ impl WorldSession {
                     .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
 
                 let same_effect_group = self
+                    .catalogs
                     .spell_spell_group_map_bounds_like_cpp(aura.spell_id as u32)
                     .iter()
                     .copied()
                     .find(|group_id| {
-                        self.same_effect_stack_rule_aura_types_like_cpp(*group_id)
+                        self.catalogs
+                            .same_effect_stack_rule_aura_types_like_cpp(*group_id)
                             .is_some_and(|aura_types| aura_types.contains(&aura_type))
                     });
                 if let Some(group_id) = same_effect_group {
@@ -469,16 +494,11 @@ impl WorldSession {
         }
         Some(multipliers)
     }
+}
 
-    #[cfg(test)]
-    pub(crate) fn represented_total_stat_multipliers_like_cpp(&self) -> [f32; 5] {
-        self.resolved_represented_total_stat_multipliers_like_cpp()
-            .expect("test Player aura owner must resolve")
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_total_stat_buff_multipliers_like_cpp(&self) -> [f32; 5] {
-        self.resolved_represented_total_stat_buff_multipliers_like_cpp()
-            .expect("test Player aura owner must resolve")
+impl crate::session::state::SessionCatalogs {
+    /// Get the player stats store reference.
+    pub fn player_stats(&self) -> Option<&Arc<PlayerStatsStore>> {
+        self.player_stats.as_ref()
     }
 }

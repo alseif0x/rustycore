@@ -97,48 +97,7 @@ impl WorldSession {
     pub(crate) fn player_rest_state_snapshot_like_cpp(
         &self,
     ) -> Option<wow_entities::PlayerRestState> {
-        let canonical =
-            self.with_owned_player_for_rest_like_cpp(|player| player.rest_state_like_cpp().clone());
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                wow_entities::PlayerRestState::from_represented_parts_like_cpp(
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_rest_state_xp_like_cpp,
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_rest_bonus_xp_like_cpp,
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_rest_flag_mask_like_cpp,
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_rest_location_initialized_like_cpp,
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_defer_rest_flag_sync_like_cpp,
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_deferred_rest_flag_update_dirty_like_cpp,
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_inn_area_trigger_id_like_cpp,
-                    self.fixtures
-                        .progression
-                        .rest_mgr_test_fixture_like_cpp
-                        .represented_rest_time_secs_like_cpp,
-                ),
-            );
-        }
-        canonical
+        crate::session::hub_ref(self).player_rest_state_snapshot_like_cpp()
     }
 
     #[cfg(test)]
@@ -357,20 +316,15 @@ impl WorldSession {
     }
 
     pub(crate) fn resolved_xp_rest_bonus_like_cpp(&self) -> Option<f32> {
-        self.player_rest_state_snapshot_like_cpp()
-            .map(|state| state.rest_bonus_like_cpp())
+        crate::session::hub_ref(self).resolved_xp_rest_bonus_like_cpp()
     }
 
     pub(crate) fn resolved_xp_rest_state_like_cpp(&self) -> Option<u8> {
-        self.player_rest_state_snapshot_like_cpp()
-            .map(|state| state.rest_state_like_cpp())
+        crate::session::hub_ref(self).resolved_xp_rest_state_like_cpp()
     }
 
     pub(crate) fn resolved_xp_rest_threshold_like_cpp(&self) -> Option<u32> {
-        Some(
-            self.resolved_xp_rest_bonus_like_cpp()?
-                .clamp(0.0, u32::MAX as f32) as u32,
-        )
+        crate::session::hub_ref(self).resolved_xp_rest_threshold_like_cpp()
     }
 
     #[cfg(test)]
@@ -392,8 +346,7 @@ impl WorldSession {
     }
 
     pub(crate) fn resolved_is_resting_like_cpp(&self) -> Option<bool> {
-        self.player_rest_state_snapshot_like_cpp()
-            .map(|state| state.is_resting_by_flag_like_cpp())
+        crate::session::hub_ref(self).resolved_is_resting_like_cpp()
     }
 
     #[cfg(test)]
@@ -505,5 +458,77 @@ impl WorldSession {
 
     pub(crate) fn take_deferred_rest_flag_update_dirty_like_cpp(&mut self) -> bool {
         self.take_player_deferred_rest_flag_update_dirty_like_cpp()
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(crate) fn player_rest_state_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerRestState> {
+        let canonical = self
+            .core
+            .with_owned_player_for_rest_like_cpp(|player| player.rest_state_like_cpp().clone());
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(
+                wow_entities::PlayerRestState::from_represented_parts_like_cpp(
+                    self.fixtures
+                        .progression
+                        .rest_mgr_test_fixture_like_cpp
+                        .represented_rest_state_xp_like_cpp,
+                    self.fixtures
+                        .progression
+                        .rest_mgr_test_fixture_like_cpp
+                        .represented_rest_bonus_xp_like_cpp,
+                    self.fixtures
+                        .progression
+                        .rest_mgr_test_fixture_like_cpp
+                        .represented_rest_flag_mask_like_cpp,
+                    self.fixtures
+                        .progression
+                        .rest_mgr_test_fixture_like_cpp
+                        .represented_rest_location_initialized_like_cpp,
+                    self.fixtures
+                        .progression
+                        .rest_mgr_test_fixture_like_cpp
+                        .represented_defer_rest_flag_sync_like_cpp,
+                    self.fixtures
+                        .progression
+                        .rest_mgr_test_fixture_like_cpp
+                        .represented_deferred_rest_flag_update_dirty_like_cpp,
+                    self.fixtures
+                        .progression
+                        .rest_mgr_test_fixture_like_cpp
+                        .represented_inn_area_trigger_id_like_cpp,
+                    self.fixtures
+                        .progression
+                        .rest_mgr_test_fixture_like_cpp
+                        .represented_rest_time_secs_like_cpp,
+                ),
+            );
+        }
+        canonical
+    }
+
+    pub(crate) fn resolved_xp_rest_bonus_like_cpp(&self) -> Option<f32> {
+        self.player_rest_state_snapshot_like_cpp()
+            .map(|state| state.rest_bonus_like_cpp())
+    }
+
+    pub(crate) fn resolved_xp_rest_state_like_cpp(&self) -> Option<u8> {
+        self.player_rest_state_snapshot_like_cpp()
+            .map(|state| state.rest_state_like_cpp())
+    }
+
+    pub(crate) fn resolved_xp_rest_threshold_like_cpp(&self) -> Option<u32> {
+        Some(
+            self.resolved_xp_rest_bonus_like_cpp()?
+                .clamp(0.0, u32::MAX as f32) as u32,
+        )
+    }
+
+    pub(crate) fn resolved_is_resting_like_cpp(&self) -> Option<bool> {
+        self.player_rest_state_snapshot_like_cpp()
+            .map(|state| state.is_resting_by_flag_like_cpp())
     }
 }

@@ -139,18 +139,7 @@ impl WorldSession {
         &self,
         player_guid: ObjectGuid,
     ) -> Option<wow_packet::packets::movement::MovementInfo> {
-        Some(wow_packet::packets::movement::MovementInfo {
-            guid: player_guid,
-            position: self.player_position_like_cpp()?,
-            flags: self.resolved_player_movement_flags_like_cpp()?,
-            flags2: if self.resolved_can_swim_to_fly_transition_like_cpp()? {
-                wow_constants::movement::MovementFlag2::CAN_SWIM_TO_FLY_TRANS
-            } else {
-                wow_constants::movement::MovementFlag2::NONE
-            },
-            time: self.resolved_player_movement_time_like_cpp()?,
-            ..wow_packet::packets::movement::MovementInfo::default()
-        })
+        crate::session::hub_ref(self).current_player_movement_info_like_cpp(player_guid)
     }
 
     pub(crate) fn remove_represented_feign_death_if_needed_like_cpp(&mut self) -> bool {
@@ -238,46 +227,7 @@ impl WorldSession {
         map_id: u16,
         position: wow_core::Position,
     ) {
-        if self.player_map_id_like_cpp() != map_id {
-            self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        }
-        self.core.current_map_id = map_id;
-        self.sync_canonical_player_position_if_same_or_detached_like_cpp(map_id, position);
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none()
-            || self.player_position_like_cpp() == Some(position)
-        {
-            self.fixtures.movement.player_position = Some(position);
-        }
-    }
-
-    fn sync_canonical_player_position_if_same_or_detached_like_cpp(
-        &mut self,
-        map_id: u16,
-        position: Position,
-    ) {
-        let (Some(manager), Some(handle)) = (
-            self.core.canonical_map_manager.as_ref().map(Arc::clone),
-            self.core.player_handle_like_cpp,
-        ) else {
-            return;
-        };
-        let Ok(mut manager) = manager.lock() else {
-            return;
-        };
-        match manager.player_residence_like_cpp(handle) {
-            Some(wow_map::PlayerResidenceLikeCpp::Detached) => {
-                let _ = manager.with_player_mut_like_cpp(handle, |player| {
-                    player.unit_mut().world_mut().relocate(position);
-                });
-            }
-            Some(wow_map::PlayerResidenceLikeCpp::Active(key))
-                if key.map_id == u32::from(map_id) =>
-            {
-                let _ = manager.relocate_player_like_cpp(handle, position);
-            }
-            Some(wow_map::PlayerResidenceLikeCpp::Active(_)) | None => {}
-        }
+        crate::session::hub_mut(self).set_player_map_position_like_cpp(map_id, position)
     }
 
     pub(crate) fn set_player_position_like_cpp(&mut self, position: wow_core::Position) {
@@ -345,39 +295,12 @@ impl WorldSession {
         }
     }
 
-    /// C++ `Unit::m_movementCounter` post-increment: returns the current value and advances
-    /// it. Used as the SequenceIndex of movement-control packets (vehicle-rec, collision,
-    /// near-teleport, speed/flag) and read for `SMSG_RESUME_TOKEN` on far teleport.
     pub(crate) fn next_movement_counter_like_cpp(&mut self) -> Option<u32> {
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            player.unit_mut().next_movement_counter_like_cpp()
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            let sequence_index = self.fixtures.movement.movement_counter_like_cpp;
-            self.fixtures.movement.movement_counter_like_cpp = self
-                .fixtures
-                .movement
-                .movement_counter_like_cpp
-                .wrapping_add(1);
-            return Some(sequence_index);
-        }
-        canonical
+        crate::session::hub_mut(self).next_movement_counter_like_cpp()
     }
 
-    /// C++ `Player::SendInitialPacketsBeforeAddToMap` resets `m_movementCounter` to 0 for a
-    /// non-seamless add (login / far teleport). Player.cpp:23483.
     pub(crate) fn reset_movement_counter_like_cpp(&mut self) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.unit_mut().reset_movement_counter_like_cpp();
-            })
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.movement.movement_counter_like_cpp = 0;
-        }
-        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
+        crate::session::hub_mut(self).reset_movement_counter_like_cpp()
     }
 
     /// Current `Unit::m_movementCounter` value (read without advancing). C++ reads this for
@@ -394,24 +317,13 @@ impl WorldSession {
     }
 
     pub(crate) fn player_position_like_cpp(&self) -> Option<wow_core::Position> {
-        let canonical = self.with_owned_player_like_cpp(|player| player.unit().world().position());
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return self.fixtures.movement.player_position;
-        }
-        canonical
+        crate::session::hub_ref(self).player_position_like_cpp()
     }
 
     pub(in crate::session) fn resolved_player_movement_flags_like_cpp(
         &self,
     ) -> Option<MovementFlag> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.unit().movement_flags_like_cpp());
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.movement.player_movement_flags_like_cpp);
-        }
-        canonical
+        crate::session::hub_ref(self).resolved_player_movement_flags_like_cpp()
     }
 
     #[cfg(test)]
@@ -460,24 +372,7 @@ impl WorldSession {
     }
 
     pub(crate) fn player_moved_unit_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            player.unit().subsystems().control.unit_moved_by_me
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            let guid = if self
-                .fixtures
-                .movement
-                .player_moved_unit_guid_like_cpp
-                .is_empty()
-            {
-                self.player_guid()?
-            } else {
-                self.fixtures.movement.player_moved_unit_guid_like_cpp
-            };
-            return Some(guid);
-        }
-        canonical.flatten()
+        crate::session::hub_ref(self).player_moved_unit_guid_like_cpp()
     }
 
     /// Resolve the active mover's `MoveSpline::Finalized()` admission state.
@@ -673,20 +568,7 @@ impl WorldSession {
     }
 
     pub fn set_player_moved_unit_guid_like_cpp(&mut self, guid: ObjectGuid) {
-        #[cfg_attr(not(test), allow(unused_variables))]
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player
-                    .unit_mut()
-                    .subsystems_mut()
-                    .control
-                    .set_moved_unit((!guid.is_empty()).then_some(guid));
-            })
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.movement.player_moved_unit_guid_like_cpp = guid;
-        }
+        crate::session::hub_mut(self).set_player_moved_unit_guid_like_cpp(guid)
     }
 
     #[cfg(test)]
@@ -843,13 +725,7 @@ impl WorldSession {
     }
 
     pub(crate) fn resolved_player_movement_time_like_cpp(&self) -> Option<u32> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.unit().movement_time_like_cpp());
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.movement.player_movement_time_like_cpp);
-        }
-        canonical
+        crate::session::hub_ref(self).resolved_player_movement_time_like_cpp()
     }
 
     #[cfg(test)]
@@ -1006,5 +882,188 @@ impl WorldSession {
                 )
             })
             .or(Some(player_position))
+    }
+}
+
+impl crate::session::state::SessionCore {
+    fn sync_canonical_player_position_if_same_or_detached_like_cpp(
+        &mut self,
+        map_id: u16,
+        position: Position,
+    ) {
+        let (Some(manager), Some(handle)) = (
+            self.canonical_map_manager.as_ref().map(Arc::clone),
+            self.player_handle_like_cpp,
+        ) else {
+            return;
+        };
+        let Ok(mut manager) = manager.lock() else {
+            return;
+        };
+        match manager.player_residence_like_cpp(handle) {
+            Some(wow_map::PlayerResidenceLikeCpp::Detached) => {
+                let _ = manager.with_player_mut_like_cpp(handle, |player| {
+                    player.unit_mut().world_mut().relocate(position);
+                });
+            }
+            Some(wow_map::PlayerResidenceLikeCpp::Active(key))
+                if key.map_id == u32::from(map_id) =>
+            {
+                let _ = manager.relocate_player_like_cpp(handle, position);
+            }
+            Some(wow_map::PlayerResidenceLikeCpp::Active(_)) | None => {}
+        }
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(crate) fn set_player_map_position_like_cpp(
+        &mut self,
+        map_id: u16,
+        position: wow_core::Position,
+    ) {
+        if self.core.player_map_id_like_cpp() != map_id {
+            self.core
+                .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        }
+        self.core.current_map_id = map_id;
+        self.core
+            .sync_canonical_player_position_if_same_or_detached_like_cpp(map_id, position);
+        #[cfg(test)]
+        if self.core.player_handle_like_cpp.is_none()
+            || self.shared().player_position_like_cpp() == Some(position)
+        {
+            self.fixtures.movement.player_position = Some(position);
+        }
+    }
+
+    /// C++ `Unit::m_movementCounter` post-increment: returns the current value and advances
+    /// it. Used as the SequenceIndex of movement-control packets (vehicle-rec, collision,
+    /// near-teleport, speed/flag) and read for `SMSG_RESUME_TOKEN` on far teleport.
+    pub(crate) fn next_movement_counter_like_cpp(&mut self) -> Option<u32> {
+        let canonical = self.core.with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().next_movement_counter_like_cpp()
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            let sequence_index = self.fixtures.movement.movement_counter_like_cpp;
+            self.fixtures.movement.movement_counter_like_cpp = self
+                .fixtures
+                .movement
+                .movement_counter_like_cpp
+                .wrapping_add(1);
+            return Some(sequence_index);
+        }
+        canonical
+    }
+
+    /// C++ `Player::SendInitialPacketsBeforeAddToMap` resets `m_movementCounter` to 0 for a
+    /// non-seamless add (login / far teleport). Player.cpp:23483.
+    pub(crate) fn reset_movement_counter_like_cpp(&mut self) -> bool {
+        let canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.unit_mut().reset_movement_counter_like_cpp();
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.movement.movement_counter_like_cpp = 0;
+        }
+        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
+    }
+
+    pub fn set_player_moved_unit_guid_like_cpp(&mut self, guid: ObjectGuid) {
+        #[cfg_attr(not(test), allow(unused_variables))]
+        let canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player
+                    .unit_mut()
+                    .subsystems_mut()
+                    .control
+                    .set_moved_unit((!guid.is_empty()).then_some(guid));
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.movement.player_moved_unit_guid_like_cpp = guid;
+        }
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(in crate::session) fn current_player_movement_info_like_cpp(
+        &self,
+        player_guid: ObjectGuid,
+    ) -> Option<wow_packet::packets::movement::MovementInfo> {
+        Some(wow_packet::packets::movement::MovementInfo {
+            guid: player_guid,
+            position: self.player_position_like_cpp()?,
+            flags: self.resolved_player_movement_flags_like_cpp()?,
+            flags2: if self.resolved_can_swim_to_fly_transition_like_cpp()? {
+                wow_constants::movement::MovementFlag2::CAN_SWIM_TO_FLY_TRANS
+            } else {
+                wow_constants::movement::MovementFlag2::NONE
+            },
+            time: self.resolved_player_movement_time_like_cpp()?,
+            ..wow_packet::packets::movement::MovementInfo::default()
+        })
+    }
+
+    pub(crate) fn player_position_like_cpp(&self) -> Option<wow_core::Position> {
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.unit().world().position());
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return self.fixtures.movement.player_position;
+        }
+        canonical
+    }
+
+    pub(in crate::session) fn resolved_player_movement_flags_like_cpp(
+        &self,
+    ) -> Option<MovementFlag> {
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.unit().movement_flags_like_cpp());
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.fixtures.movement.player_movement_flags_like_cpp);
+        }
+        canonical
+    }
+
+    pub(crate) fn player_moved_unit_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
+            player.unit().subsystems().control.unit_moved_by_me
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            let guid = if self
+                .fixtures
+                .movement
+                .player_moved_unit_guid_like_cpp
+                .is_empty()
+            {
+                self.core.player_guid()?
+            } else {
+                self.fixtures.movement.player_moved_unit_guid_like_cpp
+            };
+            return Some(guid);
+        }
+        canonical.flatten()
+    }
+
+    pub(crate) fn resolved_player_movement_time_like_cpp(&self) -> Option<u32> {
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.unit().movement_time_like_cpp());
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.fixtures.movement.player_movement_time_like_cpp);
+        }
+        canonical
     }
 }

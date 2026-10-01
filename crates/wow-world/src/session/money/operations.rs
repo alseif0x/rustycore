@@ -10,9 +10,8 @@ impl WorldSession {
     pub fn set_currency_types_store(&mut self, store: Arc<CurrencyTypesStore>) {
         self.catalogs.currency_types_store = Some(store);
     }
-    /// Get the currency types store reference.
     pub fn currency_types_store(&self) -> Option<&Arc<CurrencyTypesStore>> {
-        self.catalogs.currency_types_store.as_ref()
+        self.catalogs.currency_types_store()
     }
     /// Set the item currency cost store for this session.
     #[cfg(test)]
@@ -536,5 +535,12 @@ impl WorldSession {
             return Some(self.inventory.player_gold);
         }
         canonical
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    /// Get the currency types store reference.
+    pub fn currency_types_store(&self) -> Option<&Arc<CurrencyTypesStore>> {
+        self.currency_types_store.as_ref()
     }
 }

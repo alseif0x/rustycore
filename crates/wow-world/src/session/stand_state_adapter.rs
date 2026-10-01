@@ -59,15 +59,7 @@ pub(crate) struct RepresentedLiveApplicationLikeCpp {
 
 impl WorldSession {
     pub(crate) fn set_player_stand_state_like_cpp(&mut self, state: UnitStandStateType) {
-        let _canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.unit_mut().set_stand_state_like_cpp(state)
-            })
-            .is_some();
-        #[cfg(test)]
-        if _canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.presentation.player_stand_state_like_cpp = state;
-        }
+        crate::session::hub_mut(self).set_player_stand_state_like_cpp(state)
     }
 
     /// Session-owned represented->live boundary.
@@ -456,5 +448,20 @@ impl WorldSession {
             .inventory
             .player_item_test_fixture_like_cpp
             .represented_titan_grip_penalty_actions_like_cpp
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(crate) fn set_player_stand_state_like_cpp(&mut self, state: UnitStandStateType) {
+        let _canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.unit_mut().set_stand_state_like_cpp(state)
+            })
+            .is_some();
+        #[cfg(test)]
+        if _canonical || self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.presentation.player_stand_state_like_cpp = state;
+        }
     }
 }

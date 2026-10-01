@@ -531,35 +531,8 @@ impl WorldSession {
 
         (false, false)
     }
-    /// C++ `CollectionMgr::LoadAccountItemAppearances` active-player create data order.
     pub(crate) fn account_transmog_active_player_rows_like_cpp(&self) -> Vec<u32> {
-        let Some(collections) = self.player_collection_state_snapshot_like_cpp() else {
-            return Vec::new();
-        };
-        if !collections.item_appearance_blocks_like_cpp().is_empty() {
-            return collections.item_appearance_blocks_snapshot_like_cpp();
-        }
-
-        if let Some(blocks) = self
-            .canonical_player_snapshot_like_cpp(|player| player.transmog_blocks_like_cpp().to_vec())
-        {
-            return blocks;
-        }
-
-        let Some(highest_appearance) = collections.item_appearances_like_cpp().iter().max() else {
-            return Vec::new();
-        };
-
-        let mut blocks = vec![0_u32; (highest_appearance / 32 + 1) as usize];
-        for &item_modified_appearance_id in collections.item_appearances_like_cpp() {
-            let block_index = (item_modified_appearance_id / 32) as usize;
-            let bit_index = item_modified_appearance_id % 32;
-            if let Some(flag) = 1_u32.checked_shl(bit_index) {
-                blocks[block_index] |= flag;
-            }
-        }
-
-        blocks
+        crate::session::hub_ref(self).account_transmog_active_player_rows_like_cpp()
     }
     /// C++ `CollectionMgr::LoadAccountItemAppearances`.
     pub(crate) fn load_represented_account_item_appearances_like_cpp(
@@ -1009,5 +982,39 @@ impl WorldSession {
             .fixtures
             .presentation
             .represented_alter_appearance_requests_like_cpp
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    /// C++ `CollectionMgr::LoadAccountItemAppearances` active-player create data order.
+    pub(crate) fn account_transmog_active_player_rows_like_cpp(&self) -> Vec<u32> {
+        let Some(collections) = self.player_collection_state_snapshot_like_cpp() else {
+            return Vec::new();
+        };
+        if !collections.item_appearance_blocks_like_cpp().is_empty() {
+            return collections.item_appearance_blocks_snapshot_like_cpp();
+        }
+
+        if let Some(blocks) = self
+            .core
+            .canonical_player_snapshot_like_cpp(|player| player.transmog_blocks_like_cpp().to_vec())
+        {
+            return blocks;
+        }
+
+        let Some(highest_appearance) = collections.item_appearances_like_cpp().iter().max() else {
+            return Vec::new();
+        };
+
+        let mut blocks = vec![0_u32; (highest_appearance / 32 + 1) as usize];
+        for &item_modified_appearance_id in collections.item_appearances_like_cpp() {
+            let block_index = (item_modified_appearance_id / 32) as usize;
+            let bit_index = item_modified_appearance_id % 32;
+            if let Some(flag) = 1_u32.checked_shl(bit_index) {
+                blocks[block_index] |= flag;
+            }
+        }
+
+        blocks
     }
 }

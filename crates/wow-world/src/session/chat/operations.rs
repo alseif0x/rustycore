@@ -131,65 +131,15 @@ impl WorldSession {
         &mut self,
         emote_state: u32,
     ) -> Option<wow_packet::packets::update::UpdateObject> {
-        if self.resolved_player_emote_state_like_cpp() == Some(emote_state) {
-            return None;
-        }
-
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.unit_mut().set_emote_state_like_cpp(emote_state);
-            })
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.presentation.player_emote_state_like_cpp = emote_state;
-            if !canonical {
-                let _ = self.mutate_canonical_player_like_cpp(|player| {
-                    player.unit_mut().set_emote_state_like_cpp(emote_state);
-                });
-            }
-        }
-        if !canonical && !(cfg!(test) && self.core.player_handle_like_cpp.is_none()) {
-            return None;
-        }
-        self.player_emote_state_update_packet_like_cpp(emote_state)
+        crate::session::hub_mut(self).set_player_emote_state_like_cpp(emote_state)
     }
     pub(in crate::session) fn resolved_player_emote_state_like_cpp(&self) -> Option<u32> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.unit().emote_state_like_cpp());
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.presentation.player_emote_state_like_cpp);
-        }
-        canonical
+        crate::session::hub_ref(self).resolved_player_emote_state_like_cpp()
     }
     #[cfg(test)]
     pub(crate) fn player_emote_state_like_cpp(&self) -> u32 {
         self.resolved_player_emote_state_like_cpp()
             .expect("test Player emote-state owner must resolve")
-    }
-    fn player_emote_state_update_packet_like_cpp(
-        &self,
-        emote_state: u32,
-    ) -> Option<wow_packet::packets::update::UpdateObject> {
-        let guid = self.player_guid()?;
-        let mut mask = UpdateMask::new(UNIT_DATA_BITS);
-        mask.set(UNIT_DATA_MODS_PARENT_BIT);
-        mask.set(UNIT_DATA_EMOTE_STATE_BIT);
-        let update = wow_entities::PlayerValuesUpdate {
-            changed_object_type_mask: 0,
-            object_data: None,
-            unit_data: Some(UnitDataUpdate {
-                mask,
-                values: UnitDataValues {
-                    emote_state: emote_state.min(i32::MAX as u32) as i32,
-                    ..Default::default()
-                },
-            }),
-            player_data: None,
-            active_player_data: None,
-        };
-        player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), &update)
     }
     pub(crate) fn clear_player_gossip_options_like_cpp(&mut self) -> bool {
         let canonical = self
@@ -302,5 +252,76 @@ impl WorldSession {
             important: self.represented_quest_is_important_like_cpp(quest),
             quest_title: quest.log_title.clone(),
         }
+    }
+}
+
+impl crate::session::state::SessionCore {
+    fn player_emote_state_update_packet_like_cpp(
+        &self,
+        emote_state: u32,
+    ) -> Option<wow_packet::packets::update::UpdateObject> {
+        let guid = self.player_guid()?;
+        let mut mask = UpdateMask::new(UNIT_DATA_BITS);
+        mask.set(UNIT_DATA_MODS_PARENT_BIT);
+        mask.set(UNIT_DATA_EMOTE_STATE_BIT);
+        let update = wow_entities::PlayerValuesUpdate {
+            changed_object_type_mask: 0,
+            object_data: None,
+            unit_data: Some(UnitDataUpdate {
+                mask,
+                values: UnitDataValues {
+                    emote_state: emote_state.min(i32::MAX as u32) as i32,
+                    ..Default::default()
+                },
+            }),
+            player_data: None,
+            active_player_data: None,
+        };
+        player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), &update)
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(in crate::session) fn resolved_player_emote_state_like_cpp(&self) -> Option<u32> {
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.unit().emote_state_like_cpp());
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.fixtures.presentation.player_emote_state_like_cpp);
+        }
+        canonical
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(crate) fn set_player_emote_state_like_cpp(
+        &mut self,
+        emote_state: u32,
+    ) -> Option<wow_packet::packets::update::UpdateObject> {
+        if self.shared().resolved_player_emote_state_like_cpp() == Some(emote_state) {
+            return None;
+        }
+
+        let canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.unit_mut().set_emote_state_like_cpp(emote_state);
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.presentation.player_emote_state_like_cpp = emote_state;
+            if !canonical {
+                let _ = self.core.mutate_canonical_player_like_cpp(|player| {
+                    player.unit_mut().set_emote_state_like_cpp(emote_state);
+                });
+            }
+        }
+        if !canonical && !(cfg!(test) && self.core.player_handle_like_cpp.is_none()) {
+            return None;
+        }
+        self.core
+            .player_emote_state_update_packet_like_cpp(emote_state)
     }
 }

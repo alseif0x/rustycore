@@ -13,23 +13,7 @@ use super::*;
 
 impl WorldSession {
     pub(crate) fn build_condition_player_object_like_cpp(&self) -> Option<WorldObject> {
-        let mut player = WorldObject::new(
-            false,
-            TypeId::Player,
-            TypeMask::OBJECT | TypeMask::UNIT | TypeMask::PLAYER,
-        );
-        player.object_mut().create(self.player_guid()?);
-        let instance_id = self
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        let _ = player.set_map(u32::from(self.player_map_id_like_cpp()), instance_id);
-        let (zone_id, area_id) = self.player_zone_area_like_cpp()?;
-        player.set_zone_and_area(zone_id, area_id);
-        if let Some(position) = self.player_position_like_cpp() {
-            player.relocate(position);
-        }
-        Some(player)
+        crate::session::hub_ref(self).build_condition_player_object_like_cpp()
     }
 
     pub(crate) fn build_condition_creature_object_like_cpp(
@@ -59,6 +43,41 @@ impl WorldSession {
             };
             (source, snapshot)
         })
+    }
+
+    pub(crate) fn condition_player_unit_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_conditions::ConditionUnitSnapshot> {
+        crate::session::hub_ref(self).condition_player_unit_snapshot_like_cpp()
+    }
+
+    pub(crate) fn condition_player_snapshot_like_cpp(
+        &self,
+    ) -> wow_conditions::ConditionPlayerSnapshot {
+        crate::session::hub_ref(self).condition_player_snapshot_like_cpp()
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(crate) fn build_condition_player_object_like_cpp(&self) -> Option<WorldObject> {
+        let mut player = WorldObject::new(
+            false,
+            TypeId::Player,
+            TypeMask::OBJECT | TypeMask::UNIT | TypeMask::PLAYER,
+        );
+        player.object_mut().create(self.core.player_guid()?);
+        let instance_id = self
+            .core
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let _ = player.set_map(u32::from(self.core.player_map_id_like_cpp()), instance_id);
+        let (zone_id, area_id) = self.player_zone_area_like_cpp()?;
+        player.set_zone_and_area(zone_id, area_id);
+        if let Some(position) = self.player_position_like_cpp() {
+            player.relocate(position);
+        }
+        Some(player)
     }
 
     pub(crate) fn condition_player_unit_snapshot_like_cpp(

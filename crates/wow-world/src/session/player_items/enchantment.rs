@@ -141,12 +141,8 @@ impl WorldSession {
             .spell_catalogs
             .spell_item_enchantment_condition_store = Some(store);
     }
-    /// Get the spell item enchantment store reference.
     pub fn spell_item_enchantment_store(&self) -> Option<&Arc<SpellItemEnchantmentStore>> {
-        self.catalogs
-            .spell_catalogs
-            .spell_item_enchantment_store
-            .as_ref()
+        self.catalogs.spell_item_enchantment_store()
     }
     /// C++ `Player::EnchantmentFitsRequirements` for the currently equipped gems.
     fn enchantment_fits_requirements_like_cpp(
@@ -766,5 +762,12 @@ impl WorldSession {
             self.apply_represented_item_bonus_action_state_like_cpp(action);
         }
         (changed_stats, represented_actions, unrepresented_actions)
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    /// Get the spell item enchantment store reference.
+    pub fn spell_item_enchantment_store(&self) -> Option<&Arc<SpellItemEnchantmentStore>> {
+        self.spell_catalogs.spell_item_enchantment_store.as_ref()
     }
 }

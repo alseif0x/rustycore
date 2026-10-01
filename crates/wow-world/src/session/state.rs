@@ -151,12 +151,14 @@ use super::{WorldSafeLocStore, driver, lifecycle};
 mod fixtures;
 #[cfg(test)]
 pub(in crate::session) use fixtures::SessionFixtures;
+mod hub;
+pub(crate) use hub::{HubMut, HubRef, hub_mut, hub_ref};
 mod session_core;
-pub(in crate::session) use session_core::SessionCore;
+pub(crate) use session_core::SessionCore;
 mod loot;
 pub(in crate::session) use loot::LootState;
 mod catalogs;
-pub(in crate::session) use catalogs::SessionCatalogs;
+pub(crate) use catalogs::SessionCatalogs;
 mod config;
 pub(in crate::session) use config::SessionWorldConfig;
 #[cfg(test)]

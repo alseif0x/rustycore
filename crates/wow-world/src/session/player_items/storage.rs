@@ -207,11 +207,8 @@ impl WorldSession {
                     })
             })
     }
-    /// Resolve C++ `ItemTemplate::GetInventoryType()` for equipment-slot mapping.
     pub fn item_template_inventory_type(&self, item_id: u32) -> Option<u8> {
-        self.item_storage_template(item_id)
-            .map(|template| template.inventory_type as u8)
-            .filter(|&inventory_type| inventory_type != InventoryType::NonEquip as u8)
+        crate::session::hub_ref(self).item_template_inventory_type(item_id)
     }
     pub(crate) fn make_inventory_item_object(
         &self,
@@ -837,5 +834,15 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn inventory_item_objects_like_cpp(&self) -> &HashMap<ObjectGuid, Item> {
         &self.inventory.inventory_item_objects
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    /// Resolve C++ `ItemTemplate::GetInventoryType()` for equipment-slot mapping.
+    pub fn item_template_inventory_type(&self, item_id: u32) -> Option<u8> {
+        self.catalogs
+            .item_storage_template(item_id)
+            .map(|template| template.inventory_type as u8)
+            .filter(|&inventory_type| inventory_type != InventoryType::NonEquip as u8)
     }
 }

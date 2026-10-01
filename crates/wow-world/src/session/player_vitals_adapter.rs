@@ -58,30 +58,11 @@ impl WorldSession {
     }
 
     pub(crate) fn resolved_player_vitals_like_cpp(&self) -> Option<(u32, u32, bool)> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            let max_health = player
-                .unit()
-                .data()
-                .max_health
-                .clamp(1, u64::from(u32::MAX)) as u32;
-            let health = player.unit().data().health.min(u64::from(max_health)) as u32;
-            (health, max_health, player.unit().is_alive() && health > 0)
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some((
-                self.fixtures.combat.player_health_like_cpp,
-                self.fixtures.combat.player_max_health_like_cpp.max(1),
-                self.fixtures.combat.player_alive_like_cpp
-                    && self.fixtures.combat.player_health_like_cpp > 0,
-            ));
-        }
-        canonical
+        crate::session::hub_ref(self).resolved_player_vitals_like_cpp()
     }
 
     pub(crate) fn resolved_player_is_alive_like_cpp(&self) -> Option<bool> {
-        self.resolved_player_vitals_like_cpp()
-            .map(|(_, _, alive)| alive)
+        crate::session::hub_ref(self).resolved_player_is_alive_like_cpp()
     }
 
     #[cfg(test)]
@@ -139,8 +120,7 @@ impl WorldSession {
     }
 
     pub(in crate::session) fn resolved_player_mounted_like_cpp(&self) -> Option<bool> {
-        self.player_unit_presentation_snapshot_like_cpp()
-            .map(|(flags, _, _)| flags.contains(UnitFlags::MOUNT))
+        crate::session::hub_ref(self).resolved_player_mounted_like_cpp()
     }
 
     #[cfg(test)]
@@ -157,5 +137,39 @@ impl WorldSession {
         if canonical || self.core.player_handle_like_cpp.is_none() {
             self.fixtures.combat.player_cheat_god_like_cpp = enabled;
         }
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(crate) fn resolved_player_vitals_like_cpp(&self) -> Option<(u32, u32, bool)> {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
+            let max_health = player
+                .unit()
+                .data()
+                .max_health
+                .clamp(1, u64::from(u32::MAX)) as u32;
+            let health = player.unit().data().health.min(u64::from(max_health)) as u32;
+            (health, max_health, player.unit().is_alive() && health > 0)
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some((
+                self.fixtures.combat.player_health_like_cpp,
+                self.fixtures.combat.player_max_health_like_cpp.max(1),
+                self.fixtures.combat.player_alive_like_cpp
+                    && self.fixtures.combat.player_health_like_cpp > 0,
+            ));
+        }
+        canonical
+    }
+
+    pub(crate) fn resolved_player_is_alive_like_cpp(&self) -> Option<bool> {
+        self.resolved_player_vitals_like_cpp()
+            .map(|(_, _, alive)| alive)
+    }
+
+    pub(in crate::session) fn resolved_player_mounted_like_cpp(&self) -> Option<bool> {
+        self.player_unit_presentation_snapshot_like_cpp()
+            .map(|(flags, _, _)| flags.contains(UnitFlags::MOUNT))
     }
 }

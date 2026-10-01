@@ -10,7 +10,7 @@ impl WorldSession {
         self.catalogs.friendship_rep_reaction_store = Some(store);
     }
     pub(crate) fn friendship_rep_reaction_store(&self) -> Option<&Arc<FriendshipRepReactionStore>> {
-        self.catalogs.friendship_rep_reaction_store.as_ref()
+        self.catalogs.friendship_rep_reaction_store()
     }
     pub(in crate::session) fn represented_recruit_a_friend_xp_rest_state_applies_like_cpp(
         &self,
@@ -115,5 +115,11 @@ impl WorldSession {
         self.social.max_recruit_a_friend_bonus_player_level_like_cpp = max_bonus_level;
         self.social
             .max_recruit_a_friend_bonus_player_level_difference_like_cpp = max_level_difference;
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    pub(crate) fn friendship_rep_reaction_store(&self) -> Option<&Arc<FriendshipRepReactionStore>> {
+        self.friendship_rep_reaction_store.as_ref()
     }
 }

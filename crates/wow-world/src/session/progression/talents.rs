@@ -10,116 +10,25 @@ impl WorldSession {
         self.catalogs.talent_store = Some(store);
     }
     pub(crate) fn talent_store(&self) -> Option<&Arc<TalentStore>> {
-        self.catalogs.talent_store.as_ref()
+        self.catalogs.talent_store()
     }
     pub fn set_num_talents_at_level_store(&mut self, store: Arc<NumTalentsAtLevelStore>) {
         self.catalogs.num_talents_at_level_store = Some(store);
         self.refresh_represented_talent_points_like_cpp();
     }
     pub(crate) fn num_talents_at_level_store(&self) -> Option<&Arc<NumTalentsAtLevelStore>> {
-        self.catalogs.num_talents_at_level_store.as_ref()
+        self.catalogs.num_talents_at_level_store()
     }
     pub(crate) fn player_talent_runtime_snapshot_like_cpp(
         &self,
     ) -> Option<wow_entities::PlayerTalentRuntimeState> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.talent_runtime_like_cpp().clone());
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            let mut runtime = wow_entities::PlayerTalentRuntimeState::default();
-            runtime.replace_talent_groups_like_cpp(
-                self.fixtures
-                    .progression
-                    .represented_talents_like_cpp
-                    .clone(),
-            );
-            runtime.replace_glyph_groups_like_cpp(
-                self.fixtures.progression.represented_glyphs_like_cpp,
-            );
-            if self
-                .fixtures
-                .progression
-                .represented_talents_loaded_like_cpp
-            {
-                runtime.mark_talents_loaded_like_cpp();
-            }
-            if self.fixtures.progression.represented_glyphs_loaded_like_cpp {
-                runtime.mark_glyphs_loaded_like_cpp();
-            }
-            runtime.set_active_group_like_cpp(
-                self.fixtures
-                    .progression
-                    .represented_active_talent_group_like_cpp,
-            );
-            runtime.set_bonus_groups_like_cpp(
-                self.fixtures
-                    .progression
-                    .represented_bonus_talent_groups_like_cpp,
-            );
-            runtime.set_reset_talents_state_like_cpp(
-                self.fixtures
-                    .progression
-                    .represented_talent_reset_cost_like_cpp,
-                self.fixtures
-                    .progression
-                    .represented_talent_reset_time_secs_like_cpp,
-            );
-            return Some(runtime);
-        }
-        canonical
+        crate::session::hub_ref(self).player_talent_runtime_snapshot_like_cpp()
     }
-    #[cfg(test)]
-    fn store_player_talent_fixture_like_cpp(
-        &mut self,
-        runtime: wow_entities::PlayerTalentRuntimeState,
-    ) -> bool {
-        if self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.progression.represented_talents_like_cpp =
-                runtime.talent_groups_snapshot_like_cpp();
-            self.fixtures
-                .progression
-                .represented_talents_loaded_like_cpp = runtime.talents_loaded_like_cpp();
-            self.fixtures.progression.represented_glyphs_like_cpp =
-                runtime.glyph_groups_snapshot_like_cpp();
-            self.fixtures.progression.represented_glyphs_loaded_like_cpp =
-                runtime.glyphs_loaded_like_cpp();
-            self.fixtures
-                .progression
-                .represented_active_talent_group_like_cpp = runtime.active_group_like_cpp();
-            self.fixtures
-                .progression
-                .represented_bonus_talent_groups_like_cpp = runtime.bonus_groups_like_cpp();
-            self.fixtures
-                .progression
-                .represented_talent_reset_cost_like_cpp = runtime.reset_talents_cost_like_cpp();
-            self.fixtures
-                .progression
-                .represented_talent_reset_time_secs_like_cpp =
-                runtime.reset_talents_time_secs_like_cpp();
-            return true;
-        }
-        false
-    }
-    /// Incarnation dispatch for one named talent transition.
-    ///
-    /// Private to this owner: the transitions themselves are the named
-    /// operations below and on `PlayerTalentRuntimeState`, so no other module
-    /// can write the Player's talent state field by field (#752).
     fn mutate_player_talent_runtime_like_cpp<R>(
         &mut self,
         f: impl FnOnce(&mut wow_entities::PlayerTalentRuntimeState) -> R,
     ) -> Option<R> {
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            let mut runtime = self.player_talent_runtime_snapshot_like_cpp()?;
-            let result = f(&mut runtime);
-            return self
-                .store_player_talent_fixture_like_cpp(runtime)
-                .then_some(result);
-        }
-        // C++ Player::AddTalent / SetGlyph mutate the Player-owned containers
-        // (Player.cpp:2644-2695,25477-25481), not a Session write-back copy.
-        self.with_owned_player_mut_like_cpp(|player| f(&mut player.gameplay_state_mut().talents))
+        crate::session::hub_mut(self).mutate_player_talent_runtime_like_cpp(f)
     }
     /// The owner-dispatch hook the canonical-ownership regressions drive.
     ///
@@ -132,19 +41,6 @@ impl WorldSession {
         apply: impl FnOnce(&mut wow_entities::PlayerTalentRuntimeState) -> R,
     ) -> Option<R> {
         self.mutate_player_talent_runtime_like_cpp(apply)
-    }
-
-    /// C++ `Player::_LoadTalents` storing one persisted row (`Player.cpp:26623`).
-    pub(in crate::session) fn install_loaded_talent_row_like_cpp(
-        &mut self,
-        talent_group: u8,
-        talent_id: u32,
-        rank: u8,
-    ) -> bool {
-        self.mutate_player_talent_runtime_like_cpp(|runtime| {
-            runtime.add_talent_like_cpp(talent_group, talent_id, rank)
-        })
-        .unwrap_or(false)
     }
 
     /// C++ `Player::_LoadGlyphs` storing one persisted slot (`Player.cpp:26573`).
@@ -203,8 +99,7 @@ impl WorldSession {
         .is_some()
     }
     pub(crate) fn represented_active_talent_group_like_cpp(&self) -> Option<u8> {
-        self.player_talent_runtime_snapshot_like_cpp()
-            .map(|runtime| runtime.active_group_like_cpp())
+        crate::session::hub_ref(self).represented_active_talent_group_like_cpp()
     }
     pub(crate) fn set_represented_bonus_talent_groups_like_cpp(
         &mut self,
@@ -406,22 +301,6 @@ impl WorldSession {
         }
     }
     #[cfg(test)]
-    fn represented_spent_talent_points_count_like_cpp(&self) -> Option<u32> {
-        let runtime = self.player_talent_runtime_snapshot_like_cpp()?;
-        Some(
-            runtime
-                .talent_group_like_cpp(runtime.active_group_like_cpp())
-                .into_iter()
-                .flat_map(|talents| talents.iter())
-                .filter(|(talent_id, rank)| {
-                    self.represented_talent_info_like_cpp(**talent_id, **rank)
-                        .is_some()
-                })
-                .map(|(_, rank)| u32::from(*rank) + 1)
-                .sum(),
-        )
-    }
-    #[cfg(test)]
     fn represented_calculate_talents_points_like_cpp(&self) -> Option<u32> {
         let base_points = self
             .num_talents_at_level_store()
@@ -475,16 +354,7 @@ impl WorldSession {
         talent_id: u32,
         rank: u8,
     ) -> Option<wow_packet::packets::misc::TalentInfoLikeCpp> {
-        let talent = self.talent_store()?.get(talent_id)?;
-        let spell_id = talent.spell_rank.get(usize::from(rank)).copied()?;
-        if spell_id <= 0 {
-            return None;
-        }
-        if !self.represented_spell_valid_for_talent_like_cpp(spell_id) {
-            return None;
-        }
-
-        Some(wow_packet::packets::misc::TalentInfoLikeCpp { talent_id, rank })
+        crate::session::hub_ref(self).represented_talent_info_like_cpp(talent_id, rank)
     }
     pub(crate) fn resolved_update_talent_data_packet_like_cpp(
         &self,
@@ -668,3 +538,180 @@ impl WorldSession {
         }
     }
 }
+
+impl crate::session::HubMut<'_> {
+    #[cfg(test)]
+    fn store_player_talent_fixture_like_cpp(
+        &mut self,
+        runtime: wow_entities::PlayerTalentRuntimeState,
+    ) -> bool {
+        if self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.progression.represented_talents_like_cpp =
+                runtime.talent_groups_snapshot_like_cpp();
+            self.fixtures
+                .progression
+                .represented_talents_loaded_like_cpp = runtime.talents_loaded_like_cpp();
+            self.fixtures.progression.represented_glyphs_like_cpp =
+                runtime.glyph_groups_snapshot_like_cpp();
+            self.fixtures.progression.represented_glyphs_loaded_like_cpp =
+                runtime.glyphs_loaded_like_cpp();
+            self.fixtures
+                .progression
+                .represented_active_talent_group_like_cpp = runtime.active_group_like_cpp();
+            self.fixtures
+                .progression
+                .represented_bonus_talent_groups_like_cpp = runtime.bonus_groups_like_cpp();
+            self.fixtures
+                .progression
+                .represented_talent_reset_cost_like_cpp = runtime.reset_talents_cost_like_cpp();
+            self.fixtures
+                .progression
+                .represented_talent_reset_time_secs_like_cpp =
+                runtime.reset_talents_time_secs_like_cpp();
+            return true;
+        }
+        false
+    }
+
+    /// Incarnation dispatch for one named talent transition.
+    ///
+    /// Private to this owner: the transitions themselves are the named
+    /// operations below and on `PlayerTalentRuntimeState`, so no other module
+    /// can write the Player's talent state field by field (#752).
+    fn mutate_player_talent_runtime_like_cpp<R>(
+        &mut self,
+        f: impl FnOnce(&mut wow_entities::PlayerTalentRuntimeState) -> R,
+    ) -> Option<R> {
+        #[cfg(test)]
+        if self.core.player_handle_like_cpp.is_none() {
+            let mut runtime = self.shared().player_talent_runtime_snapshot_like_cpp()?;
+            let result = f(&mut runtime);
+            return self
+                .store_player_talent_fixture_like_cpp(runtime)
+                .then_some(result);
+        }
+        // C++ Player::AddTalent / SetGlyph mutate the Player-owned containers
+        // (Player.cpp:2644-2695,25477-25481), not a Session write-back copy.
+        self.core
+            .with_owned_player_mut_like_cpp(|player| f(&mut player.gameplay_state_mut().talents))
+    }
+
+    /// C++ `Player::_LoadTalents` storing one persisted row (`Player.cpp:26623`).
+    pub(in crate::session) fn install_loaded_talent_row_like_cpp(
+        &mut self,
+        talent_group: u8,
+        talent_id: u32,
+        rank: u8,
+    ) -> bool {
+        self.mutate_player_talent_runtime_like_cpp(|runtime| {
+            runtime.add_talent_like_cpp(talent_group, talent_id, rank)
+        })
+        .unwrap_or(false)
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(crate) fn player_talent_runtime_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerTalentRuntimeState> {
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.talent_runtime_like_cpp().clone());
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            let mut runtime = wow_entities::PlayerTalentRuntimeState::default();
+            runtime.replace_talent_groups_like_cpp(
+                self.fixtures
+                    .progression
+                    .represented_talents_like_cpp
+                    .clone(),
+            );
+            runtime.replace_glyph_groups_like_cpp(
+                self.fixtures.progression.represented_glyphs_like_cpp,
+            );
+            if self
+                .fixtures
+                .progression
+                .represented_talents_loaded_like_cpp
+            {
+                runtime.mark_talents_loaded_like_cpp();
+            }
+            if self.fixtures.progression.represented_glyphs_loaded_like_cpp {
+                runtime.mark_glyphs_loaded_like_cpp();
+            }
+            runtime.set_active_group_like_cpp(
+                self.fixtures
+                    .progression
+                    .represented_active_talent_group_like_cpp,
+            );
+            runtime.set_bonus_groups_like_cpp(
+                self.fixtures
+                    .progression
+                    .represented_bonus_talent_groups_like_cpp,
+            );
+            runtime.set_reset_talents_state_like_cpp(
+                self.fixtures
+                    .progression
+                    .represented_talent_reset_cost_like_cpp,
+                self.fixtures
+                    .progression
+                    .represented_talent_reset_time_secs_like_cpp,
+            );
+            return Some(runtime);
+        }
+        canonical
+    }
+
+    pub(crate) fn represented_active_talent_group_like_cpp(&self) -> Option<u8> {
+        self.player_talent_runtime_snapshot_like_cpp()
+            .map(|runtime| runtime.active_group_like_cpp())
+    }
+
+    #[cfg(test)]
+    fn represented_spent_talent_points_count_like_cpp(&self) -> Option<u32> {
+        let runtime = self.player_talent_runtime_snapshot_like_cpp()?;
+        Some(
+            runtime
+                .talent_group_like_cpp(runtime.active_group_like_cpp())
+                .into_iter()
+                .flat_map(|talents| talents.iter())
+                .filter(|(talent_id, rank)| {
+                    self.represented_talent_info_like_cpp(**talent_id, **rank)
+                        .is_some()
+                })
+                .map(|(_, rank)| u32::from(*rank) + 1)
+                .sum(),
+        )
+    }
+
+    pub(in crate::session) fn represented_talent_info_like_cpp(
+        &self,
+        talent_id: u32,
+        rank: u8,
+    ) -> Option<wow_packet::packets::misc::TalentInfoLikeCpp> {
+        let talent = self.catalogs.talent_store()?.get(talent_id)?;
+        let spell_id = talent.spell_rank.get(usize::from(rank)).copied()?;
+        if spell_id <= 0 {
+            return None;
+        }
+        if !self.represented_spell_valid_for_talent_like_cpp(spell_id) {
+            return None;
+        }
+
+        Some(wow_packet::packets::misc::TalentInfoLikeCpp { talent_id, rank })
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    pub(crate) fn talent_store(&self) -> Option<&Arc<TalentStore>> {
+        self.talent_store.as_ref()
+    }
+
+    pub(crate) fn num_talents_at_level_store(&self) -> Option<&Arc<NumTalentsAtLevelStore>> {
+        self.num_talents_at_level_store.as_ref()
+    }
+}
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/progression/talents/f3_shims.rs"]
+mod f3_shims;

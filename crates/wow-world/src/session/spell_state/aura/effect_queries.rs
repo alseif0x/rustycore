@@ -47,13 +47,7 @@ impl WorldSession {
         &self,
         effect: RepresentedAuraEffectLikeCpp,
     ) -> Option<i32> {
-        self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .filter(|aura| aura.represented_effect == Some(effect))
-                .map(|aura| aura.represented_amount)
-                .sum()
-        })
+        crate::session::hub_ref(self).resolved_total_represented_aura_modifier_like_cpp(effect)
     }
 
     #[cfg(test)]
@@ -94,6 +88,96 @@ impl WorldSession {
         })
     }
 
+    pub(crate) fn resolved_aura_effects_by_spell_aura_type_like_cpp(
+        &self,
+        aura_type: i32,
+    ) -> Option<Vec<(i32, i32)>> {
+        crate::session::hub_ref(self).resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
+    }
+
+    pub(crate) fn resolved_aura_effect_amounts_by_spell_like_cpp(
+        &self,
+        aura_type: i32,
+    ) -> Option<Vec<(i32, i32)>> {
+        crate::session::hub_ref(self).resolved_aura_effect_amounts_by_spell_like_cpp(aura_type)
+    }
+
+    pub(crate) fn resolved_aura_effects_with_spell_and_misc_like_cpp(
+        &self,
+        aura_type: i32,
+    ) -> Option<Vec<(i32, i32, i32)>> {
+        crate::session::hub_ref(self).resolved_aura_effects_with_spell_and_misc_like_cpp(aura_type)
+    }
+
+    pub(crate) fn resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(
+        &self,
+        aura_type: i32,
+    ) -> Option<Vec<(i32, i32, i32)>> {
+        crate::session::hub_ref(self)
+            .resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(aura_type)
+    }
+
+    #[cfg(test)]
+    pub(in crate::session) fn total_represented_aura_multiplier_like_cpp(
+        &self,
+        effect: RepresentedAuraEffectLikeCpp,
+    ) -> f32 {
+        self.resolved_total_represented_aura_multiplier_like_cpp(effect)
+            .expect("test Player aura owner must resolve")
+    }
+
+    pub(in crate::session) fn aura_has_total_stat_percentage_effect_like_cpp(
+        &self,
+        aura: &AuraApplication,
+    ) -> bool {
+        self.spell_store().is_some_and(|store| {
+            store.get(aura.spell_id).is_some_and(|spell| {
+                spell.effects().iter().any(|effect| {
+                    1u32.checked_shl(effect.effect_index)
+                        .is_some_and(|bit| aura.effect_mask & bit != 0)
+                        && effect.effect_aura
+                            == wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE
+                })
+            })
+        })
+    }
+
+    pub(in crate::session) fn total_stat_percentage_aura_preserves_health_pct_like_cpp(
+        &self,
+        aura: &AuraApplication,
+    ) -> bool {
+        self.spell_store().is_some_and(|store| {
+            store.has_attribute0_like_cpp(
+                aura.spell_id,
+                wow_data::spell::attributes::SPELL_ATTR0_IS_ABILITY,
+            ) && store.get(aura.spell_id).is_some_and(|spell| {
+                spell.effects().iter().any(|effect| {
+                    1u32.checked_shl(effect.effect_index)
+                        .is_some_and(|bit| aura.effect_mask & bit != 0)
+                        && effect.effect_aura
+                            == wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE
+                        && (effect.effect_misc_value_2 == 0
+                            || effect.effect_misc_value_2 & (1 << 2) != 0)
+                })
+            })
+        })
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(in crate::session) fn resolved_total_represented_aura_modifier_like_cpp(
+        &self,
+        effect: RepresentedAuraEffectLikeCpp,
+    ) -> Option<i32> {
+        self.resolved_player_visible_auras_like_cpp().map(|auras| {
+            auras
+                .values()
+                .filter(|aura| aura.represented_effect == Some(effect))
+                .map(|aura| aura.represented_amount)
+                .sum()
+        })
+    }
+
     /// Resolve active aura effects directly from the canonical visible aura
     /// applications and their immutable SpellInfo. This keeps StatSystem
     /// producers independent of packet-only aura mirrors and also covers
@@ -104,7 +188,7 @@ impl WorldSession {
         aura_type: i32,
     ) -> Option<Vec<(i32, i32)>> {
         let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
-        let spell_store = self.spell_store()?;
+        let spell_store = self.catalogs.spell_store()?;
         // Delegates to the receiver-free projection the map-owned swing path
         // uses, so both owners resolve the same canonical auras identically.
         Some(
@@ -126,7 +210,7 @@ impl WorldSession {
         aura_type: i32,
     ) -> Option<Vec<(i32, i32)>> {
         let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
-        let spell_store = self.spell_store()?;
+        let spell_store = self.catalogs.spell_store()?;
         let mut effects = Vec::new();
         for aura in visible_auras.values() {
             let Some(spell) = spell_store.get(aura.spell_id) else {
@@ -163,7 +247,7 @@ impl WorldSession {
         aura_type: i32,
     ) -> Option<Vec<(i32, i32, i32)>> {
         let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
-        let spell_store = self.spell_store()?;
+        let spell_store = self.catalogs.spell_store()?;
         let mut effects = Vec::new();
         for aura in visible_auras.values() {
             let Some(spell) = spell_store.get(aura.spell_id) else {
@@ -198,7 +282,7 @@ impl WorldSession {
         aura_type: i32,
     ) -> Option<Vec<(i32, i32, i32)>> {
         let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
-        let spell_store = self.spell_store()?;
+        let spell_store = self.catalogs.spell_store()?;
         let mut effects = Vec::new();
         for aura in visible_auras.values() {
             let Some(spell) = spell_store.get(aura.spell_id) else {
@@ -259,52 +343,6 @@ impl WorldSession {
                     .map(|(_, amount)| amount)
                     .sum()
             })
-    }
-
-    #[cfg(test)]
-    pub(in crate::session) fn total_represented_aura_multiplier_like_cpp(
-        &self,
-        effect: RepresentedAuraEffectLikeCpp,
-    ) -> f32 {
-        self.resolved_total_represented_aura_multiplier_like_cpp(effect)
-            .expect("test Player aura owner must resolve")
-    }
-
-    pub(in crate::session) fn aura_has_total_stat_percentage_effect_like_cpp(
-        &self,
-        aura: &AuraApplication,
-    ) -> bool {
-        self.spell_store().is_some_and(|store| {
-            store.get(aura.spell_id).is_some_and(|spell| {
-                spell.effects().iter().any(|effect| {
-                    1u32.checked_shl(effect.effect_index)
-                        .is_some_and(|bit| aura.effect_mask & bit != 0)
-                        && effect.effect_aura
-                            == wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE
-                })
-            })
-        })
-    }
-
-    pub(in crate::session) fn total_stat_percentage_aura_preserves_health_pct_like_cpp(
-        &self,
-        aura: &AuraApplication,
-    ) -> bool {
-        self.spell_store().is_some_and(|store| {
-            store.has_attribute0_like_cpp(
-                aura.spell_id,
-                wow_data::spell::attributes::SPELL_ATTR0_IS_ABILITY,
-            ) && store.get(aura.spell_id).is_some_and(|spell| {
-                spell.effects().iter().any(|effect| {
-                    1u32.checked_shl(effect.effect_index)
-                        .is_some_and(|bit| aura.effect_mask & bit != 0)
-                        && effect.effect_aura
-                            == wow_data::spell::aura_types::SPELL_AURA_MOD_TOTAL_STAT_PERCENTAGE
-                        && (effect.effect_misc_value_2 == 0
-                            || effect.effect_misc_value_2 & (1 << 2) != 0)
-                })
-            })
-        })
     }
 
     pub(in crate::session) fn max_represented_aura_amount_like_cpp(

@@ -23,24 +23,7 @@ impl WorldSession {
     pub(in crate::session) fn completed_achievement_ids_snapshot_like_cpp(
         &self,
     ) -> Option<HashSet<u32>> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            player
-                .gameplay_state()
-                .achievements
-                .iter()
-                .map(|achievement| achievement.achievement_id)
-                .collect()
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.fixtures
-                    .collections
-                    .represented_completed_achievements_like_cpp
-                    .clone(),
-            );
-        }
-        canonical
+        crate::session::hub_ref(self).completed_achievement_ids_snapshot_like_cpp()
     }
     pub(in crate::session) fn replace_completed_achievement_ids_like_cpp(
         &mut self,
@@ -119,5 +102,30 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedAuctionPlaceBidLikeCpp] {
         &self.inventory.represented_auction_place_bids_like_cpp
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(in crate::session) fn completed_achievement_ids_snapshot_like_cpp(
+        &self,
+    ) -> Option<HashSet<u32>> {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
+            player
+                .gameplay_state()
+                .achievements
+                .iter()
+                .map(|achievement| achievement.achievement_id)
+                .collect()
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(
+                self.fixtures
+                    .collections
+                    .represented_completed_achievements_like_cpp
+                    .clone(),
+            );
+        }
+        canonical
     }
 }

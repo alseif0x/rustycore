@@ -133,8 +133,7 @@ impl WorldSession {
     pub(crate) fn resolved_player_visible_auras_like_cpp(
         &self,
     ) -> Option<HashMap<u8, AuraApplication>> {
-        self.player_aura_subsystem_snapshot_like_cpp()
-            .map(|auras| auras.runtime_applications_like_cpp().clone())
+        crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
     }
     pub(crate) fn insert_player_visible_aura_like_cpp(&mut self, aura: AuraApplication) -> bool {
         self.insert_player_visible_aura_with_provenance_like_cpp(
@@ -190,12 +189,7 @@ impl WorldSession {
         &self,
         spell_id: i32,
     ) -> Option<bool> {
-        self.player_aura_subsystem_snapshot_like_cpp().map(|auras| {
-            auras
-                .runtime_applications_like_cpp()
-                .values()
-                .any(|aura| aura.spell_id == spell_id)
-        })
+        crate::session::hub_ref(self).player_has_visible_aura_spell_like_cpp(spell_id)
     }
     pub(in crate::session) fn next_player_visible_aura_slot_like_cpp(&self) -> Option<u8> {
         let auras = self.player_aura_subsystem_snapshot_like_cpp()?;
@@ -390,5 +384,26 @@ impl WorldSession {
         if !should_enable && can_fly_changed {
             self.move_represented_player_fall_like_cpp();
         }
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(crate) fn resolved_player_visible_auras_like_cpp(
+        &self,
+    ) -> Option<HashMap<u8, AuraApplication>> {
+        self.player_aura_subsystem_snapshot_like_cpp()
+            .map(|auras| auras.runtime_applications_like_cpp().clone())
+    }
+
+    pub(in crate::session) fn player_has_visible_aura_spell_like_cpp(
+        &self,
+        spell_id: i32,
+    ) -> Option<bool> {
+        self.player_aura_subsystem_snapshot_like_cpp().map(|auras| {
+            auras
+                .runtime_applications_like_cpp()
+                .values()
+                .any(|aura| aura.spell_id == spell_id)
+        })
     }
 }

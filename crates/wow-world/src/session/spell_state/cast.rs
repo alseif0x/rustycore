@@ -288,10 +288,7 @@ impl WorldSession {
         .await
     }
     pub(crate) fn broadcast_to_movement_set_like_cpp(&self, bytes: Vec<u8>, _include_self: bool) {
-        self.broadcast_to_movement_set_in_range_like_cpp(
-            bytes,
-            crate::map_manager::VISIBILITY_RADIUS,
-        );
+        crate::session::hub_ref(self).broadcast_to_movement_set_like_cpp(bytes, _include_self)
     }
     pub(crate) fn broadcast_to_movement_set_realm_like_cpp(
         &self,
@@ -305,7 +302,7 @@ impl WorldSession {
         );
     }
     pub(crate) fn broadcast_to_movement_set_in_range_like_cpp(&self, bytes: Vec<u8>, range: f32) {
-        self.broadcast_to_movement_set_in_range_and_connection_like_cpp(bytes, range, false);
+        crate::session::hub_ref(self).broadcast_to_movement_set_in_range_like_cpp(bytes, range)
     }
     fn broadcast_to_movement_set_in_range_and_connection_like_cpp(
         &self,
@@ -313,38 +310,11 @@ impl WorldSession {
         range: f32,
         realm_connection: bool,
     ) {
-        let (Some(guid), Some(registry)) = (self.player_guid(), self.player_registry()) else {
-            return;
-        };
-        let Some(source_position) = self.player_position_like_cpp() else {
-            return;
-        };
-        let map_id = self.player_map_id_like_cpp();
-        let instance_id = self
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        for registration in registry.movement_recipients_within_range(
-            guid,
-            map_id,
-            instance_id,
-            source_position,
+        crate::session::hub_ref(self).broadcast_to_movement_set_in_range_and_connection_like_cpp(
+            bytes,
             range,
-        ) {
-            let command = SendIfVisibleLikeCppCommand {
-                queued_at: Instant::now(),
-                source_guid: guid,
-                map_id,
-                instance_id,
-                packet_bytes: bytes.clone(),
-            };
-            let command = if realm_connection {
-                SessionCommand::SendRealmIfVisibleLikeCpp(command)
-            } else {
-                SessionCommand::SendIfVisibleLikeCpp(command)
-            };
-            let _ = registry.try_send_current_command(registration, command);
-        }
+            realm_connection,
+        )
     }
     pub(in crate::session) fn represented_login_passive_spell_cast_gate_like_cpp(
         &self,
@@ -438,5 +408,60 @@ impl WorldSession {
             .fixtures
             .progression
             .represented_talent_respec_visual_spell_casts_like_cpp
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(crate) fn broadcast_to_movement_set_like_cpp(&self, bytes: Vec<u8>, _include_self: bool) {
+        self.broadcast_to_movement_set_in_range_like_cpp(
+            bytes,
+            crate::map_manager::VISIBILITY_RADIUS,
+        );
+    }
+
+    pub(crate) fn broadcast_to_movement_set_in_range_like_cpp(&self, bytes: Vec<u8>, range: f32) {
+        self.broadcast_to_movement_set_in_range_and_connection_like_cpp(bytes, range, false);
+    }
+
+    fn broadcast_to_movement_set_in_range_and_connection_like_cpp(
+        &self,
+        bytes: Vec<u8>,
+        range: f32,
+        realm_connection: bool,
+    ) {
+        let (Some(guid), Some(registry)) = (self.core.player_guid(), self.core.player_registry())
+        else {
+            return;
+        };
+        let Some(source_position) = self.player_position_like_cpp() else {
+            return;
+        };
+        let map_id = self.core.player_map_id_like_cpp();
+        let instance_id = self
+            .core
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        for registration in registry.movement_recipients_within_range(
+            guid,
+            map_id,
+            instance_id,
+            source_position,
+            range,
+        ) {
+            let command = SendIfVisibleLikeCppCommand {
+                queued_at: Instant::now(),
+                source_guid: guid,
+                map_id,
+                instance_id,
+                packet_bytes: bytes.clone(),
+            };
+            let command = if realm_connection {
+                SessionCommand::SendRealmIfVisibleLikeCpp(command)
+            } else {
+                SessionCommand::SendIfVisibleLikeCpp(command)
+            };
+            let _ = registry.try_send_current_command(registration, command);
+        }
     }
 }

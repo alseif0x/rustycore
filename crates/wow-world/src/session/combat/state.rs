@@ -384,19 +384,9 @@ impl WorldSession {
 
     pub(crate) fn combat_rating_multiplier_like_cpp(&self, level: u8, rating: u32) -> f32 {
         self.catalogs
-            .combat_ratings_game_table
-            .as_ref()
-            .map(|table| table.rating_multiplier_like_cpp(u16::from(level), rating))
-            .unwrap_or(1.0)
+            .combat_rating_multiplier_like_cpp(level, rating)
     }
 
-    pub(crate) fn mana_regen_ratio_like_cpp(&self, level: u8, class: u8) -> f32 {
-        self.catalogs
-            .regen_game_tables
-            .as_ref()
-            .map(|tables| tables.mana_regen_ratio_like_cpp(u16::from(level), class))
-            .unwrap_or(0.0)
-    }
     pub(in crate::session) fn represented_has_pvp_rules_enabled_like_cpp(&self) -> bool {
         self.player_has_visible_aura_spell_like_cpp(SPELL_PVP_RULES_ENABLED_LIKE_CPP)
             .unwrap_or(false)
@@ -491,53 +481,13 @@ impl WorldSession {
         canonical
     }
     pub(crate) fn set_combat_target_like_cpp(&mut self, target: Option<ObjectGuid>) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| player.unit_mut().set_attacking(target))
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.combat.combat_target = target;
-        }
-        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
+        crate::session::hub_mut(self).set_combat_target_like_cpp(target)
     }
     pub(crate) fn resolved_in_combat_like_cpp(&self) -> Option<bool> {
-        let canonical = self
-            .with_owned_player_like_cpp(|player| player.unit().subsystems().combat.has_combat());
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.combat.in_combat);
-        }
-        canonical
+        crate::session::hub_ref(self).resolved_in_combat_like_cpp()
     }
-    /// Publish C++ `CombatManager::HasCombat` from the canonical Player to the
-    /// bounded directory view. The argument remains only for pre-owner tests;
-    /// production never manufactures combat state outside `CombatSubsystem`.
     pub(crate) fn set_in_combat_like_cpp(&mut self, in_combat: bool) {
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.combat.in_combat = in_combat;
-            if let (Some(guid), Some(registry)) = (self.player_guid(), &self.core.player_registry) {
-                registry.publish_in_combat_for_control_channel(
-                    guid,
-                    &self.core.session_command_tx,
-                    in_combat,
-                );
-            }
-            return;
-        }
-        let canonical = self.resolved_in_combat_like_cpp();
-        #[cfg(not(test))]
-        let _ = in_combat;
-        let Some(in_combat) = canonical else {
-            return;
-        };
-        if let (Some(guid), Some(registry)) = (self.player_guid(), &self.core.player_registry) {
-            registry.publish_in_combat_for_control_channel(
-                guid,
-                &self.core.session_command_tx,
-                in_combat,
-            );
-        }
+        crate::session::hub_mut(self).set_in_combat_like_cpp(in_combat)
     }
     #[cfg(test)]
     pub(crate) fn represented_combat_stat_recalculations_like_cpp(
@@ -589,5 +539,82 @@ impl WorldSession {
             self.fixtures.combat.player_pvp_enabled_like_cpp = pvp_enabled;
             self.fixtures.combat.player_in_pvp_flag_like_cpp = in_pvp_flag;
         }
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(crate) fn resolved_in_combat_like_cpp(&self) -> Option<bool> {
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.unit().subsystems().combat.has_combat());
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.fixtures.combat.in_combat);
+        }
+        canonical
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(crate) fn set_combat_target_like_cpp(&mut self, target: Option<ObjectGuid>) -> bool {
+        let canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| player.unit_mut().set_attacking(target))
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.combat.combat_target = target;
+        }
+        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
+    }
+
+    /// Publish C++ `CombatManager::HasCombat` from the canonical Player to the
+    /// bounded directory view. The argument remains only for pre-owner tests;
+    /// production never manufactures combat state outside `CombatSubsystem`.
+    pub(crate) fn set_in_combat_like_cpp(&mut self, in_combat: bool) {
+        #[cfg(test)]
+        if self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.combat.in_combat = in_combat;
+            if let (Some(guid), Some(registry)) =
+                (self.core.player_guid(), &self.core.player_registry)
+            {
+                registry.publish_in_combat_for_control_channel(
+                    guid,
+                    &self.core.session_command_tx,
+                    in_combat,
+                );
+            }
+            return;
+        }
+        let canonical = self.shared().resolved_in_combat_like_cpp();
+        #[cfg(not(test))]
+        let _ = in_combat;
+        let Some(in_combat) = canonical else {
+            return;
+        };
+        if let (Some(guid), Some(registry)) = (self.core.player_guid(), &self.core.player_registry)
+        {
+            registry.publish_in_combat_for_control_channel(
+                guid,
+                &self.core.session_command_tx,
+                in_combat,
+            );
+        }
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    pub(crate) fn combat_rating_multiplier_like_cpp(&self, level: u8, rating: u32) -> f32 {
+        self.combat_ratings_game_table
+            .as_ref()
+            .map(|table| table.rating_multiplier_like_cpp(u16::from(level), rating))
+            .unwrap_or(1.0)
+    }
+
+    pub(crate) fn mana_regen_ratio_like_cpp(&self, level: u8, class: u8) -> f32 {
+        self.regen_game_tables
+            .as_ref()
+            .map(|tables| tables.mana_regen_ratio_like_cpp(u16::from(level), class))
+            .unwrap_or(0.0)
     }
 }

@@ -15,26 +15,145 @@ impl WorldSession {
         npc_flags: u32,
         npc_flags2: u32,
     ) -> Option<RepresentedCreatureAccessLikeCpp> {
+        crate::session::hub_ref(self)
+            .represented_npc_can_interact_with_like_cpp(guid, npc_flags, npc_flags2)
+    }
+
+    pub(in crate::session) fn resolved_player_interaction_data_like_cpp(
+        &self,
+    ) -> Option<PlayerInteractionDataLikeCpp> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| *player.interaction_data_like_cpp());
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.interaction.player_interaction_data_like_cpp);
+        }
+        canonical
+    }
+
+    pub(crate) fn reset_player_interaction_data_like_cpp(&mut self) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| player.reset_interaction_data_like_cpp())
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.interaction.player_interaction_data_like_cpp.reset();
+        }
+        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
+    }
+
+    pub(crate) fn set_player_interaction_source_like_cpp(
+        &mut self,
+        source_guid: ObjectGuid,
+    ) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_interaction_source_like_cpp(source_guid);
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.interaction
+                .player_interaction_data_like_cpp
+                .set_source(source_guid);
+        }
+        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
+    }
+
+    pub(crate) fn set_player_trainer_interaction_like_cpp(
+        &mut self,
+        source_guid: ObjectGuid,
+        trainer_id: u32,
+    ) -> bool {
+        let canonical = self
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_trainer_interaction_like_cpp(source_guid, trainer_id);
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.interaction
+                .player_interaction_data_like_cpp
+                .set_trainer(source_guid, trainer_id);
+        }
+        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
+    }
+
+    pub(crate) fn reset_player_interaction_if_source_like_cpp(
+        &mut self,
+        source_guid: ObjectGuid,
+    ) -> bool {
+        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+            player.reset_interaction_if_source_like_cpp(source_guid)
+        });
+        #[cfg(test)]
+        if canonical.is_some() || self.core.player_handle_like_cpp.is_none() {
+            let fixture = self
+                .interaction
+                .player_interaction_data_like_cpp
+                .reset_if_source(source_guid);
+            return canonical.unwrap_or(fixture);
+        }
+        canonical.unwrap_or(false)
+    }
+
+    pub(crate) fn player_interaction_source_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        let interaction = self.resolved_player_interaction_data_like_cpp()?;
+        (!interaction.source_guid.is_empty()).then_some(interaction.source_guid)
+    }
+
+    pub(crate) fn resolved_player_interaction_trainer_id_like_cpp(&self) -> Option<u32> {
+        self.resolved_player_interaction_data_like_cpp()
+            .map(|interaction| interaction.trainer_id)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn player_interaction_trainer_id_like_cpp(&self) -> u32 {
+        self.resolved_player_interaction_trainer_id_like_cpp()
+            .unwrap_or(0)
+    }
+
+    pub(crate) fn player_trainer_interaction_matches_like_cpp(
+        &self,
+        source_guid: ObjectGuid,
+        trainer_id: i32,
+    ) -> bool {
+        self.resolved_player_interaction_data_like_cpp()
+            .is_some_and(|interaction| interaction.trainer_matches(source_guid, trainer_id))
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(crate) fn represented_npc_can_interact_with_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        npc_flags: u32,
+        npc_flags2: u32,
+    ) -> Option<RepresentedCreatureAccessLikeCpp> {
         if guid.is_empty() || !guid.is_any_type_creature() {
             return None;
         }
-        let player_guid = self.player_guid()?;
+        let player_guid = self.core.player_guid()?;
         let player_position = self.player_position_like_cpp()?;
         let target_player_contested_pvp = self
+            .core
             .canonical_player_has_player_flag_like_cpp(
                 player_guid,
                 PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP,
             )
             .unwrap_or(false);
         let player_faction_template_id = self.player_faction_template_id_like_cpp();
-        let player_interaction_combat_reach = self.player_interaction_combat_reach_like_cpp();
+        let player_interaction_combat_reach = self.core.player_interaction_combat_reach_like_cpp();
         if self.resolved_is_in_taxi_flight_like_cpp() != Some(false) {
             return None;
         }
 
         let player_map_key = self
+            .core
             .current_canonical_player_map_key_like_cpp()
-            .unwrap_or_else(|| wow_map::MapKey::new(u32::from(self.player_map_id_like_cpp()), 0));
+            .unwrap_or_else(|| {
+                wow_map::MapKey::new(u32::from(self.core.player_map_id_like_cpp()), 0)
+            });
         let mut canonical_record_found_like_cpp = false;
         let mut canonical_fail_closed_like_cpp = false;
         let mut canonical_reaction_input_like_cpp = None;
@@ -217,7 +336,7 @@ impl WorldSession {
             .read()
             .unwrap_or_else(|poisoned| poisoned.into_inner());
         let creature =
-            manager.find_creature(self.player_map_id_like_cpp(), player_instance_id, guid)?;
+            manager.find_creature(self.core.player_map_id_like_cpp(), player_instance_id, guid)?;
         let type_flags =
             CreatureTypeFlags::from_bits_retain(creature.creature.lifecycle_metadata().type_flags);
         if self.resolved_player_is_alive_like_cpp() != Some(true)
@@ -296,108 +415,5 @@ impl WorldSession {
             trainer_class: creature.trainer_class_like_cpp(),
             faction_template_id: creature.faction(),
         })
-    }
-
-    pub(in crate::session) fn resolved_player_interaction_data_like_cpp(
-        &self,
-    ) -> Option<PlayerInteractionDataLikeCpp> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| *player.interaction_data_like_cpp());
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.interaction.player_interaction_data_like_cpp);
-        }
-        canonical
-    }
-
-    pub(crate) fn reset_player_interaction_data_like_cpp(&mut self) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| player.reset_interaction_data_like_cpp())
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.interaction.player_interaction_data_like_cpp.reset();
-        }
-        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
-    }
-
-    pub(crate) fn set_player_interaction_source_like_cpp(
-        &mut self,
-        source_guid: ObjectGuid,
-    ) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_interaction_source_like_cpp(source_guid);
-            })
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.interaction
-                .player_interaction_data_like_cpp
-                .set_source(source_guid);
-        }
-        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
-    }
-
-    pub(crate) fn set_player_trainer_interaction_like_cpp(
-        &mut self,
-        source_guid: ObjectGuid,
-        trainer_id: u32,
-    ) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_trainer_interaction_like_cpp(source_guid, trainer_id);
-            })
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.interaction
-                .player_interaction_data_like_cpp
-                .set_trainer(source_guid, trainer_id);
-        }
-        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
-    }
-
-    pub(crate) fn reset_player_interaction_if_source_like_cpp(
-        &mut self,
-        source_guid: ObjectGuid,
-    ) -> bool {
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            player.reset_interaction_if_source_like_cpp(source_guid)
-        });
-        #[cfg(test)]
-        if canonical.is_some() || self.core.player_handle_like_cpp.is_none() {
-            let fixture = self
-                .interaction
-                .player_interaction_data_like_cpp
-                .reset_if_source(source_guid);
-            return canonical.unwrap_or(fixture);
-        }
-        canonical.unwrap_or(false)
-    }
-
-    pub(crate) fn player_interaction_source_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        let interaction = self.resolved_player_interaction_data_like_cpp()?;
-        (!interaction.source_guid.is_empty()).then_some(interaction.source_guid)
-    }
-
-    pub(crate) fn resolved_player_interaction_trainer_id_like_cpp(&self) -> Option<u32> {
-        self.resolved_player_interaction_data_like_cpp()
-            .map(|interaction| interaction.trainer_id)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn player_interaction_trainer_id_like_cpp(&self) -> u32 {
-        self.resolved_player_interaction_trainer_id_like_cpp()
-            .unwrap_or(0)
-    }
-
-    pub(crate) fn player_trainer_interaction_matches_like_cpp(
-        &self,
-        source_guid: ObjectGuid,
-        trainer_id: i32,
-    ) -> bool {
-        self.resolved_player_interaction_data_like_cpp()
-            .is_some_and(|interaction| interaction.trainer_matches(source_guid, trainer_id))
     }
 }

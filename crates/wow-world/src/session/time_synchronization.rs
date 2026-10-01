@@ -39,12 +39,23 @@ pub(crate) fn game_time_ms_like_cpp() -> u32 {
 
 impl WorldSession {
     pub(crate) fn reset_time_sync_like_cpp(&mut self) {
-        self.core.driver.time_synchronization.next_counter = 0;
+        self.core.reset_time_sync_like_cpp()
+    }
+
+    pub(crate) fn record_time_sync_response_like_cpp(
+        &mut self,
+        sequence_index: u32,
+        client_time: u32,
+    ) {
         self.core
-            .driver
-            .time_synchronization
-            .pending_requests
-            .clear();
+            .record_time_sync_response_like_cpp(sequence_index, client_time)
+    }
+}
+
+impl crate::session::state::SessionCore {
+    pub(crate) fn reset_time_sync_like_cpp(&mut self) {
+        self.driver.time_synchronization.next_counter = 0;
+        self.driver.time_synchronization.pending_requests.clear();
     }
 
     pub(crate) fn record_time_sync_response_like_cpp(
@@ -53,7 +64,6 @@ impl WorldSession {
         client_time: u32,
     ) {
         let Some(server_time_at_sent) = self
-            .core
             .driver
             .time_synchronization
             .pending_requests
@@ -69,7 +79,7 @@ impl WorldSession {
             i64::from(server_time_at_sent) + i64::from(lag_delay) - i64::from(client_time);
         if std::env::var_os("RUSTYCORE_LOGIN_TRACE").is_some() {
             info!(
-                account = self.core.account_id,
+                account = self.account_id,
                 sequence_index,
                 client_time,
                 server_time_at_sent,
@@ -81,22 +91,13 @@ impl WorldSession {
             );
         }
 
-        if self
-            .core
-            .driver
-            .time_synchronization
-            .clock_delta_queue
-            .len()
-            == 6
-        {
-            self.core
-                .driver
+        if self.driver.time_synchronization.clock_delta_queue.len() == 6 {
+            self.driver
                 .time_synchronization
                 .clock_delta_queue
                 .pop_front();
         }
-        self.core
-            .driver
+        self.driver
             .time_synchronization
             .clock_delta_queue
             .push_back((clock_delta, round_trip_duration));
@@ -105,7 +106,6 @@ impl WorldSession {
 
     pub(in crate::session) fn compute_new_clock_delta_like_cpp(&mut self) {
         if self
-            .core
             .driver
             .time_synchronization
             .clock_delta_queue
@@ -115,7 +115,6 @@ impl WorldSession {
         }
 
         let mut latencies: Vec<u32> = self
-            .core
             .driver
             .time_synchronization
             .clock_delta_queue
@@ -140,7 +139,7 @@ impl WorldSession {
         let mut clock_delta_sum = 0i64;
         let mut sample_size_after_filtering = 0u32;
         for (clock_delta, round_trip_duration) in
-            &self.core.driver.time_synchronization.clock_delta_queue
+            &self.driver.time_synchronization.clock_delta_queue
         {
             if *round_trip_duration < latency_threshold {
                 clock_delta_sum += *clock_delta;
@@ -151,12 +150,11 @@ impl WorldSession {
         if sample_size_after_filtering != 0 {
             let mean_clock_delta =
                 (clock_delta_sum as f64 / f64::from(sample_size_after_filtering)).round() as i64;
-            if (mean_clock_delta - self.core.driver.time_synchronization.clock_delta).abs() > 25 {
-                self.core.driver.time_synchronization.clock_delta = mean_clock_delta;
+            if (mean_clock_delta - self.driver.time_synchronization.clock_delta).abs() > 25 {
+                self.driver.time_synchronization.clock_delta = mean_clock_delta;
             }
-        } else if self.core.driver.time_synchronization.clock_delta == 0 {
-            self.core.driver.time_synchronization.clock_delta = self
-                .core
+        } else if self.driver.time_synchronization.clock_delta == 0 {
+            self.driver.time_synchronization.clock_delta = self
                 .driver
                 .time_synchronization
                 .clock_delta_queue
@@ -168,6 +166,10 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn set_time_sync_clock_delta_for_test_like_cpp(&mut self, clock_delta: i64) {
-        self.core.driver.time_synchronization.clock_delta = clock_delta;
+        self.driver.time_synchronization.clock_delta = clock_delta;
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/time_synchronization/f3_shims.rs"]
+mod f3_shims;

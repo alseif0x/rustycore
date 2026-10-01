@@ -94,95 +94,14 @@ impl WorldSession {
     pub(in crate::session) fn player_collection_state_snapshot_like_cpp(
         &self,
     ) -> Option<wow_entities::PlayerCollectionStateLikeCpp> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.gameplay_state().collections.clone());
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.represented_player_collection_state_like_cpp());
-        }
-        canonical
-    }
-
-    /// Collect the session's represented collection fields into the canonical
-    /// collection state, as C++ hands the loaded `CollectionMgr` to the Player.
-    #[cfg(test)]
-    pub(in crate::session) fn represented_player_collection_state_like_cpp(
-        &self,
-    ) -> wow_entities::PlayerCollectionStateLikeCpp {
-        wow_entities::PlayerCollectionStateLikeCpp::from_loaded_account_parts_like_cpp(
-            self.fixtures.collections.account_mounts_like_cpp.clone(),
-            self.fixtures
-                .collections
-                .represented_account_heirlooms_like_cpp
-                .clone(),
-            self.fixtures
-                .collections
-                .represented_account_toys_like_cpp
-                .clone(),
-            self.fixtures
-                .collections
-                .represented_item_appearances_like_cpp
-                .clone(),
-            self.fixtures
-                .collections
-                .represented_item_appearance_blocks_like_cpp
-                .clone(),
-            self.fixtures
-                .collections
-                .represented_temporary_item_appearances_like_cpp
-                .clone(),
-            self.fixtures
-                .collections
-                .represented_favorite_item_appearances_like_cpp
-                .clone(),
-            self.fixtures
-                .collections
-                .represented_transmog_illusions_like_cpp
-                .clone(),
-        )
+        crate::session::hub_ref(self).player_collection_state_snapshot_like_cpp()
     }
 
     pub(in crate::session) fn replace_player_collection_state_like_cpp(
         &mut self,
         state: wow_entities::PlayerCollectionStateLikeCpp,
     ) -> bool {
-        let canonical = self
-            .mutate_canonical_player_like_cpp(|player| {
-                player.install_collection_state_like_cpp(state.clone());
-            })
-            .is_some();
-        #[cfg(test)]
-        {
-            self.fixtures.collections.account_mounts_like_cpp = state.mounts_like_cpp().clone();
-            self.fixtures
-                .collections
-                .represented_account_heirlooms_like_cpp = state.heirlooms_like_cpp().clone();
-            self.fixtures.collections.represented_account_toys_like_cpp =
-                state.toys_like_cpp().clone();
-            self.fixtures
-                .collections
-                .represented_item_appearances_like_cpp = state.item_appearances_like_cpp().clone();
-            self.fixtures
-                .collections
-                .represented_item_appearance_blocks_like_cpp =
-                state.item_appearance_blocks_snapshot_like_cpp();
-            self.fixtures
-                .collections
-                .represented_temporary_item_appearances_like_cpp =
-                state.temporary_item_appearances_like_cpp().clone();
-            self.fixtures
-                .collections
-                .represented_favorite_item_appearances_like_cpp =
-                state.favorite_item_appearances_like_cpp().clone();
-            self.fixtures
-                .collections
-                .represented_transmog_illusions_like_cpp =
-                state.transmog_illusions_like_cpp().clone();
-            if self.core.player_handle_like_cpp.is_none() {
-                return true;
-            }
-        }
-        canonical
+        crate::session::hub_mut(self).replace_player_collection_state_like_cpp(state)
     }
 
     /// C++ `Player::AddHeirloom`, called from `CollectionMgr::AddHeirloom`
@@ -311,3 +230,107 @@ impl WorldSession {
         true
     }
 }
+
+impl crate::session::HubMut<'_> {
+    pub(in crate::session) fn replace_player_collection_state_like_cpp(
+        &mut self,
+        state: wow_entities::PlayerCollectionStateLikeCpp,
+    ) -> bool {
+        let canonical = self
+            .core
+            .mutate_canonical_player_like_cpp(|player| {
+                player.install_collection_state_like_cpp(state.clone());
+            })
+            .is_some();
+        #[cfg(test)]
+        {
+            self.fixtures.collections.account_mounts_like_cpp = state.mounts_like_cpp().clone();
+            self.fixtures
+                .collections
+                .represented_account_heirlooms_like_cpp = state.heirlooms_like_cpp().clone();
+            self.fixtures.collections.represented_account_toys_like_cpp =
+                state.toys_like_cpp().clone();
+            self.fixtures
+                .collections
+                .represented_item_appearances_like_cpp = state.item_appearances_like_cpp().clone();
+            self.fixtures
+                .collections
+                .represented_item_appearance_blocks_like_cpp =
+                state.item_appearance_blocks_snapshot_like_cpp();
+            self.fixtures
+                .collections
+                .represented_temporary_item_appearances_like_cpp =
+                state.temporary_item_appearances_like_cpp().clone();
+            self.fixtures
+                .collections
+                .represented_favorite_item_appearances_like_cpp =
+                state.favorite_item_appearances_like_cpp().clone();
+            self.fixtures
+                .collections
+                .represented_transmog_illusions_like_cpp =
+                state.transmog_illusions_like_cpp().clone();
+            if self.core.player_handle_like_cpp.is_none() {
+                return true;
+            }
+        }
+        canonical
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(in crate::session) fn player_collection_state_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerCollectionStateLikeCpp> {
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.gameplay_state().collections.clone());
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.represented_player_collection_state_like_cpp());
+        }
+        canonical
+    }
+
+    /// Collect the session's represented collection fields into the canonical
+    /// collection state, as C++ hands the loaded `CollectionMgr` to the Player.
+    #[cfg(test)]
+    pub(in crate::session) fn represented_player_collection_state_like_cpp(
+        &self,
+    ) -> wow_entities::PlayerCollectionStateLikeCpp {
+        wow_entities::PlayerCollectionStateLikeCpp::from_loaded_account_parts_like_cpp(
+            self.fixtures.collections.account_mounts_like_cpp.clone(),
+            self.fixtures
+                .collections
+                .represented_account_heirlooms_like_cpp
+                .clone(),
+            self.fixtures
+                .collections
+                .represented_account_toys_like_cpp
+                .clone(),
+            self.fixtures
+                .collections
+                .represented_item_appearances_like_cpp
+                .clone(),
+            self.fixtures
+                .collections
+                .represented_item_appearance_blocks_like_cpp
+                .clone(),
+            self.fixtures
+                .collections
+                .represented_temporary_item_appearances_like_cpp
+                .clone(),
+            self.fixtures
+                .collections
+                .represented_favorite_item_appearances_like_cpp
+                .clone(),
+            self.fixtures
+                .collections
+                .represented_transmog_illusions_like_cpp
+                .clone(),
+        )
+    }
+}
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/collection_adapter/f3_shims.rs"]
+mod f3_shims;
