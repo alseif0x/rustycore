@@ -265,6 +265,42 @@ class CouplingTests(unittest.TestCase):
         text = coupling.render(report, 5)
         self.assertIn("sub-state leaf fields             4  (2 cfg-gated)", text)
 
+    def test_f3_moved_thunks_and_shims_are_counted(self):
+        self.write("session/state.rs", """
+            pub struct WorldSession {
+                pub(crate) catalogs: SessionCatalogs,
+            }
+        """)
+        self.write("session/state/catalogs.rs", """
+            pub(crate) struct SessionCatalogs {
+                pub(crate) store: u8,
+            }
+        """)
+        self.write("session/alpha.rs", """
+            impl WorldSession {
+                fn store(&self) -> u8 { self.catalogs.store() }
+                fn other(&self) -> u8 { 0 }
+            }
+            impl crate::session::state::SessionCatalogs {
+                fn store(&self) -> u8 { self.store }
+                fn only_moved(&self) -> u8 { 1 }
+            }
+            impl<'a> HubRef<'a> {
+                fn hub_fn(&self) {}
+            }
+        """)
+        shim = self.root / coupling.CRATE_SRC.parent / "unit_tests/session/alpha/f3_shims.rs"
+        shim.parent.mkdir(parents=True, exist_ok=True)
+        shim.write_text("impl crate::session::WorldSession {\n    fn shim_a(&self) {}\n"
+                        "    fn shim_b(&self) {}\n}\n", encoding="utf-8")
+        r5 = self.report()["r5"]
+        self.assertEqual(r5["impl_methods_production"], 3)  # alpha.rs 2 + beta_one
+        self.assertEqual(r5["substate_impl_methods_production"], 3)
+        self.assertEqual(r5["worldsession_thunks"], 1)
+        self.assertEqual(r5["f3_test_shims"], 2)
+        self.assertIn("moved onto sub-states             3  fns (1 WorldSession thunks keep their name),"
+                      " 2 unit_tests shims", coupling.render(self.report(), 3))
+
     def test_missing_struct_is_an_error(self):
         self.write("session/state.rs", "pub struct Other {}\n")
         with contextlib.redirect_stderr(io.StringIO()):

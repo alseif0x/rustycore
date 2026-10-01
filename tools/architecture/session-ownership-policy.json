@@ -21068,8 +21068,10 @@
           "name": "check_spell_group_stack_rules_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn check_spell_group_stack_rules_like_cpp (& self , first_rank_spell_id_1 : u32 , first_rank_spell_id_2 : u32 ,) -> SpellGroupStackRuleLikeCpp",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -25876,8 +25878,10 @@
           "name": "is_spell_member_of_spell_group_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn is_spell_member_of_spell_group_like_cpp (& self , spell_id : u32 , group_id : u32 ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -29233,8 +29237,10 @@
           "name": "pet_aura_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn pet_aura_like_cpp (& self , spell_id : u32 , effect_index : u8 ,) -> Option < & PetAuraLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -46740,8 +46746,10 @@
           "name": "set_of_spells_in_spell_group_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn set_of_spells_in_spell_group_like_cpp (& self , group_id : u32) -> BTreeSet < u32 >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"
@@ -50907,8 +50915,10 @@
           "name": "spell_group_spell_map_bounds_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn spell_group_spell_map_bounds_like_cpp (& self , group_id : u32) -> & [i32]",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -50920,8 +50930,10 @@
           "name": "spell_group_stack_rule_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn spell_group_stack_rule_like_cpp (& self , group_id : u32 ,) -> SpellGroupStackRuleLikeCpp",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
