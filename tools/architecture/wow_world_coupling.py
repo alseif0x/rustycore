@@ -241,10 +241,10 @@ def substate_leaves(
     return leaves
 
 
-def impl_methods(code: str) -> list[str]:
-    """Names of `fn` items directly inside inherent `impl WorldSession` blocks."""
+def impl_methods(code: str, head_pattern: re.Pattern[str] = IMPL_HEAD) -> list[str]:
+    """Names of `fn` items directly inside inherent `impl WorldSession` blocks (or `head_pattern`'s)."""
     names = []
-    for head in IMPL_HEAD.finditer(code):
+    for head in head_pattern.finditer(code):
         open_index = head.end() - 1
         close = matching_close(code, open_index)
         depth = 0
@@ -262,6 +262,15 @@ def impl_methods(code: str) -> list[str]:
             elif ch == ";" and depth == 0:
                 segment_start = j + 1
     return names
+
+
+def impl_head(types: set[str]) -> re.Pattern[str]:
+    """Inherent impl heads of any of `types` (#1241 F3 sub-state and hub-view owners)."""
+    names = "|".join(sorted(map(re.escape, types))) or "(?!)"
+    return re.compile(
+        r"(?m)^[ \t]*impl\s*(?:<[^{};]*?>)?\s*(?:" + IDENT + r"\s*::\s*)*(?:" + names + r")\b"
+        r"\s*(?:<[^{};]*>)?\s*(?:where\b[^{;]*)?\{"
+    )
 
 
 def is_test_path(rel: str) -> bool:
@@ -340,6 +349,20 @@ def analyze(root: pathlib.Path, hub_threshold: int = DEFAULT_HUB_THRESHOLD,
     for name, leaf in leaves.items():
         if leaf["group"] is not None:
             group_leaves[leaf["group"]][leaf["leaf"]] = name
+
+    # #1241 F3: fns moved onto sub-state / hub-view impls, the WorldSession thunks that still
+    # delegate to them (same name on both), and unit_tests-only WorldSession shims.
+    owner_head = impl_head({type_ident(f["type"]) for f in fields} | {"HubRef", "HubMut"})
+    owned_names: set[str] = set()
+    owned_total = 0
+    for rel, _text, code in sources:
+        if not is_test_path(rel):
+            moved = impl_methods(code, owner_head)
+            owned_total += len(moved)
+            owned_names.update(moved)
+    shim_total = 0
+    for shim in sorted((root / CRATE_SRC).parent.glob("unit_tests/**/f3_shims.rs")):
+        shim_total += len(impl_methods(blank_noncode(shim.read_text(encoding="utf-8"))))
 
     lines = {"production": 0, "test": 0}
     method_totals = {"production": 0, "test": 0}
@@ -453,6 +476,9 @@ def analyze(root: pathlib.Path, hub_threshold: int = DEFAULT_HUB_THRESHOLD,
             "impl_method_names_production": len(defs),
             "impl_files_production": impl_files["production"],
             "impl_files_test": impl_files["test"],
+            "substate_impl_methods_production": owned_total,
+            "worldsession_thunks": len(owned_names & set(defs)),
+            "f3_test_shims": shim_total,
         },
         "fields": {
             "total": len(fields),
@@ -486,6 +512,9 @@ def render(report: dict[str, Any], top: int) -> str:
         f" {r5['impl_methods_test']} test",
         f"  files with impl blocks     {r5['impl_files_production']:>8}"
         f"  production, {r5['impl_files_test']} test",
+        f"  moved onto sub-states      {r5['substate_impl_methods_production']:>8}"
+        f"  fns ({r5['worldsession_thunks']} WorldSession thunks keep their name),"
+        f" {r5['f3_test_shims']} unit_tests shims",
         f"Fields unused in production: {len(report['fields']['unused_in_production'])};"
         f" methods attributed to one domain: {report['methods']['unique_domain']},"
         f" ambiguous names: {report['methods']['multi_domain']}",

@@ -50,11 +50,6 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub fn set_declined_names_used_like_cpp(&mut self, used: bool) {
-        self.config.declined_names_used_like_cpp = used;
-    }
-
-    #[cfg(test)]
     pub(crate) fn declined_names_used_like_cpp(&self) -> bool {
         self.config.declined_names_used_like_cpp
     }
@@ -114,3 +109,14 @@ impl WorldSession {
             .unwrap_or("<error>")
     }
 }
+
+impl crate::session::state::SessionWorldConfig {
+    #[cfg(test)]
+    pub fn set_declined_names_used_like_cpp(&mut self, used: bool) {
+        self.declined_names_used_like_cpp = used;
+    }
+}
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/runtime_policy_access/f3_shims.rs"]
+mod f3_shims;
