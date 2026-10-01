@@ -134,19 +134,13 @@ impl WorldSession {
         port: Arc<dyn wow_persistence::VendorTradePersistencePortLikeCpp>,
     ) {
         self.lifecycle
-            .persistence_ports_like_cpp
-            .player
-            .vendor_trade = Some(port);
+            .set_vendor_trade_persistence_port_like_cpp(port)
     }
 
     pub(crate) fn vendor_trade_persistence_port_like_cpp(
         &self,
     ) -> Option<Arc<dyn wow_persistence::VendorTradePersistencePortLikeCpp>> {
-        self.lifecycle
-            .persistence_ports_like_cpp
-            .player
-            .vendor_trade
-            .clone()
+        self.lifecycle.vendor_trade_persistence_port_like_cpp()
     }
 
     pub fn set_player_inventory_persistence_port_like_cpp(
@@ -154,19 +148,13 @@ impl WorldSession {
         port: Arc<dyn wow_persistence::PlayerInventoryPersistencePortLikeCpp>,
     ) {
         self.lifecycle
-            .persistence_ports_like_cpp
-            .player
-            .player_inventory = Some(port);
+            .set_player_inventory_persistence_port_like_cpp(port)
     }
 
     pub(crate) fn player_inventory_persistence_port_like_cpp(
         &self,
     ) -> Option<Arc<dyn wow_persistence::PlayerInventoryPersistencePortLikeCpp>> {
-        self.lifecycle
-            .persistence_ports_like_cpp
-            .player
-            .player_inventory
-            .clone()
+        self.lifecycle.player_inventory_persistence_port_like_cpp()
     }
 
     pub fn set_player_quest_persistence_port_like_cpp(
@@ -174,19 +162,13 @@ impl WorldSession {
         port: Arc<dyn wow_persistence::PlayerQuestPersistencePortLikeCpp>,
     ) {
         self.lifecycle
-            .persistence_ports_like_cpp
-            .player
-            .player_quest = Some(port);
+            .set_player_quest_persistence_port_like_cpp(port)
     }
 
     pub(crate) fn player_quest_persistence_port_like_cpp(
         &self,
     ) -> Option<Arc<dyn wow_persistence::PlayerQuestPersistencePortLikeCpp>> {
-        self.lifecycle
-            .persistence_ports_like_cpp
-            .player
-            .player_quest
-            .clone()
+        self.lifecycle.player_quest_persistence_port_like_cpp()
     }
 
     pub fn set_player_quest_reward_persistence_port_like_cpp(
@@ -194,19 +176,14 @@ impl WorldSession {
         port: Arc<dyn wow_persistence::PlayerQuestRewardPersistencePortLikeCpp>,
     ) {
         self.lifecycle
-            .persistence_ports_like_cpp
-            .player
-            .player_quest_reward = Some(port);
+            .set_player_quest_reward_persistence_port_like_cpp(port)
     }
 
     pub(crate) fn player_quest_reward_persistence_port_like_cpp(
         &self,
     ) -> Option<Arc<dyn wow_persistence::PlayerQuestRewardPersistencePortLikeCpp>> {
         self.lifecycle
-            .persistence_ports_like_cpp
-            .player
-            .player_quest_reward
-            .clone()
+            .player_quest_reward_persistence_port_like_cpp()
     }
 
     pub fn set_stored_item_persistence_port_like_cpp(
@@ -219,11 +196,7 @@ impl WorldSession {
     pub(crate) fn stored_item_persistence_port_like_cpp(
         &self,
     ) -> Option<Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp>> {
-        self.lifecycle
-            .persistence_ports_like_cpp
-            .player
-            .stored_item
-            .clone()
+        self.lifecycle.stored_item_persistence_port_like_cpp()
     }
 
     pub fn set_character_administration_persistence_port_like_cpp(
@@ -231,19 +204,14 @@ impl WorldSession {
         port: Arc<dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp>,
     ) {
         self.lifecycle
-            .persistence_ports_like_cpp
-            .admission
-            .character_administration = Some(port);
+            .set_character_administration_persistence_port_like_cpp(port)
     }
 
     pub(crate) fn character_administration_persistence_port_like_cpp(
         &self,
     ) -> Option<Arc<dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp>> {
         self.lifecycle
-            .persistence_ports_like_cpp
-            .admission
-            .character_administration
-            .clone()
+            .character_administration_persistence_port_like_cpp()
     }
 
     pub fn set_loot_template_catalog_persistence_port_like_cpp(
@@ -260,10 +228,7 @@ impl WorldSession {
         &self,
     ) -> Option<Arc<dyn wow_persistence::LootTemplateCatalogPersistencePortLikeCpp>> {
         self.lifecycle
-            .persistence_ports_like_cpp
-            .catalogs
-            .loot_template_catalog
-            .clone()
+            .loot_template_catalog_persistence_port_like_cpp()
     }
 
     pub fn set_vendor_catalog_persistence_port_like_cpp(
@@ -279,11 +244,7 @@ impl WorldSession {
     pub(crate) fn vendor_catalog_persistence_port_like_cpp(
         &self,
     ) -> Option<Arc<dyn wow_persistence::VendorCatalogPersistencePortLikeCpp>> {
-        self.lifecycle
-            .persistence_ports_like_cpp
-            .catalogs
-            .vendor_catalog
-            .clone()
+        self.lifecycle.vendor_catalog_persistence_port_like_cpp()
     }
 
     pub fn set_visibility_spawn_catalog_persistence_port_like_cpp(
@@ -300,7 +261,115 @@ impl WorldSession {
         &self,
     ) -> Option<Arc<dyn wow_persistence::VisibilitySpawnCatalogPersistencePortLikeCpp>> {
         self.lifecycle
-            .persistence_ports_like_cpp
+            .visibility_spawn_catalog_persistence_port_like_cpp()
+    }
+}
+
+impl crate::session::SessionLifecycleState {
+    pub fn set_vendor_trade_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::VendorTradePersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.player.vendor_trade = Some(port);
+    }
+
+    pub(crate) fn vendor_trade_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::VendorTradePersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.player.vendor_trade.clone()
+    }
+
+    pub fn set_player_inventory_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::PlayerInventoryPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.player.player_inventory = Some(port);
+    }
+
+    pub(crate) fn player_inventory_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::PlayerInventoryPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp
+            .player
+            .player_inventory
+            .clone()
+    }
+
+    pub fn set_player_quest_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::PlayerQuestPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.player.player_quest = Some(port);
+    }
+
+    pub(crate) fn player_quest_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::PlayerQuestPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.player.player_quest.clone()
+    }
+
+    pub fn set_player_quest_reward_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::PlayerQuestRewardPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.player.player_quest_reward = Some(port);
+    }
+
+    pub(crate) fn player_quest_reward_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::PlayerQuestRewardPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp
+            .player
+            .player_quest_reward
+            .clone()
+    }
+
+    pub(crate) fn stored_item_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.player.stored_item.clone()
+    }
+
+    pub fn set_character_administration_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp
+            .admission
+            .character_administration = Some(port);
+    }
+
+    pub(crate) fn character_administration_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp
+            .admission
+            .character_administration
+            .clone()
+    }
+
+    pub(crate) fn loot_template_catalog_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::LootTemplateCatalogPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp
+            .catalogs
+            .loot_template_catalog
+            .clone()
+    }
+
+    pub(crate) fn vendor_catalog_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::VendorCatalogPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp
+            .catalogs
+            .vendor_catalog
+            .clone()
+    }
+
+    pub(crate) fn visibility_spawn_catalog_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::VisibilitySpawnCatalogPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp
             .catalogs
             .visibility_spawn_catalog
             .clone()

@@ -11,27 +11,9 @@ impl WorldSession {
         group_guid: u64,
         intents: Vec<GroupPersistenceIntentLikeCpp>,
     ) {
-        let Some(port) = self.represented_group_persistence_port_like_cpp() else {
-            return;
-        };
-        let request = RepresentedGroupPersistenceRequestLikeCpp {
-            commands: intents
-                .into_iter()
-                .map(group_persistence_command_like_cpp)
-                .collect(),
-            mode: RepresentedGroupPersistenceModeLikeCpp::Sequential,
-        };
-        let outcome = port.persist_group_commands_like_cpp(request).await;
-        if !matches!(
-            outcome,
-            RepresentedGroupPersistenceOutcomeLikeCpp::Applied { .. }
-        ) {
-            warn!(
-                group_guid,
-                ?outcome,
-                "failed to persist represented group transition"
-            );
-        }
+        self.lifecycle
+            .persist_group_intents_like_cpp(group_guid, intents)
+            .await
     }
     /// CMSG_PARTY_INVITE (0x3604)
     ///
@@ -895,5 +877,35 @@ impl WorldSession {
         )
         .await;
         let _ = self.update_visible_gameobjects_or_spell_clicks_like_cpp();
+    }
+}
+
+impl crate::session::SessionLifecycleState {
+    pub(super) async fn persist_group_intents_like_cpp(
+        &self,
+        group_guid: u64,
+        intents: Vec<GroupPersistenceIntentLikeCpp>,
+    ) {
+        let Some(port) = self.represented_group_persistence_port_like_cpp() else {
+            return;
+        };
+        let request = RepresentedGroupPersistenceRequestLikeCpp {
+            commands: intents
+                .into_iter()
+                .map(group_persistence_command_like_cpp)
+                .collect(),
+            mode: RepresentedGroupPersistenceModeLikeCpp::Sequential,
+        };
+        let outcome = port.persist_group_commands_like_cpp(request).await;
+        if !matches!(
+            outcome,
+            RepresentedGroupPersistenceOutcomeLikeCpp::Applied { .. }
+        ) {
+            warn!(
+                group_guid,
+                ?outcome,
+                "failed to persist represented group transition"
+            );
+        }
     }
 }

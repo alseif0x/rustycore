@@ -148,26 +148,17 @@ impl WorldSession {
         self.core.guid_generator = Some(generator);
     }
 
-    /// Install the Player lifecycle persistence port. Composition supplies the
-    /// MariaDB adapter; unit sessions leave it empty and skip durable writes.
     pub fn set_player_lifecycle_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>,
     ) {
-        self.lifecycle
-            .persistence_ports_like_cpp
-            .player
-            .player_lifecycle = Some(port);
+        self.lifecycle.set_player_lifecycle_port_like_cpp(port)
     }
 
     pub(crate) fn player_lifecycle_port_like_cpp(
         &self,
     ) -> Option<&Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>> {
-        self.lifecycle
-            .persistence_ports_like_cpp
-            .player
-            .player_lifecycle
-            .as_ref()
+        self.lifecycle.player_lifecycle_port_like_cpp()
     }
 
     pub(crate) fn set_realm_list_secret_like_cpp(&mut self, secret: [u8; 32]) {
@@ -259,6 +250,26 @@ impl WorldSession {
     /// Whether the session is disconnecting.
     pub fn is_disconnecting(&self) -> bool {
         self.core.state == SessionState::Disconnecting
+    }
+}
+
+impl crate::session::state::SessionLifecycleState {
+    /// Install the Player lifecycle persistence port. Composition supplies the
+    /// MariaDB adapter; unit sessions leave it empty and skip durable writes.
+    pub fn set_player_lifecycle_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.player.player_lifecycle = Some(port);
+    }
+
+    pub(crate) fn player_lifecycle_port_like_cpp(
+        &self,
+    ) -> Option<&Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>> {
+        self.persistence_ports_like_cpp
+            .player
+            .player_lifecycle
+            .as_ref()
     }
 }
 

@@ -133,3 +133,43 @@ pub(crate) fn split_spell_state_mut(s: &mut WorldSession) -> (&mut SessionSpellS
 pub(crate) fn split_spell_state_ref(s: &WorldSession) -> (&SessionSpellState, HubRef<'_>) {
     (&s.spell_state, hub_ref(s))
 }
+
+/// `&mut` group state plus the mutable hub (core and fixtures), borrowed from disjoint fields.
+pub(crate) fn split_instances_mut(s: &mut WorldSession) -> (&mut InstanceState, HubMut<'_>) {
+    (
+        &mut s.instances,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(test)]
+            fixtures: &mut s.fixtures,
+        },
+    )
+}
+
+/// Shared group state plus the shared hub for `&self` methods.
+pub(crate) fn split_instances_ref(s: &WorldSession) -> (&InstanceState, HubRef<'_>) {
+    (&s.instances, hub_ref(s))
+}
+
+/// `&mut` group state plus the mutable hub (core and fixtures), borrowed from disjoint fields.
+pub(crate) fn split_lifecycle_mut(
+    s: &mut WorldSession,
+) -> (&mut SessionLifecycleState, HubMut<'_>) {
+    (
+        &mut s.lifecycle,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(test)]
+            fixtures: &mut s.fixtures,
+        },
+    )
+}
+
+/// Shared group state plus the shared hub for `&self` methods.
+pub(crate) fn split_lifecycle_ref(s: &WorldSession) -> (&SessionLifecycleState, HubRef<'_>) {
+    (&s.lifecycle, hub_ref(s))
+}

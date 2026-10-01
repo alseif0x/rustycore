@@ -23,23 +23,29 @@ impl WorldSession {
         }
         self.sync_current_player_session_visibility_detection_like_cpp();
     }
+}
 
+impl crate::session::state::SessionLifecycleState {
     pub(crate) fn player_logout_like_cpp(&self) -> bool {
-        self.lifecycle.player_logout_like_cpp
+        self.player_logout_like_cpp
     }
 
     /// Admit timed finalization, without publishing completion before save.
     /// The session supervisor executes the same obligation coordinator; the
     /// timed route retains disconnect semantics after its logout publication.
-    pub(in crate::session) fn complete_logout(&mut self) {
-        info!("Timed logout admitted for account {}", self.core.account_id);
-        if self.lifecycle.finalization.is_none() {
-            self.lifecycle.finalization = Some(SessionFinalization::new(
+    pub(in crate::session) fn complete_logout(&mut self, hub: &mut crate::session::HubMut<'_>) {
+        info!("Timed logout admitted for account {}", hub.core.account_id);
+        if self.finalization.is_none() {
+            self.finalization = Some(SessionFinalization::new(
                 FinalizationMode::TimedLogout,
-                self.player_guid().is_some(),
-                self.core.player_handle_like_cpp,
+                hub.core.player_guid().is_some(),
+                hub.core.player_handle_like_cpp,
             ));
         }
-        self.core.state = SessionState::Disconnecting;
+        hub.core.state = SessionState::Disconnecting;
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/lifecycle/logout/f3_shims.rs"]
+mod f3_shims;

@@ -195,8 +195,7 @@ impl WorldSession {
         name: String,
     ) -> bool {
         self.lifecycle
-            .character_rename_callbacks
-            .submit(port, guid, name)
+            .submit_character_rename_like_cpp(port, guid, name)
     }
 
     /// The production driver invokes this after packet dispatch. Full World/Map
@@ -279,5 +278,16 @@ impl WorldSession {
     /// Cancelling this await retains remaining handles for a repeated drain.
     pub async fn finish_character_rename_callbacks_like_cpp(&mut self) -> bool {
         self.lifecycle.character_rename_callbacks.finish().await
+    }
+}
+
+impl crate::session::state::SessionLifecycleState {
+    pub(crate) fn submit_character_rename_like_cpp(
+        &mut self,
+        port: std::sync::Arc<dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp>,
+        guid: wow_core::ObjectGuid,
+        name: String,
+    ) -> bool {
+        self.character_rename_callbacks.submit(port, guid, name)
     }
 }

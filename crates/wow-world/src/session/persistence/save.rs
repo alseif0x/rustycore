@@ -128,63 +128,13 @@ impl WorldSession {
             powers,
         })
     }
-    /// C++ `Player::_SaveCurrency` plan for changed/new currency rows.
-    /// Gameplay owns filtering and state transitions; the persistence adapter
-    /// owns statement identity, bind order, and transaction execution.
     pub(crate) fn plan_player_currency_save_like_cpp(
         &self,
         character_guid: u64,
         currencies: &mut HashMap<u32, PlayerCurrency>,
     ) -> wow_persistence::PlayerCurrencySaveRequestLikeCpp {
-        let mut rows = Vec::new();
-        let Some(store) = self.catalogs.currency_types_store.as_ref() else {
-            return wow_persistence::PlayerCurrencySaveRequestLikeCpp {
-                player_guid: character_guid,
-                rows,
-            };
-        };
-        for (&currency_id, currency) in currencies.iter_mut() {
-            if !store.has_record(currency_id) {
-                continue;
-            }
-            let Ok(currency_db_id) = u16::try_from(currency_id) else {
-                continue;
-            };
-
-            match currency.state {
-                PlayerCurrencyState::New => {
-                    rows.push(wow_persistence::PlayerCurrencySaveRowLikeCpp {
-                        kind: wow_persistence::PlayerCurrencySaveKindLikeCpp::New,
-                        currency_id: currency_db_id,
-                        quantity: currency.quantity,
-                        weekly_quantity: currency.weekly_quantity,
-                        tracked_quantity: currency.tracked_quantity,
-                        increased_cap_quantity: currency.increased_cap_quantity,
-                        earned_quantity: currency.earned_quantity,
-                        flags: currency.flags,
-                    });
-                    currency.state = PlayerCurrencyState::Unchanged;
-                }
-                PlayerCurrencyState::Changed => {
-                    rows.push(wow_persistence::PlayerCurrencySaveRowLikeCpp {
-                        kind: wow_persistence::PlayerCurrencySaveKindLikeCpp::Changed,
-                        currency_id: currency_db_id,
-                        quantity: currency.quantity,
-                        weekly_quantity: currency.weekly_quantity,
-                        tracked_quantity: currency.tracked_quantity,
-                        increased_cap_quantity: currency.increased_cap_quantity,
-                        earned_quantity: currency.earned_quantity,
-                        flags: currency.flags,
-                    });
-                    currency.state = PlayerCurrencyState::Unchanged;
-                }
-                PlayerCurrencyState::Unchanged | PlayerCurrencyState::Removed => {}
-            }
-        }
-        wow_persistence::PlayerCurrencySaveRequestLikeCpp {
-            player_guid: character_guid,
-            rows,
-        }
+        self.catalogs
+            .plan_player_currency_save_like_cpp(character_guid, currencies)
     }
     pub(crate) async fn persist_standalone_player_currency_save_like_cpp(
         &mut self,
@@ -216,61 +166,15 @@ impl WorldSession {
             Err(outcome)
         }
     }
-    /// C++ `CollectionMgr::SaveAccountHeirlooms`.
-    pub(crate) fn account_heirloom_save_rows_like_cpp(
-        &self,
-    ) -> Option<Vec<AccountHeirloomSaveRowLikeCpp>> {
-        let bnet_account_id = self.battlenet_account_id();
-        Some(
-            self.player_collection_state_snapshot_like_cpp()?
-                .heirlooms_like_cpp()
-                .into_iter()
-                .map(|(item_id, data)| AccountHeirloomSaveRowLikeCpp {
-                    bnet_account_id,
-                    item_id: *item_id,
-                    flags: data.flags,
-                })
-                .collect(),
-        )
-    }
-    /// C++ `CollectionMgr::SaveAccountToys`.
-    pub(crate) fn account_toy_save_rows_like_cpp(&self) -> Option<Vec<AccountToySaveRowLikeCpp>> {
-        let bnet_account_id = self.battlenet_account_id();
-        Some(
-            self.player_collection_state_snapshot_like_cpp()?
-                .toys_like_cpp()
-                .into_iter()
-                .map(|(item_id, flags)| AccountToySaveRowLikeCpp {
-                    bnet_account_id,
-                    item_id: *item_id,
-                    is_favorite: (*flags & TOY_FLAG_FAVORITE_LIKE_CPP) != 0,
-                    has_fanfare: (*flags & TOY_FLAG_HAS_FANFARE_LIKE_CPP) != 0,
-                })
-                .collect(),
-        )
-    }
     pub fn set_player_save_interval_ms_like_cpp(&mut self, interval_ms: u32) {
         self.lifecycle.player_save_interval_ms_like_cpp = interval_ms;
         self.reset_player_save_timer_like_cpp();
     }
     pub(in crate::session) fn reset_player_save_timer_like_cpp(&mut self) {
-        self.lifecycle.next_player_save_ms_like_cpp =
-            self.lifecycle.player_save_interval_ms_like_cpp;
-        self.lifecycle.pending_periodic_player_save_like_cpp = false;
+        self.lifecycle.reset_player_save_timer_like_cpp()
     }
     pub(in crate::session) fn update_player_save_timer_like_cpp(&mut self, diff_ms: u32) {
-        if self.lifecycle.player_save_interval_ms_like_cpp == 0
-            || self.lifecycle.next_player_save_ms_like_cpp == 0
-        {
-            return;
-        }
-
-        if diff_ms >= self.lifecycle.next_player_save_ms_like_cpp {
-            self.lifecycle.next_player_save_ms_like_cpp = 0;
-            self.lifecycle.pending_periodic_player_save_like_cpp = true;
-        } else {
-            self.lifecycle.next_player_save_ms_like_cpp -= diff_ms;
-        }
+        self.lifecycle.update_player_save_timer_like_cpp(diff_ms)
     }
     pub(in crate::session) fn resolved_player_flags_for_rest_state_save_like_cpp(
         &self,
@@ -332,26 +236,6 @@ impl WorldSession {
         self.process_pending_periodic_player_save_with_generator_like_cpp(generators.item.as_ref())
             .await;
     }
-    /// C++ `CollectionMgr::SaveAccountMounts`.
-    pub(crate) fn account_mount_save_rows_like_cpp(
-        &self,
-    ) -> Option<Vec<AccountMountSaveRowLikeCpp>> {
-        let bnet_account_id = self.battlenet_account_id();
-        let mut rows = self
-            .player_collection_state_snapshot_like_cpp()?
-            .mounts_like_cpp()
-            .into_iter()
-            .filter_map(|(spell_id, flags)| {
-                Some(AccountMountSaveRowLikeCpp {
-                    bnet_account_id,
-                    mount_spell_id: u32::try_from(*spell_id).ok()?,
-                    flags: *flags,
-                })
-            })
-            .collect::<Vec<_>>();
-        rows.sort_by_key(|row| row.mount_spell_id);
-        Some(rows)
-    }
     #[cfg(test)]
     pub(in crate::session) fn fixture_mark_player_skills_saved_like_cpp(&mut self) {
         let Some(mut records) = self.resolved_player_skill_records_like_cpp() else {
@@ -386,6 +270,96 @@ impl WorldSession {
         &mut self,
         profiles: Vec<wow_packet::packets::misc::CufProfile>,
     ) -> bool {
+        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+        state.represented_save_cuf_profiles_like_cpp(&mut hub, profiles)
+    }
+}
+
+impl crate::session::state::SessionLifecycleState {
+    /// C++ `CollectionMgr::SaveAccountHeirlooms`.
+    pub(crate) fn account_heirloom_save_rows_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<Vec<AccountHeirloomSaveRowLikeCpp>> {
+        let bnet_account_id = hub.core.battlenet_account_id();
+        Some(
+            hub.player_collection_state_snapshot_like_cpp()?
+                .heirlooms_like_cpp()
+                .into_iter()
+                .map(|(item_id, data)| AccountHeirloomSaveRowLikeCpp {
+                    bnet_account_id,
+                    item_id: *item_id,
+                    flags: data.flags,
+                })
+                .collect(),
+        )
+    }
+
+    /// C++ `CollectionMgr::SaveAccountToys`.
+    pub(crate) fn account_toy_save_rows_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<Vec<AccountToySaveRowLikeCpp>> {
+        let bnet_account_id = hub.core.battlenet_account_id();
+        Some(
+            hub.player_collection_state_snapshot_like_cpp()?
+                .toys_like_cpp()
+                .into_iter()
+                .map(|(item_id, flags)| AccountToySaveRowLikeCpp {
+                    bnet_account_id,
+                    item_id: *item_id,
+                    is_favorite: (*flags & TOY_FLAG_FAVORITE_LIKE_CPP) != 0,
+                    has_fanfare: (*flags & TOY_FLAG_HAS_FANFARE_LIKE_CPP) != 0,
+                })
+                .collect(),
+        )
+    }
+
+    pub(in crate::session) fn reset_player_save_timer_like_cpp(&mut self) {
+        self.next_player_save_ms_like_cpp = self.player_save_interval_ms_like_cpp;
+        self.pending_periodic_player_save_like_cpp = false;
+    }
+
+    pub(in crate::session) fn update_player_save_timer_like_cpp(&mut self, diff_ms: u32) {
+        if self.player_save_interval_ms_like_cpp == 0 || self.next_player_save_ms_like_cpp == 0 {
+            return;
+        }
+
+        if diff_ms >= self.next_player_save_ms_like_cpp {
+            self.next_player_save_ms_like_cpp = 0;
+            self.pending_periodic_player_save_like_cpp = true;
+        } else {
+            self.next_player_save_ms_like_cpp -= diff_ms;
+        }
+    }
+
+    /// C++ `CollectionMgr::SaveAccountMounts`.
+    pub(crate) fn account_mount_save_rows_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<Vec<AccountMountSaveRowLikeCpp>> {
+        let bnet_account_id = hub.core.battlenet_account_id();
+        let mut rows = hub
+            .player_collection_state_snapshot_like_cpp()?
+            .mounts_like_cpp()
+            .into_iter()
+            .filter_map(|(spell_id, flags)| {
+                Some(AccountMountSaveRowLikeCpp {
+                    bnet_account_id,
+                    mount_spell_id: u32::try_from(*spell_id).ok()?,
+                    flags: *flags,
+                })
+            })
+            .collect::<Vec<_>>();
+        rows.sort_by_key(|row| row.mount_spell_id);
+        Some(rows)
+    }
+
+    pub(crate) fn represented_save_cuf_profiles_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        profiles: Vec<wow_packet::packets::misc::CufProfile>,
+    ) -> bool {
         if profiles.len() > wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP {
             return false;
         }
@@ -396,7 +370,7 @@ impl WorldSession {
             .into_iter()
             .map(player_cuf_profile_from_packet_like_cpp)
             .collect::<Vec<_>>();
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+        let canonical = hub.core.with_owned_player_mut_like_cpp(|player| {
             // C++ `WorldSession::HandleSaveCUFProfiles` saves the sent slots
             // and then empties the rest (MiscHandler.cpp:1115-1119).
             let sent = profiles.len();
@@ -412,14 +386,79 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.presentation.cuf_profiles_like_cpp =
+        if hub.core.player_handle_like_cpp.is_none() {
+            hub.fixtures.presentation.cuf_profiles_like_cpp =
                 vec![None; wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP];
             for (slot, profile) in fixture_profiles.into_iter().enumerate() {
-                self.fixtures.presentation.cuf_profiles_like_cpp[slot] = Some(profile);
+                hub.fixtures.presentation.cuf_profiles_like_cpp[slot] = Some(profile);
             }
             return true;
         }
         false
     }
 }
+
+impl crate::session::state::SessionCatalogs {
+    /// C++ `Player::_SaveCurrency` plan for changed/new currency rows.
+    /// Gameplay owns filtering and state transitions; the persistence adapter
+    /// owns statement identity, bind order, and transaction execution.
+    pub(crate) fn plan_player_currency_save_like_cpp(
+        &self,
+        character_guid: u64,
+        currencies: &mut HashMap<u32, PlayerCurrency>,
+    ) -> wow_persistence::PlayerCurrencySaveRequestLikeCpp {
+        let mut rows = Vec::new();
+        let Some(store) = self.currency_types_store.as_ref() else {
+            return wow_persistence::PlayerCurrencySaveRequestLikeCpp {
+                player_guid: character_guid,
+                rows,
+            };
+        };
+        for (&currency_id, currency) in currencies.iter_mut() {
+            if !store.has_record(currency_id) {
+                continue;
+            }
+            let Ok(currency_db_id) = u16::try_from(currency_id) else {
+                continue;
+            };
+
+            match currency.state {
+                PlayerCurrencyState::New => {
+                    rows.push(wow_persistence::PlayerCurrencySaveRowLikeCpp {
+                        kind: wow_persistence::PlayerCurrencySaveKindLikeCpp::New,
+                        currency_id: currency_db_id,
+                        quantity: currency.quantity,
+                        weekly_quantity: currency.weekly_quantity,
+                        tracked_quantity: currency.tracked_quantity,
+                        increased_cap_quantity: currency.increased_cap_quantity,
+                        earned_quantity: currency.earned_quantity,
+                        flags: currency.flags,
+                    });
+                    currency.state = PlayerCurrencyState::Unchanged;
+                }
+                PlayerCurrencyState::Changed => {
+                    rows.push(wow_persistence::PlayerCurrencySaveRowLikeCpp {
+                        kind: wow_persistence::PlayerCurrencySaveKindLikeCpp::Changed,
+                        currency_id: currency_db_id,
+                        quantity: currency.quantity,
+                        weekly_quantity: currency.weekly_quantity,
+                        tracked_quantity: currency.tracked_quantity,
+                        increased_cap_quantity: currency.increased_cap_quantity,
+                        earned_quantity: currency.earned_quantity,
+                        flags: currency.flags,
+                    });
+                    currency.state = PlayerCurrencyState::Unchanged;
+                }
+                PlayerCurrencyState::Unchanged | PlayerCurrencyState::Removed => {}
+            }
+        }
+        wow_persistence::PlayerCurrencySaveRequestLikeCpp {
+            player_guid: character_guid,
+            rows,
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/persistence/save/f3_shims.rs"]
+mod f3_shims;

@@ -28,25 +28,8 @@ impl WorldSession {
         crate::session::hub_mut(self).mutate_player_talent_runtime_like_cpp(f)
     }
 
-    pub(in crate::session) fn install_loaded_glyph_like_cpp(
-        &mut self,
-        talent_group: u8,
-        glyph_slot: u8,
-        glyph_id: u16,
-    ) -> bool {
-        crate::session::hub_mut(self).install_loaded_glyph_like_cpp(
-            talent_group,
-            glyph_slot,
-            glyph_id,
-        )
-    }
-
     pub(in crate::session) fn mark_talents_loaded_like_cpp(&mut self) -> bool {
         crate::session::hub_mut(self).mark_talents_loaded_like_cpp()
-    }
-
-    pub(in crate::session) fn mark_glyphs_loaded_like_cpp(&mut self) -> bool {
-        crate::session::hub_mut(self).mark_glyphs_loaded_like_cpp()
     }
 
     pub(in crate::session) fn install_reset_talent_groups_like_cpp(
@@ -265,9 +248,6 @@ impl WorldSession {
         crate::session::hub_mut(self).record_represented_talent_reset_script_hook_like_cpp(no_cost)
     }
 
-    pub(crate) fn reset_represented_glyphs_like_cpp(&mut self) {
-        crate::session::hub_mut(self).reset_represented_glyphs_like_cpp()
-    }
     pub(crate) fn represented_active_glyphs_packet_like_cpp(
         &self,
     ) -> wow_packet::packets::misc::ActiveGlyphs {

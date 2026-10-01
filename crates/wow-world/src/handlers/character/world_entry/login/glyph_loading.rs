@@ -14,10 +14,30 @@ impl WorldSession {
         player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
         guid: ObjectGuid,
     ) {
+        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+        state
+            .load_character_glyphs_for_login_like_cpp(
+                &mut hub,
+                player_lifecycle_port,
+                player_bootstrap,
+                guid,
+            )
+            .await
+    }
+}
+
+impl crate::session::SessionLifecycleState {
+    pub(super) async fn load_character_glyphs_for_login_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        player_lifecycle_port: &Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>,
+        player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
+        guid: ObjectGuid,
+    ) {
         // ── Load glyphs from character_glyphs ──
         // C++ `Player::_LoadGlyphs`: skip invalid talent group/slot and glyph ids
         // missing from GlyphProperties.db2.
-        self.reset_represented_glyphs_like_cpp();
+        hub.reset_represented_glyphs_like_cpp();
         match player_lifecycle_port
             .load_login_auxiliary_like_cpp(
                 wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::Glyphs {
@@ -33,6 +53,7 @@ impl WorldSession {
                 let mut skipped = 0usize;
                 for row in rows {
                     if self.load_represented_glyph_row_like_cpp(
+                        hub,
                         player_bootstrap.glyph_properties.as_ref(),
                         row.talent_group,
                         row.glyph_slot,
@@ -43,7 +64,7 @@ impl WorldSession {
                         skipped += 1;
                     }
                 }
-                self.mark_represented_glyphs_loaded_like_cpp();
+                self.mark_represented_glyphs_loaded_like_cpp(hub);
                 info!(
                     loaded,
                     skipped,

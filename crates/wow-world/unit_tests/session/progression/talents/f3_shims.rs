@@ -48,4 +48,7 @@ impl crate::session::WorldSession {
             .progression
             .represented_talent_respec_criteria_events_like_cpp()
     }
+    pub(crate) fn reset_represented_glyphs_like_cpp(&mut self) {
+        crate::session::hub_mut(self).reset_represented_glyphs_like_cpp()
+    }
 }

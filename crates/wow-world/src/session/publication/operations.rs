@@ -346,9 +346,7 @@ impl WorldSession {
     pub(crate) fn tutorial_flags_packet_like_cpp(
         &self,
     ) -> wow_packet::packets::misc::TutorialFlags {
-        wow_packet::packets::misc::TutorialFlags {
-            tutorial_data: self.lifecycle.tutorials_like_cpp,
-        }
+        self.lifecycle.tutorial_flags_packet_like_cpp()
     }
     pub(in crate::session) fn try_send_connected_player_command_like_cpp(
         &self,
@@ -363,6 +361,16 @@ impl WorldSession {
         guid: ObjectGuid,
     ) {
         crate::session::hub_ref(self).send_active_player_multi_action_bars_update_like_cpp(guid)
+    }
+}
+
+impl crate::session::state::SessionLifecycleState {
+    pub(crate) fn tutorial_flags_packet_like_cpp(
+        &self,
+    ) -> wow_packet::packets::misc::TutorialFlags {
+        wow_packet::packets::misc::TutorialFlags {
+            tutorial_data: self.tutorials_like_cpp,
+        }
     }
 }
 

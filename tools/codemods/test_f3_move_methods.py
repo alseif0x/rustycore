@@ -212,14 +212,20 @@ class F3MoveMethodsTest(unittest.TestCase):
             "    pub(crate) fn source_plus(&self, x: u32) -> u32 {\n"
             "        self.interaction.source + self.core.account_id + x\n    }\n"
             "    pub(crate) fn reset_source(&mut self) {\n"
-            "        self.interaction.source = self.core.account_id;\n    }\n}\n"))
+            "        self.interaction.source = self.core.account_id;\n    }\n"
+            "    pub(crate) fn reset_twice(&mut self) {\n        self.reset_source();\n        self.reset_source();\n    }\n"
+            "}\n"))
+        self.write("crates/wow-world/unit_tests/pins.rs",              # a source-text test pins the call
+                   'const SRC: &str = include_str!("npc.rs");\nfn t() { assert!(SRC.contains("reset_source()")); }\n')
         conn = self.root / "crates/wow-world/src/session/connection.rs"
         conn.write_text(conn.read_text().replace(
             "            + self.with_mut(|x| x)\n",
             "            + self.with_mut(|x| x) + self.bg_status() + self.source_plus(1)\n").replace(
             "        self.ctx_only()\n", "        self.ctx_only() + self.bg_hellos() as u32\n").replace(
-            "    pub fn account_plus_foo(&self)", "    pub fn reset(&mut self) {\n        self.reset_source();\n    }\n"
+            "    pub fn account_plus_foo(&self)", "    pub fn reset(&mut self) {\n        self.reset_source();\n        self.reset_twice();\n    }\n"
             "    pub fn account_plus_foo(&self)"))
+        P = F.plan(self.root, {"battleground", "interaction"}, {"P", "C-hub"})
+        self.assertEqual(P["blocked"]["reset_twice"], "source-text test pins the call `reset_source(`")
         rc, out = run("apply", "--group", "battleground,interaction", "--root", str(self.root), "--text-only",
                       "--demote-blocked")
         self.assertEqual(rc, 0, out)
@@ -276,6 +282,21 @@ class F3MoveMethodsTest(unittest.TestCase):
         F.relocate_ignored_shims(self.root, self.root / "crates/wow-world/src")
         self.assertTrue(shim.exists() and not old.exists())
         self.assertIn("ops_f3_shims.rs", self.ops.read_text())
+
+    def test_compiler_loop_removes_shims_rustc_reports_unused(self):
+        self.assertEqual(self.apply("--demote-blocked")[0], 0)
+        shim = self.root / "crates/wow-world/unit_tests/session/catalogs/ops/f3_shims.rs"
+        rel = shim.relative_to(self.root).as_posix()
+        replies = iter([(0, [{"level": "warning", "message": "method `only_tests` is never used", "code": None,
+                              "spans": [{"is_primary": True, "file_name": rel}]}]), (0, [])])
+        original = F.cargo_check
+        F.cargo_check = lambda root, log: next(replies)
+        self.addCleanup(setattr, F, "cargo_check", original)
+        manifest = dict(unthunked=[], restored=[])
+        with redirect_stderr(io.StringIO()):
+            self.assertEqual(F.compile_loop(self.root, "catalogs", manifest, 3, self.root), [1, 0])
+        self.assertNotIn("fn only_tests", shim.read_text())
+        self.assertEqual(manifest["retired_shims"], ["only_tests"])
 
     def test_precondition_aborts_before_any_write(self):
         before = digest(self.root)

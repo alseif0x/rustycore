@@ -62,9 +62,6 @@ impl WorldSession {
     ) {
         self.core.mmap_pathfinder_like_cpp = Some(pathfinder);
     }
-    pub(crate) fn has_canonical_map_manager_like_cpp(&self) -> bool {
-        self.core.canonical_map_manager.is_some()
-    }
     pub(crate) fn has_world_map_manager_like_cpp(&self) -> bool {
         self.core.has_world_map_manager_like_cpp()
     }
@@ -348,13 +345,31 @@ impl WorldSession {
         &self,
         target: ObjectGuid,
     ) -> bool {
+        let (state, hub) = crate::session::split_instances_ref(self);
+        state.canonical_map_has_seer_like_object_like_cpp(hub, target)
+    }
+}
+
+impl crate::session::state::InstanceState {
+    pub(crate) fn has_canonical_map_manager_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> bool {
+        hub.core.canonical_map_manager.is_some()
+    }
+
+    pub(in crate::session) fn canonical_map_has_seer_like_object_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        target: ObjectGuid,
+    ) -> bool {
         if target.is_empty() {
             return false;
         }
-        let Some(key) = self.current_canonical_player_map_key_like_cpp() else {
+        let Some(key) = hub.core.current_canonical_player_map_key_like_cpp() else {
             return false;
         };
-        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
+        let Some(manager) = hub.core.canonical_map_manager.as_ref() else {
             return false;
         };
         let Ok(manager) = manager.lock() else {

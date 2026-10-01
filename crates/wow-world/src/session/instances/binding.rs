@@ -6,91 +6,28 @@
 use super::*;
 
 impl WorldSession {
-    /// C++ `Player::IsLockedToDungeonEncounter(uint32)`.
-    ///
-    /// The encounter row is immutable process data; the completed mask is
-    /// read from the shared `InstanceLockMgr` for the player's exact canonical
-    /// map and difficulty. A missing/ambiguous authority fails closed for loot
-    /// callers by returning `None`; an unknown encounter or absent active lock
-    /// is a known unlocked state, matching C++.
     pub(crate) fn player_is_locked_to_dungeon_encounter_like_cpp(
         &self,
         player_guid: ObjectGuid,
         dungeon_encounter_id: u32,
     ) -> Option<bool> {
-        let store = self.dungeon_encounter_store()?;
-        let Some(encounter) = store.get(dungeon_encounter_id) else {
-            return Some(false);
-        };
-        let bit = u32::try_from(encounter.bit).ok().filter(|bit| *bit < 32)?;
-
-        let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
-        let mut residence = None;
-        let mut ambiguous = false;
-        manager.do_for_all_maps(|managed| {
-            if managed.map().get_typed_player(player_guid).is_none() {
-                return;
-            }
-            if residence.is_some() {
-                ambiguous = true;
-            } else {
-                residence = Some((managed.map_id(), managed.difficulty()));
-            }
-        });
-        drop(manager);
-        if ambiguous {
-            return None;
-        }
-        let (map_id, difficulty_id) = residence?;
-        let entries = self.create_map_db2_entries_like_cpp(map_id, difficulty_id)?;
-        let now = u64::try_from(unix_now()).ok()?;
-        let lock_mgr = self.core.instance_lock_mgr.as_ref()?.read().ok()?;
-        let Some(lock) = lock_mgr.find_active_instance_lock_at(player_guid, &entries, now) else {
-            return Some(false);
-        };
-        Some(
-            (lock
-                .instance_initialization_data()
-                .completed_encounters_mask
-                & (1u32 << bit))
-                != 0,
-        )
+        let (state, hub) = crate::session::split_instances_ref(self);
+        state.player_is_locked_to_dungeon_encounter_like_cpp(hub, player_guid, dungeon_encounter_id)
     }
 
-    pub(in crate::session) fn prune_expired_instance_reset_times_like_cpp(
-        &mut self,
-        now_secs: u64,
-    ) {
-        if self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.prune_instance_reset_times_like_cpp(now_secs);
-            })
-            .is_some()
-        {
-            return;
-        }
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            self.instances
-                .represented_instance_reset_times_like_cpp
-                .retain(|_, release_time| *release_time > now_secs);
-        }
-    }
     pub(in crate::session) fn cannot_enter_existing_instance_lock_like_cpp(
         &self,
         map_id: u32,
         difficulty_id: wow_map::Difficulty,
         target_lock_context: wow_map::CreateMapInstanceLockContext,
     ) -> Option<wow_instances::TransferAbortReason> {
-        let player_guid = self.core.player_guid?;
-        let owner_guid_counter = i64::try_from(target_lock_context.owner_guid_counter).ok()?;
-        let owner_guid = ObjectGuid::create_player(1, owner_guid_counter);
-        let entries = self.create_map_db2_entries_like_cpp(map_id, difficulty_id)?;
-        let now = u64::try_from(unix_now()).unwrap_or(0);
-        let mgr = self.core.instance_lock_mgr.as_ref()?;
-        let mgr = mgr.read().ok()?;
-        let target_lock = mgr.find_active_instance_lock_at(owner_guid, &entries, now)?;
-        Some(mgr.can_join_instance_lock_at(player_guid, &entries, target_lock, now))
+        let (state, hub) = crate::session::split_instances_ref(self);
+        state.cannot_enter_existing_instance_lock_like_cpp(
+            hub,
+            map_id,
+            difficulty_id,
+            target_lock_context,
+        )
     }
     pub(in crate::session) fn create_instance_lock_for_new_instance_side_effect_like_cpp(
         &self,
@@ -99,18 +36,14 @@ impl WorldSession {
         owner_guid: ObjectGuid,
         instance_id: u32,
     ) -> Option<()> {
-        let entries = self.create_map_db2_entries_like_cpp(map_id, difficulty_id)?;
-        let now = u64::try_from(unix_now()).unwrap_or(0);
-        let mgr = self.core.instance_lock_mgr.as_ref()?;
-        let mut mgr = mgr.write().ok()?;
-        mgr.create_instance_lock_for_new_instance_at(
+        let (state, hub) = crate::session::split_instances_ref(self);
+        state.create_instance_lock_for_new_instance_side_effect_like_cpp(
+            hub,
+            map_id,
+            difficulty_id,
             owner_guid,
-            &entries,
             instance_id,
-            self.config.reset_schedule_like_cpp,
-            now,
-        )?;
-        Some(())
+        )
     }
     pub(in crate::session) fn set_active_instance_lock_instance_id_side_effect_like_cpp(
         &self,
@@ -150,13 +83,145 @@ impl WorldSession {
         map_id: u32,
         difficulty_id: wow_map::Difficulty,
     ) -> bool {
-        let Some(player_guid) = self.core.player_guid else {
+        let (state, hub) = crate::session::split_instances_ref(self);
+        state.lfg_has_active_instance_lock_like_cpp(hub, map_id, difficulty_id)
+    }
+    /// Inject the shared C++ `InstanceLockMgr` analogue.
+    pub fn set_instance_lock_mgr(
+        &mut self,
+        mgr: Arc<std::sync::RwLock<wow_instances::InstanceLockMgr>>,
+    ) {
+        self.core.instance_lock_mgr = Some(mgr);
+    }
+}
+
+impl crate::session::state::InstanceState {
+    /// C++ `Player::IsLockedToDungeonEncounter(uint32)`.
+    ///
+    /// The encounter row is immutable process data; the completed mask is
+    /// read from the shared `InstanceLockMgr` for the player's exact canonical
+    /// map and difficulty. A missing/ambiguous authority fails closed for loot
+    /// callers by returning `None`; an unknown encounter or absent active lock
+    /// is a known unlocked state, matching C++.
+    pub(crate) fn player_is_locked_to_dungeon_encounter_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        player_guid: ObjectGuid,
+        dungeon_encounter_id: u32,
+    ) -> Option<bool> {
+        let store = hub.catalogs.dungeon_encounter_store()?;
+        let Some(encounter) = store.get(dungeon_encounter_id) else {
+            return Some(false);
+        };
+        let bit = u32::try_from(encounter.bit).ok().filter(|bit| *bit < 32)?;
+
+        let manager = hub.core.canonical_map_manager.as_ref()?.lock().ok()?;
+        let mut residence = None;
+        let mut ambiguous = false;
+        manager.do_for_all_maps(|managed| {
+            if managed.map().get_typed_player(player_guid).is_none() {
+                return;
+            }
+            if residence.is_some() {
+                ambiguous = true;
+            } else {
+                residence = Some((managed.map_id(), managed.difficulty()));
+            }
+        });
+        drop(manager);
+        if ambiguous {
+            return None;
+        }
+        let (map_id, difficulty_id) = residence?;
+        let entries = self.create_map_db2_entries_like_cpp(hub, map_id, difficulty_id)?;
+        let now = u64::try_from(unix_now()).ok()?;
+        let lock_mgr = hub.core.instance_lock_mgr.as_ref()?.read().ok()?;
+        let Some(lock) = lock_mgr.find_active_instance_lock_at(player_guid, &entries, now) else {
+            return Some(false);
+        };
+        Some(
+            (lock
+                .instance_initialization_data()
+                .completed_encounters_mask
+                & (1u32 << bit))
+                != 0,
+        )
+    }
+
+    pub(in crate::session) fn prune_expired_instance_reset_times_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        now_secs: u64,
+    ) {
+        if hub
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.prune_instance_reset_times_like_cpp(now_secs);
+            })
+            .is_some()
+        {
+            return;
+        }
+        #[cfg(test)]
+        if hub.core.player_handle_like_cpp.is_none() {
+            self.represented_instance_reset_times_like_cpp
+                .retain(|_, release_time| *release_time > now_secs);
+        }
+    }
+
+    pub(in crate::session) fn cannot_enter_existing_instance_lock_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        map_id: u32,
+        difficulty_id: wow_map::Difficulty,
+        target_lock_context: wow_map::CreateMapInstanceLockContext,
+    ) -> Option<wow_instances::TransferAbortReason> {
+        let player_guid = hub.core.player_guid?;
+        let owner_guid_counter = i64::try_from(target_lock_context.owner_guid_counter).ok()?;
+        let owner_guid = ObjectGuid::create_player(1, owner_guid_counter);
+        let entries = self.create_map_db2_entries_like_cpp(hub, map_id, difficulty_id)?;
+        let now = u64::try_from(unix_now()).unwrap_or(0);
+        let mgr = hub.core.instance_lock_mgr.as_ref()?;
+        let mgr = mgr.read().ok()?;
+        let target_lock = mgr.find_active_instance_lock_at(owner_guid, &entries, now)?;
+        Some(mgr.can_join_instance_lock_at(player_guid, &entries, target_lock, now))
+    }
+
+    pub(in crate::session) fn create_instance_lock_for_new_instance_side_effect_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        map_id: u32,
+        difficulty_id: wow_map::Difficulty,
+        owner_guid: ObjectGuid,
+        instance_id: u32,
+    ) -> Option<()> {
+        let entries = self.create_map_db2_entries_like_cpp(hub, map_id, difficulty_id)?;
+        let now = u64::try_from(unix_now()).unwrap_or(0);
+        let mgr = hub.core.instance_lock_mgr.as_ref()?;
+        let mut mgr = mgr.write().ok()?;
+        mgr.create_instance_lock_for_new_instance_at(
+            owner_guid,
+            &entries,
+            instance_id,
+            hub.config.reset_schedule_like_cpp,
+            now,
+        )?;
+        Some(())
+    }
+
+    pub(crate) fn lfg_has_active_instance_lock_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        map_id: u32,
+        difficulty_id: wow_map::Difficulty,
+    ) -> bool {
+        let Some(player_guid) = hub.core.player_guid else {
             return false;
         };
-        let Some(entries) = self.create_map_db2_entries_like_cpp(map_id, difficulty_id) else {
+        let Some(entries) = self.create_map_db2_entries_like_cpp(hub, map_id, difficulty_id) else {
             return false;
         };
-        let Some(mgr) = self.core.instance_lock_mgr.as_ref() else {
+        let Some(mgr) = hub.core.instance_lock_mgr.as_ref() else {
             return false;
         };
         let Ok(mgr) = mgr.read() else {
@@ -166,27 +231,22 @@ impl WorldSession {
         mgr.find_active_instance_lock_at(player_guid, &entries, now)
             .is_some()
     }
-    /// Inject the shared C++ `InstanceLockMgr` analogue.
-    pub fn set_instance_lock_mgr(
-        &mut self,
-        mgr: Arc<std::sync::RwLock<wow_instances::InstanceLockMgr>>,
-    ) {
-        self.core.instance_lock_mgr = Some(mgr);
-    }
+
     pub(crate) fn apply_represented_player_instance_reset_result_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         map_id: u32,
         result: GroupInstanceResetResultLikeCpp,
         method: GroupInstanceResetMethodLikeCpp,
     ) -> bool {
         match result {
             GroupInstanceResetResultLikeCpp::Success => {
-                self.forget_represented_player_recent_instance_like_cpp(map_id)
+                self.forget_represented_player_recent_instance_like_cpp(hub, map_id)
             }
             GroupInstanceResetResultLikeCpp::NotEmpty
                 if method == GroupInstanceResetMethodLikeCpp::OnChangeDifficulty =>
             {
-                self.forget_represented_player_recent_instance_like_cpp(map_id)
+                self.forget_represented_player_recent_instance_like_cpp(hub, map_id)
             }
             GroupInstanceResetResultLikeCpp::NotEmpty
             | GroupInstanceResetResultLikeCpp::CannotReset
@@ -194,3 +254,7 @@ impl WorldSession {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/instances/binding/f3_shims.rs"]
+mod f3_shims;

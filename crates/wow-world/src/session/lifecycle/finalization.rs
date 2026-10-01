@@ -25,16 +25,8 @@ impl WorldSession {
     }
 
     fn finalization_result(&mut self) -> FinalizationReport {
-        let report = self
-            .lifecycle
-            .finalization
-            .as_ref()
-            .expect("admitted finalization")
-            .report();
-        if report.disposition == FinalizationDisposition::RetainAndEscalate {
-            self.kick("session finalization retained an unresolved obligation");
-        }
-        report
+        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+        state.finalization_result(&mut hub)
     }
 
     pub async fn finalize_session_with_generator_like_cpp(
@@ -100,15 +92,8 @@ impl WorldSession {
     }
 
     fn finalization_identity_is_current(&self) -> bool {
-        let report = self.lifecycle.finalization.as_ref().unwrap().report();
-        if report.outcome(FinalizationStep::Retirement) == FinalizationOutcome::Applied {
-            return self.core.player_handle_like_cpp.is_none();
-        }
-        report.player == self.core.player_handle_like_cpp
-            && report
-                .player
-                .is_none_or(|handle| self.player_guid() == Some(handle.guid()))
-            && !(self.player_guid().is_none() && self.core.player_handle_like_cpp.is_some())
+        let (state, hub) = crate::session::split_lifecycle_ref(self);
+        state.finalization_identity_is_current(hub)
     }
 
     async fn execute_finalization_step(
@@ -206,6 +191,33 @@ impl WorldSession {
                 FinalizationOutcome::Applied
             }
         }
+    }
+}
+
+impl crate::session::state::SessionLifecycleState {
+    fn finalization_result(&mut self, hub: &mut crate::session::HubMut<'_>) -> FinalizationReport {
+        let report = self
+            .finalization
+            .as_ref()
+            .expect("admitted finalization")
+            .report();
+        if report.disposition == FinalizationDisposition::RetainAndEscalate {
+            hub.core
+                .kick("session finalization retained an unresolved obligation");
+        }
+        report
+    }
+
+    fn finalization_identity_is_current(&self, hub: crate::session::HubRef<'_>) -> bool {
+        let report = self.finalization.as_ref().unwrap().report();
+        if report.outcome(FinalizationStep::Retirement) == FinalizationOutcome::Applied {
+            return hub.core.player_handle_like_cpp.is_none();
+        }
+        report.player == hub.core.player_handle_like_cpp
+            && report
+                .player
+                .is_none_or(|handle| hub.core.player_guid() == Some(handle.guid()))
+            && !(hub.core.player_guid().is_none() && hub.core.player_handle_like_cpp.is_some())
     }
 }
 
