@@ -212,6 +212,12 @@ pub(crate) fn split_{g}(s: &mut WorldSession) -> (&mut {t}, HubRef<'_>) {{
     (&mut s.{g}, HubRef {{ core: &s.core, catalogs: &s.catalogs, config: &s.config, #[cfg(test)] fixtures: &s.fixtures }})
 }}
 '''
+SPLIT_MUT_FN = '''
+/// `&mut` group state plus the mutable hub (core and fixtures), borrowed from disjoint fields.
+pub(crate) fn split_{g}_mut(s: &mut WorldSession) -> (&mut {t}, HubMut<'_>) {{
+    (&mut s.{g}, HubMut {{ core: &mut s.core, catalogs: &s.catalogs, config: &s.config, #[cfg(test)] fixtures: &mut s.fixtures }})
+}}
+'''
 SPLIT_REF_FN = '''
 /// Shared group state plus the shared hub for `&self` methods.
 pub(crate) fn split_{g}_ref(s: &WorldSession) -> (&{t}, HubRef<'_>) {{

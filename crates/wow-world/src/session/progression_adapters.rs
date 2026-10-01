@@ -10,14 +10,6 @@ use super::{Arc, ObjectGuid, QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP};
 use super::{WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP, WorldSession, catalogs};
 
 impl WorldSession {
-    #[cfg(test)]
-    pub(in crate::session) fn set_give_player_xp_script_dispatcher_like_cpp(
-        &mut self,
-        dispatcher: GivePlayerXpScriptDispatcherLikeCpp,
-    ) {
-        self.config.give_player_xp_script_dispatcher_like_cpp = Some(dispatcher);
-    }
-
     pub(crate) fn set_championing_faction_like_cpp(&mut self, faction_id: u32) {
         let _canonical = self
             .with_owned_player_mut_like_cpp(|player| {
@@ -30,80 +22,18 @@ impl WorldSession {
         }
     }
 
-    pub(crate) fn resolved_championing_faction_like_cpp(&self) -> Option<u32> {
-        let canonical = self
-            .with_owned_player_like_cpp(|player| player.gameplay_state().championing_faction_id);
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.progression.championing_faction_like_cpp);
-        }
-        canonical
-    }
-
     pub(crate) fn gray_level(&self, pl: u8) -> u8 {
         crate::session::hub_ref(self).gray_level(pl)
     }
 
-    #[cfg(test)]
-    pub(crate) fn set_represented_gray_level_script_override_like_cpp(
-        &mut self,
-        player_level: u8,
-        gray_level: u8,
-    ) {
-        self.fixtures
-            .progression
-            .represented_gray_level_script_overrides_like_cpp
-            .insert(player_level, gray_level);
-        if self.player_level_like_cpp() == player_level {
-            let _ = self.mutate_canonical_player_like_cpp(|player| {
-                player.gameplay_state_mut().gray_level = gray_level;
-            });
-        }
-    }
-
-    /// Zero-difference table — C++ `Trinity::XP::GetZeroDifference`.
     pub(in crate::session) fn zero_difference(&self, pl: u8) -> u8 {
-        match pl {
-            0..=3 => 5,
-            4..=9 => 6,
-            10..=11 => 7,
-            12..=15 => 8,
-            16..=19 => 9,
-            20..=29 => 11,
-            30..=39 => 12,
-            40..=44 => 13,
-            45..=49 => 14,
-            50..=54 => 15,
-            55..=59 => 16,
-            _ => 17,
-        }
+        crate::session::hub_ref(self).zero_difference(pl)
     }
 
     pub(in crate::session) fn represented_championing_faction_for_kill_like_cpp(
         &self,
     ) -> Option<u32> {
-        let championing_faction = self.resolved_championing_faction_like_cpp()?;
-        if championing_faction == 0 {
-            return None;
-        }
-        let map_id = u32::from(self.player_map_id_like_cpp());
-        if !self
-            .map_store()
-            .and_then(|store| store.get(map_id))
-            .is_some_and(|entry| entry.is_non_raid_dungeon_like_cpp())
-        {
-            return None;
-        }
-        let difficulty_id = self.current_map_difficulty_id_like_cpp();
-        let is_wrath_max_level_lfg = self
-            .catalogs
-            .lfg_dungeons_store
-            .as_ref()
-            .and_then(|store| store.get_by_map_and_difficulty_like_cpp(map_id, difficulty_id))
-            .is_some_and(|dungeon| {
-                dungeon.target_level == WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP
-            });
-        is_wrath_max_level_lfg.then_some(championing_faction)
+        crate::session::hub_ref(self).represented_championing_faction_for_kill_like_cpp()
     }
 
     pub(crate) async fn killed_player_credit_with_generator_like_cpp(
@@ -172,19 +102,161 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub fn set_exploration_xp_rate_like_cpp(&mut self, rate: f32) {
-        self.config.exploration_xp_rate_like_cpp = rate.max(0.0);
-    }
-
-    #[cfg(test)]
-    pub fn set_min_discovered_scaled_xp_ratio_like_cpp(&mut self, ratio: u32) {
-        self.config.min_discovered_scaled_xp_ratio_like_cpp = ratio.min(100);
-    }
-
-    #[cfg(test)]
     pub(crate) fn refresh_next_level_xp(&mut self) {
         let catalogs = self.progression_catalogs_for_test_like_cpp();
         self.refresh_next_level_xp_with_catalogs_like_cpp(&catalogs);
+    }
+
+    pub(crate) fn resolved_player_scaling_level_delta_like_cpp(&self) -> Option<i32> {
+        crate::session::hub_ref(self).resolved_player_scaling_level_delta_like_cpp()
+    }
+
+    pub(crate) fn set_player_xp_like_cpp(&mut self, xp: u32) -> bool {
+        crate::session::hub_mut(self).set_player_xp_like_cpp(xp)
+    }
+
+    pub(crate) fn set_player_next_level_xp_like_cpp(&mut self, xp: u32) -> bool {
+        crate::session::hub_mut(self).set_player_next_level_xp_like_cpp(xp)
+    }
+
+    pub(crate) fn set_selection_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
+        crate::session::hub_mut(self).set_selection_guid_like_cpp(guid)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn player_gold_like_cpp(&self) -> u64 {
+        self.resolved_player_money_like_cpp()
+            .or_else(|| {
+                self.core
+                    .player_handle_like_cpp
+                    .is_none()
+                    .then_some(self.inventory.player_gold)
+            })
+            .expect("test Player money owner must resolve")
+    }
+
+    pub(crate) fn resolved_player_xp_like_cpp(&self) -> Option<u32> {
+        crate::session::hub_ref(self).resolved_player_xp_like_cpp()
+    }
+
+    pub(in crate::session) fn resolved_player_xp_for_level_like_cpp(
+        &self,
+        level: u8,
+    ) -> Option<u32> {
+        crate::session::hub_ref(self).resolved_player_xp_for_level_like_cpp(level)
+    }
+
+    pub(crate) fn resolved_player_next_level_xp_like_cpp(&self) -> Option<u32> {
+        crate::session::hub_ref(self).resolved_player_next_level_xp_like_cpp()
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn selection_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        crate::session::hub_ref(self).selection_guid_like_cpp()
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    #[cfg(test)]
+    pub(crate) fn set_represented_gray_level_script_override_like_cpp(
+        &mut self,
+        player_level: u8,
+        gray_level: u8,
+    ) {
+        self.fixtures
+            .progression
+            .represented_gray_level_script_overrides_like_cpp
+            .insert(player_level, gray_level);
+        if self.shared().player_level_like_cpp() == player_level {
+            let _ = self.core.mutate_canonical_player_like_cpp(|player| {
+                player.gameplay_state_mut().gray_level = gray_level;
+            });
+        }
+    }
+
+    pub(crate) fn set_player_xp_like_cpp(&mut self, xp: u32) -> bool {
+        let canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                let xp = xp.min(i32::MAX as u32) as i32;
+                player.set_xp(xp);
+                player.mark_xp_changed_like_cpp();
+                let scaling_level_delta = if player.unit().data().level
+                    < i32::from(WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP)
+                    && xp < player.active_data().next_level_xp / 2
+                {
+                    -1
+                } else {
+                    0
+                };
+                player.set_scaling_player_level_delta_like_cpp(scaling_level_delta);
+                player.mark_scaling_player_level_delta_changed_like_cpp();
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.progression.player_xp = xp;
+        }
+        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(crate) fn resolved_championing_faction_like_cpp(&self) -> Option<u32> {
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.gameplay_state().championing_faction_id);
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.fixtures.progression.championing_faction_like_cpp);
+        }
+        canonical
+    }
+
+    /// Zero-difference table — C++ `Trinity::XP::GetZeroDifference`.
+    pub(in crate::session) fn zero_difference(&self, pl: u8) -> u8 {
+        match pl {
+            0..=3 => 5,
+            4..=9 => 6,
+            10..=11 => 7,
+            12..=15 => 8,
+            16..=19 => 9,
+            20..=29 => 11,
+            30..=39 => 12,
+            40..=44 => 13,
+            45..=49 => 14,
+            50..=54 => 15,
+            55..=59 => 16,
+            _ => 17,
+        }
+    }
+
+    pub(in crate::session) fn represented_championing_faction_for_kill_like_cpp(
+        &self,
+    ) -> Option<u32> {
+        let championing_faction = self.resolved_championing_faction_like_cpp()?;
+        if championing_faction == 0 {
+            return None;
+        }
+        let map_id = u32::from(self.core.player_map_id_like_cpp());
+        if !self
+            .catalogs
+            .map_store()
+            .and_then(|store| store.get(map_id))
+            .is_some_and(|entry| entry.is_non_raid_dungeon_like_cpp())
+        {
+            return None;
+        }
+        let difficulty_id = self.core.current_map_difficulty_id_like_cpp();
+        let is_wrath_max_level_lfg = self
+            .catalogs
+            .lfg_dungeons_store
+            .as_ref()
+            .and_then(|store| store.get_by_map_and_difficulty_like_cpp(map_id, difficulty_id))
+            .is_some_and(|dungeon| {
+                dungeon.target_level == WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP
+            });
+        is_wrath_max_level_lfg.then_some(championing_faction)
     }
 
     /// C++ `Player::SetXP` updates this field every time XP changes. It uses
@@ -192,6 +264,7 @@ impl WorldSession {
     /// account-expansion-specific active maximum.
     pub(crate) fn resolved_player_scaling_level_delta_like_cpp(&self) -> Option<i32> {
         let canonical = self
+            .core
             .with_owned_player_like_cpp(|player| player.active_data().scaling_player_level_delta);
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
@@ -215,54 +288,10 @@ impl WorldSession {
             .expect("test Player progression owner must resolve")
     }
 
-    pub(crate) fn set_player_xp_like_cpp(&mut self, xp: u32) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                let xp = xp.min(i32::MAX as u32) as i32;
-                player.set_xp(xp);
-                player.mark_xp_changed_like_cpp();
-                let scaling_level_delta = if player.unit().data().level
-                    < i32::from(WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP)
-                    && xp < player.active_data().next_level_xp / 2
-                {
-                    -1
-                } else {
-                    0
-                };
-                player.set_scaling_player_level_delta_like_cpp(scaling_level_delta);
-                player.mark_scaling_player_level_delta_changed_like_cpp();
-            })
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.progression.player_xp = xp;
-        }
-        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
-    }
-
-    pub(crate) fn set_player_next_level_xp_like_cpp(&mut self, xp: u32) -> bool {
-        crate::session::hub_mut(self).set_player_next_level_xp_like_cpp(xp)
-    }
-
-    pub(crate) fn set_selection_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
-        crate::session::hub_mut(self).set_selection_guid_like_cpp(guid)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn player_gold_like_cpp(&self) -> u64 {
-        self.resolved_player_money_like_cpp()
-            .or_else(|| {
-                self.core
-                    .player_handle_like_cpp
-                    .is_none()
-                    .then_some(self.inventory.player_gold)
-            })
-            .expect("test Player money owner must resolve")
-    }
-
     pub(crate) fn resolved_player_character_points_like_cpp(&self) -> Option<i32> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.active_data().character_points);
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.active_data().character_points);
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(self.fixtures.progression.player_character_points_like_cpp);
@@ -270,15 +299,12 @@ impl WorldSession {
         canonical
     }
 
-    pub(crate) fn resolved_player_xp_like_cpp(&self) -> Option<u32> {
-        crate::session::hub_ref(self).resolved_player_xp_like_cpp()
-    }
-
     pub(in crate::session) fn resolved_player_xp_for_level_like_cpp(
         &self,
         level: u8,
     ) -> Option<u32> {
         let canonical = self
+            .core
             .with_owned_player_like_cpp(|player| player.player_xp_for_level_like_cpp(level))
             .flatten();
         #[cfg(test)]
@@ -295,6 +321,7 @@ impl WorldSession {
 
     pub(crate) fn resolved_player_next_level_xp_like_cpp(&self) -> Option<u32> {
         let canonical = self
+            .core
             .with_owned_player_like_cpp(|player| player.active_data().next_level_xp.max(0) as u32);
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
@@ -338,10 +365,25 @@ impl WorldSession {
             })
             .expect("test Player progression owner must resolve")
     }
+}
 
-    #[allow(dead_code)]
-    pub(crate) fn selection_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        crate::session::hub_ref(self).selection_guid_like_cpp()
+impl crate::session::state::SessionWorldConfig {
+    #[cfg(test)]
+    pub(in crate::session) fn set_give_player_xp_script_dispatcher_like_cpp(
+        &mut self,
+        dispatcher: GivePlayerXpScriptDispatcherLikeCpp,
+    ) {
+        self.give_player_xp_script_dispatcher_like_cpp = Some(dispatcher);
+    }
+
+    #[cfg(test)]
+    pub fn set_exploration_xp_rate_like_cpp(&mut self, rate: f32) {
+        self.exploration_xp_rate_like_cpp = rate.max(0.0);
+    }
+
+    #[cfg(test)]
+    pub fn set_min_discovered_scaled_xp_ratio_like_cpp(&mut self, ratio: u32) {
+        self.min_discovered_scaled_xp_ratio_like_cpp = ratio.min(100);
     }
 }
 
@@ -431,3 +473,7 @@ impl crate::session::HubRef<'_> {
         canonical.filter(|guid| !guid.is_empty())
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/progression_adapters/f3_shims.rs"]
+mod f3_shims;

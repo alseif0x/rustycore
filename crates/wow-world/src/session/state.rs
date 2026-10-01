@@ -152,7 +152,10 @@ mod fixtures;
 #[cfg(test)]
 pub(in crate::session) use fixtures::SessionFixtures;
 mod hub;
-pub(crate) use hub::{HubMut, HubRef, hub_mut, hub_ref, split_interaction, split_interaction_ref};
+pub(crate) use hub::{
+    HubMut, HubRef, hub_mut, hub_ref, split_interaction, split_interaction_ref, split_social_mut,
+    split_social_ref, split_visibility_mut, split_visibility_ref,
+};
 mod session_core;
 pub(crate) use session_core::SessionCore;
 mod loot;
@@ -208,7 +211,7 @@ pub(in crate::session) use instances::InstanceState;
 mod world_entities;
 pub(in crate::session) use world_entities::WorldEntitiesState;
 mod visibility;
-pub(in crate::session) use visibility::VisibilityState;
+pub(crate) use visibility::VisibilityState;
 #[cfg(test)]
 mod presentation;
 #[cfg(test)]

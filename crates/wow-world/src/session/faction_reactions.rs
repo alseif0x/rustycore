@@ -61,12 +61,41 @@ pub(crate) enum ReputationGainSourceLikeCpp {
 
 impl WorldSession {
     pub(crate) const fn reset_schedule_like_cpp(&self) -> wow_instances::ResetSchedule {
-        self.config.reset_schedule_like_cpp
+        self.config.reset_schedule_like_cpp()
     }
 
+    pub(crate) fn set_watched_faction_index_like_cpp(&mut self, index: i32) {
+        crate::session::hub_mut(self).set_watched_faction_index_like_cpp(index)
+    }
+
+    pub(crate) fn represented_get_reaction_to_like_cpp(
+        &self,
+        input: RepresentedGetReactionInputLikeCpp,
+    ) -> wow_data::reputation::ReputationRankLikeCpp {
+        crate::session::hub_ref(self).represented_get_reaction_to_like_cpp(input)
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(crate) fn set_watched_faction_index_like_cpp(&mut self, index: i32) {
+        let _canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_watched_faction_index_like_cpp(index)
+            })
+            .is_some();
+        #[cfg(test)]
+        if !_canonical && self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.progression.watched_faction_index_like_cpp = index;
+        }
+    }
+}
+
+impl crate::session::HubRef<'_> {
     pub(crate) fn resolved_watched_faction_index_like_cpp(&self) -> Option<i32> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.watched_faction_index_like_cpp());
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.watched_faction_index_like_cpp());
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(self.fixtures.progression.watched_faction_index_like_cpp);
@@ -79,24 +108,11 @@ impl WorldSession {
         self.resolved_watched_faction_index_like_cpp()
             .expect("Player watched-faction owner must resolve")
     }
+}
 
-    pub(crate) fn set_watched_faction_index_like_cpp(&mut self, index: i32) {
-        let _canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_watched_faction_index_like_cpp(index)
-            })
-            .is_some();
-        #[cfg(test)]
-        if !_canonical && self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.progression.watched_faction_index_like_cpp = index;
-        }
-    }
-
-    pub(crate) fn represented_get_reaction_to_like_cpp(
-        &self,
-        input: RepresentedGetReactionInputLikeCpp,
-    ) -> wow_data::reputation::ReputationRankLikeCpp {
-        crate::session::hub_ref(self).represented_get_reaction_to_like_cpp(input)
+impl crate::session::state::SessionWorldConfig {
+    pub(crate) const fn reset_schedule_like_cpp(&self) -> wow_instances::ResetSchedule {
+        self.reset_schedule_like_cpp
     }
 }
 

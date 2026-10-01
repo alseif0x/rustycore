@@ -129,16 +129,6 @@ impl WorldSession {
         true
     }
 
-    #[cfg(test)]
-    pub(crate) fn represented_calendar_community_invites_like_cpp(
-        &self,
-    ) -> &[RepresentedCalendarCommunityInviteLikeCpp] {
-        &self
-            .social
-            .calendar_test_fixture_like_cpp
-            .represented_calendar_community_invites_like_cpp
-    }
-
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn calendar_add_event_like_cpp(
         &mut self,
@@ -189,12 +179,31 @@ impl WorldSession {
         true
     }
 
+    #[cfg_attr(not(test), allow(unused_variables))]
+    pub(crate) fn set_represented_arena_team_id_invited_like_cpp(
+        &mut self,
+        arena_team_id: u32,
+    ) -> bool {
+        let (state, mut hub) = crate::session::split_social_mut(self);
+        state.set_represented_arena_team_id_invited_like_cpp(&mut hub, arena_team_id)
+    }
+}
+
+impl crate::session::state::SessionSocialLimits {
+    #[cfg(test)]
+    pub(crate) fn represented_calendar_community_invites_like_cpp(
+        &self,
+    ) -> &[RepresentedCalendarCommunityInviteLikeCpp] {
+        &self
+            .calendar_test_fixture_like_cpp
+            .represented_calendar_community_invites_like_cpp
+    }
+
     #[cfg(test)]
     pub(crate) fn represented_calendar_add_events_like_cpp(
         &self,
     ) -> &[RepresentedCalendarAddEventLikeCpp] {
         &self
-            .social
             .calendar_test_fixture_like_cpp
             .represented_calendar_add_events_like_cpp
     }
@@ -202,16 +211,18 @@ impl WorldSession {
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn set_represented_arena_team_id_invited_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         arena_team_id: u32,
     ) -> bool {
-        let canonical = self
+        let canonical = hub
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.set_arena_team_id_invited_like_cpp(arena_team_id)
             })
             .is_some();
         #[cfg(test)]
-        if !canonical && self.core.player_handle_like_cpp.is_none() {
-            return self
+        if !canonical && hub.core.player_handle_like_cpp.is_none() {
+            return hub
                 .mutate_player_battleground_state_like_cpp(|state| {
                     state.set_arena_team_id_invited_like_cpp(arena_team_id);
                 })
@@ -221,9 +232,16 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub(crate) fn represented_arena_team_id_invited_like_cpp(&self) -> u32 {
-        self.player_battleground_state_snapshot_like_cpp()
+    pub(crate) fn represented_arena_team_id_invited_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> u32 {
+        hub.player_battleground_state_snapshot_like_cpp()
             .expect("test Player battleground owner must resolve")
             .arena_team_id_invited_like_cpp()
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/social_requests/f3_shims.rs"]
+mod f3_shims;

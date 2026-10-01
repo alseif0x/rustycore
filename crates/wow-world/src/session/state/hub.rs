@@ -76,3 +76,41 @@ pub(crate) fn split_interaction(s: &mut WorldSession) -> (&mut InteractionState,
 pub(crate) fn split_interaction_ref(s: &WorldSession) -> (&InteractionState, HubRef<'_>) {
     (&s.interaction, hub_ref(s))
 }
+
+/// `&mut` group state plus the mutable hub (core and fixtures), borrowed from disjoint fields.
+pub(crate) fn split_social_mut(s: &mut WorldSession) -> (&mut SessionSocialLimits, HubMut<'_>) {
+    (
+        &mut s.social,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(test)]
+            fixtures: &mut s.fixtures,
+        },
+    )
+}
+
+/// Shared group state plus the shared hub for `&self` methods.
+pub(crate) fn split_social_ref(s: &WorldSession) -> (&SessionSocialLimits, HubRef<'_>) {
+    (&s.social, hub_ref(s))
+}
+
+/// `&mut` group state plus the mutable hub (core and fixtures), borrowed from disjoint fields.
+pub(crate) fn split_visibility_mut(s: &mut WorldSession) -> (&mut VisibilityState, HubMut<'_>) {
+    (
+        &mut s.visibility,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(test)]
+            fixtures: &mut s.fixtures,
+        },
+    )
+}
+
+/// Shared group state plus the shared hub for `&self` methods.
+pub(crate) fn split_visibility_ref(s: &WorldSession) -> (&VisibilityState, HubRef<'_>) {
+    (&s.visibility, hub_ref(s))
+}

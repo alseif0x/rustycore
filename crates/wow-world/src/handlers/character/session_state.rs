@@ -243,28 +243,9 @@ impl WorldSession {
         plan
     }
 
-    /// C++ `Map::SendInitTransports`: after `SendInitSelf`, send map
-    /// transports other than the player's current transport.
     fn send_init_transports_like_cpp(&mut self, map_id: u16, plan: Box<InitTransportsPlanLikeCpp>) {
-        if plan.other_blocks.is_empty() {
-            return;
-        }
-
-        let InitTransportsPlanLikeCpp {
-            other_blocks,
-            other_visible_guids,
-            ..
-        } = *plan;
-        let update = UpdateObject::create_world_objects(other_blocks, map_id);
-        if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
-            for line in update.debug_create_summary_like_cpp() {
-                info!("RUST_UPDATEOBJECT init_transports {line}");
-            }
-        }
-        self.send_packet(&update);
-        self.visibility
-            .client_visible_transports_like_cpp
-            .extend(other_visible_guids);
+        let (state, mut hub) = crate::session::split_visibility_mut(self);
+        state.send_init_transports_like_cpp(&mut hub, map_id, plan)
     }
 
     /// Send the player login packet sequence to the client.
@@ -777,5 +758,35 @@ impl WorldSession {
             updateobject_trace_enabled,
         )
         .await;
+    }
+}
+
+impl crate::session::VisibilityState {
+    /// C++ `Map::SendInitTransports`: after `SendInitSelf`, send map
+    /// transports other than the player's current transport.
+    fn send_init_transports_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        map_id: u16,
+        plan: Box<InitTransportsPlanLikeCpp>,
+    ) {
+        if plan.other_blocks.is_empty() {
+            return;
+        }
+
+        let InitTransportsPlanLikeCpp {
+            other_blocks,
+            other_visible_guids,
+            ..
+        } = *plan;
+        let update = UpdateObject::create_world_objects(other_blocks, map_id);
+        if std::env::var_os("RUSTYCORE_UPDATEOBJECT_TRACE").is_some() {
+            for line in update.debug_create_summary_like_cpp() {
+                info!("RUST_UPDATEOBJECT init_transports {line}");
+            }
+        }
+        hub.core.send_packet(&update);
+        self.client_visible_transports_like_cpp
+            .extend(other_visible_guids);
     }
 }

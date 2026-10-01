@@ -220,23 +220,7 @@ impl WorldSession {
     }
 
     pub(crate) fn is_addon_registered_like_cpp(&self, prefix: &str) -> bool {
-        // C++ WorldSession::IsAddonRegistered: if the registration filter is
-        // disabled (initial state or softcap exceeded), all prefixes pass.
-        if !self.social.addon_filter.filter_addon_messages {
-            return true;
-        }
-
-        !self
-            .social
-            .addon_filter
-            .registered_addon_prefixes
-            .is_empty()
-            && self
-                .social
-                .addon_filter
-                .registered_addon_prefixes
-                .iter()
-                .any(|registered| registered == prefix)
+        self.social.is_addon_registered_like_cpp(prefix)
     }
 
     #[cfg(test)]
@@ -275,6 +259,23 @@ impl WorldSession {
     /// Whether the session is disconnecting.
     pub fn is_disconnecting(&self) -> bool {
         self.core.state == SessionState::Disconnecting
+    }
+}
+
+impl crate::session::state::SessionSocialLimits {
+    pub(crate) fn is_addon_registered_like_cpp(&self, prefix: &str) -> bool {
+        // C++ WorldSession::IsAddonRegistered: if the registration filter is
+        // disabled (initial state or softcap exceeded), all prefixes pass.
+        if !self.addon_filter.filter_addon_messages {
+            return true;
+        }
+
+        !self.addon_filter.registered_addon_prefixes.is_empty()
+            && self
+                .addon_filter
+                .registered_addon_prefixes
+                .iter()
+                .any(|registered| registered == prefix)
     }
 }
 

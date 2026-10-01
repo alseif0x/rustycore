@@ -126,13 +126,6 @@ impl WorldSession {
             .push(guild_id);
         true
     }
-    #[cfg(test)]
-    pub(crate) fn represented_guild_accept_invites_like_cpp(&self) -> &[u64] {
-        &self
-            .social
-            .guild_test_fixture_like_cpp
-            .represented_guild_accept_invites_like_cpp
-    }
     pub(crate) fn decline_guild_invitation_like_cpp(&mut self) -> bool {
         let Some(state) = self.player_guild_state_snapshot_like_cpp() else {
             return false;
@@ -181,16 +174,34 @@ impl WorldSession {
         .unwrap_or(false)
             == allow
     }
+}
+
+impl crate::session::state::SessionSocialLimits {
     #[cfg(test)]
-    pub(crate) fn represented_auto_decline_guild_invites_like_cpp(&self) -> bool {
-        let Some(guid) = self.player_guid() else {
+    pub(crate) fn represented_guild_accept_invites_like_cpp(&self) -> &[u64] {
+        &self
+            .guild_test_fixture_like_cpp
+            .represented_guild_accept_invites_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_auto_decline_guild_invites_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> bool {
+        let Some(guid) = hub.core.player_guid() else {
             return false;
         };
 
-        self.canonical_player_has_player_flag_like_cpp(
-            guid,
-            PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP,
-        )
-        .unwrap_or(false)
+        hub.core
+            .canonical_player_has_player_flag_like_cpp(
+                guid,
+                PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP,
+            )
+            .unwrap_or(false)
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/social/guild/f3_shims.rs"]
+mod f3_shims;

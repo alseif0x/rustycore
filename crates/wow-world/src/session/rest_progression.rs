@@ -58,40 +58,12 @@ impl Default for RestMgrTestFixtureLikeCpp {
 }
 
 impl WorldSession {
-    /// C++ `Player::IsMaxLevel` reads `ActivePlayerData::MaxLevel`, which
-    /// `InitStatsForLevel` derives from both the account's active expansion
-    /// and CONFIG_MAX_PLAYER_LEVEL. RestMgr deliberately uses the config-only
-    /// check above instead, so keep these two concepts separate.
     pub(crate) fn player_active_max_level_like_cpp(&self) -> u32 {
-        let expansion_max = u32::from(max_level_for_expansion_like_cpp(self.core.expansion));
-        let configured_max = self.config.max_player_level_config_like_cpp;
-        if expansion_max == 80 || expansion_max >= configured_max {
-            configured_max
-        } else {
-            expansion_max
-        }
+        crate::session::hub_ref(self).player_active_max_level_like_cpp()
     }
 
     pub(in crate::session) fn player_is_max_level_like_cpp(&self) -> bool {
-        u32::from(self.player_level_like_cpp()) >= self.player_active_max_level_like_cpp()
-    }
-
-    #[cfg(test)]
-    pub(in crate::session) fn can_gain_represented_xp_rest_bonus_like_cpp(&self) -> Option<bool> {
-        if self.player_is_at_configured_max_level_like_cpp() {
-            return Some(false);
-        }
-
-        let next_level_xp = self.resolved_player_next_level_xp_like_cpp()?;
-        Some(next_level_xp != 0 && next_level_xp != u32::MAX)
-    }
-
-    #[cfg(test)]
-    pub(in crate::session) fn represented_xp_rest_bonus_cap_like_cpp(&self) -> Option<f32> {
-        Some(
-            self.resolved_player_next_level_xp_like_cpp()? as f32
-                * REST_BONUS_MAX_NEXT_LEVEL_XP_FACTOR_LIKE_CPP,
-        )
+        crate::session::hub_ref(self).player_is_max_level_like_cpp()
     }
 
     pub(crate) fn player_rest_state_snapshot_like_cpp(
@@ -193,17 +165,6 @@ impl WorldSession {
             player.add_xp_rest_bonus_like_cpp(rest_bonus, at_max, raf)
         })
         .unwrap_or(0)
-    }
-
-    #[cfg(test)]
-    pub(in crate::session) fn calc_represented_xp_rest_extra_per_sec_like_cpp(
-        &self,
-        bubble: f32,
-    ) -> Option<f32> {
-        if !self.can_gain_represented_xp_rest_bonus_like_cpp()? {
-            return Some(0.0);
-        }
-        Some(self.resolved_player_next_level_xp_like_cpp()? as f32 / 72_000.0 * bubble)
     }
 
     #[cfg(test)]
@@ -327,32 +288,8 @@ impl WorldSession {
         crate::session::hub_ref(self).resolved_xp_rest_threshold_like_cpp()
     }
 
-    #[cfg(test)]
-    pub(crate) fn represented_xp_rest_bonus_like_cpp(&self) -> f32 {
-        self.resolved_xp_rest_bonus_like_cpp()
-            .expect("test Player rest owner must resolve")
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_xp_rest_state_like_cpp(&self) -> u8 {
-        self.resolved_xp_rest_state_like_cpp()
-            .expect("test Player rest owner must resolve")
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_xp_rest_threshold_like_cpp(&self) -> u32 {
-        self.resolved_xp_rest_threshold_like_cpp()
-            .expect("test Player rest owner must resolve")
-    }
-
     pub(crate) fn resolved_is_resting_like_cpp(&self) -> Option<bool> {
         crate::session::hub_ref(self).resolved_is_resting_like_cpp()
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_is_resting_like_cpp(&self) -> bool {
-        self.resolved_is_resting_like_cpp()
-            .expect("test Player rest owner must resolve")
     }
 
     pub(crate) fn set_represented_rest_flag_like_cpp(
@@ -427,11 +364,8 @@ impl WorldSession {
         old_rest_bonus: f32,
         old_rest_state: u8,
     ) -> bool {
-        self.resolved_xp_rest_bonus_like_cpp()
-            .zip(self.resolved_xp_rest_state_like_cpp())
-            .is_some_and(|(bonus, state)| {
-                bonus.to_bits() != old_rest_bonus.to_bits() || state != old_rest_state
-            })
+        crate::session::hub_ref(self)
+            .represented_xp_rest_info_changed_since_like_cpp(old_rest_bonus, old_rest_state)
     }
 
     pub(crate) fn current_played_time_values_like_cpp(&self) -> (u32, u32) {
@@ -451,13 +385,102 @@ impl WorldSession {
     }
 
     pub(crate) fn represented_action_button_db_context_like_cpp(&self) -> Option<(u8, i32)> {
-        // Trait-config-specific action bars are not represented yet. Both load and save must use
-        // the same C++ fallback context so an autosave cannot mutate rows it never loaded.
-        Some((self.represented_active_talent_group_like_cpp()?, 0))
+        crate::session::hub_ref(self).represented_action_button_db_context_like_cpp()
     }
 
     pub(crate) fn take_deferred_rest_flag_update_dirty_like_cpp(&mut self) -> bool {
         self.take_player_deferred_rest_flag_update_dirty_like_cpp()
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    /// C++ `Player::IsMaxLevel` reads `ActivePlayerData::MaxLevel`, which
+    /// `InitStatsForLevel` derives from both the account's active expansion
+    /// and CONFIG_MAX_PLAYER_LEVEL. RestMgr deliberately uses the config-only
+    /// check above instead, so keep these two concepts separate.
+    pub(crate) fn player_active_max_level_like_cpp(&self) -> u32 {
+        let expansion_max = u32::from(max_level_for_expansion_like_cpp(self.core.expansion));
+        let configured_max = self.config.max_player_level_config_like_cpp;
+        if expansion_max == 80 || expansion_max >= configured_max {
+            configured_max
+        } else {
+            expansion_max
+        }
+    }
+
+    pub(in crate::session) fn player_is_max_level_like_cpp(&self) -> bool {
+        u32::from(self.player_level_like_cpp()) >= self.player_active_max_level_like_cpp()
+    }
+
+    #[cfg(test)]
+    pub(in crate::session) fn can_gain_represented_xp_rest_bonus_like_cpp(&self) -> Option<bool> {
+        if self.player_is_at_configured_max_level_like_cpp() {
+            return Some(false);
+        }
+
+        let next_level_xp = self.resolved_player_next_level_xp_like_cpp()?;
+        Some(next_level_xp != 0 && next_level_xp != u32::MAX)
+    }
+
+    #[cfg(test)]
+    pub(in crate::session) fn represented_xp_rest_bonus_cap_like_cpp(&self) -> Option<f32> {
+        Some(
+            self.resolved_player_next_level_xp_like_cpp()? as f32
+                * REST_BONUS_MAX_NEXT_LEVEL_XP_FACTOR_LIKE_CPP,
+        )
+    }
+
+    #[cfg(test)]
+    pub(in crate::session) fn calc_represented_xp_rest_extra_per_sec_like_cpp(
+        &self,
+        bubble: f32,
+    ) -> Option<f32> {
+        if !self.can_gain_represented_xp_rest_bonus_like_cpp()? {
+            return Some(0.0);
+        }
+        Some(self.resolved_player_next_level_xp_like_cpp()? as f32 / 72_000.0 * bubble)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_xp_rest_bonus_like_cpp(&self) -> f32 {
+        self.resolved_xp_rest_bonus_like_cpp()
+            .expect("test Player rest owner must resolve")
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_xp_rest_state_like_cpp(&self) -> u8 {
+        self.resolved_xp_rest_state_like_cpp()
+            .expect("test Player rest owner must resolve")
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_xp_rest_threshold_like_cpp(&self) -> u32 {
+        self.resolved_xp_rest_threshold_like_cpp()
+            .expect("test Player rest owner must resolve")
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_is_resting_like_cpp(&self) -> bool {
+        self.resolved_is_resting_like_cpp()
+            .expect("test Player rest owner must resolve")
+    }
+
+    pub(in crate::session) fn represented_xp_rest_info_changed_since_like_cpp(
+        &self,
+        old_rest_bonus: f32,
+        old_rest_state: u8,
+    ) -> bool {
+        self.resolved_xp_rest_bonus_like_cpp()
+            .zip(self.resolved_xp_rest_state_like_cpp())
+            .is_some_and(|(bonus, state)| {
+                bonus.to_bits() != old_rest_bonus.to_bits() || state != old_rest_state
+            })
+    }
+
+    pub(crate) fn represented_action_button_db_context_like_cpp(&self) -> Option<(u8, i32)> {
+        // Trait-config-specific action bars are not represented yet. Both load and save must use
+        // the same C++ fallback context so an autosave cannot mutate rows it never loaded.
+        Some((self.represented_active_talent_group_like_cpp()?, 0))
     }
 }
 
@@ -532,3 +555,7 @@ impl crate::session::HubRef<'_> {
             .map(|state| state.is_resting_by_flag_like_cpp())
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/rest_progression/f3_shims.rs"]
+mod f3_shims;

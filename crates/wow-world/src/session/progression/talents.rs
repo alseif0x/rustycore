@@ -30,73 +30,41 @@ impl WorldSession {
     ) -> Option<R> {
         crate::session::hub_mut(self).mutate_player_talent_runtime_like_cpp(f)
     }
-    /// The owner-dispatch hook the canonical-ownership regressions drive.
-    ///
-    /// Production has no such caller: every transition goes through a named
-    /// operation. This exists so the active/detached/replacement coverage can
-    /// still exercise the dispatch itself (#752).
-    #[cfg(test)]
-    pub(crate) fn mutate_player_talent_runtime_for_test_like_cpp<R>(
-        &mut self,
-        apply: impl FnOnce(&mut wow_entities::PlayerTalentRuntimeState) -> R,
-    ) -> Option<R> {
-        self.mutate_player_talent_runtime_like_cpp(apply)
-    }
 
-    /// C++ `Player::_LoadGlyphs` storing one persisted slot (`Player.cpp:26573`).
     pub(in crate::session) fn install_loaded_glyph_like_cpp(
         &mut self,
         talent_group: u8,
         glyph_slot: u8,
         glyph_id: u16,
     ) -> bool {
-        self.mutate_player_talent_runtime_like_cpp(|runtime| {
-            runtime.set_glyph_like_cpp(talent_group, glyph_slot, glyph_id)
-        })
-        .unwrap_or(false)
+        crate::session::hub_mut(self).install_loaded_glyph_like_cpp(
+            talent_group,
+            glyph_slot,
+            glyph_id,
+        )
     }
 
-    /// C++ `Player::_LoadTalents` completing.
     pub(in crate::session) fn mark_talents_loaded_like_cpp(&mut self) -> bool {
-        self.mutate_player_talent_runtime_like_cpp(|runtime| {
-            runtime.mark_talents_loaded_like_cpp();
-        })
-        .is_some()
+        crate::session::hub_mut(self).mark_talents_loaded_like_cpp()
     }
 
-    /// C++ `Player::_LoadGlyphs` completing.
     pub(in crate::session) fn mark_glyphs_loaded_like_cpp(&mut self) -> bool {
-        self.mutate_player_talent_runtime_like_cpp(|runtime| {
-            runtime.mark_glyphs_loaded_like_cpp();
-        })
-        .is_some()
+        crate::session::hub_mut(self).mark_glyphs_loaded_like_cpp()
     }
 
-    /// Install the groups a committed talent reset leaves behind
-    /// (C++ `Player::ResetTalents`, `Player.cpp:3505`).
     pub(in crate::session) fn install_reset_talent_groups_like_cpp(
         &mut self,
         groups: [std::collections::BTreeMap<u32, u8>;
             wow_entities::PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP],
     ) -> bool {
-        self.mutate_player_talent_runtime_like_cpp(|runtime| {
-            runtime.replace_talent_groups_like_cpp(groups);
-        })
-        .is_some()
+        crate::session::hub_mut(self).install_reset_talent_groups_like_cpp(groups)
     }
 
     pub(crate) fn set_represented_active_talent_group_like_cpp(
         &mut self,
         active_group: u8,
     ) -> bool {
-        let active_group = active_group.min((MAX_SPECIALIZATIONS_LIKE_CPP - 1) as u8);
-        if self.represented_active_talent_group_like_cpp() != Some(active_group) {
-            self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        }
-        self.mutate_player_talent_runtime_like_cpp(|runtime| {
-            runtime.set_active_group_like_cpp(active_group);
-        })
-        .is_some()
+        crate::session::hub_mut(self).set_represented_active_talent_group_like_cpp(active_group)
     }
     pub(crate) fn represented_active_talent_group_like_cpp(&self) -> Option<u8> {
         crate::session::hub_ref(self).represented_active_talent_group_like_cpp()
@@ -105,11 +73,7 @@ impl WorldSession {
         &mut self,
         bonus_groups: u8,
     ) -> bool {
-        let bonus_groups = bonus_groups.min((MAX_SPECIALIZATIONS_LIKE_CPP - 1) as u8);
-        self.mutate_player_talent_runtime_like_cpp(|runtime| {
-            runtime.set_bonus_groups_like_cpp(bonus_groups);
-        })
-        .is_some()
+        crate::session::hub_mut(self).set_represented_bonus_talent_groups_like_cpp(bonus_groups)
     }
     pub(crate) fn reset_represented_talents_like_cpp(&mut self) {
         let _ = self.mutate_player_talent_runtime_like_cpp(|runtime| {
@@ -208,97 +172,7 @@ impl WorldSession {
         learned
     }
     fn validate_represented_talent_learn_like_cpp(&self, talent_id: u32, rank: u8) -> bool {
-        let Some(available_points) = self.resolved_player_character_points_like_cpp() else {
-            return false;
-        };
-        let available_points = available_points.max(0) as u32;
-        if available_points == 0 {
-            return false;
-        }
-
-        let Some(runtime) = self.player_talent_runtime_snapshot_like_cpp() else {
-            return false;
-        };
-        let active_group = runtime.active_group_like_cpp();
-        let Some(talent) = self.talent_store().and_then(|store| store.get(talent_id)) else {
-            return false;
-        };
-
-        let Some(talents) = runtime.talent_group_like_cpp(active_group) else {
-            return false;
-        };
-        if let Some(current_rank) = talents.get(&talent_id) {
-            if *current_rank >= rank {
-                return false;
-            }
-        }
-
-        let needed_talent_points =
-            self.represented_needed_talent_points_for_learn_like_cpp(talent_id, rank);
-        if needed_talent_points > available_points {
-            return false;
-        }
-
-        for (prereq_talent, prereq_rank) in talent.prereq_talent.iter().zip(talent.prereq_rank) {
-            let Ok(prereq_talent_id) = u32::try_from(*prereq_talent) else {
-                return false;
-            };
-            if prereq_talent_id == 0 {
-                continue;
-            }
-
-            let Ok(required_rank) = u8::try_from(prereq_rank) else {
-                return false;
-            };
-            if talents
-                .get(&prereq_talent_id)
-                .is_none_or(|known_rank| *known_rank < required_rank)
-            {
-                return false;
-            }
-        }
-
-        if talent.tier_id > 0 {
-            let Some(talent_store) = self.talent_store() else {
-                return false;
-            };
-            let spent_points = talent_store
-                .iter()
-                .filter(|entry| entry.tab_id == talent.tab_id)
-                .filter_map(|entry| {
-                    talents
-                        .get(&entry.id)
-                        .map(|rank| {
-                            entry
-                                .spell_rank
-                                .get(usize::from(*rank))
-                                .copied()
-                                .unwrap_or(0)
-                        })
-                        .filter(|spell_id| *spell_id != 0)
-                        .map(|_| u32::from(talents[&entry.id]) + 1)
-                })
-                .sum::<u32>();
-
-            if spent_points < u32::from(talent.tier_id) * NEEDED_TALENT_POINT_PER_TIER_LIKE_CPP {
-                return false;
-            }
-        }
-
-        true
-    }
-    fn represented_needed_talent_points_for_learn_like_cpp(&self, talent_id: u32, rank: u8) -> u32 {
-        let Some(runtime) = self.player_talent_runtime_snapshot_like_cpp() else {
-            return u32::from(rank) + 1;
-        };
-        let Some(talents) = runtime.talent_group_like_cpp(runtime.active_group_like_cpp()) else {
-            return u32::from(rank) + 1;
-        };
-        if let Some(current_rank) = talents.get(&talent_id) {
-            (i32::from(*current_rank) - i32::from(rank) + 1).max(0) as u32
-        } else {
-            u32::from(rank) + 1
-        }
+        crate::session::hub_ref(self).validate_represented_talent_learn_like_cpp(talent_id, rank)
     }
     #[cfg(test)]
     fn represented_calculate_talents_points_like_cpp(&self) -> Option<u32> {
@@ -359,10 +233,176 @@ impl WorldSession {
     pub(crate) fn resolved_update_talent_data_packet_like_cpp(
         &self,
     ) -> Option<wow_packet::packets::misc::UpdateTalentData> {
+        crate::session::hub_ref(self).resolved_update_talent_data_packet_like_cpp()
+    }
+    pub(crate) fn represented_next_reset_talents_cost_like_cpp(
+        &self,
+        now_secs: u64,
+    ) -> Option<u32> {
+        crate::session::hub_ref(self).represented_next_reset_talents_cost_like_cpp(now_secs)
+    }
+    pub(in crate::session) fn record_represented_talent_respec_criteria_like_cpp(
+        &mut self,
+        cost: u32,
+    ) {
+        crate::session::hub_mut(self).record_represented_talent_respec_criteria_like_cpp(cost)
+    }
+    fn reset_talents_notification_text_like_cpp(&self) -> String {
+        let text = self.trinity_string_like_cpp(LANG_RESET_TALENTS_LIKE_CPP);
+        if text == "<error>" {
+            LANG_RESET_TALENTS_TEXT_LIKE_CPP.to_string()
+        } else {
+            text.to_string()
+        }
+    }
+    pub(crate) fn set_represented_talent_reset_state_like_cpp(
+        &mut self,
+        reset_cost: u32,
+        reset_time_secs: u64,
+    ) -> bool {
+        crate::session::hub_mut(self)
+            .set_represented_talent_reset_state_like_cpp(reset_cost, reset_time_secs)
+    }
+    #[cfg_attr(not(test), allow(unused_variables))]
+    pub(crate) fn record_represented_talent_reset_script_hook_like_cpp(&mut self, no_cost: bool) {
+        crate::session::hub_mut(self).record_represented_talent_reset_script_hook_like_cpp(no_cost)
+    }
+
+    pub(crate) fn reset_represented_glyphs_like_cpp(&mut self) {
+        crate::session::hub_mut(self).reset_represented_glyphs_like_cpp()
+    }
+    pub(crate) fn represented_active_glyphs_packet_like_cpp(
+        &self,
+    ) -> wow_packet::packets::misc::ActiveGlyphs {
+        crate::session::hub_ref(self).represented_active_glyphs_packet_like_cpp()
+    }
+}
+
+#[cfg(test)]
+impl crate::session::state::ProgressionState {
+    #[cfg(test)]
+    pub(crate) fn represented_talent_reset_script_hooks_like_cpp(
+        &self,
+    ) -> &[RepresentedTalentResetScriptHookLikeCpp] {
+        &self.represented_talent_reset_script_hooks_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_talent_respec_criteria_events_like_cpp(
+        &self,
+    ) -> &[RepresentedTalentRespecCriteriaEventLikeCpp] {
+        &self.represented_talent_respec_criteria_events_like_cpp
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    fn validate_represented_talent_learn_like_cpp(&self, talent_id: u32, rank: u8) -> bool {
+        let Some(available_points) = self.resolved_player_character_points_like_cpp() else {
+            return false;
+        };
+        let available_points = available_points.max(0) as u32;
+        if available_points == 0 {
+            return false;
+        }
+
+        let Some(runtime) = self.player_talent_runtime_snapshot_like_cpp() else {
+            return false;
+        };
+        let active_group = runtime.active_group_like_cpp();
+        let Some(talent) = self
+            .catalogs
+            .talent_store()
+            .and_then(|store| store.get(talent_id))
+        else {
+            return false;
+        };
+
+        let Some(talents) = runtime.talent_group_like_cpp(active_group) else {
+            return false;
+        };
+        if let Some(current_rank) = talents.get(&talent_id) {
+            if *current_rank >= rank {
+                return false;
+            }
+        }
+
+        let needed_talent_points =
+            self.represented_needed_talent_points_for_learn_like_cpp(talent_id, rank);
+        if needed_talent_points > available_points {
+            return false;
+        }
+
+        for (prereq_talent, prereq_rank) in talent.prereq_talent.iter().zip(talent.prereq_rank) {
+            let Ok(prereq_talent_id) = u32::try_from(*prereq_talent) else {
+                return false;
+            };
+            if prereq_talent_id == 0 {
+                continue;
+            }
+
+            let Ok(required_rank) = u8::try_from(prereq_rank) else {
+                return false;
+            };
+            if talents
+                .get(&prereq_talent_id)
+                .is_none_or(|known_rank| *known_rank < required_rank)
+            {
+                return false;
+            }
+        }
+
+        if talent.tier_id > 0 {
+            let Some(talent_store) = self.catalogs.talent_store() else {
+                return false;
+            };
+            let spent_points = talent_store
+                .iter()
+                .filter(|entry| entry.tab_id == talent.tab_id)
+                .filter_map(|entry| {
+                    talents
+                        .get(&entry.id)
+                        .map(|rank| {
+                            entry
+                                .spell_rank
+                                .get(usize::from(*rank))
+                                .copied()
+                                .unwrap_or(0)
+                        })
+                        .filter(|spell_id| *spell_id != 0)
+                        .map(|_| u32::from(talents[&entry.id]) + 1)
+                })
+                .sum::<u32>();
+
+            if spent_points < u32::from(talent.tier_id) * NEEDED_TALENT_POINT_PER_TIER_LIKE_CPP {
+                return false;
+            }
+        }
+
+        true
+    }
+
+    fn represented_needed_talent_points_for_learn_like_cpp(&self, talent_id: u32, rank: u8) -> u32 {
+        let Some(runtime) = self.player_talent_runtime_snapshot_like_cpp() else {
+            return u32::from(rank) + 1;
+        };
+        let Some(talents) = runtime.talent_group_like_cpp(runtime.active_group_like_cpp()) else {
+            return u32::from(rank) + 1;
+        };
+        if let Some(current_rank) = talents.get(&talent_id) {
+            (i32::from(*current_rank) - i32::from(rank) + 1).max(0) as u32
+        } else {
+            u32::from(rank) + 1
+        }
+    }
+
+    pub(crate) fn resolved_update_talent_data_packet_like_cpp(
+        &self,
+    ) -> Option<wow_packet::packets::misc::UpdateTalentData> {
         self.build_update_talent_data_packet_like_cpp(
             self.resolved_player_character_points_like_cpp()?,
         )
     }
+
     fn build_update_talent_data_packet_like_cpp(
         &self,
         character_points: i32,
@@ -400,6 +440,7 @@ impl WorldSession {
             is_pet_talents: false,
         })
     }
+
     #[cfg(test)]
     pub(crate) fn represented_update_talent_data_packet_like_cpp(
         &self,
@@ -407,11 +448,12 @@ impl WorldSession {
         self.build_update_talent_data_packet_like_cpp(self.player_character_points_like_cpp())
             .expect("test Player talent owner must resolve")
     }
+
     pub(crate) fn represented_next_reset_talents_cost_like_cpp(
         &self,
         now_secs: u64,
     ) -> Option<u32> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
             player
                 .talent_runtime_like_cpp()
                 .next_reset_talents_cost_like_cpp(now_secs)
@@ -424,6 +466,136 @@ impl WorldSession {
         }
         canonical
     }
+
+    pub(crate) fn represented_talent_reset_cost_like_cpp(&self) -> Option<u32> {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
+            player
+                .talent_runtime_like_cpp()
+                .reset_talents_cost_like_cpp()
+        });
+        #[cfg(test)]
+        if self.core.player_handle_like_cpp.is_none() {
+            return Some(
+                self.fixtures
+                    .progression
+                    .represented_talent_reset_cost_like_cpp,
+            );
+        }
+        canonical
+    }
+
+    pub(crate) fn represented_talent_reset_time_secs_like_cpp(&self) -> Option<u64> {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
+            player
+                .talent_runtime_like_cpp()
+                .reset_talents_time_secs_like_cpp()
+        });
+        #[cfg(test)]
+        if self.core.player_handle_like_cpp.is_none() {
+            return Some(
+                self.fixtures
+                    .progression
+                    .represented_talent_reset_time_secs_like_cpp,
+            );
+        }
+        canonical
+    }
+
+    pub(crate) fn represented_active_glyphs_packet_like_cpp(
+        &self,
+    ) -> wow_packet::packets::misc::ActiveGlyphs {
+        // C++ maps active glyphs to bindable spell ids through GlyphBindableSpell.db2.
+        // That store is not session-wired yet, so this remains an intentionally empty
+        // full update while UpdateTalentData carries the loaded glyph ids.
+        wow_packet::packets::misc::ActiveGlyphs {
+            glyphs: Vec::new(),
+            is_full_update: true,
+        }
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    /// The owner-dispatch hook the canonical-ownership regressions drive.
+    ///
+    /// Production has no such caller: every transition goes through a named
+    /// operation. This exists so the active/detached/replacement coverage can
+    /// still exercise the dispatch itself (#752).
+    #[cfg(test)]
+    pub(crate) fn mutate_player_talent_runtime_for_test_like_cpp<R>(
+        &mut self,
+        apply: impl FnOnce(&mut wow_entities::PlayerTalentRuntimeState) -> R,
+    ) -> Option<R> {
+        self.mutate_player_talent_runtime_like_cpp(apply)
+    }
+
+    /// C++ `Player::_LoadGlyphs` storing one persisted slot (`Player.cpp:26573`).
+    pub(in crate::session) fn install_loaded_glyph_like_cpp(
+        &mut self,
+        talent_group: u8,
+        glyph_slot: u8,
+        glyph_id: u16,
+    ) -> bool {
+        self.mutate_player_talent_runtime_like_cpp(|runtime| {
+            runtime.set_glyph_like_cpp(talent_group, glyph_slot, glyph_id)
+        })
+        .unwrap_or(false)
+    }
+
+    /// C++ `Player::_LoadTalents` completing.
+    pub(in crate::session) fn mark_talents_loaded_like_cpp(&mut self) -> bool {
+        self.mutate_player_talent_runtime_like_cpp(|runtime| {
+            runtime.mark_talents_loaded_like_cpp();
+        })
+        .is_some()
+    }
+
+    /// C++ `Player::_LoadGlyphs` completing.
+    pub(in crate::session) fn mark_glyphs_loaded_like_cpp(&mut self) -> bool {
+        self.mutate_player_talent_runtime_like_cpp(|runtime| {
+            runtime.mark_glyphs_loaded_like_cpp();
+        })
+        .is_some()
+    }
+
+    /// Install the groups a committed talent reset leaves behind
+    /// (C++ `Player::ResetTalents`, `Player.cpp:3505`).
+    pub(in crate::session) fn install_reset_talent_groups_like_cpp(
+        &mut self,
+        groups: [std::collections::BTreeMap<u32, u8>;
+            wow_entities::PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP],
+    ) -> bool {
+        self.mutate_player_talent_runtime_like_cpp(|runtime| {
+            runtime.replace_talent_groups_like_cpp(groups);
+        })
+        .is_some()
+    }
+
+    pub(crate) fn set_represented_active_talent_group_like_cpp(
+        &mut self,
+        active_group: u8,
+    ) -> bool {
+        let active_group = active_group.min((MAX_SPECIALIZATIONS_LIKE_CPP - 1) as u8);
+        if self.shared().represented_active_talent_group_like_cpp() != Some(active_group) {
+            self.core
+                .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        }
+        self.mutate_player_talent_runtime_like_cpp(|runtime| {
+            runtime.set_active_group_like_cpp(active_group);
+        })
+        .is_some()
+    }
+
+    pub(crate) fn set_represented_bonus_talent_groups_like_cpp(
+        &mut self,
+        bonus_groups: u8,
+    ) -> bool {
+        let bonus_groups = bonus_groups.min((MAX_SPECIALIZATIONS_LIKE_CPP - 1) as u8);
+        self.mutate_player_talent_runtime_like_cpp(|runtime| {
+            runtime.set_bonus_groups_like_cpp(bonus_groups);
+        })
+        .is_some()
+    }
+
     pub(in crate::session) fn record_represented_talent_respec_criteria_like_cpp(
         &mut self,
         cost: u32,
@@ -443,14 +615,7 @@ impl WorldSession {
         #[cfg(not(test))]
         let _ = cost;
     }
-    fn reset_talents_notification_text_like_cpp(&self) -> String {
-        let text = self.trinity_string_like_cpp(LANG_RESET_TALENTS_LIKE_CPP);
-        if text == "<error>" {
-            LANG_RESET_TALENTS_TEXT_LIKE_CPP.to_string()
-        } else {
-            text.to_string()
-        }
-    }
+
     pub(crate) fn set_represented_talent_reset_state_like_cpp(
         &mut self,
         reset_cost: u32,
@@ -461,38 +626,7 @@ impl WorldSession {
         })
         .is_some()
     }
-    pub(crate) fn represented_talent_reset_cost_like_cpp(&self) -> Option<u32> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            player
-                .talent_runtime_like_cpp()
-                .reset_talents_cost_like_cpp()
-        });
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.fixtures
-                    .progression
-                    .represented_talent_reset_cost_like_cpp,
-            );
-        }
-        canonical
-    }
-    pub(crate) fn represented_talent_reset_time_secs_like_cpp(&self) -> Option<u64> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            player
-                .talent_runtime_like_cpp()
-                .reset_talents_time_secs_like_cpp()
-        });
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.fixtures
-                    .progression
-                    .represented_talent_reset_time_secs_like_cpp,
-            );
-        }
-        canonical
-    }
+
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_talent_reset_script_hook_like_cpp(&mut self, no_cost: bool) {
         #[cfg(test)]
@@ -501,41 +635,13 @@ impl WorldSession {
             .represented_talent_reset_script_hooks_like_cpp
             .push(RepresentedTalentResetScriptHookLikeCpp { no_cost });
     }
-    #[cfg(test)]
-    pub(crate) fn represented_talent_reset_script_hooks_like_cpp(
-        &self,
-    ) -> &[RepresentedTalentResetScriptHookLikeCpp] {
-        &self
-            .fixtures
-            .progression
-            .represented_talent_reset_script_hooks_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_talent_respec_criteria_events_like_cpp(
-        &self,
-    ) -> &[RepresentedTalentRespecCriteriaEventLikeCpp] {
-        &self
-            .fixtures
-            .progression
-            .represented_talent_respec_criteria_events_like_cpp
-    }
 
     pub(crate) fn reset_represented_glyphs_like_cpp(&mut self) {
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         let _ = self.mutate_player_talent_runtime_like_cpp(|runtime| {
             runtime.clear_glyphs_like_cpp();
         });
-    }
-    pub(crate) fn represented_active_glyphs_packet_like_cpp(
-        &self,
-    ) -> wow_packet::packets::misc::ActiveGlyphs {
-        // C++ maps active glyphs to bindable spell ids through GlyphBindableSpell.db2.
-        // That store is not session-wired yet, so this remains an intentionally empty
-        // full update while UpdateTalentData carries the loaded glyph ids.
-        wow_packet::packets::misc::ActiveGlyphs {
-            glyphs: Vec::new(),
-            is_full_update: true,
-        }
     }
 }
 
