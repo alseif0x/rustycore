@@ -673,6 +673,43 @@ def test_planner_contract(repo: Path) -> None:
         assert net_move_suite in suite_final and net_move_suite not in suite_quick, changed
         assert net_move not in suite_final, changed
 
+    # Ignored sources (#1241 F3-6b): final plans the check for any crates/ change,
+    # including a deletion; quick never does; its suite follows its own files.
+    ignored = ["python3", "tools/architecture/ignored_sources.py", "check"]
+    ignored_suite = ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_ignored_sources.py"]
+    assert ignored in final and ignored not in quick
+    for changed in ("crates/wow-world/unit_tests/session/progression/skills_f3_shims.rs",
+                    "crates/wow-map/src/deleted.rs", "crates/wow-world/Cargo.toml"):
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        quick_planned, _ = runner.validation_commands(repo, "quick", 2, "base", runner.grouped_paths([changed]), None)
+        assert ignored in planned and ignored not in quick_planned, changed
+    for changed in ("tools/qa.py", "docs/state.md", ".gitignore"):
+        planned, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        assert ignored not in planned, changed
+    for changed in ("tools/architecture/ignored_sources.py", "tools/architecture/test_ignored_sources.py"):
+        suite_final, _ = runner.validation_commands(repo, "final", 2, "base", runner.grouped_paths([changed]), None)
+        suite_quick, _ = runner.validation_commands(repo, "quick", 2, "base", runner.grouped_paths([changed]), None)
+        assert ignored_suite in suite_final and ignored_suite not in suite_quick, changed
+    # The F3-4 situation: a committed mount whose shim a `skills/` rule hides fails the check.
+    spec = importlib.util.spec_from_file_location(
+        "ignored_sources", Path(__file__).resolve().parent / "architecture/ignored_sources.py")
+    ignored_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(ignored_module)
+    with tempfile.TemporaryDirectory(prefix="rustycore-ignored-") as scratch:
+        scratch_root = Path(scratch)
+        subprocess.run(["git", "init", "-q", str(scratch_root)], check=True)
+        (scratch_root / ".gitignore").write_text("skills/\n")
+        shim = scratch_root / "crates/wow-world/unit_tests/session/progression/skills/f3_shims.rs"
+        shim.parent.mkdir(parents=True)
+        shim.write_text("// shim\n")
+        assert ignored_module.ignored_sources(scratch_root) == [
+            "crates/wow-world/unit_tests/session/progression/skills/f3_shims.rs"]
+        with redirect_stdout(io.StringIO()):
+            assert ignored_module.check(scratch_root) == 1
+        shim.rename(shim.parent.with_name("skills_f3_shims.rs"))     # the F3-6 relocation
+        with redirect_stdout(io.StringIO()):
+            assert ignored_module.check(scratch_root) == 0
+
     # A root-wide path widens the check to the whole workspace. It must not
     # narrow the tests to nothing: the broader the change, the weaker that made
     # the gate (#364). With nothing else changed, every library is tested.

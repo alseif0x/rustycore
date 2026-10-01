@@ -703,6 +703,15 @@ def validation_commands(
         "tools/architecture/test_net_move.py",
     } for path in all_paths):
         add_command(planned, ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_net_move.py"])
+    # #1241 F3-6b: a git-ignored source under crates/ can be mounted by committed
+    # code and pass locally while a fresh clone lacks it. Final only, for any crates/ change.
+    if profile == "final" and any(path.startswith("crates/") for path in all_paths):
+        add_command(planned, ["python3", "tools/architecture/ignored_sources.py", "check"])
+    if profile == "final" and any(path in {
+        "tools/architecture/ignored_sources.py",
+        "tools/architecture/test_ignored_sources.py",
+    } for path in all_paths):
+        add_command(planned, ["python3", "-m", "unittest", "discover", "-s", "tools/architecture", "-p", "test_ignored_sources.py"])
     text_suffixes = {".json", ".lock", ".md", ".proto", ".py", ".rs", ".sh", ".toml", ".tsv", ".txt", ".yaml", ".yml"}
     text_files = existing(
         sorted(

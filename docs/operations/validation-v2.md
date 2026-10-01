@@ -131,6 +131,16 @@ fails unless `G <= S*(1+0.05)+300`; it does not apply when S <= 0. Quick does no
 During development run it manually with
 `python3 tools/architecture/net_move.py check --base origin/3.4.3`.
 
+A `final` run whose diff touches any `crates/` path also plans the ignored-source check
+(#1241 F3-6b). A source file that a `.gitignore` rule hides can be mounted by committed code
+(`#[path = "..."] mod ...;`) and still pass every local build, because it exists in the working
+tree, while a fresh clone lacks it; F3-4 shipped such a shim under a `skills/` directory. The check
+lists `git ls-files --others --ignored --exclude-standard -- crates/`, keeps the physical
+inventory's source suffixes, skips `target/` directories and fails if anything remains, printing
+each path with its `git check-ignore -v` rule. Fix it by moving the file to a path no rule hides
+(the F3 codemod does this for its shims), not by force-adding it. Quick does not plan it; run it
+manually with `python3 tools/architecture/ignored_sources.py check`.
+
 Paths classified as `documentation` run no Cargo command. Classification is directory-first:
 even a README under `crates/`, `tools/wow-test-bot/` or
 `tools/architecture/handler-contract-check/` takes that directory's Cargo route. The standalone
