@@ -161,7 +161,7 @@ impl WorldSession {
                 .tavern_area_trigger_store
                 .clone()
                 .unwrap_or_else(|| Arc::new(TavernAreaTriggerStoreLikeCpp::default())),
-            script_dispatcher: self.config.area_trigger_script_dispatcher_like_cpp.clone(),
+            script_dispatcher: self.view.area_trigger_script_dispatcher_like_cpp.clone(),
         }
     }
     #[cfg(test)]

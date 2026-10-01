@@ -33,6 +33,13 @@
           "source_class": "production"
         },
         {
+          "name": "dispatch_table",
+          "type": "HashMap < ClientOpcodes , & 'static PacketHandlerEntry >",
+          "visibility": "pub (in crate :: session)",
+          "cfg": [],
+          "source_class": "production"
+        },
+        {
           "name": "fixtures",
           "type": "SessionFixtures",
           "visibility": "pub (crate)",

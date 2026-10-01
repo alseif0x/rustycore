@@ -23,7 +23,7 @@ impl super::WorldSession {
             }
         };
 
-        let entry = match self.core.admission.dispatch_table.get(&opcode) {
+        let entry = match self.dispatch_table.get(&opcode) {
             Some(e) => *e,
             None => {
                 info!(

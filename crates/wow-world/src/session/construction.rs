@@ -180,7 +180,6 @@ impl WorldSession {
                     mute_time_like_cpp: 0,
                 },
                 admission: SessionAdmissionState {
-                    dispatch_table: build_dispatch_table(),
                     last_packet_time: Instant::now(),
                     last_phase_authority_like_cpp: [None, None],
                     map_phase_coordinated_like_cpp: false,
@@ -436,8 +435,6 @@ impl WorldSession {
                 feature_system_character_undelete_enabled_like_cpp: false,
 
                 legacy_creature_aggro_config_like_cpp: LegacyCreatureAggroConfigLikeCpp::default(),
-                #[cfg(test)]
-                area_trigger_script_dispatcher_like_cpp: None,
                 #[cfg(test)]
                 give_player_xp_script_dispatcher_like_cpp: None,
                 #[cfg(test)]
@@ -1097,7 +1094,10 @@ impl WorldSession {
                 last_presented_creature_melee_health_state_revision_like_cpp: 0,
                 taxi_node_map_ids_like_cpp: HashMap::new(),
                 active_area_trigger: None,
+                #[cfg(test)]
+                area_trigger_script_dispatcher_like_cpp: None,
             },
+            dispatch_table: build_dispatch_table(),
         }
     }
 

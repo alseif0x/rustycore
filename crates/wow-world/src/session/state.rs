@@ -314,6 +314,9 @@ pub(in crate::session) struct SessionWorldView {
     pub(in crate::session) taxi_node_map_ids_like_cpp: HashMap<u32, u16>,
     /// Currently active area trigger ID, set when entered and cleared when exited.
     pub(in crate::session) active_area_trigger: Option<u32>,
+    #[cfg(test)]
+    pub(in crate::session) area_trigger_script_dispatcher_like_cpp:
+        Option<AreaTriggerScriptDispatcherLikeCpp>,
 }
 
 /// Addon chat filtering: C++ `WorldSession::_registeredAddonPrefixes` and
@@ -522,11 +525,10 @@ pub(crate) struct SessionTransport {
     pub(in crate::session) session_mgr: Option<Arc<SessionManager>>,
 }
 
-/// Packet admission and dispatch state: the opcode dispatch table, the ingress
-/// throttle and spoof-ban bookkeeping, the pending packet queue and the socket
-/// timeout and phase-authority fences for the admitted traffic.
+/// Packet admission state: the ingress throttle and spoof-ban bookkeeping, the
+/// pending packet queue and the socket timeout and phase-authority fences for
+/// the admitted traffic.
 pub(crate) struct SessionAdmissionState {
-    pub(in crate::session) dispatch_table: HashMap<ClientOpcodes, &'static PacketHandlerEntry>,
     pub(in crate::session) last_packet_time: Instant,
     /// The producer and step this session last accepted, per phase (#787).
     ///
@@ -648,4 +650,6 @@ pub struct WorldSession {
 
     /// The session's view of its world: area trigger, taxi, combat and realm flags.
     pub(in crate::session) view: SessionWorldView,
+    /// Opcode -> registered handler; `&'static` entries only, so its drop has no side effect.
+    pub(in crate::session) dispatch_table: HashMap<ClientOpcodes, &'static PacketHandlerEntry>,
 }
