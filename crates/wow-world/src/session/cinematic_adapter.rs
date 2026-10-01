@@ -10,19 +10,7 @@ impl WorldSession {
     pub(in crate::session) fn player_cinematic_state_snapshot_like_cpp(
         &self,
     ) -> Option<wow_entities::PlayerCinematicStateLikeCpp> {
-        let canonical = self.with_owned_player_like_cpp(|player| player.gameplay_state().cinematic);
-        if canonical.is_some() {
-            return canonical;
-        }
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.fixtures
-                    .presentation
-                    .represented_cinematic_state_like_cpp,
-            );
-        }
-        None
+        crate::session::hub_ref(self).player_cinematic_state_snapshot_like_cpp()
     }
 
     pub(crate) fn opening_cinematic_like_cpp(&mut self) -> Option<u32> {
@@ -45,6 +33,38 @@ impl WorldSession {
         Some(cinematic_id)
     }
 
+    pub(crate) fn complete_represented_cinematic_like_cpp(&mut self) {
+        crate::session::hub_mut(self).complete_represented_cinematic_like_cpp()
+    }
+
+    pub(crate) fn next_represented_cinematic_camera_like_cpp(&mut self) {
+        crate::session::hub_mut(self).next_represented_cinematic_camera_like_cpp()
+    }
+
+    pub(crate) fn complete_represented_movie_like_cpp(&mut self) {
+        crate::session::hub_mut(self).complete_represented_movie_like_cpp()
+    }
+}
+
+#[cfg(test)]
+impl crate::session::state::PlayerPresentationState {
+    #[cfg(test)]
+    pub(crate) fn represented_cinematic_next_camera_events_like_cpp(&self) -> &[u16] {
+        &self.represented_cinematic_next_camera_events_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_cinematic_end_events_like_cpp(&self) -> &[u32] {
+        &self.represented_cinematic_end_events_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_movie_complete_events_like_cpp(&self) -> &[u32] {
+        &self.represented_movie_complete_events_like_cpp
+    }
+}
+
+impl crate::session::HubMut<'_> {
     pub(crate) fn complete_represented_cinematic_like_cpp(&mut self) {
         let Some(cinematic_id) = self
             .with_player_cinematic_state_like_cpp(
@@ -103,6 +123,28 @@ impl WorldSession {
                 .push(movie_id);
         }
     }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(in crate::session) fn player_cinematic_state_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerCinematicStateLikeCpp> {
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.gameplay_state().cinematic);
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(test)]
+        if self.core.player_handle_like_cpp.is_none() {
+            return Some(
+                self.fixtures
+                    .presentation
+                    .represented_cinematic_state_like_cpp,
+            );
+        }
+        None
+    }
 
     #[cfg(test)]
     pub(crate) fn represented_cinematic_like_cpp(&self) -> Option<u32> {
@@ -117,32 +159,12 @@ impl WorldSession {
     }
 
     #[cfg(test)]
-    pub(crate) fn represented_cinematic_next_camera_events_like_cpp(&self) -> &[u16] {
-        &self
-            .fixtures
-            .presentation
-            .represented_cinematic_next_camera_events_like_cpp
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_cinematic_end_events_like_cpp(&self) -> &[u32] {
-        &self
-            .fixtures
-            .presentation
-            .represented_cinematic_end_events_like_cpp
-    }
-
-    #[cfg(test)]
     pub(crate) fn represented_movie_like_cpp(&self) -> Option<u32> {
         self.player_cinematic_state_snapshot_like_cpp()
             .and_then(|state| state.movie_id_like_cpp())
     }
-
-    #[cfg(test)]
-    pub(crate) fn represented_movie_complete_events_like_cpp(&self) -> &[u32] {
-        &self
-            .fixtures
-            .presentation
-            .represented_movie_complete_events_like_cpp
-    }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/cinematic_adapter/f3_shims.rs"]
+mod f3_shims;

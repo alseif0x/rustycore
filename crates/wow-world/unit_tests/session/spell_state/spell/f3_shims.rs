@@ -24,4 +24,11 @@ impl crate::session::WorldSession {
         self.catalogs
             .serverside_spell_like_cpp(spell_id, difficulty)
     }
+    pub(in crate::session) fn spell_has_no_unrepresented_runtime_hooks_like_cpp(
+        &self,
+        spell_id: u32,
+    ) -> bool {
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.spell_has_no_unrepresented_runtime_hooks_like_cpp(hub, spell_id)
+    }
 }

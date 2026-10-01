@@ -173,3 +173,24 @@ pub(crate) fn split_lifecycle_mut(
 pub(crate) fn split_lifecycle_ref(s: &WorldSession) -> (&SessionLifecycleState, HubRef<'_>) {
     (&s.lifecycle, hub_ref(s))
 }
+
+/// `&mut` group state plus the mutable hub (core and fixtures), borrowed from disjoint fields.
+pub(crate) fn split_world_entities_mut(
+    s: &mut WorldSession,
+) -> (&mut WorldEntitiesState, HubMut<'_>) {
+    (
+        &mut s.world_entities,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(test)]
+            fixtures: &mut s.fixtures,
+        },
+    )
+}
+
+/// Shared group state plus the shared hub for `&self` methods.
+pub(crate) fn split_world_entities_ref(s: &WorldSession) -> (&WorldEntitiesState, HubRef<'_>) {
+    (&s.world_entities, hub_ref(s))
+}

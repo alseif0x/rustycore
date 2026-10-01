@@ -6,57 +6,13 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn creature_faction_template_is_neutral_to_all_like_cpp(
-        &self,
-        faction_template_id: u32,
-    ) -> bool {
-        let Some(faction_template_store) = self.catalogs.factions.template_store.as_ref() else {
-            // Transitional compatibility for legacy DB-only creature loading.
-            // C++ uses FactionTemplate.db2; when the store is absent, keep the
-            // previous Rust no-aggro behavior for the canonical neutral faction.
-            return faction_template_id == 35;
-        };
-        let Some(faction_template) = faction_template_store.get(faction_template_id) else {
-            return false;
-        };
-
-        if faction_template.faction == 0 {
-            return true;
-        }
-
-        if let Some(faction_store) = self.catalogs.factions.store.as_ref()
-            && let Some(raw_faction) = faction_store.get(u32::from(faction_template.faction))
-            && raw_faction.can_have_reputation_like_cpp()
-        {
-            return false;
-        }
-
-        faction_template.is_neutral_to_all_like_cpp()
-    }
     #[allow(dead_code)]
     pub(crate) fn canonical_creature_access_like_cpp(
         &self,
         guid: ObjectGuid,
     ) -> Option<RepresentedCreatureAccessLikeCpp> {
-        if guid.is_empty() || !guid.is_any_type_creature() {
-            return None;
-        }
-        let map_key = self
-            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
-        let manager = self.core.canonical_map_manager.as_ref()?;
-        let Ok(manager) = manager.lock() else {
-            return None;
-        };
-        let map = manager.find_map(map_key.map_id, map_key.instance_id)?;
-        map.map()
-            .with_creature_or_pet_like_cpp(guid, |creature, _| RepresentedCreatureAccessLikeCpp {
-                entry: creature.entry(),
-                position: creature.unit().world().position(),
-                npc_flags: creature.ai_ownership().npc_flags,
-                npc_flags2: creature.ai_ownership().npc_flags2,
-                trainer_class: creature.trainer_class_like_cpp(),
-                faction_template_id: creature.unit().data().faction_template.max(0) as u32,
-            })
+        let (state, hub) = crate::session::split_world_entities_ref(self);
+        state.canonical_creature_access_like_cpp(hub, guid)
     }
     pub(crate) fn visible_world_creatures_from_map_like_cpp(
         &self,
@@ -225,7 +181,7 @@ impl WorldSession {
     pub(crate) fn creature_onkill_reputation_store(
         &self,
     ) -> Option<&Arc<CreatureOnKillReputationStoreLikeCpp>> {
-        self.catalogs.creatures.onkill_reputation_store.as_ref()
+        self.catalogs.creature_onkill_reputation_store()
     }
     pub fn set_creature_template_mount_store(
         &mut self,
@@ -292,8 +248,79 @@ impl WorldSession {
         db_cur_health: u32,
         db_cur_mana: u32,
     ) -> CreatureCreateStatsLikeCpp {
-        let power_type =
-            power_type_from_u8_like_cpp(self.creature_display_power_for_class_like_cpp(unit_class));
+        let (state, hub) = crate::session::split_world_entities_ref(self);
+        state.creature_create_stats_with_catalogs_like_cpp(
+            hub,
+            catalogs,
+            entry,
+            level,
+            unit_class,
+            classification,
+            regen_health,
+            db_cur_health,
+            db_cur_mana,
+        )
+    }
+    pub fn set_creature_model_data_store(&mut self, store: Arc<CreatureModelDataStore>) {
+        self.catalogs.creatures.model_data_store = Some(store);
+    }
+    #[allow(dead_code)]
+    pub(crate) fn represented_mount_creature_template_fallback_like_cpp(
+        &mut self,
+        creature_entry: u32,
+    ) -> Option<(i32, u32)> {
+        let (state, mut hub) = crate::session::split_world_entities_mut(self);
+        state.represented_mount_creature_template_fallback_like_cpp(&mut hub, creature_entry)
+    }
+}
+
+impl crate::session::state::WorldEntitiesState {
+    #[allow(dead_code)]
+    pub(crate) fn canonical_creature_access_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        guid: ObjectGuid,
+    ) -> Option<RepresentedCreatureAccessLikeCpp> {
+        if guid.is_empty() || !guid.is_any_type_creature() {
+            return None;
+        }
+        let map_key = hub
+            .core
+            .canonical_object_lookup_map_key_like_cpp(u32::from(
+                hub.core.player_map_id_like_cpp(),
+            ))?;
+        let manager = hub.core.canonical_map_manager.as_ref()?;
+        let Ok(manager) = manager.lock() else {
+            return None;
+        };
+        let map = manager.find_map(map_key.map_id, map_key.instance_id)?;
+        map.map()
+            .with_creature_or_pet_like_cpp(guid, |creature, _| RepresentedCreatureAccessLikeCpp {
+                entry: creature.entry(),
+                position: creature.unit().world().position(),
+                npc_flags: creature.ai_ownership().npc_flags,
+                npc_flags2: creature.ai_ownership().npc_flags2,
+                trainer_class: creature.trainer_class_like_cpp(),
+                faction_template_id: creature.unit().data().faction_template.max(0) as u32,
+            })
+    }
+
+    pub(crate) fn creature_create_stats_with_catalogs_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        catalogs: &CreatureSpawnCatalogsLikeCpp,
+        entry: u32,
+        level: u8,
+        unit_class: u8,
+        classification: u32,
+        regen_health: bool,
+        db_cur_health: u32,
+        db_cur_mana: u32,
+    ) -> CreatureCreateStatsLikeCpp {
+        let power_type = power_type_from_u8_like_cpp(
+            hub.catalogs
+                .creature_display_power_for_class_like_cpp(unit_class),
+        );
         let difficulty = catalogs.difficulty.get_like_cpp(entry, 0);
 
         let base_stats = catalogs.base_stats.get_like_cpp(level, unit_class);
@@ -335,23 +362,58 @@ impl WorldSession {
             base_mana,
         }
     }
-    pub fn set_creature_model_data_store(&mut self, store: Arc<CreatureModelDataStore>) {
-        self.catalogs.creatures.model_data_store = Some(store);
-    }
+
     #[allow(dead_code)]
     pub(crate) fn represented_mount_creature_template_fallback_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         creature_entry: u32,
     ) -> Option<(i32, u32)> {
-        let template = self
+        let template = hub
             .catalogs
             .creatures
             .template_mount_store
             .as_ref()?
             .get(creature_entry)?;
         let display_id = template
-            .choose_display_id_like_cpp(&mut self.core.driver.represented_runtime_rng_like_cpp)?;
+            .choose_display_id_like_cpp(&mut hub.core.driver.represented_runtime_rng_like_cpp)?;
         Some((i32::try_from(display_id).unwrap_or(0), template.vehicle_id))
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    pub(crate) fn creature_faction_template_is_neutral_to_all_like_cpp(
+        &self,
+        faction_template_id: u32,
+    ) -> bool {
+        let Some(faction_template_store) = self.factions.template_store.as_ref() else {
+            // Transitional compatibility for legacy DB-only creature loading.
+            // C++ uses FactionTemplate.db2; when the store is absent, keep the
+            // previous Rust no-aggro behavior for the canonical neutral faction.
+            return faction_template_id == 35;
+        };
+        let Some(faction_template) = faction_template_store.get(faction_template_id) else {
+            return false;
+        };
+
+        if faction_template.faction == 0 {
+            return true;
+        }
+
+        if let Some(faction_store) = self.factions.store.as_ref()
+            && let Some(raw_faction) = faction_store.get(u32::from(faction_template.faction))
+            && raw_faction.can_have_reputation_like_cpp()
+        {
+            return false;
+        }
+
+        faction_template.is_neutral_to_all_like_cpp()
+    }
+
+    pub(crate) fn creature_onkill_reputation_store(
+        &self,
+    ) -> Option<&Arc<CreatureOnKillReputationStoreLikeCpp>> {
+        self.creatures.onkill_reputation_store.as_ref()
     }
 }
 

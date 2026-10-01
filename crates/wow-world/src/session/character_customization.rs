@@ -70,13 +70,7 @@ impl WorldSession {
         &mut self,
         request: RepresentedConfirmBarbersChoiceLikeCpp,
     ) {
-        #[cfg(test)]
-        {
-            self.fixtures
-                .presentation
-                .represented_confirm_barbers_choice_requests_like_cpp
-                .push(request);
-        }
+        crate::session::hub_mut(self).record_represented_confirm_barbers_choice_like_cpp(request)
     }
 
     #[cfg_attr(not(test), allow(unused_variables))]
@@ -145,5 +139,21 @@ impl WorldSession {
                 .represented_chosen_title_like_cpp;
         }
         canonical.expect("test Player title owner must resolve")
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    #[cfg_attr(not(test), allow(unused_variables))]
+    pub(crate) fn record_represented_confirm_barbers_choice_like_cpp(
+        &mut self,
+        request: RepresentedConfirmBarbersChoiceLikeCpp,
+    ) {
+        #[cfg(test)]
+        {
+            self.fixtures
+                .presentation
+                .represented_confirm_barbers_choice_requests_like_cpp
+                .push(request);
+        }
     }
 }

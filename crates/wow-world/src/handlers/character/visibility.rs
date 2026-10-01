@@ -313,7 +313,20 @@ impl WorldSession {
         map_id: u16,
         spawn: &MaterializedCreatureSpawnLikeCpp,
     ) {
+        let (state, mut hub) = crate::session::split_world_entities_mut(self);
+        state.register_materialized_creature_spawn_like_cpp(&mut hub, map_id, spawn)
+    }
+}
+
+impl crate::session::WorldEntitiesState {
+    pub(super) fn register_materialized_creature_spawn_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        map_id: u16,
+        spawn: &MaterializedCreatureSpawnLikeCpp,
+    ) {
         self.register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp(
+            hub,
             map_id,
             spawn.position,
             spawn.create_data.clone(),
