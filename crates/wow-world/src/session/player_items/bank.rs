@@ -6,17 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    /// Set the C++ BankBagSlotPrices.db2 store for this session.
-    #[cfg(test)]
-    pub fn set_bank_bag_slot_prices_store(&mut self, store: Arc<BankBagSlotPricesStore>) {
-        self.catalogs.bank_bag_slot_prices_store = Some(store);
-    }
-    #[cfg(test)]
-    pub(crate) fn bank_bag_slot_prices_store_for_test_like_cpp(
-        &self,
-    ) -> Option<&Arc<BankBagSlotPricesStore>> {
-        self.catalogs.bank_bag_slot_prices_store.as_ref()
-    }
     /// C++ `Player::DurabilityRepairAll(takeCost=true, guildBank=true)` for represented items.
     pub(crate) async fn repair_all_inventory_item_durability_with_guild_bank_and_generator_like_cpp(
         &mut self,
@@ -269,16 +258,8 @@ impl WorldSession {
         Some((result, dest))
     }
     pub(crate) fn set_player_bank_bag_slot_count_like_cpp(&mut self, count: u8) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| player.set_bank_bag_slot_count(count))
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.inventory
-                .player_item_test_fixture_like_cpp
-                .player_bank_bag_slot_count_like_cpp = count;
-        }
-        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.set_player_bank_bag_slot_count_like_cpp(&mut hub, count)
     }
     pub(crate) fn represented_can_use_current_bank_like_cpp(&self) -> bool {
         let Some(banker_guid) = self.player_interaction_source_guid_like_cpp() else {
@@ -297,14 +278,8 @@ impl WorldSession {
         &mut self,
         move_like_cpp: RepresentedBankItemMoveLikeCpp,
     ) {
-        #[cfg(test)]
         self.inventory
-            .represented_bank_item_moves_like_cpp
-            .push(move_like_cpp);
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_bank_item_moves_like_cpp(&self) -> &[RepresentedBankItemMoveLikeCpp] {
-        &self.inventory.represented_bank_item_moves_like_cpp
+            .record_represented_bank_item_move_like_cpp(move_like_cpp)
     }
     pub(crate) fn represented_guild_bank_can_interact_like_cpp(
         &self,
@@ -518,32 +493,6 @@ impl WorldSession {
             });
         true
     }
-    #[cfg(test)]
-    pub(crate) fn represented_guild_bank_inventory_moves_like_cpp(
-        &self,
-    ) -> &[RepresentedGuildBankInventoryMoveLikeCpp] {
-        &self
-            .inventory
-            .represented_guild_bank_inventory_moves_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_guild_bank_list_requests_like_cpp(
-        &self,
-    ) -> &[RepresentedGuildBankListRequestLikeCpp] {
-        &self.inventory.represented_guild_bank_list_requests_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_guild_bank_money_moves_like_cpp(
-        &self,
-    ) -> &[RepresentedGuildBankMoneyMoveLikeCpp] {
-        &self.inventory.represented_guild_bank_money_moves_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_guild_bank_tab_actions_like_cpp(
-        &self,
-    ) -> &[RepresentedGuildBankTabActionLikeCpp] {
-        &self.inventory.represented_guild_bank_tab_actions_like_cpp
-    }
     pub(crate) fn represented_bank_bag_slot_flag_like_cpp(&self, slot: usize) -> Option<u32> {
         let canonical = self
             .with_owned_player_like_cpp(|player| player.bank_bag_slot_flag_value_like_cpp(slot))
@@ -563,22 +512,8 @@ impl WorldSession {
         slot: usize,
         value: u32,
     ) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_bank_bag_slot_flag_value_like_cpp(slot, value)
-            })
-            .unwrap_or(false);
-        #[cfg(test)]
-        if (canonical || self.core.player_handle_like_cpp.is_none())
-            && let Some(flag) = self
-                .inventory
-                .represented_bank_bag_slot_flags_like_cpp
-                .get_mut(slot)
-        {
-            *flag = value;
-            return true;
-        }
-        canonical
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.set_represented_bank_bag_slot_flag_like_cpp(&mut hub, slot, value)
     }
     pub(crate) fn resolved_player_bank_bag_slot_count_like_cpp(&self) -> Option<u8> {
         let canonical = self.with_owned_player_like_cpp(Player::bank_bag_slot_count);
@@ -597,19 +532,122 @@ impl WorldSession {
         self.resolved_player_bank_bag_slot_count_like_cpp()
             .expect("test Player bank-bag-slot owner must resolve")
     }
+}
+
+impl crate::session::state::InventoryState {
+    pub(crate) fn set_player_bank_bag_slot_count_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        count: u8,
+    ) -> bool {
+        let canonical = hub
+            .core
+            .with_owned_player_mut_like_cpp(|player| player.set_bank_bag_slot_count(count))
+            .is_some();
+        #[cfg(test)]
+        if canonical || hub.core.player_handle_like_cpp.is_none() {
+            self.player_item_test_fixture_like_cpp
+                .player_bank_bag_slot_count_like_cpp = count;
+        }
+        canonical || cfg!(test) && hub.core.player_handle_like_cpp.is_none()
+    }
+
+    #[cfg_attr(not(test), allow(unused_variables))]
+    pub(crate) fn record_represented_bank_item_move_like_cpp(
+        &mut self,
+        move_like_cpp: RepresentedBankItemMoveLikeCpp,
+    ) {
+        #[cfg(test)]
+        self.represented_bank_item_moves_like_cpp
+            .push(move_like_cpp);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_bank_item_moves_like_cpp(&self) -> &[RepresentedBankItemMoveLikeCpp] {
+        &self.represented_bank_item_moves_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_guild_bank_inventory_moves_like_cpp(
+        &self,
+    ) -> &[RepresentedGuildBankInventoryMoveLikeCpp] {
+        &self.represented_guild_bank_inventory_moves_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_guild_bank_list_requests_like_cpp(
+        &self,
+    ) -> &[RepresentedGuildBankListRequestLikeCpp] {
+        &self.represented_guild_bank_list_requests_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_guild_bank_money_moves_like_cpp(
+        &self,
+    ) -> &[RepresentedGuildBankMoneyMoveLikeCpp] {
+        &self.represented_guild_bank_money_moves_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_guild_bank_tab_actions_like_cpp(
+        &self,
+    ) -> &[RepresentedGuildBankTabActionLikeCpp] {
+        &self.represented_guild_bank_tab_actions_like_cpp
+    }
+
+    pub(crate) fn set_represented_bank_bag_slot_flag_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        slot: usize,
+        value: u32,
+    ) -> bool {
+        let canonical = hub
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_bank_bag_slot_flag_value_like_cpp(slot, value)
+            })
+            .unwrap_or(false);
+        #[cfg(test)]
+        if (canonical || hub.core.player_handle_like_cpp.is_none())
+            && let Some(flag) = self.represented_bank_bag_slot_flags_like_cpp.get_mut(slot)
+        {
+            *flag = value;
+            return true;
+        }
+        canonical
+    }
+
     #[cfg(test)]
     pub(crate) fn set_represented_guild_repair_bank_state_like_cpp(
         &mut self,
         state: Option<RepresentedGuildRepairBankStateLikeCpp>,
     ) {
-        self.inventory.represented_guild_repair_bank_state_like_cpp = state;
+        self.represented_guild_repair_bank_state_like_cpp = state;
     }
+
     #[cfg(test)]
     pub(crate) fn represented_guild_repair_bank_withdraws_like_cpp(
         &self,
     ) -> &[RepresentedGuildRepairBankWithdrawLikeCpp] {
-        &self
-            .inventory
-            .represented_guild_repair_bank_withdraws_like_cpp
+        &self.represented_guild_repair_bank_withdraws_like_cpp
     }
 }
+
+impl crate::session::state::SessionCatalogs {
+    /// Set the C++ BankBagSlotPrices.db2 store for this session.
+    #[cfg(test)]
+    pub fn set_bank_bag_slot_prices_store(&mut self, store: Arc<BankBagSlotPricesStore>) {
+        self.bank_bag_slot_prices_store = Some(store);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn bank_bag_slot_prices_store_for_test_like_cpp(
+        &self,
+    ) -> Option<&Arc<BankBagSlotPricesStore>> {
+        self.bank_bag_slot_prices_store.as_ref()
+    }
+}
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/player_items/bank/f3_shims.rs"]
+mod f3_shims;

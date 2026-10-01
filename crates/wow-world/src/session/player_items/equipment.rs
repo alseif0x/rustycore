@@ -6,42 +6,19 @@
 use super::*;
 
 impl WorldSession {
-    /// C++ `DB2Manager::GetItemChildEquipment(parentItemId)`.
     pub(crate) fn item_child_equipment_for_parent_like_cpp(
         &self,
         parent_item_id: u32,
     ) -> Option<&ItemChildEquipmentEntry> {
         self.catalogs
-            .items
-            .child_equipment_store
-            .as_ref()?
-            .values()
-            .find(|entry| entry.parent_item_id == parent_item_id)
+            .item_child_equipment_for_parent_like_cpp(parent_item_id)
     }
     pub(in crate::session) fn represented_equip_spell_fits_shapeshift_like_cpp(
         &self,
         spell_id: u32,
     ) -> bool {
-        let Some(spell_store) = self.catalogs.spell_catalogs.spell_store.as_ref() else {
-            return true;
-        };
-        let Ok(spell_id) = i32::try_from(spell_id) else {
-            return false;
-        };
-
-        let Some(form_id) = self.represented_shapeshift_form_like_cpp() else {
-            return false;
-        };
-        spell_store
-            .check_shapeshift_like_cpp(spell_id, form_id, |form| {
-                self.catalogs
-                    .spell_catalogs
-                    .spell_shapeshift_form_store
-                    .as_ref()
-                    .and_then(|store| store.get(form))
-            })
-            .unwrap_or(SpellCastResult::Success)
-            == SpellCastResult::Success
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.represented_equip_spell_fits_shapeshift_like_cpp(hub, spell_id)
     }
     /// C++ `Player::UpdateEquipSpellsAtFormChange` (`Player.cpp:22093-22094`,
     /// reached from `InitDataForForm`): drop the equipped items' spell auras the
@@ -188,21 +165,8 @@ impl WorldSession {
         applied
     }
     pub(in crate::session) fn inventory_equip_capabilities_like_cpp(&self) -> Option<(bool, bool)> {
-        if let Some(capabilities) = self.with_owned_player_like_cpp(|player| {
-            (
-                player.unit().can_dual_wield_like_cpp(),
-                player.can_titan_grip(),
-            )
-        }) {
-            return Some(capabilities);
-        }
-
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return Some((false, false));
-        }
-
-        None
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.inventory_equip_capabilities_like_cpp(hub)
     }
     /// C++ `Player::CanUnequipItem` for any represented top-level or bag position.
     pub(crate) fn can_unequip_inventory_item_at_like_cpp(
@@ -684,12 +648,76 @@ impl WorldSession {
 
         Some(total_item_level as f32 / 16.0)
     }
+}
+
+impl crate::session::state::InventoryState {
+    pub(in crate::session) fn represented_equip_spell_fits_shapeshift_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        spell_id: u32,
+    ) -> bool {
+        let Some(spell_store) = hub.catalogs.spell_catalogs.spell_store.as_ref() else {
+            return true;
+        };
+        let Ok(spell_id) = i32::try_from(spell_id) else {
+            return false;
+        };
+
+        let Some(form_id) = hub.represented_shapeshift_form_like_cpp() else {
+            return false;
+        };
+        spell_store
+            .check_shapeshift_like_cpp(spell_id, form_id, |form| {
+                hub.catalogs
+                    .spell_catalogs
+                    .spell_shapeshift_form_store
+                    .as_ref()
+                    .and_then(|store| store.get(form))
+            })
+            .unwrap_or(SpellCastResult::Success)
+            == SpellCastResult::Success
+    }
+
+    pub(in crate::session) fn inventory_equip_capabilities_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<(bool, bool)> {
+        if let Some(capabilities) = hub.core.with_owned_player_like_cpp(|player| {
+            (
+                player.unit().can_dual_wield_like_cpp(),
+                player.can_titan_grip(),
+            )
+        }) {
+            return Some(capabilities);
+        }
+
+        #[cfg(test)]
+        if hub.core.player_handle_like_cpp.is_none() {
+            return Some((false, false));
+        }
+
+        None
+    }
+
     #[cfg(test)]
     pub(crate) fn represented_avg_equipped_item_level_updates_like_cpp(&self) -> &[f32] {
         &self
-            .inventory
             .player_item_test_fixture_like_cpp
             .represented_avg_equipped_item_level_updates_like_cpp
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    /// C++ `DB2Manager::GetItemChildEquipment(parentItemId)`.
+    pub(crate) fn item_child_equipment_for_parent_like_cpp(
+        &self,
+        parent_item_id: u32,
+    ) -> Option<&ItemChildEquipmentEntry> {
+        self.items
+            .child_equipment_store
+            .as_ref()?
+            .values()
+            .find(|entry| entry.parent_item_id == parent_item_id)
     }
 }
 
@@ -729,3 +757,7 @@ impl crate::session::state::SessionCore {
         self.send_packet_realm(&packet);
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/player_items/equipment/f3_shims.rs"]
+mod f3_shims;

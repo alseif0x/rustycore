@@ -78,10 +78,6 @@ impl WorldSession {
         }
     }
 
-    pub(crate) fn represented_shapeshift_form_like_cpp(&self) -> Option<u32> {
-        crate::session::hub_ref(self).represented_shapeshift_form_like_cpp()
-    }
-
     /// C++ `Unit::SetShapeshiftForm`: write the canonical Unit field and keep
     /// the transitional Player gameplay projection in sync for the fallback
     /// readers.
@@ -436,3 +432,7 @@ impl crate::session::HubRef<'_> {
         Some((is_submerged, is_in_water))
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/player_presentation/f3_shims.rs"]
+mod f3_shims;

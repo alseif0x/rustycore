@@ -191,16 +191,8 @@ impl WorldSession {
         )
     }
     pub(crate) fn set_player_inventory_slot_count_like_cpp(&mut self, count: u8) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| player.set_inventory_slot_count(count))
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.inventory
-                .player_item_test_fixture_like_cpp
-                .player_inventory_slot_count_like_cpp = count;
-        }
-        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.set_player_inventory_slot_count_like_cpp(&mut hub, count)
     }
     pub(crate) fn resolved_player_inventory_slot_count_like_cpp(&self) -> Option<u8> {
         let canonical = self.with_owned_player_like_cpp(Player::inventory_slot_count);
@@ -218,5 +210,24 @@ impl WorldSession {
     pub(crate) fn player_inventory_slot_count_like_cpp(&self) -> u8 {
         self.resolved_player_inventory_slot_count_like_cpp()
             .expect("test Player inventory-slot owner must resolve")
+    }
+}
+
+impl crate::session::state::InventoryState {
+    pub(crate) fn set_player_inventory_slot_count_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        count: u8,
+    ) -> bool {
+        let canonical = hub
+            .core
+            .with_owned_player_mut_like_cpp(|player| player.set_inventory_slot_count(count))
+            .is_some();
+        #[cfg(test)]
+        if canonical || hub.core.player_handle_like_cpp.is_none() {
+            self.player_item_test_fixture_like_cpp
+                .player_inventory_slot_count_like_cpp = count;
+        }
+        canonical || cfg!(test) && hub.core.player_handle_like_cpp.is_none()
     }
 }

@@ -317,44 +317,8 @@ impl WorldSession {
         &self,
         _include_represented_item_bonuses: bool,
     ) -> Option<RepresentedPlayerGearStatsLikeCpp> {
-        let mut gear = RepresentedPlayerGearStatsLikeCpp::default();
-        // C++ keeps the result of `_ApplyItemBonuses` on Player and uses that
-        // accumulator for every subsequent stat calculation. Reading the
-        // inventory here as well would count an item once through its sparse
-        // row and again through the canonical Player modifier state after an
-        // equip/swap. Login seeds the same accumulator before this projection,
-        // so this is the single contribution path for every lifecycle.
-        let bonuses = self.resolved_item_bonus_state_like_cpp()?;
-        for (target, amount) in gear.stats.iter_mut().zip(bonuses.stats_base) {
-            *target = target.saturating_add(amount);
-        }
-        gear.attack_power = gear.attack_power.saturating_add(bonuses.attack_power_total);
-        gear.ranged_attack_power = gear
-            .ranged_attack_power
-            .saturating_add(bonuses.ranged_attack_power_total);
-        gear.health = gear.health.saturating_add(bonuses.health_base);
-        gear.mana = gear.mana.saturating_add(bonuses.mana_base);
-        for (target, amount) in gear.combat_ratings.iter_mut().zip(bonuses.combat_ratings) {
-            *target = target.saturating_add(amount);
-        }
-        gear.spell_power = gear.spell_power.saturating_add(bonuses.spell_power_bonus);
-        gear.armor = gear
-            .armor
-            .saturating_add(bonuses.armor_base)
-            .saturating_add(bonuses.armor_total)
-            .saturating_add(bonuses.resistances_base[0]);
-        for (target, amount) in gear.resistances.iter_mut().zip(bonuses.resistances_base) {
-            *target = target.saturating_add(amount);
-        }
-        gear.mana_regen_bonus = bonuses.mana_regen_bonus;
-        gear.health_regen_bonus = bonuses.health_regen_bonus;
-        gear.spell_penetration_bonus = bonuses.spell_penetration_bonus;
-        gear.shield_block_base_mod = bonuses.shield_block_base_mod;
-        gear.shield_block_value = bonuses.shield_block_value;
-        gear.weapon_damage = bonuses.weapon_damage;
-        gear.base_attack_time = bonuses.base_attack_time;
-
-        Some(gear)
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.represented_player_gear_stats_like_cpp(hub, _include_represented_item_bonuses)
     }
 
     pub(super) fn player_stat_system_projection_like_cpp(
@@ -450,54 +414,9 @@ impl WorldSession {
         )
     }
 
-    /// C++ `Player::InitDataForForm` (`Player.cpp:22076-22098`) base attack
-    /// times: a form with `CombatRoundTime` drives both melee attacks and
-    /// leaves the ranged attack at `BASE_ATTACK_TIME`; otherwise the equipped
-    /// weapon delays (`SetRegularAttackTime`) apply.
     pub(crate) fn apply_represented_shapeshift_base_attack_time_like_cpp(&mut self) -> bool {
-        let regular = self
-            .represented_player_gear_stats_like_cpp(true)
-            .map(|gear| gear.base_attack_time);
-        let combat_round_time = self.represented_shapeshift_combat_round_time_like_cpp();
-        self.mutate_canonical_player_like_cpp(|player| {
-            let unit = player.unit_mut();
-            let (base, offhand, ranged) = match combat_round_time {
-                Some(round_time) => (round_time as u32, round_time as u32, 2_000),
-                None => {
-                    let Some(regular) = regular else {
-                        return;
-                    };
-                    // C++ `Player::SetRegularAttackTime` only writes an attack
-                    // whose equipped weapon declares a delay; every other attack
-                    // keeps its current time.
-                    let current = unit.base_attack_speed();
-                    (
-                        if regular[0] > 0 {
-                            regular[0]
-                        } else {
-                            current[0]
-                        },
-                        if regular[1] > 0 {
-                            regular[1]
-                        } else {
-                            current[1]
-                        },
-                        if regular[2] > 0 {
-                            regular[2]
-                        } else {
-                            current[2]
-                        },
-                    )
-                }
-            };
-            unit.set_base_attack_time_like_cpp(wow_constants::WeaponAttackType::BaseAttack, base);
-            unit.set_base_attack_time_like_cpp(wow_constants::WeaponAttackType::OffAttack, offhand);
-            unit.set_base_attack_time_like_cpp(
-                wow_constants::WeaponAttackType::RangedAttack,
-                ranged,
-            );
-        })
-        .is_some()
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.apply_represented_shapeshift_base_attack_time_like_cpp(&mut hub)
     }
 
     /// C++ `Player::InitDataForForm` plus the `UpdateDamagePhysical` refresh at
@@ -699,6 +618,115 @@ impl WorldSession {
         // compatibility with callers that already name the C++ option, but a
         // second inventory-derived path is deliberately impossible here.
         self.publish_player_effective_combat_stats_like_cpp(level, projection, gear);
+    }
+}
+
+impl crate::session::InventoryState {
+    pub(super) fn represented_player_gear_stats_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        _include_represented_item_bonuses: bool,
+    ) -> Option<RepresentedPlayerGearStatsLikeCpp> {
+        let mut gear = RepresentedPlayerGearStatsLikeCpp::default();
+        // C++ keeps the result of `_ApplyItemBonuses` on Player and uses that
+        // accumulator for every subsequent stat calculation. Reading the
+        // inventory here as well would count an item once through its sparse
+        // row and again through the canonical Player modifier state after an
+        // equip/swap. Login seeds the same accumulator before this projection,
+        // so this is the single contribution path for every lifecycle.
+        let bonuses = self.resolved_item_bonus_state_like_cpp(hub)?;
+        for (target, amount) in gear.stats.iter_mut().zip(bonuses.stats_base) {
+            *target = target.saturating_add(amount);
+        }
+        gear.attack_power = gear.attack_power.saturating_add(bonuses.attack_power_total);
+        gear.ranged_attack_power = gear
+            .ranged_attack_power
+            .saturating_add(bonuses.ranged_attack_power_total);
+        gear.health = gear.health.saturating_add(bonuses.health_base);
+        gear.mana = gear.mana.saturating_add(bonuses.mana_base);
+        for (target, amount) in gear.combat_ratings.iter_mut().zip(bonuses.combat_ratings) {
+            *target = target.saturating_add(amount);
+        }
+        gear.spell_power = gear.spell_power.saturating_add(bonuses.spell_power_bonus);
+        gear.armor = gear
+            .armor
+            .saturating_add(bonuses.armor_base)
+            .saturating_add(bonuses.armor_total)
+            .saturating_add(bonuses.resistances_base[0]);
+        for (target, amount) in gear.resistances.iter_mut().zip(bonuses.resistances_base) {
+            *target = target.saturating_add(amount);
+        }
+        gear.mana_regen_bonus = bonuses.mana_regen_bonus;
+        gear.health_regen_bonus = bonuses.health_regen_bonus;
+        gear.spell_penetration_bonus = bonuses.spell_penetration_bonus;
+        gear.shield_block_base_mod = bonuses.shield_block_base_mod;
+        gear.shield_block_value = bonuses.shield_block_value;
+        gear.weapon_damage = bonuses.weapon_damage;
+        gear.base_attack_time = bonuses.base_attack_time;
+
+        Some(gear)
+    }
+
+    /// C++ `Player::InitDataForForm` (`Player.cpp:22076-22098`) base attack
+    /// times: a form with `CombatRoundTime` drives both melee attacks and
+    /// leaves the ranged attack at `BASE_ATTACK_TIME`; otherwise the equipped
+    /// weapon delays (`SetRegularAttackTime`) apply.
+    pub(crate) fn apply_represented_shapeshift_base_attack_time_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+    ) -> bool {
+        let regular = self
+            .represented_player_gear_stats_like_cpp(hub.shared(), true)
+            .map(|gear| gear.base_attack_time);
+        let combat_round_time = hub
+            .shared()
+            .represented_shapeshift_combat_round_time_like_cpp();
+        hub.core
+            .mutate_canonical_player_like_cpp(|player| {
+                let unit = player.unit_mut();
+                let (base, offhand, ranged) = match combat_round_time {
+                    Some(round_time) => (round_time as u32, round_time as u32, 2_000),
+                    None => {
+                        let Some(regular) = regular else {
+                            return;
+                        };
+                        // C++ `Player::SetRegularAttackTime` only writes an attack
+                        // whose equipped weapon declares a delay; every other attack
+                        // keeps its current time.
+                        let current = unit.base_attack_speed();
+                        (
+                            if regular[0] > 0 {
+                                regular[0]
+                            } else {
+                                current[0]
+                            },
+                            if regular[1] > 0 {
+                                regular[1]
+                            } else {
+                                current[1]
+                            },
+                            if regular[2] > 0 {
+                                regular[2]
+                            } else {
+                                current[2]
+                            },
+                        )
+                    }
+                };
+                unit.set_base_attack_time_like_cpp(
+                    wow_constants::WeaponAttackType::BaseAttack,
+                    base,
+                );
+                unit.set_base_attack_time_like_cpp(
+                    wow_constants::WeaponAttackType::OffAttack,
+                    offhand,
+                );
+                unit.set_base_attack_time_like_cpp(
+                    wow_constants::WeaponAttackType::RangedAttack,
+                    ranged,
+                );
+            })
+            .is_some()
     }
 }
 

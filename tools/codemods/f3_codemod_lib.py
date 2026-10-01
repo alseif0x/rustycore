@@ -224,3 +224,46 @@ pub(crate) fn split_{g}_ref(s: &WorldSession) -> (&{t}, HubRef<'_>) {{
     (&s.{g}, hub_ref(s))
 }}
 '''
+
+
+def git_ignored(root, path):
+    return subprocess.run(["git", "-C", str(root), "check-ignore", "-q", str(path)],
+                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+
+
+MOUNT = re.compile(r'#\[path = "([^"]+f3_shims\.rs)"\]\nmod f3_shims;')
+
+
+def default_shim_path(root, rel):
+    """`unit_tests/<src path>/f3_shims.rs`, or `<src path>_f3_shims.rs` where .gitignore hides the dir."""
+    base = root / "crates/wow-world/unit_tests" / rel[:-3]
+    return base / "f3_shims.rs" if not git_ignored(root, base / "f3_shims.rs") else \
+        base.with_name(base.name + "_f3_shims.rs")
+
+
+def shim_path(root, rel):
+    """The shim file the source already mounts, else the default path for a new one."""
+    source = root / "crates/wow-world/src" / rel
+    m = MOUNT.search(source.read_text()) if source.exists() else None
+    return pathlib.Path(os.path.normpath(source.parent / m.group(1))) if m else default_shim_path(root, rel)
+
+
+def relocate_ignored_shims(root, src):
+    """Move only shim files a .gitignore rule hides (e.g. a `skills/` dir) and repoint their mounts.
+    A mounted, visible shim stays where it is, whatever the default path would be today."""
+    moved = []
+    for p in sorted(src.rglob("*.rs")):
+        text = p.read_text()
+        m = MOUNT.search(text)
+        if not m:
+            continue
+        old = pathlib.Path(os.path.normpath(p.parent / m.group(1)))
+        if not old.exists() or not git_ignored(root, old):
+            continue
+        new = default_shim_path(root, p.relative_to(src).as_posix())
+        if new != old:
+            new.write_text(old.read_text())
+            old.unlink()
+            p.write_text(text.replace(m.group(1), os.path.relpath(new, p.parent)))
+            moved += [p, new]
+    return moved

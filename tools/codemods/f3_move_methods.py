@@ -14,92 +14,15 @@ original block. Re-running is a no-op; stale thunks are removed. Standard librar
 """
 from __future__ import annotations
 
-import argparse, collections, json, os, pathlib, re, subprocess, sys
+import argparse, bisect, collections, json, os, pathlib, re, subprocess, sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from f3_codemod_lib import (HUB_RS, SPLIT_FN, SPLIT_MUT_FN, SPLIT_REF_FN, abs_vis, cargo_check, item_segments,  # noqa: E402
-                            line_start, module_paths, param_span, ret_type, split_params, strip_cfg_test)
+                            git_ignored, line_start, module_paths, param_span, relocate_ignored_shims, ret_type,
+                            shim_path, split_params, strip_cfg_test)
+from f3_codemod_model import *  # noqa: E402,F401,F403  (groups, owner types, patterns, kind rules)
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
-IDENT = r"[A-Za-z_][A-Za-z0-9_]*"
-HUB = {"core", "catalogs", "config", "fixtures"}
-STATE_TYPE = {"core": "SessionCore", "catalogs": "SessionCatalogs", "config": "SessionWorldConfig",
-              "lifecycle": "SessionLifecycleState", "loot": "LootState", "inventory": "InventoryState",
-              "spell_state": "SessionSpellState", "social": "SessionSocialLimits", "instances": "InstanceState",
-              "world_entities": "WorldEntitiesState", "visibility": "VisibilityState",
-              "interaction": "InteractionState", "quest_state": "SessionQuestState", "view": "SessionWorldView",
-              "phase": "SessionPhaseRail"}
-HUB_TYPES = {"HubRef", "HubMut"}
-SH = ("state-hub", "state-hubmut")                           # group state + HubRef (`&self`) / `&mut HubMut`
-# `fixtures.<group>` (cfg(test)) owner types: cfg(test)-only fns that touch only their group move onto them.
-FIXTURE_TYPE = {"identity": "PlayerIdentityState", "collections": "CollectionsState", "auras": "AuraState",
-                "progression": "ProgressionState", "combat": "CombatState", "movement": "MovementState",
-                "teleport": "TeleportState", "vehicles": "TaxiVehicleState", "pets": "PetState",
-                "battleground": "BattlegroundState", "presentation": "PlayerPresentationState"}
-FIXTURE_OF = {t: g for g, t in FIXTURE_TYPE.items()}
-OWNER_TYPES = set(STATE_TYPE.values()) | HUB_TYPES | set(FIXTURE_TYPE.values())
-PERMANENT_THUNKS = {"player_guid"}                           # hot hub accessors: an inline thunk forever
-SHELL = "shell"
-# File-domain -> default group (F3-E design.md, section 1). Domains not listed are handler shells.
-DOMAIN_MAP = {g: d.split() for g, d in {
-    "inventory": "session/player_items session/money session/buyback_adapter session/void_storage_adapter "
-                 "session/currency_adapter session/item_modifiers session/trade_adapter",
-    "spell_state": "session/spell_state session/player_cast spell_acquisition session/effect_learning",
-    "spell_effects": "session/spell_effects", "vehicles": "session/taxi",
-    "world_entities": "session/world_entities session/gameobject_interaction",
-    "movement": "session/movement session/movement_protocol",
-    "quest_state": "session/quest session/quest_dialog session/quest_interaction handlers/quest quest",
-    "pets": "session/pets session/pet_loading session/pet_dismissal session/battle_pet_adapter",
-    "lifecycle": "session/lifecycle session/lifecycle_ops session/persistence session_persistence_capabilities "
-                 "session/player_bootstrap",
-    "combat": "session/combat session/player_vitals_adapter",
-    "instances": "session/instances session/world_state session/map_admission",
-    "progression": "session/progression session/rest_progression session/progression_adapters session/xp_grants "
-                   "session/faction_reactions session/trait_configs profession",
-    "social": "session/social session/social_requests session/chat",
-    "battleground": "session/battleground_adapter",
-    "visibility": "session/visibility session/deferred_visibility session/object_updates",
-    "presentation": "session/player_presentation session/stand_state_adapter session/action_bar_adapter "
-                    "session/cinematic_adapter session/raid_profile_values session/character_customization "
-                    "session/appearance",
-    "interaction": "session/npc_interaction session/support_features",
-    "collections": "session/collection_adapter session/collections battle_pet_purchase",
-    "loot": "session/loot handlers/loot", "identity": "player",
-    "catalogs": "session/catalogs session/spell_pet_catalogs session/player_condition_values",
-    "config": "session/runtime_policy_access",
-    "core": "session/connection session/connection_identity session/admission session/time_synchronization "
-            "session/player_binding session/player_registry_binding session/canonical_access session/publication "
-            "session/mailbox session_commands",
-}.items()}
-DOMAIN = {d: g for g, ds in DOMAIN_MAP.items() for d in ds}
-
-SELF_FIELD = re.compile(r"\bself\s*\.\s*(" + IDENT + r")\b(?!\s*(?:\(|::\s*<))")
-GUARD_LET = re.compile(r"\blet\s+(?:mut\s+)?(" + IDENT + r")\s*=[^;{}=]*?\.\s*(?:lock|write|read)\s*\(\s*\)")
-FIXTURE_FIELD = re.compile(r"\bself\s*\.\s*fixtures\s*\.\s*(" + IDENT + r")\b")
-SELF_CALL = re.compile(r"\bself\s*\.\s*(" + IDENT + r")(\s*(?:::\s*<[^;{}()]*>\s*)?)\(")
-STORE_WRITE = re.compile(r"&\s*mut\s+self\s*\.\s*(?:catalogs|config)\b|\bself\s*\.\s*(?:catalogs|config)"
-                         r"(?:\s*\.\s*" + IDENT + r")*\s*(?:\[[^\]]*\]\s*)?[-+*/|&^]?=(?!=)")
-TYPE_PATH = re.compile(r"\b(?:Self|WorldSession)\s*::\s*(" + IDENT + r")")
-BARE_SELF = re.compile(r"\bself\b(?!\s*(?:\.|::))")
-ANY_CALL = re.compile(r"(?:\.|::)\s*(" + IDENT + r")\s*(?:::\s*<[^;{}()]*>\s*)?\(")
-# A call that can reach a WorldSession method: `self.m(`, `<..session..>.m(`, `Self::m(`, `WorldSession::m(`.
-# Narrower than ANY_CALL so same-named methods of other types are not taken for callers; a missed
-# caller only costs a thunk the compiler loop restores (E0599).
-WS_CALL = re.compile(r"(?:\b(?:self|\w*session\w*)\s*\.\s*|\b(?:Self|WorldSession)\s*::\s*)(" + IDENT +
-                     r")\s*(?:::\s*<[^;{}()]*>\s*)?\(")
-SESSION_CALL = re.compile(r"\b(" + IDENT + r")\s*\.\s*(" + IDENT + r")\s*(?:::\s*<[^;{}()]*>\s*)?\(")
-IMPL_ANY = re.compile(r"(?m)^[ \t]*impl\s*(?:<[^{};]*?>)?\s*(?:" + IDENT + r"\s*::\s*)*(" + IDENT +
-                      r")\b\s*(?:<[^{};]*>)?\s*\{")
-
-
-PRECONDITIONS = ("holds a std lock guard", "writes catalogs/config", "unsupported parameter", "unexpected receiver", "whole-self", "`Self::`", "macro-generated", "returns a borrow",
-                 "reads config")
-
-
-class CodemodError(Exception):
-    pass
-
-
 def lib(root):
     """The coupling tool's lexer; a synthetic tree without tools/ uses this checkout's copy."""
     base = root / "tools/architecture"
@@ -186,22 +109,6 @@ def scan(root):
     return W, src, raw, code, groups, fns, owned, handlers, ext, tests
 
 
-def guard_call(body):
-    """A `let g = ...lock()/read()/write()` guard still live (not dropped) at a later `self.m(..)` call."""
-    for m in GUARD_LET.finditer(body):
-        end = len(body)
-        depth = 0
-        for j in range(m.start(), len(body)):                # the guard lives to the end of its block
-            depth += {"{": 1, "}": -1}.get(body[j], 0)
-            if depth < 0:
-                end = j
-                break
-        drop = re.search(r"\bdrop\s*\(\s*" + m.group(1) + r"\s*\)", body[m.end():end])
-        if SELF_CALL.search(body, m.end(), m.end() + drop.start() if drop else end):
-            return True
-    return False
-
-
 def targets(fns):
     """Default target per fn plus the F3-E re-homing rules (a)-(c)."""
     by = {f["name"]: f for f in fns}
@@ -258,120 +165,6 @@ def targets(fns):
             continue
         f["target"] = "core"
         seeds.extend(f["calls"])
-
-
-def kind_of(f, classes):
-    """(class, kind, target type) or a blocked reason string."""
-    g = f["target"]
-    fields = set(f["acc"])
-    if len(fields) == 1 and fields <= {"catalogs", "config"} and g not in ("catalogs", "config"):
-        f["store_from"], g = g, next(iter(fields))           # a pure store accessor/setter of any group
-        f["target"], f["store_rehomed"] = g, True
-    if g in FIXTURE_TYPE:
-        if set(f["fx"]) - {g}:
-            return f"class C (other fixture groups {sorted(set(f['fx']) - {g})})"
-        if not fields <= HUB:
-            return f"class C (non-hub fields {sorted(fields - HUB)})"
-        if f["cfg_test"] and fields <= {"fixtures"} and f["file"].startswith("session/"):
-            cls, kind = "P", "state"                          # cfg(test) fn on its fixture group
-        else:                                                # production fns reach fixtures via the hub view
-            cls, kind = "C-hub", "hubref" if f["recv"] == "&self" else "hubmut"
-        return preconditions(f, cls, kind, classes) or (cls, kind, {"hubref": "HubRef", "hubmut": "HubMut"}
-                                                         .get(kind, FIXTURE_TYPE[g]))
-    if g not in STATE_TYPE:
-        return "stateless group: context-owned kind not implemented"
-    own = fields <= {g}
-    if own:
-        cls, kind = "P", "state"
-    elif fields <= HUB | {g} and g not in ("catalogs", "config"):
-        cls = "C-hub"
-        kind = ("hubref" if f["recv"] == "&self" else "hubmut") if g == "core" else \
-            "state-hub" if f["recv"] == "&self" else "state-hubmut"
-    else:
-        return f"class C (non-hub fields {sorted(fields - HUB - {g})})"
-    return preconditions(f, cls, kind, classes) or (cls, kind, {"hubref": "HubRef", "hubmut": "HubMut"}
-                                                     .get(kind, STATE_TYPE[g]))
-
-
-def preconditions(f, cls, kind, classes):
-    if cls not in classes:
-        return f"class {cls} not requested"
-    if f["recv"] not in ("&self", "&mut self"):
-        return f"unexpected receiver {f['recv']}"
-    if f["whole_self"]:
-        return "whole-self use (`self` as a value)"
-    if f["guard_call"]:
-        return "holds a std lock guard across a self method call"
-    if f["type_path"]:
-        return "`Self::`/`WorldSession::` path in body"
-    if f["macro"]:
-        return "macro-generated fn"
-    return hub_check(f, kind)
-
-
-def hub_check(f, kind):
-    """Precondition failures specific to the hub kinds (also applied when a P fn is upgraded)."""
-    if kind in ("hubref", "hubmut", *SH) and f["ret_borrow"]:      # elision would tie it to the wrong borrow
-        return "returns a borrow (would borrow a temporary hub view)"
-    if kind in ("hubref", "hubmut", *SH) and f.get("writes_store"):
-        return "writes catalogs/config (shared in every hub view)"
-    if kind in ("hubref", "hubmut", *SH) and "config" in f["acc"] and not f["file"].startswith("session/"):
-        return "reads config outside crate::session"
-    return None
-
-
-def upgrade(f, kind, classes):
-    """P -> C-hub when a callee needs the hub view (core: HubRef/HubMut, other groups: state-hub)."""
-    if f.get("store_rehomed"):                               # it needs the hub after all: back home
-        f["target"], f["store_rehomed"] = f["store_from"], False
-    if kind != "state" or "C-hub" not in classes or f["target"] in ("catalogs", "config"):
-        return None
-    if f["target"] not in STATE_TYPE and f["target"] not in FIXTURE_TYPE:
-        return "stateless group: context-owned kind not implemented"
-    if f["target"] not in ("core", *FIXTURE_TYPE):
-        up = "C-hub", "state-hub" if f["recv"] == "&self" else "state-hubmut", STATE_TYPE[f["target"]]
-    else:
-        up = ("C-hub", "hubref", "HubRef") if f["recv"] == "&self" else ("C-hub", "hubmut", "HubMut")
-    return hub_check(f, up[1]) or up
-
-
-def owner_kind(tname):
-    return {"HubRef": "hubref", "HubMut": "hubmut"}.get(tname, "state")
-
-
-def call_prefix(caller, ctype, callee_type, callee_kind, callee_recv="&self"):
-    """Receiver text replacing `self.` for a call from a moved fn, or None if impossible."""
-    fg = FIXTURE_OF.get(callee_type)
-    if fg and callee_type != ctype:                          # a cfg(test) fixture-group fn
-        if caller in ("hubmut", "state-hubmut") or (caller in ("hubref", "state-hub") and callee_recv == "&self"):
-            return f"{'hub' if caller in SH else 'self'}.fixtures.{fg}."
-        return None
-    if caller == "state":
-        if callee_type == ctype and callee_kind == "state":
-            return "self."
-        return None
-    if caller in SH:
-        mut = caller == "state-hubmut"
-        if callee_type == ctype:
-            if callee_kind == "state":
-                return "self."
-            if callee_kind == "state-hub":
-                return "self.", "hub.shared()" if mut else "hub"
-            return ("self.", "hub") if mut else None
-        g = {v: k for k, v in STATE_TYPE.items()}.get(callee_type)
-        if g in HUB:
-            return f"hub.{g}."
-        if callee_type == "HubRef":
-            return "hub.shared()." if mut else "hub."
-        return "hub." if callee_type == "HubMut" and mut else None
-    g = {v: k for k, v in STATE_TYPE.items()}.get(callee_type)
-    if g in HUB:
-        return f"self.{g}."
-    if callee_type == "HubRef":
-        return "self." if caller == "hubref" else "self.shared()."
-    if callee_type == "HubMut":
-        return "self." if caller == "hubmut" else None
-    return None
 
 
 def plan(root, groups_wanted, classes, rehome=None):
@@ -436,22 +229,22 @@ def plan(root, groups_wanted, classes, rehome=None):
 
     dead_prod = prod_dead_names(W, code, fns, in_test)
     group_of = {f["name"]: (f["file"], f["impl_start"]) for f in fns}
-    owner_spans = collections.defaultdict(list)
-    for f in fns:
-        owner_spans[f["file"]].append((f["seg"], f["body_close"], f["name"]))
-    owner_impls = [(rel, h.start(), W.matching_close(c, h.end() - 1)) for rel, c in code.items()
-                   for h in IMPL_ANY.finditer(c) if h.group(1) in OWNER_TYPES]
+    owner_spans = Spans((f["file"], f["seg"], f["body_close"], f["name"]) for f in fns)
+    owner_impls = Spans((rel, h.start(), W.matching_close(c, h.end() - 1)) for rel, c in code.items()
+                        for h in IMPL_ANY.finditer(c) if h.group(1) in OWNER_TYPES)
+    sites = call_sites(code)
     prod_sites = collections.defaultdict(list)               # production WorldSession call sites -> caller fn
     any_sites = collections.Counter()                        # any context, excluding recursion
-    for rel, c in code.items():
-        for m in WS_CALL.finditer(c):
-            if any(r == rel and a <= m.start() <= b for r, a, b in owner_impls):
+    for name, where in sites.items():
+        for rel, pos in where:
+            if owner_impls.find(rel, pos):
                 continue
-            owner = next((nm for a, b, nm in owner_spans.get(rel, []) if a <= m.start() <= b), None)
-            if owner != m.group(1):
-                any_sites[m.group(1)] += 1
-            if not in_test(rel, m.start()):
-                prod_sites[m.group(1)].append(owner)
+            hit = owner_spans.find(rel, pos)
+            owner = hit[2] if hit else None
+            if owner != name:
+                any_sites[name] += 1
+            if not in_test(rel, pos):
+                prod_sites[name].append(owner)
 
     def lint_groups():
         """Dead-in-production fns move as whole lint groups; returns the names it demoted."""
@@ -474,7 +267,7 @@ def plan(root, groups_wanted, classes, rehome=None):
                 drop.add(n)
         for n in list(drop):                                  # a staying dead caller keeps its dead callees
             drop |= {x for x in by[n]["calls"] if x in cand and x in dead_prod and by[x]["vis"] != "pub"}
-        for n in drop:
+        for n in sorted(drop):                                # deterministic report order
             blocked[n] = ("dead in non-test builds; moving would split its dead-code lint group" if n in dead_prod
                           else "only dead-in-production callers remain; its thunk would be dead")
             cand.pop(n, None)
@@ -509,15 +302,12 @@ def plan(root, groups_wanted, classes, rehome=None):
                 fixed.append((rel, h.start(), W.matching_close(c, h.end() - 1)))
     fixed += [(f["file"], f["seg"], f["body_close"]) for f in fns if f["name"] in thunks]
     while True:
-        moved_spans = collections.defaultdict(list)
-        for rel, a, b in fixed + [(by[n]["file"], by[n]["seg"], by[n]["body_close"]) for n in cand]:
-            moved_spans[rel].append((a, b))
+        moved = Spans(fixed + [(by[n]["file"], by[n]["seg"], by[n]["body_close"]) for n in cand])
         resident, tcallers = collections.Counter(), collections.Counter()
-        for rel, c in code.items():
-            spans = moved_spans.get(rel, [])
-            for m in WS_CALL.finditer(c):
-                if m.group(1) in cand and not any(a <= m.start() <= b for a, b in spans):
-                    (tcallers if in_test(rel, m.start()) else resident)[m.group(1)] += 1
+        for name in cand:
+            for rel, pos in sites.get(name, ()):
+                if not moved.find(rel, pos):
+                    (tcallers if in_test(rel, pos) else resident)[name] += 1
         callers = collections.Counter(x for n in cand for x in by[n]["calls"] if x != n)
         dead = [n for n in cand if not (resident[n] or callers[n] or tests[n] or tcallers[n] or EXT[n])]
         if not dead:
@@ -536,10 +326,10 @@ def plan(root, groups_wanted, classes, rehome=None):
         rows.append(dict(name=n, file=f["file"], line=f["line"], cls=cls, kind=kind, type=tname,
                          thunk=keep, shim=shim, recv=f["recv"], is_async=f["is_async"]))
     stale = [t for t in thunks if t not in HANDLERS | PERMANENT_THUNKS
-             and not resident_thunk(t, code, moved_spans, EXT, in_test)
+             and not resident_thunk(t, sites, moved, EXT, in_test)
              and not (all_by[t]["vis"] == "pub" and not all_by[t]["cfg_test"])]
-    src_calls = collections.Counter(m.group(1) for rel, c in code.items() for m in WS_CALL.finditer(c)
-                                    if not any(a <= m.start() <= b for a, b in moved_spans.get(rel, [])))
+    src_calls = collections.Counter({name: sum(1 for rel, pos in where if not moved.find(rel, pos))
+                                     for name, where in sites.items()})
     stale_shims = {}                                          # shims whose last test caller moved
     for p in sorted((root / "crates/wow-world/unit_tests").rglob("f3_shims.rs")):
         for name in W.impl_methods(W.blank_noncode(p.read_text())):
@@ -547,8 +337,7 @@ def plan(root, groups_wanted, classes, rehome=None):
                 stale_shims[name] = p
     return dict(W=W, src=src, raw=raw, code=code, by=by, cand=cand, blocked=blocked, rows=rows, loc=loc,
                 count=count, thunks=thunks, stale=stale, stale_shims=stale_shims, test_called={
-                    t for t in stale if any(m.group(1) == t and in_test(rel, m.start())
-                                            for rel, c in code.items() for m in WS_CALL.finditer(c))}, modpaths=module_paths(src, code), tests=tests,
+                    t for t in stale if any(in_test(rel, pos) for rel, pos in sites.get(t, ()))}, modpaths=module_paths(src, code), tests=tests,
                 allfns={f["name"]: f for f in fns})
 
 
@@ -585,11 +374,39 @@ def prod_dead_names(W, code, fns, in_test):
     return {f["name"] for f in fns if not f["cfg_test"] and f["name"] not in live}
 
 
-def resident_thunk(name, code, spans, ext, in_test):
+class Spans:
+    """Non-overlapping (start, end[, tag]) ranges per file with a bisect lookup."""
+
+    def __init__(self, items):
+        self.by_file = collections.defaultdict(list)
+        for rel, a, b, *tag in items:
+            self.by_file[rel].append((a, b, tag[0] if tag else None))
+        for spans in self.by_file.values():
+            spans.sort(key=lambda span: span[:2])
+        self.starts = {rel: [a for a, _b, _t in spans] for rel, spans in self.by_file.items()}
+
+    def find(self, rel, pos):
+        """(start, end, tag) of the range holding pos, or None."""
+        spans = self.by_file.get(rel)
+        if not spans:
+            return None
+        i = bisect.bisect_right(self.starts[rel], pos) - 1
+        return spans[i] if i >= 0 and spans[i][0] <= pos <= spans[i][1] else None
+
+
+def call_sites(code):
+    """name -> [(file, offset)] of every WorldSession-reaching call (WS_CALL), built once per plan."""
+    sites = collections.defaultdict(list)
+    for rel, c in code.items():
+        for m in WS_CALL.finditer(c):
+            sites[m.group(1)].append((rel, m.start()))
+    return sites
+
+
+def resident_thunk(name, sites, moved, ext, in_test):
     if ext[name]:
         return True
-    return any(m.group(1) == name and not any(a <= m.start() <= b for a, b in spans.get(rel, []))
-               and not in_test(rel, m.start()) for rel, c in code.items() for m in WS_CALL.finditer(c))
+    return any(not moved.find(rel, pos) and not in_test(rel, pos) for rel, pos in sites.get(name, ()))
 
 
 def signature(f, code, raw, hub_kind=False):
@@ -716,36 +533,6 @@ def ensure_prelude(src, kinds, groups_state_hub, outside_types):
             p.write_text(new)
             written.append(p)
     return written
-
-
-def git_ignored(root, path):
-    return subprocess.run(["git", "-C", str(root), "check-ignore", "-q", str(path)],
-                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
-
-
-def shim_path(root, rel):
-    """`unit_tests/<src path>/f3_shims.rs`, or `<src path>_f3_shims.rs` where .gitignore hides the dir."""
-    base = root / "crates/wow-world/unit_tests" / rel[:-3]
-    return base / "f3_shims.rs" if not git_ignored(root, base / "f3_shims.rs") else \
-        base.with_name(base.name + "_f3_shims.rs")
-
-
-def relocate_ignored_shims(root, src):
-    """Move shim files a .gitignore rule hides (e.g. a `skills/` dir) and repoint their mounts."""
-    moved = []
-    for p in sorted(src.rglob("*.rs")):
-        text = p.read_text()
-        m = re.search(r'#\[path = "([^"]+f3_shims\.rs)"\]\nmod f3_shims;', text)
-        if not m:
-            continue
-        old = (p.parent / m.group(1)).resolve()
-        new = shim_path(root, p.relative_to(src).as_posix())
-        if old.exists() and old != new.resolve():
-            new.write_text(old.read_text())
-            old.unlink()
-            p.write_text(text.replace(m.group(1), os.path.relpath(new, p.parent)))
-            moved += [p, new]
-    return moved
 
 
 def apply_text(root, P):

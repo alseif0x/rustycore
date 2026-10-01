@@ -27,47 +27,8 @@ impl WorldSession {
             })
     }
     pub(crate) fn send_bag_slot_values_update_like_cpp(&self, bag_slot: u8, changed_slot: u8) {
-        if changed_slot as usize >= MAX_BAG_SIZE {
-            return;
-        }
-        let Some((bag_guid, bag_size, slot_values)) = self
-            .canonical_player_snapshot_like_cpp(|player| {
-                let bag = player
-                    .inventory()
-                    .bags
-                    .get(bag_slot as usize)
-                    .and_then(Option::as_ref)?;
-                let mut slots = [ObjectGuid::EMPTY; MAX_BAG_SIZE];
-                for (index, slot) in bag.slots.iter().enumerate() {
-                    slots[index] = slot.unwrap_or(ObjectGuid::EMPTY);
-                }
-                Some((bag.bag_guid, bag.bag_size, slots))
-            })
-            .flatten()
-        else {
-            return;
-        };
-
-        let mut container_data_mask = UpdateMask::new(CONTAINER_DATA_BITS);
-        container_data_mask.set(CONTAINER_DATA_SLOTS_PARENT_BIT);
-        container_data_mask.set(CONTAINER_DATA_SLOTS_FIRST_BIT + changed_slot as usize);
-        let update = BagValuesUpdate {
-            changed_object_type_mask: 1 << TYPEID_CONTAINER,
-            object_data: None,
-            item_data: None,
-            container_data: Some(ContainerDataUpdate {
-                mask: container_data_mask,
-                values: ContainerDataValues {
-                    num_slots: u32::from(bag_size),
-                    slots: slot_values,
-                },
-            }),
-        };
-        if let Some(packet) =
-            bag_values_update_to_update_object(bag_guid, self.player_map_id_like_cpp(), &update)
-        {
-            self.send_packet(&packet);
-        }
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.send_bag_slot_values_update_like_cpp(hub, bag_slot, changed_slot)
     }
     /// Publish a container-slot change by bag GUID. This is needed for C++'s
     /// bag-content exchange: the previously full bag may no longer occupy a
@@ -123,6 +84,58 @@ impl WorldSession {
             bag_values_update_to_update_object(bag_guid, self.player_map_id_like_cpp(), &update)
         {
             self.send_packet(&packet);
+        }
+    }
+}
+
+impl crate::session::state::InventoryState {
+    pub(crate) fn send_bag_slot_values_update_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        bag_slot: u8,
+        changed_slot: u8,
+    ) {
+        if changed_slot as usize >= MAX_BAG_SIZE {
+            return;
+        }
+        let Some((bag_guid, bag_size, slot_values)) = hub
+            .core
+            .canonical_player_snapshot_like_cpp(|player| {
+                let bag = player
+                    .inventory()
+                    .bags
+                    .get(bag_slot as usize)
+                    .and_then(Option::as_ref)?;
+                let mut slots = [ObjectGuid::EMPTY; MAX_BAG_SIZE];
+                for (index, slot) in bag.slots.iter().enumerate() {
+                    slots[index] = slot.unwrap_or(ObjectGuid::EMPTY);
+                }
+                Some((bag.bag_guid, bag.bag_size, slots))
+            })
+            .flatten()
+        else {
+            return;
+        };
+
+        let mut container_data_mask = UpdateMask::new(CONTAINER_DATA_BITS);
+        container_data_mask.set(CONTAINER_DATA_SLOTS_PARENT_BIT);
+        container_data_mask.set(CONTAINER_DATA_SLOTS_FIRST_BIT + changed_slot as usize);
+        let update = BagValuesUpdate {
+            changed_object_type_mask: 1 << TYPEID_CONTAINER,
+            object_data: None,
+            item_data: None,
+            container_data: Some(ContainerDataUpdate {
+                mask: container_data_mask,
+                values: ContainerDataValues {
+                    num_slots: u32::from(bag_size),
+                    slots: slot_values,
+                },
+            }),
+        };
+        if let Some(packet) =
+            bag_values_update_to_update_object(bag_guid, hub.core.player_map_id_like_cpp(), &update)
+        {
+            hub.core.send_packet(&packet);
         }
     }
 }

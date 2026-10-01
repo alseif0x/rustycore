@@ -7,7 +7,7 @@ use super::*;
 
 /// Player items, bank and equipment sets, money and currencies, and the represented bank, guild-
 /// bank and auction request sinks.
-pub(in crate::session) struct InventoryState {
+pub(crate) struct InventoryState {
     /// Handle-less compatibility for older tests. Production C++
     /// `Player::_usePvpItemLevels` lives on the canonical Player.
     #[cfg(test)]

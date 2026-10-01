@@ -6,23 +6,13 @@
 use super::*;
 
 impl WorldSession {
-    #[cfg(test)]
-    pub(crate) fn represented_auto_unequip_offhand_requests_like_cpp(
-        &self,
-    ) -> &[RepresentedAutoUnequipOffhandLikeCpp] {
-        &self
-            .inventory
-            .represented_auto_unequip_offhand_requests_like_cpp
-    }
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_auto_unequip_offhand_request_like_cpp(
         &mut self,
         request: RepresentedAutoUnequipOffhandLikeCpp,
     ) {
-        #[cfg(test)]
         self.inventory
-            .represented_auto_unequip_offhand_requests_like_cpp
-            .push(request);
+            .record_represented_auto_unequip_offhand_request_like_cpp(request)
     }
     pub(crate) fn represented_auto_unequip_offhand_reason_like_cpp(
         &self,
@@ -184,3 +174,26 @@ impl WorldSession {
         );
     }
 }
+
+impl crate::session::state::InventoryState {
+    #[cfg(test)]
+    pub(crate) fn represented_auto_unequip_offhand_requests_like_cpp(
+        &self,
+    ) -> &[RepresentedAutoUnequipOffhandLikeCpp] {
+        &self.represented_auto_unequip_offhand_requests_like_cpp
+    }
+
+    #[cfg_attr(not(test), allow(unused_variables))]
+    pub(crate) fn record_represented_auto_unequip_offhand_request_like_cpp(
+        &mut self,
+        request: RepresentedAutoUnequipOffhandLikeCpp,
+    ) {
+        #[cfg(test)]
+        self.represented_auto_unequip_offhand_requests_like_cpp
+            .push(request);
+    }
+}
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/player_items/offhand/f3_shims.rs"]
+mod f3_shims;

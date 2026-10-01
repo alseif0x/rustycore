@@ -97,13 +97,6 @@ impl WorldSession {
         crate::session::hub_ref(self).player_collection_state_snapshot_like_cpp()
     }
 
-    pub(in crate::session) fn replace_player_collection_state_like_cpp(
-        &mut self,
-        state: wow_entities::PlayerCollectionStateLikeCpp,
-    ) -> bool {
-        crate::session::hub_mut(self).replace_player_collection_state_like_cpp(state)
-    }
-
     /// C++ `Player::AddHeirloom`, called from `CollectionMgr::AddHeirloom`
     /// after the account collection accepts a new heirloom.
     pub(crate) fn add_player_heirloom_dynamic_fields_like_cpp(

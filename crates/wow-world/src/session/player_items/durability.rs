@@ -18,7 +18,7 @@ impl WorldSession {
         self.config.repair_cost_rate_like_cpp = rate.max(0.0);
     }
     pub(crate) fn repair_cost_rate_like_cpp(&self) -> f32 {
-        self.config.repair_cost_rate_like_cpp
+        self.config.repair_cost_rate_like_cpp()
     }
     /// Set the C++ `RATE_DURABILITY_LOSS_ON_DEATH` fraction
     /// (`DurabilityLoss.OnDeath / 100`).
@@ -27,7 +27,7 @@ impl WorldSession {
     }
     #[must_use]
     pub(crate) fn durability_loss_on_death_rate_like_cpp(&self) -> f32 {
-        self.config.durability_loss_on_death_rate_like_cpp
+        self.config.durability_loss_on_death_rate_like_cpp()
     }
     /// Set the C++ `CONFIG_STATS_LIMITS_*` values (`World.cpp:1664-1668`).
     pub fn set_stats_limits_like_cpp(&mut self, limits: wow_data::StatsLimitsLikeCpp) {
@@ -268,21 +268,13 @@ impl WorldSession {
         }
         self.apply_represented_durability_loss_at_slot_like_cpp(slot, f64::from(damage) / 100.0);
     }
-    /// C++ `GetTotalAuraMultiplier(SPELL_AURA_MOD_DURABILITY_LOSS)`.
     fn represented_durability_loss_aura_multiplier_like_cpp(&self) -> f32 {
-        self.resolved_aura_effects_by_spell_aura_type_like_cpp(
-            wow_data::spell::aura_types::SPELL_AURA_MOD_DURABILITY_LOSS,
-        )
-        .unwrap_or_default()
-        .into_iter()
-        .fold(1.0, |acc, (_, amount)| acc * (1.0 + amount as f32 / 100.0))
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.represented_durability_loss_aura_multiplier_like_cpp(hub)
     }
-    /// C++ `HasAuraType(SPELL_AURA_PREVENT_DURABILITY_LOSS)`.
     fn represented_prevent_durability_loss_like_cpp(&self) -> bool {
-        self.resolved_aura_effects_by_spell_aura_type_like_cpp(
-            wow_data::spell::aura_types::SPELL_AURA_PREVENT_DURABILITY_LOSS,
-        )
-        .is_some_and(|effects| !effects.is_empty())
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.represented_prevent_durability_loss_like_cpp(hub)
     }
     /// C++ `Unit::Kill` player-victim durability branch (`Unit.cpp:10639-10648`).
     ///
@@ -317,16 +309,10 @@ impl WorldSession {
             percent: loss as i32,
         });
     }
-    /// C++ `Player::InBattleground` (`Player.h:2335`) read through the canonical
-    /// Player's represented battleground state.
     #[must_use]
     pub(crate) fn represented_player_in_battleground_like_cpp(&self) -> bool {
-        self.with_owned_player_like_cpp(|player| {
-            player
-                .battleground_state_like_cpp()
-                .in_battleground_like_cpp()
-        })
-        .unwrap_or(false)
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.represented_player_in_battleground_like_cpp(hub)
     }
     /// Get the durability cost store reference.
     pub fn durability_costs_store(&self) -> Option<&Arc<DurabilityCostsStore>> {
@@ -336,7 +322,6 @@ impl WorldSession {
     pub fn durability_quality_store(&self) -> Option<&Arc<DurabilityQualityStore>> {
         self.catalogs.durability_quality_store.as_ref()
     }
-    /// C++ `Item::CalculateDurabilityRepairCost`.
     pub(crate) fn item_durability_repair_cost_like_cpp(
         &self,
         item_id: u32,
@@ -345,85 +330,13 @@ impl WorldSession {
         discount: f32,
         repair_cost_rate: f32,
     ) -> u64 {
-        if max_durability == 0 {
-            return 0;
-        }
-
-        debug_assert!(
-            max_durability >= current_durability,
-            "C++ Item::CalculateDurabilityRepairCost asserts max durability >= current durability"
-        );
-        if current_durability >= max_durability {
-            return 0;
-        }
-
-        let item = match self
-            .catalogs
-            .items
-            .store
-            .as_ref()
-            .and_then(|store| store.get(item_id))
-        {
-            Some(item) => item,
-            None => return 0,
-        };
-        let stats = match self
-            .catalogs
-            .items
-            .stats_store
-            .as_ref()
-            .and_then(|store| store.random_property_template(item_id))
-        {
-            Some(stats) => stats,
-            None => return 0,
-        };
-        if stats.quality < 0 {
-            return 0;
-        }
-
-        let durability_cost = match self
-            .catalogs
-            .durability_costs_store
-            .as_ref()
-            .and_then(|store| store.get(u32::from(stats.item_level)))
-        {
-            Some(cost) => cost,
-            None => return 0,
-        };
-        let durability_quality_entry_id = (stats.quality as u32 + 1) * 2;
-        let durability_quality = match self
-            .catalogs
-            .durability_quality_store
-            .as_ref()
-            .and_then(|store| store.get(durability_quality_entry_id))
-        {
-            Some(quality) => quality,
-            None => return 0,
-        };
-
-        let subclass = item.subclass_id as usize;
-        let multiplier = if item.class_id == ItemClass::Weapon as u8 {
-            durability_cost
-                .weapon_sub_class_cost
-                .get(subclass)
-                .copied()
-                .unwrap_or(0)
-        } else if item.class_id == ItemClass::Armor as u8 {
-            durability_cost
-                .armor_sub_class_cost
-                .get(subclass)
-                .copied()
-                .unwrap_or(0)
-        } else {
-            0
-        };
-
-        let lost_durability = max_durability - current_durability;
-        let rounded =
-            (lost_durability as f32 * multiplier as f32 * durability_quality.data * 1.0f32).round();
-        let cost = (rounded * discount * repair_cost_rate) as u64;
-
-        if cost == 0 { 1 } else { cost }
+        self.catalogs.item_durability_repair_cost_like_cpp(
+            item_id,
+            current_durability,
+            max_durability,
+            discount,
+            repair_cost_rate,
+        )
     }
     /// C++ `Player::DurabilityRepair(pos, takeCost, discountMod)` for one represented item.
     pub(crate) async fn repair_inventory_item_durability_with_generator_like_cpp(
@@ -810,6 +723,147 @@ impl WorldSession {
     }
     pub fn item_template_max_durability(&self, item_id: u32) -> u32 {
         self.catalogs.item_template_max_durability(item_id)
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    /// C++ `Item::CalculateDurabilityRepairCost`.
+    pub(crate) fn item_durability_repair_cost_like_cpp(
+        &self,
+        item_id: u32,
+        current_durability: u32,
+        max_durability: u32,
+        discount: f32,
+        repair_cost_rate: f32,
+    ) -> u64 {
+        if max_durability == 0 {
+            return 0;
+        }
+
+        debug_assert!(
+            max_durability >= current_durability,
+            "C++ Item::CalculateDurabilityRepairCost asserts max durability >= current durability"
+        );
+        if current_durability >= max_durability {
+            return 0;
+        }
+
+        let item = match self
+            .items
+            .store
+            .as_ref()
+            .and_then(|store| store.get(item_id))
+        {
+            Some(item) => item,
+            None => return 0,
+        };
+        let stats = match self
+            .items
+            .stats_store
+            .as_ref()
+            .and_then(|store| store.random_property_template(item_id))
+        {
+            Some(stats) => stats,
+            None => return 0,
+        };
+        if stats.quality < 0 {
+            return 0;
+        }
+
+        let durability_cost = match self
+            .durability_costs_store
+            .as_ref()
+            .and_then(|store| store.get(u32::from(stats.item_level)))
+        {
+            Some(cost) => cost,
+            None => return 0,
+        };
+        let durability_quality_entry_id = (stats.quality as u32 + 1) * 2;
+        let durability_quality = match self
+            .durability_quality_store
+            .as_ref()
+            .and_then(|store| store.get(durability_quality_entry_id))
+        {
+            Some(quality) => quality,
+            None => return 0,
+        };
+
+        let subclass = item.subclass_id as usize;
+        let multiplier = if item.class_id == ItemClass::Weapon as u8 {
+            durability_cost
+                .weapon_sub_class_cost
+                .get(subclass)
+                .copied()
+                .unwrap_or(0)
+        } else if item.class_id == ItemClass::Armor as u8 {
+            durability_cost
+                .armor_sub_class_cost
+                .get(subclass)
+                .copied()
+                .unwrap_or(0)
+        } else {
+            0
+        };
+
+        let lost_durability = max_durability - current_durability;
+        let rounded =
+            (lost_durability as f32 * multiplier as f32 * durability_quality.data * 1.0f32).round();
+        let cost = (rounded * discount * repair_cost_rate) as u64;
+
+        if cost == 0 { 1 } else { cost }
+    }
+}
+
+impl crate::session::state::InventoryState {
+    /// C++ `GetTotalAuraMultiplier(SPELL_AURA_MOD_DURABILITY_LOSS)`.
+    fn represented_durability_loss_aura_multiplier_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> f32 {
+        hub.resolved_aura_effects_by_spell_aura_type_like_cpp(
+            wow_data::spell::aura_types::SPELL_AURA_MOD_DURABILITY_LOSS,
+        )
+        .unwrap_or_default()
+        .into_iter()
+        .fold(1.0, |acc, (_, amount)| acc * (1.0 + amount as f32 / 100.0))
+    }
+
+    /// C++ `HasAuraType(SPELL_AURA_PREVENT_DURABILITY_LOSS)`.
+    fn represented_prevent_durability_loss_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> bool {
+        hub.resolved_aura_effects_by_spell_aura_type_like_cpp(
+            wow_data::spell::aura_types::SPELL_AURA_PREVENT_DURABILITY_LOSS,
+        )
+        .is_some_and(|effects| !effects.is_empty())
+    }
+
+    /// C++ `Player::InBattleground` (`Player.h:2335`) read through the canonical
+    /// Player's represented battleground state.
+    #[must_use]
+    pub(crate) fn represented_player_in_battleground_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> bool {
+        hub.core
+            .with_owned_player_like_cpp(|player| {
+                player
+                    .battleground_state_like_cpp()
+                    .in_battleground_like_cpp()
+            })
+            .unwrap_or(false)
+    }
+}
+
+impl crate::session::state::SessionWorldConfig {
+    pub(crate) fn repair_cost_rate_like_cpp(&self) -> f32 {
+        self.repair_cost_rate_like_cpp
+    }
+
+    #[must_use]
+    pub(crate) fn durability_loss_on_death_rate_like_cpp(&self) -> f32 {
+        self.durability_loss_on_death_rate_like_cpp
     }
 }
 

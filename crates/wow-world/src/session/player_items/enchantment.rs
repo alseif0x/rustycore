@@ -6,10 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    /// C++ `Item::GetDisenchantLoot`.
-    ///
-    /// `can_disenchant_bonus` represents `BonusData::CanDisenchant`, which is
-    /// not yet a canonical Rust item-bonus subsystem.
     pub(crate) fn item_disenchant_loot_with_catalogs_like_cpp(
         &self,
         catalogs: &ItemValuationCatalogsLikeCpp,
@@ -18,62 +14,8 @@ impl WorldSession {
         item_level: u32,
         can_disenchant_bonus: bool,
     ) -> Option<(u32, u16)> {
-        if !can_disenchant_bonus {
-            return None;
-        }
-
-        let basic = self.catalogs.items.store.as_ref()?.get(item_id)?;
-        let sparse = self
-            .catalogs
-            .items
-            .stats_store
-            .as_ref()?
-            .sparse_template(item_id)?;
-        let item_flags = sparse.item_flags();
-
-        if item_flags.contains(ItemFlags::CONJURED)
-            || item_flags.contains(ItemFlags::NO_DISENCHANT)
-            || sparse.bonding == ItemBondingType::Quest as u8
-        {
-            return None;
-        }
-
-        if sparse.zone_bound[0] != 0
-            || sparse.zone_bound[1] != 0
-            || sparse.instance_bound != 0
-            || sparse.max_stack_size() > 1
-        {
-            return None;
-        }
-
-        if self.item_sell_price_with_catalogs_like_cpp(catalogs, item_id, quality, item_level)
-            == Some(0)
-            && !catalogs.currency_costs.has_item_currency_cost(item_id)
-        {
-            return None;
-        }
-
-        catalogs
-            .disenchant_loot
-            .find_for_item_like_cpp(
-                u32::from(basic.class_id),
-                basic.subclass_id as i8,
-                quality as u8,
-                item_level,
-                sparse.required_expansion,
-            )
-            .map(|entry| (entry.id, entry.skill_required))
-    }
-    #[cfg(test)]
-    pub fn item_disenchant_loot_like_cpp(
-        &self,
-        item_id: u32,
-        quality: u32,
-        item_level: u32,
-        can_disenchant_bonus: bool,
-    ) -> Option<(u32, u16)> {
-        self.item_disenchant_loot_with_catalogs_like_cpp(
-            &self.item_valuation_catalogs_for_test_like_cpp(),
+        self.catalogs.item_disenchant_loot_with_catalogs_like_cpp(
+            catalogs,
             item_id,
             quality,
             item_level,
@@ -87,47 +29,22 @@ impl WorldSession {
     ) {
         self.catalogs.items.random_enchantment_template_store = Some(store);
     }
-    /// Get the item random enchantment template store reference.
     pub fn item_random_enchantment_template_store(
         &self,
     ) -> Option<&Arc<ItemRandomEnchantmentTemplateStore>> {
-        self.catalogs
-            .items
-            .random_enchantment_template_store
-            .as_ref()
-    }
-    /// Set the item disenchant loot store for this session.
-    #[cfg(test)]
-    pub fn set_item_disenchant_loot_store(&mut self, store: Arc<ItemDisenchantLootStore>) {
-        self.catalogs.item_disenchant_loot_store = Some(store);
+        self.catalogs.item_random_enchantment_template_store()
     }
     /// Get the item disenchant loot store reference.
     #[cfg(test)]
     pub fn item_disenchant_loot_store(&self) -> Option<&Arc<ItemDisenchantLootStore>> {
         self.catalogs.item_disenchant_loot_store.as_ref()
     }
-    /// Resolve C++ `sItemRandomSuffixStore.LookupEntry(abs(RandomPropertiesID))`.
     pub fn apply_enchantment_random_suffix_ref(
         &self,
         random_properties_id: i32,
     ) -> Option<ApplyEnchantmentRandomSuffixRef> {
-        let id = random_properties_id.unsigned_abs();
-        if id == 0 {
-            return None;
-        }
-
         self.catalogs
-            .items
-            .random_suffix_store
-            .as_ref()
-            .and_then(|store| store.get(id))
-            .map(|entry| {
-                ApplyEnchantmentRandomSuffixRef::new(
-                    entry.id,
-                    entry.enchantments,
-                    entry.allocation_pct,
-                )
-            })
+            .apply_enchantment_random_suffix_ref(random_properties_id)
     }
     /// Set the spell item enchantment store for this session.
     pub fn set_spell_item_enchantment_store(&mut self, store: Arc<SpellItemEnchantmentStore>) {
@@ -236,81 +153,26 @@ impl WorldSession {
         }
         activate
     }
-    #[cfg(test)]
-    pub fn set_spell_enchant_proc_store(&mut self, store: Arc<SpellEnchantProcStoreLikeCpp>) {
-        self.catalogs.spell_catalogs.spell_enchant_proc_store = Some(store);
-    }
-    #[cfg(test)]
-    pub(crate) fn spell_enchant_proc_event_like_cpp(
-        &self,
-        enchantment_id: u32,
-    ) -> Option<&SpellEnchantProcEntryLikeCpp> {
-        self.catalogs
-            .spell_catalogs
-            .spell_enchant_proc_store
-            .as_ref()
-            .and_then(|store| store.get_spell_enchant_proc_event_like_cpp(enchantment_id))
-    }
-    /// C++ `SpellMgr::IsArenaAllowedEnchancment`.
     pub fn is_arena_allowed_enchantment(&self, enchantment_id: u32) -> bool {
-        self.catalogs
-            .spell_catalogs
-            .spell_item_enchantment_store
-            .as_ref()
-            .is_some_and(|store| store.is_arena_allowed_enchantment(enchantment_id))
+        self.catalogs.is_arena_allowed_enchantment(enchantment_id)
     }
-    /// Build the entity-level `ApplyEnchantment` template from `SpellItemEnchantment.db2`.
     pub fn apply_enchantment_template_ref(
         &self,
         enchantment_id: i32,
         required_skill_value: u16,
         condition_fits: bool,
     ) -> Option<ApplyEnchantmentTemplateRef> {
-        let id = u32::try_from(enchantment_id).ok()?;
-        self.catalogs
-            .spell_catalogs
-            .spell_item_enchantment_store
-            .as_ref()
-            .and_then(|store| store.get(id))
-            .map(|entry| {
-                let mut template = ApplyEnchantmentTemplateRef::new(enchantment_id);
-                template.condition_id = u32::from(entry.condition_id);
-                template.condition_fits = condition_fits;
-                template.min_level = entry.min_level;
-                template.required_skill_id = u32::from(entry.required_skill_id);
-                template.required_skill_rank = entry.required_skill_rank;
-                template.required_skill_value = required_skill_value;
-                template
-            })
+        self.catalogs.apply_enchantment_template_ref(
+            enchantment_id,
+            required_skill_value,
+            condition_fits,
+        )
     }
-    /// Build the C++ three `SpellItemEnchantmentEntry` effect refs.
     pub fn apply_enchantment_effect_refs(
         &self,
         enchantment_id: u32,
     ) -> Option<[ApplyEnchantmentEffectRef; 3]> {
-        self.catalogs
-            .spell_catalogs
-            .spell_item_enchantment_store
-            .as_ref()
-            .and_then(|store| store.get(enchantment_id))
-            .map(|entry| {
-                std::array::from_fn(|index| {
-                    let amount = entry.effect_points_min[index] as u32;
-                    let arg = entry.effect_arg[index];
-                    match <ItemEnchantmentType as num_traits::FromPrimitive>::from_u8(
-                        entry.effect[index],
-                    ) {
-                        Some(effect_type) => {
-                            ApplyEnchantmentEffectRef::known(effect_type, amount, arg)
-                        }
-                        None => ApplyEnchantmentEffectRef::unknown(
-                            u32::from(entry.effect[index]),
-                            amount,
-                            arg,
-                        ),
-                    }
-                })
-            })
+        self.catalogs.apply_enchantment_effect_refs(enchantment_id)
     }
     fn current_item_enchantment_socket_context_like_cpp(
         &self,
@@ -482,26 +344,13 @@ impl WorldSession {
             _ => false,
         }
     }
-    pub fn send_item_enchant_time_update_plan(
-        &self,
-        owner_guid: ObjectGuid,
-        update: &PlayerEnchantTimeUpdate,
-    ) {
-        self.send_packet(&ItemEnchantTimeUpdate {
-            owner_guid,
-            item_guid: update.item_guid,
-            duration_left: update.duration_secs,
-            slot: update.slot as u32,
-        });
-    }
     pub fn send_item_enchant_time_update_plans(
         &self,
         owner_guid: ObjectGuid,
         updates: &[PlayerEnchantTimeUpdate],
     ) {
-        for update in updates {
-            self.send_item_enchant_time_update_plan(owner_guid, update);
-        }
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.send_item_enchant_time_update_plans(hub, owner_guid, updates)
     }
     /// C++ `_StoreItem` merge branch calls `AddEnchantmentDurations(pItem2)`
     /// without calling `AddItemDurations` for the existing destination stack.
@@ -593,14 +442,8 @@ impl WorldSession {
         Some((persisted, cleared))
     }
     pub(crate) fn resolved_enchanting_skill_like_cpp(&self) -> Option<u16> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            player.enchanting_skill_value_like_cpp(SKILL_ENCHANTING_LIKE_CPP)
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.progression.represented_enchanting_skill);
-        }
-        canonical
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.resolved_enchanting_skill_like_cpp(hub)
     }
     /// C++ `Player::_LoadInventory` finishes by `_ApplyAllItemMods`, which in
     /// turn calls `ApplyEnchantment(m_items[i], true)` for equipped items.
@@ -765,9 +608,241 @@ impl WorldSession {
     }
 }
 
+impl crate::session::state::InventoryState {
+    #[cfg(test)]
+    pub fn item_disenchant_loot_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_id: u32,
+        quality: u32,
+        item_level: u32,
+        can_disenchant_bonus: bool,
+    ) -> Option<(u32, u16)> {
+        hub.catalogs.item_disenchant_loot_with_catalogs_like_cpp(
+            &hub.catalogs.item_valuation_catalogs_for_test_like_cpp(),
+            item_id,
+            quality,
+            item_level,
+            can_disenchant_bonus,
+        )
+    }
+
+    pub fn send_item_enchant_time_update_plan(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        owner_guid: ObjectGuid,
+        update: &PlayerEnchantTimeUpdate,
+    ) {
+        hub.core.send_packet(&ItemEnchantTimeUpdate {
+            owner_guid,
+            item_guid: update.item_guid,
+            duration_left: update.duration_secs,
+            slot: update.slot as u32,
+        });
+    }
+
+    pub fn send_item_enchant_time_update_plans(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        owner_guid: ObjectGuid,
+        updates: &[PlayerEnchantTimeUpdate],
+    ) {
+        for update in updates {
+            self.send_item_enchant_time_update_plan(hub, owner_guid, update);
+        }
+    }
+
+    pub(crate) fn resolved_enchanting_skill_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<u16> {
+        let canonical = hub.core.with_owned_player_like_cpp(|player| {
+            player.enchanting_skill_value_like_cpp(SKILL_ENCHANTING_LIKE_CPP)
+        });
+        #[cfg(test)]
+        if canonical.is_none() && hub.core.player_handle_like_cpp.is_none() {
+            return Some(hub.fixtures.progression.represented_enchanting_skill);
+        }
+        canonical
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    /// C++ `Item::GetDisenchantLoot`.
+    ///
+    /// `can_disenchant_bonus` represents `BonusData::CanDisenchant`, which is
+    /// not yet a canonical Rust item-bonus subsystem.
+    pub(crate) fn item_disenchant_loot_with_catalogs_like_cpp(
+        &self,
+        catalogs: &ItemValuationCatalogsLikeCpp,
+        item_id: u32,
+        quality: u32,
+        item_level: u32,
+        can_disenchant_bonus: bool,
+    ) -> Option<(u32, u16)> {
+        if !can_disenchant_bonus {
+            return None;
+        }
+
+        let basic = self.items.store.as_ref()?.get(item_id)?;
+        let sparse = self.items.stats_store.as_ref()?.sparse_template(item_id)?;
+        let item_flags = sparse.item_flags();
+
+        if item_flags.contains(ItemFlags::CONJURED)
+            || item_flags.contains(ItemFlags::NO_DISENCHANT)
+            || sparse.bonding == ItemBondingType::Quest as u8
+        {
+            return None;
+        }
+
+        if sparse.zone_bound[0] != 0
+            || sparse.zone_bound[1] != 0
+            || sparse.instance_bound != 0
+            || sparse.max_stack_size() > 1
+        {
+            return None;
+        }
+
+        if self.item_sell_price_with_catalogs_like_cpp(catalogs, item_id, quality, item_level)
+            == Some(0)
+            && !catalogs.currency_costs.has_item_currency_cost(item_id)
+        {
+            return None;
+        }
+
+        catalogs
+            .disenchant_loot
+            .find_for_item_like_cpp(
+                u32::from(basic.class_id),
+                basic.subclass_id as i8,
+                quality as u8,
+                item_level,
+                sparse.required_expansion,
+            )
+            .map(|entry| (entry.id, entry.skill_required))
+    }
+
+    /// Get the item random enchantment template store reference.
+    pub fn item_random_enchantment_template_store(
+        &self,
+    ) -> Option<&Arc<ItemRandomEnchantmentTemplateStore>> {
+        self.items.random_enchantment_template_store.as_ref()
+    }
+
+    /// Set the item disenchant loot store for this session.
+    #[cfg(test)]
+    pub fn set_item_disenchant_loot_store(&mut self, store: Arc<ItemDisenchantLootStore>) {
+        self.item_disenchant_loot_store = Some(store);
+    }
+
+    /// Resolve C++ `sItemRandomSuffixStore.LookupEntry(abs(RandomPropertiesID))`.
+    pub fn apply_enchantment_random_suffix_ref(
+        &self,
+        random_properties_id: i32,
+    ) -> Option<ApplyEnchantmentRandomSuffixRef> {
+        let id = random_properties_id.unsigned_abs();
+        if id == 0 {
+            return None;
+        }
+
+        self.items
+            .random_suffix_store
+            .as_ref()
+            .and_then(|store| store.get(id))
+            .map(|entry| {
+                ApplyEnchantmentRandomSuffixRef::new(
+                    entry.id,
+                    entry.enchantments,
+                    entry.allocation_pct,
+                )
+            })
+    }
+
+    #[cfg(test)]
+    pub fn set_spell_enchant_proc_store(&mut self, store: Arc<SpellEnchantProcStoreLikeCpp>) {
+        self.spell_catalogs.spell_enchant_proc_store = Some(store);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn spell_enchant_proc_event_like_cpp(
+        &self,
+        enchantment_id: u32,
+    ) -> Option<&SpellEnchantProcEntryLikeCpp> {
+        self.spell_catalogs
+            .spell_enchant_proc_store
+            .as_ref()
+            .and_then(|store| store.get_spell_enchant_proc_event_like_cpp(enchantment_id))
+    }
+
+    /// C++ `SpellMgr::IsArenaAllowedEnchancment`.
+    pub fn is_arena_allowed_enchantment(&self, enchantment_id: u32) -> bool {
+        self.spell_catalogs
+            .spell_item_enchantment_store
+            .as_ref()
+            .is_some_and(|store| store.is_arena_allowed_enchantment(enchantment_id))
+    }
+
+    /// Build the entity-level `ApplyEnchantment` template from `SpellItemEnchantment.db2`.
+    pub fn apply_enchantment_template_ref(
+        &self,
+        enchantment_id: i32,
+        required_skill_value: u16,
+        condition_fits: bool,
+    ) -> Option<ApplyEnchantmentTemplateRef> {
+        let id = u32::try_from(enchantment_id).ok()?;
+        self.spell_catalogs
+            .spell_item_enchantment_store
+            .as_ref()
+            .and_then(|store| store.get(id))
+            .map(|entry| {
+                let mut template = ApplyEnchantmentTemplateRef::new(enchantment_id);
+                template.condition_id = u32::from(entry.condition_id);
+                template.condition_fits = condition_fits;
+                template.min_level = entry.min_level;
+                template.required_skill_id = u32::from(entry.required_skill_id);
+                template.required_skill_rank = entry.required_skill_rank;
+                template.required_skill_value = required_skill_value;
+                template
+            })
+    }
+
+    /// Build the C++ three `SpellItemEnchantmentEntry` effect refs.
+    pub fn apply_enchantment_effect_refs(
+        &self,
+        enchantment_id: u32,
+    ) -> Option<[ApplyEnchantmentEffectRef; 3]> {
+        self.spell_catalogs
+            .spell_item_enchantment_store
+            .as_ref()
+            .and_then(|store| store.get(enchantment_id))
+            .map(|entry| {
+                std::array::from_fn(|index| {
+                    let amount = entry.effect_points_min[index] as u32;
+                    let arg = entry.effect_arg[index];
+                    match <ItemEnchantmentType as num_traits::FromPrimitive>::from_u8(
+                        entry.effect[index],
+                    ) {
+                        Some(effect_type) => {
+                            ApplyEnchantmentEffectRef::known(effect_type, amount, arg)
+                        }
+                        None => ApplyEnchantmentEffectRef::unknown(
+                            u32::from(entry.effect[index]),
+                            amount,
+                            arg,
+                        ),
+                    }
+                })
+            })
+    }
+}
+
 impl crate::session::state::SessionCatalogs {
     /// Get the spell item enchantment store reference.
     pub fn spell_item_enchantment_store(&self) -> Option<&Arc<SpellItemEnchantmentStore>> {
         self.spell_catalogs.spell_item_enchantment_store.as_ref()
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/player_items/enchantment/f3_shims.rs"]
+mod f3_shims;
