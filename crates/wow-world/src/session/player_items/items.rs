@@ -98,23 +98,6 @@ impl WorldSession {
                 })
         })
     }
-    /// Install the process-wide C++
-    /// `sObjectMgr->GetGenerator<HighGuid::Item>()` mirror.
-    #[cfg(test)]
-    pub fn set_item_guid_generator_like_cpp(&mut self, generator: Arc<ObjectGuidGenerator>) {
-        assert_eq!(
-            generator.high_guid(),
-            HighGuid::Item,
-            "item GUID allocator must use HighGuid::Item"
-        );
-        self.core.item_guid_generator_like_cpp = Some(generator);
-    }
-    #[cfg(test)]
-    pub(crate) fn item_guid_generator_like_cpp_for_bridge(
-        &self,
-    ) -> Option<Arc<ObjectGuidGenerator>> {
-        self.core.item_guid_generator_like_cpp.clone()
-    }
     /// Bounded C++ `CollectionMgr::OnItemAdded`.
     pub(crate) fn on_item_added_to_collection_like_cpp(
         &mut self,
@@ -145,39 +128,11 @@ impl WorldSession {
         &self,
         item_id: u32,
     ) -> Option<u32> {
-        let overrides = self
-            .catalogs
-            .items
-            .spec_override_store
-            .as_ref()?
-            .overrides_for_item_like_cpp(item_id)?;
-        let chr_specializations = self.catalogs.chr.specialization_store.as_ref()?;
-
-        let mut mask = 0_u32;
-        for item_spec_override in overrides {
-            if let Some(specialization) =
-                chr_specializations.get(u32::from(item_spec_override.spec_id))
-            {
-                mask |= player_class_mask_for_transmog_like_cpp(specialization.class_id);
-            }
-        }
-
-        Some(mask)
-    }
-    /// C++ `DB2Manager::GetItemDisplayId`.
-    pub fn item_display_id(&self, item_id: u32, appearance_mod_id: u32) -> Option<u32> {
-        let modified = self
-            .catalogs
-            .items
-            .modified_appearance_store
-            .as_ref()
-            .and_then(|store| store.get_for_item(item_id, appearance_mod_id))?;
-        let appearance_id = u32::try_from(modified.item_appearance_id).ok()?;
         self.catalogs
-            .items
-            .appearance_store
-            .as_ref()
-            .and_then(|store| store.item_display_info_id(appearance_id))
+            .item_spec_class_mask_from_overrides_like_cpp(item_id)
+    }
+    pub fn item_display_id(&self, item_id: u32, appearance_mod_id: u32) -> Option<u32> {
+        self.catalogs.item_display_id(item_id, appearance_mod_id)
     }
     pub(in crate::session) fn represented_top_level_item_mod_targets_like_cpp(
         &self,
@@ -300,91 +255,22 @@ impl WorldSession {
         item_guid: ObjectGuid,
         item_set: &wow_data::ItemSetEntry,
     ) -> Vec<RepresentedItemSetSpellEventLikeCpp> {
-        let Some(equipped_count_after) = self
-            .remove_player_item_set_item_like_cpp(item_set.id, item_guid)
-            .flatten()
-        else {
-            return Vec::new();
-        };
-        let mut events = Vec::new();
-
-        let spells: Vec<_> = self
-            .item_set_spells_like_cpp(item_set.id)
-            .into_iter()
-            .cloned()
-            .collect();
-        for item_set_spell in spells {
-            if usize::from(item_set_spell.threshold) <= equipped_count_after {
-                continue;
-            }
-            let removed = self
-                .remove_player_item_set_bonus_like_cpp(item_set.id, item_set_spell.id)
-                .unwrap_or(false);
-            if !removed {
-                continue;
-            }
-            events.push(RepresentedItemSetSpellEventLikeCpp {
-                item_set_id: item_set.id,
-                spell_entry_id: item_set_spell.id,
-                spell_id: item_set_spell.spell_id,
-                threshold: item_set_spell.threshold,
-                apply: false,
-            });
-        }
-
-        let _ = self.drop_player_empty_item_set_effect_like_cpp(item_set.id);
-
-        events
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.record_represented_remove_items_set_item_like_cpp(&mut hub, item_guid, item_set)
     }
     pub(crate) fn item_drop_rate_like_cpp(&self, item_id: u32) -> f32 {
-        let quality = self
-            .item_template_quality(item_id)
-            .and_then(<ItemQuality as num_traits::FromPrimitive>::from_i8);
-        match quality {
-            Some(ItemQuality::Poor) => self.config.loot_drop_rates.item_poor,
-            Some(ItemQuality::Normal) => self.config.loot_drop_rates.item_normal,
-            Some(ItemQuality::Uncommon) => self.config.loot_drop_rates.item_uncommon,
-            Some(ItemQuality::Rare) => self.config.loot_drop_rates.item_rare,
-            Some(ItemQuality::Epic) => self.config.loot_drop_rates.item_epic,
-            Some(ItemQuality::Legendary) => self.config.loot_drop_rates.item_legendary,
-            Some(ItemQuality::Artifact) => self.config.loot_drop_rates.item_artifact,
-            _ => 1.0,
-        }
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.item_drop_rate_like_cpp(hub, item_id)
     }
     pub(crate) fn item_effect_count_like_cpp(&self, item_entry: u32) -> usize {
-        self.catalogs
-            .items
-            .effect_store
-            .as_ref()
-            .map(|store| {
-                store
-                    .item_effects_for_item_id_like_cpp(item_entry)
-                    .len()
-                    .min(MAX_ITEM_SPELLS)
-            })
-            .unwrap_or(0)
+        self.catalogs.item_effect_count_like_cpp(item_entry)
     }
-    /// C++ `Item::IsBoundAccountWide` template-flag predicate.
     pub fn is_item_bound_account_wide(&self, item_id: u32) -> bool {
-        self.item_template_flags(item_id)
-            .is_some_and(|flags| flags.contains(ItemFlags::IS_BOUND_TO_ACCOUNT))
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.is_item_bound_account_wide(hub, item_id)
     }
     pub(in crate::session) fn item_shield_block_value_like_cpp(&self, item_id: u32) -> Option<i16> {
-        let basic = self.catalogs.items.store.as_ref()?.get(item_id)?;
-        if basic.class_id != ItemClass::Armor as u8
-            || basic.subclass_id != ItemSubClassArmor::Shield as u8
-        {
-            return None;
-        }
-
-        let template = self.item_random_property_template(item_id)?;
-        let item_level = u32::from(template.item_level);
-        let quality = u32::try_from(template.quality).ok()?;
-        self.catalogs
-            .shield_block_regular_game_table
-            .as_ref()?
-            .shield_block_for_quality_like_cpp(item_level, quality)
-            .filter(|value| *value != 0)
+        self.catalogs.item_shield_block_value_like_cpp(item_id)
     }
     pub(crate) fn insert_buyback_item_like_cpp(
         &mut self,
@@ -467,14 +353,6 @@ impl WorldSession {
         self.core
             .allocate_item_instance_guids_with_generator_like_cpp(generator, count)
     }
-    #[cfg(test)]
-    pub(crate) fn allocate_item_instance_guids_like_cpp(
-        &self,
-        count: usize,
-    ) -> Option<Vec<(u64, ObjectGuid)>> {
-        let generator = self.core.item_guid_generator_like_cpp.as_deref()?;
-        self.allocate_item_instance_guids_with_generator_like_cpp(generator, count)
-    }
     pub(in crate::session) fn represented_has_item_fit_to_spell_requirements_like_cpp(
         &self,
         equipped: &SpellEquippedItemsEntry,
@@ -551,32 +429,16 @@ impl WorldSession {
         &mut self,
         remove: RepresentedAuctionRemoveItemLikeCpp,
     ) {
-        #[cfg(test)]
         self.inventory
-            .represented_auction_remove_items_like_cpp
-            .push(remove);
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_auction_remove_items_like_cpp(
-        &self,
-    ) -> &[RepresentedAuctionRemoveItemLikeCpp] {
-        &self.inventory.represented_auction_remove_items_like_cpp
+            .record_represented_auction_remove_item_like_cpp(remove)
     }
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_auction_sell_item_like_cpp(
         &mut self,
         sell: RepresentedAuctionSellItemLikeCpp,
     ) {
-        #[cfg(test)]
         self.inventory
-            .represented_auction_sell_items_like_cpp
-            .push(sell);
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_auction_sell_items_like_cpp(
-        &self,
-    ) -> &[RepresentedAuctionSellItemLikeCpp] {
-        &self.inventory.represented_auction_sell_items_like_cpp
+            .record_represented_auction_sell_item_like_cpp(sell)
     }
     pub(in crate::session) fn record_represented_offhand_item_mod_remove_like_cpp(
         &mut self,
@@ -594,22 +456,6 @@ impl WorldSession {
     pub(crate) fn resolved_buyback_items_like_cpp(&self) -> Option<HashMap<u8, InventoryItem>> {
         self.resolved_player_inventory_runtime_like_cpp()
             .map(|inventory| inventory.buyback_items().clone())
-    }
-    #[cfg(test)]
-    pub(crate) fn buyback_items_like_cpp(&self) -> &HashMap<u8, InventoryItem> {
-        &self
-            .inventory
-            .player_item_test_fixture_like_cpp
-            .buyback_items
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_item_mod_reapply_events_like_cpp(
-        &self,
-    ) -> &[RepresentedItemModsReapplyEventLikeCpp] {
-        &self
-            .inventory
-            .player_item_test_fixture_like_cpp
-            .represented_item_mod_reapply_events_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn represented_trade_spell_cast_item_like_cpp(&self) -> Option<ObjectGuid> {
@@ -667,6 +513,234 @@ impl WorldSession {
         );
 
         true
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    pub(in crate::session) fn item_spec_class_mask_from_overrides_like_cpp(
+        &self,
+        item_id: u32,
+    ) -> Option<u32> {
+        let overrides = self
+            .items
+            .spec_override_store
+            .as_ref()?
+            .overrides_for_item_like_cpp(item_id)?;
+        let chr_specializations = self.chr.specialization_store.as_ref()?;
+
+        let mut mask = 0_u32;
+        for item_spec_override in overrides {
+            if let Some(specialization) =
+                chr_specializations.get(u32::from(item_spec_override.spec_id))
+            {
+                mask |= player_class_mask_for_transmog_like_cpp(specialization.class_id);
+            }
+        }
+
+        Some(mask)
+    }
+
+    /// C++ `DB2Manager::GetItemDisplayId`.
+    pub fn item_display_id(&self, item_id: u32, appearance_mod_id: u32) -> Option<u32> {
+        let modified = self
+            .items
+            .modified_appearance_store
+            .as_ref()
+            .and_then(|store| store.get_for_item(item_id, appearance_mod_id))?;
+        let appearance_id = u32::try_from(modified.item_appearance_id).ok()?;
+        self.items
+            .appearance_store
+            .as_ref()
+            .and_then(|store| store.item_display_info_id(appearance_id))
+    }
+
+    pub(crate) fn item_effect_count_like_cpp(&self, item_entry: u32) -> usize {
+        self.items
+            .effect_store
+            .as_ref()
+            .map(|store| {
+                store
+                    .item_effects_for_item_id_like_cpp(item_entry)
+                    .len()
+                    .min(MAX_ITEM_SPELLS)
+            })
+            .unwrap_or(0)
+    }
+
+    pub(in crate::session) fn item_shield_block_value_like_cpp(&self, item_id: u32) -> Option<i16> {
+        let basic = self.items.store.as_ref()?.get(item_id)?;
+        if basic.class_id != ItemClass::Armor as u8
+            || basic.subclass_id != ItemSubClassArmor::Shield as u8
+        {
+            return None;
+        }
+
+        let template = self.item_random_property_template(item_id)?;
+        let item_level = u32::from(template.item_level);
+        let quality = u32::try_from(template.quality).ok()?;
+        self.shield_block_regular_game_table
+            .as_ref()?
+            .shield_block_for_quality_like_cpp(item_level, quality)
+            .filter(|value| *value != 0)
+    }
+}
+
+impl crate::session::state::InventoryState {
+    /// Install the process-wide C++
+    /// `sObjectMgr->GetGenerator<HighGuid::Item>()` mirror.
+    #[cfg(test)]
+    pub fn set_item_guid_generator_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        generator: Arc<ObjectGuidGenerator>,
+    ) {
+        assert_eq!(
+            generator.high_guid(),
+            HighGuid::Item,
+            "item GUID allocator must use HighGuid::Item"
+        );
+        hub.core.item_guid_generator_like_cpp = Some(generator);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn item_guid_generator_like_cpp_for_bridge(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<Arc<ObjectGuidGenerator>> {
+        hub.core.item_guid_generator_like_cpp.clone()
+    }
+
+    fn record_represented_remove_items_set_item_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        item_guid: ObjectGuid,
+        item_set: &wow_data::ItemSetEntry,
+    ) -> Vec<RepresentedItemSetSpellEventLikeCpp> {
+        let Some(equipped_count_after) = self
+            .remove_player_item_set_item_like_cpp(hub, item_set.id, item_guid)
+            .flatten()
+        else {
+            return Vec::new();
+        };
+        let mut events = Vec::new();
+
+        let spells: Vec<_> = hub
+            .catalogs
+            .item_set_spells_like_cpp(item_set.id)
+            .into_iter()
+            .cloned()
+            .collect();
+        for item_set_spell in spells {
+            if usize::from(item_set_spell.threshold) <= equipped_count_after {
+                continue;
+            }
+            let removed = self
+                .remove_player_item_set_bonus_like_cpp(hub, item_set.id, item_set_spell.id)
+                .unwrap_or(false);
+            if !removed {
+                continue;
+            }
+            events.push(RepresentedItemSetSpellEventLikeCpp {
+                item_set_id: item_set.id,
+                spell_entry_id: item_set_spell.id,
+                spell_id: item_set_spell.spell_id,
+                threshold: item_set_spell.threshold,
+                apply: false,
+            });
+        }
+
+        let _ = self.drop_player_empty_item_set_effect_like_cpp(hub, item_set.id);
+
+        events
+    }
+
+    pub(crate) fn item_drop_rate_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_id: u32,
+    ) -> f32 {
+        let quality = hub
+            .catalogs
+            .item_template_quality(item_id)
+            .and_then(<ItemQuality as num_traits::FromPrimitive>::from_i8);
+        match quality {
+            Some(ItemQuality::Poor) => hub.config.loot_drop_rates.item_poor,
+            Some(ItemQuality::Normal) => hub.config.loot_drop_rates.item_normal,
+            Some(ItemQuality::Uncommon) => hub.config.loot_drop_rates.item_uncommon,
+            Some(ItemQuality::Rare) => hub.config.loot_drop_rates.item_rare,
+            Some(ItemQuality::Epic) => hub.config.loot_drop_rates.item_epic,
+            Some(ItemQuality::Legendary) => hub.config.loot_drop_rates.item_legendary,
+            Some(ItemQuality::Artifact) => hub.config.loot_drop_rates.item_artifact,
+            _ => 1.0,
+        }
+    }
+
+    /// C++ `Item::IsBoundAccountWide` template-flag predicate.
+    pub fn is_item_bound_account_wide(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_id: u32,
+    ) -> bool {
+        hub.catalogs
+            .item_template_flags(item_id)
+            .is_some_and(|flags| flags.contains(ItemFlags::IS_BOUND_TO_ACCOUNT))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn allocate_item_instance_guids_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        count: usize,
+    ) -> Option<Vec<(u64, ObjectGuid)>> {
+        let generator = hub.core.item_guid_generator_like_cpp.as_deref()?;
+        hub.core
+            .allocate_item_instance_guids_with_generator_like_cpp(generator, count)
+    }
+
+    #[cfg_attr(not(test), allow(unused_variables))]
+    pub(crate) fn record_represented_auction_remove_item_like_cpp(
+        &mut self,
+        remove: RepresentedAuctionRemoveItemLikeCpp,
+    ) {
+        #[cfg(test)]
+        self.represented_auction_remove_items_like_cpp.push(remove);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_auction_remove_items_like_cpp(
+        &self,
+    ) -> &[RepresentedAuctionRemoveItemLikeCpp] {
+        &self.represented_auction_remove_items_like_cpp
+    }
+
+    #[cfg_attr(not(test), allow(unused_variables))]
+    pub(crate) fn record_represented_auction_sell_item_like_cpp(
+        &mut self,
+        sell: RepresentedAuctionSellItemLikeCpp,
+    ) {
+        #[cfg(test)]
+        self.represented_auction_sell_items_like_cpp.push(sell);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_auction_sell_items_like_cpp(
+        &self,
+    ) -> &[RepresentedAuctionSellItemLikeCpp] {
+        &self.represented_auction_sell_items_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn buyback_items_like_cpp(&self) -> &HashMap<u8, InventoryItem> {
+        &self.player_item_test_fixture_like_cpp.buyback_items
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_item_mod_reapply_events_like_cpp(
+        &self,
+    ) -> &[RepresentedItemModsReapplyEventLikeCpp] {
+        &self
+            .player_item_test_fixture_like_cpp
+            .represented_item_mod_reapply_events_like_cpp
     }
 }
 
@@ -734,3 +808,7 @@ impl crate::session::state::SessionCore {
             .collect()
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/player_items/items/f3_shims.rs"]
+mod f3_shims;

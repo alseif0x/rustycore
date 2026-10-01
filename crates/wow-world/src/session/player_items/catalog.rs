@@ -6,49 +6,25 @@
 use super::*;
 
 impl WorldSession {
-    /// Set the C++ ItemPriceBase.db2 store for this session.
-    #[cfg(test)]
-    pub fn set_item_price_base_store(&mut self, store: Arc<ItemPriceBaseStore>) {
-        self.catalogs.item_price_base_store = Some(store);
-    }
-    /// Set the item class store for this session.
-    #[cfg(test)]
-    pub fn set_item_class_store(&mut self, store: Arc<ItemClassStore>) {
-        self.catalogs.item_class_store = Some(store);
-    }
     /// Set the item extended cost store for this session.
     pub fn set_item_extended_cost_store(&mut self, store: Arc<ItemExtendedCostStore>) {
         self.catalogs.items.extended_cost_store = Some(store);
     }
-    /// Get the item extended cost store reference.
     pub fn item_extended_cost_store(&self) -> Option<&Arc<ItemExtendedCostStore>> {
-        self.catalogs.items.extended_cost_store.as_ref()
+        self.catalogs.item_extended_cost_store()
     }
     /// Set the item store for this session.
     pub fn set_item_store(&mut self, store: Arc<ItemStore>) {
         self.catalogs.items.store = Some(store);
     }
-    /// Resolve C++ `ItemTemplate::GetRandomSelect()`.
     pub(crate) fn item_template_random_select(&self, item_id: u32) -> u16 {
-        self.catalogs
-            .items
-            .store
-            .as_ref()
-            .map(|store| store.random_select(item_id))
-            .unwrap_or(0)
+        self.catalogs.item_template_random_select(item_id)
     }
-    /// Resolve C++ `ItemTemplate::GetRandomSuffixGroupID()`.
     pub(crate) fn item_template_random_suffix_group_id(&self, item_id: u32) -> u16 {
-        self.catalogs
-            .items
-            .store
-            .as_ref()
-            .map(|store| store.random_suffix_group_id(item_id))
-            .unwrap_or(0)
+        self.catalogs.item_template_random_suffix_group_id(item_id)
     }
-    /// Get the item store reference.
     pub fn item_store(&self) -> Option<&Arc<ItemStore>> {
-        self.catalogs.items.store.as_ref()
+        self.catalogs.item_store()
     }
     /// Set the item search-name store for this session.
     pub fn set_item_search_name_store(&mut self, store: Arc<ItemSearchNameStore>) {
@@ -116,102 +92,61 @@ impl WorldSession {
     pub fn item_effect_store(&self) -> Option<&Arc<ItemEffectStore>> {
         self.catalogs.items.effect_store.as_ref()
     }
-    /// Resolve cached C++ `ItemTemplate::QuestLogItemId` from `item_template_addon`.
     pub(crate) fn item_template_addon_quest_log_item_id_like_cpp(
         &self,
         item_id: u32,
     ) -> Option<u32> {
         self.catalogs
-            .item_template_addon_quest_log_item_ids_like_cpp
-            .get(&item_id)
-            .copied()
+            .item_template_addon_quest_log_item_id_like_cpp(item_id)
     }
-    /// Cache C++ `ItemTemplate::QuestLogItemId` from `item_template_addon`.
     pub(crate) fn cache_item_template_addon_quest_log_item_id_like_cpp(
         &mut self,
         item_id: u32,
         quest_log_item_id: u32,
     ) {
         self.catalogs
-            .item_template_addon_quest_log_item_ids_like_cpp
-            .insert(item_id, quest_log_item_id);
+            .cache_item_template_addon_quest_log_item_id_like_cpp(item_id, quest_log_item_id)
     }
-    /// Resolve C++ `ItemTemplate::ExtendedData->Flags[0]`.
     pub fn item_template_flags(&self, item_id: u32) -> Option<ItemFlags> {
-        self.catalogs
-            .items
-            .stats_store
-            .as_ref()
-            .and_then(|store| store.item_flags(item_id))
+        self.catalogs.item_template_flags(item_id)
     }
-    /// Resolve C++ `ItemTemplate::ExtendedData->Flags[1]`.
     pub fn item_template_flags2(&self, item_id: u32) -> Option<u32> {
-        self.catalogs
-            .items
-            .stats_store
-            .as_ref()
-            .and_then(|store| store.sparse_template(item_id))
-            .map(|template| template.flags[1])
+        self.catalogs.item_template_flags2(item_id)
     }
-    /// Resolve C++ `ItemTemplate::ExtendedData->Flags[2]`.
     pub fn item_template_flags3(&self, item_id: u32) -> Option<u32> {
-        self.catalogs
-            .items
-            .stats_store
-            .as_ref()
-            .and_then(|store| store.sparse_template(item_id))
-            .map(|template| template.flags[2])
+        self.catalogs.item_template_flags3(item_id)
     }
-    /// Resolve C++ `ItemTemplate::GetLockID()` (`ItemSparseEntry::LockID`).
     pub fn item_template_lock_id(&self, item_id: u32) -> Option<u16> {
-        self.catalogs
-            .items
-            .stats_store
-            .as_ref()
-            .and_then(|store| store.sparse_template(item_id))
-            .map(|template| template.lock_id)
+        self.catalogs.item_template_lock_id(item_id)
     }
     pub fn item_template_start_quest_id(&self, item_id: u32) -> Option<i32> {
         self.catalogs.item_template_start_quest_id(item_id)
     }
     pub fn item_template_quality(&self, item_id: u32) -> Option<i8> {
-        self.catalogs
-            .items
-            .stats_store
-            .as_ref()
-            .and_then(|store| store.random_property_template(item_id))
-            .map(|template| template.quality)
+        self.catalogs.item_template_quality(item_id)
     }
     pub fn item_storage_template(&self, item_id: u32) -> Option<ItemStorageTemplate> {
         self.catalogs.item_storage_template(item_id)
     }
-    /// Resolve C++ `ItemSparseEntry` data used by random-property generation.
     pub(crate) fn item_random_property_template(
         &self,
         item_id: u32,
     ) -> Option<ItemRandomPropertyTemplateEntry> {
-        self.catalogs
-            .items
-            .stats_store
-            .as_ref()
-            .and_then(|store| store.random_property_template(item_id))
-            .copied()
+        self.catalogs.item_random_property_template(item_id)
     }
     /// Set the item random suffix store for this session.
     pub fn set_item_random_suffix_store(&mut self, store: Arc<ItemRandomSuffixStore>) {
         self.catalogs.items.random_suffix_store = Some(store);
     }
-    /// Get the item random suffix store reference.
     pub fn item_random_suffix_store(&self) -> Option<&Arc<ItemRandomSuffixStore>> {
-        self.catalogs.items.random_suffix_store.as_ref()
+        self.catalogs.item_random_suffix_store()
     }
     /// Set the item random properties store for this session.
     pub fn set_item_random_properties_store(&mut self, store: Arc<ItemRandomPropertiesStore>) {
         self.catalogs.items.random_properties_store = Some(store);
     }
-    /// Get the item random properties store reference.
     pub fn item_random_properties_store(&self) -> Option<&Arc<ItemRandomPropertiesStore>> {
-        self.catalogs.items.random_properties_store.as_ref()
+        self.catalogs.item_random_properties_store()
     }
     /// Set the QuestPackageItem store used by C++ quest package reward selection.
     pub fn set_quest_package_item_store(&mut self, store: Arc<QuestPackageItemStore>) {
@@ -227,8 +162,138 @@ impl WorldSession {
         self.loot.loot_item_store_test_success_like_cpp = success;
     }
     pub(in crate::session) fn item_template_name_like_cpp(&self, item_id: u32) -> &str {
-        self.catalogs
-            .items
+        self.catalogs.item_template_name_like_cpp(item_id)
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    /// Set the C++ ItemPriceBase.db2 store for this session.
+    #[cfg(test)]
+    pub fn set_item_price_base_store(&mut self, store: Arc<ItemPriceBaseStore>) {
+        self.item_price_base_store = Some(store);
+    }
+
+    /// Set the item class store for this session.
+    #[cfg(test)]
+    pub fn set_item_class_store(&mut self, store: Arc<ItemClassStore>) {
+        self.item_class_store = Some(store);
+    }
+
+    /// Get the item extended cost store reference.
+    pub fn item_extended_cost_store(&self) -> Option<&Arc<ItemExtendedCostStore>> {
+        self.items.extended_cost_store.as_ref()
+    }
+
+    /// Resolve C++ `ItemTemplate::GetRandomSelect()`.
+    pub(crate) fn item_template_random_select(&self, item_id: u32) -> u16 {
+        self.items
+            .store
+            .as_ref()
+            .map(|store| store.random_select(item_id))
+            .unwrap_or(0)
+    }
+
+    /// Resolve C++ `ItemTemplate::GetRandomSuffixGroupID()`.
+    pub(crate) fn item_template_random_suffix_group_id(&self, item_id: u32) -> u16 {
+        self.items
+            .store
+            .as_ref()
+            .map(|store| store.random_suffix_group_id(item_id))
+            .unwrap_or(0)
+    }
+
+    /// Get the item store reference.
+    pub fn item_store(&self) -> Option<&Arc<ItemStore>> {
+        self.items.store.as_ref()
+    }
+
+    /// Resolve cached C++ `ItemTemplate::QuestLogItemId` from `item_template_addon`.
+    pub(crate) fn item_template_addon_quest_log_item_id_like_cpp(
+        &self,
+        item_id: u32,
+    ) -> Option<u32> {
+        self.item_template_addon_quest_log_item_ids_like_cpp
+            .get(&item_id)
+            .copied()
+    }
+
+    /// Cache C++ `ItemTemplate::QuestLogItemId` from `item_template_addon`.
+    pub(crate) fn cache_item_template_addon_quest_log_item_id_like_cpp(
+        &mut self,
+        item_id: u32,
+        quest_log_item_id: u32,
+    ) {
+        self.item_template_addon_quest_log_item_ids_like_cpp
+            .insert(item_id, quest_log_item_id);
+    }
+
+    /// Resolve C++ `ItemTemplate::ExtendedData->Flags[0]`.
+    pub fn item_template_flags(&self, item_id: u32) -> Option<ItemFlags> {
+        self.items
+            .stats_store
+            .as_ref()
+            .and_then(|store| store.item_flags(item_id))
+    }
+
+    /// Resolve C++ `ItemTemplate::ExtendedData->Flags[1]`.
+    pub fn item_template_flags2(&self, item_id: u32) -> Option<u32> {
+        self.items
+            .stats_store
+            .as_ref()
+            .and_then(|store| store.sparse_template(item_id))
+            .map(|template| template.flags[1])
+    }
+
+    /// Resolve C++ `ItemTemplate::ExtendedData->Flags[2]`.
+    pub fn item_template_flags3(&self, item_id: u32) -> Option<u32> {
+        self.items
+            .stats_store
+            .as_ref()
+            .and_then(|store| store.sparse_template(item_id))
+            .map(|template| template.flags[2])
+    }
+
+    /// Resolve C++ `ItemTemplate::GetLockID()` (`ItemSparseEntry::LockID`).
+    pub fn item_template_lock_id(&self, item_id: u32) -> Option<u16> {
+        self.items
+            .stats_store
+            .as_ref()
+            .and_then(|store| store.sparse_template(item_id))
+            .map(|template| template.lock_id)
+    }
+
+    pub fn item_template_quality(&self, item_id: u32) -> Option<i8> {
+        self.items
+            .stats_store
+            .as_ref()
+            .and_then(|store| store.random_property_template(item_id))
+            .map(|template| template.quality)
+    }
+
+    /// Resolve C++ `ItemSparseEntry` data used by random-property generation.
+    pub(crate) fn item_random_property_template(
+        &self,
+        item_id: u32,
+    ) -> Option<ItemRandomPropertyTemplateEntry> {
+        self.items
+            .stats_store
+            .as_ref()
+            .and_then(|store| store.random_property_template(item_id))
+            .copied()
+    }
+
+    /// Get the item random suffix store reference.
+    pub fn item_random_suffix_store(&self) -> Option<&Arc<ItemRandomSuffixStore>> {
+        self.items.random_suffix_store.as_ref()
+    }
+
+    /// Get the item random properties store reference.
+    pub fn item_random_properties_store(&self) -> Option<&Arc<ItemRandomPropertiesStore>> {
+        self.items.random_properties_store.as_ref()
+    }
+
+    pub(in crate::session) fn item_template_name_like_cpp(&self, item_id: u32) -> &str {
+        self.items
             .search_name_store
             .as_ref()
             .and_then(|store| store.get(item_id))
@@ -278,3 +343,7 @@ impl crate::session::state::SessionCatalogs {
         })
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/player_items/catalog/f3_shims.rs"]
+mod f3_shims;

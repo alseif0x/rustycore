@@ -16,212 +16,6 @@ pub(crate) fn item_price_base_with_catalogs_like_cpp(
 }
 
 impl WorldSession {
-    /// C++ `Item::GetBuyPrice(proto, quality, itemLevel, standardPrice)`.
-    ///
-    /// This preserves the contrasted branch behavior where `standardPrice`
-    /// remains false even after the calculated-price path.
-    fn item_buy_price_with_catalogs_like_cpp(
-        &self,
-        catalogs: &ItemValuationCatalogsLikeCpp,
-        item_id: u32,
-        quality: u32,
-        item_level: u32,
-    ) -> Option<(u32, bool)> {
-        let basic = self.catalogs.items.store.as_ref()?.get(item_id)?;
-        let sparse = self
-            .catalogs
-            .items
-            .stats_store
-            .as_ref()?
-            .sparse_template(item_id)?;
-        let flags2 = sparse.flags[1];
-        let standard_price = false;
-
-        if (flags2 & ItemFlags2::OverrideGoldCost as u32) != 0 {
-            return Some((sparse.buy_price, standard_price));
-        }
-
-        let stores = catalogs.import_prices.as_ref();
-        let quality_price = match stores.quality.get(quality + 1) {
-            Some(entry) => entry.data,
-            None => return Some((0, standard_price)),
-        };
-        let (base_armor, base_weapon) =
-            match item_price_base_with_catalogs_like_cpp(catalogs, item_level) {
-                Some(base) => base,
-                None => return Some((0, standard_price)),
-            };
-
-        let mut inventory_type =
-            <InventoryType as num_traits::FromPrimitive>::from_i8(sparse.inventory_type)
-                .unwrap_or(InventoryType::NonEquip);
-        let mut base_factor = if matches!(
-            inventory_type,
-            InventoryType::Weapon
-                | InventoryType::Weapon2Hand
-                | InventoryType::WeaponMainhand
-                | InventoryType::WeaponOffhand
-                | InventoryType::Ranged
-                | InventoryType::Thrown
-                | InventoryType::RangedRight
-        ) {
-            base_weapon
-        } else {
-            base_armor
-        };
-
-        if inventory_type == InventoryType::Robe {
-            inventory_type = InventoryType::Chest;
-        }
-
-        if basic.class_id == ItemClass::Gem as u8 && basic.subclass_id == 11 {
-            inventory_type = InventoryType::Weapon;
-            base_factor = base_weapon / 3.0;
-        }
-
-        let type_factor = match inventory_type {
-            InventoryType::Head
-            | InventoryType::Neck
-            | InventoryType::Shoulders
-            | InventoryType::Chest
-            | InventoryType::Waist
-            | InventoryType::Legs
-            | InventoryType::Feet
-            | InventoryType::Wrists
-            | InventoryType::Hands
-            | InventoryType::Finger
-            | InventoryType::Trinket
-            | InventoryType::Cloak
-            | InventoryType::Holdable => {
-                let armor_price = match stores.armor.get(inventory_type as u32) {
-                    Some(entry) => entry,
-                    None => return Some((0, standard_price)),
-                };
-                match basic.subclass_id {
-                    0 | 1 => armor_price.cloth_modifier,
-                    2 => armor_price.leather_modifier,
-                    3 => armor_price.chain_modifier,
-                    4 => armor_price.plate_modifier,
-                    _ => 1.0,
-                }
-            }
-            InventoryType::Shield => match stores.shield.get(2) {
-                Some(entry) => entry.data,
-                None => return Some((0, standard_price)),
-            },
-            InventoryType::WeaponMainhand => match stores.weapon.get(1) {
-                Some(entry) => entry.data,
-                None => return Some((0, standard_price)),
-            },
-            InventoryType::WeaponOffhand => match stores.weapon.get(2) {
-                Some(entry) => entry.data,
-                None => return Some((0, standard_price)),
-            },
-            InventoryType::Weapon => match stores.weapon.get(3) {
-                Some(entry) => entry.data,
-                None => return Some((0, standard_price)),
-            },
-            InventoryType::Weapon2Hand => match stores.weapon.get(4) {
-                Some(entry) => entry.data,
-                None => return Some((0, standard_price)),
-            },
-            InventoryType::Ranged | InventoryType::RangedRight | InventoryType::Relic => {
-                match stores.weapon.get(5) {
-                    Some(entry) => entry.data,
-                    None => return Some((0, standard_price)),
-                }
-            }
-            _ => return Some((sparse.buy_price, standard_price)),
-        };
-
-        let cost = sparse.price_variance
-            * type_factor
-            * base_factor
-            * quality_price
-            * sparse.price_random_value;
-        Some((cost as u32, standard_price))
-    }
-    /// C++ `Item::GetSellPrice(proto, quality, itemLevel)`.
-    pub(in crate::session) fn item_sell_price_with_catalogs_like_cpp(
-        &self,
-        catalogs: &ItemValuationCatalogsLikeCpp,
-        item_id: u32,
-        quality: u32,
-        item_level: u32,
-    ) -> Option<u32> {
-        let basic = self.catalogs.items.store.as_ref()?.get(item_id)?;
-        let sparse = self
-            .catalogs
-            .items
-            .stats_store
-            .as_ref()?
-            .sparse_template(item_id)?;
-
-        if (sparse.flags[1] & ItemFlags2::OverrideGoldCost as u32) != 0 {
-            return Some(sparse.sell_price);
-        }
-
-        let (cost, standard_price) =
-            self.item_buy_price_with_catalogs_like_cpp(catalogs, item_id, quality, item_level)?;
-        if standard_price {
-            let price_modifier = catalogs
-                .item_classes
-                .get_by_old_enum(u32::from(basic.class_id))?
-                .price_modifier;
-            let buy_count = sparse.vendor_stack_count.max(1);
-            Some((cost as f32 * price_modifier / buy_count as f32) as u32)
-        } else {
-            Some(sparse.sell_price)
-        }
-    }
-    #[cfg(test)]
-    pub(crate) fn item_valuation_catalogs_for_test_like_cpp(&self) -> ItemValuationCatalogsLikeCpp {
-        let mut catalogs = ItemValuationCatalogsLikeCpp::default();
-        if let Some(store) = &self.catalogs.import_price_stores {
-            catalogs.import_prices = Arc::clone(store);
-        }
-        if let Some(store) = &self.catalogs.item_price_base_store {
-            catalogs.price_base = Arc::clone(store);
-        }
-        if let Some(store) = &self.catalogs.item_class_store {
-            catalogs.item_classes = Arc::clone(store);
-        }
-        if let Some(store) = &self.catalogs.item_currency_cost_store {
-            catalogs.currency_costs = Arc::clone(store);
-        }
-        if let Some(store) = &self.catalogs.item_disenchant_loot_store {
-            catalogs.disenchant_loot = Arc::clone(store);
-        }
-        catalogs
-    }
-    #[cfg(test)]
-    pub fn item_buy_price_like_cpp(
-        &self,
-        item_id: u32,
-        quality: u32,
-        item_level: u32,
-    ) -> Option<(u32, bool)> {
-        self.item_buy_price_with_catalogs_like_cpp(
-            &self.item_valuation_catalogs_for_test_like_cpp(),
-            item_id,
-            quality,
-            item_level,
-        )
-    }
-    #[cfg(test)]
-    pub fn item_sell_price_like_cpp(
-        &self,
-        item_id: u32,
-        quality: u32,
-        item_level: u32,
-    ) -> Option<u32> {
-        self.item_sell_price_with_catalogs_like_cpp(
-            &self.item_valuation_catalogs_for_test_like_cpp(),
-            item_id,
-            quality,
-            item_level,
-        )
-    }
     pub(crate) fn set_represented_item_level_caps_like_cpp(
         &mut self,
         caps: RepresentedItemLevelCapsLikeCpp,
@@ -229,37 +23,12 @@ impl WorldSession {
         self.set_player_item_level_caps_like_cpp(caps)
     }
     pub(crate) fn set_represented_using_pvp_item_levels_like_cpp(&mut self, active: bool) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.activate_pvp_item_levels_like_cpp(active)
-            })
-            .is_some();
-        if canonical {
-            return true;
-        }
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            self.inventory.represented_using_pvp_item_levels_like_cpp = active;
-            return true;
-        }
-        false
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.set_represented_using_pvp_item_levels_like_cpp(&mut hub, active)
     }
     pub(in crate::session) fn resolved_using_pvp_item_levels_like_cpp(&self) -> Option<bool> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.gameplay_state().using_pvp_item_levels);
-        if canonical.is_some() {
-            return canonical;
-        }
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return Some(self.inventory.represented_using_pvp_item_levels_like_cpp);
-        }
-        None
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_using_pvp_item_levels_like_cpp(&self) -> bool {
-        self.resolved_using_pvp_item_levels_like_cpp()
-            .expect("test Player PvP item-level owner must resolve")
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.resolved_using_pvp_item_levels_like_cpp(hub)
     }
     pub(crate) fn update_represented_item_level_area_based_scaling_like_cpp(&mut self) -> bool {
         self.update_represented_item_level_area_based_scaling_with_publication_like_cpp(true)
@@ -542,6 +311,106 @@ impl WorldSession {
         template: &wow_data::item::stats::ItemSparseTemplateEntry,
         runtime_item: Option<&Item>,
     ) -> Option<i64> {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.represented_player_level_curve_item_level_like_cpp(hub, template, runtime_item)
+    }
+    fn represented_item_level_bonus_like_cpp(&self, runtime_item: Option<&Item>) -> i64 {
+        self.catalogs
+            .represented_item_level_bonus_like_cpp(runtime_item)
+    }
+    fn represented_pvp_item_level_bonus_like_cpp(&self, entry_id: u32) -> u8 {
+        self.catalogs
+            .represented_pvp_item_level_bonus_like_cpp(entry_id)
+    }
+}
+
+impl crate::session::state::InventoryState {
+    #[cfg(test)]
+    pub fn item_buy_price_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_id: u32,
+        quality: u32,
+        item_level: u32,
+    ) -> Option<(u32, bool)> {
+        hub.catalogs.item_buy_price_with_catalogs_like_cpp(
+            &hub.catalogs.item_valuation_catalogs_for_test_like_cpp(),
+            item_id,
+            quality,
+            item_level,
+        )
+    }
+
+    #[cfg(test)]
+    pub fn item_sell_price_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_id: u32,
+        quality: u32,
+        item_level: u32,
+    ) -> Option<u32> {
+        hub.catalogs.item_sell_price_with_catalogs_like_cpp(
+            &hub.catalogs.item_valuation_catalogs_for_test_like_cpp(),
+            item_id,
+            quality,
+            item_level,
+        )
+    }
+
+    pub(crate) fn set_represented_using_pvp_item_levels_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        active: bool,
+    ) -> bool {
+        let canonical = hub
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.activate_pvp_item_levels_like_cpp(active)
+            })
+            .is_some();
+        if canonical {
+            return true;
+        }
+        #[cfg(test)]
+        if hub.core.player_handle_like_cpp.is_none() {
+            self.represented_using_pvp_item_levels_like_cpp = active;
+            return true;
+        }
+        false
+    }
+
+    pub(in crate::session) fn resolved_using_pvp_item_levels_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<bool> {
+        let canonical = hub
+            .core
+            .with_owned_player_like_cpp(|player| player.gameplay_state().using_pvp_item_levels);
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(test)]
+        if hub.core.player_handle_like_cpp.is_none() {
+            return Some(self.represented_using_pvp_item_levels_like_cpp);
+        }
+        None
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_using_pvp_item_levels_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> bool {
+        self.resolved_using_pvp_item_levels_like_cpp(hub)
+            .expect("test Player PvP item-level owner must resolve")
+    }
+
+    fn represented_player_level_curve_item_level_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        template: &wow_data::item::stats::ItemSparseTemplateEntry,
+        runtime_item: Option<&Item>,
+    ) -> Option<i64> {
         let curve_id = template.player_level_to_item_level_curve_id_like_cpp();
         if curve_id == 0 {
             return None;
@@ -553,11 +422,11 @@ impl WorldSession {
         let mut level = if fixed_level != 0 {
             fixed_level
         } else {
-            u32::from(self.player_level_like_cpp())
+            u32::from(hub.player_level_like_cpp())
         };
 
         if fixed_level == 0
-            && let Some(levels) = self
+            && let Some(levels) = hub
                 .catalogs
                 .content_tuning_store
                 .as_ref()
@@ -572,11 +441,11 @@ impl WorldSession {
             level = u32::try_from(clamped).unwrap_or(level);
         }
 
-        let Some((curve_store, curve_point_store)) = self
+        let Some((curve_store, curve_point_store)) = hub
             .catalogs
             .curve_store
             .as_ref()
-            .zip(self.catalogs.curve_point_store.as_ref())
+            .zip(hub.catalogs.curve_point_store.as_ref())
         else {
             return Some(0);
         };
@@ -585,11 +454,185 @@ impl WorldSession {
 
         Some(curve_value as i64)
     }
+}
+
+impl crate::session::state::SessionCatalogs {
+    /// C++ `Item::GetBuyPrice(proto, quality, itemLevel, standardPrice)`.
+    ///
+    /// This preserves the contrasted branch behavior where `standardPrice`
+    /// remains false even after the calculated-price path.
+    fn item_buy_price_with_catalogs_like_cpp(
+        &self,
+        catalogs: &ItemValuationCatalogsLikeCpp,
+        item_id: u32,
+        quality: u32,
+        item_level: u32,
+    ) -> Option<(u32, bool)> {
+        let basic = self.items.store.as_ref()?.get(item_id)?;
+        let sparse = self.items.stats_store.as_ref()?.sparse_template(item_id)?;
+        let flags2 = sparse.flags[1];
+        let standard_price = false;
+
+        if (flags2 & ItemFlags2::OverrideGoldCost as u32) != 0 {
+            return Some((sparse.buy_price, standard_price));
+        }
+
+        let stores = catalogs.import_prices.as_ref();
+        let quality_price = match stores.quality.get(quality + 1) {
+            Some(entry) => entry.data,
+            None => return Some((0, standard_price)),
+        };
+        let (base_armor, base_weapon) =
+            match item_price_base_with_catalogs_like_cpp(catalogs, item_level) {
+                Some(base) => base,
+                None => return Some((0, standard_price)),
+            };
+
+        let mut inventory_type =
+            <InventoryType as num_traits::FromPrimitive>::from_i8(sparse.inventory_type)
+                .unwrap_or(InventoryType::NonEquip);
+        let mut base_factor = if matches!(
+            inventory_type,
+            InventoryType::Weapon
+                | InventoryType::Weapon2Hand
+                | InventoryType::WeaponMainhand
+                | InventoryType::WeaponOffhand
+                | InventoryType::Ranged
+                | InventoryType::Thrown
+                | InventoryType::RangedRight
+        ) {
+            base_weapon
+        } else {
+            base_armor
+        };
+
+        if inventory_type == InventoryType::Robe {
+            inventory_type = InventoryType::Chest;
+        }
+
+        if basic.class_id == ItemClass::Gem as u8 && basic.subclass_id == 11 {
+            inventory_type = InventoryType::Weapon;
+            base_factor = base_weapon / 3.0;
+        }
+
+        let type_factor = match inventory_type {
+            InventoryType::Head
+            | InventoryType::Neck
+            | InventoryType::Shoulders
+            | InventoryType::Chest
+            | InventoryType::Waist
+            | InventoryType::Legs
+            | InventoryType::Feet
+            | InventoryType::Wrists
+            | InventoryType::Hands
+            | InventoryType::Finger
+            | InventoryType::Trinket
+            | InventoryType::Cloak
+            | InventoryType::Holdable => {
+                let armor_price = match stores.armor.get(inventory_type as u32) {
+                    Some(entry) => entry,
+                    None => return Some((0, standard_price)),
+                };
+                match basic.subclass_id {
+                    0 | 1 => armor_price.cloth_modifier,
+                    2 => armor_price.leather_modifier,
+                    3 => armor_price.chain_modifier,
+                    4 => armor_price.plate_modifier,
+                    _ => 1.0,
+                }
+            }
+            InventoryType::Shield => match stores.shield.get(2) {
+                Some(entry) => entry.data,
+                None => return Some((0, standard_price)),
+            },
+            InventoryType::WeaponMainhand => match stores.weapon.get(1) {
+                Some(entry) => entry.data,
+                None => return Some((0, standard_price)),
+            },
+            InventoryType::WeaponOffhand => match stores.weapon.get(2) {
+                Some(entry) => entry.data,
+                None => return Some((0, standard_price)),
+            },
+            InventoryType::Weapon => match stores.weapon.get(3) {
+                Some(entry) => entry.data,
+                None => return Some((0, standard_price)),
+            },
+            InventoryType::Weapon2Hand => match stores.weapon.get(4) {
+                Some(entry) => entry.data,
+                None => return Some((0, standard_price)),
+            },
+            InventoryType::Ranged | InventoryType::RangedRight | InventoryType::Relic => {
+                match stores.weapon.get(5) {
+                    Some(entry) => entry.data,
+                    None => return Some((0, standard_price)),
+                }
+            }
+            _ => return Some((sparse.buy_price, standard_price)),
+        };
+
+        let cost = sparse.price_variance
+            * type_factor
+            * base_factor
+            * quality_price
+            * sparse.price_random_value;
+        Some((cost as u32, standard_price))
+    }
+
+    /// C++ `Item::GetSellPrice(proto, quality, itemLevel)`.
+    pub(in crate::session) fn item_sell_price_with_catalogs_like_cpp(
+        &self,
+        catalogs: &ItemValuationCatalogsLikeCpp,
+        item_id: u32,
+        quality: u32,
+        item_level: u32,
+    ) -> Option<u32> {
+        let basic = self.items.store.as_ref()?.get(item_id)?;
+        let sparse = self.items.stats_store.as_ref()?.sparse_template(item_id)?;
+
+        if (sparse.flags[1] & ItemFlags2::OverrideGoldCost as u32) != 0 {
+            return Some(sparse.sell_price);
+        }
+
+        let (cost, standard_price) =
+            self.item_buy_price_with_catalogs_like_cpp(catalogs, item_id, quality, item_level)?;
+        if standard_price {
+            let price_modifier = catalogs
+                .item_classes
+                .get_by_old_enum(u32::from(basic.class_id))?
+                .price_modifier;
+            let buy_count = sparse.vendor_stack_count.max(1);
+            Some((cost as f32 * price_modifier / buy_count as f32) as u32)
+        } else {
+            Some(sparse.sell_price)
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn item_valuation_catalogs_for_test_like_cpp(&self) -> ItemValuationCatalogsLikeCpp {
+        let mut catalogs = ItemValuationCatalogsLikeCpp::default();
+        if let Some(store) = &self.import_price_stores {
+            catalogs.import_prices = Arc::clone(store);
+        }
+        if let Some(store) = &self.item_price_base_store {
+            catalogs.price_base = Arc::clone(store);
+        }
+        if let Some(store) = &self.item_class_store {
+            catalogs.item_classes = Arc::clone(store);
+        }
+        if let Some(store) = &self.item_currency_cost_store {
+            catalogs.currency_costs = Arc::clone(store);
+        }
+        if let Some(store) = &self.item_disenchant_loot_store {
+            catalogs.disenchant_loot = Arc::clone(store);
+        }
+        catalogs
+    }
+
     fn represented_item_level_bonus_like_cpp(&self, runtime_item: Option<&Item>) -> i64 {
         let Some(item) = runtime_item else {
             return 0;
         };
-        let Some(store) = self.catalogs.items.bonus_db2_store.as_ref() else {
+        let Some(store) = self.items.bonus_db2_store.as_ref() else {
             return 0;
         };
 
@@ -606,11 +649,15 @@ impl WorldSession {
             .map(|bonus| i64::from(bonus.value[0]))
             .sum()
     }
+
     fn represented_pvp_item_level_bonus_like_cpp(&self, entry_id: u32) -> u8 {
-        self.catalogs
-            .pvp_item_store
+        self.pvp_item_store
             .as_ref()
             .map(|store| store.item_level_bonus_like_cpp(entry_id))
             .unwrap_or(0)
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/player_items/valuation/f3_shims.rs"]
+mod f3_shims;

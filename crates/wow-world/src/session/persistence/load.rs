@@ -7,16 +7,8 @@ use super::*;
 
 impl WorldSession {
     pub(crate) fn mark_represented_void_storage_loaded_like_cpp(&mut self) {
-        if self
-            .with_owned_player_mut_like_cpp(|player| player.mark_void_storage_loaded_like_cpp())
-            .is_some()
-        {
-            return;
-        }
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            self.inventory.represented_void_storage_loaded_like_cpp = true;
-        }
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.mark_represented_void_storage_loaded_like_cpp(&mut hub)
     }
     /// Match C++ `Player::LoadFromDB`: locked characters do not consume the
     /// prepared void-storage result, but still own a coherent empty vault that
@@ -633,6 +625,25 @@ impl WorldSession {
             self.quest_state
                 .quest_test_fixture_like_cpp
                 .represented_chosen_title_like_cpp = chosen_title;
+        }
+    }
+}
+
+impl crate::session::state::InventoryState {
+    pub(crate) fn mark_represented_void_storage_loaded_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+    ) {
+        if hub
+            .core
+            .with_owned_player_mut_like_cpp(|player| player.mark_void_storage_loaded_like_cpp())
+            .is_some()
+        {
+            return;
+        }
+        #[cfg(test)]
+        if hub.core.player_handle_like_cpp.is_none() {
+            self.represented_void_storage_loaded_like_cpp = true;
         }
     }
 }

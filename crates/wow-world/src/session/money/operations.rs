@@ -13,11 +13,6 @@ impl WorldSession {
     pub fn currency_types_store(&self) -> Option<&Arc<CurrencyTypesStore>> {
         self.catalogs.currency_types_store()
     }
-    /// Set the item currency cost store for this session.
-    #[cfg(test)]
-    pub fn set_item_currency_cost_store(&mut self, store: Arc<ItemCurrencyCostStore>) {
-        self.catalogs.item_currency_cost_store = Some(store);
-    }
     /// C++ `Player::GetCurrencyQuantity`.
     pub(crate) fn player_currency_quantity(&self, currency_id: u32) -> Option<u32> {
         self.player_currencies_like_cpp().map(|currencies| {
@@ -539,8 +534,20 @@ impl WorldSession {
 }
 
 impl crate::session::state::SessionCatalogs {
+    /// Set the item currency cost store for this session.
+    #[cfg(test)]
+    pub fn set_item_currency_cost_store(&mut self, store: Arc<ItemCurrencyCostStore>) {
+        self.item_currency_cost_store = Some(store);
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
     /// Get the currency types store reference.
     pub fn currency_types_store(&self) -> Option<&Arc<CurrencyTypesStore>> {
         self.currency_types_store.as_ref()
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/money/operations/f3_shims.rs"]
+mod f3_shims;

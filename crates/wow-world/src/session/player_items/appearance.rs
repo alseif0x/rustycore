@@ -21,32 +21,17 @@ impl WorldSession {
         appearances: [i32; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
         enchants: [i32; 2],
     ) -> bool {
-        if set_id >= MAX_EQUIPMENT_SET_INDEX_LIKE_CPP {
-            return false;
-        }
-
-        let equipment_set = RepresentedEquipmentSetLikeCpp {
-            raw_set_type: RepresentedEquipmentSetTypeLikeCpp::Transmog.as_i32_like_cpp(),
-            set_type: RepresentedEquipmentSetTypeLikeCpp::Transmog,
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.load_represented_transmog_outfit_row_like_cpp(
+            &mut hub,
             guid,
             set_id,
-            ignore_mask,
-            pieces: [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
-            appearances,
-            enchants,
-            secondary_shoulder_appearance_id: 0,
-            secondary_shoulder_slot: 0,
-            secondary_weapon_appearance_id: 0,
-            secondary_weapon_slot: 0,
-            assigned_spec_index: -1,
             set_name,
             set_icon,
-            state: RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
-        };
-        self.with_owned_equipment_sets_mut_like_cpp(|sets| {
-            sets.install_loaded_set_like_cpp(equipment_set.clone());
-        })
-        .is_some()
+            ignore_mask,
+            appearances,
+            enchants,
+        )
     }
     /// Set the item appearance store for this session.
     pub fn set_item_appearance_store(&mut self, store: Arc<ItemAppearanceStore>) {
@@ -60,9 +45,8 @@ impl WorldSession {
     pub fn set_item_modified_appearance_store(&mut self, store: Arc<ItemModifiedAppearanceStore>) {
         self.catalogs.items.modified_appearance_store = Some(store);
     }
-    /// Get the item modified appearance store reference.
     pub fn item_modified_appearance_store(&self) -> Option<&Arc<ItemModifiedAppearanceStore>> {
-        self.catalogs.items.modified_appearance_store.as_ref()
+        self.catalogs.item_modified_appearance_store()
     }
     /// Set the transmog set item store for this session.
     pub fn set_transmog_set_item_store(&mut self, store: Arc<TransmogSetItemStore>) {
@@ -72,79 +56,12 @@ impl WorldSession {
     pub fn transmog_set_item_store(&self) -> Option<&Arc<TransmogSetItemStore>> {
         self.catalogs.transmog_set_item_store.as_ref()
     }
-    /// C++ `DB2Manager::GetTransmogSetItems`.
-    pub fn transmog_set_items_like_cpp(
-        &self,
-        transmog_set_id: u32,
-    ) -> Option<&[wow_data::TransmogSetItemEntry]> {
-        self.catalogs
-            .transmog_set_item_store
-            .as_ref()
-            .and_then(|store| store.get_transmog_set_items_like_cpp(transmog_set_id))
-    }
-    /// C++ `DB2Manager::GetTransmogSetsForItemModifiedAppearance`.
-    pub fn transmog_sets_for_item_modified_appearance_like_cpp(
-        &self,
-        item_modified_appearance_id: u32,
-    ) -> Option<&[TransmogSetEntry]> {
-        self.catalogs
-            .transmog_set_item_store
-            .as_ref()
-            .and_then(|store| {
-                store.get_transmog_sets_for_item_modified_appearance_like_cpp(
-                    item_modified_appearance_id,
-                )
-            })
-    }
-    /// C++ `CollectionMgr::AddTransmogSet` expansion before `AddItemAppearance`.
-    pub fn transmog_set_item_modified_appearances_like_cpp(
-        &self,
-        transmog_set_id: u32,
-    ) -> Vec<&wow_data::ItemModifiedAppearanceEntry> {
-        let Some(items) = self.transmog_set_items_like_cpp(transmog_set_id) else {
-            return Vec::new();
-        };
-        let Some(item_modified_appearance_store) =
-            self.catalogs.items.modified_appearance_store.as_ref()
-        else {
-            return Vec::new();
-        };
-
-        items
-            .iter()
-            .filter_map(|item| item_modified_appearance_store.get(item.item_modified_appearance_id))
-            .collect()
-    }
-    /// Bounded C++ `CollectionMgr::AddItemAppearance`.
     pub fn add_item_appearance_like_cpp(
         &mut self,
         item_modified_appearance_id: u32,
     ) -> Option<wow_entities::PlayerValuesUpdate> {
-        let block_index = usize::try_from(item_modified_appearance_id / 32).ok()?;
-        let bit_index = item_modified_appearance_id % 32;
-        let flag = 1_u32.checked_shl(bit_index)?;
-        let had_temporary = self
-            .player_collection_state_snapshot_like_cpp()?
-            .has_temporary_item_appearance_like_cpp(item_modified_appearance_id);
-
-        let result = self.mutate_canonical_player_like_cpp(|player| {
-            while player.transmog_blocks_like_cpp().len() <= block_index {
-                player.add_transmog_block_like_cpp(0);
-            }
-
-            let added_flag = player.add_transmog_flag_like_cpp(block_index, flag);
-            if had_temporary {
-                player.remove_conditional_transmog_like_cpp(item_modified_appearance_id);
-            }
-
-            added_flag.then(|| player.values_update(true))
-        })??;
-
-        self.mutate_player_collection_state_like_cpp(|collections| {
-            collections.add_item_appearance_like_cpp(item_modified_appearance_id);
-        })?;
-        self.update_represented_transmog_criteria_like_cpp(item_modified_appearance_id);
-        Some(result)
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.add_item_appearance_like_cpp(&mut hub, item_modified_appearance_id)
     }
     /// Bounded C++ `CollectionMgr::AddItemAppearance(uint32, uint32)`.
     ///
@@ -503,19 +420,293 @@ impl WorldSession {
 
         last_update
     }
+    pub fn has_item_appearance_like_cpp(&self, item_modified_appearance_id: u32) -> (bool, bool) {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.has_item_appearance_like_cpp(hub, item_modified_appearance_id)
+    }
+    pub(crate) fn account_transmog_active_player_rows_like_cpp(&self) -> Vec<u32> {
+        crate::session::hub_ref(self).account_transmog_active_player_rows_like_cpp()
+    }
+    pub(crate) fn load_represented_account_item_appearances_like_cpp(
+        &mut self,
+        known_appearance_blocks: impl IntoIterator<Item = (u32, u32)>,
+        favorite_appearances: impl IntoIterator<Item = u32>,
+    ) {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.load_represented_account_item_appearances_like_cpp(
+            &mut hub,
+            known_appearance_blocks,
+            favorite_appearances,
+        )
+    }
+    pub(crate) fn account_item_appearance_save_plan_like_cpp(
+        &mut self,
+    ) -> Option<AccountItemAppearanceSavePlanLikeCpp> {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.account_item_appearance_save_plan_like_cpp(&mut hub)
+    }
+    pub fn set_appearance_is_favorite_like_cpp(
+        &mut self,
+        item_modified_appearance_id: u32,
+        apply: bool,
+    ) -> bool {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.set_appearance_is_favorite_like_cpp(&mut hub, item_modified_appearance_id, apply)
+    }
+    pub fn send_favorite_appearances_like_cpp(&self) {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.send_favorite_appearances_like_cpp(hub)
+    }
+    pub(crate) fn load_represented_account_transmog_illusions_like_cpp(
+        &mut self,
+        known_illusion_blocks: impl IntoIterator<Item = (u32, u32)>,
+    ) {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.load_represented_account_transmog_illusions_like_cpp(&mut hub, known_illusion_blocks)
+    }
+    pub(crate) fn account_transmog_illusion_save_plan_like_cpp(
+        &self,
+    ) -> Option<AccountTransmogIllusionSavePlanLikeCpp> {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.account_transmog_illusion_save_plan_like_cpp(hub)
+    }
+    pub fn add_temporary_item_appearance_like_cpp(
+        &mut self,
+        item_modified_appearance_id: u32,
+        item_guid: ObjectGuid,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.add_temporary_item_appearance_like_cpp(
+            &mut hub,
+            item_modified_appearance_id,
+            item_guid,
+        )
+    }
+    pub fn remove_temporary_item_appearance_like_cpp(
+        &mut self,
+        item_modified_appearance_id: u32,
+        item_guid: ObjectGuid,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.remove_temporary_item_appearance_like_cpp(
+            &mut hub,
+            item_modified_appearance_id,
+            item_guid,
+        )
+    }
+    pub fn items_providing_temporary_appearance_like_cpp(
+        &self,
+        item_modified_appearance_id: u32,
+    ) -> HashSet<ObjectGuid> {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.items_providing_temporary_appearance_like_cpp(hub, item_modified_appearance_id)
+    }
+    pub fn add_transmog_set_like_cpp(
+        &mut self,
+        transmog_set_id: u32,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.add_transmog_set_like_cpp(&mut hub, transmog_set_id)
+    }
+    pub fn item_modified_appearance_ref(&self, id: u32) -> Option<(u32, u16)> {
+        self.catalogs.item_modified_appearance_ref(id)
+    }
+    pub fn item_modified_appearance_for_item(
+        &self,
+        item_id: u32,
+        appearance_mod_id: u32,
+    ) -> Option<u32> {
+        self.catalogs
+            .item_modified_appearance_for_item(item_id, appearance_mod_id)
+    }
+    #[cfg_attr(not(test), allow(unused_variables))]
+    pub(crate) fn record_represented_alter_appearance_like_cpp(
+        &mut self,
+        request: RepresentedAlterAppearanceLikeCpp,
+    ) {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.record_represented_alter_appearance_like_cpp(&mut hub, request)
+    }
+    #[cfg(test)]
+    pub(crate) fn represented_alter_appearance_requests_like_cpp(
+        &self,
+    ) -> &[RepresentedAlterAppearanceLikeCpp] {
+        &self
+            .fixtures
+            .presentation
+            .represented_alter_appearance_requests_like_cpp
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    /// Get the item modified appearance store reference.
+    pub fn item_modified_appearance_store(&self) -> Option<&Arc<ItemModifiedAppearanceStore>> {
+        self.items.modified_appearance_store.as_ref()
+    }
+
+    /// C++ `DB2Manager::GetTransmogSetItems`.
+    pub fn transmog_set_items_like_cpp(
+        &self,
+        transmog_set_id: u32,
+    ) -> Option<&[wow_data::TransmogSetItemEntry]> {
+        self.transmog_set_item_store
+            .as_ref()
+            .and_then(|store| store.get_transmog_set_items_like_cpp(transmog_set_id))
+    }
+
+    /// C++ `DB2Manager::GetTransmogSetsForItemModifiedAppearance`.
+    pub fn transmog_sets_for_item_modified_appearance_like_cpp(
+        &self,
+        item_modified_appearance_id: u32,
+    ) -> Option<&[TransmogSetEntry]> {
+        self.transmog_set_item_store.as_ref().and_then(|store| {
+            store.get_transmog_sets_for_item_modified_appearance_like_cpp(
+                item_modified_appearance_id,
+            )
+        })
+    }
+
+    /// C++ `CollectionMgr::AddTransmogSet` expansion before `AddItemAppearance`.
+    pub fn transmog_set_item_modified_appearances_like_cpp(
+        &self,
+        transmog_set_id: u32,
+    ) -> Vec<&wow_data::ItemModifiedAppearanceEntry> {
+        let Some(items) = self.transmog_set_items_like_cpp(transmog_set_id) else {
+            return Vec::new();
+        };
+        let Some(item_modified_appearance_store) = self.items.modified_appearance_store.as_ref()
+        else {
+            return Vec::new();
+        };
+
+        items
+            .iter()
+            .filter_map(|item| item_modified_appearance_store.get(item.item_modified_appearance_id))
+            .collect()
+    }
+
+    /// Build the closure result expected by `Item::visible_entry` and
+    /// `Item::visible_appearance_mod_id` from `ItemModifiedAppearance.db2`.
+    pub fn item_modified_appearance_ref(&self, id: u32) -> Option<(u32, u16)> {
+        self.items
+            .modified_appearance_store
+            .as_ref()
+            .and_then(|store| store.get(id))
+            .and_then(|entry| {
+                Some((
+                    u32::try_from(entry.item_id).ok()?,
+                    u16::try_from(entry.item_appearance_modifier_id).ok()?,
+                ))
+            })
+    }
+
+    /// C++ `DB2Manager::GetItemModifiedAppearance`.
+    pub fn item_modified_appearance_for_item(
+        &self,
+        item_id: u32,
+        appearance_mod_id: u32,
+    ) -> Option<u32> {
+        self.items
+            .modified_appearance_store
+            .as_ref()
+            .and_then(|store| store.get_for_item(item_id, appearance_mod_id))
+            .map(|entry| entry.id)
+    }
+}
+
+impl crate::session::state::InventoryState {
+    pub(crate) fn load_represented_transmog_outfit_row_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        guid: u64,
+        set_id: u32,
+        set_name: String,
+        set_icon: String,
+        ignore_mask: u32,
+        appearances: [i32; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+        enchants: [i32; 2],
+    ) -> bool {
+        if set_id >= MAX_EQUIPMENT_SET_INDEX_LIKE_CPP {
+            return false;
+        }
+
+        let equipment_set = RepresentedEquipmentSetLikeCpp {
+            raw_set_type: RepresentedEquipmentSetTypeLikeCpp::Transmog.as_i32_like_cpp(),
+            set_type: RepresentedEquipmentSetTypeLikeCpp::Transmog,
+            guid,
+            set_id,
+            ignore_mask,
+            pieces: [ObjectGuid::EMPTY; wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP],
+            appearances,
+            enchants,
+            secondary_shoulder_appearance_id: 0,
+            secondary_shoulder_slot: 0,
+            secondary_weapon_appearance_id: 0,
+            secondary_weapon_slot: 0,
+            assigned_spec_index: -1,
+            set_name,
+            set_icon,
+            state: RepresentedEquipmentSetUpdateStateLikeCpp::Unchanged,
+        };
+        self.with_owned_equipment_sets_mut_like_cpp(hub, |sets| {
+            sets.install_loaded_set_like_cpp(equipment_set.clone());
+        })
+        .is_some()
+    }
+
+    /// Bounded C++ `CollectionMgr::AddItemAppearance`.
+    pub fn add_item_appearance_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        item_modified_appearance_id: u32,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        let block_index = usize::try_from(item_modified_appearance_id / 32).ok()?;
+        let bit_index = item_modified_appearance_id % 32;
+        let flag = 1_u32.checked_shl(bit_index)?;
+        let had_temporary = hub
+            .shared()
+            .player_collection_state_snapshot_like_cpp()?
+            .has_temporary_item_appearance_like_cpp(item_modified_appearance_id);
+
+        let result = hub.core.mutate_canonical_player_like_cpp(|player| {
+            while player.transmog_blocks_like_cpp().len() <= block_index {
+                player.add_transmog_block_like_cpp(0);
+            }
+
+            let added_flag = player.add_transmog_flag_like_cpp(block_index, flag);
+            if had_temporary {
+                player.remove_conditional_transmog_like_cpp(item_modified_appearance_id);
+            }
+
+            added_flag.then(|| player.values_update(true))
+        })??;
+
+        hub.mutate_player_collection_state_like_cpp(|collections| {
+            collections.add_item_appearance_like_cpp(item_modified_appearance_id);
+        })?;
+        self.update_represented_transmog_criteria_like_cpp(hub, item_modified_appearance_id);
+        Some(result)
+    }
+
     #[cfg(test)]
     pub(crate) fn represented_has_item_appearance_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         item_modified_appearance_id: u32,
     ) -> bool {
-        self.fixtures
+        hub.fixtures
             .collections
             .represented_item_appearances_like_cpp
             .contains(&item_modified_appearance_id)
     }
+
     /// C++ `CollectionMgr::HasItemAppearance`.
-    pub fn has_item_appearance_like_cpp(&self, item_modified_appearance_id: u32) -> (bool, bool) {
-        let Some(collections) = self.player_collection_state_snapshot_like_cpp() else {
+    pub fn has_item_appearance_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_modified_appearance_id: u32,
+    ) -> (bool, bool) {
+        let Some(collections) = hub.player_collection_state_snapshot_like_cpp() else {
             return (false, false);
         };
         if collections
@@ -531,12 +722,11 @@ impl WorldSession {
 
         (false, false)
     }
-    pub(crate) fn account_transmog_active_player_rows_like_cpp(&self) -> Vec<u32> {
-        crate::session::hub_ref(self).account_transmog_active_player_rows_like_cpp()
-    }
+
     /// C++ `CollectionMgr::LoadAccountItemAppearances`.
     pub(crate) fn load_represented_account_item_appearances_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         known_appearance_blocks: impl IntoIterator<Item = (u32, u32)>,
         favorite_appearances: impl IntoIterator<Item = u32>,
     ) {
@@ -563,7 +753,7 @@ impl WorldSession {
                 item_appearance_blocks[block_index as usize] = appearance_mask;
             }
 
-            self.mutate_canonical_player_like_cpp(|player| {
+            hub.core.mutate_canonical_player_like_cpp(|player| {
                 while player.transmog_blocks_like_cpp().len() <= highest_block as usize {
                     player.add_transmog_block_like_cpp(0);
                 }
@@ -580,7 +770,7 @@ impl WorldSession {
             .into_iter()
             .map(|appearance| (appearance, FavoriteAppearanceStateLikeCpp::Unchanged))
             .collect();
-        let _ = self.mutate_player_collection_state_like_cpp(|collections| {
+        let _ = hub.mutate_player_collection_state_like_cpp(|collections| {
             collections.install_appearance_collection_like_cpp(
                 item_appearances,
                 item_appearance_blocks,
@@ -588,11 +778,13 @@ impl WorldSession {
             );
         });
     }
+
     /// C++ `CollectionMgr::SaveAccountItemAppearances`.
     pub(crate) fn account_item_appearance_save_plan_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
     ) -> Option<AccountItemAppearanceSavePlanLikeCpp> {
-        let mut collections = self.player_collection_state_snapshot_like_cpp()?;
+        let mut collections = hub.shared().player_collection_state_snapshot_like_cpp()?;
         let mut blocks = BTreeMap::<u32, u32>::new();
         for &item_modified_appearance_id in collections.item_appearances_like_cpp() {
             let block_index = item_modified_appearance_id / 32;
@@ -613,19 +805,21 @@ impl WorldSession {
             favorite_inserts,
             favorite_deletes,
         };
-        let _ = self.replace_player_collection_state_like_cpp(collections);
+        let _ = hub.replace_player_collection_state_like_cpp(collections);
         Some(plan)
     }
+
     /// C++ `CollectionMgr::SetAppearanceIsFavorite`.
     pub fn set_appearance_is_favorite_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         item_modified_appearance_id: u32,
         apply: bool,
     ) -> bool {
         use FavoriteAppearanceStateLikeCpp::{New, Removed, Unchanged};
         use std::collections::hash_map::Entry;
 
-        let changed = self
+        let changed = hub
             .mutate_player_collection_state_like_cpp(|collections| {
                 if apply {
                     match collections
@@ -667,7 +861,7 @@ impl WorldSession {
                 return changed;
             }
 
-            self.send_packet(
+            hub.core.send_packet(
                 &wow_packet::packets::collection::AccountTransmogUpdate::favorite_delta(
                     item_modified_appearance_id,
                     apply,
@@ -677,8 +871,9 @@ impl WorldSession {
 
         changed
     }
+
     /// C++ `CollectionMgr::SendFavoriteAppearances`.
-    pub fn send_favorite_appearances_like_cpp(&self) {
+    pub fn send_favorite_appearances_like_cpp(&self, hub: crate::session::HubRef<'_>) {
         if !account_transmog_update_opcode_resolved_like_cpp() {
             warn!(
                 "Skipping AccountTransmogUpdate full update: legacy C++ opcode is unresolved 0xBADD for 54261"
@@ -686,7 +881,7 @@ impl WorldSession {
             return;
         }
 
-        let Some(collections) = self.player_collection_state_snapshot_like_cpp() else {
+        let Some(collections) = hub.player_collection_state_snapshot_like_cpp() else {
             return;
         };
         let favorite_appearances = collections
@@ -697,16 +892,19 @@ impl WorldSession {
             })
             .collect::<Vec<_>>();
 
-        self.send_packet(&wow_packet::packets::collection::AccountTransmogUpdate {
-            is_full_update: true,
-            is_set_favorite: false,
-            favorite_appearances,
-            new_appearances: Vec::new(),
-        });
+        hub.core
+            .send_packet(&wow_packet::packets::collection::AccountTransmogUpdate {
+                is_full_update: true,
+                is_set_favorite: false,
+                favorite_appearances,
+                new_appearances: Vec::new(),
+            });
     }
+
     /// C++ `CollectionMgr::LoadAccountTransmogIllusions`.
     pub(crate) fn load_represented_account_transmog_illusions_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         known_illusion_blocks: impl IntoIterator<Item = (u32, u32)>,
     ) {
         let mut illusions = HashSet::new();
@@ -721,26 +919,33 @@ impl WorldSession {
         for illusion_id in DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP {
             illusions.insert(illusion_id);
         }
-        let _ = self.mutate_player_collection_state_like_cpp(|collections| {
+        let _ = hub.mutate_player_collection_state_like_cpp(|collections| {
             collections.replace_transmog_illusions_like_cpp(illusions);
         });
     }
+
     /// C++ `CollectionMgr::HasTransmogIllusion`.
     #[allow(dead_code)]
-    pub(crate) fn has_transmog_illusion_like_cpp(&self, transmog_illusion_id: u32) -> bool {
-        self.player_collection_state_snapshot_like_cpp()
+    pub(crate) fn has_transmog_illusion_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        transmog_illusion_id: u32,
+    ) -> bool {
+        hub.player_collection_state_snapshot_like_cpp()
             .is_some_and(|collections| {
                 collections
                     .transmog_illusions_like_cpp()
                     .contains(&transmog_illusion_id)
             })
     }
+
     /// C++ `CollectionMgr::SaveAccountTransmogIllusions`.
     pub(crate) fn account_transmog_illusion_save_plan_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
     ) -> Option<AccountTransmogIllusionSavePlanLikeCpp> {
         let mut blocks = BTreeMap::<u32, u32>::new();
-        let collections = self.player_collection_state_snapshot_like_cpp()?;
+        let collections = hub.player_collection_state_snapshot_like_cpp()?;
         for &illusion_id in collections.transmog_illusions_like_cpp() {
             let block_index = illusion_id / 32;
             let bit_index = illusion_id % 32;
@@ -756,57 +961,65 @@ impl WorldSession {
                 .collect(),
         })
     }
+
     #[cfg(test)]
     pub(crate) fn represented_favorite_item_appearance_state_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         item_modified_appearance_id: u32,
     ) -> Option<FavoriteAppearanceStateLikeCpp> {
-        self.fixtures
+        hub.fixtures
             .collections
             .represented_favorite_item_appearances_like_cpp
             .get(&item_modified_appearance_id)
             .copied()
     }
+
     /// C++ `CollectionMgr::AddTemporaryAppearance`.
     pub fn add_temporary_item_appearance_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         item_modified_appearance_id: u32,
         item_guid: ObjectGuid,
     ) -> Option<wow_entities::PlayerValuesUpdate> {
-        let was_empty = self.mutate_player_collection_state_like_cpp(|collections| {
+        let was_empty = hub.mutate_player_collection_state_like_cpp(|collections| {
             collections
                 .add_temporary_item_appearance_like_cpp(item_modified_appearance_id, item_guid)
         })?;
 
         was_empty.then_some(())?;
-        self.mutate_canonical_player_like_cpp(|player| {
+        hub.core.mutate_canonical_player_like_cpp(|player| {
             player.add_conditional_transmog_like_cpp(item_modified_appearance_id);
             player.values_update(true)
         })
     }
+
     /// C++ `CollectionMgr::RemoveTemporaryAppearance`.
     pub fn remove_temporary_item_appearance_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         item_modified_appearance_id: u32,
         item_guid: ObjectGuid,
     ) -> Option<wow_entities::PlayerValuesUpdate> {
-        let removed_last = self.mutate_player_collection_state_like_cpp(|collections| {
+        let removed_last = hub.mutate_player_collection_state_like_cpp(|collections| {
             collections
                 .remove_temporary_item_appearance_like_cpp(item_modified_appearance_id, item_guid)
                 .then_some(())
         })??;
         let _ = removed_last;
-        self.mutate_canonical_player_like_cpp(|player| {
+        hub.core.mutate_canonical_player_like_cpp(|player| {
             player.remove_conditional_transmog_like_cpp(item_modified_appearance_id);
             player.values_update(true)
         })
     }
+
     /// C++ `CollectionMgr::GetItemsProvidingTemporaryAppearance`.
     pub fn items_providing_temporary_appearance_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         item_modified_appearance_id: u32,
     ) -> HashSet<ObjectGuid> {
-        self.player_collection_state_snapshot_like_cpp()
+        hub.player_collection_state_snapshot_like_cpp()
             .and_then(|collections| {
                 collections
                     .temporary_item_appearances_like_cpp()
@@ -815,9 +1028,14 @@ impl WorldSession {
             })
             .unwrap_or_default()
     }
+
     /// C++ `CollectionMgr::AddItemAppearance` criteria side effects.
-    fn update_represented_transmog_criteria_like_cpp(&mut self, item_modified_appearance_id: u32) {
-        let item_id = self
+    fn update_represented_transmog_criteria_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        item_modified_appearance_id: u32,
+    ) {
+        let item_id = hub
             .catalogs
             .items
             .modified_appearance_store
@@ -827,7 +1045,7 @@ impl WorldSession {
 
         if let Some(_transmog_slot) = item_id
             .and_then(|item_id| {
-                self.catalogs
+                hub.catalogs
                     .items
                     .store
                     .as_ref()
@@ -836,7 +1054,7 @@ impl WorldSession {
             .and_then(wow_entities::item_transmogrification_slot_like_cpp)
         {
             #[cfg(test)]
-            self.inventory.represented_transmog_criteria_events.push(
+            self.represented_transmog_criteria_events.push(
                 RepresentedTransmogCriteriaEvent::LearnAnyTransmogInSlot {
                     equipment_slot: _transmog_slot as u32,
                     item_modified_appearance_id,
@@ -844,7 +1062,8 @@ impl WorldSession {
             );
         }
 
-        let transmog_sets = self
+        let transmog_sets = hub
+            .catalogs
             .transmog_sets_for_item_modified_appearance_like_cpp(item_modified_appearance_id)
             .map(|sets| {
                 sets.iter()
@@ -854,9 +1073,9 @@ impl WorldSession {
             .unwrap_or_default();
 
         for (transmog_set_id, _transmog_set_group_id) in transmog_sets {
-            if self.is_transmog_set_completed_like_cpp(transmog_set_id) {
+            if self.is_transmog_set_completed_like_cpp(hub.shared(), transmog_set_id) {
                 #[cfg(test)]
-                self.inventory.represented_transmog_criteria_events.push(
+                self.represented_transmog_criteria_events.push(
                     RepresentedTransmogCriteriaEvent::CollectTransmogSetFromGroup {
                         transmog_set_group_id: _transmog_set_group_id,
                     },
@@ -864,15 +1083,21 @@ impl WorldSession {
             }
         }
     }
+
     /// C++ `CollectionMgr::IsSetCompleted`.
-    pub fn is_transmog_set_completed_like_cpp(&self, transmog_set_id: u32) -> bool {
-        let Some(transmog_set_items) = self.transmog_set_items_like_cpp(transmog_set_id) else {
+    pub fn is_transmog_set_completed_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        transmog_set_id: u32,
+    ) -> bool {
+        let Some(transmog_set_items) = hub.catalogs.transmog_set_items_like_cpp(transmog_set_id)
+        else {
             return false;
         };
 
         let mut known_pieces = [-1_i8; EQUIPMENT_SLOT_END as usize];
         for transmog_set_item in transmog_set_items {
-            let Some(item_modified_appearance) = self
+            let Some(item_modified_appearance) = hub
                 .catalogs
                 .items
                 .modified_appearance_store
@@ -884,7 +1109,7 @@ impl WorldSession {
             let Some(item_id) = u32::try_from(item_modified_appearance.item_id).ok() else {
                 continue;
             };
-            let Some(inventory_type) = self
+            let Some(inventory_type) = hub
                 .catalogs
                 .items
                 .store
@@ -902,8 +1127,8 @@ impl WorldSession {
                 continue;
             }
 
-            let (has_appearance, is_temporary) =
-                self.has_item_appearance_like_cpp(transmog_set_item.item_modified_appearance_id);
+            let (has_appearance, is_temporary) = self
+                .has_item_appearance_like_cpp(hub, transmog_set_item.item_modified_appearance_id);
             known_pieces[transmog_slot] = if has_appearance && !is_temporary {
                 1
             } else {
@@ -913,12 +1138,15 @@ impl WorldSession {
 
         !known_pieces.contains(&0)
     }
+
     /// Bounded C++ `CollectionMgr::AddTransmogSet`.
     pub fn add_transmog_set_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         transmog_set_id: u32,
     ) -> Option<wow_entities::PlayerValuesUpdate> {
-        let appearance_ids = self
+        let appearance_ids = hub
+            .catalogs
             .transmog_set_item_modified_appearances_like_cpp(transmog_set_id)
             .into_iter()
             .map(|appearance| appearance.id)
@@ -926,62 +1154,27 @@ impl WorldSession {
 
         let mut last_update = None;
         for appearance_id in appearance_ids {
-            if let Some(update) = self.add_item_appearance_like_cpp(appearance_id) {
+            if let Some(update) = self.add_item_appearance_like_cpp(hub, appearance_id) {
                 last_update = Some(update);
             }
         }
 
         last_update
     }
-    /// Build the closure result expected by `Item::visible_entry` and
-    /// `Item::visible_appearance_mod_id` from `ItemModifiedAppearance.db2`.
-    pub fn item_modified_appearance_ref(&self, id: u32) -> Option<(u32, u16)> {
-        self.catalogs
-            .items
-            .modified_appearance_store
-            .as_ref()
-            .and_then(|store| store.get(id))
-            .and_then(|entry| {
-                Some((
-                    u32::try_from(entry.item_id).ok()?,
-                    u16::try_from(entry.item_appearance_modifier_id).ok()?,
-                ))
-            })
-    }
-    /// C++ `DB2Manager::GetItemModifiedAppearance`.
-    pub fn item_modified_appearance_for_item(
-        &self,
-        item_id: u32,
-        appearance_mod_id: u32,
-    ) -> Option<u32> {
-        self.catalogs
-            .items
-            .modified_appearance_store
-            .as_ref()
-            .and_then(|store| store.get_for_item(item_id, appearance_mod_id))
-            .map(|entry| entry.id)
-    }
+
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_alter_appearance_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         request: RepresentedAlterAppearanceLikeCpp,
     ) {
         #[cfg(test)]
         {
-            self.fixtures
+            hub.fixtures
                 .presentation
                 .represented_alter_appearance_requests_like_cpp
                 .push(request);
         }
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_alter_appearance_requests_like_cpp(
-        &self,
-    ) -> &[RepresentedAlterAppearanceLikeCpp] {
-        &self
-            .fixtures
-            .presentation
-            .represented_alter_appearance_requests_like_cpp
     }
 }
 
@@ -1018,3 +1211,7 @@ impl crate::session::HubRef<'_> {
         blocks
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/player_items/appearance/f3_shims.rs"]
+mod f3_shims;

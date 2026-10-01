@@ -26,42 +26,17 @@ impl WorldSession {
         }
     }
 
-    /// Resolve the state installed by C++ `Item::SetItemRandomProperties`.
     pub(super) fn effective_void_storage_random_properties_like_cpp(
         &self,
         random_properties_id: i32,
         random_properties_seed: i32,
     ) -> EffectiveVoidStorageRandomPropertiesLikeCpp {
-        let mut result = EffectiveVoidStorageRandomPropertiesLikeCpp::default();
-        if random_properties_id > 0 {
-            let Some(entry) = self
-                .item_random_properties_store()
-                .and_then(|store| store.get(random_properties_id as u32))
-            else {
-                return result;
-            };
-            result.id = random_properties_id;
-            // C++ only installs PropertySeed for a suffix; positive random
-            // properties keep the newly created item's zero seed.
-            for (offset, enchantment_id) in entry.enchantments.iter().take(3).enumerate() {
-                result.enchantment_ids[EnchantmentSlot::Property2 as usize + offset] =
-                    i32::from(*enchantment_id);
-            }
-        } else if random_properties_id < 0 {
-            let Some(entry) = self
-                .item_random_suffix_store()
-                .and_then(|store| store.get(random_properties_id.unsigned_abs()))
-            else {
-                return result;
-            };
-            result.id = random_properties_id;
-            result.seed = random_properties_seed;
-            for (offset, enchantment_id) in entry.enchantments.iter().take(3).enumerate() {
-                result.enchantment_ids[EnchantmentSlot::Property0 as usize + offset] =
-                    i32::from(*enchantment_id);
-            }
-        }
-        result
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.effective_void_storage_random_properties_like_cpp(
+            hub,
+            random_properties_id,
+            random_properties_seed,
+        )
     }
 
     pub(super) fn void_storage_enchantments_db_string_like_cpp(
@@ -107,39 +82,8 @@ impl WorldSession {
         item: &wow_entities::Item,
         enchantments: &str,
     ) -> wow_persistence::VoidStorageMergedInventoryItemWriteLikeCpp {
-        let data = item.data();
-        let mut charges = String::new();
-        for charge in data
-            .spell_charges
-            .iter()
-            .take(self.item_effect_count_like_cpp(item.object().entry()))
-        {
-            charges.push_str(&charge.to_string());
-            charges.push(' ');
-        }
-
-        wow_persistence::VoidStorageMergedInventoryItemWriteLikeCpp {
-            item_db_guid: inventory_item.db_guid,
-            item_entry: item.object().entry(),
-            owner_guid: data.owner.counter() as u64,
-            creator_guid: data.creator.counter() as u64,
-            gift_creator_guid: data.gift_creator.counter() as u64,
-            count: item.count(),
-            expiration: data.expiration,
-            charges,
-            dynamic_flags: data.dynamic_flags,
-            enchantments: enchantments.to_owned(),
-            durability: data.durability,
-            create_played_time: data.create_played_time,
-            text: item.text().to_owned(),
-            battle_pet_species_id: item.get_modifier(ItemModifier::BattlePetSpeciesId),
-            battle_pet_breed_data: item.get_modifier(ItemModifier::BattlePetBreedData),
-            battle_pet_level: item.get_modifier(ItemModifier::BattlePetLevel),
-            battle_pet_display_id: item.get_modifier(ItemModifier::BattlePetDisplayId),
-            random_properties_id: data.random_properties_id,
-            property_seed: data.property_seed,
-            context: data.context,
-        }
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.void_storage_merged_item_write_like_cpp(hub, inventory_item, item, enchantments)
     }
 
     pub(super) fn apply_effective_void_storage_random_properties_like_cpp(
@@ -224,5 +168,89 @@ impl WorldSession {
         changed_quest_ids.sort_unstable();
         changed_quest_ids.dedup();
         Some((destroyed_guids, changed_quest_ids))
+    }
+}
+
+impl crate::session::InventoryState {
+    /// Resolve the state installed by C++ `Item::SetItemRandomProperties`.
+    pub(super) fn effective_void_storage_random_properties_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        random_properties_id: i32,
+        random_properties_seed: i32,
+    ) -> EffectiveVoidStorageRandomPropertiesLikeCpp {
+        let mut result = EffectiveVoidStorageRandomPropertiesLikeCpp::default();
+        if random_properties_id > 0 {
+            let Some(entry) = hub
+                .catalogs
+                .item_random_properties_store()
+                .and_then(|store| store.get(random_properties_id as u32))
+            else {
+                return result;
+            };
+            result.id = random_properties_id;
+            // C++ only installs PropertySeed for a suffix; positive random
+            // properties keep the newly created item's zero seed.
+            for (offset, enchantment_id) in entry.enchantments.iter().take(3).enumerate() {
+                result.enchantment_ids[EnchantmentSlot::Property2 as usize + offset] =
+                    i32::from(*enchantment_id);
+            }
+        } else if random_properties_id < 0 {
+            let Some(entry) = hub
+                .catalogs
+                .item_random_suffix_store()
+                .and_then(|store| store.get(random_properties_id.unsigned_abs()))
+            else {
+                return result;
+            };
+            result.id = random_properties_id;
+            result.seed = random_properties_seed;
+            for (offset, enchantment_id) in entry.enchantments.iter().take(3).enumerate() {
+                result.enchantment_ids[EnchantmentSlot::Property0 as usize + offset] =
+                    i32::from(*enchantment_id);
+            }
+        }
+        result
+    }
+
+    pub(super) fn void_storage_merged_item_write_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        inventory_item: &InventoryItem,
+        item: &wow_entities::Item,
+        enchantments: &str,
+    ) -> wow_persistence::VoidStorageMergedInventoryItemWriteLikeCpp {
+        let data = item.data();
+        let mut charges = String::new();
+        for charge in data.spell_charges.iter().take(
+            hub.catalogs
+                .item_effect_count_like_cpp(item.object().entry()),
+        ) {
+            charges.push_str(&charge.to_string());
+            charges.push(' ');
+        }
+
+        wow_persistence::VoidStorageMergedInventoryItemWriteLikeCpp {
+            item_db_guid: inventory_item.db_guid,
+            item_entry: item.object().entry(),
+            owner_guid: data.owner.counter() as u64,
+            creator_guid: data.creator.counter() as u64,
+            gift_creator_guid: data.gift_creator.counter() as u64,
+            count: item.count(),
+            expiration: data.expiration,
+            charges,
+            dynamic_flags: data.dynamic_flags,
+            enchantments: enchantments.to_owned(),
+            durability: data.durability,
+            create_played_time: data.create_played_time,
+            text: item.text().to_owned(),
+            battle_pet_species_id: item.get_modifier(ItemModifier::BattlePetSpeciesId),
+            battle_pet_breed_data: item.get_modifier(ItemModifier::BattlePetBreedData),
+            battle_pet_level: item.get_modifier(ItemModifier::BattlePetLevel),
+            battle_pet_display_id: item.get_modifier(ItemModifier::BattlePetDisplayId),
+            random_properties_id: data.random_properties_id,
+            property_seed: data.property_seed,
+            context: data.context,
+        }
     }
 }

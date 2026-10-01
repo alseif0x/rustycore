@@ -147,15 +147,8 @@ impl WorldSession {
         &self,
         item: &Item,
     ) -> (i32, u16, u16) {
-        (
-            item.object().entry() as i32,
-            0,
-            item.visible_item_visual(0, |enchantment_id| {
-                self.spell_item_enchantment_store()
-                    .and_then(|store| store.get(enchantment_id))
-                    .map(|entry| entry.item_visual)
-            }),
-        )
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.loaded_inventory_item_visible_fields_like_cpp(hub, item)
     }
     pub(in crate::session) fn loaded_inventory_item_visible_update_like_cpp(
         &self,
@@ -210,12 +203,48 @@ impl WorldSession {
 
         (item_updates, enchantment_updates)
     }
+    pub(crate) fn begin_player_equipment_inventory_authority_load_like_cpp(&mut self) {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.begin_player_equipment_inventory_authority_load_like_cpp(&mut hub)
+    }
+    pub(crate) fn complete_player_equipment_inventory_authority_load_like_cpp(&mut self) {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.complete_player_equipment_inventory_authority_load_like_cpp(&mut hub)
+    }
+    pub(crate) fn player_equipment_inventory_authority_complete_like_cpp(&self) -> bool {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.player_equipment_inventory_authority_complete_like_cpp(hub)
+    }
+}
+
+impl crate::session::state::InventoryState {
+    pub(crate) fn loaded_inventory_item_visible_fields_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item: &Item,
+    ) -> (i32, u16, u16) {
+        (
+            item.object().entry() as i32,
+            0,
+            item.visible_item_visual(0, |enchantment_id| {
+                hub.catalogs
+                    .spell_item_enchantment_store()
+                    .and_then(|store| store.get(enchantment_id))
+                    .map(|entry| entry.item_visual)
+            }),
+        )
+    }
+
     /// Begin hydrating the persisted equipment/inventory source for the active
     /// Player. The proof remains incomplete on every non-empty, early-return,
     /// or query-error path; this bounded slice authorizes only a proven-empty
     /// persisted result.
-    pub(crate) fn begin_player_equipment_inventory_authority_load_like_cpp(&mut self) {
-        let _canonical = self
+    pub(crate) fn begin_player_equipment_inventory_authority_load_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+    ) {
+        let _canonical = hub
+            .core
             .mutate_canonical_player_like_cpp(|player| {
                 player
                     .inventory_runtime_mut_like_cpp()
@@ -223,14 +252,19 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if !_canonical && self.core.player_handle_like_cpp.is_none() {
-            self.inventory
-                .player_equipment_inventory_authority_complete_like_cpp = false;
+        if !_canonical && hub.core.player_handle_like_cpp.is_none() {
+            self.player_equipment_inventory_authority_complete_like_cpp = false;
         }
-        self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        hub.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
     }
-    pub(crate) fn complete_player_equipment_inventory_authority_load_like_cpp(&mut self) {
-        let _canonical = self
+
+    pub(crate) fn complete_player_equipment_inventory_authority_load_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+    ) {
+        let _canonical = hub
+            .core
             .mutate_canonical_player_like_cpp(|player| {
                 player
                     .inventory_runtime_mut_like_cpp()
@@ -238,13 +272,17 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if !_canonical && self.core.player_handle_like_cpp.is_none() {
-            self.inventory
-                .player_equipment_inventory_authority_complete_like_cpp = true;
+        if !_canonical && hub.core.player_handle_like_cpp.is_none() {
+            self.player_equipment_inventory_authority_complete_like_cpp = true;
         }
     }
-    pub(crate) fn player_equipment_inventory_authority_complete_like_cpp(&self) -> bool {
-        let canonical = self
+
+    pub(crate) fn player_equipment_inventory_authority_complete_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> bool {
+        let canonical = hub
+            .core
             .with_owned_player_like_cpp(|player| {
                 player
                     .inventory_runtime_like_cpp()
@@ -252,10 +290,8 @@ impl WorldSession {
             })
             .unwrap_or(false);
         #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return self
-                .inventory
-                .player_equipment_inventory_authority_complete_like_cpp;
+        if hub.core.player_handle_like_cpp.is_none() {
+            return self.player_equipment_inventory_authority_complete_like_cpp;
         }
         canonical
     }

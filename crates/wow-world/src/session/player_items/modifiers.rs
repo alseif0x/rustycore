@@ -71,38 +71,19 @@ impl WorldSession {
         &self,
         item_id: u32,
     ) -> Option<&wow_data::ItemSetEntry> {
-        self.catalogs
-            .items
-            .set_store
-            .as_ref()
-            .and_then(|store| store.item_set_for_item_id_like_cpp(item_id))
+        self.catalogs.item_set_for_item_id_like_cpp(item_id)
     }
     pub(crate) fn item_set_spells_like_cpp(
         &self,
         item_set_id: u32,
     ) -> Vec<&wow_data::ItemSetSpellEntry> {
-        self.catalogs
-            .spell_catalogs
-            .item_set_spell_store
-            .as_ref()
-            .map(|store| store.item_set_spells_like_cpp(item_set_id))
-            .unwrap_or_default()
+        self.catalogs.item_set_spells_like_cpp(item_set_id)
     }
     pub(in crate::session) fn player_item_modifier_runtime_snapshot_like_cpp(
         &self,
     ) -> Option<wow_entities::PlayerItemModifierRuntimeStateLikeCpp> {
-        let canonical = self
-            .with_owned_player_like_cpp(|player| player.item_modifier_runtime_snapshot_like_cpp());
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.inventory
-                    .player_item_test_fixture_like_cpp
-                    .represented_item_modifier_runtime_like_cpp
-                    .clone(),
-            );
-        }
-        canonical
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.player_item_modifier_runtime_snapshot_like_cpp(hub)
     }
 
     pub(in crate::session) fn add_player_item_set_item_like_cpp(
@@ -110,22 +91,8 @@ impl WorldSession {
         item_set_id: u32,
         item_guid: ObjectGuid,
     ) -> Option<usize> {
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            player.add_item_set_item_like_cpp(item_set_id, item_guid)
-        });
-        if canonical.is_some() {
-            return canonical;
-        }
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.inventory
-                    .player_item_test_fixture_like_cpp
-                    .represented_item_modifier_runtime_like_cpp
-                    .add_item_set_item_like_cpp(item_set_id, item_guid),
-            );
-        }
-        None
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.add_player_item_set_item_like_cpp(&mut hub, item_set_id, item_guid)
     }
 
     pub(in crate::session) fn add_player_item_set_bonus_like_cpp(
@@ -133,90 +100,8 @@ impl WorldSession {
         item_set_id: u32,
         spell_entry_id: u32,
     ) -> Option<bool> {
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            player.add_item_set_bonus_like_cpp(item_set_id, spell_entry_id)
-        });
-        if canonical.is_some() {
-            return canonical;
-        }
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.inventory
-                    .player_item_test_fixture_like_cpp
-                    .represented_item_modifier_runtime_like_cpp
-                    .add_item_set_bonus_like_cpp(item_set_id, spell_entry_id),
-            );
-        }
-        None
-    }
-
-    pub(in crate::session) fn remove_player_item_set_item_like_cpp(
-        &mut self,
-        item_set_id: u32,
-        item_guid: ObjectGuid,
-    ) -> Option<Option<usize>> {
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            player.remove_item_set_item_like_cpp(item_set_id, item_guid)
-        });
-        if canonical.is_some() {
-            return canonical;
-        }
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.inventory
-                    .player_item_test_fixture_like_cpp
-                    .represented_item_modifier_runtime_like_cpp
-                    .remove_item_set_item_like_cpp(item_set_id, item_guid),
-            );
-        }
-        None
-    }
-
-    pub(in crate::session) fn remove_player_item_set_bonus_like_cpp(
-        &mut self,
-        item_set_id: u32,
-        spell_entry_id: u32,
-    ) -> Option<bool> {
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            player.remove_item_set_bonus_like_cpp(item_set_id, spell_entry_id)
-        });
-        if canonical.is_some() {
-            return canonical;
-        }
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.inventory
-                    .player_item_test_fixture_like_cpp
-                    .represented_item_modifier_runtime_like_cpp
-                    .remove_item_set_bonus_like_cpp(item_set_id, spell_entry_id),
-            );
-        }
-        None
-    }
-
-    pub(in crate::session) fn drop_player_empty_item_set_effect_like_cpp(
-        &mut self,
-        item_set_id: u32,
-    ) -> Option<bool> {
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            player.drop_empty_item_set_effect_like_cpp(item_set_id)
-        });
-        if canonical.is_some() {
-            return canonical;
-        }
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.inventory
-                    .player_item_test_fixture_like_cpp
-                    .represented_item_modifier_runtime_like_cpp
-                    .drop_empty_item_set_effect_like_cpp(item_set_id),
-            );
-        }
-        None
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.add_player_item_set_bonus_like_cpp(&mut hub, item_set_id, spell_entry_id)
     }
 
     pub(in crate::session) fn set_player_item_level_caps_like_cpp(
@@ -411,14 +296,8 @@ impl WorldSession {
         &self,
         spell_id: u32,
     ) -> bool {
-        let Ok(spell_id) = i32::try_from(spell_id) else {
-            return false;
-        };
         self.catalogs
-            .spell_catalogs
-            .spell_store
-            .as_ref()
-            .is_none_or(|store| store.get(spell_id).is_some())
+            .represented_item_set_spell_exists_like_cpp(spell_id)
     }
     pub(in crate::session) fn represented_heirloom_item_set_bonus_over_level_cap_like_cpp(
         &self,
@@ -702,15 +581,8 @@ impl WorldSession {
     fn represented_item_bonus_player_stat_update_object_like_cpp(
         &self,
     ) -> Option<wow_packet::packets::update::UpdateObject> {
-        let player_guid = self.player_guid()?;
-        let bonuses = self.resolved_item_bonus_state_like_cpp()?;
-        Some(
-            wow_packet::packets::update::UpdateObject::player_stat_update(
-                player_guid,
-                self.player_map_id_like_cpp(),
-                represented_player_stat_changes_like_cpp(&bonuses),
-            ),
-        )
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.represented_item_bonus_player_stat_update_object_like_cpp(hub)
     }
     pub(crate) fn send_represented_item_bonus_player_stat_update_like_cpp(&mut self) -> bool {
         // Item changes alter derived stats, vital maxima and weapon ranges
@@ -733,45 +605,12 @@ impl WorldSession {
         &mut self,
         action: ApplyEnchantmentEffectAction,
     ) -> bool {
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            player.apply_item_modifier_action_like_cpp(action);
-        });
-        if canonical.is_some() {
-            return true;
-        }
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            self.inventory
-                .player_item_test_fixture_like_cpp
-                .represented_item_modifier_runtime_like_cpp
-                .apply_enchantment_effect_action_like_cpp(action);
-            return true;
-        }
-        false
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.apply_represented_item_bonus_action_state_like_cpp(&mut hub, action)
     }
     pub(in crate::session) fn reset_represented_item_bonus_runtime_like_cpp(&mut self) {
-        // C++ WorldSession::HandlePlayerLogin constructs a fresh Player, so
-        // item modifiers from a previous character cannot survive into the
-        // next login on the same session.
-        #[cfg(test)]
-        self.inventory
-            .player_item_test_fixture_like_cpp
-            .represented_item_bonus_actions_like_cpp
-            .clear();
-        let canonical_missing = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.reset_item_modifier_bonuses_like_cpp();
-            })
-            .is_none();
-        #[cfg(not(test))]
-        let _ = canonical_missing;
-        #[cfg(test)]
-        if canonical_missing && self.core.player_handle_like_cpp.is_none() {
-            self.inventory
-                .player_item_test_fixture_like_cpp
-                .represented_item_modifier_runtime_like_cpp
-                .reset_bonuses_like_cpp();
-        }
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.reset_represented_item_bonus_runtime_like_cpp(&mut hub)
     }
     pub(in crate::session) fn initial_loaded_item_mods_can_apply_like_cpp(
         &self,
@@ -791,6 +630,228 @@ impl WorldSession {
         self.represented_can_use_attack_type_like_cpp(item.slot(), inventory_type) == Some(true)
     }
 
+    pub(in crate::session) fn represented_can_use_attack_type_like_cpp(
+        &self,
+        slot: u8,
+        inventory_type: Option<InventoryType>,
+    ) -> Option<bool> {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.represented_can_use_attack_type_like_cpp(hub, slot, inventory_type)
+    }
+
+    pub(crate) fn represented_item_reputation_rank_like_cpp(
+        &self,
+        required_reputation_faction: u32,
+    ) -> Option<u32> {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.represented_item_reputation_rank_like_cpp(hub, required_reputation_faction)
+    }
+
+    pub(crate) fn represented_item_effect_spell_ids_like_cpp(
+        &self,
+        item_id: u32,
+    ) -> Vec<(u8, i32)> {
+        self.catalogs
+            .represented_item_effect_spell_ids_like_cpp(item_id)
+    }
+}
+
+impl crate::session::state::InventoryState {
+    pub(in crate::session) fn player_item_modifier_runtime_snapshot_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<wow_entities::PlayerItemModifierRuntimeStateLikeCpp> {
+        let canonical = hub
+            .core
+            .with_owned_player_like_cpp(|player| player.item_modifier_runtime_snapshot_like_cpp());
+        #[cfg(test)]
+        if canonical.is_none() && hub.core.player_handle_like_cpp.is_none() {
+            return Some(
+                self.player_item_test_fixture_like_cpp
+                    .represented_item_modifier_runtime_like_cpp
+                    .clone(),
+            );
+        }
+        canonical
+    }
+
+    pub(in crate::session) fn add_player_item_set_item_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        item_set_id: u32,
+        item_guid: ObjectGuid,
+    ) -> Option<usize> {
+        let canonical = hub.core.with_owned_player_mut_like_cpp(|player| {
+            player.add_item_set_item_like_cpp(item_set_id, item_guid)
+        });
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(test)]
+        if hub.core.player_handle_like_cpp.is_none() {
+            return Some(
+                self.player_item_test_fixture_like_cpp
+                    .represented_item_modifier_runtime_like_cpp
+                    .add_item_set_item_like_cpp(item_set_id, item_guid),
+            );
+        }
+        None
+    }
+
+    pub(in crate::session) fn add_player_item_set_bonus_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        item_set_id: u32,
+        spell_entry_id: u32,
+    ) -> Option<bool> {
+        let canonical = hub.core.with_owned_player_mut_like_cpp(|player| {
+            player.add_item_set_bonus_like_cpp(item_set_id, spell_entry_id)
+        });
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(test)]
+        if hub.core.player_handle_like_cpp.is_none() {
+            return Some(
+                self.player_item_test_fixture_like_cpp
+                    .represented_item_modifier_runtime_like_cpp
+                    .add_item_set_bonus_like_cpp(item_set_id, spell_entry_id),
+            );
+        }
+        None
+    }
+
+    pub(in crate::session) fn remove_player_item_set_item_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        item_set_id: u32,
+        item_guid: ObjectGuid,
+    ) -> Option<Option<usize>> {
+        let canonical = hub.core.with_owned_player_mut_like_cpp(|player| {
+            player.remove_item_set_item_like_cpp(item_set_id, item_guid)
+        });
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(test)]
+        if hub.core.player_handle_like_cpp.is_none() {
+            return Some(
+                self.player_item_test_fixture_like_cpp
+                    .represented_item_modifier_runtime_like_cpp
+                    .remove_item_set_item_like_cpp(item_set_id, item_guid),
+            );
+        }
+        None
+    }
+
+    pub(in crate::session) fn remove_player_item_set_bonus_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        item_set_id: u32,
+        spell_entry_id: u32,
+    ) -> Option<bool> {
+        let canonical = hub.core.with_owned_player_mut_like_cpp(|player| {
+            player.remove_item_set_bonus_like_cpp(item_set_id, spell_entry_id)
+        });
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(test)]
+        if hub.core.player_handle_like_cpp.is_none() {
+            return Some(
+                self.player_item_test_fixture_like_cpp
+                    .represented_item_modifier_runtime_like_cpp
+                    .remove_item_set_bonus_like_cpp(item_set_id, spell_entry_id),
+            );
+        }
+        None
+    }
+
+    pub(in crate::session) fn drop_player_empty_item_set_effect_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        item_set_id: u32,
+    ) -> Option<bool> {
+        let canonical = hub.core.with_owned_player_mut_like_cpp(|player| {
+            player.drop_empty_item_set_effect_like_cpp(item_set_id)
+        });
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(test)]
+        if hub.core.player_handle_like_cpp.is_none() {
+            return Some(
+                self.player_item_test_fixture_like_cpp
+                    .represented_item_modifier_runtime_like_cpp
+                    .drop_empty_item_set_effect_like_cpp(item_set_id),
+            );
+        }
+        None
+    }
+
+    fn represented_item_bonus_player_stat_update_object_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<wow_packet::packets::update::UpdateObject> {
+        let player_guid = hub.core.player_guid()?;
+        let bonuses = self.resolved_item_bonus_state_like_cpp(hub)?;
+        Some(
+            wow_packet::packets::update::UpdateObject::player_stat_update(
+                player_guid,
+                hub.core.player_map_id_like_cpp(),
+                represented_player_stat_changes_like_cpp(&bonuses),
+            ),
+        )
+    }
+
+    pub(in crate::session) fn apply_represented_item_bonus_action_state_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        action: ApplyEnchantmentEffectAction,
+    ) -> bool {
+        let canonical = hub.core.with_owned_player_mut_like_cpp(|player| {
+            player.apply_item_modifier_action_like_cpp(action);
+        });
+        if canonical.is_some() {
+            return true;
+        }
+        #[cfg(test)]
+        if hub.core.player_handle_like_cpp.is_none() {
+            self.player_item_test_fixture_like_cpp
+                .represented_item_modifier_runtime_like_cpp
+                .apply_enchantment_effect_action_like_cpp(action);
+            return true;
+        }
+        false
+    }
+
+    pub(in crate::session) fn reset_represented_item_bonus_runtime_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+    ) {
+        // C++ WorldSession::HandlePlayerLogin constructs a fresh Player, so
+        // item modifiers from a previous character cannot survive into the
+        // next login on the same session.
+        #[cfg(test)]
+        self.player_item_test_fixture_like_cpp
+            .represented_item_bonus_actions_like_cpp
+            .clear();
+        let canonical_missing = hub
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.reset_item_modifier_bonuses_like_cpp();
+            })
+            .is_none();
+        #[cfg(not(test))]
+        let _ = canonical_missing;
+        #[cfg(test)]
+        if canonical_missing && hub.core.player_handle_like_cpp.is_none() {
+            self.player_item_test_fixture_like_cpp
+                .represented_item_modifier_runtime_like_cpp
+                .reset_bonuses_like_cpp();
+        }
+    }
+
     /// C++ `Player::CanUseAttackType` for the attack an equipment slot maps to:
     /// `BASE_ATTACK` requires no `UNIT_FLAG_DISARMED`, `OFF_ATTACK` no
     /// `UNIT_FLAG2_DISARM_OFFHAND`, `RANGED_ATTACK` no
@@ -807,6 +868,7 @@ impl WorldSession {
     /// stored in MAINHAND.
     pub(in crate::session) fn represented_can_use_attack_type_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         slot: u8,
         inventory_type: Option<InventoryType>,
     ) -> Option<bool> {
@@ -824,73 +886,83 @@ impl WorldSession {
             _ => WeaponAttackType::Max,
         };
         match attack_type {
-            WeaponAttackType::BaseAttack => self.canonical_player_snapshot_like_cpp(|player| {
+            WeaponAttackType::BaseAttack => hub.core.canonical_player_snapshot_like_cpp(|player| {
                 !player
                     .unit()
                     .unit_flags_like_cpp()
                     .contains(UnitFlags::DISARMED)
             }),
-            WeaponAttackType::OffAttack => self.canonical_player_snapshot_like_cpp(|player| {
+            WeaponAttackType::OffAttack => hub.core.canonical_player_snapshot_like_cpp(|player| {
                 !player
                     .unit()
                     .unit_flags2_like_cpp()
                     .contains(UnitFlags2::DISARM_OFFHAND)
             }),
-            WeaponAttackType::RangedAttack => self.canonical_player_snapshot_like_cpp(|player| {
-                !player
-                    .unit()
-                    .unit_flags2_like_cpp()
-                    .contains(UnitFlags2::DISARM_RANGED)
-            }),
+            WeaponAttackType::RangedAttack => {
+                hub.core.canonical_player_snapshot_like_cpp(|player| {
+                    !player
+                        .unit()
+                        .unit_flags2_like_cpp()
+                        .contains(UnitFlags2::DISARM_RANGED)
+                })
+            }
             WeaponAttackType::Max => Some(true),
         }
     }
+
     #[cfg(test)]
     pub(crate) fn represented_item_bonus_actions_like_cpp(
         &self,
     ) -> &[RepresentedItemBonusActionLikeCpp] {
         &self
-            .inventory
             .player_item_test_fixture_like_cpp
             .represented_item_bonus_actions_like_cpp
     }
+
     #[cfg(test)]
     pub(crate) fn represented_item_set_spell_events_like_cpp(
         &self,
     ) -> &[RepresentedItemSetSpellEventLikeCpp] {
         &self
-            .inventory
             .player_item_test_fixture_like_cpp
             .represented_item_set_spell_events_like_cpp
     }
+
     #[cfg(test)]
     pub(crate) fn represented_item_set_aura_refresh_events_like_cpp(
         &self,
     ) -> &[RepresentedItemSetAuraRefreshEventLikeCpp] {
         &self
-            .inventory
             .player_item_test_fixture_like_cpp
             .represented_item_set_aura_refresh_events_like_cpp
     }
+
     #[cfg(test)]
     pub(crate) fn represented_item_set_effect_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         item_set_id: u32,
     ) -> Option<RepresentedItemSetEffectLikeCpp> {
-        self.player_item_modifier_runtime_snapshot_like_cpp()?
+        self.player_item_modifier_runtime_snapshot_like_cpp(hub)?
             .item_set_effect_like_cpp(item_set_id)
             .cloned()
     }
+
     #[cfg(test)]
-    pub(crate) fn represented_item_bonus_state_like_cpp(&self) -> RepresentedItemBonusStateLikeCpp {
-        self.resolved_item_bonus_state_like_cpp()
+    pub(crate) fn represented_item_bonus_state_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> RepresentedItemBonusStateLikeCpp {
+        self.resolved_item_bonus_state_like_cpp(hub)
             .expect("test Player item-bonus owner must resolve")
     }
+
     pub(crate) fn resolved_item_bonus_state_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
     ) -> Option<RepresentedItemBonusStateLikeCpp> {
         Some(
-            self.player_item_modifier_runtime_snapshot_like_cpp()?
+            self.player_item_modifier_runtime_snapshot_like_cpp(hub)?
                 .bonuses_snapshot_like_cpp(),
         )
     }
@@ -902,12 +974,13 @@ impl WorldSession {
     /// fail-closed policy; an unknown faction ranks zero like C++.
     pub(crate) fn represented_item_reputation_rank_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         required_reputation_faction: u32,
     ) -> Option<u32> {
         if required_reputation_faction == 0 {
             return Some(0);
         }
-        let Some(faction) = self
+        let Some(faction) = hub
             .catalogs
             .factions
             .store
@@ -918,19 +991,55 @@ impl WorldSession {
         };
         // The session identity accessors re-enter the canonical manager lock
         // held by `with_reputation_mgr_like_cpp`, so resolve them first.
-        let player_race = self.player_race_like_cpp();
-        let player_class = self.player_class_like_cpp();
-        let standing = self.with_reputation_mgr_like_cpp(|mgr| {
+        let player_race = hub.player_race_like_cpp();
+        let player_class = hub.player_class_like_cpp();
+        let standing = hub.with_reputation_mgr_like_cpp(|mgr| {
             mgr.reputation_for_faction_like_cpp(faction, player_race, player_class)
         })?;
         Some(u32::from(
             reputation_to_rank_like_cpp(
                 faction,
                 standing,
-                self.catalogs.friendship_rep_reaction_store.as_deref(),
+                hub.catalogs.friendship_rep_reaction_store.as_deref(),
             )
             .as_u8(),
         ))
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    pub(crate) fn item_set_for_item_id_like_cpp(
+        &self,
+        item_id: u32,
+    ) -> Option<&wow_data::ItemSetEntry> {
+        self.items
+            .set_store
+            .as_ref()
+            .and_then(|store| store.item_set_for_item_id_like_cpp(item_id))
+    }
+
+    pub(crate) fn item_set_spells_like_cpp(
+        &self,
+        item_set_id: u32,
+    ) -> Vec<&wow_data::ItemSetSpellEntry> {
+        self.spell_catalogs
+            .item_set_spell_store
+            .as_ref()
+            .map(|store| store.item_set_spells_like_cpp(item_set_id))
+            .unwrap_or_default()
+    }
+
+    pub(in crate::session) fn represented_item_set_spell_exists_like_cpp(
+        &self,
+        spell_id: u32,
+    ) -> bool {
+        let Ok(spell_id) = i32::try_from(spell_id) else {
+            return false;
+        };
+        self.spell_catalogs
+            .spell_store
+            .as_ref()
+            .is_none_or(|store| store.get(spell_id).is_some())
     }
 
     /// C++ `ItemTemplate::Effects` ordered by `ItemEffectEntry` slot. The
@@ -941,7 +1050,6 @@ impl WorldSession {
         item_id: u32,
     ) -> Vec<(u8, i32)> {
         let mut effects: Vec<(u8, i32)> = self
-            .catalogs
             .items
             .effect_store
             .as_ref()
@@ -957,3 +1065,7 @@ impl WorldSession {
         effects
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/player_items/modifiers/f3_shims.rs"]
+mod f3_shims;

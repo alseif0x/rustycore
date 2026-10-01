@@ -22877,19 +22877,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "drop_player_empty_item_set_effect_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn drop_player_empty_item_set_effect_like_cpp (& mut self , item_set_id : u32 ,) -> Option < bool >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "durability_costs_store",
           "visibility": "pub",
           "signature": "fn durability_costs_store (& self) -> Option < & Arc < DurabilityCostsStore > >",
@@ -24755,8 +24742,10 @@
           "name": "has_transmog_illusion_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn has_transmog_illusion_like_cpp (& self , transmog_illusion_id : u32) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -25696,8 +25685,10 @@
           "name": "is_transmog_set_completed_like_cpp",
           "visibility": "pub",
           "signature": "fn is_transmog_set_completed_like_cpp (& self , transmog_set_id : u32) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -25755,17 +25746,6 @@
           "guards": [
             "visible"
           ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "item_buy_price_with_catalogs_like_cpp",
-          "visibility": "private",
-          "signature": "fn item_buy_price_with_catalogs_like_cpp (& self , catalogs : & ItemValuationCatalogsLikeCpp , item_id : u32 , quality : u32 , item_level : u32 ,) -> Option < (u32 , bool) >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
         },
         {
           "module": "crate::session",
@@ -26044,19 +26024,6 @@
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "item_sell_price_with_catalogs_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn item_sell_price_with_catalogs_like_cpp (& self , catalogs : & ItemValuationCatalogsLikeCpp , item_id : u32 , quality : u32 , item_level : u32 ,) -> Option < u32 >",
-          "cfg": [],
-          "source_class": "production",
           "guards": [
             "visible"
           ]
@@ -33358,32 +33325,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "remove_player_item_set_bonus_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn remove_player_item_set_bonus_like_cpp (& mut self , item_set_id : u32 , spell_entry_id : u32 ,) -> Option < bool >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "remove_player_item_set_item_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn remove_player_item_set_item_like_cpp (& mut self , item_set_id : u32 , item_guid : ObjectGuid ,) -> Option < Option < usize > >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "remove_player_mount_vehicle_kit_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn remove_player_mount_vehicle_kit_like_cpp (& mut self) -> bool",
@@ -33874,19 +33815,6 @@
           "name": "replace_owned_player_mails_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn replace_owned_player_mails_like_cpp (& self , mails : Vec < wow_entities :: PlayerMailRecord > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "replace_player_collection_state_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn replace_player_collection_state_like_cpp (& mut self , state : wow_entities :: PlayerCollectionStateLikeCpp ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -38144,19 +38072,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_scaling_stat_character_level_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn represented_scaling_stat_character_level_like_cpp (& self , distribution : & ScalingStatDistributionEntry ,) -> u32",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_scaling_stat_context_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn represented_scaling_stat_context_like_cpp (& self , item_entry : u32 ,) -> Option < RepresentedScalingStatContextLikeCpp >",
@@ -38329,8 +38244,10 @@
           "name": "represented_shapeshift_form_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_shapeshift_form_like_cpp (& self) -> Option < u32 >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -39611,19 +39528,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "represented_void_storage_next_free_slot_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn represented_void_storage_next_free_slot_like_cpp (& self) -> Option < u8 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "represented_war_mode_update_zone_aura_source_is_empty_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn represented_war_mode_update_zone_aura_source_is_empty_like_cpp (& self ,) -> bool",
@@ -40631,19 +40535,6 @@
           "name": "resolved_is_resting_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_is_resting_like_cpp (& self) -> Option < bool >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "resolved_item_bonus_state_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn resolved_item_bonus_state_like_cpp (& self ,) -> Option < RepresentedItemBonusStateLikeCpp >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -42350,8 +42241,10 @@
           "name": "send_item_enchant_time_update_plan",
           "visibility": "pub",
           "signature": "fn send_item_enchant_time_update_plan (& self , owner_guid : ObjectGuid , update : & PlayerEnchantTimeUpdate ,)",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -51596,8 +51489,10 @@
           "name": "transmog_set_item_modified_appearances_like_cpp",
           "visibility": "pub",
           "signature": "fn transmog_set_item_modified_appearances_like_cpp (& self , transmog_set_id : u32 ,) -> Vec < & wow_data :: ItemModifiedAppearanceEntry >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -51622,21 +51517,10 @@
           "name": "transmog_set_items_like_cpp",
           "visibility": "pub",
           "signature": "fn transmog_set_items_like_cpp (& self , transmog_set_id : u32 ,) -> Option < & [wow_data :: TransmogSetItemEntry] >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "transmog_sets_for_item_modified_appearance_like_cpp",
-          "visibility": "pub",
-          "signature": "fn transmog_sets_for_item_modified_appearance_like_cpp (& self , item_modified_appearance_id : u32 ,) -> Option < & [TransmogSetEntry] >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -52182,17 +52066,6 @@
           "guards": [
             "visible"
           ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "update_represented_transmog_criteria_like_cpp",
-          "visibility": "private",
-          "signature": "fn update_represented_transmog_criteria_like_cpp (& mut self , item_modified_appearance_id : u32)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": []
         },
         {
           "module": "crate::session",
@@ -52958,7 +52831,7 @@
           "kind": "method",
           "name": "with_owned_equipment_sets_like_cpp",
           "visibility": "pub (in crate :: session)",
-          "signature": "fn with_owned_equipment_sets_like_cpp < R > (& self , mut f : impl FnMut (& wow_entities :: PlayerEquipmentSetsLikeCpp) -> R ,) -> Option < R >",
+          "signature": "fn with_owned_equipment_sets_like_cpp < R > (& self , f : impl FnMut (& wow_entities :: PlayerEquipmentSetsLikeCpp) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -52971,7 +52844,7 @@
           "kind": "method",
           "name": "with_owned_equipment_sets_mut_like_cpp",
           "visibility": "pub (in crate :: session)",
-          "signature": "fn with_owned_equipment_sets_mut_like_cpp < R > (& mut self , mut f : impl FnMut (& mut wow_entities :: PlayerEquipmentSetsLikeCpp) -> R ,) -> Option < R >",
+          "signature": "fn with_owned_equipment_sets_mut_like_cpp < R > (& mut self , f : impl FnMut (& mut wow_entities :: PlayerEquipmentSetsLikeCpp) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -53049,7 +52922,7 @@
           "kind": "method",
           "name": "with_owned_void_storage_like_cpp",
           "visibility": "pub (in crate :: session)",
-          "signature": "fn with_owned_void_storage_like_cpp < R > (& self , mut f : impl FnMut (& [Option < RepresentedVoidStorageItemLikeCpp >] , bool) -> R ,) -> Option < R >",
+          "signature": "fn with_owned_void_storage_like_cpp < R > (& self , f : impl FnMut (& [Option < RepresentedVoidStorageItemLikeCpp >] , bool) -> R ,) -> Option < R >",
           "cfg": [],
           "source_class": "production",
           "guards": [

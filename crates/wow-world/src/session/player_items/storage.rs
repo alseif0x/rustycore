@@ -142,19 +142,14 @@ impl WorldSession {
         dst_slot: u8,
         item_guid: ObjectGuid,
     ) {
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
-            let _ = player.remove_top_level_item(src);
-            if dst_bag == INVENTORY_SLOT_BAG_0 {
-                let _ = player.store_top_level_item(dst_slot, item_guid);
-            } else {
-                let _ = player.store_bag_item(dst_bag, dst_slot, item_guid);
-            }
-        });
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.sync_canonical_direct_inventory_move_like_cpp(
+            &mut hub, src, dst_bag, dst_slot, item_guid,
+        )
     }
     pub(in crate::session) fn sync_canonical_direct_inventory_remove_like_cpp(&mut self, src: u8) {
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
-            let _ = player.remove_top_level_item(src);
-        });
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.sync_canonical_direct_inventory_remove_like_cpp(&mut hub, src)
     }
     pub(crate) fn record_destroyed_inventory_item_mod_remove_like_cpp(
         &mut self,
@@ -660,26 +655,8 @@ impl WorldSession {
     }
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_inventory_item_combat_stat_recalculations_like_cpp(&mut self, slot: u8) {
-        #[cfg(test)]
-        {
-            let attack = match slot {
-                EQUIPMENT_SLOT_MAINHAND => Some(WeaponAttackType::BaseAttack),
-                EQUIPMENT_SLOT_OFFHAND => Some(WeaponAttackType::OffAttack),
-                _ => None,
-            };
-            if let Some(attack) = attack {
-                self.inventory
-                    .player_item_test_fixture_like_cpp
-                    .represented_combat_stat_recalculations_like_cpp
-                    .push(RepresentedCombatStatRecalculationLikeCpp::Expertise { attack });
-                self.inventory
-                    .player_item_test_fixture_like_cpp
-                    .represented_combat_stat_recalculations_like_cpp
-                    .push(RepresentedCombatStatRecalculationLikeCpp::Rating {
-                        combat_rating: CR_ARMOR_PENETRATION_LIKE_CPP,
-                    });
-            }
-        }
+        self.inventory
+            .record_inventory_item_combat_stat_recalculations_like_cpp(slot)
     }
     #[cfg(test)]
     fn mirror_player_inventory_runtime_to_legacy_like_cpp(
@@ -824,16 +801,67 @@ impl WorldSession {
             .get(&guid)
             .cloned()
     }
+}
+
+impl crate::session::state::InventoryState {
+    pub(in crate::session) fn sync_canonical_direct_inventory_move_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        src: u8,
+        dst_bag: u8,
+        dst_slot: u8,
+        item_guid: ObjectGuid,
+    ) {
+        let _ = hub.core.mutate_canonical_player_like_cpp(|player| {
+            let _ = player.remove_top_level_item(src);
+            if dst_bag == INVENTORY_SLOT_BAG_0 {
+                let _ = player.store_top_level_item(dst_slot, item_guid);
+            } else {
+                let _ = player.store_bag_item(dst_bag, dst_slot, item_guid);
+            }
+        });
+    }
+
+    pub(in crate::session) fn sync_canonical_direct_inventory_remove_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        src: u8,
+    ) {
+        let _ = hub.core.mutate_canonical_player_like_cpp(|player| {
+            let _ = player.remove_top_level_item(src);
+        });
+    }
+
+    #[cfg_attr(not(test), allow(unused_variables))]
+    pub(crate) fn record_inventory_item_combat_stat_recalculations_like_cpp(&mut self, slot: u8) {
+        #[cfg(test)]
+        {
+            let attack = match slot {
+                EQUIPMENT_SLOT_MAINHAND => Some(WeaponAttackType::BaseAttack),
+                EQUIPMENT_SLOT_OFFHAND => Some(WeaponAttackType::OffAttack),
+                _ => None,
+            };
+            if let Some(attack) = attack {
+                self.player_item_test_fixture_like_cpp
+                    .represented_combat_stat_recalculations_like_cpp
+                    .push(RepresentedCombatStatRecalculationLikeCpp::Expertise { attack });
+                self.player_item_test_fixture_like_cpp
+                    .represented_combat_stat_recalculations_like_cpp
+                    .push(RepresentedCombatStatRecalculationLikeCpp::Rating {
+                        combat_rating: CR_ARMOR_PENETRATION_LIKE_CPP,
+                    });
+            }
+        }
+    }
+
     #[cfg(test)]
     pub(crate) fn inventory_items_like_cpp(&self) -> &HashMap<u8, InventoryItem> {
-        &self
-            .inventory
-            .player_item_test_fixture_like_cpp
-            .inventory_items
+        &self.player_item_test_fixture_like_cpp.inventory_items
     }
+
     #[cfg(test)]
     pub(crate) fn inventory_item_objects_like_cpp(&self) -> &HashMap<ObjectGuid, Item> {
-        &self.inventory.inventory_item_objects
+        &self.inventory_item_objects
     }
 }
 
@@ -846,3 +874,7 @@ impl crate::session::HubRef<'_> {
             .filter(|&inventory_type| inventory_type != InventoryType::NonEquip as u8)
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/player_items/storage/f3_shims.rs"]
+mod f3_shims;

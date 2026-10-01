@@ -817,14 +817,34 @@ impl WorldSession {
         self.send_packet_realm(&packet);
     }
     pub fn send_item_time_update_plan(&self, update: &PlayerItemTimeUpdate) {
-        self.send_packet(&ItemTimeUpdate {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.send_item_time_update_plan(hub, update)
+    }
+    pub fn send_item_time_update_plans(&self, updates: &[PlayerItemTimeUpdate]) {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.send_item_time_update_plans(hub, updates)
+    }
+}
+
+impl crate::session::state::InventoryState {
+    pub fn send_item_time_update_plan(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        update: &PlayerItemTimeUpdate,
+    ) {
+        hub.core.send_packet(&ItemTimeUpdate {
             item_guid: update.item_guid,
             duration_left: update.expiration,
         });
     }
-    pub fn send_item_time_update_plans(&self, updates: &[PlayerItemTimeUpdate]) {
+
+    pub fn send_item_time_update_plans(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        updates: &[PlayerItemTimeUpdate],
+    ) {
         for update in updates {
-            self.send_item_time_update_plan(update);
+            self.send_item_time_update_plan(hub, update);
         }
     }
 }

@@ -291,6 +291,9 @@ class F3MoveMethodsTest(unittest.TestCase):
         F.relocate_ignored_shims(self.root, self.root / "crates/wow-world/src")
         self.assertTrue(shim.exists() and not old.exists())
         self.assertIn("ops_f3_shims.rs", self.ops.read_text())
+        (self.root / ".gitignore").write_text("/ops/\n")             # the rule is later root-anchored
+        self.assertEqual(F.relocate_ignored_shims(self.root, self.root / "crates/wow-world/src"), [])
+        self.assertEqual(F.shim_path(self.root, "session/catalogs/ops.rs"), shim)   # the mount wins
 
     def test_compiler_loop_removes_shims_rustc_reports_unused(self):
         self.assertEqual(self.apply("--demote-blocked")[0], 0)
