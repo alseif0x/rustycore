@@ -28,21 +28,6 @@ impl WorldSession {
         session_cast_interrupted || canonical_spells_interrupted
     }
 
-    pub(in crate::session) fn with_cast_execution_like_cpp<R>(
-        &self,
-        f: impl FnOnce(&wow_entities::CastExecutionStateLikeCpp) -> R,
-    ) -> Option<R> {
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return Some(f(&wow_entities::CastExecutionStateLikeCpp {
-                active: self.spell_state.active_spell_cast.clone(),
-                last_cast_time: self.spell_state.last_spell_cast_time,
-                last_cast_time_per_spell: self.spell_state.last_spell_cast_time_per_spell.clone(),
-            }));
-        }
-        self.with_owned_player_like_cpp(|player| f(&player.unit().subsystems().spells.execution))
-    }
-
     pub(crate) fn mutate_cast_execution_like_cpp<R>(
         &mut self,
         f: impl FnOnce(&mut wow_entities::CastExecutionStateLikeCpp) -> R,
@@ -65,25 +50,19 @@ impl WorldSession {
         })
     }
 
-    #[cfg(test)]
-    pub(crate) fn active_spell_cast_snapshot_like_cpp(&self) -> Option<SpellCastState> {
-        self.with_cast_execution_like_cpp(|state| state.active.clone())
-            .flatten()
-    }
-
     pub(crate) fn set_active_spell_cast_like_cpp(&mut self, cast: Option<SpellCastState>) -> bool {
         self.mutate_cast_execution_like_cpp(|state| state.active = cast)
             .is_some()
     }
 
     pub(crate) fn last_spell_cast_time_like_cpp(&self) -> Option<Option<Instant>> {
-        self.with_cast_execution_like_cpp(|state| state.last_cast_time)
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.last_spell_cast_time_like_cpp(hub)
     }
 
     pub(crate) fn spell_last_cast_time_like_cpp(&self, spell_id: i32) -> Option<Option<Instant>> {
-        self.with_cast_execution_like_cpp(|state| {
-            state.last_cast_time_per_spell.get(&spell_id).copied()
-        })
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.spell_last_cast_time_like_cpp(hub, spell_id)
     }
 
     pub(crate) fn cancel_pending_spell_cast_request_like_cpp(&mut self) -> bool {
@@ -112,22 +91,8 @@ impl WorldSession {
     pub(in crate::session) fn pending_spell_cast_snapshot_like_cpp(
         &self,
     ) -> Option<Option<RepresentedPendingSpellCastRequestLikeCpp>> {
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.spell_state
-                    .represented_pending_spell_cast_request_like_cpp
-                    .clone(),
-            );
-        }
-        self.with_owned_player_like_cpp(wow_entities::Player::pending_spell_cast_snapshot_like_cpp)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn pending_spell_cast_for_test_like_cpp(
-        &self,
-    ) -> Option<RepresentedPendingSpellCastRequestLikeCpp> {
-        self.pending_spell_cast_snapshot_like_cpp().flatten()
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.pending_spell_cast_snapshot_like_cpp(hub)
     }
 
     /// Apply one named canonical pending-cast transition, or the handle-less
@@ -152,15 +117,13 @@ impl WorldSession {
         &self,
         spell_info: &wow_data::SpellInfo,
     ) -> Option<u32> {
-        self.with_cast_execution_like_cpp(|state| {
-            state.remaining_global_cooldown_ms(spell_info.cooldown_ms)
-        })
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.remaining_global_cooldown_ms_like_cpp(hub, spell_info)
     }
 
     pub(crate) fn remaining_active_spell_cast_ms_like_cpp(&self) -> Option<u32> {
-        self.with_cast_execution_like_cpp(
-            wow_entities::CastExecutionStateLikeCpp::remaining_cast_ms,
-        )
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.remaining_active_spell_cast_ms_like_cpp(hub)
     }
 
     pub(crate) fn request_represented_spell_cast_like_cpp(
@@ -332,3 +295,92 @@ impl WorldSession {
         .await;
     }
 }
+
+impl crate::session::state::SessionSpellState {
+    pub(in crate::session) fn with_cast_execution_like_cpp<R>(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        f: impl FnOnce(&wow_entities::CastExecutionStateLikeCpp) -> R,
+    ) -> Option<R> {
+        #[cfg(test)]
+        if hub.core.player_handle_like_cpp.is_none() {
+            return Some(f(&wow_entities::CastExecutionStateLikeCpp {
+                active: self.active_spell_cast.clone(),
+                last_cast_time: self.last_spell_cast_time,
+                last_cast_time_per_spell: self.last_spell_cast_time_per_spell.clone(),
+            }));
+        }
+        hub.core
+            .with_owned_player_like_cpp(|player| f(&player.unit().subsystems().spells.execution))
+    }
+
+    #[cfg(test)]
+    pub(crate) fn active_spell_cast_snapshot_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<SpellCastState> {
+        self.with_cast_execution_like_cpp(hub, |state| state.active.clone())
+            .flatten()
+    }
+
+    pub(crate) fn last_spell_cast_time_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<Option<Instant>> {
+        self.with_cast_execution_like_cpp(hub, |state| state.last_cast_time)
+    }
+
+    pub(crate) fn spell_last_cast_time_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        spell_id: i32,
+    ) -> Option<Option<Instant>> {
+        self.with_cast_execution_like_cpp(hub, |state| {
+            state.last_cast_time_per_spell.get(&spell_id).copied()
+        })
+    }
+
+    pub(in crate::session) fn pending_spell_cast_snapshot_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<Option<RepresentedPendingSpellCastRequestLikeCpp>> {
+        #[cfg(test)]
+        if hub.core.player_handle_like_cpp.is_none() {
+            return Some(self.represented_pending_spell_cast_request_like_cpp.clone());
+        }
+        hub.core
+            .with_owned_player_like_cpp(wow_entities::Player::pending_spell_cast_snapshot_like_cpp)
+    }
+
+    #[cfg(test)]
+    pub(crate) fn pending_spell_cast_for_test_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<RepresentedPendingSpellCastRequestLikeCpp> {
+        self.pending_spell_cast_snapshot_like_cpp(hub).flatten()
+    }
+
+    pub(crate) fn remaining_global_cooldown_ms_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        spell_info: &wow_data::SpellInfo,
+    ) -> Option<u32> {
+        self.with_cast_execution_like_cpp(hub, |state| {
+            state.remaining_global_cooldown_ms(spell_info.cooldown_ms)
+        })
+    }
+
+    pub(crate) fn remaining_active_spell_cast_ms_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<u32> {
+        self.with_cast_execution_like_cpp(
+            hub,
+            wow_entities::CastExecutionStateLikeCpp::remaining_cast_ms,
+        )
+    }
+}
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/player_cast/state/f3_shims.rs"]
+mod f3_shims;

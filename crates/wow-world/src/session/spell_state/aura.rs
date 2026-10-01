@@ -43,52 +43,9 @@ mod effect_queries;
 mod spell_hit_authority;
 
 impl WorldSession {
-    pub(crate) fn spell_area_for_aura_map_bounds_like_cpp(
-        &self,
-        spell_id: u32,
-    ) -> Vec<&SpellAreaLikeCpp> {
-        self.catalogs
-            .spell_catalogs
-            .spell_area_store
-            .as_ref()
-            .map(|store| store.spell_area_for_aura_map_bounds_like_cpp(spell_id))
-            .unwrap_or_default()
-    }
-
-    /// C++ `Unit::HasAuraState(flag)` for the represented Caster: the union of
-    /// the unit's aura-driven state bits and its health-derived bits.
-    pub(in crate::session) fn represented_has_aura_state_like_cpp(&self, aura_state: u32) -> bool {
-        let Some(flag) = u8::try_from(aura_state).ok().filter(|flag| *flag != 0) else {
-            return false;
-        };
-        let Some(mask) = self.represented_player_aura_state_mask_like_cpp() else {
-            return false;
-        };
-        u32::from(flag)
-            .checked_sub(1)
-            .and_then(|bit| 1_u32.checked_shl(bit))
-            .is_some_and(|bit| mask & bit != 0)
-    }
-
-    /// C++ `Unit::m_unitData->AuraState` for the canonical session player: the
-    /// aura-driven bits owned by the represented aura subsystem plus the
-    /// alive-health bits `Unit::Update` maintains (WOUNDED_* / HEALTHY_75).
-    ///
-    /// `None` when the canonical Player owner is unavailable, so callers fail
-    /// closed instead of reading an empty mask as an authoritative zero.
     pub(in crate::session) fn represented_player_aura_state_mask_like_cpp(&self) -> Option<u32> {
-        let aura_driven = self.canonical_player_snapshot_like_cpp(|player| {
-            player.unit().subsystems().auras.aura_state_mask
-        })?;
-        let (health, max_health, alive) = self.resolved_player_vitals_like_cpp()?;
-        Some(
-            aura_driven
-                | crate::map_manager::WorldCreature::health_aura_state_like_cpp(
-                    u64::from(health),
-                    u64::from(max_health),
-                    alive,
-                ),
-        )
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.represented_player_aura_state_mask_like_cpp(hub)
     }
 
     /// C++ `Unit::m_unitData->AuraState` for any represented unit: the canonical
@@ -125,20 +82,12 @@ impl WorldSession {
             .unwrap_or(0)
     }
 
-    /// Whether any effect of the spell applies `SPELL_AURA_MOD_SHAPESHIFT`, the
-    /// gate for the C++ form-change recalculation.
     pub(crate) fn represented_spell_has_mod_shapeshift_effect_like_cpp(
         &self,
         spell_id: i32,
     ) -> bool {
-        self.spell_store()
-            .and_then(|store| store.get(spell_id))
-            .is_some_and(|spell| {
-                spell
-                    .effects()
-                    .iter()
-                    .any(wow_data::SpellEffectInfo::is_mod_shapeshift_aura_like_cpp)
-            })
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.represented_spell_has_mod_shapeshift_effect_like_cpp(hub, spell_id)
     }
 
     /// C++ `AuraEffect::HandleAuraModShapeshift` form ownership
@@ -184,99 +133,14 @@ impl WorldSession {
         crate::session::hub_ref(self).represented_shapeshift_combat_round_time_like_cpp()
     }
 
-    /// C++ `AuraEffect::HandleModAttackSpeed`/`HandleModMeleeSpeedPct`/
-    /// `HandleModCombatSpeedPct`/`HandleAuraModRangedHaste`
-    /// (`SpellAuraEffects.cpp:4353-4393`): the per-attack `m_modAttackSpeedPct`
-    /// product over the player's active attack-speed auras.
-    ///
-    /// `Unit::ApplyAttackTimePercentMod` converts a positive amount with
-    /// `100 / (100 + amount)` and a negative amount with `(100 - amount) / 100`,
-    /// which this reproduces. Boundary: the C++
-    /// `GetHighestExclusiveSameEffectSpellGroupValue` de-duplication of
-    /// `SPELL_AURA_MOD_MELEE_HASTE`/`MELEE_SLOW` needs the spell-group tables
-    /// that the represented session does not load yet, so every active effect is
-    /// multiplied here.
     pub(in crate::session) fn represented_attack_speed_multipliers_like_cpp(&self) -> [f32; 3] {
-        use wow_data::spell::aura_types::{
-            SPELL_AURA_MELEE_SLOW, SPELL_AURA_MOD_ATTACKSPEED, SPELL_AURA_MOD_MELEE_HASTE,
-            SPELL_AURA_MOD_MELEE_HASTE_2, SPELL_AURA_MOD_MELEE_HASTE_3,
-            SPELL_AURA_MOD_MELEE_RANGED_HASTE, SPELL_AURA_MOD_MELEE_RANGED_HASTE_2,
-            SPELL_AURA_MOD_RANGED_HASTE, SPELL_AURA_MOD_SPEED_SLOW_ALL,
-        };
-
-        let mut multipliers = [1.0_f32; 3];
-        let mut apply = |aura_type: i32, attacks: &[usize]| {
-            for (_, amount) in self
-                .resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
-                .unwrap_or_default()
-            {
-                let amount = amount as f32;
-                let factor = if amount > 0.0 {
-                    100.0 / (100.0 + amount)
-                } else {
-                    (100.0 - amount) / 100.0
-                };
-                for attack in attacks {
-                    if let Some(slot) = multipliers.get_mut(*attack) {
-                        *slot *= factor;
-                    }
-                }
-            }
-        };
-        apply(SPELL_AURA_MOD_ATTACKSPEED, &[0]);
-        apply(SPELL_AURA_MOD_MELEE_HASTE, &[0, 1]);
-        apply(SPELL_AURA_MOD_MELEE_HASTE_2, &[0, 1]);
-        apply(SPELL_AURA_MOD_MELEE_HASTE_3, &[0, 1]);
-        apply(SPELL_AURA_MOD_RANGED_HASTE, &[2]);
-        apply(SPELL_AURA_MOD_MELEE_RANGED_HASTE, &[0, 1, 2]);
-        apply(SPELL_AURA_MOD_MELEE_RANGED_HASTE_2, &[0, 1, 2]);
-        apply(SPELL_AURA_MELEE_SLOW, &[0, 1, 2]);
-        apply(SPELL_AURA_MOD_SPEED_SLOW_ALL, &[0, 1, 2]);
-        multipliers
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.represented_attack_speed_multipliers_like_cpp(hub)
     }
 
-    /// Re-install the represented attack-time multipliers on the canonical
-    /// Player after any aura mutation, mirroring the C++ aura handlers that call
-    /// `Unit::ApplyAttackTimePercentMod` at apply/remove time.
-    /// C++ `Unit::ApplyCastTimePercentMod` (`Unit.cpp:10229-10252`), reached from
-    /// `AuraEffect::HandleModCastingSpeed` (`SpellAuraEffects.cpp:4272-4315`)
-    /// and `HandleModCombatSpeedPct` (`4330-4351`): the caster's cast-time
-    /// multiplier over `SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK` (65),
-    /// `SPELL_AURA_HASTE_SPELLS` (216), `SPELL_AURA_MELEE_SLOW` (193) and
-    /// `SPELL_AURA_MOD_SPEED_SLOW_ALL` (252).
-    ///
-    /// A total of `1000` or more is C++'s `SetInstantCast(true)`, represented as
-    /// a zero multiplier. Boundary: the spell-group de-duplication and the
-    /// `ModHasteRegen` cooldown-recovery consumer remain unrepresented.
     pub(in crate::session) fn represented_cast_speed_multiplier_like_cpp(&self) -> f32 {
-        use wow_data::spell::aura_types::{
-            SPELL_AURA_HASTE_SPELLS, SPELL_AURA_MELEE_SLOW, SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK,
-            SPELL_AURA_MOD_SPEED_SLOW_ALL,
-        };
-
-        let mut multiplier = 1.0_f32;
-        for aura_type in [
-            SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK,
-            SPELL_AURA_HASTE_SPELLS,
-            SPELL_AURA_MELEE_SLOW,
-            SPELL_AURA_MOD_SPEED_SLOW_ALL,
-        ] {
-            for (_, amount) in self
-                .resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
-                .unwrap_or_default()
-            {
-                if amount >= 1000 {
-                    return 0.0;
-                }
-                let amount = amount as f32;
-                multiplier *= if amount > 0.0 {
-                    100.0 / (100.0 + amount)
-                } else {
-                    (100.0 - amount) / 100.0
-                };
-            }
-        }
-        multiplier.max(0.0)
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.represented_cast_speed_multiplier_like_cpp(hub)
     }
 
     pub(in crate::session) fn sync_represented_attack_speed_like_cpp(&mut self) {
@@ -567,14 +431,192 @@ impl WorldSession {
             .copied()
     }
 
+    pub(in crate::session) fn remove_represented_transform_aura_like_cpp(
+        &mut self,
+        aura: &AuraApplication,
+    ) -> bool {
+        let (state, mut hub) = crate::session::split_spell_state_mut(self);
+        state.remove_represented_transform_aura_like_cpp(&mut hub, aura)
+    }
+
+    pub(crate) fn represented_player_is_polymorphed_like_cpp(&self) -> Option<bool> {
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.represented_player_is_polymorphed_like_cpp(hub)
+    }
+}
+
+impl crate::session::state::SessionSpellState {
+    /// C++ `Unit::HasAuraState(flag)` for the represented Caster: the union of
+    /// the unit's aura-driven state bits and its health-derived bits.
+    pub(in crate::session) fn represented_has_aura_state_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        aura_state: u32,
+    ) -> bool {
+        let Some(flag) = u8::try_from(aura_state).ok().filter(|flag| *flag != 0) else {
+            return false;
+        };
+        let Some(mask) = self.represented_player_aura_state_mask_like_cpp(hub) else {
+            return false;
+        };
+        u32::from(flag)
+            .checked_sub(1)
+            .and_then(|bit| 1_u32.checked_shl(bit))
+            .is_some_and(|bit| mask & bit != 0)
+    }
+
+    /// C++ `Unit::m_unitData->AuraState` for the canonical session player: the
+    /// aura-driven bits owned by the represented aura subsystem plus the
+    /// alive-health bits `Unit::Update` maintains (WOUNDED_* / HEALTHY_75).
+    ///
+    /// `None` when the canonical Player owner is unavailable, so callers fail
+    /// closed instead of reading an empty mask as an authoritative zero.
+    pub(in crate::session) fn represented_player_aura_state_mask_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<u32> {
+        let aura_driven = hub.core.canonical_player_snapshot_like_cpp(|player| {
+            player.unit().subsystems().auras.aura_state_mask
+        })?;
+        let (health, max_health, alive) = hub.resolved_player_vitals_like_cpp()?;
+        Some(
+            aura_driven
+                | crate::map_manager::WorldCreature::health_aura_state_like_cpp(
+                    u64::from(health),
+                    u64::from(max_health),
+                    alive,
+                ),
+        )
+    }
+
+    /// Whether any effect of the spell applies `SPELL_AURA_MOD_SHAPESHIFT`, the
+    /// gate for the C++ form-change recalculation.
+    pub(crate) fn represented_spell_has_mod_shapeshift_effect_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        spell_id: i32,
+    ) -> bool {
+        hub.catalogs
+            .spell_store()
+            .and_then(|store| store.get(spell_id))
+            .is_some_and(|spell| {
+                spell
+                    .effects()
+                    .iter()
+                    .any(wow_data::SpellEffectInfo::is_mod_shapeshift_aura_like_cpp)
+            })
+    }
+
+    /// C++ `AuraEffect::HandleModAttackSpeed`/`HandleModMeleeSpeedPct`/
+    /// `HandleModCombatSpeedPct`/`HandleAuraModRangedHaste`
+    /// (`SpellAuraEffects.cpp:4353-4393`): the per-attack `m_modAttackSpeedPct`
+    /// product over the player's active attack-speed auras.
+    ///
+    /// `Unit::ApplyAttackTimePercentMod` converts a positive amount with
+    /// `100 / (100 + amount)` and a negative amount with `(100 - amount) / 100`,
+    /// which this reproduces. Boundary: the C++
+    /// `GetHighestExclusiveSameEffectSpellGroupValue` de-duplication of
+    /// `SPELL_AURA_MOD_MELEE_HASTE`/`MELEE_SLOW` needs the spell-group tables
+    /// that the represented session does not load yet, so every active effect is
+    /// multiplied here.
+    pub(in crate::session) fn represented_attack_speed_multipliers_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> [f32; 3] {
+        use wow_data::spell::aura_types::{
+            SPELL_AURA_MELEE_SLOW, SPELL_AURA_MOD_ATTACKSPEED, SPELL_AURA_MOD_MELEE_HASTE,
+            SPELL_AURA_MOD_MELEE_HASTE_2, SPELL_AURA_MOD_MELEE_HASTE_3,
+            SPELL_AURA_MOD_MELEE_RANGED_HASTE, SPELL_AURA_MOD_MELEE_RANGED_HASTE_2,
+            SPELL_AURA_MOD_RANGED_HASTE, SPELL_AURA_MOD_SPEED_SLOW_ALL,
+        };
+
+        let mut multipliers = [1.0_f32; 3];
+        let mut apply = |aura_type: i32, attacks: &[usize]| {
+            for (_, amount) in hub
+                .resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
+                .unwrap_or_default()
+            {
+                let amount = amount as f32;
+                let factor = if amount > 0.0 {
+                    100.0 / (100.0 + amount)
+                } else {
+                    (100.0 - amount) / 100.0
+                };
+                for attack in attacks {
+                    if let Some(slot) = multipliers.get_mut(*attack) {
+                        *slot *= factor;
+                    }
+                }
+            }
+        };
+        apply(SPELL_AURA_MOD_ATTACKSPEED, &[0]);
+        apply(SPELL_AURA_MOD_MELEE_HASTE, &[0, 1]);
+        apply(SPELL_AURA_MOD_MELEE_HASTE_2, &[0, 1]);
+        apply(SPELL_AURA_MOD_MELEE_HASTE_3, &[0, 1]);
+        apply(SPELL_AURA_MOD_RANGED_HASTE, &[2]);
+        apply(SPELL_AURA_MOD_MELEE_RANGED_HASTE, &[0, 1, 2]);
+        apply(SPELL_AURA_MOD_MELEE_RANGED_HASTE_2, &[0, 1, 2]);
+        apply(SPELL_AURA_MELEE_SLOW, &[0, 1, 2]);
+        apply(SPELL_AURA_MOD_SPEED_SLOW_ALL, &[0, 1, 2]);
+        multipliers
+    }
+
+    /// Re-install the represented attack-time multipliers on the canonical
+    /// Player after any aura mutation, mirroring the C++ aura handlers that call
+    /// `Unit::ApplyAttackTimePercentMod` at apply/remove time.
+    /// C++ `Unit::ApplyCastTimePercentMod` (`Unit.cpp:10229-10252`), reached from
+    /// `AuraEffect::HandleModCastingSpeed` (`SpellAuraEffects.cpp:4272-4315`)
+    /// and `HandleModCombatSpeedPct` (`4330-4351`): the caster's cast-time
+    /// multiplier over `SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK` (65),
+    /// `SPELL_AURA_HASTE_SPELLS` (216), `SPELL_AURA_MELEE_SLOW` (193) and
+    /// `SPELL_AURA_MOD_SPEED_SLOW_ALL` (252).
+    ///
+    /// A total of `1000` or more is C++'s `SetInstantCast(true)`, represented as
+    /// a zero multiplier. Boundary: the spell-group de-duplication and the
+    /// `ModHasteRegen` cooldown-recovery consumer remain unrepresented.
+    pub(in crate::session) fn represented_cast_speed_multiplier_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> f32 {
+        use wow_data::spell::aura_types::{
+            SPELL_AURA_HASTE_SPELLS, SPELL_AURA_MELEE_SLOW, SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK,
+            SPELL_AURA_MOD_SPEED_SLOW_ALL,
+        };
+
+        let mut multiplier = 1.0_f32;
+        for aura_type in [
+            SPELL_AURA_MOD_CASTING_SPEED_NOT_STACK,
+            SPELL_AURA_HASTE_SPELLS,
+            SPELL_AURA_MELEE_SLOW,
+            SPELL_AURA_MOD_SPEED_SLOW_ALL,
+        ] {
+            for (_, amount) in hub
+                .resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
+                .unwrap_or_default()
+            {
+                if amount >= 1000 {
+                    return 0.0;
+                }
+                let amount = amount as f32;
+                multiplier *= if amount > 0.0 {
+                    100.0 / (100.0 + amount)
+                } else {
+                    (100.0 - amount) / 100.0
+                };
+            }
+        }
+        multiplier.max(0.0)
+    }
+
     /// Whether the represented application carries an active
     /// `SPELL_AURA_TRANSFORM` effect, the trigger C++ routes to
     /// `AuraEffect::HandleAuraTransform`.
     fn represented_application_has_transform_effect_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         aura: &AuraApplication,
     ) -> bool {
-        self.spell_store().is_some_and(|store| {
+        hub.catalogs.spell_store().is_some_and(|store| {
             store.get(aura.spell_id).is_some_and(|spell| {
                 spell.effects().iter().any(|effect| {
                     1u32.checked_shl(effect.effect_index)
@@ -594,19 +636,21 @@ impl WorldSession {
     /// carried a transform effect and the state was updated.
     pub(in crate::session) fn apply_represented_transform_aura_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         aura: &AuraApplication,
     ) -> bool {
-        if !self.represented_application_has_transform_effect_like_cpp(aura) {
+        if !self.represented_application_has_transform_effect_like_cpp(hub.shared(), aura) {
             return false;
         }
         let (new_is_positive, current_is_positive) = {
-            let Some(store) = self.spell_store() else {
+            let Some(store) = hub.catalogs.spell_store() else {
                 return false;
             };
             let Some(new_spell) = store.get(aura.spell_id) else {
                 return false;
             };
-            let current = self
+            let current = hub
+                .shared()
                 .player_aura_subsystem_snapshot_like_cpp()
                 .map_or(0, |auras| auras.transform_spell_like_cpp());
             // C++ resolves the current transform through
@@ -623,7 +667,8 @@ impl WorldSession {
             )
         };
         let spell_id = aura.spell_id;
-        let mutated = self
+        let mutated = hub
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player
                     .unit_mut()
@@ -633,12 +678,12 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if !mutated && self.core.player_handle_like_cpp.is_none() {
+        if !mutated && hub.core.player_handle_like_cpp.is_none() {
             // Handle-less fixtures have no canonical Player to carry the derived
             // transform field, so it only lives for this mutation. Acceptance
             // cases that assert `IsPolymorphed` install a canonical Player
             // owner, which is the production path.
-            let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
+            let _ = self.mutate_player_aura_subsystem_like_cpp(hub, |auras| {
                 auras.apply_transform_aura_like_cpp(spell_id, new_is_positive, current_is_positive);
             });
         }
@@ -650,16 +695,19 @@ impl WorldSession {
     /// transform spell clears it.
     pub(in crate::session) fn remove_represented_transform_aura_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         aura: &AuraApplication,
     ) -> bool {
         let spell_id = aura.spell_id;
-        let owns_transform = self
+        let owns_transform = hub
+            .shared()
             .player_aura_subsystem_snapshot_like_cpp()
             .is_some_and(|auras| auras.transform_spell_like_cpp() == spell_id);
         if !owns_transform {
             return false;
         }
-        let mutated = self
+        let mutated = hub
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player
                     .unit_mut()
@@ -669,8 +717,8 @@ impl WorldSession {
             })
             .is_some();
         #[cfg(test)]
-        if !mutated && self.core.player_handle_like_cpp.is_none() {
-            let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
+        if !mutated && hub.core.player_handle_like_cpp.is_none() {
+            let _ = self.mutate_player_aura_subsystem_like_cpp(hub, |auras| {
                 auras.remove_transform_aura_like_cpp(spell_id);
             });
         }
@@ -684,21 +732,25 @@ impl WorldSession {
     /// MAGE family branch (`SpellInfo.cpp:2665-2671`): family
     /// `SPELLFAMILY_MAGE` (3), family flag `0x1000000` and effect 0 applying
     /// `SPELL_AURA_MOD_CONFUSE`.
-    pub(crate) fn represented_player_is_polymorphed_like_cpp(&self) -> Option<bool> {
-        let transform_spell = self
+    pub(crate) fn represented_player_is_polymorphed_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<bool> {
+        let transform_spell = hub
             .player_aura_subsystem_snapshot_like_cpp()?
             .transform_spell_like_cpp();
         if transform_spell == 0 {
             return Some(false);
         }
-        let spell_store = self.spell_store()?;
+        let spell_store = hub.catalogs.spell_store()?;
         let Some(spell) = spell_store.get(transform_spell) else {
             return Some(false);
         };
         let family_matches = u32::try_from(transform_spell)
             .ok()
             .and_then(|spell_id| {
-                self.spell_class_options_store()
+                hub.catalogs
+                    .spell_class_options_store()
                     .and_then(|store| store.entry_for_spell_like_cpp(spell_id))
             })
             .is_some_and(|entry| {
@@ -711,6 +763,19 @@ impl WorldSession {
                 && effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_MOD_CONFUSE
         });
         Some(family_matches && effect_zero_is_confuse)
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    pub(crate) fn spell_area_for_aura_map_bounds_like_cpp(
+        &self,
+        spell_id: u32,
+    ) -> Vec<&SpellAreaLikeCpp> {
+        self.spell_catalogs
+            .spell_area_store
+            .as_ref()
+            .map(|store| store.spell_area_for_aura_map_bounds_like_cpp(spell_id))
+            .unwrap_or_default()
     }
 }
 
@@ -747,3 +812,7 @@ pub(crate) enum RepresentedShapeshiftMutationLikeCpp {
     /// The aura was removed; `new_form` is the form that remains, `0` when none.
     Removed { removed_form: u32, new_form: u32 },
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/spell_state/aura/f3_shims.rs"]
+mod f3_shims;

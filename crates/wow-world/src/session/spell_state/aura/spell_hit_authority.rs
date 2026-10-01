@@ -14,92 +14,23 @@ impl WorldSession {
         &mut self,
         mutate: impl FnOnce(&mut wow_entities::AuraSubsystem) -> R,
     ) -> Option<R> {
-        let mut mutate = Some(mutate);
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            let mut auras = self.player_aura_subsystem_snapshot_like_cpp()?;
-            let result =
-                mutate
-                    .take()
-                    .expect("test Player aura mutation executes once")(&mut auras);
-            self.fixtures.auras.player_aura_authority_complete_like_cpp =
-                auras.persisted_player_aura_authority_complete_like_cpp();
-            self.fixtures
-                .auras
-                .player_spell_hit_aura_authority_tombstoned_like_cpp =
-                auras.spell_hit_aura_authority_tombstoned_like_cpp();
-            self.fixtures.auras.visible_auras = auras.runtime_applications_like_cpp().clone();
-            self.fixtures
-                .auras
-                .canonical_threat_aura_snapshots_like_cpp
-                .clear();
-            for slot in 0..=u8::MAX {
-                if let Some(snapshot) = auras.threat_snapshot_like_cpp(slot) {
-                    self.fixtures
-                        .auras
-                        .canonical_threat_aura_snapshots_like_cpp
-                        .insert(slot, snapshot.clone());
-                }
-            }
-            return Some(result);
-        }
-        self.with_owned_player_mut_like_cpp(|player| {
-            mutate.take().expect("Player aura mutation executes once")(
-                &mut player.unit_mut().subsystems_mut().auras,
-            )
-        })
+        let (state, mut hub) = crate::session::split_spell_state_mut(self);
+        state.mutate_player_aura_subsystem_like_cpp(&mut hub, mutate)
     }
 
     pub(crate) fn set_player_aura_authority_complete_like_cpp(&mut self, complete: bool) -> bool {
-        let _canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_player_aura_authority_complete_like_cpp(complete);
-            })
-            .is_some();
-        #[cfg(test)]
-        if !_canonical && self.core.player_handle_like_cpp.is_none() {
-            return self
-                .mutate_player_aura_subsystem_like_cpp(|auras| {
-                    auras.set_persisted_player_aura_authority_complete_like_cpp(complete);
-                })
-                .is_some();
-        }
-        _canonical
-    }
-
-    #[cfg(test)]
-    pub(crate) fn player_aura_authority_complete_like_cpp(&self) -> bool {
-        self.fixtures.auras.player_aura_authority_complete_like_cpp
-    }
-
-    pub(crate) fn resolved_player_aura_authority_complete_like_cpp(&self) -> Option<bool> {
-        self.player_aura_subsystem_snapshot_like_cpp()
-            .map(|auras| auras.persisted_player_aura_authority_complete_like_cpp())
+        let (state, mut hub) = crate::session::split_spell_state_mut(self);
+        state.set_player_aura_authority_complete_like_cpp(&mut hub, complete)
     }
 
     pub(crate) fn tombstone_player_spell_hit_aura_authority_like_cpp(&mut self) {
-        let _canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.tombstone_player_spell_hit_aura_authority_like_cpp();
-            })
-            .is_some();
-        #[cfg(test)]
-        if !_canonical && self.core.player_handle_like_cpp.is_none() {
-            let _ = self.mutate_player_aura_subsystem_like_cpp(|auras| {
-                auras.tombstone_spell_hit_aura_authority_like_cpp();
-            });
-        }
+        let (state, mut hub) = crate::session::split_spell_state_mut(self);
+        state.tombstone_player_spell_hit_aura_authority_like_cpp(&mut hub)
     }
 
     fn represented_active_glyph_aura_source_is_empty_like_cpp(&self) -> bool {
-        self.player_talent_runtime_snapshot_like_cpp()
-            .filter(|runtime| runtime.glyphs_loaded_like_cpp())
-            .map(|runtime| {
-                let active_group = runtime.active_group_like_cpp();
-                (0..wow_entities::PLAYER_MAX_GLYPH_SLOTS_LIKE_CPP as u8)
-                    .all(|slot| runtime.glyph_like_cpp(active_group, slot) == Some(0))
-            })
-            .unwrap_or(false)
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.represented_active_glyph_aura_source_is_empty_like_cpp(hub)
     }
 
     /// C++ `_LoadTraits` creates missing configs for specialization indexes
@@ -154,17 +85,9 @@ impl WorldSession {
         expected_specs.is_empty()
     }
 
-    /// C++ `Map::AddPlayerToMap` can dispatch `InstanceScript::OnPlayerEnter`,
-    /// Scenario, and Battleground hooks before the login authority is
-    /// published. Those hooks are not represented, so only an exact ordinary
-    /// world-map DB2 row excludes them.
     fn represented_add_player_to_map_aura_source_is_empty_like_cpp(&self) -> bool {
-        self.catalogs
-            .maps
-            .store
-            .as_ref()
-            .and_then(|store| store.get(u32::from(self.player_map_id_like_cpp())))
-            .is_some_and(|map| map.instance_type == wow_data::map::MAP_COMMON)
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.represented_add_player_to_map_aura_source_is_empty_like_cpp(hub)
     }
 
     pub(in crate::session) fn can_authorize_empty_player_spell_hit_aura_source_for_difficulty_like_cpp(
@@ -274,6 +197,136 @@ impl WorldSession {
     }
 }
 
+impl crate::session::state::SessionSpellState {
+    #[cfg(test)]
+    pub(in crate::session) fn mutate_player_aura_subsystem_like_cpp<R>(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        mutate: impl FnOnce(&mut wow_entities::AuraSubsystem) -> R,
+    ) -> Option<R> {
+        let mut mutate = Some(mutate);
+        #[cfg(test)]
+        if hub.core.player_handle_like_cpp.is_none() {
+            let mut auras = hub.shared().player_aura_subsystem_snapshot_like_cpp()?;
+            let result =
+                mutate
+                    .take()
+                    .expect("test Player aura mutation executes once")(&mut auras);
+            hub.fixtures.auras.player_aura_authority_complete_like_cpp =
+                auras.persisted_player_aura_authority_complete_like_cpp();
+            hub.fixtures
+                .auras
+                .player_spell_hit_aura_authority_tombstoned_like_cpp =
+                auras.spell_hit_aura_authority_tombstoned_like_cpp();
+            hub.fixtures.auras.visible_auras = auras.runtime_applications_like_cpp().clone();
+            hub.fixtures
+                .auras
+                .canonical_threat_aura_snapshots_like_cpp
+                .clear();
+            for slot in 0..=u8::MAX {
+                if let Some(snapshot) = auras.threat_snapshot_like_cpp(slot) {
+                    hub.fixtures
+                        .auras
+                        .canonical_threat_aura_snapshots_like_cpp
+                        .insert(slot, snapshot.clone());
+                }
+            }
+            return Some(result);
+        }
+        hub.core.with_owned_player_mut_like_cpp(|player| {
+            mutate.take().expect("Player aura mutation executes once")(
+                &mut player.unit_mut().subsystems_mut().auras,
+            )
+        })
+    }
+
+    pub(crate) fn set_player_aura_authority_complete_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        complete: bool,
+    ) -> bool {
+        let _canonical = hub
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_player_aura_authority_complete_like_cpp(complete);
+            })
+            .is_some();
+        #[cfg(test)]
+        if !_canonical && hub.core.player_handle_like_cpp.is_none() {
+            return self
+                .mutate_player_aura_subsystem_like_cpp(hub, |auras| {
+                    auras.set_persisted_player_aura_authority_complete_like_cpp(complete);
+                })
+                .is_some();
+        }
+        _canonical
+    }
+
+    #[cfg(test)]
+    pub(crate) fn player_aura_authority_complete_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> bool {
+        hub.fixtures.auras.player_aura_authority_complete_like_cpp
+    }
+
+    pub(crate) fn resolved_player_aura_authority_complete_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<bool> {
+        hub.player_aura_subsystem_snapshot_like_cpp()
+            .map(|auras| auras.persisted_player_aura_authority_complete_like_cpp())
+    }
+
+    pub(crate) fn tombstone_player_spell_hit_aura_authority_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+    ) {
+        let _canonical = hub
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.tombstone_player_spell_hit_aura_authority_like_cpp();
+            })
+            .is_some();
+        #[cfg(test)]
+        if !_canonical && hub.core.player_handle_like_cpp.is_none() {
+            let _ = self.mutate_player_aura_subsystem_like_cpp(hub, |auras| {
+                auras.tombstone_spell_hit_aura_authority_like_cpp();
+            });
+        }
+    }
+
+    fn represented_active_glyph_aura_source_is_empty_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> bool {
+        hub.player_talent_runtime_snapshot_like_cpp()
+            .filter(|runtime| runtime.glyphs_loaded_like_cpp())
+            .map(|runtime| {
+                let active_group = runtime.active_group_like_cpp();
+                (0..wow_entities::PLAYER_MAX_GLYPH_SLOTS_LIKE_CPP as u8)
+                    .all(|slot| runtime.glyph_like_cpp(active_group, slot) == Some(0))
+            })
+            .unwrap_or(false)
+    }
+
+    /// C++ `Map::AddPlayerToMap` can dispatch `InstanceScript::OnPlayerEnter`,
+    /// Scenario, and Battleground hooks before the login authority is
+    /// published. Those hooks are not represented, so only an exact ordinary
+    /// world-map DB2 row excludes them.
+    fn represented_add_player_to_map_aura_source_is_empty_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> bool {
+        hub.catalogs
+            .maps
+            .store
+            .as_ref()
+            .and_then(|store| store.get(u32::from(hub.core.player_map_id_like_cpp())))
+            .is_some_and(|map| map.instance_type == wow_data::map::MAP_COMMON)
+    }
+}
+
 impl crate::session::state::SessionCore {
     pub(in crate::session) fn invalidate_canonical_player_spell_hit_aura_authority_like_cpp(
         &mut self,
@@ -319,3 +372,7 @@ impl crate::session::HubRef<'_> {
         canonical
     }
 }
+
+#[cfg(test)]
+#[path = "../../../../unit_tests/session/spell_state/aura/spell_hit_authority/f3_shims.rs"]
+mod f3_shims;

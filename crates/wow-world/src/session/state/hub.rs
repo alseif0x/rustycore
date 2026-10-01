@@ -114,3 +114,22 @@ pub(crate) fn split_visibility_mut(s: &mut WorldSession) -> (&mut VisibilityStat
 pub(crate) fn split_visibility_ref(s: &WorldSession) -> (&VisibilityState, HubRef<'_>) {
     (&s.visibility, hub_ref(s))
 }
+
+/// `&mut` group state plus the mutable hub (core and fixtures), borrowed from disjoint fields.
+pub(crate) fn split_spell_state_mut(s: &mut WorldSession) -> (&mut SessionSpellState, HubMut<'_>) {
+    (
+        &mut s.spell_state,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(test)]
+            fixtures: &mut s.fixtures,
+        },
+    )
+}
+
+/// Shared group state plus the shared hub for `&self` methods.
+pub(crate) fn split_spell_state_ref(s: &WorldSession) -> (&SessionSpellState, HubRef<'_>) {
+    (&s.spell_state, hub_ref(s))
+}

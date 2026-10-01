@@ -74,6 +74,7 @@ DOMAIN_MAP = {g: d.split() for g, d in {
 DOMAIN = {d: g for g, ds in DOMAIN_MAP.items() for d in ds}
 
 SELF_FIELD = re.compile(r"\bself\s*\.\s*(" + IDENT + r")\b(?!\s*(?:\(|::\s*<))")
+GUARD_LET = re.compile(r"\blet\s+(?:mut\s+)?(" + IDENT + r")\s*=[^;{}=]*?\.\s*(?:lock|write|read)\s*\(\s*\)")
 FIXTURE_FIELD = re.compile(r"\bself\s*\.\s*fixtures\s*\.\s*(" + IDENT + r")\b")
 SELF_CALL = re.compile(r"\bself\s*\.\s*(" + IDENT + r")(\s*(?:::\s*<[^;{}()]*>\s*)?)\(")
 STORE_WRITE = re.compile(r"&\s*mut\s+self\s*\.\s*(?:catalogs|config)\b|\bself\s*\.\s*(?:catalogs|config)"
@@ -86,7 +87,7 @@ IMPL_ANY = re.compile(r"(?m)^[ \t]*impl\s*(?:<[^{};]*?>)?\s*(?:" + IDENT + r"\s*
                       r")\b\s*(?:<[^{};]*>)?\s*\{")
 
 
-PRECONDITIONS = ("writes catalogs/config", "unsupported parameter", "unexpected receiver", "whole-self", "`Self::`", "macro-generated", "returns a borrow",
+PRECONDITIONS = ("holds a std lock guard", "writes catalogs/config", "unsupported parameter", "unexpected receiver", "whole-self", "`Self::`", "macro-generated", "returns a borrow",
                  "reads config")
 
 
@@ -143,7 +144,7 @@ def scan(root):
                                 recv=recv, is_async=bool(re.search(r"\basync\s+(?:unsafe\s+)?$", attrs)),
                                 cfg_test=cfg_test, acc=dict(acc), pacc=dict(pacc),
                                 calls=sorted({x for x, _ in SELF_CALL.findall(body)}),
-                                fx=sorted(set(FIXTURE_FIELD.findall(body))), whole_self=len(BARE_SELF.findall(body)), type_path=bool(TYPE_PATH.search(body)),
+                                fx=sorted(set(FIXTURE_FIELD.findall(body))), guard_call=guard_call(body), whole_self=len(BARE_SELF.findall(body)), type_path=bool(TYPE_PATH.search(body)),
                                 macro="$" in sig + body, sig_end=bo, writes_store=bool(STORE_WRITE.search(body)),
                                 ret_borrow=bool(re.search(r"(&|'[a-z_])", ret_type(c, m.end(), bo))),
                                 domain=W.domain_of(rel)))
@@ -171,6 +172,22 @@ def scan(root):
             for x in ANY_CALL.findall(W.blank_noncode(p.read_text(errors="replace"))):
                 tests[x] += 1
     return W, src, raw, code, groups, fns, owned, handlers, ext, tests
+
+
+def guard_call(body):
+    """A `let g = ...lock()/read()/write()` guard still live (not dropped) at a later `self.m(..)` call."""
+    for m in GUARD_LET.finditer(body):
+        end = len(body)
+        depth = 0
+        for j in range(m.start(), len(body)):                # the guard lives to the end of its block
+            depth += {"{": 1, "}": -1}.get(body[j], 0)
+            if depth < 0:
+                end = j
+                break
+        drop = re.search(r"\bdrop\s*\(\s*" + m.group(1) + r"\s*\)", body[m.end():end])
+        if SELF_CALL.search(body, m.end(), m.end() + drop.start() if drop else end):
+            return True
+    return False
 
 
 def targets(fns):
@@ -271,6 +288,8 @@ def preconditions(f, cls, kind, classes):
         return f"unexpected receiver {f['recv']}"
     if f["whole_self"]:
         return "whole-self use (`self` as a value)"
+    if f["guard_call"]:
+        return "holds a std lock guard across a self method call"
     if f["type_path"]:
         return "`Self::`/`WorldSession::` path in body"
     if f["macro"]:
@@ -280,7 +299,7 @@ def preconditions(f, cls, kind, classes):
 
 def hub_check(f, kind):
     """Precondition failures specific to the hub kinds (also applied when a P fn is upgraded)."""
-    if kind in ("hubref", "hubmut") and f["ret_borrow"]:
+    if kind in ("hubref", "hubmut", *SH) and f["ret_borrow"]:      # elision would tie it to the wrong borrow
         return "returns a borrow (would borrow a temporary hub view)"
     if kind in ("hubref", "hubmut", *SH) and f.get("writes_store"):
         return "writes catalogs/config (shared in every hub view)"
@@ -295,6 +314,8 @@ def upgrade(f, kind, classes):
         f["target"], f["store_rehomed"] = f["store_from"], False
     if kind != "state" or "C-hub" not in classes or f["target"] in ("catalogs", "config"):
         return None
+    if f["target"] not in STATE_TYPE and f["target"] not in FIXTURE_TYPE:
+        return "stateless group: context-owned kind not implemented"
     if f["target"] not in ("core", *FIXTURE_TYPE):
         up = "C-hub", "state-hub" if f["recv"] == "&self" else "state-hubmut", STATE_TYPE[f["target"]]
     else:
@@ -644,11 +665,42 @@ def ensure_prelude(src, kinds, groups_state_hub, outside_types):
     return written
 
 
+def git_ignored(root, path):
+    return subprocess.run(["git", "-C", str(root), "check-ignore", "-q", str(path)],
+                          stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode == 0
+
+
+def shim_path(root, rel):
+    """`unit_tests/<src path>/f3_shims.rs`, or `<src path>_f3_shims.rs` where .gitignore hides the dir."""
+    base = root / "crates/wow-world/unit_tests" / rel[:-3]
+    return base / "f3_shims.rs" if not git_ignored(root, base / "f3_shims.rs") else \
+        base.with_name(base.name + "_f3_shims.rs")
+
+
+def relocate_ignored_shims(root, src):
+    """Move shim files a .gitignore rule hides (e.g. a `skills/` dir) and repoint their mounts."""
+    moved = []
+    for p in sorted(src.rglob("*.rs")):
+        text = p.read_text()
+        m = re.search(r'#\[path = "([^"]+f3_shims\.rs)"\]\nmod f3_shims;', text)
+        if not m:
+            continue
+        old = (p.parent / m.group(1)).resolve()
+        new = shim_path(root, p.relative_to(src).as_posix())
+        if old.exists() and old != new.resolve():
+            new.write_text(old.read_text())
+            old.unlink()
+            p.write_text(text.replace(m.group(1), os.path.relpath(new, p.parent)))
+            moved += [p, new]
+    return moved
+
+
 def apply_text(root, P):
     rows = P["rows"]
+    relocated = relocate_ignored_shims(root, P["src"])
     if not rows and not P["stale"] and not P["stale_shims"]:
-        return []
-    written = []
+        return relocated
+    written = relocated
     for name, shim in P["stale_shims"].items():               # remove shims nobody calls any more
         t = shim.read_text()
         code = P["W"].blank_noncode(t)
@@ -711,8 +763,7 @@ def apply_text(root, P):
         (src / rel).write_text(raw)
         written.append(src / rel)
     for rel, items in shims.items():
-        stem = rel[:-3]
-        shim = root / "crates/wow-world/unit_tests" / stem / "f3_shims.rs"
+        shim = shim_path(root, rel)
         text = shim.read_text() if shim.exists() else (
             "// Copyright (c) 2026 alseif0x\n// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html\n\n"
             "//! #1241 F3 test shims: WorldSession entry points kept only for unit_tests callers.\n\n"
@@ -780,7 +831,7 @@ def restore_thunks(root, manifest, names):
         p = src / rel
         attrs = "".join(x.strip() + "\n" for x in impl_attr)
         p.write_text(p.read_text().rstrip("\n") + f"\n\n{attrs}impl WorldSession {{\n{text.rstrip()}\n}}\n")
-        shim = root / "crates/wow-world/unit_tests" / rel[:-3] / "f3_shims.rs"
+        shim = shim_path(root, rel)
         if shim.exists():
             W = lib(root)
             t = shim.read_text()

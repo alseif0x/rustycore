@@ -98,36 +98,8 @@ impl WorldSession {
         spell_id: i32,
         cooldown_ms: u32,
     ) {
-        if !self
-            .player_spell_history_snapshot_like_cpp()
-            .is_some_and(|history| history.cooldowns_loaded)
-            || cooldown_ms == 0
-        {
-            return;
-        }
-        let Ok(spell_id) = u32::try_from(spell_id) else {
-            return;
-        };
-        let cooldown_secs = i64::from(cooldown_ms.saturating_add(999) / 1_000);
-        if cooldown_secs == 0 {
-            return;
-        }
-        self.record_loaded_character_spell_cooldown_like_cpp(
-            spell_id,
-            0,
-            unix_now().saturating_add(cooldown_secs),
-            0,
-            0,
-        );
-    }
-    #[cfg(test)]
-    pub fn set_player_create_cast_spell_store_like_cpp(
-        &mut self,
-        store: Arc<PlayerCreateInfoCastSpellStoreLikeCpp>,
-    ) {
-        self.catalogs
-            .player_bootstrap_catalog_test_fixture_like_cpp
-            .player_create_cast_spell_store_like_cpp = Some(store);
+        let (state, mut hub) = crate::session::split_spell_state_mut(self);
+        state.record_cast_character_spell_cooldown_like_cpp(&mut hub, spell_id, cooldown_ms)
     }
     /// Conservative C++ `SpellArea::IsFitToRequirements` projection used only
     /// to decide whether an unrepresented AUTOCAST aura could exist. A proven
@@ -295,73 +267,18 @@ impl WorldSession {
         bytes: Vec<u8>,
         _include_self: bool,
     ) {
-        self.broadcast_to_movement_set_in_range_and_connection_like_cpp(
-            bytes,
-            crate::map_manager::VISIBILITY_RADIUS,
-            true,
-        );
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.broadcast_to_movement_set_realm_like_cpp(hub, bytes, _include_self)
     }
     pub(crate) fn broadcast_to_movement_set_in_range_like_cpp(&self, bytes: Vec<u8>, range: f32) {
         crate::session::hub_ref(self).broadcast_to_movement_set_in_range_like_cpp(bytes, range)
-    }
-    fn broadcast_to_movement_set_in_range_and_connection_like_cpp(
-        &self,
-        bytes: Vec<u8>,
-        range: f32,
-        realm_connection: bool,
-    ) {
-        crate::session::hub_ref(self).broadcast_to_movement_set_in_range_and_connection_like_cpp(
-            bytes,
-            range,
-            realm_connection,
-        )
     }
     pub(in crate::session) fn represented_login_passive_spell_cast_gate_like_cpp(
         &self,
         spell_id: i32,
     ) -> bool {
-        let Some(spell_store) = self.catalogs.spell_catalogs.spell_store.as_ref() else {
-            return false;
-        };
-        let (stances, _) = spell_store.shapeshift_masks_like_cpp(spell_id);
-        let Some(form) = self.represented_shapeshift_form_like_cpp() else {
-            return false;
-        };
-        let stance_mask = form
-            .checked_sub(1)
-            .and_then(|shift| 1u64.checked_shl(shift))
-            .unwrap_or(0);
-        let need_cast = stances == 0
-            || (form != 0 && (stances & stance_mask) != 0)
-            || (form == 0
-                && spell_store.has_attribute2_like_cpp(
-                    spell_id,
-                    wow_data::spell::attributes::SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM,
-                ));
-
-        if !need_cast {
-            return false;
-        }
-
-        let Ok(spell_id_u32) = u32::try_from(spell_id) else {
-            return false;
-        };
-        let caster_aura_state = self
-            .catalogs
-            .spell_catalogs
-            .spell_aura_restrictions_store
-            .as_ref()
-            .and_then(|store| {
-                store
-                    .entries_for_spell_id_like_cpp(spell_id_u32)
-                    .find(|entry| entry.difficulty_id == 0 || entry.difficulty_id == u8::MAX)
-                    .or_else(|| store.entries_for_spell_id_like_cpp(spell_id_u32).next())
-            })
-            .map(|entry| entry.caster_aura_state)
-            .unwrap_or(0);
-
-        caster_aura_state == 0
-            || self.represented_has_aura_state_like_cpp(u32::from(caster_aura_state))
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.represented_login_passive_spell_cast_gate_like_cpp(hub, spell_id)
     }
     pub(crate) fn represented_cast_spell_info_like_cpp(
         &self,
@@ -394,11 +311,8 @@ impl WorldSession {
         &mut self,
         cast: RepresentedTalentRespecVisualSpellCastLikeCpp,
     ) {
-        #[cfg(test)]
-        self.fixtures
-            .progression
-            .represented_talent_respec_visual_spell_casts_like_cpp
-            .push(cast);
+        let (state, mut hub) = crate::session::split_spell_state_mut(self);
+        state.record_represented_talent_respec_visual_spell_cast_like_cpp(&mut hub, cast)
     }
     #[cfg(test)]
     pub(crate) fn represented_talent_respec_visual_spell_casts_like_cpp(
@@ -408,6 +322,124 @@ impl WorldSession {
             .fixtures
             .progression
             .represented_talent_respec_visual_spell_casts_like_cpp
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    #[cfg(test)]
+    pub fn set_player_create_cast_spell_store_like_cpp(
+        &mut self,
+        store: Arc<PlayerCreateInfoCastSpellStoreLikeCpp>,
+    ) {
+        self.player_bootstrap_catalog_test_fixture_like_cpp
+            .player_create_cast_spell_store_like_cpp = Some(store);
+    }
+}
+
+impl crate::session::state::SessionSpellState {
+    pub(in crate::session) fn record_cast_character_spell_cooldown_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        spell_id: i32,
+        cooldown_ms: u32,
+    ) {
+        if !self
+            .player_spell_history_snapshot_like_cpp(hub.shared())
+            .is_some_and(|history| history.cooldowns_loaded)
+            || cooldown_ms == 0
+        {
+            return;
+        }
+        let Ok(spell_id) = u32::try_from(spell_id) else {
+            return;
+        };
+        let cooldown_secs = i64::from(cooldown_ms.saturating_add(999) / 1_000);
+        if cooldown_secs == 0 {
+            return;
+        }
+        self.record_loaded_character_spell_cooldown_like_cpp(
+            hub,
+            spell_id,
+            0,
+            unix_now().saturating_add(cooldown_secs),
+            0,
+            0,
+        );
+    }
+
+    pub(crate) fn broadcast_to_movement_set_realm_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        bytes: Vec<u8>,
+        _include_self: bool,
+    ) {
+        hub.broadcast_to_movement_set_in_range_and_connection_like_cpp(
+            bytes,
+            crate::map_manager::VISIBILITY_RADIUS,
+            true,
+        );
+    }
+
+    pub(in crate::session) fn represented_login_passive_spell_cast_gate_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        spell_id: i32,
+    ) -> bool {
+        let Some(spell_store) = hub.catalogs.spell_catalogs.spell_store.as_ref() else {
+            return false;
+        };
+        let (stances, _) = spell_store.shapeshift_masks_like_cpp(spell_id);
+        let Some(form) = hub.represented_shapeshift_form_like_cpp() else {
+            return false;
+        };
+        let stance_mask = form
+            .checked_sub(1)
+            .and_then(|shift| 1u64.checked_shl(shift))
+            .unwrap_or(0);
+        let need_cast = stances == 0
+            || (form != 0 && (stances & stance_mask) != 0)
+            || (form == 0
+                && spell_store.has_attribute2_like_cpp(
+                    spell_id,
+                    wow_data::spell::attributes::SPELL_ATTR2_ALLOW_WHILE_NOT_SHAPESHIFTED_CASTER_FORM,
+                ));
+
+        if !need_cast {
+            return false;
+        }
+
+        let Ok(spell_id_u32) = u32::try_from(spell_id) else {
+            return false;
+        };
+        let caster_aura_state = hub
+            .catalogs
+            .spell_catalogs
+            .spell_aura_restrictions_store
+            .as_ref()
+            .and_then(|store| {
+                store
+                    .entries_for_spell_id_like_cpp(spell_id_u32)
+                    .find(|entry| entry.difficulty_id == 0 || entry.difficulty_id == u8::MAX)
+                    .or_else(|| store.entries_for_spell_id_like_cpp(spell_id_u32).next())
+            })
+            .map(|entry| entry.caster_aura_state)
+            .unwrap_or(0);
+
+        caster_aura_state == 0
+            || self.represented_has_aura_state_like_cpp(hub, u32::from(caster_aura_state))
+    }
+
+    #[cfg_attr(not(test), allow(unused_variables))]
+    pub(crate) fn record_represented_talent_respec_visual_spell_cast_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        cast: RepresentedTalentRespecVisualSpellCastLikeCpp,
+    ) {
+        #[cfg(test)]
+        hub.fixtures
+            .progression
+            .represented_talent_respec_visual_spell_casts_like_cpp
+            .push(cast);
     }
 }
 
@@ -465,3 +497,7 @@ impl crate::session::HubRef<'_> {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/spell_state/cast/f3_shims.rs"]
+mod f3_shims;

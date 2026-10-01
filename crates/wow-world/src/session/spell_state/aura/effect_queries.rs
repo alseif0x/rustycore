@@ -7,11 +7,8 @@ impl WorldSession {
         &self,
         effect: RepresentedAuraEffectLikeCpp,
     ) -> Option<bool> {
-        self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .any(|aura| aura.represented_effect == Some(effect))
-        })
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.resolved_has_represented_aura_effect_like_cpp(hub, effect)
     }
 
     #[cfg(test)]
@@ -25,22 +22,8 @@ impl WorldSession {
         effect: RepresentedAuraEffectLikeCpp,
         misc_value: i32,
     ) -> Option<bool> {
-        self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras.values().any(|aura| {
-                aura.represented_effect == Some(effect)
-                    && aura.represented_misc_value == Some(misc_value)
-            })
-        })
-    }
-
-    #[cfg(test)]
-    pub(in crate::session) fn has_represented_aura_effect_with_misc_value_like_cpp(
-        &self,
-        effect: RepresentedAuraEffectLikeCpp,
-        misc_value: i32,
-    ) -> bool {
-        self.resolved_has_represented_aura_effect_with_misc_value_like_cpp(effect, misc_value)
-            .expect("test Player aura owner must resolve")
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.resolved_has_represented_aura_effect_with_misc_value_like_cpp(hub, effect, misc_value)
     }
 
     pub(in crate::session) fn resolved_total_represented_aura_modifier_like_cpp(
@@ -50,42 +33,23 @@ impl WorldSession {
         crate::session::hub_ref(self).resolved_total_represented_aura_modifier_like_cpp(effect)
     }
 
-    #[cfg(test)]
-    pub(in crate::session) fn total_represented_aura_modifier_like_cpp(
-        &self,
-        effect: RepresentedAuraEffectLikeCpp,
-    ) -> i32 {
-        self.resolved_total_represented_aura_modifier_like_cpp(effect)
-            .expect("test Player aura owner must resolve")
-    }
-
     pub(in crate::session) fn resolved_total_represented_aura_modifier_by_misc_value_like_cpp(
         &self,
         effect: RepresentedAuraEffectLikeCpp,
         misc_value: i32,
     ) -> Option<i32> {
-        self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .filter(|aura| {
-                    aura.represented_effect == Some(effect)
-                        && aura.represented_misc_value == Some(misc_value)
-                })
-                .map(|aura| aura.represented_amount)
-                .sum()
-        })
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.resolved_total_represented_aura_modifier_by_misc_value_like_cpp(
+            hub, effect, misc_value,
+        )
     }
 
     pub(in crate::session) fn resolved_total_represented_aura_multiplier_like_cpp(
         &self,
         effect: RepresentedAuraEffectLikeCpp,
     ) -> Option<f32> {
-        self.resolved_player_visible_auras_like_cpp().map(|auras| {
-            auras
-                .values()
-                .filter(|aura| aura.represented_effect == Some(effect))
-                .fold(1.0, |acc, aura| acc * aura.represented_multiplier)
-        })
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.resolved_total_represented_aura_multiplier_like_cpp(hub, effect)
     }
 
     pub(crate) fn resolved_aura_effects_by_spell_aura_type_like_cpp(
@@ -117,20 +81,118 @@ impl WorldSession {
             .resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(aura_type)
     }
 
+    pub(in crate::session) fn aura_has_total_stat_percentage_effect_like_cpp(
+        &self,
+        aura: &AuraApplication,
+    ) -> bool {
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.aura_has_total_stat_percentage_effect_like_cpp(hub, aura)
+    }
+
+    pub(in crate::session) fn total_stat_percentage_aura_preserves_health_pct_like_cpp(
+        &self,
+        aura: &AuraApplication,
+    ) -> bool {
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.total_stat_percentage_aura_preserves_health_pct_like_cpp(hub, aura)
+    }
+}
+
+impl crate::session::state::SessionSpellState {
+    pub(in crate::session) fn resolved_has_represented_aura_effect_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        effect: RepresentedAuraEffectLikeCpp,
+    ) -> Option<bool> {
+        hub.resolved_player_visible_auras_like_cpp().map(|auras| {
+            auras
+                .values()
+                .any(|aura| aura.represented_effect == Some(effect))
+        })
+    }
+
+    pub(in crate::session) fn resolved_has_represented_aura_effect_with_misc_value_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        effect: RepresentedAuraEffectLikeCpp,
+        misc_value: i32,
+    ) -> Option<bool> {
+        hub.resolved_player_visible_auras_like_cpp().map(|auras| {
+            auras.values().any(|aura| {
+                aura.represented_effect == Some(effect)
+                    && aura.represented_misc_value == Some(misc_value)
+            })
+        })
+    }
+
+    #[cfg(test)]
+    pub(in crate::session) fn has_represented_aura_effect_with_misc_value_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        effect: RepresentedAuraEffectLikeCpp,
+        misc_value: i32,
+    ) -> bool {
+        self.resolved_has_represented_aura_effect_with_misc_value_like_cpp(hub, effect, misc_value)
+            .expect("test Player aura owner must resolve")
+    }
+
+    #[cfg(test)]
+    pub(in crate::session) fn total_represented_aura_modifier_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        effect: RepresentedAuraEffectLikeCpp,
+    ) -> i32 {
+        hub.resolved_total_represented_aura_modifier_like_cpp(effect)
+            .expect("test Player aura owner must resolve")
+    }
+
+    pub(in crate::session) fn resolved_total_represented_aura_modifier_by_misc_value_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        effect: RepresentedAuraEffectLikeCpp,
+        misc_value: i32,
+    ) -> Option<i32> {
+        hub.resolved_player_visible_auras_like_cpp().map(|auras| {
+            auras
+                .values()
+                .filter(|aura| {
+                    aura.represented_effect == Some(effect)
+                        && aura.represented_misc_value == Some(misc_value)
+                })
+                .map(|aura| aura.represented_amount)
+                .sum()
+        })
+    }
+
+    pub(in crate::session) fn resolved_total_represented_aura_multiplier_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        effect: RepresentedAuraEffectLikeCpp,
+    ) -> Option<f32> {
+        hub.resolved_player_visible_auras_like_cpp().map(|auras| {
+            auras
+                .values()
+                .filter(|aura| aura.represented_effect == Some(effect))
+                .fold(1.0, |acc, aura| acc * aura.represented_multiplier)
+        })
+    }
+
     #[cfg(test)]
     pub(in crate::session) fn total_represented_aura_multiplier_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         effect: RepresentedAuraEffectLikeCpp,
     ) -> f32 {
-        self.resolved_total_represented_aura_multiplier_like_cpp(effect)
+        self.resolved_total_represented_aura_multiplier_like_cpp(hub, effect)
             .expect("test Player aura owner must resolve")
     }
 
     pub(in crate::session) fn aura_has_total_stat_percentage_effect_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         aura: &AuraApplication,
     ) -> bool {
-        self.spell_store().is_some_and(|store| {
+        hub.catalogs.spell_store().is_some_and(|store| {
             store.get(aura.spell_id).is_some_and(|spell| {
                 spell.effects().iter().any(|effect| {
                     1u32.checked_shl(effect.effect_index)
@@ -144,9 +206,10 @@ impl WorldSession {
 
     pub(in crate::session) fn total_stat_percentage_aura_preserves_health_pct_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         aura: &AuraApplication,
     ) -> bool {
-        self.spell_store().is_some_and(|store| {
+        hub.catalogs.spell_store().is_some_and(|store| {
             store.has_attribute0_like_cpp(
                 aura.spell_id,
                 wow_data::spell::attributes::SPELL_ATTR0_IS_ABILITY,
@@ -402,3 +465,7 @@ impl crate::session::HubRef<'_> {
         })
     }
 }
+
+#[cfg(test)]
+#[path = "../../../../unit_tests/session/spell_state/aura/effect_queries/f3_shims.rs"]
+mod f3_shims;

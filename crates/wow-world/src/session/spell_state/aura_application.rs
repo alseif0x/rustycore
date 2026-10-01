@@ -10,20 +10,8 @@ impl WorldSession {
         &mut self,
         slot: u8,
     ) -> Option<AuraApplication> {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.remove_player_visible_aura_like_cpp(slot)
-            })
-            .flatten();
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return self
-                .mutate_player_aura_subsystem_like_cpp(|auras| {
-                    auras.remove_runtime_application_like_cpp(slot)
-                })
-                .flatten();
-        }
-        canonical
+        let (state, mut hub) = crate::session::split_spell_state_mut(self);
+        state.remove_player_visible_aura_like_cpp(&mut hub, slot)
     }
     pub(crate) fn same_effect_stack_rule_aura_types_like_cpp(
         &self,
@@ -918,17 +906,8 @@ impl WorldSession {
         }
     }
     fn send_aura_update_removed(&self, slot: u8) {
-        let Some(target_guid) = self.player_guid() else {
-            return;
-        };
-        self.send_packet(&wow_packet::packets::misc::AuraUpdate {
-            unit_guid: target_guid,
-            update_all: false,
-            auras: vec![wow_packet::packets::misc::AuraInfoLikeCpp {
-                slot,
-                aura_data: None,
-            }],
-        });
+        let (state, hub) = crate::session::split_spell_state_ref(self);
+        state.send_aura_update_removed(hub, slot)
     }
     pub(in crate::session) fn remove_represented_stealth_or_invisibility_auras_by_type_like_cpp(
         &mut self,
@@ -950,6 +929,45 @@ impl WorldSession {
             let _ = self.remove_aura(slot);
         }
         Some(removed)
+    }
+}
+
+impl crate::session::state::SessionSpellState {
+    pub(in crate::session) fn remove_player_visible_aura_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        slot: u8,
+    ) -> Option<AuraApplication> {
+        let canonical = hub
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.remove_player_visible_aura_like_cpp(slot)
+            })
+            .flatten();
+        #[cfg(test)]
+        if canonical.is_none() && hub.core.player_handle_like_cpp.is_none() {
+            return self
+                .mutate_player_aura_subsystem_like_cpp(hub, |auras| {
+                    auras.remove_runtime_application_like_cpp(slot)
+                })
+                .flatten();
+        }
+        canonical
+    }
+
+    fn send_aura_update_removed(&self, hub: crate::session::HubRef<'_>, slot: u8) {
+        let Some(target_guid) = hub.core.player_guid() else {
+            return;
+        };
+        hub.core
+            .send_packet(&wow_packet::packets::misc::AuraUpdate {
+                unit_guid: target_guid,
+                update_all: false,
+                auras: vec![wow_packet::packets::misc::AuraInfoLikeCpp {
+                    slot,
+                    aura_data: None,
+                }],
+            });
     }
 }
 

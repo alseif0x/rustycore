@@ -17,8 +17,33 @@ fn spell_power_trace_enabled_like_cpp() -> bool {
 }
 
 impl WorldSession {
+    pub(crate) fn check_spell_power_like_cpp(
+        &mut self,
+        spell_info: &wow_data::SpellInfo,
+        cast_id: ObjectGuid,
+        spell_id: i32,
+        visual: &SpellCastVisual,
+    ) -> bool {
+        let (state, mut hub) = crate::session::split_spell_state_mut(self);
+        state.check_spell_power_like_cpp(&mut hub, spell_info, cast_id, spell_id, visual)
+    }
+
+    pub(crate) fn take_spell_power_like_cpp(
+        &mut self,
+        spell_info: &wow_data::SpellInfo,
+        cast_id: ObjectGuid,
+        spell_id: i32,
+        visual: &SpellCastVisual,
+    ) -> bool {
+        let (state, mut hub) = crate::session::split_spell_state_mut(self);
+        state.take_spell_power_like_cpp(&mut hub, spell_info, cast_id, spell_id, visual)
+    }
+}
+
+impl crate::session::state::SessionSpellState {
     fn spell_power_cost_snapshot_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         spell_info: &wow_data::SpellInfo,
         cast_id: ObjectGuid,
         spell_id: i32,
@@ -29,8 +54,8 @@ impl WorldSession {
         Vec<(i8, i32, i32)>,
     )> {
         let trace_spell_power = spell_power_trace_enabled_like_cpp();
-        let Some((caster_create_mana, power_costs, before_power)) = self
-            .mutate_canonical_player_like_cpp(|player| {
+        let Some((caster_create_mana, power_costs, before_power)) =
+            hub.core.mutate_canonical_player_like_cpp(|player| {
                 let caster_create_mana = player.unit().get_create_mana_like_cpp();
                 let power_costs = spell_info.calc_power_costs_like_cpp(caster_create_mana);
                 let before_power = power_costs
@@ -75,11 +100,12 @@ impl WorldSession {
 
     fn send_spell_power_no_power_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         cast_id: ObjectGuid,
         spell_id: i32,
         visual: &SpellCastVisual,
     ) {
-        self.send_packet(&CastFailed {
+        hub.core.send_packet(&CastFailed {
             cast_id,
             spell_id,
             visual: visual.clone(),
@@ -91,6 +117,7 @@ impl WorldSession {
 
     pub(crate) fn check_spell_power_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         spell_info: &wow_data::SpellInfo,
         cast_id: ObjectGuid,
         spell_id: i32,
@@ -98,12 +125,12 @@ impl WorldSession {
     ) -> bool {
         let trace_spell_power = spell_power_trace_enabled_like_cpp();
         let Some((caster_create_mana, power_costs, before_power)) =
-            self.spell_power_cost_snapshot_like_cpp(spell_info, cast_id, spell_id, "check")
+            self.spell_power_cost_snapshot_like_cpp(hub, spell_info, cast_id, spell_id, "check")
         else {
             if spell_info.power_costs.is_empty() {
                 return true;
             }
-            self.send_spell_power_no_power_like_cpp(cast_id, spell_id, visual);
+            self.send_spell_power_no_power_like_cpp(hub, cast_id, spell_id, visual);
             return false;
         };
 
@@ -124,7 +151,7 @@ impl WorldSession {
                     spell_id, cast_id, power_costs, before_power
                 );
             }
-            self.send_spell_power_no_power_like_cpp(cast_id, spell_id, visual);
+            self.send_spell_power_no_power_like_cpp(hub, cast_id, spell_id, visual);
             return false;
         }
 
@@ -133,6 +160,7 @@ impl WorldSession {
 
     pub(crate) fn take_spell_power_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         spell_info: &wow_data::SpellInfo,
         cast_id: ObjectGuid,
         spell_id: i32,
@@ -140,12 +168,12 @@ impl WorldSession {
     ) -> bool {
         let trace_spell_power = spell_power_trace_enabled_like_cpp();
         let Some((caster_create_mana, power_costs, before_power)) =
-            self.spell_power_cost_snapshot_like_cpp(spell_info, cast_id, spell_id, "take")
+            self.spell_power_cost_snapshot_like_cpp(hub, spell_info, cast_id, spell_id, "take")
         else {
             if spell_info.power_costs.is_empty() {
                 return true;
             }
-            self.send_spell_power_no_power_like_cpp(cast_id, spell_id, visual);
+            self.send_spell_power_no_power_like_cpp(hub, cast_id, spell_id, visual);
             return false;
         };
 
@@ -166,11 +194,12 @@ impl WorldSession {
                     spell_id, cast_id, power_costs, before_power
                 );
             }
-            self.send_spell_power_no_power_like_cpp(cast_id, spell_id, visual);
+            self.send_spell_power_no_power_like_cpp(hub, cast_id, spell_id, visual);
             return false;
         }
 
-        let update = self
+        let update = hub
+            .core
             .mutate_canonical_player_like_cpp(|player| {
                 // The map update can change resources after the diagnostic snapshot.
                 // Recompute and admit the complete debit under the same owner guard
@@ -241,7 +270,7 @@ impl WorldSession {
             #[cfg(test)]
             for (_, slot, current, max) in &after_power {
                 if let Some(slot) = slot {
-                    self.set_represented_player_power_slot_like_cpp(*slot, *current, Some(*max));
+                    hub.set_represented_player_power_slot_like_cpp(*slot, *current, Some(*max));
                 }
             }
             if trace_spell_power {
@@ -250,7 +279,7 @@ impl WorldSession {
                     spell_id, cast_id, power_costs, before_power, after_power
                 );
             }
-            self.send_player_values_update_like_cpp(&update);
+            hub.core.send_player_values_update_like_cpp(&update);
         } else {
             if trace_spell_power {
                 info!(
@@ -258,7 +287,7 @@ impl WorldSession {
                     spell_id, cast_id, power_costs
                 );
             }
-            self.send_spell_power_no_power_like_cpp(cast_id, spell_id, visual);
+            self.send_spell_power_no_power_like_cpp(hub, cast_id, spell_id, visual);
             return false;
         }
 
