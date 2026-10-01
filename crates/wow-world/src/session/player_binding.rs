@@ -94,26 +94,12 @@ pub(in crate::session) struct PlayerIdentityBootstrapLikeCpp {
 }
 
 impl WorldSession {
-    pub(in crate::session) fn player_can_never_see_target_like_cpp(&self) -> bool {
-        crate::session::hub_ref(self).player_can_never_see_target_like_cpp()
-    }
-
-    pub(in crate::session) fn player_world_local_state_like_cpp(
-        &self,
-    ) -> Option<wow_entities::PlayerWorldLocalState> {
-        crate::session::hub_ref(self).player_world_local_state_like_cpp()
-    }
-
-    pub(in crate::session) fn player_war_mode_local_active_like_cpp(&self) -> bool {
-        crate::session::hub_ref(self).player_war_mode_local_active_like_cpp()
-    }
-
     /// Set the logged-in player GUID.
     pub fn set_player_guid(&mut self, guid: Option<ObjectGuid>) {
         let previous_player_guid = self.core.player_guid;
         let player_changed = self.core.player_guid != guid;
         if player_changed {
-            let _ = self.set_player_zone_area_authority_like_cpp(false);
+            let _ = crate::session::hub_mut(self).set_player_zone_area_authority_like_cpp(false);
             self.core
                 .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
@@ -168,9 +154,10 @@ impl WorldSession {
                     .represented_guild_id_authority_complete_like_cpp = false;
             }
             let _ = self.clear_represented_trait_config_rows_like_cpp();
-            let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
-                state.character_rows_empty_authority_complete = false;
-            });
+            let _ =
+                crate::session::hub_mut(self).update_player_pet_lifecycle_state_like_cpp(|state| {
+                    state.character_rows_empty_authority_complete = false;
+                });
             // C++ owns PlayerMenu (and therefore both InteractionData and its
             // menus) under Player. A WorldSession can survive character
             // logout, so no player-menu state may cross that lifetime here.
@@ -219,10 +206,6 @@ impl WorldSession {
         }
     }
 
-    pub(in crate::session) fn set_player_faction_for_race_like_cpp(&mut self, race: u8) {
-        crate::session::hub_mut(self).set_player_faction_for_race_like_cpp(race)
-    }
-
     pub(crate) fn attach_player_controller_like_cpp(
         &mut self,
         controller: SessionPlayerController,
@@ -260,8 +243,8 @@ impl WorldSession {
         {
             self.core.player_bootstrap_attached_like_cpp = true;
         }
-        self.initialize_reputation_mgr_like_cpp();
-        self.set_fall_information_like_cpp(0, controller_position.z);
+        crate::session::hub_mut(self).initialize_reputation_mgr_like_cpp();
+        crate::session::hub_mut(self).set_fall_information_like_cpp(0, controller_position.z);
         // Production receives MapManager at session construction, so consume
         // the login bootstrap immediately. Unit fixtures historically inject
         // or replace their synthetic manager after attachment; they exercise
@@ -277,7 +260,7 @@ impl WorldSession {
     }
 
     pub(crate) fn set_player_level_like_cpp(&mut self, level: u8) {
-        let gray_level = self.gray_level(level);
+        let gray_level = crate::session::hub_ref(self).gray_level(level);
         let canonical = self
             .core
             .with_owned_player_mut_like_cpp(|player| {
@@ -303,7 +286,7 @@ impl WorldSession {
 
     #[cfg(test)]
     pub(crate) fn set_player_class_like_cpp(&mut self, class: u8) {
-        if self.player_class_like_cpp() != class {
+        if crate::session::hub_ref(self).player_class_like_cpp() != class {
             self.core
                 .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
@@ -324,41 +307,9 @@ impl WorldSession {
         self.refresh_represented_talent_points_like_cpp();
     }
 
-    pub(crate) fn set_player_create_mode_like_cpp(&mut self, create_mode: u8) -> bool {
-        crate::session::hub_mut(self).set_player_create_mode_like_cpp(create_mode)
-    }
-
     pub(crate) fn set_player_gold_like_cpp(&mut self, gold: u64) -> bool {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.set_player_gold_like_cpp(&mut hub, gold)
-    }
-
-    pub(crate) fn player_name_like_cpp(&self) -> Option<String> {
-        crate::session::hub_ref(self).player_name_like_cpp()
-    }
-
-    pub(crate) fn player_faction_template_id_like_cpp(&self) -> Option<u32> {
-        crate::session::hub_ref(self).player_faction_template_id_like_cpp()
-    }
-
-    pub(crate) fn player_race_like_cpp(&self) -> u8 {
-        crate::session::hub_ref(self).player_race_like_cpp()
-    }
-
-    pub(crate) fn player_class_like_cpp(&self) -> u8 {
-        crate::session::hub_ref(self).player_class_like_cpp()
-    }
-
-    pub(crate) fn player_create_mode_like_cpp(&self) -> Option<u8> {
-        crate::session::hub_ref(self).player_create_mode_like_cpp()
-    }
-
-    pub(crate) fn player_level_like_cpp(&self) -> u8 {
-        crate::session::hub_ref(self).player_level_like_cpp()
-    }
-
-    pub(crate) fn player_gender_like_cpp(&self) -> u8 {
-        crate::session::hub_ref(self).player_gender_like_cpp()
     }
 
     #[inline]

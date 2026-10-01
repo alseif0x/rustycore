@@ -39,7 +39,9 @@ impl WorldSession {
         health_before: u32,
         max_health_before: u32,
     ) {
-        let Some((_, max_health_after, _)) = self.resolved_player_vitals_like_cpp() else {
+        let Some((_, max_health_after, _)) =
+            crate::session::hub_ref(self).resolved_player_vitals_like_cpp()
+        else {
             return;
         };
         let restored = (u64::from(max_health_after) * u64::from(health_before)

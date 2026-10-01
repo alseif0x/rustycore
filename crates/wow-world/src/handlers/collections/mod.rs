@@ -131,7 +131,8 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.mount_set_favorite_like_cpp(request.mount_spell_id, request.is_favorite);
+        crate::session::hub_mut(self)
+            .mount_set_favorite_like_cpp(request.mount_spell_id, request.is_favorite);
     }
 
     /// CMSG_MOUNT_SPECIAL_ANIM — forward the requested mount animation packet.
@@ -223,7 +224,8 @@ impl crate::session::WorldSession {
 
         match request.collection_type {
             COLLECTION_TYPE_TOYBOX_LIKE_CPP => {
-                self.toy_set_favorite_like_cpp(request.id, request.is_favorite);
+                crate::session::hub_mut(self)
+                    .toy_set_favorite_like_cpp(request.id, request.is_favorite);
             }
             COLLECTION_TYPE_APPEARANCE_LIKE_CPP => {
                 let (has_appearance, is_temporary) = self.has_item_appearance_like_cpp(request.id);
@@ -288,7 +290,7 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.toy_clear_fanfare_like_cpp(request.item_id);
+        crate::session::hub_mut(self).toy_clear_fanfare_like_cpp(request.item_id);
     }
 
     /// CMSG_USE_TOY — bounded C++ guard path before spell execution.
@@ -536,7 +538,9 @@ impl crate::session::WorldSession {
             .destroy_inventory_full_stack_by_pos_like_cpp(bag, slot, item, runtime_item, "AddToy")
             .await
         {
-            if let Some(update) = self.add_player_toy_dynamic_field_like_cpp(destroyed_entry_id) {
+            if let Some(update) = crate::session::hub_mut(self)
+                .add_player_toy_dynamic_field_like_cpp(destroyed_entry_id)
+            {
                 if let Some(guid) = self.player_guid() {
                     if let Some(packet) = player_values_update_to_update_object(
                         guid,
@@ -552,7 +556,7 @@ impl crate::session::WorldSession {
                 destroyed_entry_id, bag, slot, self.core.account_id
             );
         } else {
-            self.remove_account_toy_like_cpp(destroyed_entry_id);
+            crate::session::hub_mut(self).remove_account_toy_like_cpp(destroyed_entry_id);
         }
     }
 

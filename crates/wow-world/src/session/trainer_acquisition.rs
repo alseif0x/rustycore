@@ -85,6 +85,6 @@ impl TrainerAcquisitionRuntimeLikeCpp for WorldSession {
     }
 
     fn publish_skills(&mut self) {
-        self.send_complete_player_skill_values_update_like_cpp();
+        crate::session::hub_ref(self).send_complete_player_skill_values_update_like_cpp();
     }
 }

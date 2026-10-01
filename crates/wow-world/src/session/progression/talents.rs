@@ -13,47 +13,9 @@ impl WorldSession {
         self.catalogs.num_talents_at_level_store = Some(store);
         self.refresh_represented_talent_points_like_cpp();
     }
-    pub(crate) fn player_talent_runtime_snapshot_like_cpp(
-        &self,
-    ) -> Option<wow_entities::PlayerTalentRuntimeState> {
-        crate::session::hub_ref(self).player_talent_runtime_snapshot_like_cpp()
-    }
-    fn mutate_player_talent_runtime_like_cpp<R>(
-        &mut self,
-        f: impl FnOnce(&mut wow_entities::PlayerTalentRuntimeState) -> R,
-    ) -> Option<R> {
-        crate::session::hub_mut(self).mutate_player_talent_runtime_like_cpp(f)
-    }
 
-    pub(in crate::session) fn mark_talents_loaded_like_cpp(&mut self) -> bool {
-        crate::session::hub_mut(self).mark_talents_loaded_like_cpp()
-    }
-
-    pub(in crate::session) fn install_reset_talent_groups_like_cpp(
-        &mut self,
-        groups: [std::collections::BTreeMap<u32, u8>;
-            wow_entities::PLAYER_MAX_SPECIALIZATIONS_LIKE_CPP],
-    ) -> bool {
-        crate::session::hub_mut(self).install_reset_talent_groups_like_cpp(groups)
-    }
-
-    pub(crate) fn set_represented_active_talent_group_like_cpp(
-        &mut self,
-        active_group: u8,
-    ) -> bool {
-        crate::session::hub_mut(self).set_represented_active_talent_group_like_cpp(active_group)
-    }
-    pub(crate) fn represented_active_talent_group_like_cpp(&self) -> Option<u8> {
-        crate::session::hub_ref(self).represented_active_talent_group_like_cpp()
-    }
-    pub(crate) fn set_represented_bonus_talent_groups_like_cpp(
-        &mut self,
-        bonus_groups: u8,
-    ) -> bool {
-        crate::session::hub_mut(self).set_represented_bonus_talent_groups_like_cpp(bonus_groups)
-    }
     pub(crate) fn reset_represented_talents_like_cpp(&mut self) {
-        let _ = self.mutate_player_talent_runtime_like_cpp(|runtime| {
+        let _ = crate::session::hub_mut(self).mutate_player_talent_runtime_like_cpp(|runtime| {
             runtime.clear_talents_like_cpp();
         });
         // Login reconstructs a fresh C++ Player after this reset. Retaining the
@@ -63,7 +25,9 @@ impl WorldSession {
         self.invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp();
     }
     pub(crate) fn reset_represented_active_talents_like_cpp(&mut self) -> bool {
-        let Some(talent_group) = self.represented_active_talent_group_like_cpp() else {
+        let Some(talent_group) =
+            crate::session::hub_ref(self).represented_active_talent_group_like_cpp()
+        else {
             return false;
         };
         let talent_group_index = usize::from(talent_group);
@@ -71,7 +35,7 @@ impl WorldSession {
             return false;
         }
 
-        let Some(active_talents) = self
+        let Some(active_talents) = crate::session::hub_mut(self)
             .mutate_player_talent_runtime_like_cpp(|runtime| {
                 runtime.take_talent_group_like_cpp(talent_group)
             })
@@ -95,12 +59,14 @@ impl WorldSession {
             return false;
         }
 
-        self.record_represented_talent_reset_script_hook_like_cpp(true);
+        crate::session::hub_mut(self).record_represented_talent_reset_script_hook_like_cpp(true);
         self.remove_represented_at_login_flag_like_cpp(AT_LOGIN_RESET_TALENTS_LIKE_CPP, true);
-        self.remove_represented_pet_not_in_slot_like_cpp();
+        crate::session::hub_mut(self).remove_represented_pet_not_in_slot_like_cpp();
 
         if self.reset_represented_active_talents_like_cpp() {
-            let Some(talent_data) = self.resolved_update_talent_data_packet_like_cpp() else {
+            let Some(talent_data) =
+                crate::session::hub_ref(self).resolved_update_talent_data_packet_like_cpp()
+            else {
                 return false;
             };
             self.send_packet(&talent_data);
@@ -125,19 +91,26 @@ impl WorldSession {
             return false;
         };
 
-        if !self.validate_represented_talent_learn_like_cpp(talent_id, rank) {
+        if !crate::session::hub_ref(self)
+            .validate_represented_talent_learn_like_cpp(talent_id, rank)
+        {
             return false;
         }
 
-        let Some(runtime) = self.player_talent_runtime_snapshot_like_cpp() else {
+        let Some(runtime) = crate::session::hub_ref(self).player_talent_runtime_snapshot_like_cpp()
+        else {
             return false;
         };
         let talent_group = runtime.active_group_like_cpp();
         let previous_rank = runtime
             .talent_group_like_cpp(talent_group)
             .and_then(|talents| talents.get(&talent_id).copied());
-        let learned =
-            self.load_represented_talent_row_like_cpp(talent_tabs, talent_id, rank, talent_group);
+        let learned = crate::session::hub_mut(self).load_represented_talent_row_like_cpp(
+            talent_tabs,
+            talent_id,
+            rank,
+            talent_group,
+        );
         if learned {
             self.apply_represented_active_talent_spell_side_effects_like_cpp(
                 talent_id,
@@ -149,9 +122,6 @@ impl WorldSession {
         }
         learned
     }
-    fn validate_represented_talent_learn_like_cpp(&self, talent_id: u32, rank: u8) -> bool {
-        crate::session::hub_ref(self).validate_represented_talent_learn_like_cpp(talent_id, rank)
-    }
     #[cfg(test)]
     fn represented_calculate_talents_points_like_cpp(&self) -> Option<u32> {
         let base_points = self
@@ -159,8 +129,8 @@ impl WorldSession {
             .num_talents_at_level_store()
             .map(|store| {
                 store.num_talents_at_level_like_cpp(
-                    u32::from(self.player_level_like_cpp()),
-                    self.player_class_like_cpp(),
+                    u32::from(crate::session::hub_ref(self).player_level_like_cpp()),
+                    crate::session::hub_ref(self).player_class_like_cpp(),
                 )
             })
             .unwrap_or(0);
@@ -186,15 +156,16 @@ impl WorldSession {
             .num_talents_at_level_store()
             .map(|store| {
                 store.num_talents_at_level_like_cpp(
-                    u32::from(self.player_level_like_cpp()),
-                    self.player_class_like_cpp(),
+                    u32::from(crate::session::hub_ref(self).player_level_like_cpp()),
+                    crate::session::hub_ref(self).player_class_like_cpp(),
                 )
             })
             .unwrap_or(0);
         // Borrow immutable catalog policy; Player owns counting and field mutation.
         let _points = self.core.with_owned_player_mut_like_cpp(|player| {
             player.refresh_represented_talent_points_like_cpp(base_points, |talent_id, rank| {
-                self.represented_talent_info_like_cpp(talent_id, rank)
+                crate::session::hub_ref(self)
+                    .represented_talent_info_like_cpp(talent_id, rank)
                     .is_some()
             })
         });
@@ -203,30 +174,6 @@ impl WorldSession {
             self.fixtures.progression.player_character_points_like_cpp = points;
         }
     }
-    pub(in crate::session) fn represented_talent_info_like_cpp(
-        &self,
-        talent_id: u32,
-        rank: u8,
-    ) -> Option<wow_packet::packets::misc::TalentInfoLikeCpp> {
-        crate::session::hub_ref(self).represented_talent_info_like_cpp(talent_id, rank)
-    }
-    pub(crate) fn resolved_update_talent_data_packet_like_cpp(
-        &self,
-    ) -> Option<wow_packet::packets::misc::UpdateTalentData> {
-        crate::session::hub_ref(self).resolved_update_talent_data_packet_like_cpp()
-    }
-    pub(crate) fn represented_next_reset_talents_cost_like_cpp(
-        &self,
-        now_secs: u64,
-    ) -> Option<u32> {
-        crate::session::hub_ref(self).represented_next_reset_talents_cost_like_cpp(now_secs)
-    }
-    pub(in crate::session) fn record_represented_talent_respec_criteria_like_cpp(
-        &mut self,
-        cost: u32,
-    ) {
-        crate::session::hub_mut(self).record_represented_talent_respec_criteria_like_cpp(cost)
-    }
     fn reset_talents_notification_text_like_cpp(&self) -> String {
         let text = self.trinity_string_like_cpp(LANG_RESET_TALENTS_LIKE_CPP);
         if text == "<error>" {
@@ -234,24 +181,6 @@ impl WorldSession {
         } else {
             text.to_string()
         }
-    }
-    pub(crate) fn set_represented_talent_reset_state_like_cpp(
-        &mut self,
-        reset_cost: u32,
-        reset_time_secs: u64,
-    ) -> bool {
-        crate::session::hub_mut(self)
-            .set_represented_talent_reset_state_like_cpp(reset_cost, reset_time_secs)
-    }
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_represented_talent_reset_script_hook_like_cpp(&mut self, no_cost: bool) {
-        crate::session::hub_mut(self).record_represented_talent_reset_script_hook_like_cpp(no_cost)
-    }
-
-    pub(crate) fn represented_active_glyphs_packet_like_cpp(
-        &self,
-    ) -> wow_packet::packets::misc::ActiveGlyphs {
-        crate::session::hub_ref(self).represented_active_glyphs_packet_like_cpp()
     }
 }
 

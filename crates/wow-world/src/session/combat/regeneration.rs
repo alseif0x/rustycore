@@ -65,7 +65,7 @@ fn resolve_health_regeneration_input_like_cpp(
         })?;
 
     let effects_for = |aura_type: i32| {
-        session
+        crate::session::hub_ref(&session)
             .resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
             .unwrap_or_default()
     };
@@ -81,13 +81,13 @@ fn resolve_health_regeneration_input_like_cpp(
     // level/class row from both HP regen tables and splits Spirit at 50.
     let spirit = stats.stats[4] as f32;
     let oct_regen_hp_per_spirit = regen_game_tables.oct_regen_hp_per_spirit_like_cpp(
-        u16::from(session.player_level_like_cpp()),
-        session.player_class_like_cpp(),
+        u16::from(crate::session::hub_ref(&session).player_level_like_cpp()),
+        crate::session::hub_ref(&session).player_class_like_cpp(),
         spirit,
     );
 
     Some(wow_entities::UnitHealthRegenInputLikeCpp {
-        level: session.player_level_like_cpp(),
+        level: crate::session::hub_ref(&session).player_level_like_cpp(),
         // C++ `sWorld->getRate(RATE_HEALTH)`.
         rate_health: rates.health,
         is_in_combat,
@@ -126,7 +126,9 @@ fn has_standing_interruptible_aura_of_type_like_cpp(
     session: &WorldSession,
     aura_type: i32,
 ) -> bool {
-    let Some(visible_auras) = session.resolved_player_visible_auras_like_cpp() else {
+    let Some(visible_auras) =
+        crate::session::hub_ref(&session).resolved_player_visible_auras_like_cpp()
+    else {
         return false;
     };
     let Some(spell_store) = session.spell_store() else {
@@ -233,17 +235,17 @@ impl WorldSession {
         // C++ `HasAuraTypeWithValue(SPELL_AURA_PREVENT_REGENERATE_POWER, power)`:
         // the aura effect amount is the `Powers` value it blocks. The check
         // gates only that power; the timer and health window still advance.
-        let prevented_powers = self
+        let prevented_powers = crate::session::hub_ref(self)
             .resolved_aura_effects_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_PREVENT_REGENERATE_POWER,
             )
             .unwrap_or_default();
-        let power_regen_percent_effects = self
+        let power_regen_percent_effects = crate::session::hub_ref(self)
             .resolved_aura_effects_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_POWER_REGEN_PERCENT,
             )
             .unwrap_or_default();
-        let power_regen_flat_effects = self
+        let power_regen_flat_effects = crate::session::hub_ref(self)
             .resolved_aura_effects_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_POWER_REGEN,
             )

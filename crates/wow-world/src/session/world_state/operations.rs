@@ -26,7 +26,7 @@ impl WorldSession {
         &self,
         trigger: &wow_data::AreaTriggerDb2Entry,
     ) -> bool {
-        let Some(pos) = self.player_position_like_cpp() else {
+        let Some(pos) = crate::session::hub_ref(self).player_position_like_cpp() else {
             return false;
         };
 
@@ -74,7 +74,7 @@ impl WorldSession {
         self.catalogs.area_table_store = Some(store);
     }
     fn update_represented_hostile_area_state_like_cpp(&mut self, zone: &wow_data::AreaTableEntry) {
-        let war_mode_active = self.player_war_mode_local_active_like_cpp();
+        let war_mode_active = crate::session::hub_ref(self).player_war_mode_local_active_like_cpp();
         let zone_hostile = if zone.is_sanctuary_like_cpp() {
             false
         } else if (zone.flags
@@ -92,7 +92,8 @@ impl WorldSession {
                     .as_ref()
                     .map(|store| store.faction_group_mask_like_cpp(zone.id))
                     .unwrap_or(0);
-                self.player_faction_template_id_like_cpp()
+                crate::session::hub_ref(self)
+                    .player_faction_template_id_like_cpp()
                     .and_then(|id| {
                         self.catalogs
                             .factions
@@ -113,7 +114,8 @@ impl WorldSession {
         } else {
             false
         };
-        let _ = self.set_player_pvp_hostile_like_cpp(zone_hostile || war_mode_active);
+        let _ = crate::session::hub_mut(self)
+            .set_player_pvp_hostile_like_cpp(zone_hostile || war_mode_active);
     }
     pub(crate) fn handle_represented_tavern_area_trigger_with_catalog_like_cpp(
         &mut self,
@@ -188,7 +190,8 @@ impl WorldSession {
         new_area: u32,
         send_rest_update: bool,
     ) -> bool {
-        let Some(world_local) = self.player_world_local_state_like_cpp() else {
+        let Some(world_local) = crate::session::hub_ref(self).player_world_local_state_like_cpp()
+        else {
             return false;
         };
         let old_area = world_local.area_id_like_cpp();
@@ -196,7 +199,7 @@ impl WorldSession {
             self.core
                 .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
-        if !self.set_player_area_id_like_cpp(new_area) {
+        if !crate::session::hub_mut(self).set_player_area_id_like_cpp(new_area) {
             return false;
         }
         let zone_id = world_local.zone_id_like_cpp();
@@ -210,7 +213,8 @@ impl WorldSession {
         let mut rest_changed = false;
         let area_resting = self.catalogs.area_table_store.as_ref().and_then(|store| {
             store.get(new_area).map(|area| {
-                let team = player_team_for_race_cpp(self.player_race_like_cpp());
+                let team =
+                    player_team_for_race_cpp(crate::session::hub_ref(self).player_race_like_cpp());
                 match team {
                     Team::Alliance => area.alliance_resting_like_cpp(),
                     Team::Horde | Team::Other => area.horde_resting_like_cpp(),
@@ -270,7 +274,8 @@ impl WorldSession {
             return false;
         }
 
-        let Some(world_local) = self.player_world_local_state_like_cpp() else {
+        let Some(world_local) = crate::session::hub_ref(self).player_world_local_state_like_cpp()
+        else {
             return false;
         };
         let old_zone = world_local.zone_id_like_cpp();
@@ -278,7 +283,7 @@ impl WorldSession {
             self.core
                 .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
-        if !self.set_player_zone_id_like_cpp(new_zone) {
+        if !crate::session::hub_mut(self).set_player_zone_id_like_cpp(new_zone) {
             return false;
         }
         let area_id = world_local.area_id_like_cpp();
@@ -311,7 +316,8 @@ impl WorldSession {
         };
 
         self.update_represented_hostile_area_state_like_cpp(&zone);
-        let Some(world_local) = self.player_world_local_state_like_cpp() else {
+        let Some(world_local) = crate::session::hub_ref(self).player_world_local_state_like_cpp()
+        else {
             return false;
         };
         // C++ keeps an existing city-rest flag in a hostile, non-sanctuary
@@ -359,11 +365,11 @@ impl WorldSession {
         progression: &ProgressionCatalogsLikeCpp,
         area_id: u32,
     ) -> bool {
-        if self.resolved_player_is_alive_like_cpp() != Some(true) {
+        if crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true) {
             return false;
         }
 
-        if self.resolved_is_in_taxi_flight_like_cpp() != Some(false) {
+        if crate::session::hub_ref(self).resolved_is_in_taxi_flight_like_cpp() != Some(false) {
             return false;
         }
 
@@ -413,13 +419,13 @@ impl WorldSession {
 
             let max_level =
                 max_level_for_expansion_like_cpp(self.core.realm_policy.server_expansion_like_cpp);
-            let xp = if self.player_level_like_cpp() >= max_level {
+            let xp = if crate::session::hub_ref(self).player_level_like_cpp() >= max_level {
                 0
             } else {
                 progression
                     .exploration_base_xp
                     .exploration_xp_reward_like_cpp(
-                        self.player_level_like_cpp(),
+                        crate::session::hub_ref(self).player_level_like_cpp(),
                         area_entry.exploration_level,
                         progression.exploration_xp_rate,
                         progression.min_discovered_scaled_xp_ratio,
@@ -478,7 +484,7 @@ impl WorldSession {
         &mut self,
         catalogs: &AreaTriggerCatalogsLikeCpp,
     ) {
-        let Some(pos) = self.player_position_like_cpp() else {
+        let Some(pos) = crate::session::hub_ref(self).player_position_like_cpp() else {
             return;
         };
         let store = catalogs.destinations.as_ref();
@@ -567,15 +573,9 @@ impl WorldSession {
         }
         canonical
     }
-    pub(crate) fn set_player_zone_area_like_cpp(&mut self, zone_id: u32, area_id: u32) {
-        crate::session::hub_mut(self).set_player_zone_area_like_cpp(zone_id, area_id)
-    }
     pub(crate) fn set_player_zone_area_authority_complete_like_cpp(&mut self, complete: bool) {
         let (state, mut hub) = crate::session::split_instances_mut(self);
         state.set_player_zone_area_authority_complete_like_cpp(&mut hub, complete)
-    }
-    pub(crate) fn player_zone_area_like_cpp(&self) -> Option<(u32, u32)> {
-        crate::session::hub_ref(self).player_zone_area_like_cpp()
     }
 }
 

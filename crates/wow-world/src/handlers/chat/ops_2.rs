@@ -95,7 +95,9 @@ impl WorldSession {
             return;
         }
 
-        if self.player_level_like_cpp() < chat_policy.level_requirements.whisper {
+        if crate::session::hub_ref(self).player_level_like_cpp()
+            < chat_policy.level_requirements.whisper
+        {
             return;
         }
 
@@ -129,7 +131,7 @@ impl WorldSession {
             return;
         };
 
-        if player_team_for_race_cpp(self.player_race_like_cpp())
+        if player_team_for_race_cpp(crate::session::hub_ref(self).player_race_like_cpp())
             != player_team_for_race_cpp(target.race)
         {
             if notify_missing {
@@ -221,11 +223,14 @@ impl WorldSession {
     }
     pub(super) fn player_name_and_guid(&self) -> (wow_core::ObjectGuid, String) {
         let guid = self.player_guid().unwrap_or(wow_core::ObjectGuid::EMPTY);
-        let name = self.player_name_like_cpp().unwrap_or_default();
+        let name = crate::session::hub_ref(self)
+            .player_name_like_cpp()
+            .unwrap_or_default();
         (guid, name)
     }
     pub(super) fn has_gm_silence_aura_like_cpp(&self) -> bool {
-        self.resolved_player_visible_auras_like_cpp()
+        crate::session::hub_ref(self)
+            .resolved_player_visible_auras_like_cpp()
             .is_some_and(|auras| {
                 auras
                     .values()
@@ -441,7 +446,7 @@ impl WorldSession {
         };
 
         let sender_guid = self.player_guid().unwrap_or(ObjectGuid::EMPTY);
-        let sender_pos = self.player_position_like_cpp();
+        let sender_pos = crate::session::hub_ref(self).player_position_like_cpp();
         let sender_map = self.core.player_map_id_like_cpp();
         let sender_instance = registry
             .runtime_recipient(sender_guid)

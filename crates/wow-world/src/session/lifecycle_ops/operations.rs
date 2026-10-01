@@ -112,8 +112,8 @@ impl WorldSession {
             self.set_player_guid(Some(guid));
             self.set_loaded_player_name_like_cpp(name);
             self.set_loaded_player_identity_like_cpp(map_id, race, class, level, gender);
-            self.set_player_map_position_like_cpp(map_id, position);
-            self.set_fall_information_like_cpp(0, position.z);
+            crate::session::hub_mut(self).set_player_map_position_like_cpp(map_id, position);
+            crate::session::hub_mut(self).set_fall_information_like_cpp(0, position.z);
             false
         }
     }
@@ -122,9 +122,10 @@ impl WorldSession {
             .into_iter()
             .map(|mount| (mount.spell_id, mount.flags))
             .collect();
-        let _ = self.mutate_player_collection_state_like_cpp(|collections| {
-            collections.replace_mounts_like_cpp(mounts);
-        });
+        let _ =
+            crate::session::hub_mut(self).mutate_player_collection_state_like_cpp(|collections| {
+                collections.replace_mounts_like_cpp(mounts);
+            });
         self.expand_account_mount_faction_definitions_like_cpp();
         self.learn_account_mount_spells_like_cpp();
     }

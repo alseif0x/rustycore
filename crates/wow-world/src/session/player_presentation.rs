@@ -17,27 +17,9 @@ pub(in crate::session) enum RepresentedMountSpellCheckOutcomeLikeCpp {
 }
 
 impl WorldSession {
-    pub(crate) fn player_is_game_master_like_cpp(&self) -> Option<bool> {
-        crate::session::hub_ref(self).player_is_game_master_like_cpp()
-    }
-
-    pub(in crate::session) fn player_unit_presentation_snapshot_like_cpp(
-        &self,
-    ) -> Option<(UnitFlags, i32, f32)> {
-        crate::session::hub_ref(self).player_unit_presentation_snapshot_like_cpp()
-    }
-
-    pub(in crate::session) fn set_player_mount_presentation_like_cpp(
-        &mut self,
-        display_id: i32,
-        mounted: bool,
-    ) -> bool {
-        crate::session::hub_mut(self).set_player_mount_presentation_like_cpp(display_id, mounted)
-    }
-
     pub(in crate::session) fn update_player_collision_height_like_cpp(&mut self) {
         let Some((_, mount_display_id, object_scale)) =
-            self.player_unit_presentation_snapshot_like_cpp()
+            crate::session::hub_ref(self).player_unit_presentation_snapshot_like_cpp()
         else {
             return;
         };
@@ -46,8 +28,8 @@ impl WorldSession {
             self.catalogs.creatures.model_data_store.as_ref(),
         ) {
             let native_display_id = crate::handlers::character::default_display_id(
-                self.player_race_like_cpp(),
-                self.player_gender_like_cpp(),
+                crate::session::hub_ref(self).player_race_like_cpp(),
+                crate::session::hub_ref(self).player_gender_like_cpp(),
             );
             let mount_display_id = u32::try_from(mount_display_id).ok().filter(|id| *id != 0);
             wow_data::unit_collision_height_like_cpp(
@@ -172,7 +154,7 @@ impl WorldSession {
             .store
             .as_ref()
             .and_then(|store| store.get(map_id));
-        let (_, area_id) = self
+        let (_, area_id) = crate::session::hub_ref(self)
             .player_zone_area_like_cpp()
             .ok_or(wow_data::MountCapabilityRejectLikeCpp::Area)?;
         let mount_flags = mount_restriction_flags.unwrap_or_else(|| {
@@ -204,7 +186,7 @@ impl WorldSession {
                 .map(|entry| i32::from(entry.parent_map_id))
                 .unwrap_or(-1),
         };
-        let visible_auras = self
+        let visible_auras = crate::session::hub_ref(self)
             .resolved_player_visible_auras_like_cpp()
             .ok_or(wow_data::MountCapabilityRejectLikeCpp::Aura)?;
 
@@ -250,18 +232,18 @@ impl WorldSession {
         mount_type_id: u16,
         mount_restriction_flags: Option<u8>,
     ) -> Option<wow_data::MountCapabilityEntry> {
-        let (is_submerged, is_in_water) = self.represented_player_mount_liquid_state_like_cpp()?;
+        let (is_submerged, is_in_water) =
+            crate::session::hub_ref(self).represented_player_mount_liquid_state_like_cpp()?;
         self.represented_mount_capability_for_type_like_cpp(
             mount_type_id,
-            u32::from(self.resolved_player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)?),
+            u32::from(
+                crate::session::hub_ref(self)
+                    .resolved_player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)?,
+            ),
             mount_restriction_flags,
             is_submerged,
             is_in_water,
         )
-    }
-
-    pub(crate) fn represented_player_mount_liquid_state_like_cpp(&self) -> Option<(bool, bool)> {
-        crate::session::hub_ref(self).represented_player_mount_liquid_state_like_cpp()
     }
 
     #[cfg(test)]
@@ -272,13 +254,6 @@ impl WorldSession {
             .social
             .duel_test_fixture_like_cpp
             .represented_force_deselects_like_cpp
-    }
-
-    pub(crate) fn represented_eject_passenger_like_cpp(
-        &mut self,
-        passenger_guid: ObjectGuid,
-    ) -> bool {
-        crate::session::hub_mut(self).represented_eject_passenger_like_cpp(passenger_guid)
     }
 
     pub(crate) fn apply_far_sight_like_cpp(&mut self, enable: bool) {

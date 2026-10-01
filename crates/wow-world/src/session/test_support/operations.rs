@@ -175,17 +175,19 @@ impl WorldSession {
         &mut self,
         cinematic_id: Option<u32>,
     ) {
-        let _ = self.with_player_cinematic_state_like_cpp(|state| match cinematic_id {
-            Some(cinematic_id) => state.begin_cinematic_like_cpp(cinematic_id, [0; 8]),
-            None => {
-                state.end_cinematic_like_cpp();
+        let _ = crate::session::hub_mut(self).with_player_cinematic_state_like_cpp(|state| {
+            match cinematic_id {
+                Some(cinematic_id) => state.begin_cinematic_like_cpp(cinematic_id, [0; 8]),
+                None => {
+                    state.end_cinematic_like_cpp();
+                }
             }
         });
     }
     #[cfg(test)]
     pub(crate) fn set_represented_movie_like_cpp_for_test(&mut self, movie_id: Option<u32>) {
-        let _ =
-            self.with_player_cinematic_state_like_cpp(|state| state.set_movie_like_cpp(movie_id));
+        let _ = crate::session::hub_mut(self)
+            .with_player_cinematic_state_like_cpp(|state| state.set_movie_like_cpp(movie_id));
     }
     #[cfg(test)]
     pub(crate) fn support_feature_policy_for_test_like_cpp(&self) -> SupportFeaturePolicyLikeCpp {
@@ -238,10 +240,13 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(in crate::session) fn fixture_set_xp_rest_bonus_like_cpp(&mut self, rest_bonus: f32) -> u8 {
-        let Some(old_threshold) = self.resolved_xp_rest_threshold_like_cpp() else {
+        let Some(old_threshold) =
+            crate::session::hub_ref(self).resolved_xp_rest_threshold_like_cpp()
+        else {
             return 0;
         };
-        let Some(old_state) = self.resolved_xp_rest_state_like_cpp() else {
+        let Some(old_state) = crate::session::hub_ref(self).resolved_xp_rest_state_like_cpp()
+        else {
             return 0;
         };
         let mut rest_bonus = wow_entities::sanitize_rest_bonus_like_cpp(rest_bonus);
@@ -273,10 +278,13 @@ impl WorldSession {
         }) else {
             return 0;
         };
-        let Some(new_threshold) = self.resolved_xp_rest_threshold_like_cpp() else {
+        let Some(new_threshold) =
+            crate::session::hub_ref(self).resolved_xp_rest_threshold_like_cpp()
+        else {
             return 0;
         };
-        let Some(new_state) = self.resolved_xp_rest_state_like_cpp() else {
+        let Some(new_state) = crate::session::hub_ref(self).resolved_xp_rest_state_like_cpp()
+        else {
             return 0;
         };
         // C++ writes both RestInfo fields after this combined early-return,
@@ -330,7 +338,7 @@ impl WorldSession {
         policy: &PlayerRestRatePolicyLikeCpp,
         now_secs: u64,
     ) -> (f32, u8) {
-        let Some(rest_time) = self
+        let Some(rest_time) = crate::session::hub_ref(self)
             .player_rest_state_snapshot_like_cpp()
             .map(|state| state.rest_time_secs_like_cpp())
         else {
@@ -371,11 +379,13 @@ impl WorldSession {
             return (0, 0);
         }
 
-        let Some(current_rest_bonus) = self.resolved_xp_rest_bonus_like_cpp() else {
+        let Some(current_rest_bonus) =
+            crate::session::hub_ref(self).resolved_xp_rest_bonus_like_cpp()
+        else {
             return (0, 0);
         };
         let rested_bonus = (current_rest_bonus as u32).min(xp);
-        let Some(rested_consumption_modifier) = self
+        let Some(rested_consumption_modifier) = crate::session::hub_ref(self)
             .resolved_total_represented_aura_modifier_like_cpp(
                 RepresentedAuraEffectLikeCpp::ModRestedXpConsumption,
             )

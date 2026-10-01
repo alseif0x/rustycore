@@ -268,31 +268,7 @@ pub(crate) struct MovementUnderMapDamageEvent {
     pub damage: u32,
 }
 
-impl WorldSession {
-    pub(crate) fn player_min_height_like_cpp(&self, position: wow_core::Position) -> f32 {
-        crate::session::hub_ref(self).player_min_height_like_cpp(position)
-    }
-
-    pub(in crate::session) fn set_represented_can_fly_like_cpp(&mut self, enable: bool) -> bool {
-        crate::session::hub_mut(self).set_represented_can_fly_like_cpp(enable)
-    }
-
-    pub(in crate::session) fn set_represented_can_swim_to_fly_transition_like_cpp(
-        &mut self,
-        enable: bool,
-    ) -> bool {
-        crate::session::hub_mut(self).set_represented_can_swim_to_fly_transition_like_cpp(enable)
-    }
-
-    pub(crate) fn trace_anticheat_violation_like_cpp(
-        &self,
-        rule: &'static str,
-        opcode: Option<ClientOpcodes>,
-        severity: &'static str,
-    ) {
-        crate::session::hub_ref(self).trace_anticheat_violation_like_cpp(rule, opcode, severity)
-    }
-}
+impl WorldSession {}
 
 impl crate::session::HubMut<'_> {
     pub(in crate::session) fn set_represented_can_fly_like_cpp(&mut self, enable: bool) -> bool {

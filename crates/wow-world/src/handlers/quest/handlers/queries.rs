@@ -69,8 +69,8 @@ impl WorldSession {
             }
         };
 
-        let Some(access) =
-            self.represented_npc_can_interact_with_like_cpp(guid, NPCFlags1::QUEST_GIVER.bits(), 0)
+        let Some(access) = crate::session::hub_ref(self)
+            .represented_npc_can_interact_with_like_cpp(guid, NPCFlags1::QUEST_GIVER.bits(), 0)
         else {
             debug!(
                 account = self.core.account_id,

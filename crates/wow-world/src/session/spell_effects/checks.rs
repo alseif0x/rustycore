@@ -12,11 +12,11 @@ impl WorldSession {
         use wow_packet::ServerPacket;
         use wow_packet::packets::combat::AttackStart;
 
-        if self.resolved_in_combat_like_cpp() != Some(false) {
+        if crate::session::hub_ref(self).resolved_in_combat_like_cpp() != Some(false) {
             return;
         }
 
-        let player_pos = match self.player_position_like_cpp() {
+        let player_pos = match crate::session::hub_ref(self).player_position_like_cpp() {
             Some(p) => p,
             None => return,
         };
@@ -28,8 +28,8 @@ impl WorldSession {
         let guids = self.core.world_creature_guids();
         let mut aggro_guid: Option<wow_core::ObjectGuid> = None;
         let player_combat_reach = self.core.canonical_player_combat_reach_snapshot_like_cpp();
-        let player_level = self.player_level_like_cpp();
-        let Some(player_detected_range_aura_mod) = self
+        let player_level = crate::session::hub_ref(self).player_level_like_cpp();
+        let Some(player_detected_range_aura_mod) = crate::session::hub_ref(self)
             .resolved_total_represented_aura_modifier_like_cpp(
                 RepresentedAuraEffectLikeCpp::ModDetectedRange,
             )
@@ -89,8 +89,8 @@ impl WorldSession {
                 victim: player_guid,
             };
             let _ = self.send_tx().send(start.to_bytes());
-            self.set_combat_target_like_cpp(Some(guid));
-            self.set_in_combat_like_cpp(true);
+            crate::session::hub_mut(self).set_combat_target_like_cpp(Some(guid));
+            crate::session::hub_mut(self).set_in_combat_like_cpp(true);
         }
     }
     /// C++ `Spell::CheckCast` gates for battle-pet unit-target effects.
@@ -119,7 +119,8 @@ impl WorldSession {
                 return Some(SpellCastResult::CantDoThatRightNow);
             }
 
-            let summoned_guid = self.represented_summoned_battle_pet_guid_like_cpp();
+            let summoned_guid =
+                crate::session::hub_ref(self).represented_summoned_battle_pet_guid_like_cpp();
             if summoned_guid.is_none() || companion_guid.is_empty() {
                 return Some(SpellCastResult::NoPet);
             }
@@ -184,10 +185,10 @@ impl WorldSession {
                             .and_then(|form_id| store.get(form_id))
                     })
                 {
-                    let (is_submerged, is_in_water) =
-                        self.represented_player_mount_liquid_state_like_cpp()?;
-                    let riding_skill =
-                        self.resolved_player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)?;
+                    let (is_submerged, is_in_water) = crate::session::hub_ref(self)
+                        .represented_player_mount_liquid_state_like_cpp()?;
+                    let riding_skill = crate::session::hub_ref(self)
+                        .resolved_player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)?;
                     if form.mount_type_id != 0
                         && let Err(reject_reason) = self
                             .represented_mount_capability_selection_for_type_like_cpp(
@@ -219,7 +220,8 @@ impl WorldSession {
                 continue;
             }
 
-            let (_, is_in_water) = self.represented_player_mount_liquid_state_like_cpp()?;
+            let (_, is_in_water) =
+                crate::session::hub_ref(self).represented_player_mount_liquid_state_like_cpp()?;
             if is_in_water
                 && spell_info.has_aura_like_cpp(
                     wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED,
@@ -258,11 +260,11 @@ impl WorldSession {
             }
 
             if mount_type_id != 0 {
-                let current_area_id = self.player_zone_area_like_cpp()?.1;
-                let (is_submerged, is_in_water) =
-                    self.represented_player_mount_liquid_state_like_cpp()?;
-                let riding_skill =
-                    self.resolved_player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)?;
+                let current_area_id = crate::session::hub_ref(self).player_zone_area_like_cpp()?.1;
+                let (is_submerged, is_in_water) = crate::session::hub_ref(self)
+                    .represented_player_mount_liquid_state_like_cpp()?;
+                let riding_skill = crate::session::hub_ref(self)
+                    .resolved_player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)?;
                 if let Err(reject_reason) = self
                     .represented_mount_capability_selection_for_type_like_cpp(
                         mount_type_id,

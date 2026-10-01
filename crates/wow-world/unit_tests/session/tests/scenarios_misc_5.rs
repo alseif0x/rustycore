@@ -172,7 +172,7 @@ fn canonical_player_taxi_and_titles_follow_active_detached_and_stale_ownership_l
     session.represented_learn_title_like_cpp(42);
     session.represented_set_chosen_title_like_cpp(42);
     assert_eq!(
-        session.player_taxi_state_snapshot_like_cpp(),
+        crate::session::hub_ref(&session).player_taxi_state_snapshot_like_cpp(),
         Some(owned_taxi.clone())
     );
     assert!(session.represented_has_title_like_cpp(42));
@@ -186,7 +186,7 @@ fn canonical_player_taxi_and_titles_follow_active_detached_and_stale_ownership_l
         Some(wow_map::PlayerResidenceLikeCpp::Detached)
     );
     assert_eq!(
-        session.player_taxi_state_snapshot_like_cpp(),
+        crate::session::hub_ref(&session).player_taxi_state_snapshot_like_cpp(),
         Some(owned_taxi.clone())
     );
     assert!(session.represented_has_title_like_cpp(42));
@@ -208,7 +208,10 @@ fn canonical_player_taxi_and_titles_follow_active_detached_and_stale_ownership_l
         .install_detached_player_like_cpp(replacement)
         .expect("replacement owner");
 
-    assert_eq!(session.player_taxi_state_snapshot_like_cpp(), None);
+    assert_eq!(
+        crate::session::hub_ref(&session).player_taxi_state_snapshot_like_cpp(),
+        None
+    );
     assert!(!session.represented_has_title_like_cpp(42));
     assert!(!session.replace_player_taxi_state_like_cpp(owned_taxi));
     session.represented_learn_title_like_cpp(42);
@@ -455,8 +458,8 @@ fn canonical_player_cinematic_state_follows_detached_and_stale_handle_ownership_
     assert_eq!(session.represented_movie_like_cpp(), None);
     session.set_represented_cinematic_like_cpp_for_test(Some(1));
     session.set_represented_movie_like_cpp_for_test(Some(2));
-    session.complete_represented_cinematic_like_cpp();
-    session.complete_represented_movie_like_cpp();
+    crate::session::hub_mut(&mut session).complete_represented_cinematic_like_cpp();
+    crate::session::hub_mut(&mut session).complete_represented_movie_like_cpp();
     assert_eq!(
         canonical
             .lock()
@@ -843,8 +846,8 @@ fn initial_canonical_player_sets_display_mount_collision_shape_like_cpp() {
         .expect("canonical map");
 
     let native_display_id = crate::handlers::character::default_display_id(
-        session.player_race_like_cpp(),
-        session.player_gender_like_cpp(),
+        crate::session::hub_ref(&session).player_race_like_cpp(),
+        crate::session::hub_ref(&session).player_gender_like_cpp(),
     );
     let manager = canonical.lock().unwrap();
     let player = manager

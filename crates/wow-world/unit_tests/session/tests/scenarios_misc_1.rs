@@ -434,7 +434,7 @@ fn represented_player_condition_explored_uses_area_bit_blocks_like_cpp() {
 #[test]
 fn represented_player_condition_area_uses_parent_chain_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.set_player_zone_area_like_cpp(12, 901);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(12, 901);
     session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
         wow_data::AreaTableEntry {
             id: 900,

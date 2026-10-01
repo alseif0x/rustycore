@@ -57,4 +57,7 @@ impl crate::session::WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.account_transmog_illusion_save_plan_like_cpp(hub)
     }
+    pub(crate) fn account_transmog_active_player_rows_like_cpp(&self) -> Vec<u32> {
+        crate::session::hub_ref(self).account_transmog_active_player_rows_like_cpp()
+    }
 }

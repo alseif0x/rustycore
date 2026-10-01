@@ -67,7 +67,7 @@ impl WorldSession {
                     continue;
                 };
 
-                if self
+                if crate::session::hub_ref(self)
                     .player_position_like_cpp()
                     .is_some_and(|player| !player.is_within_dist(&creature_position, 30.0))
                 {

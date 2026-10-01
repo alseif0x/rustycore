@@ -58,4 +58,10 @@ impl crate::session::WorldSession {
     ) -> Option<R> {
         self.core.mutate_canonical_player_like_cpp(f)
     }
+    pub(in crate::session) fn mutate_player_collection_state_like_cpp<R>(
+        &mut self,
+        mutate: impl FnOnce(&mut wow_entities::PlayerCollectionStateLikeCpp) -> R,
+    ) -> Option<R> {
+        crate::session::hub_mut(self).mutate_player_collection_state_like_cpp(mutate)
+    }
 }

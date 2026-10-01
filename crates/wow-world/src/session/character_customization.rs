@@ -66,14 +66,6 @@ pub(crate) enum RepresentedTalentRespecCriteriaEventLikeCpp {
 
 impl WorldSession {
     #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_represented_confirm_barbers_choice_like_cpp(
-        &mut self,
-        request: RepresentedConfirmBarbersChoiceLikeCpp,
-    ) {
-        crate::session::hub_mut(self).record_represented_confirm_barbers_choice_like_cpp(request)
-    }
-
-    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_confirm_respec_wipe_like_cpp(
         &mut self,
         request: RepresentedConfirmRespecWipeLikeCpp,

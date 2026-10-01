@@ -50,70 +50,12 @@ pub(crate) struct RepresentedPlayerGearStatsLikeCpp {
 }
 
 impl WorldSession {
-    pub(super) fn mana_regen_from_stats_like_cpp(
-        &self,
-        level: u8,
-        class: u8,
-        stats: [i32; 5],
-    ) -> f32 {
-        crate::session::hub_ref(self).mana_regen_from_stats_like_cpp(level, class, stats)
-    }
-
-    fn represented_resistance_aura_multiplier_like_cpp(
-        &self,
-        aura_type: i32,
-        school_mask: i32,
-    ) -> f32 {
-        crate::session::hub_ref(self)
-            .represented_resistance_aura_multiplier_like_cpp(aura_type, school_mask)
-    }
-
-    fn represented_total_aura_multiplier_like_cpp(&self, aura_type: i32) -> f32 {
-        crate::session::hub_ref(self).represented_total_aura_multiplier_like_cpp(aura_type)
-    }
-
-    fn represented_override_attack_power_by_spell_power_pct_like_cpp(&self) -> Option<f32> {
-        crate::session::hub_ref(self)
-            .represented_override_attack_power_by_spell_power_pct_like_cpp()
-    }
-
     fn represented_spell_bonus_like_cpp(
         &self,
         gear: &RepresentedPlayerGearStatsLikeCpp,
     ) -> PlayerSpellBonusInputLikeCpp {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.represented_spell_bonus_like_cpp(hub, gear)
-    }
-
-    fn represented_attack_power_flat_aura_like_cpp(&self) -> i32 {
-        crate::session::hub_ref(self).represented_attack_power_flat_aura_like_cpp()
-    }
-
-    fn represented_ranged_attack_power_flat_aura_like_cpp(&self, class: u8) -> i32 {
-        crate::session::hub_ref(self).represented_ranged_attack_power_flat_aura_like_cpp(class)
-    }
-
-    fn represented_ranged_attack_power_total_pct_like_cpp(&self, class: u8) -> f32 {
-        crate::session::hub_ref(self).represented_ranged_attack_power_total_pct_like_cpp(class)
-    }
-
-    fn represented_resistance_aura_flat_like_cpp(&self, school_mask: i32) -> f32 {
-        crate::session::hub_ref(self).represented_resistance_aura_flat_like_cpp(school_mask)
-    }
-
-    pub(super) fn represented_school_resistances_like_cpp(
-        &self,
-        gear: &RepresentedPlayerGearStatsLikeCpp,
-    ) -> [i32; 6] {
-        crate::session::hub_ref(self).represented_school_resistances_like_cpp(gear)
-    }
-
-    fn represented_armor_of_stat_percent_like_cpp(&self) -> [i32; 5] {
-        crate::session::hub_ref(self).represented_armor_of_stat_percent_like_cpp()
-    }
-
-    fn represented_total_aura_modifier_like_cpp(&self, aura_type: i32) -> f32 {
-        crate::session::hub_ref(self).represented_total_aura_modifier_like_cpp(aura_type)
     }
 
     pub(super) fn represented_player_gear_stats_like_cpp(
@@ -153,38 +95,46 @@ impl WorldSession {
                     attack_power_per_strength,
                     attack_power_per_agility,
                     ranged_attack_power_per_agility,
-                    stat_total_multipliers: self
+                    stat_total_multipliers: crate::session::hub_ref(self)
                         .resolved_represented_total_stat_multipliers_like_cpp()?,
-                    stat_buff_total_multipliers: self
+                    stat_buff_total_multipliers: crate::session::hub_ref(self)
                         .resolved_represented_total_stat_buff_multipliers_like_cpp()?,
                     gear_stats: gear.stats,
                     gear_health: gear.health,
                     gear_mana: gear.mana,
                     gear_armor: gear.armor,
-                    armor_base_pct: self.represented_resistance_aura_multiplier_like_cpp(
-                        wow_data::spell::aura_types::SPELL_AURA_MOD_BASE_RESISTANCE_PCT,
-                        SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP,
-                    ),
-                    armor_flat_aura: self.represented_resistance_aura_flat_like_cpp(
-                        SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP,
-                    ) as i32,
-                    armor_of_stat_percent: self.represented_armor_of_stat_percent_like_cpp(),
-                    armor_total_pct: self.represented_resistance_aura_multiplier_like_cpp(
-                        wow_data::spell::aura_types::SPELL_AURA_MOD_RESISTANCE_PCT,
-                        SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP,
-                    ),
-                    armor_bonus_pct: self.represented_total_aura_multiplier_like_cpp(
-                        wow_data::spell::aura_types::SPELL_AURA_MOD_BONUS_ARMOR_PCT,
-                    ),
-                    spell_dodge_pct: self.represented_total_aura_modifier_like_cpp(
-                        wow_data::spell::aura_types::SPELL_AURA_MOD_DODGE_PERCENT,
-                    ),
-                    spell_parry_pct: self.represented_total_aura_modifier_like_cpp(
-                        wow_data::spell::aura_types::SPELL_AURA_MOD_PARRY_PERCENT,
-                    ),
-                    spell_block_pct: self.represented_total_aura_modifier_like_cpp(
-                        wow_data::spell::aura_types::SPELL_AURA_MOD_BLOCK_PERCENT,
-                    ),
+                    armor_base_pct: crate::session::hub_ref(self)
+                        .represented_resistance_aura_multiplier_like_cpp(
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_BASE_RESISTANCE_PCT,
+                            SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP,
+                        ),
+                    armor_flat_aura: crate::session::hub_ref(self)
+                        .represented_resistance_aura_flat_like_cpp(
+                            SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP,
+                        ) as i32,
+                    armor_of_stat_percent: crate::session::hub_ref(self)
+                        .represented_armor_of_stat_percent_like_cpp(),
+                    armor_total_pct: crate::session::hub_ref(self)
+                        .represented_resistance_aura_multiplier_like_cpp(
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_RESISTANCE_PCT,
+                            SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP,
+                        ),
+                    armor_bonus_pct: crate::session::hub_ref(self)
+                        .represented_total_aura_multiplier_like_cpp(
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_BONUS_ARMOR_PCT,
+                        ),
+                    spell_dodge_pct: crate::session::hub_ref(self)
+                        .represented_total_aura_modifier_like_cpp(
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_DODGE_PERCENT,
+                        ),
+                    spell_parry_pct: crate::session::hub_ref(self)
+                        .represented_total_aura_modifier_like_cpp(
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_PARRY_PERCENT,
+                        ),
+                    spell_block_pct: crate::session::hub_ref(self)
+                        .represented_total_aura_modifier_like_cpp(
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_BLOCK_PERCENT,
+                        ),
                     crit_mainhand_aura_pct: self.represented_weapon_crit_aura_modifier_like_cpp(
                         wow_constants::WeaponAttackType::BaseAttack,
                     ),
@@ -194,22 +144,26 @@ impl WorldSession {
                     crit_ranged_aura_pct: self.represented_weapon_crit_aura_modifier_like_cpp(
                         wow_constants::WeaponAttackType::RangedAttack,
                     ),
-                    spell_crit_aura_pct: self.represented_total_aura_modifier_like_cpp(
-                        wow_data::spell::aura_types::SPELL_AURA_MOD_SPELL_CRIT_CHANCE,
-                    ) + self.represented_total_aura_modifier_like_cpp(
-                        wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_PCT,
-                    ),
+                    spell_crit_aura_pct: crate::session::hub_ref(self)
+                        .represented_total_aura_modifier_like_cpp(
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_SPELL_CRIT_CHANCE,
+                        )
+                        + crate::session::hub_ref(self).represented_total_aura_modifier_like_cpp(
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_PCT,
+                        ),
                     gear_attack_power: gear.attack_power,
                     gear_ranged_attack_power: gear.ranged_attack_power,
-                    attack_power_flat_aura: self.represented_attack_power_flat_aura_like_cpp(),
-                    attack_power_total_pct: self.represented_total_aura_multiplier_like_cpp(
-                        wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACK_POWER_PCT,
-                    ),
-                    ranged_attack_power_flat_aura: self
+                    attack_power_flat_aura: crate::session::hub_ref(self)
+                        .represented_attack_power_flat_aura_like_cpp(),
+                    attack_power_total_pct: crate::session::hub_ref(self)
+                        .represented_total_aura_multiplier_like_cpp(
+                            wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACK_POWER_PCT,
+                        ),
+                    ranged_attack_power_flat_aura: crate::session::hub_ref(self)
                         .represented_ranged_attack_power_flat_aura_like_cpp(class),
-                    ranged_attack_power_total_pct: self
+                    ranged_attack_power_total_pct: crate::session::hub_ref(self)
                         .represented_ranged_attack_power_total_pct_like_cpp(class),
-                    attack_power_override_by_spell_power_pct: self
+                    attack_power_override_by_spell_power_pct: crate::session::hub_ref(self)
                         .represented_override_attack_power_by_spell_power_pct_like_cpp(),
                     spell_bonus,
                     rating_bonuses,

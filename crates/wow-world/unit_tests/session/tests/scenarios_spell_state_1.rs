@@ -475,7 +475,9 @@ fn remove_known_spell_removes_first_rank_learned_skill_like_cpp() {
         "the pre-#164 mutation path always made the represented map eligible for persistence"
     );
     assert!(
-        session.complete_player_skill_records_like_cpp().is_none(),
+        crate::session::hub_ref(&session)
+            .complete_player_skill_records_like_cpp()
+            .is_none(),
         "a runtime mutation does not manufacture exact slot-occupancy authority"
     );
 

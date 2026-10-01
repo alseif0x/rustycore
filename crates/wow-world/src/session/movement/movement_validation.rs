@@ -6,24 +6,11 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::session) fn remove_canonical_attacker_like_cpp(
-        &mut self,
-        victim: ObjectGuid,
-        attacker: ObjectGuid,
-    ) {
-        crate::session::hub_mut(self).remove_canonical_attacker_like_cpp(victim, attacker)
-    }
-    pub(crate) fn validate_movement_ack_status_like_cpp(
-        &self,
-        status: &wow_packet::packets::movement::MovementInfo,
-    ) -> bool {
-        crate::session::hub_ref(self).validate_movement_ack_status_like_cpp(status)
-    }
     pub(crate) fn validate_and_sanitize_movement_ack_status_represented_like_cpp(
         &self,
         status: &mut wow_packet::packets::movement::MovementInfo,
     ) -> bool {
-        if !self.validate_movement_ack_status_like_cpp(status) {
+        if !crate::session::hub_ref(self).validate_movement_ack_status_like_cpp(status) {
             return false;
         }
 
@@ -39,7 +26,9 @@ impl WorldSession {
         &self,
         status: &mut wow_packet::packets::movement::MovementInfo,
     ) -> bool {
-        let Some(active_mover_guid) = self.player_moved_unit_guid_like_cpp() else {
+        let Some(active_mover_guid) =
+            crate::session::hub_ref(self).player_moved_unit_guid_like_cpp()
+        else {
             return false;
         };
         if status.guid != active_mover_guid || !status.position.is_valid_map_coord_like_cpp() {
@@ -49,9 +38,6 @@ impl WorldSession {
         self.sanitize_movement_info_flags_represented_like_cpp(status);
         true
     }
-    pub(crate) fn record_movement_ack_event_like_cpp(&mut self, event: MovementAckEventLikeCpp) {
-        crate::session::hub_mut(self).record_movement_ack_event_like_cpp(event)
-    }
     pub(crate) fn record_validated_movement_ack_like_cpp(
         &mut self,
         opcode: ClientOpcodes,
@@ -60,7 +46,7 @@ impl WorldSession {
     ) -> bool {
         let accepted =
             self.validate_and_sanitize_movement_ack_status_represented_like_cpp(&mut ack.status);
-        self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
+        crate::session::hub_mut(self).record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
             opcode,
             mover_guid: ack.status.guid,
             ack_index: Some(ack.ack_index),
@@ -86,24 +72,27 @@ impl WorldSession {
         force: &wow_packet::packets::movement::MovementForce,
     ) -> bool {
         if !self.validate_and_sanitize_active_mover_ack_like_cpp(&mut ack.status) {
-            self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
-                opcode: ClientOpcodes::MoveApplyMovementForceAck,
-                mover_guid: ack.status.guid,
-                ack_index: Some(ack.ack_index),
-                movement_force_id: Some(force.id),
-                movement_force_type: Some(force.force_type.to_wire()),
-                adjusted_time: None,
-                speed: None,
-                time_skipped: None,
-                spline_id: None,
-                accepted: false,
-            });
+            crate::session::hub_mut(self).record_movement_ack_event_like_cpp(
+                MovementAckEventLikeCpp {
+                    opcode: ClientOpcodes::MoveApplyMovementForceAck,
+                    mover_guid: ack.status.guid,
+                    ack_index: Some(ack.ack_index),
+                    movement_force_id: Some(force.id),
+                    movement_force_type: Some(force.force_type.to_wire()),
+                    adjusted_time: None,
+                    speed: None,
+                    time_skipped: None,
+                    spline_id: None,
+                    accepted: false,
+                },
+            );
             return false;
         }
 
-        let adjusted_time = self.adjust_client_movement_time_like_cpp(ack.status.time);
+        let adjusted_time =
+            crate::session::hub_ref(self).adjust_client_movement_time_like_cpp(ack.status.time);
         ack.status.time = adjusted_time;
-        self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
+        crate::session::hub_mut(self).record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
             opcode: ClientOpcodes::MoveApplyMovementForceAck,
             mover_guid: ack.status.guid,
             ack_index: Some(ack.ack_index),
@@ -123,24 +112,27 @@ impl WorldSession {
         force_id: ObjectGuid,
     ) -> bool {
         if !self.validate_and_sanitize_active_mover_ack_like_cpp(&mut ack.status) {
-            self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
-                opcode: ClientOpcodes::MoveRemoveMovementForceAck,
-                mover_guid: ack.status.guid,
-                ack_index: Some(ack.ack_index),
-                movement_force_id: Some(force_id),
-                movement_force_type: None,
-                adjusted_time: None,
-                speed: None,
-                time_skipped: None,
-                spline_id: None,
-                accepted: false,
-            });
+            crate::session::hub_mut(self).record_movement_ack_event_like_cpp(
+                MovementAckEventLikeCpp {
+                    opcode: ClientOpcodes::MoveRemoveMovementForceAck,
+                    mover_guid: ack.status.guid,
+                    ack_index: Some(ack.ack_index),
+                    movement_force_id: Some(force_id),
+                    movement_force_type: None,
+                    adjusted_time: None,
+                    speed: None,
+                    time_skipped: None,
+                    spline_id: None,
+                    accepted: false,
+                },
+            );
             return false;
         }
 
-        let adjusted_time = self.adjust_client_movement_time_like_cpp(ack.status.time);
+        let adjusted_time =
+            crate::session::hub_ref(self).adjust_client_movement_time_like_cpp(ack.status.time);
         ack.status.time = adjusted_time;
-        self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
+        crate::session::hub_mut(self).record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
             opcode: ClientOpcodes::MoveRemoveMovementForceAck,
             mover_guid: ack.status.guid,
             ack_index: Some(ack.ack_index),
@@ -161,35 +153,39 @@ impl WorldSession {
         speed: f32,
     ) -> bool {
         if !self.validate_and_sanitize_active_mover_ack_like_cpp(&mut ack.status) {
-            self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
-                opcode,
-                mover_guid: ack.status.guid,
-                ack_index: Some(ack.ack_index),
-                movement_force_id: None,
-                movement_force_type: None,
-                adjusted_time: None,
-                speed: Some(speed),
-                time_skipped: None,
-                spline_id: None,
-                accepted: false,
-            });
-            self.trace_anticheat_violation_like_cpp(
+            crate::session::hub_mut(self).record_movement_ack_event_like_cpp(
+                MovementAckEventLikeCpp {
+                    opcode,
+                    mover_guid: ack.status.guid,
+                    ack_index: Some(ack.ack_index),
+                    movement_force_id: None,
+                    movement_force_type: None,
+                    adjusted_time: None,
+                    speed: Some(speed),
+                    time_skipped: None,
+                    spline_id: None,
+                    accepted: false,
+                },
+            );
+            crate::session::hub_ref(self).trace_anticheat_violation_like_cpp(
                 "HandleMoveSetModMovementForceMagnitudeAck.InvalidMovementAck",
                 Some(opcode),
                 "kick",
             );
-            self.record_movement_speed_ack_event_like_cpp(MovementSpeedAckEventLikeCpp {
-                opcode,
-                move_type: None,
-                ack_speed: speed,
-                expected_speed: None,
-                remaining_forced_changes: None,
-                action: MovementSpeedAckActionLikeCpp::Kicked,
-            });
+            crate::session::hub_mut(self).record_movement_speed_ack_event_like_cpp(
+                MovementSpeedAckEventLikeCpp {
+                    opcode,
+                    move_type: None,
+                    ack_speed: speed,
+                    expected_speed: None,
+                    remaining_forced_changes: None,
+                    action: MovementSpeedAckActionLikeCpp::Kicked,
+                },
+            );
             return false;
         }
 
-        self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
+        crate::session::hub_mut(self).record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
             opcode,
             mover_guid: ack.status.guid,
             ack_index: Some(ack.ack_index),
@@ -203,24 +199,25 @@ impl WorldSession {
         });
 
         let Some(mut remaining_forced_changes) =
-            self.resolved_movement_force_mod_magnitude_changes_like_cpp()
+            crate::session::hub_ref(self).resolved_movement_force_mod_magnitude_changes_like_cpp()
         else {
             return false;
         };
-        let Some(expected_magnitude) =
-            self.mover_movement_force_mod_magnitude_like_cpp(ack.status.guid)
+        let Some(expected_magnitude) = crate::session::hub_ref(self)
+            .mover_movement_force_mod_magnitude_like_cpp(ack.status.guid)
         else {
             return false;
         };
         let mut action = MovementSpeedAckActionLikeCpp::Accepted;
         if remaining_forced_changes > 0 {
-            let Some(remaining) = self.consume_movement_force_mod_magnitude_change_like_cpp()
+            let Some(remaining) = crate::session::hub_mut(self)
+                .consume_movement_force_mod_magnitude_change_like_cpp()
             else {
                 return false;
             };
             remaining_forced_changes = remaining;
             if remaining_forced_changes == 0 && (expected_magnitude - speed).abs() > 0.01 {
-                self.trace_anticheat_violation_like_cpp(
+                crate::session::hub_ref(self).trace_anticheat_violation_like_cpp(
                     "HandleMoveSetModMovementForceMagnitudeAck.IncorrectMagnitude",
                     Some(opcode),
                     "kick",
@@ -232,14 +229,16 @@ impl WorldSession {
             }
         }
 
-        self.record_movement_speed_ack_event_like_cpp(MovementSpeedAckEventLikeCpp {
-            opcode,
-            move_type: None,
-            ack_speed: speed,
-            expected_speed: Some(expected_magnitude),
-            remaining_forced_changes: Some(remaining_forced_changes),
-            action,
-        });
+        crate::session::hub_mut(self).record_movement_speed_ack_event_like_cpp(
+            MovementSpeedAckEventLikeCpp {
+                opcode,
+                move_type: None,
+                ack_speed: speed,
+                expected_speed: Some(expected_magnitude),
+                remaining_forced_changes: Some(remaining_forced_changes),
+                action,
+            },
+        );
         !matches!(action, MovementSpeedAckActionLikeCpp::Kicked)
     }
 }

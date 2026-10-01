@@ -59,7 +59,7 @@ async fn teleport_to_same_map_delays_when_can_delay_teleport_is_set_like_cpp() {
         send_rx.try_recv().is_err(),
         "C++ delayed same-map branch stores m_teleport_dest/options and returns before SendTeleportPacket"
     );
-    assert!(session.near_teleport_pending_like_cpp());
+    assert!(crate::session::hub_ref(&session).near_teleport_pending_like_cpp());
     assert!(session.represented_has_delayed_teleport_like_cpp());
     assert_eq!(
         session.represented_delayed_teleport_like_cpp(),
@@ -113,7 +113,7 @@ async fn update_processes_alive_delayed_same_map_teleport_like_cpp() {
             .is_some()
     );
     session.set_player_health_like_cpp(100, 100);
-    session.set_in_combat_like_cpp(true);
+    crate::session::hub_mut(&mut session).set_in_combat_like_cpp(true);
     session.set_represented_can_delay_teleport_like_cpp(true);
     session.teleport_to(571, destination).await;
     assert!(send_rx.try_recv().is_err());
@@ -128,8 +128,11 @@ async fn update_processes_alive_delayed_same_map_teleport_like_cpp() {
     );
     assert!(!session.represented_has_delayed_teleport_like_cpp());
     assert_eq!(session.represented_delayed_teleport_like_cpp(), None);
-    assert_eq!(session.resolved_in_combat_like_cpp(), Some(false));
-    assert!(session.near_teleport_pending_like_cpp());
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_in_combat_like_cpp(),
+        Some(false)
+    );
+    assert!(crate::session::hub_ref(&session).near_teleport_pending_like_cpp());
 }
 #[tokio::test]
 async fn teleport_to_same_map_fanouts_move_update_teleport_to_visible_players_like_cpp() {
@@ -258,7 +261,7 @@ async fn teleport_to_same_map_not_leave_combat_preserves_combat_like_cpp() {
     );
     assert_eq!(session.fixtures.combat.combat_target, Some(creature_guid));
     assert!(session.fixtures.combat.in_combat);
-    assert!(session.near_teleport_pending_like_cpp());
+    assert!(crate::session::hub_ref(&session).near_teleport_pending_like_cpp());
 }
 #[tokio::test]
 async fn teleport_to_same_map_logout_sets_near_pending_without_packet_like_cpp() {
@@ -303,7 +306,7 @@ async fn teleport_to_same_map_logout_sets_near_pending_without_packet_like_cpp()
         send_rx.try_recv().is_err(),
         "C++ same-map TeleportTo does not SendTeleportPacket during PlayerLogout"
     );
-    assert!(session.near_teleport_pending_like_cpp());
+    assert!(crate::session::hub_ref(&session).near_teleport_pending_like_cpp());
     assert_eq!(session.pending_teleport_like_cpp(), None);
 }
 #[tokio::test]
@@ -376,7 +379,7 @@ async fn teleport_to_same_map_revive_at_teleport_restores_half_health_and_powers
     );
     assert!(session.player_is_alive_like_cpp());
     assert_eq!(session.player_health_like_cpp(), 200);
-    assert!(session.near_teleport_pending_like_cpp());
+    assert!(crate::session::hub_ref(&session).near_teleport_pending_like_cpp());
     assert_eq!(
         session
             .mutate_canonical_player_like_cpp(|player| {
@@ -437,7 +440,7 @@ async fn teleport_to_same_map_without_revive_flag_keeps_dead_player_like_cpp() {
     );
     assert!(!session.player_is_alive_like_cpp());
     assert_eq!(session.player_health_like_cpp(), 0);
-    assert!(session.near_teleport_pending_like_cpp());
+    assert!(crate::session::hub_ref(&session).near_teleport_pending_like_cpp());
 }
 #[tokio::test]
 async fn teleport_to_same_map_unsummons_pet_when_destination_out_of_visibility_like_cpp() {
@@ -630,7 +633,7 @@ fn logout_save_snapshot_uses_fall_damage_synced_to_canonical_health_like_cpp() {
         })
         .unwrap();
     session.set_player_health_like_cpp(6_310, 6_310);
-    session.set_fall_information_like_cpp(1_200, 120.0);
+    crate::session::hub_mut(&mut session).set_fall_information_like_cpp(1_200, 120.0);
     let mut fall_land = wow_packet::packets::movement::MovementInfo::default();
     fall_land.position.z = 100.0;
     fall_land.jump.fall_time = 1_500;
@@ -694,7 +697,7 @@ fn fall_death_applies_item_durability_loss_message_like_cpp() {
         .unwrap();
     session.set_player_health_like_cpp(100, 100);
     session.set_durability_loss_on_death_rate_like_cpp(0.1);
-    session.set_fall_information_like_cpp(1_200, 1_000.0);
+    crate::session::hub_mut(&mut session).set_fall_information_like_cpp(1_200, 1_000.0);
     let mut fall_land = wow_packet::packets::movement::MovementInfo::default();
     fall_land.position.z = 100.0;
     fall_land.jump.fall_time = 1_500;
@@ -745,7 +748,7 @@ fn logout_save_snapshot_falls_back_to_session_position_without_canonical_player_
         0,
     ));
     session.set_player_level_like_cpp(42);
-    session.set_player_xp_like_cpp(1234);
+    crate::session::hub_mut(&mut session).set_player_xp_like_cpp(1234);
     session.set_player_gold_like_cpp(5678);
     session.set_player_health_like_cpp(33, 100);
     session.set_player_position_like_cpp(moved_position);

@@ -70,11 +70,6 @@ impl RepresentedArmorMitigationLikeCpp {
 }
 
 impl WorldSession {
-    pub(in crate::session) fn canonical_player_attack_state_like_cpp(
-        &self,
-    ) -> Option<Option<ObjectGuid>> {
-        crate::session::hub_ref(self).canonical_player_attack_state_like_cpp()
-    }
     pub(in crate::session) fn take_canonical_player_attack_swings_like_cpp(
         &mut self,
         diff_ms: u32,
@@ -157,7 +152,7 @@ impl WorldSession {
                 })
                 .unwrap_or_default()
         };
-        let attacker_ignore_resist = self
+        let attacker_ignore_resist = crate::session::hub_ref(self)
             .resolved_aura_effects_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_IGNORE_TARGET_RESIST,
             )
@@ -225,7 +220,8 @@ impl WorldSession {
             return (AttackerFacts::default(), VictimFacts::default());
         };
         let aura_sum = |aura_type: i32| -> f32 {
-            self.resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
+            crate::session::hub_ref(self)
+                .resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
                 .unwrap_or_default()
                 .into_iter()
                 .map(|(_, amount)| amount as f32)
@@ -236,7 +232,7 @@ impl WorldSession {
             is_controlled_by_player: true,
             no_crushing_blows: true,
             dual_wielding,
-            crit_damage_multiplier: self
+            crit_damage_multiplier: crate::session::hub_ref(self)
                 .resolved_aura_effects_by_spell_aura_type_like_cpp(
                     wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_DAMAGE_BONUS,
                 )
@@ -246,7 +242,7 @@ impl WorldSession {
                 .fold(1.0_f32, |total, (_, amount)| {
                     total * (1.0 + amount as f32 / 100.0)
                 }),
-            ignores_dual_wield_hit_penalty: self
+            ignores_dual_wield_hit_penalty: crate::session::hub_ref(self)
                 .resolved_aura_effects_by_spell_aura_type_like_cpp(
                     wow_data::spell::aura_types::SPELL_AURA_IGNORE_DUAL_WIELD_HIT_PENALTY,
                 )
@@ -261,7 +257,7 @@ impl WorldSession {
             // `GetUnitDodgeChance`'s attacker-side reductions: the
             // `VICTIMSTATE_DODGE` row of `SPELL_AURA_MOD_COMBAT_RESULT_CHANCE`
             // plus every `SPELL_AURA_MOD_ENEMY_DODGE` amount.
-            dodge_reduction_pct: self
+            dodge_reduction_pct: crate::session::hub_ref(self)
                 .resolved_aura_effects_by_spell_aura_type_like_cpp(
                     wow_data::spell::aura_types::SPELL_AURA_MOD_COMBAT_RESULT_CHANCE,
                 )
@@ -427,7 +423,7 @@ impl WorldSession {
         else {
             return RepresentedArmorMitigationLikeCpp::NONE;
         };
-        let target_resistance_normal_aura = self
+        let target_resistance_normal_aura = crate::session::hub_ref(self)
             .resolved_aura_effects_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE,
             )
@@ -439,7 +435,7 @@ impl WorldSession {
             .sum::<i32>();
         // C++ applies every `SPELL_AURA_MOD_IGNORE_TARGET_RESIST` effect of the
         // normal school as `std::floor(AddPct(armor, -amount))`.
-        let ignore_target_resist_normal_pct = self
+        let ignore_target_resist_normal_pct = crate::session::hub_ref(self)
             .resolved_aura_effects_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_IGNORE_TARGET_RESIST,
             )
@@ -496,7 +492,7 @@ impl WorldSession {
         &self,
     ) -> [RepresentedMeleeDamageBonusLikeCpp; 2] {
         let (Some(auras), Some(spell_store)) = (
-            self.resolved_player_visible_auras_like_cpp(),
+            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp(),
             self.spell_store(),
         ) else {
             return [RepresentedMeleeDamageBonusLikeCpp::NONE; 2];
@@ -531,18 +527,13 @@ impl WorldSession {
         })
     }
 
-    pub(in crate::session) fn represented_player_autoattack_damage_multiplier_like_cpp(
-        &self,
-    ) -> f32 {
-        crate::session::hub_ref(self).represented_player_autoattack_damage_multiplier_like_cpp()
-    }
     fn canonical_unit_attack_target_state_like_cpp(
         &self,
         guid: ObjectGuid,
     ) -> (bool, bool, wow_entities::UnitAttackContextLikeCpp) {
         // Resolve the Player-owned control state before taking the map lock;
         // visibility checks below run while that same manager is borrowed.
-        let moved_unit_guid = self.player_moved_unit_guid_like_cpp();
+        let moved_unit_guid = crate::session::hub_ref(self).player_moved_unit_guid_like_cpp();
         let current_group_guid = self.resolved_group_guid_like_cpp();
         let player_phase_shift = self.represented_player_phase_shift_like_cpp();
         let Some(manager) = self.core.canonical_map_manager.as_ref() else {
@@ -675,30 +666,25 @@ impl WorldSession {
             wow_entities::UnitAttackContextLikeCpp::default(),
         )
     }
-    fn player_vehicle_seat_allows_attack_like_cpp(&self) -> bool {
-        crate::session::hub_ref(self).player_vehicle_seat_allows_attack_like_cpp()
-    }
-    fn add_canonical_attacker_like_cpp(&mut self, victim: ObjectGuid, attacker: ObjectGuid) {
-        crate::session::hub_mut(self).add_canonical_attacker_like_cpp(victim, attacker)
-    }
     pub(crate) fn start_player_attack_like_cpp(
         &mut self,
         victim: ObjectGuid,
     ) -> PlayerAttackStartLikeCppResult {
         let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
         let player_guid = self.player_guid();
-        let Some((attacker_unit_flags, _, _)) = self.player_unit_presentation_snapshot_like_cpp()
+        let Some((attacker_unit_flags, _, _)) =
+            crate::session::hub_ref(self).player_unit_presentation_snapshot_like_cpp()
         else {
             return PlayerAttackStartLikeCppResult::Rejected;
         };
         let attacker_is_mounted_player = attacker_unit_flags.contains(UnitFlags::MOUNT);
         let (victim_alive, victim_in_world, mut attack_context) =
             self.canonical_unit_attack_target_state_like_cpp(victim);
-        if !self.player_vehicle_seat_allows_attack_like_cpp() {
-            self.set_combat_target_like_cpp(None);
-            self.set_in_combat_like_cpp(false);
-            if self.selection_guid_like_cpp() == Some(victim) {
-                self.set_selection_guid_like_cpp(None);
+        if !crate::session::hub_ref(self).player_vehicle_seat_allows_attack_like_cpp() {
+            crate::session::hub_mut(self).set_combat_target_like_cpp(None);
+            crate::session::hub_mut(self).set_in_combat_like_cpp(false);
+            if crate::session::hub_ref(self).selection_guid_like_cpp() == Some(victim) {
+                crate::session::hub_mut(self).set_selection_guid_like_cpp(None);
             }
             return PlayerAttackStartLikeCppResult::Rejected;
         }
@@ -734,7 +720,7 @@ impl WorldSession {
         let combat_relation_represented = attack_context.relation_represented;
         let combat_attacker_is_friendly_to_victim = attack_context.attacker_is_friendly_to_victim;
         let combat_victim_is_friendly_to_attacker = attack_context.victim_is_friendly_to_attacker;
-        self.set_selection_guid_like_cpp(Some(victim));
+        crate::session::hub_mut(self).set_selection_guid_like_cpp(Some(victim));
         let outcome = self.core.mutate_canonical_player_like_cpp(|player| {
             player.unit_mut().attack_with_context_like_cpp(
                 victim,
@@ -763,26 +749,27 @@ impl WorldSession {
                 | wow_entities::UnitAttackStartOutcome::InvalidAttackTarget,
             )
             | None => {
-                self.set_combat_target_like_cpp(None);
-                self.set_in_combat_like_cpp(false);
-                if self.selection_guid_like_cpp() == Some(victim) {
-                    self.set_selection_guid_like_cpp(None);
+                crate::session::hub_mut(self).set_combat_target_like_cpp(None);
+                crate::session::hub_mut(self).set_in_combat_like_cpp(false);
+                if crate::session::hub_ref(self).selection_guid_like_cpp() == Some(victim) {
+                    crate::session::hub_mut(self).set_selection_guid_like_cpp(None);
                 }
                 return PlayerAttackStartLikeCppResult::Rejected;
             }
         };
         if let Some(player_guid) = player_guid {
             if let Some(previous) = previous {
-                self.remove_canonical_attacker_like_cpp(previous, player_guid);
+                crate::session::hub_mut(self)
+                    .remove_canonical_attacker_like_cpp(previous, player_guid);
             }
-            self.add_canonical_attacker_like_cpp(victim, player_guid);
+            crate::session::hub_mut(self).add_canonical_attacker_like_cpp(victim, player_guid);
             let _ = self.core.mutate_world_creature(victim, |victim| {
                 victim
                     .creature
                     .unit_mut()
                     .add_attacker_like_cpp(player_guid);
             });
-            let _ = self.begin_canonical_player_combat_ref_like_cpp(
+            let _ = crate::session::hub_mut(self).begin_canonical_player_combat_ref_like_cpp(
                 player_guid,
                 victim,
                 combat_relation_represented,
@@ -790,7 +777,7 @@ impl WorldSession {
                 combat_victim_is_friendly_to_attacker,
             );
         }
-        self.set_in_combat_like_cpp(true);
+        crate::session::hub_mut(self).set_in_combat_like_cpp(true);
         let send_attack_start = matches!(
             outcome,
             Some(
@@ -799,9 +786,6 @@ impl WorldSession {
             )
         );
         PlayerAttackStartLikeCppResult::Accepted { send_attack_start }
-    }
-    pub(crate) fn stop_player_attack_like_cpp(&mut self) -> Option<ObjectGuid> {
-        crate::session::hub_mut(self).stop_player_attack_like_cpp()
     }
 }
 

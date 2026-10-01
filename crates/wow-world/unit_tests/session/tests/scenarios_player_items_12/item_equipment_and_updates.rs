@@ -81,9 +81,9 @@ async fn equipment_stats_use_one_canonical_contribution_path_like_cpp() {
     assert!(changed);
     assert_eq!(
         (
-            session.player_race_like_cpp(),
-            session.player_class_like_cpp(),
-            session.player_level_like_cpp()
+            crate::session::hub_ref(&session).player_race_like_cpp(),
+            crate::session::hub_ref(&session).player_class_like_cpp(),
+            crate::session::hub_ref(&session).player_level_like_cpp()
         ),
         (1, 5, 80)
     );

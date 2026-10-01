@@ -9,33 +9,8 @@ impl WorldSession {
     pub fn set_reputation_rates_like_cpp(&mut self, rates: ReputationRatesLikeCpp) {
         self.config.reputation_rates = rates;
     }
-    pub(crate) fn reputation_price_discount_for_faction_template_like_cpp(
-        &self,
-        faction_template_id: u32,
-    ) -> f32 {
-        crate::session::hub_ref(self)
-            .reputation_price_discount_for_faction_template_like_cpp(faction_template_id)
-    }
-    pub(crate) fn trainer_price_reputation_rank_like_cpp(
-        &self,
-        faction_template_id: u32,
-    ) -> wow_data::reputation::ReputationRankLikeCpp {
-        crate::session::hub_ref(self).trainer_price_reputation_rank_like_cpp(faction_template_id)
-    }
     pub(crate) fn reputation_rates_like_cpp(&self) -> ReputationRatesLikeCpp {
         self.config.reputation_rates_like_cpp()
-    }
-    pub(crate) fn with_reputation_mgr_like_cpp<R>(
-        &self,
-        operation: impl FnOnce(&ReputationMgrRefLikeCpp<'_>) -> R,
-    ) -> Option<R> {
-        crate::session::hub_ref(self).with_reputation_mgr_like_cpp(operation)
-    }
-    pub(crate) fn mutate_reputation_mgr_like_cpp<R>(
-        &mut self,
-        operation: impl FnOnce(&mut ReputationMgrMutLikeCpp<'_>) -> R,
-    ) -> Option<R> {
-        crate::session::hub_mut(self).mutate_reputation_mgr_like_cpp(operation)
     }
     #[allow(dead_code)]
     pub(crate) fn reputation_rank_like_cpp(
@@ -49,18 +24,9 @@ impl WorldSession {
             self.catalogs.friendship_rep_reaction_store.as_deref(),
         )
     }
-    pub(crate) fn canonical_player_reputation_standing_like_cpp(
-        &self,
-        faction_id: u32,
-    ) -> Option<i32> {
-        crate::session::hub_ref(self).canonical_player_reputation_standing_like_cpp(faction_id)
-    }
     pub fn set_paragon_reputation_store(&mut self, store: Arc<ParagonReputationStore>) {
         self.catalogs.paragon_reputation_store = Some(store);
-        self.initialize_reputation_mgr_like_cpp();
-    }
-    pub(in crate::session) fn initialize_reputation_mgr_like_cpp(&mut self) {
-        crate::session::hub_mut(self).initialize_reputation_mgr_like_cpp()
+        crate::session::hub_mut(self).initialize_reputation_mgr_like_cpp();
     }
     pub fn set_reputation_reward_rate_store(
         &mut self,
@@ -74,17 +40,11 @@ impl WorldSession {
     ) {
         self.catalogs.reputation_spillover_template_store = Some(store);
     }
-    pub(crate) fn apply_represented_first_login_reputation_with_catalogs_like_cpp(
-        &mut self,
-        player_bootstrap: &PlayerBootstrapCatalogsLikeCpp,
-    ) -> usize {
-        crate::session::hub_mut(self)
-            .apply_represented_first_login_reputation_with_catalogs_like_cpp(player_bootstrap)
-    }
     #[cfg(test)]
     pub(crate) fn apply_represented_first_login_reputation_like_cpp(&mut self) -> usize {
         let player_bootstrap = self.player_bootstrap_catalogs_for_test_like_cpp();
-        self.apply_represented_first_login_reputation_with_catalogs_like_cpp(&player_bootstrap)
+        crate::session::hub_mut(self)
+            .apply_represented_first_login_reputation_with_catalogs_like_cpp(&player_bootstrap)
     }
     pub(in crate::session) fn calculate_kill_reputation_gain_like_cpp(
         &self,
@@ -112,7 +72,7 @@ impl WorldSession {
         let mut rep_mod = if no_quest_bonus {
             0.0
         } else {
-            self.resolved_total_represented_aura_modifier_like_cpp(
+            crate::session::hub_ref(self).resolved_total_represented_aura_modifier_like_cpp(
                 RepresentedAuraEffectLikeCpp::ModReputationGain,
             )? as f32
         };
@@ -137,19 +97,16 @@ impl WorldSession {
             ReputationGainSourceLikeCpp::Spell => 1.0,
         };
         if low_level_rate != 1.0
-            && creature_or_quest_level < u32::from(self.gray_level(self.player_level_like_cpp()))
+            && creature_or_quest_level
+                < u32::from(
+                    crate::session::hub_ref(self)
+                        .gray_level(crate::session::hub_ref(self).player_level_like_cpp()),
+                )
         {
             percent *= low_level_rate;
         }
 
         (percent > 0.0).then_some(percent)
-    }
-    pub(crate) fn reputation_reward_rate_for_source_like_cpp(
-        &self,
-        source: ReputationGainSourceLikeCpp,
-        faction_id: u32,
-    ) -> Option<f32> {
-        crate::session::hub_ref(self).reputation_reward_rate_for_source_like_cpp(source, faction_id)
     }
     pub(crate) fn calculate_reputation_gain_like_cpp(
         &self,
@@ -169,7 +126,8 @@ impl WorldSession {
             return 0;
         };
 
-        if let Some(rep_rate) = self.reputation_reward_rate_for_source_like_cpp(source, faction_id)
+        if let Some(rep_rate) = crate::session::hub_ref(self)
+            .reputation_reward_rate_for_source_like_cpp(source, faction_id)
         {
             if rep_rate <= 0.0 {
                 return 0;

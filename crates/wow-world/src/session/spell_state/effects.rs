@@ -43,7 +43,10 @@ impl WorldSession {
 
         let spells = player_bootstrap
             .custom_spells
-            .custom_spells_like_cpp(self.player_race_like_cpp(), self.player_class_like_cpp())
+            .custom_spells_like_cpp(
+                crate::session::hub_ref(self).player_race_like_cpp(),
+                crate::session::hub_ref(self).player_class_like_cpp(),
+            )
             .to_vec();
 
         let mut applied = 0usize;
@@ -82,7 +85,7 @@ impl WorldSession {
         known_spells: &mut Vec<i32>,
         dependent_spells: &mut HashSet<i32>,
     ) -> bool {
-        let previous_rank = self
+        let previous_rank = crate::session::hub_ref(self)
             .player_talent_runtime_snapshot_like_cpp()
             .and_then(|runtime| {
                 runtime
@@ -90,11 +93,18 @@ impl WorldSession {
                     .and_then(|talents| talents.get(&talent_id).copied())
             });
 
-        if !self.load_represented_talent_row_like_cpp(talent_tabs, talent_id, rank, talent_group) {
+        if !crate::session::hub_mut(self).load_represented_talent_row_like_cpp(
+            talent_tabs,
+            talent_id,
+            rank,
+            talent_group,
+        ) {
             return false;
         }
 
-        if self.represented_active_talent_group_like_cpp() != Some(talent_group) {
+        if crate::session::hub_ref(self).represented_active_talent_group_like_cpp()
+            != Some(talent_group)
+        {
             return true;
         }
 
@@ -141,7 +151,9 @@ impl WorldSession {
         rank: u8,
         talent_group: u8,
     ) {
-        if self.represented_active_talent_group_like_cpp() != Some(talent_group) {
+        if crate::session::hub_ref(self).represented_active_talent_group_like_cpp()
+            != Some(talent_group)
+        {
             return;
         }
 

@@ -88,7 +88,8 @@ impl WorldSession {
                 Some(dest.position),
             )
         } else {
-            let Some(caster_position) = self.player_position_like_cpp() else {
+            let Some(caster_position) = crate::session::hub_ref(self).player_position_like_cpp()
+            else {
                 return Some(ApplyEffectSummonObjectWildSessionOutcomeLikeCpp {
                     status: ApplyEffectSummonObjectWildSessionStatusLikeCpp::MissingCasterPosition,
                     template_entry: Some(template_entry),
@@ -284,7 +285,8 @@ impl WorldSession {
                 Some(dest.position),
             )
         } else {
-            let Some(caster_position) = self.player_position_like_cpp() else {
+            let Some(caster_position) = crate::session::hub_ref(self).player_position_like_cpp()
+            else {
                 return Some(ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp {
                     status: ApplyEffectSummonObjectSlotSessionStatusLikeCpp::MissingCasterPosition,
                     slot: Some(slot),

@@ -47,7 +47,7 @@ async fn represented_form_change_refreshes_item_equip_spells_like_cpp() {
     );
 
     assert_eq!(
-        session.player_has_visible_aura_spell_like_cpp(equip_spell_id),
+        crate::session::hub_ref(&session).player_has_visible_aura_spell_like_cpp(equip_spell_id),
         Some(false)
     );
 
@@ -55,14 +55,14 @@ async fn represented_form_change_refreshes_item_equip_spells_like_cpp() {
         .apply_aura(shapeshift_spell_id, player_guid, 30_000, 1)
         .expect("apply cat form aura");
     assert_eq!(
-        session.player_has_visible_aura_spell_like_cpp(equip_spell_id),
+        crate::session::hub_ref(&session).player_has_visible_aura_spell_like_cpp(equip_spell_id),
         Some(true),
         "C++ ApplyItemEquipSpell(item, true, true) adds the now-fitting equip spell"
     );
 
     session.remove_aura(0).expect("remove cat form aura");
     assert_eq!(
-        session.player_has_visible_aura_spell_like_cpp(equip_spell_id),
+        crate::session::hub_ref(&session).player_has_visible_aura_spell_like_cpp(equip_spell_id),
         Some(false),
         "C++ ApplyItemEquipSpell(item, false, true) removes the stale equip spell"
     );
@@ -130,7 +130,7 @@ async fn represented_form_change_refreshes_item_set_auras_like_cpp() {
     assert!(session.record_represented_items_set_item_like_cpp(hands_guid, true));
     // The set bonus is stance-gated, so the initial equip pass cannot apply it.
     assert_eq!(
-        session.player_has_visible_aura_spell_like_cpp(set_spell_id),
+        crate::session::hub_ref(&session).player_has_visible_aura_spell_like_cpp(set_spell_id),
         Some(false)
     );
 
@@ -138,14 +138,14 @@ async fn represented_form_change_refreshes_item_set_auras_like_cpp() {
         .apply_aura(shapeshift_spell_id, player_guid, 30_000, 1)
         .expect("apply cat form aura");
     assert_eq!(
-        session.player_has_visible_aura_spell_like_cpp(set_spell_id),
+        crate::session::hub_ref(&session).player_has_visible_aura_spell_like_cpp(set_spell_id),
         Some(true),
         "C++ ApplyEquipSpell(itemSet, true, formChange) applies the now-fitting set aura"
     );
 
     session.remove_aura(0).expect("remove cat form aura");
     assert_eq!(
-        session.player_has_visible_aura_spell_like_cpp(set_spell_id),
+        crate::session::hub_ref(&session).player_has_visible_aura_spell_like_cpp(set_spell_id),
         Some(false),
         "the set aura is removed once the form no longer fits"
     );
@@ -177,14 +177,14 @@ async fn represented_form_change_applies_and_removes_boost_spells_like_cpp() {
         .apply_aura(shapeshift_spell_id, player_guid, 30_000, 1)
         .expect("apply cat form aura");
     assert_eq!(
-        session.player_has_visible_aura_spell_like_cpp(boost_spell_id),
+        crate::session::hub_ref(&session).player_has_visible_aura_spell_like_cpp(boost_spell_id),
         Some(true),
         "C++ HandleShapeshiftBoosts casts the form's hardcoded boost spell"
     );
 
     session.remove_aura(0).expect("remove cat form aura");
     assert_eq!(
-        session.player_has_visible_aura_spell_like_cpp(boost_spell_id),
+        crate::session::hub_ref(&session).player_has_visible_aura_spell_like_cpp(boost_spell_id),
         Some(false),
         "C++ RemoveOwnedAura drops the boost when the form is lost"
     );
@@ -221,14 +221,14 @@ async fn represented_form_change_applies_and_sweeps_stance_passives_like_cpp() {
         .apply_aura(shapeshift_spell_id, player_guid, 30_000, 1)
         .expect("apply cat form aura");
     assert_eq!(
-        session.player_has_visible_aura_spell_like_cpp(passive_spell_id),
+        crate::session::hub_ref(&session).player_has_visible_aura_spell_like_cpp(passive_spell_id),
         Some(true),
         "C++ HandleShapeshiftBoosts casts every known passive whose Stances admit the form"
     );
 
     session.remove_aura(0).expect("remove cat form aura");
     assert_eq!(
-        session.player_has_visible_aura_spell_like_cpp(passive_spell_id),
+        crate::session::hub_ref(&session).player_has_visible_aura_spell_like_cpp(passive_spell_id),
         Some(false),
         "C++ Aura::IsRemovedOnShapeLost sweeps the self-cast aura when the form is lost"
     );

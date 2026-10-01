@@ -84,8 +84,8 @@ impl crate::session::WorldSession {
             return;
         }
 
-        let Some(packet) =
-            self.with_reputation_mgr_like_cpp(|mgr| mgr.set_forced_reactions_packet_like_cpp())
+        let Some(packet) = crate::session::hub_ref(self)
+            .with_reputation_mgr_like_cpp(|mgr| mgr.set_forced_reactions_packet_like_cpp())
         else {
             return;
         };
@@ -137,10 +137,10 @@ impl crate::session::WorldSession {
             return;
         };
         let friendship_rep_reaction_store = self.catalogs.friendship_rep_reaction_store().cloned();
-        let race = self.player_race_like_cpp();
-        let class = self.player_class_like_cpp();
+        let race = crate::session::hub_ref(self).player_race_like_cpp();
+        let class = crate::session::hub_ref(self).player_class_like_cpp();
 
-        let _ = self.mutate_reputation_mgr_like_cpp(|mgr| {
+        let _ = crate::session::hub_mut(self).mutate_reputation_mgr_like_cpp(|mgr| {
             mgr.set_at_war_by_replist_like_cpp(
                 u32::from(faction_index),
                 at_war,
@@ -164,7 +164,7 @@ impl crate::session::WorldSession {
             }
         };
 
-        let _ = self.mutate_reputation_mgr_like_cpp(|mgr| {
+        let _ = crate::session::hub_mut(self).mutate_reputation_mgr_like_cpp(|mgr| {
             mgr.set_inactive_by_replist_like_cpp(request.index, request.state)
         });
     }
@@ -181,7 +181,8 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.set_watched_faction_index_like_cpp(request.faction_index as i32);
+        crate::session::hub_mut(self)
+            .set_watched_faction_index_like_cpp(request.faction_index as i32);
     }
 }
 

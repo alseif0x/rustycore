@@ -39,9 +39,18 @@ fn stop_player_attack_canonical_no_victim_ignores_stale_session_target_like_cpp(
     session.fixtures.combat.combat_target = Some(stale_victim);
     session.fixtures.combat.in_combat = true;
 
-    assert_eq!(session.stop_player_attack_like_cpp(), None);
-    assert_eq!(session.resolved_combat_target_like_cpp(), Some(None));
-    assert_eq!(session.resolved_in_combat_like_cpp(), Some(false));
+    assert_eq!(
+        crate::session::hub_mut(&mut session).stop_player_attack_like_cpp(),
+        None
+    );
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_combat_target_like_cpp(),
+        Some(None)
+    );
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_in_combat_like_cpp(),
+        Some(false)
+    );
 }
 #[test]
 fn player_attack_from_vehicle_seat_requires_can_attack_flag_like_cpp() {
@@ -89,8 +98,14 @@ fn player_attack_from_vehicle_seat_requires_can_attack_flag_like_cpp() {
         assert_eq!(player_entity.unit().attacking(), None);
         assert_eq!(player_entity.unit().data().target, ObjectGuid::EMPTY);
     }
-    assert_eq!(session.resolved_combat_target_like_cpp(), Some(None));
-    assert_eq!(session.resolved_in_combat_like_cpp(), Some(false));
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_combat_target_like_cpp(),
+        Some(None)
+    );
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_in_combat_like_cpp(),
+        Some(false)
+    );
 
     assert!(session.set_player_vehicle_seat_state_like_cpp(
         Some(wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK),
@@ -109,7 +124,7 @@ fn player_attack_from_vehicle_seat_requires_can_attack_flag_like_cpp() {
     assert_eq!(player_entity.unit().data().target, allowed_victim);
     drop(guard);
     assert_eq!(
-        session.resolved_combat_target_like_cpp(),
+        crate::session::hub_ref(&session).resolved_combat_target_like_cpp(),
         Some(Some(allowed_victim))
     );
 }
@@ -171,8 +186,8 @@ fn toy_clear_fanfare_clears_known_toy_only_like_cpp() {
     let (mut session, _, _) = make_session();
     session.load_represented_account_toys_like_cpp([(30_000, true, true), (30_001, false, true)]);
 
-    assert!(session.toy_clear_fanfare_like_cpp(30_000));
-    assert!(!session.toy_clear_fanfare_like_cpp(40_000));
+    assert!(crate::session::hub_mut(&mut session).toy_clear_fanfare_like_cpp(30_000));
+    assert!(!crate::session::hub_mut(&mut session).toy_clear_fanfare_like_cpp(40_000));
 
     assert_eq!(
         session.account_toy_rows_like_cpp(),
@@ -184,14 +199,14 @@ fn toy_set_favorite_toggles_known_toy_only_like_cpp() {
     let (mut session, _, _) = make_session();
     session.load_represented_account_toys_like_cpp([(30_000, false, true)]);
 
-    assert!(session.toy_set_favorite_like_cpp(30_000, true));
+    assert!(crate::session::hub_mut(&mut session).toy_set_favorite_like_cpp(30_000, true));
     assert_eq!(
         session.account_toy_rows_like_cpp(),
         vec![(30_000, true, true)]
     );
 
-    assert!(session.toy_set_favorite_like_cpp(30_000, false));
-    assert!(!session.toy_set_favorite_like_cpp(40_000, true));
+    assert!(crate::session::hub_mut(&mut session).toy_set_favorite_like_cpp(30_000, false));
+    assert!(!crate::session::hub_mut(&mut session).toy_set_favorite_like_cpp(40_000, true));
     assert_eq!(
         session.account_toy_rows_like_cpp(),
         vec![(30_000, false, true)]
@@ -852,21 +867,21 @@ fn represented_get_reaction_wrapper_top_branches_match_cpp() {
 
     input.same_object = true;
     assert_eq!(
-        session.represented_get_reaction_to_like_cpp(input),
+        crate::session::hub_ref(&session).represented_get_reaction_to_like_cpp(input),
         wow_data::reputation::ReputationRankLikeCpp::Friendly
     );
 
     input.same_object = false;
     input.attackable_by_summoner = true;
     assert_eq!(
-        session.represented_get_reaction_to_like_cpp(input),
+        crate::session::hub_ref(&session).represented_get_reaction_to_like_cpp(input),
         wow_data::reputation::ReputationRankLikeCpp::Neutral
     );
 
     input.attackable_by_summoner = false;
     input.same_charmer_or_owner_or_self = true;
     assert_eq!(
-        session.represented_get_reaction_to_like_cpp(input),
+        crate::session::hub_ref(&session).represented_get_reaction_to_like_cpp(input),
         wow_data::reputation::ReputationRankLikeCpp::Friendly
     );
 }
@@ -888,13 +903,13 @@ fn represented_get_reaction_target_owner_forced_rank_branch_matches_cpp() {
         Some(wow_data::reputation::ReputationRankLikeCpp::Revered);
 
     assert_eq!(
-        session.represented_get_reaction_to_like_cpp(input),
+        crate::session::hub_ref(&session).represented_get_reaction_to_like_cpp(input),
         wow_data::reputation::ReputationRankLikeCpp::Revered
     );
 
     input.self_faction_template_id = 99;
     assert_eq!(
-        session.represented_get_reaction_to_like_cpp(input),
+        crate::session::hub_ref(&session).represented_get_reaction_to_like_cpp(input),
         wow_data::reputation::ReputationRankLikeCpp::Neutral
     );
 }

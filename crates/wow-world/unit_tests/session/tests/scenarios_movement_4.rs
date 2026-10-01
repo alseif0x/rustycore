@@ -31,7 +31,7 @@ fn canonical_player_movement_control_follows_active_detached_and_stale_ownership
         .player_handle_like_cpp
         .expect("canonical handle");
 
-    assert!(session.set_fall_information_like_cpp(1_200, 87.5));
+    assert!(crate::session::hub_mut(&mut session).set_fall_information_like_cpp(1_200, 87.5));
     session.set_forced_speed_changes_like_cpp(UnitMoveTypeLikeCpp::Run, 2);
     session.set_movement_force_mod_magnitude_changes_like_cpp(3);
     session.set_player_movement_speed_rate_like_cpp(UnitMoveTypeLikeCpp::Run, 1.5);
@@ -46,14 +46,17 @@ fn canonical_player_movement_control_follows_active_detached_and_stale_ownership
             })
             .is_some()
     );
-    assert_eq!(session.next_movement_counter_like_cpp(), Some(0));
+    assert_eq!(
+        crate::session::hub_mut(&mut session).next_movement_counter_like_cpp(),
+        Some(0)
+    );
     assert_eq!(session.fall_information_like_cpp(), (1_200, 87.5));
     assert_eq!(
         session.forced_speed_changes_like_cpp(UnitMoveTypeLikeCpp::Run),
         2
     );
     assert_eq!(
-        session.resolved_movement_force_mod_magnitude_changes_like_cpp(),
+        crate::session::hub_ref(&session).resolved_movement_force_mod_magnitude_changes_like_cpp(),
         Some(3)
     );
     assert_eq!(
@@ -64,13 +67,16 @@ fn canonical_player_movement_control_follows_active_detached_and_stale_ownership
         session.resolved_movement_force_mod_magnitude_like_cpp(),
         Some(1.25)
     );
-    assert_eq!(session.movement_counter_like_cpp(), Some(1));
+    assert_eq!(
+        crate::session::hub_ref(&session).movement_counter_like_cpp(),
+        Some(1)
+    );
     assert_eq!(
         session.resolved_can_swim_to_fly_transition_like_cpp(),
         Some(true)
     );
     assert_eq!(
-        session.resolved_mover_fixed_position_vehicle_like_cpp(),
+        crate::session::hub_ref(&session).resolved_mover_fixed_position_vehicle_like_cpp(),
         Some(true)
     );
     assert_eq!(session.resolved_player_scale_duration_like_cpp(), Some(250));
@@ -88,13 +94,16 @@ fn canonical_player_movement_control_follows_active_detached_and_stale_ownership
         session.forced_speed_changes_like_cpp(UnitMoveTypeLikeCpp::Run),
         2
     );
-    assert_eq!(session.movement_counter_like_cpp(), Some(1));
+    assert_eq!(
+        crate::session::hub_ref(&session).movement_counter_like_cpp(),
+        Some(1)
+    );
     assert_eq!(
         session.resolved_can_swim_to_fly_transition_like_cpp(),
         Some(true)
     );
     assert_eq!(
-        session.resolved_mover_fixed_position_vehicle_like_cpp(),
+        crate::session::hub_ref(&session).resolved_mover_fixed_position_vehicle_like_cpp(),
         Some(true)
     );
     assert_eq!(session.resolved_player_scale_duration_like_cpp(), Some(250));
@@ -124,13 +133,16 @@ fn canonical_player_movement_control_follows_active_detached_and_stale_ownership
         .install_detached_player_like_cpp(replacement)
         .expect("replacement owner");
 
-    assert_eq!(session.resolved_fall_information_like_cpp(), None);
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_fall_information_like_cpp(),
+        None
+    );
     assert_eq!(
         session.resolved_forced_speed_changes_like_cpp(UnitMoveTypeLikeCpp::Run),
         None
     );
     assert_eq!(
-        session.resolved_movement_force_mod_magnitude_changes_like_cpp(),
+        crate::session::hub_ref(&session).resolved_movement_force_mod_magnitude_changes_like_cpp(),
         None
     );
     assert_eq!(
@@ -141,17 +153,23 @@ fn canonical_player_movement_control_follows_active_detached_and_stale_ownership
         session.resolved_movement_force_mod_magnitude_like_cpp(),
         None
     );
-    assert_eq!(session.movement_counter_like_cpp(), None);
+    assert_eq!(
+        crate::session::hub_ref(&session).movement_counter_like_cpp(),
+        None
+    );
     assert_eq!(session.resolved_can_swim_to_fly_transition_like_cpp(), None);
     assert_eq!(
-        session.resolved_mover_fixed_position_vehicle_like_cpp(),
+        crate::session::hub_ref(&session).resolved_mover_fixed_position_vehicle_like_cpp(),
         None
     );
     assert_eq!(session.resolved_player_scale_duration_like_cpp(), None);
-    assert!(!session.set_fall_information_like_cpp(2_000, 10.0));
+    assert!(!crate::session::hub_mut(&mut session).set_fall_information_like_cpp(2_000, 10.0));
     assert!(!session.set_represented_can_swim_to_fly_transition_like_cpp(false));
     session.set_represented_mover_fixed_position_vehicle_like_cpp(false);
-    assert_eq!(session.next_movement_counter_like_cpp(), None);
+    assert_eq!(
+        crate::session::hub_mut(&mut session).next_movement_counter_like_cpp(),
+        None
+    );
     assert_eq!(
         canonical
             .lock()
@@ -833,7 +851,7 @@ async fn teleport_to_instance_rejects_access_requirements_before_transfer_like_c
         .instances
         .instance_test_fixture_like_cpp
         .represented_raid_difficulty_id_like_cpp = 3;
-    session.set_selection_guid_like_cpp(Some(selected_guid));
+    crate::session::hub_mut(&mut session).set_selection_guid_like_cpp(Some(selected_guid));
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     install_access_notification_stores_like_cpp(&mut session);
     let mut requirement = access_requirement_like_cpp(631, 3);
@@ -866,7 +884,7 @@ async fn teleport_to_instance_rejects_access_requirements_before_transfer_like_c
     assert_eq!(session.pending_teleport_like_cpp(), None);
     assert_ne!(session.core.state, SessionState::Transfer);
     assert_eq!(
-        session.selection_guid_like_cpp(),
+        crate::session::hub_ref(&session).selection_guid_like_cpp(),
         Some(selected_guid),
         "C++ Player::TeleportTo returns before SetSelection(Empty) when PlayerCannotEnter rejects"
     );

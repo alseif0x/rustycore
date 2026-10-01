@@ -127,7 +127,7 @@ impl WorldSession {
             warn!(
                 account = self.core.account_id,
                 player_guid = ?self.player_guid(),
-                has_session_position = self.player_position_like_cpp().is_some(),
+                has_session_position = crate::session::hub_ref(self).player_position_like_cpp().is_some(),
                 has_canonical_map_manager = self.core.canonical_map_manager.is_some(),
                 "Skipping Player::SaveToDB represented save because no coherent player snapshot is available"
             );

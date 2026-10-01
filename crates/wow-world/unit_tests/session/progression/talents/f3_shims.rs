@@ -51,4 +51,30 @@ impl crate::session::WorldSession {
     pub(crate) fn reset_represented_glyphs_like_cpp(&mut self) {
         crate::session::hub_mut(self).reset_represented_glyphs_like_cpp()
     }
+    pub(in crate::session) fn represented_talent_info_like_cpp(
+        &self,
+        talent_id: u32,
+        rank: u8,
+    ) -> Option<wow_packet::packets::misc::TalentInfoLikeCpp> {
+        crate::session::hub_ref(self).represented_talent_info_like_cpp(talent_id, rank)
+    }
+    pub(crate) fn represented_next_reset_talents_cost_like_cpp(
+        &self,
+        now_secs: u64,
+    ) -> Option<u32> {
+        crate::session::hub_ref(self).represented_next_reset_talents_cost_like_cpp(now_secs)
+    }
+    pub(crate) fn player_talent_runtime_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerTalentRuntimeState> {
+        crate::session::hub_ref(self).player_talent_runtime_snapshot_like_cpp()
+    }
+    pub(crate) fn set_represented_talent_reset_state_like_cpp(
+        &mut self,
+        reset_cost: u32,
+        reset_time_secs: u64,
+    ) -> bool {
+        crate::session::hub_mut(self)
+            .set_represented_talent_reset_state_like_cpp(reset_cost, reset_time_secs)
+    }
 }

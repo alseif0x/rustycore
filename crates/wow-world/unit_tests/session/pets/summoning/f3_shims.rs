@@ -22,4 +22,12 @@ impl crate::session::WorldSession {
     pub(crate) fn resummon_pet_temporary_unsummoned_if_any_like_cpp(&mut self) {
         crate::session::cx_pets(self).resummon_pet_temporary_unsummoned_if_any_like_cpp()
     }
+    pub(crate) fn load_represented_pet_stable_rows_like_cpp(
+        &mut self,
+        summoned_pet_number: u32,
+        rows: impl IntoIterator<Item = CharacterPetStableRowLikeCpp>,
+    ) -> usize {
+        crate::session::hub_mut(self)
+            .load_represented_pet_stable_rows_like_cpp(summoned_pet_number, rows)
+    }
 }

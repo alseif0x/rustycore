@@ -81,7 +81,7 @@ impl WorldSession {
             return;
         };
         if max_pet_level < modifiers.level {
-            self.battle_pet_send_error_like_cpp(
+            crate::session::hub_mut(self).battle_pet_send_error_like_cpp(
                 wow_packet::packets::misc::BattlePetErrorCodeLikeCpp::TooHighLevelToUncage,
                 creature_id,
             );
@@ -102,7 +102,7 @@ impl WorldSession {
             return;
         };
         if has_max_pet_count {
-            self.battle_pet_send_error_like_cpp(
+            crate::session::hub_mut(self).battle_pet_send_error_like_cpp(
                 wow_packet::packets::misc::BattlePetErrorCodeLikeCpp::CantHaveMorePetsOfType,
                 creature_id,
             );
@@ -136,7 +136,7 @@ impl WorldSession {
                 ?error,
                 "Durable battle-pet uncage add was rejected"
             );
-            self.battle_pet_send_error_like_cpp(
+            crate::session::hub_mut(self).battle_pet_send_error_like_cpp(
                 wow_packet::packets::misc::BattlePetErrorCodeLikeCpp::CantHaveMorePetsOfType,
                 creature_id,
             );
@@ -150,9 +150,10 @@ impl WorldSession {
             });
             return;
         }
-        if let (Some(player_guid), Some(player_position)) =
-            (self.player_guid(), self.player_position_like_cpp())
-        {
+        if let (Some(player_guid), Some(player_position)) = (
+            self.player_guid(),
+            crate::session::hub_ref(self).player_position_like_cpp(),
+        ) {
             self.send_packet(&wow_packet::packets::spell::PlaySpellVisual::self_target(
                 player_guid,
                 player_position,
@@ -200,7 +201,8 @@ impl WorldSession {
             .unwrap_or_else(|| u32::from(self.core.player_map_id_like_cpp()));
         let mut destination = destination;
         if destination.orientation == 0.0 {
-            if let Some(player_position) = self.player_position_like_cpp() {
+            if let Some(player_position) = crate::session::hub_ref(self).player_position_like_cpp()
+            {
                 destination.orientation = player_position.orientation;
             }
         }
@@ -225,13 +227,15 @@ impl WorldSession {
             return;
         }
 
-        let Some((_, current_area_id)) = self.player_zone_area_like_cpp() else {
+        let Some((_, current_area_id)) = crate::session::hub_ref(self).player_zone_area_like_cpp()
+        else {
             return;
         };
         let area_id =
             wow_entities::bind_area_id_like_cpp(effect.effect_misc_value_1, current_area_id);
 
-        let Some(current_position) = self.player_position_like_cpp() else {
+        let Some(current_position) = crate::session::hub_ref(self).player_position_like_cpp()
+        else {
             return;
         };
         let position = target_data
@@ -322,11 +326,11 @@ impl WorldSession {
         if !self.config.represented_cast_unstuck_enabled_like_cpp {
             return;
         }
-        if self.resolved_is_in_taxi_flight_like_cpp() != Some(false) {
+        if crate::session::hub_ref(self).resolved_is_in_taxi_flight_like_cpp() != Some(false) {
             return;
         }
 
-        match self.resolved_player_is_alive_like_cpp() {
+        match crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() {
             None => return,
             Some(false) => {
                 let Some(resurrection) = self.player_resurrection_state_snapshot_like_cpp() else {

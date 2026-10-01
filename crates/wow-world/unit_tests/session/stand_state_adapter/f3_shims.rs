@@ -19,4 +19,7 @@ impl crate::session::WorldSession {
     pub(crate) fn player_stand_state_like_cpp(&self) -> UnitStandStateType {
         crate::session::hub_ref(self).player_stand_state_like_cpp()
     }
+    pub(crate) fn set_player_stand_state_like_cpp(&mut self, state: UnitStandStateType) {
+        crate::session::hub_mut(self).set_player_stand_state_like_cpp(state)
+    }
 }

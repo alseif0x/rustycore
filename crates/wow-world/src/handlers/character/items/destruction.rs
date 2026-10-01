@@ -94,9 +94,10 @@ impl WorldSession {
                     owner_guid: player_guid.counter() as u64,
                     item_guid: item.db_guid,
                     new_count,
-                    quest_statuses: self.represented_quest_status_persistence_rows_like_cpp(
-                        &planned_quest_statuses,
-                    ),
+                    quest_statuses: crate::session::hub_ref(self)
+                        .represented_quest_status_persistence_rows_like_cpp(
+                            &planned_quest_statuses,
+                        ),
                 },
             );
             let outcome = inventory_port
@@ -299,7 +300,7 @@ impl WorldSession {
             wow_persistence::InventoryGraphDestroyPersistenceLikeCpp {
                 owner_guid: player_guid.counter() as u64,
                 nodes,
-                quest_statuses: self
+                quest_statuses: crate::session::hub_ref(self)
                     .represented_quest_status_persistence_rows_like_cpp(&planned_quest_statuses),
             },
         );

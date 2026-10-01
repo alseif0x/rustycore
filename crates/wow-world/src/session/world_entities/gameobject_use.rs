@@ -37,7 +37,8 @@ impl WorldSession {
         gameobject_usable_mounted: bool,
         no_damage_immune: bool,
     ) -> bool {
-        let Some((player_unit_flags, _, _)) = self.player_unit_presentation_snapshot_like_cpp()
+        let Some((player_unit_flags, _, _)) =
+            crate::session::hub_ref(self).player_unit_presentation_snapshot_like_cpp()
         else {
             return false;
         };

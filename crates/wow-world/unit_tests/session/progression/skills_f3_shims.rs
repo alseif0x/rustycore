@@ -75,4 +75,12 @@ impl crate::session::WorldSession {
     pub(crate) fn player_skill_value_like_cpp(&self, skill_id: u16) -> u16 {
         crate::session::hub_ref(self).player_skill_value_like_cpp(skill_id)
     }
+    pub(crate) fn set_complete_player_skill_records_like_cpp(
+        &mut self,
+        skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
+        occupied_slots: u16,
+    ) -> bool {
+        crate::session::hub_mut(self)
+            .set_complete_player_skill_records_like_cpp(skill_records, occupied_slots)
+    }
 }

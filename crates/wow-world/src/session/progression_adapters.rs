@@ -23,16 +23,6 @@ impl WorldSession {
         }
     }
 
-    pub(crate) fn gray_level(&self, pl: u8) -> u8 {
-        crate::session::hub_ref(self).gray_level(pl)
-    }
-
-    pub(in crate::session) fn represented_championing_faction_for_kill_like_cpp(
-        &self,
-    ) -> Option<u32> {
-        crate::session::hub_ref(self).represented_championing_faction_for_kill_like_cpp()
-    }
-
     pub(crate) async fn killed_player_credit_with_generator_like_cpp(
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
@@ -101,23 +91,7 @@ impl WorldSession {
     #[cfg(test)]
     pub(crate) fn refresh_next_level_xp(&mut self) {
         let catalogs = self.progression_catalogs_for_test_like_cpp();
-        self.refresh_next_level_xp_with_catalogs_like_cpp(&catalogs);
-    }
-
-    pub(crate) fn resolved_player_scaling_level_delta_like_cpp(&self) -> Option<i32> {
-        crate::session::hub_ref(self).resolved_player_scaling_level_delta_like_cpp()
-    }
-
-    pub(crate) fn set_player_xp_like_cpp(&mut self, xp: u32) -> bool {
-        crate::session::hub_mut(self).set_player_xp_like_cpp(xp)
-    }
-
-    pub(crate) fn set_player_next_level_xp_like_cpp(&mut self, xp: u32) -> bool {
-        crate::session::hub_mut(self).set_player_next_level_xp_like_cpp(xp)
-    }
-
-    pub(crate) fn set_selection_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
-        crate::session::hub_mut(self).set_selection_guid_like_cpp(guid)
+        crate::session::hub_mut(self).refresh_next_level_xp_with_catalogs_like_cpp(&catalogs);
     }
 
     #[cfg(test)]
@@ -130,26 +104,6 @@ impl WorldSession {
                     .then_some(self.inventory.player_gold)
             })
             .expect("test Player money owner must resolve")
-    }
-
-    pub(crate) fn resolved_player_xp_like_cpp(&self) -> Option<u32> {
-        crate::session::hub_ref(self).resolved_player_xp_like_cpp()
-    }
-
-    pub(in crate::session) fn resolved_player_xp_for_level_like_cpp(
-        &self,
-        level: u8,
-    ) -> Option<u32> {
-        crate::session::hub_ref(self).resolved_player_xp_for_level_like_cpp(level)
-    }
-
-    pub(crate) fn resolved_player_next_level_xp_like_cpp(&self) -> Option<u32> {
-        crate::session::hub_ref(self).resolved_player_next_level_xp_like_cpp()
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn selection_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        crate::session::hub_ref(self).selection_guid_like_cpp()
     }
 }
 

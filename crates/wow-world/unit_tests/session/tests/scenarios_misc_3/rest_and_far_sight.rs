@@ -15,7 +15,7 @@ async fn post_add_flushes_deferred_rest_flag_update_after_world_states_like_cpp(
         10,
         0,
     ));
-    session.set_player_zone_area_like_cpp(20, 102);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(20, 102);
     session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
         wow_data::AreaTableEntry {
             id: 20,

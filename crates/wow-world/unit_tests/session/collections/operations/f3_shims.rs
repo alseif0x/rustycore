@@ -19,4 +19,9 @@ impl crate::session::WorldSession {
     ) -> bool {
         crate::session::hub_mut(self).replace_completed_achievement_ids_like_cpp(achievement_ids)
     }
+    pub(in crate::session) fn completed_achievement_ids_snapshot_like_cpp(
+        &self,
+    ) -> Option<HashSet<u32>> {
+        crate::session::hub_ref(self).completed_achievement_ids_snapshot_like_cpp()
+    }
 }

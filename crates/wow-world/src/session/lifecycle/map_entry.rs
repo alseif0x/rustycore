@@ -30,7 +30,7 @@ impl WorldSession {
         position: wow_core::Position,
         publish: bool,
     ) -> bool {
-        if self
+        if crate::session::hub_ref(self)
             .player_teleport_state_snapshot_like_cpp()
             .is_some_and(|state| state.recovery == wow_entities::PlayerTransferRecovery::Terminal)
         {
@@ -49,13 +49,14 @@ impl WorldSession {
         else {
             return false;
         };
-        if !self.remove_current_player_from_canonical_current_map_like_cpp()
+        if !crate::session::hub_mut(self)
+            .remove_current_player_from_canonical_current_map_like_cpp()
             || !self.ensure_canonical_player_owner_for_map_like_cpp(key, position)
         {
             return false;
         }
-        self.set_player_map_position_like_cpp(map_id_u16, position);
-        let _ = self.update_player_teleport_state_like_cpp(|state| {
+        crate::session::hub_mut(self).set_player_map_position_like_cpp(map_id_u16, position);
+        let _ = crate::session::hub_mut(self).update_player_teleport_state_like_cpp(|state| {
             state.recovery = wow_entities::PlayerTransferRecovery::None;
         });
         true
@@ -65,7 +66,7 @@ impl WorldSession {
         &mut self,
     ) -> Option<wow_map::CreateMapDecision> {
         let map_id = u32::from(self.core.player_map_id_like_cpp());
-        let position = self.player_position_like_cpp()?;
+        let position = crate::session::hub_ref(self).player_position_like_cpp()?;
         let decision = self.prepare_canonical_map_entry_like_cpp(map_id)?;
         if let wow_map::CreateMapDecision::Existing { key, .. }
         | wow_map::CreateMapDecision::Create { key, .. } = &decision
@@ -125,21 +126,22 @@ impl WorldSession {
                 .is_none()
         {
             if publish {
-                self.send_transfer_aborted_like_cpp(map_id, TRANSFER_ABORT_DIFFICULTY_LIKE_CPP);
+                crate::session::hub_ref(self)
+                    .send_transfer_aborted_like_cpp(map_id, TRANSFER_ABORT_DIFFICULTY_LIKE_CPP);
             }
             return Some(wow_map::CreateMapDecision::Reject {
                 side_effects: Vec::new(),
             });
         }
-        let bypass_player_cannot_enter_like_cpp =
-            is_dungeon && self.player_is_game_master_like_cpp() == Some(true);
+        let bypass_player_cannot_enter_like_cpp = is_dungeon
+            && crate::session::hub_ref(self).player_is_game_master_like_cpp() == Some(true);
         if is_dungeon
             && !bypass_player_cannot_enter_like_cpp
             && let Some((transfer_abort, arg, map_difficulty_x_condition_id)) =
                 self.access_requirement_abort_like_cpp(map_id, requested_difficulty as u8)
         {
             if publish {
-                self.send_transfer_aborted_with_params_like_cpp(
+                crate::session::hub_ref(self).send_transfer_aborted_with_params_like_cpp(
                     map_id,
                     transfer_abort,
                     arg,
@@ -158,7 +160,8 @@ impl WorldSession {
             && !self.current_player_is_in_raid_group_like_cpp()
         {
             if publish {
-                self.send_transfer_aborted_like_cpp(map_id, TRANSFER_ABORT_NEED_GROUP_LIKE_CPP);
+                crate::session::hub_ref(self)
+                    .send_transfer_aborted_like_cpp(map_id, TRANSFER_ABORT_NEED_GROUP_LIKE_CPP);
             }
             return Some(wow_map::CreateMapDecision::Reject {
                 side_effects: Vec::new(),
@@ -256,7 +259,7 @@ impl WorldSession {
             && player_count >= entries.max_players
         {
             if publish {
-                self.send_transfer_aborted_like_cpp(
+                crate::session::hub_ref(self).send_transfer_aborted_like_cpp(
                     key.map_id,
                     TRANSFER_ABORT_MAX_PLAYERS_LIKE_CPP,
                 );
@@ -274,7 +277,7 @@ impl WorldSession {
             && existing_instance_encounter_in_progress == Some(true)
         {
             if publish {
-                self.send_transfer_aborted_like_cpp(
+                crate::session::hub_ref(self).send_transfer_aborted_like_cpp(
                     key.map_id,
                     TRANSFER_ABORT_ZONE_IN_COMBAT_LIKE_CPP,
                 );
@@ -300,7 +303,8 @@ impl WorldSession {
                 .unwrap_or(wow_instances::TransferAbortReason::None);
             if deny_reason != wow_instances::TransferAbortReason::None {
                 if publish {
-                    self.send_transfer_aborted_like_cpp(key.map_id, deny_reason as u32);
+                    crate::session::hub_ref(self)
+                        .send_transfer_aborted_like_cpp(key.map_id, deny_reason as u32);
                 }
                 return Some(wow_map::CreateMapDecision::Reject {
                     side_effects: Vec::new(),
@@ -313,10 +317,10 @@ impl WorldSession {
             && !map_entry.ignores_instance_farm_limit_like_cpp()
             && let Some(key) = key
             && !self.check_instance_count_like_cpp(key.instance_id)
-            && self.resolved_player_is_alive_like_cpp() == Some(true)
+            && crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() == Some(true)
         {
             if publish {
-                self.send_transfer_aborted_like_cpp(
+                crate::session::hub_ref(self).send_transfer_aborted_like_cpp(
                     key.map_id,
                     TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP,
                 );

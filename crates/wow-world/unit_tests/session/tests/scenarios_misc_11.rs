@@ -18,21 +18,21 @@ fn represented_get_reaction_player_controlled_owner_branches_match_cpp() {
     let mut input = represented_get_reaction_input_like_cpp();
     input.same_player_owner = true;
     assert_eq!(
-        session.represented_get_reaction_to_like_cpp(input),
+        crate::session::hub_ref(&session).represented_get_reaction_to_like_cpp(input),
         wow_data::reputation::ReputationRankLikeCpp::Friendly
     );
 
     input.same_player_owner = false;
     input.duel_in_progress = true;
     assert_eq!(
-        session.represented_get_reaction_to_like_cpp(input),
+        crate::session::hub_ref(&session).represented_get_reaction_to_like_cpp(input),
         wow_data::reputation::ReputationRankLikeCpp::Hostile
     );
 
     input.duel_in_progress = false;
     input.same_raid = true;
     assert_eq!(
-        session.represented_get_reaction_to_like_cpp(input),
+        crate::session::hub_ref(&session).represented_get_reaction_to_like_cpp(input),
         wow_data::reputation::ReputationRankLikeCpp::Friendly
     );
 
@@ -40,7 +40,7 @@ fn represented_get_reaction_player_controlled_owner_branches_match_cpp() {
     input.self_ffa_pvp = true;
     input.target_ffa_pvp = true;
     assert_eq!(
-        session.represented_get_reaction_to_like_cpp(input),
+        crate::session::hub_ref(&session).represented_get_reaction_to_like_cpp(input),
         wow_data::reputation::ReputationRankLikeCpp::Hostile
     );
 }

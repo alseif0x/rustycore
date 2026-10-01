@@ -74,7 +74,7 @@ impl WorldSession {
         main_loot_target: ObjectGuid,
         player_guid: ObjectGuid,
     ) -> Vec<ObjectGuid> {
-        let Some(player_position) = self.player_position_like_cpp() else {
+        let Some(player_position) = crate::session::hub_ref(self).player_position_like_cpp() else {
             return Vec::new();
         };
 

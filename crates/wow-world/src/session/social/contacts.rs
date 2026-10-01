@@ -24,7 +24,7 @@ impl WorldSession {
         if self.core.state != SessionState::LoggedIn {
             return false;
         }
-        let player_level = u32::from(self.player_level_like_cpp());
+        let player_level = u32::from(crate::session::hub_ref(self).player_level_like_cpp());
         if for_xp && player_level > self.social.max_recruit_a_friend_bonus_player_level_like_cpp {
             return false;
         }
@@ -45,7 +45,7 @@ impl WorldSession {
         let group_members = group.members.clone();
         drop(group);
 
-        let Some(player_position) = self.player_position_like_cpp() else {
+        let Some(player_position) = crate::session::hub_ref(self).player_position_like_cpp() else {
             return false;
         };
         let player_map_id = self.core.player_map_id_like_cpp();

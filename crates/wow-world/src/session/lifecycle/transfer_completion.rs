@@ -27,14 +27,18 @@ impl WorldSession {
         if self.player_guid().is_none() {
             return true;
         }
-        let Some(mut state) = self.player_teleport_state_snapshot_like_cpp() else {
+        let Some(mut state) =
+            crate::session::hub_ref(self).player_teleport_state_snapshot_like_cpp()
+        else {
             return false;
         };
         if state.far_pending && state.recovery != wow_entities::PlayerTransferRecovery::Terminal {
             if !self.finish_pending_far_entry_before_disconnect_like_cpp() {
                 return false;
             }
-            let Some(updated) = self.player_teleport_state_snapshot_like_cpp() else {
+            let Some(updated) =
+                crate::session::hub_ref(self).player_teleport_state_snapshot_like_cpp()
+            else {
                 return false;
             };
             state = updated;
@@ -87,7 +91,8 @@ impl WorldSession {
     /// Preserve the existing bounded homebind/terminal-source contract, without packets.
     fn finish_pending_far_entry_before_disconnect_like_cpp(&mut self) -> bool {
         use wow_entities::PlayerTransferRecovery;
-        let Some(state) = self.player_teleport_state_snapshot_like_cpp() else {
+        let Some(state) = crate::session::hub_ref(self).player_teleport_state_snapshot_like_cpp()
+        else {
             return false;
         };
         if state.can_delay || state.post_add.is_some() {
@@ -110,7 +115,7 @@ impl WorldSession {
             }
             let homebind = homebind.expect("checked homebind");
             destination = (homebind.map_id, homebind.position);
-            if !self.update_player_teleport_state_like_cpp(|state| {
+            if !crate::session::hub_mut(self).update_player_teleport_state_like_cpp(|state| {
                 state.recovery = PlayerTransferRecovery::Homebind;
                 state.far_destination = Some(destination);
             }) {
@@ -125,14 +130,14 @@ impl WorldSession {
                 return true;
             }
         }
-        if !self.update_player_teleport_state_like_cpp(|state| {
+        if !crate::session::hub_mut(self).update_player_teleport_state_like_cpp(|state| {
             state.far_pending = false;
             state.far_destination = None;
         }) {
             return false;
         }
-        self.reset_movement_counter_like_cpp();
-        self.update_registry_position();
+        crate::session::hub_mut(self).reset_movement_counter_like_cpp();
+        crate::session::hub_ref(self).update_registry_position();
         self.begin_worldport_post_add_like_cpp(destination.0, destination.1)
     }
 }
@@ -244,12 +249,18 @@ mod tests {
             .position();
             assert!(session.set_pending_teleport_like_cpp(Some((1, requested))));
             assert!(
-                session.update_player_teleport_state_like_cpp(|state| state.far_pending = true)
+                crate::session::hub_mut(&mut session)
+                    .update_player_teleport_state_like_cpp(|state| state.far_pending = true)
             );
             assert_eq!(session.pending_teleport_like_cpp(), Some((1, expected)));
             assert!(session.finish_worldport_native_before_disconnect_like_cpp());
-            assert_eq!(session.player_position_like_cpp(), Some(expected));
-            let state = session.player_teleport_state_snapshot_like_cpp().unwrap();
+            assert_eq!(
+                crate::session::hub_ref(&session).player_position_like_cpp(),
+                Some(expected)
+            );
+            let state = crate::session::hub_ref(&session)
+                .player_teleport_state_snapshot_like_cpp()
+                .unwrap();
             assert!(!state.far_pending);
             assert!(state.post_add.is_none());
             assert!(session.prepare_player_save_like_cpp(1).is_some());
@@ -259,12 +270,14 @@ mod tests {
     #[test]
     fn prepared_save_rejects_retained_post_add_until_native_completion() {
         let mut session = save_fixture();
-        let position = session.player_position_like_cpp().unwrap();
+        let position = crate::session::hub_ref(&session)
+            .player_position_like_cpp()
+            .unwrap();
         assert!(session.prepare_player_save_like_cpp(1).is_some());
         assert!(session.begin_worldport_post_add_like_cpp(571, position));
         assert!(session.prepare_player_save_like_cpp(1).is_none());
         assert!(
-            session
+            crate::session::hub_ref(&session)
                 .player_teleport_state_snapshot_like_cpp()
                 .unwrap()
                 .post_add
@@ -278,14 +291,18 @@ mod tests {
     fn prepared_save_rejects_pending_far_but_preserves_terminal_source_exception() {
         let mut session = save_fixture();
         assert!(session.prepare_player_save_like_cpp(1).is_some());
-        assert!(session.update_player_teleport_state_like_cpp(|state| {
-            state.far_pending = true;
-            state.far_destination = Some((1, Position::new(7.0, 8.0, 9.0, 0.5)));
-        }));
+        assert!(
+            crate::session::hub_mut(&mut session).update_player_teleport_state_like_cpp(|state| {
+                state.far_pending = true;
+                state.far_destination = Some((1, Position::new(7.0, 8.0, 9.0, 0.5)));
+            })
+        );
         assert!(session.prepare_player_save_like_cpp(1).is_none());
-        assert!(session.update_player_teleport_state_like_cpp(|state| {
-            state.recovery = wow_entities::PlayerTransferRecovery::Terminal;
-        }));
+        assert!(
+            crate::session::hub_mut(&mut session).update_player_teleport_state_like_cpp(|state| {
+                state.recovery = wow_entities::PlayerTransferRecovery::Terminal;
+            })
+        );
         assert!(session.prepare_player_save_like_cpp(1).is_some());
     }
 
@@ -296,10 +313,12 @@ mod tests {
         session.set_player_save_interval_ms_like_cpp(100);
         session.lifecycle.update_player_save_timer_like_cpp(100);
         assert!(session.lifecycle.pending_periodic_player_save_like_cpp);
-        assert!(session.update_player_teleport_state_like_cpp(|state| {
-            state.far_pending = true;
-            state.far_destination = Some((1, Position::new(7.0, 8.0, 9.0, 0.5)));
-        }));
+        assert!(
+            crate::session::hub_mut(&mut session).update_player_teleport_state_like_cpp(|state| {
+                state.far_pending = true;
+                state.far_destination = Some((1, Position::new(7.0, 8.0, 9.0, 0.5)));
+            })
+        );
         for _ in 0..2 {
             assert_eq!(
                 session.save_current_player_to_db_like_cpp().await,

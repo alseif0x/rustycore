@@ -275,26 +275,12 @@ impl WorldSession {
         }
     }
     pub(crate) fn mark_represented_talents_loaded_like_cpp(&mut self) {
-        let _ = self.mark_talents_loaded_like_cpp();
+        let _ = crate::session::hub_mut(self).mark_talents_loaded_like_cpp();
         self.refresh_represented_talent_points_like_cpp();
     }
     pub(crate) fn represented_talents_loaded_like_cpp(&self) -> bool {
         let (state, hub) = crate::session::split_lifecycle_ref(self);
         state.represented_talents_loaded_like_cpp(hub)
-    }
-    pub(crate) fn load_represented_talent_row_like_cpp(
-        &mut self,
-        talent_tabs: &TalentTabStore,
-        talent_id: u32,
-        rank: u8,
-        talent_group: u8,
-    ) -> bool {
-        crate::session::hub_mut(self).load_represented_talent_row_like_cpp(
-            talent_tabs,
-            talent_id,
-            rank,
-            talent_group,
-        )
     }
     pub(crate) fn clamp_loaded_player_xp_to_next_level_like_cpp(&mut self) {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
@@ -366,8 +352,8 @@ impl WorldSession {
         level: u8,
         gender: u8,
     ) {
-        let initialize_reputation = self.player_race_like_cpp() != race
-            || self.player_class_like_cpp() != class
+        let initialize_reputation = crate::session::hub_ref(self).player_race_like_cpp() != race
+            || crate::session::hub_ref(self).player_class_like_cpp() != class
             || self
                 .core
                 .with_owned_player_like_cpp(|player| {
@@ -375,15 +361,15 @@ impl WorldSession {
                 })
                 .unwrap_or(true);
         if self.core.player_map_id_like_cpp() != map_id
-            || self.player_race_like_cpp() != race
-            || self.player_class_like_cpp() != class
-            || self.player_gender_like_cpp() != gender
+            || crate::session::hub_ref(self).player_race_like_cpp() != race
+            || crate::session::hub_ref(self).player_class_like_cpp() != class
+            || crate::session::hub_ref(self).player_gender_like_cpp() != gender
         {
             self.core
                 .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         }
         self.core.current_map_id = map_id;
-        let gray_level = self.gray_level(level);
+        let gray_level = crate::session::hub_ref(self).gray_level(level);
         let canonical = self
             .core
             .with_owned_player_mut_like_cpp(|player| {
@@ -400,7 +386,7 @@ impl WorldSession {
             }
             self.core.player_identity_bootstrap_like_cpp =
                 Some(super::PlayerIdentityBootstrapLikeCpp {
-                    name: self.player_name_like_cpp(),
+                    name: crate::session::hub_ref(self).player_name_like_cpp(),
                     race,
                     class,
                     level,
@@ -414,9 +400,9 @@ impl WorldSession {
                 self.fixtures.identity.player_gender = gender;
             }
         }
-        self.set_player_faction_for_race_like_cpp(race);
+        crate::session::hub_mut(self).set_player_faction_for_race_like_cpp(race);
         if initialize_reputation {
-            self.initialize_reputation_mgr_like_cpp();
+            crate::session::hub_mut(self).initialize_reputation_mgr_like_cpp();
         }
         self.refresh_represented_talent_points_like_cpp();
     }

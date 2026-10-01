@@ -76,7 +76,7 @@ impl WorldSession {
             return;
         }
 
-        if self
+        if crate::session::hub_mut(self)
             .with_player_cinematic_state_like_cpp(|state| state.set_movie_like_cpp(Some(movie_id)))
             .is_none()
         {
@@ -175,7 +175,8 @@ impl WorldSession {
         if self.represented_transform_spell_allows_mount_like_cpp()? {
             return Some(None);
         }
-        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
+        let visible_auras =
+            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()?;
 
         if let (Some(spell_store), Some(shapeshift_form_store)) = (
             self.spell_store(),
@@ -257,7 +258,7 @@ impl WorldSession {
         // `IsDisallowedMountForm(GetTransformSpell(), ...)`
         // (`Unit.cpp:8813-8820`), so the canonical `m_transformSpell` owner is
         // the single authority instead of a visible-aura scan.
-        let transform_spell = self
+        let transform_spell = crate::session::hub_ref(self)
             .player_aura_subsystem_snapshot_like_cpp()?
             .transform_spell_like_cpp();
         if transform_spell == 0 {
@@ -552,7 +553,9 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return false;
         };
-        if target_guid != player_guid || self.resolved_player_is_alive_like_cpp() != Some(true) {
+        if target_guid != player_guid
+            || crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true)
+        {
             return false;
         }
         let count = damage as u32;
@@ -616,12 +619,17 @@ impl WorldSession {
         &mut self,
         target_guid: ObjectGuid,
     ) -> bool {
-        if self.player_pet_guid_state_like_cpp().flatten() != Some(target_guid) {
+        if crate::session::hub_ref(self)
+            .player_pet_guid_state_like_cpp()
+            .flatten()
+            != Some(target_guid)
+        {
             return false;
         }
 
-        self.invalidate_represented_character_pet_empty_authority_like_cpp();
-        let _ = self.set_player_pet_guid_like_cpp(None);
+        crate::session::hub_mut(self)
+            .invalidate_represented_character_pet_empty_authority_like_cpp();
+        let _ = crate::session::hub_mut(self).set_player_pet_guid_like_cpp(None);
         #[cfg(test)]
         {
             self.fixtures.pets.represented_pet_react_state_like_cpp =

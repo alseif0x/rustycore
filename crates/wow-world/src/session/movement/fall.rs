@@ -6,37 +6,20 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn set_player_movement_jump_like_cpp(
-        &mut self,
-        jump: wow_packet::packets::movement::JumpInfo,
-    ) {
-        crate::session::hub_mut(self).set_player_movement_jump_like_cpp(jump)
-    }
-    pub(in crate::session) fn resolved_fall_information_like_cpp(&self) -> Option<(u32, f32)> {
-        crate::session::hub_ref(self).resolved_fall_information_like_cpp()
-    }
-    pub(crate) fn set_fall_information_like_cpp(&mut self, time: u32, z: f32) -> bool {
-        crate::session::hub_mut(self).set_fall_information_like_cpp(time, z)
-    }
-    pub(crate) fn update_fall_information_if_needed_like_cpp(
-        &mut self,
-        movement_info: &wow_packet::packets::movement::MovementInfo,
-        is_fall_land: bool,
-    ) {
-        crate::session::hub_mut(self)
-            .update_fall_information_if_needed_like_cpp(movement_info, is_fall_land)
-    }
     pub(crate) fn handle_fall_like_cpp(
         &mut self,
         movement_info: &wow_packet::packets::movement::MovementInfo,
     ) -> Option<MovementFallDamageEvent> {
-        let (_, last_fall_z) = self.resolved_fall_information_like_cpp()?;
-        let damage_control = self.resolved_player_damage_control_like_cpp()?;
+        let (_, last_fall_z) =
+            crate::session::hub_ref(self).resolved_fall_information_like_cpp()?;
+        let damage_control =
+            crate::session::hub_ref(self).resolved_player_damage_control_like_cpp()?;
         let z_diff = last_fall_z - movement_info.position.z;
-        let (_, max_health, player_is_alive) = self.resolved_player_vitals_like_cpp()?;
+        let (_, max_health, player_is_alive) =
+            crate::session::hub_ref(self).resolved_player_vitals_like_cpp()?;
         if z_diff < 14.57
             || !player_is_alive
-            || self.player_is_game_master_like_cpp() == Some(true)
+            || crate::session::hub_ref(self).player_is_game_master_like_cpp() == Some(true)
             || self.resolved_has_represented_aura_effect_like_cpp(
                 RepresentedAuraEffectLikeCpp::Hover,
             )?
@@ -50,9 +33,10 @@ impl WorldSession {
             return None;
         }
 
-        let safe_fall = self.resolved_total_represented_aura_modifier_like_cpp(
-            RepresentedAuraEffectLikeCpp::SafeFall,
-        )?;
+        let safe_fall = crate::session::hub_ref(self)
+            .resolved_total_represented_aura_modifier_like_cpp(
+                RepresentedAuraEffectLikeCpp::SafeFall,
+            )?;
         let damage_percent = 0.018 * (z_diff - safe_fall as f32) - 0.2426;
         if damage_percent <= 0.0 {
             return None;
@@ -66,7 +50,7 @@ impl WorldSession {
             * self.resolved_total_represented_aura_multiplier_like_cpp(
                 RepresentedAuraEffectLikeCpp::ModifyFallDamagePct,
             )?) as u32;
-        if self.player_has_visible_aura_spell_like_cpp(43_621)? {
+        if crate::session::hub_ref(self).player_has_visible_aura_spell_like_cpp(43_621)? {
             damage = max_health / 2;
         }
         damage = damage.min(max_health);
@@ -79,8 +63,8 @@ impl WorldSession {
         } else {
             damage
         };
-        let (_original_health, health_after, _, final_damage, killed_player) = self
-            .apply_owned_player_damage_like_cpp(
+        let (_original_health, health_after, _, final_damage, killed_player) =
+            crate::session::hub_mut(self).apply_owned_player_damage_like_cpp(
                 requested_damage,
                 wow_constants::DeathState::JustDied,
             )?;
@@ -138,27 +122,30 @@ impl WorldSession {
         // Keep the Player-owned movement-info write below; only the active
         // mover gate decides whether this ACK is accepted.
         if !self.validate_and_sanitize_active_mover_ack_like_cpp(&mut ack.status) {
-            self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
-                opcode,
-                mover_guid: ack.status.guid,
-                ack_index: Some(ack.ack_index),
-                movement_force_id: None,
-                movement_force_type: None,
-                adjusted_time: None,
-                speed: None,
-                time_skipped: None,
-                spline_id: None,
-                accepted: false,
-            });
+            crate::session::hub_mut(self).record_movement_ack_event_like_cpp(
+                MovementAckEventLikeCpp {
+                    opcode,
+                    mover_guid: ack.status.guid,
+                    ack_index: Some(ack.ack_index),
+                    movement_force_id: None,
+                    movement_force_type: None,
+                    adjusted_time: None,
+                    speed: None,
+                    time_skipped: None,
+                    spline_id: None,
+                    accepted: false,
+                },
+            );
             return false;
         }
 
         let mut status = ack.status.clone();
-        status.time = self.adjust_client_movement_time_like_cpp(status.time);
-        self.set_player_movement_time_like_cpp(status.time);
-        self.set_player_movement_flags_like_cpp(status.flags);
-        self.set_player_position_like_cpp(status.position);
-        self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
+        status.time =
+            crate::session::hub_ref(self).adjust_client_movement_time_like_cpp(status.time);
+        crate::session::hub_mut(self).set_player_movement_time_like_cpp(status.time);
+        crate::session::hub_mut(self).set_player_movement_flags_like_cpp(status.flags);
+        crate::session::hub_mut(self).set_player_position_like_cpp(status.position);
+        crate::session::hub_mut(self).record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
             opcode,
             mover_guid: status.guid,
             ack_index: Some(ack.ack_index),
@@ -171,9 +158,6 @@ impl WorldSession {
             accepted: true,
         });
         true
-    }
-    pub(in crate::session) fn move_represented_player_fall_like_cpp(&mut self) -> bool {
-        crate::session::hub_mut(self).move_represented_player_fall_like_cpp()
     }
 }
 

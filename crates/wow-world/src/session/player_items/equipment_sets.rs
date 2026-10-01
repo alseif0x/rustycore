@@ -80,7 +80,7 @@ impl WorldSession {
                 continue;
             }
 
-            if self.resolved_in_combat_like_cpp() != Some(false)
+            if crate::session::hub_ref(self).resolved_in_combat_like_cpp() != Some(false)
                 && dst != EQUIPMENT_SLOT_MAINHAND
                 && dst != EQUIPMENT_SLOT_OFFHAND
             {

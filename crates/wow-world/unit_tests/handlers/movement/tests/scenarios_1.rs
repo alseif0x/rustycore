@@ -362,7 +362,7 @@ fn movement_fall_land_applies_cpp_base_fall_damage_and_updates_fall_info() {
     let (mut session, send_rx) = make_session_with_send_rx();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 41)));
     session.set_player_health_like_cpp(1_000, 1_000);
-    session.set_fall_information_like_cpp(1_200, 120.0);
+    crate::session::hub_mut(&mut session).set_fall_information_like_cpp(1_200, 120.0);
     let mut info = MovementInfo::default();
     info.position.z = 100.0;
     info.jump.fall_time = 1_500;
@@ -397,7 +397,7 @@ fn movement_fall_land_lethal_damage_sends_player_values_update_like_cpp() {
     let (mut session, send_rx) = make_session_with_send_rx();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 43)));
     session.set_player_health_like_cpp(1_000, 1_000);
-    session.set_fall_information_like_cpp(1_200, 300.0);
+    crate::session::hub_mut(&mut session).set_fall_information_like_cpp(1_200, 300.0);
     let mut info = MovementInfo::default();
     info.position.z = 100.0;
     info.jump.fall_time = 1_500;
@@ -426,7 +426,7 @@ fn movement_fall_land_lethal_damage_sends_player_values_update_like_cpp() {
 fn movement_fall_damage_applies_cpp_aura_modifiers_and_guards() {
     let mut session = make_session();
     session.set_player_health_like_cpp(1_000, 1_000);
-    session.set_fall_information_like_cpp(1_200, 150.0);
+    crate::session::hub_mut(&mut session).set_fall_information_like_cpp(1_200, 150.0);
     session.fixtures.auras.visible_auras.insert(
         4,
         fall_aura(4, RepresentedAuraEffectLikeCpp::SafeFall, 10, 1.0),
@@ -574,7 +574,7 @@ fn movement_ack_helpers_validate_and_apply_cpp_side_effects() {
         Some(session.player_movement_time_like_cpp())
     );
 
-    session.set_player_movement_time_like_cpp(100);
+    crate::session::hub_mut(&mut session).set_player_movement_time_like_cpp(100);
     assert!(session.apply_move_time_skipped_like_cpp(guid, 25));
     assert_eq!(session.player_movement_time_like_cpp(), 125);
     assert_eq!(session.movement_ack_events_like_cpp().len(), 2);
@@ -786,13 +786,13 @@ fn move_spline_done_taxi_final_cleanup_matches_cpp_represented_side_effects() {
     let guid = ObjectGuid::create_player(1, 42);
     session.set_player_guid(Some(guid));
     session.set_player_position_like_cpp(wow_core::Position::new(1.0, 2.0, 30.0, 0.5));
-    session.set_fall_information_like_cpp(1_200, 120.0);
+    crate::session::hub_mut(&mut session).set_fall_information_like_cpp(1_200, 120.0);
     session.set_taxi_destinations_like_cpp(vec![100]);
     session.set_taxi_cleanup_state_like_cpp(
         UnitFlags::REMOVE_CLIENT_CONTROL | UnitFlags::ON_TAXI,
         true,
     );
-    session.set_player_pvp_hostile_like_cpp(true);
+    crate::session::hub_mut(&mut session).set_player_pvp_hostile_like_cpp(true);
 
     let mut status = MovementInfo {
         guid,
@@ -868,17 +868,20 @@ fn move_teleport_ack_applies_near_teleport_cpp_side_effects() {
     let destination = wow_core::Position::new(12.0, 13.0, 14.0, 1.5);
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(0, wow_core::Position::new(1.0, 2.0, 3.0, 0.5));
-    session.set_fall_information_like_cpp(1_200, 80.0);
-    session.set_player_zone_area_like_cpp(10, 11);
+    crate::session::hub_mut(&mut session).set_fall_information_like_cpp(1_200, 80.0);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(10, 11);
     session.set_player_pvp_state_like_cpp(true, false, false);
     session.set_near_teleport_pending_like_cpp(true, Some((0, destination)), Some((20, 21)));
 
     let action = session.handle_move_teleport_ack_like_cpp(guid, 77, 1_234);
     assert_eq!(action, MoveTeleportAckActionLikeCpp::Accepted);
-    assert!(!session.near_teleport_pending_like_cpp());
+    assert!(!crate::session::hub_ref(&session).near_teleport_pending_like_cpp());
     assert_eq!(session.player_position_like_cpp(), Some(destination));
     assert_eq!(session.fall_information_like_cpp(), (0, 14.0));
-    assert_eq!(session.player_zone_area_like_cpp(), Some((20, 21)));
+    assert_eq!(
+        crate::session::hub_ref(&session).player_zone_area_like_cpp(),
+        Some((20, 21))
+    );
     assert_eq!(session.temporary_pet_resummon_requests_like_cpp(), 1);
     assert_eq!(session.delayed_operations_processed_like_cpp(), 1);
 
@@ -912,7 +915,7 @@ fn move_teleport_ack_ignores_wrong_or_missing_near_teleport_like_cpp() {
     );
     let action = session.handle_move_teleport_ack_like_cpp(other_guid, 3, 4);
     assert_eq!(action, MoveTeleportAckActionLikeCpp::WrongMover);
-    assert!(session.near_teleport_pending_like_cpp());
+    assert!(crate::session::hub_ref(&session).near_teleport_pending_like_cpp());
     assert_eq!(session.player_position_like_cpp(), Some(original_position));
     assert_eq!(session.temporary_pet_resummon_requests_like_cpp(), 0);
     assert_eq!(session.delayed_operations_processed_like_cpp(), 0);

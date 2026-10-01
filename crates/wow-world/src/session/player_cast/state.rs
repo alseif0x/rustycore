@@ -159,7 +159,7 @@ impl WorldSession {
         // longer `GetUnitBeingMoved()`. A detached or replaced handle must not
         // execute a queued request against the current player.
         let casting_unit_is_current = Some(request.casting_unit_guid) == self.player_guid()
-            && self
+            && crate::session::hub_ref(self)
                 .player_moved_unit_guid_like_cpp()
                 .is_none_or(|moved| moved == request.casting_unit_guid)
             && self

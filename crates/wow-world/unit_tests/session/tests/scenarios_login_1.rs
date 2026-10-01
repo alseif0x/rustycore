@@ -122,7 +122,7 @@ fn represented_player_condition_context_uses_live_session_state_like_cpp() {
         .quest_test_fixture_like_cpp
         .rewarded_quests
         .insert(200);
-    session.set_player_zone_area_like_cpp(12, 34);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(12, 34);
 
     let owned = session
         .represented_player_condition_context_like_cpp()
@@ -160,7 +160,7 @@ fn represented_mount_capability_for_type_uses_session_state_like_cpp() {
     let (mut session, _, _) = make_session();
     session.core.current_map_id = 1;
     install_canonical_player_owner_for_test(&mut session, 1, 0);
-    session.set_player_zone_area_like_cpp(10, 77);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(10, 77);
     session.set_known_spells_like_cpp(vec![456]);
     session.set_player_skill_values_like_cpp(HashMap::from([(SKILL_RIDING_LIKE_CPP, 75)]));
     session
@@ -296,7 +296,7 @@ fn ensure_login_player_controller_is_idempotent_like_cpp() {
     ));
     assert_eq!(session.player_guid(), Some(guid));
     assert_eq!(
-        session.player_name_like_cpp(),
+        crate::session::hub_ref(&session).player_name_like_cpp(),
         Some("LoginTester".to_string())
     );
     assert_eq!(session.player_position_like_cpp(), Some(start));
@@ -304,9 +304,9 @@ fn ensure_login_player_controller_is_idempotent_like_cpp() {
     assert_eq!(session.fall_information_like_cpp(), (0, start.z));
 
     session.set_player_gold_like_cpp(1234);
-    session.set_player_xp_like_cpp(55);
+    crate::session::hub_mut(&mut session).set_player_xp_like_cpp(55);
     session.set_known_spells_like_cpp(vec![118, 133]);
-    session.set_fall_information_like_cpp(1_200, 80.0);
+    crate::session::hub_mut(&mut session).set_fall_information_like_cpp(1_200, 80.0);
 
     let moved = Position::new(5.0, 6.0, 7.0, 8.0);
     assert!(!session.ensure_login_player_controller_like_cpp(
@@ -322,16 +322,22 @@ fn ensure_login_player_controller_is_idempotent_like_cpp() {
 
     assert_eq!(session.player_guid(), Some(guid));
     assert_eq!(
-        session.player_name_like_cpp(),
+        crate::session::hub_ref(&session).player_name_like_cpp(),
         Some("LoginTesterRenamed".to_string())
     );
     assert_eq!(session.player_position_like_cpp(), Some(moved));
     assert_eq!(session.core.player_map_id_like_cpp(), 1);
     assert_eq!(session.fall_information_like_cpp(), (0, moved.z));
-    assert_eq!(session.player_race_like_cpp(), 2);
-    assert_eq!(session.player_class_like_cpp(), 3);
-    assert_eq!(session.player_level_like_cpp(), 71);
-    assert_eq!(session.player_gender_like_cpp(), 1);
+    assert_eq!(crate::session::hub_ref(&session).player_race_like_cpp(), 2);
+    assert_eq!(crate::session::hub_ref(&session).player_class_like_cpp(), 3);
+    assert_eq!(
+        crate::session::hub_ref(&session).player_level_like_cpp(),
+        71
+    );
+    assert_eq!(
+        crate::session::hub_ref(&session).player_gender_like_cpp(),
+        1
+    );
     assert_eq!(session.player_gold_like_cpp(), 1234);
     assert_eq!(session.player_xp_like_cpp(), 55);
     assert_eq!(session.known_spells_like_cpp(), &[118, 133]);
@@ -404,7 +410,7 @@ fn first_login_start_all_explored_sets_all_cpp_blocks_and_sends_update() {
 fn offline_rested_xp_zero_logout_time_is_rejected_instead_of_cpp_wrap() {
     let (mut session, _, _) = make_session();
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(72_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(72_000);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
 
     let extra = session.apply_offline_xp_rest_bonus_like_cpp(0, 4_600, true);
@@ -420,7 +426,7 @@ fn offline_rested_xp_zero_logout_time_is_rejected_instead_of_cpp_wrap() {
 fn offline_rested_xp_future_logout_time_is_rejected_instead_of_cpp_wrap() {
     let (mut session, _, _) = make_session();
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(72_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(72_000);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
 
     let extra = session.apply_offline_xp_rest_bonus_like_cpp(4_601, 4_600, true);
@@ -436,7 +442,7 @@ fn offline_rested_xp_future_logout_time_is_rejected_instead_of_cpp_wrap() {
 fn offline_rested_xp_login_does_not_modify_current_health_or_power_like_cpp() {
     let (mut session, _, _) = make_session();
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(72_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(72_000);
     session.set_player_health_like_cpp(41, 100);
     session.set_loaded_player_powers_like_cpp([17, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
@@ -470,8 +476,8 @@ fn logout_resting_only_selects_offline_rate_and_does_not_restore_online_rest_lik
         0,
     );
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
-    session.set_player_next_level_xp_like_cpp(72_000);
-    session.set_player_zone_area_like_cpp(10, 100);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(72_000);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(10, 100);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 123.0);
 
     assert!(!session.represented_is_resting_like_cpp());
@@ -595,7 +601,7 @@ fn login_update_zone_rebuilds_city_and_faction_rest_when_ids_are_preseeded_like_
         10,
         0,
     );
-    session.set_player_zone_area_like_cpp(20, 101);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(20, 101);
     session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
         wow_data::AreaTableEntry {
             id: 20,

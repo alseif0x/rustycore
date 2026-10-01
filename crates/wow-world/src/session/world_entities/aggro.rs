@@ -302,7 +302,7 @@ impl WorldSession {
             }
             return;
         }
-        let snapshot = self
+        let snapshot = crate::session::hub_ref(self)
             .player_aura_subsystem_snapshot_like_cpp()
             .and_then(|auras| auras.threat_snapshot_like_cpp(slot).cloned())
             .unwrap_or_else(|| {
@@ -344,7 +344,7 @@ impl WorldSession {
         }
     }
     pub(in crate::session) fn hydrate_canonical_threat_relevant_auras_like_cpp(&mut self) {
-        let Some(auras) = self
+        let Some(auras) = crate::session::hub_ref(self)
             .resolved_player_visible_auras_like_cpp()
             .map(|auras| auras.into_values().collect::<Vec<_>>())
         else {

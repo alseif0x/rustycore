@@ -23,13 +23,6 @@ impl WorldSession {
         }
         self.sync_player_registry_state_like_cpp();
     }
-    pub(crate) fn apply_represented_resurrection_health_like_cpp(&mut self, health: u32) {
-        crate::session::hub_mut(self).apply_represented_resurrection_health_like_cpp(health)
-    }
-    pub(crate) fn apply_represented_resurrection_percent_like_cpp(&mut self, restore_percent: f32) {
-        crate::session::hub_mut(self)
-            .apply_represented_resurrection_percent_like_cpp(restore_percent)
-    }
     pub(in crate::session) fn player_resurrection_state_snapshot_like_cpp(
         &self,
     ) -> Option<PlayerResurrectionStateLikeCpp> {

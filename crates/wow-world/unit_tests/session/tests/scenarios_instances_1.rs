@@ -810,7 +810,7 @@ async fn bind_uses_cross_map_db_destination_and_misc_area_like_cpp() {
         80,
         0,
     ));
-    session.set_player_zone_area_like_cpp(12, 34);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(12, 34);
     add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(spell_id, spell_info.clone());

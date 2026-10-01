@@ -129,4 +129,10 @@ impl crate::session::WorldSession {
     pub(crate) fn battle_pet_summon_toggle_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
         crate::session::cx_pets(self).battle_pet_summon_toggle_like_cpp(pet_guid)
     }
+    pub(crate) fn represented_battle_pet_query_companion_like_cpp(
+        &self,
+        unit_guid: ObjectGuid,
+    ) -> Option<RepresentedBattlePetQueryCompanionLikeCpp> {
+        crate::session::hub_ref(self).represented_battle_pet_query_companion_like_cpp(unit_guid)
+    }
 }

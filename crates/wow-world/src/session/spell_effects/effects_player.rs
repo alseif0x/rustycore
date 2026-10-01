@@ -34,7 +34,7 @@ impl WorldSession {
         let Some(registry) = &self.core.player_registry else {
             return;
         };
-        let Some(pos) = self.player_position_like_cpp() else {
+        let Some(pos) = crate::session::hub_ref(self).player_position_like_cpp() else {
             return;
         };
         let map_id = self.core.player_map_id_like_cpp();
@@ -151,7 +151,7 @@ impl WorldSession {
         xp: i32,
     ) -> Option<wow_entities::PlayerValuesUpdate> {
         let xp = u32::try_from(xp).ok()?;
-        let player_level = self.player_level_like_cpp();
+        let player_level = crate::session::hub_ref(self).player_level_like_cpp();
         self.core
             .mutate_canonical_player_like_cpp(|player| {
                 player

@@ -167,10 +167,13 @@ fn player_attack_creature_reputation_at_war_is_accepted_like_cpp() {
     );
     drop(guard);
     assert_eq!(
-        session.resolved_combat_target_like_cpp(),
+        crate::session::hub_ref(&session).resolved_combat_target_like_cpp(),
         Some(Some(victim))
     );
-    assert_eq!(session.resolved_in_combat_like_cpp(), Some(true));
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_in_combat_like_cpp(),
+        Some(true)
+    );
 }
 #[test]
 fn player_attack_creature_reputation_uses_faction_template_store_like_cpp() {
@@ -242,10 +245,13 @@ fn player_attack_creature_reputation_uses_faction_template_store_like_cpp() {
     );
     drop(guard);
     assert_eq!(
-        session.resolved_combat_target_like_cpp(),
+        crate::session::hub_ref(&session).resolved_combat_target_like_cpp(),
         Some(Some(victim))
     );
-    assert_eq!(session.resolved_in_combat_like_cpp(), Some(true));
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_in_combat_like_cpp(),
+        Some(true)
+    );
 }
 #[test]
 fn player_attack_creature_non_reputation_faction_does_not_require_at_war_like_cpp() {
@@ -316,10 +322,13 @@ fn player_attack_creature_non_reputation_faction_does_not_require_at_war_like_cp
     );
     drop(guard);
     assert_eq!(
-        session.resolved_combat_target_like_cpp(),
+        crate::session::hub_ref(&session).resolved_combat_target_like_cpp(),
         Some(Some(victim))
     );
-    assert_eq!(session.resolved_in_combat_like_cpp(), Some(true));
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_in_combat_like_cpp(),
+        Some(true)
+    );
 }
 #[test]
 fn player_attack_evading_typed_creature_is_rejected_like_cpp() {

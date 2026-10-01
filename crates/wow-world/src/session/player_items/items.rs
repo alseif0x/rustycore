@@ -112,7 +112,8 @@ impl WorldSession {
             .and_then(|store| store.get_by_item_id_like_cpp(item_id))
             .is_some()
             && self.add_account_heirloom_like_cpp(item_id, 0)
-            && let Some(update) = self.add_player_heirloom_dynamic_fields_like_cpp(item_id, 0)
+            && let Some(update) = crate::session::hub_mut(self)
+                .add_player_heirloom_dynamic_fields_like_cpp(item_id, 0)
         {
             updates.push(update);
         }
@@ -178,8 +179,8 @@ impl WorldSession {
         item_set: &wow_data::ItemSetEntry,
     ) -> Vec<RepresentedItemSetSpellEventLikeCpp> {
         if item_set.required_skill != 0 {
-            let Some(skill_value) =
-                self.resolved_player_skill_value_like_cpp(item_set.required_skill as u16)
+            let Some(skill_value) = crate::session::hub_ref(self)
+                .resolved_player_skill_value_like_cpp(item_set.required_skill as u16)
             else {
                 return Vec::new();
             };

@@ -6,30 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    fn resolved_player_movement_speed_like_cpp(
-        &self,
-        move_type: UnitMoveTypeLikeCpp,
-    ) -> Option<f32> {
-        crate::session::hub_ref(self).resolved_player_movement_speed_like_cpp(move_type)
-    }
-    pub(in crate::session) fn recompute_represented_run_speed_rate_like_cpp(&mut self) {
-        crate::session::hub_mut(self).recompute_represented_run_speed_rate_like_cpp()
-    }
-    pub(in crate::session) fn recompute_represented_flight_speed_rate_like_cpp(&mut self) {
-        crate::session::hub_mut(self).recompute_represented_flight_speed_rate_like_cpp()
-    }
-    pub(in crate::session) fn recompute_represented_swim_speed_rate_like_cpp(&mut self) {
-        crate::session::hub_mut(self).recompute_represented_swim_speed_rate_like_cpp()
-    }
-    pub(in crate::session) fn recompute_represented_backward_speed_rates_like_cpp(&mut self) {
-        crate::session::hub_mut(self).recompute_represented_backward_speed_rates_like_cpp()
-    }
-    pub(in crate::session) fn recompute_represented_mounted_speed_rates_like_cpp(&mut self) {
-        crate::session::hub_mut(self).recompute_represented_mounted_speed_rates_like_cpp()
-    }
-    pub(in crate::session) fn recompute_represented_forward_speed_rates_like_cpp(&mut self) {
-        crate::session::hub_mut(self).recompute_represented_forward_speed_rates_like_cpp()
-    }
     pub(crate) fn handle_force_speed_change_ack_like_cpp(
         &mut self,
         opcode: ClientOpcodes,
@@ -37,79 +13,93 @@ impl WorldSession {
         speed: f32,
     ) -> bool {
         let Some(move_type) = crate::session::movement_speed_ack_move_type_like_cpp(opcode) else {
-            self.trace_anticheat_violation_like_cpp(
+            crate::session::hub_ref(self).trace_anticheat_violation_like_cpp(
                 "HandleForceSpeedChangeAck.UnknownMoveType",
                 Some(opcode),
                 "kick",
             );
-            self.record_movement_speed_ack_event_like_cpp(MovementSpeedAckEventLikeCpp {
-                opcode,
-                move_type: None,
-                ack_speed: speed,
-                expected_speed: None,
-                remaining_forced_changes: None,
-                action: MovementSpeedAckActionLikeCpp::Kicked,
-            });
+            crate::session::hub_mut(self).record_movement_speed_ack_event_like_cpp(
+                MovementSpeedAckEventLikeCpp {
+                    opcode,
+                    move_type: None,
+                    ack_speed: speed,
+                    expected_speed: None,
+                    remaining_forced_changes: None,
+                    action: MovementSpeedAckActionLikeCpp::Kicked,
+                },
+            );
             return false;
         };
 
         if !self.record_validated_movement_ack_like_cpp(opcode, ack, Some(speed)) {
-            self.trace_anticheat_violation_like_cpp(
+            crate::session::hub_ref(self).trace_anticheat_violation_like_cpp(
                 "HandleForceSpeedChangeAck.InvalidMovementAck",
                 Some(opcode),
                 "kick",
             );
-            self.record_movement_speed_ack_event_like_cpp(MovementSpeedAckEventLikeCpp {
-                opcode,
-                move_type: Some(move_type),
-                ack_speed: speed,
-                expected_speed: None,
-                remaining_forced_changes: None,
-                action: MovementSpeedAckActionLikeCpp::Kicked,
-            });
+            crate::session::hub_mut(self).record_movement_speed_ack_event_like_cpp(
+                MovementSpeedAckEventLikeCpp {
+                    opcode,
+                    move_type: Some(move_type),
+                    ack_speed: speed,
+                    expected_speed: None,
+                    remaining_forced_changes: None,
+                    action: MovementSpeedAckActionLikeCpp::Kicked,
+                },
+            );
             return false;
         }
 
         let Some(mut remaining_forced_changes) =
-            self.resolved_forced_speed_changes_like_cpp(move_type)
+            crate::session::hub_ref(self).resolved_forced_speed_changes_like_cpp(move_type)
         else {
             return false;
         };
         if remaining_forced_changes > 0 {
-            let Some(remaining) = self.consume_forced_speed_change_like_cpp(move_type) else {
+            let Some(remaining) =
+                crate::session::hub_mut(self).consume_forced_speed_change_like_cpp(move_type)
+            else {
                 return false;
             };
             remaining_forced_changes = remaining;
             if remaining_forced_changes > 0 {
-                self.record_movement_speed_ack_event_like_cpp(MovementSpeedAckEventLikeCpp {
-                    opcode,
-                    move_type: Some(move_type),
-                    ack_speed: speed,
-                    expected_speed: self.resolved_player_movement_speed_like_cpp(move_type),
-                    remaining_forced_changes: Some(remaining_forced_changes),
-                    action: MovementSpeedAckActionLikeCpp::SkippedPending,
-                });
+                {
+                    let a0 = MovementSpeedAckEventLikeCpp {
+                        opcode,
+                        move_type: Some(move_type),
+                        ack_speed: speed,
+                        expected_speed: crate::session::hub_ref(self)
+                            .resolved_player_movement_speed_like_cpp(move_type),
+                        remaining_forced_changes: Some(remaining_forced_changes),
+                        action: MovementSpeedAckActionLikeCpp::SkippedPending,
+                    };
+                    crate::session::hub_mut(self).record_movement_speed_ack_event_like_cpp(a0)
+                };
                 return true;
             }
         }
 
-        let Some(expected_speed) = self.resolved_player_movement_speed_like_cpp(move_type) else {
+        let Some(expected_speed) =
+            crate::session::hub_ref(self).resolved_player_movement_speed_like_cpp(move_type)
+        else {
             return false;
         };
-        let Some(player_on_transport) = self.player_on_transport_state_like_cpp() else {
+        let Some(player_on_transport) =
+            crate::session::hub_ref(self).player_on_transport_state_like_cpp()
+        else {
             return false;
         };
         let action = if !player_on_transport && (expected_speed - speed).abs() > 0.01 {
             if expected_speed > speed {
                 // C++ calls SetSpeedRate(GetSpeedRate()) to force the client back to the server value.
-                self.trace_anticheat_violation_like_cpp(
+                crate::session::hub_ref(self).trace_anticheat_violation_like_cpp(
                     "HandleForceSpeedChangeAck.ClientSpeedLower",
                     Some(opcode),
                     "correct",
                 );
                 MovementSpeedAckActionLikeCpp::Corrected
             } else {
-                self.trace_anticheat_violation_like_cpp(
+                crate::session::hub_ref(self).trace_anticheat_violation_like_cpp(
                     "HandleForceSpeedChangeAck.ClientSpeedHigher",
                     Some(opcode),
                     "kick",
@@ -121,33 +111,17 @@ impl WorldSession {
             MovementSpeedAckActionLikeCpp::Accepted
         };
 
-        self.record_movement_speed_ack_event_like_cpp(MovementSpeedAckEventLikeCpp {
-            opcode,
-            move_type: Some(move_type),
-            ack_speed: speed,
-            expected_speed: Some(expected_speed),
-            remaining_forced_changes: Some(remaining_forced_changes),
-            action,
-        });
+        crate::session::hub_mut(self).record_movement_speed_ack_event_like_cpp(
+            MovementSpeedAckEventLikeCpp {
+                opcode,
+                move_type: Some(move_type),
+                ack_speed: speed,
+                expected_speed: Some(expected_speed),
+                remaining_forced_changes: Some(remaining_forced_changes),
+                action,
+            },
+        );
         !matches!(action, MovementSpeedAckActionLikeCpp::Kicked)
-    }
-    pub(in crate::session) fn record_movement_speed_ack_event_like_cpp(
-        &mut self,
-        event: MovementSpeedAckEventLikeCpp,
-    ) {
-        crate::session::hub_mut(self).record_movement_speed_ack_event_like_cpp(event)
-    }
-    pub(in crate::session) fn resolved_forced_speed_changes_like_cpp(
-        &self,
-        move_type: UnitMoveTypeLikeCpp,
-    ) -> Option<u8> {
-        crate::session::hub_ref(self).resolved_forced_speed_changes_like_cpp(move_type)
-    }
-    fn consume_forced_speed_change_like_cpp(
-        &mut self,
-        move_type: UnitMoveTypeLikeCpp,
-    ) -> Option<u8> {
-        crate::session::hub_mut(self).consume_forced_speed_change_like_cpp(move_type)
     }
 }
 

@@ -372,7 +372,7 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.represented_dismiss_critter_like_cpp(request.critter_guid);
+        crate::session::hub_mut(self).represented_dismiss_critter_like_cpp(request.critter_guid);
     }
 
     /// CMSG_QUERY_BATTLE_PET_NAME — represented summoned-companion name lookup.
@@ -394,8 +394,8 @@ impl crate::session::WorldSession {
             }
         };
 
-        let Some(companion) =
-            self.represented_battle_pet_query_companion_like_cpp(request.unit_guid)
+        let Some(companion) = crate::session::hub_ref(self)
+            .represented_battle_pet_query_companion_like_cpp(request.unit_guid)
         else {
             self.send_packet(&QueryBattlePetNameResponse::not_allowed(
                 request.battle_pet_id,

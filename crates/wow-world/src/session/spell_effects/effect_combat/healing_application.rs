@@ -34,11 +34,13 @@ impl WorldSession {
             let (heal_amount, absorbed) =
                 self.apply_owned_player_heal_absorb_like_cpp(spell_id, healer_guid, heal_amount);
             let Some((current, healed, _, effective_heal)) =
-                self.apply_owned_player_heal_like_cpp(heal_amount)
+                crate::session::hub_mut(self).apply_owned_player_heal_like_cpp(heal_amount)
             else {
                 return Err("Target player owner not available");
             };
-            if effective_heal == 0 && self.resolved_player_is_alive_like_cpp() != Some(true) {
+            if effective_heal == 0
+                && crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true)
+            {
                 debug!(
                     account = self.core.account_id,
                     heal = heal_amount,
@@ -267,7 +269,7 @@ impl WorldSession {
     ) -> Result<(), &'static str> {
         let player_guid = self.player_guid().ok_or("No player GUID")?;
 
-        let player_vitals = self
+        let player_vitals = crate::session::hub_ref(self)
             .resolved_player_vitals_like_cpp()
             .ok_or("Target player owner not available")?;
         let target_missing_health = if target_guid == player_guid {
@@ -321,7 +323,9 @@ impl WorldSession {
 
         let player_guid = self.player_guid().ok_or("No player GUID")?;
         let target_max_health = if target_guid == player_guid {
-            let Some((_, max_health, is_alive)) = self.resolved_player_vitals_like_cpp() else {
+            let Some((_, max_health, is_alive)) =
+                crate::session::hub_ref(self).resolved_player_vitals_like_cpp()
+            else {
                 return Err("Target player owner not available");
             };
             if !is_alive {
@@ -388,7 +392,9 @@ impl WorldSession {
             )
             .await?;
         }
-        if effective_damage > 0 && self.resolved_player_is_alive_like_cpp() == Some(true) {
+        if effective_damage > 0
+            && crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() == Some(true)
+        {
             self.apply_heal(Some(spell_id), player_guid, effective_damage)
                 .await?;
         }

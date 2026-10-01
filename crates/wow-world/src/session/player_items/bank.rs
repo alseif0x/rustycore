@@ -221,7 +221,8 @@ impl WorldSession {
             return true;
         }
 
-        self.represented_npc_can_interact_with_like_cpp(banker_guid, NPCFlags1::BANKER.bits(), 0)
+        crate::session::hub_ref(self)
+            .represented_npc_can_interact_with_like_cpp(banker_guid, NPCFlags1::BANKER.bits(), 0)
             .is_some()
     }
     #[cfg_attr(not(test), allow(unused_variables))]

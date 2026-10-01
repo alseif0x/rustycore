@@ -221,8 +221,14 @@ async fn creature_attack_start_command_rejects_dead_victim_like_cpp() {
         .process_represented_session_commands_like_cpp()
         .await;
 
-    assert_eq!(session.resolved_combat_target_like_cpp(), Some(None));
-    assert_eq!(session.resolved_in_combat_like_cpp(), Some(false));
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_combat_target_like_cpp(),
+        Some(None)
+    );
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_in_combat_like_cpp(),
+        Some(false)
+    );
     assert!(
         send_rx.try_recv().is_err(),
         "dead victim must not receive attack-start"

@@ -99,7 +99,7 @@ impl WorldSession {
             return;
         }
 
-        let effective_faction_id = self
+        let effective_faction_id = crate::session::hub_ref(self)
             .represented_championing_faction_for_kill_like_cpp()
             .unwrap_or(faction_id);
 
@@ -123,17 +123,19 @@ impl WorldSession {
 
         // Hoist the player identity: `self.player_*_like_cpp()` re-enters the
         // canonical manager lock held by the closure and would self-deadlock.
-        let player_race = self.player_race_like_cpp();
-        let player_class = self.player_class_like_cpp();
+        let player_race = crate::session::hub_ref(self).player_race_like_cpp();
+        let player_class = crate::session::hub_ref(self).player_class_like_cpp();
         let friendship_rep_reaction_store = self.catalogs.friendship_rep_reaction_store.as_deref();
-        let Some(current_rank) = self.with_reputation_mgr_like_cpp(|mgr| {
-            mgr.rank_for_faction_entry_like_cpp(
-                &faction_entry,
-                friendship_rep_reaction_store,
-                player_race,
-                player_class,
-            )
-        }) else {
+        let Some(current_rank) =
+            crate::session::hub_ref(self).with_reputation_mgr_like_cpp(|mgr| {
+                mgr.rank_for_faction_entry_like_cpp(
+                    &faction_entry,
+                    friendship_rep_reaction_store,
+                    player_race,
+                    player_class,
+                )
+            })
+        else {
             return;
         };
         let spillover_only = current_rank.as_u8() > max_cap;
@@ -159,25 +161,27 @@ impl WorldSession {
             paragon_reward_quest_status_none_like_cpp: true,
             renown_current_level_like_cpp: 0,
             renown_currency_increased_cap_quantity_like_cpp: 0,
-            player_race: self.player_race_like_cpp(),
-            player_class: self.player_class_like_cpp(),
+            player_race: crate::session::hub_ref(self).player_race_like_cpp(),
+            player_class: crate::session::hub_ref(self).player_class_like_cpp(),
         };
-        let Some((outcome, packet)) = self.mutate_reputation_mgr_like_cpp(|mgr| {
-            let outcome = mgr.set_reputation_like_cpp(
-                &faction_entry,
-                reputation,
-                options,
-                &faction_store,
-                db_spillover_template,
-                friendship_rep_reaction_store.as_deref(),
-                paragon_reputation_store.as_deref(),
-                currency_types_store.as_deref(),
-            );
-            let packet = outcome
-                .send_state_rep_list_id
-                .map(|rep_list_id| mgr.set_faction_standing_packet_like_cpp(Some(rep_list_id)));
-            (outcome, packet)
-        }) else {
+        let Some((outcome, packet)) =
+            crate::session::hub_mut(self).mutate_reputation_mgr_like_cpp(|mgr| {
+                let outcome = mgr.set_reputation_like_cpp(
+                    &faction_entry,
+                    reputation,
+                    options,
+                    &faction_store,
+                    db_spillover_template,
+                    friendship_rep_reaction_store.as_deref(),
+                    paragon_reputation_store.as_deref(),
+                    currency_types_store.as_deref(),
+                );
+                let packet = outcome
+                    .send_state_rep_list_id
+                    .map(|rep_list_id| mgr.set_faction_standing_packet_like_cpp(Some(rep_list_id)));
+                (outcome, packet)
+            })
+        else {
             return;
         };
         if let Some(packet) = packet {
@@ -224,7 +228,7 @@ impl WorldSession {
         else {
             return;
         };
-        let team = player_team_for_race_cpp(self.player_race_like_cpp());
+        let team = player_team_for_race_cpp(crate::session::hub_ref(self).player_race_like_cpp());
 
         if rep.rep_faction_1 != 0 && (!rep.team_dependent || team == Team::Alliance) {
             self.reward_creature_kill_reputation_branch_like_cpp(
@@ -371,7 +375,8 @@ impl WorldSession {
                 (creature.map_id() as u16, creature.position())
             })
             .or_else(|| {
-                self.player_position_like_cpp()
+                crate::session::hub_ref(self)
+                    .player_position_like_cpp()
                     .map(|position| (self.core.player_map_id_like_cpp(), position))
             });
         let Some(reward_source) = reward_source else {

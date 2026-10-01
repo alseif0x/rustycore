@@ -206,7 +206,7 @@ impl crate::session::WorldSession {
         let target_guid = pkt
             .read_packed_guid()
             .unwrap_or(wow_core::ObjectGuid::EMPTY);
-        self.set_selection_guid_like_cpp(Some(target_guid));
+        crate::session::hub_mut(self).set_selection_guid_like_cpp(Some(target_guid));
         info!(
             "SetSelection: account {} → {:?}",
             self.core.account_id, target_guid
@@ -262,7 +262,7 @@ impl crate::session::WorldSession {
         const MAIL_CHECK_MASK_READ_LIKE_CPP: u8 = 0x01;
         const MAIL_NORMAL_LIKE_CPP: u8 = 0;
 
-        let Some(rows) = self.owned_player_mails_like_cpp() else {
+        let Some(rows) = crate::session::hub_ref(self).owned_player_mails_like_cpp() else {
             self.send_packet_realm(&MailQueryNextTimeResult::no_mail());
             return;
         };
@@ -316,7 +316,8 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.represented_set_action_button_like_cpp(packet.index, packet.action);
+        crate::session::hub_mut(self)
+            .represented_set_action_button_like_cpp(packet.index, packet.action);
     }
 
     pub async fn handle_set_difficulty_id(&mut self, mut pkt: wow_packet::WorldPacket) {

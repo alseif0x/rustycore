@@ -226,11 +226,13 @@ impl crate::session::WorldSession {
     /// records the represented request after the interaction gate.
 
     pub async fn handle_auction_place_bid(&mut self, packet: AuctionPlaceBid) {
-        let Some(_auctioneer) = self.represented_npc_can_interact_with_like_cpp(
-            packet.auctioneer,
-            NPCFlags1::AUCTIONEER.bits(),
-            0,
-        ) else {
+        let Some(_auctioneer) = crate::session::hub_ref(self)
+            .represented_npc_can_interact_with_like_cpp(
+                packet.auctioneer,
+                NPCFlags1::AUCTIONEER.bits(),
+                0,
+            )
+        else {
             debug!(
                 account = self.core.account_id,
                 auctioneer = ?packet.auctioneer,
@@ -257,11 +259,13 @@ impl crate::session::WorldSession {
     /// gate without pretending the auction mutation exists.
 
     pub async fn handle_auction_remove_item(&mut self, packet: AuctionRemoveItem) {
-        let Some(_auctioneer) = self.represented_npc_can_interact_with_like_cpp(
-            packet.auctioneer,
-            NPCFlags1::AUCTIONEER.bits(),
-            0,
-        ) else {
+        let Some(_auctioneer) = crate::session::hub_ref(self)
+            .represented_npc_can_interact_with_like_cpp(
+                packet.auctioneer,
+                NPCFlags1::AUCTIONEER.bits(),
+                0,
+            )
+        else {
             debug!(
                 account = self.core.account_id,
                 auctioneer = ?packet.auctioneer,
@@ -327,11 +331,13 @@ impl crate::session::WorldSession {
             return;
         }
 
-        let Some(_auctioneer) = self.represented_npc_can_interact_with_like_cpp(
-            packet.auctioneer,
-            NPCFlags1::AUCTIONEER.bits(),
-            0,
-        ) else {
+        let Some(_auctioneer) = crate::session::hub_ref(self)
+            .represented_npc_can_interact_with_like_cpp(
+                packet.auctioneer,
+                NPCFlags1::AUCTIONEER.bits(),
+                0,
+            )
+        else {
             debug!(
                 account = self.core.account_id,
                 auctioneer = ?packet.auctioneer,
@@ -358,11 +364,13 @@ impl crate::session::WorldSession {
     /// not ported yet, so this slice records the accepted represented request.
 
     pub async fn handle_auction_replicate_items(&mut self, packet: AuctionReplicateItems) {
-        let Some(_auctioneer) = self.represented_npc_can_interact_with_like_cpp(
-            packet.auctioneer,
-            NPCFlags1::AUCTIONEER.bits(),
-            0,
-        ) else {
+        let Some(_auctioneer) = crate::session::hub_ref(self)
+            .represented_npc_can_interact_with_like_cpp(
+                packet.auctioneer,
+                NPCFlags1::AUCTIONEER.bits(),
+                0,
+            )
+        else {
             debug!(
                 account = self.core.account_id,
                 auctioneer = ?packet.auctioneer,

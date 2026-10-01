@@ -42,7 +42,7 @@ impl WorldSession {
             return vec![player_guid];
         };
 
-        let Some(source_position) = self.player_position_like_cpp() else {
+        let Some(source_position) = crate::session::hub_ref(self).player_position_like_cpp() else {
             return vec![player_guid];
         };
         let mut source_instance_id = self

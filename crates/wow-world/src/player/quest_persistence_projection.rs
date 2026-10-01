@@ -7,14 +7,7 @@
 
 use crate::{WorldSession, handlers::quest::PlayerQuestStatus};
 
-impl WorldSession {
-    pub(crate) fn represented_quest_status_persistence_rows_like_cpp(
-        &self,
-        statuses: &[PlayerQuestStatus],
-    ) -> Vec<wow_persistence::QuestStatusPersistenceLikeCpp> {
-        crate::session::hub_ref(self).represented_quest_status_persistence_rows_like_cpp(statuses)
-    }
-}
+impl WorldSession {}
 
 impl crate::session::HubRef<'_> {
     pub(crate) fn represented_quest_status_persistence_rows_like_cpp(

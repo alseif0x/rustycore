@@ -153,7 +153,7 @@ impl WorldSession {
             self.core
                 .record_driver_phase_like_cpp(SessionDriverPhaseLikeCpp::SessionOwnedTicks);
             self.update_pvp_flag_like_cpp(wow_entities::game_time_secs_like_cpp());
-            let _ = self.set_represented_can_delay_teleport_like_cpp(true);
+            let _ = crate::session::hub_mut(self).set_represented_can_delay_teleport_like_cpp(true);
             // Read the tick owner once; the lock is taken and released inside
             // runtime_tick_owner_like_cpp before any tick work begins.
             let owner = self.runtime_tick_owner_like_cpp();
@@ -195,7 +195,8 @@ impl WorldSession {
                 catalogs.player_rest_rates.as_ref(),
                 wow_core::GameTime::now().as_secs(),
             );
-            let _ = self.set_represented_can_delay_teleport_like_cpp(false);
+            let _ =
+                crate::session::hub_mut(self).set_represented_can_delay_teleport_like_cpp(false);
             self.process_represented_delayed_teleport_after_update_like_cpp()
                 .await;
         }

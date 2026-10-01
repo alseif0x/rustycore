@@ -12,10 +12,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn build_condition_player_object_like_cpp(&self) -> Option<WorldObject> {
-        crate::session::hub_ref(self).build_condition_player_object_like_cpp()
-    }
-
     pub(crate) fn build_condition_creature_object_like_cpp(
         &mut self,
         npc_guid: ObjectGuid,
@@ -43,18 +39,6 @@ impl WorldSession {
             };
             (source, snapshot)
         })
-    }
-
-    pub(crate) fn condition_player_unit_snapshot_like_cpp(
-        &self,
-    ) -> Option<wow_conditions::ConditionUnitSnapshot> {
-        crate::session::hub_ref(self).condition_player_unit_snapshot_like_cpp()
-    }
-
-    pub(crate) fn condition_player_snapshot_like_cpp(
-        &self,
-    ) -> wow_conditions::ConditionPlayerSnapshot {
-        crate::session::hub_ref(self).condition_player_snapshot_like_cpp()
     }
 }
 

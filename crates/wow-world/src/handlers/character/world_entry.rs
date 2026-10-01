@@ -178,7 +178,7 @@ impl WorldSession {
             projection,
             gear.weapon_damage,
             gear.base_attack_time,
-            self.represented_shapeshift_combat_round_time_like_cpp(),
+            crate::session::hub_ref(self).represented_shapeshift_combat_round_time_like_cpp(),
         );
         let min_damage = weapon_damage[0][0];
         let max_damage = weapon_damage[0][1];
@@ -191,7 +191,8 @@ impl WorldSession {
             stat_pos_buff: projection.stat_pos_buff,
             stat_neg_buff: projection.stat_neg_buff,
             base_armor: projection.armor,
-            school_resistances: self.represented_school_resistances_like_cpp(&gear),
+            school_resistances: crate::session::hub_ref(self)
+                .represented_school_resistances_like_cpp(&gear),
             base_mana: projection.base_mana,
             max_mana: projection.max_mana,
             attack_power: projection.attack_power,

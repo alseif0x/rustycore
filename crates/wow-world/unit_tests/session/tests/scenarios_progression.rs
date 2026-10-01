@@ -274,8 +274,8 @@ fn canonical_player_talents_and_glyphs_follow_active_detached_and_stale_ownershi
         )),
         None::<()>
     );
-    assert!(!session.set_represented_active_talent_group_like_cpp(1));
-    assert!(!session.set_represented_bonus_talent_groups_like_cpp(1));
+    assert!(!crate::session::hub_mut(&mut session).set_represented_active_talent_group_like_cpp(1));
+    assert!(!crate::session::hub_mut(&mut session).set_represented_bonus_talent_groups_like_cpp(1));
     assert!(!session.set_represented_talent_reset_state_like_cpp(10_000, 1));
     assert_eq!(
         canonical
@@ -771,7 +771,7 @@ fn represented_get_reaction_player_controlled_reputation_branch_matches_cpp() {
 
     let input = represented_get_reaction_input_like_cpp();
     assert_eq!(
-        session.represented_get_reaction_to_like_cpp(input),
+        crate::session::hub_ref(&session).represented_get_reaction_to_like_cpp(input),
         wow_data::reputation::ReputationRankLikeCpp::Friendly
     );
 
@@ -781,7 +781,7 @@ fn represented_get_reaction_player_controlled_reputation_branch_matches_cpp() {
         .unwrap()
         .flags |= ReputationFlagsLikeCpp::AT_WAR;
     assert_eq!(
-        session.represented_get_reaction_to_like_cpp(input),
+        crate::session::hub_ref(&session).represented_get_reaction_to_like_cpp(input),
         wow_data::reputation::ReputationRankLikeCpp::Hostile
     );
 
@@ -793,7 +793,7 @@ fn represented_get_reaction_player_controlled_reputation_branch_matches_cpp() {
             true,
         );
     assert_eq!(
-        session.represented_get_reaction_to_like_cpp(input),
+        crate::session::hub_ref(&session).represented_get_reaction_to_like_cpp(input),
         wow_data::reputation::ReputationRankLikeCpp::Hated
     );
 }

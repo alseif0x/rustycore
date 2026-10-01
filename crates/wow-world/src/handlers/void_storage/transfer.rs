@@ -14,7 +14,7 @@ impl WorldSession {
         let Ok(transfer) = VoidStorageTransfer::read(&mut pkt) else {
             return;
         };
-        if self
+        if crate::session::hub_ref(self)
             .represented_npc_can_interact_with_like_cpp(
                 transfer.npc,
                 NPCFlags1::VAULT_KEEPER.bits(),

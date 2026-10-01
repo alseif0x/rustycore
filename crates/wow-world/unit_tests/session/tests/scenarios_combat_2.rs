@@ -719,8 +719,14 @@ fn combat_tick_clears_canonical_player_attack_when_target_dies_like_cpp() {
         None
     );
     drop(guard);
-    assert_eq!(session.resolved_combat_target_like_cpp(), Some(None));
-    assert_eq!(session.resolved_in_combat_like_cpp(), Some(false));
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_combat_target_like_cpp(),
+        Some(None)
+    );
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_in_combat_like_cpp(),
+        Some(false)
+    );
 }
 #[test]
 fn combat_tick_reports_cpp_like_over_damage_on_killing_swing() {
@@ -836,7 +842,10 @@ fn player_attack_start_stop_updates_canonical_unit_combat_state_like_cpp() {
         assert_eq!(player_entity.unit().data().target, victim);
     }
 
-    assert_eq!(session.stop_player_attack_like_cpp(), Some(victim));
+    assert_eq!(
+        crate::session::hub_mut(&mut session).stop_player_attack_like_cpp(),
+        Some(victim)
+    );
     let guard = canonical.lock().unwrap();
     let player_entity = guard
         .find_map(571, 0)
@@ -865,7 +874,7 @@ fn runtime_damage_zero_health_marks_canonical_player_dead_like_cpp() {
         0,
     );
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
-    let _ = session.sync_canonical_player_health_like_cpp(42, 120);
+    let _ = crate::session::hub_mut(&mut session).sync_canonical_player_health_like_cpp(42, 120);
 
     session.set_player_health_after_runtime_damage_like_cpp(0);
 
@@ -888,7 +897,9 @@ fn set_player_skill_values_builds_represented_skill_records_for_tests_like_cpp()
 
     assert!(session.player_skill_records_loaded_like_cpp());
     assert!(
-        session.complete_player_skill_records_like_cpp().is_none(),
+        crate::session::hub_ref(&session)
+            .complete_player_skill_records_like_cpp()
+            .is_none(),
         "an active-only value map has no authority for C++ step or SkillUpdateState"
     );
     let skill_records = session.player_skill_records_like_cpp();
@@ -924,14 +935,14 @@ fn authoritative_skill_mutations_preserve_exact_slot_occupancy_like_cpp() {
         1,
     ));
 
-    session.set_represented_player_skill_like_cpp(333, 2, 150, 225);
+    crate::session::hub_mut(&mut session).set_represented_player_skill_like_cpp(333, 2, 150, 225);
     assert_eq!(
-        session.complete_player_skill_occupied_slots_like_cpp(),
+        crate::session::hub_ref(&session).complete_player_skill_occupied_slots_like_cpp(),
         Some(1)
     );
-    session.set_represented_player_skill_like_cpp(164, 1, 1, 75);
+    crate::session::hub_mut(&mut session).set_represented_player_skill_like_cpp(164, 1, 1, 75);
     assert_eq!(
-        session.complete_player_skill_occupied_slots_like_cpp(),
+        crate::session::hub_ref(&session).complete_player_skill_occupied_slots_like_cpp(),
         Some(2)
     );
 }

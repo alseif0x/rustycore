@@ -8,21 +8,22 @@ impl crate::session::WorldSession {
         let Some(guid) = self.player_guid() else {
             return None;
         };
-        let Some(pos) = self.player_position_like_cpp() else {
+        let Some(pos) = crate::session::hub_ref(self).player_position_like_cpp() else {
             return None;
         };
         let map_id = self.core.player_map_id_like_cpp();
-        let Some((zone_id, _area_id)) = self.player_zone_area_like_cpp() else {
+        let Some((zone_id, _area_id)) = crate::session::hub_ref(self).player_zone_area_like_cpp()
+        else {
             return None;
         };
-        let race = self.player_race_like_cpp();
-        let class = self.player_class_like_cpp();
-        let gender = self.player_gender_like_cpp();
-        let level = self.player_level_like_cpp();
+        let race = crate::session::hub_ref(self).player_race_like_cpp();
+        let class = crate::session::hub_ref(self).player_class_like_cpp();
+        let gender = crate::session::hub_ref(self).player_gender_like_cpp();
+        let level = crate::session::hub_ref(self).player_level_like_cpp();
         let (Some(player_xp), Some(player_next_level_xp), Some(scaling_level_delta)) = (
-            self.resolved_player_xp_like_cpp(),
-            self.resolved_player_next_level_xp_like_cpp(),
-            self.resolved_player_scaling_level_delta_like_cpp(),
+            crate::session::hub_ref(self).resolved_player_xp_like_cpp(),
+            crate::session::hub_ref(self).resolved_player_next_level_xp_like_cpp(),
+            crate::session::hub_ref(self).resolved_player_scaling_level_delta_like_cpp(),
         ) else {
             return None;
         };
@@ -41,7 +42,8 @@ impl crate::session::WorldSession {
             }
         }
 
-        let Some((health, _, _)) = self.resolved_player_vitals_like_cpp() else {
+        let Some((health, _, _)) = crate::session::hub_ref(self).resolved_player_vitals_like_cpp()
+        else {
             return None;
         };
         let health = health.max(1);
@@ -54,13 +56,18 @@ impl crate::session::WorldSession {
         let quest_log = self.quest_log_create_entries_like_cpp();
         let account_toys = self.account_toy_active_player_rows_like_cpp();
         let account_heirlooms = self.account_heirloom_active_player_rows_like_cpp();
-        let account_transmog = self.account_transmog_active_player_rows_like_cpp();
-        let Some(trait_configs) = self.owned_trait_configs_for_create_like_cpp() else {
+        let account_transmog =
+            crate::session::hub_ref(self).account_transmog_active_player_rows_like_cpp();
+        let Some(trait_configs) =
+            crate::session::hub_ref(self).owned_trait_configs_for_create_like_cpp()
+        else {
             return None;
         };
         // PlayerData::WriteCreate serializes current Player fields, not a new
         // login query (UpdateFields.cpp:1777,1822-1825). Missing owner is not empty.
-        let Some(customizations) = self.owned_player_customizations_like_cpp() else {
+        let Some(customizations) =
+            crate::session::hub_ref(self).owned_player_customizations_like_cpp()
+        else {
             return None;
         };
         let player_customizations = customizations
@@ -85,7 +92,8 @@ impl crate::session::WorldSession {
                 self.catalogs.skill_line_store(),
                 self.catalogs.skill_tiers_store(),
             ) {
-                let Some(player_skill_records) = self.resolved_player_skill_records_like_cpp()
+                let Some(player_skill_records) =
+                    crate::session::hub_ref(self).resolved_player_skill_records_like_cpp()
                 else {
                     return None;
                 };
@@ -149,11 +157,13 @@ impl crate::session::WorldSession {
         player_pkt.set_player_xp_like_cpp(player_xp.min(i32::MAX as u32) as i32);
         player_pkt
             .set_player_next_level_xp_like_cpp(player_next_level_xp.min(i32::MAX as u32) as i32);
-        player_pkt.set_player_max_level_like_cpp(self.player_active_max_level_like_cpp() as i32);
+        player_pkt.set_player_max_level_like_cpp(
+            crate::session::hub_ref(self).player_active_max_level_like_cpp() as i32,
+        );
         player_pkt.set_player_scaling_level_delta_like_cpp(scaling_level_delta);
         let (Some(rest_threshold), Some(rest_state)) = (
-            self.resolved_xp_rest_threshold_like_cpp(),
-            self.resolved_xp_rest_state_like_cpp(),
+            crate::session::hub_ref(self).resolved_xp_rest_threshold_like_cpp(),
+            crate::session::hub_ref(self).resolved_xp_rest_state_like_cpp(),
         ) else {
             return None;
         };
@@ -168,7 +178,9 @@ impl crate::session::WorldSession {
             account_transmog,
             trait_configs,
         );
-        let Some(action_buttons) = self.represented_action_buttons_snapshot_like_cpp() else {
+        let Some(action_buttons) =
+            crate::session::hub_ref(self).represented_action_buttons_snapshot_like_cpp()
+        else {
             return None;
         };
         player_pkt.set_player_action_buttons_like_cpp(action_buttons);

@@ -71,7 +71,7 @@ impl WorldSession {
         updated
     }
     pub(crate) fn active_world_creature_guids_for_update_like_cpp(&self) -> Vec<ObjectGuid> {
-        let Some(player_position) = self.player_position_like_cpp() else {
+        let Some(player_position) = crate::session::hub_ref(self).player_position_like_cpp() else {
             return Vec::new();
         };
         let Some(manager) = &self.core.map_manager else {
@@ -108,7 +108,7 @@ impl WorldSession {
             return false;
         }
 
-        let Some(player_position) = self.player_position_like_cpp() else {
+        let Some(player_position) = crate::session::hub_ref(self).player_position_like_cpp() else {
             return false;
         };
         let player_map_id = u32::from(self.core.player_map_id_like_cpp());

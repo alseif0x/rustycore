@@ -566,7 +566,7 @@ fn xp_and_consumed_rest_state_share_one_semantic_request_like_cpp() {
     let guid = ObjectGuid::create_player(1, 5009);
     session.set_player_guid(Some(guid));
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 70.0);
     let victim = test_creature_guid(80);
     install_tapped_xp_victim_like_cpp(&mut session, victim);
@@ -585,7 +585,7 @@ fn xp_and_zero_award_rest_state_normalization_share_semantic_request_like_cpp() 
     let guid = ObjectGuid::create_player(1, 0xE1C5);
     session.set_player_guid(Some(guid));
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 0.5);
     let old_rest_bonus = session.represented_xp_rest_bonus_like_cpp();
     let old_rest_state = session.represented_xp_rest_state_like_cpp();
@@ -615,7 +615,7 @@ fn xp_and_sanitized_negative_rest_bonus_share_semantic_request_like_cpp() {
     let guid = ObjectGuid::create_player(1, 0xE1C7);
     session.set_player_guid(Some(guid));
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, -0.5);
     let old_rest_bonus = session.represented_xp_rest_bonus_like_cpp();
     let old_rest_state = session.represented_xp_rest_state_like_cpp();

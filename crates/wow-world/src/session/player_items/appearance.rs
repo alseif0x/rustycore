@@ -181,7 +181,8 @@ impl WorldSession {
         if (use_flags2 & ItemFlags2::InternalItem as u32) != 0 {
             return false;
         }
-        let player_team = player_team_id_for_race_cpp(self.player_race_like_cpp());
+        let player_team =
+            player_team_id_for_race_cpp(crate::session::hub_ref(self).player_race_like_cpp());
         if (use_flags2 & ItemFlags2::FactionHorde as u32) != 0
             && player_team != wow_entities::TEAM_HORDE_ID
         {
@@ -192,7 +193,7 @@ impl WorldSession {
         {
             return false;
         }
-        let player_race_mask = self
+        let player_race_mask = crate::session::hub_ref(self)
             .player_race_like_cpp()
             .checked_sub(1)
             .and_then(|shift| 1i64.checked_shl(u32::from(shift)))
@@ -203,15 +204,18 @@ impl WorldSession {
             return false;
         }
         if search_template.required_level > 0
-            && self.player_level_like_cpp()
+            && crate::session::hub_ref(self).player_level_like_cpp()
                 < u8::try_from(search_template.required_level).unwrap_or(u8::MAX)
         {
             return false;
         }
         if search_template.required_skill != 0 {
-            let Some(skill_value) = u16::try_from(search_template.required_skill)
-                .ok()
-                .and_then(|skill| self.resolved_player_skill_value_like_cpp(skill))
+            let Some(skill_value) =
+                u16::try_from(search_template.required_skill)
+                    .ok()
+                    .and_then(|skill| {
+                        crate::session::hub_ref(self).resolved_player_skill_value_like_cpp(skill)
+                    })
             else {
                 return false;
             };
@@ -255,8 +259,9 @@ impl WorldSession {
             return false;
         }
 
-        let player_class_mask =
-            player_class_mask_for_transmog_like_cpp(self.player_class_like_cpp());
+        let player_class_mask = player_class_mask_for_transmog_like_cpp(
+            crate::session::hub_ref(self).player_class_like_cpp(),
+        );
         if sparse_template.allowable_class != 0
             && (u32::try_from(sparse_template.allowable_class).unwrap_or(0) & player_class_mask)
                 == 0
@@ -344,7 +349,8 @@ impl WorldSession {
             return false;
         }
 
-        self.player_collection_state_snapshot_like_cpp()
+        crate::session::hub_ref(self)
+            .player_collection_state_snapshot_like_cpp()
             .is_some_and(|collections| {
                 !collections
                     .item_appearances_like_cpp()
@@ -363,8 +369,9 @@ impl WorldSession {
         quest: &wow_data::quest::QuestTemplate,
     ) -> Option<wow_entities::PlayerValuesUpdate> {
         let mut last_update = self.replay_rewarded_quest_direct_item_appearances_like_cpp(quest);
-        let player_class_mask =
-            player_class_mask_for_transmog_like_cpp(self.player_class_like_cpp());
+        let player_class_mask = player_class_mask_for_transmog_like_cpp(
+            crate::session::hub_ref(self).player_class_like_cpp(),
+        );
         let package_item_ids = self
             .catalogs
             .quests
@@ -427,9 +434,6 @@ impl WorldSession {
     pub fn has_item_appearance_like_cpp(&self, item_modified_appearance_id: u32) -> (bool, bool) {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.has_item_appearance_like_cpp(hub, item_modified_appearance_id)
-    }
-    pub(crate) fn account_transmog_active_player_rows_like_cpp(&self) -> Vec<u32> {
-        crate::session::hub_ref(self).account_transmog_active_player_rows_like_cpp()
     }
     pub(crate) fn load_represented_account_item_appearances_like_cpp(
         &mut self,

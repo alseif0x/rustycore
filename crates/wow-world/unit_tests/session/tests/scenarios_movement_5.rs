@@ -93,7 +93,7 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
         .unwrap();
     session.fixtures.combat.player_contested_pvp_timer_like_cpp = 77;
     session.register_in_player_registry();
-    session.set_selection_guid_like_cpp(Some(selected_guid));
+    crate::session::hub_mut(&mut session).set_selection_guid_like_cpp(Some(selected_guid));
     session.register_world_creature(
         571,
         Position::new(3701.0, 1500.0, 120.0, 0.0),
@@ -148,7 +148,7 @@ async fn teleport_to_instance_allows_transfer_after_player_cannot_enter_passes_l
     );
     assert_eq!(session.core.state, SessionState::Transfer);
     assert_eq!(
-        session.selection_guid_like_cpp(),
+        crate::session::hub_ref(&session).selection_guid_like_cpp(),
         None,
         "C++ far Player::TeleportTo clears selection after entry preflight and before transfer"
     );
@@ -779,7 +779,7 @@ async fn teleport_to_far_map_delays_when_can_delay_teleport_is_set_like_cpp() {
         session.represented_delayed_teleport_like_cpp(),
         Some((0, destination, TELE_TO_NONE_LIKE_CPP))
     );
-    assert!(session.represented_far_teleport_pending_like_cpp());
+    assert!(crate::session::hub_ref(&session).represented_far_teleport_pending_like_cpp());
     assert_eq!(session.pending_teleport_like_cpp(), None);
     assert!(
         session.fixtures.combat.in_combat,
@@ -849,7 +849,7 @@ async fn update_processes_alive_delayed_far_teleport_like_cpp() {
     );
     assert_eq!(session.core.state, SessionState::Transfer);
     assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
-    assert!(session.represented_far_teleport_pending_like_cpp());
+    assert!(crate::session::hub_ref(&session).represented_far_teleport_pending_like_cpp());
     assert!(!session.represented_has_delayed_teleport_like_cpp());
     assert_eq!(session.represented_delayed_teleport_like_cpp(), None);
     assert!(!session.fixtures.combat.in_combat);

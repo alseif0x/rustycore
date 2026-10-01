@@ -20,10 +20,10 @@ impl WorldSession {
     ) -> Option<wow_persistence::PlayerXpPersistenceRequestLikeCpp> {
         let rest = if rest_info_changed {
             Some(wow_persistence::PlayerXpRestStateSaveLikeCpp {
-                rest_state: self.resolved_xp_rest_state_like_cpp()?,
+                rest_state: crate::session::hub_ref(self).resolved_xp_rest_state_like_cpp()?,
                 player_flags: self.resolved_player_flags_for_rest_state_save_like_cpp()?,
                 rest_bonus: wow_entities::sanitize_rest_bonus_like_cpp(
-                    self.resolved_xp_rest_bonus_like_cpp()?,
+                    crate::session::hub_ref(self).resolved_xp_rest_bonus_like_cpp()?,
                 ),
             })
         } else {
@@ -32,8 +32,8 @@ impl WorldSession {
         Some(wow_persistence::PlayerXpPersistenceRequestLikeCpp {
             player_guid: guid_counter,
             level_changed,
-            level: self.player_level_like_cpp(),
-            xp: self.resolved_player_xp_like_cpp()?,
+            level: crate::session::hub_ref(self).player_level_like_cpp(),
+            xp: crate::session::hub_ref(self).resolved_player_xp_like_cpp()?,
             rest,
         })
     }
@@ -47,7 +47,7 @@ impl WorldSession {
         wow_persistence::PlayerXpPersistenceRequestLikeCpp {
             player_guid: guid_counter,
             level_changed,
-            level: self.player_level_like_cpp(),
+            level: crate::session::hub_ref(self).player_level_like_cpp(),
             xp: self.player_xp_like_cpp(),
             rest: rest_info_changed.then(|| wow_persistence::PlayerXpRestStateSaveLikeCpp {
                 rest_state: self.represented_xp_rest_state_like_cpp(),

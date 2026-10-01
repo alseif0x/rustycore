@@ -6,24 +6,7 @@
 
 use super::{Arc, ObjectGuid, WorldSession};
 
-impl WorldSession {
-    pub(crate) fn destroy_represented_totem_like_cpp(
-        &mut self,
-        client_slot: u8,
-        requested_totem_guid: ObjectGuid,
-    ) -> bool {
-        crate::session::hub_mut(self)
-            .destroy_represented_totem_like_cpp(client_slot, requested_totem_guid)
-    }
-
-    pub(crate) fn cancel_represented_pet_aura_like_cpp(
-        &mut self,
-        pet_guid: ObjectGuid,
-        spell_id: u32,
-    ) -> bool {
-        crate::session::hub_mut(self).cancel_represented_pet_aura_like_cpp(pet_guid, spell_id)
-    }
-}
+impl WorldSession {}
 
 impl crate::session::HubMut<'_> {
     pub(crate) fn destroy_represented_totem_like_cpp(

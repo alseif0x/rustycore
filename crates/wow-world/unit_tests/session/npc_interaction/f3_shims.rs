@@ -12,4 +12,13 @@ impl crate::session::WorldSession {
         let (state, hub) = crate::session::split_interaction_ref(self);
         state.player_interaction_trainer_id_like_cpp(hub)
     }
+    pub(crate) fn represented_npc_can_interact_with_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        npc_flags: u32,
+        npc_flags2: u32,
+    ) -> Option<RepresentedCreatureAccessLikeCpp> {
+        crate::session::hub_ref(self)
+            .represented_npc_can_interact_with_like_cpp(guid, npc_flags, npc_flags2)
+    }
 }

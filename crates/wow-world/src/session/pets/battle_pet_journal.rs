@@ -123,7 +123,11 @@ impl WorldSession {
                 RepresentedBattlePetQualityOutcomeLikeCpp::UnknownPet
             }
             Err(error) => {
-                self.log_battle_pet_mutation_failure_like_cpp("change quality", pet_guid, &error);
+                crate::session::hub_ref(self).log_battle_pet_mutation_failure_like_cpp(
+                    "change quality",
+                    pet_guid,
+                    &error,
+                );
                 RepresentedBattlePetQualityOutcomeLikeCpp::UnknownPet
             }
         }
@@ -281,7 +285,11 @@ impl WorldSession {
                 RepresentedBattlePetGrantLevelOutcomeLikeCpp::UnknownPet
             }
             Err(error) => {
-                self.log_battle_pet_mutation_failure_like_cpp("grant level", pet_guid, &error);
+                crate::session::hub_ref(self).log_battle_pet_mutation_failure_like_cpp(
+                    "grant level",
+                    pet_guid,
+                    &error,
+                );
                 RepresentedBattlePetGrantLevelOutcomeLikeCpp::UnknownPet
             }
         }

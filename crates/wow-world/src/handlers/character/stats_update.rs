@@ -24,9 +24,9 @@ impl WorldSession {
             None => return None,
         };
 
-        let race = self.player_race_like_cpp();
-        let class = self.player_class_like_cpp();
-        let level = self.player_level_like_cpp();
+        let race = crate::session::hub_ref(self).player_race_like_cpp();
+        let class = crate::session::hub_ref(self).player_class_like_cpp();
+        let level = crate::session::hub_ref(self).player_level_like_cpp();
 
         if race == 0 || class == 0 || level == 0 {
             return None; // Not fully logged in yet
@@ -36,8 +36,8 @@ impl WorldSession {
         let projection = self.player_stat_system_projection_like_cpp(race, class, level, &gear)?;
         self.publish_effective_stats_like_cpp(level, true, projection, &gear);
         let computed_max_health_u32 = max_health_u32_like_cpp(projection.max_health);
-        let (health, max_health_for_update) =
-            self.sync_canonical_player_max_health_like_cpp(computed_max_health_u32)?;
+        let (health, max_health_for_update) = crate::session::hub_mut(self)
+            .sync_canonical_player_max_health_like_cpp(computed_max_health_u32)?;
         let health = i64::from(health);
         let max_health = i64::from(max_health_for_update);
 
@@ -45,7 +45,7 @@ impl WorldSession {
             projection,
             gear.weapon_damage,
             gear.base_attack_time,
-            self.represented_shapeshift_combat_round_time_like_cpp(),
+            crate::session::hub_ref(self).represented_shapeshift_combat_round_time_like_cpp(),
         );
 
         // Power for slot 0 (mana/rage/energy/runic). Keep current power from
@@ -57,7 +57,7 @@ impl WorldSession {
         } else {
             0
         };
-        let (power0, max_power0) = self
+        let (power0, max_power0) = crate::session::hub_mut(self)
             .sync_canonical_player_primary_power_max_like_cpp(
                 primary_power_type,
                 computed_max_power0,
@@ -111,8 +111,11 @@ impl WorldSession {
             })
             .unwrap_or_else(|| {
                 (
-                    self.mana_regen_from_stats_like_cpp(level, class, projection.stats)
-                        + represented_mana_regen_per_second,
+                    crate::session::hub_ref(self).mana_regen_from_stats_like_cpp(
+                        level,
+                        class,
+                        projection.stats,
+                    ) + represented_mana_regen_per_second,
                     represented_mana_regen_per_second,
                     0.0,
                 )
@@ -234,7 +237,8 @@ impl WorldSession {
     /// percentage after max health is recalculated. Other total-stat auras use
     /// ordinary `SetMaxHealth` clamping.
     pub(crate) fn send_total_stat_percentage_update_like_cpp(&mut self, preserve_health_pct: bool) {
-        let Some((health_before, max_health_before, _)) = self.resolved_player_vitals_like_cpp()
+        let Some((health_before, max_health_before, _)) =
+            crate::session::hub_ref(self).resolved_player_vitals_like_cpp()
         else {
             return;
         };
@@ -251,7 +255,8 @@ impl WorldSession {
             let health_pct = health_before as f32 * 100.0 / max_health_before as f32;
             let restored = (max_health_after as f32 * health_pct / 100.0) as u32;
             let restored = restored.max(if zero_health { 0 } else { 1 });
-            let _ = self.sync_canonical_player_health_like_cpp(restored, max_health_after);
+            let _ = crate::session::hub_mut(self)
+                .sync_canonical_player_health_like_cpp(restored, max_health_after);
             changes.health = i64::from(restored);
         }
 
@@ -275,12 +280,16 @@ impl WorldSession {
         };
 
         let max_health = max_health_u32_like_cpp(changes.max_health);
-        let _ = self.sync_canonical_player_health_like_cpp(max_health, max_health);
+        let _ = crate::session::hub_mut(self)
+            .sync_canonical_player_health_like_cpp(max_health, max_health);
         changes.health = i64::from(max_health);
 
-        if primary_power_type_for_class_like_cpp(self.player_class_like_cpp()) == PowerType::Mana {
+        if primary_power_type_for_class_like_cpp(
+            crate::session::hub_ref(self).player_class_like_cpp(),
+        ) == PowerType::Mana
+        {
             changes.power0 = changes.max_power0;
-            let _ = self.sync_canonical_player_primary_power_like_cpp(
+            let _ = crate::session::hub_mut(self).sync_canonical_player_primary_power_like_cpp(
                 PowerType::Mana,
                 changes.power0,
                 changes.max_power0,

@@ -57,18 +57,6 @@ impl WorldSession {
         }
     }
 
-    pub(crate) fn resolved_player_vitals_like_cpp(&self) -> Option<(u32, u32, bool)> {
-        crate::session::hub_ref(self).resolved_player_vitals_like_cpp()
-    }
-
-    pub(crate) fn resolved_player_is_alive_like_cpp(&self) -> Option<bool> {
-        crate::session::hub_ref(self).resolved_player_is_alive_like_cpp()
-    }
-
-    pub(crate) fn player_has_ghost_flag_like_cpp(&self) -> bool {
-        crate::session::hub_ref(self).player_has_ghost_flag_like_cpp()
-    }
-
     pub(crate) fn set_player_ghost_flag_like_cpp(&mut self, ghost: bool) {
         if self.player_guid().is_some() {
             let _ = self.core.mutate_canonical_player_like_cpp(|player| {
@@ -80,10 +68,6 @@ impl WorldSession {
             });
         }
         self.sync_player_registry_state_like_cpp();
-    }
-
-    pub(in crate::session) fn resolved_player_mounted_like_cpp(&self) -> Option<bool> {
-        crate::session::hub_ref(self).resolved_player_mounted_like_cpp()
     }
 }
 

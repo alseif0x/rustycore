@@ -213,7 +213,10 @@ impl WorldSession {
             return true;
         }
 
-        match (self.player_position_like_cpp(), state.position) {
+        match (
+            crate::session::hub_ref(self).player_position_like_cpp(),
+            state.position,
+        ) {
             (Some(player), Some(position)) => {
                 let radius = represented_gameobject_interaction_distance_like_cpp(
                     state.go_type,

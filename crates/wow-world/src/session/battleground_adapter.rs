@@ -94,50 +94,6 @@ pub(in crate::session) fn arena_skirmish_type_like_cpp(bg_type_id: u32, bracket_
 }
 
 impl WorldSession {
-    pub(in crate::session) fn player_battleground_state_snapshot_like_cpp(
-        &self,
-    ) -> Option<wow_entities::PlayerBattlegroundState> {
-        crate::session::hub_ref(self).player_battleground_state_snapshot_like_cpp()
-    }
-
-    pub(crate) fn player_in_represented_battleground_like_cpp(&self) -> bool {
-        crate::session::hub_ref(self).player_in_represented_battleground_like_cpp()
-    }
-
-    pub(crate) fn represented_battleground_status_is_wait_leave_like_cpp(&self) -> bool {
-        crate::session::hub_ref(self).represented_battleground_status_is_wait_leave_like_cpp()
-    }
-
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn battlemaster_hello_like_cpp(&mut self, unit: ObjectGuid) -> bool {
-        crate::session::hub_mut(self).battlemaster_hello_like_cpp(unit)
-    }
-
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn battlefield_list_like_cpp(
-        &mut self,
-        battlemaster_lists: &BattlemasterListStore,
-        list_id: i32,
-    ) -> bool {
-        crate::session::hub_mut(self).battlefield_list_like_cpp(battlemaster_lists, list_id)
-    }
-
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn battlemaster_join_like_cpp(
-        &mut self,
-        battlemaster_lists: &BattlemasterListStore,
-        queue_ids: &[u64],
-        roles: u8,
-        blacklist_map: [i32; 2],
-    ) -> bool {
-        crate::session::hub_mut(self).battlemaster_join_like_cpp(
-            battlemaster_lists,
-            queue_ids,
-            roles,
-            blacklist_map,
-        )
-    }
-
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn battlemaster_join_arena_like_cpp(
         &mut self,
@@ -145,7 +101,7 @@ impl WorldSession {
         team_size_index: u8,
         roles: u8,
     ) -> bool {
-        if self.player_in_represented_battleground_like_cpp() {
+        if crate::session::hub_ref(self).player_in_represented_battleground_like_cpp() {
             return false;
         }
 
@@ -158,7 +114,9 @@ impl WorldSession {
             rated: true,
             team_size: arena_type,
         };
-        if !self.is_valid_battleground_queue_type_id_like_cpp(battlemaster_lists, queue_type_id) {
+        if !crate::session::hub_ref(self)
+            .is_valid_battleground_queue_type_id_like_cpp(battlemaster_lists, queue_type_id)
+        {
             return false;
         }
         if self
@@ -224,7 +182,7 @@ impl WorldSession {
         as_group: u8,
         is_rated: u8,
     ) -> bool {
-        if self.player_in_represented_battleground_like_cpp() {
+        if crate::session::hub_ref(self).player_in_represented_battleground_like_cpp() {
             return false;
         }
 
@@ -304,24 +262,6 @@ impl WorldSession {
     }
 
     #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn battlefield_port_like_cpp(
-        &mut self,
-        ticket: wow_packet::packets::misc::LfgRideTicket,
-        accepted_invite: bool,
-    ) -> bool {
-        crate::session::hub_mut(self).battlefield_port_like_cpp(ticket, accepted_invite)
-    }
-
-    pub(in crate::session) fn is_valid_battleground_queue_type_id_like_cpp(
-        &self,
-        battlemaster_lists: &BattlemasterListStore,
-        queue_type_id: RepresentedBattlegroundQueueTypeIdLikeCpp,
-    ) -> bool {
-        crate::session::hub_ref(self)
-            .is_valid_battleground_queue_type_id_like_cpp(battlemaster_lists, queue_type_id)
-    }
-
-    #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn accept_represented_wargame_invite_like_cpp(&mut self, inviter_name: &str) {
         let (
             Some(player_guid),
@@ -379,10 +319,6 @@ impl WorldSession {
             });
     }
 
-    pub(in crate::session) fn has_recently_dropped_flag_debuff_like_cpp(&self) -> Option<bool> {
-        crate::session::hub_ref(self).has_recently_dropped_flag_debuff_like_cpp()
-    }
-
     pub(crate) fn represented_player_can_use_battleground_object_like_cpp(
         &mut self,
         gameobject_guid: ObjectGuid,
@@ -394,7 +330,7 @@ impl WorldSession {
             .get(&gameobject_guid)
             .and_then(|state| state.faction_template);
         if let (Some(player_faction), Some(gameobject_faction), Some(store)) = (
-            self.player_faction_template_id_like_cpp(),
+            crate::session::hub_ref(self).player_faction_template_id_like_cpp(),
             gameobject_faction,
             self.catalogs.factions.template_store.as_ref(),
         ) && let (Some(player_entry), Some(gameobject_entry)) =
@@ -411,7 +347,8 @@ impl WorldSession {
             return false;
         }
 
-        let Some((player_unit_flags, _, _)) = self.player_unit_presentation_snapshot_like_cpp()
+        let Some((player_unit_flags, _, _)) =
+            crate::session::hub_ref(self).player_unit_presentation_snapshot_like_cpp()
         else {
             return false;
         };
@@ -427,7 +364,7 @@ impl WorldSession {
         }
 
         let Some(has_recently_dropped_flag_debuff) =
-            self.has_recently_dropped_flag_debuff_like_cpp()
+            crate::session::hub_ref(self).has_recently_dropped_flag_debuff_like_cpp()
         else {
             return false;
         };
@@ -442,7 +379,9 @@ impl WorldSession {
             return false;
         }
 
-        let Some(player_is_alive) = self.resolved_player_is_alive_like_cpp() else {
+        let Some(player_is_alive) =
+            crate::session::hub_ref(self).resolved_player_is_alive_like_cpp()
+        else {
             return false;
         };
         if !player_is_alive {
@@ -464,7 +403,7 @@ impl WorldSession {
         gameobject_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) -> Option<u32> {
-        let state = self.player_battleground_state_snapshot_like_cpp()?;
+        let state = crate::session::hub_ref(self).player_battleground_state_snapshot_like_cpp()?;
         if let Some(bg_type_id) = state.battleground_type_id_like_cpp() {
             return Some(bg_type_id);
         }

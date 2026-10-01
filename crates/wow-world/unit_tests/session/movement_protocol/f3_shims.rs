@@ -11,4 +11,10 @@ impl crate::session::WorldSession {
     pub(crate) fn player_out_of_bounds_like_cpp(&self) -> bool {
         self.fixtures.movement.player_out_of_bounds_like_cpp()
     }
+    pub(in crate::session) fn set_represented_can_swim_to_fly_transition_like_cpp(
+        &mut self,
+        enable: bool,
+    ) -> bool {
+        crate::session::hub_mut(self).set_represented_can_swim_to_fly_transition_like_cpp(enable)
+    }
 }

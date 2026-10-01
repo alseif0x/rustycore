@@ -196,8 +196,8 @@ async fn combat_tick_kill_keeps_empty_creature_loot_non_lootable_after_pending_d
     let player = ObjectGuid::create_player(1, 63);
     session.core.player_guid = Some(player);
     session.set_player_level_like_cpp(1);
-    session.set_player_xp_like_cpp(0);
-    session.set_player_next_level_xp_like_cpp(400);
+    crate::session::hub_mut(&mut session).set_player_xp_like_cpp(0);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(400);
     session.fixtures.combat.combat_target = Some(guid);
     session.fixtures.combat.in_combat = true;
     let mut quest_store = wow_data::quest::QuestStore::new();
@@ -588,7 +588,10 @@ fn player_attack_tracks_world_creature_attacker_set_like_cpp() {
         assert!(creature.creature.unit().has_attacker_like_cpp(attacker));
     }
 
-    assert_eq!(session.stop_player_attack_like_cpp(), Some(victim));
+    assert_eq!(
+        crate::session::hub_mut(&mut session).stop_player_attack_like_cpp(),
+        Some(victim)
+    );
     let guard = manager.read().unwrap();
     let creature = guard.find_creature(0, 0, victim).unwrap();
     assert!(!creature.creature.unit().has_attacker_like_cpp(attacker));
@@ -598,7 +601,7 @@ fn give_xp_runtime_rejects_creature_without_loot_recipient_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let victim = test_creature_guid(0xE1C1);
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 70.0);
     install_xp_victim_like_cpp(&mut session, victim, false);
 
@@ -700,7 +703,10 @@ fn player_attack_tracks_typed_creature_victim_attacker_set_like_cpp() {
         );
     }
 
-    assert_eq!(session.stop_player_attack_like_cpp(), Some(victim));
+    assert_eq!(
+        crate::session::hub_mut(&mut session).stop_player_attack_like_cpp(),
+        Some(victim)
+    );
     let guard = canonical.lock().unwrap();
     let creature = guard
         .find_map(571, 0)

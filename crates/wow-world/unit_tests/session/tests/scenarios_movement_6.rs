@@ -54,7 +54,7 @@ async fn teleport_to_far_map_clears_transport_server_time_override_like_cpp() {
         ]
     );
     assert_eq!(session.pending_teleport_like_cpp(), Some((0, destination)));
-    assert!(session.represented_far_teleport_pending_like_cpp());
+    assert!(crate::session::hub_ref(&session).represented_far_teleport_pending_like_cpp());
     assert_eq!(
         session.active_player_local_flags_like_cpp()
             & PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP,
@@ -674,7 +674,7 @@ async fn teleport_to_same_map_sends_move_teleport_and_sets_near_pending_like_cpp
         }
         .to_bytes()
     );
-    assert!(session.near_teleport_pending_like_cpp());
+    assert!(crate::session::hub_ref(&session).near_teleport_pending_like_cpp());
     assert_eq!(session.pending_teleport_like_cpp(), None);
     assert_ne!(session.core.state, SessionState::Transfer);
     assert_eq!(session.fall_information_like_cpp(), (0, source.z));
@@ -774,7 +774,7 @@ async fn teleport_to_same_map_masks_movement_flags_before_near_teleport_like_cpp
             "C++ Player::TeleportTo removes EFFECT_MOTION_TYPE before the same-map branch"
         );
     }
-    assert!(session.near_teleport_pending_like_cpp());
+    assert!(crate::session::hub_ref(&session).near_teleport_pending_like_cpp());
 }
 #[tokio::test]
 async fn teleport_to_same_map_forces_vehicle_exit_before_near_teleport_like_cpp() {
@@ -837,5 +837,5 @@ async fn teleport_to_same_map_forces_vehicle_exit_before_near_teleport_like_cpp(
         .expect("registered player");
     assert!(!info.in_vehicle);
     assert_eq!(info.party_member_vehicle_seat, 0);
-    assert!(session.near_teleport_pending_like_cpp());
+    assert!(crate::session::hub_ref(&session).near_teleport_pending_like_cpp());
 }

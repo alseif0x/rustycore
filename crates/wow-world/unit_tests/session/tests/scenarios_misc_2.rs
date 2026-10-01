@@ -649,7 +649,7 @@ async fn bind_without_destination_uses_player_world_location_and_area_like_cpp()
         80,
         0,
     ));
-    session.set_player_zone_area_like_cpp(12, 34);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(12, 34);
     add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(spell_id, spell_info);
@@ -701,7 +701,7 @@ async fn primary_bind_without_destination_uses_player_location_like_cpp() {
         80,
         0,
     ));
-    session.set_player_zone_area_like_cpp(12, 34);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(12, 34);
     add_canonical_test_player_on_map(&canonical, player_guid, player_position, 571, 0);
     let mut spell_store = wow_data::SpellStore::new();
     spell_store.insert(
@@ -761,26 +761,26 @@ fn represented_mount_liquid_state_uses_cpp_liquid_bits_and_swimming_flag() {
     add_canonical_test_player_on_map(&canonical, player_guid, Position::ZERO, 0, 0);
 
     assert_eq!(
-        session.represented_player_mount_liquid_state_like_cpp(),
+        crate::session::hub_ref(&session).represented_player_mount_liquid_state_like_cpp(),
         Some((false, false))
     );
 
     session.set_player_liquid_status_like_cpp(LIQUID_MAP_IN_WATER_LIKE_CPP);
     assert_eq!(
-        session.represented_player_mount_liquid_state_like_cpp(),
+        crate::session::hub_ref(&session).represented_player_mount_liquid_state_like_cpp(),
         Some((false, true))
     );
 
     session.set_player_liquid_status_like_cpp(LIQUID_MAP_UNDER_WATER_LIKE_CPP);
     assert_eq!(
-        session.represented_player_mount_liquid_state_like_cpp(),
+        crate::session::hub_ref(&session).represented_player_mount_liquid_state_like_cpp(),
         Some((true, true))
     );
 
     session.set_player_liquid_status_like_cpp(0);
     session.set_player_movement_flags_like_cpp(MovementFlag::SWIMMING);
     assert_eq!(
-        session.represented_player_mount_liquid_state_like_cpp(),
+        crate::session::hub_ref(&session).represented_player_mount_liquid_state_like_cpp(),
         Some((true, false))
     );
 }

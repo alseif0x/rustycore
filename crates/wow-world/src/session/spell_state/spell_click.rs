@@ -41,7 +41,9 @@ impl WorldSession {
             return plan;
         }
 
-        let Some(clicker_object) = self.build_condition_player_object_like_cpp() else {
+        let Some(clicker_object) =
+            crate::session::hub_ref(self).build_condition_player_object_like_cpp()
+        else {
             plan.exact_context_unrepresented = true;
             return plan;
         };
@@ -56,11 +58,13 @@ impl WorldSession {
         target_object.relocate(creature.position);
         *target_object.phase_shift_mut() = creature.phase_shift.clone();
 
-        let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+        let Some(player_unit_snapshot) =
+            crate::session::hub_ref(self).condition_player_unit_snapshot_like_cpp()
+        else {
             plan.exact_context_unrepresented = true;
             return plan;
         };
-        let player_snapshot = self.condition_player_snapshot_like_cpp();
+        let player_snapshot = crate::session::hub_ref(self).condition_player_snapshot_like_cpp();
         let creature_unit_snapshot = wow_conditions::ConditionUnitSnapshot {
             level: creature.level,
             health: creature.health,
@@ -85,7 +89,8 @@ impl WorldSession {
         for click_info in click_bounds {
             let requirements_fit = match click_info.user_type {
                 SPELL_CLICK_USER_FRIEND_LIKE_CPP => {
-                    let player_faction_template = self.player_faction_template_id_like_cpp();
+                    let player_faction_template =
+                        crate::session::hub_ref(self).player_faction_template_id_like_cpp();
                     if creature.is_summon
                         || self.catalogs.factions.template_store.is_none()
                         || player_faction_template.is_none()
@@ -93,8 +98,8 @@ impl WorldSession {
                         plan.exact_context_unrepresented = true;
                         continue;
                     }
-                    let reaction = self.represented_get_reaction_to_like_cpp(
-                        RepresentedGetReactionInputLikeCpp {
+                    let reaction = crate::session::hub_ref(self)
+                        .represented_get_reaction_to_like_cpp(RepresentedGetReactionInputLikeCpp {
                             self_faction_template_id: player_faction_template.unwrap_or(0),
                             target_faction_template_id: creature.faction_template_id,
                             same_object: false,
@@ -115,8 +120,7 @@ impl WorldSession {
                             target_ignores_reputation: false,
                             target_is_unit: true,
                             target_player_contested_pvp: false,
-                        },
-                    );
+                        });
                     reaction >= wow_data::reputation::ReputationRankLikeCpp::Friendly
                 }
                 SPELL_CLICK_USER_PARTY_LIKE_CPP | SPELL_CLICK_USER_RAID_LIKE_CPP => {

@@ -29,7 +29,8 @@ impl WorldSession {
         for spell_id in self.known_spells_like_cpp().to_vec() {
             if spell_id <= 0
                 || boost_ids.contains(&spell_id)
-                || self.player_has_visible_aura_spell_like_cpp(spell_id) == Some(true)
+                || crate::session::hub_ref(self).player_has_visible_aura_spell_like_cpp(spell_id)
+                    == Some(true)
             {
                 continue;
             }
@@ -76,7 +77,7 @@ impl WorldSession {
             return removed;
         };
         let new_stance = represented_stance_mask_like_cpp(new_form).unwrap_or(0);
-        let slots: Vec<u8> = self
+        let slots: Vec<u8> = crate::session::hub_ref(self)
             .resolved_player_visible_auras_like_cpp()
             .unwrap_or_default()
             .values()
@@ -159,7 +160,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return 0;
         };
-        let slots: Vec<u8> = self
+        let slots: Vec<u8> = crate::session::hub_ref(self)
             .resolved_player_visible_auras_like_cpp()
             .unwrap_or_default()
             .values()

@@ -12,7 +12,7 @@ fn player_spell_hit_source_authority_evaluates_spell_area_quest_requirements_lik
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [test_quest_template(10_045)],
     )));
-    session.set_player_zone_area_like_cpp(3_518, 3_697);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(3_518, 3_697);
     session.set_player_zone_area_authority_complete_like_cpp(true);
     session.complete_player_quest_status_authority_load_like_cpp();
     session.set_spell_area_store(Arc::new(spell_area_store_for_authority_like_cpp([

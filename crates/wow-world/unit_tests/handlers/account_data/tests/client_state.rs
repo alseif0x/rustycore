@@ -58,7 +58,7 @@ async fn set_advanced_combat_logging_sets_and_clears_player_state_like_cpp() {
 #[tokio::test]
 async fn set_advanced_combat_logging_short_packet_does_not_change_state_like_cpp() {
     let (mut session, _send_rx) = make_session();
-    session.represented_set_advanced_combat_logging_like_cpp(true);
+    crate::session::hub_mut(&mut session).represented_set_advanced_combat_logging_like_cpp(true);
 
     session
         .handle_set_advanced_combat_logging(WorldPacket::from_bytes(&[]))

@@ -316,7 +316,7 @@ async fn handle_movement_uses_current_mover_guid_like_cpp() {
     session.set_player_guid(Some(player_guid));
     session.set_player_moved_unit_guid_like_cpp(mover_guid);
     session.set_player_position_like_cpp(player_position);
-    session.set_player_movement_time_like_cpp(7_777);
+    crate::session::hub_mut(&mut session).set_player_movement_time_like_cpp(7_777);
     session.set_player_movement_flags_like_cpp(MovementFlag::SWIMMING);
     session.set_map_manager(Arc::clone(&manager));
     session.set_player_registry(Arc::clone(&registry));
@@ -696,7 +696,7 @@ async fn handle_movement_discovers_current_area_like_cpp() {
         10,
         0,
     ));
-    session.set_player_zone_area_like_cpp(9_104, 9_104);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(9_104, 9_104);
     let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
 
     let movement = MovementInfo {
@@ -800,7 +800,7 @@ async fn handle_movement_resolves_zone_area_for_cemetery_flow_like_cpp() {
         0,
     ));
     session.set_player_moved_unit_guid_like_cpp(guid);
-    session.set_player_zone_area_like_cpp(1, 1);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(1, 1);
     let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
 
     let movement = MovementInfo {
@@ -814,7 +814,7 @@ async fn handle_movement_resolves_zone_area_for_cemetery_flow_like_cpp() {
         .await;
 
     assert_eq!(
-        session.player_zone_area_like_cpp(),
+        crate::session::hub_ref(&session).player_zone_area_like_cpp(),
         Some((1637, 5170)),
         "C++ Player::Update uses terrain GetZoneAndAreaId, so cemetery requests after movement must use the Orgrimmar zone, not stale DB zone"
     );

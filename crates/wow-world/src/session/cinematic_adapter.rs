@@ -7,42 +7,28 @@
 use super::WorldSession;
 
 impl WorldSession {
-    pub(in crate::session) fn player_cinematic_state_snapshot_like_cpp(
-        &self,
-    ) -> Option<wow_entities::PlayerCinematicStateLikeCpp> {
-        crate::session::hub_ref(self).player_cinematic_state_snapshot_like_cpp()
-    }
-
     pub(crate) fn opening_cinematic_like_cpp(&mut self) -> Option<u32> {
-        if self.resolved_player_xp_like_cpp()? != 0 {
+        if crate::session::hub_ref(self).resolved_player_xp_like_cpp()? != 0 {
             return None;
         }
 
         let class_store = self.catalogs.chr.classes_store.as_ref()?;
-        let class_entry = class_store.get(u32::from(self.player_class_like_cpp()))?;
+        let class_entry = class_store.get(u32::from(
+            crate::session::hub_ref(self).player_class_like_cpp(),
+        ))?;
         let cinematic_id = if class_entry.cinematic_sequence_id != 0 {
             u32::from(class_entry.cinematic_sequence_id)
         } else {
             let race_store = self.catalogs.chr.races_store.as_ref()?;
             race_store
-                .get(u32::from(self.player_race_like_cpp()))
+                .get(u32::from(
+                    crate::session::hub_ref(self).player_race_like_cpp(),
+                ))
                 .map(|race_entry| race_entry.cinematic_sequence_id as u32)?
         };
 
         self.send_represented_cinematic_start_like_cpp(cinematic_id);
         Some(cinematic_id)
-    }
-
-    pub(crate) fn complete_represented_cinematic_like_cpp(&mut self) {
-        crate::session::hub_mut(self).complete_represented_cinematic_like_cpp()
-    }
-
-    pub(crate) fn next_represented_cinematic_camera_like_cpp(&mut self) {
-        crate::session::hub_mut(self).next_represented_cinematic_camera_like_cpp()
-    }
-
-    pub(crate) fn complete_represented_movie_like_cpp(&mut self) {
-        crate::session::hub_mut(self).complete_represented_movie_like_cpp()
     }
 }
 

@@ -282,7 +282,8 @@ impl WorldSession {
         spell_id: u32,
     ) -> bool {
         let species = pet.species;
-        let journal_enqueued = self.publish_battle_pet_trainer_purchase_add_like_cpp(pet.clone());
+        let journal_enqueued = crate::session::hub_mut(self)
+            .publish_battle_pet_trainer_purchase_add_like_cpp(pet.clone());
         // C++ `BattlePetMgr::AddPet`: SendUpdates first, then the two set-like
         // criteria hooks. Their represented bridge derives current durable
         // state, making receipt and packet-publication recovery idempotent.

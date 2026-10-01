@@ -185,7 +185,7 @@ impl WorldSession {
             None => return,
         };
 
-        let self_position = match self.player_position_like_cpp() {
+        let self_position = match crate::session::hub_ref(self).player_position_like_cpp() {
             Some(position) => position,
             None => return,
         };
@@ -201,7 +201,9 @@ impl WorldSession {
         // Conservative represented `IsValidAttackTarget` guard: without the
         // full faction/PvP combat targetability graph, reject clearly different
         // non-zero faction-template pairs rather than leaking inspect data.
-        let self_faction = self.player_faction_template_id_like_cpp().unwrap_or(0);
+        let self_faction = crate::session::hub_ref(self)
+            .player_faction_template_id_like_cpp()
+            .unwrap_or(0);
         if self_faction != 0
             && target.faction_template_id != 0
             && self_faction != target.faction_template_id

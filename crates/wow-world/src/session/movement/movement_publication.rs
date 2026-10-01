@@ -6,31 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn broadcast_from_movement_source_set_like_cpp(
-        &self,
-        source_guid: ObjectGuid,
-        source_position: wow_core::Position,
-        bytes: Vec<u8>,
-        range: f32,
-    ) {
-        crate::session::hub_ref(self).broadcast_from_movement_source_set_like_cpp(
-            source_guid,
-            source_position,
-            bytes,
-            range,
-        )
-    }
-
-    pub(crate) fn update_registry_position(&self) {
-        crate::session::hub_ref(self).update_registry_position()
-    }
-    pub(in crate::session) fn send_movement_set_collision_height_like_cpp(&mut self, reason: u8) {
-        crate::session::hub_mut(self).send_movement_set_collision_height_like_cpp(reason)
-    }
-    fn send_represented_capture_point_removed_like_cpp(&mut self, gameobject_guid: ObjectGuid) {
-        crate::session::hub_mut(self)
-            .send_represented_capture_point_removed_like_cpp(gameobject_guid)
-    }
     pub(crate) fn send_represented_capture_point_removed_from_last_update_like_cpp(
         &mut self,
     ) -> usize {
@@ -58,7 +33,7 @@ impl WorldSession {
             {
                 continue;
             }
-            self.send_represented_capture_point_removed_like_cpp(guid);
+            crate::session::hub_mut(self).send_represented_capture_point_removed_like_cpp(guid);
             sent += 1;
         }
         sent

@@ -6,9 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn send_complete_player_skill_values_update_like_cpp(&self) {
-        crate::session::hub_ref(self).send_complete_player_skill_values_update_like_cpp()
-    }
     /// Set the skill store for this session.
     pub fn set_skill_store(&mut self, store: Arc<SkillStore>) {
         self.catalogs.skill_store = Some(store);
@@ -36,14 +33,6 @@ impl WorldSession {
     pub(crate) fn max_primary_trade_skills_like_cpp(&self) -> u8 {
         self.config.max_primary_trade_skills_like_cpp()
     }
-    pub(crate) fn set_complete_player_skill_records_like_cpp(
-        &mut self,
-        skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
-        occupied_slots: u16,
-    ) -> bool {
-        crate::session::hub_mut(self)
-            .set_complete_player_skill_records_like_cpp(skill_records, occupied_slots)
-    }
     pub(crate) fn replace_player_skill_records_like_cpp(
         &mut self,
         skill_records: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
@@ -68,14 +57,18 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(in crate::session) fn fixture_clear_player_skill_tombstones_like_cpp(&mut self) {
-        let Some(records) = self.resolved_player_skill_records_like_cpp() else {
+        let Some(records) = crate::session::hub_ref(self).resolved_player_skill_records_like_cpp()
+        else {
             return;
         };
         let Some(loaded) = self.resolved_player_skill_records_loaded_like_cpp() else {
             return;
         };
-        let complete = self.complete_player_skill_records_like_cpp().is_some();
-        let occupied = self.complete_player_skill_occupied_slots_like_cpp();
+        let complete = crate::session::hub_ref(self)
+            .complete_player_skill_records_like_cpp()
+            .is_some();
+        let occupied =
+            crate::session::hub_ref(self).complete_player_skill_occupied_slots_like_cpp();
         let _ = self.replace_player_skill_runtime_exact_like_cpp(
             records,
             loaded,
@@ -84,47 +77,10 @@ impl WorldSession {
             BTreeSet::new(),
         );
     }
-    pub(crate) fn complete_player_skill_occupied_slots_like_cpp(&self) -> Option<u16> {
-        crate::session::hub_ref(self).complete_player_skill_occupied_slots_like_cpp()
-    }
-    pub(crate) fn complete_player_skill_records_like_cpp(
-        &self,
-    ) -> Option<HashMap<u16, RepresentedPlayerSkillLikeCpp>> {
-        crate::session::hub_ref(self).complete_player_skill_records_like_cpp()
-    }
-    pub(in crate::session) fn set_represented_player_skill_like_cpp(
-        &mut self,
-        skill_id: u16,
-        step: u16,
-        value: u16,
-        max: u16,
-    ) {
-        crate::session::hub_mut(self)
-            .set_represented_player_skill_like_cpp(skill_id, step, value, max)
-    }
-    pub(in crate::session) fn resolved_player_skill_max_value_like_cpp(
-        &self,
-        skill_id: u16,
-    ) -> Option<u16> {
-        crate::session::hub_ref(self).resolved_player_skill_max_value_like_cpp(skill_id)
-    }
-    pub(in crate::session) fn max_skill_value_for_level_like_cpp(&self) -> u16 {
-        crate::session::hub_ref(self).max_skill_value_for_level_like_cpp()
-    }
-    pub(crate) fn resolved_player_skill_values_like_cpp(&self) -> Option<HashMap<u16, u16>> {
-        crate::session::hub_ref(self).resolved_player_skill_values_like_cpp()
-    }
-    pub(crate) fn resolved_player_skill_records_like_cpp(
-        &self,
-    ) -> Option<HashMap<u16, RepresentedPlayerSkillLikeCpp>> {
-        crate::session::hub_ref(self).resolved_player_skill_records_like_cpp()
-    }
-    pub(crate) fn resolved_player_skill_value_like_cpp(&self, skill_id: u16) -> Option<u16> {
-        crate::session::hub_ref(self).resolved_player_skill_value_like_cpp(skill_id)
-    }
     #[cfg(test)]
     pub(crate) fn player_skill_values_like_cpp(&self) -> HashMap<u16, u16> {
-        self.resolved_player_skill_values_like_cpp()
+        crate::session::hub_ref(self)
+            .resolved_player_skill_values_like_cpp()
             .expect("test Player skill owner must resolve")
     }
     pub(in crate::session) fn represented_fishing_base_skill_level_like_cpp(
@@ -139,14 +95,6 @@ impl WorldSession {
         let area_store = self.catalogs.area_table_store()?;
         let fishing_store = self.catalogs.fishing_base_skill_store()?;
         Some(fishing_store.base_skill_level_like_cpp(area_store, area_id))
-    }
-    pub(in crate::session) fn player_profession_skill_value_for_exp_like_cpp(
-        &self,
-        parent_skill_id: u16,
-        expansion: i32,
-    ) -> i32 {
-        crate::session::hub_ref(self)
-            .player_profession_skill_value_for_exp_like_cpp(parent_skill_id, expansion)
     }
 }
 

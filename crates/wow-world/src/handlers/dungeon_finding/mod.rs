@@ -125,7 +125,7 @@ impl crate::session::WorldSession {
         &self,
         store: &wow_data::LfgDungeonStoreLikeCpp,
     ) -> Option<LfgPlayerInfo> {
-        let level = self.player_level_like_cpp();
+        let level = crate::session::hub_ref(self).player_level_like_cpp();
         let expansion = self.core.expansion;
         let current_item_level = self.represented_average_item_level_like_cpp()?.max(0.0) as i32;
 
@@ -239,7 +239,9 @@ impl crate::session::WorldSession {
                 return Some(LFG_LOCKSTATUS_MISSING_ACHIEVEMENT_LIKE_CPP);
             }
 
-            match crate::session::player_team_for_race_cpp(self.player_race_like_cpp()) {
+            match crate::session::player_team_for_race_cpp(
+                crate::session::hub_ref(self).player_race_like_cpp(),
+            ) {
                 Team::Alliance
                     if requirement.quest_done_a != 0
                         && !self.player_quest_gameplay_snapshot_like_cpp().is_some_and(
@@ -297,7 +299,7 @@ impl crate::session::WorldSession {
         };
 
         let current_map_id = u32::from(self.core.player_map_id_like_cpp());
-        let Some((_, area_id)) = self.player_zone_area_like_cpp() else {
+        let Some((_, area_id)) = crate::session::hub_ref(self).player_zone_area_like_cpp() else {
             return true;
         };
         let current_map_instance_type = map_store

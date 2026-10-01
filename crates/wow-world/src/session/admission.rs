@@ -261,7 +261,7 @@ impl super::WorldSession {
         warn!(
             "AntiDOS: Account {}, Character: {:?}, flooding packet (opc: {:?} (0x{:X}), count: {})",
             self.core.account_id,
-            self.player_name_like_cpp(),
+            crate::session::hub_ref(self).player_name_like_cpp(),
             opcode,
             pkt.opcode_raw(),
             amount_counter

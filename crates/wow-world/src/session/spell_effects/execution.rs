@@ -738,7 +738,7 @@ impl WorldSession {
                         RepresentedAuraEffectLikeCpp::Speed,
                         30_000,
                     )?;
-                    self.recompute_represented_run_speed_rate_like_cpp();
+                    crate::session::hub_mut(self).recompute_represented_run_speed_rate_like_cpp();
                 } else if effect.effect_aura
                     == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_SWIM_SPEED
                 {
@@ -749,7 +749,7 @@ impl WorldSession {
                         RepresentedAuraEffectLikeCpp::SwimSpeed,
                         30_000,
                     )?;
-                    self.recompute_represented_swim_speed_rate_like_cpp();
+                    crate::session::hub_mut(self).recompute_represented_swim_speed_rate_like_cpp();
                 } else if effect.effect_aura
                     == wow_data::spell::aura_types::SPELL_AURA_MOD_DECREASE_SPEED
                 {
@@ -760,8 +760,10 @@ impl WorldSession {
                         RepresentedAuraEffectLikeCpp::DecreaseSpeed,
                         30_000,
                     )?;
-                    self.recompute_represented_forward_speed_rates_like_cpp();
-                    self.recompute_represented_backward_speed_rates_like_cpp();
+                    crate::session::hub_mut(self)
+                        .recompute_represented_forward_speed_rates_like_cpp();
+                    crate::session::hub_mut(self)
+                        .recompute_represented_backward_speed_rates_like_cpp();
                 } else if effect.effect_aura
                     == wow_data::spell::aura_types::SPELL_AURA_USE_NORMAL_MOVEMENT_SPEED
                 {
@@ -772,7 +774,8 @@ impl WorldSession {
                         RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed,
                         30_000,
                     )?;
-                    self.recompute_represented_forward_speed_rates_like_cpp();
+                    crate::session::hub_mut(self)
+                        .recompute_represented_forward_speed_rates_like_cpp();
                 } else if effect.effect_aura
                     == wow_data::spell::aura_types::SPELL_AURA_MOD_MINIMUM_SPEED
                 {
@@ -783,7 +786,7 @@ impl WorldSession {
                         RepresentedAuraEffectLikeCpp::MinimumSpeed,
                         30_000,
                     )?;
-                    self.recompute_represented_run_speed_rate_like_cpp();
+                    crate::session::hub_mut(self).recompute_represented_run_speed_rate_like_cpp();
                 } else if effect.effect_aura
                     == wow_data::spell::aura_types::SPELL_AURA_MOD_MINIMUM_SPEED_RATE
                 {
@@ -794,7 +797,7 @@ impl WorldSession {
                         RepresentedAuraEffectLikeCpp::MinimumSpeedRate,
                         30_000,
                     )?;
-                    self.recompute_represented_run_speed_rate_like_cpp();
+                    crate::session::hub_mut(self).recompute_represented_run_speed_rate_like_cpp();
                 } else if effect.effect_aura
                     == wow_data::spell::aura_types::SPELL_AURA_MOD_SPEED_ALWAYS
                 {
@@ -805,7 +808,7 @@ impl WorldSession {
                         RepresentedAuraEffectLikeCpp::SpeedAlways,
                         30_000,
                     )?;
-                    self.recompute_represented_run_speed_rate_like_cpp();
+                    crate::session::hub_mut(self).recompute_represented_run_speed_rate_like_cpp();
                 } else if effect.effect_aura
                     == wow_data::spell::aura_types::SPELL_AURA_MOD_SPEED_NOT_STACK
                 {
@@ -816,7 +819,7 @@ impl WorldSession {
                         RepresentedAuraEffectLikeCpp::SpeedNotStack,
                         30_000,
                     )?;
-                    self.recompute_represented_run_speed_rate_like_cpp();
+                    crate::session::hub_mut(self).recompute_represented_run_speed_rate_like_cpp();
                 } else if effect.effect_aura
                     == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_SPEED
                 {
@@ -827,7 +830,8 @@ impl WorldSession {
                         RepresentedAuraEffectLikeCpp::MountedSpeed,
                         30_000,
                     )?;
-                    self.recompute_represented_mounted_speed_rates_like_cpp();
+                    crate::session::hub_mut(self)
+                        .recompute_represented_mounted_speed_rates_like_cpp();
                 } else if effect.effect_aura
                     == wow_data::spell::aura_types::SPELL_AURA_MOD_MOUNTED_SPEED_ALWAYS
                 {
@@ -838,7 +842,8 @@ impl WorldSession {
                         RepresentedAuraEffectLikeCpp::MountedSpeedAlways,
                         30_000,
                     )?;
-                    self.recompute_represented_mounted_speed_rates_like_cpp();
+                    crate::session::hub_mut(self)
+                        .recompute_represented_mounted_speed_rates_like_cpp();
                 } else if effect.effect_aura
                     == wow_data::spell::aura_types::SPELL_AURA_MOD_MOUNTED_SPEED_NOT_STACK
                 {
@@ -849,7 +854,8 @@ impl WorldSession {
                         RepresentedAuraEffectLikeCpp::MountedSpeedNotStack,
                         30_000,
                     )?;
-                    self.recompute_represented_mounted_speed_rates_like_cpp();
+                    crate::session::hub_mut(self)
+                        .recompute_represented_mounted_speed_rates_like_cpp();
                 } else if effect.effect_aura
                     == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_MOUNTED_FLIGHT_SPEED
                 {
@@ -861,7 +867,8 @@ impl WorldSession {
                         30_000,
                     )?;
                     self.update_represented_flight_flags_for_flight_aura_like_cpp(true);
-                    self.recompute_represented_mounted_speed_rates_like_cpp();
+                    crate::session::hub_mut(self)
+                        .recompute_represented_mounted_speed_rates_like_cpp();
                 } else if effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_FLY {
                     self.apply_represented_aura_modifier_like_cpp(
                         spell_id,
@@ -881,7 +888,8 @@ impl WorldSession {
                         RepresentedAuraEffectLikeCpp::FlightSpeed,
                         30_000,
                     )?;
-                    self.recompute_represented_flight_speed_rate_like_cpp();
+                    crate::session::hub_mut(self)
+                        .recompute_represented_flight_speed_rate_like_cpp();
                 } else if effect.effect_aura
                     == wow_data::spell::aura_types::SPELL_AURA_MOD_INCREASE_VEHICLE_FLIGHT_SPEED
                 {
@@ -892,7 +900,8 @@ impl WorldSession {
                         RepresentedAuraEffectLikeCpp::VehicleFlightSpeed,
                         30_000,
                     )?;
-                    self.recompute_represented_flight_speed_rate_like_cpp();
+                    crate::session::hub_mut(self)
+                        .recompute_represented_flight_speed_rate_like_cpp();
                 } else if effect.effect_aura
                     == wow_data::spell::aura_types::SPELL_AURA_MOD_MOUNTED_FLIGHT_SPEED_ALWAYS
                 {
@@ -903,7 +912,8 @@ impl WorldSession {
                         RepresentedAuraEffectLikeCpp::MountedFlightSpeedAlways,
                         30_000,
                     )?;
-                    self.recompute_represented_mounted_speed_rates_like_cpp();
+                    crate::session::hub_mut(self)
+                        .recompute_represented_mounted_speed_rates_like_cpp();
                 } else if effect.effect_aura
                     == wow_data::spell::aura_types::SPELL_AURA_MOD_FLIGHT_SPEED_NOT_STACK
                 {
@@ -914,7 +924,8 @@ impl WorldSession {
                         RepresentedAuraEffectLikeCpp::FlightSpeedNotStack,
                         30_000,
                     )?;
-                    self.recompute_represented_mounted_speed_rates_like_cpp();
+                    crate::session::hub_mut(self)
+                        .recompute_represented_mounted_speed_rates_like_cpp();
                 } else if generic_apply_aura_rows_like_cpp == 1 && apply_aura_rows_like_cpp == 1 {
                     self.apply_aura_with_effect_mask_and_provenance_like_cpp(
                         spell_id,

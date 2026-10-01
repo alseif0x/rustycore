@@ -41,4 +41,10 @@ impl crate::session::WorldSession {
         let (state, hub) = crate::session::split_social_ref(self);
         state.player_emote_state_like_cpp(hub)
     }
+    pub(crate) fn set_player_emote_state_like_cpp(
+        &mut self,
+        emote_state: u32,
+    ) -> Option<wow_packet::packets::update::UpdateObject> {
+        crate::session::hub_mut(self).set_player_emote_state_like_cpp(emote_state)
+    }
 }

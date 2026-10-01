@@ -41,12 +41,6 @@ impl WorldSession {
     pub(crate) fn chat_flood_config_like_cpp(&self) -> ChatFloodConfigLikeCpp {
         self.config.chat_flood_config_like_cpp
     }
-    pub(crate) fn set_player_emote_state_like_cpp(
-        &mut self,
-        emote_state: u32,
-    ) -> Option<wow_packet::packets::update::UpdateObject> {
-        crate::session::hub_mut(self).set_player_emote_state_like_cpp(emote_state)
-    }
     pub(crate) fn clear_player_gossip_options_like_cpp(&mut self) -> bool {
         let canonical = self
             .core
@@ -127,9 +121,9 @@ impl WorldSession {
             self.represented_creature_quest_menu_items_like_cpp(quest_store, creature_entry);
         info!(
             creature_entry,
-            race = self.player_race_like_cpp(),
-            class = self.player_class_like_cpp(),
-            level = self.player_level_like_cpp(),
+            race = crate::session::hub_ref(self).player_race_like_cpp(),
+            class = crate::session::hub_ref(self).player_class_like_cpp(),
+            level = crate::session::hub_ref(self).player_level_like_cpp(),
             starter_candidates = ?starter_candidates,
             quests = ?menu_items.iter().map(|item| item.quest.id).collect::<Vec<_>>(),
             "Prepared creature gossip quest text like C++"

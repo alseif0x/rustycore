@@ -6,32 +6,16 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::session) fn player_is_pvp_like_cpp(&self, guid: ObjectGuid) -> Option<bool> {
-        crate::session::hub_ref(self).player_is_pvp_like_cpp(guid)
-    }
-    pub(in crate::session) fn player_has_in_pvp_flag_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) -> Option<bool> {
-        crate::session::hub_ref(self).player_has_in_pvp_flag_like_cpp(guid)
-    }
-    pub(in crate::session) fn update_player_pvp_like_cpp(
-        &mut self,
-        state: bool,
-        override_state: bool,
-    ) {
-        crate::session::hub_mut(self).update_player_pvp_like_cpp(state, override_state)
-    }
     pub(crate) fn update_pvp_flag_like_cpp(&mut self, curr_time: i64) {
         let Some(guid) = self.player_guid() else {
             return;
         };
 
-        if self.player_is_pvp_like_cpp(guid) != Some(true) {
+        if crate::session::hub_ref(self).player_is_pvp_like_cpp(guid) != Some(true) {
             return;
         }
 
-        let Some(state) = self.player_world_local_state_like_cpp() else {
+        let Some(state) = crate::session::hub_ref(self).player_world_local_state_like_cpp() else {
             return;
         };
         let Some(end_timer) = state.pvp_end_timer_like_cpp() else {
@@ -62,14 +46,15 @@ impl WorldSession {
             let _ = mutated;
         }
 
-        self.update_player_pvp_like_cpp(false, false);
+        crate::session::hub_mut(self).update_player_pvp_like_cpp(false, false);
         self.sync_player_registry_state_like_cpp();
     }
     pub(crate) fn apply_toggle_pvp_like_cpp(&mut self) {
         let Some(guid) = self.player_guid() else {
             return;
         };
-        let Some(in_pvp) = self.player_has_in_pvp_flag_like_cpp(guid) else {
+        let Some(in_pvp) = crate::session::hub_ref(self).player_has_in_pvp_flag_like_cpp(guid)
+        else {
             return;
         };
         self.apply_set_pvp_like_cpp(!in_pvp);
@@ -97,14 +82,14 @@ impl WorldSession {
             }
             let _ = mutated;
 
-            if self.player_is_pvp_like_cpp(guid) == Some(false)
-                || self
+            if crate::session::hub_ref(self).player_is_pvp_like_cpp(guid) == Some(false)
+                || crate::session::hub_ref(self)
                     .player_world_local_state_like_cpp()
                     .is_some_and(|state| state.pvp_end_timer_like_cpp().is_some())
             {
-                self.update_player_pvp_like_cpp(true, true);
+                crate::session::hub_mut(self).update_player_pvp_like_cpp(true, true);
             }
-        } else if !self.player_war_mode_local_active_like_cpp() {
+        } else if !crate::session::hub_ref(self).player_war_mode_local_active_like_cpp() {
             #[cfg_attr(not(test), allow(unused_mut))]
             let mut mutated = self.core.with_owned_player_mut_like_cpp(|player| {
                 player.remove_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
@@ -122,47 +107,28 @@ impl WorldSession {
             }
             let _ = mutated;
 
-            let Some(state) = self.player_world_local_state_like_cpp() else {
+            let Some(state) = crate::session::hub_ref(self).player_world_local_state_like_cpp()
+            else {
                 return;
             };
-            if !state.is_pvp_hostile_like_cpp() && self.player_is_pvp_like_cpp(guid) == Some(true) {
+            if !state.is_pvp_hostile_like_cpp()
+                && crate::session::hub_ref(self).player_is_pvp_like_cpp(guid) == Some(true)
+            {
                 let now = wow_entities::game_time_secs_like_cpp();
-                let _ = self.set_player_pvp_end_timer_like_cpp(Some(now));
+                let _ = crate::session::hub_mut(self).set_player_pvp_end_timer_like_cpp(Some(now));
             }
         }
 
         self.sync_player_registry_state_like_cpp();
     }
-    pub(in crate::session) fn begin_canonical_player_combat_ref_like_cpp(
-        &mut self,
-        attacker_guid: ObjectGuid,
-        victim_guid: ObjectGuid,
-        relation_represented: bool,
-        attacker_is_friendly_to_victim: bool,
-        victim_is_friendly_to_attacker: bool,
-    ) -> bool {
-        crate::session::hub_mut(self).begin_canonical_player_combat_ref_like_cpp(
-            attacker_guid,
-            victim_guid,
-            relation_represented,
-            attacker_is_friendly_to_victim,
-            victim_is_friendly_to_attacker,
-        )
-    }
-    pub(in crate::session) fn revalidate_canonical_player_combat_refs_like_cpp(
-        &mut self,
-        player_guid: ObjectGuid,
-    ) {
-        crate::session::hub_mut(self).revalidate_canonical_player_combat_refs_like_cpp(player_guid)
-    }
     pub(in crate::session) fn combat_stop_like_cpp(&mut self) {
         let Some(player_guid) = self.player_guid() else {
-            self.set_combat_target_like_cpp(None);
-            self.set_in_combat_like_cpp(false);
+            crate::session::hub_mut(self).set_combat_target_like_cpp(None);
+            crate::session::hub_mut(self).set_in_combat_like_cpp(false);
             return;
         };
 
-        let stopped_target = self.stop_player_attack_like_cpp();
+        let stopped_target = crate::session::hub_mut(self).stop_player_attack_like_cpp();
         let owner_guids = {
             let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {
                 return self.finish_combat_stop_like_cpp(player_guid, stopped_target, Vec::new());
@@ -233,8 +199,8 @@ impl WorldSession {
         stopped_target: Option<ObjectGuid>,
         owner_guids: Vec<ObjectGuid>,
     ) {
-        self.set_combat_target_like_cpp(None);
-        self.set_in_combat_like_cpp(false);
+        crate::session::hub_mut(self).set_combat_target_like_cpp(None);
+        crate::session::hub_mut(self).set_in_combat_like_cpp(false);
         for owner_guid in owner_guids {
             let _ = self.core.mutate_world_creature(owner_guid, |owner| {
                 if owner.creature.unit().attacking() == Some(player_guid) {
@@ -280,9 +246,6 @@ impl WorldSession {
         self.catalogs.regen_game_tables = Some(tables);
     }
 
-    pub(in crate::session) fn represented_has_pvp_rules_enabled_like_cpp(&self) -> bool {
-        crate::session::hub_ref(self).represented_has_pvp_rules_enabled_like_cpp()
-    }
     pub(in crate::session) fn reset_contested_pvp_like_cpp(&mut self) {
         let Some(_guid) = self.player_guid() else {
             return;
@@ -353,7 +316,7 @@ impl WorldSession {
     /// already say they are resting.
     pub(in crate::session) fn apply_represented_ffa_pvp_login_state_like_cpp(&mut self) -> bool {
         if !self.view.is_ffa_pvp_realm_like_cpp
-            || self.player_is_game_master_like_cpp() != Some(false)
+            || crate::session::hub_ref(self).player_is_game_master_like_cpp() != Some(false)
             || self.resolved_visible_resting_like_cpp() != Some(false)
         {
             return false;
@@ -367,18 +330,6 @@ impl WorldSession {
     pub fn set_ffa_pvp_realm_like_cpp(&mut self, is_ffa_pvp_realm: bool) {
         self.view.is_ffa_pvp_realm_like_cpp = is_ffa_pvp_realm;
     }
-    pub(crate) fn resolved_combat_target_like_cpp(&self) -> Option<Option<ObjectGuid>> {
-        crate::session::hub_ref(self).resolved_combat_target_like_cpp()
-    }
-    pub(crate) fn set_combat_target_like_cpp(&mut self, target: Option<ObjectGuid>) -> bool {
-        crate::session::hub_mut(self).set_combat_target_like_cpp(target)
-    }
-    pub(crate) fn resolved_in_combat_like_cpp(&self) -> Option<bool> {
-        crate::session::hub_ref(self).resolved_in_combat_like_cpp()
-    }
-    pub(crate) fn set_in_combat_like_cpp(&mut self, in_combat: bool) {
-        crate::session::hub_mut(self).set_in_combat_like_cpp(in_combat)
-    }
     #[cfg(test)]
     pub(crate) fn represented_combat_stat_recalculations_like_cpp(
         &self,
@@ -387,9 +338,6 @@ impl WorldSession {
             .inventory
             .player_item_test_fixture_like_cpp
             .represented_combat_stat_recalculations_like_cpp
-    }
-    pub(crate) fn represented_set_advanced_combat_logging_like_cpp(&mut self, enable: bool) {
-        crate::session::hub_mut(self).represented_set_advanced_combat_logging_like_cpp(enable)
     }
 }
 

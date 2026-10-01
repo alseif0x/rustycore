@@ -60,12 +60,12 @@ fn player_spell_hit_source_authority_requires_empty_traits_and_active_glyphs_lik
         "C++ _LoadGlyphAuras casts every nonzero active-group glyph"
     );
 
-    session.set_represented_active_talent_group_like_cpp(1);
+    crate::session::hub_mut(&mut session).set_represented_active_talent_group_like_cpp(1);
     assert!(
         session.can_authorize_empty_player_spell_hit_aura_source_like_cpp(),
         "an inactive-group glyph is not cast by C++ _LoadGlyphAuras"
     );
-    session.set_represented_active_talent_group_like_cpp(0);
+    crate::session::hub_mut(&mut session).set_represented_active_talent_group_like_cpp(0);
     assert!(!session.can_authorize_empty_player_spell_hit_aura_source_like_cpp());
 }
 
@@ -100,14 +100,14 @@ fn player_spell_hit_source_authority_gates_update_zone_aura_producers_like_cpp()
     );
 
     session.set_loaded_player_flags_like_cpp(0);
-    session.set_player_zone_area_like_cpp(4_197, 4_197);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(4_197, 4_197);
     session.set_player_zone_area_authority_complete_like_cpp(true);
     assert!(
         !session.can_authorize_empty_player_spell_hit_aura_source_like_cpp(),
         "BattlefieldWG adds control phase-shift auras on zone entry"
     );
 
-    session.set_player_zone_area_like_cpp(3_518, 3_697);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(3_518, 3_697);
     session.set_player_zone_area_authority_complete_like_cpp(true);
     assert!(
         session.can_authorize_empty_player_spell_hit_aura_source_like_cpp(),

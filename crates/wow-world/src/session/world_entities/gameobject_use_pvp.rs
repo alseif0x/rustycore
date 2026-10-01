@@ -18,21 +18,22 @@ impl WorldSession {
             .get(&gameobject_guid)
             .and_then(|state| state.capture_point_state)
             .unwrap_or(RepresentedCapturePointStateLikeCpp::Neutral);
-        let can_interact = match player_team_for_race_cpp(self.player_race_like_cpp()) {
-            Team::Horde => matches!(
-                state,
-                RepresentedCapturePointStateLikeCpp::Neutral
-                    | RepresentedCapturePointStateLikeCpp::ContestedAlliance
-                    | RepresentedCapturePointStateLikeCpp::AllianceCaptured
-            ),
-            Team::Alliance => matches!(
-                state,
-                RepresentedCapturePointStateLikeCpp::Neutral
-                    | RepresentedCapturePointStateLikeCpp::ContestedHorde
-                    | RepresentedCapturePointStateLikeCpp::HordeCaptured
-            ),
-            Team::Other => false,
-        };
+        let can_interact =
+            match player_team_for_race_cpp(crate::session::hub_ref(self).player_race_like_cpp()) {
+                Team::Horde => matches!(
+                    state,
+                    RepresentedCapturePointStateLikeCpp::Neutral
+                        | RepresentedCapturePointStateLikeCpp::ContestedAlliance
+                        | RepresentedCapturePointStateLikeCpp::AllianceCaptured
+                ),
+                Team::Alliance => matches!(
+                    state,
+                    RepresentedCapturePointStateLikeCpp::Neutral
+                        | RepresentedCapturePointStateLikeCpp::ContestedHorde
+                        | RepresentedCapturePointStateLikeCpp::HordeCaptured
+                ),
+                Team::Other => false,
+            };
         if !can_interact {
             return false;
         }
@@ -54,7 +55,7 @@ impl WorldSession {
             return true;
         }
 
-        if !self
+        if !crate::session::hub_ref(self)
             .player_battleground_state_snapshot_like_cpp()
             .is_some_and(|state| state.in_battleground_like_cpp())
         {
@@ -72,7 +73,8 @@ impl WorldSession {
             },
         );
 
-        let player_team = player_team_for_race_cpp(self.player_race_like_cpp());
+        let player_team =
+            player_team_for_race_cpp(crate::session::hub_ref(self).player_race_like_cpp());
         let now = Instant::now();
         let (next_state, broadcast_text_id, event_id, assault_timer_ms, last_team_capture) =
             match player_team {

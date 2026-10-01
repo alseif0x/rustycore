@@ -228,7 +228,7 @@ impl crate::session::WorldSession {
         // C++ returns silently when the target cannot be interacted with as a
         // battlemaster. The accepted branch records the list intent until
         // BattlegroundMgr::SendBattlegroundList is live in Rust.
-        let _accepted = self.battlemaster_hello_like_cpp(hello.unit);
+        let _accepted = crate::session::hub_mut(self).battlemaster_hello_like_cpp(hello.unit);
     }
 
     /// CMSG_BATTLEFIELD_LIST — player asks for the queue list of a battleground type.
@@ -253,7 +253,8 @@ impl crate::session::WorldSession {
         // C++ returns silently when sBattlemasterListStore has no ListID row.
         // The accepted branch records the SendBattlegroundList intent until
         // BattlegroundMgr owns live queue/list packets in Rust.
-        let _accepted = self.battlefield_list_like_cpp(battlemaster_lists, request.list_id);
+        let _accepted = crate::session::hub_mut(self)
+            .battlefield_list_like_cpp(battlemaster_lists, request.list_id);
     }
 
     /// CMSG_BATTLEMASTER_JOIN — player asks to join a battleground queue.
@@ -278,7 +279,7 @@ impl crate::session::WorldSession {
         // C++ returns silently for missing/invalid queues and early queue gates.
         // The accepted branch records the queue intent until BattlegroundQueue
         // and BattlegroundMgr queue-status packets are live in Rust.
-        let _accepted = self.battlemaster_join_like_cpp(
+        let _accepted = crate::session::hub_mut(self).battlemaster_join_like_cpp(
             battlemaster_lists,
             &join.queue_ids,
             join.roles,
@@ -404,7 +405,8 @@ impl crate::session::WorldSession {
         // C++ returns silently for not-in-queue, invalid queue slot, and
         // AcceptedInvite without an invitation. The accepted/leave branch is
         // represented only until live BattlegroundQueue/BattlegroundMgr exists.
-        let _accepted = self.battlefield_port_like_cpp(port.ticket, port.accepted_invite);
+        let _accepted = crate::session::hub_mut(self)
+            .battlefield_port_like_cpp(port.ticket, port.accepted_invite);
     }
 
     /// CMSG_BATTLEFIELD_LEAVE — player asks to leave the current battleground.
@@ -419,9 +421,10 @@ impl crate::session::WorldSession {
             return;
         }
 
-        if self.resolved_in_combat_like_cpp() != Some(false)
-            && self.player_in_represented_battleground_like_cpp()
-            && !self.represented_battleground_status_is_wait_leave_like_cpp()
+        if crate::session::hub_ref(self).resolved_in_combat_like_cpp() != Some(false)
+            && crate::session::hub_ref(self).player_in_represented_battleground_like_cpp()
+            && !crate::session::hub_ref(self)
+                .represented_battleground_status_is_wait_leave_like_cpp()
         {
             return;
         }

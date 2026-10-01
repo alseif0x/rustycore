@@ -65,7 +65,8 @@ impl WorldSession {
                     %error,
                     "failed to resolve C++ terrain zone/area before InitWorldStates; using DB-seeded zone/area"
                 );
-                let Some((seeded_zone_id, seeded_area_id)) = self.player_zone_area_like_cpp()
+                let Some((seeded_zone_id, seeded_area_id)) =
+                    crate::session::hub_ref(self).player_zone_area_like_cpp()
                 else {
                     return false;
                 };

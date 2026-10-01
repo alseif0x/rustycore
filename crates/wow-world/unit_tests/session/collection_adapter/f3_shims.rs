@@ -13,4 +13,22 @@ impl crate::session::WorldSession {
     ) -> wow_entities::PlayerCollectionStateLikeCpp {
         crate::session::hub_ref(self).represented_player_collection_state_like_cpp()
     }
+    pub(in crate::session) fn player_collection_state_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerCollectionStateLikeCpp> {
+        crate::session::hub_ref(self).player_collection_state_snapshot_like_cpp()
+    }
+    pub(crate) fn add_player_toy_dynamic_field_like_cpp(
+        &mut self,
+        item_id: u32,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        crate::session::hub_mut(self).add_player_toy_dynamic_field_like_cpp(item_id)
+    }
+    pub(crate) fn add_player_heirloom_dynamic_fields_like_cpp(
+        &mut self,
+        item_id: u32,
+        flags: u32,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        crate::session::hub_mut(self).add_player_heirloom_dynamic_fields_like_cpp(item_id, flags)
+    }
 }

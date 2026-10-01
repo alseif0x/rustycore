@@ -131,7 +131,9 @@ impl WorldSession {
             return true;
         }
 
-        let Some(player_object) = self.build_condition_player_object_like_cpp() else {
+        let Some(player_object) =
+            crate::session::hub_ref(self).build_condition_player_object_like_cpp()
+        else {
             return false;
         };
         let Some(recurrence) = self.player_quest_gameplay_snapshot_like_cpp() else {
@@ -200,11 +202,16 @@ impl WorldSession {
 
         let mut source_info =
             wow_conditions::ConditionSourceInfo::from_targets(Some(&player_object), None, None);
-        let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+        let Some(player_unit_snapshot) =
+            crate::session::hub_ref(self).condition_player_unit_snapshot_like_cpp()
+        else {
             return false;
         };
         source_info.set_unit_target_snapshot(0, player_unit_snapshot);
-        source_info.set_player_target_snapshot(0, self.condition_player_snapshot_like_cpp());
+        source_info.set_player_target_snapshot(
+            0,
+            crate::session::hub_ref(self).condition_player_snapshot_like_cpp(),
+        );
         source_info.set_player_quest_target_snapshot(0, quest_snapshot);
         if let Some(store) = self.player_condition_store() {
             source_info.set_player_condition_store(store.as_ref());
@@ -424,7 +431,7 @@ impl WorldSession {
         }
 
         self.satisfy_quest_race_class_represented_like_cpp(quest)
-            && i32::from(self.player_level_like_cpp())
+            && i32::from(crate::session::hub_ref(self).player_level_like_cpp())
                 .saturating_add(self.quest_state.quest_high_level_hide_diff_like_cpp as i32)
                 >= quest.min_level
     }
@@ -483,9 +490,9 @@ impl WorldSession {
 
         // SatisfyQuestRace + SatisfyQuestClass + SatisfyQuestLevel
         if !quest.is_available_for(
-            self.player_race_like_cpp(),
-            self.player_class_like_cpp(),
-            self.player_level_like_cpp(),
+            crate::session::hub_ref(self).player_race_like_cpp(),
+            crate::session::hub_ref(self).player_class_like_cpp(),
+            crate::session::hub_ref(self).player_level_like_cpp(),
         ) {
             return false;
         }

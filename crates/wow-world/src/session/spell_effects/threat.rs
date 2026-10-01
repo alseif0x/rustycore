@@ -176,7 +176,7 @@ impl WorldSession {
         // C++ `AddThreat(..., 0.0f)` still creates the reciprocal combat
         // reference (notably for controlled heal-threat owners).
         if attacker_guid.is_player() {
-            let _ = self.begin_canonical_player_combat_ref_like_cpp(
+            let _ = crate::session::hub_mut(self).begin_canonical_player_combat_ref_like_cpp(
                 attacker_guid,
                 creature_guid,
                 false,
@@ -266,7 +266,7 @@ impl WorldSession {
         target_guid: ObjectGuid,
     ) -> Result<(), &'static str> {
         let player_guid = self.player_guid().ok_or("No player GUID")?;
-        if self.resolved_player_is_alive_like_cpp() != Some(true) {
+        if crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true) {
             return Ok(());
         }
 

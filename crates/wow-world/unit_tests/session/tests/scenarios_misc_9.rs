@@ -22,7 +22,7 @@ fn update_zone_coalesces_faction_to_city_zero_crossings_into_one_final_update_li
         0,
     );
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 571, 0);
-    session.set_player_zone_area_like_cpp(10, 101);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(10, 101);
     session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
         wow_data::AreaTableEntry {
             id: 20,
@@ -87,7 +87,7 @@ fn update_zone_with_overlapping_tavern_flag_does_not_dirty_player_flags_like_cpp
         10,
         0,
     );
-    session.set_player_zone_area_like_cpp(10, 101);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(10, 101);
     session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
         wow_data::AreaTableEntry {
             id: 20,
@@ -145,11 +145,14 @@ fn update_zone_missing_zone_keeps_area_criteria_but_skips_top_level_like_cpp() {
         80,
         0,
     );
-    session.set_player_zone_area_like_cpp(10, 100);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(10, 100);
     session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([])));
 
     assert!(session.update_zone_represented_like_cpp(20, 101));
-    assert_eq!(session.player_zone_area_like_cpp(), Some((20, 101)));
+    assert_eq!(
+        crate::session::hub_ref(&session).player_zone_area_like_cpp(),
+        Some((20, 101))
+    );
     assert_eq!(
         session.represented_area_zone_criteria_like_cpp(),
         &[
@@ -878,8 +881,11 @@ async fn handle_attack_swing_same_target_no_change_sends_no_stop_or_duplicate_st
 
     assert_eq!(drain_server_opcodes(&send_rx), Vec::<ServerOpcodes>::new());
     assert_eq!(
-        session.resolved_combat_target_like_cpp(),
+        crate::session::hub_ref(&session).resolved_combat_target_like_cpp(),
         Some(Some(victim))
     );
-    assert_eq!(session.resolved_in_combat_like_cpp(), Some(true));
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_in_combat_like_cpp(),
+        Some(true)
+    );
 }

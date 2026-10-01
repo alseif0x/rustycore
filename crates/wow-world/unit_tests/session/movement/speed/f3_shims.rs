@@ -49,4 +49,10 @@ impl crate::session::WorldSession {
     pub(crate) fn movement_speed_ack_events_like_cpp(&self) -> &[MovementSpeedAckEventLikeCpp] {
         self.fixtures.movement.movement_speed_ack_events_like_cpp()
     }
+    pub(in crate::session) fn resolved_forced_speed_changes_like_cpp(
+        &self,
+        move_type: UnitMoveTypeLikeCpp,
+    ) -> Option<u8> {
+        crate::session::hub_ref(self).resolved_forced_speed_changes_like_cpp(move_type)
+    }
 }

@@ -62,7 +62,7 @@ impl WorldSession {
     pub(crate) fn apply_move_init_active_mover_complete_like_cpp(&mut self, ticks: u32) {
         let transport_server_time =
             crate::session::game_time_ms_like_cpp().saturating_sub(ticks) as i32;
-        if self
+        if crate::session::hub_mut(self)
             .mutate_active_player_update_state_like_cpp(|state| {
                 state.active_local_flags |=
                     PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP;
@@ -82,7 +82,7 @@ impl WorldSession {
                 object.add_to_notify(ObjectNotifyFlags::VISIBILITY_CHANGED);
             }
         });
-        self.send_active_player_transport_server_time_update_like_cpp();
+        crate::session::hub_ref(self).send_active_player_transport_server_time_update_like_cpp();
     }
 
     pub(crate) async fn apply_deferred_player_visibility_refresh_like_cpp(

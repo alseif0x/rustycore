@@ -77,16 +77,18 @@ impl WorldSession {
         msg_type: ChatMsg,
         chat_policy: &ChatPolicyCatalogsLikeCpp,
     ) -> bool {
-        Self::required_chat_level_with_policy_like_cpp(msg_type, chat_policy)
-            .is_none_or(|required| self.player_level_like_cpp() >= required)
+        Self::required_chat_level_with_policy_like_cpp(msg_type, chat_policy).is_none_or(
+            |required| crate::session::hub_ref(self).player_level_like_cpp() >= required,
+        )
     }
 
     pub(super) fn meets_whisper_level_req_with_policy_like_cpp(
         &self,
         chat_policy: &ChatPolicyCatalogsLikeCpp,
     ) -> bool {
-        self.player_is_game_master_like_cpp() == Some(true)
-            || self.player_level_like_cpp() >= chat_policy.level_requirements.whisper
+        crate::session::hub_ref(self).player_is_game_master_like_cpp() == Some(true)
+            || crate::session::hub_ref(self).player_level_like_cpp()
+                >= chat_policy.level_requirements.whisper
     }
 
     pub(super) fn send_whisper_away_reply_like_cpp(

@@ -44,12 +44,6 @@ pub(crate) fn write_absorbed_shield_amount_like_cpp(
 }
 
 impl WorldSession {
-    pub(crate) fn publish_self_share_health_like_cpp(
-        &self,
-        command: &crate::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand,
-    ) {
-        crate::session::hub_ref(self).publish_self_share_health_like_cpp(command)
-    }
     pub(in crate::session) fn represented_weapon_damage_bounds_like_cpp(
         &self,
         item_entry: u32,
@@ -69,14 +63,6 @@ impl WorldSession {
         }
 
         (min_damage, max_damage)
-    }
-    pub(in crate::session) fn represented_resistances_with_scaling_armor_like_cpp(
-        &self,
-        resistances: &[i16; 7],
-        scaling_context: Option<RepresentedScalingStatContextLikeCpp>,
-    ) -> [i16; 7] {
-        crate::session::hub_ref(self)
-            .represented_resistances_with_scaling_armor_like_cpp(resistances, scaling_context)
     }
     /// C++ `Unit::CalcAbsorbResist`'s absorb publication for one melee hit
     /// (`Unit.cpp:1876-1889`): per shield that consumed part of the hit, send the
@@ -153,24 +139,13 @@ impl WorldSession {
             self.broadcast_player_packet_to_visible_set_realm_like_cpp(packet.clone());
         }
     }
-    pub(in crate::session) fn apply_owned_player_damage_like_cpp(
-        &mut self,
-        requested_damage: u32,
-        lethal_death_state: wow_constants::DeathState,
-    ) -> Option<(u32, u32, u32, u32, bool)> {
-        crate::session::hub_mut(self)
-            .apply_owned_player_damage_like_cpp(requested_damage, lethal_death_state)
-    }
-    pub(in crate::session) fn resolved_player_damage_control_like_cpp(
-        &self,
-    ) -> Option<wow_entities::PlayerDamageControlStateLikeCpp> {
-        crate::session::hub_ref(self).resolved_player_damage_control_like_cpp()
-    }
     pub(crate) fn set_player_health_after_runtime_damage_like_cpp(&mut self, health_after: u64) {
-        let Some((_, max_health, _)) = self.resolved_player_vitals_like_cpp() else {
+        let Some((_, max_health, _)) =
+            crate::session::hub_ref(self).resolved_player_vitals_like_cpp()
+        else {
             return;
         };
-        let _ = self.sync_canonical_player_health_like_cpp(
+        let _ = crate::session::hub_mut(self).sync_canonical_player_health_like_cpp(
             health_after.min(u64::from(max_health)) as u32,
             max_health,
         );

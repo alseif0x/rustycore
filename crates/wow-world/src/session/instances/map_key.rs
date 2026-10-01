@@ -141,7 +141,9 @@ impl WorldSession {
 
         Some(wow_map::CreateMapPlayerContext {
             guid_counter: player_guid.counter() as u64,
-            team_id: player_team_id_for_race_cpp(self.player_race_like_cpp()),
+            team_id: player_team_id_for_race_cpp(
+                crate::session::hub_ref(self).player_race_like_cpp(),
+            ),
             battleground_id: 0,
             has_battleground: false,
             player_difficulty_id,
@@ -207,7 +209,7 @@ impl WorldSession {
             return Some((TRANSFER_ABORT_DIFFICULTY_LIKE_CPP, 0, 0));
         }
 
-        if self.player_is_game_master_like_cpp() == Some(true) {
+        if crate::session::hub_ref(self).player_is_game_master_like_cpp() == Some(true) {
             return None;
         }
 
@@ -304,7 +306,7 @@ impl WorldSession {
         if !map_entry.ignores_instance_farm_limit_like_cpp()
             && let Some(key) = decision_key
             && !self.check_instance_count_probe_like_cpp(key.instance_id)
-            && self.resolved_player_is_alive_like_cpp() == Some(true)
+            && crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() == Some(true)
         {
             return Some((TRANSFER_ABORT_TOO_MANY_INSTANCES_LIKE_CPP, 0, 0));
         }
@@ -319,7 +321,8 @@ impl WorldSession {
         &mut self,
         movement_info: &wow_packet::packets::movement::MovementInfo,
     ) -> Option<MovementUnderMapDamageEvent> {
-        let min_height = self.player_min_height_like_cpp(movement_info.position);
+        let min_height =
+            crate::session::hub_ref(self).player_min_height_like_cpp(movement_info.position);
         if movement_info.position.z >= min_height {
             #[cfg(test)]
             {
@@ -329,7 +332,7 @@ impl WorldSession {
         }
 
         let (original_health, max_health, player_is_alive) =
-            self.resolved_player_vitals_like_cpp()?;
+            crate::session::hub_ref(self).resolved_player_vitals_like_cpp()?;
         if !player_is_alive {
             return None;
         }
@@ -339,8 +342,8 @@ impl WorldSession {
             self.fixtures.movement.player_out_of_bounds_like_cpp = true;
         }
         let damage = max_health;
-        let (_, health_after, _, _, killed_player) =
-            self.apply_owned_player_damage_like_cpp(damage, wow_constants::DeathState::JustDied)?;
+        let (_, health_after, _, _, killed_player) = crate::session::hub_mut(self)
+            .apply_owned_player_damage_like_cpp(damage, wow_constants::DeathState::JustDied)?;
         if health_after != original_health
             && let Some(player_guid) = self.player_guid()
         {
@@ -360,7 +363,7 @@ impl WorldSession {
         }
 
         // C++ calls KillPlayer if EnvironmentalDamage did not kill due to GM/immunity.
-        if self.resolved_player_is_alive_like_cpp() == Some(true) {
+        if crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() == Some(true) {
             self.set_player_alive_like_cpp(false);
         } else {
             self.sync_player_registry_state_like_cpp();

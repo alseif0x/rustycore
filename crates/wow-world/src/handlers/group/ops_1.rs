@@ -115,7 +115,7 @@ impl WorldSession {
         // C++ `HandlePartyInviteOpcode` rejects inviting GM targets unless
         // `GM.AllowInvite` / `CONFIG_ALLOW_GM_GROUP` is enabled.
         if !policy.allow_gm_group
-            && self.player_is_game_master_like_cpp() != Some(true)
+            && crate::session::hub_ref(self).player_is_game_master_like_cpp() != Some(true)
             && target_snapshot.is_game_master
         {
             send_result!(party_result::BAD_PLAYER_NAME);
@@ -123,8 +123,8 @@ impl WorldSession {
         }
 
         if !policy.allow_two_side_interaction
-            && self.player_is_game_master_like_cpp() != Some(true)
-            && player_team_for_race_cpp(self.player_race_like_cpp())
+            && crate::session::hub_ref(self).player_is_game_master_like_cpp() != Some(true)
+            && player_team_for_race_cpp(crate::session::hub_ref(self).player_race_like_cpp())
                 != player_team_for_race_cpp(target_snapshot.race)
         {
             send_result!(party_result::WRONG_FACTION);
@@ -166,7 +166,7 @@ impl WorldSession {
             return;
         }
 
-        if u32::from(self.player_level_like_cpp()) < policy.minimum_level
+        if u32::from(crate::session::hub_ref(self).player_level_like_cpp()) < policy.minimum_level
             && !target_social_has_inviter_friend_like_cpp(social_port, real_target_guid, my_guid)
                 .await
         {
@@ -181,7 +181,9 @@ impl WorldSession {
             None => return,
         };
 
-        let inviter_name = self.player_name_like_cpp().unwrap_or_default();
+        let inviter_name = crate::session::hub_ref(self)
+            .player_name_like_cpp()
+            .unwrap_or_default();
         let vra = self.core.virtual_realm_address();
         let (realm_name, realm_name_normalized) = self
             .core
@@ -322,7 +324,9 @@ impl WorldSession {
             Some(g) => g,
             None => return,
         };
-        let my_name = self.player_name_like_cpp().unwrap_or_default();
+        let my_name = crate::session::hub_ref(self)
+            .player_name_like_cpp()
+            .unwrap_or_default();
 
         // Clone Arcs immediately so we hold no borrow on `self` later.
         let pending = match self.pending_invites() {
@@ -523,7 +527,7 @@ impl WorldSession {
             .unwrap_or(0);
         let any_member_in_combat = group_snapshot.members.iter().any(|member_guid| {
             if *member_guid == sender_guid {
-                self.resolved_in_combat_like_cpp() != Some(false)
+                crate::session::hub_ref(self).resolved_in_combat_like_cpp() != Some(false)
             } else {
                 registry.group_presence(*member_guid).is_some_and(|member| {
                     member.in_combat
@@ -537,7 +541,8 @@ impl WorldSession {
             uninvite.target_guid,
             GroupMemberRemovalKindLikeCpp::Kick {
                 actor_guid: sender_guid,
-                actor_in_battleground: self.player_in_represented_battleground_like_cpp(),
+                actor_in_battleground: crate::session::hub_ref(self)
+                    .player_in_represented_battleground_like_cpp(),
                 target_has_loot_rolls,
                 any_member_in_actor_map_combat: any_member_in_combat,
             },
@@ -691,7 +696,7 @@ impl WorldSession {
             return;
         };
 
-        if self.player_in_represented_battleground_like_cpp() {
+        if crate::session::hub_ref(self).player_in_represented_battleground_like_cpp() {
             self.send_packet_realm(&PartyCommandResult {
                 name: String::new(),
                 command: 0,
@@ -702,7 +707,9 @@ impl WorldSession {
             return;
         }
 
-        let player_name = self.player_name_like_cpp().unwrap_or_default();
+        let player_name = crate::session::hub_ref(self)
+            .player_name_like_cpp()
+            .unwrap_or_default();
 
         if real_group_guid.is_none() {
             if let (Some(pending_invites), Some(invite)) =

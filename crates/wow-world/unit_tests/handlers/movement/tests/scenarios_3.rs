@@ -84,7 +84,10 @@ fn transport_membership_resets_when_requested_transport_is_not_canonical_like_cp
             .reconcile_player_transport_membership_like_cpp(player_guid, Some(missing_transport),),
         crate::session::MovementTransportMembershipLikeCpp::Detached
     );
-    assert_eq!(session.player_transport_guid_like_cpp(), None);
+    assert_eq!(
+        crate::session::hub_ref(&session).player_transport_guid_like_cpp(),
+        None
+    );
 }
 
 #[tokio::test]
@@ -128,7 +131,7 @@ async fn move_time_skipped_broadcasts_skip_time_to_other_players_like_cpp() {
     session.set_player_guid(Some(guid));
     session.set_player_registry(std::sync::Arc::clone(&registry));
     session.set_player_position_like_cpp(wow_core::Position::ZERO);
-    session.set_player_movement_time_like_cpp(100);
+    crate::session::hub_mut(&mut session).set_player_movement_time_like_cpp(100);
     registry.register_or_replace(
         guid,
         broadcast_info_with_command(guid, self_tx, self_command_tx),

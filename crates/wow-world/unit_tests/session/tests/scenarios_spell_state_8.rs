@@ -53,8 +53,8 @@ fn represented_mounted_aura_toggles_mount_flag_like_cpp() {
         ]),
     ));
     let native_display_id = crate::handlers::character::default_display_id(
-        session.player_race_like_cpp(),
-        session.player_gender_like_cpp(),
+        crate::session::hub_ref(&session).player_race_like_cpp(),
+        crate::session::hub_ref(&session).player_gender_like_cpp(),
     );
     session.set_creature_display_info_store(Arc::new(
         wow_data::CreatureDisplayInfoStore::from_entries([
@@ -749,7 +749,7 @@ fn represented_fly_aura_removal_unsets_can_fly_and_resets_fall_info_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
     session.set_player_map_position_like_cpp(571, Position::new(1.0, 2.0, 44.0, 0.0));
-    session.set_fall_information_like_cpp(1_200, 80.0);
+    crate::session::hub_mut(&mut session).set_fall_information_like_cpp(1_200, 80.0);
     let caster = ObjectGuid::create_player(1, 42);
     let fly = wow_data::SpellEffectInfo {
         effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,
@@ -811,7 +811,7 @@ fn represented_fly_aura_removal_skips_move_fall_when_gravity_disabled_like_cpp()
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
     session.set_player_map_position_like_cpp(571, Position::new(1.0, 2.0, 44.0, 0.0));
     session.set_player_movement_flags_like_cpp(MovementFlag::DISABLE_GRAVITY);
-    session.set_fall_information_like_cpp(1_200, 80.0);
+    crate::session::hub_mut(&mut session).set_fall_information_like_cpp(1_200, 80.0);
     let caster = ObjectGuid::create_player(1, 42);
     let fly = wow_data::SpellEffectInfo {
         effect: wow_data::spell::spell_effect_types::SPELL_EFFECT_APPLY_AURA,

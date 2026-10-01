@@ -59,7 +59,7 @@ fn represented_run_speed_minimum_speed_floor_applies_after_slow_like_cpp() {
             30_000,
         )
         .unwrap();
-    session.recompute_represented_run_speed_rate_like_cpp();
+    crate::session::hub_mut(&mut session).recompute_represented_run_speed_rate_like_cpp();
 
     assert!(
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 5.25).abs() < 0.0001,
@@ -124,7 +124,7 @@ fn represented_run_speed_minimum_speed_removal_recomputes_like_cpp() {
             30_000,
         )
         .unwrap();
-    session.recompute_represented_run_speed_rate_like_cpp();
+    crate::session::hub_mut(&mut session).recompute_represented_run_speed_rate_like_cpp();
     assert!(
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 5.25).abs() < 0.0001
     );
@@ -184,7 +184,7 @@ fn represented_run_speed_minimum_speed_rate_floor_applies_before_slow_like_cpp()
             30_000,
         )
         .unwrap();
-    session.recompute_represented_run_speed_rate_like_cpp();
+    crate::session::hub_mut(&mut session).recompute_represented_run_speed_rate_like_cpp();
 
     assert!(
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 5.0).abs() < 0.0001,
@@ -233,7 +233,7 @@ fn represented_run_speed_minimum_speed_rate_removal_recomputes_like_cpp() {
             30_000,
         )
         .unwrap();
-    session.recompute_represented_run_speed_rate_like_cpp();
+    crate::session::hub_mut(&mut session).recompute_represented_run_speed_rate_like_cpp();
     assert!(
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 5.0).abs() < 0.0001
     );
@@ -293,7 +293,10 @@ fn represented_mount_capability_uses_login_zone_area_fallback_like_cpp() {
         }]),
     ));
 
-    assert_eq!(session.player_zone_area_like_cpp(), Some((0, 0)));
+    assert_eq!(
+        crate::session::hub_ref(&session).player_zone_area_like_cpp(),
+        Some((0, 0))
+    );
     assert_eq!(
         session
             .represented_mount_capability_for_type_from_session_like_cpp(7, None)
@@ -306,7 +309,7 @@ fn represented_mount_capability_uses_login_zone_area_fallback_like_cpp() {
     // the map. Rust currently seeds the represented runtime from the DB
     // zone until TerrainMgr parity exists; using the zone as area is still
     // closer than evaluating mount restrictions against area 0.
-    session.set_player_zone_area_like_cpp(1519, 1519);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(1519, 1519);
     assert_eq!(
         session
             .represented_mount_capability_for_type_from_session_like_cpp(7, None)

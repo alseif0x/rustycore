@@ -9,16 +9,6 @@ use super::{PlayerInteractionDataLikeCpp, Position, RepresentedCreatureAccessLik
 use super::{RepresentedGetReactionInputLikeCpp, UnitFlags2, WorldSession, canonical_access};
 
 impl WorldSession {
-    pub(crate) fn represented_npc_can_interact_with_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        npc_flags: u32,
-        npc_flags2: u32,
-    ) -> Option<RepresentedCreatureAccessLikeCpp> {
-        crate::session::hub_ref(self)
-            .represented_npc_can_interact_with_like_cpp(guid, npc_flags, npc_flags2)
-    }
-
     pub(crate) fn reset_player_interaction_data_like_cpp(&mut self) -> bool {
         let (state, hub) = crate::session::split_interaction(self);
         state.reset_player_interaction_data_like_cpp(hub)

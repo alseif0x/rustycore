@@ -94,11 +94,13 @@ impl WorldSession {
         item_guid_generator: &wow_core::ObjectGuidGenerator,
         repair: RepairItem,
     ) {
-        let Some(repair_npc) = self.represented_npc_can_interact_with_like_cpp(
-            repair.npc_guid,
-            NPCFlags1::REPAIR.bits(),
-            0,
-        ) else {
+        let Some(repair_npc) = crate::session::hub_ref(self)
+            .represented_npc_can_interact_with_like_cpp(
+                repair.npc_guid,
+                NPCFlags1::REPAIR.bits(),
+                0,
+            )
+        else {
             debug!(
                 npc_guid = ?repair.npc_guid,
                 account = self.core.account_id,
@@ -110,9 +112,10 @@ impl WorldSession {
         self.remove_represented_feign_death_if_needed_like_cpp();
 
         // C++ uses GetReputationPriceDiscount(unit) and RATE_REPAIRCOST.
-        let discount_mod = self.reputation_price_discount_for_faction_template_like_cpp(
-            repair_npc.faction_template_id,
-        );
+        let discount_mod = crate::session::hub_ref(self)
+            .reputation_price_discount_for_faction_template_like_cpp(
+                repair_npc.faction_template_id,
+            );
         let repair_cost_rate = self.repair_cost_rate_like_cpp();
 
         if !repair.item_guid.is_empty() {

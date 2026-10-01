@@ -30,12 +30,12 @@ impl WorldSession {
             .and_then(|store| store.get(item.entry_id));
 
         let flags2 = sparse.map_or(0, |template| template.flags[1]);
-        let player_class_mask = self
+        let player_class_mask = crate::session::hub_ref(self)
             .player_class_like_cpp()
             .checked_sub(1)
             .and_then(|shift| 1u32.checked_shl(u32::from(shift)))
             .unwrap_or(0);
-        let player_race_mask = self
+        let player_race_mask = crate::session::hub_ref(self)
             .player_race_like_cpp()
             .checked_sub(1)
             .and_then(|shift| 1i64.checked_shl(u32::from(shift)))
@@ -55,7 +55,9 @@ impl WorldSession {
         let required_skill_rank = search.map_or(0, |entry| u32::from(entry.required_skill_rank));
         let required_skill_value = match u16::try_from(required_skill).ok() {
             Some(skill) => {
-                let Some(value) = self.resolved_player_skill_value_like_cpp(skill) else {
+                let Some(value) =
+                    crate::session::hub_ref(self).resolved_player_skill_value_like_cpp(skill)
+                else {
                     return InventoryResult::ItemNotFound;
                 };
                 u32::from(value)
@@ -100,14 +102,16 @@ impl WorldSession {
             proto: proto.as_ref(),
             not_loading,
             is_alive: true,
-            player_level: self.player_level_like_cpp(),
+            player_level: crate::session::hub_ref(self).player_level_like_cpp(),
             item_required_level: base_required_level,
             source_bop_trade_allowed_for_player: false,
             template_args: CanUseItemTemplateArgs {
                 proto: proto.as_ref(),
                 skip_required_level_check: false,
-                player_level: self.player_level_like_cpp(),
-                team: player_team_id_for_race_cpp(self.player_race_like_cpp()),
+                player_level: crate::session::hub_ref(self).player_level_like_cpp(),
+                team: player_team_id_for_race_cpp(
+                    crate::session::hub_ref(self).player_race_like_cpp(),
+                ),
                 allowable_class_matches,
                 allowable_race_matches,
                 internal_item: (flags2 & ItemFlags2::InternalItem as u32) != 0,
@@ -133,7 +137,7 @@ impl WorldSession {
             item_skill: 0,
             item_skill_value: 0,
             has_item_skill: false,
-            player_class: self.player_class_like_cpp(),
+            player_class: crate::session::hub_ref(self).player_class_like_cpp(),
             proto_is_heirloom: quality == ItemQuality::Heirloom as i8,
         })
     }

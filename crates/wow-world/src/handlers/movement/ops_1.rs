@@ -56,7 +56,8 @@ impl WorldSession {
             );
             return;
         };
-        let Some(mover_guid) = self.player_moved_unit_guid_like_cpp() else {
+        let Some(mover_guid) = crate::session::hub_ref(self).player_moved_unit_guid_like_cpp()
+        else {
             warn!(
                 account = self.core.account_id,
                 "Movement packet received without active mover"
@@ -87,8 +88,8 @@ impl WorldSession {
         // pending transition, so movement packets must not clear emotes,
         // mutate position, or publish stale state in this window.
         if mover_is_player
-            && (self.near_teleport_pending_like_cpp()
-                || self.represented_far_teleport_pending_like_cpp())
+            && (crate::session::hub_ref(self).near_teleport_pending_like_cpp()
+                || crate::session::hub_ref(self).represented_far_teleport_pending_like_cpp())
         {
             trace!(
                 account = self.core.account_id,
@@ -108,7 +109,7 @@ impl WorldSession {
                 .copied()
                 .filter(|rule| rule.removes_flags_like_cpp())
             {
-                self.trace_anticheat_violation_like_cpp(
+                crate::session::hub_ref(self).trace_anticheat_violation_like_cpp(
                     rule.trace_rule_name_like_cpp(),
                     opcode,
                     "strip",
@@ -123,7 +124,7 @@ impl WorldSession {
         }
 
         if info.guid != mover_guid {
-            self.trace_anticheat_violation_like_cpp(
+            crate::session::hub_ref(self).trace_anticheat_violation_like_cpp(
                 "HandleMovementOpcode.GuidMismatch",
                 opcode,
                 "reject",
@@ -137,7 +138,7 @@ impl WorldSession {
 
         let pos = info.position;
         if !pos.is_valid_map_coord_like_cpp() {
-            self.trace_anticheat_violation_like_cpp(
+            crate::session::hub_ref(self).trace_anticheat_violation_like_cpp(
                 "HandleMovementOpcode.InvalidPosition",
                 opcode,
                 "reject",
@@ -152,7 +153,7 @@ impl WorldSession {
         // C++ `HandleMovementOpcode` rejects movement generated before the
         // mover's spline has finalized. Keep this after GUID/position checks,
         // matching the source ordering and preserving sanitized admission.
-        if !self
+        if !crate::session::hub_ref(self)
             .mover_spline_finalized_like_cpp(mover_guid)
             .unwrap_or(false)
         {
@@ -165,10 +166,11 @@ impl WorldSession {
         }
 
         if mover_is_player {
-            self.clear_player_emote_state_on_player_movement_like_cpp();
+            crate::session::hub_mut(self).clear_player_emote_state_on_player_movement_like_cpp();
         }
 
-        let current_mover_position = self.mover_position_like_cpp(mover_guid);
+        let current_mover_position =
+            crate::session::hub_ref(self).mover_position_like_cpp(mover_guid);
         let new_player_cell_like_cpp =
             mover_is_player.then(|| wow_map::cell_from_world(pos.x, pos.y));
         let old_player_cell_like_cpp = current_mover_position
@@ -219,10 +221,11 @@ impl WorldSession {
 
         if mover_is_player {
             let requested_transport_guid = info.transport.as_ref().map(|transport| transport.guid);
-            let transport_membership = self.reconcile_player_transport_membership_like_cpp(
-                mover_guid,
-                requested_transport_guid,
-            );
+            let transport_membership = crate::session::hub_ref(self)
+                .reconcile_player_transport_membership_like_cpp(
+                    mover_guid,
+                    requested_transport_guid,
+                );
             if !matches!(
                 transport_membership,
                 MovementTransportMembershipLikeCpp::Attached(_)
@@ -231,11 +234,14 @@ impl WorldSession {
                 // vehicle owns the mover after the add/remove attempt.
                 info.transport = None;
             }
-            self.set_player_transport_info_like_cpp(info.transport.clone());
+            crate::session::hub_mut(self)
+                .set_player_transport_info_like_cpp(info.transport.clone());
             // C++ handles fall/parachute/pet effects before assigning
             // `m_movementInfo`, but stand/fall/under-map/jump effects after
             // the vehicle early-return. Keep that phase boundary explicit.
-            if self.represented_current_vehicle_seat_allows_turning_like_cpp() {
+            if crate::session::hub_ref(self)
+                .represented_current_vehicle_seat_allows_turning_like_cpp()
+            {
                 self.apply_movement_pre_position_side_effects_like_cpp(opcode, &info);
             } else {
                 self.apply_movement_side_effects_like_cpp(opcode, &info);
@@ -246,26 +252,29 @@ impl WorldSession {
         ) {
             // C++ removes the temporary pet from the active player, not from the
             // moved unit, even when a controlled unit is the mover.
-            self.request_temporary_pet_unsummon_like_cpp();
+            crate::session::hub_mut(self).request_temporary_pet_unsummon_like_cpp();
         }
         info.guid = mover_guid;
-        info.time = self.adjust_client_movement_time_like_cpp(info.time);
+        info.time = crate::session::hub_ref(self).adjust_client_movement_time_like_cpp(info.time);
         let adjusted_time = info.time;
 
         if mover_is_player {
-            self.set_player_movement_time_like_cpp(info.time);
-            self.set_player_movement_flags_like_cpp(info.flags);
-            self.set_player_movement_jump_like_cpp(info.jump.clone());
+            crate::session::hub_mut(self).set_player_movement_time_like_cpp(info.time);
+            crate::session::hub_mut(self).set_player_movement_flags_like_cpp(info.flags);
+            crate::session::hub_mut(self).set_player_movement_jump_like_cpp(info.jump.clone());
 
             // TrinityCore returns before `UpdatePosition` and publication for
             // a passenger whose seat permits independent turning. Only the
             // facing changes; the vehicle remains authoritative for x/y/z.
-            if self.represented_current_vehicle_seat_allows_turning_like_cpp() {
-                if self
+            if crate::session::hub_ref(self)
+                .represented_current_vehicle_seat_allows_turning_like_cpp()
+            {
+                if crate::session::hub_ref(self)
                     .player_position_like_cpp()
                     .is_some_and(|current| current.orientation != info.position.orientation)
                 {
-                    self.set_player_orientation_like_cpp(info.position.orientation);
+                    crate::session::hub_mut(self)
+                        .set_player_orientation_like_cpp(info.position.orientation);
                     self.remove_auras_with_interrupt_flags_like_cpp(
                         SPELL_AURA_INTERRUPT_FLAG_TURNING_LIKE_CPP,
                         0,
@@ -275,7 +284,7 @@ impl WorldSession {
             }
 
             // Update server-side player position.
-            self.set_player_position_like_cpp(info.position);
+            crate::session::hub_mut(self).set_player_position_like_cpp(info.position);
             let authoritative_grid_map_key = self
                 .core
                 .current_canonical_player_map_key_like_cpp()
@@ -375,14 +384,18 @@ impl WorldSession {
                         self.update_zone_represented_like_cpp(zone_id, area_id);
                         area_id
                     } else {
-                        let Some((_, current_area_id)) = self.player_zone_area_like_cpp() else {
+                        let Some((_, current_area_id)) =
+                            crate::session::hub_ref(self).player_zone_area_like_cpp()
+                        else {
                             return;
                         };
                         current_area_id
                     }
                 }
                 Err(error) => {
-                    let Some((_, area_id)) = self.player_zone_area_like_cpp() else {
+                    let Some((_, area_id)) =
+                        crate::session::hub_ref(self).player_zone_area_like_cpp()
+                    else {
                         return;
                     };
                     warn!(
@@ -402,7 +415,7 @@ impl WorldSession {
             )
             .await;
             // Keep the broadcast registry in sync so chat range checks are accurate.
-            self.update_registry_position();
+            crate::session::hub_ref(self).update_registry_position();
             trace!(
                 account = self.core.account_id,
                 x = pos.x,
@@ -536,7 +549,7 @@ impl WorldSession {
         opcode: Option<ClientOpcodes>,
         info: &MovementInfo,
     ) {
-        self.clear_player_emote_state_on_player_movement_like_cpp();
+        crate::session::hub_mut(self).clear_player_emote_state_on_player_movement_like_cpp();
 
         if matches!(opcode, Some(ClientOpcodes::MoveFallLand)) {
             self.handle_fall_like_cpp(info);
@@ -558,15 +571,16 @@ impl WorldSession {
             opcode,
             Some(ClientOpcodes::MoveSetFly) | Some(ClientOpcodes::MoveSetAdvFly)
         ) {
-            self.request_temporary_pet_unsummon_like_cpp();
+            crate::session::hub_mut(self).request_temporary_pet_unsummon_like_cpp();
         }
 
-        if self.player_is_sit_state_like_cpp()
+        if crate::session::hub_ref(self).player_is_sit_state_like_cpp()
             && info
                 .flags
                 .intersects(MovementFlag::MASK_MOVING | MovementFlag::MASK_TURNING)
         {
-            self.set_player_stand_state_like_cpp(UnitStandStateType::Stand);
+            crate::session::hub_mut(self)
+                .set_player_stand_state_like_cpp(UnitStandStateType::Stand);
         }
 
         if matches!(opcode, Some(ClientOpcodes::MoveJump)) {
@@ -577,7 +591,7 @@ impl WorldSession {
             self.request_jump_proc_like_cpp();
         }
 
-        self.update_fall_information_if_needed_like_cpp(
+        crate::session::hub_mut(self).update_fall_information_if_needed_like_cpp(
             info,
             matches!(opcode, Some(ClientOpcodes::MoveFallLand)),
         );
@@ -608,11 +622,8 @@ impl WorldSession {
             opcode,
             Some(ClientOpcodes::MoveSetFly) | Some(ClientOpcodes::MoveSetAdvFly)
         ) {
-            self.request_temporary_pet_unsummon_like_cpp();
+            crate::session::hub_mut(self).request_temporary_pet_unsummon_like_cpp();
         }
-    }
-    pub(super) fn clear_player_emote_state_on_player_movement_like_cpp(&mut self) {
-        crate::session::hub_mut(self).clear_player_emote_state_on_player_movement_like_cpp()
     }
     /// Handle CMSG_SET_ACTIVE_MOVER — client sets which unit is currently being moved.
     ///
@@ -622,11 +633,12 @@ impl WorldSession {
         info!(
             account = self.core.account_id,
             mover = ?pkt.active_mover,
-            expected = ?self.player_moved_unit_guid_like_cpp(),
+            expected = ?crate::session::hub_ref(self).player_moved_unit_guid_like_cpp(),
             "RUST_LOGIN_TRACE SetActiveMover"
         );
 
-        let Some(expected_mover) = self.player_moved_unit_guid_like_cpp() else {
+        let Some(expected_mover) = crate::session::hub_ref(self).player_moved_unit_guid_like_cpp()
+        else {
             warn!(
                 account = self.core.account_id,
                 "SetActiveMover received without canonical active mover"
@@ -709,11 +721,13 @@ impl WorldSession {
 
         if accepted
             && matches!(opcode, ClientOpcodes::MoveSetModMovementForceMagnitudeAck)
-            && let Some(source_position) = self.mover_position_like_cpp(pkt.ack.status.guid)
+            && let Some(source_position) =
+                crate::session::hub_ref(self).mover_position_like_cpp(pkt.ack.status.guid)
         {
             let mut status = pkt.ack.status.clone();
-            status.time = self.adjust_client_movement_time_like_cpp(status.time);
-            self.broadcast_from_movement_source_set_like_cpp(
+            status.time =
+                crate::session::hub_ref(self).adjust_client_movement_time_like_cpp(status.time);
+            crate::session::hub_ref(self).broadcast_from_movement_source_set_like_cpp(
                 status.guid,
                 source_position,
                 MoveUpdateModMovementForceMagnitude {
@@ -734,11 +748,13 @@ impl WorldSession {
         );
         if self.apply_knock_back_ack_like_cpp(ClientOpcodes::MoveKnockBackAck, &mut pkt.ack) {
             let mut status = pkt.ack.status.clone();
-            let Some(adjusted_time) = self.resolved_player_movement_time_like_cpp() else {
+            let Some(adjusted_time) =
+                crate::session::hub_ref(self).resolved_player_movement_time_like_cpp()
+            else {
                 return;
             };
             status.time = adjusted_time;
-            self.broadcast_to_movement_set_like_cpp(
+            crate::session::hub_ref(self).broadcast_to_movement_set_like_cpp(
                 MoveUpdateKnockBack { status }.to_bytes(),
                 false,
             );
@@ -773,9 +789,10 @@ impl WorldSession {
             "MoveApplyMovementForceAck"
         );
         if self.record_apply_movement_force_ack_like_cpp(&mut pkt.ack, &pkt.force)
-            && let Some(source_position) = self.mover_position_like_cpp(pkt.ack.status.guid)
+            && let Some(source_position) =
+                crate::session::hub_ref(self).mover_position_like_cpp(pkt.ack.status.guid)
         {
-            self.broadcast_from_movement_source_set_like_cpp(
+            crate::session::hub_ref(self).broadcast_from_movement_source_set_like_cpp(
                 pkt.ack.status.guid,
                 source_position,
                 MoveUpdateApplyMovementForce {
@@ -798,9 +815,10 @@ impl WorldSession {
             "MoveRemoveMovementForceAck"
         );
         if self.record_remove_movement_force_ack_like_cpp(&mut pkt.ack, pkt.id)
-            && let Some(source_position) = self.mover_position_like_cpp(pkt.ack.status.guid)
+            && let Some(source_position) =
+                crate::session::hub_ref(self).mover_position_like_cpp(pkt.ack.status.guid)
         {
-            self.broadcast_from_movement_source_set_like_cpp(
+            crate::session::hub_ref(self).broadcast_from_movement_source_set_like_cpp(
                 pkt.ack.status.guid,
                 source_position,
                 MoveUpdateRemoveMovementForce {
@@ -820,10 +838,12 @@ impl WorldSession {
             time_skipped = pkt.time_skipped,
             "MoveTimeSkipped"
         );
-        if self.apply_move_time_skipped_like_cpp(pkt.mover_guid, pkt.time_skipped)
-            && let Some(source_position) = self.mover_position_like_cpp(pkt.mover_guid)
+        if crate::session::hub_mut(self)
+            .apply_move_time_skipped_like_cpp(pkt.mover_guid, pkt.time_skipped)
+            && let Some(source_position) =
+                crate::session::hub_ref(self).mover_position_like_cpp(pkt.mover_guid)
         {
-            self.broadcast_from_movement_source_set_like_cpp(
+            crate::session::hub_ref(self).broadcast_from_movement_source_set_like_cpp(
                 pkt.mover_guid,
                 source_position,
                 MoveSkipTime {

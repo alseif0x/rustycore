@@ -19,7 +19,7 @@ fn update_zone_linked_chat_sets_city_rest_only_when_not_hostile_like_cpp() {
         80,
         0,
     );
-    session.set_player_zone_area_like_cpp(10, 100);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(10, 100);
     session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
         wow_data::AreaTableEntry {
             id: 20,
@@ -59,7 +59,7 @@ fn update_zone_linked_chat_sets_city_rest_only_when_not_hostile_like_cpp() {
         },
     ])));
 
-    session.set_player_pvp_hostile_like_cpp(true);
+    crate::session::hub_mut(&mut session).set_player_pvp_hostile_like_cpp(true);
     assert!(session.update_zone_represented_like_cpp(20, 101));
     assert!(session.represented_is_resting_like_cpp());
     assert!(
@@ -77,7 +77,7 @@ fn update_zone_linked_chat_sets_city_rest_only_when_not_hostile_like_cpp() {
     assert!(session.update_zone_represented_like_cpp(50, 103));
     assert!(session.represented_is_resting_like_cpp());
 
-    session.set_player_pvp_hostile_like_cpp(false);
+    crate::session::hub_mut(&mut session).set_player_pvp_hostile_like_cpp(false);
     assert!(session.update_zone_represented_like_cpp(30, 104));
     assert!(!session.represented_is_resting_like_cpp());
 }

@@ -35,7 +35,7 @@ async fn creature_spell_cast_command_sends_start_then_basic_go_after_one_gate_li
 async fn advanced_combat_logging_receives_the_committed_full_creature_spell_go_like_cpp() {
     // The producer committed the full combat-log frame for this receiver.
     let (mut session, send_rx, source_guid) = make_visible_creature_spell_session_like_cpp();
-    session.represented_set_advanced_combat_logging_like_cpp(true);
+    crate::session::hub_mut(&mut session).represented_set_advanced_combat_logging_like_cpp(true);
     let command = creature_spell_cast_command_like_cpp(
         source_guid,
         session.core.client_visible_guids_like_cpp.clone(),
@@ -76,7 +76,7 @@ async fn creature_spell_go_keeps_the_committed_frame_after_a_preference_toggle_l
             command,
         ))
         .expect("atomic spell command queued");
-    session.represented_set_advanced_combat_logging_like_cpp(true);
+    crate::session::hub_mut(&mut session).represented_set_advanced_combat_logging_like_cpp(true);
 
     session
         .process_represented_session_commands_like_cpp()

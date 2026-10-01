@@ -45,7 +45,8 @@ impl WorldSession {
             .is_some_and(|entry| {
                 entry.is_battleground_or_arena() || entry.activates_pvp_item_levels_like_cpp()
             });
-        let pvp_activity = map_pvp_activity || self.represented_has_pvp_rules_enabled_like_cpp();
+        let pvp_activity = map_pvp_activity
+            || crate::session::hub_ref(self).represented_has_pvp_rules_enabled_like_cpp();
         let Some(using_pvp_item_levels) = self.resolved_using_pvp_item_levels_like_cpp() else {
             return None;
         };
@@ -53,7 +54,8 @@ impl WorldSession {
             return Some(false);
         }
 
-        let Some((health_before, max_health_before, _)) = self.resolved_player_vitals_like_cpp()
+        let Some((health_before, max_health_before, _)) =
+            crate::session::hub_ref(self).resolved_player_vitals_like_cpp()
         else {
             return None;
         };

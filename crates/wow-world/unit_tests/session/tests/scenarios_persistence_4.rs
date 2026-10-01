@@ -18,8 +18,8 @@ fn update_talent_data_includes_loaded_talents_and_glyphs_like_cpp() {
     session.set_spell_store(Arc::new(spell_store));
     let talent_tabs = install_test_talent_tab_store_like_cpp(&mut session);
 
-    session.set_represented_active_talent_group_like_cpp(1);
-    session.set_represented_bonus_talent_groups_like_cpp(1);
+    crate::session::hub_mut(&mut session).set_represented_active_talent_group_like_cpp(1);
+    crate::session::hub_mut(&mut session).set_represented_bonus_talent_groups_like_cpp(1);
     assert!(session.load_represented_talent_row_like_cpp(&talent_tabs, 101, 2, 0));
     assert!(session.load_represented_talent_row_like_cpp(&talent_tabs, 202, 1, 1));
     assert!(session.load_represented_glyph_row_like_cpp(&glyph_catalog::catalog(456), 1, 3, 456));
@@ -68,7 +68,7 @@ fn talent_reset_persistence_plan_clears_active_preserves_inactive_and_keeps_zero
     session.set_spell_store(Arc::new(spell_store));
     let talent_tabs = install_test_talent_tab_store_like_cpp(&mut session);
 
-    session.set_represented_active_talent_group_like_cpp(0);
+    crate::session::hub_mut(&mut session).set_represented_active_talent_group_like_cpp(0);
     assert!(session.load_represented_talent_row_like_cpp(&talent_tabs, 101, 0, 0));
     assert!(session.load_represented_talent_row_like_cpp(&talent_tabs, 202, 1, 1));
     session.mark_represented_talents_loaded_like_cpp();
@@ -157,7 +157,7 @@ fn character_glyph_load_filters_invalid_rows_like_cpp() {
 #[test]
 fn cuf_profile_loader_rejects_cpp_oob_id_bug() {
     let (mut session, _, _) = make_session();
-    session.clear_represented_cuf_profiles_like_cpp();
+    crate::session::hub_mut(&mut session).clear_represented_cuf_profiles_like_cpp();
 
     assert!(!session.load_represented_cuf_profile_like_cpp(
         wow_packet::packets::misc::MAX_CUF_PROFILES_LIKE_CPP as u8,
