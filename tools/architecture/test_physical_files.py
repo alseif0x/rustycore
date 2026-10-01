@@ -163,6 +163,35 @@ class PhysicalFilesTests(unittest.TestCase):
         (self.root / "docs/readme.md").symlink_to("real.txt")
         self.assertEqual(self.check()["files"], [])
 
+    def test_in_repo_directory_symlink_is_skipped_without_double_counting(self):
+        self.source(".agents/skills/s/tool.py", 20)
+        (self.root / ".claude/skills").mkdir(parents=True)
+        (self.root / ".claude/skills/s").symlink_to("../../.agents/skills/s")
+        self.assertEqual([row["path"] for row in self.check()["files"]], [".agents/skills/s/tool.py"])
+
+    def test_symlink_to_ignored_in_repo_directory_still_fails(self):
+        (self.root / ".gitignore").write_text("hidden/\n", encoding="utf-8")
+        self.source("hidden/tool.py", 20)
+        (self.root / "tools").mkdir()
+        (self.root / "tools/hidden").symlink_to("../hidden")
+        with self.assertRaisesRegex(physical.PhysicalFileError, "symlink"):
+            self.check()
+
+    def test_out_of_repo_directory_symlink_still_fails(self):
+        outside = tempfile.TemporaryDirectory(prefix="rustycore-physical-outside-")
+        self.addCleanup(outside.cleanup)
+        (pathlib.Path(outside.name) / "tool.py").write_text("x = 1\n", encoding="utf-8")
+        (self.root / "tools").mkdir()
+        (self.root / "tools/outside").symlink_to(outside.name)
+        with self.assertRaisesRegex(physical.PhysicalFileError, "symlink"):
+            self.check()
+
+    def test_source_suffix_symlink_to_in_repo_source_file_still_fails(self):
+        self.source("crates/a/src/real.rs", 20)
+        (self.root / "crates/a/src/link.rs").symlink_to("real.rs")
+        with self.assertRaisesRegex(physical.PhysicalFileError, "symlink"):
+            self.check()
+
     def test_utf8_error_is_not_silently_dropped(self):
         self.source(lines=0).write_bytes(b"\xff")
         with self.assertRaisesRegex(physical.PhysicalFileError, "cannot count source"):

@@ -123,6 +123,7 @@ not override runtime permissions.
 Use the existing architecture skill for boundary/design questions and the safe-refactor skill
 for approved behavior-preserving restructuring. They apply the maintained project documents;
 they are not separate frozen architecture snapshots.
+Day-to-day structure guide for any code change: [develop-rustycore](.agents/skills/develop-rustycore/SKILL.md).
 
 - Require both correct semantic ownership and manageable production/test/fixture files.
   The module-design guide owns the numeric budgets and bounded exception policy.
