@@ -175,8 +175,8 @@ pub(in crate::session) use config::SessionWorldConfig;
 mod identity;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) use identity::PlayerIdentityState;
-mod inventory;
-pub(crate) use inventory::InventoryState;
+mod inventory_state;
+pub(crate) use inventory_state::InventoryState;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod collections;
 #[cfg(any(test, feature = "test-fixtures"))]
