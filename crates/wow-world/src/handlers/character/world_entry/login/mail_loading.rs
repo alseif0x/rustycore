@@ -8,6 +8,18 @@
 use super::*;
 
 impl WorldSession {
+    pub(super) async fn load_character_mail_for_login_like_cpp(
+        &mut self,
+        player_lifecycle_port: &Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>,
+        guid: ObjectGuid,
+    ) -> bool {
+        crate::session::hub_mut(self)
+            .load_character_mail_for_login_like_cpp(player_lifecycle_port, guid)
+            .await
+    }
+}
+
+impl crate::session::HubMut<'_> {
     /// Returns `false` after kicking when mail hydration fails; login aborts.
     pub(super) async fn load_character_mail_for_login_like_cpp(
         &mut self,
@@ -27,11 +39,13 @@ impl WorldSession {
             ) => rows,
             wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!(player_guid = guid.counter(), %reason, "failed to load canonical Player mail owner");
-                self.kick("WorldSession::HandlePlayerLogin Player mail hydration failed");
+                self.core
+                    .kick("WorldSession::HandlePlayerLogin Player mail hydration failed");
                 return false;
             }
             _ => {
-                self.kick("WorldSession::HandlePlayerLogin invalid Player mail hydration outcome");
+                self.core
+                    .kick("WorldSession::HandlePlayerLogin invalid Player mail hydration outcome");
                 return false;
             }
         };
@@ -49,8 +63,9 @@ impl WorldSession {
                 stationery_id: row.stationery_id,
             })
             .collect();
-        if !self.replace_owned_player_mails_like_cpp(mails) {
-            self.kick("WorldSession::HandlePlayerLogin canonical Player mail owner disappeared");
+        if !self.shared().replace_owned_player_mails_like_cpp(mails) {
+            self.core
+                .kick("WorldSession::HandlePlayerLogin canonical Player mail owner disappeared");
             return false;
         }
         true

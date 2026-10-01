@@ -608,10 +608,7 @@ impl WorldSession {
         }
     }
     pub(super) fn clear_player_emote_state_on_player_movement_like_cpp(&mut self) {
-        if let Some(update) = self.clear_player_emote_state_on_movement_like_cpp() {
-            self.send_packet(&update);
-            self.broadcast_to_movement_set_like_cpp(update.to_bytes(), false);
-        }
+        crate::session::hub_mut(self).clear_player_emote_state_on_player_movement_like_cpp()
     }
     /// Handle CMSG_SET_ACTIVE_MOVER — client sets which unit is currently being moved.
     ///
@@ -853,5 +850,15 @@ impl WorldSession {
             "MoveTeleportAck"
         );
         self.handle_move_teleport_ack_like_cpp(pkt.mover_guid, pkt.ack_index, pkt.move_time);
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(super) fn clear_player_emote_state_on_player_movement_like_cpp(&mut self) {
+        if let Some(update) = self.clear_player_emote_state_on_movement_like_cpp() {
+            self.core.send_packet(&update);
+            self.shared()
+                .broadcast_to_movement_set_like_cpp(update.to_bytes(), false);
+        }
     }
 }

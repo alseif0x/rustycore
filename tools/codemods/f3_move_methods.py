@@ -175,7 +175,7 @@ def targets(fns):
         seeds.extend(f["calls"])
 
 
-def plan(root, groups_wanted, classes, rehome=None):
+def plan(root, groups_wanted, classes, rehome=None, keep=()):
     """`rehome` maps fn name -> group: an explicit, reviewed override of the derived target."""
     global HANDLERS, EXT
     W, src, raw, code, groups, fns, owned, HANDLERS, EXT, tests = scan(root)
@@ -195,6 +195,8 @@ def plan(root, groups_wanted, classes, rehome=None):
         if f["target"] not in groups_wanted or f["H"]:
             continue
         k = kind_of(f, classes)
+        if f["name"] in keep:                                # a reviewed fence stays on WorldSession
+            k = "kept on WorldSession by review (--keep): a commit fence or durable step"
         (cand if isinstance(k, tuple) else blocked)[f["name"]] = k
     def unreachable(n):
         kind, tname = cand[n][1], cand[n][2]
@@ -741,6 +743,7 @@ def main(argv=None):
         p.add_argument("--group", required=True)
         p.add_argument("--classes", default="P,C-hub")
         p.add_argument("--rehome", default="", help="name=group[,name=group]: reviewed target overrides")
+        p.add_argument("--keep", default="", help="name[,name]: reviewed fences that stay on WorldSession")
         p.add_argument("--root", default=str(REPO))
         p.add_argument("--json", action="store_true")
         if name == "apply":
@@ -752,8 +755,9 @@ def main(argv=None):
     root = pathlib.Path(a.root).resolve()
     groups, classes = set(a.group.split(",")), set(a.classes.split(","))
     rehome = dict(item.split("=", 1) for item in a.rehome.split(",") if item)
+    keep = {item for item in a.keep.split(",") if item}
     try:
-        P = plan(root, groups, classes, rehome)
+        P = plan(root, groups, classes, rehome, keep)
         if a.cmd == "plan":
             print(json.dumps({"rows": P["rows"], "blocked": P["blocked"], "count": P["count"]}, indent=1)
                   if a.json else report(P, groups))
@@ -775,7 +779,7 @@ def main(argv=None):
             if not step:
                 break
             written, moved = written + step, moved + len(P["rows"])
-            P = plan(root, groups, classes, rehome)
+            P = plan(root, groups, classes, rehome, keep)
         mpath.write_text(json.dumps(manifest, indent=1))
         print(f"text step: {moved} fns moved, {len(set(written))} files written" if written
               else "text step: already applied (no-op)", file=sys.stderr)

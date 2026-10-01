@@ -11,21 +11,8 @@ impl WorldSession {
         difficulty_id: i32,
         legacy: bool,
     ) -> Option<u32> {
-        let difficulty_id = u32::try_from(difficulty_id).ok()?;
-        let entry = self
-            .difficulty_store()
-            .and_then(|store| store.get(difficulty_id))
-            .copied()?;
-        if entry.instance_type != MAP_RAID_LIKE_CPP {
-            return None;
-        }
-
-        let flags = DifficultyFlags::from_bits_truncate(entry.flags);
-        if !flags.contains(DifficultyFlags::CAN_SELECT) {
-            return None;
-        }
-
-        (flags.contains(DifficultyFlags::LEGACY) == legacy).then_some(difficulty_id)
+        let (state, hub) = crate::session::split_quest_state_ref(self);
+        state.represented_raid_difficulty_request_like_cpp(hub, difficulty_id, legacy)
     }
     pub(crate) fn player_quest_gameplay_snapshot_like_cpp(
         &self,
@@ -361,55 +348,6 @@ impl WorldSession {
         state.replace_objective_counts_by_quest_like_cpp(objective_counts_by_quest);
         state
     }
-    #[cfg(test)]
-    fn apply_player_quest_gameplay_fixture_like_cpp(&mut self, state: PlayerQuestGameplayState) {
-        self.apply_player_quest_core_compatibility_like_cpp(&state);
-        self.quest_state
-            .quest_test_fixture_like_cpp
-            .daily_quests_completed_like_cpp =
-            state.daily_quest_ids_like_cpp().iter().copied().collect();
-        self.quest_state
-            .quest_test_fixture_like_cpp
-            .weekly_quests_completed_like_cpp =
-            state.weekly_quest_ids_like_cpp().iter().copied().collect();
-        self.quest_state
-            .quest_test_fixture_like_cpp
-            .monthly_quests_completed_like_cpp =
-            state.monthly_quest_ids_like_cpp().iter().copied().collect();
-        self.quest_state
-            .quest_test_fixture_like_cpp
-            .seasonal_quests_like_cpp = state.seasonal_quests_snapshot_like_cpp();
-        self.quest_state
-            .quest_test_fixture_like_cpp
-            .df_quests_like_cpp = state.df_quest_ids_like_cpp().iter().copied().collect();
-        self.quest_state
-            .quest_test_fixture_like_cpp
-            .last_daily_quest_time_like_cpp = state.last_daily_quest_time_secs_like_cpp();
-        self.quest_state
-            .quest_test_fixture_like_cpp
-            .seasonal_quest_changed_like_cpp = state.seasonal_quest_changed_like_cpp();
-    }
-    #[cfg(test)]
-    fn apply_player_quest_core_compatibility_like_cpp(&mut self, state: &PlayerQuestGameplayState) {
-        self.quest_state.quest_test_fixture_like_cpp.player_quests = state
-            .statuses_like_cpp()
-            .iter()
-            .map(|(&quest_id, status)| (quest_id, status.clone()))
-            .collect();
-        self.quest_state.quest_test_fixture_like_cpp.rewarded_quests = state
-            .rewarded_quest_ids_like_cpp()
-            .iter()
-            .copied()
-            .collect();
-        self.quest_state
-            .quest_test_fixture_like_cpp
-            .player_quest_status_authority_complete_like_cpp =
-            state.status_authority_complete_like_cpp();
-        self.quest_state
-            .quest_test_fixture_like_cpp
-            .represented_rewarded_quest_rows_like_cpp =
-            state.rewarded_quest_rows_like_cpp().clone();
-    }
     pub(in crate::session) fn represented_quest_login_aura_sources_are_hit_inert_like_cpp(
         &self,
         difficulty_id: u8,
@@ -448,19 +386,11 @@ impl WorldSession {
                     .player_target_spell_is_hit_inert_like_cpp(quest.source_spell_id, difficulty_id)
         })
     }
-    /// C++ `Player::PushQuests` scans the complete global quest-template map
-    /// during login and area updates. `AddQuest` can cast an AUTO_PUSH quest's
-    /// SourceSpellID, so the narrow empty-source proof requires that the
-    /// authoritative store contain no such template at all.
     pub(in crate::session) fn represented_auto_push_quest_aura_source_is_empty_like_cpp(
         &self,
     ) -> bool {
-        const QUEST_FLAGS_EX_AUTO_PUSH_LIKE_CPP: u32 = 0x0400_0000;
-        self.catalogs.quests.store.as_ref().is_some_and(|quests| {
-            quests
-                .quests_like_cpp()
-                .all(|quest| quest.flags_ex & QUEST_FLAGS_EX_AUTO_PUSH_LIKE_CPP == 0)
-        })
+        self.catalogs
+            .represented_auto_push_quest_aura_source_is_empty_like_cpp()
     }
     pub(crate) fn spell_area_for_quest_map_bounds_like_cpp(
         &self,
@@ -512,37 +442,21 @@ impl WorldSession {
     pub fn set_min_quest_scaled_xp_ratio_like_cpp(&mut self, ratio: u32) {
         self.quest_state.min_quest_scaled_xp_ratio_like_cpp = if ratio > 100 { 0 } else { ratio };
     }
-    /// C++ `Player::GetQuestLevel`.
     pub(crate) fn player_quest_level_like_cpp(
         &self,
         quest: &wow_data::quest::QuestTemplate,
     ) -> i32 {
-        if quest.quest_level > 0 {
-            quest.quest_level
-        } else {
-            i32::from(self.player_level_like_cpp()).min(quest.quest_max_scaling_level)
-        }
+        let (state, hub) = crate::session::split_quest_state_ref(self);
+        state.player_quest_level_like_cpp(hub, quest)
     }
-    /// Calculate XP reward for a quest.
-    /// C++ `Quest::XPValue(player, questLevel, xpDifficulty, xpMultiplier)`.
     pub(crate) fn calculate_quest_xp(
         &self,
         difficulty: u32,
         quest_level: i32,
         xp_multiplier: f32,
     ) -> u32 {
-        if let Some(store) = &self.catalogs.quests.xp_store {
-            store.calculate_xp(
-                quest_level,
-                self.player_level_like_cpp(),
-                difficulty,
-                xp_multiplier,
-                self.quest_state.min_quest_scaled_xp_ratio_like_cpp,
-            )
-        } else {
-            const XP_TABLE: [u32; 10] = [0, 50, 100, 200, 400, 650, 1000, 1500, 2500, 4000];
-            XP_TABLE[difficulty.min(9) as usize]
-        }
+        let (state, hub) = crate::session::split_quest_state_ref(self);
+        state.calculate_quest_xp(hub, difficulty, quest_level, xp_multiplier)
     }
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_auction_replicate_request_like_cpp(
@@ -574,12 +488,6 @@ impl WorldSession {
                 .saturating_add(1);
         }
     }
-    #[cfg(test)]
-    pub(crate) fn represented_battleground_leave_requests_like_cpp(&self) -> u32 {
-        self.fixtures
-            .battleground
-            .represented_battleground_leave_requests_like_cpp
-    }
     pub(crate) fn set_represented_resurrection_request_like_cpp(
         &mut self,
         request: PlayerResurrectionRequestLikeCpp,
@@ -598,16 +506,8 @@ impl WorldSession {
         canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
     pub(crate) fn clear_represented_resurrection_request_like_cpp(&mut self) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(Player::clear_resurrection_request_like_cpp)
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures
-                .combat
-                .represented_resurrection_request_like_cpp = None;
-        }
-        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
+        let (state, mut hub) = crate::session::split_quest_state_mut(self);
+        state.clear_represented_resurrection_request_like_cpp(&mut hub)
     }
     pub(crate) fn represented_resurrection_requested_by_like_cpp(
         &self,
@@ -651,10 +551,6 @@ impl WorldSession {
     pub(crate) fn request_temporary_pet_unsummon_like_cpp(&mut self) {
         crate::session::hub_mut(self).request_temporary_pet_unsummon_like_cpp()
     }
-    #[cfg(test)]
-    pub(crate) fn temporary_pet_unsummon_requests_like_cpp(&self) -> u32 {
-        self.fixtures.pets.temporary_pet_unsummon_requests_like_cpp
-    }
     pub(crate) fn request_jump_proc_like_cpp(&mut self) {
         #[cfg(test)]
         {
@@ -664,10 +560,6 @@ impl WorldSession {
                 .movement_jump_proc_requests_like_cpp
                 .saturating_add(1);
         }
-    }
-    #[cfg(test)]
-    pub(crate) fn movement_jump_proc_requests_like_cpp(&self) -> u32 {
-        self.fixtures.movement.movement_jump_proc_requests_like_cpp
     }
     #[cfg(test)]
     pub(crate) fn represented_duel_requests_like_cpp(&self) -> &[RepresentedDuelRequestedLikeCpp] {
@@ -697,25 +589,8 @@ impl WorldSession {
         &mut self,
         next: bool,
     ) -> bool {
-        match crate::handlers::vehicle::request_adjacent_vehicle_seat_action_like_cpp(
-            self.player_vehicle_seat_state_like_cpp()
-                .and_then(|(flags, _)| flags)
-                .is_some(),
-            self.represented_current_vehicle_seat_can_switch_from_like_cpp(),
-            next,
-        ) {
-            crate::handlers::vehicle::VehicleHandlerAction::ChangeSeat { seat_id, next } => {
-                #[cfg(test)]
-                self.fixtures
-                    .vehicles
-                    .represented_vehicle_seat_change_requests_like_cpp
-                    .push(RepresentedVehicleSeatChangeRequestLikeCpp { seat_id, next });
-                #[cfg(not(test))]
-                let _ = (seat_id, next);
-                true
-            }
-            _ => false,
-        }
+        let (state, mut hub) = crate::session::split_quest_state_mut(self);
+        state.represented_request_adjacent_vehicle_seat_like_cpp(&mut hub, next)
     }
     #[cfg(test)]
     pub(crate) fn represented_vehicle_seat_change_requests_like_cpp(
@@ -781,25 +656,9 @@ impl WorldSession {
             .add_request_committed_like_cpp(request_key)
             .await
     }
-    #[cfg(test)]
-    pub(crate) fn movement_visibility_refresh_requests_like_cpp(&self) -> u32 {
-        self.quest_state
-            .movement_visibility_refresh_requests_like_cpp
-    }
     pub(crate) fn consume_movement_visibility_refresh_request_like_cpp(&mut self) -> bool {
-        if self
-            .quest_state
-            .movement_visibility_refresh_requests_like_cpp
-            == 0
-        {
-            return false;
-        }
         self.quest_state
-            .movement_visibility_refresh_requests_like_cpp = self
-            .quest_state
-            .movement_visibility_refresh_requests_like_cpp
-            .saturating_sub(1);
-        true
+            .consume_movement_visibility_refresh_request_like_cpp()
     }
     #[cfg(test)]
     pub(crate) fn represented_activate_taxi_requests_like_cpp(
@@ -836,10 +695,6 @@ impl WorldSession {
         &self
             .instances
             .represented_adventure_map_start_quest_requests_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn temporary_pet_resummon_requests_like_cpp(&self) -> u32 {
-        self.fixtures.pets.temporary_pet_resummon_requests_like_cpp
     }
     pub(crate) fn set_represented_pending_quest_sharing_like_cpp(
         &mut self,
@@ -910,83 +765,322 @@ impl WorldSession {
         });
         self.sync_player_registry_state_like_cpp();
     }
-    #[cfg(test)]
-    pub(crate) fn represented_timed_quest_removals_like_cpp(&self) -> &[u32] {
-        &self
-            .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_timed_quest_removals_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_quest_push_result_responses_like_cpp(
-        &self,
-    ) -> &[RepresentedQuestPushResultResponseLikeCpp] {
-        &self
-            .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_quest_push_result_responses_like_cpp
-    }
     pub(crate) fn record_represented_quest_push_result_response_like_cpp(
         &mut self,
         response: RepresentedQuestPushResultResponseLikeCpp,
     ) {
-        #[cfg(test)]
         self.quest_state
-            .quest_test_fixture_like_cpp
-            .represented_quest_push_result_responses_like_cpp
-            .push(response);
-        #[cfg(not(test))]
-        let _ = response;
+            .record_represented_quest_push_result_response_like_cpp(response)
     }
     pub(crate) fn record_represented_quest_push_result_sender_mismatch_like_cpp(&mut self) {
-        #[cfg(test)]
-        {
-            self.quest_state
-                .quest_test_fixture_like_cpp
-                .represented_quest_push_result_sender_mismatch_count_like_cpp = self
-                .quest_state
-                .quest_test_fixture_like_cpp
-                .represented_quest_push_result_sender_mismatch_count_like_cpp
-                .saturating_add(1);
-        }
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_quest_confirm_accepts_like_cpp(
-        &self,
-    ) -> &[RepresentedQuestConfirmAcceptLikeCpp] {
-        &self
-            .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_quest_confirm_accepts_like_cpp
+        self.quest_state
+            .record_represented_quest_push_result_sender_mismatch_like_cpp()
     }
     pub(crate) fn record_represented_quest_confirm_accept_like_cpp(
         &mut self,
         evidence: RepresentedQuestConfirmAcceptLikeCpp,
     ) {
-        #[cfg(test)]
         self.quest_state
-            .quest_test_fixture_like_cpp
-            .represented_quest_confirm_accepts_like_cpp
-            .push(evidence);
-        #[cfg(not(test))]
-        let _ = evidence;
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_push_quest_to_party_outcomes_like_cpp(
-        &self,
-    ) -> &[RepresentedPushQuestToPartyOutcomeLikeCpp] {
-        &self
-            .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_push_quest_to_party_outcomes_like_cpp
+            .record_represented_quest_confirm_accept_like_cpp(evidence)
     }
     pub(crate) fn record_represented_push_quest_to_party_outcome_like_cpp(
         &mut self,
         outcome: RepresentedPushQuestToPartyOutcomeLikeCpp,
     ) {
-        #[cfg(test)]
         self.quest_state
+            .record_represented_push_quest_to_party_outcome_like_cpp(outcome)
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    /// C++ `Player::PushQuests` scans the complete global quest-template map
+    /// during login and area updates. `AddQuest` can cast an AUTO_PUSH quest's
+    /// SourceSpellID, so the narrow empty-source proof requires that the
+    /// authoritative store contain no such template at all.
+    pub(in crate::session) fn represented_auto_push_quest_aura_source_is_empty_like_cpp(
+        &self,
+    ) -> bool {
+        const QUEST_FLAGS_EX_AUTO_PUSH_LIKE_CPP: u32 = 0x0400_0000;
+        self.quests.store.as_ref().is_some_and(|quests| {
+            quests
+                .quests_like_cpp()
+                .all(|quest| quest.flags_ex & QUEST_FLAGS_EX_AUTO_PUSH_LIKE_CPP == 0)
+        })
+    }
+}
+
+impl crate::session::state::SessionQuestState {
+    pub(crate) fn represented_raid_difficulty_request_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        difficulty_id: i32,
+        legacy: bool,
+    ) -> Option<u32> {
+        let difficulty_id = u32::try_from(difficulty_id).ok()?;
+        let entry = hub
+            .catalogs
+            .difficulty_store()
+            .and_then(|store| store.get(difficulty_id))
+            .copied()?;
+        if entry.instance_type != MAP_RAID_LIKE_CPP {
+            return None;
+        }
+
+        let flags = DifficultyFlags::from_bits_truncate(entry.flags);
+        if !flags.contains(DifficultyFlags::CAN_SELECT) {
+            return None;
+        }
+
+        (flags.contains(DifficultyFlags::LEGACY) == legacy).then_some(difficulty_id)
+    }
+
+    #[cfg(test)]
+    fn apply_player_quest_gameplay_fixture_like_cpp(&mut self, state: PlayerQuestGameplayState) {
+        self.apply_player_quest_core_compatibility_like_cpp(&state);
+        self.quest_test_fixture_like_cpp
+            .daily_quests_completed_like_cpp =
+            state.daily_quest_ids_like_cpp().iter().copied().collect();
+        self.quest_test_fixture_like_cpp
+            .weekly_quests_completed_like_cpp =
+            state.weekly_quest_ids_like_cpp().iter().copied().collect();
+        self.quest_test_fixture_like_cpp
+            .monthly_quests_completed_like_cpp =
+            state.monthly_quest_ids_like_cpp().iter().copied().collect();
+        self.quest_test_fixture_like_cpp.seasonal_quests_like_cpp =
+            state.seasonal_quests_snapshot_like_cpp();
+        self.quest_test_fixture_like_cpp.df_quests_like_cpp =
+            state.df_quest_ids_like_cpp().iter().copied().collect();
+        self.quest_test_fixture_like_cpp
+            .last_daily_quest_time_like_cpp = state.last_daily_quest_time_secs_like_cpp();
+        self.quest_test_fixture_like_cpp
+            .seasonal_quest_changed_like_cpp = state.seasonal_quest_changed_like_cpp();
+    }
+
+    #[cfg(test)]
+    fn apply_player_quest_core_compatibility_like_cpp(&mut self, state: &PlayerQuestGameplayState) {
+        self.quest_test_fixture_like_cpp.player_quests = state
+            .statuses_like_cpp()
+            .iter()
+            .map(|(&quest_id, status)| (quest_id, status.clone()))
+            .collect();
+        self.quest_test_fixture_like_cpp.rewarded_quests = state
+            .rewarded_quest_ids_like_cpp()
+            .iter()
+            .copied()
+            .collect();
+        self.quest_test_fixture_like_cpp
+            .player_quest_status_authority_complete_like_cpp =
+            state.status_authority_complete_like_cpp();
+        self.quest_test_fixture_like_cpp
+            .represented_rewarded_quest_rows_like_cpp =
+            state.rewarded_quest_rows_like_cpp().clone();
+    }
+
+    /// C++ `Player::GetQuestLevel`.
+    pub(crate) fn player_quest_level_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        quest: &wow_data::quest::QuestTemplate,
+    ) -> i32 {
+        if quest.quest_level > 0 {
+            quest.quest_level
+        } else {
+            i32::from(hub.player_level_like_cpp()).min(quest.quest_max_scaling_level)
+        }
+    }
+
+    /// Calculate XP reward for a quest.
+    /// C++ `Quest::XPValue(player, questLevel, xpDifficulty, xpMultiplier)`.
+    pub(crate) fn calculate_quest_xp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        difficulty: u32,
+        quest_level: i32,
+        xp_multiplier: f32,
+    ) -> u32 {
+        if let Some(store) = &hub.catalogs.quests.xp_store {
+            store.calculate_xp(
+                quest_level,
+                hub.player_level_like_cpp(),
+                difficulty,
+                xp_multiplier,
+                self.min_quest_scaled_xp_ratio_like_cpp,
+            )
+        } else {
+            const XP_TABLE: [u32; 10] = [0, 50, 100, 200, 400, 650, 1000, 1500, 2500, 4000];
+            XP_TABLE[difficulty.min(9) as usize]
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_battleground_leave_requests_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> u32 {
+        hub.fixtures
+            .battleground
+            .represented_battleground_leave_requests_like_cpp
+    }
+
+    pub(crate) fn clear_represented_resurrection_request_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+    ) -> bool {
+        let canonical = hub
+            .core
+            .with_owned_player_mut_like_cpp(Player::clear_resurrection_request_like_cpp)
+            .is_some();
+        #[cfg(test)]
+        if canonical || hub.core.player_handle_like_cpp.is_none() {
+            hub.fixtures
+                .combat
+                .represented_resurrection_request_like_cpp = None;
+        }
+        canonical || cfg!(test) && hub.core.player_handle_like_cpp.is_none()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn temporary_pet_unsummon_requests_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> u32 {
+        hub.fixtures.pets.temporary_pet_unsummon_requests_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn movement_jump_proc_requests_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> u32 {
+        hub.fixtures.movement.movement_jump_proc_requests_like_cpp
+    }
+
+    pub(crate) fn represented_request_adjacent_vehicle_seat_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        next: bool,
+    ) -> bool {
+        match crate::handlers::vehicle::request_adjacent_vehicle_seat_action_like_cpp(
+            hub.shared()
+                .player_vehicle_seat_state_like_cpp()
+                .and_then(|(flags, _)| flags)
+                .is_some(),
+            hub.shared()
+                .represented_current_vehicle_seat_can_switch_from_like_cpp(),
+            next,
+        ) {
+            crate::handlers::vehicle::VehicleHandlerAction::ChangeSeat { seat_id, next } => {
+                #[cfg(test)]
+                hub.fixtures
+                    .vehicles
+                    .represented_vehicle_seat_change_requests_like_cpp
+                    .push(RepresentedVehicleSeatChangeRequestLikeCpp { seat_id, next });
+                #[cfg(not(test))]
+                let _ = (seat_id, next);
+                true
+            }
+            _ => false,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn movement_visibility_refresh_requests_like_cpp(&self) -> u32 {
+        self.movement_visibility_refresh_requests_like_cpp
+    }
+
+    pub(crate) fn consume_movement_visibility_refresh_request_like_cpp(&mut self) -> bool {
+        if self.movement_visibility_refresh_requests_like_cpp == 0 {
+            return false;
+        }
+        self.movement_visibility_refresh_requests_like_cpp = self
+            .movement_visibility_refresh_requests_like_cpp
+            .saturating_sub(1);
+        true
+    }
+
+    #[cfg(test)]
+    pub(crate) fn temporary_pet_resummon_requests_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> u32 {
+        hub.fixtures.pets.temporary_pet_resummon_requests_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_timed_quest_removals_like_cpp(&self) -> &[u32] {
+        &self
             .quest_test_fixture_like_cpp
+            .represented_timed_quest_removals_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_quest_push_result_responses_like_cpp(
+        &self,
+    ) -> &[RepresentedQuestPushResultResponseLikeCpp] {
+        &self
+            .quest_test_fixture_like_cpp
+            .represented_quest_push_result_responses_like_cpp
+    }
+
+    pub(crate) fn record_represented_quest_push_result_response_like_cpp(
+        &mut self,
+        response: RepresentedQuestPushResultResponseLikeCpp,
+    ) {
+        #[cfg(test)]
+        self.quest_test_fixture_like_cpp
+            .represented_quest_push_result_responses_like_cpp
+            .push(response);
+        #[cfg(not(test))]
+        let _ = response;
+    }
+
+    pub(crate) fn record_represented_quest_push_result_sender_mismatch_like_cpp(&mut self) {
+        #[cfg(test)]
+        {
+            self.quest_test_fixture_like_cpp
+                .represented_quest_push_result_sender_mismatch_count_like_cpp = self
+                .quest_test_fixture_like_cpp
+                .represented_quest_push_result_sender_mismatch_count_like_cpp
+                .saturating_add(1);
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_quest_confirm_accepts_like_cpp(
+        &self,
+    ) -> &[RepresentedQuestConfirmAcceptLikeCpp] {
+        &self
+            .quest_test_fixture_like_cpp
+            .represented_quest_confirm_accepts_like_cpp
+    }
+
+    pub(crate) fn record_represented_quest_confirm_accept_like_cpp(
+        &mut self,
+        evidence: RepresentedQuestConfirmAcceptLikeCpp,
+    ) {
+        #[cfg(test)]
+        self.quest_test_fixture_like_cpp
+            .represented_quest_confirm_accepts_like_cpp
+            .push(evidence);
+        #[cfg(not(test))]
+        let _ = evidence;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_push_quest_to_party_outcomes_like_cpp(
+        &self,
+    ) -> &[RepresentedPushQuestToPartyOutcomeLikeCpp] {
+        &self
+            .quest_test_fixture_like_cpp
+            .represented_push_quest_to_party_outcomes_like_cpp
+    }
+
+    pub(crate) fn record_represented_push_quest_to_party_outcome_like_cpp(
+        &mut self,
+        outcome: RepresentedPushQuestToPartyOutcomeLikeCpp,
+    ) {
+        #[cfg(test)]
+        self.quest_test_fixture_like_cpp
             .represented_push_quest_to_party_outcomes_like_cpp
             .push(outcome);
         #[cfg(not(test))]
@@ -1028,3 +1122,7 @@ pub(crate) enum RepresentedQuestRecurrenceLikeCpp {
         completed_at: u64,
     },
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/quest/state/f3_shims.rs"]
+mod f3_shims;

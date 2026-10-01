@@ -6,19 +6,10 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn replace_owned_player_mails_like_cpp(
-        &self,
-        mails: Vec<wow_entities::PlayerMailRecord>,
-    ) -> bool {
-        self.with_owned_player_mut_like_cpp(|player| {
-            player.hydrate_mails_like_cpp(mails);
-        })
-        .is_some()
-    }
     pub(crate) fn owned_player_mails_like_cpp(
         &self,
     ) -> Option<Vec<wow_entities::PlayerMailRecord>> {
-        self.with_owned_player_like_cpp(|player| player.gameplay_state().mails.clone())
+        crate::session::hub_ref(self).owned_player_mails_like_cpp()
     }
     pub(in crate::session) fn completed_achievement_ids_snapshot_like_cpp(
         &self,
@@ -29,31 +20,7 @@ impl WorldSession {
         &mut self,
         achievement_ids: impl IntoIterator<Item = u32>,
     ) -> bool {
-        let achievement_ids: HashSet<_> = achievement_ids
-            .into_iter()
-            .filter(|achievement_id| *achievement_id != 0)
-            .collect();
-        let achievements = achievement_ids
-            .iter()
-            .copied()
-            .map(|achievement_id| wow_entities::PlayerAchievementRecord {
-                achievement_id,
-                completed_at: None,
-            })
-            .collect::<Vec<_>>();
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.hydrate_completed_achievements_like_cpp(achievements);
-            })
-            .is_some();
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            self.fixtures
-                .collections
-                .represented_completed_achievements_like_cpp = achievement_ids;
-            return true;
-        }
-        canonical
+        crate::session::hub_mut(self).replace_completed_achievement_ids_like_cpp(achievement_ids)
     }
     pub(crate) fn access_requirement_leader_has_achievement_like_cpp(
         &self,
@@ -105,6 +72,60 @@ impl WorldSession {
     }
 }
 
+impl crate::session::HubMut<'_> {
+    pub(in crate::session) fn replace_completed_achievement_ids_like_cpp(
+        &mut self,
+        achievement_ids: impl IntoIterator<Item = u32>,
+    ) -> bool {
+        let achievement_ids: HashSet<_> = achievement_ids
+            .into_iter()
+            .filter(|achievement_id| *achievement_id != 0)
+            .collect();
+        let achievements = achievement_ids
+            .iter()
+            .copied()
+            .map(|achievement_id| wow_entities::PlayerAchievementRecord {
+                achievement_id,
+                completed_at: None,
+            })
+            .collect::<Vec<_>>();
+        let canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.hydrate_completed_achievements_like_cpp(achievements);
+            })
+            .is_some();
+        #[cfg(test)]
+        if self.core.player_handle_like_cpp.is_none() {
+            self.fixtures
+                .collections
+                .represented_completed_achievements_like_cpp = achievement_ids;
+            return true;
+        }
+        canonical
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(crate) fn replace_owned_player_mails_like_cpp(
+        &self,
+        mails: Vec<wow_entities::PlayerMailRecord>,
+    ) -> bool {
+        self.core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.hydrate_mails_like_cpp(mails);
+            })
+            .is_some()
+    }
+
+    pub(crate) fn owned_player_mails_like_cpp(
+        &self,
+    ) -> Option<Vec<wow_entities::PlayerMailRecord>> {
+        self.core
+            .with_owned_player_like_cpp(|player| player.gameplay_state().mails.clone())
+    }
+}
+
 impl crate::session::HubRef<'_> {
     pub(in crate::session) fn completed_achievement_ids_snapshot_like_cpp(
         &self,
@@ -129,3 +150,7 @@ impl crate::session::HubRef<'_> {
         canonical
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/collections/operations/f3_shims.rs"]
+mod f3_shims;

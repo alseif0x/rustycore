@@ -65,17 +65,8 @@ impl WorldSession {
         crate::session::hub_ref(self).resolved_player_is_alive_like_cpp()
     }
 
-    #[cfg(test)]
-    pub(crate) fn player_is_alive_like_cpp(&self) -> bool {
-        self.resolved_player_is_alive_like_cpp().unwrap()
-    }
-
     pub(crate) fn player_has_ghost_flag_like_cpp(&self) -> bool {
-        self.player_guid()
-            .and_then(|guid| {
-                self.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_GHOST_LIKE_CPP)
-            })
-            .unwrap_or(false)
+        crate::session::hub_ref(self).player_has_ghost_flag_like_cpp()
     }
 
     pub(crate) fn set_player_ghost_flag_like_cpp(&mut self, ghost: bool) {
@@ -91,18 +82,26 @@ impl WorldSession {
         self.sync_player_registry_state_like_cpp();
     }
 
+    pub(in crate::session) fn resolved_player_mounted_like_cpp(&self) -> Option<bool> {
+        crate::session::hub_ref(self).resolved_player_mounted_like_cpp()
+    }
+}
+
+impl crate::session::HubMut<'_> {
     #[cfg(test)]
     pub(crate) fn set_player_game_master_like_cpp(&mut self, is_game_master: bool) {
         let mut canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.set_game_master_like_cpp(is_game_master)
             })
             .is_some();
         if !canonical
             && self.core.player_handle_like_cpp.is_none()
-            && let Some(guid) = self.player_guid()
+            && let Some(guid) = self.core.player_guid()
         {
             canonical = self
+                .core
                 .mutate_canonical_player_by_guid_like_cpp(guid, |player| {
                     player.set_game_master_like_cpp(is_game_master)
                 })
@@ -119,24 +118,38 @@ impl WorldSession {
         let _ = self.set_player_mount_presentation_like_cpp(display_id, mounted);
     }
 
-    pub(in crate::session) fn resolved_player_mounted_like_cpp(&self) -> Option<bool> {
-        crate::session::hub_ref(self).resolved_player_mounted_like_cpp()
+    #[cfg(test)]
+    pub(crate) fn set_player_cheat_god_like_cpp(&mut self, enabled: bool) {
+        let canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| player.set_cheat_god_like_cpp(enabled))
+            .is_some();
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.combat.player_cheat_god_like_cpp = enabled;
+        }
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    #[cfg(test)]
+    pub(crate) fn player_is_alive_like_cpp(&self) -> bool {
+        self.resolved_player_is_alive_like_cpp().unwrap()
+    }
+
+    pub(crate) fn player_has_ghost_flag_like_cpp(&self) -> bool {
+        self.core
+            .player_guid()
+            .and_then(|guid| {
+                self.core
+                    .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_GHOST_LIKE_CPP)
+            })
+            .unwrap_or(false)
     }
 
     #[cfg(test)]
     pub(crate) fn player_mounted_like_cpp(&self) -> bool {
         self.resolved_player_mounted_like_cpp()
             .expect("test Player presentation owner must resolve")
-    }
-
-    #[cfg(test)]
-    pub(crate) fn set_player_cheat_god_like_cpp(&mut self, enabled: bool) {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| player.set_cheat_god_like_cpp(enabled))
-            .is_some();
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.combat.player_cheat_god_like_cpp = enabled;
-        }
     }
 }
 
@@ -173,3 +186,7 @@ impl crate::session::HubRef<'_> {
             .map(|(flags, _, _)| flags.contains(UnitFlags::MOUNT))
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/player_vitals_adapter/f3_shims.rs"]
+mod f3_shims;

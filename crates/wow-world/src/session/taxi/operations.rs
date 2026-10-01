@@ -322,11 +322,6 @@ impl WorldSession {
     pub(crate) fn player_transport_guid_like_cpp(&self) -> Option<ObjectGuid> {
         crate::session::hub_ref(self).player_transport_guid_like_cpp()
     }
-    pub(in crate::session) fn player_transport_state_like_cpp(
-        &self,
-    ) -> Option<Option<wow_entities::PlayerTransportState>> {
-        crate::session::hub_ref(self).player_transport_state_like_cpp()
-    }
     pub(in crate::session) fn player_on_transport_state_like_cpp(&self) -> Option<bool> {
         crate::session::hub_ref(self).player_on_transport_state_like_cpp()
     }

@@ -541,6 +541,7 @@ pub(crate) use state::LootState;
 pub(crate) use state::SessionCatalogs;
 pub(crate) use state::SessionCore;
 pub(crate) use state::SessionLifecycleState;
+pub(crate) use state::SessionQuestState;
 pub(crate) use state::SessionSocialLimits;
 pub(crate) use state::SessionSpellState;
 pub(crate) use state::VisibilityState;
@@ -549,9 +550,10 @@ pub use state::WorldSession;
 pub(crate) use state::{
     HubMut, HubRef, hub_mut, hub_ref, split_instances_mut, split_instances_ref, split_interaction,
     split_interaction_ref, split_inventory_mut, split_inventory_ref, split_lifecycle_mut,
-    split_lifecycle_ref, split_loot_mut, split_loot_ref, split_social_mut, split_social_ref,
-    split_spell_state_mut, split_spell_state_ref, split_visibility_mut, split_visibility_ref,
-    split_world_entities_mut, split_world_entities_ref,
+    split_lifecycle_ref, split_loot_mut, split_loot_ref, split_quest_state_mut,
+    split_quest_state_ref, split_social_mut, split_social_ref, split_spell_state_mut,
+    split_spell_state_ref, split_visibility_mut, split_visibility_ref, split_world_entities_mut,
+    split_world_entities_ref,
 };
 mod summon_object_contracts;
 pub(crate) use summon_object_contracts::ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp;

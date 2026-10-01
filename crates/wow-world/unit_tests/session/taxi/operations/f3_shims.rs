@@ -75,4 +75,9 @@ impl crate::session::WorldSession {
             .vehicles
             .set_player_on_transport_like_cpp(on_transport)
     }
+    pub(in crate::session) fn player_transport_state_like_cpp(
+        &self,
+    ) -> Option<Option<wow_entities::PlayerTransportState>> {
+        crate::session::hub_ref(self).player_transport_state_like_cpp()
+    }
 }

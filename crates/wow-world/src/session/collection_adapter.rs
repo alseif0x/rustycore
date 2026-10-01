@@ -97,24 +97,61 @@ impl WorldSession {
         crate::session::hub_ref(self).player_collection_state_snapshot_like_cpp()
     }
 
-    /// C++ `Player::AddHeirloom`, called from `CollectionMgr::AddHeirloom`
-    /// after the account collection accepts a new heirloom.
     pub(crate) fn add_player_heirloom_dynamic_fields_like_cpp(
         &mut self,
         item_id: u32,
         flags: u32,
     ) -> Option<wow_entities::PlayerValuesUpdate> {
-        let item_id = i32::try_from(item_id).ok()?;
-        self.mutate_canonical_player_like_cpp(|player| {
-            player.add_heirloom_like_cpp(item_id, flags);
-            player.values_update(true)
-        })
+        crate::session::hub_mut(self).add_player_heirloom_dynamic_fields_like_cpp(item_id, flags)
     }
 
+    pub(crate) fn is_toy_item_like_cpp(&self, item_id: u32) -> bool {
+        self.catalogs.is_toy_item_like_cpp(item_id)
+    }
+
+    pub(crate) fn toy_item_has_spell_effect_like_cpp(&self, item_id: u32, spell_id: i32) -> bool {
+        self.catalogs
+            .toy_item_has_spell_effect_like_cpp(item_id, spell_id)
+    }
+
+    pub(crate) fn toy_item_spell_cooldown_ms_like_cpp(
+        &self,
+        item_id: u32,
+        spell_id: i32,
+        spell_info: &wow_data::SpellInfo,
+    ) -> u32 {
+        self.catalogs
+            .toy_item_spell_cooldown_ms_like_cpp(item_id, spell_id, spell_info)
+    }
+
+    pub(crate) fn add_player_toy_dynamic_field_like_cpp(
+        &mut self,
+        item_id: u32,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        crate::session::hub_mut(self).add_player_toy_dynamic_field_like_cpp(item_id)
+    }
+
+    pub(crate) fn toy_clear_fanfare_like_cpp(&mut self, item_id: u32) -> bool {
+        crate::session::hub_mut(self).toy_clear_fanfare_like_cpp(item_id)
+    }
+
+    pub(crate) fn toy_set_favorite_like_cpp(&mut self, item_id: u32, favorite: bool) -> bool {
+        crate::session::hub_mut(self).toy_set_favorite_like_cpp(item_id, favorite)
+    }
+
+    pub(crate) fn mount_set_favorite_like_cpp(
+        &mut self,
+        mount_spell_id: u32,
+        is_favorite: bool,
+    ) -> bool {
+        crate::session::hub_mut(self).mount_set_favorite_like_cpp(mount_spell_id, is_favorite)
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
     /// C++ `DB2Manager::IsToyItem`.
     pub(crate) fn is_toy_item_like_cpp(&self, item_id: u32) -> bool {
-        self.catalogs
-            .toy_store
+        self.toy_store
             .as_ref()
             .and_then(|store| store.get_by_item_id_like_cpp(item_id))
             .is_some()
@@ -122,8 +159,7 @@ impl WorldSession {
 
     /// C++ `std::find_if(item->Effects, spellId)` in `HandleUseToy`.
     pub(crate) fn toy_item_has_spell_effect_like_cpp(&self, item_id: u32, spell_id: i32) -> bool {
-        self.catalogs
-            .items
+        self.items
             .effect_store
             .as_ref()
             .and_then(|store| store.effect_for_item_spell_like_cpp(item_id, spell_id))
@@ -143,7 +179,6 @@ impl WorldSession {
         spell_info: &wow_data::SpellInfo,
     ) -> u32 {
         if let Some(effect) = self
-            .catalogs
             .items
             .effect_store
             .as_ref()
@@ -159,6 +194,22 @@ impl WorldSession {
 
         spell_info.recovery_time_ms.max(spell_info.cooldown_ms)
     }
+}
+
+impl crate::session::HubMut<'_> {
+    /// C++ `Player::AddHeirloom`, called from `CollectionMgr::AddHeirloom`
+    /// after the account collection accepts a new heirloom.
+    pub(crate) fn add_player_heirloom_dynamic_fields_like_cpp(
+        &mut self,
+        item_id: u32,
+        flags: u32,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        let item_id = i32::try_from(item_id).ok()?;
+        self.core.mutate_canonical_player_like_cpp(|player| {
+            player.add_heirloom_like_cpp(item_id, flags);
+            player.values_update(true)
+        })
+    }
 
     /// C++ `Player::AddToy`, called from `CollectionMgr::AddToy` after the
     /// account collection accepts a new toy.
@@ -167,7 +218,7 @@ impl WorldSession {
         item_id: u32,
     ) -> Option<wow_entities::PlayerValuesUpdate> {
         let item_id = i32::try_from(item_id).ok()?;
-        self.mutate_canonical_player_like_cpp(|player| {
+        self.core.mutate_canonical_player_like_cpp(|player| {
             player.add_toy_like_cpp(item_id);
             player.values_update(true)
         })
@@ -216,10 +267,11 @@ impl WorldSession {
             return false;
         };
 
-        self.send_packet(&AccountMountUpdate::partial(vec![AccountMount {
-            spell_id,
-            flags: updated_flags,
-        }]));
+        self.core
+            .send_packet(&AccountMountUpdate::partial(vec![AccountMount {
+                spell_id,
+                flags: updated_flags,
+            }]));
         true
     }
 }

@@ -351,10 +351,6 @@ impl WorldSession {
         crate::session::hub_ref(self).player_faction_template_id_like_cpp()
     }
 
-    pub(in crate::session) fn resolved_player_scale_duration_like_cpp(&self) -> Option<i32> {
-        crate::session::hub_ref(self).resolved_player_scale_duration_like_cpp()
-    }
-
     pub(crate) fn player_race_like_cpp(&self) -> u8 {
         crate::session::hub_ref(self).player_race_like_cpp()
     }

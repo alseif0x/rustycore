@@ -12,15 +12,13 @@ impl WorldSession {
         arbiter_guid: ObjectGuid,
         packet_bytes: Vec<u8>,
     ) {
-        self.try_send_connected_player_command_like_cpp(
+        let (state, hub) = crate::session::split_quest_state_ref(self);
+        state.send_represented_duel_requested_to_opponent_like_cpp(
+            hub,
             opponent_guid,
-            SessionCommand::SendRepresentedDuelRequestedLikeCpp(
-                crate::session::mailbox::SendRepresentedDuelRequestedLikeCppCommand {
-                    arbiter_guid,
-                    packet_bytes,
-                },
-            ),
-        );
+            arbiter_guid,
+            packet_bytes,
+        )
     }
     pub(in crate::session) fn send_represented_prepared_quest_like_cpp(
         &mut self,
@@ -145,5 +143,25 @@ impl WorldSession {
                 auto_launched,
             );
         }
+    }
+}
+
+impl crate::session::state::SessionQuestState {
+    pub(in crate::session) fn send_represented_duel_requested_to_opponent_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        opponent_guid: ObjectGuid,
+        arbiter_guid: ObjectGuid,
+        packet_bytes: Vec<u8>,
+    ) {
+        hub.core.try_send_connected_player_command_like_cpp(
+            opponent_guid,
+            SessionCommand::SendRepresentedDuelRequestedLikeCpp(
+                crate::session::mailbox::SendRepresentedDuelRequestedLikeCppCommand {
+                    arbiter_guid,
+                    packet_bytes,
+                },
+            ),
+        );
     }
 }

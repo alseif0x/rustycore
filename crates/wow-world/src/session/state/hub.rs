@@ -232,3 +232,22 @@ pub(crate) fn split_loot_mut(s: &mut WorldSession) -> (&mut LootState, HubMut<'_
 pub(crate) fn split_loot_ref(s: &WorldSession) -> (&LootState, HubRef<'_>) {
     (&s.loot, hub_ref(s))
 }
+
+/// `&mut` group state plus the mutable hub (core and fixtures), borrowed from disjoint fields.
+pub(crate) fn split_quest_state_mut(s: &mut WorldSession) -> (&mut SessionQuestState, HubMut<'_>) {
+    (
+        &mut s.quest_state,
+        HubMut {
+            core: &mut s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(test)]
+            fixtures: &mut s.fixtures,
+        },
+    )
+}
+
+/// Shared group state plus the shared hub for `&self` methods.
+pub(crate) fn split_quest_state_ref(s: &WorldSession) -> (&SessionQuestState, HubRef<'_>) {
+    (&s.quest_state, hub_ref(s))
+}

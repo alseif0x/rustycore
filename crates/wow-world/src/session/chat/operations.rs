@@ -47,9 +47,6 @@ impl WorldSession {
     ) -> Option<wow_packet::packets::update::UpdateObject> {
         crate::session::hub_mut(self).set_player_emote_state_like_cpp(emote_state)
     }
-    pub(in crate::session) fn resolved_player_emote_state_like_cpp(&self) -> Option<u32> {
-        crate::session::hub_ref(self).resolved_player_emote_state_like_cpp()
-    }
     pub(crate) fn clear_player_gossip_options_like_cpp(&mut self) -> bool {
         let canonical = self
             .with_owned_player_mut_like_cpp(|player| player.clear_gossip_options_like_cpp())
