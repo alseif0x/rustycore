@@ -57,7 +57,9 @@ Thumbs.db
 .openclaw/
 .trae/
 memory/
-skills/
+# Root-anchored (#1241): the bare `skills/` rule from the initial release also hid
+# crates/**/skills/ sources (PR #1249). It was meant for an OpenClaw root skills/ dir.
+/skills/
 /wiki/
 skills-lock.json
 
@@ -70,6 +72,14 @@ skills-lock.json
 !.agents/skills/*/SKILL.md
 !.agents/skills/*/agents/openai.yaml
 !.agents/skills/*/references/**/*.md
+# Claude Code discovers project skills under .claude/skills/; track only the relative
+# symlinks to the shared .agents/skills tree.
+!.claude/skills/
+.claude/skills/*
+!.claude/skills/orchestrate-rustycore
+!.claude/skills/refactor-rustycore-safely
+!.claude/skills/design-rustycore-architecture
+!.claude/skills/develop-rustycore
 
 # OpenClaw workspace files (private)
 SOUL.md

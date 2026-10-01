@@ -53,6 +53,15 @@ def inventory(root: pathlib.Path) -> list[dict[str, Any]]:
         # just to discover a shebang; source and extensionless links fail closed.
         if path.is_symlink() and path.suffix and path.suffix not in SOURCE_SUFFIXES:
             continue
+        # A non-source link to an in-repo, non-ignored directory (e.g. .claude/skills/<name>):
+        # its target's files are already inventoried at their real paths.
+        if path.is_symlink() and path.suffix not in SOURCE_SUFFIXES:
+            target = path.resolve()
+            if (target.is_dir() and target.is_relative_to(root.resolve())
+                    and subprocess.run(["git", "-C", str(root), "check-ignore", "-q", "--",
+                                        f"{target.relative_to(root.resolve()).as_posix()}/"],
+                                       capture_output=True).returncode == 1):
+                continue
         path = checked_path(root, relative)
         if not path.exists():
             # A deleted audited file is rejected by evaluate; ordinary deletions

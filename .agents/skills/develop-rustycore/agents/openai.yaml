@@ -1,0 +1,4 @@
+interface:
+  display_name: "Develop RustyCore"
+  short_description: "Place new code and prove each PR in the split structure"
+  default_prompt: "Use $develop-rustycore to place this RustyCore change in the owning sub-state, follow the thunk, visibility and test-placement rules, and run its per-PR acceptance checklist."

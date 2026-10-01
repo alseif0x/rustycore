@@ -83,7 +83,8 @@ acceptance follows AGENTS.md: the parent plans it once and may assign the worker
 exclusive validation executor for the agreed non-live sequence; that assignment does not
 include another QA campaign or autonomous repairs. The parent interprets findings and
 assigns corrections. Authorized live DB/runtime QA stays with the parent. Reuse valid
-evidence for unchanged inputs.
+evidence for unchanged inputs. Per-PR checklist and the no-attribution commit/PR rule:
+[develop-rustycore](../develop-rustycore/SKILL.md).
 
 The parent's diff inspection is required; an additional reviewer agent or automated
 review request is not. Preserve any explicit external contribution/review requirements.
