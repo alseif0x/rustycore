@@ -163,9 +163,7 @@ impl WorldSession {
         )
     }
     pub(crate) fn player_map_visibility_range_like_cpp(&self, map_id: u16) -> f32 {
-        self.config
-            .legacy_creature_aggro_config_like_cpp
-            .map_visibility_range_like_cpp(map_id)
+        self.config.player_map_visibility_range_like_cpp(map_id)
     }
     pub fn set_vmap_indoor_check_like_cpp(&mut self, enabled: bool) {
         self.config.vmap_indoor_check_like_cpp = enabled;
@@ -174,7 +172,7 @@ impl WorldSession {
         self.config.mmap_runtime_config_like_cpp = config;
     }
     pub fn mmap_runtime_config_like_cpp(&self) -> &MMapRuntimeConfigLikeCpp {
-        &self.config.mmap_runtime_config_like_cpp
+        self.config.mmap_runtime_config_like_cpp()
     }
     /// Set the C++ AdventureMapPOI.db2 store for this session.
     #[cfg(test)]
@@ -198,7 +196,7 @@ impl WorldSession {
         self.catalogs.dungeon_encounter_store.as_ref()
     }
     pub(crate) fn map_store(&self) -> Option<&Arc<MapStore>> {
-        self.catalogs.maps.store.as_ref()
+        self.catalogs.map_store()
     }
     #[cfg(test)]
     pub(crate) fn represented_reveal_world_map_overlay_criteria_like_cpp(&self) -> &[u32] {
@@ -378,7 +376,7 @@ impl WorldSession {
         self.is_disabled_map_type_for_player_like_cpp(DISABLE_TYPE_MAP, map_id)
     }
     pub(crate) fn player_map_id_like_cpp(&self) -> u16 {
-        self.core.current_map_id
+        self.core.player_map_id_like_cpp()
     }
     pub(crate) fn handle_under_map_like_cpp(
         &mut self,
@@ -449,18 +447,8 @@ impl WorldSession {
     pub(crate) fn set_taxi_node_map_id_like_cpp(&mut self, node_id: u32, map_id: u16) {
         self.view.taxi_node_map_ids_like_cpp.insert(node_id, map_id);
     }
-    /// The legacy map facade must follow the same map instance that owns the
-    /// canonical Player. Instance `0` remains only the bootstrap fallback for
-    /// tests/runtime phases where no canonical Player has been materialized.
     pub(crate) fn current_legacy_runtime_map_key_like_cpp(&self) -> (u16, u32) {
-        let fallback_map_id = self.player_map_id_like_cpp();
-        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
-            return (fallback_map_id, 0);
-        };
-        let Ok(map_id) = u16::try_from(map_key.map_id) else {
-            return (fallback_map_id, 0);
-        };
-        (map_id, map_key.instance_id)
+        self.core.current_legacy_runtime_map_key_like_cpp()
     }
     /// Consume the last map-owned represented `Map::SendObjectUpdates` stable
     /// DynamicObject VALUES snapshot into this session's outbound packet stream.
@@ -651,5 +639,42 @@ impl WorldSession {
             sent += 1;
         }
         sent
+    }
+}
+
+impl crate::session::state::SessionCore {
+    pub(crate) fn player_map_id_like_cpp(&self) -> u16 {
+        self.current_map_id
+    }
+
+    /// The legacy map facade must follow the same map instance that owns the
+    /// canonical Player. Instance `0` remains only the bootstrap fallback for
+    /// tests/runtime phases where no canonical Player has been materialized.
+    pub(crate) fn current_legacy_runtime_map_key_like_cpp(&self) -> (u16, u32) {
+        let fallback_map_id = self.player_map_id_like_cpp();
+        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
+            return (fallback_map_id, 0);
+        };
+        let Ok(map_id) = u16::try_from(map_key.map_id) else {
+            return (fallback_map_id, 0);
+        };
+        (map_id, map_key.instance_id)
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    pub(crate) fn map_store(&self) -> Option<&Arc<MapStore>> {
+        self.maps.store.as_ref()
+    }
+}
+
+impl crate::session::state::SessionWorldConfig {
+    pub(crate) fn player_map_visibility_range_like_cpp(&self, map_id: u16) -> f32 {
+        self.legacy_creature_aggro_config_like_cpp
+            .map_visibility_range_like_cpp(map_id)
+    }
+
+    pub fn mmap_runtime_config_like_cpp(&self) -> &MMapRuntimeConfigLikeCpp {
+        &self.mmap_runtime_config_like_cpp
     }
 }

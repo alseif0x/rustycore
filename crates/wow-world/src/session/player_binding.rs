@@ -95,131 +95,32 @@ pub(in crate::session) struct PlayerIdentityBootstrapLikeCpp {
 
 impl WorldSession {
     pub(in crate::session) fn player_can_never_see_target_like_cpp(&self) -> bool {
-        self.active_player_update_state_like_cpp()
-            .map(|(flags, _, _)| {
-                flags & PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP == 0
-            })
-            .unwrap_or(true)
+        crate::session::hub_ref(self).player_can_never_see_target_like_cpp()
     }
 
     pub(crate) fn set_canonical_chosen_title_like_cpp(
         &mut self,
         title_id: i32,
     ) -> Option<wow_entities::PlayerValuesUpdate> {
-        self.mutate_canonical_player_like_cpp(|player| {
-            player.set_chosen_title_like_cpp(title_id);
-            player.values_update(true)
-        })
+        self.core.set_canonical_chosen_title_like_cpp(title_id)
     }
 
     pub(in crate::session) fn player_world_local_state_like_cpp(
         &self,
     ) -> Option<wow_entities::PlayerWorldLocalState> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.gameplay_state().world_local);
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                wow_entities::PlayerWorldLocalState::from_represented_parts_like_cpp(
-                    self.fixtures.identity.player_zone_id_like_cpp,
-                    self.fixtures.identity.player_area_id_like_cpp,
-                    self.fixtures
-                        .identity
-                        .player_zone_area_authority_complete_like_cpp,
-                    self.fixtures.combat.player_pvp_hostile_like_cpp,
-                    self.fixtures.combat.player_pvp_end_timer_like_cpp,
-                    self.fixtures.combat.player_contested_pvp_timer_like_cpp,
-                    self.fixtures.identity.represented_is_outdoors_like_cpp,
-                ),
-            );
-        }
-        canonical
+        crate::session::hub_ref(self).player_world_local_state_like_cpp()
     }
 
     pub(in crate::session) fn player_war_mode_local_active_like_cpp(&self) -> bool {
-        self.active_player_update_state_like_cpp()
-            .is_some_and(|(flags, _, _)| flags & PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP != 0)
+        crate::session::hub_ref(self).player_war_mode_local_active_like_cpp()
     }
 
     pub(crate) fn player_is_possessing_like_cpp(&self) -> bool {
-        let Some(player_guid) = self.core.player_guid else {
-            return false;
-        };
-        let map_id = u32::from(self.player_map_id_like_cpp());
-        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
-            return false;
-        };
-        let Ok(manager) = manager.lock() else {
-            return false;
-        };
-
-        let mut result = None;
-        manager.do_for_all_maps_with_map_id(map_id, |managed| {
-            if result.is_some() {
-                return;
-            }
-
-            let map = managed.map();
-            let Some(player) = map.get_typed_player(player_guid) else {
-                return;
-            };
-            let Some(charmed_guid) = player.unit().subsystems().control.charmed_guid else {
-                result = Some(false);
-                return;
-            };
-
-            let target_possessed_by_player = map
-                .get_typed_player(charmed_guid)
-                .map(|target| {
-                    let control = &target.unit().subsystems().control;
-                    control.charmer_guid == Some(player_guid) && control.is_possessed()
-                })
-                .or_else(|| {
-                    map.with_creature_like_cpp(charmed_guid, |target| {
-                        let control = &target.unit().subsystems().control;
-                        control.charmer_guid == Some(player_guid) && control.is_possessed()
-                    })
-                })
-                .unwrap_or(false);
-
-            result = Some(target_possessed_by_player);
-        });
-
-        result.unwrap_or(false)
+        self.core.player_is_possessing_like_cpp()
     }
 
     pub(crate) fn represented_player_charmed_guid_like_cpp(&self) -> ObjectGuid {
-        let Some(player_guid) = self.core.player_guid else {
-            return ObjectGuid::EMPTY;
-        };
-        let map_id = u32::from(self.player_map_id_like_cpp());
-        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
-            return ObjectGuid::EMPTY;
-        };
-        let Ok(manager) = manager.lock() else {
-            return ObjectGuid::EMPTY;
-        };
-
-        let mut result = None;
-        manager.do_for_all_maps_with_map_id(map_id, |managed| {
-            if result.is_some() {
-                return;
-            }
-
-            let Some(player) = managed.map().get_typed_player(player_guid) else {
-                return;
-            };
-            result = Some(
-                player
-                    .unit()
-                    .subsystems()
-                    .control
-                    .charmed_guid
-                    .unwrap_or(ObjectGuid::EMPTY),
-            );
-        });
-
-        result.unwrap_or(ObjectGuid::EMPTY)
+        self.core.represented_player_charmed_guid_like_cpp()
     }
 
     /// Set the logged-in player GUID.
@@ -331,26 +232,8 @@ impl WorldSession {
         }
     }
 
-    /// C++ `Player::SetFactionForRace`: `Player::LoadFromDB` resolves the
-    /// player's live faction template from `ChrRacesEntry::FactionID` before
-    /// the player is added to the map or published through ObjectAccessor.
     pub(in crate::session) fn set_player_faction_for_race_like_cpp(&mut self, race: u8) {
-        let Some(chr_races_store) = self.catalogs.chr.races_store.as_ref() else {
-            return;
-        };
-        let faction_template = chr_races_store
-            .get(u32::from(race))
-            .and_then(|entry| u32::try_from(entry.faction_id).ok())
-            .filter(|faction_template| *faction_template != 0);
-        let faction_template = faction_template.unwrap_or(0);
-        let _canonical = self.with_owned_player_mut_like_cpp(|player| {
-            player.unit_mut().set_faction(faction_template);
-        });
-        #[cfg(test)]
-        if _canonical.is_some() || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.identity.player_faction_template_like_cpp =
-                (faction_template != 0).then_some(faction_template);
-        }
+        crate::session::hub_mut(self).set_player_faction_for_race_like_cpp(race)
     }
 
     pub(crate) fn attach_player_controller_like_cpp(
@@ -452,15 +335,7 @@ impl WorldSession {
     }
 
     pub(crate) fn set_player_create_mode_like_cpp(&mut self, create_mode: u8) -> bool {
-        let _canonical = self
-            .with_owned_player_mut_like_cpp(|player| player.set_create_mode_like_cpp(create_mode))
-            .is_some();
-        #[cfg(test)]
-        if _canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.identity.player_create_mode_like_cpp = create_mode;
-            return true;
-        }
-        _canonical
+        crate::session::hub_mut(self).set_player_create_mode_like_cpp(create_mode)
     }
 
     pub(crate) fn set_player_gold_like_cpp(&mut self, gold: u64) -> bool {
@@ -474,9 +349,84 @@ impl WorldSession {
         canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
 
+    pub(crate) fn player_name_like_cpp(&self) -> Option<String> {
+        crate::session::hub_ref(self).player_name_like_cpp()
+    }
+
+    pub(crate) fn player_faction_template_id_like_cpp(&self) -> Option<u32> {
+        crate::session::hub_ref(self).player_faction_template_id_like_cpp()
+    }
+
+    pub(in crate::session) fn resolved_player_scale_duration_like_cpp(&self) -> Option<i32> {
+        crate::session::hub_ref(self).resolved_player_scale_duration_like_cpp()
+    }
+
+    pub(crate) fn player_race_like_cpp(&self) -> u8 {
+        crate::session::hub_ref(self).player_race_like_cpp()
+    }
+
+    pub(crate) fn player_class_like_cpp(&self) -> u8 {
+        crate::session::hub_ref(self).player_class_like_cpp()
+    }
+
+    pub(crate) fn player_create_mode_like_cpp(&self) -> Option<u8> {
+        crate::session::hub_ref(self).player_create_mode_like_cpp()
+    }
+
+    pub(crate) fn player_level_like_cpp(&self) -> u8 {
+        crate::session::hub_ref(self).player_level_like_cpp()
+    }
+
+    pub(crate) fn player_gender_like_cpp(&self) -> u8 {
+        crate::session::hub_ref(self).player_gender_like_cpp()
+    }
+
+    #[inline]
+    pub fn player_guid(&self) -> Option<ObjectGuid> {
+        self.core.player_guid()
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    /// C++ `Player::SetFactionForRace`: `Player::LoadFromDB` resolves the
+    /// player's live faction template from `ChrRacesEntry::FactionID` before
+    /// the player is added to the map or published through ObjectAccessor.
+    pub(in crate::session) fn set_player_faction_for_race_like_cpp(&mut self, race: u8) {
+        let Some(chr_races_store) = self.catalogs.chr.races_store.as_ref() else {
+            return;
+        };
+        let faction_template = chr_races_store
+            .get(u32::from(race))
+            .and_then(|entry| u32::try_from(entry.faction_id).ok())
+            .filter(|faction_template| *faction_template != 0);
+        let faction_template = faction_template.unwrap_or(0);
+        let _canonical = self.core.with_owned_player_mut_like_cpp(|player| {
+            player.unit_mut().set_faction(faction_template);
+        });
+        #[cfg(test)]
+        if _canonical.is_some() || self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.identity.player_faction_template_like_cpp =
+                (faction_template != 0).then_some(faction_template);
+        }
+    }
+
+    pub(crate) fn set_player_create_mode_like_cpp(&mut self, create_mode: u8) -> bool {
+        let _canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| player.set_create_mode_like_cpp(create_mode))
+            .is_some();
+        #[cfg(test)]
+        if _canonical || self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.identity.player_create_mode_like_cpp = create_mode;
+            return true;
+        }
+        _canonical
+    }
+
     #[cfg(test)]
     pub(crate) fn set_player_character_points_like_cpp(&mut self, points: i32) -> bool {
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.set_character_points_like_cpp(points);
             })
@@ -488,9 +438,161 @@ impl WorldSession {
         canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
 
+    #[cfg(test)]
+    pub(crate) fn set_player_faction_template_like_cpp(&mut self, faction_template: u32) {
+        self.fixtures.identity.player_faction_template_like_cpp =
+            (faction_template != 0).then_some(faction_template);
+        let _ = self.core.mutate_canonical_player_like_cpp(|player| {
+            player.unit_mut().set_faction(faction_template);
+        });
+    }
+}
+
+impl crate::session::state::SessionCore {
+    pub(crate) fn set_canonical_chosen_title_like_cpp(
+        &mut self,
+        title_id: i32,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        self.mutate_canonical_player_like_cpp(|player| {
+            player.set_chosen_title_like_cpp(title_id);
+            player.values_update(true)
+        })
+    }
+
+    pub(crate) fn player_is_possessing_like_cpp(&self) -> bool {
+        let Some(player_guid) = self.player_guid else {
+            return false;
+        };
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        let Some(manager) = self.canonical_map_manager.as_ref() else {
+            return false;
+        };
+        let Ok(manager) = manager.lock() else {
+            return false;
+        };
+
+        let mut result = None;
+        manager.do_for_all_maps_with_map_id(map_id, |managed| {
+            if result.is_some() {
+                return;
+            }
+
+            let map = managed.map();
+            let Some(player) = map.get_typed_player(player_guid) else {
+                return;
+            };
+            let Some(charmed_guid) = player.unit().subsystems().control.charmed_guid else {
+                result = Some(false);
+                return;
+            };
+
+            let target_possessed_by_player = map
+                .get_typed_player(charmed_guid)
+                .map(|target| {
+                    let control = &target.unit().subsystems().control;
+                    control.charmer_guid == Some(player_guid) && control.is_possessed()
+                })
+                .or_else(|| {
+                    map.with_creature_like_cpp(charmed_guid, |target| {
+                        let control = &target.unit().subsystems().control;
+                        control.charmer_guid == Some(player_guid) && control.is_possessed()
+                    })
+                })
+                .unwrap_or(false);
+
+            result = Some(target_possessed_by_player);
+        });
+
+        result.unwrap_or(false)
+    }
+
+    pub(crate) fn represented_player_charmed_guid_like_cpp(&self) -> ObjectGuid {
+        let Some(player_guid) = self.player_guid else {
+            return ObjectGuid::EMPTY;
+        };
+        let map_id = u32::from(self.player_map_id_like_cpp());
+        let Some(manager) = self.canonical_map_manager.as_ref() else {
+            return ObjectGuid::EMPTY;
+        };
+        let Ok(manager) = manager.lock() else {
+            return ObjectGuid::EMPTY;
+        };
+
+        let mut result = None;
+        manager.do_for_all_maps_with_map_id(map_id, |managed| {
+            if result.is_some() {
+                return;
+            }
+
+            let Some(player) = managed.map().get_typed_player(player_guid) else {
+                return;
+            };
+            result = Some(
+                player
+                    .unit()
+                    .subsystems()
+                    .control
+                    .charmed_guid
+                    .unwrap_or(ObjectGuid::EMPTY),
+            );
+        });
+
+        result.unwrap_or(ObjectGuid::EMPTY)
+    }
+
+    pub(crate) fn player_liquid_status_like_cpp(&self) -> Option<u32> {
+        self.canonical_player_snapshot_like_cpp(|player| player.gameplay_state().liquid_status)
+    }
+
+    /// Get the logged-in player GUID.
+    pub fn player_guid(&self) -> Option<ObjectGuid> {
+        self.player_guid
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(in crate::session) fn player_can_never_see_target_like_cpp(&self) -> bool {
+        self.active_player_update_state_like_cpp()
+            .map(|(flags, _, _)| {
+                flags & PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP == 0
+            })
+            .unwrap_or(true)
+    }
+
+    pub(in crate::session) fn player_world_local_state_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerWorldLocalState> {
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.gameplay_state().world_local);
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(
+                wow_entities::PlayerWorldLocalState::from_represented_parts_like_cpp(
+                    self.fixtures.identity.player_zone_id_like_cpp,
+                    self.fixtures.identity.player_area_id_like_cpp,
+                    self.fixtures
+                        .identity
+                        .player_zone_area_authority_complete_like_cpp,
+                    self.fixtures.combat.player_pvp_hostile_like_cpp,
+                    self.fixtures.combat.player_pvp_end_timer_like_cpp,
+                    self.fixtures.combat.player_contested_pvp_timer_like_cpp,
+                    self.fixtures.identity.represented_is_outdoors_like_cpp,
+                ),
+            );
+        }
+        canonical
+    }
+
+    pub(in crate::session) fn player_war_mode_local_active_like_cpp(&self) -> bool {
+        self.active_player_update_state_like_cpp()
+            .is_some_and(|(flags, _, _)| flags & PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP != 0)
+    }
+
     pub(crate) fn player_name_like_cpp(&self) -> Option<String> {
-        if let Some(name) =
-            self.with_owned_player_like_cpp(|player| player.unit().world().name().to_owned())
+        if let Some(name) = self
+            .core
+            .with_owned_player_like_cpp(|player| player.unit().world().name().to_owned())
         {
             return Some(name);
         }
@@ -508,7 +610,7 @@ impl WorldSession {
     }
 
     pub(crate) fn player_faction_template_id_like_cpp(&self) -> Option<u32> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
             u32::try_from(player.unit().data().faction_template)
                 .ok()
                 .filter(|faction| *faction != 0)
@@ -527,7 +629,7 @@ impl WorldSession {
     }
 
     pub(in crate::session) fn resolved_can_swim_to_fly_transition_like_cpp(&self) -> Option<bool> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
             player
                 .gameplay_state()
                 .movement_control
@@ -545,7 +647,7 @@ impl WorldSession {
     }
 
     pub(in crate::session) fn resolved_player_scale_duration_like_cpp(&self) -> Option<i32> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
             player.gameplay_state().movement_control.scale_duration
         });
         #[cfg(test)]
@@ -555,12 +657,11 @@ impl WorldSession {
         canonical
     }
 
-    pub(crate) fn player_liquid_status_like_cpp(&self) -> Option<u32> {
-        self.canonical_player_snapshot_like_cpp(|player| player.gameplay_state().liquid_status)
-    }
-
     pub(crate) fn player_race_like_cpp(&self) -> u8 {
-        if let Some(race) = self.with_owned_player_like_cpp(|player| player.race_like_cpp()) {
+        if let Some(race) = self
+            .core
+            .with_owned_player_like_cpp(|player| player.race_like_cpp())
+        {
             return race;
         }
         #[cfg(test)]
@@ -579,7 +680,10 @@ impl WorldSession {
     }
 
     pub(crate) fn player_class_like_cpp(&self) -> u8 {
-        if let Some(class) = self.with_owned_player_like_cpp(|player| player.class_like_cpp()) {
+        if let Some(class) = self
+            .core
+            .with_owned_player_like_cpp(|player| player.class_like_cpp())
+        {
             return class;
         }
         #[cfg(test)]
@@ -598,7 +702,9 @@ impl WorldSession {
     }
 
     pub(crate) fn player_create_mode_like_cpp(&self) -> Option<u8> {
-        let canonical = self.with_owned_player_like_cpp(Player::create_mode_like_cpp);
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(Player::create_mode_like_cpp);
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(self.fixtures.identity.player_create_mode_like_cpp);
@@ -607,7 +713,10 @@ impl WorldSession {
     }
 
     pub(crate) fn player_level_like_cpp(&self) -> u8 {
-        if let Some(level) = self.with_owned_player_like_cpp(|player| player.level_like_cpp()) {
+        if let Some(level) = self
+            .core
+            .with_owned_player_like_cpp(|player| player.level_like_cpp())
+        {
             return level;
         }
         #[cfg(test)]
@@ -626,7 +735,10 @@ impl WorldSession {
     }
 
     pub(crate) fn player_gender_like_cpp(&self) -> u8 {
-        if let Some(gender) = self.with_owned_player_like_cpp(|player| player.gender_like_cpp()) {
+        if let Some(gender) = self
+            .core
+            .with_owned_player_like_cpp(|player| player.gender_like_cpp())
+        {
             return gender;
         }
         #[cfg(test)]
@@ -643,18 +755,8 @@ impl WorldSession {
             .map(|identity| identity.gender)
             .unwrap_or_default()
     }
-
-    #[cfg(test)]
-    pub(crate) fn set_player_faction_template_like_cpp(&mut self, faction_template: u32) {
-        self.fixtures.identity.player_faction_template_like_cpp =
-            (faction_template != 0).then_some(faction_template);
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
-            player.unit_mut().set_faction(faction_template);
-        });
-    }
-
-    /// Get the logged-in player GUID.
-    pub fn player_guid(&self) -> Option<ObjectGuid> {
-        self.core.player_guid
-    }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/player_binding/f3_shims.rs"]
+mod f3_shims;

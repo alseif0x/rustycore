@@ -569,11 +569,26 @@ impl WorldSession {
         &mut self,
         creature: wow_entities::Creature,
     ) {
+        self.core.sync_canonical_creature_entity_like_cpp(creature)
+    }
+    pub(crate) fn mutate_world_creature<F, R>(&mut self, guid: ObjectGuid, f: F) -> Option<R>
+    where
+        F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
+    {
+        self.core.mutate_world_creature(guid, f)
+    }
+}
+
+impl crate::session::state::SessionCore {
+    pub(in crate::session) fn sync_canonical_creature_entity_like_cpp(
+        &mut self,
+        creature: wow_entities::Creature,
+    ) {
         let guid = creature.guid();
         let expected_legacy_authority = creature.loot_authority_like_cpp().clone();
         let expected_legacy_stamp = expected_legacy_authority.stamp_like_cpp();
         let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
+        let Some(manager) = self.canonical_map_manager.as_ref() else {
             return;
         };
         let authority = sync_canonical_creature_entity_on_map_like_cpp(
@@ -591,13 +606,14 @@ impl WorldSession {
             );
         }
     }
+
     pub(crate) fn mutate_world_creature<F, R>(&mut self, guid: ObjectGuid, f: F) -> Option<R>
     where
         F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
     {
         let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
         let mut f = Some(f);
-        if let Some(manager) = self.core.map_manager.as_ref().cloned() {
+        if let Some(manager) = self.map_manager.as_ref().cloned() {
             let result = {
                 let mut manager = manager
                     .write()

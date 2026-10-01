@@ -180,16 +180,8 @@ impl WorldSession {
         })
     }
 
-    /// C++ `Player::GetShapeshiftForm`'s `SpellShapeshiftFormEntry`:
-    /// `Player::CalculateMinMaxDamage` (`StatSystem.cpp:461-467`) rescales the
-    /// base weapon damage and `Player::_ApplyWeaponDamage` (`Player.cpp:8018-8020`)
-    /// suppresses the item-delay attack time while a form carries a
-    /// `CombatRoundTime`. `None` when no form, no store, or a zero field.
     pub(crate) fn represented_shapeshift_combat_round_time_like_cpp(&self) -> Option<f32> {
-        let form_id = self.represented_shapeshift_form_like_cpp()?;
-        let store = self.catalogs.spell_catalogs.spell_shapeshift_form_store()?;
-        let form = store.get(form_id)?;
-        (form.combat_round_time > 0).then(|| f32::from(form.combat_round_time))
+        crate::session::hub_ref(self).represented_shapeshift_combat_round_time_like_cpp()
     }
 
     /// C++ `AuraEffect::HandleModAttackSpeed`/`HandleModMeleeSpeedPct`/
@@ -719,6 +711,20 @@ impl WorldSession {
                 && effect.effect_aura == wow_data::spell::aura_types::SPELL_AURA_MOD_CONFUSE
         });
         Some(family_matches && effect_zero_is_confuse)
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    /// C++ `Player::GetShapeshiftForm`'s `SpellShapeshiftFormEntry`:
+    /// `Player::CalculateMinMaxDamage` (`StatSystem.cpp:461-467`) rescales the
+    /// base weapon damage and `Player::_ApplyWeaponDamage` (`Player.cpp:8018-8020`)
+    /// suppresses the item-delay attack time while a form carries a
+    /// `CombatRoundTime`. `None` when no form, no store, or a zero field.
+    pub(crate) fn represented_shapeshift_combat_round_time_like_cpp(&self) -> Option<f32> {
+        let form_id = self.represented_shapeshift_form_like_cpp()?;
+        let store = self.catalogs.spell_catalogs.spell_shapeshift_form_store()?;
+        let form = store.get(form_id)?;
+        (form.combat_round_time > 0).then(|| f32::from(form.combat_round_time))
     }
 }
 

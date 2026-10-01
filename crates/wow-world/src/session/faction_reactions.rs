@@ -92,6 +92,15 @@ impl WorldSession {
         }
     }
 
+    pub(crate) fn represented_get_reaction_to_like_cpp(
+        &self,
+        input: RepresentedGetReactionInputLikeCpp,
+    ) -> wow_data::reputation::ReputationRankLikeCpp {
+        crate::session::hub_ref(self).represented_get_reaction_to_like_cpp(input)
+    }
+}
+
+impl crate::session::HubRef<'_> {
     pub(crate) fn represented_faction_reaction_to_like_cpp(
         &self,
         input: RepresentedFactionReactionInputLikeCpp,
@@ -275,3 +284,7 @@ impl WorldSession {
         })
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/faction_reactions/f3_shims.rs"]
+mod f3_shims;

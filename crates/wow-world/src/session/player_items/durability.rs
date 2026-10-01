@@ -35,7 +35,7 @@ impl WorldSession {
     }
     #[must_use]
     pub(crate) fn stats_limits_like_cpp(&self) -> wow_data::StatsLimitsLikeCpp {
-        self.config.stats_limits_like_cpp
+        self.config.stats_limits_like_cpp()
     }
     /// C++ `Player::DurabilityLossAll` (`Player.cpp:4522-4544`).
     ///
@@ -809,12 +809,24 @@ impl WorldSession {
         Some(repair_items)
     }
     pub fn item_template_max_durability(&self, item_id: u32) -> u32 {
-        self.catalogs
-            .items
+        self.catalogs.item_template_max_durability(item_id)
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    pub fn item_template_max_durability(&self, item_id: u32) -> u32 {
+        self.items
             .stats_store
             .as_ref()
             .and_then(|store| store.sparse_template(item_id))
             .map(|template| template.max_durability)
             .unwrap_or(0)
+    }
+}
+
+impl crate::session::state::SessionWorldConfig {
+    #[must_use]
+    pub(crate) fn stats_limits_like_cpp(&self) -> wow_data::StatsLimitsLikeCpp {
+        self.stats_limits_like_cpp
     }
 }

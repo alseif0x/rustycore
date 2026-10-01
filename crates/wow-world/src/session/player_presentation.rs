@@ -18,33 +18,13 @@ pub(in crate::session) enum RepresentedMountSpellCheckOutcomeLikeCpp {
 
 impl WorldSession {
     pub(crate) fn player_is_game_master_like_cpp(&self) -> Option<bool> {
-        let canonical = self.with_owned_player_like_cpp(Player::is_game_master_like_cpp);
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.combat.player_game_master_like_cpp);
-        }
-        canonical
+        crate::session::hub_ref(self).player_is_game_master_like_cpp()
     }
 
     pub(in crate::session) fn player_unit_presentation_snapshot_like_cpp(
         &self,
     ) -> Option<(UnitFlags, i32, f32)> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            (
-                player.unit().unit_flags_like_cpp(),
-                player.unit().data().mount_display_id,
-                player.unit().world().object().scale(),
-            )
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some((
-                self.fixtures.presentation.player_unit_flags_like_cpp,
-                self.fixtures.vehicles.player_mount_display_id_like_cpp,
-                self.fixtures.presentation.player_object_scale_like_cpp,
-            ));
-        }
-        canonical
+        crate::session::hub_ref(self).player_unit_presentation_snapshot_like_cpp()
     }
 
     pub(in crate::session) fn set_player_mount_presentation_like_cpp(
@@ -52,46 +32,7 @@ impl WorldSession {
         display_id: i32,
         mounted: bool,
     ) -> bool {
-        let mut canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_mount_presentation_like_cpp(
-                    u32::try_from(display_id).unwrap_or(0),
-                    mounted,
-                );
-            })
-            .is_some();
-        #[cfg(test)]
-        if !canonical
-            && self.core.player_handle_like_cpp.is_none()
-            && let Some(guid) = self.player_guid()
-        {
-            canonical = self
-                .mutate_canonical_player_by_guid_like_cpp(guid, |player| {
-                    player.set_mount_presentation_like_cpp(
-                        u32::try_from(display_id).unwrap_or(0),
-                        mounted,
-                    );
-                })
-                .is_some();
-        }
-        #[cfg(test)]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.vehicles.player_mount_display_id_like_cpp = display_id;
-            self.fixtures.vehicles.player_mounted_like_cpp = mounted;
-            if mounted {
-                self.fixtures
-                    .presentation
-                    .player_unit_flags_like_cpp
-                    .insert(UnitFlags::MOUNT);
-            } else {
-                self.fixtures
-                    .presentation
-                    .player_unit_flags_like_cpp
-                    .remove(UnitFlags::MOUNT);
-            }
-            return true;
-        }
-        canonical
+        crate::session::hub_mut(self).set_player_mount_presentation_like_cpp(display_id, mounted)
     }
 
     pub(in crate::session) fn update_player_collision_height_like_cpp(&mut self) {
@@ -137,23 +78,8 @@ impl WorldSession {
         }
     }
 
-    /// C++ `Unit::GetShapeshiftForm`: the canonical `UNIT_FIELD_BYTES_2` byte
-    /// owned by the Unit, with the transitional Player gameplay projection as
-    /// the fallback for fixtures that only seed it.
     pub(crate) fn represented_shapeshift_form_like_cpp(&self) -> Option<u32> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            let form_id = u32::from(player.unit().shapeshift_form_id_like_cpp());
-            if form_id != 0 {
-                form_id
-            } else {
-                player.shapeshift_form_id_like_cpp()
-            }
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.auras.represented_shapeshift_form_like_cpp);
-        }
-        canonical
+        crate::session::hub_ref(self).represented_shapeshift_form_like_cpp()
     }
 
     /// C++ `Unit::SetShapeshiftForm`: write the canonical Unit field and keep
@@ -335,14 +261,7 @@ impl WorldSession {
     }
 
     pub(crate) fn represented_player_mount_liquid_state_like_cpp(&self) -> Option<(bool, bool)> {
-        let liquid_status = self.player_liquid_status_like_cpp()?;
-        let is_submerged = liquid_status & LIQUID_MAP_UNDER_WATER_LIKE_CPP != 0
-            || self
-                .resolved_player_movement_flags_like_cpp()?
-                .contains(MovementFlag::SWIMMING);
-        let is_in_water =
-            liquid_status & (LIQUID_MAP_IN_WATER_LIKE_CPP | LIQUID_MAP_UNDER_WATER_LIKE_CPP) != 0;
-        Some((is_submerged, is_in_water))
+        crate::session::hub_ref(self).represented_player_mount_liquid_state_like_cpp()
     }
 
     #[cfg(test)]
@@ -391,5 +310,120 @@ impl WorldSession {
         } else {
             debug!("CMSG_FAR_SIGHT enable target {:?} is not resoluble", target);
         }
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(in crate::session) fn set_player_mount_presentation_like_cpp(
+        &mut self,
+        display_id: i32,
+        mounted: bool,
+    ) -> bool {
+        let mut canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_mount_presentation_like_cpp(
+                    u32::try_from(display_id).unwrap_or(0),
+                    mounted,
+                );
+            })
+            .is_some();
+        #[cfg(test)]
+        if !canonical
+            && self.core.player_handle_like_cpp.is_none()
+            && let Some(guid) = self.core.player_guid()
+        {
+            canonical = self
+                .core
+                .mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+                    player.set_mount_presentation_like_cpp(
+                        u32::try_from(display_id).unwrap_or(0),
+                        mounted,
+                    );
+                })
+                .is_some();
+        }
+        #[cfg(test)]
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.vehicles.player_mount_display_id_like_cpp = display_id;
+            self.fixtures.vehicles.player_mounted_like_cpp = mounted;
+            if mounted {
+                self.fixtures
+                    .presentation
+                    .player_unit_flags_like_cpp
+                    .insert(UnitFlags::MOUNT);
+            } else {
+                self.fixtures
+                    .presentation
+                    .player_unit_flags_like_cpp
+                    .remove(UnitFlags::MOUNT);
+            }
+            return true;
+        }
+        canonical
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(crate) fn player_is_game_master_like_cpp(&self) -> Option<bool> {
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(Player::is_game_master_like_cpp);
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.fixtures.combat.player_game_master_like_cpp);
+        }
+        canonical
+    }
+
+    pub(in crate::session) fn player_unit_presentation_snapshot_like_cpp(
+        &self,
+    ) -> Option<(UnitFlags, i32, f32)> {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
+            (
+                player.unit().unit_flags_like_cpp(),
+                player.unit().data().mount_display_id,
+                player.unit().world().object().scale(),
+            )
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some((
+                self.fixtures.presentation.player_unit_flags_like_cpp,
+                self.fixtures.vehicles.player_mount_display_id_like_cpp,
+                self.fixtures.presentation.player_object_scale_like_cpp,
+            ));
+        }
+        canonical
+    }
+
+    /// C++ `Unit::GetShapeshiftForm`: the canonical `UNIT_FIELD_BYTES_2` byte
+    /// owned by the Unit, with the transitional Player gameplay projection as
+    /// the fallback for fixtures that only seed it.
+    pub(crate) fn represented_shapeshift_form_like_cpp(&self) -> Option<u32> {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
+            let form_id = u32::from(player.unit().shapeshift_form_id_like_cpp());
+            if form_id != 0 {
+                form_id
+            } else {
+                player.shapeshift_form_id_like_cpp()
+            }
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.fixtures.auras.represented_shapeshift_form_like_cpp);
+        }
+        canonical
+    }
+
+    pub(crate) fn represented_player_mount_liquid_state_like_cpp(&self) -> Option<(bool, bool)> {
+        let liquid_status = self.core.player_liquid_status_like_cpp()?;
+        let is_submerged = liquid_status & LIQUID_MAP_UNDER_WATER_LIKE_CPP != 0
+            || self
+                .resolved_player_movement_flags_like_cpp()?
+                .contains(MovementFlag::SWIMMING);
+        let is_in_water =
+            liquid_status & (LIQUID_MAP_IN_WATER_LIKE_CPP | LIQUID_MAP_UNDER_WATER_LIKE_CPP) != 0;
+        Some((is_submerged, is_in_water))
     }
 }

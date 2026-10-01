@@ -1,0 +1,31 @@
+// Copyright (c) 2026 alseif0x
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! #1241 F3 test shims: WorldSession entry points kept only for unit_tests callers.
+
+#[allow(unused_imports)]
+use super::*;
+
+impl crate::session::WorldSession {
+    #[cfg(test)]
+    pub(in crate::session) fn mutate_player_world_local_state_like_cpp<R>(
+        &mut self,
+        mutate: impl FnOnce(&mut wow_entities::PlayerWorldLocalState) -> R,
+    ) -> Option<R> {
+        crate::session::hub_mut(self).mutate_player_world_local_state_like_cpp(mutate)
+    }
+    #[cfg(test)]
+    pub(in crate::session) fn mutate_player_unit_presentation_like_cpp<R>(
+        &mut self,
+        mutate: impl FnOnce(&mut Player) -> R,
+    ) -> Option<R> {
+        self.core.mutate_player_unit_presentation_like_cpp(mutate)
+    }
+    #[cfg(test)]
+    pub(in crate::session) fn mutate_player_battleground_state_like_cpp<R>(
+        &mut self,
+        mutate: impl FnOnce(&mut wow_entities::PlayerBattlegroundState) -> R,
+    ) -> Option<R> {
+        crate::session::hub_mut(self).mutate_player_battleground_state_like_cpp(mutate)
+    }
+}

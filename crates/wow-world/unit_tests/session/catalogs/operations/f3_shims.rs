@@ -46,4 +46,16 @@ impl crate::session::WorldSession {
     ) {
         self.catalogs.set_exploration_base_xp_store_like_cpp(store)
     }
+    #[cfg(test)]
+    pub(crate) fn world_query_catalogs_like_cpp(&self) -> Option<&ObjectMgrCatalogsLikeCpp> {
+        self.catalogs.world_query_catalogs_like_cpp()
+    }
+    #[cfg(test)]
+    pub(crate) fn graveyard_store(&self) -> Option<&Arc<GraveyardStore>> {
+        self.catalogs.graveyard_store()
+    }
+    #[cfg(test)]
+    pub(crate) fn lfg_dungeon_store_like_cpp(&self) -> Option<&Arc<LfgDungeonStoreLikeCpp>> {
+        self.catalogs.lfg_dungeon_store_like_cpp()
+    }
 }

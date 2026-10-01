@@ -242,10 +242,7 @@ impl WorldSession {
     pub(crate) fn creature_template_lifecycle_store_like_cpp(
         &self,
     ) -> Option<&Arc<CreatureTemplateLifecycleStoreLikeCpp>> {
-        self.catalogs
-            .creatures
-            .template_lifecycle_store_like_cpp
-            .as_ref()
+        self.catalogs.creature_template_lifecycle_store_like_cpp()
     }
     pub fn set_creature_display_info_store(&mut self, store: Arc<CreatureDisplayInfoStore>) {
         self.catalogs.creatures.display_info_store = Some(store);
@@ -355,5 +352,13 @@ impl WorldSession {
         let display_id = template
             .choose_display_id_like_cpp(&mut self.core.driver.represented_runtime_rng_like_cpp)?;
         Some((i32::try_from(display_id).unwrap_or(0), template.vehicle_id))
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    pub(crate) fn creature_template_lifecycle_store_like_cpp(
+        &self,
+    ) -> Option<&Arc<CreatureTemplateLifecycleStoreLikeCpp>> {
+        self.creatures.template_lifecycle_store_like_cpp.as_ref()
     }
 }

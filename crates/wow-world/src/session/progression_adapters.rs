@@ -40,25 +40,8 @@ impl WorldSession {
         canonical
     }
 
-    /// Level at which mobs give 0 XP ("gray") — C++ `Trinity::XP::GetGrayLevel`.
     pub(crate) fn gray_level(&self, pl: u8) -> u8 {
-        let level = if pl < 7 {
-            0
-        } else if pl < 35 {
-            let count = (15..=pl).filter(|level| level % 5 == 0).count() as u8;
-            (pl - 7).saturating_sub(count.saturating_sub(1))
-        } else {
-            pl.saturating_sub(10)
-        };
-        #[cfg(test)]
-        let level = self
-            .fixtures
-            .progression
-            .represented_gray_level_script_overrides_like_cpp
-            .get(&pl)
-            .copied()
-            .unwrap_or(level);
-        level
+        crate::session::hub_ref(self).gray_level(pl)
     }
 
     #[cfg(test)]
@@ -258,40 +241,11 @@ impl WorldSession {
     }
 
     pub(crate) fn set_player_next_level_xp_like_cpp(&mut self, xp: u32) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                let next_level_xp = xp.min(i32::MAX as u32) as i32;
-                player.set_next_level_xp(next_level_xp);
-                // Rust hydrates the Character row before its XP table refresh,
-                // while C++ has NextLevelXP ready before `SetXP`. Recompute the
-                // dependent SetXP field here so the final canonical value is
-                // independent of that transitional load ordering.
-                let scaling_level_delta = if player.unit().data().level
-                    < i32::from(WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP)
-                    && player.active_data().xp < next_level_xp / 2
-                {
-                    -1
-                } else {
-                    0
-                };
-                player.set_scaling_player_level_delta_like_cpp(scaling_level_delta);
-            })
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.progression.player_next_level_xp = xp;
-        }
-        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
+        crate::session::hub_mut(self).set_player_next_level_xp_like_cpp(xp)
     }
 
     pub(crate) fn set_selection_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
-        let _canonical = self
-            .with_owned_player_mut_like_cpp(|player| player.set_selection(guid.unwrap_or_default()))
-            .is_some();
-        #[cfg(test)]
-        if _canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.combat.selection_guid = guid;
-        }
+        crate::session::hub_mut(self).set_selection_guid_like_cpp(guid)
     }
 
     #[cfg(test)]
@@ -317,13 +271,7 @@ impl WorldSession {
     }
 
     pub(crate) fn resolved_player_xp_like_cpp(&self) -> Option<u32> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.active_data().xp.max(0) as u32);
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.progression.player_xp);
-        }
-        canonical
+        crate::session::hub_ref(self).resolved_player_xp_like_cpp()
     }
 
     pub(in crate::session) fn resolved_player_xp_for_level_like_cpp(
@@ -393,7 +341,89 @@ impl WorldSession {
 
     #[allow(dead_code)]
     pub(crate) fn selection_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        let canonical = self.with_owned_player_like_cpp(|player| player.unit().data().target);
+        crate::session::hub_ref(self).selection_guid_like_cpp()
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(crate) fn set_player_next_level_xp_like_cpp(&mut self, xp: u32) -> bool {
+        let canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                let next_level_xp = xp.min(i32::MAX as u32) as i32;
+                player.set_next_level_xp(next_level_xp);
+                // Rust hydrates the Character row before its XP table refresh,
+                // while C++ has NextLevelXP ready before `SetXP`. Recompute the
+                // dependent SetXP field here so the final canonical value is
+                // independent of that transitional load ordering.
+                let scaling_level_delta = if player.unit().data().level
+                    < i32::from(WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP)
+                    && player.active_data().xp < next_level_xp / 2
+                {
+                    -1
+                } else {
+                    0
+                };
+                player.set_scaling_player_level_delta_like_cpp(scaling_level_delta);
+            })
+            .is_some();
+        #[cfg(test)]
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.progression.player_next_level_xp = xp;
+        }
+        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
+    }
+
+    pub(crate) fn set_selection_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
+        let _canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| player.set_selection(guid.unwrap_or_default()))
+            .is_some();
+        #[cfg(test)]
+        if _canonical || self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.combat.selection_guid = guid;
+        }
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    /// Level at which mobs give 0 XP ("gray") — C++ `Trinity::XP::GetGrayLevel`.
+    pub(crate) fn gray_level(&self, pl: u8) -> u8 {
+        let level = if pl < 7 {
+            0
+        } else if pl < 35 {
+            let count = (15..=pl).filter(|level| level % 5 == 0).count() as u8;
+            (pl - 7).saturating_sub(count.saturating_sub(1))
+        } else {
+            pl.saturating_sub(10)
+        };
+        #[cfg(test)]
+        let level = self
+            .fixtures
+            .progression
+            .represented_gray_level_script_overrides_like_cpp
+            .get(&pl)
+            .copied()
+            .unwrap_or(level);
+        level
+    }
+
+    pub(crate) fn resolved_player_xp_like_cpp(&self) -> Option<u32> {
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.active_data().xp.max(0) as u32);
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.fixtures.progression.player_xp);
+        }
+        canonical
+    }
+
+    #[allow(dead_code)]
+    pub(crate) fn selection_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.unit().data().target);
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return self.fixtures.combat.selection_guid;

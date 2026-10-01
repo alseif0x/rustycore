@@ -11,31 +11,8 @@ impl WorldSession {
         slot: u8,
         item: &RepresentedVoidStorageItemLikeCpp,
     ) -> wow_packet::packets::void_storage::VoidItem {
-        let modifications = (item.fixed_scaling_level != 0)
-            .then(|| {
-                wow_packet::packets::item::ItemMod::new(
-                    item.fixed_scaling_level as i32,
-                    ItemModifier::TimewalkerLevel as u8,
-                )
-            })
-            .into_iter()
-            .collect();
-        wow_packet::packets::void_storage::VoidItem {
-            guid: ObjectGuid::create_item(self.core.realm_id, item.item_id as i64),
-            creator: item.creator_guid,
-            slot: u32::from(slot),
-            item: wow_packet::packets::item::ItemInstance {
-                item_id: item.item_entry as i32,
-                // C++ `ItemInstance::Initialize(VoidStorageItem const*)`
-                // intentionally initializes only ItemID and the optional
-                // TimewalkerLevel modifier. Random properties and ItemBonus
-                // remain their protocol defaults on void-storage packets.
-                modifications: wow_packet::packets::item::ItemModList {
-                    values: modifications,
-                },
-                ..Default::default()
-            },
-        }
+        self.core
+            .represented_void_storage_item_packet_like_cpp(slot, item)
     }
     pub(crate) fn represented_unit_values_update_to_update_object_like_cpp(
         &self,
@@ -270,14 +247,7 @@ impl WorldSession {
         &self,
         update: &wow_entities::PlayerValuesUpdate,
     ) {
-        let Some(guid) = self.player_guid() else {
-            return;
-        };
-        if let Some(packet) =
-            player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), update)
-        {
-            self.send_packet(&packet);
-        }
+        self.core.send_player_values_update_like_cpp(update)
     }
     pub(crate) fn send_represented_cinematic_start_like_cpp(&mut self, cinematic_id: u32) {
         if self.player_cinematic_state_snapshot_like_cpp().is_none() {
@@ -329,7 +299,104 @@ impl WorldSession {
         false
     }
     pub(crate) fn send_represented_rest_info_update_like_cpp(&self, nested_mask: u8) {
-        let Some(guid) = self.player_guid() else {
+        crate::session::hub_ref(self).send_represented_rest_info_update_like_cpp(nested_mask)
+    }
+    pub fn send_tx(&self) -> &flume::Sender<Vec<u8>> {
+        self.core.send_tx()
+    }
+    pub(in crate::session) fn send_represented_mount_unit_update_like_cpp(
+        &mut self,
+        display_id: i32,
+    ) {
+        crate::session::hub_mut(self).send_represented_mount_unit_update_like_cpp(display_id)
+    }
+    pub(crate) fn send_time_sync(&mut self) {
+        self.core.send_time_sync()
+    }
+    pub fn send_packet<P: wow_packet::ServerPacket>(&self, pkt: &P) -> bool {
+        self.core.send_packet(pkt)
+    }
+    pub(crate) fn try_send_packet<P: wow_packet::ServerPacket>(&self, pkt: &P) -> bool {
+        self.core.try_send_packet(pkt)
+    }
+    pub(in crate::session) fn send_system_message_like_cpp(&self, text: &str) {
+        self.core.send_system_message_like_cpp(text)
+    }
+    pub(in crate::session) fn send_notification_like_cpp(&self, text: String) {
+        self.core.send_notification_like_cpp(text)
+    }
+    pub fn send_update_world_state_like_cpp(&self, variable_id: u32, value: i32, hidden: bool) {
+        self.core
+            .send_update_world_state_like_cpp(variable_id, value, hidden)
+    }
+    pub fn send_raw_packet(&self, data: &[u8]) {
+        self.core.send_raw_packet(data)
+    }
+    pub fn send_buy_error(&self, result: BuyResult, creature_guid: Option<ObjectGuid>, item: u32) {
+        self.core.send_buy_error(result, creature_guid, item)
+    }
+    pub fn send_sell_error(
+        &self,
+        result: SellResult,
+        creature_guid: Option<ObjectGuid>,
+        item_guid: ObjectGuid,
+    ) {
+        self.core.send_sell_error(result, creature_guid, item_guid)
+    }
+    pub(crate) fn tutorial_flags_packet_like_cpp(
+        &self,
+    ) -> wow_packet::packets::misc::TutorialFlags {
+        wow_packet::packets::misc::TutorialFlags {
+            tutorial_data: self.lifecycle.tutorials_like_cpp,
+        }
+    }
+    pub(in crate::session) fn try_send_connected_player_command_like_cpp(
+        &self,
+        target_guid: ObjectGuid,
+        command: SessionCommand,
+    ) {
+        self.core
+            .try_send_connected_player_command_like_cpp(target_guid, command)
+    }
+    pub(in crate::session) fn send_active_player_multi_action_bars_update_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) {
+        crate::session::hub_ref(self).send_active_player_multi_action_bars_update_like_cpp(guid)
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(in crate::session) fn send_represented_mount_unit_update_like_cpp(
+        &mut self,
+        display_id: i32,
+    ) {
+        let Some(player_guid) = self.core.player_guid() else {
+            return;
+        };
+        let Some((unit_flags, _, _)) = self.shared().player_unit_presentation_snapshot_like_cpp()
+        else {
+            return;
+        };
+
+        use wow_packet::packets::update::{UnitDataValuesDeltaUpdate, UpdateObject};
+        let mut data = UnitDataValuesDeltaUpdate::default();
+        data.unit_data_mask[1] |= 1 << (41 - 32);
+        data.unit_data_mask[1] |= 1 << (51 - 32);
+        data.flags = unit_flags.bits();
+        data.mount_display_id = display_id;
+
+        self.core.send_packet(&UpdateObject::unit_values_update(
+            player_guid,
+            self.core.player_map_id_like_cpp(),
+            data,
+        ));
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(crate) fn send_represented_rest_info_update_like_cpp(&self, nested_mask: u8) {
+        let Some(guid) = self.core.player_guid() else {
             return;
         };
         let mut player = Player::new(None, false);
@@ -342,62 +409,109 @@ impl WorldSession {
         player.prepare_rest_info_values_update_like_cpp(0, rest_threshold, rest_state, nested_mask);
         let update = player.values_update(true);
         if let Some(packet) =
-            player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), &update)
+            player_values_update_to_update_object(guid, self.core.player_map_id_like_cpp(), &update)
+        {
+            self.core.send_packet(&packet);
+        }
+    }
+
+    pub(in crate::session) fn send_active_player_multi_action_bars_update_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) {
+        let Some((_, _, multi_action_bars)) = self.active_player_update_state_like_cpp() else {
+            return;
+        };
+        use wow_packet::packets::update::{ActivePlayerDataValuesUpdate, UpdateObject};
+
+        let mut data = ActivePlayerDataValuesUpdate::default();
+        set_active_player_update_bit_like_cpp(&mut data.active_player_data_mask, 70);
+        set_active_player_update_bit_like_cpp(&mut data.active_player_data_mask, 72);
+        data.multi_action_bars = multi_action_bars;
+        self.core
+            .send_packet(&UpdateObject::full_active_player_values_update(
+                guid,
+                self.core.player_map_id_like_cpp(),
+                data,
+            ));
+    }
+}
+
+impl crate::session::state::SessionCore {
+    pub(crate) fn represented_void_storage_item_packet_like_cpp(
+        &self,
+        slot: u8,
+        item: &RepresentedVoidStorageItemLikeCpp,
+    ) -> wow_packet::packets::void_storage::VoidItem {
+        let modifications = (item.fixed_scaling_level != 0)
+            .then(|| {
+                wow_packet::packets::item::ItemMod::new(
+                    item.fixed_scaling_level as i32,
+                    ItemModifier::TimewalkerLevel as u8,
+                )
+            })
+            .into_iter()
+            .collect();
+        wow_packet::packets::void_storage::VoidItem {
+            guid: ObjectGuid::create_item(self.realm_id, item.item_id as i64),
+            creator: item.creator_guid,
+            slot: u32::from(slot),
+            item: wow_packet::packets::item::ItemInstance {
+                item_id: item.item_entry as i32,
+                // C++ `ItemInstance::Initialize(VoidStorageItem const*)`
+                // intentionally initializes only ItemID and the optional
+                // TimewalkerLevel modifier. Random properties and ItemBonus
+                // remain their protocol defaults on void-storage packets.
+                modifications: wow_packet::packets::item::ItemModList {
+                    values: modifications,
+                },
+                ..Default::default()
+            },
+        }
+    }
+
+    pub(crate) fn send_player_values_update_like_cpp(
+        &self,
+        update: &wow_entities::PlayerValuesUpdate,
+    ) {
+        let Some(guid) = self.player_guid() else {
+            return;
+        };
+        if let Some(packet) =
+            player_values_update_to_update_object(guid, self.player_map_id_like_cpp(), update)
         {
             self.send_packet(&packet);
         }
     }
+
     /// Get a clone of the send channel.
     pub fn send_tx(&self) -> &flume::Sender<Vec<u8>> {
-        self.core.transport.connection.send_tx()
+        self.transport.connection.send_tx()
     }
-    pub(in crate::session) fn send_represented_mount_unit_update_like_cpp(
-        &mut self,
-        display_id: i32,
-    ) {
-        let Some(player_guid) = self.player_guid() else {
-            return;
-        };
-        let Some((unit_flags, _, _)) = self.player_unit_presentation_snapshot_like_cpp() else {
-            return;
-        };
 
-        use wow_packet::packets::update::{UnitDataValuesDeltaUpdate, UpdateObject};
-        let mut data = UnitDataValuesDeltaUpdate::default();
-        data.unit_data_mask[1] |= 1 << (41 - 32);
-        data.unit_data_mask[1] |= 1 << (51 - 32);
-        data.flags = unit_flags.bits();
-        data.mount_display_id = display_id;
-
-        self.send_packet(&UpdateObject::unit_values_update(
-            player_guid,
-            self.player_map_id_like_cpp(),
-            data,
-        ));
-    }
     /// Send a TimeSyncRequest and schedule the next one.
     pub(crate) fn send_time_sync(&mut self) {
         use wow_packet::packets::misc::TimeSyncRequest;
-        let sequence_index = self.core.driver.time_synchronization.next_counter;
+        let sequence_index = self.driver.time_synchronization.next_counter;
         self.send_packet(&TimeSyncRequest { sequence_index });
         trace!(
             "Sent TimeSyncRequest(seq={}) for account {}",
-            sequence_index, self.core.account_id
+            sequence_index, self.account_id
         );
-        self.core
-            .driver
+        self.driver
             .time_synchronization
             .pending_requests
             .insert(sequence_index, crate::session::game_time_ms_like_cpp());
         // C++ uses 5s for the first request, then 10s.
-        self.core.driver.time_synchronization.timer_ms =
-            if self.core.driver.time_synchronization.next_counter == 0 {
+        self.driver.time_synchronization.timer_ms =
+            if self.driver.time_synchronization.next_counter == 0 {
                 5000
             } else {
                 10000
             };
-        self.core.driver.time_synchronization.next_counter += 1;
+        self.driver.time_synchronization.next_counter += 1;
     }
+
     /// Send a server packet back to the client via the instance (default) channel.
     /// Enqueue one packet, reporting whether it was accepted.
     ///
@@ -408,18 +522,19 @@ impl WorldSession {
         let data = pkt.to_bytes();
         if std::env::var_os("RUSTYCORE_LOGIN_TRACE").is_some() {
             info!(
-                account = self.core.account_id,
+                account = self.account_id,
                 opcode = ?P::OPCODE,
                 bytes = data.len(),
                 "RUST_LOGIN_TRACE send_packet"
             );
         }
         if self.send_tx().send(data).is_err() {
-            warn!("Send channel closed for account {}", self.core.account_id);
+            warn!("Send channel closed for account {}", self.account_id);
             return false;
         }
         true
     }
+
     /// Attempts to enqueue one instance-channel packet without waiting for
     /// socket-writer capacity.
     ///
@@ -430,7 +545,7 @@ impl WorldSession {
         let data = pkt.to_bytes();
         if std::env::var_os("RUSTYCORE_LOGIN_TRACE").is_some() {
             info!(
-                account = self.core.account_id,
+                account = self.account_id,
                 opcode = ?P::OPCODE,
                 bytes = data.len(),
                 "RUST_LOGIN_TRACE try_send_packet"
@@ -441,16 +556,17 @@ impl WorldSession {
             Err(flume::TrySendError::Full(_)) => {
                 warn!(
                     "Send channel full for account {}; packet rejected without blocking",
-                    self.core.account_id
+                    self.account_id
                 );
                 false
             }
             Err(flume::TrySendError::Disconnected(_)) => {
-                warn!("Send channel closed for account {}", self.core.account_id);
+                warn!("Send channel closed for account {}", self.account_id);
                 false
             }
         }
     }
+
     pub(in crate::session) fn send_system_message_like_cpp(&self, text: &str) {
         for line in text.split('\n') {
             self.send_packet(&ChatPkt {
@@ -467,9 +583,11 @@ impl WorldSession {
             });
         }
     }
+
     pub(in crate::session) fn send_notification_like_cpp(&self, text: String) {
         self.send_packet(&PrintNotification { notify_text: text });
     }
+
     /// C++ `Player::SendUpdateWorldState(variable, value, hidden)` direct-session send.
     ///
     /// Mirrors `SendDirectMessage(worldstate.Write())`: constructs one
@@ -484,6 +602,7 @@ impl WorldSession {
         };
         self.send_packet(&packet);
     }
+
     /// Send pre-serialized packet bytes to the client.
     ///
     /// Used for packets with dynamic opcodes (e.g. `SetSpellModifier`
@@ -495,16 +614,17 @@ impl WorldSession {
                 .map(|bytes| format!("0x{:04X}", u16::from_le_bytes([bytes[0], bytes[1]])))
                 .unwrap_or_else(|| "<short>".to_string());
             info!(
-                account = self.core.account_id,
+                account = self.account_id,
                 opcode = opcode_text.as_str(),
                 bytes = data.len(),
                 "RUST_LOGIN_TRACE send_raw_packet"
             );
         }
         if self.send_tx().send(data.to_vec()).is_err() {
-            warn!("Send channel closed for account {}", self.core.account_id);
+            warn!("Send channel closed for account {}", self.account_id);
         }
     }
+
     pub fn send_buy_error(&self, result: BuyResult, creature_guid: Option<ObjectGuid>, item: u32) {
         self.send_packet(&BuyFailed {
             vendor_guid: creature_guid.unwrap_or(ObjectGuid::EMPTY),
@@ -512,6 +632,7 @@ impl WorldSession {
             reason: result,
         });
     }
+
     pub fn send_sell_error(
         &self,
         result: SellResult,
@@ -524,13 +645,7 @@ impl WorldSession {
             result,
         ));
     }
-    pub(crate) fn tutorial_flags_packet_like_cpp(
-        &self,
-    ) -> wow_packet::packets::misc::TutorialFlags {
-        wow_packet::packets::misc::TutorialFlags {
-            tutorial_data: self.lifecycle.tutorials_like_cpp,
-        }
-    }
+
     pub(in crate::session) fn try_send_connected_player_command_like_cpp(
         &self,
         target_guid: ObjectGuid,
@@ -542,24 +657,5 @@ impl WorldSession {
         {
             let _ = address.try_send(command);
         }
-    }
-    pub(in crate::session) fn send_active_player_multi_action_bars_update_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) {
-        let Some((_, _, multi_action_bars)) = self.active_player_update_state_like_cpp() else {
-            return;
-        };
-        use wow_packet::packets::update::{ActivePlayerDataValuesUpdate, UpdateObject};
-
-        let mut data = ActivePlayerDataValuesUpdate::default();
-        set_active_player_update_bit_like_cpp(&mut data.active_player_data_mask, 70);
-        set_active_player_update_bit_like_cpp(&mut data.active_player_data_mask, 72);
-        data.multi_action_bars = multi_action_bars;
-        self.send_packet(&UpdateObject::full_active_player_values_update(
-            guid,
-            self.player_map_id_like_cpp(),
-            data,
-        ));
     }
 }

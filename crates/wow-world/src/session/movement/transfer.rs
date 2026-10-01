@@ -930,7 +930,100 @@ impl WorldSession {
     pub(in crate::session) fn player_teleport_state_snapshot_like_cpp(
         &self,
     ) -> Option<PlayerTeleportStateLikeCpp> {
-        let canonical = self.with_owned_player_like_cpp(|player| *player.teleport_state_like_cpp());
+        crate::session::hub_ref(self).player_teleport_state_snapshot_like_cpp()
+    }
+    pub(in crate::session) fn update_player_teleport_state_like_cpp(
+        &mut self,
+        update: impl FnOnce(&mut PlayerTeleportStateLikeCpp),
+    ) -> bool {
+        crate::session::hub_mut(self).update_player_teleport_state_like_cpp(update)
+    }
+    pub(crate) fn set_represented_can_delay_teleport_like_cpp(&mut self, can_delay: bool) -> bool {
+        crate::session::hub_mut(self).set_represented_can_delay_teleport_like_cpp(can_delay)
+    }
+    pub(crate) fn represented_can_delay_teleport_like_cpp(&self) -> bool {
+        self.player_teleport_state_snapshot_like_cpp()
+            .is_some_and(|state| state.can_delay)
+    }
+    #[cfg(test)]
+    pub(crate) fn represented_has_delayed_teleport_like_cpp(&self) -> bool {
+        self.player_teleport_state_snapshot_like_cpp()
+            .is_some_and(|state| state.has_delayed)
+    }
+    #[cfg(test)]
+    pub(crate) fn represented_delayed_teleport_like_cpp(
+        &self,
+    ) -> Option<(u32, wow_core::Position, TeleportToOptionsLikeCpp)> {
+        self.player_teleport_state_snapshot_like_cpp()
+            .and_then(|state| state.delayed)
+    }
+    pub(crate) fn near_teleport_pending_like_cpp(&self) -> bool {
+        self.player_teleport_state_snapshot_like_cpp()
+            .is_some_and(|state| state.near_pending)
+    }
+    #[cfg(test)]
+    pub(crate) fn move_teleport_ack_events_like_cpp(&self) -> &[MoveTeleportAckEventLikeCpp] {
+        &self.fixtures.teleport.move_teleport_ack_events_like_cpp
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(in crate::session) fn update_player_teleport_state_like_cpp(
+        &mut self,
+        update: impl FnOnce(&mut PlayerTeleportStateLikeCpp),
+    ) -> bool {
+        if self.core.player_handle_like_cpp.is_some() {
+            return self
+                .core
+                .with_owned_player_mut_like_cpp(|player| {
+                    update(player.teleport_state_mut_like_cpp())
+                })
+                .is_some();
+        }
+        #[cfg(test)]
+        {
+            let mut state = self
+                .shared()
+                .player_teleport_state_snapshot_like_cpp()
+                .unwrap_or_default();
+            update(&mut state);
+            self.fixtures.teleport.pending_teleport = state.far_destination;
+            self.fixtures
+                .teleport
+                .represented_can_delay_teleport_like_cpp = state.can_delay;
+            self.fixtures
+                .teleport
+                .represented_has_delayed_teleport_like_cpp = state.has_delayed;
+            self.fixtures.teleport.near_teleport_pending_like_cpp = state.near_pending;
+            self.fixtures
+                .teleport
+                .represented_far_teleport_pending_like_cpp = state.far_pending;
+            self.fixtures.teleport.near_teleport_destination_like_cpp = state.near_destination;
+            self.fixtures.teleport.represented_delayed_teleport_like_cpp = state.delayed;
+            self.fixtures
+                .teleport
+                .near_teleport_destination_zone_area_like_cpp = state.near_destination_zone_area;
+            true
+        }
+        #[cfg(not(test))]
+        {
+            let _ = update;
+            false
+        }
+    }
+
+    pub(crate) fn set_represented_can_delay_teleport_like_cpp(&mut self, can_delay: bool) -> bool {
+        self.update_player_teleport_state_like_cpp(|state| state.can_delay = can_delay)
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(in crate::session) fn player_teleport_state_snapshot_like_cpp(
+        &self,
+    ) -> Option<PlayerTeleportStateLikeCpp> {
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| *player.teleport_state_like_cpp());
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(PlayerTeleportStateLikeCpp {
@@ -959,73 +1052,5 @@ impl WorldSession {
             });
         }
         canonical
-    }
-    pub(in crate::session) fn update_player_teleport_state_like_cpp(
-        &mut self,
-        update: impl FnOnce(&mut PlayerTeleportStateLikeCpp),
-    ) -> bool {
-        if self.core.player_handle_like_cpp.is_some() {
-            return self
-                .with_owned_player_mut_like_cpp(|player| {
-                    update(player.teleport_state_mut_like_cpp())
-                })
-                .is_some();
-        }
-        #[cfg(test)]
-        {
-            let mut state = self
-                .player_teleport_state_snapshot_like_cpp()
-                .unwrap_or_default();
-            update(&mut state);
-            self.fixtures.teleport.pending_teleport = state.far_destination;
-            self.fixtures
-                .teleport
-                .represented_can_delay_teleport_like_cpp = state.can_delay;
-            self.fixtures
-                .teleport
-                .represented_has_delayed_teleport_like_cpp = state.has_delayed;
-            self.fixtures.teleport.near_teleport_pending_like_cpp = state.near_pending;
-            self.fixtures
-                .teleport
-                .represented_far_teleport_pending_like_cpp = state.far_pending;
-            self.fixtures.teleport.near_teleport_destination_like_cpp = state.near_destination;
-            self.fixtures.teleport.represented_delayed_teleport_like_cpp = state.delayed;
-            self.fixtures
-                .teleport
-                .near_teleport_destination_zone_area_like_cpp = state.near_destination_zone_area;
-            true
-        }
-        #[cfg(not(test))]
-        {
-            let _ = update;
-            false
-        }
-    }
-    pub(crate) fn set_represented_can_delay_teleport_like_cpp(&mut self, can_delay: bool) -> bool {
-        self.update_player_teleport_state_like_cpp(|state| state.can_delay = can_delay)
-    }
-    pub(crate) fn represented_can_delay_teleport_like_cpp(&self) -> bool {
-        self.player_teleport_state_snapshot_like_cpp()
-            .is_some_and(|state| state.can_delay)
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_has_delayed_teleport_like_cpp(&self) -> bool {
-        self.player_teleport_state_snapshot_like_cpp()
-            .is_some_and(|state| state.has_delayed)
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_delayed_teleport_like_cpp(
-        &self,
-    ) -> Option<(u32, wow_core::Position, TeleportToOptionsLikeCpp)> {
-        self.player_teleport_state_snapshot_like_cpp()
-            .and_then(|state| state.delayed)
-    }
-    pub(crate) fn near_teleport_pending_like_cpp(&self) -> bool {
-        self.player_teleport_state_snapshot_like_cpp()
-            .is_some_and(|state| state.near_pending)
-    }
-    #[cfg(test)]
-    pub(crate) fn move_teleport_ack_events_like_cpp(&self) -> &[MoveTeleportAckEventLikeCpp] {
-        &self.fixtures.teleport.move_teleport_ack_events_like_cpp
     }
 }

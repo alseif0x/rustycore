@@ -11,4 +11,12 @@ impl crate::session::WorldSession {
     pub fn set_declined_names_used_like_cpp(&mut self, used: bool) {
         self.config.set_declined_names_used_like_cpp(used)
     }
+    #[cfg(test)]
+    pub fn set_start_all_explored_like_cpp(&mut self, enabled: bool) {
+        self.catalogs.set_start_all_explored_like_cpp(enabled)
+    }
+    #[cfg(test)]
+    pub(crate) fn start_all_explored_like_cpp(&self) -> bool {
+        self.catalogs.start_all_explored_like_cpp()
+    }
 }

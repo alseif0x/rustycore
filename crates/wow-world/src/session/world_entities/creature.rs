@@ -46,13 +46,8 @@ impl WorldSession {
         guid: ObjectGuid,
         f: impl FnOnce(&mut wow_entities::Creature) -> R,
     ) -> Option<R> {
-        let map_key = self
-            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
-        let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
-        let mut manager = manager.lock().ok()?;
-        let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
-        let creature = managed.map_mut().get_typed_creature_mut(guid)?;
-        Some(f(creature))
+        self.core
+            .mutate_canonical_creature_by_guid_like_cpp(guid, f)
     }
     pub fn set_canonical_creature_private_object_owner_like_cpp(
         &mut self,
@@ -83,15 +78,7 @@ impl WorldSession {
         updated
     }
     pub(crate) fn world_creature_guids(&self) -> Vec<ObjectGuid> {
-        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        if let Some(manager) = &self.core.map_manager {
-            return manager
-                .read()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .creature_guids(map_id, instance_id);
-        }
-
-        Vec::new()
+        self.core.world_creature_guids()
     }
     pub(crate) fn active_world_creature_guids_for_update_like_cpp(&self) -> Vec<ObjectGuid> {
         let Some(player_position) = self.player_position_like_cpp() else {
@@ -537,6 +524,34 @@ impl WorldSession {
             .last_presented_creature_melee_health_state_revision_like_cpp = committed_revision;
         self.sync_player_registry_state_like_cpp();
         Some(canonical_health)
+    }
+}
+
+impl crate::session::state::SessionCore {
+    pub(crate) fn mutate_canonical_creature_by_guid_like_cpp<R>(
+        &mut self,
+        guid: ObjectGuid,
+        f: impl FnOnce(&mut wow_entities::Creature) -> R,
+    ) -> Option<R> {
+        let map_key = self
+            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
+        let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
+        let mut manager = manager.lock().ok()?;
+        let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
+        let creature = managed.map_mut().get_typed_creature_mut(guid)?;
+        Some(f(creature))
+    }
+
+    pub(crate) fn world_creature_guids(&self) -> Vec<ObjectGuid> {
+        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
+        if let Some(manager) = &self.map_manager {
+            return manager
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .creature_guids(map_id, instance_id);
+        }
+
+        Vec::new()
     }
 }
 

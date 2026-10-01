@@ -44,26 +44,45 @@ FILES = {
         "    pub fn set_foo_store(&mut self, value: u32) {\n"
         "        self.catalogs.foo_store = Some(value);\n"
         "    }\n"
-        "    fn only_tests(&self) -> u32 {\n"
-        "        self.catalogs.bar + 1\n"
+        "    pub(crate) fn uses_whole(&self) -> u32 {\n"
+        "        helper(self) + self.catalogs.bar\n"
         "    }\n"
         "    fn never_called(&self) -> u32 {\n"
         "        self.catalogs.bar\n"
         "    }\n"
-        "    pub(crate) fn uses_whole(&self) -> u32 {\n"
-        "        helper(self) + self.catalogs.bar\n"
+        "    fn tests_only_two(&self) -> u32 {\n"
+        "        self.catalogs.bar\n"
+        "    }\n"
+        "}\n\n"
+        "impl WorldSession {\n"
+        "    fn only_tests(&self) -> u32 {\n"
+        "        self.catalogs.bar + 1\n"
+        "    }\n"
+        "    pub(crate) fn pair(&self) -> [u32; 2] {\n"
+        "        [self.catalogs.bar, 0]\n"
+        "    }\n"
+        "    pub(crate) fn ctx_only(&self) -> u32 {\n"
+        "        self.catalogs.bar\n"
+        "    }\n"
+        "    pub(crate) fn with_mut(&self, mut f: impl FnMut(u32) -> u32) -> u32 {\n"
+        "        f(self.catalogs.bar)\n"
         "    }\n"
         "}\n"),
     "crates/wow-world/src/session/connection.rs": (
         "use super::*;\n\n"
         "impl WorldSession {\n"
-        "    pub(crate) fn account_plus_foo(&self) -> u32 {\n"
-        "        self.core.account_id + self.foo_store().unwrap_or(0)\n"
+        "    pub fn account_plus_foo(&self) -> u32 {\n"
+        "        self.core.account_id + self.foo_store().unwrap_or(0) + self.pair()[0]\n"
+        "            + self.with_mut(|x| x)\n"
+        "    }\n"
+        "    #[cfg(test)]\n"
+        "    fn test_helper(&self) -> u32 {\n"
+        "        self.ctx_only()\n"
         "    }\n"
         "}\n"),
     "crates/wow-world/unit_tests/catalogs_tests.rs": (
         "fn t(session: &mut WorldSession) -> u32 {\n    session.set_foo_store(1);\n"
-        "    session.only_tests()\n}\n"),
+        "    session.only_tests() + session.tests_only_two()\n}\n"),
 }
 
 
@@ -103,12 +122,64 @@ class F3MoveMethodsTest(unittest.TestCase):
     def test_plan_thunk_rule_and_preconditions(self):
         P = self.plan()
         rows = {r["name"]: r for r in P["rows"]}
-        self.assertEqual(set(rows), {"foo_store", "set_foo_store", "only_tests"})
+        self.assertEqual(set(rows), {"foo_store", "set_foo_store", "only_tests", "pair", "ctx_only", "with_mut"})
+        self.assertEqual((rows["ctx_only"]["thunk"], bool(rows["ctx_only"]["shim"])), ("", True))  # cfg(test) caller
         self.assertIn("resident", rows["foo_store"]["thunk"])
         self.assertEqual(rows["set_foo_store"]["thunk"], "pub API, no production caller")
         self.assertEqual((rows["only_tests"]["thunk"], bool(rows["only_tests"]["shim"])), ("", True))
         self.assertTrue(P["blocked"]["uses_whole"].startswith("whole-self"))
-        self.assertTrue(P["blocked"]["never_called"].startswith("no callers anywhere"))
+        self.assertIn("never_called", P["blocked"])                                     # uncalled: stays
+        self.assertTrue(P["blocked"]["tests_only_two"].startswith("dead in non-test builds"))  # lint group
+
+    def test_upgrade_keeps_hub_preconditions(self):
+        f = dict(target="config", store_rehomed=True, recv="&self", acc={"config": 1},
+                 file="handlers/stats.rs", ret_borrow=False)
+        self.assertEqual(F.upgrade(f, "state", {"P", "C-hub"}), "reads config outside crate::session")
+        f.update(target="config", store_rehomed=True, file="session/stats.rs", ret_borrow=True)
+        self.assertTrue(F.upgrade(f, "state", {"P", "C-hub"}).startswith("returns a borrow"))
+        f.update(target="config", store_rehomed=True, ret_borrow=False, writes_store=True)
+        self.assertTrue(F.upgrade(f, "state", {"P", "C-hub"}).startswith("writes catalogs/config"))
+        f.update(target="config", store_rehomed=True, writes_store=False)
+        self.assertEqual(F.upgrade(f, "state", {"P", "C-hub"}), ("C-hub", "hubref", "HubRef"))
+        self.assertTrue(F.STORE_WRITE.search("self.config.max_level = 3;"))
+        self.assertTrue(F.STORE_WRITE.search("take(&mut self.catalogs.x)"))
+        self.assertFalse(F.STORE_WRITE.search("if self.config.max_level == 3 {}"))
+
+    def test_config_route_outside_session_is_blocked(self):
+        state = self.root / "crates/wow-world/src/session/state.rs"
+        state.write_text(state.read_text().replace(
+            "    pub(crate) catalogs: SessionCatalogs,\n",
+            "    pub(crate) catalogs: SessionCatalogs,\n    pub(in crate::session) config: SessionWorldConfig,\n"))
+        self.write("crates/wow-world/src/session/runtime_policy_access.rs",
+                   "impl crate::session::state::SessionWorldConfig {\n"
+                   "    pub(crate) fn limit(&self) -> u32 {\n        self.limit\n    }\n}\n")
+        body = "    pub(crate) fn uses_limit(&self) -> u32 {\n        self.core.account_id + self.limit()\n    }\n"
+        self.write("crates/wow-world/src/handlers/chat.rs", "impl WorldSession {\n" + body + "}\n")
+        self.write("crates/wow-world/src/session/admission.rs",
+                   "impl WorldSession {\n" + body.replace("uses_limit", "inner_limit") + "}\n")
+        F.DOMAIN["handlers/chat"] = "core"
+        self.addCleanup(F.DOMAIN.pop, "handlers/chat")
+        P = F.plan(self.root, {"core"}, {"P", "C-hub"})
+        self.assertEqual(P["blocked"].get("uses_limit"), "callee on an unreachable owner")
+        self.assertTrue(P["blocked"]["inner_limit"].startswith("no callers"))  # reachable inside session
+
+    def test_player_guid_is_a_permanent_inline_thunk(self):
+        self.write("crates/wow-world/src/session/player_binding.rs",
+                   "impl WorldSession {\n    pub fn player_guid(&self) -> u32 {\n"
+                   "        self.core.account_id\n    }\n}\n")
+        tests = self.root / "crates/wow-world/unit_tests/catalogs_tests.rs"
+        tests.write_text(tests.read_text() + "fn g(s: &WorldSession) -> u32 { s.player_guid() }\n")
+        rc, out = run("apply", "--group", "core", "--root", str(self.root), "--text-only", "--demote-blocked")
+        self.assertEqual(rc, 0, out)
+        text = (self.root / "crates/wow-world/src/session/player_binding.rs").read_text()
+        self.assertIn("    #[inline]\n    pub fn player_guid(&self) -> u32 {\n        self.core.player_guid()\n", text)
+        self.assertIn("impl crate::session::state::SessionCore {", text)
+        self.assertFalse((self.root / "crates/wow-world/unit_tests/session/player_binding").exists())
+
+    def write(self, rel, text):
+        path = self.root / rel
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(text)
 
     def test_precondition_aborts_before_any_write(self):
         before = digest(self.root)
@@ -129,6 +200,8 @@ class F3MoveMethodsTest(unittest.TestCase):
         self.assertIn("self.catalogs.foo_store()", head)             # resident-caller thunk
         self.assertIn("self.catalogs.set_foo_store(value)", head)    # pub API thunk
         self.assertNotIn("fn only_tests", head)                      # test-only caller: no thunk
+        self.assertIn("fn with_mut(&self, f: impl FnMut(u32) -> u32) -> u32 {", text)  # thunk drops `mut`
+        self.assertIn("fn with_mut(&self, mut f: impl FnMut(u32) -> u32) -> u32 {", moved)
         self.assertIn("helper(self)", head)                          # demoted fn stays
         self.assertIn("fn never_called", head)                       # uncalled fn stays
         shim = self.root / "crates/wow-world/unit_tests/session/catalogs/ops/f3_shims.rs"

@@ -575,28 +575,11 @@ impl WorldSession {
         self.core.directory.group_registry = Some(reg);
         self.core.directory.pending_invites = Some(invites);
     }
-    /// Get a reference to the shared group registry.
     pub fn group_registry(&self) -> Option<&Arc<GroupRegistry>> {
-        self.core.directory.group_registry.as_ref()
+        self.core.group_registry()
     }
     pub(crate) fn party_member_party_type_like_cpp(&self) -> [u8; 2] {
-        let mut party_type = [wow_social::group::GROUP_TYPE_NONE_LIKE_CPP; 2];
-        let (Some(group_registry), Some(player_guid)) =
-            (&self.core.directory.group_registry, self.player_guid())
-        else {
-            return party_type;
-        };
-
-        for group in group_registry.snapshots() {
-            let category = group.group_category_like_cpp();
-            if category < wow_social::group::MAX_GROUP_CATEGORY_LIKE_CPP
-                && group.members.contains(&player_guid)
-            {
-                party_type[usize::from(category)] = wow_social::group::GROUP_TYPE_NORMAL_LIKE_CPP;
-            }
-        }
-
-        party_type
+        self.core.party_member_party_type_like_cpp()
     }
     pub(in crate::session) fn represented_player_at_group_reward_distance_like_cpp(
         &self,
@@ -649,6 +632,33 @@ impl WorldSession {
         &self,
     ) -> &[RepresentedSilencePartyTalkerLikeCpp] {
         &self.social.represented_silence_party_talker_like_cpp
+    }
+}
+
+impl crate::session::state::SessionCore {
+    /// Get a reference to the shared group registry.
+    pub fn group_registry(&self) -> Option<&Arc<GroupRegistry>> {
+        self.directory.group_registry.as_ref()
+    }
+
+    pub(crate) fn party_member_party_type_like_cpp(&self) -> [u8; 2] {
+        let mut party_type = [wow_social::group::GROUP_TYPE_NONE_LIKE_CPP; 2];
+        let (Some(group_registry), Some(player_guid)) =
+            (&self.directory.group_registry, self.player_guid())
+        else {
+            return party_type;
+        };
+
+        for group in group_registry.snapshots() {
+            let category = group.group_category_like_cpp();
+            if category < wow_social::group::MAX_GROUP_CATEGORY_LIKE_CPP
+                && group.members.contains(&player_guid)
+            {
+                party_type[usize::from(category)] = wow_social::group::GROUP_TYPE_NORMAL_LIKE_CPP;
+            }
+        }
+
+        party_type
     }
 }
 

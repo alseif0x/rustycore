@@ -96,50 +96,14 @@ impl WorldSession {
 
         1.0 - 0.05 * f32::from(rank.as_u8() - ReputationRankLikeCpp::Neutral.as_u8())
     }
-    /// Reputation rank used by deterministic trainer pricing. Missing/zero
-    /// faction references retain C++'s full-price fallback (`Neutral`).
     pub(crate) fn trainer_price_reputation_rank_like_cpp(
         &self,
         faction_template_id: u32,
     ) -> wow_data::reputation::ReputationRankLikeCpp {
-        use wow_data::reputation::ReputationRankLikeCpp;
-
-        let Some(faction_template) = self
-            .catalogs
-            .factions
-            .template_store
-            .as_ref()
-            .and_then(|store| store.get(faction_template_id))
-        else {
-            return ReputationRankLikeCpp::Neutral;
-        };
-        if faction_template.faction == 0 {
-            return ReputationRankLikeCpp::Neutral;
-        }
-        let Some(faction_entry) = self
-            .catalogs
-            .factions
-            .store
-            .as_ref()
-            .and_then(|store| store.get(u32::from(faction_template.faction)))
-        else {
-            return ReputationRankLikeCpp::Neutral;
-        };
-        let player_race = self.player_race_like_cpp();
-        let player_class = self.player_class_like_cpp();
-        let friendship_rep_reaction_store = self.catalogs.friendship_rep_reaction_store.as_deref();
-        self.with_reputation_mgr_like_cpp(|mgr| {
-            mgr.rank_for_faction_entry_like_cpp(
-                faction_entry,
-                friendship_rep_reaction_store,
-                player_race,
-                player_class,
-            )
-        })
-        .unwrap_or(ReputationRankLikeCpp::Neutral)
+        crate::session::hub_ref(self).trainer_price_reputation_rank_like_cpp(faction_template_id)
     }
     pub(crate) fn reputation_rates_like_cpp(&self) -> ReputationRatesLikeCpp {
-        self.config.reputation_rates
+        self.config.reputation_rates_like_cpp()
     }
     #[cfg(test)]
     pub(crate) fn reputation_mgr_like_cpp(&self) -> ReputationMgrRefLikeCpp<'_> {
@@ -153,67 +117,17 @@ impl WorldSession {
             &mut self.fixtures.progression.reputation_state_like_cpp,
         )
     }
-    /// Run one C++ `ReputationMgr` read against the Player's own state.
-    ///
-    /// C++ `Player::GetReputationMgr()` hands out a reference to the manager
-    /// the Player owns (`Player.h:3116`). This borrows the equivalent canonical
-    /// state instead of rebuilding a manager from it (#735).
     pub(crate) fn with_reputation_mgr_like_cpp<R>(
         &self,
         operation: impl FnOnce(&ReputationMgrRefLikeCpp<'_>) -> R,
     ) -> Option<R> {
-        let mut operation = Some(operation);
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            let manager = ReputationMgrLikeCpp::borrowing_like_cpp(player.reputation_like_cpp());
-            operation.take().expect("reputation operation runs once")(&manager)
-        });
-        if canonical.is_some() {
-            return canonical;
-        }
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            let manager = ReputationMgrLikeCpp::borrowing_like_cpp(
-                &self.fixtures.progression.reputation_state_like_cpp,
-            );
-            return Some(operation.take().expect("reputation operation is available")(&manager));
-        }
-        None
+        crate::session::hub_ref(self).with_reputation_mgr_like_cpp(operation)
     }
-    /// Run one C++ `ReputationMgr` transition against the Player's own state.
-    ///
-    /// The transition writes through the Player's named reputation owner; no
-    /// aggregate is reconstructed and nothing is written back through the
-    /// Player's whole gameplay state (#735).
     pub(crate) fn mutate_reputation_mgr_like_cpp<R>(
         &mut self,
         operation: impl FnOnce(&mut ReputationMgrMutLikeCpp<'_>) -> R,
     ) -> Option<R> {
-        let mut operation = Some(operation);
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            let mut manager =
-                ReputationMgrLikeCpp::borrowing_mut_like_cpp(player.reputation_mut_like_cpp());
-            operation.take().expect("reputation mutation runs once")(&mut manager)
-        });
-        if canonical.is_some() {
-            return canonical;
-        }
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            let mut manager = ReputationMgrLikeCpp::borrowing_mut_like_cpp(
-                &mut self.fixtures.progression.reputation_state_like_cpp,
-            );
-            return Some(operation.take().expect("reputation mutation is available")(
-                &mut manager,
-            ));
-        }
-        None
-    }
-    /// Clone the Player's reputation state for a read that outlives the
-    /// canonical borrow. This is a read snapshot, never a writable mirror.
-    pub(crate) fn cloned_reputation_state_like_cpp(
-        &self,
-    ) -> Option<wow_entities::PlayerReputationStateLikeCpp> {
-        self.with_reputation_mgr_like_cpp(|manager| manager.cloned_state_like_cpp())
+        crate::session::hub_mut(self).mutate_reputation_mgr_like_cpp(operation)
     }
     #[allow(dead_code)]
     pub(crate) fn reputation_rank_like_cpp(
@@ -244,23 +158,10 @@ impl WorldSession {
         self.initialize_reputation_mgr_like_cpp();
     }
     pub(crate) fn paragon_reputation_store(&self) -> Option<&Arc<ParagonReputationStore>> {
-        self.catalogs.paragon_reputation_store.as_ref()
+        self.catalogs.paragon_reputation_store()
     }
     pub(in crate::session) fn initialize_reputation_mgr_like_cpp(&mut self) {
-        let Some(faction_store) = self.catalogs.factions.store.clone() else {
-            return;
-        };
-        let paragon_reputation_store = self.catalogs.paragon_reputation_store.clone();
-        let race = self.player_race_like_cpp();
-        let class = self.player_class_like_cpp();
-        let _ = self.mutate_reputation_mgr_like_cpp(|mgr| {
-            mgr.initialize_like_cpp(
-                faction_store.as_ref(),
-                paragon_reputation_store.as_deref(),
-                race,
-                class,
-            );
-        });
+        crate::session::hub_mut(self).initialize_reputation_mgr_like_cpp()
     }
     pub fn set_reputation_reward_rate_store(
         &mut self,
@@ -282,7 +183,7 @@ impl WorldSession {
     pub(crate) fn reputation_spillover_template_store(
         &self,
     ) -> Option<&Arc<RepSpilloverTemplateStoreLikeCpp>> {
-        self.catalogs.reputation_spillover_template_store.as_ref()
+        self.catalogs.reputation_spillover_template_store()
     }
     pub(crate) fn apply_represented_first_login_reputation_with_catalogs_like_cpp(
         &mut self,
@@ -477,5 +378,154 @@ impl WorldSession {
         );
         self.drain_represented_quest_objective_progress_like_cpp()
             .await;
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    /// Reputation rank used by deterministic trainer pricing. Missing/zero
+    /// faction references retain C++'s full-price fallback (`Neutral`).
+    pub(crate) fn trainer_price_reputation_rank_like_cpp(
+        &self,
+        faction_template_id: u32,
+    ) -> wow_data::reputation::ReputationRankLikeCpp {
+        use wow_data::reputation::ReputationRankLikeCpp;
+
+        let Some(faction_template) = self
+            .catalogs
+            .factions
+            .template_store
+            .as_ref()
+            .and_then(|store| store.get(faction_template_id))
+        else {
+            return ReputationRankLikeCpp::Neutral;
+        };
+        if faction_template.faction == 0 {
+            return ReputationRankLikeCpp::Neutral;
+        }
+        let Some(faction_entry) = self
+            .catalogs
+            .factions
+            .store
+            .as_ref()
+            .and_then(|store| store.get(u32::from(faction_template.faction)))
+        else {
+            return ReputationRankLikeCpp::Neutral;
+        };
+        let player_race = self.player_race_like_cpp();
+        let player_class = self.player_class_like_cpp();
+        let friendship_rep_reaction_store = self.catalogs.friendship_rep_reaction_store.as_deref();
+        self.with_reputation_mgr_like_cpp(|mgr| {
+            mgr.rank_for_faction_entry_like_cpp(
+                faction_entry,
+                friendship_rep_reaction_store,
+                player_race,
+                player_class,
+            )
+        })
+        .unwrap_or(ReputationRankLikeCpp::Neutral)
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    pub(crate) fn paragon_reputation_store(&self) -> Option<&Arc<ParagonReputationStore>> {
+        self.paragon_reputation_store.as_ref()
+    }
+
+    pub(crate) fn reputation_spillover_template_store(
+        &self,
+    ) -> Option<&Arc<RepSpilloverTemplateStoreLikeCpp>> {
+        self.reputation_spillover_template_store.as_ref()
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    /// Run one C++ `ReputationMgr` transition against the Player's own state.
+    ///
+    /// The transition writes through the Player's named reputation owner; no
+    /// aggregate is reconstructed and nothing is written back through the
+    /// Player's whole gameplay state (#735).
+    pub(crate) fn mutate_reputation_mgr_like_cpp<R>(
+        &mut self,
+        operation: impl FnOnce(&mut ReputationMgrMutLikeCpp<'_>) -> R,
+    ) -> Option<R> {
+        let mut operation = Some(operation);
+        let canonical = self.core.with_owned_player_mut_like_cpp(|player| {
+            let mut manager =
+                ReputationMgrLikeCpp::borrowing_mut_like_cpp(player.reputation_mut_like_cpp());
+            operation.take().expect("reputation mutation runs once")(&mut manager)
+        });
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(test)]
+        if self.core.player_handle_like_cpp.is_none() {
+            let mut manager = ReputationMgrLikeCpp::borrowing_mut_like_cpp(
+                &mut self.fixtures.progression.reputation_state_like_cpp,
+            );
+            return Some(operation.take().expect("reputation mutation is available")(
+                &mut manager,
+            ));
+        }
+        None
+    }
+
+    pub(in crate::session) fn initialize_reputation_mgr_like_cpp(&mut self) {
+        let Some(faction_store) = self.catalogs.factions.store.clone() else {
+            return;
+        };
+        let paragon_reputation_store = self.catalogs.paragon_reputation_store.clone();
+        let race = self.shared().player_race_like_cpp();
+        let class = self.shared().player_class_like_cpp();
+        let _ = self.mutate_reputation_mgr_like_cpp(|mgr| {
+            mgr.initialize_like_cpp(
+                faction_store.as_ref(),
+                paragon_reputation_store.as_deref(),
+                race,
+                class,
+            );
+        });
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    /// Run one C++ `ReputationMgr` read against the Player's own state.
+    ///
+    /// C++ `Player::GetReputationMgr()` hands out a reference to the manager
+    /// the Player owns (`Player.h:3116`). This borrows the equivalent canonical
+    /// state instead of rebuilding a manager from it (#735).
+    pub(crate) fn with_reputation_mgr_like_cpp<R>(
+        &self,
+        operation: impl FnOnce(&ReputationMgrRefLikeCpp<'_>) -> R,
+    ) -> Option<R> {
+        let mut operation = Some(operation);
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
+            let manager = ReputationMgrLikeCpp::borrowing_like_cpp(player.reputation_like_cpp());
+            operation.take().expect("reputation operation runs once")(&manager)
+        });
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(test)]
+        if self.core.player_handle_like_cpp.is_none() {
+            let manager = ReputationMgrLikeCpp::borrowing_like_cpp(
+                &self.fixtures.progression.reputation_state_like_cpp,
+            );
+            return Some(operation.take().expect("reputation operation is available")(&manager));
+        }
+        None
+    }
+
+    /// Clone the Player's reputation state for a read that outlives the
+    /// canonical borrow. This is a read snapshot, never a writable mirror.
+    pub(crate) fn cloned_reputation_state_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerReputationStateLikeCpp> {
+        self.with_reputation_mgr_like_cpp(|manager| manager.cloned_state_like_cpp())
+    }
+}
+
+impl crate::session::state::SessionWorldConfig {
+    pub(crate) fn reputation_rates_like_cpp(&self) -> ReputationRatesLikeCpp {
+        self.reputation_rates
     }
 }

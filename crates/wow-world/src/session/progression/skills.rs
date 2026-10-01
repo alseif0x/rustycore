@@ -87,21 +87,20 @@ impl WorldSession {
     pub fn set_skill_store(&mut self, store: Arc<SkillStore>) {
         self.catalogs.skill_store = Some(store);
     }
-    /// Get the skill store reference.
     pub fn skill_store(&self) -> Option<&Arc<SkillStore>> {
-        self.catalogs.skill_store.as_ref()
+        self.catalogs.skill_store()
     }
     pub fn set_skill_line_store(&mut self, store: Arc<SkillLineStore>) {
         self.catalogs.skill_line_store = Some(store);
     }
     pub(crate) fn skill_line_store(&self) -> Option<&Arc<SkillLineStore>> {
-        self.catalogs.skill_line_store.as_ref()
+        self.catalogs.skill_line_store()
     }
     pub fn set_skill_tiers_store(&mut self, store: Arc<SkillTiersStoreLikeCpp>) {
         self.catalogs.skill_tiers_store = Some(store);
     }
     pub(crate) fn skill_tiers_store(&self) -> Option<&Arc<SkillTiersStoreLikeCpp>> {
-        self.catalogs.skill_tiers_store.as_ref()
+        self.catalogs.skill_tiers_store()
     }
     pub fn set_fishing_base_skill_store(&mut self, store: Arc<FishingBaseSkillStoreLikeCpp>) {
         self.catalogs.fishing_base_skill_store = Some(store);
@@ -418,44 +417,12 @@ impl WorldSession {
         canonical
     }
     pub(crate) fn complete_player_skill_occupied_slots_like_cpp(&self) -> Option<u16> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            player
-                .skill_records_complete_like_cpp()
-                .then(|| player.occupied_skill_slots_like_cpp())
-                .flatten()
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return self
-                .fixtures
-                .progression
-                .player_skill_test_fixture_like_cpp
-                .player_skill_records_complete_like_cpp
-                .then_some(
-                    self.fixtures
-                        .progression
-                        .player_skill_test_fixture_like_cpp
-                        .player_skill_occupied_slots_like_cpp,
-                )
-                .flatten();
-        }
-        canonical.flatten()
+        crate::session::hub_ref(self).complete_player_skill_occupied_slots_like_cpp()
     }
     pub(crate) fn complete_player_skill_records_like_cpp(
         &self,
     ) -> Option<HashMap<u16, RepresentedPlayerSkillLikeCpp>> {
-        let records = self.resolved_player_skill_records_like_cpp()?;
-        let complete = self.with_owned_player_like_cpp(Player::skill_records_complete_like_cpp);
-        #[cfg(test)]
-        let complete = complete.or_else(|| {
-            self.core.player_handle_like_cpp.is_none().then_some(
-                self.fixtures
-                    .progression
-                    .player_skill_test_fixture_like_cpp
-                    .player_skill_records_complete_like_cpp,
-            )
-        });
-        complete.unwrap_or(false).then_some(records)
+        crate::session::hub_ref(self).complete_player_skill_records_like_cpp()
     }
     pub(in crate::session) fn set_represented_player_skill_like_cpp(
         &mut self,
@@ -546,40 +513,15 @@ impl WorldSession {
         u16::from(self.player_level_like_cpp()).saturating_mul(5)
     }
     pub(crate) fn resolved_player_skill_values_like_cpp(&self) -> Option<HashMap<u16, u16>> {
-        Some(represented_skill_values_from_records_like_cpp(
-            &self.resolved_player_skill_records_like_cpp()?,
-        ))
+        crate::session::hub_ref(self).resolved_player_skill_values_like_cpp()
     }
     pub(crate) fn resolved_player_skill_records_like_cpp(
         &self,
     ) -> Option<HashMap<u16, RepresentedPlayerSkillLikeCpp>> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            player
-                .skill_records_like_cpp()
-                .iter()
-                .filter_map(represented_player_skill_record_like_cpp)
-                .map(|skill| (skill.skill_id, skill))
-                .collect()
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.fixtures
-                    .progression
-                    .player_skill_test_fixture_like_cpp
-                    .player_skill_records_like_cpp
-                    .clone(),
-            );
-        }
-        canonical
+        crate::session::hub_ref(self).resolved_player_skill_records_like_cpp()
     }
     pub(crate) fn resolved_player_skill_value_like_cpp(&self, skill_id: u16) -> Option<u16> {
-        Some(
-            self.resolved_player_skill_values_like_cpp()?
-                .get(&skill_id)
-                .copied()
-                .unwrap_or(0),
-        )
+        crate::session::hub_ref(self).resolved_player_skill_value_like_cpp(skill_id)
     }
     #[cfg(test)]
     pub(crate) fn player_skill_values_like_cpp(&self) -> HashMap<u16, u16> {
@@ -629,5 +571,105 @@ impl WorldSession {
             .and_then(|skill_id| self.resolved_player_skill_value_like_cpp(skill_id))
             .map(i32::from)
             .unwrap_or(0)
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(crate) fn complete_player_skill_occupied_slots_like_cpp(&self) -> Option<u16> {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
+            player
+                .skill_records_complete_like_cpp()
+                .then(|| player.occupied_skill_slots_like_cpp())
+                .flatten()
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return self
+                .fixtures
+                .progression
+                .player_skill_test_fixture_like_cpp
+                .player_skill_records_complete_like_cpp
+                .then_some(
+                    self.fixtures
+                        .progression
+                        .player_skill_test_fixture_like_cpp
+                        .player_skill_occupied_slots_like_cpp,
+                )
+                .flatten();
+        }
+        canonical.flatten()
+    }
+
+    pub(crate) fn complete_player_skill_records_like_cpp(
+        &self,
+    ) -> Option<HashMap<u16, RepresentedPlayerSkillLikeCpp>> {
+        let records = self.resolved_player_skill_records_like_cpp()?;
+        let complete = self
+            .core
+            .with_owned_player_like_cpp(Player::skill_records_complete_like_cpp);
+        #[cfg(test)]
+        let complete = complete.or_else(|| {
+            self.core.player_handle_like_cpp.is_none().then_some(
+                self.fixtures
+                    .progression
+                    .player_skill_test_fixture_like_cpp
+                    .player_skill_records_complete_like_cpp,
+            )
+        });
+        complete.unwrap_or(false).then_some(records)
+    }
+
+    pub(crate) fn resolved_player_skill_values_like_cpp(&self) -> Option<HashMap<u16, u16>> {
+        Some(represented_skill_values_from_records_like_cpp(
+            &self.resolved_player_skill_records_like_cpp()?,
+        ))
+    }
+
+    pub(crate) fn resolved_player_skill_records_like_cpp(
+        &self,
+    ) -> Option<HashMap<u16, RepresentedPlayerSkillLikeCpp>> {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
+            player
+                .skill_records_like_cpp()
+                .iter()
+                .filter_map(represented_player_skill_record_like_cpp)
+                .map(|skill| (skill.skill_id, skill))
+                .collect()
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(
+                self.fixtures
+                    .progression
+                    .player_skill_test_fixture_like_cpp
+                    .player_skill_records_like_cpp
+                    .clone(),
+            );
+        }
+        canonical
+    }
+
+    pub(crate) fn resolved_player_skill_value_like_cpp(&self, skill_id: u16) -> Option<u16> {
+        Some(
+            self.resolved_player_skill_values_like_cpp()?
+                .get(&skill_id)
+                .copied()
+                .unwrap_or(0),
+        )
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    /// Get the skill store reference.
+    pub fn skill_store(&self) -> Option<&Arc<SkillStore>> {
+        self.skill_store.as_ref()
+    }
+
+    pub(crate) fn skill_line_store(&self) -> Option<&Arc<SkillLineStore>> {
+        self.skill_line_store.as_ref()
+    }
+
+    pub(crate) fn skill_tiers_store(&self) -> Option<&Arc<SkillTiersStoreLikeCpp>> {
+        self.skill_tiers_store.as_ref()
     }
 }

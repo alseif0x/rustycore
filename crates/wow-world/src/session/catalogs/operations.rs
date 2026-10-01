@@ -160,10 +160,6 @@ impl WorldSession {
     pub fn set_gem_properties_store(&mut self, store: Arc<GemPropertiesStore>) {
         self.catalogs.gem_properties_store = Some(store);
     }
-    #[cfg(test)]
-    pub(crate) fn graveyard_store(&self) -> Option<&Arc<GraveyardStore>> {
-        self.catalogs.graveyard_store()
-    }
     /// Set the ChrSpecialization store for this session.
     pub fn set_chr_specialization_store(&mut self, store: Arc<ChrSpecializationStore>) {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
@@ -193,10 +189,6 @@ impl WorldSession {
     #[cfg(test)]
     pub fn set_lfg_dungeon_store_like_cpp(&mut self, store: Arc<LfgDungeonStoreLikeCpp>) {
         self.catalogs.lfg_dungeon_store_like_cpp = Some(store);
-    }
-    #[cfg(test)]
-    pub(crate) fn lfg_dungeon_store_like_cpp(&self) -> Option<&Arc<LfgDungeonStoreLikeCpp>> {
-        self.catalogs.lfg_dungeon_store_like_cpp()
     }
     pub fn set_faction_store(&mut self, store: Arc<FactionStore>) {
         self.catalogs.factions.store = Some(store);
@@ -293,28 +285,17 @@ impl WorldSession {
         &self,
         policy: &SupportFeaturePolicyLikeCpp,
     ) -> FeatureSystemStatus {
-        FeatureSystemStatus::from_config_like_cpp(
-            policy.feature_system_config_like_cpp(),
-            !self.can_speak_like_cpp(),
-        )
+        self.core.feature_system_status_with_policy_like_cpp(policy)
     }
     pub(crate) fn feature_system_status_glue_screen_with_policy_like_cpp(
         &self,
         policy: &SupportFeaturePolicyLikeCpp,
     ) -> FeatureSystemStatusGlueScreen {
-        FeatureSystemStatusGlueScreen::from_config_like_cpp(
-            policy.feature_system_config_like_cpp(),
-            policy.max_characters_per_realm as i32,
-            i32::from(self.core.realm_policy.server_expansion_like_cpp),
-        )
-    }
-    #[cfg(test)]
-    pub(crate) fn world_query_catalogs_like_cpp(&self) -> Option<&ObjectMgrCatalogsLikeCpp> {
-        self.catalogs.world_query_catalogs_like_cpp()
+        self.core
+            .feature_system_status_glue_screen_with_policy_like_cpp(policy)
     }
     pub(in crate::session) fn player_is_at_configured_max_level_like_cpp(&self) -> bool {
-        let max_level = self.config.max_player_level_config_like_cpp;
-        max_level != 0 && u32::from(self.player_level_like_cpp()) >= max_level
+        crate::session::hub_ref(self).player_is_at_configured_max_level_like_cpp()
     }
     pub(crate) fn apply_offline_xp_rest_bonus_with_policy_like_cpp(
         &mut self,
@@ -449,28 +430,11 @@ impl WorldSession {
             .rest_mgr_test_fixture_like_cpp
             .rest_ingame_rate_like_cpp = rest_ingame_rate;
     }
-    /// Update player_next_level_xp from the table based on current level.
     pub(crate) fn refresh_next_level_xp_with_catalogs_like_cpp(
         &mut self,
         catalogs: &ProgressionCatalogsLikeCpp,
     ) {
-        let lvl = self.player_level_like_cpp() as usize;
-        let next_level_xp = catalogs.player_xp.get(lvl).copied().unwrap_or(u32::MAX);
-        let table = Arc::clone(&catalogs.player_xp);
-        let installed = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.install_player_xp_table_like_cpp(table);
-            })
-            .is_some();
-        if installed {
-            self.set_player_next_level_xp_like_cpp(next_level_xp);
-        }
-        #[cfg(test)]
-        if !installed && self.core.player_handle_like_cpp.is_none() {
-            self.set_player_next_level_xp_like_cpp(next_level_xp);
-        }
-        #[cfg(not(test))]
-        let _ = installed;
+        crate::session::hub_mut(self).refresh_next_level_xp_with_catalogs_like_cpp(catalogs)
     }
     /// Send session initialization packets (first encrypted packets after
     /// EnterEncryptedModeAck). Matches C++ `WorldSession::InitializeSessionCallback`.
@@ -584,6 +548,63 @@ impl WorldSession {
             "Session init packets sent for account {} (8 packets: AuthResponse → ConnectionStatus)",
             self.core.account_id
         );
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    /// Update player_next_level_xp from the table based on current level.
+    pub(crate) fn refresh_next_level_xp_with_catalogs_like_cpp(
+        &mut self,
+        catalogs: &ProgressionCatalogsLikeCpp,
+    ) {
+        let lvl = self.shared().player_level_like_cpp() as usize;
+        let next_level_xp = catalogs.player_xp.get(lvl).copied().unwrap_or(u32::MAX);
+        let table = Arc::clone(&catalogs.player_xp);
+        let installed = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.install_player_xp_table_like_cpp(table);
+            })
+            .is_some();
+        if installed {
+            self.set_player_next_level_xp_like_cpp(next_level_xp);
+        }
+        #[cfg(test)]
+        if !installed && self.core.player_handle_like_cpp.is_none() {
+            self.set_player_next_level_xp_like_cpp(next_level_xp);
+        }
+        #[cfg(not(test))]
+        let _ = installed;
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(in crate::session) fn player_is_at_configured_max_level_like_cpp(&self) -> bool {
+        let max_level = self.config.max_player_level_config_like_cpp;
+        max_level != 0 && u32::from(self.player_level_like_cpp()) >= max_level
+    }
+}
+
+impl crate::session::state::SessionCore {
+    pub(crate) fn feature_system_status_with_policy_like_cpp(
+        &self,
+        policy: &SupportFeaturePolicyLikeCpp,
+    ) -> FeatureSystemStatus {
+        FeatureSystemStatus::from_config_like_cpp(
+            policy.feature_system_config_like_cpp(),
+            !self.can_speak_like_cpp(),
+        )
+    }
+
+    pub(crate) fn feature_system_status_glue_screen_with_policy_like_cpp(
+        &self,
+        policy: &SupportFeaturePolicyLikeCpp,
+    ) -> FeatureSystemStatusGlueScreen {
+        FeatureSystemStatusGlueScreen::from_config_like_cpp(
+            policy.feature_system_config_like_cpp(),
+            policy.max_characters_per_realm as i32,
+            i32::from(self.realm_policy.server_expansion_like_cpp),
+        )
     }
 }
 

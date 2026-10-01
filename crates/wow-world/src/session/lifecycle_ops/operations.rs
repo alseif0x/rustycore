@@ -24,7 +24,7 @@ impl WorldSession {
         self.core.account_state.battlenet_account_id = battlenet_account_id;
     }
     pub fn battlenet_account_id(&self) -> u32 {
-        self.core.account_state.battlenet_account_id
+        self.core.battlenet_account_id()
     }
     /// C++ `CollectionMgr::SaveAccountHeirlooms`.
     pub(crate) fn account_heirloom_rows_like_cpp(&self) -> Vec<(u32, u32)> {
@@ -582,12 +582,22 @@ impl WorldSession {
     ) -> &[RepresentedAtLoginFlagRemovalLikeCpp] {
         &self.lifecycle.represented_at_login_flag_removals_like_cpp
     }
+    pub fn kick(&mut self, reason: &str) {
+        self.core.kick(reason)
+    }
+}
+
+impl crate::session::state::SessionCore {
+    pub fn battlenet_account_id(&self) -> u32 {
+        self.account_state.battlenet_account_id
+    }
+
     /// Kick the session (mark as disconnecting).
     pub fn kick(&mut self, reason: &str) {
         warn!(
             "Kicking account {} ({}): {reason}",
-            self.core.account_id, self.core.account_name
+            self.account_id, self.account_name
         );
-        self.core.state = SessionState::Disconnecting;
+        self.state = SessionState::Disconnecting;
     }
 }

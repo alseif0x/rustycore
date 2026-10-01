@@ -247,11 +247,15 @@ def impl_methods(code: str, head_pattern: re.Pattern[str] = IMPL_HEAD) -> list[s
     for head in head_pattern.finditer(code):
         open_index = head.end() - 1
         close = matching_close(code, open_index)
-        depth = 0
+        depth = nest = 0
         segment_start = open_index + 1
         for j in range(open_index + 1, close):
             ch = code[j]
-            if ch == "{":
+            if ch in "([" and depth == 0:  # `-> [u8; 3]`: a `;` inside brackets ends no item
+                nest += 1
+            elif ch in ")]" and depth == 0:
+                nest -= 1
+            elif ch == "{":
                 if depth == 0:
                     names.extend(FN_ITEM.findall(code, segment_start, j))
                 depth += 1
@@ -259,7 +263,7 @@ def impl_methods(code: str, head_pattern: re.Pattern[str] = IMPL_HEAD) -> list[s
                 depth -= 1
                 if depth == 0:
                     segment_start = j + 1
-            elif ch == ";" and depth == 0:
+            elif ch == ";" and depth == 0 and nest == 0:
                 segment_start = j + 1
     return names
 

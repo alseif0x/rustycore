@@ -12,8 +12,39 @@ impl WorldSession {
         &self,
         status: &PlayerQuestStatus,
     ) -> wow_persistence::QuestStatusPersistenceLikeCpp {
+        self.catalogs
+            .represented_quest_status_persistence_like_cpp(status)
+    }
+
+    pub(crate) fn represented_quest_status_persistence_rows_like_cpp(
+        &self,
+        statuses: &[PlayerQuestStatus],
+    ) -> Vec<wow_persistence::QuestStatusPersistenceLikeCpp> {
+        crate::session::hub_ref(self).represented_quest_status_persistence_rows_like_cpp(statuses)
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(crate) fn represented_quest_status_persistence_rows_like_cpp(
+        &self,
+        statuses: &[PlayerQuestStatus],
+    ) -> Vec<wow_persistence::QuestStatusPersistenceLikeCpp> {
+        statuses
+            .iter()
+            .map(|status| {
+                self.catalogs
+                    .represented_quest_status_persistence_like_cpp(status)
+            })
+            .collect()
+    }
+}
+
+impl crate::session::SessionCatalogs {
+    pub(crate) fn represented_quest_status_persistence_like_cpp(
+        &self,
+        status: &PlayerQuestStatus,
+    ) -> wow_persistence::QuestStatusPersistenceLikeCpp {
         let objectives = self
-            .catalogs
             .quests
             .store
             .as_ref()
@@ -47,15 +78,5 @@ impl WorldSession {
             end_time_secs: status.end_time_secs,
             objectives,
         }
-    }
-
-    pub(crate) fn represented_quest_status_persistence_rows_like_cpp(
-        &self,
-        statuses: &[PlayerQuestStatus],
-    ) -> Vec<wow_persistence::QuestStatusPersistenceLikeCpp> {
-        statuses
-            .iter()
-            .map(|status| self.represented_quest_status_persistence_like_cpp(status))
-            .collect()
     }
 }

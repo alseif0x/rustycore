@@ -58,14 +58,9 @@ pub(crate) enum SessionDriverPhaseLikeCpp {
 }
 
 impl super::super::WorldSession {
-    /// Record one driver phase. Compiles away outside tests: the trace exists
-    /// to prove the production order, not to cost anything in production.
     #[inline]
     pub(crate) fn record_driver_phase_like_cpp(&mut self, phase: SessionDriverPhaseLikeCpp) {
-        #[cfg(test)]
-        self.core.driver_phase_trace_like_cpp.push(phase);
-        #[cfg(not(test))]
-        let _ = phase;
+        self.core.record_driver_phase_like_cpp(phase)
     }
 
     /// The phases recorded since the last reset, in execution order.
@@ -78,5 +73,17 @@ impl super::super::WorldSession {
     #[cfg(test)]
     pub(crate) fn reset_driver_phase_trace_like_cpp(&mut self) {
         self.core.driver_phase_trace_like_cpp.clear();
+    }
+}
+
+impl crate::session::state::SessionCore {
+    /// Record one driver phase. Compiles away outside tests: the trace exists
+    /// to prove the production order, not to cost anything in production.
+    #[inline]
+    pub(crate) fn record_driver_phase_like_cpp(&mut self, phase: SessionDriverPhaseLikeCpp) {
+        #[cfg(test)]
+        self.driver_phase_trace_like_cpp.push(phase);
+        #[cfg(not(test))]
+        let _ = phase;
     }
 }

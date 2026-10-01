@@ -280,6 +280,7 @@ class CouplingTests(unittest.TestCase):
             impl WorldSession {
                 fn store(&self) -> u8 { self.catalogs.store() }
                 fn other(&self) -> u8 { 0 }
+                fn array_return(&self) -> [u8; 3] { [0; 3] }
             }
             impl crate::session::state::SessionCatalogs {
                 fn store(&self) -> u8 { self.store }
@@ -294,7 +295,7 @@ class CouplingTests(unittest.TestCase):
         shim.write_text("impl crate::session::WorldSession {\n    fn shim_a(&self) {}\n"
                         "    fn shim_b(&self) {}\n}\n", encoding="utf-8")
         r5 = self.report()["r5"]
-        self.assertEqual(r5["impl_methods_production"], 3)  # alpha.rs 2 + beta_one
+        self.assertEqual(r5["impl_methods_production"], 4)  # alpha.rs 3 (`[u8; 3]` return) + beta_one
         self.assertEqual(r5["substate_impl_methods_production"], 3)
         self.assertEqual(r5["worldsession_thunks"], 1)
         self.assertEqual(r5["f3_test_shims"], 2)

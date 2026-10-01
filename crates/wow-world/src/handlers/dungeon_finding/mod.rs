@@ -186,10 +186,7 @@ impl crate::session::WorldSession {
     }
 
     fn lfg_season_is_active_like_cpp(&self, _dungeon_id: u32) -> bool {
-        // C++ delegates this to `LFGMgr::IsSeasonActive`, backed by holiday
-        // state. The current Rust runtime has no live holiday manager wired
-        // into LFG yet; inactive is the C++-safe default for seasonal rows.
-        false
+        self.core.lfg_season_is_active_like_cpp(_dungeon_id)
     }
 
     pub(in crate::handlers::dungeon_finding) fn lfg_lock_status_like_cpp(
@@ -472,6 +469,15 @@ impl crate::session::WorldSession {
         // player. Until `sLFGMgr` state is ported, Rust represents the
         // well-defined no-ticket/no-queue branch.
         self.send_packet_realm(&LfgUpdateStatus::removed_from_queue());
+    }
+}
+
+impl crate::session::SessionCore {
+    fn lfg_season_is_active_like_cpp(&self, _dungeon_id: u32) -> bool {
+        // C++ delegates this to `LFGMgr::IsSeasonActive`, backed by holiday
+        // state. The current Rust runtime has no live holiday manager wired
+        // into LFG yet; inactive is the C++-safe default for seasonal rows.
+        false
     }
 }
 

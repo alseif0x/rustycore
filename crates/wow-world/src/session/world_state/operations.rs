@@ -100,7 +100,7 @@ impl WorldSession {
         self.catalogs.area_table_store = Some(store);
     }
     pub(crate) fn area_table_store(&self) -> Option<&Arc<AreaTableStore>> {
-        self.catalogs.area_table_store.as_ref()
+        self.catalogs.area_table_store()
     }
     fn update_represented_hostile_area_state_like_cpp(&mut self, zone: &wow_data::AreaTableEntry) {
         let war_mode_active = self.player_war_mode_local_active_like_cpp();
@@ -630,19 +630,7 @@ impl WorldSession {
         canonical
     }
     pub(crate) fn set_player_zone_area_like_cpp(&mut self, zone_id: u32, area_id: u32) {
-        let changed = self
-            .player_zone_area_like_cpp()
-            .is_some_and(|current| current != (zone_id, area_id));
-        if changed {
-            self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        }
-        let _ = self.set_player_world_local_zone_area_like_cpp(zone_id, area_id);
-        let _ = self.with_owned_player_mut_like_cpp(|player| {
-            player
-                .unit_mut()
-                .world_mut()
-                .set_zone_and_area(zone_id, area_id);
-        });
+        crate::session::hub_mut(self).set_player_zone_area_like_cpp(zone_id, area_id)
     }
     pub(crate) fn set_player_zone_area_authority_complete_like_cpp(&mut self, complete: bool) {
         let _ = self.set_player_zone_area_authority_like_cpp(complete);
@@ -651,7 +639,39 @@ impl WorldSession {
         }
     }
     pub(crate) fn player_zone_area_like_cpp(&self) -> Option<(u32, u32)> {
+        crate::session::hub_ref(self).player_zone_area_like_cpp()
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(crate) fn player_zone_area_like_cpp(&self) -> Option<(u32, u32)> {
         self.player_world_local_state_like_cpp()
             .map(|state| state.zone_area_like_cpp())
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(crate) fn set_player_zone_area_like_cpp(&mut self, zone_id: u32, area_id: u32) {
+        let changed = self
+            .shared()
+            .player_zone_area_like_cpp()
+            .is_some_and(|current| current != (zone_id, area_id));
+        if changed {
+            self.core
+                .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        }
+        let _ = self.set_player_world_local_zone_area_like_cpp(zone_id, area_id);
+        let _ = self.core.with_owned_player_mut_like_cpp(|player| {
+            player
+                .unit_mut()
+                .world_mut()
+                .set_zone_and_area(zone_id, area_id);
+        });
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    pub(crate) fn area_table_store(&self) -> Option<&Arc<AreaTableStore>> {
+        self.area_table_store.as_ref()
     }
 }

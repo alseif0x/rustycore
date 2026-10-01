@@ -649,15 +649,7 @@ impl WorldSession {
             .and_then(|state| state.request)
     }
     pub(crate) fn request_temporary_pet_unsummon_like_cpp(&mut self) {
-        self.invalidate_represented_character_pet_empty_authority_like_cpp();
-        #[cfg(test)]
-        {
-            self.fixtures.pets.temporary_pet_unsummon_requests_like_cpp = self
-                .fixtures
-                .pets
-                .temporary_pet_unsummon_requests_like_cpp
-                .saturating_add(1);
-        }
+        crate::session::hub_mut(self).request_temporary_pet_unsummon_like_cpp()
     }
     #[cfg(test)]
     pub(crate) fn temporary_pet_unsummon_requests_like_cpp(&self) -> u32 {
@@ -999,6 +991,20 @@ impl WorldSession {
             .push(outcome);
         #[cfg(not(test))]
         let _ = outcome;
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(crate) fn request_temporary_pet_unsummon_like_cpp(&mut self) {
+        self.invalidate_represented_character_pet_empty_authority_like_cpp();
+        #[cfg(test)]
+        {
+            self.fixtures.pets.temporary_pet_unsummon_requests_like_cpp = self
+                .fixtures
+                .pets
+                .temporary_pet_unsummon_requests_like_cpp
+                .saturating_add(1);
+        }
     }
 }
 

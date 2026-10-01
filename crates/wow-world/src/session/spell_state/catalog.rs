@@ -190,9 +190,8 @@ impl WorldSession {
             .spell_catalogs
             .set_spell_acquisition_catalog(catalog);
     }
-    /// Get the spell store reference.
     pub fn spell_store(&self) -> Option<&Arc<SpellStore>> {
-        self.catalogs.spell_catalogs.spell_store()
+        self.catalogs.spell_store()
     }
     pub fn set_spell_shapeshift_form_store(&mut self, store: Arc<SpellShapeshiftFormStore>) {
         self.catalogs
@@ -225,5 +224,12 @@ impl WorldSession {
         self.catalogs
             .spell_catalogs
             .set_spell_learn_skill_store(store);
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    /// Get the spell store reference.
+    pub fn spell_store(&self) -> Option<&Arc<SpellStore>> {
+        self.spell_catalogs.spell_store()
     }
 }

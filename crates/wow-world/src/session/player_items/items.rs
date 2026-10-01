@@ -459,33 +459,13 @@ impl WorldSession {
                 .iter()
                 .any(|guid| !guid.is_item())
     }
-    /// Allocate item database/object GUIDs from the process-wide generator.
-    ///
-    /// C++ initializes this generator once from `MAX(item_instance.guid) + 1`
-    /// in `ObjectMgr::SetHighestGuids`, and every `Item::CreateItem` consumes
-    /// the next value.  Rust sessions execute concurrently, so the shared
-    /// `ObjectGuidGenerator` uses an atomic fetch-add.  Allocations are never
-    /// returned after a later persistence failure, matching C++ Item creation.
     pub(crate) fn allocate_item_instance_guids_with_generator_like_cpp(
         &self,
         generator: &ObjectGuidGenerator,
         count: usize,
     ) -> Option<Vec<(u64, ObjectGuid)>> {
-        if count == 0 {
-            return Some(Vec::new());
-        }
-        if generator.high_guid() != HighGuid::Item {
-            return None;
-        }
-
-        let realm_id = self.realm_id();
-        (0..count)
-            .map(|_| {
-                let counter = generator.generate();
-                let db_guid = u64::try_from(counter).ok()?;
-                Some((db_guid, ObjectGuid::create_item(realm_id, counter)))
-            })
-            .collect()
+        self.core
+            .allocate_item_instance_guids_with_generator_like_cpp(generator, count)
     }
     #[cfg(test)]
     pub(crate) fn allocate_item_instance_guids_like_cpp(
@@ -563,32 +543,8 @@ impl WorldSession {
         item_id: u32,
         equipped: &SpellEquippedItemsEntry,
     ) -> bool {
-        let Some(item) = self
-            .catalogs
-            .items
-            .store
-            .as_ref()
-            .and_then(|store| store.get(item_id))
-        else {
-            return false;
-        };
-
-        if equipped.equipped_item_class >= 0 {
-            if equipped.equipped_item_class != item.class_id as i8 {
-                return false;
-            }
-
-            if equipped.equipped_item_subclass != 0 {
-                let subclass = u32::from(item.subclass_id);
-                if subclass >= i32::BITS
-                    || (equipped.equipped_item_subclass & (1_i32 << subclass)) == 0
-                {
-                    return false;
-                }
-            }
-        }
-
-        true
+        self.catalogs
+            .represented_item_fits_spell_requirements_like_cpp(item_id, equipped)
     }
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_auction_remove_item_like_cpp(
@@ -711,5 +667,70 @@ impl WorldSession {
         );
 
         true
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    pub(in crate::session) fn represented_item_fits_spell_requirements_like_cpp(
+        &self,
+        item_id: u32,
+        equipped: &SpellEquippedItemsEntry,
+    ) -> bool {
+        let Some(item) = self
+            .items
+            .store
+            .as_ref()
+            .and_then(|store| store.get(item_id))
+        else {
+            return false;
+        };
+
+        if equipped.equipped_item_class >= 0 {
+            if equipped.equipped_item_class != item.class_id as i8 {
+                return false;
+            }
+
+            if equipped.equipped_item_subclass != 0 {
+                let subclass = u32::from(item.subclass_id);
+                if subclass >= i32::BITS
+                    || (equipped.equipped_item_subclass & (1_i32 << subclass)) == 0
+                {
+                    return false;
+                }
+            }
+        }
+
+        true
+    }
+}
+
+impl crate::session::state::SessionCore {
+    /// Allocate item database/object GUIDs from the process-wide generator.
+    ///
+    /// C++ initializes this generator once from `MAX(item_instance.guid) + 1`
+    /// in `ObjectMgr::SetHighestGuids`, and every `Item::CreateItem` consumes
+    /// the next value.  Rust sessions execute concurrently, so the shared
+    /// `ObjectGuidGenerator` uses an atomic fetch-add.  Allocations are never
+    /// returned after a later persistence failure, matching C++ Item creation.
+    pub(crate) fn allocate_item_instance_guids_with_generator_like_cpp(
+        &self,
+        generator: &ObjectGuidGenerator,
+        count: usize,
+    ) -> Option<Vec<(u64, ObjectGuid)>> {
+        if count == 0 {
+            return Some(Vec::new());
+        }
+        if generator.high_guid() != HighGuid::Item {
+            return None;
+        }
+
+        let realm_id = self.realm_id();
+        (0..count)
+            .map(|_| {
+                let counter = generator.generate();
+                let db_guid = u64::try_from(counter).ok()?;
+                Some((db_guid, ObjectGuid::create_item(realm_id, counter)))
+            })
+            .collect()
     }
 }
