@@ -339,14 +339,8 @@ impl WorldSession {
     }
 
     pub(crate) fn set_player_gold_like_cpp(&mut self, gold: u64) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| player.set_money(gold))
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.inventory.player_gold = gold;
-        }
-        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.set_player_gold_like_cpp(&mut hub, gold)
     }
 
     pub(crate) fn player_name_like_cpp(&self) -> Option<String> {
@@ -384,6 +378,24 @@ impl WorldSession {
     #[inline]
     pub fn player_guid(&self) -> Option<ObjectGuid> {
         self.core.player_guid()
+    }
+}
+
+impl crate::session::state::InventoryState {
+    pub(crate) fn set_player_gold_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        gold: u64,
+    ) -> bool {
+        let canonical = hub
+            .core
+            .with_owned_player_mut_like_cpp(|player| player.set_money(gold))
+            .is_some();
+        #[cfg(test)]
+        if canonical || hub.core.player_handle_like_cpp.is_none() {
+            self.player_gold = gold;
+        }
+        canonical || cfg!(test) && hub.core.player_handle_like_cpp.is_none()
     }
 }
 

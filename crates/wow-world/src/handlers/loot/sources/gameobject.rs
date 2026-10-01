@@ -762,74 +762,12 @@ impl WorldSession {
         gameobject_guid: ObjectGuid,
         packet_bytes: Vec<u8>,
     ) -> usize {
-        let Some(player_guid) = self.player_guid() else {
-            return 0;
-        };
-        let Some(registry) = self.player_registry() else {
-            return 0;
-        };
-        let current_map_id = self.player_map_id_like_cpp();
-        let current_instance_id = self
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        let mut queued = 0;
-
-        for registration in
-            registry.same_map_loot_recipients(player_guid, current_map_id, current_instance_id)
-        {
-            if registry
-                .try_send_current_command(
-                    registration,
-                    SessionCommand::SendIfVisibleLikeCpp(SendIfVisibleLikeCppCommand {
-                        queued_at: Instant::now(),
-                        source_guid: gameobject_guid,
-                        map_id: current_map_id,
-                        instance_id: current_instance_id,
-                        packet_bytes: packet_bytes.clone(),
-                    }),
-                )
-                .is_ok()
-            {
-                queued += 1;
-            }
-        }
-
-        queued
-    }
-
-    pub(crate) fn represented_creature_is_dead_for_loot_visibility_like_cpp(
-        &self,
-        creature_guid: ObjectGuid,
-    ) -> bool {
-        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        if let Some(manager) = self.core.map_manager.as_ref()
-            && let Some(creature) = manager
-                .read()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .find_creature(map_id, instance_id, creature_guid)
-        {
-            return !creature.is_alive();
-        }
-
-        let Some(map_key) =
-            self.canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))
-        else {
-            return false;
-        };
-        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
-            return false;
-        };
-        let Ok(manager) = manager.lock() else {
-            return false;
-        };
-        manager
-            .find_map(map_key.map_id, map_key.instance_id)
-            .and_then(|map| {
-                map.map()
-                    .creature_transform_vitals_snapshot_like_cpp(creature_guid)
-            })
-            .is_some_and(|creature| !creature.is_alive)
+        let (state, hub) = crate::session::split_loot_ref(self);
+        state.queue_visible_gameobject_packet_for_same_map_like_cpp(
+            hub,
+            gameobject_guid,
+            packet_bytes,
+        )
     }
 
     fn queue_gathering_node_gameobject_state_refresh_for_same_map_like_cpp(
@@ -993,17 +931,105 @@ impl WorldSession {
     }
 
     fn represented_gathering_node_xp_like_cpp(&self, xp_difficulty: u32) -> u32 {
+        let (state, hub) = crate::session::split_loot_ref(self);
+        state.represented_gathering_node_xp_like_cpp(hub, xp_difficulty)
+    }
+}
+
+impl crate::session::LootState {
+    pub(crate) fn queue_visible_gameobject_packet_for_same_map_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        gameobject_guid: ObjectGuid,
+        packet_bytes: Vec<u8>,
+    ) -> usize {
+        let Some(player_guid) = hub.core.player_guid() else {
+            return 0;
+        };
+        let Some(registry) = hub.core.player_registry() else {
+            return 0;
+        };
+        let current_map_id = hub.core.player_map_id_like_cpp();
+        let current_instance_id = hub
+            .core
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let mut queued = 0;
+
+        for registration in
+            registry.same_map_loot_recipients(player_guid, current_map_id, current_instance_id)
+        {
+            if registry
+                .try_send_current_command(
+                    registration,
+                    SessionCommand::SendIfVisibleLikeCpp(SendIfVisibleLikeCppCommand {
+                        queued_at: Instant::now(),
+                        source_guid: gameobject_guid,
+                        map_id: current_map_id,
+                        instance_id: current_instance_id,
+                        packet_bytes: packet_bytes.clone(),
+                    }),
+                )
+                .is_ok()
+            {
+                queued += 1;
+            }
+        }
+
+        queued
+    }
+
+    pub(crate) fn represented_creature_is_dead_for_loot_visibility_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        creature_guid: ObjectGuid,
+    ) -> bool {
+        let (map_id, instance_id) = hub.core.current_legacy_runtime_map_key_like_cpp();
+        if let Some(manager) = hub.core.map_manager.as_ref()
+            && let Some(creature) = manager
+                .read()
+                .unwrap_or_else(|poisoned| poisoned.into_inner())
+                .find_creature(map_id, instance_id, creature_guid)
+        {
+            return !creature.is_alive();
+        }
+
+        let Some(map_key) = hub
+            .core
+            .canonical_object_lookup_map_key_like_cpp(u32::from(hub.core.player_map_id_like_cpp()))
+        else {
+            return false;
+        };
+        let Some(manager) = hub.core.canonical_map_manager.as_ref() else {
+            return false;
+        };
+        let Ok(manager) = manager.lock() else {
+            return false;
+        };
+        manager
+            .find_map(map_key.map_id, map_key.instance_id)
+            .and_then(|map| {
+                map.map()
+                    .creature_transform_vitals_snapshot_like_cpp(creature_guid)
+            })
+            .is_some_and(|creature| !creature.is_alive)
+    }
+
+    fn represented_gathering_node_xp_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        xp_difficulty: u32,
+    ) -> u32 {
         if xp_difficulty == 0 || xp_difficulty >= 10 {
             return 0;
         }
 
-        let xp_store = self.catalogs.quests.xp_store.as_ref();
+        let xp_store = hub.catalogs.quests.xp_store.as_ref();
         xp_store
             .map(|store| {
-                store.player_level_difficulty_xp_like_cpp(
-                    self.player_level_like_cpp(),
-                    xp_difficulty,
-                )
+                store
+                    .player_level_difficulty_xp_like_cpp(hub.player_level_like_cpp(), xp_difficulty)
             })
             .unwrap_or_default()
     }

@@ -59,18 +59,6 @@ impl WorldSession {
         crate::session::hub_ref(self).mana_regen_from_stats_like_cpp(level, class, stats)
     }
 
-    pub(super) fn mana_regen_aura_multiplier_like_cpp(&self) -> f32 {
-        crate::session::hub_ref(self).mana_regen_aura_multiplier_like_cpp()
-    }
-
-    pub(super) fn mana_regen_mp5_from_auras_like_cpp(&self, stats: [i32; 5]) -> f32 {
-        crate::session::hub_ref(self).mana_regen_mp5_from_auras_like_cpp(stats)
-    }
-
-    pub(super) fn mana_regen_interrupt_modifier_like_cpp(&self) -> f32 {
-        crate::session::hub_ref(self).mana_regen_interrupt_modifier_like_cpp()
-    }
-
     fn represented_resistance_aura_multiplier_like_cpp(
         &self,
         aura_type: i32,
@@ -89,197 +77,12 @@ impl WorldSession {
             .represented_override_attack_power_by_spell_power_pct_like_cpp()
     }
 
-    /// C++ `Player::UpdateSpellDamageAndHealingBonus` producers
-    /// (`StatSystem.cpp:171-197`) from `Unit::SpellBaseDamageBonusDone`
-    /// (`Unit.cpp:6860-6890`) and `Unit::SpellBaseHealingBonusDone`
-    /// (`Unit.cpp:7282-7315`).
-    ///
-    /// `GetTotalAuraModifierByMiscMask(SPELL_AURA_MOD_DAMAGE_DONE, mask)` keeps
-    /// the full per-school sum (negative amounts included) while
-    /// `ModDamageDoneNeg` accumulates only the negative part, so the pure
-    /// stat system can reproduce C++'s `Pos = bonus - Neg`.
     fn represented_spell_bonus_like_cpp(
         &self,
         gear: &RepresentedPlayerGearStatsLikeCpp,
     ) -> PlayerSpellBonusInputLikeCpp {
-        let mut damage_done_flat = [0i32; 7];
-        let mut damage_done_neg = [0i32; 7];
-        for (misc_value, amount) in self
-            .resolved_aura_effects_by_spell_aura_type_like_cpp(
-                wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE,
-            )
-            .unwrap_or_default()
-        {
-            for (school, flat) in damage_done_flat.iter_mut().enumerate().skip(1) {
-                if misc_value & (1_i32 << school) == 0 {
-                    continue;
-                }
-                *flat = flat.saturating_add(amount);
-                if amount < 0 {
-                    damage_done_neg[school] = damage_done_neg[school].saturating_add(amount);
-                }
-            }
-        }
-
-        let mut damage_of_stat_percent = [[0i32; 5]; 7];
-        for (school_mask, stat_index, amount) in self
-            .resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(
-                wow_data::spell::aura_types::SPELL_AURA_MOD_SPELL_DAMAGE_OF_STAT_PERCENT,
-            )
-            .unwrap_or_default()
-        {
-            let Ok(stat) = usize::try_from(stat_index) else {
-                continue;
-            };
-            for (school, per_school) in damage_of_stat_percent.iter_mut().enumerate().skip(1) {
-                if school_mask & (1_i32 << school) == 0 {
-                    continue;
-                }
-                if let Some(value) = per_school.get_mut(stat) {
-                    *value = value.saturating_add(amount);
-                }
-            }
-        }
-
-        let healing_done_flat = self
-            .resolved_aura_effects_by_spell_aura_type_like_cpp(
-                wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_DONE,
-            )
-            .unwrap_or_default()
-            .into_iter()
-            .filter(|(misc_value, _)| {
-                *misc_value == 0 || (*misc_value & SPELL_SCHOOL_MASK_ALL_LIKE_CPP) != 0
-            })
-            .map(|(_, amount)| amount)
-            .sum::<i32>();
-
-        let mut healing_of_stat_percent = [0i32; 5];
-        for (stat_index, _, amount) in self
-            .resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(
-                wow_data::spell::aura_types::SPELL_AURA_MOD_SPELL_HEALING_OF_STAT_PERCENT,
-            )
-            .unwrap_or_default()
-        {
-            if let Ok(stat) = usize::try_from(stat_index)
-                && let Some(value) = healing_of_stat_percent.get_mut(stat)
-            {
-                *value = value.saturating_add(amount);
-            }
-        }
-
-        // C++ `AuraEffect::HandleModDamagePercentDone`
-        // (`SpellAuraEffects.cpp:4525-4548`) sets `ModDamageDonePercent[i]` to
-        // `GetTotalAuraMultiplierByMiscMask(SPELL_AURA_MOD_DAMAGE_PERCENT_DONE,
-        // 1 << i)` for every school the handling effect intersects; a school
-        // with no such effect keeps the 1.0 create value.
-        let damage_percent_effects = self
-            .resolved_aura_effects_by_spell_aura_type_like_cpp(
-                wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE,
-            )
-            .unwrap_or_default();
-        let mut damage_done_percent = [1.0_f32; 7];
-        for (school, percent) in damage_done_percent.iter_mut().enumerate() {
-            let mask = 1_i32 << school;
-            if !damage_percent_effects
-                .iter()
-                .any(|(misc_value, _)| misc_value & mask != 0)
-            {
-                continue;
-            }
-            *percent = damage_percent_effects
-                .iter()
-                .filter(|(misc_value, _)| misc_value & mask != 0)
-                .fold(1.0_f32, |acc, (_, amount)| {
-                    acc * (1.0 + *amount as f32 / 100.0)
-                });
-        }
-
-        // C++ `Player::UpdateHealingDonePercentMod` (`StatSystem.cpp:588-599`)
-        // multiplies `1 + amount/100` over every active
-        // `SPELL_AURA_MOD_HEALING_DONE_PERCENT` (136) effect and clamps the
-        // published `ModHealingDonePercent` at zero.
-        let healing_done_percent = self
-            .resolved_aura_effects_by_spell_aura_type_like_cpp(
-                wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_DONE_PERCENT,
-            )
-            .unwrap_or_default()
-            .into_iter()
-            .fold(1.0_f32, |acc, (_, amount)| {
-                acc * (1.0 + amount as f32 / 100.0)
-            })
-            .max(0.0);
-
-        // C++ `AuraEffect::HandleModVersatilityByPct`
-        // (`SpellAuraEffects.cpp:3797-3808`) sums every active
-        // `SPELL_AURA_MOD_VERSATILITY` (471) amount into `VersatilityBonus`
-        // through `SetUpdateFieldStatValue` (clamped at zero).
-        let versatility_bonus_aura = self
-            .resolved_aura_effects_by_spell_aura_type_like_cpp(
-                wow_data::spell::aura_types::SPELL_AURA_MOD_VERSATILITY,
-            )
-            .unwrap_or_default()
-            .into_iter()
-            .map(|(_, amount)| amount)
-            .sum::<i32>();
-
-        // C++ `AuraEffect::HandleModTargetResistance`
-        // (`SpellAuraEffects.cpp:3507-3530`) adds an effect covering
-        // `SPELL_SCHOOL_MASK_NORMAL` to `ModTargetPhysicalResistance` and one
-        // covering the whole `SPELL_SCHOOL_MASK_SPELL` to `ModTargetResistance`;
-        // `Player::ApplySpellPenetrationBonus` (`StatSystem.cpp:231-235`)
-        // subtracts the item/enchant `ITEM_MOD_SPELL_PENETRATION` there.
-        let mut target_resistance_aura = 0i32;
-        let mut target_physical_resistance_aura = 0i32;
-        for (misc_value, amount) in self
-            .resolved_aura_effects_by_spell_aura_type_like_cpp(
-                wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE,
-            )
-            .unwrap_or_default()
-        {
-            if misc_value & SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP != 0 {
-                target_physical_resistance_aura =
-                    target_physical_resistance_aura.saturating_add(amount);
-            }
-            if misc_value & SPELL_SCHOOL_MASK_SPELL_LIKE_CPP == SPELL_SCHOOL_MASK_SPELL_LIKE_CPP {
-                target_resistance_aura = target_resistance_aura.saturating_add(amount);
-            }
-        }
-
-        let override_effects = self
-            .resolved_aura_effects_by_spell_aura_type_like_cpp(
-                wow_data::spell::aura_types::SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT,
-            )
-            .unwrap_or_default();
-        // C++ `Player::ApplySpellPowerBonus` returns early while the override
-        // aura is present, so the item accumulator never reaches
-        // `m_baseSpellPower`.
-        let base_spell_power = if override_effects.is_empty() {
-            gear.spell_power
-        } else {
-            0
-        };
-        let override_spell_power_by_ap_pct = override_effects
-            .into_iter()
-            .map(|(_, amount)| amount as f32)
-            .sum::<f32>();
-
-        PlayerSpellBonusInputLikeCpp {
-            base_spell_power,
-            damage_done_flat,
-            damage_done_neg,
-            damage_of_stat_percent,
-            healing_done_flat,
-            healing_of_stat_percent,
-            override_spell_power_by_ap_pct,
-            damage_done_percent,
-            healing_done_percent,
-            versatility_bonus_aura,
-            target_resistance_aura,
-            item_spell_penetration: gear.spell_penetration_bonus,
-            target_physical_resistance_aura,
-            weapon_damage_pct: self.represented_weapon_damage_pct_like_cpp(),
-            weapon_damage_flat: self.represented_weapon_damage_flat_like_cpp(),
-        }
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.represented_spell_bonus_like_cpp(hub, gear)
     }
 
     fn represented_attack_power_flat_aura_like_cpp(&self) -> i32 {
@@ -471,12 +274,236 @@ impl WorldSession {
         projection
     }
 
+    pub(crate) fn publish_player_effective_combat_stats_like_cpp(
+        &self,
+        level: u8,
+        projection: PlayerStatSystemProjectionLikeCpp,
+        gear: &RepresentedPlayerGearStatsLikeCpp,
+    ) {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.publish_player_effective_combat_stats_like_cpp(hub, level, projection, gear)
+    }
+
+    pub(super) fn publish_effective_stats_like_cpp(
+        &self,
+        level: u8,
+        _include_represented_item_bonuses: bool,
+        projection: PlayerStatSystemProjectionLikeCpp,
+        gear: &RepresentedPlayerGearStatsLikeCpp,
+    ) {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.publish_effective_stats_like_cpp(
+            hub,
+            level,
+            _include_represented_item_bonuses,
+            projection,
+            gear,
+        )
+    }
+}
+
+impl crate::session::InventoryState {
+    /// C++ `Player::UpdateSpellDamageAndHealingBonus` producers
+    /// (`StatSystem.cpp:171-197`) from `Unit::SpellBaseDamageBonusDone`
+    /// (`Unit.cpp:6860-6890`) and `Unit::SpellBaseHealingBonusDone`
+    /// (`Unit.cpp:7282-7315`).
+    ///
+    /// `GetTotalAuraModifierByMiscMask(SPELL_AURA_MOD_DAMAGE_DONE, mask)` keeps
+    /// the full per-school sum (negative amounts included) while
+    /// `ModDamageDoneNeg` accumulates only the negative part, so the pure
+    /// stat system can reproduce C++'s `Pos = bonus - Neg`.
+    fn represented_spell_bonus_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        gear: &RepresentedPlayerGearStatsLikeCpp,
+    ) -> PlayerSpellBonusInputLikeCpp {
+        let mut damage_done_flat = [0i32; 7];
+        let mut damage_done_neg = [0i32; 7];
+        for (misc_value, amount) in hub
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE,
+            )
+            .unwrap_or_default()
+        {
+            for (school, flat) in damage_done_flat.iter_mut().enumerate().skip(1) {
+                if misc_value & (1_i32 << school) == 0 {
+                    continue;
+                }
+                *flat = flat.saturating_add(amount);
+                if amount < 0 {
+                    damage_done_neg[school] = damage_done_neg[school].saturating_add(amount);
+                }
+            }
+        }
+
+        let mut damage_of_stat_percent = [[0i32; 5]; 7];
+        for (school_mask, stat_index, amount) in hub
+            .resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_SPELL_DAMAGE_OF_STAT_PERCENT,
+            )
+            .unwrap_or_default()
+        {
+            let Ok(stat) = usize::try_from(stat_index) else {
+                continue;
+            };
+            for (school, per_school) in damage_of_stat_percent.iter_mut().enumerate().skip(1) {
+                if school_mask & (1_i32 << school) == 0 {
+                    continue;
+                }
+                if let Some(value) = per_school.get_mut(stat) {
+                    *value = value.saturating_add(amount);
+                }
+            }
+        }
+
+        let healing_done_flat = hub
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_DONE,
+            )
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|(misc_value, _)| {
+                *misc_value == 0 || (*misc_value & SPELL_SCHOOL_MASK_ALL_LIKE_CPP) != 0
+            })
+            .map(|(_, amount)| amount)
+            .sum::<i32>();
+
+        let mut healing_of_stat_percent = [0i32; 5];
+        for (stat_index, _, amount) in hub
+            .resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_SPELL_HEALING_OF_STAT_PERCENT,
+            )
+            .unwrap_or_default()
+        {
+            if let Ok(stat) = usize::try_from(stat_index)
+                && let Some(value) = healing_of_stat_percent.get_mut(stat)
+            {
+                *value = value.saturating_add(amount);
+            }
+        }
+
+        // C++ `AuraEffect::HandleModDamagePercentDone`
+        // (`SpellAuraEffects.cpp:4525-4548`) sets `ModDamageDonePercent[i]` to
+        // `GetTotalAuraMultiplierByMiscMask(SPELL_AURA_MOD_DAMAGE_PERCENT_DONE,
+        // 1 << i)` for every school the handling effect intersects; a school
+        // with no such effect keeps the 1.0 create value.
+        let damage_percent_effects = hub
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE,
+            )
+            .unwrap_or_default();
+        let mut damage_done_percent = [1.0_f32; 7];
+        for (school, percent) in damage_done_percent.iter_mut().enumerate() {
+            let mask = 1_i32 << school;
+            if !damage_percent_effects
+                .iter()
+                .any(|(misc_value, _)| misc_value & mask != 0)
+            {
+                continue;
+            }
+            *percent = damage_percent_effects
+                .iter()
+                .filter(|(misc_value, _)| misc_value & mask != 0)
+                .fold(1.0_f32, |acc, (_, amount)| {
+                    acc * (1.0 + *amount as f32 / 100.0)
+                });
+        }
+
+        // C++ `Player::UpdateHealingDonePercentMod` (`StatSystem.cpp:588-599`)
+        // multiplies `1 + amount/100` over every active
+        // `SPELL_AURA_MOD_HEALING_DONE_PERCENT` (136) effect and clamps the
+        // published `ModHealingDonePercent` at zero.
+        let healing_done_percent = hub
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_DONE_PERCENT,
+            )
+            .unwrap_or_default()
+            .into_iter()
+            .fold(1.0_f32, |acc, (_, amount)| {
+                acc * (1.0 + amount as f32 / 100.0)
+            })
+            .max(0.0);
+
+        // C++ `AuraEffect::HandleModVersatilityByPct`
+        // (`SpellAuraEffects.cpp:3797-3808`) sums every active
+        // `SPELL_AURA_MOD_VERSATILITY` (471) amount into `VersatilityBonus`
+        // through `SetUpdateFieldStatValue` (clamped at zero).
+        let versatility_bonus_aura = hub
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_VERSATILITY,
+            )
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(_, amount)| amount)
+            .sum::<i32>();
+
+        // C++ `AuraEffect::HandleModTargetResistance`
+        // (`SpellAuraEffects.cpp:3507-3530`) adds an effect covering
+        // `SPELL_SCHOOL_MASK_NORMAL` to `ModTargetPhysicalResistance` and one
+        // covering the whole `SPELL_SCHOOL_MASK_SPELL` to `ModTargetResistance`;
+        // `Player::ApplySpellPenetrationBonus` (`StatSystem.cpp:231-235`)
+        // subtracts the item/enchant `ITEM_MOD_SPELL_PENETRATION` there.
+        let mut target_resistance_aura = 0i32;
+        let mut target_physical_resistance_aura = 0i32;
+        for (misc_value, amount) in hub
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE,
+            )
+            .unwrap_or_default()
+        {
+            if misc_value & SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP != 0 {
+                target_physical_resistance_aura =
+                    target_physical_resistance_aura.saturating_add(amount);
+            }
+            if misc_value & SPELL_SCHOOL_MASK_SPELL_LIKE_CPP == SPELL_SCHOOL_MASK_SPELL_LIKE_CPP {
+                target_resistance_aura = target_resistance_aura.saturating_add(amount);
+            }
+        }
+
+        let override_effects = hub
+            .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                wow_data::spell::aura_types::SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT,
+            )
+            .unwrap_or_default();
+        // C++ `Player::ApplySpellPowerBonus` returns early while the override
+        // aura is present, so the item accumulator never reaches
+        // `m_baseSpellPower`.
+        let base_spell_power = if override_effects.is_empty() {
+            gear.spell_power
+        } else {
+            0
+        };
+        let override_spell_power_by_ap_pct = override_effects
+            .into_iter()
+            .map(|(_, amount)| amount as f32)
+            .sum::<f32>();
+
+        PlayerSpellBonusInputLikeCpp {
+            base_spell_power,
+            damage_done_flat,
+            damage_done_neg,
+            damage_of_stat_percent,
+            healing_done_flat,
+            healing_of_stat_percent,
+            override_spell_power_by_ap_pct,
+            damage_done_percent,
+            healing_done_percent,
+            versatility_bonus_aura,
+            target_resistance_aura,
+            item_spell_penetration: gear.spell_penetration_bonus,
+            target_physical_resistance_aura,
+            weapon_damage_pct: self.represented_weapon_damage_pct_like_cpp(hub),
+            weapon_damage_flat: self.represented_weapon_damage_flat_like_cpp(hub),
+        }
+    }
+
     /// Publish one complete `UpdateAllStats` projection on the canonical
     /// Player. Packet adapters may format this value, while combat systems can
     /// consume it without reaching through Session or rebuilding item input.
     /// The snapshot is derived and is intentionally not a persistence record.
     pub(crate) fn publish_player_effective_combat_stats_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         level: u8,
         projection: PlayerStatSystemProjectionLikeCpp,
         gear: &RepresentedPlayerGearStatsLikeCpp,
@@ -486,7 +513,7 @@ impl WorldSession {
         // armor; the six magic schools come from `Unit::UpdateResistances`
         // (item `BASE_VALUE` plus the resistance aura producers).
         resistances[0] = projection.armor;
-        for (index, value) in self
+        for (index, value) in hub
             .represented_school_resistances_like_cpp(gear)
             .into_iter()
             .enumerate()
@@ -497,7 +524,7 @@ impl WorldSession {
             projection,
             gear.weapon_damage,
             gear.base_attack_time,
-            self.represented_shapeshift_combat_round_time_like_cpp(),
+            hub.represented_shapeshift_combat_round_time_like_cpp(),
         );
         // C++ `Player::UpdateExpertise` (`StatSystem.cpp:759-786`) truncates the
         // combat-rating bonus to `int32`, adds the `SPELL_AURA_MOD_EXPERTISE`
@@ -507,15 +534,17 @@ impl WorldSession {
         // written by C++ (`UpdateExpertise` returns early for `RANGED_ATTACK`)
         // and stay at their zero create value.
         let rating_expertise = (gear.combat_ratings[23] as f32
-            * self.combat_rating_multiplier_like_cpp(level, 23))
+            * hub.catalogs.combat_rating_multiplier_like_cpp(level, 23))
         .trunc();
         let mainhand_expertise = (rating_expertise
             + self.represented_expertise_aura_modifier_like_cpp(
+                hub,
                 wow_constants::WeaponAttackType::BaseAttack,
             ) as f32)
             .max(0.0);
         let offhand_expertise = (rating_expertise
             + self.represented_expertise_aura_modifier_like_cpp(
+                hub,
                 wow_constants::WeaponAttackType::OffAttack,
             ) as f32)
             .max(0.0);
@@ -524,24 +553,26 @@ impl WorldSession {
         let armor_penetration_rating = crate::session::CR_ARMOR_PENETRATION_LIKE_CPP;
         let armor_penetration_pct = (gear.combat_ratings[usize::from(armor_penetration_rating)]
             as f32
-            * self.combat_rating_multiplier_like_cpp(level, u32::from(armor_penetration_rating)))
+            * hub
+                .catalogs
+                .combat_rating_multiplier_like_cpp(level, u32::from(armor_penetration_rating)))
         .clamp(0.0, 100.0);
         // C++ `Player::UpdateMeleeHitChances` (`StatSystem.cpp:743-746`).
         let melee_hit_chance_pct = 7.5
             + gear.combat_ratings[usize::from(crate::session::CR_HIT_MELEE_LIKE_CPP)] as f32
-                * self.combat_rating_multiplier_like_cpp(
+                * hub.catalogs.combat_rating_multiplier_like_cpp(
                     level,
                     u32::from(crate::session::CR_HIT_MELEE_LIKE_CPP),
                 );
         let mana_regen_mp5 = gear.mana_regen_bonus as f32 / 5.0
-            + self.mana_regen_mp5_from_auras_like_cpp(projection.stats);
-        let mana_regen_from_spirit = self.mana_regen_from_stats_like_cpp(
+            + hub.mana_regen_mp5_from_auras_like_cpp(projection.stats);
+        let mana_regen_from_spirit = hub.mana_regen_from_stats_like_cpp(
             level,
-            self.player_class_like_cpp(),
+            hub.player_class_like_cpp(),
             projection.stats,
-        ) * self.mana_regen_aura_multiplier_like_cpp();
+        ) * hub.mana_regen_aura_multiplier_like_cpp();
         let mana_regen_combat =
-            mana_regen_mp5 + mana_regen_from_spirit * self.mana_regen_interrupt_modifier_like_cpp();
+            mana_regen_mp5 + mana_regen_from_spirit * hub.mana_regen_interrupt_modifier_like_cpp();
         let stats = PlayerEffectiveCombatStatsLikeCpp {
             stats: projection.stats,
             stat_pos_buff: projection.stat_pos_buff,
@@ -601,13 +632,14 @@ impl WorldSession {
             spell_crit_pct: projection.spell_crit_pct,
             ..PlayerEffectiveCombatStatsLikeCpp::default()
         };
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
+        let _ = hub.core.mutate_canonical_player_like_cpp(|player| {
             player.replace_effective_combat_stats_like_cpp(stats);
         });
     }
 
     pub(super) fn publish_effective_stats_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         level: u8,
         _include_represented_item_bonuses: bool,
         projection: PlayerStatSystemProjectionLikeCpp,
@@ -617,7 +649,7 @@ impl WorldSession {
         // projection. The boolean remains at the adapter boundary for
         // compatibility with callers that already name the C++ option, but a
         // second inventory-derived path is deliberately impossible here.
-        self.publish_player_effective_combat_stats_like_cpp(level, projection, gear);
+        self.publish_player_effective_combat_stats_like_cpp(hub, level, projection, gear);
     }
 }
 

@@ -303,68 +303,8 @@ impl WorldSession {
         &self,
         item_guid: ObjectGuid,
     ) -> bool {
-        let Some(item_entry) = self
-            .resolved_inventory_item_object_like_cpp(item_guid)
-            .map(|item| item.object().entry())
-        else {
-            return false;
-        };
-        if !self
-            .catalogs
-            .heirloom_store
-            .as_ref()
-            .is_some_and(|store| store.get_by_item_id_like_cpp(item_entry).is_some())
-        {
-            return false;
-        }
-
-        let Some(template) = self
-            .catalogs
-            .items
-            .stats_store
-            .as_ref()
-            .and_then(|store| store.sparse_template(item_entry))
-        else {
-            return false;
-        };
-        let curve_id = template.player_level_to_item_level_curve_id_like_cpp();
-        if curve_id == 0 {
-            return false;
-        }
-
-        let Some((curve_store, curve_point_store)) = self
-            .catalogs
-            .curve_store
-            .as_ref()
-            .zip(self.catalogs.curve_point_store.as_ref())
-        else {
-            return false;
-        };
-        let Some((_min_level, max_level)) =
-            curve_store.curve_x_axis_range_like_cpp(curve_point_store, curve_id)
-        else {
-            return false;
-        };
-        if !max_level.is_finite() || max_level < 0.0 {
-            return false;
-        }
-        let mut max_level = max_level as u32;
-
-        if let Some(content_tuning) =
-            self.catalogs
-                .content_tuning_store
-                .as_ref()
-                .and_then(|store| {
-                    store.content_tuning_data_like_cpp(
-                        template.scaling_stat_content_tuning_like_cpp(),
-                        true,
-                    )
-                })
-        {
-            max_level = max_level.min(u32::try_from(content_tuning.max_level).unwrap_or(0));
-        }
-
-        u32::from(self.player_level_like_cpp()) > max_level
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.represented_heirloom_item_set_bonus_over_level_cap_like_cpp(hub, item_guid)
     }
     pub(crate) fn record_represented_update_item_set_auras_like_cpp(
         &mut self,
@@ -616,18 +556,8 @@ impl WorldSession {
         &self,
         item_guid: ObjectGuid,
     ) -> bool {
-        let Some(item) = self.resolved_inventory_item_object_like_cpp(item_guid) else {
-            return false;
-        };
-        // C++ `_ApplyAllItemMods` skips broken items before both
-        // `ApplyItemEquipSpell` and `ApplyEnchantment`.
-        if item.is_broken() {
-            return false;
-        }
-        let inventory_type = self
-            .item_storage_template(item.object().entry())
-            .map(|template| template.inventory_type);
-        self.represented_can_use_attack_type_like_cpp(item.slot(), inventory_type) == Some(true)
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.initial_loaded_item_mods_can_apply_like_cpp(hub, item_guid)
     }
 
     pub(in crate::session) fn represented_can_use_attack_type_like_cpp(
@@ -653,6 +583,98 @@ impl WorldSession {
     ) -> Vec<(u8, i32)> {
         self.catalogs
             .represented_item_effect_spell_ids_like_cpp(item_id)
+    }
+}
+
+impl crate::session::state::InventoryState {
+    pub(in crate::session) fn represented_heirloom_item_set_bonus_over_level_cap_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_guid: ObjectGuid,
+    ) -> bool {
+        let Some(item_entry) = self
+            .resolved_inventory_item_object_like_cpp(hub, item_guid)
+            .map(|item| item.object().entry())
+        else {
+            return false;
+        };
+        if !hub
+            .catalogs
+            .heirloom_store
+            .as_ref()
+            .is_some_and(|store| store.get_by_item_id_like_cpp(item_entry).is_some())
+        {
+            return false;
+        }
+
+        let Some(template) = hub
+            .catalogs
+            .items
+            .stats_store
+            .as_ref()
+            .and_then(|store| store.sparse_template(item_entry))
+        else {
+            return false;
+        };
+        let curve_id = template.player_level_to_item_level_curve_id_like_cpp();
+        if curve_id == 0 {
+            return false;
+        }
+
+        let Some((curve_store, curve_point_store)) = hub
+            .catalogs
+            .curve_store
+            .as_ref()
+            .zip(hub.catalogs.curve_point_store.as_ref())
+        else {
+            return false;
+        };
+        let Some((_min_level, max_level)) =
+            curve_store.curve_x_axis_range_like_cpp(curve_point_store, curve_id)
+        else {
+            return false;
+        };
+        if !max_level.is_finite() || max_level < 0.0 {
+            return false;
+        }
+        let mut max_level = max_level as u32;
+
+        if let Some(content_tuning) = hub
+            .catalogs
+            .content_tuning_store
+            .as_ref()
+            .and_then(|store| {
+                store.content_tuning_data_like_cpp(
+                    template.scaling_stat_content_tuning_like_cpp(),
+                    true,
+                )
+            })
+        {
+            max_level = max_level.min(u32::try_from(content_tuning.max_level).unwrap_or(0));
+        }
+
+        u32::from(hub.player_level_like_cpp()) > max_level
+    }
+
+    pub(in crate::session) fn initial_loaded_item_mods_can_apply_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_guid: ObjectGuid,
+    ) -> bool {
+        let Some(item) = self.resolved_inventory_item_object_like_cpp(hub, item_guid) else {
+            return false;
+        };
+        // C++ `_ApplyAllItemMods` skips broken items before both
+        // `ApplyItemEquipSpell` and `ApplyEnchantment`.
+        if item.is_broken() {
+            return false;
+        }
+        let inventory_type = hub
+            .catalogs
+            .item_storage_template(item.object().entry())
+            .map(|template| template.inventory_type);
+        self.represented_can_use_attack_type_like_cpp(hub, item.slot(), inventory_type)
+            == Some(true)
     }
 }
 

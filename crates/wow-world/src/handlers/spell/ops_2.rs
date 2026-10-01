@@ -172,16 +172,8 @@ impl WorldSession {
         &self,
         item_id: u32,
     ) -> Option<u32> {
-        Some(
-            self.resolved_inventory_items_like_cpp()?
-                .values()
-                .filter(|inventory_item| inventory_item.entry_id == item_id)
-                .filter_map(|inventory_item| {
-                    self.resolved_inventory_item_object_like_cpp(inventory_item.guid)
-                })
-                .filter(|item| !item.is_in_trade())
-                .fold(0_u32, |total, item| total.saturating_add(item.count())),
-        )
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.direct_inventory_item_count_like_cpp_representable(hub, item_id)
     }
     pub(super) fn loot_conditions_allow_player_with_references_like_cpp_representable(
         &self,
@@ -695,6 +687,25 @@ impl WorldSession {
             }),
             0,
             self.map_store().map(|store| store.as_ref()),
+        )
+    }
+}
+
+impl crate::session::InventoryState {
+    pub(super) fn direct_inventory_item_count_like_cpp_representable(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_id: u32,
+    ) -> Option<u32> {
+        Some(
+            self.resolved_inventory_items_like_cpp(hub)?
+                .values()
+                .filter(|inventory_item| inventory_item.entry_id == item_id)
+                .filter_map(|inventory_item| {
+                    self.resolved_inventory_item_object_like_cpp(hub, inventory_item.guid)
+                })
+                .filter(|item| !item.is_in_trade())
+                .fold(0_u32, |total, item| total.saturating_add(item.count())),
         )
     }
 }

@@ -170,13 +170,8 @@ impl WorldSession {
     }
 
     fn canonical_gameobject_owner_for_loot_like_cpp(&self, guid: ObjectGuid) -> Option<ObjectGuid> {
-        let map_key = self
-            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
-        let manager = self.core.canonical_map_manager.as_ref()?;
-        let manager = manager.lock().ok()?;
-        let map = manager.find_map(map_key.map_id, map_key.instance_id)?.map();
-        let owner_guid = map.get_typed_game_object(guid)?.owner_guid();
-        (!owner_guid.is_empty()).then_some(owner_guid)
+        let (state, hub) = crate::session::split_loot_ref(self);
+        state.canonical_gameobject_owner_for_loot_like_cpp(hub, guid)
     }
 
     fn represented_gameobject_loot_state_like_cpp(
@@ -317,5 +312,24 @@ impl WorldSession {
             }
             _ => true,
         }
+    }
+}
+
+impl crate::session::LootState {
+    fn canonical_gameobject_owner_for_loot_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        guid: ObjectGuid,
+    ) -> Option<ObjectGuid> {
+        let map_key = hub
+            .core
+            .canonical_object_lookup_map_key_like_cpp(u32::from(
+                hub.core.player_map_id_like_cpp(),
+            ))?;
+        let manager = hub.core.canonical_map_manager.as_ref()?;
+        let manager = manager.lock().ok()?;
+        let map = manager.find_map(map_key.map_id, map_key.instance_id)?.map();
+        let owner_guid = map.get_typed_game_object(guid)?.owner_guid();
+        (!owner_guid.is_empty()).then_some(owner_guid)
     }
 }

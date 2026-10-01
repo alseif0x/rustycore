@@ -84,7 +84,8 @@ impl WorldSession {
         delivered
     }
     pub(crate) fn send_item_contained_in_values_update_like_cpp(&self, item_guid: ObjectGuid) {
-        self.send_item_storage_fields_values_update_like_cpp(item_guid, true, false, &[]);
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.send_item_contained_in_values_update_like_cpp(hub, item_guid)
     }
     pub(crate) fn send_item_relocation_values_update_like_cpp(
         &self,
@@ -92,55 +93,17 @@ impl WorldSession {
         dynamic_flags2_changed: bool,
         cleared_enchantments: &[EnchantmentSlot],
     ) {
-        self.send_item_storage_fields_values_update_like_cpp(
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.send_item_relocation_values_update_like_cpp(
+            hub,
             item_guid,
-            true,
             dynamic_flags2_changed,
             cleared_enchantments,
-        );
-    }
-    fn send_item_storage_fields_values_update_like_cpp(
-        &self,
-        item_guid: ObjectGuid,
-        contained_in_changed: bool,
-        dynamic_flags2_changed: bool,
-        changed_enchantments: &[EnchantmentSlot],
-    ) {
-        let Some(item) = self.resolved_inventory_item_object_like_cpp(item_guid) else {
-            return;
-        };
-        let update = crate::session::item_storage_fields_values_update_like_cpp(
-            &item,
-            contained_in_changed,
-            dynamic_flags2_changed,
-            changed_enchantments,
-        );
-        if let Some(packet) =
-            item_values_update_to_update_object(item_guid, self.player_map_id_like_cpp(), &update)
-        {
-            self.send_packet(&packet);
-        }
+        )
     }
     pub(crate) fn send_item_dynamic_flags_values_update_like_cpp(&self, item_guid: ObjectGuid) {
-        let Some(item) = self.resolved_inventory_item_object_like_cpp(item_guid) else {
-            return;
-        };
-        let mut item_data_mask = UpdateMask::new(ITEM_DATA_BITS);
-        item_data_mask.set(ITEM_DATA_PARENT_BIT);
-        item_data_mask.set(ITEM_DATA_DYNAMIC_FLAGS_BIT);
-        let update = ItemValuesUpdate {
-            changed_object_type_mask: 1 << TYPEID_ITEM,
-            object_data: None,
-            item_data: Some(ItemDataUpdate {
-                mask: item_data_mask,
-                values: item.data().clone(),
-            }),
-        };
-        if let Some(packet) =
-            item_values_update_to_update_object(item_guid, self.player_map_id_like_cpp(), &update)
-        {
-            self.send_packet(&packet);
-        }
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.send_item_dynamic_flags_values_update_like_cpp(hub, item_guid)
     }
     pub(crate) fn send_repeatable_turn_in_request_items_like_cpp(
         &mut self,
@@ -159,5 +122,85 @@ impl WorldSession {
             can_complete,
             true,
         );
+    }
+}
+
+impl crate::session::state::InventoryState {
+    pub(crate) fn send_item_contained_in_values_update_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_guid: ObjectGuid,
+    ) {
+        self.send_item_storage_fields_values_update_like_cpp(hub, item_guid, true, false, &[]);
+    }
+
+    pub(crate) fn send_item_relocation_values_update_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_guid: ObjectGuid,
+        dynamic_flags2_changed: bool,
+        cleared_enchantments: &[EnchantmentSlot],
+    ) {
+        self.send_item_storage_fields_values_update_like_cpp(
+            hub,
+            item_guid,
+            true,
+            dynamic_flags2_changed,
+            cleared_enchantments,
+        );
+    }
+
+    fn send_item_storage_fields_values_update_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_guid: ObjectGuid,
+        contained_in_changed: bool,
+        dynamic_flags2_changed: bool,
+        changed_enchantments: &[EnchantmentSlot],
+    ) {
+        let Some(item) = self.resolved_inventory_item_object_like_cpp(hub, item_guid) else {
+            return;
+        };
+        let update = crate::session::item_storage_fields_values_update_like_cpp(
+            &item,
+            contained_in_changed,
+            dynamic_flags2_changed,
+            changed_enchantments,
+        );
+        if let Some(packet) = item_values_update_to_update_object(
+            item_guid,
+            hub.core.player_map_id_like_cpp(),
+            &update,
+        ) {
+            hub.core.send_packet(&packet);
+        }
+    }
+
+    pub(crate) fn send_item_dynamic_flags_values_update_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_guid: ObjectGuid,
+    ) {
+        let Some(item) = self.resolved_inventory_item_object_like_cpp(hub, item_guid) else {
+            return;
+        };
+        let mut item_data_mask = UpdateMask::new(ITEM_DATA_BITS);
+        item_data_mask.set(ITEM_DATA_PARENT_BIT);
+        item_data_mask.set(ITEM_DATA_DYNAMIC_FLAGS_BIT);
+        let update = ItemValuesUpdate {
+            changed_object_type_mask: 1 << TYPEID_ITEM,
+            object_data: None,
+            item_data: Some(ItemDataUpdate {
+                mask: item_data_mask,
+                values: item.data().clone(),
+            }),
+        };
+        if let Some(packet) = item_values_update_to_update_object(
+            item_guid,
+            hub.core.player_map_id_like_cpp(),
+            &update,
+        ) {
+            hub.core.send_packet(&packet);
+        }
     }
 }

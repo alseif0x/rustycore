@@ -17,12 +17,6 @@ impl WorldSession {
     pub fn set_item_store(&mut self, store: Arc<ItemStore>) {
         self.catalogs.items.store = Some(store);
     }
-    pub(crate) fn item_template_random_select(&self, item_id: u32) -> u16 {
-        self.catalogs.item_template_random_select(item_id)
-    }
-    pub(crate) fn item_template_random_suffix_group_id(&self, item_id: u32) -> u16 {
-        self.catalogs.item_template_random_suffix_group_id(item_id)
-    }
     pub fn item_store(&self) -> Option<&Arc<ItemStore>> {
         self.catalogs.item_store()
     }
@@ -34,30 +28,12 @@ impl WorldSession {
     pub fn item_search_name_store(&self) -> Option<&Arc<ItemSearchNameStore>> {
         self.catalogs.items.search_name_store.as_ref()
     }
-    /// C++ `Player::GetItemByEntry(entry, ItemSearchLocation::Default)`.
     pub(in crate::session) fn represented_player_has_default_item_entry_like_cpp(
         &self,
         item_id: u32,
     ) -> bool {
-        let Some(player) = self.direct_inventory_player_snapshot() else {
-            return false;
-        };
-        let Some(item_objects) = self.resolved_inventory_item_objects_like_cpp() else {
-            return false;
-        };
-        let mut found = false;
-        player.for_each_item_guid(wow_entities::ItemSearchLocation::DEFAULT, |item_guid| {
-            if item_objects
-                .get(&item_guid)
-                .is_some_and(|item| item.object().entry() == item_id)
-            {
-                found = true;
-                wow_entities::ItemSearchCallbackResult::Stop
-            } else {
-                wow_entities::ItemSearchCallbackResult::Continue
-            }
-        });
-        found
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.represented_player_has_default_item_entry_like_cpp(hub, item_id)
     }
     pub fn set_pvp_item_store(&mut self, store: Arc<PvpItemStore>) {
         self.catalogs.pvp_item_store = Some(store);
@@ -128,12 +104,6 @@ impl WorldSession {
     pub fn item_storage_template(&self, item_id: u32) -> Option<ItemStorageTemplate> {
         self.catalogs.item_storage_template(item_id)
     }
-    pub(crate) fn item_random_property_template(
-        &self,
-        item_id: u32,
-    ) -> Option<ItemRandomPropertyTemplateEntry> {
-        self.catalogs.item_random_property_template(item_id)
-    }
     /// Set the item random suffix store for this session.
     pub fn set_item_random_suffix_store(&mut self, store: Arc<ItemRandomSuffixStore>) {
         self.catalogs.items.random_suffix_store = Some(store);
@@ -163,6 +133,35 @@ impl WorldSession {
     }
     pub(in crate::session) fn item_template_name_like_cpp(&self, item_id: u32) -> &str {
         self.catalogs.item_template_name_like_cpp(item_id)
+    }
+}
+
+impl crate::session::state::InventoryState {
+    /// C++ `Player::GetItemByEntry(entry, ItemSearchLocation::Default)`.
+    pub(in crate::session) fn represented_player_has_default_item_entry_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_id: u32,
+    ) -> bool {
+        let Some(player) = self.direct_inventory_player_snapshot(hub) else {
+            return false;
+        };
+        let Some(item_objects) = self.resolved_inventory_item_objects_like_cpp(hub) else {
+            return false;
+        };
+        let mut found = false;
+        player.for_each_item_guid(wow_entities::ItemSearchLocation::DEFAULT, |item_guid| {
+            if item_objects
+                .get(&item_guid)
+                .is_some_and(|item| item.object().entry() == item_id)
+            {
+                found = true;
+                wow_entities::ItemSearchCallbackResult::Stop
+            } else {
+                wow_entities::ItemSearchCallbackResult::Continue
+            }
+        });
+        found
     }
 }
 

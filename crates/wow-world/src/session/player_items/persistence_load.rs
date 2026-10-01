@@ -154,54 +154,20 @@ impl WorldSession {
         &self,
         item_guid: ObjectGuid,
     ) -> Option<(u8, i32, u16, u16)> {
-        let item = self.resolved_inventory_item_object_like_cpp(item_guid)?;
-        let slot = item.slot();
-        if slot >= EQUIPMENT_SLOT_END {
-            return None;
-        }
-        let (item_id, appearance_mod_id, item_visual) =
-            self.loaded_inventory_item_visible_fields_like_cpp(&item);
-        Some((slot, item_id, appearance_mod_id, item_visual))
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.loaded_inventory_item_visible_update_like_cpp(hub, item_guid)
     }
-    /// Restores C++ `Player::_LoadInventory` duration tracking before the login
-    /// create packet is sent. Equipped enchantments are registered later by the
-    /// ordered `_ApplyAllItemMods` replay, so only non-equipped enchantments are
-    /// added here.
     pub(crate) fn register_loaded_inventory_item_duration_refs_like_cpp(
         &mut self,
         loaded_item_guids: &[ObjectGuid],
         loaded_equipped_item_guids: &[ObjectGuid],
     ) -> (Vec<PlayerItemTimeUpdate>, Vec<PlayerEnchantTimeUpdate>) {
-        let mut item_updates = Vec::new();
-        let mut enchantment_updates = Vec::new();
-
-        for &item_guid in loaded_item_guids {
-            let Some(mut item) = self.resolved_inventory_item_object_like_cpp(item_guid) else {
-                continue;
-            };
-            let is_equipped = loaded_equipped_item_guids.contains(&item_guid);
-            let Some((item_update, mut item_enchantment_updates)) = self
-                .mutate_canonical_player_like_cpp(|player| {
-                    let item_update = player.add_item_durations(&item);
-                    let enchantment_updates = if is_equipped {
-                        Vec::new()
-                    } else {
-                        player.add_enchantment_durations(&mut item)
-                    };
-                    (item_update, enchantment_updates)
-                })
-            else {
-                continue;
-            };
-
-            self.insert_inventory_item_object(item);
-            if let Some(item_update) = item_update {
-                item_updates.push(item_update);
-            }
-            enchantment_updates.append(&mut item_enchantment_updates);
-        }
-
-        (item_updates, enchantment_updates)
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.register_loaded_inventory_item_duration_refs_like_cpp(
+            &mut hub,
+            loaded_item_guids,
+            loaded_equipped_item_guids,
+        )
     }
     pub(crate) fn begin_player_equipment_inventory_authority_load_like_cpp(&mut self) {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
@@ -214,6 +180,67 @@ impl WorldSession {
     pub(crate) fn player_equipment_inventory_authority_complete_like_cpp(&self) -> bool {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.player_equipment_inventory_authority_complete_like_cpp(hub)
+    }
+}
+
+impl crate::session::state::InventoryState {
+    pub(in crate::session) fn loaded_inventory_item_visible_update_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_guid: ObjectGuid,
+    ) -> Option<(u8, i32, u16, u16)> {
+        let item = self.resolved_inventory_item_object_like_cpp(hub, item_guid)?;
+        let slot = item.slot();
+        if slot >= EQUIPMENT_SLOT_END {
+            return None;
+        }
+        let (item_id, appearance_mod_id, item_visual) =
+            self.loaded_inventory_item_visible_fields_like_cpp(hub, &item);
+        Some((slot, item_id, appearance_mod_id, item_visual))
+    }
+
+    /// Restores C++ `Player::_LoadInventory` duration tracking before the login
+    /// create packet is sent. Equipped enchantments are registered later by the
+    /// ordered `_ApplyAllItemMods` replay, so only non-equipped enchantments are
+    /// added here.
+    pub(crate) fn register_loaded_inventory_item_duration_refs_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        loaded_item_guids: &[ObjectGuid],
+        loaded_equipped_item_guids: &[ObjectGuid],
+    ) -> (Vec<PlayerItemTimeUpdate>, Vec<PlayerEnchantTimeUpdate>) {
+        let mut item_updates = Vec::new();
+        let mut enchantment_updates = Vec::new();
+
+        for &item_guid in loaded_item_guids {
+            let Some(mut item) =
+                self.resolved_inventory_item_object_like_cpp(hub.shared(), item_guid)
+            else {
+                continue;
+            };
+            let is_equipped = loaded_equipped_item_guids.contains(&item_guid);
+            let Some((item_update, mut item_enchantment_updates)) =
+                hub.core.mutate_canonical_player_like_cpp(|player| {
+                    let item_update = player.add_item_durations(&item);
+                    let enchantment_updates = if is_equipped {
+                        Vec::new()
+                    } else {
+                        player.add_enchantment_durations(&mut item)
+                    };
+                    (item_update, enchantment_updates)
+                })
+            else {
+                continue;
+            };
+
+            self.insert_inventory_item_object(hub, item);
+            if let Some(item_update) = item_update {
+                item_updates.push(item_update);
+            }
+            enchantment_updates.append(&mut item_enchantment_updates);
+        }
+
+        (item_updates, enchantment_updates)
     }
 }
 

@@ -923,12 +923,35 @@ impl WorldSession {
         &mut self,
         corpse_guid: ObjectGuid,
     ) -> bool {
-        let Some(map_key) =
-            self.canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))
+        let (state, mut hub) = crate::session::split_loot_mut(self);
+        state.remove_canonical_corpse_lootable_dynamic_flag_like_cpp(&mut hub, corpse_guid)
+    }
+
+    pub(super) fn remove_canonical_corpse_lootable_dynamic_flag_if_unviewed_fully_looted_observation_like_cpp(
+        &mut self,
+        corpse_guid: ObjectGuid,
+        authority: &OwnedLootAuthority,
+        object_generation: u64,
+        lifecycle_revision: u64,
+    ) -> bool {
+        let (state, mut hub) = crate::session::split_loot_mut(self);
+        state.remove_canonical_corpse_lootable_dynamic_flag_if_unviewed_fully_looted_observation_like_cpp(&mut hub, corpse_guid, authority, object_generation, lifecycle_revision)
+    }
+}
+
+impl crate::session::LootState {
+    pub(super) fn remove_canonical_corpse_lootable_dynamic_flag_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        corpse_guid: ObjectGuid,
+    ) -> bool {
+        let Some(map_key) = hub
+            .core
+            .canonical_object_lookup_map_key_like_cpp(u32::from(hub.core.player_map_id_like_cpp()))
         else {
             return false;
         };
-        let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {
+        let Some(manager) = hub.core.canonical_map_manager.as_ref().cloned() else {
             return false;
         };
         let Ok(mut manager) = manager.lock() else {
@@ -947,17 +970,19 @@ impl WorldSession {
 
     pub(super) fn remove_canonical_corpse_lootable_dynamic_flag_if_unviewed_fully_looted_observation_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         corpse_guid: ObjectGuid,
         authority: &OwnedLootAuthority,
         object_generation: u64,
         lifecycle_revision: u64,
     ) -> bool {
-        let Some(map_key) =
-            self.canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))
+        let Some(map_key) = hub
+            .core
+            .canonical_object_lookup_map_key_like_cpp(u32::from(hub.core.player_map_id_like_cpp()))
         else {
             return false;
         };
-        let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {
+        let Some(manager) = hub.core.canonical_map_manager.as_ref().cloned() else {
             return false;
         };
         let Ok(mut manager) = manager.lock() else {

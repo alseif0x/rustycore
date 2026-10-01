@@ -44,4 +44,11 @@ impl crate::session::WorldSession {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.mark_equipment_sets_saved_like_cpp(&mut hub)
     }
+    pub(in crate::session) fn with_owned_equipment_sets_like_cpp<R>(
+        &self,
+        f: impl FnMut(&wow_entities::PlayerEquipmentSetsLikeCpp) -> R,
+    ) -> Option<R> {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.with_owned_equipment_sets_like_cpp(hub, f)
+    }
 }

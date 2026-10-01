@@ -288,10 +288,6 @@ impl WorldSession {
         crate::session::hub_ref(self).resolved_xp_rest_threshold_like_cpp()
     }
 
-    pub(crate) fn resolved_is_resting_like_cpp(&self) -> Option<bool> {
-        crate::session::hub_ref(self).resolved_is_resting_like_cpp()
-    }
-
     pub(crate) fn set_represented_rest_flag_like_cpp(
         &mut self,
         rest_flag: u32,

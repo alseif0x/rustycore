@@ -347,8 +347,50 @@ impl WorldSession {
         )
     }
 
+    pub(crate) fn represented_dismiss_critter_like_cpp(
+        &mut self,
+        critter_guid: ObjectGuid,
+    ) -> bool {
+        crate::session::hub_mut(self).represented_dismiss_critter_like_cpp(critter_guid)
+    }
+}
+
+#[cfg(test)]
+impl crate::session::state::PetState {
+    #[cfg(test)]
+    pub(crate) fn represented_dismissed_critter_guids_like_cpp(&self) -> &[ObjectGuid] {
+        &self
+            .battle_pet_test_fixture_like_cpp
+            .represented_dismissed_critter_guids_like_cpp
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(crate) fn represented_critter_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        if let Some(guid) = self
+            .core
+            .with_owned_player_like_cpp(|player| player.unit().critter_guid_like_cpp())
+        {
+            return guid;
+        }
+        #[cfg(test)]
+        {
+            self.fixtures
+                .pets
+                .battle_pet_test_fixture_like_cpp
+                .represented_critter_guid_like_cpp
+        }
+        #[cfg(not(test))]
+        {
+            None
+        }
+    }
+}
+
+impl crate::session::HubMut<'_> {
     pub(crate) fn set_represented_critter_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
         if self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.unit_mut().set_critter_guid_like_cpp(guid);
             })
@@ -365,25 +407,6 @@ impl WorldSession {
         }
     }
 
-    pub(crate) fn represented_critter_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        if let Some(guid) =
-            self.with_owned_player_like_cpp(|player| player.unit().critter_guid_like_cpp())
-        {
-            return guid;
-        }
-        #[cfg(test)]
-        {
-            self.fixtures
-                .pets
-                .battle_pet_test_fixture_like_cpp
-                .represented_critter_guid_like_cpp
-        }
-        #[cfg(not(test))]
-        {
-            None
-        }
-    }
-
     /// C++ `WorldSession::HandleDismissCritter`, represented at the ownership gate.
     ///
     /// Full `ObjectAccessor::GetCreatureOrPetOrVehicle`, `Unit::IsSummon` and
@@ -394,13 +417,18 @@ impl WorldSession {
         &mut self,
         critter_guid: ObjectGuid,
     ) -> bool {
-        if self.represented_critter_guid_like_cpp() != Some(critter_guid) {
+        if self.shared().represented_critter_guid_like_cpp() != Some(critter_guid) {
             return false;
         }
 
-        if let Some(companion) = self.represented_battle_pet_query_companion_like_cpp(critter_guid)
+        if let Some(companion) = self
+            .shared()
+            .represented_battle_pet_query_companion_like_cpp(critter_guid)
             && let Some(battle_pet_guid) = companion.battle_pet_companion_guid
-            && self.represented_summoned_battle_pet_guid_like_cpp() == Some(battle_pet_guid)
+            && self
+                .shared()
+                .represented_summoned_battle_pet_guid_like_cpp()
+                == Some(battle_pet_guid)
         {
             let _ = self.set_represented_summoned_battle_pet_guid_like_cpp(None);
         }
@@ -414,13 +442,8 @@ impl WorldSession {
             .push(critter_guid);
         true
     }
-
-    #[cfg(test)]
-    pub(crate) fn represented_dismissed_critter_guids_like_cpp(&self) -> &[ObjectGuid] {
-        &self
-            .fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .represented_dismissed_critter_guids_like_cpp
-    }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/battle_pet_adapter/f3_shims.rs"]
+mod f3_shims;

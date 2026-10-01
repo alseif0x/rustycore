@@ -22,14 +22,9 @@ impl WorldSession {
         .await
     }
 
-    /// Apply the item state established by C++ `Player::StoreNewItem` and
-    /// `_StoreItem` before the item is persisted or sent to the client.
     fn apply_stored_new_item_flags_like_cpp(&self, item_id: u32, slot: u8, item: &mut Item) {
-        if let Some(template) = self.item_storage_template(item_id) {
-            item.set_bonding(template.bonding);
-        }
-        item.set_item_flag(ItemFieldFlags::NEW_ITEM);
-        item.bind_if_stored(is_bag_pos(make_item_pos(INVENTORY_SLOT_BAG_0, slot)));
+        let (state, hub) = crate::session::split_loot_ref(self);
+        state.apply_stored_new_item_flags_like_cpp(hub, item_id, slot, item)
     }
 
     pub(in crate::handlers::loot) fn stored_new_item_dynamic_flags_like_cpp(
@@ -37,26 +32,18 @@ impl WorldSession {
         item_id: u32,
         slot: u8,
     ) -> u32 {
-        let mut item = Item::new(0);
-        self.apply_stored_new_item_flags_like_cpp(item_id, slot, &mut item);
-        item.item_flags_bits()
+        let (state, hub) = crate::session::split_loot_ref(self);
+        state.stored_new_item_dynamic_flags_like_cpp(hub, item_id, slot)
     }
 
-    /// C++ `_StoreItem` binds the destination object before incrementing an
-    /// existing stack. Unlike `StoreNewItem`, that historical object must not
-    /// acquire `ITEM_FIELD_FLAG_NEW_ITEM` merely because more items arrived.
     pub(in crate::handlers::loot) fn stored_existing_item_dynamic_flags_like_cpp(
         &self,
         item_id: u32,
         slot: u8,
         existing: &Item,
     ) -> u32 {
-        let mut planned = existing.clone();
-        if let Some(template) = self.item_storage_template(item_id) {
-            planned.set_bonding(template.bonding);
-        }
-        planned.bind_if_stored(is_bag_pos(make_item_pos(INVENTORY_SLOT_BAG_0, slot)));
-        planned.item_flags_bits()
+        let (state, hub) = crate::session::split_loot_ref(self);
+        state.stored_existing_item_dynamic_flags_like_cpp(hub, item_id, slot, existing)
     }
 
     pub(in crate::handlers::loot) async fn store_direct_loot_item_from_owner_with_generator_like_cpp(
@@ -888,5 +875,52 @@ impl WorldSession {
     ) {
         self.destroy_direct_item_count_after_loot_release_like_cpp(item_guid, None)
             .await;
+    }
+}
+
+impl crate::session::LootState {
+    /// Apply the item state established by C++ `Player::StoreNewItem` and
+    /// `_StoreItem` before the item is persisted or sent to the client.
+    fn apply_stored_new_item_flags_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_id: u32,
+        slot: u8,
+        item: &mut Item,
+    ) {
+        if let Some(template) = hub.catalogs.item_storage_template(item_id) {
+            item.set_bonding(template.bonding);
+        }
+        item.set_item_flag(ItemFieldFlags::NEW_ITEM);
+        item.bind_if_stored(is_bag_pos(make_item_pos(INVENTORY_SLOT_BAG_0, slot)));
+    }
+
+    pub(in crate::handlers::loot) fn stored_new_item_dynamic_flags_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_id: u32,
+        slot: u8,
+    ) -> u32 {
+        let mut item = Item::new(0);
+        self.apply_stored_new_item_flags_like_cpp(hub, item_id, slot, &mut item);
+        item.item_flags_bits()
+    }
+
+    /// C++ `_StoreItem` binds the destination object before incrementing an
+    /// existing stack. Unlike `StoreNewItem`, that historical object must not
+    /// acquire `ITEM_FIELD_FLAG_NEW_ITEM` merely because more items arrived.
+    pub(in crate::handlers::loot) fn stored_existing_item_dynamic_flags_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_id: u32,
+        slot: u8,
+        existing: &Item,
+    ) -> u32 {
+        let mut planned = existing.clone();
+        if let Some(template) = hub.catalogs.item_storage_template(item_id) {
+            planned.set_bonding(template.bonding);
+        }
+        planned.bind_if_stored(is_bag_pos(make_item_pos(INVENTORY_SLOT_BAG_0, slot)));
+        planned.item_flags_bits()
     }
 }

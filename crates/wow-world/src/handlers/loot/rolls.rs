@@ -15,40 +15,8 @@ impl WorldSession {
         roll: &LootRoll,
         player_guid: ObjectGuid,
     ) -> bool {
-        let Some(registry) = self.player_registry() else {
-            return false;
-        };
-        let Some(pass_on_group_loot) = self.resolved_pass_on_group_loot_like_cpp() else {
-            return false;
-        };
-
-        let instance_id = self
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        let Some((registration, roll_identity)) = registry.loot_roll_owner(
-            player_guid,
-            self.player_map_id_like_cpp(),
-            instance_id,
-            roll.loot_obj,
-            roll.loot_list_id,
-        ) else {
-            return false;
-        };
-
-        registry
-            .try_send_current_command(
-                registration,
-                SessionCommand::LootRollVote(LootRollVoteCommand {
-                    voter_guid: player_guid,
-                    loot_obj: roll.loot_obj,
-                    loot_list_id: roll.loot_list_id,
-                    roll_type: roll.roll_type,
-                    pass_on_group_loot,
-                    roll_identity,
-                }),
-            )
-            .is_ok()
+        let (state, hub) = crate::session::split_loot_ref(self);
+        state.route_represented_remote_loot_roll_vote_to_owner_like_cpp(hub, roll, player_guid)
     }
 
     #[cfg(test)]
@@ -581,34 +549,20 @@ impl WorldSession {
         is_disenchant: bool,
         claim: Option<LootClaimLease>,
     ) -> MasterLootGiveResult {
-        let Some(registry) = self.player_registry() else {
-            return MasterLootGiveResult::TargetMismatch;
-        };
-        let Some(command_address) = registry.control_address(target) else {
-            return MasterLootGiveResult::TargetMismatch;
-        };
-
-        let (result_tx, result_rx) = flume::bounded(1);
-        let command = SessionCommand::LootRollStoreWinner(LootRollStoreWinnerCommand {
-            loot_owner: owner_guid,
-            loot_obj,
-            loot_list_id,
-            dungeon_encounter_id,
-            entries,
-            is_disenchant,
-            claim,
-            result_tx,
-        });
-
-        if command_address.try_send(command).is_err() {
-            return MasterLootGiveResult::TargetMismatch;
-        }
-
-        timeout(REMOTE_MASTER_LOOT_COMMAND_TIMEOUT, result_rx.recv_async())
+        let (state, hub) = crate::session::split_loot_ref(self);
+        state
+            .request_represented_remote_loot_roll_winner_store_like_cpp(
+                hub,
+                target,
+                owner_guid,
+                loot_obj,
+                loot_list_id,
+                dungeon_encounter_id,
+                entries,
+                is_disenchant,
+                claim,
+            )
             .await
-            .ok()
-            .and_then(Result::ok)
-            .unwrap_or(MasterLootGiveResult::TargetMismatch)
     }
 
     pub(super) fn represented_start_group_loot_rolls_on_first_open_like_cpp(
@@ -938,16 +892,115 @@ impl WorldSession {
         item_valuation: &ItemValuationCatalogsLikeCpp,
         item_id: u32,
     ) -> Option<u16> {
-        let template = self
+        let (state, hub) = crate::session::split_loot_ref(self);
+        state.represented_loot_roll_disenchant_skill_required_like_cpp(hub, item_valuation, item_id)
+    }
+}
+
+impl crate::session::LootState {
+    pub(super) fn route_represented_remote_loot_roll_vote_to_owner_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        roll: &LootRoll,
+        player_guid: ObjectGuid,
+    ) -> bool {
+        let Some(registry) = hub.core.player_registry() else {
+            return false;
+        };
+        let Some(pass_on_group_loot) = self.resolved_pass_on_group_loot_like_cpp(hub) else {
+            return false;
+        };
+
+        let instance_id = hub
+            .core
+            .current_canonical_player_map_key_like_cpp()
+            .map(|key| key.instance_id)
+            .unwrap_or(0);
+        let Some((registration, roll_identity)) = registry.loot_roll_owner(
+            player_guid,
+            hub.core.player_map_id_like_cpp(),
+            instance_id,
+            roll.loot_obj,
+            roll.loot_list_id,
+        ) else {
+            return false;
+        };
+
+        registry
+            .try_send_current_command(
+                registration,
+                SessionCommand::LootRollVote(LootRollVoteCommand {
+                    voter_guid: player_guid,
+                    loot_obj: roll.loot_obj,
+                    loot_list_id: roll.loot_list_id,
+                    roll_type: roll.roll_type,
+                    pass_on_group_loot,
+                    roll_identity,
+                }),
+            )
+            .is_ok()
+    }
+
+    pub(super) async fn request_represented_remote_loot_roll_winner_store_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        target: ObjectGuid,
+        owner_guid: ObjectGuid,
+        loot_obj: ObjectGuid,
+        loot_list_id: u8,
+        dungeon_encounter_id: u32,
+        entries: Vec<LootEntry>,
+        is_disenchant: bool,
+        claim: Option<LootClaimLease>,
+    ) -> MasterLootGiveResult {
+        let Some(registry) = hub.core.player_registry() else {
+            return MasterLootGiveResult::TargetMismatch;
+        };
+        let Some(command_address) = registry.control_address(target) else {
+            return MasterLootGiveResult::TargetMismatch;
+        };
+
+        let (result_tx, result_rx) = flume::bounded(1);
+        let command = SessionCommand::LootRollStoreWinner(LootRollStoreWinnerCommand {
+            loot_owner: owner_guid,
+            loot_obj,
+            loot_list_id,
+            dungeon_encounter_id,
+            entries,
+            is_disenchant,
+            claim,
+            result_tx,
+        });
+
+        if command_address.try_send(command).is_err() {
+            return MasterLootGiveResult::TargetMismatch;
+        }
+
+        timeout(REMOTE_MASTER_LOOT_COMMAND_TIMEOUT, result_rx.recv_async())
+            .await
+            .ok()
+            .and_then(Result::ok)
+            .unwrap_or(MasterLootGiveResult::TargetMismatch)
+    }
+
+    fn represented_loot_roll_disenchant_skill_required_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_valuation: &ItemValuationCatalogsLikeCpp,
+        item_id: u32,
+    ) -> Option<u16> {
+        let template = hub
+            .catalogs
             .item_stats_store()
             .and_then(|store| store.random_property_template(item_id))?;
-        self.item_disenchant_loot_with_catalogs_like_cpp(
-            item_valuation,
-            item_id,
-            template.quality as u32,
-            u32::from(template.item_level),
-            true,
-        )
-        .map(|(_, skill_required)| skill_required)
+        hub.catalogs
+            .item_disenchant_loot_with_catalogs_like_cpp(
+                item_valuation,
+                item_id,
+                template.quality as u32,
+                u32::from(template.item_level),
+                true,
+            )
+            .map(|(_, skill_required)| skill_required)
     }
 }

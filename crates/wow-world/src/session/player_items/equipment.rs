@@ -168,7 +168,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.inventory_equip_capabilities_like_cpp(hub)
     }
-    /// C++ `Player::CanUnequipItem` for any represented top-level or bag position.
     pub(crate) fn can_unequip_inventory_item_at_like_cpp(
         &self,
         bag: u8,
@@ -178,41 +177,16 @@ impl WorldSession {
         proto: Option<&ItemStorageTemplate>,
         source_is_not_empty_bag: bool,
     ) -> InventoryResult {
-        let pos = make_item_pos(bag, slot);
-        if !is_equipment_packed_pos(pos) && !is_bag_pos(pos) {
-            return InventoryResult::Ok;
-        }
-
-        let Some(player) = self.direct_inventory_player_snapshot() else {
-            return InventoryResult::Ok;
-        };
-        let is_charmed = self
-            .canonical_player_snapshot_like_cpp(|player| {
-                player.unit().subsystems().control.is_charmed()
-            })
-            .unwrap_or(false);
-        let is_in_progress_arena = self
-            .player_battleground_state_snapshot_like_cpp()
-            .is_some_and(|state| state.battleground_status_like_cpp() == Some(3))
-            && self
-                .map_store()
-                .and_then(|store| store.get(u32::from(self.player_map_id_like_cpp())))
-                .is_some_and(|entry| entry.instance_type == wow_data::map::MAP_ARENA);
-
-        let Some(is_in_combat) = self.resolved_in_combat_like_cpp() else {
-            return InventoryResult::CantDoThatRightNow;
-        };
-
-        player.can_unequip_item(CanUnequipItemArgs {
-            pos,
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.can_unequip_inventory_item_at_like_cpp(
+            hub,
+            bag,
+            slot,
+            swap,
             source_item,
             proto,
-            swap,
             source_is_not_empty_bag,
-            is_charmed,
-            is_in_combat,
-            is_in_progress_arena,
-        })
+        )
     }
     #[cfg(test)]
     pub(crate) fn creature_equipment_store_like_cpp(
@@ -647,6 +621,58 @@ impl WorldSession {
         }
 
         Some(total_item_level as f32 / 16.0)
+    }
+}
+
+impl crate::session::state::InventoryState {
+    /// C++ `Player::CanUnequipItem` for any represented top-level or bag position.
+    pub(crate) fn can_unequip_inventory_item_at_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        bag: u8,
+        slot: u8,
+        swap: bool,
+        source_item: Option<&Item>,
+        proto: Option<&ItemStorageTemplate>,
+        source_is_not_empty_bag: bool,
+    ) -> InventoryResult {
+        let pos = make_item_pos(bag, slot);
+        if !is_equipment_packed_pos(pos) && !is_bag_pos(pos) {
+            return InventoryResult::Ok;
+        }
+
+        let Some(player) = self.direct_inventory_player_snapshot(hub) else {
+            return InventoryResult::Ok;
+        };
+        let is_charmed = hub
+            .core
+            .canonical_player_snapshot_like_cpp(|player| {
+                player.unit().subsystems().control.is_charmed()
+            })
+            .unwrap_or(false);
+        let is_in_progress_arena = hub
+            .player_battleground_state_snapshot_like_cpp()
+            .is_some_and(|state| state.battleground_status_like_cpp() == Some(3))
+            && hub
+                .catalogs
+                .map_store()
+                .and_then(|store| store.get(u32::from(hub.core.player_map_id_like_cpp())))
+                .is_some_and(|entry| entry.instance_type == wow_data::map::MAP_ARENA);
+
+        let Some(is_in_combat) = hub.resolved_in_combat_like_cpp() else {
+            return InventoryResult::CantDoThatRightNow;
+        };
+
+        player.can_unequip_item(CanUnequipItemArgs {
+            pos,
+            source_item,
+            proto,
+            swap,
+            source_is_not_empty_bag,
+            is_charmed,
+            is_in_combat,
+            is_in_progress_arena,
+        })
     }
 }
 

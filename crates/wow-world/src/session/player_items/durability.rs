@@ -105,36 +105,12 @@ impl WorldSession {
         let equipped = is_equipment_packed_pos(make_item_pos(INVENTORY_SLOT_BAG_0, slot));
         self.apply_represented_durability_loss_item_like_cpp(item.guid, slot, equipped, percent)
     }
-    /// The `DurabilityLossAll`/`DurabilityPointsLossAll` target set.
     fn represented_durability_targets_like_cpp(
         &self,
         inventory: bool,
     ) -> Vec<(ObjectGuid, u8, bool)> {
-        let Some(items) = self.resolved_inventory_item_objects_like_cpp() else {
-            return Vec::new();
-        };
-        let inventory_end = INVENTORY_SLOT_ITEM_START
-            .saturating_add(
-                self.resolved_player_inventory_slot_count_like_cpp()
-                    .unwrap_or(0),
-            )
-            .min(INVENTORY_SLOT_ITEM_END);
-        items
-            .iter()
-            .filter_map(|(guid, item)| {
-                let slot = item.slot();
-                if item.container_guid().is_empty() {
-                    if is_equipment_packed_pos(make_item_pos(INVENTORY_SLOT_BAG_0, slot)) {
-                        return Some((*guid, slot, true));
-                    }
-                    if inventory && (INVENTORY_SLOT_ITEM_START..inventory_end).contains(&slot) {
-                        return Some((*guid, slot, false));
-                    }
-                    return None;
-                }
-                inventory.then_some((*guid, slot, false))
-            })
-            .collect()
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.represented_durability_targets_like_cpp(hub, inventory)
     }
     /// C++ `Player::DurabilityLoss` (`Player.cpp:4546-4562`).
     fn apply_represented_durability_loss_item_like_cpp(
@@ -665,9 +641,57 @@ impl WorldSession {
         discount: f32,
         repair_cost_rate: f32,
     ) -> Option<Vec<(ObjectGuid, u64)>> {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.repairable_inventory_item_costs_like_cpp(hub, discount, repair_cost_rate)
+    }
+    pub fn item_template_max_durability(&self, item_id: u32) -> u32 {
+        self.catalogs.item_template_max_durability(item_id)
+    }
+}
+
+impl crate::session::state::InventoryState {
+    /// The `DurabilityLossAll`/`DurabilityPointsLossAll` target set.
+    fn represented_durability_targets_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        inventory: bool,
+    ) -> Vec<(ObjectGuid, u8, bool)> {
+        let Some(items) = self.resolved_inventory_item_objects_like_cpp(hub) else {
+            return Vec::new();
+        };
+        let inventory_end = INVENTORY_SLOT_ITEM_START
+            .saturating_add(
+                self.resolved_player_inventory_slot_count_like_cpp(hub)
+                    .unwrap_or(0),
+            )
+            .min(INVENTORY_SLOT_ITEM_END);
+        items
+            .iter()
+            .filter_map(|(guid, item)| {
+                let slot = item.slot();
+                if item.container_guid().is_empty() {
+                    if is_equipment_packed_pos(make_item_pos(INVENTORY_SLOT_BAG_0, slot)) {
+                        return Some((*guid, slot, true));
+                    }
+                    if inventory && (INVENTORY_SLOT_ITEM_START..inventory_end).contains(&slot) {
+                        return Some((*guid, slot, false));
+                    }
+                    return None;
+                }
+                inventory.then_some((*guid, slot, false))
+            })
+            .collect()
+    }
+
+    pub(in crate::session) fn repairable_inventory_item_costs_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        discount: f32,
+        repair_cost_rate: f32,
+    ) -> Option<Vec<(ObjectGuid, u64)>> {
         let mut repair_items = Vec::new();
-        let item_objects = self.resolved_inventory_item_objects_like_cpp()?;
-        let inventory_items = self.resolved_inventory_items_like_cpp()?;
+        let item_objects = self.resolved_inventory_item_objects_like_cpp(hub)?;
+        let inventory_items = self.resolved_inventory_items_like_cpp(hub)?;
         let inventory_end = INVENTORY_SLOT_ITEM_START
             .saturating_add(INVENTORY_DEFAULT_SIZE)
             .min(PLAYER_SLOT_END as u8);
@@ -682,7 +706,7 @@ impl WorldSession {
             let Some(item_object) = item_objects.get(&inventory_item.guid) else {
                 continue;
             };
-            let cost = self.item_durability_repair_cost_like_cpp(
+            let cost = hub.catalogs.item_durability_repair_cost_like_cpp(
                 inventory_item.entry_id,
                 item_object.data().durability,
                 item_object.data().max_durability,
@@ -707,7 +731,7 @@ impl WorldSession {
             {
                 continue;
             }
-            let cost = self.item_durability_repair_cost_like_cpp(
+            let cost = hub.catalogs.item_durability_repair_cost_like_cpp(
                 item_object.object().entry(),
                 item_object.data().durability,
                 item_object.data().max_durability,
@@ -720,9 +744,6 @@ impl WorldSession {
         }
 
         Some(repair_items)
-    }
-    pub fn item_template_max_durability(&self, item_id: u32) -> u32 {
-        self.catalogs.item_template_max_durability(item_id)
     }
 }
 

@@ -354,25 +354,10 @@ impl WorldSession {
         entry: u32,
         flags: u32,
     ) -> Option<u32> {
-        let current_item = self.get_inventory_item_by_pos(bag, slot)?;
-        if current_item.guid != item_guid {
-            return None;
-        }
-
-        let max_durability = self.item_template_max_durability(entry);
-        let inventory_type = self.item_template_inventory_type(entry);
-        let durability = self.transform_inventory_wrapped_gift_item_like_cpp(
-            item_guid,
-            entry,
-            flags,
-            max_durability,
-        )?;
-
-        if bag == INVENTORY_SLOT_BAG_0 {
-            self.update_inventory_item_metadata_like_cpp(slot, item_guid, entry, inventory_type);
-        }
-
-        Some(durability)
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.apply_wrapped_gift_row_to_runtime_item_like_cpp(
+            &mut hub, bag, item_guid, slot, entry, flags,
+        )
     }
     pub(super) async fn load_wrapped_gift_row_like_cpp(
         &self,
@@ -785,6 +770,45 @@ impl WorldSession {
         self.lifecycle
             .load_loot_template_rows_like_cpp(table, entry)
             .await
+    }
+}
+
+impl crate::session::InventoryState {
+    pub(crate) fn apply_wrapped_gift_row_to_runtime_item_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        bag: u8,
+        item_guid: ObjectGuid,
+        slot: u8,
+        entry: u32,
+        flags: u32,
+    ) -> Option<u32> {
+        let current_item = self.get_inventory_item_by_pos(hub.shared(), bag, slot)?;
+        if current_item.guid != item_guid {
+            return None;
+        }
+
+        let max_durability = hub.catalogs.item_template_max_durability(entry);
+        let inventory_type = hub.shared().item_template_inventory_type(entry);
+        let durability = self.transform_inventory_wrapped_gift_item_like_cpp(
+            hub,
+            item_guid,
+            entry,
+            flags,
+            max_durability,
+        )?;
+
+        if bag == INVENTORY_SLOT_BAG_0 {
+            self.update_inventory_item_metadata_like_cpp(
+                hub,
+                slot,
+                item_guid,
+                entry,
+                inventory_type,
+            );
+        }
+
+        Some(durability)
     }
 }
 

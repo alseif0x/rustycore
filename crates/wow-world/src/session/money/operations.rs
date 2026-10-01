@@ -524,10 +524,20 @@ impl WorldSession {
             .await;
     }
     pub(crate) fn resolved_player_money_like_cpp(&self) -> Option<u64> {
-        let canonical = self.with_owned_player_like_cpp(Player::money);
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.resolved_player_money_like_cpp(hub)
+    }
+}
+
+impl crate::session::state::InventoryState {
+    pub(crate) fn resolved_player_money_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<u64> {
+        let canonical = hub.core.with_owned_player_like_cpp(Player::money);
         #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.inventory.player_gold);
+        if canonical.is_none() && hub.core.player_handle_like_cpp.is_none() {
+            return Some(self.player_gold);
         }
         canonical
     }

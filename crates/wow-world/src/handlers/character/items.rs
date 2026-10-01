@@ -161,12 +161,8 @@ impl WorldSession {
     }
 
     pub(crate) fn inventory_container_db_guid_like_cpp(&self, bag: u8) -> Option<u64> {
-        if bag == INVENTORY_SLOT_BAG_0 {
-            Some(0)
-        } else {
-            self.resolved_inventory_item_like_cpp(bag)
-                .map(|item| item.db_guid)
-        }
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.inventory_container_db_guid_like_cpp(hub, bag)
     }
 
     pub(super) async fn execute_inventory_storage_move_like_cpp(
@@ -636,42 +632,8 @@ impl WorldSession {
     }
 
     pub(super) fn has_item_count_direct_inventory(&self, item_entry: u32, count: u32) -> bool {
-        if count == 0 {
-            return true;
-        }
-
-        let Some(inventory_items) = self.resolved_inventory_items_like_cpp() else {
-            return false;
-        };
-        let mut current_count = 0_u32;
-        let mut slots: Vec<_> = inventory_items.iter().collect();
-        slots.sort_by_key(|&(slot, _)| {
-            let slot = *slot;
-            if slot >= 19 {
-                u16::from(slot)
-            } else {
-                1000 + u16::from(slot)
-            }
-        });
-
-        for (_, inventory_item) in slots {
-            if inventory_item.entry_id != item_entry {
-                continue;
-            }
-            let Some(item) = self.resolved_inventory_item_object_like_cpp(inventory_item.guid)
-            else {
-                continue;
-            };
-            if item.is_in_trade() {
-                continue;
-            }
-            current_count = current_count.saturating_add(item.count());
-            if current_count >= count {
-                return true;
-            }
-        }
-
-        false
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.has_item_count_direct_inventory(hub, item_entry, count)
     }
 
     pub(crate) fn plan_destroy_item_count_direct_inventory(
@@ -679,59 +641,8 @@ impl WorldSession {
         item_entry: u32,
         count: u32,
     ) -> Option<Vec<ExtendedCostItemTurninChange>> {
-        if count == 0 {
-            return Some(Vec::new());
-        }
-
-        let inventory_items = self.resolved_inventory_items_like_cpp()?;
-        let mut remaining = count;
-        let mut changes = Vec::new();
-        let mut slots: Vec<_> = inventory_items.iter().collect();
-        slots.sort_by_key(|&(slot, _)| {
-            let slot = *slot;
-            if slot >= 19 {
-                u16::from(slot)
-            } else {
-                1000 + u16::from(slot)
-            }
-        });
-
-        for (&slot, inventory_item) in slots {
-            if inventory_item.entry_id != item_entry {
-                continue;
-            }
-            let Some(item) = self.resolved_inventory_item_object_like_cpp(inventory_item.guid)
-            else {
-                continue;
-            };
-            if item.is_in_trade() {
-                continue;
-            }
-
-            let item_count = item.count();
-            if item_count <= remaining {
-                remaining -= item_count;
-                changes.push(ExtendedCostItemTurninChange::Delete {
-                    slot,
-                    item_guid: inventory_item.guid,
-                    db_guid: inventory_item.db_guid,
-                });
-            } else {
-                changes.push(ExtendedCostItemTurninChange::Update {
-                    slot,
-                    item_guid: inventory_item.guid,
-                    db_guid: inventory_item.db_guid,
-                    new_count: item_count - remaining,
-                });
-                remaining = 0;
-            }
-
-            if remaining == 0 {
-                return Some(changes);
-            }
-        }
-
-        None
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.plan_destroy_item_count_direct_inventory(hub, item_entry, count)
     }
 
     pub(crate) fn apply_item_turnin_changes(
@@ -789,5 +700,125 @@ impl WorldSession {
         if send_stat_update {
             self.send_stat_update();
         }
+    }
+}
+
+impl crate::session::InventoryState {
+    pub(crate) fn inventory_container_db_guid_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        bag: u8,
+    ) -> Option<u64> {
+        if bag == INVENTORY_SLOT_BAG_0 {
+            Some(0)
+        } else {
+            self.resolved_inventory_item_like_cpp(hub, bag)
+                .map(|item| item.db_guid)
+        }
+    }
+
+    pub(super) fn has_item_count_direct_inventory(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_entry: u32,
+        count: u32,
+    ) -> bool {
+        if count == 0 {
+            return true;
+        }
+
+        let Some(inventory_items) = self.resolved_inventory_items_like_cpp(hub) else {
+            return false;
+        };
+        let mut current_count = 0_u32;
+        let mut slots: Vec<_> = inventory_items.iter().collect();
+        slots.sort_by_key(|&(slot, _)| {
+            let slot = *slot;
+            if slot >= 19 {
+                u16::from(slot)
+            } else {
+                1000 + u16::from(slot)
+            }
+        });
+
+        for (_, inventory_item) in slots {
+            if inventory_item.entry_id != item_entry {
+                continue;
+            }
+            let Some(item) = self.resolved_inventory_item_object_like_cpp(hub, inventory_item.guid)
+            else {
+                continue;
+            };
+            if item.is_in_trade() {
+                continue;
+            }
+            current_count = current_count.saturating_add(item.count());
+            if current_count >= count {
+                return true;
+            }
+        }
+
+        false
+    }
+
+    pub(crate) fn plan_destroy_item_count_direct_inventory(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_entry: u32,
+        count: u32,
+    ) -> Option<Vec<ExtendedCostItemTurninChange>> {
+        if count == 0 {
+            return Some(Vec::new());
+        }
+
+        let inventory_items = self.resolved_inventory_items_like_cpp(hub)?;
+        let mut remaining = count;
+        let mut changes = Vec::new();
+        let mut slots: Vec<_> = inventory_items.iter().collect();
+        slots.sort_by_key(|&(slot, _)| {
+            let slot = *slot;
+            if slot >= 19 {
+                u16::from(slot)
+            } else {
+                1000 + u16::from(slot)
+            }
+        });
+
+        for (&slot, inventory_item) in slots {
+            if inventory_item.entry_id != item_entry {
+                continue;
+            }
+            let Some(item) = self.resolved_inventory_item_object_like_cpp(hub, inventory_item.guid)
+            else {
+                continue;
+            };
+            if item.is_in_trade() {
+                continue;
+            }
+
+            let item_count = item.count();
+            if item_count <= remaining {
+                remaining -= item_count;
+                changes.push(ExtendedCostItemTurninChange::Delete {
+                    slot,
+                    item_guid: inventory_item.guid,
+                    db_guid: inventory_item.db_guid,
+                });
+            } else {
+                changes.push(ExtendedCostItemTurninChange::Update {
+                    slot,
+                    item_guid: inventory_item.guid,
+                    db_guid: inventory_item.db_guid,
+                    new_count: item_count - remaining,
+                });
+                remaining = 0;
+            }
+
+            if remaining == 0 {
+                return Some(changes);
+            }
+        }
+
+        None
     }
 }

@@ -577,6 +577,17 @@ impl WorldSession {
             .await;
     }
 
+    pub(crate) fn retire_committed_destroyed_item_loot_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+    ) {
+        let (state, mut hub) = crate::session::split_loot_mut(self);
+        state.retire_committed_destroyed_item_loot_like_cpp(&mut hub, item_guid, player_guid)
+    }
+}
+
+impl crate::session::LootState {
     /// Retire the detached Rust representation of Loot owned by an Item that
     /// a durable transaction has committed to destroy. C++ gets the same
     /// window teardown from destroying the Item and its owned `Loot`; this is
@@ -584,14 +595,14 @@ impl WorldSession {
     /// otherwise mutate an unrelated active loot owner.
     pub(crate) fn retire_committed_destroyed_item_loot_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         item_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) {
-        if self.loot.active_loot_view_owners.contains(&item_guid)
-            || self.is_active_loot_guid(item_guid)
+        if self.active_loot_view_owners.contains(&item_guid) || self.is_active_loot_guid(item_guid)
         {
-            self.close_stale_active_loot_view_like_cpp(item_guid, player_guid);
+            self.close_stale_active_loot_view_like_cpp(hub, item_guid, player_guid);
         }
-        self.loot.loot_table.remove(&item_guid);
+        self.loot_table.remove(&item_guid);
     }
 }

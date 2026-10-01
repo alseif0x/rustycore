@@ -354,12 +354,6 @@ impl WorldSession {
             position,
         );
     }
-    pub(in crate::session) fn sync_canonical_creature_entity_like_cpp(
-        &mut self,
-        creature: wow_entities::Creature,
-    ) {
-        self.core.sync_canonical_creature_entity_like_cpp(creature)
-    }
     pub(crate) fn mutate_world_creature<F, R>(&mut self, guid: ObjectGuid, f: F) -> Option<R>
     where
         F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,

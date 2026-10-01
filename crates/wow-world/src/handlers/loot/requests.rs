@@ -189,28 +189,13 @@ impl WorldSession {
         }
     }
 
-    /// True only while a request still belongs to the exact object lifetime
-    /// whose loot window this session opened.
     pub(super) fn represented_active_loot_generation_matches_like_cpp(
         &self,
         owner_guid: ObjectGuid,
         authority: &OwnedLootAuthority,
     ) -> bool {
-        let Some(player_guid) = self.player_guid() else {
-            return false;
-        };
-        let current_generation = authority
-            .snapshot_for_player_like_cpp(player_guid)
-            .map(|snapshot| snapshot.generation);
-        self.loot
-            .active_loot_view_authorities_like_cpp
-            .get(&owner_guid)
-            .is_some_and(|opened| opened.shares_storage_like_cpp(authority))
-            && self
-                .loot
-                .active_loot_view_generations_like_cpp
-                .get(&owner_guid)
-                .is_some_and(|opened| Some(*opened) == current_generation)
+        let (state, hub) = crate::session::split_loot_ref(self);
+        state.represented_active_loot_generation_matches_like_cpp(hub, owner_guid, authority)
     }
 
     pub(super) fn ensure_represented_player_looting_like_cpp(
@@ -218,11 +203,8 @@ impl WorldSession {
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) {
-        if let Some(loot) = self.loot.loot_table.get_mut(&owner_guid)
-            && !loot.players_looting.contains(&player_guid)
-        {
-            loot.players_looting.push(player_guid);
-        }
+        self.loot
+            .ensure_represented_player_looting_like_cpp(owner_guid, player_guid)
     }
 
     pub(super) fn represented_player_unlocked_for_dungeon_encounter_like_cpp(
@@ -266,20 +248,8 @@ impl WorldSession {
         &self,
         loot_object: ObjectGuid,
     ) -> Option<ObjectGuid> {
-        let active_owners: Vec<ObjectGuid> = if self.loot.active_loot_view_owners.is_empty() {
-            vec![self.loot.active_loot_guid]
-        } else {
-            self.loot.active_loot_view_owners.iter().copied().collect()
-        };
-
-        active_owners.into_iter().find(|owner_guid| {
-            !owner_guid.is_empty()
-                && self
-                    .loot
-                    .loot_table
-                    .get(owner_guid)
-                    .is_some_and(|loot| loot.loot_guid == loot_object)
-        })
+        self.loot
+            .active_loot_owner_for_loot_object_like_cpp(loot_object)
     }
 
     pub(super) fn canonical_map_object_position_for_loot_like_cpp(
@@ -287,55 +257,17 @@ impl WorldSession {
         guid: ObjectGuid,
         allowed: &[AccessorObjectKind],
     ) -> Option<wow_core::Position> {
-        let map_key = self
-            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
-        let manager = self.core.canonical_map_manager.as_ref()?;
-        let manager = manager.lock().ok()?;
-        let map = manager.find_map(map_key.map_id, map_key.instance_id)?.map();
-        map.map_object_by_kind(guid, allowed)
-            .map(|object| object.position())
+        let (state, hub) = crate::session::split_loot_ref(self);
+        state.canonical_map_object_position_for_loot_like_cpp(hub, guid, allowed)
     }
 
     pub(super) fn represented_spell_max_range_like_cpp(&self, spell_id: i32) -> Option<f32> {
-        let spell_store = self.spell_store()?;
-        let spell_misc_store = self.catalogs.spell_catalogs.spell_misc_store()?;
-        let spell_range_store = self.catalogs.spell_catalogs.spell_range_store()?;
-        spell_store.get(spell_id)?;
-        let spell_id = u32::try_from(spell_id).ok()?;
-        let range_index = spell_misc_store.get(spell_id)?.range_index;
-        let range = spell_range_store.get(u32::from(range_index))?;
-        Some(range.range_max[1].max(range.range_max[0]))
+        self.catalogs.represented_spell_max_range_like_cpp(spell_id)
     }
 
-    /// Mirrors the observable side of C++ `Loot::~Loot`: once the exact
-    /// object-owned allocation behind an open view is retired, detached, or
-    /// replaced, the next session tick releases that stale client window.
-    /// Each session owns its socket, so global object destruction is fanned
-    /// out cooperatively without holding a map lock across network work.
     pub(crate) fn close_retired_active_loot_windows_like_cpp(&mut self, player_guid: ObjectGuid) {
-        let mut stale_owners = self
-            .loot
-            .active_loot_view_authorities_like_cpp
-            .iter()
-            .filter_map(|(owner_guid, authority)| {
-                let generation = self
-                    .loot
-                    .active_loot_view_generations_like_cpp
-                    .get(owner_guid)
-                    .copied();
-                let still_open = generation.is_some_and(|generation| {
-                    authority
-                        .snapshot_for_player_like_cpp(player_guid)
-                        .is_some_and(|snapshot| snapshot.generation == generation)
-                });
-                (!still_open).then_some(*owner_guid)
-            })
-            .collect::<Vec<_>>();
-        stale_owners.sort_unstable_by_key(|guid| (guid.high_value(), guid.low_value()));
-
-        for owner_guid in stale_owners {
-            self.close_stale_active_loot_view_like_cpp(owner_guid, player_guid);
-        }
+        let (state, mut hub) = crate::session::split_loot_mut(self);
+        state.close_retired_active_loot_windows_like_cpp(&mut hub, player_guid)
     }
 
     pub(super) fn close_stale_active_loot_view_like_cpp(
@@ -343,12 +275,8 @@ impl WorldSession {
         owner_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) {
-        self.discard_represented_personal_loot_cache_for_player_like_cpp(owner_guid, player_guid);
-        self.send_packet(&SLootRelease {
-            loot_obj: owner_guid,
-            owner: player_guid,
-        });
-        self.clear_active_loot_guid_if(owner_guid);
+        let (state, mut hub) = crate::session::split_loot_mut(self);
+        state.close_stale_active_loot_view_like_cpp(&mut hub, owner_guid, player_guid)
     }
 
     /// CMSG_LOOT_RELEASE — player closes the loot window.
@@ -374,5 +302,139 @@ impl WorldSession {
 
         self.do_loot_release_owner_like_cpp(req.unit, player_guid)
             .await;
+    }
+}
+
+impl crate::session::SessionCatalogs {
+    pub(super) fn represented_spell_max_range_like_cpp(&self, spell_id: i32) -> Option<f32> {
+        let spell_store = self.spell_store()?;
+        let spell_misc_store = self.spell_catalogs.spell_misc_store()?;
+        let spell_range_store = self.spell_catalogs.spell_range_store()?;
+        spell_store.get(spell_id)?;
+        let spell_id = u32::try_from(spell_id).ok()?;
+        let range_index = spell_misc_store.get(spell_id)?.range_index;
+        let range = spell_range_store.get(u32::from(range_index))?;
+        Some(range.range_max[1].max(range.range_max[0]))
+    }
+}
+
+impl crate::session::LootState {
+    /// True only while a request still belongs to the exact object lifetime
+    /// whose loot window this session opened.
+    pub(super) fn represented_active_loot_generation_matches_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        owner_guid: ObjectGuid,
+        authority: &OwnedLootAuthority,
+    ) -> bool {
+        let Some(player_guid) = hub.core.player_guid() else {
+            return false;
+        };
+        let current_generation = authority
+            .snapshot_for_player_like_cpp(player_guid)
+            .map(|snapshot| snapshot.generation);
+        self.active_loot_view_authorities_like_cpp
+            .get(&owner_guid)
+            .is_some_and(|opened| opened.shares_storage_like_cpp(authority))
+            && self
+                .active_loot_view_generations_like_cpp
+                .get(&owner_guid)
+                .is_some_and(|opened| Some(*opened) == current_generation)
+    }
+
+    pub(super) fn ensure_represented_player_looting_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+    ) {
+        if let Some(loot) = self.loot_table.get_mut(&owner_guid)
+            && !loot.players_looting.contains(&player_guid)
+        {
+            loot.players_looting.push(player_guid);
+        }
+    }
+
+    pub(super) fn active_loot_owner_for_loot_object_like_cpp(
+        &self,
+        loot_object: ObjectGuid,
+    ) -> Option<ObjectGuid> {
+        let active_owners: Vec<ObjectGuid> = if self.active_loot_view_owners.is_empty() {
+            vec![self.active_loot_guid]
+        } else {
+            self.active_loot_view_owners.iter().copied().collect()
+        };
+
+        active_owners.into_iter().find(|owner_guid| {
+            !owner_guid.is_empty()
+                && self
+                    .loot_table
+                    .get(owner_guid)
+                    .is_some_and(|loot| loot.loot_guid == loot_object)
+        })
+    }
+
+    pub(super) fn canonical_map_object_position_for_loot_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        guid: ObjectGuid,
+        allowed: &[AccessorObjectKind],
+    ) -> Option<wow_core::Position> {
+        let map_key = hub
+            .core
+            .canonical_object_lookup_map_key_like_cpp(u32::from(
+                hub.core.player_map_id_like_cpp(),
+            ))?;
+        let manager = hub.core.canonical_map_manager.as_ref()?;
+        let manager = manager.lock().ok()?;
+        let map = manager.find_map(map_key.map_id, map_key.instance_id)?.map();
+        map.map_object_by_kind(guid, allowed)
+            .map(|object| object.position())
+    }
+
+    /// Mirrors the observable side of C++ `Loot::~Loot`: once the exact
+    /// object-owned allocation behind an open view is retired, detached, or
+    /// replaced, the next session tick releases that stale client window.
+    /// Each session owns its socket, so global object destruction is fanned
+    /// out cooperatively without holding a map lock across network work.
+    pub(crate) fn close_retired_active_loot_windows_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        player_guid: ObjectGuid,
+    ) {
+        let mut stale_owners = self
+            .active_loot_view_authorities_like_cpp
+            .iter()
+            .filter_map(|(owner_guid, authority)| {
+                let generation = self
+                    .active_loot_view_generations_like_cpp
+                    .get(owner_guid)
+                    .copied();
+                let still_open = generation.is_some_and(|generation| {
+                    authority
+                        .snapshot_for_player_like_cpp(player_guid)
+                        .is_some_and(|snapshot| snapshot.generation == generation)
+                });
+                (!still_open).then_some(*owner_guid)
+            })
+            .collect::<Vec<_>>();
+        stale_owners.sort_unstable_by_key(|guid| (guid.high_value(), guid.low_value()));
+
+        for owner_guid in stale_owners {
+            self.close_stale_active_loot_view_like_cpp(hub, owner_guid, player_guid);
+        }
+    }
+
+    pub(super) fn close_stale_active_loot_view_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        owner_guid: ObjectGuid,
+        player_guid: ObjectGuid,
+    ) {
+        self.discard_represented_personal_loot_cache_for_player_like_cpp(owner_guid, player_guid);
+        hub.core.send_packet(&SLootRelease {
+            loot_obj: owner_guid,
+            owner: player_guid,
+        });
+        self.clear_active_loot_guid_if(owner_guid);
     }
 }

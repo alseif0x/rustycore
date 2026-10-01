@@ -6,20 +6,43 @@
 use super::*;
 
 impl WorldSession {
-    /// Test/setup seam for represented `BattlePet::PacketInfo` rows already
-    /// loaded into `BattlePetMgr::_pets`.
-    #[cfg(test)]
-    pub(crate) fn add_represented_battle_pet_packet_info_like_cpp(
+    pub(crate) fn publish_battle_pet_trainer_purchase_add_like_cpp(
         &mut self,
-        pet_guid: ObjectGuid,
-        packet_info: RepresentedBattlePetDataLikeCpp,
+        pet: wow_packet::packets::misc::BattlePetJournalPet,
+    ) -> bool {
+        crate::session::hub_mut(self).publish_battle_pet_trainer_purchase_add_like_cpp(pet)
+    }
+    pub(crate) fn battle_pet_send_error_like_cpp(
+        &mut self,
+        error: wow_packet::packets::misc::BattlePetErrorCodeLikeCpp,
+        creature_id: u32,
     ) {
+        crate::session::hub_mut(self).battle_pet_send_error_like_cpp(error, creature_id)
+    }
+    /// C++ `BattlePetMgr::UpdateBattlePetData`, represented at the gate level.
+    pub(crate) fn battle_pet_update_notify_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
+        let Some(pet) = self.represented_battle_pet_like_cpp(pet_guid) else {
+            return false;
+        };
+
+        if self.represented_summoned_battle_pet_guid_like_cpp() != Some(pet_guid) {
+            return false;
+        }
+
+        let _ = self.mutate_canonical_player_like_cpp(|player| {
+            player.set_battle_pet_data_like_cpp(pet_guid, pet.quality, pet.level);
+        });
+        #[cfg(test)]
         self.fixtures
             .pets
             .battle_pet_test_fixture_like_cpp
-            .represented_battle_pets_like_cpp
-            .insert(pet_guid, packet_info);
+            .represented_battle_pet_data_updates_like_cpp
+            .push(pet_guid);
+        true
     }
+}
+
+impl crate::session::HubMut<'_> {
     /// C++ `BattlePetMgr::SendUpdates`.
     #[cfg(test)]
     pub(crate) fn send_battle_pet_updates_like_cpp(
@@ -43,9 +66,11 @@ impl WorldSession {
             })
             .collect();
         let sent_count = pets.len();
-        self.send_packet(&wow_packet::packets::misc::BattlePetUpdates { pets, pet_added });
+        self.core
+            .send_packet(&wow_packet::packets::misc::BattlePetUpdates { pets, pet_added });
         sent_count
     }
+
     /// Publish one durable battle-pet addition exactly like the #160 session
     /// seam (`SMSG_BATTLE_PET_UPDATES` with `pet_added` plus the C++
     /// packet). The issue #161 saga calls this only after the pet and receipt
@@ -56,6 +81,7 @@ impl WorldSession {
         pet: wow_packet::packets::misc::BattlePetJournalPet,
     ) -> bool {
         let packet_enqueued = self
+            .core
             .send_tx()
             .send(wow_packet::ServerPacket::to_bytes(
                 &wow_packet::packets::misc::BattlePetUpdates {
@@ -69,44 +95,44 @@ impl WorldSession {
         }
         packet_enqueued
     }
+
     /// C++ `BattlePetMgr::SendError`.
     pub(crate) fn battle_pet_send_error_like_cpp(
         &mut self,
         error: wow_packet::packets::misc::BattlePetErrorCodeLikeCpp,
         creature_id: u32,
     ) {
-        self.send_packet(&wow_packet::packets::misc::BattlePetError::new(
-            error,
-            i32::try_from(creature_id).unwrap_or(i32::MAX),
-        ));
+        self.core
+            .send_packet(&wow_packet::packets::misc::BattlePetError::new(
+                error,
+                i32::try_from(creature_id).unwrap_or(i32::MAX),
+            ));
     }
-    /// C++ `BattlePetMgr::UpdateBattlePetData`, represented at the gate level.
-    pub(crate) fn battle_pet_update_notify_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
-        let Some(pet) = self.represented_battle_pet_like_cpp(pet_guid) else {
-            return false;
-        };
+}
 
-        if self.represented_summoned_battle_pet_guid_like_cpp() != Some(pet_guid) {
-            return false;
-        }
-
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
-            player.set_battle_pet_data_like_cpp(pet_guid, pet.quality, pet.level);
-        });
-        #[cfg(test)]
-        self.fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .represented_battle_pet_data_updates_like_cpp
-            .push(pet_guid);
-        true
+#[cfg(test)]
+impl crate::session::state::PetState {
+    /// Test/setup seam for represented `BattlePet::PacketInfo` rows already
+    /// loaded into `BattlePetMgr::_pets`.
+    #[cfg(test)]
+    pub(crate) fn add_represented_battle_pet_packet_info_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        packet_info: RepresentedBattlePetDataLikeCpp,
+    ) {
+        self.battle_pet_test_fixture_like_cpp
+            .represented_battle_pets_like_cpp
+            .insert(pet_guid, packet_info);
     }
+
     #[cfg(test)]
     pub(crate) fn represented_battle_pet_data_updates_like_cpp(&self) -> &[ObjectGuid] {
         &self
-            .fixtures
-            .pets
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pet_data_updates_like_cpp
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/pets/battle_pet_publication/f3_shims.rs"]
+mod f3_shims;

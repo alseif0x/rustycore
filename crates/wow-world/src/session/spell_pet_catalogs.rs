@@ -10,11 +10,6 @@ use super::{PetDefaultSpellsEntryLikeCpp, PetLevelupSpellSetLikeCpp};
 use super::{SpellGroupStackRuleLikeCpp, WorldSession};
 
 impl WorldSession {
-    pub(crate) fn spell_spell_group_map_bounds_like_cpp(&self, spell_id: u32) -> &[u32] {
-        self.catalogs
-            .spell_spell_group_map_bounds_like_cpp(spell_id)
-    }
-
     pub fn set_script_name_interner(&mut self, store: Arc<ScriptNameInternerLikeCpp>) {
         self.catalogs.script_name_interner = Some(store);
     }

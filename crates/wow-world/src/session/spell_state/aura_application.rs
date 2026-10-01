@@ -13,13 +13,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_spell_state_mut(self);
         state.remove_player_visible_aura_like_cpp(&mut hub, slot)
     }
-    pub(crate) fn same_effect_stack_rule_aura_types_like_cpp(
-        &self,
-        group_id: u32,
-    ) -> Option<&BTreeSet<i32>> {
-        self.catalogs
-            .same_effect_stack_rule_aura_types_like_cpp(group_id)
-    }
     pub(in crate::session) fn remove_indoor_outdoor_auras_for_current_position_represented_like_cpp(
         &mut self,
     ) -> usize {
@@ -982,3 +975,7 @@ impl crate::session::state::SessionCatalogs {
             .and_then(|store| store.same_effect_stack_rule_aura_types_like_cpp(group_id))
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/spell_state/aura_application/f3_shims.rs"]
+mod f3_shims;

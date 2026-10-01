@@ -13,6 +13,79 @@ impl WorldSession {
         player_guid: ObjectGuid,
         roll_type: u8,
     ) {
+        self.loot
+            .update_represented_loot_roll_vote_criteria_like_cpp(player_guid, roll_type)
+    }
+
+    pub(super) fn update_represented_loot_roll_winner_criteria_like_cpp(
+        &mut self,
+        player_guid: ObjectGuid,
+        item_id: u32,
+        winner_vote: RepresentedLootRollVote,
+    ) {
+        self.loot
+            .update_represented_loot_roll_winner_criteria_like_cpp(
+                player_guid,
+                item_id,
+                winner_vote,
+            )
+    }
+
+    pub(super) fn send_represented_loot_roll_final_values_like_cpp(
+        &self,
+        loot_obj: ObjectGuid,
+        entry: &LootEntry,
+        winner_guid: ObjectGuid,
+        state: &RepresentedLootRollState,
+        dungeon_encounter_id: i32,
+    ) {
+        let (owner, hub) = crate::session::split_loot_ref(self);
+        owner.send_represented_loot_roll_final_values_like_cpp(
+            hub,
+            loot_obj,
+            entry,
+            winner_guid,
+            state,
+            dungeon_encounter_id,
+        )
+    }
+
+    pub(super) fn send_represented_loot_roll_packet_to_player_like_cpp<P: ServerPacket>(
+        &self,
+        packet: &P,
+        target: ObjectGuid,
+    ) {
+        let (state, hub) = crate::session::split_loot_ref(self);
+        state.send_represented_loot_roll_packet_to_player_like_cpp(hub, packet, target)
+    }
+
+    pub(super) fn broadcast_represented_loot_roll_packet_like_cpp<P: ServerPacket>(
+        &self,
+        packet: &P,
+        entry: &LootEntry,
+        except: Option<ObjectGuid>,
+    ) {
+        let (state, hub) = crate::session::split_loot_ref(self);
+        state.broadcast_represented_loot_roll_packet_like_cpp(hub, packet, entry, except)
+    }
+
+    pub(super) fn broadcast_represented_loot_roll_packet_to_voters_like_cpp<P: ServerPacket>(
+        &self,
+        packet: &P,
+        state: &RepresentedLootRollState,
+        except: Option<ObjectGuid>,
+    ) {
+        let (owner, hub) = crate::session::split_loot_ref(self);
+        owner.broadcast_represented_loot_roll_packet_to_voters_like_cpp(hub, packet, state, except)
+    }
+}
+
+impl crate::session::LootState {
+    pub(super) fn update_represented_loot_roll_vote_criteria_like_cpp(
+        &mut self,
+        player_guid: ObjectGuid,
+        roll_type: u8,
+    ) {
         match roll_type {
             ROLL_VOTE_NEED_LIKE_CPP => {
                 self.record_represented_roll_any_need_criteria_like_cpp(player_guid, 1)
@@ -55,7 +128,7 @@ impl WorldSession {
         _quantity: u32,
     ) {
         #[cfg(test)]
-        self.loot.represented_loot_roll_criteria_events.push(
+        self.represented_loot_roll_criteria_events.push(
             crate::session::RepresentedLootRollCriteriaEvent::RollAnyNeed {
                 player_guid: _player_guid,
                 quantity: _quantity,
@@ -69,7 +142,7 @@ impl WorldSession {
         _quantity: u32,
     ) {
         #[cfg(test)]
-        self.loot.represented_loot_roll_criteria_events.push(
+        self.represented_loot_roll_criteria_events.push(
             crate::session::RepresentedLootRollCriteriaEvent::RollAnyGreed {
                 player_guid: _player_guid,
                 quantity: _quantity,
@@ -84,7 +157,7 @@ impl WorldSession {
         _roll_number: u8,
     ) {
         #[cfg(test)]
-        self.loot.represented_loot_roll_criteria_events.push(
+        self.represented_loot_roll_criteria_events.push(
             crate::session::RepresentedLootRollCriteriaEvent::RollNeed {
                 player_guid: _player_guid,
                 item_id: _item_id,
@@ -100,7 +173,7 @@ impl WorldSession {
         _roll_number: u8,
     ) {
         #[cfg(test)]
-        self.loot.represented_loot_roll_criteria_events.push(
+        self.represented_loot_roll_criteria_events.push(
             crate::session::RepresentedLootRollCriteriaEvent::RollGreed {
                 player_guid: _player_guid,
                 item_id: _item_id,
@@ -111,6 +184,7 @@ impl WorldSession {
 
     pub(super) fn send_represented_loot_roll_final_values_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         loot_obj: ObjectGuid,
         entry: &LootEntry,
         winner_guid: ObjectGuid,
@@ -144,6 +218,7 @@ impl WorldSession {
             };
 
             self.broadcast_represented_loot_roll_packet_to_voters_like_cpp(
+                hub,
                 &ongoing,
                 state,
                 Some(winner_guid),
@@ -153,30 +228,34 @@ impl WorldSession {
                 item: loot_roll_broadcast_item_like_cpp(entry, LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP),
                 ..ongoing
             };
-            self.send_represented_loot_roll_packet_to_player_like_cpp(&allow, winner_guid);
+            self.send_represented_loot_roll_packet_to_player_like_cpp(hub, &allow, winner_guid);
         }
     }
 
     pub(super) fn send_represented_loot_roll_packet_to_player_like_cpp<P: ServerPacket>(
         &self,
+        hub: crate::session::HubRef<'_>,
         packet: &P,
         target: ObjectGuid,
     ) {
-        if self.player_guid() == Some(target) {
-            self.send_packet(packet);
+        if hub.core.player_guid() == Some(target) {
+            hub.core.send_packet(packet);
             return;
         }
 
-        let Some(registry) = self.player_registry() else {
+        let Some(registry) = hub.core.player_registry() else {
             return;
         };
-        let instance_id = self
+        let instance_id = hub
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
-        let Some(registration) =
-            registry.loot_delivery_recipient(target, self.player_map_id_like_cpp(), instance_id)
-        else {
+        let Some(registration) = registry.loot_delivery_recipient(
+            target,
+            hub.core.player_map_id_like_cpp(),
+            instance_id,
+        ) else {
             return;
         };
 
@@ -185,16 +264,18 @@ impl WorldSession {
 
     pub(super) fn broadcast_represented_loot_roll_packet_like_cpp<P: ServerPacket>(
         &self,
+        hub: crate::session::HubRef<'_>,
         packet: &P,
         entry: &LootEntry,
         except: Option<ObjectGuid>,
     ) {
-        let Some(player_guid) = self.player_guid() else {
+        let Some(player_guid) = hub.core.player_guid() else {
             return;
         };
 
         let bytes = packet.to_bytes();
-        let instance_id = self
+        let instance_id = hub
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -204,16 +285,16 @@ impl WorldSession {
             }
 
             if *looter == player_guid {
-                self.send_packet(packet);
+                hub.core.send_packet(packet);
                 continue;
             }
 
-            let Some(registry) = self.player_registry() else {
+            let Some(registry) = hub.core.player_registry() else {
                 continue;
             };
             let Some(registration) = registry.loot_delivery_recipient(
                 *looter,
-                self.player_map_id_like_cpp(),
+                hub.core.player_map_id_like_cpp(),
                 instance_id,
             ) else {
                 continue;
@@ -225,12 +306,14 @@ impl WorldSession {
 
     pub(super) fn broadcast_represented_loot_roll_packet_to_voters_like_cpp<P: ServerPacket>(
         &self,
+        hub: crate::session::HubRef<'_>,
         packet: &P,
         state: &RepresentedLootRollState,
         except: Option<ObjectGuid>,
     ) {
         let bytes = packet.to_bytes();
-        let instance_id = self
+        let instance_id = hub
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
@@ -242,17 +325,17 @@ impl WorldSession {
                 continue;
             }
 
-            if self.player_guid() == Some(*player_guid) {
-                self.send_packet(packet);
+            if hub.core.player_guid() == Some(*player_guid) {
+                hub.core.send_packet(packet);
                 continue;
             }
 
-            let Some(registry) = self.player_registry() else {
+            let Some(registry) = hub.core.player_registry() else {
                 continue;
             };
             let Some(registration) = registry.loot_delivery_recipient(
                 *player_guid,
-                self.player_map_id_like_cpp(),
+                hub.core.player_map_id_like_cpp(),
                 instance_id,
             ) else {
                 continue;

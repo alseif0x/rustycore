@@ -32,6 +32,7 @@ def lib(root):
 
 
 def scan(root):
+    OWNED_KIND.clear()
     W = lib(root)
     src = root / "crates/wow-world/src"
     srcs = W.load_sources(src)
@@ -53,6 +54,11 @@ def scan(root):
             for seg, m, bo, bc in item_segments(W, c, h.end() - 1, close):
                 if tname != "WorldSession":
                     owned[m.group(1)].add((tname, rel))
+                    head = c[m.end():bo]                     # an already-moved group fn's hub parameter
+                    if tname not in HUB_TYPES and re.search(r"\bhub\s*:\s*&\s*mut\b", head):
+                        OWNED_KIND[m.group(1)] = "state-hubmut"
+                    elif tname not in HUB_TYPES and re.search(r"\bhub\s*:", head):
+                        OWNED_KIND[m.group(1)] = "state-hub"
                     continue
                 sig, body = c[seg:bo], c[bo + 1:bc]
                 attrs = c[seg:m.start()]
@@ -72,6 +78,7 @@ def scan(root):
                                 recv=recv, is_async=bool(re.search(r"\basync\s+(?:unsafe\s+)?$", attrs)),
                                 cfg_test=cfg_test, acc=dict(acc), pacc=dict(pacc),
                                 calls=sorted({x for x, _ in SELF_CALL.findall(body)}),
+                                pcalls=sorted({x for x, _ in SELF_CALL.findall(pbody)}),
                                 fx=sorted(set(FIXTURE_FIELD.findall(body))), guard_call=guard_call(body), whole_self=len(BARE_SELF.findall(body)), type_path=bool(TYPE_PATH.search(body)),
                                 macro="$" in sig + body, sig_end=bo, writes_store=bool(STORE_WRITE.search(body)),
                                 ret_borrow=bool(re.search(r"(&|'[a-z_])", ret_type(c, m.end(), bo))),
@@ -79,6 +86,7 @@ def scan(root):
     names = {f["name"] for f in fns}
     for f in fns:
         f["calls"] = [x for x in f["calls"] if x in names or x in owned or x in test_path_fns]
+        f["pcalls"] = [x for x in f["pcalls"] if x in f["calls"]]
     handlers = set()
     for rel, c in code.items():
         for sm in re.finditer(r"inventory\s*::\s*submit\s*!\s*\{", c):
@@ -194,7 +202,7 @@ def plan(root, groups_wanted, classes, rehome=None):
             ct = cand[x][2] if x in cand else loc.get(x)
             if ct is None or x == n:
                 continue
-            pref = call_prefix(kind, tname, ct, cand[x][1] if x in cand else owner_kind(ct),
+            pref = call_prefix(kind, tname, ct, cand[x][1] if x in cand else OWNED_KIND.get(x, owner_kind(ct)),
                                by[x]["recv"] if x in by else "&self")
             if pref is None or ("config." in str(pref) and not by[n]["file"].startswith("session/")):
                 return True                                   # `HubRef::config` is crate::session-only
@@ -276,9 +284,15 @@ def plan(root, groups_wanted, classes, rehome=None):
     while True:                                               # a signature failure re-blocks its callers
         settle()
         bad = []
+        for n in cand:                                        # a hub used only under cfg(test) is unused
+            f = by[n]
+            if cand[n][1] in SH and not f["cfg_test"] and not set(f["pacc"]) & HUB and not any(
+                    x != n and (x not in cand or cand[x][2] != cand[n][2] or cand[x][1] != "state")
+                    for x in f["pcalls"]):
+                bad.append((n, "uses its hub only under cfg(test) (an unused parameter in non-test builds)"))
         for n in cand:                                        # a pinned call would gain a `hub` argument
             def changes(x):
-                pref = call_prefix(cand[n][1], cand[n][2], *(cand[x][2:0:-1] if x in cand else (loc.get(x), "state")),
+                pref = call_prefix(cand[n][1], cand[n][2], *(cand[x][2:0:-1] if x in cand else (loc.get(x), OWNED_KIND.get(x, "state"))),
                                    by[x]["recv"] if x in by else "&self")
                 return isinstance(pref, tuple) and x in PINNED or pref not in (None, "self.") and x in PINNED_SELF
             pinned = [x for x in by[n]["calls"] if changes(x)]
@@ -290,8 +304,8 @@ def plan(root, groups_wanted, classes, rehome=None):
             except CodemodError as e:
                 bad.append((n, "unsupported parameter pattern: " + str(e).rsplit(": ", 1)[-1]))
         for n, why in bad:
-            blocked[n] = why
-            del cand[n]
+            blocked.setdefault(n, why)
+            cand.pop(n, None)
         if not bad and not lint_groups():
             break
     # thunk rule: count callers outside moved code; moving uncalled code would only regroup lints
@@ -420,7 +434,7 @@ def signature(f, code, raw, hub_kind=False):
     names = []
     for p in params:
         pm = re.match(r"(?:mut\s+)?(" + IDENT + r")\s*:", p)
-        if not pm or pm.group(1) == "_" or (hub_kind and pm.group(1) in ("hub", "state")):
+        if not pm or pm.group(1) == "_" or (hub_kind and pm.group(1) == "hub"):
             raise CodemodError(f"{f['file']}:{f['line']} {f['name']}: unsupported parameter pattern {p!r}")
         names.append(pm.group(1))
     attrs = "".join(a + "\n" for a in re.findall(r"#\s*\[[^\]]*\]", raw[f["file"]][f["seg"]:sig_start])
@@ -450,7 +464,7 @@ def rewrite_body(P, f, kind, tname):
             if name not in P["cand"] and name not in P["loc"]:
                 continue
             ct, ck = (P["cand"][name][2], P["cand"][name][1]) if name in P["cand"] else \
-                (P["loc"][name], owner_kind(P["loc"][name]))
+                (P["loc"][name], OWNED_KIND.get(name, owner_kind(P["loc"][name])))
             pref = call_prefix(kind, tname, ct, ck, P["by"][name]["recv"] if name in P["by"] else "&self")
             if isinstance(pref, tuple):
                 paren = e + c[e:].index("(") + 1
@@ -489,13 +503,14 @@ def thunk_text(P, f, kind, tname, indent="    ", vis=None):
         sig = re.sub(r"\bmut\s+(" + name + r"\s*:)", r"\1", sig)
     args, g, n = ", ".join(names), f["target"], f["name"]
     aw = ".await" if f["is_async"] else ""
+    st = next(b for b in ("state", "owner", "group_state", "f3_state") if b not in names)  # never shadow a param
     lines = {"state": [f"self.{'fixtures.' if g in FIXTURE_TYPE else ''}{g}.{n}({args}){aw}"],
              "hubref": [f"crate::session::hub_ref(self).{n}({args}){aw}"],
              "hubmut": [f"crate::session::hub_mut(self).{n}({args}){aw}"],
-             "state-hub": [f"let (state, hub) = crate::session::split_{g}_ref(self);",
-                           f"state.{n}(hub{', ' if args else ''}{args}){aw}"],
-             "state-hubmut": [f"let (state, mut hub) = crate::session::split_{g}_mut(self);",
-                              f"state.{n}(&mut hub{', ' if args else ''}{args}){aw}"]}[kind]
+             "state-hub": [f"let ({st}, hub) = crate::session::split_{g}_ref(self);",
+                           f"{st}.{n}(hub{', ' if args else ''}{args}){aw}"],
+             "state-hubmut": [f"let ({st}, mut hub) = crate::session::split_{g}_mut(self);",
+                              f"{st}.{n}(&mut hub{', ' if args else ''}{args}){aw}"]}[kind]
     head = "".join(indent + a.strip() + "\n" for a in attrs.splitlines() if a.strip())
     if n in PERMANENT_THUNKS and vis is None:
         head += indent + "#[inline]\n"
@@ -774,6 +789,6 @@ def main(argv=None):
     return 0
 
 
-HANDLERS, EXT, PINNED, PINNED_SELF = set(), collections.Counter(), set(), set()
+HANDLERS, EXT, PINNED, PINNED_SELF, OWNED_KIND = set(), collections.Counter(), set(), set(), {}
 if __name__ == "__main__":
     sys.exit(main())

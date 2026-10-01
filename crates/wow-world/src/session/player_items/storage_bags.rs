@@ -30,22 +30,35 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.send_bag_slot_values_update_like_cpp(hub, bag_slot, changed_slot)
     }
+    pub(crate) fn send_bag_object_slot_values_update_like_cpp(
+        &self,
+        bag_guid: ObjectGuid,
+        changed_slot: u8,
+    ) {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.send_bag_object_slot_values_update_like_cpp(hub, bag_guid, changed_slot)
+    }
+}
+
+impl crate::session::state::InventoryState {
     /// Publish a container-slot change by bag GUID. This is needed for C++'s
     /// bag-content exchange: the previously full bag may no longer occupy a
     /// registered bag slot, but the client still owns that container object
     /// and must see its old child slot cleared.
     pub(crate) fn send_bag_object_slot_values_update_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         bag_guid: ObjectGuid,
         changed_slot: u8,
     ) {
         if changed_slot as usize >= MAX_BAG_SIZE {
             return;
         }
-        let Some(bag_item) = self.resolved_inventory_item_object_like_cpp(bag_guid) else {
+        let Some(bag_item) = self.resolved_inventory_item_object_like_cpp(hub, bag_guid) else {
             return;
         };
-        let Some(bag_size) = self
+        let Some(bag_size) = hub
+            .catalogs
             .item_storage_template(bag_item.object().entry())
             .map(|template| template.container_slots)
             .filter(|size| *size > 0)
@@ -53,7 +66,7 @@ impl WorldSession {
             return;
         };
         let mut slots = [ObjectGuid::EMPTY; MAX_BAG_SIZE];
-        let Some(item_objects) = self.resolved_inventory_item_objects_like_cpp() else {
+        let Some(item_objects) = self.resolved_inventory_item_objects_like_cpp(hub) else {
             return;
         };
         for item in item_objects
@@ -81,9 +94,9 @@ impl WorldSession {
             }),
         };
         if let Some(packet) =
-            bag_values_update_to_update_object(bag_guid, self.player_map_id_like_cpp(), &update)
+            bag_values_update_to_update_object(bag_guid, hub.core.player_map_id_like_cpp(), &update)
         {
-            self.send_packet(&packet);
+            hub.core.send_packet(&packet);
         }
     }
 }

@@ -29,22 +29,13 @@ impl WorldSession {
         true
     }
 
-    /// Drops only this session/player's packet-building mirror.
     pub(super) fn discard_represented_personal_loot_cache_for_player_like_cpp(
         &mut self,
         owner_guid: ObjectGuid,
         _player_guid: ObjectGuid,
     ) {
-        self.loot.loot_table.remove(&owner_guid);
         self.loot
-            .represented_loot_cache_generations_like_cpp
-            .remove(&owner_guid);
-        self.loot
-            .represented_personal_loot_money
-            .retain(|(owner, _), _| *owner != owner_guid);
-        self.loot
-            .represented_personal_loot_owners
-            .remove(&owner_guid);
+            .discard_represented_personal_loot_cache_for_player_like_cpp(owner_guid, _player_guid)
     }
 
     pub(super) fn next_represented_loot_object_guid_like_cpp(
@@ -109,6 +100,22 @@ impl WorldSession {
             self.loot.loot_table.remove(&owner_guid);
         }
     }
+}
+
+impl crate::session::LootState {
+    /// Drops only this session/player's packet-building mirror.
+    pub(super) fn discard_represented_personal_loot_cache_for_player_like_cpp(
+        &mut self,
+        owner_guid: ObjectGuid,
+        _player_guid: ObjectGuid,
+    ) {
+        self.loot_table.remove(&owner_guid);
+        self.represented_loot_cache_generations_like_cpp
+            .remove(&owner_guid);
+        self.represented_personal_loot_money
+            .retain(|(owner, _), _| *owner != owner_guid);
+        self.represented_personal_loot_owners.remove(&owner_guid);
+    }
 
     pub(super) fn record_represented_disenchant_criteria_like_cpp(
         &mut self,
@@ -116,7 +123,7 @@ impl WorldSession {
         _spell_id: u32,
     ) {
         #[cfg(test)]
-        self.loot.represented_loot_roll_criteria_events.push(
+        self.represented_loot_roll_criteria_events.push(
             crate::session::RepresentedLootRollCriteriaEvent::Disenchant {
                 player_guid: _player_guid,
                 spell_id: _spell_id,

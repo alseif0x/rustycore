@@ -62,4 +62,9 @@ impl crate::session::WorldSession {
         self.inventory
             .represented_guild_repair_bank_withdraws_like_cpp()
     }
+    #[cfg(test)]
+    pub(crate) fn player_bank_bag_slot_count_like_cpp(&self) -> u8 {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.player_bank_bag_slot_count_like_cpp(hub)
+    }
 }

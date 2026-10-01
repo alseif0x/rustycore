@@ -203,12 +203,62 @@ impl WorldSession {
         owner_guid: ObjectGuid,
         loot_list_id: u8,
     ) {
-        let Some(loot) = self.loot.loot_table.get(&owner_guid).cloned() else {
+        let (state, mut hub) = crate::session::split_loot_mut(self);
+        state.represented_notify_loot_item_removed_like_cpp(&mut hub, owner_guid, loot_list_id)
+    }
+
+    pub(super) fn send_loot_error_like_cpp(
+        &self,
+        loot_obj: ObjectGuid,
+        owner: ObjectGuid,
+        error: u8,
+    ) {
+        let (state, hub) = crate::session::split_loot_ref(self);
+        state.send_loot_error_like_cpp(hub, loot_obj, owner, error)
+    }
+
+    pub(super) fn send_loot_item_push_result(
+        &self,
+        player_guid: ObjectGuid,
+        item_guid: ObjectGuid,
+        loot_entry: &LootEntry,
+        random_properties_id: i32,
+        random_properties_seed: i32,
+        slot: u8,
+        quantity: u32,
+        quantity_in_inventory: u32,
+        created: bool,
+        dungeon_encounter_id: u32,
+    ) {
+        let (state, hub) = crate::session::split_loot_ref(self);
+        state.send_loot_item_push_result(
+            hub,
+            player_guid,
+            item_guid,
+            loot_entry,
+            random_properties_id,
+            random_properties_seed,
+            slot,
+            quantity,
+            quantity_in_inventory,
+            created,
+            dungeon_encounter_id,
+        )
+    }
+}
+
+impl crate::session::LootState {
+    pub(super) fn represented_notify_loot_item_removed_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        owner_guid: ObjectGuid,
+        loot_list_id: u8,
+    ) {
+        let Some(loot) = self.loot_table.get(&owner_guid).cloned() else {
             return;
         };
         let snapshot = wow_loot::OwnedLootSnapshot {
             generation: self
-                .loot
                 .represented_loot_cache_generations_like_cpp
                 .get(&owner_guid)
                 .copied()
@@ -217,6 +267,7 @@ impl WorldSession {
             loot,
         };
         self.represented_notify_loot_item_removed_from_snapshot_like_cpp(
+            hub,
             owner_guid,
             None,
             &snapshot,
@@ -226,6 +277,7 @@ impl WorldSession {
 
     pub(super) fn represented_notify_loot_item_removed_from_snapshot_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         owner_guid: ObjectGuid,
         authority: Option<&OwnedLootAuthority>,
         snapshot: &wow_loot::OwnedLootSnapshot,
@@ -248,13 +300,14 @@ impl WorldSession {
         let bytes = packet.to_bytes();
         let players_looting = loot.players_looting.clone();
         let allowed_looters = entry.allowed_looters.clone();
-        let current_player = self.player_guid();
-        let current_map = self.player_map_id_like_cpp();
-        let current_instance = self
+        let current_player = hub.core.player_guid();
+        let current_map = hub.core.player_map_id_like_cpp();
+        let current_instance = hub
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);
-        let registry = self.player_registry().cloned();
+        let registry = hub.core.player_registry().cloned();
         let mut stale_looters = Vec::new();
 
         for looter in &players_looting {
@@ -263,7 +316,7 @@ impl WorldSession {
             }
 
             if Some(*looter) == current_player {
-                self.send_packet(&packet);
+                hub.core.send_packet(&packet);
                 continue;
             }
 
@@ -286,7 +339,7 @@ impl WorldSession {
         }
 
         if !stale_looters.is_empty()
-            && let Some(loot) = self.loot.loot_table.get_mut(&owner_guid)
+            && let Some(loot) = self.loot_table.get_mut(&owner_guid)
         {
             loot.players_looting
                 .retain(|looter| !stale_looters.contains(looter));
@@ -303,11 +356,12 @@ impl WorldSession {
 
     pub(super) fn send_loot_error_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         loot_obj: ObjectGuid,
         owner: ObjectGuid,
         error: u8,
     ) {
-        self.send_packet(&LootResponse {
+        hub.core.send_packet(&LootResponse {
             owner,
             loot_obj,
             failure_reason: error,
@@ -324,6 +378,7 @@ impl WorldSession {
 
     pub(super) fn send_loot_item_push_result(
         &self,
+        hub: crate::session::HubRef<'_>,
         player_guid: ObjectGuid,
         item_guid: ObjectGuid,
         loot_entry: &LootEntry,
@@ -336,7 +391,7 @@ impl WorldSession {
         dungeon_encounter_id: u32,
     ) {
         let is_encounter_loot = dungeon_encounter_id != 0;
-        self.send_packet_realm(&ItemPushResult {
+        hub.core.send_packet_realm(&ItemPushResult {
             player_guid,
             slot: u8::from(INVENTORY_SLOT_BAG_0),
             slot_in_bag: i32::from(slot),
@@ -368,3 +423,7 @@ impl WorldSession {
         });
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/handlers/loot/fanout/f3_shims.rs"]
+mod f3_shims;
