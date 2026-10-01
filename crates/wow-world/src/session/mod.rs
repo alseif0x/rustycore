@@ -534,10 +534,13 @@ pub(crate) use stand_state_adapter::RepresentedLiveIntentLikeCpp;
 pub(crate) use stand_state_adapter::RepresentedStandChannelCancellationBoundary;
 pub(crate) use stand_state_adapter::RepresentedStandStateChangedLikeCpp;
 mod state;
+pub(crate) use state::InteractionState;
 pub(crate) use state::SessionCatalogs;
 pub(crate) use state::SessionCore;
 pub use state::WorldSession;
-pub(crate) use state::{HubMut, HubRef, hub_mut, hub_ref};
+pub(crate) use state::{
+    HubMut, HubRef, hub_mut, hub_ref, split_interaction, split_interaction_ref,
+};
 mod summon_object_contracts;
 pub(crate) use summon_object_contracts::ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp;
 pub(crate) use summon_object_contracts::ApplyEffectSummonObjectSlotSessionStatusLikeCpp;

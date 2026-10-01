@@ -33,12 +33,8 @@ impl WorldSession {
     }
 
     pub(super) fn send_show_bank_like_cpp(&mut self, banker_guid: ObjectGuid) {
-        use wow_packet::packets::misc::NpcInteractionOpenResult;
-
-        // C++ `WorldSession::SendShowBank` resets PlayerMenu::InteractionData
-        // and stores the banker as the sole active interaction source.
-        self.set_player_interaction_source_like_cpp(banker_guid);
-        self.send_packet(&NpcInteractionOpenResult::new(banker_guid, 8));
+        let (state, hub) = crate::session::split_interaction(self);
+        state.send_show_bank_like_cpp(hub, banker_guid)
     }
 
     /// CMSG_BANKER_ACTIVATE — player talks to a banker.
@@ -351,5 +347,21 @@ impl WorldSession {
             return;
         }
         self.send_player_bank_bag_slot_flag_update_like_cpp(slot, updated);
+    }
+}
+
+impl crate::session::InteractionState {
+    pub(super) fn send_show_bank_like_cpp(
+        &mut self,
+        hub: crate::session::HubRef<'_>,
+        banker_guid: ObjectGuid,
+    ) {
+        use wow_packet::packets::misc::NpcInteractionOpenResult;
+
+        // C++ `WorldSession::SendShowBank` resets PlayerMenu::InteractionData
+        // and stores the banker as the sole active interaction source.
+        self.set_player_interaction_source_like_cpp(hub, banker_guid);
+        hub.core
+            .send_packet(&NpcInteractionOpenResult::new(banker_guid, 8));
     }
 }

@@ -16083,8 +16083,10 @@
           "name": "active_player_update_state_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn active_player_update_state_like_cpp (& self) -> Option < (u32 , i32 , u8) >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -25211,19 +25213,6 @@
           "name": "install_loaded_spell_row_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn install_loaded_spell_row_like_cpp (& mut self , spell_id : i32 , row : wow_entities :: PlayerKnownSpellRecord , complete_rows : Option < std :: collections :: BTreeMap < i32 , wow_entities :: PlayerKnownSpellRecord > , > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "install_player_mount_vehicle_kit_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn install_player_mount_vehicle_kit_like_cpp (& mut self , vehicle_kit : Vehicle ,) -> bool",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -41209,19 +41198,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "resolved_player_interaction_data_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn resolved_player_interaction_data_like_cpp (& self ,) -> Option < PlayerInteractionDataLikeCpp >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "resolved_player_interaction_trainer_id_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_player_interaction_trainer_id_like_cpp (& self) -> Option < u32 >",
@@ -48233,9 +48209,10 @@
           "visibility": "pub (crate)",
           "signature": "fn set_represented_battleground_status_like_cpp (& mut self , status : Option < u8 >)",
           "cfg": [
+            "cfg (test)",
             "cfg_attr (not (test) , allow (unused_variables))"
           ],
-          "source_class": "production",
+          "source_class": "test_fixture",
           "guards": [
             "setter",
             "visible"

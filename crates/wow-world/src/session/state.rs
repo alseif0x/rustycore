@@ -152,7 +152,7 @@ mod fixtures;
 #[cfg(test)]
 pub(in crate::session) use fixtures::SessionFixtures;
 mod hub;
-pub(crate) use hub::{HubMut, HubRef, hub_mut, hub_ref};
+pub(crate) use hub::{HubMut, HubRef, hub_mut, hub_ref, split_interaction, split_interaction_ref};
 mod session_core;
 pub(crate) use session_core::SessionCore;
 mod loot;
@@ -214,7 +214,7 @@ mod presentation;
 #[cfg(test)]
 pub(in crate::session) use presentation::PlayerPresentationState;
 mod interaction;
-pub(in crate::session) use interaction::InteractionState;
+pub(crate) use interaction::InteractionState;
 
 /// Shared registries and the game-event channel the session coordinates through.
 #[derive(Default)]

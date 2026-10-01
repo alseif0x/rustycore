@@ -16,6 +16,10 @@ from __future__ import annotations
 
 import argparse, collections, json, os, pathlib, re, subprocess, sys
 
+sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
+from f3_codemod_lib import (HUB_RS, SPLIT_FN, SPLIT_REF_FN, abs_vis, cargo_check, item_segments,  # noqa: E402
+                            line_start, module_paths, param_span, ret_type, split_params, strip_cfg_test)
+
 REPO = pathlib.Path(__file__).resolve().parents[2]
 IDENT = r"[A-Za-z_][A-Za-z0-9_]*"
 HUB = {"core", "catalogs", "config", "fixtures"}
@@ -26,6 +30,13 @@ STATE_TYPE = {"core": "SessionCore", "catalogs": "SessionCatalogs", "config": "S
               "interaction": "InteractionState", "quest_state": "SessionQuestState", "view": "SessionWorldView",
               "phase": "SessionPhaseRail"}
 HUB_TYPES = {"HubRef", "HubMut"}
+# `fixtures.<group>` (cfg(test)) owner types: cfg(test)-only fns that touch only their group move onto them.
+FIXTURE_TYPE = {"identity": "PlayerIdentityState", "collections": "CollectionsState", "auras": "AuraState",
+                "progression": "ProgressionState", "combat": "CombatState", "movement": "MovementState",
+                "teleport": "TeleportState", "vehicles": "TaxiVehicleState", "pets": "PetState",
+                "battleground": "BattlegroundState", "presentation": "PlayerPresentationState"}
+FIXTURE_OF = {t: g for g, t in FIXTURE_TYPE.items()}
+OWNER_TYPES = set(STATE_TYPE.values()) | HUB_TYPES | set(FIXTURE_TYPE.values())
 PERMANENT_THUNKS = {"player_guid"}                           # hot hub accessors: an inline thunk forever
 SHELL = "shell"
 # File-domain -> default group (F3-E design.md, section 1). Domains not listed are handler shells.
@@ -62,6 +73,7 @@ DOMAIN_MAP = {g: d.split() for g, d in {
 DOMAIN = {d: g for g, ds in DOMAIN_MAP.items() for d in ds}
 
 SELF_FIELD = re.compile(r"\bself\s*\.\s*(" + IDENT + r")\b(?!\s*(?:\(|::\s*<))")
+FIXTURE_FIELD = re.compile(r"\bself\s*\.\s*fixtures\s*\.\s*(" + IDENT + r")\b")
 SELF_CALL = re.compile(r"\bself\s*\.\s*(" + IDENT + r")(\s*(?:::\s*<[^;{}()]*>\s*)?)\(")
 STORE_WRITE = re.compile(r"&\s*mut\s+self\s*\.\s*(?:catalogs|config)\b|\bself\s*\.\s*(?:catalogs|config)"
                          r"(?:\s*\.\s*" + IDENT + r")*\s*(?:\[[^\]]*\]\s*)?[-+*/|&^]?=(?!=)")
@@ -89,104 +101,6 @@ def lib(root):
     return W
 
 
-def strip_cfg_test(body):
-    """Blank `#[cfg(test)]` statements/blocks so production accesses remain."""
-    out = list(body)
-    for m in re.finditer(r"#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\]", body):
-        k = m.end()
-        while k < len(body) and body[k].isspace():
-            k += 1
-        depth, e = 0, k
-        while e < len(body):
-            ch = body[e]
-            if ch in "([{":
-                depth += 1
-            elif ch in ")]}":
-                depth -= 1
-                if depth < 0:
-                    break
-                if depth == 0 and ch == "}":                    # a block, item or impl ends here
-                    e += 1
-                    break
-            elif ch in ";," and depth == 0:
-                e += 1
-                break
-            e += 1
-        for q in range(m.start(), min(e, len(body))):
-            if out[q] != "\n":
-                out[q] = " "
-    return "".join(out)
-
-
-def item_segments(W, code, open_i, close):
-    """(segment_start, fn_name_match_start, body_open, body_close) for fns directly in an impl body."""
-    out, depth, nest, seg, j = [], 0, 0, open_i + 1, open_i + 1
-    while j < close:
-        ch = code[j]
-        if ch in "([" and depth == 0:                         # `-> [u8; 3]`: a `;` inside brackets
-            nest += 1
-        elif ch in ")]" and depth == 0:
-            nest -= 1
-        elif ch == "{" and depth == 0:
-            m = W.FN_ITEM.search(code, seg, j)
-            if m:
-                bclose = W.matching_close(code, j)
-                out.append((seg, m, j, bclose))
-                seg = j = bclose + 1
-                continue
-            depth += 1
-        elif ch == "{":
-            depth += 1
-        elif ch == "}":
-            depth -= 1
-            if depth == 0:
-                seg = j + 1
-        elif ch == ";" and depth == 0 and nest == 0:
-            seg = j + 1
-        j += 1
-    return out
-
-
-def module_paths(src, codes):
-    """Module path per file, honouring `#[path]` on `mod x;` declarations."""
-    paths = {"lib.rs": "crate"}
-    todo = ["lib.rs"]
-    decl = re.compile(r"((?:#\s*\[[^\]]*\]\s*)*)(?:pub(?:\s*\([^)]*\))?\s+)?mod\s+(" + IDENT + r")\s*;")
-    while todo:
-        rel = todo.pop()
-        p = pathlib.PurePosixPath(rel)
-        base = p.parent if p.name in ("mod.rs", "lib.rs") else p.parent / p.stem
-        raw = (src / rel).read_text(errors="replace")
-        for m in decl.finditer(codes.get(rel, "")):
-            pm = re.search(r'#\s*\[\s*path\s*=\s*"([^"]+)"', raw[m.start():m.end()])
-            cands = ([str(pathlib.PurePosixPath(os.path.normpath(str(p.parent / pm.group(1)))))] if pm else
-                     [str(base / f"{m.group(2)}.rs"), str(base / m.group(2) / "mod.rs")])
-            for c in cands:
-                if c in codes and c not in paths:
-                    paths[c] = paths[rel] + "::" + m.group(2)
-                    todo.append(c)
-    return paths
-
-
-def param_span(c, start, bo):
-    """(open, close) of the parameter list after a fn name (generic `<..>` skipped)."""
-    depth, k = 0, start
-    while k < bo and not (c[k] == "(" and depth == 0):
-        depth += {"<": 1, ">": -1}.get(c[k], 0) if c[k - 1] != "-" else 0
-        k += 1
-    d, close = 0, k
-    for close in range(k, bo):
-        d += {"(": 1, ")": -1}.get(c[close], 0)
-        if d == 0:
-            break
-    return k, close
-
-
-def ret_type(c, start, bo):
-    tail = re.split(r"\bwhere\b", c[param_span(c, start, bo)[1] + 1:bo])[0]
-    return tail.split("->", 1)[1] if "->" in tail else ""
-
-
 def scan(root):
     W = lib(root)
     src = root / "crates/wow-world/src"
@@ -200,7 +114,7 @@ def scan(root):
             continue
         for h in IMPL_ANY.finditer(c):
             tname = h.group(1)
-            if tname != "WorldSession" and tname not in STATE_TYPE.values() and tname not in HUB_TYPES:
+            if tname != "WorldSession" and tname not in OWNER_TYPES:
                 continue
             close = W.matching_close(c, h.end() - 1)
             pre = c[max(0, h.start() - 160):h.start()].rstrip()
@@ -227,7 +141,7 @@ def scan(root):
                                 recv=recv, is_async=bool(re.search(r"\basync\s+(?:unsafe\s+)?$", attrs)),
                                 cfg_test=cfg_test, acc=dict(acc), pacc=dict(pacc),
                                 calls=sorted({x for x, _ in SELF_CALL.findall(body)}),
-                                whole_self=len(BARE_SELF.findall(body)), type_path=bool(TYPE_PATH.search(body)),
+                                fx=sorted(set(FIXTURE_FIELD.findall(body))), whole_self=len(BARE_SELF.findall(body)), type_path=bool(TYPE_PATH.search(body)),
                                 macro="$" in sig + body, sig_end=bo, writes_store=bool(STORE_WRITE.search(body)),
                                 ret_borrow=bool(re.search(r"(&|'[a-z_])", ret_type(c, m.end(), bo))),
                                 domain=W.domain_of(rel)))
@@ -317,9 +231,20 @@ def targets(fns):
 def kind_of(f, classes):
     """(class, kind, target type) or a blocked reason string."""
     g = f["target"]
-    if g not in STATE_TYPE:
-        return "fixture/stateless group: context-owned kind not implemented"
     fields = set(f["acc"])
+    if g in FIXTURE_TYPE:
+        if set(f["fx"]) - {g}:
+            return f"class C (other fixture groups {sorted(set(f['fx']) - {g})})"
+        if not fields <= HUB:
+            return f"class C (non-hub fields {sorted(fields - HUB)})"
+        if f["cfg_test"] and fields <= {"fixtures"} and f["file"].startswith("session/"):
+            cls, kind = "P", "state"                          # cfg(test) fn on its fixture group
+        else:                                                # production fns reach fixtures via the hub view
+            cls, kind = "C-hub", "hubref" if f["recv"] == "&self" else "hubmut"
+        return preconditions(f, cls, kind, classes) or (cls, kind, {"hubref": "HubRef", "hubmut": "HubMut"}
+                                                         .get(kind, FIXTURE_TYPE[g]))
+    if g not in STATE_TYPE:
+        return "stateless group: context-owned kind not implemented"
     if g == "core" and len(fields) == 1 and fields <= {"catalogs", "config"}:
         g = next(iter(fields))                               # a pure store accessor re-homed into core
         f["target"], f["store_rehomed"] = g, True
@@ -331,6 +256,11 @@ def kind_of(f, classes):
         kind = ("hubref" if f["recv"] == "&self" else "hubmut") if g == "core" else "state-hub"
     else:
         return f"class C (non-hub fields {sorted(fields - HUB - {g})})"
+    return preconditions(f, cls, kind, classes) or (cls, kind, {"hubref": "HubRef", "hubmut": "HubMut"}
+                                                     .get(kind, STATE_TYPE[g]))
+
+
+def preconditions(f, cls, kind, classes):
     if cls not in classes:
         return f"class {cls} not requested"
     if f["recv"] not in ("&self", "&mut self"):
@@ -341,10 +271,7 @@ def kind_of(f, classes):
         return "`Self::`/`WorldSession::` path in body"
     if f["macro"]:
         return "macro-generated fn"
-    if hub_check(f, kind):
-        return hub_check(f, kind)
-    tname = {"hubref": "HubRef", "hubmut": "HubMut"}.get(kind, STATE_TYPE[g])
-    return cls, kind, tname
+    return hub_check(f, kind)
 
 
 def hub_check(f, kind):
@@ -364,7 +291,7 @@ def upgrade(f, kind, classes):
         f["target"] = "core"
     if kind != "state" or "C-hub" not in classes or f["target"] in ("catalogs", "config"):
         return None
-    if f["target"] != "core":
+    if f["target"] not in ("core", *FIXTURE_TYPE):
         up = "C-hub", "state-hub", STATE_TYPE[f["target"]]
     else:
         up = ("C-hub", "hubref", "HubRef") if f["recv"] == "&self" else ("C-hub", "hubmut", "HubMut")
@@ -375,8 +302,13 @@ def owner_kind(tname):
     return {"HubRef": "hubref", "HubMut": "hubmut"}.get(tname, "state")
 
 
-def call_prefix(caller, ctype, callee_type, callee_kind):
+def call_prefix(caller, ctype, callee_type, callee_kind, callee_recv="&self"):
     """Receiver text replacing `self.` for a call from a moved fn, or None if impossible."""
+    fg = FIXTURE_OF.get(callee_type)
+    if fg and callee_type != ctype:                          # a cfg(test) fixture-group fn
+        if caller == "hubmut" or (caller in ("hubref", "state-hub") and callee_recv == "&self"):
+            return f"{'hub' if caller == 'state-hub' else 'self'}.fixtures.{fg}."
+        return None
     if caller == "state":
         if callee_type == ctype and callee_kind == "state":
             return "self."
@@ -419,7 +351,8 @@ def plan(root, groups_wanted, classes):
             ct = cand[x][2] if x in cand else loc.get(x)
             if ct is None or x == n:
                 continue
-            pref = call_prefix(kind, tname, ct, cand[x][1] if x in cand else owner_kind(ct))
+            pref = call_prefix(kind, tname, ct, cand[x][1] if x in cand else owner_kind(ct),
+                               by[x]["recv"] if x in by else "&self")
             if pref is None or ("config." in str(pref) and not by[n]["file"].startswith("session/")):
                 return True                                   # `HubRef::config` is crate::session-only
         return False
@@ -487,7 +420,7 @@ def plan(root, groups_wanted, classes):
     fixed = []
     for rel, c in code.items():                              # bodies already on target impls are moved code
         for h in IMPL_ANY.finditer(c):
-            if h.group(1) in STATE_TYPE.values() or h.group(1) in HUB_TYPES:
+            if h.group(1) in OWNER_TYPES:
                 fixed.append((rel, h.start(), W.matching_close(c, h.end() - 1)))
     fixed += [(f["file"], f["seg"], f["body_close"]) for f in fns if f["name"] in thunks]
     while True:
@@ -534,7 +467,7 @@ def prod_dead_names(W, code, fns, in_test):
         spans[f["file"]].append((f["seg"], f["body_close"], f["name"]))
     for rel, c in code.items():                              # moved fns carry their thunk's name
         for h in IMPL_ANY.finditer(c):
-            if h.group(1) in STATE_TYPE.values() or h.group(1) in HUB_TYPES:
+            if h.group(1) in OWNER_TYPES:
                 for seg, m, _bo, bc in item_segments(W, c, h.end() - 1, W.matching_close(c, h.end() - 1)):
                     spans[rel].append((seg, bc, m.group(1)))
     names = {f["name"] for f in fns}
@@ -565,20 +498,6 @@ def resident_thunk(name, code, spans, ext, in_test):
         return True
     return any(m.group(1) == name and not any(a <= m.start() <= b for a, b in spans.get(rel, []))
                and not in_test(rel, m.start()) for rel, c in code.items() for m in ANY_CALL.finditer(c))
-
-
-def split_params(text):
-    out, depth, start = [], 0, 0
-    for j, ch in enumerate(text):
-        if ch in "([{<":
-            depth += 1
-        elif ch in ")]}>" and not (ch == ">" and j and text[j - 1] == "-"):
-            depth -= 1
-        elif ch == "," and depth == 0:
-            out.append(text[start:j])
-            start = j + 1
-    out.append(text[start:])
-    return [p.strip() for p in out if p.strip()]
 
 
 def signature(f, code, raw, hub_kind=False):
@@ -623,13 +542,17 @@ def rewrite_body(P, f, kind, tname):
                 continue
             ct, ck = (P["cand"][name][2], P["cand"][name][1]) if name in P["cand"] else \
                 (P["loc"][name], owner_kind(P["loc"][name]))
-            pref = call_prefix(kind, tname, ct, ck)
+            pref = call_prefix(kind, tname, ct, ck, P["by"][name]["recv"] if name in P["by"] else "&self")
             if isinstance(pref, tuple):
                 paren = e + c[e:].index("(") + 1
                 edits.append((s, e - len(name), pref[0]))
                 edits.append((paren, paren, "hub, " if c[paren:paren + 1] != ")" else "hub"))
             else:
                 edits.append((s, e - len(name), pref))
+        elif kind == "state" and g in FIXTURE_TYPE and name == "fixtures":
+            seg = re.match(r"\s*\.\s*" + g + r"\b(\s*\.)?", after)
+            if seg:
+                edits.append((s, e + seg.end(), "self." if seg.group(1) else "(*self)"))
         elif kind in ("state", "state-hub") and name == g:
             dot = re.match(r"\s*\.", after)
             edits.append((s, e + (dot.end() if dot else 0), "self." if dot else "(*self)"))
@@ -647,13 +570,6 @@ def rewrite_body(P, f, kind, tname):
     return a, b, text
 
 
-def line_start(raw, off):
-    k = off
-    while k < len(raw) and raw[k] in " \t\r\n":
-        k += 1
-    return raw.rfind("\n", 0, k) + 1
-
-
 def thunk_text(P, f, kind, tname, indent="    ", vis=None):
     """WorldSession entry point delegating to the moved fn; `vis` overrides the visibility (shims)."""
     attrs, sig, names, _ = signature(f, P["code"], P["raw"])
@@ -663,65 +579,15 @@ def thunk_text(P, f, kind, tname, indent="    ", vis=None):
         sig = re.sub(r"\bmut\s+(" + name + r"\s*:)", r"\1", sig)
     args, g, n = ", ".join(names), f["target"], f["name"]
     aw = ".await" if f["is_async"] else ""
-    lines = {"state": [f"self.{g}.{n}({args}){aw}"],
+    lines = {"state": [f"self.{'fixtures.' if g in FIXTURE_TYPE else ''}{g}.{n}({args}){aw}"],
              "hubref": [f"crate::session::hub_ref(self).{n}({args}){aw}"],
              "hubmut": [f"crate::session::hub_mut(self).{n}({args}){aw}"],
-             "state-hub": [f"let (state, hub) = crate::session::split_{g}(self);",
+             "state-hub": [f"let (state, hub) = crate::session::split_{g}{'_ref' if f['recv'] == '&self' else ''}(self);",
                            f"state.{n}(hub{', ' if args else ''}{args}){aw}"]}[kind]
     head = "".join(indent + a.strip() + "\n" for a in attrs.splitlines() if a.strip())
     if n in PERMANENT_THUNKS and vis is None:
         head += indent + "#[inline]\n"
     return head + indent + sig + " {\n" + "".join(indent + "    " + x + "\n" for x in lines) + indent + "}"
-
-
-HUB_RS = '''// Copyright (c) 2026 alseif0x
-// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
-
-//! Hub views (#1241 F3): split borrows of the hub members, built from disjoint WorldSession fields.
-
-use super::*;
-
-/// Shared hub view: core, catalogs, config and the cfg(test) fixtures. Copy; it holds only
-/// shared references and never a lock guard, so it is Send wherever the session is Sync.
-#[derive(Clone, Copy)]
-pub(crate) struct HubRef<'a> {
-    pub(crate) core: &'a SessionCore,
-    pub(crate) catalogs: &'a SessionCatalogs,
-    pub(in crate::session) config: &'a SessionWorldConfig,
-    #[cfg(test)]
-    pub(crate) fixtures: &'a SessionFixtures,
-}
-
-/// Mutable hub view for moved fns that take `&mut self` (core and fixtures writable).
-pub(crate) struct HubMut<'a> {
-    pub(crate) core: &'a mut SessionCore,
-    pub(crate) catalogs: &'a SessionCatalogs,
-    pub(in crate::session) config: &'a SessionWorldConfig,
-    #[cfg(test)]
-    pub(crate) fixtures: &'a mut SessionFixtures,
-}
-
-impl HubMut<'_> {
-    pub(crate) fn shared(&self) -> HubRef<'_> {
-        HubRef { core: &*self.core, catalogs: self.catalogs, config: self.config,
-                 #[cfg(test)] fixtures: &*self.fixtures }
-    }
-}
-
-/// Builds the shared view from disjoint WorldSession fields (free fn: not an `impl WorldSession` item).
-pub(crate) fn hub_ref(s: &WorldSession) -> HubRef<'_> {
-    HubRef { core: &s.core, catalogs: &s.catalogs, config: &s.config, #[cfg(test)] fixtures: &s.fixtures }
-}
-
-pub(crate) fn hub_mut(s: &mut WorldSession) -> HubMut<'_> {
-    HubMut { core: &mut s.core, catalogs: &s.catalogs, config: &s.config, #[cfg(test)] fixtures: &mut s.fixtures }
-}
-'''
-SPLIT_FN = '''
-pub(crate) fn split_{g}(s: &mut WorldSession) -> (&mut {t}, HubRef<'_>) {{
-    (&mut s.{g}, HubRef {{ core: &s.core, catalogs: &s.catalogs, config: &s.config, #[cfg(test)] fixtures: &s.fixtures }})
-}}
-'''
 
 
 def ensure_prelude(src, kinds, groups_state_hub, outside_types):
@@ -732,16 +598,16 @@ def ensure_prelude(src, kinds, groups_state_hub, outside_types):
     hub = src / "session/state/hub.rs"
     if kinds & {"hubref", "hubmut", "state-hub"}:
         text = hub.read_text() if hub.exists() else HUB_RS
-        for g in sorted(groups_state_hub):
-            if f"fn split_{g}(" not in text:
-                text += SPLIT_FN.format(g=g, t=STATE_TYPE[g])
+        for g, variant in sorted(groups_state_hub):
+            if f"fn split_{g}{variant}(" not in text:
+                text += (SPLIT_REF_FN if variant else SPLIT_FN).format(g=g, t=STATE_TYPE[g])
         if not hub.exists() or hub.read_text() != text:
             hub.write_text(text)
             written.append(hub)
         line = "mod hub;\npub(crate) use hub::{HubMut, HubRef, hub_mut, hub_ref"
         if "mod hub;" not in st:
             st = st.replace("mod session_core;", line + "};\nmod session_core;", 1)
-        exports = ["HubMut", "HubRef", "hub_mut", "hub_ref"] + [f"split_{g}" for g in sorted(groups_state_hub)]
+        exports = ["HubMut", "HubRef"] + sorted(re.findall(r"(?m)^pub\(crate\) fn (" + IDENT + r")\(", text))
         st = re.sub(r"pub\(crate\) use hub::\{[^}]*\};", "pub(crate) use hub::{" + ", ".join(exports) + "};", st)
         md_line = "pub(crate) use state::{" + ", ".join(exports) + "};"
         md = re.sub(r"pub\(crate\) use state::\{Hub[^}]*\};\n", "", md)
@@ -757,23 +623,14 @@ def ensure_prelude(src, kinds, groups_state_hub, outside_types):
     return written
 
 
-def abs_vis(vis, modpath):
-    if vis.startswith("pub(in"):
-        return "pub(in " + vis[len("pub(in"):].strip()
-    if vis in ("pub", "pub(crate)"):
-        return vis
-    if vis == "pub(super)":
-        return f"pub(in {modpath.rsplit('::', 1)[0]})"
-    return f"pub(in {modpath})"
-
-
 def apply_text(root, P):
     rows = P["rows"]
     if not rows and not P["stale"]:
         return []
     by, src = P["by"], P["src"]
     kinds = {r["kind"] for r in rows}
-    sh_groups = {by[r["name"]]["target"] for r in rows if r["kind"] == "state-hub"}
+    sh_groups = {(by[r["name"]]["target"], "_ref" if r["recv"] == "&self" else "")
+                 for r in rows if r["kind"] == "state-hub"}
     outside = {r["type"] for r in rows if r["kind"] in ("state", "state-hub") and not r["file"].startswith("session/")}
     for t in outside:
         if t not in ("SessionCore", "SessionCatalogs", "LootState", "WorldEntitiesState", "VisibilityState",
@@ -815,6 +672,8 @@ def apply_text(root, P):
             close = P["W"].matching_close(P["code"][rel], P["code"][rel].index("{", impl_start)) + 1
             attrs = next(f for f in by.values() if f["file"] == rel and f["impl_start"] == impl_start)["impl_attr"]
             lt = "<'_>" if tname in HUB_TYPES else ""
+            attrs = list(attrs) + (["#[cfg(test)]"] if tname in FIXTURE_OF and not any(
+                re.search(r"cfg\s*\(\s*test\s*\)", x) for x in attrs) else [])
             head = "".join(x.strip() + "\n" for x in attrs) + f"impl {type_path(tname, rel)}{lt} {{\n"
             edits.append((close, close, "\n\n" + head + "\n".join(p.rstrip() + "\n" for p in parts) + "}"))
         for a, b, rep in sorted(edits, key=lambda e: (e[0], e[1]), reverse=True):
@@ -848,24 +707,6 @@ def apply_text(root, P):
             srcfile.write_text(s.rstrip("\n") + f'\n\n#[cfg(test)]\n#[path = "{mount}"]\nmod f3_shims;\n')
         written += [shim, srcfile]
     return written
-
-
-def cargo_check(root, log):
-    cmd = ["cargo", "check", "-p", "wow-world", "--all-targets", "--message-format=json"]
-    env = dict(os.environ)
-    env.setdefault("CARGO_BUILD_JOBS", "1")
-    env.setdefault("CARGO_TARGET_DIR", str(root / "target"))
-    with log.open("w") as h:
-        rc = subprocess.run(cmd, cwd=root, stdout=h, stderr=subprocess.DEVNULL, env=env).returncode
-    msgs = []
-    for line in log.read_text().splitlines():
-        try:
-            rec = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if rec.get("reason") == "compiler-message" and rec["message"].get("level") == "error":
-            msgs.append(rec["message"])
-    return rc, msgs
 
 
 NO_METHOD = re.compile(r"no method named `(" + IDENT + r")` found for (?:mutable )?(?:reference|struct) `[^`]*WorldSession")
