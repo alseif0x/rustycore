@@ -455,107 +455,25 @@ impl WorldSession {
         &self,
         item_entry: u32,
     ) -> (u32, u32) {
-        let Some(port) = self.item_template_addon_catalog_persistence_port_like_cpp() else {
-            return (0, 0);
-        };
-
-        match port
-            .load_item_template_addon_money_like_cpp(
-                wow_persistence::ItemTemplateAddonCatalogRequestLikeCpp { item_entry },
-            )
+        crate::session::cx_inventory_ref(self)
+            .load_item_template_addon_money_loot_like_cpp(item_entry)
             .await
-        {
-            wow_persistence::ItemTemplateAddonMoneyOutcomeLikeCpp::Found(row) => {
-                match (row.min_money, row.max_money) {
-                    (Some(min_money), Some(max_money)) => {
-                        if min_money > max_money {
-                            // ObjectMgr::LoadItemTemplateAddon swaps invalid item
-                            // bounds before storing the template. GameObject addon
-                            // money deliberately does not share this normalization.
-                            warn!(
-                                item_entry,
-                                min_money,
-                                max_money,
-                                "minimum item money loot exceeded maximum; swapping like C++"
-                            );
-                        }
-                        normalize_item_money_loot_bounds_like_cpp(min_money, max_money)
-                    }
-                    _ => {
-                        warn!(
-                            item_entry,
-                            "failed to decode item_template_addon money loot as C++ uint32 columns"
-                        );
-                        (0, 0)
-                    }
-                }
-            }
-            wow_persistence::ItemTemplateAddonMoneyOutcomeLikeCpp::Missing => (0, 0),
-            wow_persistence::ItemTemplateAddonMoneyOutcomeLikeCpp::Failed { reason } => {
-                warn!(
-                    item_entry,
-                    error = %reason,
-                    "failed to load item_template_addon money loot"
-                );
-                (0, 0)
-            }
-        }
     }
     pub(super) async fn load_item_template_addon_loot_metadata_like_cpp(
         &self,
         item_entry: u32,
     ) -> ItemTemplateAddonLootMetadataLikeCpp {
-        let Some(port) = self.item_template_addon_catalog_persistence_port_like_cpp() else {
-            return ItemTemplateAddonLootMetadataLikeCpp::default();
-        };
-
-        match port
-            .load_item_template_addon_loot_metadata_like_cpp(
-                wow_persistence::ItemTemplateAddonCatalogRequestLikeCpp { item_entry },
-            )
+        crate::session::cx_inventory_ref(self)
+            .load_item_template_addon_loot_metadata_like_cpp(item_entry)
             .await
-        {
-            wow_persistence::ItemTemplateAddonLootMetadataOutcomeLikeCpp::Found(row) => {
-                ItemTemplateAddonLootMetadataLikeCpp {
-                    flags_cu: row.flags_cu,
-                    quest_log_item_id: row.quest_log_item_id,
-                }
-            }
-            wow_persistence::ItemTemplateAddonLootMetadataOutcomeLikeCpp::Missing => {
-                ItemTemplateAddonLootMetadataLikeCpp::default()
-            }
-            wow_persistence::ItemTemplateAddonLootMetadataOutcomeLikeCpp::Failed { reason } => {
-                warn!(
-                    item_entry,
-                    error = %reason,
-                    "failed to load item_template_addon loot metadata"
-                );
-                ItemTemplateAddonLootMetadataLikeCpp::default()
-            }
-        }
     }
     pub(super) async fn load_item_template_addon_loot_metadata_for_rows_like_cpp(
         &self,
         rows: &[LootTemplateRow],
     ) -> HashMap<u32, ItemTemplateAddonLootMetadataLikeCpp> {
-        let mut item_ids: Vec<u32> = rows
-            .iter()
-            .filter(|row| row.reference == 0 && row.item_id != 0)
-            .map(|row| row.item_id)
-            .collect();
-        item_ids.sort_unstable();
-        item_ids.dedup();
-
-        let mut metadata = HashMap::with_capacity(item_ids.len());
-        for item_id in item_ids {
-            metadata.insert(
-                item_id,
-                self.load_item_template_addon_loot_metadata_like_cpp(item_id)
-                    .await,
-            );
-        }
-
-        metadata
+        crate::session::cx_inventory_ref(self)
+            .load_item_template_addon_loot_metadata_for_rows_like_cpp(rows)
+            .await
     }
     pub(super) async fn generate_item_loot_template_entries_like_cpp(
         &mut self,
@@ -770,6 +688,117 @@ impl WorldSession {
         self.lifecycle
             .load_loot_template_rows_like_cpp(table, entry)
             .await
+    }
+}
+
+impl crate::session::InventoryCxRef<'_> {
+    pub(super) async fn load_item_template_addon_money_loot_like_cpp(
+        &self,
+        item_entry: u32,
+    ) -> (u32, u32) {
+        let Some(port) = self.item_template_addon_catalog_persistence_port_like_cpp() else {
+            return (0, 0);
+        };
+
+        match port
+            .load_item_template_addon_money_like_cpp(
+                wow_persistence::ItemTemplateAddonCatalogRequestLikeCpp { item_entry },
+            )
+            .await
+        {
+            wow_persistence::ItemTemplateAddonMoneyOutcomeLikeCpp::Found(row) => {
+                match (row.min_money, row.max_money) {
+                    (Some(min_money), Some(max_money)) => {
+                        if min_money > max_money {
+                            // ObjectMgr::LoadItemTemplateAddon swaps invalid item
+                            // bounds before storing the template. GameObject addon
+                            // money deliberately does not share this normalization.
+                            warn!(
+                                item_entry,
+                                min_money,
+                                max_money,
+                                "minimum item money loot exceeded maximum; swapping like C++"
+                            );
+                        }
+                        normalize_item_money_loot_bounds_like_cpp(min_money, max_money)
+                    }
+                    _ => {
+                        warn!(
+                            item_entry,
+                            "failed to decode item_template_addon money loot as C++ uint32 columns"
+                        );
+                        (0, 0)
+                    }
+                }
+            }
+            wow_persistence::ItemTemplateAddonMoneyOutcomeLikeCpp::Missing => (0, 0),
+            wow_persistence::ItemTemplateAddonMoneyOutcomeLikeCpp::Failed { reason } => {
+                warn!(
+                    item_entry,
+                    error = %reason,
+                    "failed to load item_template_addon money loot"
+                );
+                (0, 0)
+            }
+        }
+    }
+
+    pub(super) async fn load_item_template_addon_loot_metadata_like_cpp(
+        &self,
+        item_entry: u32,
+    ) -> ItemTemplateAddonLootMetadataLikeCpp {
+        let Some(port) = self.item_template_addon_catalog_persistence_port_like_cpp() else {
+            return ItemTemplateAddonLootMetadataLikeCpp::default();
+        };
+
+        match port
+            .load_item_template_addon_loot_metadata_like_cpp(
+                wow_persistence::ItemTemplateAddonCatalogRequestLikeCpp { item_entry },
+            )
+            .await
+        {
+            wow_persistence::ItemTemplateAddonLootMetadataOutcomeLikeCpp::Found(row) => {
+                ItemTemplateAddonLootMetadataLikeCpp {
+                    flags_cu: row.flags_cu,
+                    quest_log_item_id: row.quest_log_item_id,
+                }
+            }
+            wow_persistence::ItemTemplateAddonLootMetadataOutcomeLikeCpp::Missing => {
+                ItemTemplateAddonLootMetadataLikeCpp::default()
+            }
+            wow_persistence::ItemTemplateAddonLootMetadataOutcomeLikeCpp::Failed { reason } => {
+                warn!(
+                    item_entry,
+                    error = %reason,
+                    "failed to load item_template_addon loot metadata"
+                );
+                ItemTemplateAddonLootMetadataLikeCpp::default()
+            }
+        }
+    }
+
+    pub(super) async fn load_item_template_addon_loot_metadata_for_rows_like_cpp(
+        &self,
+        rows: &[LootTemplateRow],
+    ) -> HashMap<u32, ItemTemplateAddonLootMetadataLikeCpp> {
+        let mut item_ids: Vec<u32> = rows
+            .iter()
+            .filter(|row| row.reference == 0 && row.item_id != 0)
+            .map(|row| row.item_id)
+            .collect();
+        item_ids.sort_unstable();
+        item_ids.dedup();
+
+        let mut metadata = HashMap::with_capacity(item_ids.len());
+        for item_id in item_ids {
+            metadata.insert(
+                item_id,
+                self.load_item_template_addon_loot_metadata_like_cpp(item_id)
+                    .await,
+            );
+        }
+
+        metadata
     }
 }
 

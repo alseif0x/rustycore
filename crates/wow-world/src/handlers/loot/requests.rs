@@ -252,15 +252,6 @@ impl WorldSession {
             .active_loot_owner_for_loot_object_like_cpp(loot_object)
     }
 
-    pub(super) fn canonical_map_object_position_for_loot_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        allowed: &[AccessorObjectKind],
-    ) -> Option<wow_core::Position> {
-        let (state, hub) = crate::session::split_loot_ref(self);
-        state.canonical_map_object_position_for_loot_like_cpp(hub, guid, allowed)
-    }
-
     pub(super) fn represented_spell_max_range_like_cpp(&self, spell_id: i32) -> Option<f32> {
         self.catalogs.represented_spell_max_range_like_cpp(spell_id)
     }

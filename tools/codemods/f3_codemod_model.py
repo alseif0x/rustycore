@@ -5,6 +5,7 @@ Pure functions over a scanned fn record; no I/O. Standard library only.
 """
 from __future__ import annotations
 
+import collections
 import re
 
 IDENT = r"[A-Za-z_][A-Za-z0-9_]*"
@@ -102,6 +103,32 @@ def guard_call(body):
     return False
 
 
+CX_CAP = 3
+CX = ("cx", "cx-ref")                                       # capped group context: own + <=3 sibling states + hub
+CX_SIBLINGS = {}                                             # group -> chosen siblings (set per plan)
+
+
+def cx_type(group, kind):
+    stem = "".join(part.capitalize() for part in group.split("_"))
+    return f"{stem}Cx" if kind == "cx" else f"{stem}CxRef"
+
+
+def is_owner_type(tname):
+    return tname in OWNER_TYPES or tname.endswith(("Cx", "CxRef"))
+
+
+def cx_kind(f, classes, fields):
+    """The capped-context kind when every non-hub field is the group's own or a chosen sibling's."""
+    g = f["target"]
+    if "Cx" not in classes or g not in CX_SIBLINGS or g in HUB or not CX_SIBLINGS[g]:
+        return None
+    extra = fields - HUB - {g}
+    if not extra <= set(CX_SIBLINGS[g]):
+        return f"class C (exceeds the Cx cap: needs {sorted(extra - set(CX_SIBLINGS[g]))})"
+    kind = "cx-ref" if f["recv"] == "&self" else "cx"
+    return preconditions(f, "Cx", kind, classes) or ("Cx", kind, cx_type(g, kind))
+
+
 def kind_of(f, classes):
     """(class, kind, target type) or a blocked reason string."""
     g = f["target"]
@@ -112,8 +139,8 @@ def kind_of(f, classes):
     if g in FIXTURE_TYPE:
         if set(f["fx"]) - {g}:
             return f"class C (other fixture groups {sorted(set(f['fx']) - {g})})"
-        if not fields <= HUB:
-            return f"class C (non-hub fields {sorted(fields - HUB)})"
+        if not fields <= HUB:                                # a fixture domain reaching sibling states
+            return cx_kind(f, classes, fields) or f"class C (non-hub fields {sorted(fields - HUB)})"
         if f["cfg_test"] and fields <= {"fixtures"} and f["file"].startswith("session/"):
             cls, kind = "P", "state"                          # cfg(test) fn on its fixture group
         else:                                                # production fns reach fixtures via the hub view
@@ -130,7 +157,7 @@ def kind_of(f, classes):
         kind = ("hubref" if f["recv"] == "&self" else "hubmut") if g == "core" else \
             "state-hub" if f["recv"] == "&self" else "state-hubmut"
     else:
-        return f"class C (non-hub fields {sorted(fields - HUB - {g})})"
+        return cx_kind(f, classes, fields) or f"class C (non-hub fields {sorted(fields - HUB - {g})})"
     return preconditions(f, cls, kind, classes) or (cls, kind, {"hubref": "HubRef", "hubmut": "HubMut"}
                                                      .get(kind, STATE_TYPE[g]))
 
@@ -153,11 +180,11 @@ def preconditions(f, cls, kind, classes):
 
 def hub_check(f, kind):
     """Precondition failures specific to the hub kinds (also applied when a P fn is upgraded)."""
-    if kind in ("hubref", "hubmut", *SH) and f["ret_borrow"]:      # elision would tie it to the wrong borrow
+    if kind in ("hubref", "hubmut", *SH, *CX) and f["ret_borrow"]:      # elision would tie it to the wrong borrow
         return "returns a borrow (would borrow a temporary hub view)"
-    if kind in ("hubref", "hubmut", *SH) and f.get("writes_store"):
+    if kind in ("hubref", "hubmut", *SH, *CX) and f.get("writes_store"):
         return "writes catalogs/config (shared in every hub view)"
-    if kind in ("hubref", "hubmut", *SH) and "config" in f["acc"] and not f["file"].startswith("session/"):
+    if kind in ("hubref", "hubmut", *SH, *CX) and "config" in f["acc"] and not f["file"].startswith("session/"):
         return "reads config outside crate::session"
     return None
 
@@ -166,6 +193,8 @@ def upgrade(f, kind, classes):
     """P -> C-hub when a callee needs the hub view (core: HubRef/HubMut, other groups: state-hub)."""
     if f.get("store_rehomed"):                               # it needs the hub after all: back home
         f["target"], f["store_rehomed"] = f["store_from"], False
+    if kind in (*SH, "hubref", "hubmut") and "Cx" in classes and f["target"] in CX_SIBLINGS:  # needs a sibling
+        return cx_kind(f, classes, set(f["acc"])) if isinstance(cx_kind(f, classes, set(f["acc"])), tuple) else None
     if kind != "state" or "C-hub" not in classes or f["target"] in ("catalogs", "config"):
         return None
     if f["target"] not in STATE_TYPE and f["target"] not in FIXTURE_TYPE:
@@ -178,11 +207,17 @@ def upgrade(f, kind, classes):
 
 
 def owner_kind(tname):
+    if tname and tname.endswith("CxRef"):
+        return "cx-ref"
+    if tname and tname.endswith("Cx"):
+        return "cx"
     return {"HubRef": "hubref", "HubMut": "hubmut"}.get(tname, "state")
 
 
 def call_prefix(caller, ctype, callee_type, callee_kind, callee_recv="&self"):
     """Receiver text replacing `self.` for a call from a moved fn, or None if impossible."""
+    if caller in CX:
+        return cx_call_prefix(caller, ctype, callee_type, callee_kind, callee_recv)
     fg = FIXTURE_OF.get(callee_type)
     if fg and callee_type != ctype:                          # a cfg(test) fixture-group fn
         if caller in ("hubmut", "state-hubmut") or (caller in ("hubref", "state-hub") and callee_recv == "&self"):
@@ -214,3 +249,73 @@ def call_prefix(caller, ctype, callee_type, callee_kind, callee_recv="&self"):
     if callee_type == "HubMut":
         return "self." if caller == "hubmut" else None
     return None
+
+
+def cx_call_prefix(caller, ctype, callee_type, callee_kind, callee_recv):
+    """Receivers inside `impl <G>Cx<'_>`: own/sibling states by field, the hub through `self.hub`."""
+    mut = caller == "cx"
+    if callee_kind in CX:                                    # another fn of the same Cx family
+        if callee_type == ctype:
+            return "self."
+        if callee_type.startswith(ctype.removesuffix("Ref")) and mut and callee_kind == "cx-ref":
+            return "self.shared()."
+        return None
+    fg = FIXTURE_OF.get(callee_type)
+    if fg:
+        return f"self.hub.fixtures.{fg}." if mut or callee_recv == "&self" else None
+    group = {v: k for k, v in STATE_TYPE.items()}.get(callee_type)
+    if group in HUB:
+        return f"self.hub.{group}."
+    if callee_type == "HubRef":
+        return "self.hub.shared()." if mut else "self.hub."
+    if callee_type == "HubMut":
+        return "self.hub." if mut else None
+    family = ctype.removesuffix("CxRef").removesuffix("Cx")
+    if group is None or group in FIXTURE_TYPE or (group != family_group(family)
+                                                  and group not in CX_SIBLINGS.get(family_group(family), ())):
+        return None
+    if callee_kind == "state":
+        return f"self.{group}." if mut or callee_recv == "&self" else None
+    if callee_kind == "state-hub":
+        return f"self.{group}.", "self.hub.shared()" if mut else "self.hub"
+    return (f"self.{group}.", "&mut self.hub") if mut else None
+
+
+def family_group(stem):
+    """`LootCx`/`WorldEntitiesCx` stem -> group name."""
+    return "".join("_" + ch.lower() if ch.isupper() else ch for ch in stem).lstrip("_")
+
+
+def choose_cx_siblings(code, live, loc, groups_wanted, classes, override):
+    """Per group: an existing Cx keeps its siblings; else the <=CX_CAP most-needed sibling states."""
+    CX_SIBLINGS.clear()
+    if "Cx" not in classes:
+        return
+    hub_text = code.get("session/state/hub.rs", "")
+    by_type = {v: k for k, v in STATE_TYPE.items()}
+    for g in sorted(groups_wanted):
+        if (g not in STATE_TYPE and g not in FIXTURE_TYPE) or g in HUB:
+            continue
+        have = []                                        # members an existing Cx already reads
+        for variant in ("cx", "cx-ref"):
+            m = re.search(r"pub\(crate\) struct " + cx_type(g, variant) + r"<'a> \{(.*?)\n\}", hub_text, re.S)
+            if m:
+                have += [x for x in re.findall(r"pub\(crate\) (\w+):", m.group(1)) if x not in (g, "hub")]
+        if have:                                         # union of both variants (members are trimmed)
+            CX_SIBLINGS[g] = tuple(dict.fromkeys(have))[:CX_CAP]
+        elif g in override:
+            CX_SIBLINGS[g] = tuple(override[g])[:CX_CAP]
+        else:
+            need = collections.Counter()
+            for f in live:
+                if f["target"] == g:
+                    need.update(x for x in set(f["acc"]) - HUB - {g} if x in STATE_TYPE)
+                    need.update(by_type[loc[c]] for c in f["calls"] if loc.get(c) in by_type
+                                and by_type[loc[c]] not in HUB | {g})
+            CX_SIBLINGS[g] = tuple(sorted(x for x, _n in need.most_common(CX_CAP)))
+
+
+def type_path(tname, rel):
+    if tname in HUB_TYPES or tname.endswith(("Cx", "CxRef")):
+        return f"crate::session::{tname}"
+    return f"crate::session::state::{tname}" if rel.startswith("session/") else f"crate::session::{tname}"

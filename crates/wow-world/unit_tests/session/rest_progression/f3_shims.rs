@@ -38,4 +38,7 @@ impl crate::session::WorldSession {
     pub(crate) fn represented_is_resting_like_cpp(&self) -> bool {
         crate::session::hub_ref(self).represented_is_resting_like_cpp()
     }
+    pub(crate) fn represented_action_button_db_context_like_cpp(&self) -> Option<(u8, i32)> {
+        crate::session::hub_ref(self).represented_action_button_db_context_like_cpp()
+    }
 }

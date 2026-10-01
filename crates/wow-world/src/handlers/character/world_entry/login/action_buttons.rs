@@ -13,15 +13,29 @@ impl WorldSession {
         player_lifecycle_port: &Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>,
         guid: ObjectGuid,
     ) -> Option<[i64; 180]> {
+        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+        state
+            .load_action_buttons_for_login_like_cpp(&mut hub, player_lifecycle_port, guid)
+            .await
+    }
+}
+
+impl crate::session::SessionLifecycleState {
+    pub(super) async fn load_action_buttons_for_login_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        player_lifecycle_port: &Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>,
+        guid: ObjectGuid,
+    ) -> Option<[i64; 180]> {
         // Column types: button=tinyint unsigned, action=int unsigned, type=tinyint unsigned
         let mut action_buttons = [0i64; 180];
         let mut action_count = 0u32;
-        self.reset_represented_action_buttons_like_cpp();
+        hub.reset_represented_action_buttons_like_cpp();
         // C++ loads the action-button map for GetActiveTalentGroup(), not always spec 0.
         let Some((active_spec, trait_config_id)) =
-            self.represented_action_button_db_context_like_cpp()
+            hub.shared().represented_action_button_db_context_like_cpp()
         else {
-            self.kick(
+            hub.core.kick(
                 "canonical Player specialization owner unavailable while loading action buttons",
             );
             return None;
@@ -42,6 +56,7 @@ impl WorldSession {
                 for row in rows {
                     if (row.button as usize) < 180 && row.action > 0 {
                         self.record_loaded_action_button_like_cpp(
+                            hub,
                             row.button,
                             row.action,
                             row.button_type,
@@ -54,7 +69,7 @@ impl WorldSession {
                         action_count += 1;
                     }
                 }
-                self.mark_represented_action_buttons_loaded_like_cpp();
+                self.mark_represented_action_buttons_loaded_like_cpp(hub);
                 info!("Loaded {} action buttons for {:?}", action_count, guid);
             }
             wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {

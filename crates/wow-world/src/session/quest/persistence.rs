@@ -10,16 +10,12 @@ impl WorldSession {
         &mut self,
         port: Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>,
     ) {
-        self.lifecycle.persistence_ports_like_cpp.catalogs.quest_poi = Some(port);
+        crate::session::cx_quest_state(self).set_quest_poi_persistence_port_like_cpp(port)
     }
     pub(crate) fn quest_poi_persistence_port_like_cpp(
         &self,
     ) -> Option<Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>> {
-        self.lifecycle
-            .persistence_ports_like_cpp
-            .catalogs
-            .quest_poi
-            .clone()
+        crate::session::cx_quest_state_ref(self).quest_poi_persistence_port_like_cpp()
     }
     pub(in crate::session) fn resolved_current_player_xp_persistence_request_like_cpp(
         &self,
@@ -66,5 +62,26 @@ impl WorldSession {
                 ),
             }),
         }
+    }
+}
+
+impl crate::session::QuestStateCxRef<'_> {
+    pub(crate) fn quest_poi_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>> {
+        self.lifecycle
+            .persistence_ports_like_cpp
+            .catalogs
+            .quest_poi
+            .clone()
+    }
+}
+
+impl crate::session::QuestStateCx<'_> {
+    pub fn set_quest_poi_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>,
+    ) {
+        self.lifecycle.persistence_ports_like_cpp.catalogs.quest_poi = Some(port);
     }
 }

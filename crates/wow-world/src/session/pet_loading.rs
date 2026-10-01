@@ -180,7 +180,53 @@ impl WorldSession {
         pet_number: u32,
         rows: impl IntoIterator<Item = CharacterPetSpellRowLikeCpp>,
     ) -> usize {
-        self.invalidate_represented_character_pet_empty_authority_like_cpp();
+        crate::session::cx_pets(self).load_represented_pet_spell_rows_like_cpp(pet_number, rows)
+    }
+
+    pub(crate) fn load_represented_pet_spell_cooldown_rows_like_cpp(
+        &mut self,
+        pet_number: u32,
+        rows: impl IntoIterator<Item = CharacterPetSpellCooldownRowLikeCpp>,
+    ) -> usize {
+        crate::session::cx_pets(self)
+            .load_represented_pet_spell_cooldown_rows_like_cpp(pet_number, rows)
+    }
+
+    pub(crate) fn load_represented_pet_spell_charge_rows_like_cpp(
+        &mut self,
+        pet_number: u32,
+        rows: impl IntoIterator<Item = CharacterPetSpellChargeRowLikeCpp>,
+    ) -> usize {
+        crate::session::cx_pets(self)
+            .load_represented_pet_spell_charge_rows_like_cpp(pet_number, rows)
+    }
+
+    pub(crate) fn load_represented_pet_aura_rows_like_cpp(
+        &mut self,
+        pet_number: u32,
+        rows: impl IntoIterator<Item = CharacterPetAuraRowLikeCpp>,
+    ) -> usize {
+        crate::session::cx_pets(self).load_represented_pet_aura_rows_like_cpp(pet_number, rows)
+    }
+
+    pub(crate) fn load_represented_pet_aura_effect_rows_like_cpp(
+        &mut self,
+        pet_number: u32,
+        rows: impl IntoIterator<Item = CharacterPetAuraEffectRowLikeCpp>,
+    ) -> usize {
+        crate::session::cx_pets(self)
+            .load_represented_pet_aura_effect_rows_like_cpp(pet_number, rows)
+    }
+}
+
+impl crate::session::PetsCx<'_> {
+    pub(crate) fn load_represented_pet_spell_rows_like_cpp(
+        &mut self,
+        pet_number: u32,
+        rows: impl IntoIterator<Item = CharacterPetSpellRowLikeCpp>,
+    ) -> usize {
+        self.hub
+            .invalidate_represented_character_pet_empty_authority_like_cpp();
         let spells: Vec<_> = rows.into_iter().filter(|row| row.spell_id != 0).collect();
         let loaded = spells.len();
         if loaded == 0 {
@@ -202,8 +248,9 @@ impl WorldSession {
         pet_number: u32,
         rows: impl IntoIterator<Item = CharacterPetSpellCooldownRowLikeCpp>,
     ) -> usize {
-        self.invalidate_represented_character_pet_empty_authority_like_cpp();
-        let spell_store = self.spell_store().cloned();
+        self.hub
+            .invalidate_represented_character_pet_empty_authority_like_cpp();
+        let spell_store = self.hub.catalogs.spell_store().cloned();
         let cooldowns: Vec<_> = rows
             .into_iter()
             .filter(|row| {
@@ -233,8 +280,14 @@ impl WorldSession {
         pet_number: u32,
         rows: impl IntoIterator<Item = CharacterPetSpellChargeRowLikeCpp>,
     ) -> usize {
-        self.invalidate_represented_character_pet_empty_authority_like_cpp();
-        let spell_category_store = self.catalogs.spell_catalogs.spell_category_store().cloned();
+        self.hub
+            .invalidate_represented_character_pet_empty_authority_like_cpp();
+        let spell_category_store = self
+            .hub
+            .catalogs
+            .spell_catalogs
+            .spell_category_store()
+            .cloned();
         let charges: Vec<_> = rows
             .into_iter()
             .filter(|row| {
@@ -273,15 +326,17 @@ impl WorldSession {
         rows: impl IntoIterator<Item = CharacterPetAuraRowLikeCpp>,
         timediff_secs: u32,
     ) -> usize {
-        self.invalidate_represented_character_pet_empty_authority_like_cpp();
-        let spell_store = self.spell_store().cloned();
-        let difficulty_store = self.difficulty_store().cloned();
+        self.hub
+            .invalidate_represented_character_pet_empty_authority_like_cpp();
+        let spell_store = self.hub.catalogs.spell_store().cloned();
+        let difficulty_store = self.hub.catalogs.difficulty_store().cloned();
         let aura_options_store = self
+            .hub
             .catalogs
             .spell_catalogs
             .spell_aura_options_store
             .clone();
-        let spell_misc_store = self.catalogs.spell_catalogs.spell_misc_store().cloned();
+        let spell_misc_store = self.hub.catalogs.spell_catalogs.spell_misc_store().cloned();
         let auras: Vec<_> = rows
             .into_iter()
             .filter(|row| {
@@ -347,7 +402,8 @@ impl WorldSession {
         pet_number: u32,
         rows: impl IntoIterator<Item = CharacterPetAuraEffectRowLikeCpp>,
     ) -> usize {
-        self.invalidate_represented_character_pet_empty_authority_like_cpp();
+        self.hub
+            .invalidate_represented_character_pet_empty_authority_like_cpp();
         let effects: Vec<_> = rows
             .into_iter()
             .filter(|row| {
@@ -392,3 +448,7 @@ impl crate::session::HubRef<'_> {
             && pet_lifecycle.stable.unslotted_pets.is_empty()
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/pet_loading/f3_shims.rs"]
+mod f3_shims;

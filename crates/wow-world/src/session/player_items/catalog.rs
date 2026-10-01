@@ -28,13 +28,6 @@ impl WorldSession {
     pub fn item_search_name_store(&self) -> Option<&Arc<ItemSearchNameStore>> {
         self.catalogs.items.search_name_store.as_ref()
     }
-    pub(in crate::session) fn represented_player_has_default_item_entry_like_cpp(
-        &self,
-        item_id: u32,
-    ) -> bool {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_player_has_default_item_entry_like_cpp(hub, item_id)
-    }
     pub fn set_pvp_item_store(&mut self, store: Arc<PvpItemStore>) {
         self.catalogs.pvp_item_store = Some(store);
     }

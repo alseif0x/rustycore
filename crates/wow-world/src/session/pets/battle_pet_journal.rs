@@ -6,178 +6,30 @@
 use super::*;
 
 impl WorldSession {
-    /// Acquire this session's journal lease through the #160 attachment
-    /// (issue #161 admission/recovery).
     pub(crate) async fn battle_pet_try_acquire_journal_lease_like_cpp(&self) -> bool {
-        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
-            return false;
-        };
-        attachment.try_acquire_lease_like_cpp().await
+        crate::session::cx_pets_ref(self)
+            .battle_pet_try_acquire_journal_lease_like_cpp()
+            .await
     }
-    /// One cloned DB2 species row for admission-time materialization (#161).
     pub(crate) fn battle_pet_species_entry_like_cpp(
         &self,
         species: u32,
     ) -> Option<wow_data::BattlePetSpeciesEntry> {
-        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
-            return attachment.owner_like_cpp().species_entry_like_cpp(species);
-        }
-        #[cfg(test)]
-        return self
-            .fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .battle_pet_species_store
-            .as_ref()
-            .and_then(|store| store.get(species))
-            .cloned();
-        #[cfg(not(test))]
-        None
+        crate::session::cx_pets_ref(self).battle_pet_species_entry_like_cpp(species)
     }
     pub(in crate::session) fn battle_pet_xp_per_level_like_cpp(&self, level: u16) -> Option<u16> {
-        let canonical = self
-            .lifecycle
-            .battle_pet_account_attachment_like_cpp
-            .as_ref()
-            .and_then(|attachment| attachment.owner_like_cpp().xp_per_level_like_cpp(level));
-        #[cfg(test)]
-        return canonical.or_else(|| {
-            self.fixtures
-                .pets
-                .battle_pet_test_fixture_like_cpp
-                .battle_pet_xp_game_table
-                .as_ref()
-                .and_then(|table| table.xp_per_level_like_cpp(level))
-                .or_else(|| {
-                    self.fixtures
-                        .pets
-                        .battle_pet_test_fixture_like_cpp
-                        .represented_battle_pet_xp_per_level_like_cpp
-                        .get(&level)
-                        .copied()
-                })
-        });
-        #[cfg(not(test))]
-        canonical
+        crate::session::cx_pets_ref(self).battle_pet_xp_per_level_like_cpp(level)
     }
-    /// C++ `BattlePetMgr::HasJournalLock`.
     pub(crate) fn has_represented_battle_pet_journal_lock_like_cpp(&self) -> bool {
-        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
-            return attachment.has_lease_like_cpp();
-        }
-        #[cfg(test)]
-        return self
-            .fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .represented_battle_pet_journal_lock_like_cpp;
-        #[cfg(not(test))]
-        false
+        crate::session::cx_pets_ref(self).has_represented_battle_pet_journal_lock_like_cpp()
     }
-    /// C++ `BattlePetMgr::SendJournalLockStatus`, represented as the successful
-    /// local acquisition path until the global world journal-lock owner exists.
     pub(crate) async fn send_battle_pet_journal_lock_status_like_cpp(&mut self) {
-        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
-            let acquired = attachment.try_acquire_lease_like_cpp().await;
-            if acquired {
-                self.send_packet_realm(&wow_packet::packets::misc::BattlePetJournalLockAcquired);
-            } else {
-                self.send_packet_realm(&wow_packet::packets::misc::BattlePetJournalLockDenied);
-            }
-            return;
-        }
-        #[cfg(test)]
-        {
-            self.fixtures
-                .pets
-                .battle_pet_test_fixture_like_cpp
-                .represented_battle_pet_journal_lock_like_cpp = true;
-            self.send_packet_realm(&wow_packet::packets::misc::BattlePetJournalLockAcquired);
-        }
-        #[cfg(not(test))]
-        self.send_packet_realm(&wow_packet::packets::misc::BattlePetJournalLockDenied);
-    }
-    /// C++ `BattlePetMgr::ModifyName`, represented without live summoned-creature
-    /// timestamp propagation until the companion creature runtime exists.
-    #[cfg(test)]
-    pub(crate) fn battle_pet_modify_name_like_cpp(
-        &mut self,
-        pet_guid: ObjectGuid,
-        name: String,
-        declined_names: Option<wow_packet::packets::misc::DeclinedNamesLikeCpp>,
-        timestamp: i64,
-    ) -> bool {
-        if !self.has_represented_battle_pet_journal_lock_like_cpp() {
-            return false;
-        }
-
-        let Some(pet) = self
-            .fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .represented_battle_pets_like_cpp
-            .get_mut(&pet_guid)
-        else {
-            return false;
-        };
-
-        pet.name = name;
-        pet.name_timestamp = timestamp;
-        pet.declined_names = declined_names;
-        if pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::New {
-            pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Changed;
-        }
-        true
-    }
-    pub(crate) async fn battle_pet_modify_name_durable_like_cpp(
-        &mut self,
-        pet_guid: ObjectGuid,
-        name: String,
-        declined_names: Option<wow_packet::packets::misc::DeclinedNamesLikeCpp>,
-        timestamp: i64,
-    ) -> bool {
-        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
-            #[cfg(test)]
-            return self.battle_pet_modify_name_like_cpp(pet_guid, name, declined_names, timestamp);
-            #[cfg(not(test))]
-            return false;
-        };
-        let owner = Arc::clone(attachment.owner_like_cpp());
-        let lease = attachment.lease_id_like_cpp();
-        match owner
-            .try_mutate_pet_like_cpp(lease, pet_guid, move |pet| {
-                pet.name = name;
-                pet.name_timestamp = timestamp;
-                pet.declined_names = declined_names;
-            })
+        crate::session::cx_pets(self)
+            .send_battle_pet_journal_lock_status_like_cpp()
             .await
-        {
-            Ok(_) => true,
-            Err(error) => {
-                self.log_battle_pet_mutation_failure_like_cpp("modify name", pet_guid, &error);
-                false
-            }
-        }
     }
-    /// C++ `BattlePetMgr::GetMaxPetLevel`.
     pub(crate) fn battle_pet_max_pet_level_like_cpp(&self) -> Option<u16> {
-        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
-            return Some(attachment.owner_like_cpp().max_pet_level_like_cpp());
-        }
-        #[cfg(test)]
-        return Some(
-            self.fixtures
-                .pets
-                .battle_pet_test_fixture_like_cpp
-                .represented_battle_pets_like_cpp
-                .values()
-                .filter(|pet| pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::Removed)
-                .map(|pet| pet.level)
-                .max()
-                .unwrap_or(0),
-        );
-        #[cfg(not(test))]
-        None
+        crate::session::cx_pets_ref(self).battle_pet_max_pet_level_like_cpp()
     }
     /// C++ `BattlePetMgr::ChangeBattlePetQuality`. `BattlePet::CalculateStats`
     /// may return early when breed-state DB2 rows are missing; that does not
@@ -459,6 +311,219 @@ impl WorldSession {
             }
         }
     }
+    pub(crate) fn represented_battle_pet_journal_like_cpp(
+        &self,
+    ) -> Option<wow_packet::packets::misc::BattlePetJournal> {
+        crate::session::cx_pets_ref(self).represented_battle_pet_journal_like_cpp()
+    }
+}
+
+impl crate::session::PetsCx<'_> {
+    /// C++ `BattlePetMgr::SendJournalLockStatus`, represented as the successful
+    /// local acquisition path until the global world journal-lock owner exists.
+    pub(crate) async fn send_battle_pet_journal_lock_status_like_cpp(&mut self) {
+        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
+            let acquired = attachment.try_acquire_lease_like_cpp().await;
+            if acquired {
+                self.hub
+                    .core
+                    .send_packet_realm(&wow_packet::packets::misc::BattlePetJournalLockAcquired);
+            } else {
+                self.hub
+                    .core
+                    .send_packet_realm(&wow_packet::packets::misc::BattlePetJournalLockDenied);
+            }
+            return;
+        }
+        #[cfg(test)]
+        {
+            self.hub
+                .fixtures
+                .pets
+                .battle_pet_test_fixture_like_cpp
+                .represented_battle_pet_journal_lock_like_cpp = true;
+            self.hub
+                .core
+                .send_packet_realm(&wow_packet::packets::misc::BattlePetJournalLockAcquired);
+        }
+        #[cfg(not(test))]
+        self.hub
+            .core
+            .send_packet_realm(&wow_packet::packets::misc::BattlePetJournalLockDenied);
+    }
+
+    /// C++ `BattlePetMgr::ModifyName`, represented without live summoned-creature
+    /// timestamp propagation until the companion creature runtime exists.
+    #[cfg(test)]
+    pub(crate) fn battle_pet_modify_name_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        name: String,
+        declined_names: Option<wow_packet::packets::misc::DeclinedNamesLikeCpp>,
+        timestamp: i64,
+    ) -> bool {
+        if !self
+            .shared()
+            .has_represented_battle_pet_journal_lock_like_cpp()
+        {
+            return false;
+        }
+
+        let Some(pet) = self
+            .hub
+            .fixtures
+            .pets
+            .battle_pet_test_fixture_like_cpp
+            .represented_battle_pets_like_cpp
+            .get_mut(&pet_guid)
+        else {
+            return false;
+        };
+
+        pet.name = name;
+        pet.name_timestamp = timestamp;
+        pet.declined_names = declined_names;
+        if pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::New {
+            pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Changed;
+        }
+        true
+    }
+
+    pub(crate) async fn battle_pet_modify_name_durable_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        name: String,
+        declined_names: Option<wow_packet::packets::misc::DeclinedNamesLikeCpp>,
+        timestamp: i64,
+    ) -> bool {
+        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
+            #[cfg(test)]
+            return self.battle_pet_modify_name_like_cpp(pet_guid, name, declined_names, timestamp);
+            #[cfg(not(test))]
+            return false;
+        };
+        let owner = Arc::clone(attachment.owner_like_cpp());
+        let lease = attachment.lease_id_like_cpp();
+        match owner
+            .try_mutate_pet_like_cpp(lease, pet_guid, move |pet| {
+                pet.name = name;
+                pet.name_timestamp = timestamp;
+                pet.declined_names = declined_names;
+            })
+            .await
+        {
+            Ok(_) => true,
+            Err(error) => {
+                self.hub.shared().log_battle_pet_mutation_failure_like_cpp(
+                    "modify name",
+                    pet_guid,
+                    &error,
+                );
+                false
+            }
+        }
+    }
+}
+
+impl crate::session::PetsCxRef<'_> {
+    /// Acquire this session's journal lease through the #160 attachment
+    /// (issue #161 admission/recovery).
+    pub(crate) async fn battle_pet_try_acquire_journal_lease_like_cpp(&self) -> bool {
+        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
+            return false;
+        };
+        attachment.try_acquire_lease_like_cpp().await
+    }
+
+    /// One cloned DB2 species row for admission-time materialization (#161).
+    pub(crate) fn battle_pet_species_entry_like_cpp(
+        &self,
+        species: u32,
+    ) -> Option<wow_data::BattlePetSpeciesEntry> {
+        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
+            return attachment.owner_like_cpp().species_entry_like_cpp(species);
+        }
+        #[cfg(test)]
+        return self
+            .hub
+            .fixtures
+            .pets
+            .battle_pet_test_fixture_like_cpp
+            .battle_pet_species_store
+            .as_ref()
+            .and_then(|store| store.get(species))
+            .cloned();
+        #[cfg(not(test))]
+        None
+    }
+
+    pub(in crate::session) fn battle_pet_xp_per_level_like_cpp(&self, level: u16) -> Option<u16> {
+        let canonical = self
+            .lifecycle
+            .battle_pet_account_attachment_like_cpp
+            .as_ref()
+            .and_then(|attachment| attachment.owner_like_cpp().xp_per_level_like_cpp(level));
+        #[cfg(test)]
+        return canonical.or_else(|| {
+            self.hub
+                .fixtures
+                .pets
+                .battle_pet_test_fixture_like_cpp
+                .battle_pet_xp_game_table
+                .as_ref()
+                .and_then(|table| table.xp_per_level_like_cpp(level))
+                .or_else(|| {
+                    self.hub
+                        .fixtures
+                        .pets
+                        .battle_pet_test_fixture_like_cpp
+                        .represented_battle_pet_xp_per_level_like_cpp
+                        .get(&level)
+                        .copied()
+                })
+        });
+        #[cfg(not(test))]
+        canonical
+    }
+
+    /// C++ `BattlePetMgr::HasJournalLock`.
+    pub(crate) fn has_represented_battle_pet_journal_lock_like_cpp(&self) -> bool {
+        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
+            return attachment.has_lease_like_cpp();
+        }
+        #[cfg(test)]
+        return self
+            .hub
+            .fixtures
+            .pets
+            .battle_pet_test_fixture_like_cpp
+            .represented_battle_pet_journal_lock_like_cpp;
+        #[cfg(not(test))]
+        false
+    }
+
+    /// C++ `BattlePetMgr::GetMaxPetLevel`.
+    pub(crate) fn battle_pet_max_pet_level_like_cpp(&self) -> Option<u16> {
+        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
+            return Some(attachment.owner_like_cpp().max_pet_level_like_cpp());
+        }
+        #[cfg(test)]
+        return Some(
+            self.hub
+                .fixtures
+                .pets
+                .battle_pet_test_fixture_like_cpp
+                .represented_battle_pets_like_cpp
+                .values()
+                .filter(|pet| pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::Removed)
+                .map(|pet| pet.level)
+                .max()
+                .unwrap_or(0),
+        );
+        #[cfg(not(test))]
+        None
+    }
+
     /// C++ `BattlePetMgr::SendJournal` packet body builder.
     pub(crate) fn represented_battle_pet_journal_like_cpp(
         &self,
@@ -467,14 +532,14 @@ impl WorldSession {
             return Some(
                 attachment
                     .owner_like_cpp()
-                    .journal_like_cpp(attachment.lease_id_like_cpp(), self.player_guid()),
+                    .journal_like_cpp(attachment.lease_id_like_cpp(), self.hub.core.player_guid()),
             );
         }
         #[cfg(not(test))]
         return None;
         #[cfg(test)]
         {
-            let player_guid = self.player_guid();
+            let player_guid = self.hub.core.player_guid();
             let mut journal = wow_packet::packets::misc::BattlePetJournal {
                 trap: 0,
                 has_journal_lock: self.has_represented_battle_pet_journal_lock_like_cpp(),
@@ -483,6 +548,7 @@ impl WorldSession {
             };
 
             for (pet_guid, pet) in &self
+                .hub
                 .fixtures
                 .pets
                 .battle_pet_test_fixture_like_cpp
@@ -503,6 +569,7 @@ impl WorldSession {
             }
 
             for slot in &self
+                .hub
                 .fixtures
                 .pets
                 .battle_pet_test_fixture_like_cpp
@@ -512,6 +579,7 @@ impl WorldSession {
                 if packet_slot.pet_guid
                     != wow_packet::packets::misc::empty_battle_pet_guid_like_cpp()
                     && !self
+                        .hub
                         .fixtures
                         .pets
                         .battle_pet_test_fixture_like_cpp

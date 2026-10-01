@@ -100,4 +100,16 @@ impl crate::session::WorldSession {
             .pets
             .set_represented_battle_pet_query_companion_like_cpp(unit_guid, companion)
     }
+    #[cfg(test)]
+    pub(crate) fn battle_pet_remove_pet_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
+        crate::session::cx_pets(self).battle_pet_remove_pet_like_cpp(pet_guid)
+    }
+    #[cfg(test)]
+    pub(crate) fn battle_pet_count_like_cpp(
+        &self,
+        species: u32,
+        owner_guid: Option<ObjectGuid>,
+    ) -> u8 {
+        crate::session::cx_pets_ref(self).battle_pet_count_like_cpp(species, owner_guid)
+    }
 }

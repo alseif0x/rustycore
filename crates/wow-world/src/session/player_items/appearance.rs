@@ -439,12 +439,6 @@ impl WorldSession {
             favorite_appearances,
         )
     }
-    pub(crate) fn account_item_appearance_save_plan_like_cpp(
-        &mut self,
-    ) -> Option<AccountItemAppearanceSavePlanLikeCpp> {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.account_item_appearance_save_plan_like_cpp(&mut hub)
-    }
     pub fn set_appearance_is_favorite_like_cpp(
         &mut self,
         item_modified_appearance_id: u32,
@@ -463,12 +457,6 @@ impl WorldSession {
     ) {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.load_represented_account_transmog_illusions_like_cpp(&mut hub, known_illusion_blocks)
-    }
-    pub(crate) fn account_transmog_illusion_save_plan_like_cpp(
-        &self,
-    ) -> Option<AccountTransmogIllusionSavePlanLikeCpp> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.account_transmog_illusion_save_plan_like_cpp(hub)
     }
     pub fn add_temporary_item_appearance_like_cpp(
         &mut self,

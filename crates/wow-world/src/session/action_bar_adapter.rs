@@ -106,10 +106,6 @@ impl WorldSession {
         crate::session::hub_mut(self).represented_set_action_button_like_cpp(index, packed_action)
     }
 
-    pub(crate) fn reset_represented_action_buttons_like_cpp(&mut self) {
-        crate::session::hub_mut(self).reset_represented_action_buttons_like_cpp()
-    }
-
     pub(crate) fn represented_action_buttons_snapshot_like_cpp(
         &self,
     ) -> Option<[u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS]> {

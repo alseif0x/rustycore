@@ -11,9 +11,21 @@ impl WorldSession {
         pet_guid: ObjectGuid,
         slot: u8,
     ) -> bool {
+        crate::session::cx_pets(self)
+            .battle_pet_set_battle_slot_durable_like_cpp(pet_guid, slot)
+            .await
+    }
+}
+
+impl crate::session::PetsCx<'_> {
+    pub(crate) async fn battle_pet_set_battle_slot_durable_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        slot: u8,
+    ) -> bool {
         let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
             #[cfg(test)]
-            return self.battle_pet_set_battle_slot_like_cpp(pet_guid, slot);
+            return self.hub.battle_pet_set_battle_slot_like_cpp(pet_guid, slot);
             #[cfg(not(test))]
             return false;
         };
@@ -21,11 +33,17 @@ impl WorldSession {
         let lease = attachment.lease_id_like_cpp();
         match owner.try_set_slot_like_cpp(lease, pet_guid, slot).await {
             Ok(_) => {
-                self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+                self.hub
+                    .core
+                    .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
                 true
             }
             Err(error) => {
-                self.log_battle_pet_mutation_failure_like_cpp("set battle slot", pet_guid, &error);
+                self.hub.shared().log_battle_pet_mutation_failure_like_cpp(
+                    "set battle slot",
+                    pet_guid,
+                    &error,
+                );
                 false
             }
         }

@@ -28,55 +28,75 @@ impl WorldSession {
     pub(in crate::session) fn unsummon_represented_pet_temporary_if_any_like_cpp(&mut self) {
         crate::session::hub_mut(self).unsummon_represented_pet_temporary_if_any_like_cpp()
     }
-    fn represented_pet_stable_info_by_number_like_cpp(
-        &self,
-        pet_number: u32,
-    ) -> Option<PetStableInfo> {
-        crate::session::hub_ref(self).represented_pet_stable_info_by_number_like_cpp(pet_number)
+    pub(crate) fn resummon_pet_temporary_unsummoned_like_cpp(&mut self) {
+        crate::session::cx_pets(self).resummon_pet_temporary_unsummoned_like_cpp()
     }
-    fn is_pet_need_be_temporary_unsummoned_like_cpp(&self) -> bool {
-        crate::session::hub_ref(self).is_pet_need_be_temporary_unsummoned_like_cpp()
-    }
+}
+
+impl crate::session::PetsCx<'_> {
     pub(crate) fn resummon_pet_temporary_unsummoned_like_cpp(&mut self) {
         #[cfg(test)]
         {
-            self.fixtures.pets.temporary_pet_resummon_requests_like_cpp = self
+            self.hub
+                .fixtures
+                .pets
+                .temporary_pet_resummon_requests_like_cpp = self
+                .hub
                 .fixtures
                 .pets
                 .temporary_pet_resummon_requests_like_cpp
                 .saturating_add(1);
         }
 
-        let Some(pet_lifecycle) = self.player_pet_lifecycle_state_snapshot_like_cpp() else {
+        let Some(pet_lifecycle) = self
+            .hub
+            .shared()
+            .player_pet_lifecycle_state_snapshot_like_cpp()
+        else {
             return;
         };
         let pet_number = pet_lifecycle.temporary_unsummoned_pet_number;
         if pet_number == 0
-            || self.is_pet_need_be_temporary_unsummoned_like_cpp()
-            || self.player_pet_guid_state_like_cpp().flatten().is_some()
+            || self
+                .hub
+                .shared()
+                .is_pet_need_be_temporary_unsummoned_like_cpp()
+            || self
+                .hub
+                .shared()
+                .player_pet_guid_state_like_cpp()
+                .flatten()
+                .is_some()
         {
             return;
         }
 
-        self.invalidate_represented_character_pet_empty_authority_like_cpp();
+        self.hub
+            .invalidate_represented_character_pet_empty_authority_like_cpp();
 
         let load_info = Pet::get_load_pet_info(&pet_lifecycle.stable, 0, pet_number, None);
         let stable_info = load_info
             .filter(|info| info.pet_number == pet_number)
-            .and_then(|_| self.represented_pet_stable_info_by_number_like_cpp(pet_number));
+            .and_then(|_| {
+                self.hub
+                    .shared()
+                    .represented_pet_stable_info_by_number_like_cpp(pet_number)
+            });
         let inserted_guid = stable_info.and_then(|info| {
-            let owner_guid = self.player_guid()?;
-            let map_id = u32::from(self.player_map_id_like_cpp());
+            let owner_guid = self.hub.core.player_guid()?;
+            let map_id = u32::from(self.hub.core.player_map_id_like_cpp());
             let instance_id = self
+                .hub
+                .core
                 .current_canonical_player_map_key_like_cpp()
                 .map(|key| key.instance_id)?;
-            let position = self.player_position_like_cpp()?;
+            let position = self.hub.shared().player_position_like_cpp()?;
             let creature_id = info.creature_id;
             let pet_guid = ObjectGuid::create_world_object(
                 HighGuid::Pet,
                 0,
                 1,
-                self.player_map_id_like_cpp(),
+                self.hub.core.player_map_id_like_cpp(),
                 instance_id,
                 creature_id,
                 i64::from(pet_number),
@@ -116,6 +136,8 @@ impl WorldSession {
             }
             pet.set_pet_experience(info.experience);
             if let Some(next_level_experience) = self
+                .hub
+                .shared()
                 .resolved_player_xp_for_level_like_cpp(info.level)
                 .map(Pet::pet_next_level_xp_for_owner_level)
             {
@@ -149,7 +171,9 @@ impl WorldSession {
             charm_info.pet_number = pet_number;
             charm_info.command_state = wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP;
             charm_info.load_pet_action_bar_like_cpp(&info.action_bar);
-            self.validate_represented_pet_action_bar_like_cpp(charm_info);
+            self.hub
+                .catalogs
+                .validate_represented_pet_action_bar_like_cpp(charm_info);
             if let Some(spells) = self
                 .lifecycle
                 .pet_load_query_holder_rows_like_cpp
@@ -299,7 +323,12 @@ impl WorldSession {
                 }));
             }
 
-            let manager = self.core.canonical_map_manager.as_ref().map(Arc::clone)?;
+            let manager = self
+                .hub
+                .core
+                .canonical_map_manager
+                .as_ref()
+                .map(Arc::clone)?;
             let mut manager = manager.lock().ok()?;
             if manager.find_map_mut(map_id, instance_id).is_none() {
                 manager.create_world_map(map_id, instance_id);
@@ -312,21 +341,32 @@ impl WorldSession {
             Some(pet_guid)
         });
 
-        if !self.update_player_pet_lifecycle_state_like_cpp(|state| {
-            state.temporary_unsummoned_pet_number = 0;
-        }) {
+        if !self
+            .hub
+            .update_player_pet_lifecycle_state_like_cpp(|state| {
+                state.temporary_unsummoned_pet_number = 0;
+            })
+        {
             return;
         }
         if let Some(pet_guid) = inserted_guid {
-            let _ = self.set_player_pet_guid_like_cpp(Some(pet_guid));
+            let _ = self.hub.set_player_pet_guid_like_cpp(Some(pet_guid));
             #[cfg(test)]
-            if let Some(info) = self.represented_pet_stable_info_by_number_like_cpp(pet_number) {
-                self.fixtures.pets.represented_pet_created_by_spell_like_cpp =
-                    info.created_by_spell_id;
-                self.fixtures.pets.represented_pet_react_state_like_cpp = info.react_state as u8;
+            if let Some(info) = self
+                .hub
+                .shared()
+                .represented_pet_stable_info_by_number_like_cpp(pet_number)
+            {
+                self.hub
+                    .fixtures
+                    .pets
+                    .represented_pet_created_by_spell_like_cpp = info.created_by_spell_id;
+                self.hub.fixtures.pets.represented_pet_react_state_like_cpp =
+                    info.react_state as u8;
             }
         }
     }
+
     #[cfg(test)]
     pub(crate) fn resummon_pet_temporary_unsummoned_if_any_like_cpp(&mut self) {
         self.resummon_pet_temporary_unsummoned_like_cpp();

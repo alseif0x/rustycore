@@ -296,6 +296,12 @@ class CouplingTests(unittest.TestCase):
             impl<'a> HubRef<'a> {
                 fn hub_fn(&self) {}
             }
+            pub(crate) struct LootCx<'a> {
+                pub(crate) hub: HubMut<'a>,
+            }
+            impl crate::session::LootCx<'_> {
+                fn other(&mut self) -> u8 { 0 }
+            }
             #[cfg(test)]
             impl crate::session::state::MovementState {
                 fn fixture_fn(&self) {}
@@ -307,10 +313,10 @@ class CouplingTests(unittest.TestCase):
                         "    fn shim_b(&self) {}\n}\n", encoding="utf-8")
         r5 = self.report()["r5"]
         self.assertEqual(r5["impl_methods_production"], 4)  # alpha.rs 3 (`[u8; 3]` return) + beta_one
-        self.assertEqual(r5["substate_impl_methods_production"], 4)  # incl. the fixtures.movement owner
-        self.assertEqual(r5["worldsession_thunks"], 1)
+        self.assertEqual(r5["substate_impl_methods_production"], 5)  # incl. fixtures.movement and LootCx
+        self.assertEqual(r5["worldsession_thunks"], 2)
         self.assertEqual(r5["f3_test_shims"], 2)
-        self.assertIn("moved onto sub-states             4  fns (1 WorldSession thunks keep their name),"
+        self.assertIn("moved onto sub-states             5  fns (2 WorldSession thunks keep their name),"
                       " 2 unit_tests shims", coupling.render(self.report(), 3))
 
     def test_missing_struct_is_an_error(self):

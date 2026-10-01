@@ -51,4 +51,11 @@ impl crate::session::WorldSession {
         let (state, hub) = crate::session::split_lifecycle_ref(self);
         state.player_skill_records_loaded_like_cpp(hub)
     }
+    #[cfg(test)]
+    pub(in crate::session) fn load_instance_time_restriction_rows_like_cpp(
+        &mut self,
+        rows: impl IntoIterator<Item = (u32, u64)>,
+    ) {
+        crate::session::cx_lifecycle(self).load_instance_time_restriction_rows_like_cpp(rows)
+    }
 }

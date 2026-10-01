@@ -24,4 +24,9 @@ impl crate::session::WorldSession {
             .pets
             .represented_pet_speed_propagations_like_cpp()
     }
+    pub(in crate::session) fn player_pet_lifecycle_state_snapshot_like_cpp(
+        &self,
+    ) -> Option<PlayerPetLifecycleStateLikeCpp> {
+        crate::session::hub_ref(self).player_pet_lifecycle_state_snapshot_like_cpp()
+    }
 }

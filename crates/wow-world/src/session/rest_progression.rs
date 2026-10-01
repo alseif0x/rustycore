@@ -380,10 +380,6 @@ impl WorldSession {
         )
     }
 
-    pub(crate) fn represented_action_button_db_context_like_cpp(&self) -> Option<(u8, i32)> {
-        crate::session::hub_ref(self).represented_action_button_db_context_like_cpp()
-    }
-
     pub(crate) fn take_deferred_rest_flag_update_dirty_like_cpp(&mut self) -> bool {
         self.take_player_deferred_rest_flag_update_dirty_like_cpp()
     }

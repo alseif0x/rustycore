@@ -18,4 +18,8 @@ impl crate::session::WorldSession {
     pub(crate) fn represented_temporary_unsummoned_pet_number_like_cpp(&self) -> u32 {
         crate::session::hub_ref(self).represented_temporary_unsummoned_pet_number_like_cpp()
     }
+    #[cfg(test)]
+    pub(crate) fn resummon_pet_temporary_unsummoned_if_any_like_cpp(&mut self) {
+        crate::session::cx_pets(self).resummon_pet_temporary_unsummoned_if_any_like_cpp()
+    }
 }

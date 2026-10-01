@@ -244,16 +244,8 @@ impl WorldSession {
         &self,
         banker: ObjectGuid,
     ) -> Option<()> {
-        let state = self
-            .world_entities
-            .represented_gameobject_use_states
-            .get(&banker)?;
-        if state.go_type.map(u32::from) != Some(GAMEOBJECT_TYPE_GUILD_BANK) {
-            return None;
-        }
-
-        self.represented_gameobject_can_interact_with_like_cpp(banker, 10.0)
-            .map(|_| ())
+        crate::session::cx_inventory_ref(self)
+            .represented_guild_bank_gameobject_can_interact_like_cpp(banker)
     }
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_guild_bank_list_request_like_cpp(
@@ -459,6 +451,25 @@ impl WorldSession {
     pub(crate) fn resolved_player_bank_bag_slot_count_like_cpp(&self) -> Option<u8> {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.resolved_player_bank_bag_slot_count_like_cpp(hub)
+    }
+}
+
+impl crate::session::InventoryCxRef<'_> {
+    pub(crate) fn represented_guild_bank_gameobject_can_interact_like_cpp(
+        &self,
+        banker: ObjectGuid,
+    ) -> Option<()> {
+        let state = self
+            .world_entities
+            .represented_gameobject_use_states
+            .get(&banker)?;
+        if state.go_type.map(u32::from) != Some(GAMEOBJECT_TYPE_GUILD_BANK) {
+            return None;
+        }
+
+        self.world_entities
+            .represented_gameobject_can_interact_with_like_cpp(self.hub, banker, 10.0)
+            .map(|_| ())
     }
 }
 

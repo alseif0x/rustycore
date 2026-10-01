@@ -114,19 +114,8 @@ impl WorldSession {
         gameobject_guid: ObjectGuid,
         source: GameObjectLootSource,
     ) {
-        let state = self
-            .world_entities
-            .represented_gameobject_use_states
-            .entry(gameobject_guid)
-            .or_default();
-        state.go_type = Some(GAMEOBJECT_TYPE_CHEST as u8);
-        state.chest_restock_time_secs = Some(source.chest_restock_time_secs);
-        state.chest_consumable = Some(source.chest_consumable);
-        state.despawn_at_action = source.chest_consumable;
-        state.chest_loot_source = Some(source);
-        state.chest_personal_loot_id = Some(source.personal_loot_id);
-        state.linked_trap_entry =
-            (source.linked_trap_entry != 0).then_some(source.linked_trap_entry);
+        crate::session::cx_loot(self)
+            .record_represented_gameobject_chest_release_metadata_like_cpp(gameobject_guid, source)
     }
 
     /// Clone the object-owned authority while the map/entity lock is held,
@@ -509,6 +498,28 @@ impl WorldSession {
                 self.send_stat_update();
             }
         }
+    }
+}
+
+impl crate::session::LootCx<'_> {
+    pub(super) fn record_represented_gameobject_chest_release_metadata_like_cpp(
+        &mut self,
+        gameobject_guid: ObjectGuid,
+        source: GameObjectLootSource,
+    ) {
+        let state = self
+            .world_entities
+            .represented_gameobject_use_states
+            .entry(gameobject_guid)
+            .or_default();
+        state.go_type = Some(GAMEOBJECT_TYPE_CHEST as u8);
+        state.chest_restock_time_secs = Some(source.chest_restock_time_secs);
+        state.chest_consumable = Some(source.chest_consumable);
+        state.despawn_at_action = source.chest_consumable;
+        state.chest_loot_source = Some(source);
+        state.chest_personal_loot_id = Some(source.personal_loot_id);
+        state.linked_trap_entry =
+            (source.linked_trap_entry != 0).then_some(source.linked_trap_entry);
     }
 }
 

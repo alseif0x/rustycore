@@ -299,12 +299,7 @@ impl WorldSession {
         &self,
         item_id: u32,
     ) -> Option<u32> {
-        Some(
-            self.represented_inventory_item_counts_like_cpp()?
-                .get(&item_id)
-                .copied()
-                .unwrap_or(0),
-        )
+        crate::session::cx_loot_ref(self).direct_inventory_item_count_like_cpp(item_id)
     }
 
     pub(in crate::handlers::loot) fn player_quest_objective_progress_like_cpp(
@@ -373,6 +368,21 @@ impl WorldSession {
             );
         }
         metadata
+    }
+}
+
+impl crate::session::LootCxRef<'_> {
+    pub(in crate::handlers::loot) fn direct_inventory_item_count_like_cpp(
+        &self,
+        item_id: u32,
+    ) -> Option<u32> {
+        Some(
+            self.inventory
+                .represented_inventory_item_counts_like_cpp(self.hub)?
+                .get(&item_id)
+                .copied()
+                .unwrap_or(0),
+        )
     }
 }
 

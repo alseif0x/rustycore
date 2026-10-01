@@ -33,11 +33,6 @@ impl WorldSession {
     ) -> Option<R> {
         self.core.with_canonical_pet_mut_like_cpp(pet_guid, mutate)
     }
-    pub(in crate::session) fn player_pet_lifecycle_state_snapshot_like_cpp(
-        &self,
-    ) -> Option<PlayerPetLifecycleStateLikeCpp> {
-        crate::session::hub_ref(self).player_pet_lifecycle_state_snapshot_like_cpp()
-    }
     pub(in crate::session) fn update_player_pet_lifecycle_state_like_cpp(
         &mut self,
         update: impl FnOnce(&mut PlayerPetLifecycleStateLikeCpp),
@@ -98,26 +93,14 @@ impl WorldSession {
     pub(crate) fn remove_represented_pet_not_in_slot_like_cpp(&mut self) {
         crate::session::hub_mut(self).remove_represented_pet_not_in_slot_like_cpp()
     }
-    pub(in crate::session) fn validate_represented_pet_action_bar_like_cpp(
-        &self,
-        charm_info: &mut wow_entities::CharmInfoState,
-    ) {
-        self.catalogs
-            .validate_represented_pet_action_bar_like_cpp(charm_info)
-    }
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_sign_petition_like_cpp(
         &mut self,
         petition_guid: ObjectGuid,
         choice: u8,
     ) {
-        #[cfg(test)]
-        self.social
-            .represented_sign_petitions_like_cpp
-            .push(RepresentedSignPetitionLikeCpp {
-                petition_guid,
-                choice,
-            });
+        crate::session::cx_pets(self)
+            .record_represented_sign_petition_like_cpp(petition_guid, choice)
     }
     #[cfg(test)]
     pub(crate) fn represented_sign_petitions_like_cpp(&self) -> &[RepresentedSignPetitionLikeCpp] {
@@ -128,10 +111,7 @@ impl WorldSession {
         &mut self,
         petition_guid: ObjectGuid,
     ) {
-        #[cfg(test)]
-        self.social
-            .represented_decline_petitions_like_cpp
-            .push(RepresentedDeclinePetitionLikeCpp { petition_guid });
+        crate::session::cx_pets(self).record_represented_decline_petition_like_cpp(petition_guid)
     }
     #[cfg(test)]
     pub(crate) fn represented_decline_petitions_like_cpp(
@@ -145,13 +125,8 @@ impl WorldSession {
         petition_id: u32,
         item_guid: ObjectGuid,
     ) {
-        #[cfg(test)]
-        self.social
-            .represented_query_petitions_like_cpp
-            .push(RepresentedQueryPetitionLikeCpp {
-                petition_id,
-                item_guid,
-            });
+        crate::session::cx_pets(self)
+            .record_represented_query_petition_like_cpp(petition_id, item_guid)
     }
     #[cfg(test)]
     pub(crate) fn represented_query_petitions_like_cpp(
@@ -184,6 +159,49 @@ impl WorldSession {
                 tapper_guid: player_guid,
                 pet_guid,
                 victim_guid: creature_guid,
+            });
+    }
+}
+
+impl crate::session::PetsCx<'_> {
+    #[cfg_attr(not(test), allow(unused_variables))]
+    pub(crate) fn record_represented_sign_petition_like_cpp(
+        &mut self,
+        petition_guid: ObjectGuid,
+        choice: u8,
+    ) {
+        #[cfg(test)]
+        self.social
+            .represented_sign_petitions_like_cpp
+            .push(RepresentedSignPetitionLikeCpp {
+                petition_guid,
+                choice,
+            });
+    }
+
+    #[cfg_attr(not(test), allow(unused_variables))]
+    pub(crate) fn record_represented_decline_petition_like_cpp(
+        &mut self,
+        petition_guid: ObjectGuid,
+    ) {
+        #[cfg(test)]
+        self.social
+            .represented_decline_petitions_like_cpp
+            .push(RepresentedDeclinePetitionLikeCpp { petition_guid });
+    }
+
+    #[cfg_attr(not(test), allow(unused_variables))]
+    pub(crate) fn record_represented_query_petition_like_cpp(
+        &mut self,
+        petition_id: u32,
+        item_guid: ObjectGuid,
+    ) {
+        #[cfg(test)]
+        self.social
+            .represented_query_petitions_like_cpp
+            .push(RepresentedQueryPetitionLikeCpp {
+                petition_id,
+                item_guid,
             });
     }
 }

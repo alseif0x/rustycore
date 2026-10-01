@@ -43,61 +43,11 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
         state.upgrade_account_heirloom_like_cpp(&mut hub, item_id, cast_item)
     }
-    /// C++ `CollectionMgr::CheckHeirloomUpgrades`.
     pub(crate) fn check_account_heirloom_upgrades_like_cpp(
         &mut self,
         item_id: u32,
     ) -> Option<wow_entities::PlayerValuesUpdate> {
-        let heirloom_store = Arc::clone(self.catalogs.heirloom_store.as_ref()?);
-        let heirloom = heirloom_store.get_by_item_id_like_cpp(item_id)?;
-        self.player_collection_state_snapshot_like_cpp()?
-            .heirlooms_like_cpp()
-            .get(&item_id)?;
-
-        let mut heirloom_item_id = u32::try_from(heirloom.static_upgraded_item_id).ok()?;
-        let mut new_item_id = 0_u32;
-        while let Some(heirloom_diff) = heirloom_store.get_by_item_id_like_cpp(heirloom_item_id) {
-            let diff_item_id = u32::try_from(heirloom_diff.item_id).ok()?;
-            if self.represented_player_has_default_item_entry_like_cpp(diff_item_id) {
-                new_item_id = diff_item_id;
-            }
-
-            let Some(heirloom_sub_item_id) = u32::try_from(heirloom_diff.static_upgraded_item_id)
-                .ok()
-                .and_then(|static_item_id| {
-                    heirloom_store
-                        .get_by_item_id_like_cpp(static_item_id)
-                        .and_then(|heirloom_sub| u32::try_from(heirloom_sub.item_id).ok())
-                })
-            else {
-                break;
-            };
-            heirloom_item_id = heirloom_sub_item_id;
-        }
-
-        if new_item_id == 0 {
-            return None;
-        }
-
-        let active_item_id = i32::try_from(item_id).ok()?;
-        let active_new_item_id = i32::try_from(new_item_id).ok()?;
-        let active_offset = self.mutate_canonical_player_like_cpp(|player| {
-            player
-                .heirlooms_like_cpp()
-                .iter()
-                .position(|&heirloom_item_id| heirloom_item_id == active_item_id)
-        })??;
-
-        let update = self.mutate_canonical_player_like_cpp(|player| {
-            let set_item = player.set_heirloom_like_cpp(active_offset, active_new_item_id);
-            let set_flags = player.set_heirloom_flags_like_cpp(active_offset, 0);
-            (set_item && set_flags).then(|| player.values_update(true))
-        })??;
-
-        self.mutate_player_collection_state_like_cpp(|collections| {
-            collections.replace_heirloom_like_cpp(item_id, new_item_id);
-        })?;
-        Some(update)
+        crate::session::cx_lifecycle(self).check_account_heirloom_upgrades_like_cpp(item_id)
     }
     pub(crate) fn account_toy_active_player_rows_like_cpp(&self) -> Vec<i32> {
         let (state, hub) = crate::session::split_lifecycle_ref(self);
@@ -263,6 +213,71 @@ impl WorldSession {
     }
     pub fn kick(&mut self, reason: &str) {
         self.core.kick(reason)
+    }
+}
+
+impl crate::session::LifecycleCx<'_> {
+    /// C++ `CollectionMgr::CheckHeirloomUpgrades`.
+    pub(crate) fn check_account_heirloom_upgrades_like_cpp(
+        &mut self,
+        item_id: u32,
+    ) -> Option<wow_entities::PlayerValuesUpdate> {
+        let heirloom_store = Arc::clone(self.hub.catalogs.heirloom_store.as_ref()?);
+        let heirloom = heirloom_store.get_by_item_id_like_cpp(item_id)?;
+        self.hub
+            .shared()
+            .player_collection_state_snapshot_like_cpp()?
+            .heirlooms_like_cpp()
+            .get(&item_id)?;
+
+        let mut heirloom_item_id = u32::try_from(heirloom.static_upgraded_item_id).ok()?;
+        let mut new_item_id = 0_u32;
+        while let Some(heirloom_diff) = heirloom_store.get_by_item_id_like_cpp(heirloom_item_id) {
+            let diff_item_id = u32::try_from(heirloom_diff.item_id).ok()?;
+            if self
+                .inventory
+                .represented_player_has_default_item_entry_like_cpp(self.hub.shared(), diff_item_id)
+            {
+                new_item_id = diff_item_id;
+            }
+
+            let Some(heirloom_sub_item_id) = u32::try_from(heirloom_diff.static_upgraded_item_id)
+                .ok()
+                .and_then(|static_item_id| {
+                    heirloom_store
+                        .get_by_item_id_like_cpp(static_item_id)
+                        .and_then(|heirloom_sub| u32::try_from(heirloom_sub.item_id).ok())
+                })
+            else {
+                break;
+            };
+            heirloom_item_id = heirloom_sub_item_id;
+        }
+
+        if new_item_id == 0 {
+            return None;
+        }
+
+        let active_item_id = i32::try_from(item_id).ok()?;
+        let active_new_item_id = i32::try_from(new_item_id).ok()?;
+        let active_offset = self.hub.core.mutate_canonical_player_like_cpp(|player| {
+            player
+                .heirlooms_like_cpp()
+                .iter()
+                .position(|&heirloom_item_id| heirloom_item_id == active_item_id)
+        })??;
+
+        let update = self.hub.core.mutate_canonical_player_like_cpp(|player| {
+            let set_item = player.set_heirloom_like_cpp(active_offset, active_new_item_id);
+            let set_flags = player.set_heirloom_flags_like_cpp(active_offset, 0);
+            (set_item && set_flags).then(|| player.values_update(true))
+        })??;
+
+        self.hub
+            .mutate_player_collection_state_like_cpp(|collections| {
+                collections.replace_heirloom_like_cpp(item_id, new_item_id);
+            })?;
+        Some(update)
     }
 }
 

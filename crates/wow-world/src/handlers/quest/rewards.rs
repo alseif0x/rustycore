@@ -15,36 +15,13 @@ mod items;
 mod validation;
 
 impl WorldSession {
-    fn represented_direct_inventory_count_like_cpp(&self, item_entry: u32) -> Option<u32> {
-        Some(
-            self.resolved_inventory_items_like_cpp()?
-                .values()
-                .filter(|item| item.entry_id == item_entry)
-                .filter_map(|inventory_item| {
-                    self.resolved_inventory_item_object_like_cpp(inventory_item.guid)
-                        .filter(|item| !item.is_in_trade())
-                        .map(|item| item.count())
-                })
-                .fold(0u32, u32::saturating_add),
-        )
-    }
-
     fn plan_quest_destroy_item_count_direct_like_cpp(
         &self,
         item_entry: u32,
         count: u32,
     ) -> Option<Vec<ExtendedCostItemTurninChange>> {
-        let effective_count = if count == u32::MAX {
-            self.represented_direct_inventory_count_like_cpp(item_entry)?
-        } else {
-            count
-        };
-
-        if effective_count == 0 {
-            return Some(Vec::new());
-        }
-
-        self.plan_destroy_item_count_direct_inventory(item_entry, effective_count)
+        crate::session::cx_quest_state_ref(self)
+            .plan_quest_destroy_item_count_direct_like_cpp(item_entry, count)
     }
 
     async fn remove_quest_required_items_and_currencies_like_cpp(
@@ -898,5 +875,45 @@ impl WorldSession {
         self.set_represented_can_delay_teleport_like_cpp(false);
 
         true
+    }
+}
+
+impl crate::session::QuestStateCxRef<'_> {
+    fn represented_direct_inventory_count_like_cpp(&self, item_entry: u32) -> Option<u32> {
+        Some(
+            self.inventory
+                .resolved_inventory_items_like_cpp(self.hub)?
+                .values()
+                .filter(|item| item.entry_id == item_entry)
+                .filter_map(|inventory_item| {
+                    self.inventory
+                        .resolved_inventory_item_object_like_cpp(self.hub, inventory_item.guid)
+                        .filter(|item| !item.is_in_trade())
+                        .map(|item| item.count())
+                })
+                .fold(0u32, u32::saturating_add),
+        )
+    }
+
+    fn plan_quest_destroy_item_count_direct_like_cpp(
+        &self,
+        item_entry: u32,
+        count: u32,
+    ) -> Option<Vec<ExtendedCostItemTurninChange>> {
+        let effective_count = if count == u32::MAX {
+            self.represented_direct_inventory_count_like_cpp(item_entry)?
+        } else {
+            count
+        };
+
+        if effective_count == 0 {
+            return Some(Vec::new());
+        }
+
+        self.inventory.plan_destroy_item_count_direct_inventory(
+            self.hub,
+            item_entry,
+            effective_count,
+        )
     }
 }

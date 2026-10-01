@@ -202,22 +202,9 @@ impl WorldSession {
         context: ItemContext,
         slot: u8,
     ) -> Item {
-        let max_durability = self.item_template_max_durability(entry_id).max(durability);
-        let mut item = Item::new(i64::from(self.lifecycle.total_played_time));
-        item.initialize_created_state(ItemCreateInfo {
-            guid: item_guid,
-            item_id: entry_id,
-            context,
-            owner: Some(owner_guid),
-            max_durability,
-            expiration: 0,
-            spell_charges: [0; MAX_ITEM_SPELLS],
-        });
-        item.set_count(count.max(1));
-        item.set_durability(durability);
-        item.set_slot(slot);
-        item.set_container_guid(ObjectGuid::EMPTY);
-        item
+        crate::session::cx_inventory_ref(self).make_inventory_item_object(
+            item_guid, entry_id, owner_guid, count, durability, context, slot,
+        )
     }
     pub(crate) fn insert_inventory_item_object(&mut self, item: Item) -> Option<Item> {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
@@ -471,6 +458,40 @@ impl WorldSession {
     pub(crate) fn resolved_inventory_item_object_like_cpp(&self, guid: ObjectGuid) -> Option<Item> {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.resolved_inventory_item_object_like_cpp(hub, guid)
+    }
+}
+
+impl crate::session::InventoryCxRef<'_> {
+    pub(crate) fn make_inventory_item_object(
+        &self,
+        item_guid: ObjectGuid,
+        entry_id: u32,
+        owner_guid: ObjectGuid,
+        count: u32,
+        durability: u32,
+        context: ItemContext,
+        slot: u8,
+    ) -> Item {
+        let max_durability = self
+            .hub
+            .catalogs
+            .item_template_max_durability(entry_id)
+            .max(durability);
+        let mut item = Item::new(i64::from(self.lifecycle.total_played_time));
+        item.initialize_created_state(ItemCreateInfo {
+            guid: item_guid,
+            item_id: entry_id,
+            context,
+            owner: Some(owner_guid),
+            max_durability,
+            expiration: 0,
+            spell_charges: [0; MAX_ITEM_SPELLS],
+        });
+        item.set_count(count.max(1));
+        item.set_durability(durability);
+        item.set_slot(slot);
+        item.set_container_guid(ObjectGuid::EMPTY);
+        item
     }
 }
 

@@ -196,31 +196,13 @@ impl crate::session::WorldSession {
             .await;
     }
 
-    /// CMSG_BATTLE_PET_DELETE_PET — represented battle-pet removal body.
-    ///
-    /// C++ registers this handler and forwards only the pet guid to
-    /// `BattlePetMgr::RemovePet`, which requires the journal lock and silently
-    /// ignores unknown pets. The archived opcode id is the unresolved `0xBADD`
-    /// placeholder, so this method is intentionally not registered for
-    /// production dispatch until the real client opcode is known.
-
     pub async fn handle_battle_pet_delete_pet_represented_like_cpp(
         &mut self,
-        mut pkt: wow_packet::WorldPacket,
+        pkt: wow_packet::WorldPacket,
     ) {
-        let request = match BattlePetDeletePet::read_like_cpp(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "BattlePetDeletePet parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        self.battle_pet_remove_pet_durable_like_cpp(request.pet_guid)
-            .await;
+        crate::session::cx_pets(self)
+            .handle_battle_pet_delete_pet_represented_like_cpp(pkt)
+            .await
     }
 
     /// CMSG_CAGE_BATTLE_PET — represented cage body.
@@ -252,38 +234,13 @@ impl crate::session::WorldSession {
         let _ = self.battle_pet_cage_battle_pet_represented_like_cpp(request.pet_guid, true, true);
     }
 
-    /// CMSG_BATTLE_PET_MODIFY_NAME — represented rename body.
-    ///
-    /// C++ registers this handler and forwards the parsed guid/name/declined
-    /// names to `BattlePetMgr::ModifyName`, which stamps `GameTime::GetGameTime`
-    /// inside the manager. The archived opcode id remains the unresolved
-    /// `0xBADD` placeholder, so this method is intentionally not registered for
-    /// production dispatch until the real client opcode is known.
-
     pub async fn handle_battle_pet_modify_name_represented_like_cpp(
         &mut self,
-        mut pkt: wow_packet::WorldPacket,
+        pkt: wow_packet::WorldPacket,
     ) {
-        let request = match BattlePetModifyName::read_like_cpp(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "BattlePetModifyName parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        let timestamp = i64::try_from(GameTime::now().as_secs()).unwrap_or(i64::MAX);
-        let _ = self
-            .battle_pet_modify_name_durable_like_cpp(
-                request.pet_guid,
-                request.name,
-                request.declined_names,
-                timestamp,
-            )
-            .await;
+        crate::session::cx_pets(self)
+            .handle_battle_pet_modify_name_represented_like_cpp(pkt)
+            .await
     }
 
     /// CMSG_BATTLE_PET_SET_FLAGS — apply/remove represented battle-pet flags.
@@ -460,6 +417,69 @@ impl crate::session::WorldSession {
         }
 
         self.send_packet(&response);
+    }
+}
+
+impl crate::session::PetsCx<'_> {
+    /// CMSG_BATTLE_PET_DELETE_PET — represented battle-pet removal body.
+    ///
+    /// C++ registers this handler and forwards only the pet guid to
+    /// `BattlePetMgr::RemovePet`, which requires the journal lock and silently
+    /// ignores unknown pets. The archived opcode id is the unresolved `0xBADD`
+    /// placeholder, so this method is intentionally not registered for
+    /// production dispatch until the real client opcode is known.
+
+    pub async fn handle_battle_pet_delete_pet_represented_like_cpp(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
+        let request = match BattlePetDeletePet::read_like_cpp(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.hub.core.account_id,
+                    "BattlePetDeletePet parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        self.battle_pet_remove_pet_durable_like_cpp(request.pet_guid)
+            .await;
+    }
+
+    /// CMSG_BATTLE_PET_MODIFY_NAME — represented rename body.
+    ///
+    /// C++ registers this handler and forwards the parsed guid/name/declined
+    /// names to `BattlePetMgr::ModifyName`, which stamps `GameTime::GetGameTime`
+    /// inside the manager. The archived opcode id remains the unresolved
+    /// `0xBADD` placeholder, so this method is intentionally not registered for
+    /// production dispatch until the real client opcode is known.
+
+    pub async fn handle_battle_pet_modify_name_represented_like_cpp(
+        &mut self,
+        mut pkt: wow_packet::WorldPacket,
+    ) {
+        let request = match BattlePetModifyName::read_like_cpp(&mut pkt) {
+            Ok(request) => request,
+            Err(error) => {
+                warn!(
+                    account = self.hub.core.account_id,
+                    "BattlePetModifyName parse failed: {error}"
+                );
+                return;
+            }
+        };
+
+        let timestamp = i64::try_from(GameTime::now().as_secs()).unwrap_or(i64::MAX);
+        let _ = self
+            .battle_pet_modify_name_durable_like_cpp(
+                request.pet_guid,
+                request.name,
+                request.declined_names,
+                timestamp,
+            )
+            .await;
     }
 }
 

@@ -45,4 +45,16 @@ impl crate::session::WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.is_transmog_set_completed_like_cpp(hub, transmog_set_id)
     }
+    pub(crate) fn account_item_appearance_save_plan_like_cpp(
+        &mut self,
+    ) -> Option<AccountItemAppearanceSavePlanLikeCpp> {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.account_item_appearance_save_plan_like_cpp(&mut hub)
+    }
+    pub(crate) fn account_transmog_illusion_save_plan_like_cpp(
+        &self,
+    ) -> Option<AccountTransmogIllusionSavePlanLikeCpp> {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.account_transmog_illusion_save_plan_like_cpp(hub)
+    }
 }

@@ -629,19 +629,6 @@ pub(crate) enum RepresentedGameObjectCriteriaEvent {
 }
 
 impl WorldSession {
-    pub(crate) fn release_canonical_fishing_hole_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        max_opens: Option<u32>,
-    ) -> Option<(
-        u32,
-        wow_entities::LootState,
-        wow_map::map::GameObjectSetLootStateOutcomeLikeCpp,
-    )> {
-        let (state, mut hub) = crate::session::split_world_entities_mut(self);
-        state.release_canonical_fishing_hole_like_cpp(&mut hub, guid, max_opens)
-    }
-
     pub fn summon_private_object_owner_like_cpp(
         &self,
         caster_guid: ObjectGuid,
@@ -816,3 +803,7 @@ impl crate::session::state::WorldEntitiesState {
         nearest.map(|(guid, _)| guid)
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/gameobject_interaction/f3_shims.rs"]
+mod f3_shims;

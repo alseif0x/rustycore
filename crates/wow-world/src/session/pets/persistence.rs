@@ -7,15 +7,38 @@ use super::*;
 
 impl WorldSession {
     pub(crate) fn begin_represented_character_pet_authority_load_like_cpp(&mut self) {
-        self.lifecycle.pet_load_query_holder_rows_like_cpp.reset();
-        self.invalidate_represented_character_pet_empty_authority_like_cpp();
+        crate::session::cx_pets(self).begin_represented_character_pet_authority_load_like_cpp()
     }
     pub(crate) fn load_represented_pet_declined_names_like_cpp(
         &mut self,
         pet_number: u32,
         row: Option<CharacterPetDeclinedNamesRowLikeCpp>,
     ) -> bool {
-        self.invalidate_represented_character_pet_empty_authority_like_cpp();
+        crate::session::cx_pets(self).load_represented_pet_declined_names_like_cpp(pet_number, row)
+    }
+
+    pub fn set_battle_pet_purchase_persistence_port_like_cpp(
+        &mut self,
+        store: Arc<dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp>,
+    ) {
+        crate::session::cx_pets(self).set_battle_pet_purchase_persistence_port_like_cpp(store)
+    }
+}
+
+impl crate::session::PetsCx<'_> {
+    pub(crate) fn begin_represented_character_pet_authority_load_like_cpp(&mut self) {
+        self.lifecycle.pet_load_query_holder_rows_like_cpp.reset();
+        self.hub
+            .invalidate_represented_character_pet_empty_authority_like_cpp();
+    }
+
+    pub(crate) fn load_represented_pet_declined_names_like_cpp(
+        &mut self,
+        pet_number: u32,
+        row: Option<CharacterPetDeclinedNamesRowLikeCpp>,
+    ) -> bool {
+        self.hub
+            .invalidate_represented_character_pet_empty_authority_like_cpp();
         if let Some(row) = row {
             self.lifecycle
                 .pet_load_query_holder_rows_like_cpp

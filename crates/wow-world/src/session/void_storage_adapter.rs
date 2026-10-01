@@ -8,14 +8,6 @@ use super::WorldSession;
 use super::{RepresentedVoidStorageItemLikeCpp, Rng, VoidStorageItemIdGeneratorLikeCpp};
 
 impl WorldSession {
-    pub(in crate::session) fn with_owned_void_storage_like_cpp<R>(
-        &self,
-        f: impl FnMut(&[Option<RepresentedVoidStorageItemLikeCpp>], bool) -> R,
-    ) -> Option<R> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.with_owned_void_storage_like_cpp(hub, f)
-    }
-
     pub(crate) fn clear_represented_void_storage_like_cpp(&mut self) {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.clear_represented_void_storage_like_cpp(&mut hub)
@@ -280,3 +272,7 @@ impl crate::session::state::InventoryState {
         })
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/void_storage_adapter/f3_shims.rs"]
+mod f3_shims;

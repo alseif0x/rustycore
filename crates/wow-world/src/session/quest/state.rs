@@ -463,10 +463,8 @@ impl WorldSession {
         &mut self,
         request: RepresentedAuctionReplicateRequestLikeCpp,
     ) {
-        #[cfg(test)]
-        self.inventory
-            .represented_auction_replicate_requests_like_cpp
-            .push(request);
+        crate::session::cx_quest_state(self)
+            .record_represented_auction_replicate_request_like_cpp(request)
     }
     #[cfg(test)]
     pub(crate) fn represented_auction_replicate_requests_like_cpp(
@@ -648,12 +646,8 @@ impl WorldSession {
         &self,
         request_key: BattlePetAddRequestKeyLikeCpp,
     ) -> Result<bool, BattlePetAddFailureLikeCpp> {
-        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
-            return Ok(false);
-        };
-        attachment
-            .owner_like_cpp()
-            .add_request_committed_like_cpp(request_key)
+        crate::session::cx_quest_state_ref(self)
+            .battle_pet_add_request_committed_like_cpp(request_key)
             .await
     }
     pub(crate) fn consume_movement_visibility_refresh_request_like_cpp(&mut self) -> bool {
@@ -789,6 +783,34 @@ impl WorldSession {
     ) {
         self.quest_state
             .record_represented_push_quest_to_party_outcome_like_cpp(outcome)
+    }
+}
+
+impl crate::session::QuestStateCxRef<'_> {
+    pub(in crate::session) async fn battle_pet_add_request_committed_like_cpp(
+        &self,
+        request_key: BattlePetAddRequestKeyLikeCpp,
+    ) -> Result<bool, BattlePetAddFailureLikeCpp> {
+        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
+            return Ok(false);
+        };
+        attachment
+            .owner_like_cpp()
+            .add_request_committed_like_cpp(request_key)
+            .await
+    }
+}
+
+impl crate::session::QuestStateCx<'_> {
+    #[cfg_attr(not(test), allow(unused_variables))]
+    pub(crate) fn record_represented_auction_replicate_request_like_cpp(
+        &mut self,
+        request: RepresentedAuctionReplicateRequestLikeCpp,
+    ) {
+        #[cfg(test)]
+        self.inventory
+            .represented_auction_replicate_requests_like_cpp
+            .push(request);
     }
 }
 

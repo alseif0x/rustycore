@@ -7,11 +7,6 @@
 use super::{BUYBACK_SLOT_COUNT, BUYBACK_SLOT_END, BUYBACK_SLOT_START, WorldSession};
 
 impl WorldSession {
-    pub(crate) fn clear_buyback_runtime_like_cpp(&mut self) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.clear_buyback_runtime_like_cpp(&mut hub)
-    }
-
     pub(crate) fn set_current_buyback_slot_like_cpp(&mut self, slot: u8) {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.set_current_buyback_slot_like_cpp(&mut hub, slot)

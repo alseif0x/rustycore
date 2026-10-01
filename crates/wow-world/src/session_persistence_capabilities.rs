@@ -224,13 +224,6 @@ impl WorldSession {
             .loot_template_catalog = Some(port);
     }
 
-    pub(crate) fn loot_template_catalog_persistence_port_like_cpp(
-        &self,
-    ) -> Option<Arc<dyn wow_persistence::LootTemplateCatalogPersistencePortLikeCpp>> {
-        self.lifecycle
-            .loot_template_catalog_persistence_port_like_cpp()
-    }
-
     pub fn set_vendor_catalog_persistence_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::VendorCatalogPersistencePortLikeCpp>,

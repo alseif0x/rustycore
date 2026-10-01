@@ -176,39 +176,10 @@ impl WorldSession {
         }
     }
 
-    /// Delete a quest from the characters database (abandon).
     pub(super) async fn delete_quest_from_db(&self, quest_id: u32) {
-        let owner_guid = match self.player_guid() {
-            Some(g) => g.counter() as u64,
-            None => return,
-        };
-        let port = match self.player_quest_persistence_port_like_cpp() {
-            Some(port) => port,
-            None => return,
-        };
-        match port
-            .persist_status_like_cpp(
-                wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp::Delete {
-                    owner_guid,
-                    quest_id,
-                },
-            )
+        crate::session::cx_quest_state_ref(self)
+            .delete_quest_from_db(quest_id)
             .await
-        {
-            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
-            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
-                account = self.core.account_id,
-                quest_id,
-                error = %reason,
-                "Failed to delete quest"
-            ),
-            wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
-                account = self.core.account_id,
-                quest_id,
-                error = %reason,
-                "Quest deletion commit outcome is unknown"
-            ),
-        }
     }
 
     /// Load all active quests for this player from the characters DB.
@@ -585,5 +556,42 @@ impl WorldSession {
                 seasonal_outcome.completed_bit_no_change_or_noop,
             "Loaded player quests"
         );
+    }
+}
+
+impl crate::session::QuestStateCxRef<'_> {
+    /// Delete a quest from the characters database (abandon).
+    pub(super) async fn delete_quest_from_db(&self, quest_id: u32) {
+        let owner_guid = match self.hub.core.player_guid() {
+            Some(g) => g.counter() as u64,
+            None => return,
+        };
+        let port = match self.lifecycle.player_quest_persistence_port_like_cpp() {
+            Some(port) => port,
+            None => return,
+        };
+        match port
+            .persist_status_like_cpp(
+                wow_persistence::PlayerQuestStatusPersistenceRequestLikeCpp::Delete {
+                    owner_guid,
+                    quest_id,
+                },
+            )
+            .await
+        {
+            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason } => warn!(
+                account = self.hub.core.account_id,
+                quest_id,
+                error = %reason,
+                "Failed to delete quest"
+            ),
+            wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => warn!(
+                account = self.hub.core.account_id,
+                quest_id,
+                error = %reason,
+                "Quest deletion commit outcome is unknown"
+            ),
+        }
     }
 }
