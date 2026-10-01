@@ -7,120 +7,23 @@ use super::*;
 
 impl WorldSession {
     pub(in crate::session) fn check_instance_count_like_cpp(&mut self, instance_id: u32) -> bool {
-        let now_secs = u64::try_from(unix_now()).unwrap_or(0);
-        self.check_instance_count_at_like_cpp(instance_id, now_secs)
+        let (state, mut hub) = crate::session::split_instances_mut(self);
+        state.check_instance_count_like_cpp(&mut hub, instance_id)
     }
     pub(in crate::session) fn check_instance_count_probe_like_cpp(&self, instance_id: u32) -> bool {
-        let now_secs = u64::try_from(unix_now()).unwrap_or(0);
-        if let Some(result) = self.with_owned_player_like_cpp(|player| {
-            player.check_instance_count_probe_like_cpp(
-                instance_id,
-                now_secs,
-                self.core.realm_policy.max_instances_per_hour_like_cpp,
-            )
-        }) {
-            return result;
-        }
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return self
-                .instance_reset_times_snapshot_like_cpp()
-                .is_some_and(|times| {
-                    times
-                        .values()
-                        .filter(|release_time| **release_time > now_secs)
-                        .count()
-                        < self.core.realm_policy.max_instances_per_hour_like_cpp as usize
-                        || times
-                            .get(&instance_id)
-                            .is_some_and(|release_time| *release_time > now_secs)
-                });
-        }
-        false
-    }
-    pub(in crate::session) fn check_instance_count_at_like_cpp(
-        &mut self,
-        instance_id: u32,
-        now_secs: u64,
-    ) -> bool {
-        if let Some(result) = self.with_owned_player_mut_like_cpp(|player| {
-            player.check_instance_count_like_cpp(
-                instance_id,
-                now_secs,
-                self.core.realm_policy.max_instances_per_hour_like_cpp,
-            )
-        }) {
-            return result;
-        }
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            self.prune_expired_instance_reset_times_like_cpp(now_secs);
-            return self
-                .instance_reset_times_snapshot_like_cpp()
-                .is_some_and(|times| {
-                    times.len() < self.core.realm_policy.max_instances_per_hour_like_cpp as usize
-                        || times.contains_key(&instance_id)
-                });
-        }
-        false
+        let (state, hub) = crate::session::split_instances_ref(self);
+        state.check_instance_count_probe_like_cpp(hub, instance_id)
     }
     pub(crate) fn add_instance_enter_time_like_cpp(&mut self, instance_id: u32, enter_time: u64) {
-        if self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.add_instance_enter_time_like_cpp(instance_id, enter_time);
-            })
-            .is_some()
-        {
-            return;
-        }
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            self.instances
-                .represented_instance_reset_times_like_cpp
-                .entry(instance_id)
-                .or_insert(enter_time.saturating_add(HOUR_SECS_LIKE_CPP));
-        }
-    }
-    pub(in crate::session) fn instance_reset_times_snapshot_like_cpp(
-        &self,
-    ) -> Option<std::collections::BTreeMap<u32, u64>> {
-        let canonical = self
-            .with_owned_player_like_cpp(|player| player.instance_reset_times_like_cpp().clone());
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.instances
-                    .represented_instance_reset_times_like_cpp
-                    .clone(),
-            );
-        }
-        canonical
+        let (state, mut hub) = crate::session::split_instances_mut(self);
+        state.add_instance_enter_time_like_cpp(&mut hub, instance_id, enter_time)
     }
     pub(in crate::session) fn replace_instance_reset_times_like_cpp(
         &mut self,
         rows: impl IntoIterator<Item = (u32, u64)>,
     ) -> bool {
-        let rows: Vec<_> = rows.into_iter().collect();
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
-            player.replace_instance_reset_times_like_cpp(rows.iter().copied());
-        });
-        if canonical.is_some() {
-            return true;
-        }
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            self.instances
-                .represented_instance_reset_times_like_cpp
-                .clear();
-            for (instance_id, release_time) in rows {
-                self.instances
-                    .represented_instance_reset_times_like_cpp
-                    .entry(instance_id)
-                    .or_insert(release_time);
-            }
-            return true;
-        }
-        false
+        let (state, mut hub) = crate::session::split_instances_mut(self);
+        state.replace_instance_reset_times_like_cpp(&mut hub, rows)
     }
     pub(in crate::session) fn create_map_instance_owner_guid_like_cpp(
         &self,
@@ -150,9 +53,164 @@ impl WorldSession {
     pub fn set_max_instances_per_hour_like_cpp(&mut self, max_instances: u32) {
         self.core.realm_policy.max_instances_per_hour_like_cpp = max_instances;
     }
-    /// C++ `Player::GetRecentInstanceId`.
     pub(crate) fn resolved_player_recent_instance_id_like_cpp(&self, map_id: u32) -> Option<u32> {
-        let canonical = self.with_owned_player_like_cpp(|player| {
+        let (state, hub) = crate::session::split_instances_ref(self);
+        state.resolved_player_recent_instance_id_like_cpp(hub, map_id)
+    }
+    pub(crate) fn set_represented_player_recent_instance_like_cpp(
+        &mut self,
+        map_id: u32,
+        instance_id: u32,
+    ) -> bool {
+        let (state, mut hub) = crate::session::split_instances_mut(self);
+        state.set_represented_player_recent_instance_like_cpp(&mut hub, map_id, instance_id)
+    }
+    pub(in crate::session) fn current_map_instanceable_like_cpp(&self) -> bool {
+        let (state, hub) = crate::session::split_instances_ref(self);
+        state.current_map_instanceable_like_cpp(hub)
+    }
+}
+
+impl crate::session::state::InstanceState {
+    pub(in crate::session) fn check_instance_count_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        instance_id: u32,
+    ) -> bool {
+        let now_secs = u64::try_from(unix_now()).unwrap_or(0);
+        self.check_instance_count_at_like_cpp(hub, instance_id, now_secs)
+    }
+
+    pub(in crate::session) fn check_instance_count_probe_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        instance_id: u32,
+    ) -> bool {
+        let now_secs = u64::try_from(unix_now()).unwrap_or(0);
+        if let Some(result) = hub.core.with_owned_player_like_cpp(|player| {
+            player.check_instance_count_probe_like_cpp(
+                instance_id,
+                now_secs,
+                hub.core.realm_policy.max_instances_per_hour_like_cpp,
+            )
+        }) {
+            return result;
+        }
+        #[cfg(test)]
+        if hub.core.player_handle_like_cpp.is_none() {
+            return self
+                .instance_reset_times_snapshot_like_cpp(hub)
+                .is_some_and(|times| {
+                    times
+                        .values()
+                        .filter(|release_time| **release_time > now_secs)
+                        .count()
+                        < hub.core.realm_policy.max_instances_per_hour_like_cpp as usize
+                        || times
+                            .get(&instance_id)
+                            .is_some_and(|release_time| *release_time > now_secs)
+                });
+        }
+        false
+    }
+
+    pub(in crate::session) fn check_instance_count_at_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        instance_id: u32,
+        now_secs: u64,
+    ) -> bool {
+        if let Some(result) = hub.core.with_owned_player_mut_like_cpp(|player| {
+            player.check_instance_count_like_cpp(
+                instance_id,
+                now_secs,
+                hub.core.realm_policy.max_instances_per_hour_like_cpp,
+            )
+        }) {
+            return result;
+        }
+        #[cfg(test)]
+        if hub.core.player_handle_like_cpp.is_none() {
+            self.prune_expired_instance_reset_times_like_cpp(hub, now_secs);
+            return self
+                .instance_reset_times_snapshot_like_cpp(hub.shared())
+                .is_some_and(|times| {
+                    times.len() < hub.core.realm_policy.max_instances_per_hour_like_cpp as usize
+                        || times.contains_key(&instance_id)
+                });
+        }
+        false
+    }
+
+    pub(crate) fn add_instance_enter_time_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        instance_id: u32,
+        enter_time: u64,
+    ) {
+        if hub
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.add_instance_enter_time_like_cpp(instance_id, enter_time);
+            })
+            .is_some()
+        {
+            return;
+        }
+        #[cfg(test)]
+        if hub.core.player_handle_like_cpp.is_none() {
+            self.represented_instance_reset_times_like_cpp
+                .entry(instance_id)
+                .or_insert(enter_time.saturating_add(HOUR_SECS_LIKE_CPP));
+        }
+    }
+
+    pub(in crate::session) fn instance_reset_times_snapshot_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<std::collections::BTreeMap<u32, u64>> {
+        let canonical = hub
+            .core
+            .with_owned_player_like_cpp(|player| player.instance_reset_times_like_cpp().clone());
+        #[cfg(test)]
+        if canonical.is_none() && hub.core.player_handle_like_cpp.is_none() {
+            return Some(self.represented_instance_reset_times_like_cpp.clone());
+        }
+        canonical
+    }
+
+    pub(in crate::session) fn replace_instance_reset_times_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        rows: impl IntoIterator<Item = (u32, u64)>,
+    ) -> bool {
+        let rows: Vec<_> = rows.into_iter().collect();
+        let canonical = hub.core.with_owned_player_mut_like_cpp(|player| {
+            player.replace_instance_reset_times_like_cpp(rows.iter().copied());
+        });
+        if canonical.is_some() {
+            return true;
+        }
+        #[cfg(test)]
+        if hub.core.player_handle_like_cpp.is_none() {
+            self.represented_instance_reset_times_like_cpp.clear();
+            for (instance_id, release_time) in rows {
+                self.represented_instance_reset_times_like_cpp
+                    .entry(instance_id)
+                    .or_insert(release_time);
+            }
+            return true;
+        }
+        false
+    }
+
+    /// C++ `Player::GetRecentInstanceId`.
+    pub(crate) fn resolved_player_recent_instance_id_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        map_id: u32,
+    ) -> Option<u32> {
+        let canonical = hub.core.with_owned_player_like_cpp(|player| {
             player
                 .gameplay_state()
                 .recent_instances
@@ -161,10 +219,9 @@ impl WorldSession {
                 .unwrap_or(0)
         });
         #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && hub.core.player_handle_like_cpp.is_none() {
             return Some(
-                self.instances
-                    .instance_test_fixture_like_cpp
+                self.instance_test_fixture_like_cpp
                     .represented_player_recent_instances_like_cpp
                     .get(&map_id)
                     .copied()
@@ -173,43 +230,51 @@ impl WorldSession {
         }
         canonical
     }
+
     #[cfg(test)]
-    pub(crate) fn represented_player_recent_instance_id_like_cpp(&self, map_id: u32) -> u32 {
-        self.resolved_player_recent_instance_id_like_cpp(map_id)
+    pub(crate) fn represented_player_recent_instance_id_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        map_id: u32,
+    ) -> u32 {
+        self.resolved_player_recent_instance_id_like_cpp(hub, map_id)
             .expect("test Player recent-instance owner must resolve")
     }
+
     /// C++ `Player::SetRecentInstance`.
     pub(crate) fn set_represented_player_recent_instance_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         map_id: u32,
         instance_id: u32,
     ) -> bool {
-        let canonical = self
+        let canonical = hub
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.set_recent_instance_like_cpp(map_id, instance_id);
             })
             .is_some();
         #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            self.instances
-                .instance_test_fixture_like_cpp
+        if hub.core.player_handle_like_cpp.is_none() {
+            self.instance_test_fixture_like_cpp
                 .represented_player_recent_instances_like_cpp
                 .insert(map_id, instance_id);
             return true;
         }
         canonical
     }
+
     pub(crate) fn forget_represented_player_recent_instance_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         map_id: u32,
     ) -> bool {
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+        let canonical = hub.core.with_owned_player_mut_like_cpp(|player| {
             player.forget_recent_instance_like_cpp(map_id)
         });
         #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && hub.core.player_handle_like_cpp.is_none() {
             return self
-                .instances
                 .instance_test_fixture_like_cpp
                 .represented_player_recent_instances_like_cpp
                 .remove(&map_id)
@@ -217,9 +282,14 @@ impl WorldSession {
         }
         canonical.unwrap_or(false)
     }
-    pub(in crate::session) fn current_map_instanceable_like_cpp(&self) -> bool {
-        let map_id = u32::from(self.player_map_id_like_cpp());
-        self.map_store()
+
+    pub(in crate::session) fn current_map_instanceable_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> bool {
+        let map_id = u32::from(hub.core.player_map_id_like_cpp());
+        hub.catalogs
+            .map_store()
             .and_then(|store| store.get(map_id))
             .is_some_and(|entry| {
                 matches!(
@@ -233,3 +303,7 @@ impl WorldSession {
             })
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/instances/instance/f3_shims.rs"]
+mod f3_shims;

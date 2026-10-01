@@ -158,13 +158,25 @@ impl WorldSession {
         &mut self,
         respec_master: wow_core::ObjectGuid,
     ) -> bool {
-        if self.player_level_like_cpp() < MIN_TALENT_RESET_LEVEL_LIKE_CPP {
+        let (state, mut hub) = crate::session::split_instances_mut(self);
+        state.represented_can_confirm_respec_wipe_like_cpp(&mut hub, respec_master)
+    }
+}
+
+impl crate::session::InstanceState {
+    pub(super) fn represented_can_confirm_respec_wipe_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        respec_master: wow_core::ObjectGuid,
+    ) -> bool {
+        if hub.shared().player_level_like_cpp() < MIN_TALENT_RESET_LEVEL_LIKE_CPP {
             return false;
         }
-        let player_class = self.player_class_like_cpp();
+        let player_class = hub.shared().player_class_like_cpp();
 
-        if self.has_canonical_map_manager_like_cpp() {
-            return self
+        if self.has_canonical_map_manager_like_cpp(hub.shared()) {
+            return hub
+                .shared()
                 .represented_npc_can_interact_with_like_cpp(
                     respec_master,
                     CONFIRM_RESPEC_WIPE_NPC_FLAGS_LIKE_CPP,
@@ -173,10 +185,11 @@ impl WorldSession {
                 .is_some_and(|creature| creature.trainer_class == player_class);
         }
 
-        self.mutate_world_creature(respec_master, |creature| {
-            (creature.npc_flags() & CONFIRM_RESPEC_WIPE_NPC_FLAGS_LIKE_CPP) != 0
-                && creature.trainer_class_like_cpp() == player_class
-        })
-        .unwrap_or(false)
+        hub.core
+            .mutate_world_creature(respec_master, |creature| {
+                (creature.npc_flags() & CONFIRM_RESPEC_WIPE_NPC_FLAGS_LIKE_CPP) != 0
+                    && creature.trainer_class_like_cpp() == player_class
+            })
+            .unwrap_or(false)
     }
 }

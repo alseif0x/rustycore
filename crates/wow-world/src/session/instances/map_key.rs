@@ -154,13 +154,8 @@ impl WorldSession {
         map_id: u32,
         difficulty_id: wow_map::Difficulty,
     ) -> Option<wow_instances::MapDb2Entries> {
-        wow_instances::MapDb2Entries::from_downscaled_stores_like_cpp(
-            self.map_store()?.as_ref(),
-            self.map_difficulty_store()?.as_ref(),
-            self.difficulty_store()?.as_ref(),
-            map_id,
-            difficulty_id,
-        )
+        let (state, hub) = crate::session::split_instances_ref(self);
+        state.create_map_db2_entries_like_cpp(hub, map_id, difficulty_id)
     }
     pub(crate) fn player_map_visibility_range_like_cpp(&self, map_id: u16) -> f32 {
         self.config.player_map_visibility_range_like_cpp(map_id)
@@ -174,15 +169,6 @@ impl WorldSession {
     pub fn mmap_runtime_config_like_cpp(&self) -> &MMapRuntimeConfigLikeCpp {
         self.config.mmap_runtime_config_like_cpp()
     }
-    /// Set the C++ AdventureMapPOI.db2 store for this session.
-    #[cfg(test)]
-    pub fn set_adventure_map_poi_store(&mut self, store: Arc<AdventureMapPoiStore>) {
-        self.catalogs.adventure_map_poi_store = Some(store);
-    }
-    #[cfg(test)]
-    pub fn adventure_map_poi_store(&self) -> Option<&Arc<AdventureMapPoiStore>> {
-        self.catalogs.adventure_map_poi_store.as_ref()
-    }
     pub fn set_map_store(&mut self, store: Arc<MapStore>) {
         self.invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
         self.catalogs.maps.store = Some(store);
@@ -192,17 +178,8 @@ impl WorldSession {
     pub fn set_dungeon_encounter_store(&mut self, store: Arc<DungeonEncounterStore>) {
         self.catalogs.dungeon_encounter_store = Some(store);
     }
-    pub(crate) fn dungeon_encounter_store(&self) -> Option<&Arc<DungeonEncounterStore>> {
-        self.catalogs.dungeon_encounter_store.as_ref()
-    }
     pub(crate) fn map_store(&self) -> Option<&Arc<MapStore>> {
         self.catalogs.map_store()
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_reveal_world_map_overlay_criteria_like_cpp(&self) -> &[u32] {
-        &self
-            .instances
-            .represented_reveal_world_map_overlay_criteria_like_cpp
     }
     pub(in crate::session) fn player_cannot_enter_target_map_like_cpp(
         &self,
@@ -336,44 +313,9 @@ impl WorldSession {
 
         None
     }
-    pub(crate) fn is_disabled_map_type_for_player_like_cpp(
-        &self,
-        disable_type: u32,
-        map_id: u32,
-    ) -> bool {
-        let Some(disable_mgr) = self.disable_mgr() else {
-            return false;
-        };
-        let Some(map_store) = self.map_store() else {
-            return false;
-        };
-
-        let current_map_id = u32::from(self.player_map_id_like_cpp());
-        let Some((_, area_id)) = self.player_zone_area_like_cpp() else {
-            return true;
-        };
-        let current_map_instance_type = map_store
-            .get(current_map_id)
-            .map(|entry| entry.instance_type);
-
-        disable_mgr.is_disabled_for_like_cpp(
-            disable_type,
-            map_id,
-            Some(DisableWorldObjectRefLikeCpp {
-                type_id: TypeId::Player,
-                map_id: current_map_id,
-                area_id,
-                is_pet: false,
-                is_battle_arena: current_map_instance_type == Some(MAP_ARENA_LIKE_CPP),
-                is_battleground: current_map_instance_type == Some(MAP_BATTLEGROUND_LIKE_CPP),
-                player_map_difficulty: None,
-            }),
-            0,
-            Some(map_store.as_ref()),
-        )
-    }
     pub(in crate::session) fn is_map_disabled_for_player_like_cpp(&self, map_id: u32) -> bool {
-        self.is_disabled_map_type_for_player_like_cpp(DISABLE_TYPE_MAP, map_id)
+        let (state, hub) = crate::session::split_instances_ref(self);
+        state.is_map_disabled_for_player_like_cpp(hub, map_id)
     }
     pub(crate) fn player_map_id_like_cpp(&self) -> u16 {
         self.core.player_map_id_like_cpp()
@@ -642,6 +584,91 @@ impl WorldSession {
     }
 }
 
+impl crate::session::state::SessionCatalogs {
+    /// Set the C++ AdventureMapPOI.db2 store for this session.
+    #[cfg(test)]
+    pub fn set_adventure_map_poi_store(&mut self, store: Arc<AdventureMapPoiStore>) {
+        self.adventure_map_poi_store = Some(store);
+    }
+
+    #[cfg(test)]
+    pub fn adventure_map_poi_store(&self) -> Option<&Arc<AdventureMapPoiStore>> {
+        self.adventure_map_poi_store.as_ref()
+    }
+
+    pub(crate) fn dungeon_encounter_store(&self) -> Option<&Arc<DungeonEncounterStore>> {
+        self.dungeon_encounter_store.as_ref()
+    }
+}
+
+impl crate::session::state::InstanceState {
+    pub(crate) fn create_map_db2_entries_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        map_id: u32,
+        difficulty_id: wow_map::Difficulty,
+    ) -> Option<wow_instances::MapDb2Entries> {
+        wow_instances::MapDb2Entries::from_downscaled_stores_like_cpp(
+            hub.catalogs.map_store()?.as_ref(),
+            hub.catalogs.map_difficulty_store()?.as_ref(),
+            hub.catalogs.difficulty_store()?.as_ref(),
+            map_id,
+            difficulty_id,
+        )
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_reveal_world_map_overlay_criteria_like_cpp(&self) -> &[u32] {
+        &self.represented_reveal_world_map_overlay_criteria_like_cpp
+    }
+
+    pub(crate) fn is_disabled_map_type_for_player_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        disable_type: u32,
+        map_id: u32,
+    ) -> bool {
+        let Some(disable_mgr) = hub.catalogs.disable_mgr() else {
+            return false;
+        };
+        let Some(map_store) = hub.catalogs.map_store() else {
+            return false;
+        };
+
+        let current_map_id = u32::from(hub.core.player_map_id_like_cpp());
+        let Some((_, area_id)) = hub.player_zone_area_like_cpp() else {
+            return true;
+        };
+        let current_map_instance_type = map_store
+            .get(current_map_id)
+            .map(|entry| entry.instance_type);
+
+        disable_mgr.is_disabled_for_like_cpp(
+            disable_type,
+            map_id,
+            Some(DisableWorldObjectRefLikeCpp {
+                type_id: TypeId::Player,
+                map_id: current_map_id,
+                area_id,
+                is_pet: false,
+                is_battle_arena: current_map_instance_type == Some(MAP_ARENA_LIKE_CPP),
+                is_battleground: current_map_instance_type == Some(MAP_BATTLEGROUND_LIKE_CPP),
+                player_map_difficulty: None,
+            }),
+            0,
+            Some(map_store.as_ref()),
+        )
+    }
+
+    pub(in crate::session) fn is_map_disabled_for_player_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        map_id: u32,
+    ) -> bool {
+        self.is_disabled_map_type_for_player_like_cpp(hub, DISABLE_TYPE_MAP, map_id)
+    }
+}
+
 impl crate::session::state::SessionCore {
     pub(crate) fn player_map_id_like_cpp(&self) -> u16 {
         self.current_map_id
@@ -678,3 +705,7 @@ impl crate::session::state::SessionWorldConfig {
         &self.mmap_runtime_config_like_cpp
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/instances/map_key/f3_shims.rs"]
+mod f3_shims;

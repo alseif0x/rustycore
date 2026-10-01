@@ -124,91 +124,13 @@ impl WorldSession {
     }
 
     pub(in crate::handlers::character) async fn load_account_toys_like_cpp(&mut self) {
-        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
-            self.load_represented_account_toys_like_cpp([]);
-            return;
-        };
-
-        let bnet_account_id = self.battlenet_account_id();
-        let rows = match port
-            .load_account_collection_like_cpp(AccountCollectionLoadRequestLikeCpp::Toys {
-                bnet_account_id,
-            })
-            .await
-        {
-            AccountCollectionLoadOutcomeLikeCpp::Loaded(AccountCollectionLoadedLikeCpp::Toys(
-                rows,
-            )) => rows
-                .into_iter()
-                .filter_map(|row| {
-                    u32::try_from(row.item_id)
-                        .ok()
-                        .map(|item_id| (item_id, row.is_favorite, row.has_fanfare))
-                })
-                .collect(),
-            AccountCollectionLoadOutcomeLikeCpp::Failed { reason } => {
-                warn!(
-                    account = self.core.account_id,
-                    bnet_account = bnet_account_id,
-                    "Failed to load account toys: {reason}"
-                );
-                Vec::new()
-            }
-            AccountCollectionLoadOutcomeLikeCpp::Loaded(_) => {
-                warn!(
-                    account = self.core.account_id,
-                    bnet_account = bnet_account_id,
-                    "Player lifecycle port returned the wrong account collection for toys"
-                );
-                Vec::new()
-            }
-        };
-
-        self.load_represented_account_toys_like_cpp(rows);
+        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+        state.load_account_toys_like_cpp(&mut hub).await
     }
 
     pub(in crate::handlers::character) async fn load_account_heirlooms_like_cpp(&mut self) {
-        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
-            self.load_represented_account_heirlooms_like_cpp([]);
-            return;
-        };
-
-        let bnet_account_id = self.battlenet_account_id();
-        let rows = match port
-            .load_account_collection_like_cpp(AccountCollectionLoadRequestLikeCpp::Heirlooms {
-                bnet_account_id,
-            })
-            .await
-        {
-            AccountCollectionLoadOutcomeLikeCpp::Loaded(
-                AccountCollectionLoadedLikeCpp::Heirlooms(rows),
-            ) => rows
-                .into_iter()
-                .filter_map(|row| {
-                    u32::try_from(row.item_id)
-                        .ok()
-                        .map(|item_id| (item_id, row.flags))
-                })
-                .collect(),
-            AccountCollectionLoadOutcomeLikeCpp::Failed { reason } => {
-                warn!(
-                    account = self.core.account_id,
-                    bnet_account = bnet_account_id,
-                    "Failed to load account heirlooms: {reason}"
-                );
-                Vec::new()
-            }
-            AccountCollectionLoadOutcomeLikeCpp::Loaded(_) => {
-                warn!(
-                    account = self.core.account_id,
-                    bnet_account = bnet_account_id,
-                    "Player lifecycle port returned the wrong account collection for heirlooms"
-                );
-                Vec::new()
-            }
-        };
-
-        self.load_represented_account_heirlooms_like_cpp(rows);
+        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+        state.load_account_heirlooms_like_cpp(&mut hub).await
     }
 
     pub(in crate::handlers::character) async fn load_account_item_appearances_like_cpp(&mut self) {
@@ -321,5 +243,101 @@ impl WorldSession {
         };
 
         self.load_represented_account_transmog_illusions_like_cpp(illusion_blocks);
+    }
+}
+
+impl crate::session::SessionLifecycleState {
+    pub(in crate::handlers::character) async fn load_account_toys_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+    ) {
+        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
+            self.load_represented_account_toys_like_cpp(hub, []);
+            return;
+        };
+
+        let bnet_account_id = hub.core.battlenet_account_id();
+        let rows = match port
+            .load_account_collection_like_cpp(AccountCollectionLoadRequestLikeCpp::Toys {
+                bnet_account_id,
+            })
+            .await
+        {
+            AccountCollectionLoadOutcomeLikeCpp::Loaded(AccountCollectionLoadedLikeCpp::Toys(
+                rows,
+            )) => rows
+                .into_iter()
+                .filter_map(|row| {
+                    u32::try_from(row.item_id)
+                        .ok()
+                        .map(|item_id| (item_id, row.is_favorite, row.has_fanfare))
+                })
+                .collect(),
+            AccountCollectionLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!(
+                    account = hub.core.account_id,
+                    bnet_account = bnet_account_id,
+                    "Failed to load account toys: {reason}"
+                );
+                Vec::new()
+            }
+            AccountCollectionLoadOutcomeLikeCpp::Loaded(_) => {
+                warn!(
+                    account = hub.core.account_id,
+                    bnet_account = bnet_account_id,
+                    "Player lifecycle port returned the wrong account collection for toys"
+                );
+                Vec::new()
+            }
+        };
+
+        self.load_represented_account_toys_like_cpp(hub, rows);
+    }
+
+    pub(in crate::handlers::character) async fn load_account_heirlooms_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+    ) {
+        let Some(port) = self.player_lifecycle_port_like_cpp().map(Arc::clone) else {
+            self.load_represented_account_heirlooms_like_cpp(hub, []);
+            return;
+        };
+
+        let bnet_account_id = hub.core.battlenet_account_id();
+        let rows = match port
+            .load_account_collection_like_cpp(AccountCollectionLoadRequestLikeCpp::Heirlooms {
+                bnet_account_id,
+            })
+            .await
+        {
+            AccountCollectionLoadOutcomeLikeCpp::Loaded(
+                AccountCollectionLoadedLikeCpp::Heirlooms(rows),
+            ) => rows
+                .into_iter()
+                .filter_map(|row| {
+                    u32::try_from(row.item_id)
+                        .ok()
+                        .map(|item_id| (item_id, row.flags))
+                })
+                .collect(),
+            AccountCollectionLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!(
+                    account = hub.core.account_id,
+                    bnet_account = bnet_account_id,
+                    "Failed to load account heirlooms: {reason}"
+                );
+                Vec::new()
+            }
+            AccountCollectionLoadOutcomeLikeCpp::Loaded(_) => {
+                warn!(
+                    account = hub.core.account_id,
+                    bnet_account = bnet_account_id,
+                    "Player lifecycle port returned the wrong account collection for heirlooms"
+                );
+                Vec::new()
+            }
+        };
+
+        self.load_represented_account_heirlooms_like_cpp(hub, rows);
     }
 }

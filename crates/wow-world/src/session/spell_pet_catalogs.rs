@@ -35,10 +35,6 @@ impl WorldSession {
             .as_ref()
             .is_some_and(|store| store.is_script_database_bound_like_cpp(id))
     }
-
-    pub(crate) fn faction_template_for_race_like_cpp(&self, race: u8) -> Option<i32> {
-        self.catalogs.faction_template_for_race_like_cpp(race)
-    }
 }
 
 impl crate::session::state::SessionCatalogs {

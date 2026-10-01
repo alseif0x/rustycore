@@ -167,10 +167,17 @@ def scan(root):
             if x in names and "session" in recv_name:
                 ext[x] += 1
     tests = collections.Counter()
+    PINNED.clear()
+    PINNED_SELF.clear()
     for p in (root / "crates/wow-world/unit_tests").rglob("*.rs"):
         if p.name != "f3_shims.rs":                          # a shim delegating is not a test caller
-            for x in ANY_CALL.findall(W.blank_noncode(p.read_text(errors="replace"))):
+            text = p.read_text(errors="replace")
+            for x in ANY_CALL.findall(W.blank_noncode(text)):
                 tests[x] += 1
+            if "include_str!" in text:                       # source-text tests pin `name(args` literally
+                for lit in re.findall(r'"((?:[^"\\\n]|\\.)*)"', text):
+                    PINNED.update(re.findall(r"\b(" + IDENT + r")\(", lit))
+                    PINNED_SELF.update(re.findall(r"\bself\.(" + IDENT + r")\(", lit))
     return W, src, raw, code, groups, fns, owned, handlers, ext, tests
 
 
@@ -438,7 +445,15 @@ def plan(root, groups_wanted, classes):
     while True:                                               # a signature failure re-blocks its callers
         settle()
         bad = []
-        for n in cand:
+        for n in cand:                                        # a pinned call would gain a `hub` argument
+            def changes(x):
+                pref = call_prefix(cand[n][1], cand[n][2], *(cand[x][2:0:-1] if x in cand else (loc.get(x), "state")),
+                                   by[x]["recv"] if x in by else "&self")
+                return isinstance(pref, tuple) and x in PINNED or pref not in (None, "self.") and x in PINNED_SELF
+            pinned = [x for x in by[n]["calls"] if changes(x)]
+            if pinned:
+                bad.append((n, f"source-text test pins the call `{pinned[0]}(`"))
+                continue
             try:
                 signature(by[n], code, raw, cand[n][1] in SH)
             except CodemodError as e:
@@ -702,11 +717,7 @@ def apply_text(root, P):
         return relocated
     written = relocated
     for name, shim in P["stale_shims"].items():               # remove shims nobody calls any more
-        t = shim.read_text()
-        code = P["W"].blank_noncode(t)
-        m = re.search(r"(?m)^[ \t]*(?:#\[[^\]]*\][ \t]*\n[ \t]*)*(?:pub[^\n]*?)?fn\s+" + name + r"\b", code)
-        close = P["W"].matching_close(code, code.index("{", m.end())) + 1
-        shim.write_text(t[:m.start()] + t[close:].lstrip("\n"))
+        remove_shim_fn(shim, name)
         P["manifest"].setdefault("retired_shims", []).append(name)
         written.append(shim)
     by, src = P["by"], P["src"]
@@ -793,26 +804,43 @@ def apply_text(root, P):
 NO_METHOD = re.compile(r"no method named `(" + IDENT + r")` found for (?:mutable )?(?:reference|struct) `[^`]*WorldSession")
 
 
+def remove_shim_fn(shim, name):
+    W = lib(REPO)
+    t = shim.read_text()
+    code = W.blank_noncode(t)
+    m = re.search(r"(?m)^[ \t]*(?:#\[[^\]]*\][ \t]*\n[ \t]*)*(?:pub[^\n]*?)?fn\s+" + name + r"\b", code)
+    if m:
+        close = W.matching_close(code, code.index("{", m.end())) + 1
+        shim.write_text(t[:m.start()] + t[close:].lstrip("\n"))
+
+
 def compile_loop(root, group, manifest, max_rounds, log_dir):
     """Patch only what the text step caused: restore a thunk it removed (E0599 on WorldSession).
     Anything else stops the loop with a report; the text step itself rewrites every hub segment."""
     rounds = []
     for i in range(max_rounds):
         rc, msgs = cargo_check(root, log_dir / f"f3-{group}-round-{i + 1}.jsonl")
-        restore, other = set(), []
+        restore, other, dead = set(), [], {}
         for m in msgs:
             code = (m.get("code") or {}).get("code")
             mm = NO_METHOD.match(m["message"])
-            if code == "E0599" and mm and mm.group(1) in manifest["unthunked"]:
+            span = next((s for s in m["spans"] if s["is_primary"]), None)
+            if m["level"] == "warning":                       # a shim whose last caller just moved
+                if span and span["file_name"].endswith("f3_shims.rs") and "never used" in m["message"]:
+                    dead.update({n: root / span["file_name"] for n in re.findall(r"`(" + IDENT + r")`", m["message"])})
+            elif code == "E0599" and mm and mm.group(1) in manifest["unthunked"]:
                 restore.add(mm.group(1))
             elif not m["message"].startswith("aborting"):
                 other.append(f"{code}: {m['message']}")
+        for name, shim in dead.items():
+            remove_shim_fn(shim.resolve(), name)
+            manifest.setdefault("retired_shims", []).append(name)
         for name in restore:                                   # the tool removed this thunk: put it back
             manifest["unthunked"].remove(name)
             manifest["restored"].append(name)
         if restore:
             restore_thunks(root, manifest, restore)
-        rounds.append(len(restore))
+        rounds.append(len(restore) + len(dead))
         print(f"round {i + 1}: exit {rc}, {rounds[-1]} tool-caused spans patched", file=sys.stderr)
         if rounds[-1] == 0:
             if rc != 0:
@@ -910,6 +938,7 @@ def main(argv=None):
               else "text step: already applied (no-op)", file=sys.stderr)
         if not a.text_only and written:
             rounds = compile_loop(root, "-".join(sorted(groups)), manifest, a.max_rounds, log_dir)
+            mpath.write_text(json.dumps(manifest, indent=1))
             print(f"compiler loop: rounds {rounds}", file=sys.stderr)
     except CodemodError as e:
         print(f"f3 codemod: {e}", file=sys.stderr)
@@ -917,6 +946,6 @@ def main(argv=None):
     return 0
 
 
-HANDLERS, EXT = set(), collections.Counter()
+HANDLERS, EXT, PINNED, PINNED_SELF = set(), collections.Counter(), set(), set()
 if __name__ == "__main__":
     sys.exit(main())

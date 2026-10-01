@@ -680,14 +680,28 @@ impl WorldSession {
             })
     }
 
-    /// Load the map's persisted corpses once, including the two auxiliary
-    /// tables consumed by C++ `Map::LoadCorpseData` before `AddCorpse`.
     pub(super) async fn load_map_corpse_data_like_cpp(
         &self,
         map_id: u16,
         instance_id: u32,
     ) -> MapCorpseLoadOutcomeLikeCpp {
-        let Some(manager) = self.core.canonical_map_manager.as_ref().map(Arc::clone) else {
+        let (state, hub) = crate::session::split_lifecycle_ref(self);
+        state
+            .load_map_corpse_data_like_cpp(hub, map_id, instance_id)
+            .await
+    }
+}
+
+impl crate::session::SessionLifecycleState {
+    /// Load the map's persisted corpses once, including the two auxiliary
+    /// tables consumed by C++ `Map::LoadCorpseData` before `AddCorpse`.
+    pub(super) async fn load_map_corpse_data_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        map_id: u16,
+        instance_id: u32,
+    ) -> MapCorpseLoadOutcomeLikeCpp {
+        let Some(manager) = hub.core.canonical_map_manager.as_ref().map(Arc::clone) else {
             return MapCorpseLoadOutcomeLikeCpp::default();
         };
         {
@@ -809,7 +823,8 @@ impl WorldSession {
         let faction_templates_by_race = rows
             .iter()
             .filter_map(|row| {
-                self.faction_template_for_race_like_cpp(row.race)
+                hub.catalogs
+                    .faction_template_for_race_like_cpp(row.race)
                     .map(|faction| (row.race, faction))
             })
             .collect::<HashMap<_, _>>();
@@ -835,7 +850,7 @@ impl WorldSession {
         };
         let mut outcome = materialize_loaded_map_corpses_like_cpp(
             map.map_mut(),
-            self.realm_id(),
+            hub.core.realm_id(),
             rows,
             &phases,
             &customizations,

@@ -18,32 +18,11 @@ pub enum PlayerSaveOutcomeLikeCpp {
 }
 
 impl WorldSession {
-    /// None permits normal save preparation; Some is a completed admission decision.
     pub(in crate::session) fn defer_player_save_for_transfer_like_cpp(
         &mut self,
     ) -> Option<PlayerSaveOutcomeLikeCpp> {
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return None; // Existing ownerless persistence fixtures, never production.
-        }
-        if self
-            .core
-            .player_handle_like_cpp
-            .is_none_or(|handle| self.player_guid() != Some(handle.guid()))
-        {
-            return Some(PlayerSaveOutcomeLikeCpp::Unavailable);
-        }
-        match self.with_owned_player_mut_like_cpp(|player| {
-            player.defer_save_if_transfer_pending_like_cpp()
-        }) {
-            Some(Some(false)) => None,
-            Some(Some(true)) => Some(PlayerSaveOutcomeLikeCpp::Deferred),
-            Some(None) => {
-                self.kick("deferred player-save revision exhausted");
-                Some(PlayerSaveOutcomeLikeCpp::Unavailable)
-            }
-            None => Some(PlayerSaveOutcomeLikeCpp::Unavailable),
-        }
+        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+        state.defer_player_save_for_transfer_like_cpp(&mut hub)
     }
 
     pub(crate) async fn resume_deferred_player_save_with_generator_like_cpp(
@@ -70,6 +49,37 @@ impl WorldSession {
                 }
                 Some(PlayerSaveOutcomeLikeCpp::Unavailable)
             }
+        }
+    }
+}
+
+impl crate::session::state::SessionLifecycleState {
+    /// None permits normal save preparation; Some is a completed admission decision.
+    pub(in crate::session) fn defer_player_save_for_transfer_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+    ) -> Option<PlayerSaveOutcomeLikeCpp> {
+        #[cfg(test)]
+        if hub.core.player_handle_like_cpp.is_none() {
+            return None; // Existing ownerless persistence fixtures, never production.
+        }
+        if hub
+            .core
+            .player_handle_like_cpp
+            .is_none_or(|handle| hub.core.player_guid() != Some(handle.guid()))
+        {
+            return Some(PlayerSaveOutcomeLikeCpp::Unavailable);
+        }
+        match hub.core.with_owned_player_mut_like_cpp(|player| {
+            player.defer_save_if_transfer_pending_like_cpp()
+        }) {
+            Some(Some(false)) => None,
+            Some(Some(true)) => Some(PlayerSaveOutcomeLikeCpp::Deferred),
+            Some(None) => {
+                hub.core.kick("deferred player-save revision exhausted");
+                Some(PlayerSaveOutcomeLikeCpp::Unavailable)
+            }
+            None => Some(PlayerSaveOutcomeLikeCpp::Unavailable),
         }
     }
 }

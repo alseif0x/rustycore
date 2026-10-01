@@ -378,25 +378,9 @@ impl WorldSession {
         &self,
         item_guid: ObjectGuid,
     ) -> WrappedGiftLoad {
-        let Some(port) = self.stored_item_persistence_port_like_cpp() else {
-            return WrappedGiftLoad::Unavailable;
-        };
-        match port
-            .load_wrapped_gift_like_cpp(item_guid.counter() as u64)
+        self.lifecycle
+            .load_wrapped_gift_row_like_cpp(item_guid)
             .await
-        {
-            wow_persistence::StoredItemLoadOutcomeLikeCpp::Loaded(row) => {
-                WrappedGiftLoad::Found(WrappedGiftRow {
-                    entry: row.entry,
-                    flags: row.flags,
-                })
-            }
-            wow_persistence::StoredItemLoadOutcomeLikeCpp::Missing => WrappedGiftLoad::Missing,
-            wow_persistence::StoredItemLoadOutcomeLikeCpp::Failed { reason } => {
-                warn!(item_guid = item_guid.counter(), error = %reason, "failed to load wrapped gift row");
-                WrappedGiftLoad::Unavailable
-            }
-        }
     }
     pub(super) async fn destroy_stale_wrapped_gift_like_cpp(
         &mut self,
@@ -478,22 +462,9 @@ impl WorldSession {
         flags: u32,
         durability: u32,
     ) {
-        let Some(port) = self.stored_item_persistence_port_like_cpp() else {
-            return;
-        };
-        let outcome = port
-            .open_wrapped_gift_like_cpp(wow_persistence::WrappedGiftOpenPersistenceRequestLikeCpp {
-                item_guid: item_guid.counter() as u64,
-                entry,
-                flags,
-                durability,
-            })
-            .await;
-        if let wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
-        | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } = outcome
-        {
-            warn!(item_guid = item_guid.counter(), entry, error = %reason, "failed to persist wrapped gift open");
-        }
+        self.lifecycle
+            .persist_wrapped_gift_open_like_cpp(item_guid, entry, flags, durability)
+            .await
     }
     pub(super) async fn load_item_template_addon_money_loot_like_cpp(
         &self,
@@ -806,6 +777,68 @@ impl WorldSession {
 
         loot_items
     }
+    pub(super) async fn load_loot_template_rows_like_cpp(
+        &self,
+        table: LootTemplateTable,
+        entry: u32,
+    ) -> Vec<LootTemplateRow> {
+        self.lifecycle
+            .load_loot_template_rows_like_cpp(table, entry)
+            .await
+    }
+}
+
+impl crate::session::SessionLifecycleState {
+    pub(super) async fn load_wrapped_gift_row_like_cpp(
+        &self,
+        item_guid: ObjectGuid,
+    ) -> WrappedGiftLoad {
+        let Some(port) = self.stored_item_persistence_port_like_cpp() else {
+            return WrappedGiftLoad::Unavailable;
+        };
+        match port
+            .load_wrapped_gift_like_cpp(item_guid.counter() as u64)
+            .await
+        {
+            wow_persistence::StoredItemLoadOutcomeLikeCpp::Loaded(row) => {
+                WrappedGiftLoad::Found(WrappedGiftRow {
+                    entry: row.entry,
+                    flags: row.flags,
+                })
+            }
+            wow_persistence::StoredItemLoadOutcomeLikeCpp::Missing => WrappedGiftLoad::Missing,
+            wow_persistence::StoredItemLoadOutcomeLikeCpp::Failed { reason } => {
+                warn!(item_guid = item_guid.counter(), error = %reason, "failed to load wrapped gift row");
+                WrappedGiftLoad::Unavailable
+            }
+        }
+    }
+
+    pub(super) async fn persist_wrapped_gift_open_like_cpp(
+        &self,
+        item_guid: ObjectGuid,
+        entry: u32,
+        flags: u32,
+        durability: u32,
+    ) {
+        let Some(port) = self.stored_item_persistence_port_like_cpp() else {
+            return;
+        };
+        let outcome = port
+            .open_wrapped_gift_like_cpp(wow_persistence::WrappedGiftOpenPersistenceRequestLikeCpp {
+                item_guid: item_guid.counter() as u64,
+                entry,
+                flags,
+                durability,
+            })
+            .await;
+        if let wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+        | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } = outcome
+        {
+            warn!(item_guid = item_guid.counter(), entry, error = %reason, "failed to persist wrapped gift open");
+        }
+    }
+
     pub(super) async fn load_loot_template_rows_like_cpp(
         &self,
         table: LootTemplateTable,

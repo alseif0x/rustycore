@@ -92,19 +92,9 @@ impl WorldSession {
         }
     }
 
-    /// C++ `WorldSession::Update` logout decision, on the `ProcessUnsafe()`
-    /// branch reserved for the world filter (`WorldSession.cpp:498-503`).
     pub(crate) fn run_logout_timer_like_cpp(&mut self) {
-        let Some(logout_time) = self.lifecycle.logout_time else {
-            return;
-        };
-        self.record_driver_phase_like_cpp(
-            crate::session::driver::phases::SessionDriverPhaseLikeCpp::LogoutTimer,
-        );
-        if std::time::Instant::now() >= logout_time {
-            self.lifecycle.logout_time = None;
-            self.complete_logout();
-        }
+        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+        state.run_logout_timer_like_cpp(&mut hub)
     }
 
     /// C++ `WorldSession::Update` after the packet loop, on the branch
@@ -205,6 +195,23 @@ impl WorldSession {
         }
         manager.player_active_residence_revision_like_cpp(admission.handle)
             == Some((admission.map_key, admission.residence_revision))
+    }
+}
+
+impl crate::session::state::SessionLifecycleState {
+    /// C++ `WorldSession::Update` logout decision, on the `ProcessUnsafe()`
+    /// branch reserved for the world filter (`WorldSession.cpp:498-503`).
+    pub(crate) fn run_logout_timer_like_cpp(&mut self, hub: &mut crate::session::HubMut<'_>) {
+        let Some(logout_time) = self.logout_time else {
+            return;
+        };
+        hub.core.record_driver_phase_like_cpp(
+            crate::session::driver::phases::SessionDriverPhaseLikeCpp::LogoutTimer,
+        );
+        if std::time::Instant::now() >= logout_time {
+            self.logout_time = None;
+            self.complete_logout(hub);
+        }
     }
 }
 

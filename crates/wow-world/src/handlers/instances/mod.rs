@@ -404,31 +404,6 @@ impl crate::session::WorldSession {
         ));
     }
 
-    #[allow(dead_code)]
-    pub(crate) fn send_pending_raid_lock_like_cpp(
-        &mut self,
-        instance_id: u32,
-        completed_mask: u32,
-        extending: bool,
-        warning_only: bool,
-    ) {
-        self.send_packet(&PendingRaidLock {
-            time_until_lock: 60_000,
-            completed_mask,
-            extending,
-            warning_only,
-        });
-
-        if !warning_only {
-            self.instances.pending_bind = Some(crate::session::RepresentedPendingBind {
-                map_id: u32::from(self.player_map_id_like_cpp()),
-                instance_id,
-                completed_mask,
-                time_until_lock_ms: 60_000,
-            });
-        }
-    }
-
     /// C++ `WorldSession::HandleSetSavedInstanceExtend`.
     pub async fn handle_set_saved_instance_extend(&mut self, query: SetSavedInstanceExtend) {
         let Some(player_guid) = self.player_guid() else {
@@ -505,6 +480,38 @@ impl crate::session::WorldSession {
     }
 }
 
+impl crate::session::InstanceState {
+    #[allow(dead_code)]
+    pub(crate) fn send_pending_raid_lock_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        instance_id: u32,
+        completed_mask: u32,
+        extending: bool,
+        warning_only: bool,
+    ) {
+        hub.core.send_packet(&PendingRaidLock {
+            time_until_lock: 60_000,
+            completed_mask,
+            extending,
+            warning_only,
+        });
+
+        if !warning_only {
+            self.pending_bind = Some(crate::session::RepresentedPendingBind {
+                map_id: u32::from(hub.core.player_map_id_like_cpp()),
+                instance_id,
+                completed_mask,
+                time_until_lock_ms: 60_000,
+            });
+        }
+    }
+}
+
 #[cfg(test)]
 #[path = "../../../unit_tests/handlers/instances/tests/mod.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "../../../unit_tests/handlers/instances/mod/f3_shims.rs"]
+mod f3_shims;

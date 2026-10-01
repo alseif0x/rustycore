@@ -156,7 +156,7 @@ def cargo_check(root, log):
             rec = json.loads(line)
         except json.JSONDecodeError:
             continue
-        if rec.get("reason") == "compiler-message" and rec["message"].get("level") == "error":
+        if rec.get("reason") == "compiler-message" and rec["message"].get("level") in ("error", "warning"):
             msgs.append(rec["message"])
     return rc, msgs
 

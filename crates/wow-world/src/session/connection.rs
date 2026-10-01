@@ -167,14 +167,21 @@ impl WorldSession {
             .await
     }
 
+    pub(crate) fn restore_realm_channels(&mut self) {
+        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+        state.restore_realm_channels(&mut hub)
+    }
+}
+
+impl crate::session::state::SessionLifecycleState {
     /// Restore the realm socket as primary, and clear the login-loading state
     /// the kernel does not own.
-    pub(crate) fn restore_realm_channels(&mut self) {
-        self.core
+    pub(crate) fn restore_realm_channels(&mut self, hub: &mut crate::session::HubMut<'_>) {
+        hub.core
             .transport
             .connection
-            .restore_realm_channels(self.core.account_id);
-        self.lifecycle.player_loading = None;
+            .restore_realm_channels(hub.core.account_id);
+        self.player_loading = None;
     }
 }
 

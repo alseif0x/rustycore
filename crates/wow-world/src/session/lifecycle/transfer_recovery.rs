@@ -5,22 +5,13 @@ use wow_entities::PlayerTransferRecovery;
 
 impl WorldSession {
     pub(crate) fn recovery_worldport_ack_ready_like_cpp(&self) -> bool {
-        self.with_owned_player_like_cpp(|player| {
-            matches!(
-                player.teleport_state_like_cpp().recovery,
-                PlayerTransferRecovery::None | PlayerTransferRecovery::HomebindWorldportReady
-            )
-        })
-        .unwrap_or(false)
+        let (state, hub) = crate::session::split_lifecycle_ref(self);
+        state.recovery_worldport_ack_ready_like_cpp(hub)
     }
 
     pub(crate) fn recovery_new_world_sent_like_cpp(&mut self) {
-        let _ = self.with_owned_player_mut_like_cpp(|player| {
-            let state = player.teleport_state_mut_like_cpp();
-            if state.recovery == PlayerTransferRecovery::Homebind {
-                state.recovery = PlayerTransferRecovery::HomebindWorldportReady;
-            }
-        });
+        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+        state.recovery_new_world_sent_like_cpp(&mut hub)
     }
 
     pub(crate) async fn recover_rejected_worldport_like_cpp(&mut self) {
@@ -62,7 +53,43 @@ impl WorldSession {
     }
 
     pub(in crate::session) fn terminate_worldport_recovery_like_cpp(&mut self) {
-        let _ = self.update_player_teleport_state_like_cpp(|state| {
+        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+        state.terminate_worldport_recovery_like_cpp(&mut hub)
+    }
+}
+
+impl crate::session::state::SessionLifecycleState {
+    pub(crate) fn recovery_worldport_ack_ready_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> bool {
+        hub.core
+            .with_owned_player_like_cpp(|player| {
+                matches!(
+                    player.teleport_state_like_cpp().recovery,
+                    PlayerTransferRecovery::None | PlayerTransferRecovery::HomebindWorldportReady
+                )
+            })
+            .unwrap_or(false)
+    }
+
+    pub(crate) fn recovery_new_world_sent_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+    ) {
+        let _ = hub.core.with_owned_player_mut_like_cpp(|player| {
+            let state = player.teleport_state_mut_like_cpp();
+            if state.recovery == PlayerTransferRecovery::Homebind {
+                state.recovery = PlayerTransferRecovery::HomebindWorldportReady;
+            }
+        });
+    }
+
+    pub(in crate::session) fn terminate_worldport_recovery_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+    ) {
+        let _ = hub.update_player_teleport_state_like_cpp(|state| {
             state.recovery = PlayerTransferRecovery::Terminal;
             // Cancel stale near/delayed commands, not the unresolved far transfer.
             state.near_pending = false;
@@ -71,6 +98,7 @@ impl WorldSession {
             state.has_delayed = false;
             state.delayed = None;
         });
-        self.kick("worldport and homebind recovery failed; disconnect at retained source");
+        hub.core
+            .kick("worldport and homebind recovery failed; disconnect at retained source");
     }
 }

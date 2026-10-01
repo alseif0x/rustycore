@@ -6,39 +6,21 @@
 use super::*;
 
 impl WorldSession {
-    /// Commit a trainer fee when the represented cast has no durable
-    /// spell/skill mutation (for example, every acquisition effect was
-    /// suppressed by target immunity). C++ charges and publishes its trainer
-    /// visuals before that triggered cast resolves its hit effects.
     pub(crate) async fn commit_exclusive_trainer_money_only_like_cpp(
         &mut self,
         money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
         money_before: u64,
         money_after: u64,
     ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
-        #[cfg(test)]
-        if let Some(success) = self.lifecycle.loot_money_persistence_test_result_like_cpp {
-            return success.then_some(money_persistence);
-        }
-
-        if money_before == money_after {
-            return Some(money_persistence);
-        }
-        let guid = self.player_guid()?.counter() as u64;
-        let port = self.player_lifecycle_port_like_cpp().map(Arc::clone)?;
-        let request = wow_persistence::PlayerMoneyTransactionRequestLikeCpp {
-            player_guid: guid,
-            money_after,
-            durability_repairs: Vec::new(),
-        };
-        self.await_exclusive_player_money_transaction_outcome_like_cpp(
-            money_persistence,
-            port.persist_money_transaction_like_cpp(request),
-            money_before,
-            money_after,
-            "trainer fee without durable acquisition mutation",
-        )
-        .await
+        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
+        state
+            .commit_exclusive_trainer_money_only_like_cpp(
+                &mut hub,
+                money_persistence,
+                money_before,
+                money_after,
+            )
+            .await
     }
     /// Apply the already-committed void-storage unlock to runtime state and
     /// emit the same PlayerData::Flags values delta that C++ SetPlayerFlag does.
@@ -246,9 +228,52 @@ impl WorldSession {
     ) -> Option<BTreeSet<u16>> {
         crate::session::hub_ref(self).resolved_player_skill_non_durable_tombstones_like_cpp()
     }
+}
+
+impl crate::session::state::SessionLifecycleState {
+    /// Commit a trainer fee when the represented cast has no durable
+    /// spell/skill mutation (for example, every acquisition effect was
+    /// suppressed by target immunity). C++ charges and publishes its trainer
+    /// visuals before that triggered cast resolves its hit effects.
+    pub(crate) async fn commit_exclusive_trainer_money_only_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
+        money_before: u64,
+        money_after: u64,
+    ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
+        #[cfg(test)]
+        if let Some(success) = self.loot_money_persistence_test_result_like_cpp {
+            return success.then_some(money_persistence);
+        }
+
+        if money_before == money_after {
+            return Some(money_persistence);
+        }
+        let guid = hub.core.player_guid()?.counter() as u64;
+        let port = self.player_lifecycle_port_like_cpp().map(Arc::clone)?;
+        let request = wow_persistence::PlayerMoneyTransactionRequestLikeCpp {
+            player_guid: guid,
+            money_after,
+            durability_repairs: Vec::new(),
+        };
+        self.await_exclusive_player_money_transaction_outcome_like_cpp(
+            hub,
+            money_persistence,
+            port.persist_money_transaction_like_cpp(request),
+            money_before,
+            money_after,
+            "trainer fee without durable acquisition mutation",
+        )
+        .await
+    }
+
     #[cfg(test)]
-    pub(crate) fn player_skill_non_durable_tombstones_like_cpp(&self) -> BTreeSet<u16> {
-        self.resolved_player_skill_non_durable_tombstones_like_cpp()
+    pub(crate) fn player_skill_non_durable_tombstones_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> BTreeSet<u16> {
+        hub.resolved_player_skill_non_durable_tombstones_like_cpp()
             .expect("test Player skill owner must resolve")
     }
 }
@@ -273,3 +298,7 @@ impl crate::session::HubRef<'_> {
         canonical
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/persistence/commit/f3_shims.rs"]
+mod f3_shims;
