@@ -8,13 +8,6 @@ use super::*;
 
 impl crate::session::WorldSession {
     #[cfg(test)]
-    pub(in crate::session) fn mutate_player_world_local_state_like_cpp<R>(
-        &mut self,
-        mutate: impl FnOnce(&mut wow_entities::PlayerWorldLocalState) -> R,
-    ) -> Option<R> {
-        crate::session::hub_mut(self).mutate_player_world_local_state_like_cpp(mutate)
-    }
-    #[cfg(test)]
     pub(in crate::session) fn mutate_player_unit_presentation_like_cpp<R>(
         &mut self,
         mutate: impl FnOnce(&mut Player) -> R,

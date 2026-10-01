@@ -11,27 +11,13 @@ impl WorldSession {
         victim: ObjectGuid,
         attacker: ObjectGuid,
     ) {
-        if self
-            .mutate_canonical_player_by_guid_like_cpp(victim, |victim| {
-                victim.unit_mut().remove_attacker_like_cpp(attacker)
-            })
-            .is_some()
-        {
-            return;
-        }
-        let _ = self.mutate_canonical_creature_by_guid_like_cpp(victim, |victim| {
-            victim.unit_mut().remove_attacker_like_cpp(attacker)
-        });
+        crate::session::hub_mut(self).remove_canonical_attacker_like_cpp(victim, attacker)
     }
     pub(crate) fn validate_movement_ack_status_like_cpp(
         &self,
         status: &wow_packet::packets::movement::MovementInfo,
     ) -> bool {
-        let Some(player_guid) = self.player_guid() else {
-            return false;
-        };
-
-        status.guid == player_guid && status.position.is_valid_map_coord_like_cpp()
+        crate::session::hub_ref(self).validate_movement_ack_status_like_cpp(status)
     }
     pub(crate) fn validate_and_sanitize_movement_ack_status_represented_like_cpp(
         &self,
@@ -64,13 +50,7 @@ impl WorldSession {
         true
     }
     pub(crate) fn record_movement_ack_event_like_cpp(&mut self, event: MovementAckEventLikeCpp) {
-        #[cfg(test)]
-        self.fixtures
-            .movement
-            .movement_ack_events_like_cpp
-            .push(event);
-        #[cfg(not(test))]
-        let _ = event;
+        crate::session::hub_mut(self).record_movement_ack_event_like_cpp(event)
     }
     pub(crate) fn record_validated_movement_ack_like_cpp(
         &mut self,
@@ -174,10 +154,6 @@ impl WorldSession {
         });
         true
     }
-    #[cfg(test)]
-    pub(crate) fn movement_ack_events_like_cpp(&self) -> &[MovementAckEventLikeCpp] {
-        &self.fixtures.movement.movement_ack_events_like_cpp
-    }
     pub(crate) fn handle_movement_force_mod_magnitude_ack_like_cpp(
         &mut self,
         opcode: ClientOpcodes,
@@ -267,3 +243,61 @@ impl WorldSession {
         !matches!(action, MovementSpeedAckActionLikeCpp::Kicked)
     }
 }
+
+#[cfg(test)]
+impl crate::session::state::MovementState {
+    #[cfg(test)]
+    pub(crate) fn movement_ack_events_like_cpp(&self) -> &[MovementAckEventLikeCpp] {
+        &self.movement_ack_events_like_cpp
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(crate) fn validate_movement_ack_status_like_cpp(
+        &self,
+        status: &wow_packet::packets::movement::MovementInfo,
+    ) -> bool {
+        let Some(player_guid) = self.core.player_guid() else {
+            return false;
+        };
+
+        status.guid == player_guid && status.position.is_valid_map_coord_like_cpp()
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(in crate::session) fn remove_canonical_attacker_like_cpp(
+        &mut self,
+        victim: ObjectGuid,
+        attacker: ObjectGuid,
+    ) {
+        if self
+            .core
+            .mutate_canonical_player_by_guid_like_cpp(victim, |victim| {
+                victim.unit_mut().remove_attacker_like_cpp(attacker)
+            })
+            .is_some()
+        {
+            return;
+        }
+        let _ = self
+            .core
+            .mutate_canonical_creature_by_guid_like_cpp(victim, |victim| {
+                victim.unit_mut().remove_attacker_like_cpp(attacker)
+            });
+    }
+
+    pub(crate) fn record_movement_ack_event_like_cpp(&mut self, event: MovementAckEventLikeCpp) {
+        #[cfg(test)]
+        self.fixtures
+            .movement
+            .movement_ack_events_like_cpp
+            .push(event);
+        #[cfg(not(test))]
+        let _ = event;
+    }
+}
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/movement/movement_validation/f3_shims.rs"]
+mod f3_shims;

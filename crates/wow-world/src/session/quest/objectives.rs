@@ -11,18 +11,7 @@ impl WorldSession {
         quest_id: u32,
     ) -> Option<bool> {
         self.catalogs
-            .quests
-            .store
-            .as_ref()?
-            .get(quest_id)
-            .map(|quest| {
-                !quest.is_df_quest_like_cpp()
-                    && !quest.is_daily_like_cpp()
-                    && (!quest.is_repeatable()
-                        || quest.is_weekly_like_cpp()
-                        || quest.is_monthly_like_cpp()
-                        || quest.is_seasonal_like_cpp())
-            })
+            .represented_quest_can_increase_rewarded_counters_like_cpp(quest_id)
     }
     pub(in crate::session) async fn update_represented_storing_value_quest_objective_progress_like_cpp(
         &mut self,
@@ -679,8 +668,7 @@ impl WorldSession {
         event: RepresentedQuestObjectiveProgressEventLikeCpp,
     ) {
         self.quest_state
-            .represented_quest_objective_progress_events_like_cpp
-            .push_back(event);
+            .enqueue_represented_quest_objective_progress_like_cpp(event)
     }
     pub(crate) async fn drain_represented_quest_objective_progress_with_generator_like_cpp(
         &mut self,
@@ -781,10 +769,40 @@ impl WorldSession {
         self.drain_represented_quest_objective_progress_with_generator_like_cpp(generator.as_ref())
             .await;
     }
+}
+
+impl crate::session::state::SessionQuestState {
+    pub(crate) fn enqueue_represented_quest_objective_progress_like_cpp(
+        &mut self,
+        event: RepresentedQuestObjectiveProgressEventLikeCpp,
+    ) {
+        self.represented_quest_objective_progress_events_like_cpp
+            .push_back(event);
+    }
+
     #[cfg(test)]
     pub(crate) fn represented_quest_push_result_sender_mismatch_count_like_cpp(&self) -> u32 {
-        self.quest_state
-            .quest_test_fixture_like_cpp
+        self.quest_test_fixture_like_cpp
             .represented_quest_push_result_sender_mismatch_count_like_cpp
     }
 }
+
+impl crate::session::state::SessionCatalogs {
+    pub(crate) fn represented_quest_can_increase_rewarded_counters_like_cpp(
+        &self,
+        quest_id: u32,
+    ) -> Option<bool> {
+        self.quests.store.as_ref()?.get(quest_id).map(|quest| {
+            !quest.is_df_quest_like_cpp()
+                && !quest.is_daily_like_cpp()
+                && (!quest.is_repeatable()
+                    || quest.is_weekly_like_cpp()
+                    || quest.is_monthly_like_cpp()
+                    || quest.is_seasonal_like_cpp())
+        })
+    }
+}
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/quest/objectives/f3_shims.rs"]
+mod f3_shims;

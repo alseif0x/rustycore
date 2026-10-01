@@ -12,11 +12,6 @@ impl WorldSession {
     ) -> Option<f32> {
         crate::session::hub_ref(self).resolved_player_movement_speed_like_cpp(move_type)
     }
-    #[cfg(test)]
-    pub(crate) fn player_movement_speed_like_cpp(&self, move_type: UnitMoveTypeLikeCpp) -> f32 {
-        self.resolved_player_movement_speed_like_cpp(move_type)
-            .expect("test Player movement-speed owner must resolve")
-    }
     pub(in crate::session) fn recompute_represented_run_speed_rate_like_cpp(&mut self) {
         crate::session::hub_mut(self).recompute_represented_run_speed_rate_like_cpp()
     }
@@ -33,9 +28,7 @@ impl WorldSession {
         crate::session::hub_mut(self).recompute_represented_mounted_speed_rates_like_cpp()
     }
     pub(in crate::session) fn recompute_represented_forward_speed_rates_like_cpp(&mut self) {
-        self.recompute_represented_run_speed_rate_like_cpp();
-        self.recompute_represented_swim_speed_rate_like_cpp();
-        self.recompute_represented_flight_speed_rate_like_cpp();
+        crate::session::hub_mut(self).recompute_represented_forward_speed_rates_like_cpp()
     }
     pub(crate) fn handle_force_speed_change_ack_like_cpp(
         &mut self,
@@ -142,6 +135,41 @@ impl WorldSession {
         &mut self,
         event: MovementSpeedAckEventLikeCpp,
     ) {
+        crate::session::hub_mut(self).record_movement_speed_ack_event_like_cpp(event)
+    }
+    pub(in crate::session) fn resolved_forced_speed_changes_like_cpp(
+        &self,
+        move_type: UnitMoveTypeLikeCpp,
+    ) -> Option<u8> {
+        crate::session::hub_ref(self).resolved_forced_speed_changes_like_cpp(move_type)
+    }
+    fn consume_forced_speed_change_like_cpp(
+        &mut self,
+        move_type: UnitMoveTypeLikeCpp,
+    ) -> Option<u8> {
+        crate::session::hub_mut(self).consume_forced_speed_change_like_cpp(move_type)
+    }
+}
+
+#[cfg(test)]
+impl crate::session::state::MovementState {
+    #[cfg(test)]
+    pub(crate) fn movement_speed_ack_events_like_cpp(&self) -> &[MovementSpeedAckEventLikeCpp] {
+        &self.movement_speed_ack_events_like_cpp
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(in crate::session) fn recompute_represented_forward_speed_rates_like_cpp(&mut self) {
+        self.recompute_represented_run_speed_rate_like_cpp();
+        self.recompute_represented_swim_speed_rate_like_cpp();
+        self.recompute_represented_flight_speed_rate_like_cpp();
+    }
+
+    pub(in crate::session) fn record_movement_speed_ack_event_like_cpp(
+        &mut self,
+        event: MovementSpeedAckEventLikeCpp,
+    ) {
         #[cfg(test)]
         self.fixtures
             .movement
@@ -150,26 +178,14 @@ impl WorldSession {
         #[cfg(not(test))]
         let _ = event;
     }
-    pub(in crate::session) fn resolved_forced_speed_changes_like_cpp(
-        &self,
-        move_type: UnitMoveTypeLikeCpp,
-    ) -> Option<u8> {
-        let index = move_type.index();
-        let canonical = self
-            .with_owned_player_like_cpp(|player| player.forced_speed_changes_like_cpp(index))
-            .flatten();
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.movement.forced_speed_changes_like_cpp[index]);
-        }
-        canonical
-    }
+
     fn consume_forced_speed_change_like_cpp(
         &mut self,
         move_type: UnitMoveTypeLikeCpp,
     ) -> Option<u8> {
         let index = move_type.index();
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.consume_forced_speed_change_like_cpp(index)
             })
@@ -184,6 +200,7 @@ impl WorldSession {
         }
         canonical
     }
+
     #[cfg(test)]
     pub(crate) fn set_forced_speed_changes_like_cpp(
         &mut self,
@@ -192,6 +209,7 @@ impl WorldSession {
     ) {
         let index = move_type.index();
         let canonical = self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.set_forced_speed_changes_like_cpp(index, count)
             })
@@ -200,11 +218,7 @@ impl WorldSession {
             self.fixtures.movement.forced_speed_changes_like_cpp[index] = count;
         }
     }
-    #[cfg(test)]
-    pub(crate) fn forced_speed_changes_like_cpp(&self, move_type: UnitMoveTypeLikeCpp) -> u8 {
-        self.resolved_forced_speed_changes_like_cpp(move_type)
-            .expect("test Player forced-speed owner must resolve")
-    }
+
     #[cfg(test)]
     pub(crate) fn set_player_movement_speed_rate_like_cpp(
         &mut self,
@@ -213,9 +227,35 @@ impl WorldSession {
     ) {
         let _ = self.set_player_movement_speed_rate_like_cpp_inner(move_type, rate.max(0.01));
     }
+}
+
+impl crate::session::HubRef<'_> {
     #[cfg(test)]
-    pub(crate) fn movement_speed_ack_events_like_cpp(&self) -> &[MovementSpeedAckEventLikeCpp] {
-        &self.fixtures.movement.movement_speed_ack_events_like_cpp
+    pub(crate) fn player_movement_speed_like_cpp(&self, move_type: UnitMoveTypeLikeCpp) -> f32 {
+        self.resolved_player_movement_speed_like_cpp(move_type)
+            .expect("test Player movement-speed owner must resolve")
+    }
+
+    pub(in crate::session) fn resolved_forced_speed_changes_like_cpp(
+        &self,
+        move_type: UnitMoveTypeLikeCpp,
+    ) -> Option<u8> {
+        let index = move_type.index();
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.forced_speed_changes_like_cpp(index))
+            .flatten();
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.fixtures.movement.forced_speed_changes_like_cpp[index]);
+        }
+        canonical
+    }
+
+    #[cfg(test)]
+    pub(crate) fn forced_speed_changes_like_cpp(&self, move_type: UnitMoveTypeLikeCpp) -> u8 {
+        self.resolved_forced_speed_changes_like_cpp(move_type)
+            .expect("test Player forced-speed owner must resolve")
     }
 }
 

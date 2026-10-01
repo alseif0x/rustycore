@@ -8,12 +8,7 @@ use super::*;
 
 impl crate::session::WorldSession {
     #[cfg(test)]
-    pub(crate) fn set_represented_player_power_slot_like_cpp(
-        &mut self,
-        slot: usize,
-        current: i32,
-        max: Option<i32>,
-    ) {
-        crate::session::hub_mut(self).set_represented_player_power_slot_like_cpp(slot, current, max)
+    pub(crate) fn player_health_like_cpp(&self) -> u32 {
+        crate::session::hub_ref(self).player_health_like_cpp()
     }
 }

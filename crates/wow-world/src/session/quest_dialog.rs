@@ -677,20 +677,8 @@ impl WorldSession {
         &self,
         menu_items: &[RepresentedPreparedQuestMenuItemLikeCpp],
     ) -> Vec<(u32, String, u8, bool, bool, u32, u32)> {
-        menu_items
-            .iter()
-            .map(|item| {
-                (
-                    item.quest.id,
-                    item.quest.log_title.clone(),
-                    item.quest_icon,
-                    item.has_starter_relation,
-                    item.has_involved_relation,
-                    item.quest.allowable_classes,
-                    item.quest.flags,
-                )
-            })
-            .collect()
+        self.quest_state
+            .represented_quest_menu_item_log_rows_like_cpp(menu_items)
     }
 
     pub(in crate::session) fn quest_list_entry_from_menu_item_like_cpp(
@@ -714,5 +702,27 @@ impl WorldSession {
             important: self.represented_quest_is_important_like_cpp(quest),
             title: quest.log_title.clone(),
         }
+    }
+}
+
+impl crate::session::state::SessionQuestState {
+    pub(in crate::session) fn represented_quest_menu_item_log_rows_like_cpp(
+        &self,
+        menu_items: &[RepresentedPreparedQuestMenuItemLikeCpp],
+    ) -> Vec<(u32, String, u8, bool, bool, u32, u32)> {
+        menu_items
+            .iter()
+            .map(|item| {
+                (
+                    item.quest.id,
+                    item.quest.log_title.clone(),
+                    item.quest_icon,
+                    item.has_starter_relation,
+                    item.has_involved_relation,
+                    item.quest.allowable_classes,
+                    item.quest.flags,
+                )
+            })
+            .collect()
     }
 }

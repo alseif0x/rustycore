@@ -22,4 +22,7 @@ impl crate::session::WorldSession {
     pub(crate) fn set_player_faction_template_like_cpp(&mut self, faction_template: u32) {
         crate::session::hub_mut(self).set_player_faction_template_like_cpp(faction_template)
     }
+    pub(in crate::session) fn resolved_player_scale_duration_like_cpp(&self) -> Option<i32> {
+        crate::session::hub_ref(self).resolved_player_scale_duration_like_cpp()
+    }
 }

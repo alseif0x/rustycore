@@ -12868,7 +12868,7 @@
           "kind": "method",
           "name": "finish_item_transfer_quest_persistence_like_cpp",
           "visibility": "pub (crate)",
-          "signature": "fn finish_item_transfer_quest_persistence_like_cpp (& self , mut plan : ItemTransferQuestPersistencePlanLikeCpp ,) -> Vec < PlayerQuestStatus >",
+          "signature": "fn finish_item_transfer_quest_persistence_like_cpp (& self , plan : ItemTransferQuestPersistencePlanLikeCpp ,) -> Vec < PlayerQuestStatus >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -17816,26 +17816,30 @@
           "trait_path": null,
           "kind": "method",
           "name": "apply_player_quest_core_compatibility_like_cpp",
-          "visibility": "private",
-          "signature": "fn apply_player_quest_core_compatibility_like_cpp (& mut self , state : & PlayerQuestGameplayState)",
+          "visibility": "pub (in crate :: session :: quest :: state)",
+          "signature": "fn apply_player_quest_core_compatibility_like_cpp (& mut self , state : & PlayerQuestGameplayState ,)",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
           "name": "apply_player_quest_gameplay_fixture_like_cpp",
-          "visibility": "private",
-          "signature": "fn apply_player_quest_gameplay_fixture_like_cpp (& mut self , state : PlayerQuestGameplayState)",
+          "visibility": "pub (in crate :: session :: quest :: state)",
+          "signature": "fn apply_player_quest_gameplay_fixture_like_cpp (& mut self , state : PlayerQuestGameplayState ,)",
           "cfg": [
             "cfg (test)"
           ],
           "source_class": "test_fixture",
-          "guards": []
+          "guards": [
+            "visible"
+          ]
         },
         {
           "module": "crate::session",
@@ -19172,21 +19176,6 @@
           "name": "battle_pet_modify_name_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn battle_pet_modify_name_like_cpp (& mut self , pet_guid : ObjectGuid , name : String , declined_names : Option < wow_packet :: packets :: misc :: DeclinedNamesLikeCpp > , timestamp : i64 ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "battle_pet_purchase_selection_override_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn battle_pet_purchase_selection_override_like_cpp (& self ,) -> Option < wow_data :: battle_pet_selection :: BattlePetTrainerSelectionLikeCpp >",
           "cfg": [
             "cfg (test)"
           ],
@@ -21168,19 +21157,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "clear_player_emote_state_on_movement_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn clear_player_emote_state_on_movement_like_cpp (& mut self ,) -> Option < wow_packet :: packets :: update :: UpdateObject >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "clear_player_gossip_options_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn clear_player_gossip_options_like_cpp (& mut self) -> bool",
@@ -22281,19 +22257,6 @@
           "name": "current_player_is_in_raid_group_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn current_player_is_in_raid_group_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "current_player_movement_info_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn current_player_movement_info_like_cpp (& self , player_guid : ObjectGuid ,) -> Option < wow_packet :: packets :: movement :: MovementInfo >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -28020,21 +27983,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "mutate_player_world_local_state_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn mutate_player_world_local_state_like_cpp < R > (& mut self , mutate : impl FnOnce (& mut wow_entities :: PlayerWorldLocalState) -> R ,) -> Option < R >",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "mutate_reputation_mgr_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn mutate_reputation_mgr_like_cpp < R > (& mut self , operation : impl FnOnce (& mut ReputationMgrMutLikeCpp < '_ >) -> R ,) -> Option < R >",
@@ -30342,8 +30290,10 @@
           "name": "player_transport_state_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn player_transport_state_like_cpp (& self ,) -> Option < Option < wow_entities :: PlayerTransportState > >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -33585,8 +33535,10 @@
           "name": "replace_owned_player_mails_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn replace_owned_player_mails_like_cpp (& self , mails : Vec < wow_entities :: PlayerMailRecord > ,) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -33827,8 +33779,10 @@
           "name": "represented_advanced_combat_logging_enabled_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_advanced_combat_logging_enabled_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -34565,8 +34519,10 @@
           "name": "represented_can_delay_teleport_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn represented_can_delay_teleport_like_cpp (& self) -> bool",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -40301,19 +40257,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "resolved_player_emote_state_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn resolved_player_emote_state_like_cpp (& self) -> Option < u32 >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "resolved_player_flags_for_create_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn resolved_player_flags_for_create_like_cpp (& self) -> Option < (u32 , u32) >",
@@ -40397,19 +40340,6 @@
           "name": "resolved_player_mounted_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn resolved_player_mounted_like_cpp (& self) -> Option < bool >",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "resolved_player_movement_flags_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn resolved_player_movement_flags_like_cpp (& self ,) -> Option < MovementFlag >",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -40512,8 +40442,10 @@
           "name": "resolved_player_scale_duration_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn resolved_player_scale_duration_like_cpp (& self) -> Option < i32 >",
-          "cfg": [],
-          "source_class": "production",
+          "cfg": [
+            "cfg (test)"
+          ],
+          "source_class": "test_fixture",
           "guards": [
             "visible"
           ]
@@ -42051,19 +41983,6 @@
           "name": "send_player_health_values_update_like_cpp",
           "visibility": "pub (in crate :: session)",
           "signature": "fn send_player_health_values_update_like_cpp (& self , guid : ObjectGuid , health : u64 ,)",
-          "cfg": [],
-          "source_class": "production",
-          "guards": [
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "send_player_move_set_flag_like_cpp",
-          "visibility": "pub (in crate :: session)",
-          "signature": "fn send_player_move_set_flag_like_cpp (& mut self , opcode : ServerOpcodes)",
           "cfg": [],
           "source_class": "production",
           "guards": [
@@ -46395,22 +46314,6 @@
           "module": "crate::session",
           "trait_path": null,
           "kind": "method",
-          "name": "set_player_movement_speed_rate_like_cpp_inner",
-          "visibility": "pub (in crate :: session :: movement :: speed)",
-          "signature": "fn set_player_movement_speed_rate_like_cpp_inner (& mut self , move_type : UnitMoveTypeLikeCpp , rate : f32 ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
           "name": "set_player_movement_time_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn set_player_movement_time_like_cpp (& mut self , time : u32)",
@@ -46535,21 +46438,6 @@
           "guards": [
             "setter",
             "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_player_pvp_hostile_fixture_like_cpp",
-          "visibility": "private",
-          "signature": "fn set_player_pvp_hostile_fixture_like_cpp (& mut self , hostile : bool)",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "setter"
           ]
         },
         {
@@ -47756,22 +47644,6 @@
           "name": "set_represented_player_phase_shift_like_cpp",
           "visibility": "pub (crate)",
           "signature": "fn set_represented_player_phase_shift_like_cpp (& mut self , phase_shift : PhaseShift ,) -> bool",
-          "cfg": [
-            "cfg (test)"
-          ],
-          "source_class": "test_fixture",
-          "guards": [
-            "setter",
-            "visible"
-          ]
-        },
-        {
-          "module": "crate::session",
-          "trait_path": null,
-          "kind": "method",
-          "name": "set_represented_player_power_slot_like_cpp",
-          "visibility": "pub (crate)",
-          "signature": "fn set_represented_player_power_slot_like_cpp (& mut self , slot : usize , current : i32 , max : Option < i32 > ,)",
           "cfg": [
             "cfg (test)"
           ],
@@ -50601,7 +50473,7 @@
           "kind": "method",
           "name": "teleport_options_after_seamless_gate_like_cpp",
           "visibility": "private",
-          "signature": "fn teleport_options_after_seamless_gate_like_cpp (& self , new_map : u32 , mut options : TeleportToOptionsLikeCpp ,) -> TeleportToOptionsLikeCpp",
+          "signature": "fn teleport_options_after_seamless_gate_like_cpp (& self , new_map : u32 , options : TeleportToOptionsLikeCpp ,) -> TeleportToOptionsLikeCpp",
           "cfg": [],
           "source_class": "production",
           "guards": []
@@ -63540,6 +63412,45 @@
           "package": "wow-world",
           "module": "crate::session::movement::movement_publication",
           "source": "crates/wow-world/src/session/movement/movement_publication.rs",
+          "enclosing": "impl HubRef::broadcast_from_movement_source_set_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "accessor",
+          "symbol": "player_registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "player_registry()",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::movement::movement_publication",
+          "source": "crates/wow-world/src/session/movement/movement_publication.rs",
+          "enclosing": "impl HubRef::broadcast_from_movement_source_set_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "_player_guid",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "_player_guid:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::movement::movement_publication",
+          "source": "crates/wow-world/src/session/movement/movement_publication.rs",
+          "enclosing": "impl HubRef::broadcast_from_movement_source_set_like_cpp",
+          "registry": "PlayerRegistry",
+          "operation": "local_alias",
+          "symbol": "registry",
+          "visibility": "pub (crate)",
+          "cfg": [],
+          "fingerprint": "registry:PlayerRegistry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::session::movement::movement_publication",
+          "source": "crates/wow-world/src/session/movement/movement_publication.rs",
           "enclosing": "impl HubRef::update_registry_position",
           "registry": "PlayerRegistry",
           "operation": "member",
@@ -63590,48 +63501,9 @@
         },
         {
           "package": "wow-world",
-          "module": "crate::session::movement::movement_publication",
-          "source": "crates/wow-world/src/session/movement/movement_publication.rs",
-          "enclosing": "impl WorldSession::broadcast_from_movement_source_set_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "accessor",
-          "symbol": "player_registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "player_registry()",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::movement::movement_publication",
-          "source": "crates/wow-world/src/session/movement/movement_publication.rs",
-          "enclosing": "impl WorldSession::broadcast_from_movement_source_set_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "_player_guid",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "_player_guid:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
-          "module": "crate::session::movement::movement_publication",
-          "source": "crates/wow-world/src/session/movement/movement_publication.rs",
-          "enclosing": "impl WorldSession::broadcast_from_movement_source_set_like_cpp",
-          "registry": "PlayerRegistry",
-          "operation": "local_alias",
-          "symbol": "registry",
-          "visibility": "pub (crate)",
-          "cfg": [],
-          "fingerprint": "registry:PlayerRegistry",
-          "count": 1
-        },
-        {
-          "package": "wow-world",
           "module": "crate::session::movement::transfer",
           "source": "crates/wow-world/src/session/movement/transfer.rs",
-          "enclosing": "impl WorldSession::send_same_map_move_update_teleport_to_visible_set_like_cpp",
+          "enclosing": "impl HubRef::send_same_map_move_update_teleport_to_visible_set_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "accessor",
           "symbol": "player_registry",
@@ -63644,7 +63516,7 @@
           "package": "wow-world",
           "module": "crate::session::movement::transfer",
           "source": "crates/wow-world/src/session/movement/transfer.rs",
-          "enclosing": "impl WorldSession::send_same_map_move_update_teleport_to_visible_set_like_cpp",
+          "enclosing": "impl HubRef::send_same_map_move_update_teleport_to_visible_set_like_cpp",
           "registry": "PlayerRegistry",
           "operation": "local_alias",
           "symbol": "registry",
@@ -76419,7 +76291,7 @@
           "package": "wow-world",
           "module": "crate::session::movement::state",
           "path": "crates/wow-world/src/session/movement/state.rs",
-          "enclosing": "WorldSession::mover_movement_force_mod_magnitude_like_cpp",
+          "enclosing": "crate :: session :: HubRef < '_ >::mover_movement_force_mod_magnitude_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
           ],
@@ -76495,7 +76367,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn mover_movement_force_mod_magnitude_like_cpp (& self , mover_guid : ObjectGuid ,) -> Option < f32 >|body=fnv1a64x2:6fb34a08bd04602a33b57f0ec9f58599:len=1194|evidence=fnv1a64x2:27c38cc1c7a92a7e8d381e22e84fd5e5:len=795",
+          "fingerprint": "signature=impl:crate :: session :: HubRef < '_ >::fn mover_movement_force_mod_magnitude_like_cpp (& self , mover_guid : ObjectGuid ,) -> Option < f32 >|body=fnv1a64x2:7fbd9eebb26684f09652512e9a40bd33:len=1222|evidence=fnv1a64x2:27c38cc1c7a92a7e8d381e22e84fd5e5:len=795",
           "cfg": [],
           "multiplicity": 1
         },
@@ -76503,7 +76375,7 @@
           "package": "wow-world",
           "module": "crate::session::movement::state",
           "path": "crates/wow-world/src/session/movement/state.rs",
-          "enclosing": "WorldSession::mover_position_like_cpp",
+          "enclosing": "crate :: session :: HubRef < '_ >::mover_position_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
           ],
@@ -76579,7 +76451,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn mover_position_like_cpp (& self , mover_guid : ObjectGuid ,) -> Option < wow_core :: Position >|body=fnv1a64x2:710cf0e49d9e96c4a802e84364ef52af:len=839|evidence=fnv1a64x2:5b8983ff1c7f1d1c0ab2faaf5cb00d07:len=795",
+          "fingerprint": "signature=impl:crate :: session :: HubRef < '_ >::fn mover_position_like_cpp (& self , mover_guid : ObjectGuid ,) -> Option < wow_core :: Position >|body=fnv1a64x2:b05a99dd7b844a57e52bbb6b5d78c796:len=860|evidence=fnv1a64x2:5b8983ff1c7f1d1c0ab2faaf5cb00d07:len=795",
           "cfg": [],
           "multiplicity": 1
         },
@@ -76587,7 +76459,7 @@
           "package": "wow-world",
           "module": "crate::session::movement::state",
           "path": "crates/wow-world/src/session/movement/state.rs",
-          "enclosing": "WorldSession::mover_spline_finalized_like_cpp",
+          "enclosing": "crate :: session :: HubRef < '_ >::mover_spline_finalized_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
           ],
@@ -76663,7 +76535,7 @@
               "multiplicity": 1
             }
           ],
-          "fingerprint": "signature=impl:WorldSession::fn mover_spline_finalized_like_cpp (& self , mover_guid : ObjectGuid) -> Option < bool >|body=fnv1a64x2:5e4d83f139d6e7dd420e6576e2c984c2:len=1095|evidence=fnv1a64x2:f9da871a27e20fad549d81320b85520e:len=795",
+          "fingerprint": "signature=impl:crate :: session :: HubRef < '_ >::fn mover_spline_finalized_like_cpp (& self , mover_guid : ObjectGuid) -> Option < bool >|body=fnv1a64x2:213d2a59638a27772eb24905d47bca3c:len=1123|evidence=fnv1a64x2:f9da871a27e20fad549d81320b85520e:len=795",
           "cfg": [],
           "multiplicity": 1
         },

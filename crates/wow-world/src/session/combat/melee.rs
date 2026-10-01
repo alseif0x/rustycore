@@ -73,19 +73,7 @@ impl WorldSession {
     pub(in crate::session) fn canonical_player_attack_state_like_cpp(
         &self,
     ) -> Option<Option<ObjectGuid>> {
-        let guid = self.core.player_guid?;
-        let map_id = u32::from(self.player_map_id_like_cpp());
-        let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
-        let manager = manager.lock().ok()?;
-        let mut result = None;
-        manager.do_for_all_maps_with_map_id(map_id, |managed| {
-            if result.is_none()
-                && let Some(player) = managed.map().get_typed_player(guid)
-            {
-                result = Some(player.unit().attacking());
-            }
-        });
-        result
+        crate::session::hub_ref(self).canonical_player_attack_state_like_cpp()
     }
     pub(crate) fn set_player_attack_swing_error_like_cpp(&mut self, error: Option<u8>) {
         self.core.set_player_attack_swing_error_like_cpp(error)
@@ -536,22 +524,10 @@ impl WorldSession {
         })
     }
 
-    /// C++ `Unit::MeleeDamageBonusDone`'s `SPELL_AURA_MOD_AUTOATTACK_DAMAGE`
-    /// factor for the canonical Player (`Unit.cpp:7620-7627`): `1.0` when the
-    /// aura container or the spell store cannot be resolved.
-    ///
-    /// The owning session writes the result on the canonical Player through the
-    /// aura-mutation sync, so the map-owned swing path only reads it.
     pub(in crate::session) fn represented_player_autoattack_damage_multiplier_like_cpp(
         &self,
     ) -> f32 {
-        let (Some(auras), Some(spell_store)) = (
-            self.resolved_player_visible_auras_like_cpp(),
-            self.spell_store(),
-        ) else {
-            return 1.0;
-        };
-        crate::session_rules::represented_autoattack_damage_multiplier_like_cpp(&auras, spell_store)
+        crate::session::hub_ref(self).represented_player_autoattack_damage_multiplier_like_cpp()
     }
     fn canonical_unit_attack_target_state_like_cpp(
         &self,
@@ -692,26 +668,10 @@ impl WorldSession {
         )
     }
     fn player_vehicle_seat_allows_attack_like_cpp(&self) -> bool {
-        let Some((seat_flags, _)) = self.player_vehicle_seat_state_like_cpp() else {
-            return false;
-        };
-        match seat_flags {
-            Some(flags) => flags & VEHICLE_SEAT_FLAG_CAN_ATTACK != 0,
-            None => true,
-        }
+        crate::session::hub_ref(self).player_vehicle_seat_allows_attack_like_cpp()
     }
     fn add_canonical_attacker_like_cpp(&mut self, victim: ObjectGuid, attacker: ObjectGuid) {
-        if self
-            .mutate_canonical_player_by_guid_like_cpp(victim, |victim| {
-                victim.unit_mut().add_attacker_like_cpp(attacker)
-            })
-            .is_some()
-        {
-            return;
-        }
-        let _ = self.mutate_canonical_creature_by_guid_like_cpp(victim, |victim| {
-            victim.unit_mut().add_attacker_like_cpp(attacker)
-        });
+        crate::session::hub_mut(self).add_canonical_attacker_like_cpp(victim, attacker)
     }
     pub(crate) fn start_player_attack_like_cpp(
         &mut self,
@@ -831,8 +791,38 @@ impl WorldSession {
         PlayerAttackStartLikeCppResult::Accepted { send_attack_start }
     }
     pub(crate) fn stop_player_attack_like_cpp(&mut self) -> Option<ObjectGuid> {
-        let player_guid = self.player_guid()?;
-        let target = match self.mutate_canonical_player_like_cpp(|player| {
+        crate::session::hub_mut(self).stop_player_attack_like_cpp()
+    }
+    pub(crate) fn player_class_attack_power_coefficients_like_cpp(
+        &self,
+        class: u8,
+    ) -> Option<(u8, u8, u8)> {
+        self.catalogs
+            .player_class_attack_power_coefficients_like_cpp(class)
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    fn add_canonical_attacker_like_cpp(&mut self, victim: ObjectGuid, attacker: ObjectGuid) {
+        if self
+            .core
+            .mutate_canonical_player_by_guid_like_cpp(victim, |victim| {
+                victim.unit_mut().add_attacker_like_cpp(attacker)
+            })
+            .is_some()
+        {
+            return;
+        }
+        let _ = self
+            .core
+            .mutate_canonical_creature_by_guid_like_cpp(victim, |victim| {
+                victim.unit_mut().add_attacker_like_cpp(attacker)
+            });
+    }
+
+    pub(crate) fn stop_player_attack_like_cpp(&mut self) -> Option<ObjectGuid> {
+        let player_guid = self.core.player_guid()?;
+        let target = match self.core.mutate_canonical_player_like_cpp(|player| {
             match player.unit_mut().attack_stop_like_cpp() {
                 wow_entities::UnitAttackStopOutcome::Stopped { victim } => Some(victim),
                 wow_entities::UnitAttackStopOutcome::NoVictim => None,
@@ -847,15 +837,15 @@ impl WorldSession {
                 self.set_in_combat_like_cpp(false);
                 return None;
             }
-            None => self.resolved_combat_target_like_cpp().flatten()?,
+            None => self.shared().resolved_combat_target_like_cpp().flatten()?,
         };
         self.set_combat_target_like_cpp(None);
         self.set_in_combat_like_cpp(false);
-        if self.selection_guid_like_cpp() == Some(target) {
+        if self.shared().selection_guid_like_cpp() == Some(target) {
             self.set_selection_guid_like_cpp(None);
         }
         self.remove_canonical_attacker_like_cpp(target, player_guid);
-        let _ = self.mutate_world_creature(target, |victim| {
+        let _ = self.core.mutate_world_creature(target, |victim| {
             victim
                 .creature
                 .unit_mut()
@@ -863,12 +853,53 @@ impl WorldSession {
         });
         Some(target)
     }
-    pub(crate) fn player_class_attack_power_coefficients_like_cpp(
+}
+
+impl crate::session::HubRef<'_> {
+    pub(in crate::session) fn canonical_player_attack_state_like_cpp(
         &self,
-        class: u8,
-    ) -> Option<(u8, u8, u8)> {
-        self.catalogs
-            .player_class_attack_power_coefficients_like_cpp(class)
+    ) -> Option<Option<ObjectGuid>> {
+        let guid = self.core.player_guid?;
+        let map_id = u32::from(self.core.player_map_id_like_cpp());
+        let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
+        let manager = manager.lock().ok()?;
+        let mut result = None;
+        manager.do_for_all_maps_with_map_id(map_id, |managed| {
+            if result.is_none()
+                && let Some(player) = managed.map().get_typed_player(guid)
+            {
+                result = Some(player.unit().attacking());
+            }
+        });
+        result
+    }
+
+    /// C++ `Unit::MeleeDamageBonusDone`'s `SPELL_AURA_MOD_AUTOATTACK_DAMAGE`
+    /// factor for the canonical Player (`Unit.cpp:7620-7627`): `1.0` when the
+    /// aura container or the spell store cannot be resolved.
+    ///
+    /// The owning session writes the result on the canonical Player through the
+    /// aura-mutation sync, so the map-owned swing path only reads it.
+    pub(in crate::session) fn represented_player_autoattack_damage_multiplier_like_cpp(
+        &self,
+    ) -> f32 {
+        let (Some(auras), Some(spell_store)) = (
+            self.resolved_player_visible_auras_like_cpp(),
+            self.catalogs.spell_store(),
+        ) else {
+            return 1.0;
+        };
+        crate::session_rules::represented_autoattack_damage_multiplier_like_cpp(&auras, spell_store)
+    }
+
+    fn player_vehicle_seat_allows_attack_like_cpp(&self) -> bool {
+        let Some((seat_flags, _)) = self.player_vehicle_seat_state_like_cpp() else {
+            return false;
+        };
+        match seat_flags {
+            Some(flags) => flags & VEHICLE_SEAT_FLAG_CAN_ATTACK != 0,
+            None => true,
+        }
     }
 }
 

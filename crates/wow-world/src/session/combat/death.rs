@@ -24,18 +24,11 @@ impl WorldSession {
         self.sync_player_registry_state_like_cpp();
     }
     pub(crate) fn apply_represented_resurrection_health_like_cpp(&mut self, health: u32) {
-        let Some((_, max_health, _)) = self.resolved_player_vitals_like_cpp() else {
-            return;
-        };
-        let _ = self.sync_canonical_player_health_like_cpp(health, max_health);
+        crate::session::hub_mut(self).apply_represented_resurrection_health_like_cpp(health)
     }
     pub(crate) fn apply_represented_resurrection_percent_like_cpp(&mut self, restore_percent: f32) {
-        let Some((_, max_health, _)) = self.resolved_player_vitals_like_cpp() else {
-            return;
-        };
-        let health =
-            ((f64::from(max_health) * f64::from(restore_percent)).floor() as u32).min(max_health);
-        self.apply_represented_resurrection_health_like_cpp(health);
+        crate::session::hub_mut(self)
+            .apply_represented_resurrection_percent_like_cpp(restore_percent)
     }
     pub(in crate::session) fn player_resurrection_state_snapshot_like_cpp(
         &self,
@@ -62,5 +55,23 @@ impl WorldSession {
             });
         }
         canonical
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(crate) fn apply_represented_resurrection_health_like_cpp(&mut self, health: u32) {
+        let Some((_, max_health, _)) = self.shared().resolved_player_vitals_like_cpp() else {
+            return;
+        };
+        let _ = self.sync_canonical_player_health_like_cpp(health, max_health);
+    }
+
+    pub(crate) fn apply_represented_resurrection_percent_like_cpp(&mut self, restore_percent: f32) {
+        let Some((_, max_health, _)) = self.shared().resolved_player_vitals_like_cpp() else {
+            return;
+        };
+        let health =
+            ((f64::from(max_health) * f64::from(restore_percent)).floor() as u32).min(max_health);
+        self.apply_represented_resurrection_health_like_cpp(health);
     }
 }

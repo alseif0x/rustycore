@@ -23,14 +23,6 @@ impl crate::session::WorldSession {
             .set_battle_pet_purchase_selection_override_like_cpp(selection)
     }
     #[cfg(test)]
-    pub(crate) fn battle_pet_purchase_selection_override_like_cpp(
-        &self,
-    ) -> Option<wow_data::battle_pet_selection::BattlePetTrainerSelectionLikeCpp> {
-        self.fixtures
-            .pets
-            .battle_pet_purchase_selection_override_like_cpp()
-    }
-    #[cfg(test)]
     pub fn set_battle_pet_breed_state_store(&mut self, store: Arc<BattlePetBreedStateStore>) {
         self.fixtures.pets.set_battle_pet_breed_state_store(store)
     }

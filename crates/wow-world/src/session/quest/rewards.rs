@@ -16,26 +16,10 @@ impl WorldSession {
         &self,
         quest_id: u32,
     ) -> GameEventQuestCompleteClientOutcomeLikeCpp {
-        let Some(sender) = self.core.directory.game_event_quest_complete_tx.as_ref() else {
-            return GameEventQuestCompleteClientOutcomeLikeCpp::SenderMissing { quest_id };
-        };
-
-        let (response_tx, response_rx) = flume::bounded(1);
-        let command = GameEventQuestCompleteCommandLikeCpp {
-            quest_id,
-            response_tx,
-        };
-        if sender.try_send(command).is_err() {
-            return GameEventQuestCompleteClientOutcomeLikeCpp::SendFailed { quest_id };
-        }
-
-        match tokio::time::timeout(Duration::from_millis(250), response_rx.recv_async()).await {
-            Ok(Ok(response)) => GameEventQuestCompleteClientOutcomeLikeCpp::Ok(response),
-            Ok(Err(_)) => {
-                GameEventQuestCompleteClientOutcomeLikeCpp::ResponseChannelClosed { quest_id }
-            }
-            Err(_) => GameEventQuestCompleteClientOutcomeLikeCpp::ResponseTimeout { quest_id },
-        }
+        let (state, hub) = crate::session::split_quest_state_ref(self);
+        state
+            .notify_game_event_quest_complete_like_cpp(hub, quest_id)
+            .await
     }
     /// C++ `Player::AddCurrency(..., CurrencyGainSource::*QuestReward*)`.
     ///
@@ -318,57 +302,15 @@ impl WorldSession {
         &mut self,
         quest_bit: u32,
     ) -> bool {
-        if quest_bit == 0 {
-            return false;
-        }
-
-        let field_offset = (quest_bit - 1) / QUESTS_COMPLETED_BITS_PER_BLOCK;
-        if field_offset as usize >= QUESTS_COMPLETED_BITS_SIZE {
-            return false;
-        }
-
-        let canonical_changed = self
-            .mutate_canonical_player_like_cpp(|player| {
-                player.set_quest_completed_bit_like_cpp(quest_bit, true)
-            })
-            .unwrap_or(false);
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return self
-                .quest_state
-                .quest_test_fixture_like_cpp
-                .represented_quest_completed_bits_like_cpp
-                .insert(quest_bit);
-        }
-        canonical_changed
+        let (state, mut hub) = crate::session::split_quest_state_mut(self);
+        state.set_loaded_quest_completed_bit_like_cpp(&mut hub, quest_bit)
     }
     pub(in crate::session) fn clear_loaded_quest_completed_bit_like_cpp(
         &mut self,
         quest_bit: u32,
     ) -> bool {
-        if quest_bit == 0 {
-            return false;
-        }
-
-        let field_offset = (quest_bit - 1) / QUESTS_COMPLETED_BITS_PER_BLOCK;
-        if field_offset as usize >= QUESTS_COMPLETED_BITS_SIZE {
-            return false;
-        }
-
-        let canonical_changed = self
-            .mutate_canonical_player_like_cpp(|player| {
-                player.set_quest_completed_bit_like_cpp(quest_bit, false)
-            })
-            .unwrap_or(false);
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return self
-                .quest_state
-                .quest_test_fixture_like_cpp
-                .represented_quest_completed_bits_like_cpp
-                .remove(&quest_bit);
-        }
-        canonical_changed
+        let (state, mut hub) = crate::session::split_quest_state_mut(self);
+        state.clear_loaded_quest_completed_bit_like_cpp(&mut hub, quest_bit)
     }
     /// C++ `Player::GetQuestXPReward`.
     pub(crate) fn quest_xp_reward_like_cpp(&self, quest: &wow_data::quest::QuestTemplate) -> u32 {
@@ -386,23 +328,12 @@ impl WorldSession {
             quest.reward_xp_multiplier,
         )
     }
-    /// C++ `Player::GetQuestMoneyReward` -> `Quest::MoneyValue`.
     pub(crate) fn quest_money_reward_like_cpp(
         &self,
         quest: &wow_data::quest::QuestTemplate,
     ) -> u32 {
-        let Some(store) = &self.catalogs.quests.money_reward_store else {
-            return 0;
-        };
-        let quest_level = self.player_quest_level_like_cpp(quest).max(0) as u32;
-        let Some(row) = store.get(quest_level) else {
-            return 0;
-        };
-        let difficulty = quest.reward_money_difficulty as usize;
-        let Some(base) = row.difficulty.get(difficulty).copied() else {
-            return 0;
-        };
-        ((base as f32) * quest.reward_money_multiplier).round() as u32
+        let (state, hub) = crate::session::split_quest_state_ref(self);
+        state.quest_money_reward_like_cpp(hub, quest)
     }
     pub(in crate::session) fn represented_player_quest_status_is_complete_or_incomplete_like_cpp(
         &self,
@@ -501,17 +432,13 @@ impl WorldSession {
         quest: &wow_data::quest::QuestTemplate,
         auto_launched: bool,
     ) {
-        self.send_packet(&QuestGiverOfferReward {
-            giver_guid: source_guid,
-            giver_creature_id: quest_giver_creature_id_from_source_like_cpp(source_guid),
-            quest_id: quest.id,
-            quest_flags: [quest.flags, quest.flags_ex, quest.flags_ex2],
-            suggested_party_members: quest.suggested_group_num,
-            rewards: quest_rewards_block_like_cpp(quest),
-            title: quest.log_title.clone(),
-            reward_text: quest.quest_completion_log.clone(),
+        let (state, mut hub) = crate::session::split_quest_state_mut(self);
+        state.send_represented_quest_giver_offer_reward_like_cpp(
+            &mut hub,
+            source_guid,
+            quest,
             auto_launched,
-        });
+        )
     }
     #[cfg(test)]
     pub(crate) fn represented_confirm_barbers_choice_requests_like_cpp(
@@ -536,71 +463,216 @@ impl WorldSession {
         });
         self.sync_player_registry_state_like_cpp();
     }
-    #[cfg(test)]
-    pub(crate) fn represented_quest_reward_skill_updates_like_cpp(&self) -> &[(u32, u32)] {
-        &self
-            .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_quest_reward_skill_updates_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_quest_reward_spell_casts_like_cpp(
-        &self,
-    ) -> &[RepresentedQuestRewardSpellCastLikeCpp] {
-        &self
-            .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_quest_reward_spell_casts_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_quest_reward_titles_like_cpp(
-        &self,
-    ) -> &[RepresentedQuestRewardTitleLikeCpp] {
-        &self
-            .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_quest_reward_titles_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_quest_reward_talent_points_like_cpp(
-        &self,
-    ) -> &[RepresentedQuestRewardTalentPointsLikeCpp] {
-        &self
-            .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_quest_reward_talent_points_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_quest_reward_mails_like_cpp(
-        &self,
-    ) -> &[RepresentedQuestRewardMailLikeCpp] {
-        &self
-            .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_quest_reward_mails_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_quest_reward_reputations_like_cpp(
-        &self,
-    ) -> &[RepresentedQuestRewardReputationLikeCpp] {
-        &self
-            .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_quest_reward_reputations_like_cpp
-    }
     pub(crate) fn represented_quest_complete_status_updates_like_cpp(
         &self,
     ) -> &[RepresentedQuestCompleteStatusUpdateLikeCpp] {
-        &self
-            .quest_state
-            .represented_quest_complete_status_updates_like_cpp
+        self.quest_state
+            .represented_quest_complete_status_updates_like_cpp()
     }
     pub(crate) fn record_represented_quest_complete_status_update_like_cpp(
         &mut self,
         evidence: RepresentedQuestCompleteStatusUpdateLikeCpp,
     ) {
         self.quest_state
-            .represented_quest_complete_status_updates_like_cpp
+            .record_represented_quest_complete_status_update_like_cpp(evidence)
+    }
+}
+
+impl crate::session::state::SessionQuestState {
+    pub async fn notify_game_event_quest_complete_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        quest_id: u32,
+    ) -> GameEventQuestCompleteClientOutcomeLikeCpp {
+        let Some(sender) = hub.core.directory.game_event_quest_complete_tx.as_ref() else {
+            return GameEventQuestCompleteClientOutcomeLikeCpp::SenderMissing { quest_id };
+        };
+
+        let (response_tx, response_rx) = flume::bounded(1);
+        let command = GameEventQuestCompleteCommandLikeCpp {
+            quest_id,
+            response_tx,
+        };
+        if sender.try_send(command).is_err() {
+            return GameEventQuestCompleteClientOutcomeLikeCpp::SendFailed { quest_id };
+        }
+
+        match tokio::time::timeout(Duration::from_millis(250), response_rx.recv_async()).await {
+            Ok(Ok(response)) => GameEventQuestCompleteClientOutcomeLikeCpp::Ok(response),
+            Ok(Err(_)) => {
+                GameEventQuestCompleteClientOutcomeLikeCpp::ResponseChannelClosed { quest_id }
+            }
+            Err(_) => GameEventQuestCompleteClientOutcomeLikeCpp::ResponseTimeout { quest_id },
+        }
+    }
+
+    pub(in crate::session) fn set_loaded_quest_completed_bit_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        quest_bit: u32,
+    ) -> bool {
+        if quest_bit == 0 {
+            return false;
+        }
+
+        let field_offset = (quest_bit - 1) / QUESTS_COMPLETED_BITS_PER_BLOCK;
+        if field_offset as usize >= QUESTS_COMPLETED_BITS_SIZE {
+            return false;
+        }
+
+        let canonical_changed = hub
+            .core
+            .mutate_canonical_player_like_cpp(|player| {
+                player.set_quest_completed_bit_like_cpp(quest_bit, true)
+            })
+            .unwrap_or(false);
+        #[cfg(test)]
+        if hub.core.player_handle_like_cpp.is_none() {
+            return self
+                .quest_test_fixture_like_cpp
+                .represented_quest_completed_bits_like_cpp
+                .insert(quest_bit);
+        }
+        canonical_changed
+    }
+
+    pub(in crate::session) fn clear_loaded_quest_completed_bit_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        quest_bit: u32,
+    ) -> bool {
+        if quest_bit == 0 {
+            return false;
+        }
+
+        let field_offset = (quest_bit - 1) / QUESTS_COMPLETED_BITS_PER_BLOCK;
+        if field_offset as usize >= QUESTS_COMPLETED_BITS_SIZE {
+            return false;
+        }
+
+        let canonical_changed = hub
+            .core
+            .mutate_canonical_player_like_cpp(|player| {
+                player.set_quest_completed_bit_like_cpp(quest_bit, false)
+            })
+            .unwrap_or(false);
+        #[cfg(test)]
+        if hub.core.player_handle_like_cpp.is_none() {
+            return self
+                .quest_test_fixture_like_cpp
+                .represented_quest_completed_bits_like_cpp
+                .remove(&quest_bit);
+        }
+        canonical_changed
+    }
+
+    /// C++ `Player::GetQuestMoneyReward` -> `Quest::MoneyValue`.
+    pub(crate) fn quest_money_reward_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        quest: &wow_data::quest::QuestTemplate,
+    ) -> u32 {
+        let Some(store) = &hub.catalogs.quests.money_reward_store else {
+            return 0;
+        };
+        let quest_level = self.player_quest_level_like_cpp(hub, quest).max(0) as u32;
+        let Some(row) = store.get(quest_level) else {
+            return 0;
+        };
+        let difficulty = quest.reward_money_difficulty as usize;
+        let Some(base) = row.difficulty.get(difficulty).copied() else {
+            return 0;
+        };
+        ((base as f32) * quest.reward_money_multiplier).round() as u32
+    }
+
+    pub(crate) fn send_represented_quest_giver_offer_reward_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        source_guid: ObjectGuid,
+        quest: &wow_data::quest::QuestTemplate,
+        auto_launched: bool,
+    ) {
+        hub.core.send_packet(&QuestGiverOfferReward {
+            giver_guid: source_guid,
+            giver_creature_id: quest_giver_creature_id_from_source_like_cpp(source_guid),
+            quest_id: quest.id,
+            quest_flags: [quest.flags, quest.flags_ex, quest.flags_ex2],
+            suggested_party_members: quest.suggested_group_num,
+            rewards: quest_rewards_block_like_cpp(quest),
+            title: quest.log_title.clone(),
+            reward_text: quest.quest_completion_log.clone(),
+            auto_launched,
+        });
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_quest_reward_skill_updates_like_cpp(&self) -> &[(u32, u32)] {
+        &self
+            .quest_test_fixture_like_cpp
+            .represented_quest_reward_skill_updates_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_quest_reward_spell_casts_like_cpp(
+        &self,
+    ) -> &[RepresentedQuestRewardSpellCastLikeCpp] {
+        &self
+            .quest_test_fixture_like_cpp
+            .represented_quest_reward_spell_casts_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_quest_reward_titles_like_cpp(
+        &self,
+    ) -> &[RepresentedQuestRewardTitleLikeCpp] {
+        &self
+            .quest_test_fixture_like_cpp
+            .represented_quest_reward_titles_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_quest_reward_talent_points_like_cpp(
+        &self,
+    ) -> &[RepresentedQuestRewardTalentPointsLikeCpp] {
+        &self
+            .quest_test_fixture_like_cpp
+            .represented_quest_reward_talent_points_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_quest_reward_mails_like_cpp(
+        &self,
+    ) -> &[RepresentedQuestRewardMailLikeCpp] {
+        &self
+            .quest_test_fixture_like_cpp
+            .represented_quest_reward_mails_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_quest_reward_reputations_like_cpp(
+        &self,
+    ) -> &[RepresentedQuestRewardReputationLikeCpp] {
+        &self
+            .quest_test_fixture_like_cpp
+            .represented_quest_reward_reputations_like_cpp
+    }
+
+    pub(crate) fn represented_quest_complete_status_updates_like_cpp(
+        &self,
+    ) -> &[RepresentedQuestCompleteStatusUpdateLikeCpp] {
+        &self.represented_quest_complete_status_updates_like_cpp
+    }
+
+    pub(crate) fn record_represented_quest_complete_status_update_like_cpp(
+        &mut self,
+        evidence: RepresentedQuestCompleteStatusUpdateLikeCpp,
+    ) {
+        self.represented_quest_complete_status_updates_like_cpp
             .push(evidence);
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/quest/rewards/f3_shims.rs"]
+mod f3_shims;

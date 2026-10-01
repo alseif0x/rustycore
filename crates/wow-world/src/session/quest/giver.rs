@@ -458,6 +458,40 @@ impl WorldSession {
         can_complete: bool,
         auto_launched: bool,
     ) {
+        let (state, mut hub) = crate::session::split_quest_state_mut(self);
+        state.send_represented_quest_giver_request_items_with_completion_like_cpp(
+            &mut hub,
+            source_guid,
+            quest,
+            can_complete,
+            auto_launched,
+        )
+    }
+    pub(crate) fn send_represented_quest_giver_quest_details_like_cpp(
+        &mut self,
+        source_guid: ObjectGuid,
+        quest: &wow_data::quest::QuestTemplate,
+        auto_launched: bool,
+    ) {
+        let (state, mut hub) = crate::session::split_quest_state_mut(self);
+        state.send_represented_quest_giver_quest_details_like_cpp(
+            &mut hub,
+            source_guid,
+            quest,
+            auto_launched,
+        )
+    }
+}
+
+impl crate::session::state::SessionQuestState {
+    pub(crate) fn send_represented_quest_giver_request_items_with_completion_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        source_guid: ObjectGuid,
+        quest: &wow_data::quest::QuestTemplate,
+        can_complete: bool,
+        auto_launched: bool,
+    ) {
         let collect = quest
             .objectives
             .iter()
@@ -483,7 +517,7 @@ impl WorldSession {
             .filter(|objective| objective.obj_type == QUEST_OBJECTIVE_MONEY_LIKE_CPP)
             .map(|objective| objective.amount)
             .sum::<i32>();
-        self.send_packet(&QuestGiverRequestItems {
+        hub.core.send_packet(&QuestGiverRequestItems {
             giver_guid: source_guid,
             giver_creature_id: quest_giver_creature_id_from_source_like_cpp(source_guid),
             quest_id: quest.id,
@@ -500,8 +534,10 @@ impl WorldSession {
             auto_launched,
         });
     }
+
     pub(crate) fn send_represented_quest_giver_quest_details_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         source_guid: ObjectGuid,
         quest: &wow_data::quest::QuestTemplate,
         auto_launched: bool,
@@ -517,7 +553,7 @@ impl WorldSession {
             })
             .collect();
 
-        self.send_packet(&QuestGiverQuestDetails {
+        hub.core.send_packet(&QuestGiverQuestDetails {
             giver_guid: source_guid,
             giver_creature_id: quest_giver_creature_id_from_source_like_cpp(source_guid),
             quest_id: quest.id,

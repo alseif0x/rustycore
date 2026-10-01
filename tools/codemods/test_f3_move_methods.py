@@ -363,6 +363,14 @@ class F3MoveMethodsTest(unittest.TestCase):
         self.assertTrue(P["blocked"]["t3_idle"].startswith("no callers anywhere"))
         self.assertTrue(P["blocked"]["t3_used"].startswith("dead in non-test builds"))  # group stays whole
 
+    def test_keep_holds_a_reviewed_fence_on_worldsession(self):
+        P = F.plan(self.root, {"catalogs"}, {"P", "C-hub"}, None, {"foo_store"})
+        self.assertTrue(P["blocked"]["foo_store"].startswith("kept on WorldSession by review"))
+        self.assertNotIn("foo_store", P["cand"])
+        rc, out = run("plan", "--group", "catalogs", "--root", str(self.root), "--keep", "foo_store")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("kept on WorldSession by review", out)
+
     def test_precondition_aborts_before_any_write(self):
         before = digest(self.root)
         rc, out = self.apply()

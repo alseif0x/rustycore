@@ -6,9 +6,8 @@
 use super::*;
 
 impl WorldSession {
-    /// Set the represented QuestPoolMgr active snapshot shared reference.
     pub fn set_quest_pool_store(&mut self, store: Arc<wow_data::quest::QuestPoolStoreLikeCpp>) {
-        self.catalogs.quests.pool_store = Some(store);
+        self.catalogs.set_quest_pool_store(store)
     }
     #[cfg(test)]
     pub(crate) fn seasonal_quest_bucket_like_cpp(
@@ -31,5 +30,12 @@ impl WorldSession {
         self.player_quest_gameplay_snapshot_like_cpp()
             .expect("test Player quest owner resolves")
             .seasonal_quest_changed_like_cpp()
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    /// Set the represented QuestPoolMgr active snapshot shared reference.
+    pub fn set_quest_pool_store(&mut self, store: Arc<wow_data::quest::QuestPoolStoreLikeCpp>) {
+        self.quests.pool_store = Some(store);
     }
 }

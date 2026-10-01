@@ -19,24 +19,8 @@ impl WorldSession {
         max: i32,
         base_mana: i32,
     ) -> bool {
-        let synced = self
-            .with_owned_player_mut_for_power_like_cpp(|player| {
-                for raw_power in 0..=25 {
-                    player.set_power_index(power_type_from_u8_like_cpp(raw_power), None);
-                }
-                player.set_power_index(power_type, Some(0));
-                player.unit_mut().set_display_power(power_type);
-                player.unit_mut().set_create_mana_like_cpp(base_mana.max(0));
-                player.unit_mut().set_max_power(power_type, max.max(0));
-                player.unit_mut().set_power(power_type, current.max(0));
-            })
-            .is_some();
-        #[cfg(test)]
-        if synced || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.combat.represented_player_base_mana_like_cpp = base_mana.max(0);
-            self.set_represented_player_power_slot_like_cpp(0, current, Some(max));
-        }
-        synced
+        crate::session::hub_mut(self)
+            .sync_canonical_player_primary_power_like_cpp(power_type, current, max, base_mana)
     }
     pub(crate) fn sync_canonical_player_primary_power_max_like_cpp(
         &mut self,
@@ -119,7 +103,7 @@ impl WorldSession {
         self.catalogs.power_type_store = Some(store);
     }
     pub(crate) fn power_type_store_like_cpp(&self) -> Option<&PowerTypeStore> {
-        self.catalogs.power_type_store.as_deref()
+        self.catalogs.power_type_store_like_cpp()
     }
     pub(crate) fn represented_player_power_values_like_cpp(
         &self,
@@ -158,12 +142,51 @@ impl WorldSession {
         self.sync_player_registry_state_like_cpp();
     }
     #[cfg(test)]
+    pub(crate) fn player_max_health_like_cpp(&self) -> u32 {
+        self.resolved_player_vitals_like_cpp().unwrap().1
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    #[cfg(test)]
     pub(crate) fn player_health_like_cpp(&self) -> u32 {
         self.resolved_player_vitals_like_cpp().unwrap().0
     }
-    #[cfg(test)]
-    pub(crate) fn player_max_health_like_cpp(&self) -> u32 {
-        self.resolved_player_vitals_like_cpp().unwrap().1
+}
+
+impl crate::session::state::SessionCatalogs {
+    pub(crate) fn power_type_store_like_cpp(&self) -> Option<&PowerTypeStore> {
+        self.power_type_store.as_deref()
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(crate) fn sync_canonical_player_primary_power_like_cpp(
+        &mut self,
+        power_type: PowerType,
+        current: i32,
+        max: i32,
+        base_mana: i32,
+    ) -> bool {
+        let synced = self
+            .core
+            .with_owned_player_mut_for_power_like_cpp(|player| {
+                for raw_power in 0..=25 {
+                    player.set_power_index(power_type_from_u8_like_cpp(raw_power), None);
+                }
+                player.set_power_index(power_type, Some(0));
+                player.unit_mut().set_display_power(power_type);
+                player.unit_mut().set_create_mana_like_cpp(base_mana.max(0));
+                player.unit_mut().set_max_power(power_type, max.max(0));
+                player.unit_mut().set_power(power_type, current.max(0));
+            })
+            .is_some();
+        #[cfg(test)]
+        if synced || self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.combat.represented_player_base_mana_like_cpp = base_mana.max(0);
+            self.set_represented_player_power_slot_like_cpp(0, current, Some(max));
+        }
+        synced
     }
 }
 

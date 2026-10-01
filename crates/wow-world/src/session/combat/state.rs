@@ -7,102 +7,20 @@ use super::*;
 
 impl WorldSession {
     pub(in crate::session) fn player_is_pvp_like_cpp(&self, guid: ObjectGuid) -> Option<bool> {
-        if self.player_guid() != Some(guid) {
-            return None;
-        }
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            player
-                .unit()
-                .pvp_flags_like_cpp()
-                .contains(UnitPvpFlags::PVP)
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            if let Some(flags) = self.canonical_player_pvp_flags_like_cpp(guid) {
-                return Some(flags.contains(UnitPvpFlags::PVP));
-            }
-            return Some(self.fixtures.combat.player_pvp_enabled_like_cpp);
-        }
-        canonical
-    }
-    #[cfg(test)]
-    pub(in crate::session) fn canonical_player_pvp_flags_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) -> Option<UnitPvpFlags> {
-        if self.player_guid() == Some(guid)
-            && let Some(flags) =
-                self.with_owned_player_like_cpp(|player| player.unit().pvp_flags_like_cpp())
-        {
-            return Some(flags);
-        }
-        let map_id = u32::from(self.player_map_id_like_cpp());
-        let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
-        let manager = manager.lock().ok()?;
-        let mut result = None;
-        manager.do_for_all_maps_with_map_id(map_id, |managed| {
-            if result.is_none() {
-                result = managed
-                    .map()
-                    .get_typed_player(guid)
-                    .map(|player| player.unit().pvp_flags_like_cpp());
-            }
-        });
-        result
+        crate::session::hub_ref(self).player_is_pvp_like_cpp(guid)
     }
     pub(in crate::session) fn player_has_in_pvp_flag_like_cpp(
         &self,
         guid: ObjectGuid,
     ) -> Option<bool> {
-        if self.player_guid() != Some(guid) {
-            return None;
-        }
-        let canonical = self.with_owned_player_like_cpp(|player| {
-            player.has_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP)
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            if let Some(value) =
-                self.canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_IN_PVP_LIKE_CPP)
-            {
-                return Some(value);
-            }
-            return Some(self.fixtures.combat.player_in_pvp_flag_like_cpp);
-        }
-        canonical
+        crate::session::hub_ref(self).player_has_in_pvp_flag_like_cpp(guid)
     }
     pub(in crate::session) fn update_player_pvp_like_cpp(
         &mut self,
         state: bool,
         override_state: bool,
     ) {
-        // C++ `Player::UpdatePvP` (Player.cpp:22663) is a Player transition:
-        // the flag and the timer move together and this session only asks for
-        // it.
-        let now_secs = wow_entities::game_time_secs_like_cpp();
-        #[cfg_attr(not(test), allow(unused_mut))]
-        let mut mutated = self.with_owned_player_mut_like_cpp(|player| {
-            player.update_pvp_like_cpp(state, now_secs, override_state);
-        });
-        #[cfg(test)]
-        if mutated.is_none()
-            && self.core.player_handle_like_cpp.is_none()
-            && let Some(guid) = self.player_guid()
-        {
-            mutated = self.mutate_canonical_player_by_guid_like_cpp(guid, |player| {
-                player.update_pvp_like_cpp(state, now_secs, override_state);
-            });
-        }
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.combat.player_pvp_end_timer_like_cpp = if !state || override_state {
-                None
-            } else {
-                Some(now_secs)
-            };
-            self.fixtures.combat.player_pvp_enabled_like_cpp = state;
-        }
-        let _ = mutated;
+        crate::session::hub_mut(self).update_player_pvp_like_cpp(state, override_state)
     }
     pub(crate) fn update_pvp_flag_like_cpp(&mut self, curr_time: i64) {
         let Some(guid) = self.player_guid() else {
@@ -217,20 +135,7 @@ impl WorldSession {
         attacker_is_friendly_to_victim: bool,
         victim_is_friendly_to_attacker: bool,
     ) -> bool {
-        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
-            return false;
-        };
-        let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {
-            return false;
-        };
-        let Ok(mut manager) = manager.lock() else {
-            return false;
-        };
-        let Some(managed) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
-            return false;
-        };
-        begin_combat_ref_on_map_like_cpp(
-            managed.map_mut(),
+        crate::session::hub_mut(self).begin_canonical_player_combat_ref_like_cpp(
             attacker_guid,
             victim_guid,
             relation_represented,
@@ -242,21 +147,7 @@ impl WorldSession {
         &mut self,
         player_guid: ObjectGuid,
     ) {
-        let Some(map_key) = self.current_canonical_player_map_key_like_cpp() else {
-            return;
-        };
-        let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {
-            return;
-        };
-        let Ok(mut manager) = manager.lock() else {
-            return;
-        };
-        let Some(managed) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
-            return;
-        };
-        if managed.map().get_typed_player(player_guid).is_some() {
-            managed.map_mut().revalidate_all_combat_refs_like_cpp();
-        }
+        crate::session::hub_mut(self).revalidate_canonical_player_combat_refs_like_cpp(player_guid)
     }
     pub(in crate::session) fn combat_stop_like_cpp(&mut self) {
         let Some(player_guid) = self.player_guid() else {
@@ -388,8 +279,7 @@ impl WorldSession {
     }
 
     pub(in crate::session) fn represented_has_pvp_rules_enabled_like_cpp(&self) -> bool {
-        self.player_has_visible_aura_spell_like_cpp(SPELL_PVP_RULES_ENABLED_LIKE_CPP)
-            .unwrap_or(false)
+        crate::session::hub_ref(self).represented_has_pvp_rules_enabled_like_cpp()
     }
     pub(in crate::session) fn reset_contested_pvp_like_cpp(&mut self) {
         let Some(_guid) = self.player_guid() else {
@@ -473,12 +363,7 @@ impl WorldSession {
         self.view.is_ffa_pvp_realm_like_cpp = is_ffa_pvp_realm;
     }
     pub(crate) fn resolved_combat_target_like_cpp(&self) -> Option<Option<ObjectGuid>> {
-        let canonical = self.with_owned_player_like_cpp(|player| player.unit().attacking());
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.combat.combat_target);
-        }
-        canonical
+        crate::session::hub_ref(self).resolved_combat_target_like_cpp()
     }
     pub(crate) fn set_combat_target_like_cpp(&mut self, target: Option<ObjectGuid>) -> bool {
         crate::session::hub_mut(self).set_combat_target_like_cpp(target)
@@ -499,23 +384,112 @@ impl WorldSession {
             .represented_combat_stat_recalculations_like_cpp
     }
     pub(crate) fn represented_set_advanced_combat_logging_like_cpp(&mut self, enable: bool) {
+        crate::session::hub_mut(self).represented_set_advanced_combat_logging_like_cpp(enable)
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(in crate::session) fn update_player_pvp_like_cpp(
+        &mut self,
+        state: bool,
+        override_state: bool,
+    ) {
+        // C++ `Player::UpdatePvP` (Player.cpp:22663) is a Player transition:
+        // the flag and the timer move together and this session only asks for
+        // it.
+        let now_secs = wow_entities::game_time_secs_like_cpp();
+        #[cfg_attr(not(test), allow(unused_mut))]
+        let mut mutated = self.core.with_owned_player_mut_like_cpp(|player| {
+            player.update_pvp_like_cpp(state, now_secs, override_state);
+        });
+        #[cfg(test)]
+        if mutated.is_none()
+            && self.core.player_handle_like_cpp.is_none()
+            && let Some(guid) = self.core.player_guid()
+        {
+            mutated = self
+                .core
+                .mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+                    player.update_pvp_like_cpp(state, now_secs, override_state);
+                });
+        }
+        #[cfg(test)]
+        if self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.combat.player_pvp_end_timer_like_cpp = if !state || override_state {
+                None
+            } else {
+                Some(now_secs)
+            };
+            self.fixtures.combat.player_pvp_enabled_like_cpp = state;
+        }
+        let _ = mutated;
+    }
+
+    pub(in crate::session) fn begin_canonical_player_combat_ref_like_cpp(
+        &mut self,
+        attacker_guid: ObjectGuid,
+        victim_guid: ObjectGuid,
+        relation_represented: bool,
+        attacker_is_friendly_to_victim: bool,
+        victim_is_friendly_to_attacker: bool,
+    ) -> bool {
+        let Some(map_key) = self.core.current_canonical_player_map_key_like_cpp() else {
+            return false;
+        };
+        let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {
+            return false;
+        };
+        let Ok(mut manager) = manager.lock() else {
+            return false;
+        };
+        let Some(managed) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
+            return false;
+        };
+        begin_combat_ref_on_map_like_cpp(
+            managed.map_mut(),
+            attacker_guid,
+            victim_guid,
+            relation_represented,
+            attacker_is_friendly_to_victim,
+            victim_is_friendly_to_attacker,
+        )
+    }
+
+    pub(in crate::session) fn revalidate_canonical_player_combat_refs_like_cpp(
+        &mut self,
+        player_guid: ObjectGuid,
+    ) {
+        let Some(map_key) = self.core.current_canonical_player_map_key_like_cpp() else {
+            return;
+        };
+        let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {
+            return;
+        };
+        let Ok(mut manager) = manager.lock() else {
+            return;
+        };
+        let Some(managed) = manager.find_map_mut(map_key.map_id, map_key.instance_id) else {
+            return;
+        };
+        if managed.map().get_typed_player(player_guid).is_some() {
+            managed.map_mut().revalidate_all_combat_refs_like_cpp();
+        }
+    }
+
+    pub(crate) fn represented_set_advanced_combat_logging_like_cpp(&mut self, enable: bool) {
         self.core
             .flags
             .advanced_combat_logging_enabled_like_cpp
             .store(enable, Ordering::Relaxed);
     }
-    pub(crate) fn represented_advanced_combat_logging_enabled_like_cpp(&self) -> bool {
-        self.core
-            .flags
-            .advanced_combat_logging_enabled_like_cpp
-            .load(Ordering::Relaxed)
-    }
+
     #[cfg(test)]
     fn set_player_pvp_hostile_fixture_like_cpp(&mut self, hostile: bool) {
         let _ = self.mutate_player_world_local_state_like_cpp(|state| {
             state.set_pvp_hostile_like_cpp(hostile);
         });
     }
+
     #[cfg(test)]
     pub(crate) fn set_player_pvp_state_like_cpp(
         &mut self,
@@ -525,8 +499,8 @@ impl WorldSession {
     ) {
         self.set_player_pvp_hostile_fixture_like_cpp(hostile);
         self.update_player_pvp_like_cpp(pvp_enabled, true);
-        if let Some(guid) = self.player_guid() {
-            let _ = self.with_owned_player_mut_like_cpp(|player| {
+        if let Some(guid) = self.core.player_guid() {
+            let _ = self.core.with_owned_player_mut_like_cpp(|player| {
                 if in_pvp_flag {
                     player.set_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP);
                 } else {
@@ -539,6 +513,101 @@ impl WorldSession {
             self.fixtures.combat.player_pvp_enabled_like_cpp = pvp_enabled;
             self.fixtures.combat.player_in_pvp_flag_like_cpp = in_pvp_flag;
         }
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(in crate::session) fn player_is_pvp_like_cpp(&self, guid: ObjectGuid) -> Option<bool> {
+        if self.core.player_guid() != Some(guid) {
+            return None;
+        }
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
+            player
+                .unit()
+                .pvp_flags_like_cpp()
+                .contains(UnitPvpFlags::PVP)
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            if let Some(flags) = self.canonical_player_pvp_flags_like_cpp(guid) {
+                return Some(flags.contains(UnitPvpFlags::PVP));
+            }
+            return Some(self.fixtures.combat.player_pvp_enabled_like_cpp);
+        }
+        canonical
+    }
+
+    #[cfg(test)]
+    pub(in crate::session) fn canonical_player_pvp_flags_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) -> Option<UnitPvpFlags> {
+        if self.core.player_guid() == Some(guid)
+            && let Some(flags) = self
+                .core
+                .with_owned_player_like_cpp(|player| player.unit().pvp_flags_like_cpp())
+        {
+            return Some(flags);
+        }
+        let map_id = u32::from(self.core.player_map_id_like_cpp());
+        let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
+        let manager = manager.lock().ok()?;
+        let mut result = None;
+        manager.do_for_all_maps_with_map_id(map_id, |managed| {
+            if result.is_none() {
+                result = managed
+                    .map()
+                    .get_typed_player(guid)
+                    .map(|player| player.unit().pvp_flags_like_cpp());
+            }
+        });
+        result
+    }
+
+    pub(in crate::session) fn player_has_in_pvp_flag_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) -> Option<bool> {
+        if self.core.player_guid() != Some(guid) {
+            return None;
+        }
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
+            player.has_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP)
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            if let Some(value) = self
+                .core
+                .canonical_player_has_player_flag_like_cpp(guid, PLAYER_FLAGS_IN_PVP_LIKE_CPP)
+            {
+                return Some(value);
+            }
+            return Some(self.fixtures.combat.player_in_pvp_flag_like_cpp);
+        }
+        canonical
+    }
+
+    pub(in crate::session) fn represented_has_pvp_rules_enabled_like_cpp(&self) -> bool {
+        self.player_has_visible_aura_spell_like_cpp(SPELL_PVP_RULES_ENABLED_LIKE_CPP)
+            .unwrap_or(false)
+    }
+
+    pub(crate) fn resolved_combat_target_like_cpp(&self) -> Option<Option<ObjectGuid>> {
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.unit().attacking());
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.fixtures.combat.combat_target);
+        }
+        canonical
+    }
+
+    pub(crate) fn represented_advanced_combat_logging_enabled_like_cpp(&self) -> bool {
+        self.core
+            .flags
+            .advanced_combat_logging_enabled_like_cpp
+            .load(Ordering::Relaxed)
     }
 }
 
@@ -618,3 +687,7 @@ impl crate::session::state::SessionCatalogs {
             .unwrap_or(0.0)
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/combat/state/f3_shims.rs"]
+mod f3_shims;

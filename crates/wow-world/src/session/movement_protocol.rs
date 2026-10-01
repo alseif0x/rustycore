@@ -270,26 +270,34 @@ pub(crate) struct MovementUnderMapDamageEvent {
 
 impl WorldSession {
     pub(crate) fn player_min_height_like_cpp(&self, position: wow_core::Position) -> f32 {
-        let map_id = self.player_map_id_like_cpp();
-        self.core
-            .map_manager
-            .as_ref()
-            .and_then(|manager| {
-                manager
-                    .read()
-                    .ok()
-                    .map(|manager| manager.min_height_like_cpp(map_id, 0, position.x, position.y))
-            })
-            .unwrap_or(crate::map_manager::DEFAULT_MIN_HEIGHT_LIKE_CPP)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn player_out_of_bounds_like_cpp(&self) -> bool {
-        self.fixtures.movement.player_out_of_bounds_like_cpp
+        crate::session::hub_ref(self).player_min_height_like_cpp(position)
     }
 
     pub(in crate::session) fn set_represented_can_fly_like_cpp(&mut self, enable: bool) -> bool {
-        let Some(mut movement_flags) = self.resolved_player_movement_flags_like_cpp() else {
+        crate::session::hub_mut(self).set_represented_can_fly_like_cpp(enable)
+    }
+
+    pub(in crate::session) fn set_represented_can_swim_to_fly_transition_like_cpp(
+        &mut self,
+        enable: bool,
+    ) -> bool {
+        crate::session::hub_mut(self).set_represented_can_swim_to_fly_transition_like_cpp(enable)
+    }
+
+    pub(crate) fn trace_anticheat_violation_like_cpp(
+        &self,
+        rule: &'static str,
+        opcode: Option<ClientOpcodes>,
+        severity: &'static str,
+    ) {
+        crate::session::hub_ref(self).trace_anticheat_violation_like_cpp(rule, opcode, severity)
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(in crate::session) fn set_represented_can_fly_like_cpp(&mut self, enable: bool) -> bool {
+        let Some(mut movement_flags) = self.shared().resolved_player_movement_flags_like_cpp()
+        else {
             return false;
         };
         let currently_enabled = movement_flags.contains(MovementFlag::CAN_FLY);
@@ -302,7 +310,7 @@ impl WorldSession {
             movement_flags.remove(MovementFlag::SWIMMING | MovementFlag::SPLINE_ELEVATION);
         } else {
             movement_flags.remove(MovementFlag::CAN_FLY | MovementFlag::MASK_MOVING_FLY);
-            if let Some(position) = self.player_position_like_cpp() {
+            if let Some(position) = self.shared().player_position_like_cpp() {
                 self.set_fall_information_like_cpp(0, position.z);
             }
         }
@@ -320,7 +328,7 @@ impl WorldSession {
         &mut self,
         enable: bool,
     ) -> bool {
-        let canonical_changed = self.with_owned_player_mut_like_cpp(|player| {
+        let canonical_changed = self.core.with_owned_player_mut_like_cpp(|player| {
             player.set_can_transition_between_swim_and_fly_like_cpp(enable)
         });
         #[cfg(test)]
@@ -360,6 +368,30 @@ impl WorldSession {
         });
         true
     }
+}
+
+#[cfg(test)]
+impl crate::session::state::MovementState {
+    #[cfg(test)]
+    pub(crate) fn player_out_of_bounds_like_cpp(&self) -> bool {
+        self.player_out_of_bounds_like_cpp
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub(crate) fn player_min_height_like_cpp(&self, position: wow_core::Position) -> f32 {
+        let map_id = self.core.player_map_id_like_cpp();
+        self.core
+            .map_manager
+            .as_ref()
+            .and_then(|manager| {
+                manager
+                    .read()
+                    .ok()
+                    .map(|manager| manager.min_height_like_cpp(map_id, 0, position.x, position.y))
+            })
+            .unwrap_or(crate::map_manager::DEFAULT_MIN_HEIGHT_LIKE_CPP)
+    }
 
     pub(crate) fn trace_anticheat_violation_like_cpp(
         &self,
@@ -371,10 +403,14 @@ impl WorldSession {
             target: "anticheat.violation",
             rule,
             account = self.core.account_id,
-            character = ?self.player_guid(),
+            character = ?self.core.player_guid(),
             ?opcode,
             severity,
             "anticheat.violation"
         );
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/movement_protocol/f3_shims.rs"]
+mod f3_shims;

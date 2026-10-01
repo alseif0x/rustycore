@@ -23,8 +23,35 @@ impl WorldSession {
         sender_guid: Option<ObjectGuid>,
         result: u8,
     ) {
+        let (state, hub) = crate::session::split_quest_state_ref(self);
+        state.send_push_quest_result_to_sender_if_available_like_cpp(hub, sender_guid, result)
+    }
+
+    pub(super) fn send_push_quest_result_to_sender_with_title_if_available_like_cpp(
+        &self,
+        sender_guid: ObjectGuid,
+        result: u8,
+        quest_title: String,
+    ) {
+        let (state, hub) = crate::session::split_quest_state_ref(self);
+        state.send_push_quest_result_to_sender_with_title_if_available_like_cpp(
+            hub,
+            sender_guid,
+            result,
+            quest_title,
+        )
+    }
+}
+
+impl crate::session::SessionQuestState {
+    pub(super) fn send_push_quest_result_to_sender_if_available_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        sender_guid: Option<ObjectGuid>,
+        result: u8,
+    ) {
         if let Some(sender_guid) = sender_guid {
-            self.send_packet(&QuestPushResultResponse {
+            hub.core.send_packet(&QuestPushResultResponse {
                 sender_guid,
                 result,
                 quest_title: String::new(),
@@ -34,11 +61,12 @@ impl WorldSession {
 
     pub(super) fn send_push_quest_result_to_sender_with_title_if_available_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         sender_guid: ObjectGuid,
         result: u8,
         quest_title: String,
     ) {
-        self.send_packet(&QuestPushResultResponse {
+        hub.core.send_packet(&QuestPushResultResponse {
             sender_guid,
             result,
             quest_title,

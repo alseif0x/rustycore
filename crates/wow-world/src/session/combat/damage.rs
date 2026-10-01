@@ -44,18 +44,11 @@ pub(crate) fn write_absorbed_shield_amount_like_cpp(
 }
 
 impl WorldSession {
-    /// Preserve `AttackerStateUpdate -> self share -> primary health` on the
-    /// victim session's FIFO for C++ `SPELL_AURA_SHARE_DAMAGE_PCT`.
     pub(crate) fn publish_self_share_health_like_cpp(
         &self,
         command: &crate::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand,
     ) {
-        for health in &command.self_share_health_updates {
-            self.send_packet(&wow_packet::packets::combat::HealthUpdate {
-                guid: command.victim_guid,
-                health: (*health).min(i64::MAX as u64) as i64,
-            });
-        }
+        crate::session::hub_ref(self).publish_self_share_health_like_cpp(command)
     }
     pub(in crate::session) fn represented_weapon_damage_bounds_like_cpp(
         &self,
@@ -82,15 +75,8 @@ impl WorldSession {
         resistances: &[i16; 7],
         scaling_context: Option<RepresentedScalingStatContextLikeCpp>,
     ) -> [i16; 7] {
-        let mut adjusted = *resistances;
-        if let Some(context) = scaling_context {
-            if context.armor_mod > 0 {
-                adjusted[0] = i16::try_from(context.armor_mod).unwrap_or(i16::MAX);
-            } else if context.armor_mod < 0 {
-                adjusted[0] = i16::MIN;
-            }
-        }
-        adjusted
+        crate::session::hub_ref(self)
+            .represented_resistances_with_scaling_armor_like_cpp(resistances, scaling_context)
     }
     /// C++ `Unit::CalcAbsorbResist`'s absorb publication for one melee hit
     /// (`Unit.cpp:1876-1889`): per shield that consumed part of the hit, send the
@@ -190,30 +176,6 @@ impl WorldSession {
         crate::session::hub_mut(self)
             .apply_owned_player_damage_like_cpp(requested_damage, lethal_death_state)
     }
-    #[cfg(test)]
-    pub(crate) fn set_player_normal_damage_immune_like_cpp(&mut self, immune: bool) {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_normal_damage_immune_like_cpp(immune)
-            })
-            .is_some();
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.combat.player_normal_damage_immune_like_cpp = immune;
-        }
-    }
-    #[cfg(test)]
-    pub(crate) fn set_player_environmental_damage_immune_like_cpp(&mut self, immune: bool) {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_environmental_damage_immune_like_cpp(immune)
-            })
-            .is_some();
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures
-                .combat
-                .player_environmental_damage_immune_like_cpp = immune;
-        }
-    }
     pub(in crate::session) fn resolved_player_damage_control_like_cpp(
         &self,
     ) -> Option<wow_entities::PlayerDamageControlStateLikeCpp> {
@@ -228,6 +190,69 @@ impl WorldSession {
             max_health,
         );
         self.sync_player_registry_state_like_cpp();
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    #[cfg(test)]
+    pub(crate) fn set_player_normal_damage_immune_like_cpp(&mut self, immune: bool) {
+        let canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_normal_damage_immune_like_cpp(immune)
+            })
+            .is_some();
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.combat.player_normal_damage_immune_like_cpp = immune;
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_player_environmental_damage_immune_like_cpp(&mut self, immune: bool) {
+        let canonical = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_environmental_damage_immune_like_cpp(immune)
+            })
+            .is_some();
+        if canonical || self.core.player_handle_like_cpp.is_none() {
+            self.fixtures
+                .combat
+                .player_environmental_damage_immune_like_cpp = immune;
+        }
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    /// Preserve `AttackerStateUpdate -> self share -> primary health` on the
+    /// victim session's FIFO for C++ `SPELL_AURA_SHARE_DAMAGE_PCT`.
+    pub(crate) fn publish_self_share_health_like_cpp(
+        &self,
+        command: &crate::session::mailbox::ApplyCreatureMeleeDamageLikeCppCommand,
+    ) {
+        for health in &command.self_share_health_updates {
+            self.core
+                .send_packet(&wow_packet::packets::combat::HealthUpdate {
+                    guid: command.victim_guid,
+                    health: (*health).min(i64::MAX as u64) as i64,
+                });
+        }
+    }
+
+    pub(in crate::session) fn represented_resistances_with_scaling_armor_like_cpp(
+        &self,
+        resistances: &[i16; 7],
+        scaling_context: Option<RepresentedScalingStatContextLikeCpp>,
+    ) -> [i16; 7] {
+        let mut adjusted = *resistances;
+        if let Some(context) = scaling_context {
+            if context.armor_mod > 0 {
+                adjusted[0] = i16::try_from(context.armor_mod).unwrap_or(i16::MAX);
+            } else if context.armor_mod < 0 {
+                adjusted[0] = i16::MIN;
+            }
+        }
+        adjusted
     }
 }
 
@@ -320,3 +345,7 @@ impl crate::session::state::SessionCore {
         });
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/combat/damage/f3_shims.rs"]
+mod f3_shims;
