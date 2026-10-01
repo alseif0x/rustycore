@@ -345,7 +345,10 @@ impl WorldSession {
         let Some(skill_lines) = self.catalogs.skill_line_store() else {
             return Err(PrimaryProfessionCapacityPlanErrorLikeCpp::MissingSkillLineStore);
         };
-        let Some(skills_loaded) = self.resolved_player_skill_records_loaded_like_cpp() else {
+        let Some(skills_loaded) = ({
+            let (s, h) = crate::session::split_lifecycle_ref(self);
+            s.resolved_player_skill_records_loaded_like_cpp(h)
+        }) else {
             return Err(PrimaryProfessionCapacityPlanErrorLikeCpp::MissingPlayerSkillSnapshot);
         };
         if !skills_loaded {

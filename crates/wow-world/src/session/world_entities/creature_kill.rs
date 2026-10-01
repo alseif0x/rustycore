@@ -6,10 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn creature_kill_xp(&self, mob_level: u8) -> u32 {
-        let (state, hub) = crate::session::split_world_entities_ref(self);
-        state.creature_kill_xp(hub, mob_level)
-    }
     pub(in crate::session) fn represented_creature_kill_reputation_rate_like_cpp(
         &mut self,
         player_guid: ObjectGuid,
@@ -30,9 +26,10 @@ impl WorldSession {
         let group_members = group.members.clone();
         drop(group);
 
-        let Some((player_level, player_map_id, player_position, _)) =
-            self.represented_player_group_reward_state_like_cpp(player_guid)
-        else {
+        let Some((player_level, player_map_id, player_position, _)) = ({
+            let (s, h) = crate::session::split_social_ref(self);
+            s.represented_player_group_reward_state_like_cpp(h, player_guid)
+        }) else {
             return 1.0;
         };
 
@@ -60,9 +57,10 @@ impl WorldSession {
                 sum_level = sum_level.saturating_add(u32::from(player_level));
                 continue;
             }
-            let Some((member_level, _member_map_id, _member_position, is_alive)) =
-                self.represented_player_group_reward_state_like_cpp(member_guid)
-            else {
+            let Some((member_level, _member_map_id, _member_position, is_alive)) = ({
+                let (s, h) = crate::session::split_social_ref(self);
+                s.represented_player_group_reward_state_like_cpp(h, member_guid)
+            }) else {
                 continue;
             };
             if is_alive
@@ -315,7 +313,10 @@ impl WorldSession {
                 })
                 .unwrap_or(false);
             let xp = can_give_experience
-                .then(|| self.creature_kill_xp(reward.creature_level))
+                .then(|| {
+                    let (s, h) = crate::session::split_world_entities_ref(self);
+                    s.creature_kill_xp(h, reward.creature_level)
+                })
                 .unwrap_or(0);
             if xp > 0 {
                 // The represented reward queue is still solo-session only.
@@ -436,13 +437,6 @@ impl WorldSession {
                 },
             );
     }
-    fn represented_creature_can_skin_after_death_state_like_cpp(
-        &mut self,
-        creature_guid: ObjectGuid,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_world_entities_mut(self);
-        state.represented_creature_can_skin_after_death_state_like_cpp(&mut hub, creature_guid)
-    }
     pub(in crate::session) fn complete_represented_creature_death_state_after_kill_hooks_like_cpp(
         &mut self,
         attacker_guid: ObjectGuid,
@@ -455,7 +449,10 @@ impl WorldSession {
             .loot_table
             .get(&creature_guid)
             .is_some_and(|loot| loot.coins != 0 || loot.unlooted_count != 0);
-        let can_skin = self.represented_creature_can_skin_after_death_state_like_cpp(creature_guid);
+        let can_skin = {
+            let (s, mut h) = crate::session::split_world_entities_mut(self);
+            s.represented_creature_can_skin_after_death_state_like_cpp(&mut h, creature_guid)
+        };
         let values_update = self.core.mutate_world_creature(creature_guid, |creature| {
             creature.complete_death_state_after_kill_hooks_like_cpp();
             creature.apply_corpse_loot_flags_after_death_state_like_cpp(lootable, can_skin);

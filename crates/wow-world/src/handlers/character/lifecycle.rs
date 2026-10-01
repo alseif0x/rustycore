@@ -514,13 +514,19 @@ impl WorldSession {
         self.send_packet(&BarberShopResult {
             result: BARBER_SHOP_RESULT_SUCCESS_LIKE_CPP,
         });
-        self.record_represented_alter_appearance_like_cpp(RepresentedAlterAppearanceLikeCpp {
-            new_sex: request.new_sex,
-            customizations: request.customizations,
-            customized_race: request.customized_race,
-            customized_chr_model_id: request.customized_chr_model_id,
-            cost,
-        });
+        {
+            let (s, mut h) = crate::session::split_inventory_mut(self);
+            s.record_represented_alter_appearance_like_cpp(
+                &mut h,
+                RepresentedAlterAppearanceLikeCpp {
+                    new_sex: request.new_sex,
+                    customizations: request.customizations,
+                    customized_race: request.customized_race,
+                    customized_chr_model_id: request.customized_chr_model_id,
+                    cost,
+                },
+            )
+        };
     }
 
     /// Handle CMSG_CONFIRM_BARBERS_CHOICE.

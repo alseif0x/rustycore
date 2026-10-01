@@ -47,22 +47,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_loot_ref(self);
         state.read_canonical_creature_loot_authority_on_map_like_cpp(hub, guid, map_key)
     }
-    pub(crate) fn rebind_canonical_creature_loot_authority_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        expected: &OwnedLootAuthority,
-        expected_stamp: OwnedLootAuthorityStamp,
-        authority: OwnedLootAuthority,
-    ) -> Option<bool> {
-        let (state, hub) = crate::session::split_loot_ref(self);
-        state.rebind_canonical_creature_loot_authority_like_cpp(
-            hub,
-            guid,
-            expected,
-            expected_stamp,
-            authority,
-        )
-    }
     pub(crate) fn rebind_canonical_creature_loot_authority_on_map_like_cpp(
         &self,
         guid: ObjectGuid,
@@ -88,43 +72,6 @@ impl WorldSession {
     ) -> Option<OwnedLootAuthority> {
         let (state, hub) = crate::session::split_loot_ref(self);
         state.read_canonical_gameobject_loot_authority_on_map_like_cpp(hub, guid, map_key)
-    }
-    pub(crate) fn rebind_canonical_gameobject_loot_authority_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        expected: &OwnedLootAuthority,
-        expected_stamp: OwnedLootAuthorityStamp,
-        authority: OwnedLootAuthority,
-    ) -> Option<bool> {
-        let (state, hub) = crate::session::split_loot_ref(self);
-        state.rebind_canonical_gameobject_loot_authority_like_cpp(
-            hub,
-            guid,
-            expected,
-            expected_stamp,
-            authority,
-        )
-    }
-    pub(crate) fn mutate_world_creature_if_fully_looted_observation_like_cpp<F, R>(
-        &mut self,
-        guid: ObjectGuid,
-        authority: &OwnedLootAuthority,
-        object_generation: u64,
-        lifecycle_revision: u64,
-        f: F,
-    ) -> Option<R>
-    where
-        F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
-    {
-        let (state, mut hub) = crate::session::split_loot_mut(self);
-        state.mutate_world_creature_if_fully_looted_observation_like_cpp(
-            &mut hub,
-            guid,
-            authority,
-            object_generation,
-            lifecycle_revision,
-            f,
-        )
     }
     pub(crate) fn mutate_world_creature_if_unviewed_fully_looted_observation_like_cpp<F, R>(
         &mut self,

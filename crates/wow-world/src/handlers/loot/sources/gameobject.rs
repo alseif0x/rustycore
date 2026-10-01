@@ -587,7 +587,10 @@ impl WorldSession {
         .await;
 
         if is_first_represented_use {
-            let xp = self.represented_gathering_node_xp_like_cpp(source.xp_difficulty);
+            let xp = {
+                let (s, h) = crate::session::split_loot_ref(self);
+                s.represented_gathering_node_xp_like_cpp(h, source.xp_difficulty)
+            };
             if xp != 0 {
                 self.give_xp(xp, ObjectGuid::EMPTY, 1.0).await;
             }
@@ -607,19 +610,6 @@ impl WorldSession {
         );
         let _ = crate::session::cx_loot_ref(self)
             .queue_gathering_node_gameobject_state_refresh_for_same_map_like_cpp(gameobject_guid);
-    }
-
-    pub(crate) fn queue_visible_gameobject_packet_for_same_map_like_cpp(
-        &self,
-        gameobject_guid: ObjectGuid,
-        packet_bytes: Vec<u8>,
-    ) -> usize {
-        let (state, hub) = crate::session::split_loot_ref(self);
-        state.queue_visible_gameobject_packet_for_same_map_like_cpp(
-            hub,
-            gameobject_guid,
-            packet_bytes,
-        )
     }
 
     fn record_represented_gathering_node_runtime_state_like_cpp(
@@ -693,11 +683,6 @@ impl WorldSession {
             source,
         )
         .await;
-    }
-
-    fn represented_gathering_node_xp_like_cpp(&self, xp_difficulty: u32) -> u32 {
-        let (state, hub) = crate::session::split_loot_ref(self);
-        state.represented_gathering_node_xp_like_cpp(hub, xp_difficulty)
     }
 }
 

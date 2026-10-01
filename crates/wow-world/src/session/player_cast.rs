@@ -204,7 +204,9 @@ impl Runtime for WorldSession {
         cast: ObjectGuid,
         visual: &SpellCastVisualLikeCpp,
     ) -> bool {
-        self.check_spell_power_like_cpp(
+        let (s, mut h) = crate::session::split_spell_state_mut(self);
+        s.check_spell_power_like_cpp(
+            &mut h,
             spell,
             cast,
             spell.spell_id,

@@ -161,7 +161,10 @@ impl WorldSession {
             // C++ owns PlayerMenu (and therefore both InteractionData and its
             // menus) under Player. A WorldSession can survive character
             // logout, so no player-menu state may cross that lifetime here.
-            self.reset_player_interaction_data_like_cpp();
+            {
+                let (s, h) = crate::session::split_interaction(self);
+                s.reset_player_interaction_data_like_cpp(h)
+            };
             self.clear_player_gossip_options_like_cpp();
             #[cfg(test)]
             self.spell_state

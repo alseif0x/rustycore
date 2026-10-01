@@ -18,11 +18,6 @@ use super::super::WorldSession;
 use crate::finalization::FinalizationOutcome;
 
 impl WorldSession {
-    pub(crate) fn unregister_canonical_player_from_map_like_cpp(&mut self) -> FinalizationOutcome {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.unregister_canonical_player_from_map_like_cpp(&mut hub)
-    }
-
     pub fn cleanup_shared_runtime_state(&mut self) -> FinalizationOutcome {
         if self
             .lifecycle
@@ -46,7 +41,10 @@ impl WorldSession {
         }
         self.unregister_from_player_registry();
         self.notify_other_players_visibility_changed_like_cpp();
-        let outcome = self.unregister_canonical_player_from_map_like_cpp();
+        let outcome = {
+            let (s, mut h) = crate::session::split_lifecycle_mut(self);
+            s.unregister_canonical_player_from_map_like_cpp(&mut h)
+        };
         if !matches!(
             outcome,
             FinalizationOutcome::Applied | FinalizationOutcome::NoWork

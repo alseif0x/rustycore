@@ -9,11 +9,6 @@ use super::{PlayerInteractionDataLikeCpp, Position, RepresentedCreatureAccessLik
 use super::{RepresentedGetReactionInputLikeCpp, UnitFlags2, WorldSession, canonical_access};
 
 impl WorldSession {
-    pub(crate) fn reset_player_interaction_data_like_cpp(&mut self) -> bool {
-        let (state, hub) = crate::session::split_interaction(self);
-        state.reset_player_interaction_data_like_cpp(hub)
-    }
-
     pub(crate) fn set_player_interaction_source_like_cpp(
         &mut self,
         source_guid: ObjectGuid,

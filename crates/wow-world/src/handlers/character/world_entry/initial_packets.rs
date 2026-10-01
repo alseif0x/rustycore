@@ -259,7 +259,10 @@ impl WorldSession {
         }
         // C++ `Player::SendInitialPacketsAfterAddToMap` calls
         // `SendAurasForTarget(this)` after movement aura state setup.
-        self.send_initial_player_auras_like_cpp();
+        {
+            let (s, h) = crate::session::split_spell_state_ref(self);
+            s.send_initial_player_auras_like_cpp(h)
+        };
         // C++ calls PhasingHandler::OnMapChange(this) only after CUF profiles, the
         // login-effect/movement-aura work and SendAurasForTarget (Player.cpp:23600-23672).
         // This re-sends SMSG_PHASE_SHIFT_CHANGE (the second phase-shift of login,

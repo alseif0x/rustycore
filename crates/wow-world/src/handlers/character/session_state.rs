@@ -244,11 +244,6 @@ impl WorldSession {
         plan
     }
 
-    fn send_init_transports_like_cpp(&mut self, map_id: u16, plan: Box<InitTransportsPlanLikeCpp>) {
-        let (state, mut hub) = crate::session::split_visibility_mut(self);
-        state.send_init_transports_like_cpp(&mut hub, map_id, plan)
-    }
-
     /// Send the player login packet sequence to the client.
     ///
     /// Follows the C++ login phases:
@@ -666,7 +661,10 @@ impl WorldSession {
         }
         // C++ Map::AddPlayerToMap sends transports immediately after
         // SendInitSelf, before clearing the normal visible GUID cache.
-        self.send_init_transports_like_cpp(map_id as u16, init_transports_plan);
+        {
+            let (s, mut h) = crate::session::split_visibility_mut(self);
+            s.send_init_transports_like_cpp(&mut h, map_id as u16, init_transports_plan)
+        };
         if updateobject_trace_enabled {
             info!(guid = ?guid, "RUST_LOGIN map_add after_send_init_transports");
         }

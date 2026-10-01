@@ -38,7 +38,10 @@ impl WorldSession {
         if session_instance_id != command.instance_id {
             return;
         }
-        self.clear_pending_visibility_refresh_like_cpp();
+        {
+            let (s, h) = crate::session::split_visibility_ref(self);
+            s.clear_pending_visibility_refresh_like_cpp(h)
+        };
         self.force_update_visibility_with_catalogs_like_cpp(creature_spawn_catalogs)
             .await;
     }

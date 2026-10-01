@@ -93,14 +93,6 @@ impl WorldSession {
             Err(_) => RepresentedSpellClickClickeeCasterOutcomeLikeCpp::Failed,
         }
     }
-    pub(in crate::session) fn record_cast_character_spell_cooldown_like_cpp(
-        &mut self,
-        spell_id: i32,
-        cooldown_ms: u32,
-    ) {
-        let (state, mut hub) = crate::session::split_spell_state_mut(self);
-        state.record_cast_character_spell_cooldown_like_cpp(&mut hub, spell_id, cooldown_ms)
-    }
     /// Conservative C++ `SpellArea::IsFitToRequirements` projection used only
     /// to decide whether an unrepresented AUTOCAST aura could exist. A proven
     /// mismatch returns false; battleground and spell-specific conditions are
@@ -263,14 +255,6 @@ impl WorldSession {
         )
         .await
     }
-    pub(crate) fn broadcast_to_movement_set_realm_like_cpp(
-        &self,
-        bytes: Vec<u8>,
-        _include_self: bool,
-    ) {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.broadcast_to_movement_set_realm_like_cpp(hub, bytes, _include_self)
-    }
     pub(in crate::session) fn represented_login_passive_spell_cast_gate_like_cpp(
         &self,
         spell_id: i32,
@@ -303,14 +287,6 @@ impl WorldSession {
             .social
             .duel_test_fixture_like_cpp
             .represented_can_duel_spell_casts_like_cpp
-    }
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_represented_talent_respec_visual_spell_cast_like_cpp(
-        &mut self,
-        cast: RepresentedTalentRespecVisualSpellCastLikeCpp,
-    ) {
-        let (state, mut hub) = crate::session::split_spell_state_mut(self);
-        state.record_represented_talent_respec_visual_spell_cast_like_cpp(&mut hub, cast)
     }
     #[cfg(test)]
     pub(crate) fn represented_talent_respec_visual_spell_casts_like_cpp(

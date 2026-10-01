@@ -201,13 +201,19 @@ impl WorldSession {
             return;
         }
         self.remove_buyback_item_like_cpp(buyback_slot);
-        self.clear_buyback_slot_metadata_like_cpp(buyback_slot);
+        {
+            let (s, mut h) = crate::session::split_inventory_mut(self);
+            s.clear_buyback_slot_metadata_like_cpp(&mut h, buyback_slot)
+        };
         let current_slot_occupied = self
             .resolved_buyback_items_like_cpp()
             .zip(self.resolved_current_buyback_slot_like_cpp())
             .is_some_and(|(items, slot)| items.contains_key(&slot));
         if current_slot_occupied {
-            self.set_current_buyback_slot_like_cpp(buyback_slot);
+            {
+                let (s, mut h) = crate::session::split_inventory_mut(self);
+                s.set_current_buyback_slot_like_cpp(&mut h, buyback_slot)
+            };
         }
 
         for &(_, item_guid, new_count) in &existing_updates {

@@ -92,11 +92,6 @@ impl WorldSession {
         }
     }
 
-    pub(crate) fn run_logout_timer_like_cpp(&mut self) {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.run_logout_timer_like_cpp(&mut hub)
-    }
-
     /// C++ `WorldSession::Update` after the packet loop, on the branch
     /// `!updater.ProcessUnsafe()` — the map filter's
     /// (`Server/WorldSession.cpp:488-506`): the periodic time sync runs with
@@ -411,7 +406,10 @@ impl WorldSession {
         // and the query callbacks, on the `ProcessUnsafe()` branch
         // (`WorldSession.cpp:498-503`): a `LogoutCancel` queued in this same
         // pass is dispatched above and must be seen before the decision.
-        self.run_logout_timer_like_cpp();
+        {
+            let (s, mut h) = crate::session::split_lifecycle_mut(self);
+            s.run_logout_timer_like_cpp(&mut h)
+        };
 
         RunWorldPhasePassResultLikeCpp {
             coordinator_id: request.coordinator_id,

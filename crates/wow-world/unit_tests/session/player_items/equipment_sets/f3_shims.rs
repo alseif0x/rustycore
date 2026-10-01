@@ -51,4 +51,8 @@ impl crate::session::WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.with_owned_equipment_sets_like_cpp(hub, f)
     }
+    pub(crate) fn clear_represented_equipment_sets_like_cpp(&mut self) {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.clear_represented_equipment_sets_like_cpp(&mut hub)
+    }
 }

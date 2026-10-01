@@ -78,7 +78,10 @@ impl WorldSession {
             );
             return;
         };
-        let swapped = self.swap_represented_void_storage_item_like_cpp(old_slot, new_slot);
+        let swapped = {
+            let (s, mut h) = crate::session::split_inventory_mut(self);
+            s.swap_represented_void_storage_item_like_cpp(&mut h, old_slot, new_slot)
+        };
         debug_assert!(swapped);
         drop(money_persistence);
 

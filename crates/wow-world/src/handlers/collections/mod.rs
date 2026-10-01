@@ -360,10 +360,14 @@ impl crate::session::WorldSession {
             request.cast.spell_id,
             &spell_info,
         );
-        let Some(remaining_ms) = self.represented_spell_cooldown_remaining_ms_like_cpp(
-            request.cast.spell_id,
-            toy_cooldown_ms,
-        ) else {
+        let Some(remaining_ms) = ({
+            let (s, h) = crate::session::split_spell_state_ref(self);
+            s.represented_spell_cooldown_remaining_ms_like_cpp(
+                h,
+                request.cast.spell_id,
+                toy_cooldown_ms,
+            )
+        }) else {
             return;
         };
         if remaining_ms > 0 {
@@ -442,8 +446,10 @@ impl crate::session::WorldSession {
             // Stamp the admitted residence so this timed toy cast is fenced
             // against reentry exactly like a prepared normal request.
             let mut metadata = metadata;
-            metadata.prepared_residence_revision =
-                self.current_player_residence_revision_like_cpp();
+            metadata.prepared_residence_revision = {
+                let (s, h) = crate::session::split_spell_state_ref(self);
+                s.current_player_residence_revision_like_cpp(h)
+            };
             self.set_active_spell_cast_like_cpp(Some(crate::session::SpellCastState {
                 spell_id: request.cast.spell_id,
                 target_guid,

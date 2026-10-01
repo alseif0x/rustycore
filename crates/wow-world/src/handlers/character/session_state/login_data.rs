@@ -83,7 +83,10 @@ impl WorldSession {
             .player_lifecycle_port_like_cpp()
             .map(Arc::clone);
         let mut history_entries = Vec::new();
-        self.reset_represented_character_spell_cooldowns_like_cpp();
+        {
+            let (s, mut h) = crate::session::split_spell_state_mut(self);
+            s.reset_represented_character_spell_cooldowns_like_cpp(&mut h)
+        };
 
         let cooldown_outcome = match port.as_ref() {
             Some(port) => {
@@ -140,7 +143,10 @@ impl WorldSession {
         }
 
         let mut charges_by_category = BTreeMap::<u32, (i64, u8)>::new();
-        self.reset_represented_character_spell_charges_like_cpp();
+        {
+            let (s, mut h) = crate::session::split_spell_state_mut(self);
+            s.reset_represented_character_spell_charges_like_cpp(&mut h)
+        };
         let charges_outcome = match port {
             Some(port) => {
                 port.load_login_auxiliary_like_cpp(

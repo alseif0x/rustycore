@@ -13,7 +13,10 @@ impl WorldSession {
     /// `SPELL_ATTR0_DO_NOT_DISPLAY_SPELLBOOK_AURA_ICON_COMBAT_LOG`) spell whose
     /// `Stances` mask admits the new form.
     pub(crate) fn apply_represented_shapeshift_boosts_like_cpp(&mut self, form_id: u32) -> usize {
-        let boost_ids = self.represented_shapeshift_boost_spell_ids_like_cpp(form_id);
+        let boost_ids = {
+            let (s, h) = crate::session::split_spell_state_ref(self);
+            s.represented_shapeshift_boost_spell_ids_like_cpp(h, form_id)
+        };
         let mut applied = 0usize;
         for spell_id in &boost_ids {
             if self.represented_apply_owned_aura_spell_like_cpp(*spell_id) {

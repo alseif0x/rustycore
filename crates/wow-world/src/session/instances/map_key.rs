@@ -70,7 +70,9 @@ impl WorldSession {
                     let created = decision_difficulty_id
                         .zip(owner_guid)
                         .and_then(|(difficulty_id, owner_guid)| {
-                            self.create_instance_lock_for_new_instance_side_effect_like_cpp(
+                            let (s, h) = crate::session::split_instances_ref(self);
+                            s.create_instance_lock_for_new_instance_side_effect_like_cpp(
+                                h,
                                 map_id,
                                 difficulty_id,
                                 owner_guid,

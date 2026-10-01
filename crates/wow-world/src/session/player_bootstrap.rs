@@ -445,7 +445,10 @@ impl WorldSession {
         if let Some(selection) = crate::session::hub_ref(self).selection_guid_like_cpp() {
             player.set_selection(selection);
         }
-        self.apply_represented_player_unit_shape_to_canonical_like_cpp(&mut player);
+        {
+            let (s, h) = crate::session::split_lifecycle_ref(self);
+            s.apply_represented_player_unit_shape_to_canonical_like_cpp(h, &mut player)
+        };
         player
             .unit_mut()
             .subsystems_mut()
@@ -454,14 +457,6 @@ impl WorldSession {
                 self.can_authorize_empty_player_spell_hit_aura_source_like_cpp(),
             );
         Some(player)
-    }
-
-    pub(in crate::session) fn apply_represented_player_unit_shape_to_canonical_like_cpp(
-        &self,
-        player: &mut Player,
-    ) {
-        let (state, hub) = crate::session::split_lifecycle_ref(self);
-        state.apply_represented_player_unit_shape_to_canonical_like_cpp(hub, player)
     }
 
     #[inline(never)]

@@ -156,7 +156,10 @@ impl WorldSession {
             );
             return;
         };
-        let Some(buyback_slot) = self.select_buyback_slot_cpp() else {
+        let Some(buyback_slot) = ({
+            let (s, h) = crate::session::split_inventory_ref(self);
+            s.select_buyback_slot_cpp(h)
+        }) else {
             return;
         };
         let Some(buyback_items) = self.resolved_buyback_items_like_cpp() else {
@@ -283,7 +286,10 @@ impl WorldSession {
             self.remove_inventory_item_object(old_buyback.guid);
         }
         self.set_buyback_slot_metadata_like_cpp(buyback_slot, buyback_price, buyback_timestamp);
-        self.advance_buyback_slot_cpp();
+        {
+            let (s, mut h) = crate::session::split_inventory_mut(self);
+            s.advance_buyback_slot_cpp(&mut h)
+        };
 
         let mut created_buyback_item = None;
         let mut stack_update = None;

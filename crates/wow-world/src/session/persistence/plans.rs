@@ -90,10 +90,6 @@ impl WorldSession {
         self.lifecycle
             .set_instance_lock_persistence_port_like_cpp(port)
     }
-    pub(crate) fn quarantine_player_money_persistence_like_cpp(&mut self, reason: &'static str) {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.quarantine_player_money_persistence_like_cpp(&mut hub, reason)
-    }
     pub(crate) fn plan_add_currency_vendor_like_cpp(
         &self,
         currencies: &mut HashMap<u32, PlayerCurrency>,

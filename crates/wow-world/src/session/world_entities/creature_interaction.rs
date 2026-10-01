@@ -23,10 +23,6 @@ impl WorldSession {
             | RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented => npc_flags,
         }
     }
-    pub(crate) fn pause_interacted_creature_movement_like_cpp(&mut self, guid: ObjectGuid) -> bool {
-        let (state, mut hub) = crate::session::split_world_entities_mut(self);
-        state.pause_interacted_creature_movement_like_cpp(&mut hub, guid)
-    }
 }
 
 impl crate::session::state::WorldEntitiesState {

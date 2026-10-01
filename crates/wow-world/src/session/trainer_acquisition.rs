@@ -69,13 +69,20 @@ impl TrainerAcquisitionRuntimeLikeCpp for WorldSession {
             mounted_visual: false,
         };
         self.send_packet_realm(&trainer_visual);
-        self.broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp(
-            publication.trainer_guid,
-            publication.trainer_position,
-            trainer_visual.to_bytes(),
-        );
+        {
+            let (s, h) = crate::session::split_world_entities_ref(self);
+            s.broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp(
+                h,
+                publication.trainer_guid,
+                publication.trainer_position,
+                trainer_visual.to_bytes(),
+            )
+        };
         self.send_packet_realm(&player_visual);
-        self.broadcast_to_movement_set_realm_like_cpp(player_visual.to_bytes(), true);
+        {
+            let (s, h) = crate::session::split_spell_state_ref(self);
+            s.broadcast_to_movement_set_realm_like_cpp(h, player_visual.to_bytes(), true)
+        };
     }
 
     async fn fence_realm_before_instance(&self) -> bool {

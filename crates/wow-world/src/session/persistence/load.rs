@@ -421,10 +421,6 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
         state.set_loaded_player_powers_like_cpp(&mut hub, powers)
     }
-    pub(crate) fn resolved_player_skill_records_loaded_like_cpp(&self) -> Option<bool> {
-        let (state, hub) = crate::session::split_lifecycle_ref(self);
-        state.resolved_player_skill_records_loaded_like_cpp(hub)
-    }
     pub(crate) fn loaded_action_buttons_snapshot_like_cpp(
         &self,
     ) -> Option<[u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS]> {
@@ -451,10 +447,6 @@ impl WorldSession {
             );
         }
         canonical
-    }
-    pub(crate) fn mark_represented_cuf_profiles_loaded_like_cpp(&mut self) {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.mark_represented_cuf_profiles_loaded_like_cpp(&mut hub)
     }
     pub(crate) fn load_represented_cuf_profile_like_cpp(
         &mut self,

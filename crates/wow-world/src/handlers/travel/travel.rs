@@ -170,7 +170,10 @@ impl crate::session::WorldSession {
             self.kick("worldport NewWorld could not be queued");
             return;
         }
-        self.recovery_new_world_sent_like_cpp();
+        {
+            let (s, mut h) = crate::session::split_lifecycle_mut(self);
+            s.recovery_new_world_sent_like_cpp(&mut h)
+        };
         info!(
             account = self.core.account_id,
             map = new_map,

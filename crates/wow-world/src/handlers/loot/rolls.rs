@@ -169,7 +169,10 @@ impl WorldSession {
         let finished_state = finish.as_ref().map(|_| state.clone());
         self.loot
             .update_represented_loot_roll_vote_criteria_like_cpp(player_guid, roll.roll_type);
-        self.broadcast_represented_loot_roll_packet_like_cpp(&packet, &entry, None);
+        {
+            let (s, h) = crate::session::split_loot_ref(self);
+            s.broadcast_represented_loot_roll_packet_like_cpp(h, &packet, &entry, None)
+        };
         if let Some(winner) = finish {
             self.finish_represented_loot_roll_like_cpp(
                 item_guid_generator,
@@ -324,10 +327,14 @@ impl WorldSession {
             if let Some(state) = finished_state {
                 for (player_guid, vote) in &state.voters {
                     if vote.vote == ROLL_VOTE_NOT_VALID_LIKE_CPP {
-                        self.send_represented_loot_roll_packet_to_player_like_cpp(
-                            &packet,
-                            *player_guid,
-                        );
+                        {
+                            let (s, h) = crate::session::split_loot_ref(self);
+                            s.send_represented_loot_roll_packet_to_player_like_cpp(
+                                h,
+                                &packet,
+                                *player_guid,
+                            )
+                        };
                     }
                 }
             }
@@ -335,13 +342,17 @@ impl WorldSession {
         };
 
         if let Some(state) = finished_state {
-            self.send_represented_loot_roll_final_values_like_cpp(
-                loot_obj,
-                entry,
-                winner_guid,
-                state,
-                dungeon_encounter_id,
-            );
+            {
+                let (s, h) = crate::session::split_loot_ref(self);
+                s.send_represented_loot_roll_final_values_like_cpp(
+                    h,
+                    loot_obj,
+                    entry,
+                    winner_guid,
+                    state,
+                    dungeon_encounter_id,
+                )
+            };
         }
 
         let locked = LootRollWon {
@@ -353,13 +364,19 @@ impl WorldSession {
             main_spec: true,
             dungeon_encounter_id,
         };
-        self.broadcast_represented_loot_roll_packet_like_cpp(&locked, entry, Some(winner_guid));
+        {
+            let (s, h) = crate::session::split_loot_ref(self);
+            s.broadcast_represented_loot_roll_packet_like_cpp(h, &locked, entry, Some(winner_guid))
+        };
 
         let allow = LootRollWon {
             item: loot_roll_broadcast_item_like_cpp(entry, LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP),
             ..locked
         };
-        self.send_represented_loot_roll_packet_to_player_like_cpp(&allow, winner_guid);
+        {
+            let (s, h) = crate::session::split_loot_ref(self);
+            s.send_represented_loot_roll_packet_to_player_like_cpp(h, &allow, winner_guid)
+        };
         self.loot
             .update_represented_loot_roll_winner_criteria_like_cpp(
                 winner_guid,
@@ -622,7 +639,10 @@ impl WorldSession {
                     .collect()
             })
             .unwrap_or_default();
-        let current_player_enchanting_skill = self.resolved_enchanting_skill_like_cpp();
+        let current_player_enchanting_skill = {
+            let (s, h) = crate::session::split_inventory_ref(self);
+            s.resolved_enchanting_skill_like_cpp(h)
+        };
         let Some(pass_on_group_loot) = self.resolved_pass_on_group_loot_like_cpp() else {
             return;
         };
@@ -803,7 +823,12 @@ impl WorldSession {
         }
 
         for (packet, state) in auto_pass_packets {
-            self.broadcast_represented_loot_roll_packet_to_voters_like_cpp(&packet, &state, None);
+            {
+                let (s, h) = crate::session::split_loot_ref(self);
+                s.broadcast_represented_loot_roll_packet_to_voters_like_cpp(
+                    h, &packet, &state, None,
+                )
+            };
         }
     }
 

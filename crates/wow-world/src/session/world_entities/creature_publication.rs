@@ -104,13 +104,6 @@ mod tests {
 }
 
 impl WorldSession {
-    pub(crate) fn send_initial_visible_packets_for_creature_like_cpp(
-        &self,
-        creature: &crate::map_manager::WorldCreature,
-    ) {
-        let (state, hub) = crate::session::split_world_entities_ref(self);
-        state.send_initial_visible_packets_for_creature_like_cpp(hub, creature)
-    }
     /// Route a creature-originated packet through the existing
     /// `MessageDistDeliverer`-style candidate and per-session visibility gates.
     /// The activating session receives its direct packet separately; this
@@ -137,20 +130,6 @@ impl WorldSession {
             true,
         );
     }
-    pub(crate) fn broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp(
-        &self,
-        source_guid: ObjectGuid,
-        source_position: Position,
-        bytes: Vec<u8>,
-    ) {
-        let (state, hub) = crate::session::split_world_entities_ref(self);
-        state.broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp(
-            hub,
-            source_guid,
-            source_position,
-            bytes,
-        )
-    }
     pub(crate) fn broadcast_player_packet_to_visible_set_realm_like_cpp(&self, bytes: Vec<u8>) {
         let (state, hub) = crate::session::split_world_entities_ref(self);
         state.broadcast_player_packet_to_visible_set_realm_like_cpp(hub, bytes)
@@ -164,31 +143,17 @@ impl WorldSession {
         let Some(source) = self.canonical_creature_access_like_cpp(source_guid) else {
             return;
         };
-        self.broadcast_creature_packet_from_position_to_visible_set_and_connection_like_cpp(
-            source_guid,
-            source.position,
-            bytes,
-            realm_connection,
-            false,
-        );
-    }
-    fn broadcast_creature_packet_from_position_to_visible_set_and_connection_like_cpp(
-        &self,
-        source_guid: ObjectGuid,
-        source_position: Position,
-        bytes: Vec<u8>,
-        realm_connection: bool,
-        allow_legacy_source_fallback: bool,
-    ) {
-        let (state, hub) = crate::session::split_world_entities_ref(self);
-        state.broadcast_creature_packet_from_position_to_visible_set_and_connection_like_cpp(
-            hub,
-            source_guid,
-            source_position,
-            bytes,
-            realm_connection,
-            allow_legacy_source_fallback,
-        )
+        {
+            let (s, h) = crate::session::split_world_entities_ref(self);
+            s.broadcast_creature_packet_from_position_to_visible_set_and_connection_like_cpp(
+                h,
+                source_guid,
+                source.position,
+                bytes,
+                realm_connection,
+                false,
+            )
+        };
     }
 }
 
@@ -327,3 +292,7 @@ impl crate::session::state::WorldEntitiesState {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/world_entities/creature_publication/f3_shims.rs"]
+mod f3_shims;

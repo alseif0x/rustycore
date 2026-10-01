@@ -9,11 +9,6 @@ impl WorldSession {
         state.recovery_worldport_ack_ready_like_cpp(hub)
     }
 
-    pub(crate) fn recovery_new_world_sent_like_cpp(&mut self) {
-        let (state, mut hub) = crate::session::split_lifecycle_mut(self);
-        state.recovery_new_world_sent_like_cpp(&mut hub)
-    }
-
     pub(crate) async fn recover_rejected_worldport_like_cpp(&mut self) {
         let Some(state) = self
             .core

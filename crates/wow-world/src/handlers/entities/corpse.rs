@@ -247,7 +247,10 @@ impl crate::session::WorldSession {
         }
 
         if response.response != 0 {
-            self.clear_represented_resurrection_request_like_cpp();
+            {
+                let (s, mut h) = crate::session::split_quest_state_mut(self);
+                s.clear_represented_resurrection_request_like_cpp(&mut h)
+            };
             return;
         }
 

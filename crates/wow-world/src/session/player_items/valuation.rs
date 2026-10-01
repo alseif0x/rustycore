@@ -59,7 +59,10 @@ impl WorldSession {
         else {
             return None;
         };
-        let Some(item_mod_targets) = self.represented_top_level_item_mod_targets_like_cpp() else {
+        let Some(item_mod_targets) = ({
+            let (s, h) = crate::session::split_inventory_ref(self);
+            s.represented_top_level_item_mod_targets_like_cpp(h)
+        }) else {
             return None;
         };
         self.record_represented_all_item_mods_like_cpp(&item_mod_targets, false);
@@ -259,7 +262,8 @@ impl WorldSession {
         let item_level = runtime_item_level.unwrap_or_else(|| {
             let mut item_level = sparse_template
                 .and_then(|template| {
-                    self.represented_player_level_curve_item_level_like_cpp(template, runtime_item)
+                    let (s, h) = crate::session::split_inventory_ref(self);
+                    s.represented_player_level_curve_item_level_like_cpp(h, template, runtime_item)
                 })
                 .unwrap_or(template_item_level);
             item_level += self
@@ -313,14 +317,6 @@ impl WorldSession {
                 .try_into()
                 .expect("clamped item level fits u32"),
         )
-    }
-    fn represented_player_level_curve_item_level_like_cpp(
-        &self,
-        template: &wow_data::item::stats::ItemSparseTemplateEntry,
-        runtime_item: Option<&Item>,
-    ) -> Option<i64> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_player_level_curve_item_level_like_cpp(hub, template, runtime_item)
     }
 }
 

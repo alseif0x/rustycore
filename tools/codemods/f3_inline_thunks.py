@@ -160,7 +160,7 @@ def rewrite(form, target, args_text, args, aw, hoist):
         call = f"{form['recv'].replace('self', target, 1)}.{form['m']}({args_text}){tail}"
         return f"{{ {pre}{call} }}" if hoist else call
     hub = "h" if form["shared"] else "&mut h"
-    sep = ", " if args_text.strip() else ""
+    sep = ("," if args_text[:1].isspace() else ", ") if args_text.strip() else ""   # no trailing blank
     return (f"{{ {pre}let (s, {'' if form['shared'] else 'mut '}h) = crate::session::{form['split']}({target}); "
             f"s.{form['m']}({hub}{sep}{args_text}){tail} }}")
 
@@ -199,6 +199,17 @@ def session_private_fields(raw):
     return set(re.findall(r"pub\(in crate::session\)\s+(" + IDENT + r")\s*:", body[:body.index("\n}")]))
 
 
+def block_context_ok(c, start, end):
+    """A `{ let (s, h) = ..; s.m(h, ..) }` block reads well (rustfmt gives it its own lines) only as
+    a whole statement, a `let`/assignment/`return` value, a tail expression, a match arm or a closure
+    body; inside a condition, an operand, an argument or a chain it is a dense 4+ line island."""
+    before, after = c[:start].rstrip(), c[end:].lstrip()
+    head = re.search(r"(?:[;{}]|=>|\|[^|]*\||\blet\s+[^;{}]*?(?<![=!<>])=|(?<![=!<>])=(?!=)|\breturn)$", before)
+    return bool(head) and (after[:1] in (";", "}", ",", ")") and not (head.group(0).startswith("|") and
+                                                                after[:1] == ";") or
+                           re.match(r"else\b", after) is not None and head.group(0).startswith("let"))
+
+
 def plan_site(form, text, c, rstart, open_i, rel="src/session/x.rs", private=()):
     """(site dict, None) or (None, skip reason) for one call."""
     field = re.match(r"self\.(?:fixtures\.)?(" + IDENT + ")", form.get("recv", ""))
@@ -220,6 +231,8 @@ def plan_site(form, text, c, rstart, open_i, rel="src/session/x.rs", private=())
                 any(text[a:b].strip() != c[a:b].strip() for a, b in spans):
             return None, "comment in hoisted arguments"
         hoist = [bool(word.search(c[a:b]) or not TRIVIAL.fullmatch(c[a:b])) for a, b in spans]
+    if form["shape"] == "split" and any(re.search(r"\b[sh]\b", c[x:y]) for x, y in spans):
+        return None, "argument names collide with the split bindings"
     a, b = statement_span(c, rstart, end)
     statement_level = re.fullmatch(r"\s*(?:let\s+(?:mut\s+)?\w+(?:\s*:\s*[^=;]+)?\s*=\s*|return\s+)?",
                                    c[a:rstart]) is not None and not c[end:b].strip(" \t\n?")
@@ -231,7 +244,12 @@ def plan_site(form, text, c, rstart, open_i, rel="src/session/x.rs", private=())
     if new.startswith("{") and (not c[a:rstart].strip() and c[end:end + 1] in ".?[" or
                                 re.match(r"\s*else\b", c[end:end + 80])):
         new = f"({new})"                     # a leading block parses as a statement; `let .. = {..} else` is invalid
-    return dict(start=rstart, end=end, old=text[rstart:end], new=new, hoist=bool(hoist)), None
+    elif new.startswith("{") and c[:rstart].rstrip().endswith("{") and c[end:].lstrip().startswith("}"):
+        new = new[1:-1].strip()              # the whole tail of a block: splice, no `{ { .. } }`
+    indent = rstart - (c.rfind("\n", 0, rstart) + 1)
+    narrow = form["shape"] != "split" or indent + 4 + len(f"s.{form['m']}(&mut h,") <= 100   # rustfmt gives up
+    return dict(start=rstart, end=end, old=text[rstart:end], new=new, hoist=bool(hoist),
+                block_ok=narrow and block_context_ok(c, rstart, end)), None
 
 
 def fits(text, site, width=100):
@@ -279,6 +297,8 @@ def plan(root, kinds=None, test_kinds=None):
                 skipped.append((rel, rstart, why))
             else:
                 plan_sites.append(dict(site, file=rel, test=rel.startswith("unit_tests/")))
+        if not reason and form["shape"] == "split" and any(not x["block_ok"] for x in plan_sites):
+            reason, plan_sites, skipped = "readability (F5)", [], []   # a dense 4+ line block island
         tests_here = [x for x in plan_sites if x["test"]]
         if tests_here and not all(fits(files[x["file"]][0], x) for x in tests_here):
             plan_sites = [x for x in plan_sites if not x["test"]]   # a rewrap costs more than the shim

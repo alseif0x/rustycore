@@ -137,8 +137,10 @@ impl WorldSession {
             return;
         };
         let loot_scope_player_guid = if self.current_map_dungeon_state_like_cpp() == Some(false) {
-            let connected_tappers =
-                self.represented_connected_creature_tappers_like_cpp(&creature.tappers);
+            let connected_tappers = {
+                let (s, h) = crate::session::split_loot_ref(self);
+                s.represented_connected_creature_tappers_like_cpp(h, &creature.tappers)
+            };
             self.player_guid()
                 .filter(|player_guid| connected_tappers.contains(player_guid))
                 .or_else(|| connected_tappers.first().copied())
@@ -268,8 +270,10 @@ impl WorldSession {
         }
 
         let map_is_dungeon = self.current_map_dungeon_state_like_cpp();
-        let connected_tappers =
-            self.represented_connected_creature_tappers_like_cpp(allowed_looters);
+        let connected_tappers = {
+            let (s, h) = crate::session::split_loot_ref(self);
+            s.represented_connected_creature_tappers_like_cpp(h, allowed_looters)
+        };
 
         // C++ `Unit::Kill` has three distinct ownership shapes:
         // - overworld: one independently generated personal pool per tapper;
@@ -485,14 +489,6 @@ impl WorldSession {
             items,
             looted_by_player: false,
         })
-    }
-
-    fn represented_connected_creature_tappers_like_cpp(
-        &self,
-        tappers: &[ObjectGuid],
-    ) -> Vec<ObjectGuid> {
-        let (state, hub) = crate::session::split_loot_ref(self);
-        state.represented_connected_creature_tappers_like_cpp(hub, tappers)
     }
 
     /// Generate one independently rolled C++ personal `Loot` per supplied

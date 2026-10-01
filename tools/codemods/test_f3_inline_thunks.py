@@ -106,6 +106,26 @@ class InlineThunksTest(unittest.TestCase):
                          "{ let a1 = self.f(1); crate::session::cx_g(self).m(x, a1, 2) }")  # plain args stay put
         self.assertTrue(I.TRIVIAL.fullmatch(" &mut item.guid ") and not I.TRIVIAL.fullmatch("f(x)"))
 
+    def test_split_blocks_only_where_they_read_well(self):
+        ok = ["    self.m(1);\n", "    let x = self.m(1);\n", "    let Some(x) = self.m(1) else {", "    x = self.m(1);\n",
+              "    match k { 1 => self.m(1), _ => 0 }", "    v.iter().map(|x| self.m(x))", "    {\n    self.m(1)\n}"]
+        dense = ["    if self.m(1) {", "    a + self.m(1);", "    f(self.m(1));", "    let x = self.m(1)?;",
+                 "    let y = x == self.m(1);"]
+        for case in ok + dense:
+            text = "fn f() {\n" + case
+            start = text.index("self.m")
+            end = text.index(")", start) + 1
+            self.assertEqual(I.block_context_ok(text, start, end), case in ok, case)
+        form = dict(kind="state-hub", shape="split", split="split_g_ref", m="m", shared=True)
+        text = "fn f(&self) -> u8 {\n    self.m(1)\n}\n"                      # a block's whole tail: spliced
+        start = text.index("self.m")
+        self.assertEqual(I.plan_site(form, text, text, start, text.index("(", start))[0]["new"],
+                         "let (s, h) = crate::session::split_g_ref(self); s.m(h, 1)")
+        text = "fn f(&self) {\n    self.m(h);\n}\n"
+        start = text.index("self.m")
+        self.assertEqual(I.plan_site(form, text, text, start, text.index("(", start)),
+                         (None, "argument names collide with the split bindings"))
+
     def test_apply_retires_inlined_thunks_and_reverts(self):
         self.moved_tree()
         P = I.plan(self.root)

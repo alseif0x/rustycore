@@ -33,4 +33,13 @@ impl crate::session::WorldSession {
             terrain_swap_map,
         )
     }
+    pub(crate) fn push_map_respawn_like_cpp(
+        &mut self,
+        map_id: u16,
+        instance_id: u32,
+        r: crate::map_manager::PendingRespawn,
+    ) {
+        let (state, mut hub) = crate::session::split_world_entities_mut(self);
+        state.push_map_respawn_like_cpp(&mut hub, map_id, instance_id, r)
+    }
 }

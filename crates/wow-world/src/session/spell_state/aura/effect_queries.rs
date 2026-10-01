@@ -52,14 +52,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.aura_has_total_stat_percentage_effect_like_cpp(hub, aura)
     }
-
-    pub(in crate::session) fn total_stat_percentage_aura_preserves_health_pct_like_cpp(
-        &self,
-        aura: &AuraApplication,
-    ) -> bool {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.total_stat_percentage_aura_preserves_health_pct_like_cpp(hub, aura)
-    }
 }
 
 impl crate::session::state::SessionSpellState {

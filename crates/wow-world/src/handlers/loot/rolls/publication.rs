@@ -7,55 +7,7 @@
 
 use super::*;
 
-impl WorldSession {
-    pub(super) fn send_represented_loot_roll_final_values_like_cpp(
-        &self,
-        loot_obj: ObjectGuid,
-        entry: &LootEntry,
-        winner_guid: ObjectGuid,
-        state: &RepresentedLootRollState,
-        dungeon_encounter_id: i32,
-    ) {
-        let (owner, hub) = crate::session::split_loot_ref(self);
-        owner.send_represented_loot_roll_final_values_like_cpp(
-            hub,
-            loot_obj,
-            entry,
-            winner_guid,
-            state,
-            dungeon_encounter_id,
-        )
-    }
-
-    pub(super) fn send_represented_loot_roll_packet_to_player_like_cpp<P: ServerPacket>(
-        &self,
-        packet: &P,
-        target: ObjectGuid,
-    ) {
-        let (state, hub) = crate::session::split_loot_ref(self);
-        state.send_represented_loot_roll_packet_to_player_like_cpp(hub, packet, target)
-    }
-
-    pub(super) fn broadcast_represented_loot_roll_packet_like_cpp<P: ServerPacket>(
-        &self,
-        packet: &P,
-        entry: &LootEntry,
-        except: Option<ObjectGuid>,
-    ) {
-        let (state, hub) = crate::session::split_loot_ref(self);
-        state.broadcast_represented_loot_roll_packet_like_cpp(hub, packet, entry, except)
-    }
-
-    pub(super) fn broadcast_represented_loot_roll_packet_to_voters_like_cpp<P: ServerPacket>(
-        &self,
-        packet: &P,
-        state: &RepresentedLootRollState,
-        except: Option<ObjectGuid>,
-    ) {
-        let (owner, hub) = crate::session::split_loot_ref(self);
-        owner.broadcast_represented_loot_roll_packet_to_voters_like_cpp(hub, packet, state, except)
-    }
-}
+impl WorldSession {}
 
 impl crate::session::LootState {
     pub(super) fn update_represented_loot_roll_vote_criteria_like_cpp(

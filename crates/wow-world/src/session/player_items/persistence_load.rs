@@ -150,13 +150,6 @@ impl WorldSession {
             .check_account_heirloom_upgrades_like_cpp(item.object().entry());
         let _ = self.add_item_appearance_for_runtime_item_like_cpp(item);
     }
-    pub(crate) fn loaded_inventory_item_visible_fields_like_cpp(
-        &self,
-        item: &Item,
-    ) -> (i32, u16, u16) {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.loaded_inventory_item_visible_fields_like_cpp(hub, item)
-    }
     pub(in crate::session) fn loaded_inventory_item_visible_update_like_cpp(
         &self,
         item_guid: ObjectGuid,

@@ -57,13 +57,17 @@ impl WorldSession {
                             c.creature.ai_ownership().respawn_time_secs,
                         );
                     // instance_id=0: legacy path — consistent with register/remove/mutate_world_creature.
-                    self.push_map_respawn_like_cpp(
-                        map_id,
-                        0,
-                        crate::map_manager::pending_respawn_from_world_creature_like_cpp(
-                            &c, respawn_at, map_id,
-                        ),
-                    );
+                    {
+                        let (s, mut h) = crate::session::split_world_entities_mut(self);
+                        s.push_map_respawn_like_cpp(
+                            &mut h,
+                            map_id,
+                            0,
+                            crate::map_manager::pending_respawn_from_world_creature_like_cpp(
+                                &c, respawn_at, map_id,
+                            ),
+                        )
+                    };
                     tracing::info!(
                         "Corpse despawned: {:?} (entry {}) — respawn in {}s",
                         g,

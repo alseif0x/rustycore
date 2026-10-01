@@ -396,10 +396,14 @@ impl WorldSession {
         {
             return;
         }
-        self.record_cast_character_spell_cooldown_like_cpp(
-            HEARTHSTONE_SPELL_ID_LIKE_CPP,
-            hearthstone_cooldown_ms,
-        );
+        {
+            let (s, mut h) = crate::session::split_spell_state_mut(self);
+            s.record_cast_character_spell_cooldown_like_cpp(
+                &mut h,
+                HEARTHSTONE_SPELL_ID_LIKE_CPP,
+                hearthstone_cooldown_ms,
+            )
+        };
         self.send_packet(&wow_packet::packets::spell::CooldownEvent {
             spell_id: HEARTHSTONE_SPELL_ID_LIKE_CPP,
             is_pet: false,

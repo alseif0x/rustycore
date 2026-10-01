@@ -7,11 +7,6 @@
 use super::{BUYBACK_SLOT_COUNT, BUYBACK_SLOT_END, BUYBACK_SLOT_START, WorldSession};
 
 impl WorldSession {
-    pub(crate) fn set_current_buyback_slot_like_cpp(&mut self, slot: u8) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.set_current_buyback_slot_like_cpp(&mut hub, slot)
-    }
-
     pub(crate) fn set_buyback_slot_metadata_like_cpp(
         &mut self,
         slot: u8,
@@ -20,21 +15,6 @@ impl WorldSession {
     ) {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.set_buyback_slot_metadata_like_cpp(&mut hub, slot, price, timestamp)
-    }
-
-    pub(crate) fn clear_buyback_slot_metadata_like_cpp(&mut self, slot: u8) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.clear_buyback_slot_metadata_like_cpp(&mut hub, slot)
-    }
-
-    pub(crate) fn select_buyback_slot_cpp(&self) -> Option<u8> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.select_buyback_slot_cpp(hub)
-    }
-
-    pub(crate) fn advance_buyback_slot_cpp(&mut self) {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.advance_buyback_slot_cpp(&mut hub)
     }
 
     pub(crate) fn resolved_buyback_price_like_cpp(&self) -> Option<[u32; BUYBACK_SLOT_COUNT]> {

@@ -267,7 +267,10 @@ impl WorldSession {
             self.kick("canonical Player bank-slot owner became unavailable after COMMIT");
             return;
         }
-        self.send_player_bank_bag_slots_update_like_cpp(new_count);
+        {
+            let (s, h) = crate::session::split_inventory_ref(self);
+            s.send_player_bank_bag_slots_update_like_cpp(h, new_count)
+        };
         self.quest_state
             .enqueue_represented_quest_objective_progress_like_cpp(
                 RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
@@ -349,7 +352,10 @@ impl WorldSession {
         if !self.set_represented_bank_bag_slot_flag_like_cpp(slot, updated) {
             return;
         }
-        self.send_player_bank_bag_slot_flag_update_like_cpp(slot, updated);
+        {
+            let (s, h) = crate::session::split_inventory_ref(self);
+            s.send_player_bank_bag_slot_flag_update_like_cpp(h, slot, updated)
+        };
     }
 }
 

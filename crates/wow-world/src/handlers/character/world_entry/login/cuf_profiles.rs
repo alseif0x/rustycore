@@ -55,7 +55,10 @@ impl WorldSession {
                         );
                     }
                 }
-                self.mark_represented_cuf_profiles_loaded_like_cpp();
+                {
+                    let (s, mut h) = crate::session::split_lifecycle_mut(self);
+                    s.mark_represented_cuf_profiles_loaded_like_cpp(&mut h)
+                };
             }
             wow_persistence::PlayerLoginAuxiliaryLoadOutcomeLikeCpp::Failed { reason } => {
                 warn!("Failed to load CUF profiles for {:?}: {}", guid, reason);

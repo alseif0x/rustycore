@@ -158,10 +158,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.inventory_remove_enchantment_persistence_like_cpp(hub, item_guid, clear_mainhand_only)
     }
-    pub(crate) fn resolved_enchanting_skill_like_cpp(&self) -> Option<u16> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.resolved_enchanting_skill_like_cpp(hub)
-    }
     /// C++ `Player::_LoadInventory` finishes by `_ApplyAllItemMods`, which in
     /// turn calls `ApplyEnchantment(m_items[i], true)` for equipped items.
     pub(crate) fn apply_loaded_equipped_item_enchantments_like_cpp(

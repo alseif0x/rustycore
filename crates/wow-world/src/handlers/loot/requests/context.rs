@@ -171,14 +171,6 @@ impl WorldSession {
         })
     }
 
-    pub(in crate::handlers::loot) fn item_template_flags2_like_cpp(
-        &self,
-        item_id: u32,
-    ) -> Option<u32> {
-        let (state, hub) = crate::session::split_loot_ref(self);
-        state.item_template_flags2_like_cpp(hub, item_id)
-    }
-
     pub(in crate::handlers::loot) fn item_loot_quest_status_allows_like_cpp(
         &self,
         item_id: u32,

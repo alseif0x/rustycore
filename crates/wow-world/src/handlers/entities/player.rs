@@ -385,9 +385,14 @@ impl crate::session::WorldSession {
             }
         };
 
-        let Some(difficulty_id) = self
-            .represented_raid_difficulty_request_like_cpp(packet.difficulty_id, packet.legacy != 0)
-        else {
+        let Some(difficulty_id) = ({
+            let (s, h) = crate::session::split_quest_state_ref(self);
+            s.represented_raid_difficulty_request_like_cpp(
+                h,
+                packet.difficulty_id,
+                packet.legacy != 0,
+            )
+        }) else {
             return;
         };
 

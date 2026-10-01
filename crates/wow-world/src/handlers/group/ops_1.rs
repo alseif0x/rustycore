@@ -441,7 +441,10 @@ impl WorldSession {
                 .member_slot_like_cpp(my_guid)
                 .map(|slot| slot.subgroup)
         }) {
-            self.apply_group_join_like_cpp(group_guid, subgroup);
+            {
+                let (s, mut h) = crate::session::split_social_mut(self);
+                s.apply_group_join_like_cpp(&mut h, group_guid, subgroup)
+            };
         }
         if let Some(group) = group_reg.get(&group_guid) {
             self.send_player_party_type_update_like_cpp(

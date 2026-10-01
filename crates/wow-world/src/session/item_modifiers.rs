@@ -271,11 +271,6 @@ pub(in crate::session) fn player_class_by_armor_subclass_like_cpp(subclass: u32)
 }
 
 impl WorldSession {
-    pub(in crate::session) fn find_free_backpack_slot_like_cpp(&self) -> Option<u8> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.find_free_backpack_slot_like_cpp(hub)
-    }
-
     /// C++ `sImportPriceQualityStore.LookupEntry(quality + 1)`.
     #[cfg(test)]
     pub fn import_price_quality_factor_like_cpp(&self, quality: u32) -> Option<f32> {
@@ -300,14 +295,6 @@ impl WorldSession {
 
     pub fn player_stats(&self) -> Option<&Arc<PlayerStatsStore>> {
         self.catalogs.player_stats()
-    }
-
-    pub(in crate::session) fn represented_scaling_stat_context_like_cpp(
-        &self,
-        item_entry: u32,
-    ) -> Option<RepresentedScalingStatContextLikeCpp> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_scaling_stat_context_like_cpp(hub, item_entry)
     }
 
     pub(crate) fn record_represented_titan_grip_penalty_action_like_cpp(&mut self) {

@@ -42,7 +42,10 @@ impl WorldSession {
         percent: f64,
         inventory: bool,
     ) -> usize {
-        let targets = self.represented_durability_targets_like_cpp(inventory);
+        let targets = {
+            let (s, h) = crate::session::split_inventory_ref(self);
+            s.represented_durability_targets_like_cpp(h, inventory)
+        };
         let mut affected = 0;
         for (guid, slot, equipped) in targets {
             if self.apply_represented_durability_loss_item_like_cpp(guid, slot, equipped, percent) {
@@ -57,7 +60,10 @@ impl WorldSession {
         points: i32,
         inventory: bool,
     ) -> usize {
-        let targets = self.represented_durability_targets_like_cpp(inventory);
+        let targets = {
+            let (s, h) = crate::session::split_inventory_ref(self);
+            s.represented_durability_targets_like_cpp(h, inventory)
+        };
         let mut affected = 0;
         for (guid, slot, equipped) in targets {
             if self.apply_represented_durability_points_loss_like_cpp(
@@ -100,13 +106,6 @@ impl WorldSession {
         };
         let equipped = is_equipment_packed_pos(make_item_pos(INVENTORY_SLOT_BAG_0, slot));
         self.apply_represented_durability_loss_item_like_cpp(item.guid, slot, equipped, percent)
-    }
-    fn represented_durability_targets_like_cpp(
-        &self,
-        inventory: bool,
-    ) -> Vec<(ObjectGuid, u8, bool)> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_durability_targets_like_cpp(hub, inventory)
     }
     /// C++ `Player::DurabilityLoss` (`Player.cpp:4546-4562`).
     fn apply_represented_durability_loss_item_like_cpp(
@@ -506,9 +505,10 @@ impl WorldSession {
         discount: f32,
         repair_cost_rate: f32,
     ) -> bool {
-        let Some(repair_items) =
-            self.repairable_inventory_item_costs_like_cpp(discount, repair_cost_rate)
-        else {
+        let Some(repair_items) = ({
+            let (s, h) = crate::session::split_inventory_ref(self);
+            s.repairable_inventory_item_costs_like_cpp(h, discount, repair_cost_rate)
+        }) else {
             return false;
         };
         if repair_items.is_empty() {
@@ -624,14 +624,6 @@ impl WorldSession {
             repair_cost_rate,
         )
         .await
-    }
-    pub(in crate::session) fn repairable_inventory_item_costs_like_cpp(
-        &self,
-        discount: f32,
-        repair_cost_rate: f32,
-    ) -> Option<Vec<(ObjectGuid, u64)>> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.repairable_inventory_item_costs_like_cpp(hub, discount, repair_cost_rate)
     }
     pub fn item_template_max_durability(&self, item_id: u32) -> u32 {
         self.catalogs.item_template_max_durability(item_id)

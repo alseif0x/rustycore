@@ -255,9 +255,13 @@ impl WorldSession {
                     "Battle-pet purchase refund COMMIT outcome is unknown; quarantined the session"
                 );
                 drop(refund_guard);
-                self.quarantine_player_money_persistence_like_cpp(
-                    "battle-pet purchase refund COMMIT outcome is unknown; relog required",
-                );
+                {
+                    let (s, mut h) = crate::session::split_lifecycle_mut(self);
+                    s.quarantine_player_money_persistence_like_cpp(
+                        &mut h,
+                        "battle-pet purchase refund COMMIT outcome is unknown; relog required",
+                    )
+                };
                 BattlePetPurchaseExecutionLikeCpp::CompensationDeferred
             }
             Err(error) => {

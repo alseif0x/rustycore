@@ -526,7 +526,15 @@ impl WorldSession {
                     loot_item_context(stack.item_context),
                     stack.slot,
                 );
-            self.apply_stored_new_item_flags_like_cpp(stack.entry_id, stack.slot, &mut item_object);
+            {
+                let (s, h) = crate::session::split_loot_ref(self);
+                s.apply_stored_new_item_flags_like_cpp(
+                    h,
+                    stack.entry_id,
+                    stack.slot,
+                    &mut item_object,
+                )
+            };
             if stack.random_properties_id != 0 {
                 item_object.set_random_properties_id(stack.random_properties_id);
             }

@@ -17,17 +17,6 @@ fn spell_power_trace_enabled_like_cpp() -> bool {
 }
 
 impl WorldSession {
-    pub(crate) fn check_spell_power_like_cpp(
-        &mut self,
-        spell_info: &wow_data::SpellInfo,
-        cast_id: ObjectGuid,
-        spell_id: i32,
-        visual: &SpellCastVisual,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_spell_state_mut(self);
-        state.check_spell_power_like_cpp(&mut hub, spell_info, cast_id, spell_id, visual)
-    }
-
     pub(crate) fn take_spell_power_like_cpp(
         &mut self,
         spell_info: &wow_data::SpellInfo,

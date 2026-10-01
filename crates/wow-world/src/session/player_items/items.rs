@@ -127,12 +127,6 @@ impl WorldSession {
     pub fn item_display_id(&self, item_id: u32, appearance_mod_id: u32) -> Option<u32> {
         self.catalogs.item_display_id(item_id, appearance_mod_id)
     }
-    pub(in crate::session) fn represented_top_level_item_mod_targets_like_cpp(
-        &self,
-    ) -> Option<Vec<(u8, ObjectGuid)>> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_top_level_item_mod_targets_like_cpp(hub)
-    }
     pub(crate) fn record_represented_items_set_item_like_cpp(
         &mut self,
         item_guid: ObjectGuid,
@@ -164,7 +158,8 @@ impl WorldSession {
         let events = if apply {
             self.record_represented_add_items_set_item_like_cpp(item_guid, &item_set)
         } else {
-            self.record_represented_remove_items_set_item_like_cpp(item_guid, &item_set)
+            let (s, mut h) = crate::session::split_inventory_mut(self);
+            s.record_represented_remove_items_set_item_like_cpp(&mut h, item_guid, &item_set)
         };
         #[cfg(test)]
         self.inventory
@@ -240,14 +235,6 @@ impl WorldSession {
         }
 
         events
-    }
-    fn record_represented_remove_items_set_item_like_cpp(
-        &mut self,
-        item_guid: ObjectGuid,
-        item_set: &wow_data::ItemSetEntry,
-    ) -> Vec<RepresentedItemSetSpellEventLikeCpp> {
-        let (state, mut hub) = crate::session::split_inventory_mut(self);
-        state.record_represented_remove_items_set_item_like_cpp(&mut hub, item_guid, item_set)
     }
     pub(crate) fn item_drop_rate_like_cpp(&self, item_id: u32) -> f32 {
         let (state, hub) = crate::session::split_inventory_ref(self);

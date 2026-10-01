@@ -324,11 +324,15 @@ impl WorldSession {
             return 0;
         }
 
-        self.calculate_quest_xp(
-            quest.reward_xp_difficulty,
-            self.player_quest_level_like_cpp(quest),
-            quest.reward_xp_multiplier,
-        )
+        {
+            let (s, h) = crate::session::split_quest_state_ref(self);
+            s.calculate_quest_xp(
+                h,
+                quest.reward_xp_difficulty,
+                self.player_quest_level_like_cpp(quest),
+                quest.reward_xp_multiplier,
+            )
+        }
     }
     pub(crate) fn quest_money_reward_like_cpp(
         &self,
@@ -427,20 +431,6 @@ impl WorldSession {
         }
 
         true
-    }
-    pub(crate) fn send_represented_quest_giver_offer_reward_like_cpp(
-        &mut self,
-        source_guid: ObjectGuid,
-        quest: &wow_data::quest::QuestTemplate,
-        auto_launched: bool,
-    ) {
-        let (state, mut hub) = crate::session::split_quest_state_mut(self);
-        state.send_represented_quest_giver_offer_reward_like_cpp(
-            &mut hub,
-            source_guid,
-            quest,
-            auto_launched,
-        )
     }
     #[cfg(test)]
     pub(crate) fn represented_confirm_barbers_choice_requests_like_cpp(

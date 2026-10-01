@@ -244,8 +244,10 @@ impl crate::session::WorldSession {
             GAMEOBJECT_TYPE_FISHING_NODE => {
                 let effect_start = self.world_entities.represented_gameobject_use_effects.len();
                 self.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid);
-                let Some(area_id) = self.represented_gameobject_area_id_like_cpp(gameobject_guid)
-                else {
+                let Some(area_id) = ({
+                    let (s, h) = crate::session::split_world_entities_ref(self);
+                    s.represented_gameobject_area_id_like_cpp(h, gameobject_guid)
+                }) else {
                     return;
                 };
                 let loot_request = self

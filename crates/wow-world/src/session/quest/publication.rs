@@ -6,20 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::session) fn send_represented_duel_requested_to_opponent_like_cpp(
-        &self,
-        opponent_guid: ObjectGuid,
-        arbiter_guid: ObjectGuid,
-        packet_bytes: Vec<u8>,
-    ) {
-        let (state, hub) = crate::session::split_quest_state_ref(self);
-        state.send_represented_duel_requested_to_opponent_like_cpp(
-            hub,
-            opponent_guid,
-            arbiter_guid,
-            packet_bytes,
-        )
-    }
     pub(in crate::session) fn send_represented_prepared_quest_like_cpp(
         &mut self,
         source_guid: ObjectGuid,
@@ -137,11 +123,15 @@ impl WorldSession {
                 title = quest.log_title.as_str(),
                 "Sending represented QuestGiverQuestDetails like C++"
             );
-            self.send_represented_quest_giver_quest_details_like_cpp(
-                source_guid,
-                quest,
-                auto_launched,
-            );
+            {
+                let (s, mut h) = crate::session::split_quest_state_mut(self);
+                s.send_represented_quest_giver_quest_details_like_cpp(
+                    &mut h,
+                    source_guid,
+                    quest,
+                    auto_launched,
+                )
+            };
         }
     }
 }

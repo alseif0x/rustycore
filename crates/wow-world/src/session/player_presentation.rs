@@ -267,7 +267,10 @@ impl WorldSession {
             return;
         }
 
-        let Some(target) = self.current_canonical_farsight_object_like_cpp() else {
+        let Some(target) = ({
+            let (s, h) = crate::session::split_visibility_ref(self);
+            s.current_canonical_farsight_object_like_cpp(h)
+        }) else {
             debug!("CMSG_FAR_SIGHT enable requested with no current viewpoint");
             return;
         };

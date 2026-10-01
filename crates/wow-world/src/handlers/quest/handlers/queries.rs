@@ -80,7 +80,10 @@ impl WorldSession {
             return;
         };
 
-        self.pause_interacted_creature_movement_like_cpp(guid);
+        {
+            let (s, mut h) = crate::session::split_world_entities_mut(self);
+            s.pause_interacted_creature_movement_like_cpp(&mut h, guid)
+        };
 
         if (access.npc_flags & NPCFlags1::GOSSIP.bits()) != 0
             && let Some(msg) = self

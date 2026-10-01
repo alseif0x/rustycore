@@ -87,21 +87,6 @@ impl WorldSession {
 
         (path_progress << 16) | dyn_flags
     }
-    pub(in crate::session) fn set_canonical_gameobject_spell_id_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        spell_id: u32,
-    ) {
-        let (state, mut hub) = crate::session::split_world_entities_mut(self);
-        state.set_canonical_gameobject_spell_id_like_cpp(&mut hub, guid, spell_id)
-    }
-    pub(in crate::session) fn represented_or_canonical_gameobject_owner_guid_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) -> Option<ObjectGuid> {
-        let (state, hub) = crate::session::split_world_entities_ref(self);
-        state.represented_or_canonical_gameobject_owner_guid_like_cpp(hub, guid)
-    }
     pub(in crate::session) fn gameobject_create_data_from_canonical_like_cpp(
         &self,
         guid: ObjectGuid,
@@ -872,19 +857,6 @@ impl WorldSession {
                 },
             );
         }
-    }
-    pub(crate) fn represented_gameobject_area_id_like_cpp(
-        &self,
-        gameobject_guid: ObjectGuid,
-    ) -> Option<u32> {
-        let (state, hub) = crate::session::split_world_entities_ref(self);
-        state.represented_gameobject_area_id_like_cpp(hub, gameobject_guid)
-    }
-    pub(in crate::session) fn represented_gameobject_spell_lookup_difficulty_id_like_cpp(
-        &self,
-    ) -> u8 {
-        let (state, hub) = crate::session::split_world_entities_ref(self);
-        state.represented_gameobject_spell_lookup_difficulty_id_like_cpp(hub)
     }
 }
 

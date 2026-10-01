@@ -6,14 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn represented_raid_difficulty_request_like_cpp(
-        &self,
-        difficulty_id: i32,
-        legacy: bool,
-    ) -> Option<u32> {
-        let (state, hub) = crate::session::split_quest_state_ref(self);
-        state.represented_raid_difficulty_request_like_cpp(hub, difficulty_id, legacy)
-    }
     pub(crate) fn player_quest_gameplay_snapshot_like_cpp(
         &self,
     ) -> Option<PlayerQuestGameplayState> {
@@ -446,15 +438,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_quest_state_ref(self);
         state.player_quest_level_like_cpp(hub, quest)
     }
-    pub(crate) fn calculate_quest_xp(
-        &self,
-        difficulty: u32,
-        quest_level: i32,
-        xp_multiplier: f32,
-    ) -> u32 {
-        let (state, hub) = crate::session::split_quest_state_ref(self);
-        state.calculate_quest_xp(hub, difficulty, quest_level, xp_multiplier)
-    }
     #[cfg(test)]
     pub(crate) fn represented_auction_replicate_requests_like_cpp(
         &self,
@@ -492,10 +475,6 @@ impl WorldSession {
                 .represented_resurrection_request_like_cpp = Some(request);
         }
         canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
-    }
-    pub(crate) fn clear_represented_resurrection_request_like_cpp(&mut self) -> bool {
-        let (state, mut hub) = crate::session::split_quest_state_mut(self);
-        state.clear_represented_resurrection_request_like_cpp(&mut hub)
     }
     pub(crate) fn represented_resurrection_requested_by_like_cpp(
         &self,

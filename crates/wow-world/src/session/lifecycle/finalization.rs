@@ -166,7 +166,10 @@ impl WorldSession {
             Retirement => {
                 self.unregister_from_player_registry();
                 self.notify_other_players_visibility_changed_like_cpp();
-                self.unregister_canonical_player_from_map_like_cpp()
+                {
+                    let (s, mut h) = crate::session::split_lifecycle_mut(self);
+                    s.unregister_canonical_player_from_map_like_cpp(&mut h)
+                }
             }
             LogoutPublication => {
                 // Separate writers must finish the earlier instance response first.
@@ -191,7 +194,10 @@ impl WorldSession {
                 if mode == FinalizationMode::CharacterSelection {
                     self.set_player_guid(None);
                     self.lifecycle.release_character_login_claim_like_cpp();
-                    self.clear_all_inventory_runtime_like_cpp();
+                    {
+                        let (s, mut h) = crate::session::split_inventory_mut(self);
+                        s.clear_all_inventory_runtime_like_cpp(&mut h)
+                    };
                     let _ = self.clear_player_currencies_like_cpp();
                     self.loot.set_active_loot_guid(ObjectGuid::EMPTY);
                     self.restore_realm_channels();

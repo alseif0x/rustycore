@@ -924,14 +924,6 @@ impl WorldSession {
         all_stored
     }
 
-    pub(super) fn remove_canonical_corpse_lootable_dynamic_flag_like_cpp(
-        &mut self,
-        corpse_guid: ObjectGuid,
-    ) -> bool {
-        let (state, mut hub) = crate::session::split_loot_mut(self);
-        state.remove_canonical_corpse_lootable_dynamic_flag_like_cpp(&mut hub, corpse_guid)
-    }
-
     pub(super) fn remove_canonical_corpse_lootable_dynamic_flag_if_unviewed_fully_looted_observation_like_cpp(
         &mut self,
         corpse_guid: ObjectGuid,

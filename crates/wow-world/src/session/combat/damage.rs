@@ -51,7 +51,10 @@ impl WorldSession {
     ) -> (f32, f32) {
         let mut min_damage = f32::from(weapon.min_damage[0]);
         let mut max_damage = f32::from(weapon.max_damage[0]);
-        let Some(context) = self.represented_scaling_stat_context_like_cpp(item_entry) else {
+        let Some(context) = ({
+            let (s, h) = crate::session::split_inventory_ref(self);
+            s.represented_scaling_stat_context_like_cpp(h, item_entry)
+        }) else {
             return (min_damage, max_damage);
         };
 

@@ -154,9 +154,10 @@ impl crate::session::WorldSession {
         let cast_resolutions = match root {
             SpellAcquisitionRootLikeCpp::DirectLearn(_) => BTreeMap::new(),
             SpellAcquisitionRootLikeCpp::TrainerWrapperCast(spell_id) => {
-                let Some(resolution) =
-                    self.resolve_trainer_wrapper_cast_acquisition_like_cpp(spell_id)
-                else {
+                let Some(resolution) = ({
+                    let (s, h) = crate::session::split_spell_state_ref(self);
+                    s.resolve_trainer_wrapper_cast_acquisition_like_cpp(h, spell_id)
+                }) else {
                     return SpellAcquisitionOutcomeLikeCpp::Indeterminate(
                         SpellAcquisitionIndeterminateLikeCpp::MissingCastResolution { spell_id },
                     );
@@ -243,14 +244,6 @@ impl crate::session::WorldSession {
         } else {
             project_spell_acquisition_like_cpp(&snapshot, metadata, root)
         }
-    }
-
-    fn resolve_trainer_wrapper_cast_acquisition_like_cpp(
-        &self,
-        spell_id: u32,
-    ) -> Option<PlayerCastAcquisitionResolutionLikeCpp> {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.resolve_trainer_wrapper_cast_acquisition_like_cpp(hub, spell_id)
     }
 
     pub(crate) fn spell_acquisition_snapshot_like_cpp(

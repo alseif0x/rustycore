@@ -156,7 +156,10 @@ impl WorldSession {
                 continue;
             };
 
-            self.register_materialized_creature_spawn_like_cpp(map_id, &spawn);
+            {
+                let (s, mut h) = crate::session::split_world_entities_mut(self);
+                s.register_materialized_creature_spawn_like_cpp(&mut h, map_id, &spawn)
+            };
             blocks.push(self.viewer_creature_create_block_like_cpp(&spawn));
             visible_guids.push(spawn.guid);
         }
@@ -645,7 +648,10 @@ impl WorldSession {
                         }
                         self.send_packet(&update);
                         for creature in &initial_visible_creatures_like_cpp {
-                            self.send_initial_visible_packets_for_creature_like_cpp(creature);
+                            {
+                                let (s, h) = crate::session::split_world_entities_ref(self);
+                                s.send_initial_visible_packets_for_creature_like_cpp(h, creature)
+                            };
                         }
                     },
                 );
@@ -733,7 +739,10 @@ impl WorldSession {
                     .client_visible_guids_like_cpp
                     .contains(&spawn.guid)
                 {
-                    self.register_materialized_creature_spawn_like_cpp(map_id, &spawn);
+                    {
+                        let (s, mut h) = crate::session::split_world_entities_mut(self);
+                        s.register_materialized_creature_spawn_like_cpp(&mut h, map_id, &spawn)
+                    };
                     update_blocks.push(self.viewer_creature_create_block_like_cpp(&spawn));
                     created_creatures += 1;
                 }
