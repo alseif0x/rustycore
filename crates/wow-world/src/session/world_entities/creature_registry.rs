@@ -292,6 +292,120 @@ impl WorldSession {
         default_movement_type: wow_entities::MovementGeneratorType,
         waypoint_path_id: u32,
     ) {
+        let (state, mut hub) = crate::session::split_world_entities_mut(self);
+        state.register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp(
+            &mut hub,
+            map_id,
+            position,
+            create_data,
+            min_dmg,
+            max_dmg,
+            aggro_radius,
+            loot_id,
+            skin_loot_id,
+            gold_min,
+            gold_max,
+            respawn_delay_secs,
+            selected_equipment_id,
+            original_equipment_id,
+            script_name,
+            string_id,
+            addon,
+            boss_id,
+            dungeon_encounter_id,
+            phase_use_flags,
+            phase_id,
+            phase_group_id,
+            terrain_swap_map,
+            flags_extra,
+            ground_movement_type,
+            swim_allowed,
+            flight_movement_type,
+            rooted,
+            chase_movement_type,
+            random_movement_type,
+            interaction_pause_timer_ms,
+            wander_distance,
+            default_movement_type,
+            waypoint_path_id,
+        )
+    }
+    pub(crate) fn remove_world_creature(
+        &mut self,
+        guid: ObjectGuid,
+    ) -> Option<crate::map_manager::WorldCreature> {
+        let (state, mut hub) = crate::session::split_world_entities_mut(self);
+        state.remove_world_creature(&mut hub, guid)
+    }
+    fn relocate_canonical_creature_map_object_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        position: wow_core::Position,
+    ) {
+        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
+        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
+            return;
+        };
+        relocate_canonical_creature_map_object_on_map_like_cpp(
+            manager,
+            u32::from(map_id),
+            instance_id,
+            guid,
+            position,
+        );
+    }
+    pub(in crate::session) fn sync_canonical_creature_entity_like_cpp(
+        &mut self,
+        creature: wow_entities::Creature,
+    ) {
+        self.core.sync_canonical_creature_entity_like_cpp(creature)
+    }
+    pub(crate) fn mutate_world_creature<F, R>(&mut self, guid: ObjectGuid, f: F) -> Option<R>
+    where
+        F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
+    {
+        self.core.mutate_world_creature(guid, f)
+    }
+}
+
+impl crate::session::state::WorldEntitiesState {
+    pub(crate) fn register_world_creature_with_flags_extra_movement_and_default_motion_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        map_id: u16,
+        position: wow_core::Position,
+        create_data: wow_packet::packets::update::CreatureCreateData,
+        min_dmg: u32,
+        max_dmg: u32,
+        aggro_radius: f32,
+        loot_id: u32,
+        skin_loot_id: u32,
+        gold_min: u32,
+        gold_max: u32,
+        respawn_delay_secs: u32,
+        selected_equipment_id: u8,
+        original_equipment_id: i8,
+        script_name: String,
+        string_id: Option<String>,
+        addon: Option<CreatureAddonLifecycleRecordLikeCpp>,
+        boss_id: Option<u32>,
+        dungeon_encounter_id: u32,
+        phase_use_flags: u8,
+        phase_id: u16,
+        phase_group_id: u32,
+        terrain_swap_map: i32,
+        flags_extra: u32,
+        ground_movement_type: u8,
+        swim_allowed: bool,
+        flight_movement_type: u8,
+        rooted: bool,
+        chase_movement_type: u8,
+        random_movement_type: u8,
+        interaction_pause_timer_ms: u32,
+        wander_distance: f32,
+        default_movement_type: wow_entities::MovementGeneratorType,
+        waypoint_path_id: u32,
+    ) {
         let guid = create_data.guid;
         let entry = create_data.entry;
         let hp = create_data.health.max(1) as u32;
@@ -304,13 +418,14 @@ impl WorldSession {
         let unit_flags2 = create_data.unit_flags2;
         let unit_flags3 = create_data.unit_flags3;
         let damage_school = create_data.damage_school;
-        let (db_phase_shift, validated_terrain_swap_map) = self.db_spawn_phase_shift_like_cpp(
-            map_id,
-            phase_use_flags,
-            phase_id,
-            phase_group_id,
-            terrain_swap_map,
-        );
+        let (db_phase_shift, validated_terrain_swap_map) =
+            hub.catalogs.db_spawn_phase_shift_like_cpp(
+                map_id,
+                phase_use_flags,
+                phase_id,
+                phase_group_id,
+                terrain_swap_map,
+            );
         let mut canonical_creature = {
             let mut creature = wow_entities::Creature::new(false);
             creature.unit_mut().world_mut().object_mut().create(guid);
@@ -438,9 +553,11 @@ impl WorldSession {
             creature
         };
         canonical_creature.clear_data_changes();
-        if let Some(outcome) =
-            self.insert_canonical_creature_map_object_like_cpp(map_id, canonical_creature.clone())
-        {
+        if let Some(outcome) = self.insert_canonical_creature_map_object_like_cpp(
+            hub,
+            map_id,
+            canonical_creature.clone(),
+        ) {
             canonical_creature.rebind_loot_authority_like_cpp(outcome.loot_authority);
             let _ = canonical_creature.take_pending_addon_aura_provenance_like_cpp();
             for (slot, spell_id, provenance) in outcome.aura_provenance {
@@ -454,17 +571,13 @@ impl WorldSession {
                 }
             }
         }
-        let canonical_health_owner = self
-            .core
-            .canonical_map_manager
-            .as_ref()
-            .and_then(|manager| {
-                let manager = manager.lock().ok()?;
-                manager
-                    .find_map(u32::from(map_id), 0)?
-                    .map()
-                    .with_creature_like_cpp(guid, |current| current.unit().clone())
-            });
+        let canonical_health_owner = hub.core.canonical_map_manager.as_ref().and_then(|manager| {
+            let manager = manager.lock().ok()?;
+            manager
+                .find_map(u32::from(map_id), 0)?
+                .map()
+                .with_creature_like_cpp(guid, |current| current.unit().clone())
+        });
         if let Some(current_unit) = canonical_health_owner {
             // When a canonical object pre-exists (for example grid loading
             // racing legacy registration), seed the compatibility mirror from
@@ -475,9 +588,9 @@ impl WorldSession {
                 .preserve_authoritative_health_state_for_snapshot_like_cpp(&current_unit);
         }
 
-        if let Some(manager) = &self.core.map_manager {
+        if let Some(manager) = &hub.core.map_manager {
             let (grid_x, grid_y) = crate::map_manager::world_to_grid_coords(position.x, position.y);
-            let waypoint_path_resolver = self.catalogs.waypoint_path_resolver_like_cpp.clone();
+            let waypoint_path_resolver = hub.catalogs.waypoint_path_resolver_like_cpp.clone();
             let mut world_creature = crate::map_manager::WorldCreature::from_canonical(
                 canonical_creature,
                 create_data.clone(),
@@ -501,12 +614,14 @@ impl WorldSession {
             }
         }
     }
+
     fn insert_canonical_creature_map_object_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         map_id: u16,
         creature: wow_entities::Creature,
     ) -> Option<CanonicalCreatureInsertOutcomeLikeCpp> {
-        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
+        let Some(manager) = hub.core.canonical_map_manager.as_ref() else {
             return None;
         };
         insert_canonical_creature_map_object_on_map_like_cpp(
@@ -516,12 +631,14 @@ impl WorldSession {
             creature,
         )
     }
+
     pub(crate) fn remove_world_creature(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
         guid: ObjectGuid,
     ) -> Option<crate::map_manager::WorldCreature> {
-        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        let manager = self.core.map_manager.as_ref().cloned()?;
+        let (map_id, instance_id) = hub.core.current_legacy_runtime_map_key_like_cpp();
+        let manager = hub.core.map_manager.as_ref().cloned()?;
         let removed = {
             let mut manager = manager
                 .write()
@@ -532,13 +649,18 @@ impl WorldSession {
             manager.remove_creature_any(map_id, instance_id, guid)
         };
         if removed.is_some() {
-            self.remove_canonical_creature_map_object_like_cpp(guid);
+            self.remove_canonical_creature_map_object_like_cpp(hub, guid);
         }
         removed
     }
-    fn remove_canonical_creature_map_object_like_cpp(&mut self, guid: ObjectGuid) {
-        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
+
+    fn remove_canonical_creature_map_object_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        guid: ObjectGuid,
+    ) {
+        let (map_id, instance_id) = hub.core.current_legacy_runtime_map_key_like_cpp();
+        let Some(manager) = hub.core.canonical_map_manager.as_ref() else {
             return;
         };
         remove_canonical_creature_map_object_on_map_like_cpp(
@@ -547,35 +669,6 @@ impl WorldSession {
             instance_id,
             guid,
         );
-    }
-    fn relocate_canonical_creature_map_object_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        position: wow_core::Position,
-    ) {
-        let (map_id, instance_id) = self.current_legacy_runtime_map_key_like_cpp();
-        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
-            return;
-        };
-        relocate_canonical_creature_map_object_on_map_like_cpp(
-            manager,
-            u32::from(map_id),
-            instance_id,
-            guid,
-            position,
-        );
-    }
-    pub(in crate::session) fn sync_canonical_creature_entity_like_cpp(
-        &mut self,
-        creature: wow_entities::Creature,
-    ) {
-        self.core.sync_canonical_creature_entity_like_cpp(creature)
-    }
-    pub(crate) fn mutate_world_creature<F, R>(&mut self, guid: ObjectGuid, f: F) -> Option<R>
-    where
-        F: FnOnce(&mut crate::map_manager::WorldCreature) -> R,
-    {
-        self.core.mutate_world_creature(guid, f)
     }
 }
 

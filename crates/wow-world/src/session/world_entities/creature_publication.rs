@@ -108,23 +108,8 @@ impl WorldSession {
         &self,
         creature: &crate::map_manager::WorldCreature,
     ) {
-        let aura_subsystem = &creature.creature.unit().subsystems().auras;
-        if aura_subsystem.visible_auras.is_empty() {
-            return;
-        }
-
-        let mut visible: Vec<_> = aura_subsystem.visible_auras.keys().copied().collect();
-        visible.sort_unstable();
-        let level = creature.level();
-        let auras = visible
-            .into_iter()
-            .map(|slot| represented_creature_aura_info_like_cpp(aura_subsystem, slot, level))
-            .collect();
-
-        self.send_packet(&wow_packet::packets::misc::AuraUpdate::full_for(
-            creature.guid(),
-            auras,
-        ));
+        let (state, hub) = crate::session::split_world_entities_ref(self);
+        state.send_initial_visible_packets_for_creature_like_cpp(hub, creature)
     }
     /// Route a creature-originated packet through the existing
     /// `MessageDistDeliverer`-style candidate and per-session visibility gates.
@@ -152,44 +137,23 @@ impl WorldSession {
             true,
         );
     }
-    /// Fan out a creature packet from an interaction snapshot that has
-    /// already been validated against the canonical-or-legacy NPC authority.
-    /// This keeps observer publication working during the transitional map
-    /// split even when the source exists only in the legacy map manager.
     pub(crate) fn broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp(
         &self,
         source_guid: ObjectGuid,
         source_position: Position,
         bytes: Vec<u8>,
     ) {
-        self.broadcast_creature_packet_from_position_to_visible_set_and_connection_like_cpp(
+        let (state, hub) = crate::session::split_world_entities_ref(self);
+        state.broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp(
+            hub,
             source_guid,
             source_position,
             bytes,
-            true,
-            true,
-        );
+        )
     }
-    /// C++ `WorldObject::SendMessageToSet(packet, true)` for a Player source.
-    ///
-    /// The owner session sends its own copy separately; this queues the same
-    /// bytes for the nearby observers that already have the Player at client.
-    /// The recipient range uses the represented Player's current position, and
-    /// the source GUID is deliberately excluded, matching the C++ self-send
-    /// split already used for creature publication.
     pub(crate) fn broadcast_player_packet_to_visible_set_realm_like_cpp(&self, bytes: Vec<u8>) {
-        let (Some(source_guid), Some(source_position)) =
-            (self.player_guid(), self.player_position_like_cpp())
-        else {
-            return;
-        };
-        self.broadcast_creature_packet_from_position_to_visible_set_and_connection_like_cpp(
-            source_guid,
-            source_position,
-            bytes,
-            true,
-            false,
-        );
+        let (state, hub) = crate::session::split_world_entities_ref(self);
+        state.broadcast_player_packet_to_visible_set_realm_like_cpp(hub, bytes)
     }
     fn broadcast_creature_packet_to_visible_set_and_connection_like_cpp(
         &self,
@@ -216,12 +180,108 @@ impl WorldSession {
         realm_connection: bool,
         allow_legacy_source_fallback: bool,
     ) {
-        let Some(registry) = self.player_registry() else {
+        let (state, hub) = crate::session::split_world_entities_ref(self);
+        state.broadcast_creature_packet_from_position_to_visible_set_and_connection_like_cpp(
+            hub,
+            source_guid,
+            source_position,
+            bytes,
+            realm_connection,
+            allow_legacy_source_fallback,
+        )
+    }
+}
+
+impl crate::session::state::WorldEntitiesState {
+    pub(crate) fn send_initial_visible_packets_for_creature_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        creature: &crate::map_manager::WorldCreature,
+    ) {
+        let aura_subsystem = &creature.creature.unit().subsystems().auras;
+        if aura_subsystem.visible_auras.is_empty() {
+            return;
+        }
+
+        let mut visible: Vec<_> = aura_subsystem.visible_auras.keys().copied().collect();
+        visible.sort_unstable();
+        let level = creature.level();
+        let auras = visible
+            .into_iter()
+            .map(|slot| represented_creature_aura_info_like_cpp(aura_subsystem, slot, level))
+            .collect();
+
+        hub.core
+            .send_packet(&wow_packet::packets::misc::AuraUpdate::full_for(
+                creature.guid(),
+                auras,
+            ));
+    }
+
+    /// Fan out a creature packet from an interaction snapshot that has
+    /// already been validated against the canonical-or-legacy NPC authority.
+    /// This keeps observer publication working during the transitional map
+    /// split even when the source exists only in the legacy map manager.
+    pub(crate) fn broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        source_guid: ObjectGuid,
+        source_position: Position,
+        bytes: Vec<u8>,
+    ) {
+        self.broadcast_creature_packet_from_position_to_visible_set_and_connection_like_cpp(
+            hub,
+            source_guid,
+            source_position,
+            bytes,
+            true,
+            true,
+        );
+    }
+
+    /// C++ `WorldObject::SendMessageToSet(packet, true)` for a Player source.
+    ///
+    /// The owner session sends its own copy separately; this queues the same
+    /// bytes for the nearby observers that already have the Player at client.
+    /// The recipient range uses the represented Player's current position, and
+    /// the source GUID is deliberately excluded, matching the C++ self-send
+    /// split already used for creature publication.
+    pub(crate) fn broadcast_player_packet_to_visible_set_realm_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        bytes: Vec<u8>,
+    ) {
+        let (Some(source_guid), Some(source_position)) =
+            (hub.core.player_guid(), hub.player_position_like_cpp())
+        else {
             return;
         };
-        let player_guid = self.player_guid().unwrap_or(ObjectGuid::EMPTY);
-        let map_id = self.player_map_id_like_cpp();
-        let instance_id = self
+        self.broadcast_creature_packet_from_position_to_visible_set_and_connection_like_cpp(
+            hub,
+            source_guid,
+            source_position,
+            bytes,
+            true,
+            false,
+        );
+    }
+
+    fn broadcast_creature_packet_from_position_to_visible_set_and_connection_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        source_guid: ObjectGuid,
+        source_position: Position,
+        bytes: Vec<u8>,
+        realm_connection: bool,
+        allow_legacy_source_fallback: bool,
+    ) {
+        let Some(registry) = hub.core.player_registry() else {
+            return;
+        };
+        let player_guid = hub.core.player_guid().unwrap_or(ObjectGuid::EMPTY);
+        let map_id = hub.core.player_map_id_like_cpp();
+        let instance_id = hub
+            .core
             .current_canonical_player_map_key_like_cpp()
             .map(|key| key.instance_id)
             .unwrap_or(0);

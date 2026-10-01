@@ -356,12 +356,6 @@ impl WorldSession {
         self.core
             .try_send_connected_player_command_like_cpp(target_guid, command)
     }
-    pub(in crate::session) fn send_active_player_multi_action_bars_update_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) {
-        crate::session::hub_ref(self).send_active_player_multi_action_bars_update_like_cpp(guid)
-    }
 }
 
 impl crate::session::state::SessionLifecycleState {

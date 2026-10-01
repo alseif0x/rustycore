@@ -57,13 +57,6 @@ impl WorldSession {
             .spell_linked_rejected_trigger_spell_ids_like_cpp =
             Some(rejected_linked_trigger_spell_ids);
     }
-    pub(in crate::session) fn spell_has_no_unrepresented_runtime_hooks_like_cpp(
-        &self,
-        spell_id: u32,
-    ) -> bool {
-        let (state, hub) = crate::session::split_spell_state_ref(self);
-        state.spell_has_no_unrepresented_runtime_hooks_like_cpp(hub, spell_id)
-    }
     pub(in crate::session) fn player_target_spell_is_hit_inert_like_cpp(
         &self,
         spell_id: u32,

@@ -26,10 +26,6 @@ impl WorldSession {
         crate::session::hub_ref(self).gray_level(pl)
     }
 
-    pub(in crate::session) fn zero_difference(&self, pl: u8) -> u8 {
-        crate::session::hub_ref(self).zero_difference(pl)
-    }
-
     pub(in crate::session) fn represented_championing_faction_for_kill_like_cpp(
         &self,
     ) -> Option<u32> {

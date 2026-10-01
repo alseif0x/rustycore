@@ -46,7 +46,23 @@ pub(in crate::session) fn player_cuf_profile_to_packet_like_cpp(
 
 impl WorldSession {
     pub(crate) fn clear_represented_cuf_profiles_like_cpp(&mut self) {
-        let canonical = self.with_owned_player_mut_like_cpp(|player| {
+        crate::session::hub_mut(self).clear_represented_cuf_profiles_like_cpp()
+    }
+}
+
+#[cfg(test)]
+impl crate::session::state::PlayerPresentationState {
+    #[cfg(test)]
+    pub(crate) fn represented_cuf_profiles_like_cpp(
+        &self,
+    ) -> &[Option<wow_packet::packets::misc::CufProfile>] {
+        &self.cuf_profiles_like_cpp
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(crate) fn clear_represented_cuf_profiles_like_cpp(&mut self) {
+        let canonical = self.core.with_owned_player_mut_like_cpp(|player| {
             player.reset_cuf_profiles_like_cpp();
         });
         if canonical.is_some() {
@@ -59,11 +75,8 @@ impl WorldSession {
             self.fixtures.presentation.cuf_profiles_loaded_like_cpp = false;
         }
     }
-
-    #[cfg(test)]
-    pub(crate) fn represented_cuf_profiles_like_cpp(
-        &self,
-    ) -> &[Option<wow_packet::packets::misc::CufProfile>] {
-        &self.fixtures.presentation.cuf_profiles_like_cpp
-    }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/raid_profile_values/f3_shims.rs"]
+mod f3_shims;
