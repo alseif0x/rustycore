@@ -371,46 +371,14 @@ impl WorldSession {
         )
     }
 
-    #[cfg(test)]
-    pub(crate) fn represented_live_applications_like_cpp(
-        &self,
-    ) -> &[RepresentedLiveApplicationLikeCpp] {
-        &self
-            .fixtures
-            .presentation
-            .represented_live_applications_like_cpp
-    }
-
     pub(in crate::session) fn resolved_player_stand_state_like_cpp(
         &self,
     ) -> Option<UnitStandStateType> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.unit().stand_state_like_cpp());
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.presentation.player_stand_state_like_cpp);
-        }
-        canonical
-    }
-
-    #[cfg(test)]
-    pub(crate) fn player_stand_state_like_cpp(&self) -> UnitStandStateType {
-        self.resolved_player_stand_state_like_cpp()
-            .expect("test Player stand-state owner must resolve")
+        crate::session::hub_ref(self).resolved_player_stand_state_like_cpp()
     }
 
     pub(crate) fn player_is_sit_state_like_cpp(&self) -> bool {
-        self.resolved_player_stand_state_like_cpp()
-            .is_some_and(|state| {
-                matches!(
-                    state,
-                    UnitStandStateType::Sit
-                        | UnitStandStateType::SitChair
-                        | UnitStandStateType::SitLowChair
-                        | UnitStandStateType::SitMediumChair
-                        | UnitStandStateType::SitHighChair
-                )
-            })
+        crate::session::hub_ref(self).player_is_sit_state_like_cpp()
     }
 
     pub(crate) fn represented_is_on_barber_chair_like_cpp(&self) -> bool {
@@ -451,6 +419,51 @@ impl WorldSession {
     }
 }
 
+impl crate::session::HubRef<'_> {
+    pub(in crate::session) fn resolved_player_stand_state_like_cpp(
+        &self,
+    ) -> Option<UnitStandStateType> {
+        let canonical = self
+            .core
+            .with_owned_player_like_cpp(|player| player.unit().stand_state_like_cpp());
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some(self.fixtures.presentation.player_stand_state_like_cpp);
+        }
+        canonical
+    }
+
+    #[cfg(test)]
+    pub(crate) fn player_stand_state_like_cpp(&self) -> UnitStandStateType {
+        self.resolved_player_stand_state_like_cpp()
+            .expect("test Player stand-state owner must resolve")
+    }
+
+    pub(crate) fn player_is_sit_state_like_cpp(&self) -> bool {
+        self.resolved_player_stand_state_like_cpp()
+            .is_some_and(|state| {
+                matches!(
+                    state,
+                    UnitStandStateType::Sit
+                        | UnitStandStateType::SitChair
+                        | UnitStandStateType::SitLowChair
+                        | UnitStandStateType::SitMediumChair
+                        | UnitStandStateType::SitHighChair
+                )
+            })
+    }
+}
+
+#[cfg(test)]
+impl crate::session::state::PlayerPresentationState {
+    #[cfg(test)]
+    pub(crate) fn represented_live_applications_like_cpp(
+        &self,
+    ) -> &[RepresentedLiveApplicationLikeCpp] {
+        &self.represented_live_applications_like_cpp
+    }
+}
+
 impl crate::session::HubMut<'_> {
     pub(crate) fn set_player_stand_state_like_cpp(&mut self, state: UnitStandStateType) {
         let _canonical = self
@@ -465,3 +478,7 @@ impl crate::session::HubMut<'_> {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/stand_state_adapter/f3_shims.rs"]
+mod f3_shims;

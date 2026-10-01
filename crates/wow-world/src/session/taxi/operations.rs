@@ -29,12 +29,6 @@ impl WorldSession {
     pub(in crate::session) fn remove_player_mount_vehicle_kit_like_cpp(&mut self) -> bool {
         crate::session::hub_mut(self).remove_player_mount_vehicle_kit_like_cpp()
     }
-    pub(in crate::session) fn eject_player_mount_vehicle_passenger_like_cpp(
-        &mut self,
-        passenger_guid: ObjectGuid,
-    ) -> bool {
-        crate::session::hub_mut(self).eject_player_mount_vehicle_passenger_like_cpp(passenger_guid)
-    }
     pub fn set_vehicle_store(&mut self, store: Arc<VehicleStore>) {
         self.catalogs.vehicle_store = Some(store);
     }

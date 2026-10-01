@@ -278,11 +278,7 @@ impl WorldSession {
         &mut self,
         passenger_guid: ObjectGuid,
     ) -> bool {
-        if !passenger_guid.is_unit() {
-            return false;
-        }
-
-        self.eject_player_mount_vehicle_passenger_like_cpp(passenger_guid)
+        crate::session::hub_mut(self).represented_eject_passenger_like_cpp(passenger_guid)
     }
 
     pub(crate) fn apply_far_sight_like_cpp(&mut self, enable: bool) {
@@ -310,6 +306,19 @@ impl WorldSession {
         } else {
             debug!("CMSG_FAR_SIGHT enable target {:?} is not resoluble", target);
         }
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(crate) fn represented_eject_passenger_like_cpp(
+        &mut self,
+        passenger_guid: ObjectGuid,
+    ) -> bool {
+        if !passenger_guid.is_unit() {
+            return false;
+        }
+
+        self.eject_player_mount_vehicle_passenger_like_cpp(passenger_guid)
     }
 }
 

@@ -82,6 +82,11 @@ STORE_WRITE = re.compile(r"&\s*mut\s+self\s*\.\s*(?:catalogs|config)\b|\bself\s*
 TYPE_PATH = re.compile(r"\b(?:Self|WorldSession)\s*::\s*(" + IDENT + r")")
 BARE_SELF = re.compile(r"\bself\b(?!\s*(?:\.|::))")
 ANY_CALL = re.compile(r"(?:\.|::)\s*(" + IDENT + r")\s*(?:::\s*<[^;{}()]*>\s*)?\(")
+# A call that can reach a WorldSession method: `self.m(`, `<..session..>.m(`, `Self::m(`, `WorldSession::m(`.
+# Narrower than ANY_CALL so same-named methods of other types are not taken for callers; a missed
+# caller only costs a thunk the compiler loop restores (E0599).
+WS_CALL = re.compile(r"(?:\b(?:self|\w*session\w*)\s*\.\s*|\b(?:Self|WorldSession)\s*::\s*)(" + IDENT +
+                     r")\s*(?:::\s*<[^;{}()]*>\s*)?\(")
 SESSION_CALL = re.compile(r"\b(" + IDENT + r")\s*\.\s*(" + IDENT + r")\s*(?:::\s*<[^;{}()]*>\s*)?\(")
 IMPL_ANY = re.compile(r"(?m)^[ \t]*impl\s*(?:<[^{};]*?>)?\s*(?:" + IDENT + r"\s*::\s*)*(" + IDENT +
                       r")\b\s*(?:<[^{};]*>)?\s*\{")
@@ -369,7 +374,8 @@ def call_prefix(caller, ctype, callee_type, callee_kind, callee_recv="&self"):
     return None
 
 
-def plan(root, groups_wanted, classes):
+def plan(root, groups_wanted, classes, rehome=None):
+    """`rehome` maps fn name -> group: an explicit, reviewed override of the derived target."""
     global HANDLERS, EXT
     W, src, raw, code, groups, fns, owned, HANDLERS, EXT, tests = scan(root)
     count, all_by = len(fns), {f["name"]: f for f in fns}
@@ -377,6 +383,11 @@ def plan(root, groups_wanted, classes):
     live = [f for f in fns if f["name"] not in thunks]
     targets(live)
     by = {f["name"]: f for f in live}
+    for name, group in (rehome or {}).items():
+        if name in by:
+            by[name]["target"] = group
+        elif name not in owned:                              # already moved by an earlier pass: fine
+            raise CodemodError(f"--rehome: {name} is not a WorldSession fn")
     loc = {n: sorted(o)[0][0] for n, o in owned.items()}
     cand, blocked = {}, {}
     for f in live:
@@ -425,22 +436,49 @@ def plan(root, groups_wanted, classes):
 
     dead_prod = prod_dead_names(W, code, fns, in_test)
     group_of = {f["name"]: (f["file"], f["impl_start"]) for f in fns}
+    owner_spans = collections.defaultdict(list)
+    for f in fns:
+        owner_spans[f["file"]].append((f["seg"], f["body_close"], f["name"]))
+    owner_impls = [(rel, h.start(), W.matching_close(c, h.end() - 1)) for rel, c in code.items()
+                   for h in IMPL_ANY.finditer(c) if h.group(1) in OWNER_TYPES]
+    prod_sites = collections.defaultdict(list)               # production WorldSession call sites -> caller fn
+    any_sites = collections.Counter()                        # any context, excluding recursion
+    for rel, c in code.items():
+        for m in WS_CALL.finditer(c):
+            if any(r == rel and a <= m.start() <= b for r, a, b in owner_impls):
+                continue
+            owner = next((nm for a, b, nm in owner_spans.get(rel, []) if a <= m.start() <= b), None)
+            if owner != m.group(1):
+                any_sites[m.group(1)] += 1
+            if not in_test(rel, m.start()):
+                prod_sites[m.group(1)].append(owner)
 
     def lint_groups():
         """Dead-in-production fns move as whole lint groups; returns the names it demoted."""
         drop = set()
+        uncalled = [n for n in cand if not (any_sites[n] or tests[n] or EXT[n] or n in PERMANENT_THUNKS
+                                            or any(n in by[c]["calls"] for c in cand if c != n))]
+        for n in uncalled:                                    # decided first: it stays, so its group does too
+            blocked[n] = "no callers anywhere (dead or unused pub API); left in place"
+            cand.pop(n)
         for n in cand:
             if n in dead_prod and by[n]["vis"] != "pub":
                 peers = {f["name"] for f in fns if group_of[f["name"]] == group_of[n] and f["name"] in dead_prod
                          and f["vis"] != "pub"}
                 if any(x not in cand or cand[x][2] != cand[n][2] for x in peers):
                     drop |= {x for x in peers if x in cand}
+        for n in cand:                                        # its thunk would serve dead callers only
+            sites = [o for o in prod_sites.get(n, []) if o != n and o not in thunks
+                     and (o is None or o not in cand or o in dead_prod)]
+            if sites and all(o in dead_prod for o in sites) and not EXT[n] and n not in PERMANENT_THUNKS:
+                drop.add(n)
         for n in list(drop):                                  # a staying dead caller keeps its dead callees
             drop |= {x for x in by[n]["calls"] if x in cand and x in dead_prod and by[x]["vis"] != "pub"}
         for n in drop:
-            blocked[n] = "dead in non-test builds; moving would split its dead-code lint group"
+            blocked[n] = ("dead in non-test builds; moving would split its dead-code lint group" if n in dead_prod
+                          else "only dead-in-production callers remain; its thunk would be dead")
             cand.pop(n, None)
-        return drop
+        return drop | set(uncalled)
 
     while True:                                               # a signature failure re-blocks its callers
         settle()
@@ -477,7 +515,7 @@ def plan(root, groups_wanted, classes):
         resident, tcallers = collections.Counter(), collections.Counter()
         for rel, c in code.items():
             spans = moved_spans.get(rel, [])
-            for m in ANY_CALL.finditer(c):
+            for m in WS_CALL.finditer(c):
                 if m.group(1) in cand and not any(a <= m.start() <= b for a, b in spans):
                     (tcallers if in_test(rel, m.start()) else resident)[m.group(1)] += 1
         callers = collections.Counter(x for n in cand for x in by[n]["calls"] if x != n)
@@ -500,7 +538,7 @@ def plan(root, groups_wanted, classes):
     stale = [t for t in thunks if t not in HANDLERS | PERMANENT_THUNKS
              and not resident_thunk(t, code, moved_spans, EXT, in_test)
              and not (all_by[t]["vis"] == "pub" and not all_by[t]["cfg_test"])]
-    src_calls = collections.Counter(m.group(1) for rel, c in code.items() for m in ANY_CALL.finditer(c)
+    src_calls = collections.Counter(m.group(1) for rel, c in code.items() for m in WS_CALL.finditer(c)
                                     if not any(a <= m.start() <= b for a, b in moved_spans.get(rel, [])))
     stale_shims = {}                                          # shims whose last test caller moved
     for p in sorted((root / "crates/wow-world/unit_tests").rglob("f3_shims.rs")):
@@ -510,7 +548,7 @@ def plan(root, groups_wanted, classes):
     return dict(W=W, src=src, raw=raw, code=code, by=by, cand=cand, blocked=blocked, rows=rows, loc=loc,
                 count=count, thunks=thunks, stale=stale, stale_shims=stale_shims, test_called={
                     t for t in stale if any(m.group(1) == t and in_test(rel, m.start())
-                                            for rel, c in code.items() for m in ANY_CALL.finditer(c))}, modpaths=module_paths(src, code), tests=tests,
+                                            for rel, c in code.items() for m in WS_CALL.finditer(c))}, modpaths=module_paths(src, code), tests=tests,
                 allfns={f["name"]: f for f in fns})
 
 
@@ -529,7 +567,7 @@ def prod_dead_names(W, code, fns, in_test):
             or (f["vis"] == "pub" and not f["cfg_test"])}
     edges = collections.defaultdict(set)
     for rel, c in code.items():
-        for m in ANY_CALL.finditer(c):
+        for m in WS_CALL.finditer(c):
             x = m.group(1)
             if x not in names or in_test(rel, m.start()):
                 continue
@@ -551,7 +589,7 @@ def resident_thunk(name, code, spans, ext, in_test):
     if ext[name]:
         return True
     return any(m.group(1) == name and not any(a <= m.start() <= b for a, b in spans.get(rel, []))
-               and not in_test(rel, m.start()) for rel, c in code.items() for m in ANY_CALL.finditer(c))
+               and not in_test(rel, m.start()) for rel, c in code.items() for m in WS_CALL.finditer(c))
 
 
 def signature(f, code, raw, hub_kind=False):
@@ -725,11 +763,12 @@ def apply_text(root, P):
     sh_groups = {(by[r["name"]]["target"], "_ref" if r["kind"] == "state-hub" else "_mut")
                  for r in rows if r["kind"] in SH}
     outside = {r["type"] for r in rows if r["kind"] in ("state", *SH) and not r["file"].startswith("session/")}
-    for t in outside:
-        if t not in ("SessionCore", "SessionCatalogs", "LootState", "WorldEntitiesState", "VisibilityState",
-                     "InteractionState", "InstanceState", "SessionSpellState", "SessionQuestState", "SessionSocialLimits",
-                     "SessionLifecycleState"):
-            raise CodemodError(f"{t} is not pub(crate); a fn outside crate::session cannot name it")
+    for t in sorted(outside):                                # the owner type must be nameable crate-wide
+        for decl in sorted((src / "session/state").glob("*.rs")):
+            text = decl.read_text()
+            if f"pub(in crate::session) struct {t} " in text:
+                decl.write_text(text.replace(f"pub(in crate::session) struct {t} ", f"pub(crate) struct {t} ", 1))
+                written.append(decl)
     written += ensure_prelude(src, kinds, sh_groups, outside)
     per_file = collections.defaultdict(list)
     for r in rows:
@@ -899,6 +938,7 @@ def main(argv=None):
         p = sub.add_parser(name)
         p.add_argument("--group", required=True)
         p.add_argument("--classes", default="P,C-hub")
+        p.add_argument("--rehome", default="", help="name=group[,name=group]: reviewed target overrides")
         p.add_argument("--root", default=str(REPO))
         p.add_argument("--json", action="store_true")
         if name == "apply":
@@ -909,8 +949,9 @@ def main(argv=None):
     a = ap.parse_args(argv)
     root = pathlib.Path(a.root).resolve()
     groups, classes = set(a.group.split(",")), set(a.classes.split(","))
+    rehome = dict(item.split("=", 1) for item in a.rehome.split(",") if item)
     try:
-        P = plan(root, groups, classes)
+        P = plan(root, groups, classes, rehome)
         if a.cmd == "plan":
             print(json.dumps({"rows": P["rows"], "blocked": P["blocked"], "count": P["count"]}, indent=1)
                   if a.json else report(P, groups))
@@ -932,7 +973,7 @@ def main(argv=None):
             if not step:
                 break
             written, moved = written + step, moved + len(P["rows"])
-            P = plan(root, groups, classes)
+            P = plan(root, groups, classes, rehome)
         mpath.write_text(json.dumps(manifest, indent=1))
         print(f"text step: {moved} fns moved, {len(set(written))} files written" if written
               else "text step: already applied (no-op)", file=sys.stderr)

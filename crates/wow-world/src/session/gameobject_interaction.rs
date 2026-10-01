@@ -629,9 +629,6 @@ pub(crate) enum RepresentedGameObjectCriteriaEvent {
 }
 
 impl WorldSession {
-    /// C++ fishing-hole release performs AddUse, MaxOpens comparison, and
-    /// SetLootState on one world thread. Keep all three under one map lock so
-    /// two concurrent personal releases cannot finish in `Ready` after max.
     pub(crate) fn release_canonical_fishing_hole_like_cpp(
         &mut self,
         guid: ObjectGuid,
@@ -641,32 +638,8 @@ impl WorldSession {
         wow_entities::LootState,
         wow_map::map::GameObjectSetLootStateOutcomeLikeCpp,
     )> {
-        let map_key = self
-            .canonical_object_lookup_map_key_like_cpp(u32::from(self.player_map_id_like_cpp()))?;
-        let game_time_secs = i64::try_from(wow_core::GameTime::now().as_secs()).unwrap_or(i64::MAX);
-        let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
-        let mut manager = manager.lock().ok()?;
-        let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
-        let map = managed.map_mut();
-        let use_count = {
-            let gameobject = map.get_typed_game_object_mut(guid)?;
-            gameobject.add_use_like_cpp();
-            gameobject.use_times()
-        };
-        let loot_state = if max_opens.is_some_and(|max_opens| use_count >= max_opens) {
-            wow_entities::LootState::JustDeactivated
-        } else {
-            wow_entities::LootState::Ready
-        };
-        let outcome = map.set_gameobject_loot_state_like_cpp(
-            guid,
-            loot_state,
-            None,
-            game_time_secs,
-            0,
-            false,
-        );
-        Some((use_count, loot_state, outcome))
+        let (state, mut hub) = crate::session::split_world_entities_mut(self);
+        state.release_canonical_fishing_hole_like_cpp(&mut hub, guid, max_opens)
     }
 
     pub fn summon_private_object_owner_like_cpp(
@@ -703,7 +676,78 @@ impl WorldSession {
         max_opens: u32,
     ) {
         self.world_entities
-            .represented_gameobject_use_states
+            .record_represented_fishing_hole_max_opens_like_cpp(guid, max_opens)
+    }
+
+    pub(crate) fn record_represented_fishing_hole_radius_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        radius: u32,
+    ) {
+        self.world_entities
+            .record_represented_fishing_hole_radius_like_cpp(guid, radius)
+    }
+
+    pub(in crate::session) fn lookup_represented_fishing_hole_around_like_cpp(
+        &self,
+        gameobject_guid: ObjectGuid,
+    ) -> Option<ObjectGuid> {
+        self.world_entities
+            .lookup_represented_fishing_hole_around_like_cpp(gameobject_guid)
+    }
+}
+
+impl crate::session::state::WorldEntitiesState {
+    /// C++ fishing-hole release performs AddUse, MaxOpens comparison, and
+    /// SetLootState on one world thread. Keep all three under one map lock so
+    /// two concurrent personal releases cannot finish in `Ready` after max.
+    pub(crate) fn release_canonical_fishing_hole_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        guid: ObjectGuid,
+        max_opens: Option<u32>,
+    ) -> Option<(
+        u32,
+        wow_entities::LootState,
+        wow_map::map::GameObjectSetLootStateOutcomeLikeCpp,
+    )> {
+        let map_key = hub
+            .core
+            .canonical_object_lookup_map_key_like_cpp(u32::from(
+                hub.core.player_map_id_like_cpp(),
+            ))?;
+        let game_time_secs = i64::try_from(wow_core::GameTime::now().as_secs()).unwrap_or(i64::MAX);
+        let manager = Arc::clone(hub.core.canonical_map_manager.as_ref()?);
+        let mut manager = manager.lock().ok()?;
+        let managed = manager.find_map_mut(map_key.map_id, map_key.instance_id)?;
+        let map = managed.map_mut();
+        let use_count = {
+            let gameobject = map.get_typed_game_object_mut(guid)?;
+            gameobject.add_use_like_cpp();
+            gameobject.use_times()
+        };
+        let loot_state = if max_opens.is_some_and(|max_opens| use_count >= max_opens) {
+            wow_entities::LootState::JustDeactivated
+        } else {
+            wow_entities::LootState::Ready
+        };
+        let outcome = map.set_gameobject_loot_state_like_cpp(
+            guid,
+            loot_state,
+            None,
+            game_time_secs,
+            0,
+            false,
+        );
+        Some((use_count, loot_state, outcome))
+    }
+
+    pub(crate) fn record_represented_fishing_hole_max_opens_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        max_opens: u32,
+    ) {
+        self.represented_gameobject_use_states
             .entry(guid)
             .or_default()
             .fishing_hole_max_opens = Some(max_opens);
@@ -714,8 +758,7 @@ impl WorldSession {
         guid: ObjectGuid,
         radius: u32,
     ) {
-        self.world_entities
-            .represented_gameobject_use_states
+        self.represented_gameobject_use_states
             .entry(guid)
             .or_default()
             .fishing_hole_radius = Some(radius as f32);
@@ -729,7 +772,6 @@ impl WorldSession {
             20.0 + wow_movement::CONTACT_DISTANCE_LIKE_CPP;
 
         let source = self
-            .world_entities
             .represented_gameobject_use_states
             .get(&gameobject_guid)?;
         let source_position = source.position?;
@@ -737,7 +779,7 @@ impl WorldSession {
         let now = Instant::now();
         let mut nearest: Option<(ObjectGuid, f32)> = None;
 
-        for (candidate_guid, candidate) in &self.world_entities.represented_gameobject_use_states {
+        for (candidate_guid, candidate) in &self.represented_gameobject_use_states {
             if *candidate_guid == gameobject_guid {
                 continue;
             }

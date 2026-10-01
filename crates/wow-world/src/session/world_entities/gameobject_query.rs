@@ -6,31 +6,12 @@
 use super::*;
 
 impl WorldSession {
-    #[cfg(test)]
-    pub(crate) fn record_represented_gameobject_faction_template_like_cpp(
-        &mut self,
-        guid: ObjectGuid,
-        faction_template: u32,
-    ) {
-        self.world_entities
-            .represented_gameobject_use_states
-            .entry(guid)
-            .or_default()
-            .faction_template = (faction_template != 0).then_some(faction_template);
-    }
     pub(crate) fn restore_represented_gameobject_override_flags_like_cpp(
         &mut self,
         guid: ObjectGuid,
     ) {
-        if let Some(state) = self
-            .world_entities
-            .represented_gameobject_use_states
-            .get_mut(&guid)
-        {
-            if let Some(flags) = state.gameobject_override_flags {
-                state.gameobject_flags = flags;
-            }
-        }
+        self.world_entities
+            .restore_represented_gameobject_override_flags_like_cpp(guid)
     }
     pub(crate) fn update_visible_gameobjects_like_cpp(&mut self) -> usize {
         let mut sent = 0;
@@ -212,20 +193,13 @@ impl WorldSession {
         self.catalogs.gameobjects.display_info_store = Some(store);
     }
     pub(crate) fn gameobject_display_info_store(&self) -> Option<&Arc<GameObjectDisplayInfoStore>> {
-        self.catalogs.gameobjects.display_info_store.as_ref()
+        self.catalogs.gameobject_display_info_store()
     }
     pub fn set_gameobject_template_lifecycle_store(
         &mut self,
         store: Arc<GameObjectTemplateLifecycleStoreLikeCpp>,
     ) {
         self.catalogs.gameobject_template_lifecycle_store_like_cpp = Some(store);
-    }
-    pub(crate) fn gameobject_template_lifecycle_store(
-        &self,
-    ) -> Option<&Arc<GameObjectTemplateLifecycleStoreLikeCpp>> {
-        self.catalogs
-            .gameobject_template_lifecycle_store_like_cpp
-            .as_ref()
     }
     pub(in crate::session) fn visible_gameobject_guids_from_last_update_summary_like_cpp<F>(
         &self,
@@ -365,3 +339,44 @@ impl WorldSession {
         ))
     }
 }
+
+impl crate::session::state::SessionCatalogs {
+    pub(crate) fn gameobject_display_info_store(&self) -> Option<&Arc<GameObjectDisplayInfoStore>> {
+        self.gameobjects.display_info_store.as_ref()
+    }
+
+    pub(crate) fn gameobject_template_lifecycle_store(
+        &self,
+    ) -> Option<&Arc<GameObjectTemplateLifecycleStoreLikeCpp>> {
+        self.gameobject_template_lifecycle_store_like_cpp.as_ref()
+    }
+}
+
+impl crate::session::state::WorldEntitiesState {
+    #[cfg(test)]
+    pub(crate) fn record_represented_gameobject_faction_template_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+        faction_template: u32,
+    ) {
+        self.represented_gameobject_use_states
+            .entry(guid)
+            .or_default()
+            .faction_template = (faction_template != 0).then_some(faction_template);
+    }
+
+    pub(crate) fn restore_represented_gameobject_override_flags_like_cpp(
+        &mut self,
+        guid: ObjectGuid,
+    ) {
+        if let Some(state) = self.represented_gameobject_use_states.get_mut(&guid) {
+            if let Some(flags) = state.gameobject_override_flags {
+                state.gameobject_flags = flags;
+            }
+        }
+    }
+}
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/world_entities/gameobject_query/f3_shims.rs"]
+mod f3_shims;

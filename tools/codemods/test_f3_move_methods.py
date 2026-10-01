@@ -224,6 +224,13 @@ class F3MoveMethodsTest(unittest.TestCase):
             "        self.ctx_only()\n", "        self.ctx_only() + self.bg_hellos() as u32\n").replace(
             "    pub fn account_plus_foo(&self)", "    pub fn reset(&mut self) {\n        self.reset_source();\n        self.reset_twice();\n    }\n"
             "    pub fn account_plus_foo(&self)"))
+        self.write("crates/wow-world/src/session/state/interaction.rs",
+                   "pub(in crate::session) struct InteractionState {\n    pub(crate) source: u32,\n}\n")
+        self.write("crates/wow-world/src/handlers/vendor.rs", "impl WorldSession {\n"
+                   "    pub(crate) fn vendor_source(&self) -> u32 {\n        self.interaction.source\n    }\n}\n")
+        F.DOMAIN["handlers/vendor"] = "interaction"
+        self.addCleanup(F.DOMAIN.pop, "handlers/vendor")
+        conn.write_text(conn.read_text().replace("self.source_plus(1)", "self.source_plus(1) + self.vendor_source()"))
         P = F.plan(self.root, {"battleground", "interaction"}, {"P", "C-hub"})
         self.assertEqual(P["blocked"]["reset_twice"], "source-text test pins the call `reset_source(`")
         rc, out = run("apply", "--group", "battleground,interaction", "--root", str(self.root), "--text-only",
@@ -245,6 +252,8 @@ class F3MoveMethodsTest(unittest.TestCase):
                       "        state.reset_source(&mut hub)\n", npc)
         self.assertIn("fn reset_source(&mut self, hub: &mut crate::session::HubMut<'_>) {\n"
                       "        self.source = hub.core.account_id;\n", npc)
+        self.assertIn("pub(crate) struct InteractionState {",            # widened: named from handlers/
+                      (self.root / "crates/wow-world/src/session/state/interaction.rs").read_text())
         hub = (self.root / "crates/wow-world/src/session/state/hub.rs").read_text()
         self.assertIn("pub(crate) fn split_interaction_mut(s: &mut WorldSession) -> (&mut InteractionState, HubMut<'_>)", hub)
         self.assertIn("pub(crate) fn split_interaction_ref(s: &WorldSession)", hub)
@@ -297,6 +306,43 @@ class F3MoveMethodsTest(unittest.TestCase):
             self.assertEqual(F.compile_loop(self.root, "catalogs", manifest, 3, self.root), [1, 0])
         self.assertNotIn("fn only_tests", shim.read_text())
         self.assertEqual(manifest["retired_shims"], ["only_tests"])
+
+    def test_rehome_overrides_the_derived_target(self):
+        self.assertNotIn("foo_store", F.plan(self.root, {"core"}, {"P", "C-hub"})["cand"])
+        P = F.plan(self.root, {"core"}, {"P", "C-hub"}, {"foo_store": "core"})
+        self.assertIn("foo_store", P["cand"])                        # now planned under the core run
+        with self.assertRaises(F.CodemodError):
+            F.plan(self.root, {"core"}, {"P", "C-hub"}, {"no_such_fn": "core"})
+        rc, out = run("plan", "--group", "core", "--root", str(self.root), "--rehome", "foo_store=core")
+        self.assertEqual(rc, 0, out)
+        self.assertIn("foo_store", out)
+
+    def test_receiver_aware_callers_and_dead_only_callers(self):
+        self.write("crates/wow-world/src/session/catalogs/more.rs", (
+            "impl WorldSession {\n"
+            "    pub(crate) fn collide(&self) -> u32 {\n        self.catalogs.bar\n    }\n"
+            "    pub(crate) fn served(&self) -> u32 {\n        self.catalogs.bar\n    }\n"
+            "    pub(crate) fn live_user(&self) -> u32 {\n        self.served() + self.catalogs.bar\n    }\n}\n"))
+        conn = self.root / "crates/wow-world/src/session/connection.rs"
+        conn.write_text(conn.read_text().replace(
+            "    pub fn account_plus_foo(&self) -> u32 {\n",
+            "    fn dead_user(&self) -> u32 {\n        self.served()\n    }\n"
+            "    pub fn other_collide(&self, other: &Other) -> u32 {\n        other.collide() + self.live_user()\n    }\n"
+            "    pub fn account_plus_foo(&self) -> u32 {\n"))
+        tests = self.root / "crates/wow-world/unit_tests/catalogs_tests.rs"
+        tests.write_text(tests.read_text() + "fn c(x: &WorldSession) -> u32 { x.collide() }\n")
+        P = self.plan()
+        rows = {r["name"]: r for r in P["rows"]}
+        self.assertEqual((rows["collide"]["thunk"], bool(rows["collide"]["shim"])), ("", True))  # `other.` ignored
+        self.assertEqual(P["blocked"]["served"], "only dead-in-production callers remain; its thunk would be dead")
+        self.assertEqual(P["blocked"]["live_user"], "callee served not moved")
+        self.write("crates/wow-world/src/session/catalogs/third.rs", (     # a dead lint group with an uncalled fn
+            "impl WorldSession {\n    fn t3_used(&self) -> u32 {\n        self.catalogs.bar\n    }\n"
+            "    fn t3_idle(&self) -> u32 {\n        self.catalogs.bar\n    }\n}\n"))
+        tests.write_text(tests.read_text() + "fn d(x: &WorldSession) -> u32 { x.t3_used() }\n")
+        P = self.plan()
+        self.assertTrue(P["blocked"]["t3_idle"].startswith("no callers anywhere"))
+        self.assertTrue(P["blocked"]["t3_used"].startswith("dead in non-test builds"))  # group stays whole
 
     def test_precondition_aborts_before_any_write(self):
         before = digest(self.root)
