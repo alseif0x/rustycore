@@ -70,9 +70,9 @@ impl WorldSession {
             warn!(
                 account = self.core.account_id,
                 quest_id,
-                race = self.player_race_like_cpp(),
-                class = self.player_class_like_cpp(),
-                level = self.player_level_like_cpp(),
+                race = crate::session::hub_ref(self).player_race_like_cpp(),
+                class = crate::session::hub_ref(self).player_class_like_cpp(),
+                level = crate::session::hub_ref(self).player_level_like_cpp(),
                 "AcceptQuest: player does not meet requirements (CanTakeQuest failed)"
             );
             return;

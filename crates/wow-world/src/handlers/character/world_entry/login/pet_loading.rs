@@ -69,8 +69,8 @@ impl WorldSession {
                     pet_type: row.pet_type,
                     specialization_id: row.specialization_id,
                 });
-                let loaded =
-                    self.load_represented_pet_stable_rows_like_cpp(summoned_pet_number, rows);
+                let loaded = crate::session::hub_mut(self)
+                    .load_represented_pet_stable_rows_like_cpp(summoned_pet_number, rows);
                 trace!(
                     player_guid = guid.counter(),
                     summoned_pet_number,

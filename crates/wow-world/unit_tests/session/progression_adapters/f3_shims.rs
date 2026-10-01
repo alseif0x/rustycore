@@ -55,4 +55,13 @@ impl crate::session::WorldSession {
     pub(crate) fn player_next_level_xp_like_cpp(&self) -> u32 {
         crate::session::hub_ref(self).player_next_level_xp_like_cpp()
     }
+    pub(crate) fn set_player_next_level_xp_like_cpp(&mut self, xp: u32) -> bool {
+        crate::session::hub_mut(self).set_player_next_level_xp_like_cpp(xp)
+    }
+    pub(crate) fn resolved_player_next_level_xp_like_cpp(&self) -> Option<u32> {
+        crate::session::hub_ref(self).resolved_player_next_level_xp_like_cpp()
+    }
+    pub(crate) fn set_player_xp_like_cpp(&mut self, xp: u32) -> bool {
+        crate::session::hub_mut(self).set_player_xp_like_cpp(xp)
+    }
 }

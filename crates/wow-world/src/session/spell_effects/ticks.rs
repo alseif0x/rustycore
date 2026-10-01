@@ -163,7 +163,7 @@ impl WorldSession {
                 .terrain()
         });
         let visible_guids = self.core.client_visible_guids_like_cpp.snapshot_like_cpp();
-        let player_position = self.player_position_like_cpp();
+        let player_position = crate::session::hub_ref(self).player_position_like_cpp();
         let player_map_id = u32::from(self.core.player_map_id_like_cpp());
         let player_instance_id = self
             .core
@@ -285,20 +285,23 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return output;
         };
-        self.revalidate_canonical_player_combat_refs_like_cpp(player_guid);
-        let canonical_attack_state = self.canonical_player_attack_state_like_cpp();
+        crate::session::hub_mut(self).revalidate_canonical_player_combat_refs_like_cpp(player_guid);
+        let canonical_attack_state =
+            crate::session::hub_ref(self).canonical_player_attack_state_like_cpp();
         let Some(combat_target) = (match canonical_attack_state {
             Some(Some(target)) => Some(target),
             // C++: Unit::GetVictim() is authoritative. If the canonical Player
             // exists but has no victim, do not resurrect stale session mirrors.
             Some(None) => None,
-            None => self.resolved_combat_target_like_cpp().flatten(),
+            None => crate::session::hub_ref(self)
+                .resolved_combat_target_like_cpp()
+                .flatten(),
         }) else {
-            self.set_combat_target_like_cpp(None);
-            self.set_in_combat_like_cpp(false);
+            crate::session::hub_mut(self).set_combat_target_like_cpp(None);
+            crate::session::hub_mut(self).set_in_combat_like_cpp(false);
             return output;
         };
-        self.set_combat_target_like_cpp(Some(combat_target));
+        crate::session::hub_mut(self).set_combat_target_like_cpp(Some(combat_target));
         let canonical_threat_before = self
             .canonical_creature_threat_value_like_cpp(combat_target, player_guid)
             .unwrap_or(0.0);
@@ -354,8 +357,8 @@ impl WorldSession {
                     .combat
                     .purge_combat_ref_like_cpp(combat_target);
             });
-            self.set_combat_target_like_cpp(None);
-            self.set_in_combat_like_cpp(false);
+            crate::session::hub_mut(self).set_combat_target_like_cpp(None);
+            crate::session::hub_mut(self).set_in_combat_like_cpp(false);
             return output;
         };
         let (target_position, target_combat_reach, target_bounding_radius) = match target_runtime {
@@ -370,7 +373,7 @@ impl WorldSession {
                 bounding_radius,
             } => (position, combat_reach, bounding_radius),
         };
-        let player_position = self.player_position_like_cpp();
+        let player_position = crate::session::hub_ref(self).player_position_like_cpp();
         let player_combat_reach = self
             .core
             .mutate_canonical_player_like_cpp(|player| player.unit().data().combat_reach)
@@ -431,8 +434,8 @@ impl WorldSession {
                 let _ = self.core.mutate_canonical_player_like_cpp(|player| {
                     player.unit_mut().attack_stop_like_cpp()
                 });
-                self.set_combat_target_like_cpp(None);
-                self.set_in_combat_like_cpp(false);
+                crate::session::hub_mut(self).set_combat_target_like_cpp(None);
+                crate::session::hub_mut(self).set_in_combat_like_cpp(false);
                 return output;
             };
 
@@ -587,9 +590,10 @@ impl WorldSession {
                     .combat
                     .purge_combat_ref_like_cpp(combat_target);
             });
-            self.revalidate_canonical_player_combat_refs_like_cpp(player_guid);
-            self.set_combat_target_like_cpp(None);
-            self.set_in_combat_like_cpp(false);
+            crate::session::hub_mut(self)
+                .revalidate_canonical_player_combat_refs_like_cpp(player_guid);
+            crate::session::hub_mut(self).set_combat_target_like_cpp(None);
+            crate::session::hub_mut(self).set_in_combat_like_cpp(false);
         }
         output
     }

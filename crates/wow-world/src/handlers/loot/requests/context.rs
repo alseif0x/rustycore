@@ -24,7 +24,7 @@ impl WorldSession {
         let Some(group) = group_registry.get(&group_guid) else {
             return vec![player_guid];
         };
-        let Some(source_position) = self.player_position_like_cpp() else {
+        let Some(source_position) = crate::session::hub_ref(self).player_position_like_cpp() else {
             return vec![player_guid];
         };
         let map_id = self.core.player_map_id_like_cpp();
@@ -131,10 +131,10 @@ impl WorldSession {
         if Some(player_guid) == self.player_guid() {
             let quests = self.player_quest_gameplay_snapshot_like_cpp()?;
             return Some(RepresentedLootPlayerContext {
-                race: self.player_race_like_cpp(),
-                class: self.player_class_like_cpp(),
-                gender: self.player_gender_like_cpp(),
-                level: self.player_level_like_cpp(),
+                race: crate::session::hub_ref(self).player_race_like_cpp(),
+                class: crate::session::hub_ref(self).player_class_like_cpp(),
+                gender: crate::session::hub_ref(self).player_gender_like_cpp(),
+                level: crate::session::hub_ref(self).player_level_like_cpp(),
                 known_spells: self.known_spells_like_cpp().to_vec(),
                 active_quest_statuses: quests
                     .statuses_like_cpp()

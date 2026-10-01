@@ -230,7 +230,7 @@ impl WorldSession {
 
     /// C++ `HandleEjectPassenger`.
     pub async fn handle_eject_passenger(&mut self, packet: EjectPassenger) {
-        self.represented_eject_passenger_like_cpp(packet.passenger);
+        crate::session::hub_mut(self).represented_eject_passenger_like_cpp(packet.passenger);
     }
 
     /// C++ `HandleRequestVehicleExit`.

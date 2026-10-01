@@ -41,7 +41,7 @@ impl WorldSession {
             self.terminate_worldport_recovery_like_cpp();
             return;
         }
-        if !self.update_player_teleport_state_like_cpp(|state| {
+        if !crate::session::hub_mut(self).update_player_teleport_state_like_cpp(|state| {
             state.recovery = PlayerTransferRecovery::Homebind;
         }) {
             self.kick("worldport recovery lost its Player owner");

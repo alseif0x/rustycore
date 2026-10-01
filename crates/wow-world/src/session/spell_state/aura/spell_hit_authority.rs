@@ -3,12 +3,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::session) fn player_aura_subsystem_snapshot_like_cpp(
-        &self,
-    ) -> Option<wow_entities::AuraSubsystem> {
-        crate::session::hub_ref(self).player_aura_subsystem_snapshot_like_cpp()
-    }
-
     #[cfg(test)]
     pub(in crate::session) fn mutate_player_aura_subsystem_like_cpp<R>(
         &mut self,
@@ -56,7 +50,10 @@ impl WorldSession {
         let mut expected_specs = BTreeSet::new();
         for index in 0..(MAX_SPECIALIZATIONS_LIKE_CPP - 1) {
             let Some(spec) = u8::try_from(index).ok().and_then(|index| {
-                specializations.get_by_class_and_index_like_cpp(self.player_class_like_cpp(), index)
+                specializations.get_by_class_and_index_like_cpp(
+                    crate::session::hub_ref(self).player_class_like_cpp(),
+                    index,
+                )
             }) else {
                 return false;
             };
@@ -94,7 +91,9 @@ impl WorldSession {
         &self,
         difficulty_id: u8,
     ) -> bool {
-        let Some(aura_subsystem) = self.player_aura_subsystem_snapshot_like_cpp() else {
+        let Some(aura_subsystem) =
+            crate::session::hub_ref(self).player_aura_subsystem_snapshot_like_cpp()
+        else {
             return false;
         };
         if !self.player_spell_hit_source_identity_complete_like_cpp()
@@ -104,7 +103,9 @@ impl WorldSession {
             || self
                 .resolved_represented_guild_id_like_cpp()
                 .is_none_or(|guild_id| guild_id != 0)
-            || self.complete_player_skill_records_like_cpp().is_none()
+            || crate::session::hub_ref(self)
+                .complete_player_skill_records_like_cpp()
+                .is_none()
             || self
                 .complete_represented_player_spell_rows_like_cpp()
                 .is_none()
@@ -118,7 +119,8 @@ impl WorldSession {
             || !self
                 .catalogs
                 .represented_auto_push_quest_aura_source_is_empty_like_cpp()
-            || !self.represented_character_pet_aura_source_is_empty_like_cpp()
+            || !crate::session::hub_ref(self)
+                .represented_character_pet_aura_source_is_empty_like_cpp()
             || !self.represented_quest_login_aura_sources_are_hit_inert_like_cpp(difficulty_id)
             || !self.represented_spell_area_autocast_source_is_empty_like_cpp()
             || !self.represented_war_mode_update_zone_aura_source_is_empty_like_cpp()

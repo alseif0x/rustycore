@@ -350,7 +350,7 @@ fn give_xp_runtime_preserves_cpp_group_rate_in_log_packet() {
     let (mut session, _, send_rx) = make_session();
     let victim = test_creature_guid(0xE1BF);
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     install_tapped_xp_victim_like_cpp(&mut session, victim);
 
     let group_rate = 1.166;
@@ -443,8 +443,8 @@ fn update_zone_enemies_pvp_flagged_uses_faction_group_mask_like_cpp() {
 #[test]
 fn update_talent_data_uses_bonus_talent_group_count_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.set_represented_active_talent_group_like_cpp(1);
-    session.set_represented_bonus_talent_groups_like_cpp(1);
+    crate::session::hub_mut(&mut session).set_represented_active_talent_group_like_cpp(1);
+    crate::session::hub_mut(&mut session).set_represented_bonus_talent_groups_like_cpp(1);
     assert!(session.load_represented_glyph_row_like_cpp(&glyph_catalog::catalog(321), 1, 2, 321));
 
     let packet = session.represented_update_talent_data_packet_like_cpp();
@@ -536,10 +536,13 @@ fn player_attack_accepts_in_progress_duel_before_sanctuary_like_cpp() {
         assert!(victim_entity.unit().has_attacker_like_cpp(attacker));
     }
     assert_eq!(
-        session.resolved_combat_target_like_cpp(),
+        crate::session::hub_ref(&session).resolved_combat_target_like_cpp(),
         Some(Some(victim))
     );
-    assert_eq!(session.resolved_in_combat_like_cpp(), Some(true));
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_in_combat_like_cpp(),
+        Some(true)
+    );
 }
 #[test]
 fn virtual_realm_address_uses_realmlist_region_and_battlegroup_like_cpp() {

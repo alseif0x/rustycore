@@ -44,11 +44,7 @@ pub(in crate::session) fn player_cuf_profile_to_packet_like_cpp(
     }
 }
 
-impl WorldSession {
-    pub(crate) fn clear_represented_cuf_profiles_like_cpp(&mut self) {
-        crate::session::hub_mut(self).clear_represented_cuf_profiles_like_cpp()
-    }
-}
+impl WorldSession {}
 
 #[cfg(test)]
 impl crate::session::state::PlayerPresentationState {

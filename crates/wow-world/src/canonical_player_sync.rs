@@ -18,7 +18,10 @@ pub(crate) fn hydrate_player_presentation_like_cpp(
             })
             .collect();
     }
-    player.set_gray_level_like_cpp(session.gray_level(session.player_level_like_cpp()));
+    player.set_gray_level_like_cpp(
+        crate::session::hub_ref(&session)
+            .gray_level(crate::session::hub_ref(&session).player_level_like_cpp()),
+    );
     // C++ constructs Player before LoadFromDB / _LoadInventory
     // (CharacterHandler.cpp:1065-1070; Player.cpp:17748). Production inventory
     // already belongs to Player: querying it here would require the very

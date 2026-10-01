@@ -81,9 +81,12 @@ impl WorldSession {
         else {
             return;
         };
-        let player_condition_object = self.build_condition_player_object_like_cpp();
+        let player_condition_object =
+            crate::session::hub_ref(self).build_condition_player_object_like_cpp();
         let vendor_condition_object = self.build_condition_creature_object_like_cpp(vendor_guid);
-        let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+        let Some(player_unit_snapshot) =
+            crate::session::hub_ref(self).condition_player_unit_snapshot_like_cpp()
+        else {
             self.send_packet(&VendorInventory {
                 vendor_guid,
                 reason: 0,
@@ -91,7 +94,7 @@ impl WorldSession {
             });
             return;
         };
-        let player_snapshot = self.condition_player_snapshot_like_cpp();
+        let player_snapshot = crate::session::hub_ref(self).condition_player_snapshot_like_cpp();
 
         'vendor_expansion: while let Some(vendor_entry) = queue.pop_front() {
             if !expanded.insert(vendor_entry) {
@@ -197,14 +200,16 @@ impl WorldSession {
                     if vendor_list_should_skip_allowed_class(
                         sparse_template.map(|template| template.allowable_class),
                         sparse_template.map(|template| template.bonding),
-                        self.player_class_like_cpp(),
+                        crate::session::hub_ref(self).player_class_like_cpp(),
                         self.core.security > 0,
                     ) {
                         continue;
                     }
                     if vendor_list_should_skip_faction_flags(
                         sparse_template.map(|template| template.flags[1]),
-                        player_team_for_race_cpp(self.player_race_like_cpp()),
+                        player_team_for_race_cpp(
+                            crate::session::hub_ref(self).player_race_like_cpp(),
+                        ),
                         self.core.security > 0,
                     ) {
                         continue;

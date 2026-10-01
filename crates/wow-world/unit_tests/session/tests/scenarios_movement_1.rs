@@ -10,12 +10,27 @@ fn movement_counter_post_increments_and_resets_like_cpp() {
     // C++ Unit::m_movementCounter: post-increment per movement-control packet, reset to
     // 0 in SendInitialPacketsBeforeAddToMap on a non-seamless add. #NEXT.R8.ENTITIES.1229.
     let (mut session, _, _) = make_session();
-    assert_eq!(session.next_movement_counter_like_cpp(), Some(0));
-    assert_eq!(session.next_movement_counter_like_cpp(), Some(1));
-    assert_eq!(session.next_movement_counter_like_cpp(), Some(2));
-    session.reset_movement_counter_like_cpp();
-    assert_eq!(session.next_movement_counter_like_cpp(), Some(0));
-    assert_eq!(session.next_movement_counter_like_cpp(), Some(1));
+    assert_eq!(
+        crate::session::hub_mut(&mut session).next_movement_counter_like_cpp(),
+        Some(0)
+    );
+    assert_eq!(
+        crate::session::hub_mut(&mut session).next_movement_counter_like_cpp(),
+        Some(1)
+    );
+    assert_eq!(
+        crate::session::hub_mut(&mut session).next_movement_counter_like_cpp(),
+        Some(2)
+    );
+    crate::session::hub_mut(&mut session).reset_movement_counter_like_cpp();
+    assert_eq!(
+        crate::session::hub_mut(&mut session).next_movement_counter_like_cpp(),
+        Some(0)
+    );
+    assert_eq!(
+        crate::session::hub_mut(&mut session).next_movement_counter_like_cpp(),
+        Some(1)
+    );
 }
 #[test]
 fn create_map_player_context_group_owner_falls_back_to_leader_like_cpp() {
@@ -815,7 +830,7 @@ fn represented_non_mounted_flight_speed_sums_cpp_flight_modifiers_like_cpp() {
             30_000,
         )
         .unwrap();
-    session.recompute_represented_flight_speed_rate_like_cpp();
+    crate::session::hub_mut(&mut session).recompute_represented_flight_speed_rate_like_cpp();
 
     assert!(
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Flight) - 21.0).abs() < 0.0001,
@@ -864,7 +879,7 @@ fn represented_non_mounted_flight_speed_removal_recomputes_like_cpp() {
             30_000,
         )
         .unwrap();
-    session.recompute_represented_flight_speed_rate_like_cpp();
+    crate::session::hub_mut(&mut session).recompute_represented_flight_speed_rate_like_cpp();
     assert!(
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Flight) - 10.5).abs() < 0.0001
     );

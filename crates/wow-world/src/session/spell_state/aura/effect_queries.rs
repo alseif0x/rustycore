@@ -26,13 +26,6 @@ impl WorldSession {
         state.resolved_has_represented_aura_effect_with_misc_value_like_cpp(hub, effect, misc_value)
     }
 
-    pub(in crate::session) fn resolved_total_represented_aura_modifier_like_cpp(
-        &self,
-        effect: RepresentedAuraEffectLikeCpp,
-    ) -> Option<i32> {
-        crate::session::hub_ref(self).resolved_total_represented_aura_modifier_like_cpp(effect)
-    }
-
     pub(in crate::session) fn resolved_total_represented_aura_modifier_by_misc_value_like_cpp(
         &self,
         effect: RepresentedAuraEffectLikeCpp,
@@ -50,21 +43,6 @@ impl WorldSession {
     ) -> Option<f32> {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.resolved_total_represented_aura_multiplier_like_cpp(hub, effect)
-    }
-
-    pub(crate) fn resolved_aura_effects_by_spell_aura_type_like_cpp(
-        &self,
-        aura_type: i32,
-    ) -> Option<Vec<(i32, i32)>> {
-        crate::session::hub_ref(self).resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
-    }
-
-    pub(crate) fn resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(
-        &self,
-        aura_type: i32,
-    ) -> Option<Vec<(i32, i32, i32)>> {
-        crate::session::hub_ref(self)
-            .resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(aura_type)
     }
 
     pub(in crate::session) fn aura_has_total_stat_percentage_effect_like_cpp(

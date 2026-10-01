@@ -45,11 +45,9 @@ impl WorldSession {
             "BankerActivate {:?} account {}",
             hello.unit, self.core.account_id
         );
-        let Some(_banker) = self.represented_npc_can_interact_with_like_cpp(
-            hello.unit,
-            NPCFlags1::BANKER.bits(),
-            0,
-        ) else {
+        let Some(_banker) = crate::session::hub_ref(self)
+            .represented_npc_can_interact_with_like_cpp(hello.unit, NPCFlags1::BANKER.bits(), 0)
+        else {
             debug!(
                 banker_guid = ?hello.unit,
                 account = self.core.account_id,
@@ -160,8 +158,8 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        let Some(_banker) =
-            self.represented_npc_can_interact_with_like_cpp(buy.guid, NPCFlags1::BANKER.bits(), 0)
+        let Some(_banker) = crate::session::hub_ref(self)
+            .represented_npc_can_interact_with_like_cpp(buy.guid, NPCFlags1::BANKER.bits(), 0)
         else {
             debug!(
                 banker_guid = ?buy.guid,

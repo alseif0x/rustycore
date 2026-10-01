@@ -71,9 +71,9 @@ fn player_bootstrap_is_consumed_without_a_second_runtime_owner_like_cpp() {
     let guid = ObjectGuid::create_player(1, 42);
     let start = Position::new(1.0, 2.0, 3.0, 4.0);
     session.set_player_gold_like_cpp(1234);
-    session.set_player_xp_like_cpp(55);
-    session.set_player_next_level_xp_like_cpp(4000);
-    session.set_selection_guid_like_cpp(Some(test_creature_guid(77)));
+    crate::session::hub_mut(&mut session).set_player_xp_like_cpp(55);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(4000);
+    crate::session::hub_mut(&mut session).set_selection_guid_like_cpp(Some(test_creature_guid(77)));
     session.set_known_spells_like_cpp(vec![118, 133]);
     session.inventory.player_currencies.insert(
         395,
@@ -116,18 +116,27 @@ fn player_bootstrap_is_consumed_without_a_second_runtime_owner_like_cpp() {
     ));
 
     assert_eq!(session.player_guid(), Some(guid));
-    assert_eq!(session.player_name_like_cpp(), Some("Jaina".to_string()));
+    assert_eq!(
+        crate::session::hub_ref(&session).player_name_like_cpp(),
+        Some("Jaina".to_string())
+    );
     assert_eq!(session.player_position_like_cpp(), Some(start));
     assert_eq!(session.core.player_map_id_like_cpp(), 571);
-    assert_eq!(session.player_race_like_cpp(), 1);
-    assert_eq!(session.player_class_like_cpp(), 8);
-    assert_eq!(session.player_level_like_cpp(), 70);
-    assert_eq!(session.player_gender_like_cpp(), 0);
+    assert_eq!(crate::session::hub_ref(&session).player_race_like_cpp(), 1);
+    assert_eq!(crate::session::hub_ref(&session).player_class_like_cpp(), 8);
+    assert_eq!(
+        crate::session::hub_ref(&session).player_level_like_cpp(),
+        70
+    );
+    assert_eq!(
+        crate::session::hub_ref(&session).player_gender_like_cpp(),
+        0
+    );
     assert_eq!(session.player_gold_like_cpp(), 1234);
     assert_eq!(session.player_xp_like_cpp(), 55);
     assert_eq!(session.player_next_level_xp_like_cpp(), 4000);
     assert_eq!(
-        session.selection_guid_like_cpp(),
+        crate::session::hub_ref(&session).selection_guid_like_cpp(),
         Some(test_creature_guid(77))
     );
     assert_eq!(session.known_spells_like_cpp(), &[118, 133]);
@@ -149,13 +158,16 @@ fn player_bootstrap_is_consumed_without_a_second_runtime_owner_like_cpp() {
     session.set_player_map_position_like_cpp(1, moved);
     session.set_player_level_like_cpp(71);
     session.set_player_gold_like_cpp(2000);
-    session.set_player_xp_like_cpp(66);
+    crate::session::hub_mut(&mut session).set_player_xp_like_cpp(66);
     session.learn_known_spell_like_cpp(116);
     session.remove_inventory_item_like_cpp(23);
 
     assert_eq!(session.player_position_like_cpp(), Some(moved));
     assert_eq!(session.core.player_map_id_like_cpp(), 1);
-    assert_eq!(session.player_level_like_cpp(), 71);
+    assert_eq!(
+        crate::session::hub_ref(&session).player_level_like_cpp(),
+        71
+    );
     assert_eq!(session.player_gold_like_cpp(), 2000);
     assert_eq!(session.player_xp_like_cpp(), 66);
     assert!(session.known_spells_like_cpp().contains(&116));
@@ -199,34 +211,46 @@ fn canonical_player_identity_is_the_post_install_authority_like_cpp() {
     session.fixtures.identity.player_level = 1;
     session.fixtures.identity.player_gender = 0;
     assert_eq!(
-        session.player_name_like_cpp(),
+        crate::session::hub_ref(&session).player_name_like_cpp(),
         Some("CanonicalOwner".into())
     );
-    assert_eq!(session.player_race_like_cpp(), 4);
-    assert_eq!(session.player_class_like_cpp(), 3);
-    assert_eq!(session.player_level_like_cpp(), 42);
-    assert_eq!(session.player_gender_like_cpp(), 1);
+    assert_eq!(crate::session::hub_ref(&session).player_race_like_cpp(), 4);
+    assert_eq!(crate::session::hub_ref(&session).player_class_like_cpp(), 3);
+    assert_eq!(
+        crate::session::hub_ref(&session).player_level_like_cpp(),
+        42
+    );
+    assert_eq!(
+        crate::session::hub_ref(&session).player_gender_like_cpp(),
+        1
+    );
 
     session.set_loaded_player_identity_like_cpp(571, 2, 8, 60, 0);
-    assert_eq!(session.player_race_like_cpp(), 2);
-    assert_eq!(session.player_class_like_cpp(), 8);
-    assert_eq!(session.player_level_like_cpp(), 60);
-    assert_eq!(session.player_gender_like_cpp(), 0);
+    assert_eq!(crate::session::hub_ref(&session).player_race_like_cpp(), 2);
+    assert_eq!(crate::session::hub_ref(&session).player_class_like_cpp(), 8);
+    assert_eq!(
+        crate::session::hub_ref(&session).player_level_like_cpp(),
+        60
+    );
+    assert_eq!(
+        crate::session::hub_ref(&session).player_gender_like_cpp(),
+        0
+    );
 }
 
 #[test]
 fn gray_level_matches_cpp_formula_and_script_override_like_cpp() {
     let (mut session, _pkt_tx, _send_rx) = make_session();
-    assert_eq!(session.gray_level(6), 0);
-    assert_eq!(session.gray_level(7), 0);
-    assert_eq!(session.gray_level(34), 24);
-    assert_eq!(session.gray_level(35), 25);
-    assert_eq!(session.gray_level(39), 29);
-    assert_eq!(session.gray_level(60), 50);
-    assert_eq!(session.gray_level(80), 70);
+    assert_eq!(crate::session::hub_ref(&session).gray_level(6), 0);
+    assert_eq!(crate::session::hub_ref(&session).gray_level(7), 0);
+    assert_eq!(crate::session::hub_ref(&session).gray_level(34), 24);
+    assert_eq!(crate::session::hub_ref(&session).gray_level(35), 25);
+    assert_eq!(crate::session::hub_ref(&session).gray_level(39), 29);
+    assert_eq!(crate::session::hub_ref(&session).gray_level(60), 50);
+    assert_eq!(crate::session::hub_ref(&session).gray_level(80), 70);
 
     session.set_represented_gray_level_script_override_like_cpp(80, 79);
-    assert_eq!(session.gray_level(80), 79);
+    assert_eq!(crate::session::hub_ref(&session).gray_level(80), 79);
 }
 /// The three shared handles are registration input beside the private registry
 /// entry, not gameplay state (#361). A session publishes gameplay facts by

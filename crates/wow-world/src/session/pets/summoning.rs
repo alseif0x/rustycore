@@ -5,30 +5,7 @@
 
 use super::*;
 
-impl WorldSession {
-    pub(in crate::session) fn unsummon_represented_pet_for_same_map_teleport_if_out_of_range_like_cpp(
-        &mut self,
-        destination: wow_core::Position,
-        options: TeleportToOptionsLikeCpp,
-    ) {
-        crate::session::hub_mut(self)
-            .unsummon_represented_pet_for_same_map_teleport_if_out_of_range_like_cpp(
-                destination,
-                options,
-            )
-    }
-    pub(crate) fn load_represented_pet_stable_rows_like_cpp(
-        &mut self,
-        summoned_pet_number: u32,
-        rows: impl IntoIterator<Item = CharacterPetStableRowLikeCpp>,
-    ) -> usize {
-        crate::session::hub_mut(self)
-            .load_represented_pet_stable_rows_like_cpp(summoned_pet_number, rows)
-    }
-    pub(in crate::session) fn unsummon_represented_pet_temporary_if_any_like_cpp(&mut self) {
-        crate::session::hub_mut(self).unsummon_represented_pet_temporary_if_any_like_cpp()
-    }
-}
+impl WorldSession {}
 
 impl crate::session::PetsCx<'_> {
     pub(crate) fn resummon_pet_temporary_unsummoned_like_cpp(&mut self) {

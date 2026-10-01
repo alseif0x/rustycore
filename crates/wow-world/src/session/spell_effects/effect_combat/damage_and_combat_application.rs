@@ -13,10 +13,12 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        if target_guid != player_guid || self.resolved_player_is_alive_like_cpp() != Some(true) {
+        if target_guid != player_guid
+            || crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true)
+        {
             return;
         }
-        if self
+        if crate::session::hub_ref(self)
             .resolved_player_damage_control_like_cpp()
             .is_none_or(|state| state.environmental_damage_immune)
         {
@@ -24,8 +26,8 @@ impl WorldSession {
         }
 
         let damage = u32::try_from(effect.effect_base_points.max(0)).unwrap_or(0);
-        let Some((original_health, health_after, _, _, _)) =
-            self.apply_owned_player_damage_like_cpp(damage, wow_constants::DeathState::JustDied)
+        let Some((original_health, health_after, _, _, _)) = crate::session::hub_mut(self)
+            .apply_owned_player_damage_like_cpp(damage, wow_constants::DeathState::JustDied)
         else {
             return;
         };
@@ -165,7 +167,7 @@ impl WorldSession {
                 update_all: false,
                 auras: vec![crate::session::player_aura_info_like_cpp(
                     &aura,
-                    self.player_level_like_cpp(),
+                    crate::session::hub_ref(self).player_level_like_cpp(),
                     self.core.player_map_id_like_cpp(),
                 )],
             };

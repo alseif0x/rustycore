@@ -153,7 +153,7 @@ fn complete_empty_player_dynamic_spell_hit_aura_sources_like_cpp(session: &mut W
         },
     ])));
     session.set_loaded_player_flags_like_cpp(0);
-    session.set_player_zone_area_like_cpp(1, 12);
+    crate::session::hub_mut(session).set_player_zone_area_like_cpp(1, 12);
     session.set_player_zone_area_authority_complete_like_cpp(true);
 }
 

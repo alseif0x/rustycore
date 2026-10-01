@@ -16,27 +16,6 @@ impl WorldSession {
         }
         self.core.with_owned_player_mut_like_cpp(f)
     }
-    pub(in crate::session) fn set_player_zone_id_like_cpp(&mut self, zone_id: u32) -> bool {
-        crate::session::hub_mut(self).set_player_zone_id_like_cpp(zone_id)
-    }
-    pub(in crate::session) fn set_player_area_id_like_cpp(&mut self, area_id: u32) -> bool {
-        crate::session::hub_mut(self).set_player_area_id_like_cpp(area_id)
-    }
-    pub(in crate::session) fn set_player_zone_area_authority_like_cpp(
-        &mut self,
-        complete: bool,
-    ) -> bool {
-        crate::session::hub_mut(self).set_player_zone_area_authority_like_cpp(complete)
-    }
-    pub(crate) fn set_player_pvp_hostile_like_cpp(&mut self, hostile: bool) -> bool {
-        crate::session::hub_mut(self).set_player_pvp_hostile_like_cpp(hostile)
-    }
-    pub(in crate::session) fn set_player_pvp_end_timer_like_cpp(
-        &mut self,
-        end_timer: Option<i64>,
-    ) -> bool {
-        crate::session::hub_mut(self).set_player_pvp_end_timer_like_cpp(end_timer)
-    }
     /// Resolve or construct the single canonical Player without transferring
     /// it between maps. This is the Rust equivalent of the live `Player*`
     /// passed through C++ `MapManager::CreateMap` while instance side effects
@@ -110,19 +89,7 @@ impl WorldSession {
         }
         owner_ready
     }
-    pub(in crate::session) fn mutate_player_collection_state_like_cpp<R>(
-        &mut self,
-        mutate: impl FnOnce(&mut wow_entities::PlayerCollectionStateLikeCpp) -> R,
-    ) -> Option<R> {
-        crate::session::hub_mut(self).mutate_player_collection_state_like_cpp(mutate)
-    }
 
-    pub(in crate::session) fn with_player_cinematic_state_like_cpp<R>(
-        &mut self,
-        apply: impl FnMut(&mut wow_entities::PlayerCinematicStateLikeCpp) -> R,
-    ) -> Option<R> {
-        crate::session::hub_mut(self).with_player_cinematic_state_like_cpp(apply)
-    }
     #[cfg(test)]
     pub(in crate::session) fn mutate_player_rest_state_like_cpp<R>(
         &mut self,
@@ -130,7 +97,7 @@ impl WorldSession {
     ) -> Option<R> {
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
-            let mut state = self.player_rest_state_snapshot_like_cpp()?;
+            let mut state = crate::session::hub_ref(self).player_rest_state_snapshot_like_cpp()?;
             let result = f(&mut state);
             return self
                 .replace_player_rest_state_like_cpp(state)
@@ -296,12 +263,6 @@ impl WorldSession {
         self.core.player_handle_like_cpp = Some(handle);
         self.core.player_identity_bootstrap_like_cpp = None;
         true
-    }
-    pub(in crate::session) fn apply_owned_player_heal_like_cpp(
-        &mut self,
-        requested_heal: u32,
-    ) -> Option<(u32, u32, u32, u32)> {
-        crate::session::hub_mut(self).apply_owned_player_heal_like_cpp(requested_heal)
     }
     pub(crate) fn owned_player_cuf_profiles_like_cpp(
         &self,

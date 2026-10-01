@@ -199,10 +199,11 @@ impl WorldSession {
         }
 
         if let Some(stat_entry) = item_stats_store.get(item_entry) {
-            let resistances = self.represented_resistances_with_scaling_armor_like_cpp(
-                &stat_entry.resistances,
-                scaling_context,
-            );
+            let resistances = crate::session::hub_ref(self)
+                .represented_resistances_with_scaling_armor_like_cpp(
+                    &stat_entry.resistances,
+                    scaling_context,
+                );
             planned_actions.extend(
                 item_resistance_bonus_actions_like_cpp(&resistances, apply)
                     .into_iter()
@@ -246,7 +247,7 @@ impl WorldSession {
             let can_use_attack_type = self
                 .represented_can_use_attack_type_like_cpp(slot, Some(inventory_type))
                 != Some(false);
-            let has_shapeshift_combat_round_time = self
+            let has_shapeshift_combat_round_time = crate::session::hub_ref(self)
                 .represented_shapeshift_combat_round_time_like_cpp()
                 .is_some();
             planned_actions.extend(
@@ -385,7 +386,9 @@ impl WorldSession {
             let Ok(spell_id) = i32::try_from(event.spell_id) else {
                 continue;
             };
-            if self.player_has_visible_aura_spell_like_cpp(spell_id) != Some(false) {
+            if crate::session::hub_ref(self).player_has_visible_aura_spell_like_cpp(spell_id)
+                != Some(false)
+            {
                 continue;
             }
             let effect_mask = self
@@ -478,7 +481,9 @@ impl WorldSession {
             };
             if event.apply {
                 if event.form_change
-                    && self.player_has_visible_aura_spell_like_cpp(spell_id) != Some(false)
+                    && crate::session::hub_ref(self)
+                        .player_has_visible_aura_spell_like_cpp(spell_id)
+                        != Some(false)
                 {
                     continue;
                 }

@@ -62,11 +62,6 @@ impl WorldSession {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.player_visible_aura_is_spell_hit_inert_like_cpp(hub, aura)
     }
-    pub(crate) fn resolved_player_visible_auras_like_cpp(
-        &self,
-    ) -> Option<HashMap<u8, AuraApplication>> {
-        crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
-    }
     pub(crate) fn insert_player_visible_aura_like_cpp(&mut self, aura: AuraApplication) -> bool {
         let (state, mut hub) = crate::session::split_spell_state_mut(self);
         state.insert_player_visible_aura_like_cpp(&mut hub, aura)
@@ -78,12 +73,6 @@ impl WorldSession {
     ) -> bool {
         let (state, mut hub) = crate::session::split_spell_state_mut(self);
         state.insert_player_visible_aura_with_provenance_like_cpp(&mut hub, aura, provenance)
-    }
-    pub(in crate::session) fn player_has_visible_aura_spell_like_cpp(
-        &self,
-        spell_id: i32,
-    ) -> Option<bool> {
-        crate::session::hub_ref(self).player_has_visible_aura_spell_like_cpp(spell_id)
     }
     pub(in crate::session) fn next_player_visible_aura_slot_like_cpp(&self) -> Option<u8> {
         let (state, hub) = crate::session::split_spell_state_ref(self);
@@ -144,10 +133,12 @@ impl WorldSession {
             };
             has_fly || has_mounted_flight_speed
         };
-        self.set_represented_can_swim_to_fly_transition_like_cpp(should_enable);
-        let can_fly_changed = self.set_represented_can_fly_like_cpp(should_enable);
+        crate::session::hub_mut(self)
+            .set_represented_can_swim_to_fly_transition_like_cpp(should_enable);
+        let can_fly_changed =
+            crate::session::hub_mut(self).set_represented_can_fly_like_cpp(should_enable);
         if !should_enable && can_fly_changed {
-            self.move_represented_player_fall_like_cpp();
+            crate::session::hub_mut(self).move_represented_player_fall_like_cpp();
         }
     }
 }

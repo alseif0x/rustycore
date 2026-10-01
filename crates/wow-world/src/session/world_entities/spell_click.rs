@@ -41,7 +41,9 @@ impl WorldSession {
             return RepresentedCanSeeSpellClickOutcomeLikeCpp::Hidden;
         }
 
-        let Some(clicker_object) = self.build_condition_player_object_like_cpp() else {
+        let Some(clicker_object) =
+            crate::session::hub_ref(self).build_condition_player_object_like_cpp()
+        else {
             return RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented;
         };
         let mut target_object = WorldObject::new(
@@ -55,10 +57,12 @@ impl WorldSession {
         target_object.relocate(creature.position);
         *target_object.phase_shift_mut() = creature.phase_shift.clone();
 
-        let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+        let Some(player_unit_snapshot) =
+            crate::session::hub_ref(self).condition_player_unit_snapshot_like_cpp()
+        else {
             return RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented;
         };
-        let player_snapshot = self.condition_player_snapshot_like_cpp();
+        let player_snapshot = crate::session::hub_ref(self).condition_player_snapshot_like_cpp();
         let creature_unit_snapshot = wow_conditions::ConditionUnitSnapshot {
             level: creature.level,
             health: creature.health,
@@ -82,15 +86,16 @@ impl WorldSession {
         for click_info in click_bounds {
             match click_info.user_type {
                 SPELL_CLICK_USER_FRIEND_LIKE_CPP => {
-                    let player_faction_template = self.player_faction_template_id_like_cpp();
+                    let player_faction_template =
+                        crate::session::hub_ref(self).player_faction_template_id_like_cpp();
                     if creature.is_summon
                         || self.catalogs.factions.template_store.is_none()
                         || player_faction_template.is_none()
                     {
                         return RepresentedCanSeeSpellClickOutcomeLikeCpp::ExactContextUnrepresented;
                     }
-                    let reaction = self.represented_get_reaction_to_like_cpp(
-                        RepresentedGetReactionInputLikeCpp {
+                    let reaction = crate::session::hub_ref(self)
+                        .represented_get_reaction_to_like_cpp(RepresentedGetReactionInputLikeCpp {
                             self_faction_template_id: player_faction_template.unwrap_or(0),
                             target_faction_template_id: creature.faction_template_id,
                             same_object: false,
@@ -111,8 +116,7 @@ impl WorldSession {
                             target_ignores_reputation: false,
                             target_is_unit: true,
                             target_player_contested_pvp: false,
-                        },
-                    );
+                        });
                     if reaction < wow_data::reputation::ReputationRankLikeCpp::Friendly {
                         return RepresentedCanSeeSpellClickOutcomeLikeCpp::Hidden;
                     }
@@ -167,9 +171,10 @@ impl WorldSession {
         if self.player_guid() != Some(player_guid) {
             return Err("Target player not current session");
         }
-        let Some((original_health, health_after, _, applied_damage, _)) = self
-            .apply_owned_player_damage_like_cpp(damage_amount, wow_constants::DeathState::Corpse)
-        else {
+        let Some((original_health, health_after, _, applied_damage, _)) = crate::session::hub_mut(
+            self,
+        )
+        .apply_owned_player_damage_like_cpp(damage_amount, wow_constants::DeathState::Corpse) else {
             return Err("Target player owner not available");
         };
         if damage_amount > 0 && applied_damage == 0 {

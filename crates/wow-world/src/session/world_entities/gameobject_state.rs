@@ -136,7 +136,7 @@ impl WorldSession {
         let direct_target_seer_gate_allows_send = represented_seer_guid.is_none_or(|seer_guid| {
             seer_guid.is_empty()
                 || seer_guid == player_guid
-                || self.represented_player_has_active_vehicle_like_cpp()
+                || crate::session::hub_ref(self).represented_player_has_active_vehicle_like_cpp()
         });
 
         let (update_generation, despawnable_guids) = {

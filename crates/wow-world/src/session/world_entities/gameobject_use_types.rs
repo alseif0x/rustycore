@@ -62,10 +62,10 @@ impl WorldSession {
 
         state.chair_slots[slot] = Some(player_guid);
         let stand_state = 4_u32.saturating_add(source.chair_height);
-        self.set_player_position_like_cpp(nearest_position);
-        self.set_player_stand_state_like_cpp(wow_entities::chair_stand_state_like_cpp(
-            source.chair_height,
-        ));
+        crate::session::hub_mut(self).set_player_position_like_cpp(nearest_position);
+        crate::session::hub_mut(self).set_player_stand_state_like_cpp(
+            wow_entities::chair_stand_state_like_cpp(source.chair_height),
+        );
         self.world_entities.represented_gameobject_use_effects.push(
             RepresentedGameObjectUseEffect::ChairUsed {
                 gameobject_guid,
@@ -107,10 +107,10 @@ impl WorldSession {
                 sit_anim_kit: source.sit_anim_kit,
             },
         );
-        self.set_player_position_like_cpp(gameobject_position);
-        self.set_player_stand_state_like_cpp(wow_entities::chair_stand_state_like_cpp(
-            source.chair_height,
-        ));
+        crate::session::hub_mut(self).set_player_position_like_cpp(gameobject_position);
+        crate::session::hub_mut(self).set_player_stand_state_like_cpp(
+            wow_entities::chair_stand_state_like_cpp(source.chair_height),
+        );
 
         true
     }

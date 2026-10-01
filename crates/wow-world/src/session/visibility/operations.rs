@@ -27,7 +27,8 @@ impl WorldSession {
             return;
         };
         let never_visible_for_seer = self.player_session_never_visible_for_seer_like_cpp(guid);
-        let seer_can_never_see_target = self.player_can_never_see_target_like_cpp();
+        let seer_can_never_see_target =
+            crate::session::hub_ref(self).player_can_never_see_target_like_cpp();
         let _ = self
             .core
             .mutate_canonical_player_by_guid_like_cpp(guid, |player| {
@@ -166,7 +167,7 @@ impl WorldSession {
         });
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            let rest = self.player_rest_state_snapshot_like_cpp()?;
+            let rest = crate::session::hub_ref(self).player_rest_state_snapshot_like_cpp()?;
             if rest.is_location_initialized_like_cpp() {
                 return Some(rest.is_resting_by_flag_like_cpp());
             }

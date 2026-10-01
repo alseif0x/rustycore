@@ -346,7 +346,8 @@ impl WorldSession {
         // contacts unless RBAC_PERM_TWO_SIDE_ADD_FRIEND is present. RustyCore
         // does not yet have AccountMgr/RBAC runtime, so normal-player behavior
         // is represented conservatively and the GM bypass remains a tracked gap.
-        let player_team = player_team_for_race_cpp(self.player_race_like_cpp());
+        let player_team =
+            player_team_for_race_cpp(crate::session::hub_ref(self).player_race_like_cpp());
         let friend_team = player_team_for_race_cpp(candidate.race);
         if player_team != friend_team {
             send_status!(FriendsResult::Enemy, friend_guid);

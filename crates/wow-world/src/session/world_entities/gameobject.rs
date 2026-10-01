@@ -35,7 +35,9 @@ impl WorldSession {
                     dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE
                         | wow_entities::GO_DYNFLAG_LO_SPARKLE
                         | wow_entities::GO_DYNFLAG_LO_HIGHLIGHT;
-                } else if self.player_is_game_master_like_cpp() == Some(true) {
+                } else if crate::session::hub_ref(self).player_is_game_master_like_cpp()
+                    == Some(true)
+                {
                     dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE;
                 }
             }
@@ -47,7 +49,9 @@ impl WorldSession {
                     if state_for_player != wow_entities::GoState::Active {
                         dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE;
                     }
-                } else if self.player_is_game_master_like_cpp() == Some(true) {
+                } else if crate::session::hub_ref(self).player_is_game_master_like_cpp()
+                    == Some(true)
+                {
                     dyn_flags |= wow_entities::GO_DYNFLAG_LO_ACTIVATE;
                 }
             }
@@ -191,7 +195,7 @@ impl WorldSession {
     pub(in crate::session) fn tick_represented_gameobject_update_like_cpp(&mut self) {
         let now = Instant::now();
         let current_player_guid = self.player_guid();
-        let current_player_position = self.player_position_like_cpp();
+        let current_player_position = crate::session::hub_ref(self).player_position_like_cpp();
         let current_map_id = self.core.player_map_id_like_cpp();
         let expired_per_player_states = self
             .world_entities

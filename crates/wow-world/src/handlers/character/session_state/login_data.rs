@@ -362,11 +362,16 @@ impl WorldSession {
                 Vec::new()
             }
         };
-        let normalized_configs = self.normalize_trait_configs_like_cpp(&configs);
+        let normalized_configs =
+            crate::session::hub_ref(self).normalize_trait_configs_like_cpp(&configs);
         let effective_configs = normalized_configs.as_deref().unwrap_or(&configs);
         let trait_query_authority_complete_like_cpp = entries_complete_like_cpp
             && configs_complete_like_cpp
-            && self.trait_authority_complete_like_cpp(effective_configs, node_entries, guid)
+            && crate::session::hub_ref(self).trait_authority_complete_like_cpp(
+                effective_configs,
+                node_entries,
+                guid,
+            )
             && self.complete_represented_trait_config_authority_load_like_cpp(
                 effective_configs.iter().map(|config| {
                     (
@@ -380,7 +385,8 @@ impl WorldSession {
             );
 
         if trait_query_authority_complete_like_cpp {
-            let _ = self.retain_loaded_trait_configs_like_cpp(effective_configs);
+            let _ = crate::session::hub_mut(self)
+                .retain_loaded_trait_configs_like_cpp(effective_configs);
             let exact_traits = self.catalogs.trait_definition_store().map(|definitions| {
                 let mut exact = BTreeMap::<i32, i32>::new();
                 for entry in effective_configs

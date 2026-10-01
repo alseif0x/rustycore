@@ -9,7 +9,7 @@ use super::*;
 async fn request_cemetery_list_without_links_sends_no_response_like_cpp() {
     let (mut session, send_rx) = make_session();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
-    session.set_player_zone_area_like_cpp(1234, 5678);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(1234, 5678);
     session.set_graveyard_store(Arc::new(GraveyardStore::default()));
 
     session
@@ -26,7 +26,7 @@ async fn request_cemetery_list_without_links_sends_no_response_like_cpp() {
 async fn request_cemetery_list_ignores_payload_and_sends_zone_ids_like_cpp() {
     let (mut session, send_rx) = make_session();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
-    session.set_player_zone_area_like_cpp(4321, 8765);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(4321, 8765);
     let (graveyards, condition_store) = graveyard_store_with_links(4321, [11, 12], []);
     session.set_graveyard_store(graveyards);
     session.set_condition_store(condition_store);
@@ -50,7 +50,7 @@ async fn request_cemetery_list_filters_conditions_and_caps_at_sixteen_like_cpp()
     let (mut session, send_rx) = make_session();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
-    session.set_player_zone_area_like_cpp(2222, 3333);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(2222, 3333);
     let conditions = [
         graveyard_team_condition(2222, 100, wow_data::TEAM_HORDE_LIKE_CPP),
         graveyard_team_condition(2222, 101, wow_data::TEAM_ALLIANCE_LIKE_CPP),
@@ -248,7 +248,7 @@ async fn repop_request_dead_non_ghost_sets_ghost_and_repop_count_like_cpp() {
         .await;
 
     assert!(!session.player_is_alive_like_cpp());
-    assert!(session.player_has_ghost_flag_like_cpp());
+    assert!(crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
     assert_eq!(
         session.fixtures.combat.represented_repop_at_graveyard_count,
         1
@@ -280,7 +280,7 @@ async fn repop_request_alive_or_already_ghost_returns_like_cpp() {
         session.fixtures.combat.represented_repop_at_graveyard_count,
         0
     );
-    assert!(!session.player_has_ghost_flag_like_cpp());
+    assert!(!crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
 
     session.set_player_alive_like_cpp(false);
     session.set_player_ghost_flag_like_cpp(true);
@@ -291,7 +291,7 @@ async fn repop_request_alive_or_already_ghost_returns_like_cpp() {
         session.fixtures.combat.represented_repop_at_graveyard_count,
         0
     );
-    assert!(session.player_has_ghost_flag_like_cpp());
+    assert!(crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
 }
 
 #[tokio::test]
@@ -318,7 +318,7 @@ async fn client_port_graveyard_dead_ghost_repops_like_cpp() {
 
     assert!(handled);
     assert!(!session.player_is_alive_like_cpp());
-    assert!(session.player_has_ghost_flag_like_cpp());
+    assert!(crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
     assert_eq!(
         session.fixtures.combat.represented_repop_at_graveyard_count,
         1
@@ -365,7 +365,7 @@ async fn client_port_graveyard_alive_or_not_ghost_returns_like_cpp() {
         session.fixtures.combat.represented_repop_at_graveyard_count,
         0
     );
-    assert!(!session.player_has_ghost_flag_like_cpp());
+    assert!(!crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
 
     let mut non_empty = WorldPacket::new_empty();
     non_empty.write_uint8(1);
@@ -395,14 +395,14 @@ async fn reclaim_corpse_dead_ghost_resurrects_and_clears_ghost_like_cpp() {
     );
     session.set_player_alive_like_cpp(false);
     session.set_player_ghost_flag_like_cpp(true);
-    let _ = session.sync_canonical_player_health_like_cpp(0, 100);
+    let _ = crate::session::hub_mut(&mut session).sync_canonical_player_health_like_cpp(0, 100);
 
     session
         .handle_reclaim_corpse(reclaim_corpse_packet(corpse_guid))
         .await;
 
     assert!(session.player_is_alive_like_cpp());
-    assert!(!session.player_has_ghost_flag_like_cpp());
+    assert!(!crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
     assert_eq!(
         session.canonical_player_health_snapshot_like_cpp(),
         Some((50, 100))
@@ -432,14 +432,14 @@ async fn reclaim_corpse_alive_or_not_ghost_returns_like_cpp() {
         .handle_reclaim_corpse(reclaim_corpse_packet(corpse_guid))
         .await;
     assert!(session.player_is_alive_like_cpp());
-    assert!(!session.player_has_ghost_flag_like_cpp());
+    assert!(!crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
 
     session.set_player_alive_like_cpp(false);
     session
         .handle_reclaim_corpse(reclaim_corpse_packet(corpse_guid))
         .await;
     assert!(!session.player_is_alive_like_cpp());
-    assert!(!session.player_has_ghost_flag_like_cpp());
+    assert!(!crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
 }
 
 #[tokio::test]

@@ -56,7 +56,7 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
 
     session.set_loaded_player_flags_like_cpp(0x10);
     session.set_loaded_player_flags_ex_like_cpp(0x20);
-    session.set_watched_faction_index_like_cpp(42);
+    crate::session::hub_mut(&mut session).set_watched_faction_index_like_cpp(42);
     assert!(session.set_loaded_quest_completed_bit_like_cpp(42));
     assert_eq!(session.load_represented_explored_zones_like_cpp("1 0"), 1);
     session.set_represented_pending_quest_sharing_like_cpp(share_sender, 400);
@@ -73,9 +73,9 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
             flags: 5,
         },
     )])));
-    assert!(session.set_player_pet_guid_like_cpp(Some(pet_guid)));
+    assert!(crate::session::hub_mut(&mut session).set_player_pet_guid_like_cpp(Some(pet_guid)));
     assert!(session.set_player_vehicle_seat_state_like_cpp(Some(0x10), Some(1001)));
-    session.set_player_zone_area_like_cpp(100, 101);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(100, 101);
     session.set_player_zone_area_authority_complete_like_cpp(true);
     session.set_player_pvp_state_like_cpp(true, true, true);
     session.set_player_game_master_like_cpp(true);
@@ -126,13 +126,22 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
         Some((0x210, 0x20))
     );
     assert_eq!(session.resolved_watched_faction_index_like_cpp(), Some(42));
-    assert_eq!(session.player_zone_area_like_cpp(), Some((100, 101)));
-    assert_eq!(session.player_is_pvp_like_cpp(player_guid), Some(true));
+    assert_eq!(
+        crate::session::hub_ref(&session).player_zone_area_like_cpp(),
+        Some((100, 101))
+    );
+    assert_eq!(
+        crate::session::hub_ref(&session).player_is_pvp_like_cpp(player_guid),
+        Some(true)
+    );
     assert_eq!(
         session.player_has_in_pvp_flag_like_cpp(player_guid),
         Some(true)
     );
-    assert_eq!(session.player_is_game_master_like_cpp(), Some(true));
+    assert_eq!(
+        crate::session::hub_ref(&session).player_is_game_master_like_cpp(),
+        Some(true)
+    );
     assert_eq!(
         session.player_unit_presentation_snapshot_like_cpp(),
         Some((UnitFlags::PLAYER_CONTROLLED | UnitFlags::MOUNT, 1, 1.25))
@@ -177,7 +186,7 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     );
     session.set_loaded_player_flags_like_cpp(0x30);
     session.set_loaded_player_flags_ex_like_cpp(0x40);
-    session.set_watched_faction_index_like_cpp(43);
+    crate::session::hub_mut(&mut session).set_watched_faction_index_like_cpp(43);
     assert!(session.clear_loaded_quest_completed_bit_like_cpp(42));
     assert_eq!(session.load_represented_explored_zones_like_cpp("2 0"), 1);
     session.clear_represented_pending_quest_sharing_like_cpp();
@@ -194,9 +203,9 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
             flags: 6,
         },
     )])));
-    assert!(session.set_player_pet_guid_like_cpp(None));
+    assert!(crate::session::hub_mut(&mut session).set_player_pet_guid_like_cpp(None));
     assert!(session.set_player_vehicle_seat_state_like_cpp(Some(0x20), Some(1002)));
-    session.set_player_zone_area_like_cpp(200, 201);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(200, 201);
     session.set_player_zone_area_authority_complete_like_cpp(true);
     session.set_player_pvp_state_like_cpp(false, false, false);
     session.set_player_game_master_like_cpp(false);
@@ -236,13 +245,22 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
         Some((0x30, 0x40))
     );
     assert_eq!(session.resolved_watched_faction_index_like_cpp(), Some(43));
-    assert_eq!(session.player_zone_area_like_cpp(), Some((200, 201)));
-    assert_eq!(session.player_is_pvp_like_cpp(player_guid), Some(false));
+    assert_eq!(
+        crate::session::hub_ref(&session).player_zone_area_like_cpp(),
+        Some((200, 201))
+    );
+    assert_eq!(
+        crate::session::hub_ref(&session).player_is_pvp_like_cpp(player_guid),
+        Some(false)
+    );
     assert_eq!(
         session.player_has_in_pvp_flag_like_cpp(player_guid),
         Some(false)
     );
-    assert_eq!(session.player_is_game_master_like_cpp(), Some(false));
+    assert_eq!(
+        crate::session::hub_ref(&session).player_is_game_master_like_cpp(),
+        Some(false)
+    );
     assert_eq!(
         session.player_unit_presentation_snapshot_like_cpp(),
         Some((UnitFlags::PLAYER_CONTROLLED, 0, 1.75))
@@ -360,14 +378,29 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
     assert_eq!(session.player_quest_gameplay_snapshot_like_cpp(), None);
     assert_eq!(session.player_transport_state_like_cpp(), None);
     assert_eq!(session.player_currencies_like_cpp(), None);
-    assert_eq!(session.player_pet_guid_state_like_cpp(), None);
-    assert_eq!(session.player_vehicle_seat_state_like_cpp(), None);
+    assert_eq!(
+        crate::session::hub_ref(&session).player_pet_guid_state_like_cpp(),
+        None
+    );
+    assert_eq!(
+        crate::session::hub_ref(&session).player_vehicle_seat_state_like_cpp(),
+        None
+    );
     assert_eq!(session.player_mount_vehicle_kit_snapshot_like_cpp(), None);
     assert_eq!(session.player_world_local_state_like_cpp(), None);
-    assert_eq!(session.player_zone_area_like_cpp(), None);
-    assert_eq!(session.player_is_pvp_like_cpp(player_guid), None);
+    assert_eq!(
+        crate::session::hub_ref(&session).player_zone_area_like_cpp(),
+        None
+    );
+    assert_eq!(
+        crate::session::hub_ref(&session).player_is_pvp_like_cpp(player_guid),
+        None
+    );
     assert_eq!(session.player_has_in_pvp_flag_like_cpp(player_guid), None);
-    assert_eq!(session.player_is_game_master_like_cpp(), None);
+    assert_eq!(
+        crate::session::hub_ref(&session).player_is_game_master_like_cpp(),
+        None
+    );
     assert_eq!(session.player_unit_presentation_snapshot_like_cpp(), None);
     assert_eq!(session.active_player_update_state_like_cpp(), None);
     assert_eq!(session.player_moved_unit_guid_like_cpp(), None);
@@ -380,18 +413,18 @@ fn canonical_player_persistent_metadata_follows_detached_and_stale_ownership_lik
         session.handle_move_teleport_ack_like_cpp(player_guid, 1, 2),
         MoveTeleportAckActionLikeCpp::MissingPlayerOwner
     );
-    assert!(!session.near_teleport_pending_like_cpp());
+    assert!(!crate::session::hub_ref(&session).near_teleport_pending_like_cpp());
     session.set_loaded_player_flags_like_cpp(0xdead);
     session.set_loaded_player_flags_ex_like_cpp(0xbeef);
-    session.set_watched_faction_index_like_cpp(5);
+    crate::session::hub_mut(&mut session).set_watched_faction_index_like_cpp(5);
     assert!(!session.set_loaded_quest_completed_bit_like_cpp(42));
     assert_eq!(session.load_represented_explored_zones_like_cpp("4 0"), 0);
     session.set_represented_pending_quest_sharing_like_cpp(share_sender, 0xdead);
     session.set_player_transport_info_like_cpp(None);
     assert!(!session.set_player_currencies_like_cpp(HashMap::new()));
-    assert!(!session.set_player_pet_guid_like_cpp(None));
+    assert!(!crate::session::hub_mut(&mut session).set_player_pet_guid_like_cpp(None));
     assert!(!session.set_player_vehicle_seat_state_like_cpp(None, None));
-    session.set_player_zone_area_like_cpp(0xdead, 0xbeef);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(0xdead, 0xbeef);
     session.set_player_zone_area_authority_complete_like_cpp(false);
     session.set_player_pvp_state_like_cpp(false, false, true);
     session.set_player_game_master_like_cpp(false);
@@ -834,7 +867,7 @@ fn logout_save_snapshot_uses_canonical_xp_money_and_health_like_cpp() {
         0,
     ));
     session.set_loaded_player_powers_like_cpp([111, 222, 0, 0, 0, 0, 0, 0, 0, 0]);
-    session.set_player_xp_like_cpp(1);
+    crate::session::hub_mut(&mut session).set_player_xp_like_cpp(1);
     session.set_player_gold_like_cpp(2);
     let _ = session.ensure_canonical_world_map_for_current_player_like_cpp();
     session
@@ -877,7 +910,10 @@ fn logout_save_snapshot_uses_canonical_xp_money_and_health_like_cpp() {
         session.player_position_like_cpp(),
         Some(latest_session_position)
     );
-    assert_eq!(session.player_level_like_cpp(), 42);
+    assert_eq!(
+        crate::session::hub_ref(&session).player_level_like_cpp(),
+        42
+    );
     assert_eq!(session.player_xp_like_cpp(), 1234);
     assert_eq!(session.player_gold_like_cpp(), 5678);
     assert_eq!(session.player_health_like_cpp(), 456);

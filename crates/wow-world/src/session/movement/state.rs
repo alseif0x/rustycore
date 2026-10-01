@@ -15,24 +15,24 @@ pub(crate) enum MovementTransportMembershipLikeCpp {
 mod spline_progression;
 
 impl WorldSession {
-    pub(crate) fn remove_current_player_from_canonical_current_map_like_cpp(&mut self) -> bool {
-        crate::session::hub_mut(self).remove_current_player_from_canonical_current_map_like_cpp()
-    }
-
     pub(crate) fn represented_move_dismiss_vehicle_like_cpp(
         &mut self,
         status: &mut wow_packet::packets::movement::MovementInfo,
     ) -> bool {
         let vehicle_guid = self.core.represented_player_charmed_guid_like_cpp();
-        if vehicle_guid.is_empty() || self.player_vehicle_seat_state_like_cpp().is_none() {
+        if vehicle_guid.is_empty()
+            || crate::session::hub_ref(self)
+                .player_vehicle_seat_state_like_cpp()
+                .is_none()
+        {
             return false;
         }
 
         self.sanitize_movement_info_represented_like_cpp(status);
-        self.set_player_movement_time_like_cpp(status.time);
-        self.set_player_movement_flags_like_cpp(status.flags);
-        self.set_player_position_like_cpp(status.position);
-        self.update_registry_position();
+        crate::session::hub_mut(self).set_player_movement_time_like_cpp(status.time);
+        crate::session::hub_mut(self).set_player_movement_flags_like_cpp(status.flags);
+        crate::session::hub_mut(self).set_player_position_like_cpp(status.position);
+        crate::session::hub_ref(self).update_registry_position();
         #[cfg(test)]
         self.fixtures
             .movement
@@ -44,7 +44,7 @@ impl WorldSession {
                 time: status.time,
             });
 
-        if !self.set_player_vehicle_seat_state_like_cpp(None, None) {
+        if !crate::session::hub_mut(self).set_player_vehicle_seat_state_like_cpp(None, None) {
             return false;
         }
         self.sync_player_registry_state_like_cpp();
@@ -59,10 +59,6 @@ impl WorldSession {
             return false;
         }
         self.set_player_currencies_like_cpp(currencies)
-    }
-
-    pub(crate) fn remove_account_toy_like_cpp(&mut self, item_id: u32) -> bool {
-        crate::session::hub_mut(self).remove_account_toy_like_cpp(item_id)
     }
 
     pub(crate) fn remove_represented_rest_flag_like_cpp(&mut self, rest_flag: u32) -> bool {
@@ -103,7 +99,9 @@ impl WorldSession {
             return false;
         }
 
-        let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+        let Some(visible_auras) =
+            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
+        else {
             return false;
         };
         let slots: Vec<u8> = visible_auras
@@ -126,46 +124,6 @@ impl WorldSession {
         true
     }
 
-    pub(crate) fn adjust_client_movement_time_like_cpp(&self, time: u32) -> u32 {
-        crate::session::hub_ref(self).adjust_client_movement_time_like_cpp(time)
-    }
-
-    pub(in crate::session) fn remove_all_dynamic_objects_for_current_player_like_cpp(
-        &self,
-    ) -> Option<wow_map::map::RemoveAllDynamicObjectsForCasterOutcomeLikeCpp> {
-        crate::session::hub_ref(self).remove_all_dynamic_objects_for_current_player_like_cpp()
-    }
-
-    pub(in crate::session) fn remove_all_area_triggers_for_current_player_like_cpp(
-        &self,
-    ) -> Option<wow_map::map::RemoveAllAreaTriggersForCasterOutcomeLikeCpp> {
-        crate::session::hub_ref(self).remove_all_area_triggers_for_current_player_like_cpp()
-    }
-
-    pub(crate) fn set_player_map_position_like_cpp(
-        &mut self,
-        map_id: u16,
-        position: wow_core::Position,
-    ) {
-        crate::session::hub_mut(self).set_player_map_position_like_cpp(map_id, position)
-    }
-
-    pub(crate) fn set_player_position_like_cpp(&mut self, position: wow_core::Position) {
-        crate::session::hub_mut(self).set_player_position_like_cpp(position)
-    }
-
-    pub(crate) fn set_player_orientation_like_cpp(&mut self, orientation: f32) -> bool {
-        crate::session::hub_mut(self).set_player_orientation_like_cpp(orientation)
-    }
-
-    pub(crate) fn set_player_movement_time_like_cpp(&mut self, time: u32) {
-        crate::session::hub_mut(self).set_player_movement_time_like_cpp(time)
-    }
-
-    pub(crate) fn set_player_movement_flags_like_cpp(&mut self, flags: MovementFlag) {
-        crate::session::hub_mut(self).set_player_movement_flags_like_cpp(flags)
-    }
-
     pub(crate) fn set_represented_mover_fixed_position_vehicle_like_cpp(&mut self, fixed: bool) {
         let _canonical = self
             .core
@@ -179,28 +137,6 @@ impl WorldSession {
                 .movement
                 .represented_mover_fixed_position_vehicle_like_cpp = fixed;
         }
-    }
-
-    pub(crate) fn next_movement_counter_like_cpp(&mut self) -> Option<u32> {
-        crate::session::hub_mut(self).next_movement_counter_like_cpp()
-    }
-
-    pub(crate) fn reset_movement_counter_like_cpp(&mut self) -> bool {
-        crate::session::hub_mut(self).reset_movement_counter_like_cpp()
-    }
-
-    pub(crate) fn movement_counter_like_cpp(&self) -> Option<u32> {
-        crate::session::hub_ref(self).movement_counter_like_cpp()
-    }
-
-    pub(crate) fn player_position_like_cpp(&self) -> Option<wow_core::Position> {
-        crate::session::hub_ref(self).player_position_like_cpp()
-    }
-
-    pub(in crate::session) fn resolved_mover_fixed_position_vehicle_like_cpp(
-        &self,
-    ) -> Option<bool> {
-        crate::session::hub_ref(self).resolved_mover_fixed_position_vehicle_like_cpp()
     }
 
     #[cfg_attr(not(test), allow(unused_variables))]
@@ -222,37 +158,6 @@ impl WorldSession {
             .represented_calendar_remove_events_like_cpp
     }
 
-    pub(crate) fn player_moved_unit_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        crate::session::hub_ref(self).player_moved_unit_guid_like_cpp()
-    }
-
-    pub(crate) fn mover_spline_finalized_like_cpp(&self, mover_guid: ObjectGuid) -> Option<bool> {
-        crate::session::hub_ref(self).mover_spline_finalized_like_cpp(mover_guid)
-    }
-
-    pub(crate) fn mover_position_like_cpp(
-        &self,
-        mover_guid: ObjectGuid,
-    ) -> Option<wow_core::Position> {
-        crate::session::hub_ref(self).mover_position_like_cpp(mover_guid)
-    }
-
-    pub(crate) fn mover_movement_force_mod_magnitude_like_cpp(
-        &self,
-        mover_guid: ObjectGuid,
-    ) -> Option<f32> {
-        crate::session::hub_ref(self).mover_movement_force_mod_magnitude_like_cpp(mover_guid)
-    }
-
-    pub(crate) fn reconcile_player_transport_membership_like_cpp(
-        &self,
-        player_guid: ObjectGuid,
-        requested_transport_guid: Option<ObjectGuid>,
-    ) -> MovementTransportMembershipLikeCpp {
-        crate::session::hub_ref(self)
-            .reconcile_player_transport_membership_like_cpp(player_guid, requested_transport_guid)
-    }
-
     pub fn set_player_moved_unit_guid_like_cpp(&mut self, guid: ObjectGuid) {
         crate::session::hub_mut(self).set_player_moved_unit_guid_like_cpp(guid)
     }
@@ -263,11 +168,14 @@ impl WorldSession {
         dst_vehicle: ObjectGuid,
         dst_seat_index: u8,
     ) -> bool {
-        let Some(vehicle_base_guid) = self.represented_vehicle_base_guid_for_switch_like_cpp()
+        let Some(vehicle_base_guid) =
+            crate::session::hub_ref(self).represented_vehicle_base_guid_for_switch_like_cpp()
         else {
             return false;
         };
-        if !self.represented_current_vehicle_seat_can_switch_from_like_cpp() {
+        if !crate::session::hub_ref(self)
+            .represented_current_vehicle_seat_can_switch_from_like_cpp()
+        {
             return false;
         }
 
@@ -323,7 +231,8 @@ impl WorldSession {
             &wow_anticheat::PlayerState {
                 // Fixed-position is an authorization proof. An unresolved
                 // Player must not preserve a client-supplied ROOT flag.
-                mover_fixed_position_vehicle: self.resolved_mover_fixed_position_vehicle_like_cpp()
+                mover_fixed_position_vehicle: crate::session::hub_ref(self)
+                    .resolved_mover_fixed_position_vehicle_like_cpp()
                     == Some(true),
                 // An unresolved/stale Player may not authorize client-only
                 // movement flags. Treat the proof as absent for sanitization,
@@ -346,7 +255,8 @@ impl WorldSession {
                 has_mounted_flight_speed_aura: self.resolved_has_represented_aura_effect_like_cpp(
                     RepresentedAuraEffectLikeCpp::MountedFlightSpeed,
                 ) == Some(true),
-                is_player_security: self.player_is_game_master_like_cpp() != Some(true),
+                is_player_security: crate::session::hub_ref(self).player_is_game_master_like_cpp()
+                    != Some(true),
             },
         )
     }
@@ -391,16 +301,6 @@ impl WorldSession {
         true
     }
 
-    pub(crate) fn resolved_player_movement_time_like_cpp(&self) -> Option<u32> {
-        crate::session::hub_ref(self).resolved_player_movement_time_like_cpp()
-    }
-
-    pub(in crate::session) fn resolved_movement_force_mod_magnitude_changes_like_cpp(
-        &self,
-    ) -> Option<u8> {
-        crate::session::hub_ref(self).resolved_movement_force_mod_magnitude_changes_like_cpp()
-    }
-
     pub(in crate::session) fn resolved_movement_force_mod_magnitude_like_cpp(&self) -> Option<f32> {
         let canonical = self.core.with_owned_player_like_cpp(|player| {
             player.unit().movement_force_mod_magnitude_like_cpp()
@@ -410,12 +310,6 @@ impl WorldSession {
             return Some(self.fixtures.movement.movement_force_mod_magnitude_like_cpp);
         }
         canonical
-    }
-
-    pub(in crate::session) fn consume_movement_force_mod_magnitude_change_like_cpp(
-        &mut self,
-    ) -> Option<u8> {
-        crate::session::hub_mut(self).consume_movement_force_mod_magnitude_change_like_cpp()
     }
 
     pub(crate) fn set_player_transport_position_like_cpp(&mut self, position: Option<Position>) {
@@ -442,12 +336,8 @@ impl WorldSession {
         });
     }
 
-    pub(crate) fn player_transport_position_like_cpp(&self) -> Option<Position> {
-        crate::session::hub_ref(self).player_transport_position_like_cpp()
-    }
-
     pub(crate) fn represented_visibility_source_position_like_cpp(&self) -> Option<Position> {
-        let player_position = self.player_position_like_cpp()?;
+        let player_position = crate::session::hub_ref(self).player_position_like_cpp()?;
         let Some(player_guid) = self.player_guid() else {
             return Some(player_position);
         };

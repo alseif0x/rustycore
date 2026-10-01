@@ -18,7 +18,7 @@ impl WorldSession {
         // legacy fork checks `id > MAX_CUF_PROFILES`, but the backing array has
         // length MAX_CUF_PROFILES; Rust rejects `id >= MAX` to avoid the OOB
         // bug while preserving valid row semantics.
-        self.clear_represented_cuf_profiles_like_cpp();
+        crate::session::hub_mut(self).clear_represented_cuf_profiles_like_cpp();
         match player_lifecycle_port
             .load_login_auxiliary_like_cpp(
                 wow_persistence::PlayerLoginAuxiliaryLoadRequestLikeCpp::CufProfiles {

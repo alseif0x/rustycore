@@ -32,8 +32,9 @@ impl WorldSession {
         }
 
         let guid = self.player_guid()?;
-        let position = bootstrap_position.or_else(|| self.player_position_like_cpp())?;
-        let name = self.player_name_like_cpp()?;
+        let position = bootstrap_position
+            .or_else(|| crate::session::hub_ref(self).player_position_like_cpp())?;
+        let name = crate::session::hub_ref(self).player_name_like_cpp()?;
         let mut player = Player::new(Some(u64::from(self.core.account_id)), false);
         player.unit_mut().world_mut().object_mut().create(guid);
         player.unit_mut().world_mut().set_name(name);
@@ -57,14 +58,18 @@ impl WorldSession {
         *player.unit_mut().world_mut().phase_shift_mut() = bootstrap_phase_shift;
         player.unit_mut().world_mut().object_mut().add_to_world();
         player.set_race_class_gender(
-            self.player_race_like_cpp(),
-            self.player_class_like_cpp(),
-            gender_from_u8(self.player_gender_like_cpp()),
+            crate::session::hub_ref(self).player_race_like_cpp(),
+            crate::session::hub_ref(self).player_class_like_cpp(),
+            gender_from_u8(crate::session::hub_ref(self).player_gender_like_cpp()),
         );
-        if let Some(faction_template) = self.player_faction_template_id_like_cpp() {
+        if let Some(faction_template) =
+            crate::session::hub_ref(self).player_faction_template_id_like_cpp()
+        {
             player.unit_mut().set_faction(faction_template);
         }
-        player.unit_mut().set_level(self.player_level_like_cpp());
+        player
+            .unit_mut()
+            .set_level(crate::session::hub_ref(self).player_level_like_cpp());
         // Preserve the pre-load Rust bootstrap shape. The Character row later
         // hydrates these values directly into the generation-checked Player;
         // Session no longer stores a second production vital-state authority.
@@ -115,7 +120,9 @@ impl WorldSession {
         }
         #[cfg(not(test))]
         player.set_scaling_player_level_delta_like_cpp(
-            if self.player_level_like_cpp() < WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP {
+            if crate::session::hub_ref(self).player_level_like_cpp()
+                < WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP
+            {
                 -1
             } else {
                 0
@@ -435,7 +442,7 @@ impl WorldSession {
         player
             .unit_mut()
             .set_unit_flags_like_cpp(self.fixtures.presentation.player_unit_flags_like_cpp);
-        if let Some(selection) = self.selection_guid_like_cpp() {
+        if let Some(selection) = crate::session::hub_ref(self).selection_guid_like_cpp() {
             player.set_selection(selection);
         }
         self.apply_represented_player_unit_shape_to_canonical_like_cpp(&mut player);

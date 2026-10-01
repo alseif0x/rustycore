@@ -41,14 +41,14 @@ impl WorldSession {
                 orientation: snapshot.position.orientation,
                 map_id: snapshot.map_id,
                 instance_id: snapshot.instance_id,
-                zone_id: self.player_zone_area_like_cpp()?.0 as u16,
+                zone_id: crate::session::hub_ref(self).player_zone_area_like_cpp()?.0 as u16,
             },
             level: snapshot.level,
             xp: snapshot.xp,
             money: snapshot.money,
-            rest_state: self.resolved_xp_rest_state_like_cpp()?,
+            rest_state: crate::session::hub_ref(self).resolved_xp_rest_state_like_cpp()?,
             player_flags: self.resolved_player_flags_for_rest_state_save_like_cpp()?,
-            rest_bonus: self.resolved_xp_rest_bonus_like_cpp()?,
+            rest_bonus: crate::session::hub_ref(self).resolved_xp_rest_bonus_like_cpp()?,
             logout_time: now_unix_secs.max(0) as u64,
             is_logout_resting: self.resolved_visible_resting_like_cpp()?,
             health: snapshot.health,
@@ -120,8 +120,9 @@ impl WorldSession {
         };
 
         let skills = if self.has_complete_player_skill_save_authority_like_cpp() {
-            self.resolved_player_skill_non_durable_tombstones_like_cpp()
-                .zip(self.resolved_player_skill_records_like_cpp())
+            crate::session::hub_ref(self)
+                .resolved_player_skill_non_durable_tombstones_like_cpp()
+                .zip(crate::session::hub_ref(self).resolved_player_skill_records_like_cpp())
                 .map(|(tombstones, records)| {
                     records
                         .values()

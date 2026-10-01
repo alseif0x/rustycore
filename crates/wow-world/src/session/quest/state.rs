@@ -537,9 +537,6 @@ impl WorldSession {
         self.player_resurrection_state_snapshot_like_cpp()
             .and_then(|state| state.request)
     }
-    pub(crate) fn request_temporary_pet_unsummon_like_cpp(&mut self) {
-        crate::session::hub_mut(self).request_temporary_pet_unsummon_like_cpp()
-    }
     pub(crate) fn request_jump_proc_like_cpp(&mut self) {
         #[cfg(test)]
         {
@@ -558,7 +555,7 @@ impl WorldSession {
             .represented_duel_requests_like_cpp
     }
     pub(crate) fn represented_request_vehicle_exit_like_cpp(&mut self) -> bool {
-        let Some(seat_flags) = self
+        let Some(seat_flags) = crate::session::hub_ref(self)
             .player_vehicle_seat_state_like_cpp()
             .and_then(|(flags, _)| flags)
         else {
@@ -568,7 +565,7 @@ impl WorldSession {
             return false;
         }
 
-        if !self.set_player_vehicle_seat_state_like_cpp(None, None) {
+        if !crate::session::hub_mut(self).set_player_vehicle_seat_state_like_cpp(None, None) {
             return false;
         }
         self.sync_player_registry_state_like_cpp();
@@ -613,7 +610,8 @@ impl WorldSession {
         requested_vehicle: ObjectGuid,
         seat_index: u8,
     ) -> bool {
-        let Some(vehicle_base_guid) = self.represented_vehicle_base_guid_for_switch_like_cpp()
+        let Some(vehicle_base_guid) =
+            crate::session::hub_ref(self).represented_vehicle_base_guid_for_switch_like_cpp()
         else {
             return false;
         };
@@ -625,7 +623,8 @@ impl WorldSession {
             );
         let action = crate::handlers::vehicle::request_vehicle_switch_seat_action_like_cpp(
             true,
-            self.represented_current_vehicle_seat_can_switch_from_like_cpp(),
+            crate::session::hub_ref(self)
+                .represented_current_vehicle_seat_can_switch_from_like_cpp(),
             vehicle_base_guid,
             requested_vehicle,
             seat_index,

@@ -587,7 +587,7 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.represented_set_action_bar_toggles_like_cpp(mask);
+        crate::session::hub_mut(self).represented_set_action_bar_toggles_like_cpp(mask);
     }
 
     pub async fn handle_set_advanced_combat_logging(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -602,7 +602,8 @@ impl crate::session::WorldSession {
             }
         };
 
-        self.represented_set_advanced_combat_logging_like_cpp(packet.enable);
+        crate::session::hub_mut(self)
+            .represented_set_advanced_combat_logging_like_cpp(packet.enable);
     }
 
     pub async fn handle_set_currency_flags(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -685,7 +686,7 @@ impl crate::session::WorldSession {
         // C++ CinematicMgr::EndCinematic also clears sight binding when the
         // player is bound to a visual waypoint NPC. Rust records the represented
         // end event until the live CinematicMgr/vision runtime is ported.
-        self.complete_represented_cinematic_like_cpp();
+        crate::session::hub_mut(self).complete_represented_cinematic_like_cpp();
     }
 
     pub async fn handle_next_cinematic_camera(&mut self, _pkt: wow_packet::WorldPacket) {
@@ -693,14 +694,14 @@ impl crate::session::WorldSession {
         // index and may spawn a visual waypoint for remote sight. Rust records
         // the represented camera advance until fly-by camera/TempSummon/viewpoint
         // runtime is ported.
-        self.next_represented_cinematic_camera_like_cpp();
+        crate::session::hub_mut(self).next_represented_cinematic_camera_like_cpp();
     }
 
     pub async fn handle_complete_movie(&mut self, _pkt: wow_packet::WorldPacket) {
         // C++ Player::GetMovie() == 0 returns early; otherwise SetMovie(0)
         // and ScriptMgr::OnMovieComplete(player, movie). Rust records the
         // script hook until the live ScriptMgr runtime is ported.
-        self.complete_represented_movie_like_cpp();
+        crate::session::hub_mut(self).complete_represented_movie_like_cpp();
     }
 
     pub async fn handle_logout_instant(&mut self, _pkt: wow_packet::WorldPacket) {

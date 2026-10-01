@@ -376,7 +376,7 @@ async fn cage_battle_pet_handler_delegates_to_represented_manager_like_cpp() {
         crate::session::RepresentedBattlePetSaveInfoLikeCpp::Removed
     );
     assert_eq!(
-        session.represented_summoned_battle_pet_guid_like_cpp(),
+        crate::session::hub_ref(&session).represented_summoned_battle_pet_guid_like_cpp(),
         None
     );
 
@@ -557,7 +557,7 @@ async fn battle_pet_summon_toggles_known_pet_silently_like_cpp() {
         .handle_battle_pet_summon(battle_pet_summon_packet(pet_guid))
         .await;
     assert_eq!(
-        session.represented_summoned_battle_pet_guid_like_cpp(),
+        crate::session::hub_ref(&session).represented_summoned_battle_pet_guid_like_cpp(),
         Some(pet_guid)
     );
     assert!(send_rx.try_recv().is_err());
@@ -566,7 +566,7 @@ async fn battle_pet_summon_toggles_known_pet_silently_like_cpp() {
         .handle_battle_pet_summon(battle_pet_summon_packet(pet_guid))
         .await;
     assert_eq!(
-        session.represented_summoned_battle_pet_guid_like_cpp(),
+        crate::session::hub_ref(&session).represented_summoned_battle_pet_guid_like_cpp(),
         None
     );
     assert!(send_rx.try_recv().is_err());
@@ -582,7 +582,7 @@ async fn battle_pet_summon_ignores_unknown_pet_like_cpp() {
         .await;
 
     assert_eq!(
-        session.represented_summoned_battle_pet_guid_like_cpp(),
+        crate::session::hub_ref(&session).represented_summoned_battle_pet_guid_like_cpp(),
         None
     );
     assert!(send_rx.try_recv().is_err());
@@ -717,7 +717,7 @@ async fn dismiss_critter_clears_matching_battle_pet_data_compat_like_cpp() {
 
     assert_eq!(session.represented_critter_guid_like_cpp(), None);
     assert_eq!(
-        session.represented_summoned_battle_pet_guid_like_cpp(),
+        crate::session::hub_ref(&session).represented_summoned_battle_pet_guid_like_cpp(),
         None
     );
     assert_eq!(

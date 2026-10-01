@@ -331,7 +331,7 @@ pub(super) fn make_hearth_and_resurrect_session(
     crate::canonical_player_access::install_canonical_player_owner_for_test(&mut session, 571, 0);
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);
     session.set_player_position_like_cpp(Position::new(1.0, 2.0, 3.0, 0.5));
-    session.set_player_zone_area_like_cpp(10, 77);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(10, 77);
     session.set_player_alive_like_cpp(false);
     session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
         wow_data::AreaTableEntry {

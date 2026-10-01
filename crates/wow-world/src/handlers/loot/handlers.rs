@@ -226,7 +226,7 @@ impl WorldSession {
 
         debug!(account = self.core.account_id, target = ?req.unit, "CMSG_LOOT_UNIT");
 
-        if self.resolved_player_is_alive_like_cpp() != Some(true) {
+        if crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
 
@@ -247,7 +247,7 @@ impl WorldSession {
             return;
         }
 
-        if self
+        if crate::session::hub_ref(self)
             .player_position_like_cpp()
             .is_some_and(|player| !player.is_within_dist(&creature_state.position, 30.0))
         {
@@ -761,7 +761,7 @@ impl WorldSession {
                 expansion: 2,
             });
         }
-        self.publish_self_share_health_like_cpp(&command);
+        crate::session::hub_ref(self).publish_self_share_health_like_cpp(&command);
         // An avoided swing commits no health transition.
         if command.damage > 0 {
             self.send_packet(&HealthUpdate {
@@ -985,7 +985,7 @@ impl WorldSession {
         let Some(spec) = store.get(packet.spec_id) else {
             return;
         };
-        if spec.class_id != self.player_class_like_cpp() {
+        if spec.class_id != crate::session::hub_ref(self).player_class_like_cpp() {
             return;
         }
 

@@ -113,8 +113,8 @@ fn trainer_spell_class_race_fit_like_cpp(
         }
         SkillLineAbilityCoverageLikeCpp::Rows(rows) => rows,
     };
-    let race = session.player_race_like_cpp();
-    let class = session.player_class_like_cpp();
+    let race = crate::session::hub_ref(&session).player_race_like_cpp();
+    let class = crate::session::hub_ref(&session).player_class_like_cpp();
     let race_mask = wow_data::skill::race_mask_for_race_like_cpp(race);
     let Some(class_mask) = class
         .checked_sub(1)
@@ -231,7 +231,9 @@ impl WorldSession {
         let Some(store) = self.condition_store() else {
             return TrainerAdmissionProofLikeCpp::Indeterminate;
         };
-        let Some(player_object) = self.build_condition_player_object_like_cpp() else {
+        let Some(player_object) =
+            crate::session::hub_ref(self).build_condition_player_object_like_cpp()
+        else {
             return TrainerAdmissionProofLikeCpp::Indeterminate;
         };
         let player_condition_store = self.player_condition_store();
@@ -239,10 +241,12 @@ impl WorldSession {
         else {
             return TrainerAdmissionProofLikeCpp::Indeterminate;
         };
-        let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+        let Some(player_unit_snapshot) =
+            crate::session::hub_ref(self).condition_player_unit_snapshot_like_cpp()
+        else {
             return TrainerAdmissionProofLikeCpp::Indeterminate;
         };
-        let player_snapshot = self.condition_player_snapshot_like_cpp();
+        let player_snapshot = crate::session::hub_ref(self).condition_player_snapshot_like_cpp();
         let mut unsupported = false;
         let meets = conditions::is_object_meeting_trainer_spell_conditions_like_cpp(
             store.as_ref(),
@@ -290,7 +294,9 @@ impl WorldSession {
                 crate::trainer_offer::TrainerUnavailableReasonLikeCpp::InvalidEffectiveMetadata,
             );
         };
-        let Some(skill_rows) = self.complete_player_skill_records_like_cpp() else {
+        let Some(skill_rows) =
+            crate::session::hub_ref(self).complete_player_skill_records_like_cpp()
+        else {
             return TrainerOfferDecisionLikeCpp::Unavailable(
                 crate::trainer_offer::TrainerUnavailableReasonLikeCpp::InvalidEffectiveMetadata,
             );
@@ -337,7 +343,8 @@ impl WorldSession {
         };
         let effective_price = trainer_price_like_cpp(
             trainer_spell.money_cost,
-            self.trainer_price_reputation_rank_like_cpp(faction_template_id),
+            crate::session::hub_ref(self)
+                .trainer_price_reputation_rank_like_cpp(faction_template_id),
         );
         decide_trainer_offer_like_cpp(
             TrainerOfferInputLikeCpp {
@@ -352,7 +359,7 @@ impl WorldSession {
                 required_abilities: trainer_spell.req_ability,
                 knows_spell: &knows_spell,
                 required_level: trainer_spell.req_level,
-                player_level: self.player_level_like_cpp(),
+                player_level: crate::session::hub_ref(self).player_level_like_cpp(),
                 product: trainer_spell_product_like_cpp(self, trainer_spell.spell_id),
                 battle_pet,
                 effective_price,
@@ -392,7 +399,7 @@ impl WorldSession {
         );
 
         let required_npc_flags = trainer_list_required_npc_flags_like_cpp(gossip_option);
-        let access = match self.represented_npc_can_interact_with_like_cpp(
+        let access = match crate::session::hub_ref(self).represented_npc_can_interact_with_like_cpp(
             trainer_guid,
             required_npc_flags,
             0,
@@ -449,14 +456,16 @@ impl WorldSession {
                     TRAINER_SPELL_STATE_KNOWN_LIKE_CPP,
                     trainer_price_like_cpp(
                         trainer_spell.money_cost,
-                        self.trainer_price_reputation_rank_like_cpp(access.faction_template_id),
+                        crate::session::hub_ref(self)
+                            .trainer_price_reputation_rank_like_cpp(access.faction_template_id),
                     ),
                 ),
                 TrainerOfferDecisionLikeCpp::Unavailable(_) => (
                     TRAINER_SPELL_STATE_UNAVAILABLE_LIKE_CPP,
                     trainer_price_like_cpp(
                         trainer_spell.money_cost,
-                        self.trainer_price_reputation_rank_like_cpp(access.faction_template_id),
+                        crate::session::hub_ref(self)
+                            .trainer_price_reputation_rank_like_cpp(access.faction_template_id),
                     ),
                 ),
                 TrainerOfferDecisionLikeCpp::Available(offer) => (
@@ -537,11 +546,13 @@ impl WorldSession {
             "CMSG_TRAINER_BUY_SPELL"
         );
 
-        let Some(_access) = self.represented_npc_can_interact_with_like_cpp(
-            trainer_guid,
-            TRAINER_BUY_NPC_FLAGS_LIKE_CPP,
-            0,
-        ) else {
+        let Some(_access) = crate::session::hub_ref(self)
+            .represented_npc_can_interact_with_like_cpp(
+                trainer_guid,
+                TRAINER_BUY_NPC_FLAGS_LIKE_CPP,
+                0,
+            )
+        else {
             warn!(
                 account = self.core.account_id,
                 trainer_guid = ?trainer_guid,
@@ -620,11 +631,13 @@ impl WorldSession {
         // The await above is an intentional race boundary. Re-resolve every
         // mutable/current authority rather than trusting the preliminary
         // membership proof retained only to match the early C++ failure path.
-        let Some(fresh_access) = self.represented_npc_can_interact_with_like_cpp(
-            trainer_guid,
-            TRAINER_BUY_NPC_FLAGS_LIKE_CPP,
-            0,
-        ) else {
+        let Some(fresh_access) = crate::session::hub_ref(self)
+            .represented_npc_can_interact_with_like_cpp(
+                trainer_guid,
+                TRAINER_BUY_NPC_FLAGS_LIKE_CPP,
+                0,
+            )
+        else {
             return;
         };
         if !self.player_trainer_interaction_matches_like_cpp(trainer_guid, trainer_id) {

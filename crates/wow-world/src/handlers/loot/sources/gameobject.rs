@@ -211,7 +211,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        if self.resolved_player_is_alive_like_cpp() != Some(true) {
+        if crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
         if !crate::session::cx_loot_ref(self)
@@ -357,7 +357,7 @@ impl WorldSession {
         let player_guid = self.player_guid();
         let should_update_criteria = player_guid.is_some()
             && loot_id != 0
-            && self.resolved_player_is_alive_like_cpp() == Some(true)
+            && crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() == Some(true)
             && crate::session::cx_loot_ref(self)
                 .represented_gameobject_exists_for_loot_like_cpp(gameobject_guid);
         self.open_represented_gameobject_personal_loot_like_cpp(
@@ -407,7 +407,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        if self.resolved_player_is_alive_like_cpp() != Some(true) {
+        if crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
         if !crate::session::cx_loot_ref(self)
@@ -555,7 +555,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        if self.resolved_player_is_alive_like_cpp() != Some(true) {
+        if crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
         if !crate::session::cx_loot_ref(self)

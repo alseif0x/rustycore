@@ -23,4 +23,16 @@ impl crate::session::WorldSession {
     pub(crate) fn reputation_mgr_like_cpp_mut(&mut self) -> ReputationMgrMutLikeCpp<'_> {
         self.fixtures.progression.reputation_mgr_like_cpp_mut()
     }
+    pub(crate) fn with_reputation_mgr_like_cpp<R>(
+        &self,
+        operation: impl FnOnce(&ReputationMgrRefLikeCpp<'_>) -> R,
+    ) -> Option<R> {
+        crate::session::hub_ref(self).with_reputation_mgr_like_cpp(operation)
+    }
+    pub(crate) fn mutate_reputation_mgr_like_cpp<R>(
+        &mut self,
+        operation: impl FnOnce(&mut ReputationMgrMutLikeCpp<'_>) -> R,
+    ) -> Option<R> {
+        crate::session::hub_mut(self).mutate_reputation_mgr_like_cpp(operation)
+    }
 }

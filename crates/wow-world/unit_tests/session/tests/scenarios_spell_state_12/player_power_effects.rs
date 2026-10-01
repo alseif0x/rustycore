@@ -543,7 +543,7 @@ async fn spell_energize_runic_mana_injector_engineering_bonus_like_cpp() {
         "C++ `HasSkill(SKILL_ENGINEERING)` is false without a skill record"
     );
 
-    session.set_represented_player_skill_like_cpp(202, 1, 1, 450);
+    crate::session::hub_mut(&mut session).set_represented_player_skill_like_cpp(202, 1, 1, 450);
     session
         .execute_spell(injector, player_guid)
         .await

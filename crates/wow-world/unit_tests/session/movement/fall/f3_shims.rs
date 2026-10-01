@@ -19,4 +19,13 @@ impl crate::session::WorldSession {
     pub(crate) fn player_movement_jump_like_cpp(&self) -> &wow_packet::packets::movement::JumpInfo {
         self.fixtures.movement.player_movement_jump_like_cpp()
     }
+    pub(crate) fn set_player_movement_jump_like_cpp(
+        &mut self,
+        jump: wow_packet::packets::movement::JumpInfo,
+    ) {
+        crate::session::hub_mut(self).set_player_movement_jump_like_cpp(jump)
+    }
+    pub(crate) fn set_fall_information_like_cpp(&mut self, time: u32, z: f32) -> bool {
+        crate::session::hub_mut(self).set_fall_information_like_cpp(time, z)
+    }
 }

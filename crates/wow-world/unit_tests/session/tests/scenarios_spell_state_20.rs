@@ -165,7 +165,7 @@ fn spell_acquisition_snapshot_adapter_is_exact_or_fails_closed() {
         0,
     ));
     assert_eq!(
-        session.complete_player_skill_occupied_slots_like_cpp(),
+        crate::session::hub_ref(&session).complete_player_skill_occupied_slots_like_cpp(),
         Some(2),
         "attaching the runtime owner must retain exact slot occupancy authority"
     );

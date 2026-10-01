@@ -14,7 +14,7 @@ impl WorldSession {
     ) {
         if self.state() != crate::session::SessionState::LoggedIn
             || self.player_guid() != Some(command.victim_guid)
-            || self.resolved_player_is_alive_like_cpp() != Some(true)
+            || crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true)
             || self.core.player_map_id_like_cpp() != command.map_id
         {
             return;
@@ -31,7 +31,7 @@ impl WorldSession {
             .core
             .client_visible_guids_like_cpp
             .contains(&command.attacker_guid);
-        self.set_in_combat_like_cpp(true);
+        crate::session::hub_mut(self).set_in_combat_like_cpp(true);
         if attacker_is_visible && !command.packet_already_broadcast {
             use wow_packet::packets::combat::AttackStart;
             self.send_packet(&AttackStart {
@@ -57,10 +57,11 @@ impl WorldSession {
         if map_key.instance_id != command.instance_id {
             return;
         }
-        let Some(still_in_combat) = self.resolved_in_combat_like_cpp() else {
+        let Some(still_in_combat) = crate::session::hub_ref(self).resolved_in_combat_like_cpp()
+        else {
             return;
         };
-        self.set_in_combat_like_cpp(still_in_combat);
+        crate::session::hub_mut(self).set_in_combat_like_cpp(still_in_combat);
     }
 
     pub(crate) fn handle_reconcile_pvp_combat_expiry_like_cpp(
@@ -91,6 +92,6 @@ impl WorldSession {
                     .map(|player| player.unit().subsystems().combat.has_combat())
             })
             .unwrap_or(false);
-        self.set_in_combat_like_cpp(still_in_combat);
+        crate::session::hub_mut(self).set_in_combat_like_cpp(still_in_combat);
     }
 }

@@ -15,4 +15,9 @@ impl crate::session::WorldSession {
     pub(crate) fn set_player_environmental_damage_immune_like_cpp(&mut self, immune: bool) {
         crate::session::hub_mut(self).set_player_environmental_damage_immune_like_cpp(immune)
     }
+    pub(in crate::session) fn resolved_player_damage_control_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerDamageControlStateLikeCpp> {
+        crate::session::hub_ref(self).resolved_player_damage_control_like_cpp()
+    }
 }

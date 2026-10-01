@@ -58,10 +58,6 @@ pub(crate) struct RepresentedLiveApplicationLikeCpp {
 }
 
 impl WorldSession {
-    pub(crate) fn set_player_stand_state_like_cpp(&mut self, state: UnitStandStateType) {
-        crate::session::hub_mut(self).set_player_stand_state_like_cpp(state)
-    }
-
     /// Session-owned represented->live boundary.
     ///
     /// Packet handlers construct a typed intent only after completing their
@@ -112,7 +108,9 @@ impl WorldSession {
             .as_ref()
             .map(Arc::clone);
         let difficulty_store = self.catalogs.difficulty_store.as_ref().map(Arc::clone);
-        let Some(represented_visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+        let Some(represented_visible_auras) =
+            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
+        else {
             return RepresentedLiveIntentApplyOutcomeLikeCpp::RejectedMissingCanonicalPlayer;
         };
         let spell_difficulty_id = self
@@ -312,7 +310,7 @@ impl WorldSession {
             }
         }
 
-        self.set_player_stand_state_like_cpp(state);
+        crate::session::hub_mut(self).set_player_stand_state_like_cpp(state);
 
         use wow_packet::ServerPacket;
         let mut removed_slots: Vec<u8> = canonical_removed_visible_slots
@@ -333,7 +331,8 @@ impl WorldSession {
             if !represented_removed_slots.contains(&slot) {
                 self.send_packet(&aura_update);
             }
-            self.broadcast_to_movement_set_like_cpp(aura_update.to_bytes(), false);
+            crate::session::hub_ref(self)
+                .broadcast_to_movement_set_like_cpp(aura_update.to_bytes(), false);
         }
 
         // Opcodes.cpp registers SMSG_STAND_STATE_UPDATE on
@@ -359,7 +358,7 @@ impl WorldSession {
             );
             let bytes = update.to_bytes();
             self.send_raw_packet(&bytes);
-            self.broadcast_to_movement_set_like_cpp(bytes, false);
+            crate::session::hub_ref(self).broadcast_to_movement_set_like_cpp(bytes, false);
         }
 
         RepresentedLiveIntentApplyOutcomeLikeCpp::Applied(
@@ -372,21 +371,11 @@ impl WorldSession {
         )
     }
 
-    pub(in crate::session) fn resolved_player_stand_state_like_cpp(
-        &self,
-    ) -> Option<UnitStandStateType> {
-        crate::session::hub_ref(self).resolved_player_stand_state_like_cpp()
-    }
-
-    pub(crate) fn player_is_sit_state_like_cpp(&self) -> bool {
-        crate::session::hub_ref(self).player_is_sit_state_like_cpp()
-    }
-
     pub(crate) fn represented_is_on_barber_chair_like_cpp(&self) -> bool {
         let Some(player_guid) = self.player_guid() else {
             return false;
         };
-        let Some(current_stand_state) = self
+        let Some(current_stand_state) = crate::session::hub_ref(self)
             .resolved_player_stand_state_like_cpp()
             .and_then(|state| num_traits::ToPrimitive::to_u32(&state))
         else {

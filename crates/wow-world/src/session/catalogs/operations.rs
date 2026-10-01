@@ -150,7 +150,7 @@ impl WorldSession {
     }
     pub fn set_faction_store(&mut self, store: Arc<FactionStore>) {
         self.catalogs.factions.store = Some(store);
-        self.initialize_reputation_mgr_like_cpp();
+        crate::session::hub_mut(self).initialize_reputation_mgr_like_cpp();
     }
     pub fn set_faction_template_store(&mut self, store: Arc<FactionTemplateStore>) {
         self.catalogs.factions.template_store = Some(store);
@@ -222,9 +222,6 @@ impl WorldSession {
     pub fn set_cinematic_sequences_store(&mut self, store: Arc<CinematicSequencesStore>) {
         self.catalogs.set_cinematic_sequences_store(store)
     }
-    pub(in crate::session) fn player_is_at_configured_max_level_like_cpp(&self) -> bool {
-        crate::session::hub_ref(self).player_is_at_configured_max_level_like_cpp()
-    }
     pub(crate) fn apply_offline_xp_rest_bonus_with_policy_like_cpp(
         &mut self,
         policy: &PlayerRestRatePolicyLikeCpp,
@@ -246,7 +243,7 @@ impl WorldSession {
         } else {
             REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP * policy.offline_wilderness
         };
-        let at_max = self.player_is_at_configured_max_level_like_cpp();
+        let at_max = crate::session::hub_ref(self).player_is_at_configured_max_level_like_cpp();
         let raf = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
         self.core
             .with_owned_player_mut_like_cpp(|player| {
@@ -270,7 +267,7 @@ impl WorldSession {
             return self.fixture_update_online_xp_rest_bonus_like_cpp(policy, now_secs);
         }
         let bubble = REST_ONLINE_INGAME_BUBBLE_LIKE_CPP * policy.ingame;
-        let at_max = self.player_is_at_configured_max_level_like_cpp();
+        let at_max = crate::session::hub_ref(self).player_is_at_configured_max_level_like_cpp();
         let raf = self.represented_recruit_a_friend_xp_rest_state_applies_like_cpp();
         self.core
             .with_owned_player_mut_like_cpp(|player| {
@@ -305,14 +302,14 @@ impl WorldSession {
         let (_, nested_mask) =
             self.update_represented_online_xp_rest_bonus_with_policy_like_cpp(policy, now_secs);
         if nested_mask != 0 {
-            self.send_represented_rest_info_update_like_cpp(nested_mask);
+            crate::session::hub_ref(self).send_represented_rest_info_update_like_cpp(nested_mask);
         }
     }
     pub(in crate::session) fn revalidate_represented_tavern_resting_with_catalog_like_cpp(
         &mut self,
         area_trigger_db2_store: &AreaTriggerDb2Store,
     ) {
-        let Some(rest) = self.player_rest_state_snapshot_like_cpp() else {
+        let Some(rest) = crate::session::hub_ref(self).player_rest_state_snapshot_like_cpp() else {
             return;
         };
         if !rest.has_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP) {
@@ -359,12 +356,6 @@ impl WorldSession {
             .progression
             .rest_mgr_test_fixture_like_cpp
             .rest_ingame_rate_like_cpp = rest_ingame_rate;
-    }
-    pub(crate) fn refresh_next_level_xp_with_catalogs_like_cpp(
-        &mut self,
-        catalogs: &ProgressionCatalogsLikeCpp,
-    ) {
-        crate::session::hub_mut(self).refresh_next_level_xp_with_catalogs_like_cpp(catalogs)
     }
     /// Send session initialization packets (first encrypted packets after
     /// EnterEncryptedModeAck). Matches C++ `WorldSession::InitializeSessionCallback`.

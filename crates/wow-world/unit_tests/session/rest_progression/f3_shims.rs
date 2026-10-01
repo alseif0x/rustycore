@@ -41,4 +41,17 @@ impl crate::session::WorldSession {
     pub(crate) fn represented_action_button_db_context_like_cpp(&self) -> Option<(u8, i32)> {
         crate::session::hub_ref(self).represented_action_button_db_context_like_cpp()
     }
+    pub(in crate::session) fn represented_xp_rest_info_changed_since_like_cpp(
+        &self,
+        old_rest_bonus: f32,
+        old_rest_state: u8,
+    ) -> bool {
+        crate::session::hub_ref(self)
+            .represented_xp_rest_info_changed_since_like_cpp(old_rest_bonus, old_rest_state)
+    }
+    pub(crate) fn player_rest_state_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerRestState> {
+        crate::session::hub_ref(self).player_rest_state_snapshot_like_cpp()
+    }
 }

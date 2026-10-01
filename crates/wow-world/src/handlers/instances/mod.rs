@@ -314,7 +314,8 @@ impl crate::session::WorldSession {
             map.difficulty()
         };
 
-        let Some(is_game_master) = self.player_is_game_master_like_cpp() else {
+        let Some(is_game_master) = crate::session::hub_ref(self).player_is_game_master_like_cpp()
+        else {
             return false;
         };
         if is_game_master {

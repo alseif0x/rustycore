@@ -39,11 +39,11 @@ impl WorldSession {
         // lookup so a replacement with the same GUID cannot be persisted by a
         // stale session incarnation.
         let powers = self.resolved_player_power_snapshot_like_cpp()?;
-        let xp = self.resolved_player_xp_like_cpp()?;
+        let xp = crate::session::hub_ref(self).resolved_player_xp_like_cpp()?;
         let money = self.resolved_player_money_like_cpp()?;
         // Resolve every session-owned input before taking the manager lock:
         // `player_level_like_cpp` re-enters it and would self-deadlock.
-        let level = self.player_level_like_cpp();
+        let level = crate::session::hub_ref(self).player_level_like_cpp();
         let pending_teleport_destination = self.pending_teleport_save_destination_like_cpp();
         if let Some(manager) = self.core.canonical_map_manager.as_ref()
             && let Ok(manager) = manager.lock()
@@ -112,17 +112,18 @@ impl WorldSession {
                         .current_canonical_player_map_key_like_cpp()
                         .map(|key| key.instance_id)
                         .unwrap_or(0),
-                    self.player_position_like_cpp()?,
+                    crate::session::hub_ref(self).player_position_like_cpp()?,
                 )
             };
 
-        let (health, max_health, _) = self.resolved_player_vitals_like_cpp()?;
+        let (health, max_health, _) =
+            crate::session::hub_ref(self).resolved_player_vitals_like_cpp()?;
         Some(PlayerSaveToDbSnapshotLikeCpp {
             guid,
             map_id,
             instance_id,
             position,
-            level: self.player_level_like_cpp(),
+            level: crate::session::hub_ref(self).player_level_like_cpp(),
             xp,
             money,
             health,
@@ -193,7 +194,7 @@ impl WorldSession {
                     .player_flags_test_fixture_like_cpp
                     .represented_loaded_player_flags_like_cpp
                     .unwrap_or(0),
-                &self.player_rest_state_snapshot_like_cpp()?,
+                &crate::session::hub_ref(self).player_rest_state_snapshot_like_cpp()?,
             ));
         }
         canonical
@@ -232,10 +233,13 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(in crate::session) fn fixture_mark_player_skills_saved_like_cpp(&mut self) {
-        let Some(mut records) = self.resolved_player_skill_records_like_cpp() else {
+        let Some(mut records) =
+            crate::session::hub_ref(self).resolved_player_skill_records_like_cpp()
+        else {
             return;
         };
-        let Some(mut tombstones) = self.resolved_player_skill_non_durable_tombstones_like_cpp()
+        let Some(mut tombstones) =
+            crate::session::hub_ref(self).resolved_player_skill_non_durable_tombstones_like_cpp()
         else {
             return;
         };
@@ -245,7 +249,8 @@ impl WorldSession {
             }
             skill.state = RepresentedPlayerSkillStateLikeCpp::Unchanged;
         }
-        let occupied = self.complete_player_skill_occupied_slots_like_cpp();
+        let occupied =
+            crate::session::hub_ref(self).complete_player_skill_occupied_slots_like_cpp();
         let _ = self.replace_player_skill_runtime_exact_like_cpp(
             records,
             true,
@@ -256,8 +261,9 @@ impl WorldSession {
         self.sync_player_registry_state_like_cpp();
     }
     pub(in crate::session) fn has_complete_player_skill_save_authority_like_cpp(&self) -> bool {
-        self.complete_player_skill_records_like_cpp()
-            .zip(self.complete_player_skill_occupied_slots_like_cpp())
+        crate::session::hub_ref(self)
+            .complete_player_skill_records_like_cpp()
+            .zip(crate::session::hub_ref(self).complete_player_skill_occupied_slots_like_cpp())
             .is_some_and(|(skills, occupied_slots)| skills.len() == usize::from(occupied_slots))
     }
     pub(crate) fn represented_save_cuf_profiles_like_cpp(

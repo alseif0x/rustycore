@@ -124,7 +124,7 @@ async fn represented_shapeshift_combat_round_time_sets_form_attack_time_like_cpp
     ));
 
     assert_eq!(
-        session.represented_shapeshift_combat_round_time_like_cpp(),
+        crate::session::hub_ref(&session).represented_shapeshift_combat_round_time_like_cpp(),
         None
     );
 
@@ -134,7 +134,7 @@ async fn represented_shapeshift_combat_round_time_sets_form_attack_time_like_cpp
     // C++ `Player::GetShapeshiftForm` now resolves the form and
     // `InitDataForForm` writes its `CombatRoundTime` to both melee attacks.
     assert_eq!(
-        session.represented_shapeshift_combat_round_time_like_cpp(),
+        crate::session::hub_ref(&session).represented_shapeshift_combat_round_time_like_cpp(),
         Some(1_000.0)
     );
     let formed = session
@@ -146,7 +146,7 @@ async fn represented_shapeshift_combat_round_time_sets_form_attack_time_like_cpp
 
     session.remove_aura(0).expect("remove shapeshift aura");
     assert_eq!(
-        session.represented_shapeshift_combat_round_time_like_cpp(),
+        crate::session::hub_ref(&session).represented_shapeshift_combat_round_time_like_cpp(),
         None
     );
     let restored = session

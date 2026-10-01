@@ -122,7 +122,7 @@ fn give_xp_runtime_dispatches_mutable_script_before_rested_bonus_like_cpp() {
     let victim = test_creature_guid(0xE1D0);
     session.set_player_guid(Some(player));
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 150.0);
     install_tapped_xp_victim_like_cpp(&mut session, victim);
     let calls_before = XP_HOOK_DOUBLE_CALLS.load(AtomicOrdering::SeqCst);
@@ -159,7 +159,7 @@ fn give_xp_runtime_does_not_reapply_zero_guard_after_script_like_cpp() {
     let victim = test_creature_guid(0xE1D1);
     session.set_player_guid(Some(player));
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 0.5);
     install_tapped_xp_victim_like_cpp(&mut session, victim);
     let calls_before = XP_HOOK_ZERO_CALLS.load(AtomicOrdering::SeqCst);
@@ -199,7 +199,7 @@ fn give_xp_runtime_dispatches_script_before_max_level_return_like_cpp() {
     let victim = test_creature_guid(0xE1D2);
     session.set_player_guid(Some(player));
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 80, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     install_tapped_xp_victim_like_cpp(&mut session, victim);
     let calls_before = XP_HOOK_MAX_CALLS.load(AtomicOrdering::SeqCst);
 
@@ -218,7 +218,7 @@ fn give_xp_runtime_rejection_guards_run_before_script_like_cpp() {
     let player = ObjectGuid::create_player(1, XP_HOOK_GUARD_PLAYER_COUNTER);
     session.set_player_guid(Some(player));
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     let calls_before = XP_HOOK_GUARD_CALLS.load(AtomicOrdering::SeqCst);
 
     assert!(!session.give_xp_runtime_like_cpp(0, ObjectGuid::EMPTY, 1.0));
@@ -237,7 +237,7 @@ fn give_xp_runtime_spends_rested_bonus_for_victim_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let victim = test_creature_guid(77);
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 70.0);
     install_tapped_xp_victim_like_cpp(&mut session, victim);
 
@@ -303,7 +303,7 @@ fn give_xp_runtime_normalizes_zero_integer_rested_award_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let victim = test_creature_guid(0xE1C3);
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     // C++ LoadRestBonus preserves this inconsistent persisted pair until
     // GetRestBonusFor unconditionally calls SetRestBonus on the next kill.
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 0.5);
@@ -348,7 +348,7 @@ fn give_xp_runtime_zero_integer_rested_award_keeps_consistent_state_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     let victim = test_creature_guid(0xE1C4);
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.5);
     install_tapped_xp_victim_like_cpp(&mut session, victim);
 
@@ -391,7 +391,7 @@ fn give_xp_runtime_routes_log_xp_gain_on_realm_connection_like_cpp() {
     let victim = test_creature_guid(0xE1C0);
     session.install_realm_send_channel_for_test(realm_tx);
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     install_tapped_xp_victim_like_cpp(&mut session, victim);
 
     assert!(session.give_xp_runtime_like_cpp(50, victim, 1.0));
@@ -419,10 +419,10 @@ fn give_xp_runtime_routes_level_up_info_on_realm_connection_like_cpp() {
     let (realm_tx, realm_rx) = flume::unbounded();
     session.install_realm_send_channel_for_test(realm_tx);
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 1, 0);
-    session.set_player_next_level_xp_like_cpp(50);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(50);
 
     assert!(session.give_xp_runtime_like_cpp(50, ObjectGuid::EMPTY, 1.0));
-    assert_eq!(session.player_level_like_cpp(), 2);
+    assert_eq!(crate::session::hub_ref(&session).player_level_like_cpp(), 2);
 
     assert!(
         drain_server_packet_bytes(&instance_rx).iter().all(|bytes| {
@@ -501,7 +501,7 @@ fn give_xp_runtime_updates_canonical_progression_and_client_fields_like_cpp() {
 fn give_xp_runtime_rejects_dead_player_outside_battleground_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 70.0);
     session.set_player_alive_like_cpp(false);
 
@@ -519,7 +519,7 @@ fn give_xp_runtime_rejects_dead_player_outside_battleground_like_cpp() {
 fn give_xp_runtime_rejects_no_xp_gain_player_flag_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     session.set_loaded_player_flags_like_cpp(PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 70.0);
 
@@ -536,7 +536,7 @@ fn give_xp_runtime_raf_awards_triple_xp_without_spending_rested_bonus_like_cpp()
     let victim = test_creature_guid(78);
     session.set_player_guid(Some(player_guid));
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     session.set_player_map_position_like_cpp(1, Position::ZERO);
     session.set_recruiter_id_like_cpp(2);
     session.set_recruit_a_friend_xp_config_like_cpp(85, 4);
@@ -583,7 +583,7 @@ fn give_xp_runtime_applies_rested_xp_consumption_modifier_like_cpp() {
     let (mut session, _, _) = make_session();
     let victim = test_creature_guid(79);
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 70.0);
     install_tapped_xp_victim_like_cpp(&mut session, victim);
     let effect = wow_data::SpellEffectInfo {
@@ -612,7 +612,7 @@ fn give_xp_runtime_applies_rested_xp_consumption_modifier_like_cpp() {
 fn give_xp_runtime_does_not_spend_rested_bonus_without_victim_like_cpp() {
     let (mut session, _, send_rx) = make_session();
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 70.0);
 
     assert!(session.give_xp_runtime_like_cpp(50, ObjectGuid::EMPTY, 1.0));
@@ -656,7 +656,7 @@ fn sync_canonical_player_health_sets_current_and_max_like_cpp() {
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
 
     assert_eq!(
-        session.sync_canonical_player_health_like_cpp(42, 120),
+        crate::session::hub_mut(&mut session).sync_canonical_player_health_like_cpp(42, 120),
         Some((42, 120))
     );
     assert_eq!(session.player_health_like_cpp(), 42);
@@ -685,7 +685,7 @@ fn sync_canonical_player_health_zero_sets_corpse_like_cpp() {
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
 
     assert_eq!(
-        session.sync_canonical_player_health_like_cpp(0, 120),
+        crate::session::hub_mut(&mut session).sync_canonical_player_health_like_cpp(0, 120),
         Some((0, 120))
     );
     assert_eq!(session.player_health_like_cpp(), 0);
@@ -786,10 +786,13 @@ fn sync_canonical_player_primary_power_clears_stale_mana_index_like_cpp() {
 #[test]
 fn update_area_records_enter_leave_area_criteria_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.set_player_zone_area_like_cpp(10, 100);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(10, 100);
 
     assert!(session.update_area_represented_like_cpp(101));
-    assert_eq!(session.player_zone_area_like_cpp(), Some((10, 101)));
+    assert_eq!(
+        crate::session::hub_ref(&session).player_zone_area_like_cpp(),
+        Some((10, 101))
+    );
     assert_eq!(
         session.represented_area_zone_criteria_like_cpp(),
         &[
@@ -816,7 +819,7 @@ fn update_area_sets_faction_area_rest_flag_like_cpp() {
         80,
         0,
     );
-    session.set_player_zone_area_like_cpp(10, 100);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(10, 100);
     session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
         wow_data::AreaTableEntry {
             id: 101,
@@ -858,7 +861,7 @@ fn update_zone_records_area_then_top_level_criteria_like_cpp() {
         80,
         0,
     );
-    session.set_player_zone_area_like_cpp(10, 100);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(10, 100);
     session.set_area_table_store(Arc::new(wow_data::AreaTableStore::from_entries([
         wow_data::AreaTableEntry {
             id: 20,
@@ -872,7 +875,10 @@ fn update_zone_records_area_then_top_level_criteria_like_cpp() {
     ])));
 
     assert!(session.update_zone_represented_like_cpp(20, 101));
-    assert_eq!(session.player_zone_area_like_cpp(), Some((20, 101)));
+    assert_eq!(
+        crate::session::hub_ref(&session).player_zone_area_like_cpp(),
+        Some((20, 101))
+    );
     assert_eq!(
         session.represented_area_zone_criteria_like_cpp(),
         &[

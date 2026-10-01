@@ -107,7 +107,7 @@ impl WorldSession {
             return;
         }
         if matches!(msg_type, ChatMsg::Say | ChatMsg::Yell)
-            && self.resolved_player_is_alive_like_cpp() != Some(true)
+            && crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true)
         {
             return;
         }
@@ -596,10 +596,12 @@ impl WorldSession {
             self.send_gm_silence_notification_like_cpp();
             return;
         }
-        if self.resolved_player_is_alive_like_cpp() != Some(true) {
+        if crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
-        if self.player_level_like_cpp() < chat_policy.level_requirements.emote {
+        if crate::session::hub_ref(self).player_level_like_cpp()
+            < chat_policy.level_requirements.emote
+        {
             self.send_chat_say_level_notification_like_cpp(chat_policy.level_requirements.emote);
             return;
         }
@@ -634,7 +636,7 @@ impl WorldSession {
     pub async fn handle_emote(&mut self, mut pkt: wow_packet::WorldPacket) {
         // EmoteClient has no body — read returns Ok(()) immediately.
         let _ = EmoteClient::read(&mut pkt);
-        if self.resolved_player_is_alive_like_cpp() != Some(true)
+        if crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true)
             || self.core.player_has_unit_state_like_cpp(UnitState::DIED)
         {
             return;
@@ -667,7 +669,7 @@ impl WorldSession {
             }
         };
 
-        if self.resolved_player_is_alive_like_cpp() != Some(true) {
+        if crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true) {
             return;
         }
         if self.send_wait_before_speaking_notification_if_muted_like_cpp() {
@@ -731,10 +733,12 @@ impl WorldSession {
 
         if let Some(anim_emote) = anim_emote {
             self.send_packet(&anim_emote);
-            self.broadcast_to_movement_set_like_cpp(anim_emote.to_bytes(), false);
+            crate::session::hub_ref(self)
+                .broadcast_to_movement_set_like_cpp(anim_emote.to_bytes(), false);
         }
         self.send_packet(&text_emote);
-        self.broadcast_to_movement_set_in_range_like_cpp(text_emote.to_bytes(), text_emote_range);
+        crate::session::hub_ref(self)
+            .broadcast_to_movement_set_in_range_like_cpp(text_emote.to_bytes(), text_emote_range);
         // C++ then resolves `ObjectAccessor::GetUnit(*_player, packet.Target)` for
         // `CriteriaType::DoEmote` and `CreatureAI::ReceiveEmote`. Rust has no
         // live chat->criteria/CreatureAI bridge here yet; keep the C++ packet
@@ -790,9 +794,12 @@ impl WorldSession {
         .await;
     }
     pub(super) fn publish_player_emote_state_like_cpp(&mut self, emote_state: u32) {
-        if let Some(update) = self.set_player_emote_state_like_cpp(emote_state) {
+        if let Some(update) =
+            crate::session::hub_mut(self).set_player_emote_state_like_cpp(emote_state)
+        {
             self.send_packet(&update);
-            self.broadcast_to_movement_set_like_cpp(update.to_bytes(), false);
+            crate::session::hub_ref(self)
+                .broadcast_to_movement_set_like_cpp(update.to_bytes(), false);
         }
     }
     /// CMSG_CHAT_REGISTER_ADDON_PREFIXES.

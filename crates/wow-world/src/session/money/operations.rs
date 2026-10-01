@@ -97,7 +97,8 @@ impl WorldSession {
             return Err(());
         };
 
-        let player_team = player_team_for_race_cpp(self.player_race_like_cpp());
+        let player_team =
+            player_team_for_race_cpp(crate::session::hub_ref(self).player_race_like_cpp());
         if (entry.is_alliance() && player_team != Team::Alliance)
             || (entry.is_horde() && player_team != Team::Horde)
         {

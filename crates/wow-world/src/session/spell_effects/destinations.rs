@@ -158,7 +158,8 @@ impl WorldSession {
             });
         let (transport, position) = canonical_destination.or_else(|| {
             if Some(caster_guid) == self.player_guid() {
-                self.player_position_like_cpp()
+                crate::session::hub_ref(self)
+                    .player_position_like_cpp()
                     .map(|position| (ObjectGuid::EMPTY, position))
             } else {
                 self.core.map_manager.as_ref().and_then(|manager| {
@@ -302,7 +303,7 @@ impl WorldSession {
         } else {
             None
         };
-        let caster_position = self.player_position_like_cpp()?;
+        let caster_position = crate::session::hub_ref(self).player_position_like_cpp()?;
         let range = self
             .catalogs
             .spell_catalogs
@@ -442,12 +443,13 @@ impl WorldSession {
         let has_implicit_conditions =
             implicit_conditions.is_some_and(|conditions| !conditions.is_empty());
         let caster_object = if has_implicit_conditions {
-            self.build_condition_player_object_like_cpp()
+            crate::session::hub_ref(self).build_condition_player_object_like_cpp()
         } else {
             None
         };
-        let player_unit_snapshot = self.condition_player_unit_snapshot_like_cpp()?;
-        let player_snapshot = self.condition_player_snapshot_like_cpp();
+        let player_unit_snapshot =
+            crate::session::hub_ref(self).condition_player_unit_snapshot_like_cpp()?;
+        let player_snapshot = crate::session::hub_ref(self).condition_player_snapshot_like_cpp();
         let player_condition_context = if has_implicit_conditions {
             self.represented_player_condition_context_like_cpp()
         } else {

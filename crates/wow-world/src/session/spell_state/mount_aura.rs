@@ -56,13 +56,15 @@ impl WorldSession {
             applied_at: Instant::now(),
         };
 
-        if !self.set_player_mount_presentation_like_cpp(display_id, true) {
+        if !crate::session::hub_mut(self).set_player_mount_presentation_like_cpp(display_id, true) {
             return Err("Missing Player presentation owner");
         }
         if !self.insert_player_visible_aura_like_cpp(aura) {
             return Err("Missing Player aura owner");
         }
-        if self.create_player_mount_vehicle_kit_like_cpp(vehicle_id, creature_entry) {
+        if crate::session::hub_mut(self)
+            .create_player_mount_vehicle_kit_like_cpp(vehicle_id, creature_entry)
+        {
             #[cfg(test)]
             {
                 self.fixtures
@@ -73,7 +75,7 @@ impl WorldSession {
                     .mount_vehicle_create_requests_like_cpp
                     .saturating_add(1);
             }
-            self.send_set_vehicle_rec_id_like_cpp(vehicle_id);
+            crate::session::hub_mut(self).send_set_vehicle_rec_id_like_cpp(vehicle_id);
             self.send_on_cancel_expected_vehicle_ride_aura_like_cpp();
         }
         #[cfg(test)]
@@ -86,7 +88,7 @@ impl WorldSession {
                 .mount_pet_control_disable_requests_like_cpp
                 .saturating_add(1);
         }
-        self.disable_pet_controls_on_mount_like_cpp(
+        crate::session::hub_mut(self).disable_pet_controls_on_mount_like_cpp(
             wow_packet::packets::pet::REACT_PASSIVE_LIKE_CPP,
             wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP,
         );
@@ -101,7 +103,7 @@ impl WorldSession {
                 .saturating_add(1);
         }
         self.update_player_collision_height_like_cpp();
-        self.send_movement_set_collision_height_like_cpp(
+        crate::session::hub_mut(self).send_movement_set_collision_height_like_cpp(
             wow_packet::packets::movement::UPDATE_COLLISION_HEIGHT_REASON_MOUNT_LIKE_CPP,
         );
         self.apply_represented_mount_capability_speed_aura_like_cpp(mounted_amount, caster_guid);
@@ -114,7 +116,7 @@ impl WorldSession {
             0x0000_0001,
             1u32 << effect.effect_index,
         );
-        self.send_represented_mount_unit_update_like_cpp(display_id);
+        crate::session::hub_mut(self).send_represented_mount_unit_update_like_cpp(display_id);
 
         Ok(())
     }
@@ -179,7 +181,7 @@ impl WorldSession {
                 )
                 .is_ok()
             {
-                self.recompute_represented_mounted_speed_rates_like_cpp();
+                crate::session::hub_mut(self).recompute_represented_mounted_speed_rates_like_cpp();
             }
         }
     }
@@ -193,7 +195,9 @@ impl WorldSession {
         else {
             return;
         };
-        let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+        let Some(visible_auras) =
+            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
+        else {
             return;
         };
         let slots: Vec<u8> = visible_auras
@@ -219,7 +223,9 @@ impl WorldSession {
         )
     }
     pub(in crate::session) fn remove_represented_mounted_auras_by_type_like_cpp(&mut self) -> bool {
-        let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+        let Some(visible_auras) =
+            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
+        else {
             return false;
         };
         let mounted_slots: Vec<u8> = visible_auras
@@ -233,14 +239,14 @@ impl WorldSession {
             let _ = self.remove_aura(slot);
         }
 
-        let Some(mounted) = self.resolved_player_mounted_like_cpp() else {
+        let Some(mounted) = crate::session::hub_ref(self).resolved_player_mounted_like_cpp() else {
             return false;
         };
         if mounted {
-            if !self.set_player_mount_presentation_like_cpp(0, false) {
+            if !crate::session::hub_mut(self).set_player_mount_presentation_like_cpp(0, false) {
                 return false;
             }
-            let _ = self.clear_player_mount_vehicle_kit_like_cpp();
+            let _ = crate::session::hub_mut(self).clear_player_mount_vehicle_kit_like_cpp();
             #[cfg(test)]
             {
                 self.fixtures.vehicles.player_mount_vehicle_id_like_cpp = 0;

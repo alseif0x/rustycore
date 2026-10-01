@@ -62,7 +62,7 @@ async fn battle_pet_cage_battle_pet_creates_cage_item_removes_and_deletes_like_c
         RepresentedBattlePetSaveInfoLikeCpp::Removed
     );
     assert_eq!(
-        session.represented_summoned_battle_pet_guid_like_cpp(),
+        crate::session::hub_ref(&session).represented_summoned_battle_pet_guid_like_cpp(),
         None
     );
 

@@ -164,10 +164,10 @@ impl WorldSession {
         }
 
         if let Some(combat_target) = command.combat_target_after {
-            self.set_combat_target_like_cpp(combat_target);
+            crate::session::hub_mut(self).set_combat_target_like_cpp(combat_target);
         }
         if let Some(in_combat) = command.in_combat_after {
-            self.set_in_combat_like_cpp(in_combat);
+            crate::session::hub_mut(self).set_in_combat_like_cpp(in_combat);
         }
     }
 
@@ -254,7 +254,7 @@ impl WorldSession {
 
         debug!(account = self.core.account_id, "CMSG_ATTACK_STOP");
 
-        if let Some(target) = self.stop_player_attack_like_cpp() {
+        if let Some(target) = crate::session::hub_mut(self).stop_player_attack_like_cpp() {
             let stop = SAttackStop {
                 attacker: player_guid,
                 victim: target,

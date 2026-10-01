@@ -346,13 +346,6 @@ impl WorldSession {
             pet_guid, xp, xp_source, multiplier,
         )
     }
-
-    pub(crate) fn represented_dismiss_critter_like_cpp(
-        &mut self,
-        critter_guid: ObjectGuid,
-    ) -> bool {
-        crate::session::hub_mut(self).represented_dismiss_critter_like_cpp(critter_guid)
-    }
 }
 
 #[cfg(test)]

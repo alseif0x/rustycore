@@ -168,15 +168,15 @@ impl WorldSession {
         self.learn_account_mount_spells_like_cpp();
     }
     pub(in crate::session) fn learn_account_mount_spells_like_cpp(&mut self) -> usize {
-        let Some(mut spell_ids) =
-            self.player_collection_state_snapshot_like_cpp()
-                .map(|collections| {
-                    collections
-                        .mounts_like_cpp()
-                        .keys()
-                        .copied()
-                        .collect::<Vec<_>>()
-                })
+        let Some(mut spell_ids) = crate::session::hub_ref(self)
+            .player_collection_state_snapshot_like_cpp()
+            .map(|collections| {
+                collections
+                    .mounts_like_cpp()
+                    .keys()
+                    .copied()
+                    .collect::<Vec<_>>()
+            })
         else {
             return 0;
         };
@@ -224,21 +224,32 @@ impl WorldSession {
     ) {
         let prev_spell = self.catalogs.prev_spell_in_chain_like_cpp(current_spell_id);
         if prev_spell == 0 {
-            self.set_represented_player_skill_like_cpp(learned_skill.skill, 0, 0, 0);
+            crate::session::hub_mut(self).set_represented_player_skill_like_cpp(
+                learned_skill.skill,
+                0,
+                0,
+                0,
+            );
             return;
         }
 
         let Some(prev_skill) = self.previous_spell_learn_skill_like_cpp(prev_spell) else {
-            self.set_represented_player_skill_like_cpp(learned_skill.skill, 0, 0, 0);
+            crate::session::hub_mut(self).set_represented_player_skill_like_cpp(
+                learned_skill.skill,
+                0,
+                0,
+                0,
+            );
             return;
         };
 
-        let Some(mut skill_value) = self.resolved_player_skill_value_like_cpp(prev_skill.skill)
+        let Some(mut skill_value) =
+            crate::session::hub_ref(self).resolved_player_skill_value_like_cpp(prev_skill.skill)
         else {
             return;
         };
-        let Some(mut skill_max_value) =
-            self.resolved_player_skill_max_value_like_cpp(prev_skill.skill)
+        let Some(mut skill_max_value) = crate::session::hub_ref(self)
+            .resolved_player_skill_max_value_like_cpp(prev_skill.skill)
         else {
             return;
         };
@@ -252,8 +263,8 @@ impl WorldSession {
             ) {
                 if let Some(rc_info) = skill_store.skill_race_class_info_like_cpp(
                     prev_skill.skill,
-                    self.player_race_like_cpp(),
-                    self.player_class_like_cpp(),
+                    crate::session::hub_ref(self).player_race_like_cpp(),
+                    crate::session::hub_ref(self).player_class_like_cpp(),
                 ) {
                     match skill_store.skill_range_type_like_cpp(
                         rc_info,
@@ -265,7 +276,8 @@ impl WorldSession {
                             new_skill_max_value = 300;
                         }
                         SkillRangeTypeLikeCpp::Level => {
-                            new_skill_max_value = self.max_skill_value_for_level_like_cpp();
+                            new_skill_max_value =
+                                crate::session::hub_ref(self).max_skill_value_for_level_like_cpp();
                         }
                         SkillRangeTypeLikeCpp::Mono => {
                             new_skill_max_value = 1;
@@ -303,7 +315,7 @@ impl WorldSession {
             skill_value = new_skill_max_value;
         }
 
-        self.set_represented_player_skill_like_cpp(
+        crate::session::hub_mut(self).set_represented_player_skill_like_cpp(
             prev_skill.skill,
             prev_skill.step,
             skill_value,

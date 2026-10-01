@@ -334,7 +334,7 @@ fn canonical_player_vitals_follow_active_detached_and_stale_handle_ownership_lik
         .expect("active canonical Player");
 
     assert_eq!(
-        session.resolved_player_vitals_like_cpp(),
+        crate::session::hub_ref(&session).resolved_player_vitals_like_cpp(),
         Some((123, 321, true))
     );
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
@@ -346,7 +346,7 @@ fn canonical_player_vitals_follow_active_detached_and_stale_handle_ownership_lik
         Some(wow_map::PlayerResidenceLikeCpp::Detached)
     );
     assert_eq!(
-        session.resolved_player_vitals_like_cpp(),
+        crate::session::hub_ref(&session).resolved_player_vitals_like_cpp(),
         Some((123, 321, true))
     );
 
@@ -364,7 +364,10 @@ fn canonical_player_vitals_follow_active_detached_and_stale_handle_ownership_lik
         .install_detached_player_like_cpp(replacement)
         .expect("replacement owner");
 
-    assert_eq!(session.resolved_player_vitals_like_cpp(), None);
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_player_vitals_like_cpp(),
+        None
+    );
     assert_eq!(
         canonical
             .lock()
@@ -477,11 +480,14 @@ fn canonical_player_progression_follows_active_detached_and_stale_handle_ownersh
         .core
         .player_handle_like_cpp
         .expect("canonical handle");
-    assert!(session.set_player_xp_like_cpp(123));
-    assert!(session.set_player_next_level_xp_like_cpp(456));
+    assert!(crate::session::hub_mut(&mut session).set_player_xp_like_cpp(123));
+    assert!(crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(456));
     assert!(session.set_player_character_points_like_cpp(7));
 
-    assert_eq!(session.resolved_player_xp_like_cpp(), Some(123));
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_player_xp_like_cpp(),
+        Some(123)
+    );
     assert_eq!(session.resolved_player_next_level_xp_like_cpp(), Some(456));
     assert_eq!(session.resolved_player_character_points_like_cpp(), Some(7));
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
@@ -492,7 +498,10 @@ fn canonical_player_progression_follows_active_detached_and_stale_handle_ownersh
             .player_residence_like_cpp(old_handle),
         Some(wow_map::PlayerResidenceLikeCpp::Detached)
     );
-    assert_eq!(session.resolved_player_xp_like_cpp(), Some(123));
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_player_xp_like_cpp(),
+        Some(123)
+    );
     assert_eq!(session.resolved_player_next_level_xp_like_cpp(), Some(456));
     assert_eq!(session.resolved_player_character_points_like_cpp(), Some(7));
 
@@ -511,11 +520,14 @@ fn canonical_player_progression_follows_active_detached_and_stale_handle_ownersh
         .install_detached_player_like_cpp(replacement)
         .expect("replacement owner");
 
-    assert_eq!(session.resolved_player_xp_like_cpp(), None);
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_player_xp_like_cpp(),
+        None
+    );
     assert_eq!(session.resolved_player_next_level_xp_like_cpp(), None);
     assert_eq!(session.resolved_player_character_points_like_cpp(), None);
-    assert!(!session.set_player_xp_like_cpp(1));
-    assert!(!session.set_player_next_level_xp_like_cpp(2));
+    assert!(!crate::session::hub_mut(&mut session).set_player_xp_like_cpp(1));
+    assert!(!crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(2));
     assert!(!session.set_player_character_points_like_cpp(3));
     assert!(!session.give_xp_runtime_like_cpp(10, ObjectGuid::EMPTY, 1.0));
     assert!(drain_server_packet_bytes(&send_rx).is_empty());
@@ -563,7 +575,10 @@ fn canonical_player_specialization_metadata_follows_detached_and_stale_ownership
     assert!(session.set_loot_specialization_id_like_cpp(65));
     assert!(session.set_represented_primary_specialization_id_like_cpp(66));
 
-    assert_eq!(session.player_create_mode_like_cpp(), Some(1));
+    assert_eq!(
+        crate::session::hub_ref(&session).player_create_mode_like_cpp(),
+        Some(1)
+    );
     assert_eq!(session.represented_shapeshift_form_like_cpp(), Some(5));
     assert_eq!(session.loot_specialization_id_like_cpp(), Some(65));
     assert_eq!(
@@ -578,7 +593,10 @@ fn canonical_player_specialization_metadata_follows_detached_and_stale_ownership
             .player_residence_like_cpp(old_handle),
         Some(wow_map::PlayerResidenceLikeCpp::Detached)
     );
-    assert_eq!(session.player_create_mode_like_cpp(), Some(1));
+    assert_eq!(
+        crate::session::hub_ref(&session).player_create_mode_like_cpp(),
+        Some(1)
+    );
     assert_eq!(session.represented_shapeshift_form_like_cpp(), Some(5));
     assert_eq!(session.loot_specialization_id_like_cpp(), Some(65));
 
@@ -598,7 +616,10 @@ fn canonical_player_specialization_metadata_follows_detached_and_stale_ownership
         .install_detached_player_like_cpp(replacement)
         .expect("replacement owner");
 
-    assert_eq!(session.player_create_mode_like_cpp(), None);
+    assert_eq!(
+        crate::session::hub_ref(&session).player_create_mode_like_cpp(),
+        None
+    );
     assert_eq!(session.represented_shapeshift_form_like_cpp(), None);
     assert_eq!(session.loot_specialization_id_like_cpp(), None);
     assert_eq!(
@@ -658,7 +679,7 @@ fn canonical_player_battleground_context_follows_detached_and_stale_ownership_li
     assert!(session.set_represented_arena_team_id_invited_like_cpp(77));
     session.set_represented_battleground_status_like_cpp(Some(4));
     session.add_represented_battleground_queue_slot_like_cpp(1, queue_type, 88);
-    assert!(session.player_in_represented_battleground_like_cpp());
+    assert!(crate::session::hub_ref(&session).player_in_represented_battleground_like_cpp());
     assert!(session.represented_battleground_status_is_wait_leave_like_cpp());
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
     assert_eq!(
@@ -668,7 +689,7 @@ fn canonical_player_battleground_context_follows_detached_and_stale_ownership_li
             .player_residence_like_cpp(old_handle),
         Some(wow_map::PlayerResidenceLikeCpp::Detached)
     );
-    assert!(session.player_in_represented_battleground_like_cpp());
+    assert!(crate::session::hub_ref(&session).player_in_represented_battleground_like_cpp());
     assert!(session.represented_battleground_status_is_wait_leave_like_cpp());
     assert_eq!(session.represented_arena_team_id_invited_like_cpp(), 77);
 
@@ -696,7 +717,7 @@ fn canonical_player_battleground_context_follows_detached_and_stale_ownership_li
         .install_detached_player_like_cpp(replacement)
         .expect("replacement owner");
 
-    assert!(!session.player_in_represented_battleground_like_cpp());
+    assert!(!crate::session::hub_ref(&session).player_in_represented_battleground_like_cpp());
     assert!(!session.set_player_battleground_context_like_cpp(1, 489));
     assert!(!session.set_represented_arena_team_id_invited_like_cpp(101));
     session.set_represented_battleground_status_like_cpp(Some(4));

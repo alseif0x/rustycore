@@ -5,21 +5,7 @@
 
 use super::*;
 
-impl WorldSession {
-    pub(crate) fn publish_battle_pet_trainer_purchase_add_like_cpp(
-        &mut self,
-        pet: wow_packet::packets::misc::BattlePetJournalPet,
-    ) -> bool {
-        crate::session::hub_mut(self).publish_battle_pet_trainer_purchase_add_like_cpp(pet)
-    }
-    pub(crate) fn battle_pet_send_error_like_cpp(
-        &mut self,
-        error: wow_packet::packets::misc::BattlePetErrorCodeLikeCpp,
-        creature_id: u32,
-    ) {
-        crate::session::hub_mut(self).battle_pet_send_error_like_cpp(error, creature_id)
-    }
-}
+impl WorldSession {}
 
 impl crate::session::PetsCx<'_> {
     /// C++ `BattlePetMgr::UpdateBattlePetData`, represented at the gate level.

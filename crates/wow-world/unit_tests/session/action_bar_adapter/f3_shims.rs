@@ -22,4 +22,10 @@ impl crate::session::WorldSession {
     pub(crate) fn represented_action_button_like_cpp(&self, index: u8) -> Option<u32> {
         crate::session::hub_ref(self).represented_action_button_like_cpp(index)
     }
+    pub(in crate::session) fn mutate_active_player_update_state_like_cpp<R>(
+        &mut self,
+        mutate: impl FnOnce(&mut wow_entities::PlayerGameplayState) -> R,
+    ) -> Option<R> {
+        crate::session::hub_mut(self).mutate_active_player_update_state_like_cpp(mutate)
+    }
 }

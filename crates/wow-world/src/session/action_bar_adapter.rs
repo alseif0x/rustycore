@@ -79,37 +79,12 @@ impl WorldSession {
         }
     }
 
-    pub(in crate::session) fn mutate_active_player_update_state_like_cpp<R>(
-        &mut self,
-        mutate: impl FnOnce(&mut wow_entities::PlayerGameplayState) -> R,
-    ) -> Option<R> {
-        crate::session::hub_mut(self).mutate_active_player_update_state_like_cpp(mutate)
-    }
-
     #[cfg(test)]
     pub(crate) fn set_active_player_local_flags_like_cpp(&mut self, flags: u32) {
-        let _ = self.mutate_active_player_update_state_like_cpp(|state| {
+        let _ = crate::session::hub_mut(self).mutate_active_player_update_state_like_cpp(|state| {
             state.active_local_flags = flags;
         });
         self.sync_current_player_session_visibility_detection_like_cpp();
-    }
-
-    pub(crate) fn represented_set_action_bar_toggles_like_cpp(&mut self, mask: u8) -> bool {
-        crate::session::hub_mut(self).represented_set_action_bar_toggles_like_cpp(mask)
-    }
-
-    pub(crate) fn represented_set_action_button_like_cpp(
-        &mut self,
-        index: u8,
-        packed_action: u32,
-    ) -> bool {
-        crate::session::hub_mut(self).represented_set_action_button_like_cpp(index, packed_action)
-    }
-
-    pub(crate) fn represented_action_buttons_snapshot_like_cpp(
-        &self,
-    ) -> Option<[u32; wow_packet::packets::misc::MAX_ACTION_BUTTONS]> {
-        crate::session::hub_ref(self).represented_action_buttons_snapshot_like_cpp()
     }
 }
 

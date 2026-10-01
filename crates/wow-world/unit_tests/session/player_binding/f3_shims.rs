@@ -25,4 +25,12 @@ impl crate::session::WorldSession {
     pub(in crate::session) fn resolved_player_scale_duration_like_cpp(&self) -> Option<i32> {
         crate::session::hub_ref(self).resolved_player_scale_duration_like_cpp()
     }
+    pub(in crate::session) fn player_world_local_state_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerWorldLocalState> {
+        crate::session::hub_ref(self).player_world_local_state_like_cpp()
+    }
+    pub(crate) fn set_player_create_mode_like_cpp(&mut self, create_mode: u8) -> bool {
+        crate::session::hub_mut(self).set_player_create_mode_like_cpp(create_mode)
+    }
 }

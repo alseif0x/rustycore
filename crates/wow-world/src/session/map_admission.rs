@@ -187,12 +187,14 @@ impl WorldSession {
         if let Some(access_requirement) = access_requirement {
             if !self.core.realm_policy.instance_ignore_level_like_cpp {
                 if access_requirement.level_min != 0
-                    && self.player_level_like_cpp() < access_requirement.level_min
+                    && crate::session::hub_ref(self).player_level_like_cpp()
+                        < access_requirement.level_min
                 {
                     level_min = access_requirement.level_min;
                 }
                 if access_requirement.level_max != 0
-                    && self.player_level_like_cpp() > access_requirement.level_max
+                    && crate::session::hub_ref(self).player_level_like_cpp()
+                        > access_requirement.level_max
                 {
                     level_max = access_requirement.level_max;
                 }
@@ -225,7 +227,7 @@ impl WorldSession {
             }
 
             let quests = self.player_quest_gameplay_snapshot_like_cpp()?;
-            match player_team_for_race_cpp(self.player_race_like_cpp()) {
+            match player_team_for_race_cpp(crate::session::hub_ref(self).player_race_like_cpp()) {
                 Team::Alliance
                     if access_requirement.quest_done_a != 0
                         && !quests

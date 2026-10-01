@@ -79,7 +79,8 @@ impl crate::session::WorldSession {
                 "RUST_CEMETERY_TRACE handler entry"
             );
         }
-        let Some((zone_id, area_id)) = self.player_zone_area_like_cpp() else {
+        let Some((zone_id, area_id)) = crate::session::hub_ref(self).player_zone_area_like_cpp()
+        else {
             return;
         };
         if std::env::var_os("RUSTYCORE_PACKET_SEQUENCE_TRACE").is_some() {
@@ -167,15 +168,19 @@ impl crate::session::WorldSession {
             warn!("Cemetery condition check failed closed: missing condition store");
             return false;
         };
-        let Some(player_object) = self.build_condition_player_object_like_cpp() else {
+        let Some(player_object) =
+            crate::session::hub_ref(self).build_condition_player_object_like_cpp()
+        else {
             warn!("Cemetery condition check failed closed: missing player object");
             return false;
         };
 
-        let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+        let Some(player_unit_snapshot) =
+            crate::session::hub_ref(self).condition_player_unit_snapshot_like_cpp()
+        else {
             return false;
         };
-        let player_snapshot = self.condition_player_snapshot_like_cpp();
+        let player_snapshot = crate::session::hub_ref(self).condition_player_snapshot_like_cpp();
         let needs_player_condition_context = conditions.iter().any(|condition| {
             condition.reference_id != 0
                 || condition.condition_type == ConditionType::PlayerCondition
@@ -237,7 +242,7 @@ impl crate::session::WorldSession {
             }
         };
 
-        if self.resolved_player_is_alive_like_cpp() != Some(false) {
+        if crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(false) {
             return;
         }
 
@@ -256,10 +261,13 @@ impl crate::session::WorldSession {
         // resurrected state. InstanceScript combat-res charges, aura original
         // caster, and SpawnCorpseBones remain represented gaps.
         self.teleport_to(request.map_id, request.position).await;
-        if self.pending_teleport_like_cpp().is_some() || self.near_teleport_pending_like_cpp() {
+        if self.pending_teleport_like_cpp().is_some()
+            || crate::session::hub_ref(self).near_teleport_pending_like_cpp()
+        {
             self.schedule_represented_resurrection_after_teleport_like_cpp(request);
         } else {
-            self.apply_represented_resurrection_health_like_cpp(request.health);
+            crate::session::hub_mut(self)
+                .apply_represented_resurrection_health_like_cpp(request.health);
         }
     }
 
@@ -278,8 +286,8 @@ impl crate::session::WorldSession {
             }
         };
 
-        if self.resolved_player_is_alive_like_cpp() != Some(false)
-            || self.player_has_ghost_flag_like_cpp()
+        if crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(false)
+            || crate::session::hub_ref(self).player_has_ghost_flag_like_cpp()
         {
             return;
         }
@@ -310,8 +318,8 @@ impl crate::session::WorldSession {
             return false;
         }
 
-        if self.resolved_player_is_alive_like_cpp() != Some(false)
-            || !self.player_has_ghost_flag_like_cpp()
+        if crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(false)
+            || !crate::session::hub_ref(self).player_has_ghost_flag_like_cpp()
         {
             return true;
         }
@@ -345,11 +353,11 @@ impl crate::session::WorldSession {
             }
         };
 
-        if self.resolved_player_is_alive_like_cpp() != Some(false) {
+        if crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(false) {
             return;
         }
 
-        if !self.player_has_ghost_flag_like_cpp() {
+        if !crate::session::hub_ref(self).player_has_ghost_flag_like_cpp() {
             return;
         }
 
@@ -358,11 +366,13 @@ impl crate::session::WorldSession {
         // full player-corpse runtime; this represented slice only clears the
         // ghost/dead state when the already-known C++ gates pass.
         self.set_player_ghost_flag_like_cpp(false);
-        let restore_percent = if self.player_in_represented_battleground_like_cpp() {
-            1.0
-        } else {
-            0.5
-        };
-        self.apply_represented_resurrection_percent_like_cpp(restore_percent);
+        let restore_percent =
+            if crate::session::hub_ref(self).player_in_represented_battleground_like_cpp() {
+                1.0
+            } else {
+                0.5
+            };
+        crate::session::hub_mut(self)
+            .apply_represented_resurrection_percent_like_cpp(restore_percent);
     }
 }

@@ -327,7 +327,9 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return Vec::new();
         };
-        let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+        let Some(visible_auras) =
+            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
+        else {
             return Vec::new();
         };
         let mut applied = Vec::new();

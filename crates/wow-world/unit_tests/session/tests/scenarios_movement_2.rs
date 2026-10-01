@@ -144,7 +144,7 @@ fn represented_swim_speed_increase_updates_move_swim_like_cpp() {
             30_000,
         )
         .unwrap();
-    session.recompute_represented_swim_speed_rate_like_cpp();
+    crate::session::hub_mut(&mut session).recompute_represented_swim_speed_rate_like_cpp();
 
     assert!(
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Swim) - 7.083333).abs()
@@ -178,7 +178,7 @@ fn represented_swim_speed_removal_recomputes_like_cpp() {
             30_000,
         )
         .unwrap();
-    session.recompute_represented_swim_speed_rate_like_cpp();
+    crate::session::hub_mut(&mut session).recompute_represented_swim_speed_rate_like_cpp();
     assert!(
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Swim) - 7.083333).abs()
             < 0.0001
@@ -256,7 +256,7 @@ fn represented_forward_speed_slow_applies_to_swim_and_flight_like_cpp() {
             30_000,
         )
         .unwrap();
-    session.recompute_represented_forward_speed_rates_like_cpp();
+    crate::session::hub_mut(&mut session).recompute_represented_forward_speed_rates_like_cpp();
 
     assert!(
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Swim) - 7.083333).abs()
@@ -341,7 +341,7 @@ fn represented_forward_speed_cap_and_minimum_floor_apply_to_swim_and_flight_like
             30_000,
         )
         .unwrap();
-    session.recompute_represented_forward_speed_rates_like_cpp();
+    crate::session::hub_mut(&mut session).recompute_represented_forward_speed_rates_like_cpp();
 
     assert!(
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Swim) - 3.7777777).abs()
@@ -375,7 +375,7 @@ fn represented_backward_speed_slow_updates_all_backward_move_types_like_cpp() {
             30_000,
         )
         .unwrap();
-    session.recompute_represented_backward_speed_rates_like_cpp();
+    crate::session::hub_mut(&mut session).recompute_represented_backward_speed_rates_like_cpp();
 
     assert!(
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::RunBack) - 2.25).abs()
@@ -419,7 +419,7 @@ fn represented_backward_speed_slow_removal_restores_base_speeds_like_cpp() {
             30_000,
         )
         .unwrap();
-    session.recompute_represented_backward_speed_rates_like_cpp();
+    crate::session::hub_mut(&mut session).recompute_represented_backward_speed_rates_like_cpp();
     let _ = drain_server_opcodes(&send_rx);
     let slow_slot = session
         .fixtures
@@ -505,7 +505,7 @@ fn represented_normal_run_speed_uses_cpp_stack_and_not_stack_order_like_cpp() {
             30_000,
         )
         .unwrap();
-    session.recompute_represented_run_speed_rate_like_cpp();
+    crate::session::hub_mut(&mut session).recompute_represented_run_speed_rate_like_cpp();
 
     assert!(
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 17.64).abs() < 0.0001,
@@ -541,7 +541,7 @@ fn represented_dismount_restores_active_normal_run_speed_like_cpp() {
             30_000,
         )
         .unwrap();
-    session.recompute_represented_run_speed_rate_like_cpp();
+    crate::session::hub_mut(&mut session).recompute_represented_run_speed_rate_like_cpp();
     assert!(
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 10.5).abs() < 0.0001
     );
@@ -667,7 +667,7 @@ fn represented_run_speed_applies_cpp_strongest_slow_after_positive_bonus_like_cp
             30_000,
         )
         .unwrap();
-    session.recompute_represented_run_speed_rate_like_cpp();
+    crate::session::hub_mut(&mut session).recompute_represented_run_speed_rate_like_cpp();
 
     assert!(
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 8.4).abs() < 0.0001,
@@ -715,7 +715,7 @@ fn represented_run_speed_slow_removal_recomputes_like_cpp() {
             30_000,
         )
         .unwrap();
-    session.recompute_represented_run_speed_rate_like_cpp();
+    crate::session::hub_mut(&mut session).recompute_represented_run_speed_rate_like_cpp();
     assert!(
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 7.0).abs() < 0.0001
     );
@@ -775,7 +775,7 @@ fn represented_run_speed_use_normal_movement_speed_caps_before_slow_like_cpp() {
             30_000,
         )
         .unwrap();
-    session.recompute_represented_run_speed_rate_like_cpp();
+    crate::session::hub_mut(&mut session).recompute_represented_run_speed_rate_like_cpp();
 
     assert!(
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 10.0).abs() < 0.0001,
@@ -824,7 +824,7 @@ fn represented_run_speed_use_normal_movement_speed_removal_recomputes_like_cpp()
             30_000,
         )
         .unwrap();
-    session.recompute_represented_run_speed_rate_like_cpp();
+    crate::session::hub_mut(&mut session).recompute_represented_run_speed_rate_like_cpp();
     assert!(
         (session.player_movement_speed_like_cpp(UnitMoveTypeLikeCpp::Run) - 10.0).abs() < 0.0001
     );

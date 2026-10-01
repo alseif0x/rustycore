@@ -10,40 +10,7 @@ use wow_data::trait_tree::{
 use wow_entities::{PlayerTraitConfigDetails, PlayerTraitEntry};
 use wow_packet::packets::update::{TraitConfigCreateData, TraitEntryCreateData};
 
-impl WorldSession {
-    pub(crate) fn normalize_trait_configs_like_cpp(
-        &self,
-        configs: &[TraitConfigCreateData],
-    ) -> Option<Vec<TraitConfigCreateData>> {
-        crate::session::hub_ref(self).normalize_trait_configs_like_cpp(configs)
-    }
-
-    pub(crate) fn trait_authority_complete_like_cpp(
-        &self,
-        configs: &[TraitConfigCreateData],
-        node_entries: &TraitNodeEntryStore,
-        player_guid: ObjectGuid,
-    ) -> bool {
-        crate::session::hub_ref(self).trait_authority_complete_like_cpp(
-            configs,
-            node_entries,
-            player_guid,
-        )
-    }
-
-    pub(crate) fn retain_loaded_trait_configs_like_cpp(
-        &mut self,
-        configs: &[TraitConfigCreateData],
-    ) -> bool {
-        crate::session::hub_mut(self).retain_loaded_trait_configs_like_cpp(configs)
-    }
-
-    pub(crate) fn owned_trait_configs_for_create_like_cpp(
-        &self,
-    ) -> Option<Vec<TraitConfigCreateData>> {
-        crate::session::hub_ref(self).owned_trait_configs_for_create_like_cpp()
-    }
-}
+impl WorldSession {}
 
 impl crate::session::HubMut<'_> {
     pub(crate) fn retain_loaded_trait_configs_like_cpp(
@@ -460,8 +427,20 @@ mod tests {
         };
         let player = ObjectGuid::create_player(1, 1);
         let nodes = wow_data::trait_tree::TraitNodeEntryStore::from_entries([]);
-        assert!(session.trait_authority_complete_like_cpp(&[config(7)], &nodes, player));
-        assert!(!session.trait_authority_complete_like_cpp(&[config(8)], &nodes, player));
+        assert!(
+            crate::session::hub_ref(&session).trait_authority_complete_like_cpp(
+                &[config(7)],
+                &nodes,
+                player
+            )
+        );
+        assert!(
+            !crate::session::hub_ref(&session).trait_authority_complete_like_cpp(
+                &[config(8)],
+                &nodes,
+                player
+            )
+        );
     }
 
     #[test]
@@ -527,8 +506,20 @@ mod tests {
         };
         let player = ObjectGuid::create_player(1, 1);
         let nodes = wow_data::trait_tree::TraitNodeEntryStore::from_entries([]);
-        assert!(session.trait_authority_complete_like_cpp(&[config(42)], &nodes, player));
-        assert!(!session.trait_authority_complete_like_cpp(&[config(43)], &nodes, player));
+        assert!(
+            crate::session::hub_ref(&session).trait_authority_complete_like_cpp(
+                &[config(42)],
+                &nodes,
+                player
+            )
+        );
+        assert!(
+            !crate::session::hub_ref(&session).trait_authority_complete_like_cpp(
+                &[config(43)],
+                &nodes,
+                player
+            )
+        );
     }
 
     #[test]
@@ -571,10 +562,22 @@ mod tests {
             }],
         };
         let player = ObjectGuid::create_player(1, 1);
-        assert!(session.trait_authority_complete_like_cpp(&[config.clone()], &nodes, player));
+        assert!(
+            crate::session::hub_ref(&session).trait_authority_complete_like_cpp(
+                &[config.clone()],
+                &nodes,
+                player
+            )
+        );
 
         config.entries[0].rank = 3;
-        assert!(!session.trait_authority_complete_like_cpp(&[config], &nodes, player));
+        assert!(
+            !crate::session::hub_ref(&session).trait_authority_complete_like_cpp(
+                &[config],
+                &nodes,
+                player
+            )
+        );
     }
 
     #[test]
@@ -672,7 +675,23 @@ mod tests {
             }],
         };
         let player = ObjectGuid::create_player(1, 1);
-        assert!(session.trait_authority_complete_like_cpp(&[config(100)], &node_entries, player));
-        assert!(!session.trait_authority_complete_like_cpp(&[config(101)], &node_entries, player));
+        assert!(
+            crate::session::hub_ref(&session).trait_authority_complete_like_cpp(
+                &[config(100)],
+                &node_entries,
+                player
+            )
+        );
+        assert!(
+            !crate::session::hub_ref(&session).trait_authority_complete_like_cpp(
+                &[config(101)],
+                &node_entries,
+                player
+            )
+        );
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/trait_configs/f3_shims.rs"]
+mod f3_shims;

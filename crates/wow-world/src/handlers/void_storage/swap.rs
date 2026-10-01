@@ -10,7 +10,7 @@ impl WorldSession {
         let Ok(swap) = SwapVoidItem::read(&mut pkt) else {
             return;
         };
-        if self
+        if crate::session::hub_ref(self)
             .represented_npc_can_interact_with_like_cpp(swap.npc, NPCFlags1::VAULT_KEEPER.bits(), 0)
             .is_none()
             || !self.void_storage_is_unlocked_like_cpp()

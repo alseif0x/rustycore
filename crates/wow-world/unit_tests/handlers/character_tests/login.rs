@@ -857,7 +857,10 @@ fn rejected_instance_login_retries_valid_homebind_before_disconnect_like_cpp() {
 
         assert_eq!(map_id, 1);
         assert_eq!(zone_id, 12);
-        assert_eq!(session.player_zone_area_like_cpp(), Some((12, 12)));
+        assert_eq!(
+            crate::session::hub_ref(&session).player_zone_area_like_cpp(),
+            Some((12, 12))
+        );
         assert_eq!(position, homebind_position);
         assert_eq!(
             session.current_canonical_player_map_key_like_cpp(),
@@ -975,7 +978,10 @@ fn garrison_login_rejects_unsupported_expansion_and_retries_homebind_like_cpp() 
         ));
         assert_eq!(map_id, 1);
         assert_eq!(zone_id, 12);
-        assert_eq!(session.player_zone_area_like_cpp(), Some((12, 12)));
+        assert_eq!(
+            crate::session::hub_ref(&session).player_zone_area_like_cpp(),
+            Some((12, 12))
+        );
         assert_eq!(position, homebind_position);
         assert_eq!(
             session.current_canonical_player_map_key_like_cpp(),

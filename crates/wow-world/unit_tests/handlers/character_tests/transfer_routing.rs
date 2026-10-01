@@ -66,7 +66,7 @@ async fn pending_worldport_uses_separate_cpp_connections() {
         16
     );
     assert!(instance.is_empty());
-    assert!(session.represented_far_teleport_pending_like_cpp());
+    assert!(crate::session::hub_ref(&session).represented_far_teleport_pending_like_cpp());
     drop(realm);
     session
         .handle_suspend_token_response(wow_packet::WorldPacket::new_empty())

@@ -123,7 +123,7 @@ fn player_save_transaction_plan_orders_represented_statements_like_cpp() {
     };
     session.set_player_guid(Some(guid));
     session.set_player_level_like_cpp(70);
-    session.set_player_xp_like_cpp(12_345);
+    crate::session::hub_mut(&mut session).set_player_xp_like_cpp(12_345);
     session.set_player_gold_like_cpp(67_890);
     session.set_loaded_player_powers_like_cpp([321, 0, 0, 0, 0, 0, 0, 0, 0, 0]);
     assert!(session.set_complete_player_skill_records_like_cpp(
@@ -431,7 +431,11 @@ fn player_save_requires_complete_skill_authority_before_delete_all_like_cpp() {
     };
     session.set_player_skill_records_like_cpp(HashMap::from([(skill.skill_id, skill)]));
     assert!(session.player_skill_records_loaded_like_cpp());
-    assert!(session.complete_player_skill_records_like_cpp().is_none());
+    assert!(
+        crate::session::hub_ref(&session)
+            .complete_player_skill_records_like_cpp()
+            .is_none()
+    );
 
     let partial_request = session
         .current_player_character_save_request_like_cpp(&snapshot, 1_000)
@@ -459,14 +463,14 @@ fn player_save_requires_complete_skill_authority_before_delete_all_like_cpp() {
 #[test]
 fn loaded_xp_is_clamped_below_next_level_threshold_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.set_player_next_level_xp_like_cpp(1_000);
-    session.set_player_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_xp_like_cpp(1_000);
 
     session.clamp_loaded_player_xp_to_next_level_like_cpp();
 
     assert_eq!(session.player_xp_like_cpp(), 999);
 
-    session.set_player_xp_like_cpp(998);
+    crate::session::hub_mut(&mut session).set_player_xp_like_cpp(998);
     session.clamp_loaded_player_xp_to_next_level_like_cpp();
     assert_eq!(session.player_xp_like_cpp(), 998);
 }
@@ -502,7 +506,7 @@ fn load_rested_xp_preserves_saved_bonus_and_state_before_offline_accrual_like_cp
 fn load_rested_xp_repairs_legacy_rust_zero_state_without_clamping_bonus() {
     let (mut session, _, _) = make_session();
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
 
     session.load_represented_xp_rest_bonus_like_cpp(0, 123.5);
 
@@ -783,7 +787,7 @@ fn load_rest_state_clears_stale_rest_flags_between_characters_like_cpp() {
 fn saved_raf_linked_rest_state_is_preserved_until_bonus_is_normalized_like_cpp() {
     let (mut session, _, _) = make_session();
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
 
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RAF_LINKED_LIKE_CPP, 0.0);
 
@@ -859,9 +863,9 @@ fn represented_resurrection_health_syncs_canonical_before_save_like_cpp() {
         0,
     );
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
-    let _ = session.sync_canonical_player_health_like_cpp(0, 120);
+    let _ = crate::session::hub_mut(&mut session).sync_canonical_player_health_like_cpp(0, 120);
 
-    session.apply_represented_resurrection_health_like_cpp(42);
+    crate::session::hub_mut(&mut session).apply_represented_resurrection_health_like_cpp(42);
     let snapshot = session
         .current_player_save_to_db_snapshot_like_cpp()
         .expect("save snapshot");

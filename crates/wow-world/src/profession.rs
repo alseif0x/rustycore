@@ -351,7 +351,9 @@ impl WorldSession {
         if !skills_loaded {
             return Err(PrimaryProfessionCapacityPlanErrorLikeCpp::MissingPlayerSkillSnapshot);
         }
-        let Some(skill_records) = self.resolved_player_skill_records_like_cpp() else {
+        let Some(skill_records) =
+            crate::session::hub_ref(self).resolved_player_skill_records_like_cpp()
+        else {
             return Err(PrimaryProfessionCapacityPlanErrorLikeCpp::MissingPlayerSkillSnapshot);
         };
         let current_skills =

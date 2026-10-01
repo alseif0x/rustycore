@@ -28,15 +28,13 @@ impl WorldSession {
             hello.unit, self.core.account_id
         );
         if !self.core.player_is_strictly_in_world_like_cpp()
-            || self.resolved_player_is_alive_like_cpp() != Some(true)
+            || crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true)
         {
             return;
         }
-        let Some(_innkeeper) = self.represented_npc_can_interact_with_like_cpp(
-            hello.unit,
-            NPCFlags1::INNKEEPER.bits(),
-            0,
-        ) else {
+        let Some(_innkeeper) = crate::session::hub_ref(self)
+            .represented_npc_can_interact_with_like_cpp(hello.unit, NPCFlags1::INNKEEPER.bits(), 0)
+        else {
             debug!(
                 innkeeper_guid = ?hello.unit,
                 account = self.core.account_id,
@@ -174,12 +172,12 @@ impl WorldSession {
         // `GetNPCIfCanInteractWith(..., UNIT_NPC_FLAG_GOSSIP, ...)` before
         // preparing DB-backed gossip, including quest text synthesized from a
         // gossip menu with no options.
-        let gossip_access =
-            self.represented_npc_can_interact_with_like_cpp(hello.unit, GOSSIP_FLAG, 0);
+        let gossip_access = crate::session::hub_ref(self)
+            .represented_npc_can_interact_with_like_cpp(hello.unit, GOSSIP_FLAG, 0);
         let trainer_access = match gossip_access {
             Some(access) if access.npc_flags & TRAINER_NPC_FLAGS_MASK_LIKE_CPP != 0 => Some(access),
             Some(_) => None,
-            None => self.represented_npc_can_interact_with_like_cpp(
+            None => crate::session::hub_ref(self).represented_npc_can_interact_with_like_cpp(
                 hello.unit,
                 TRAINER_NPC_FLAGS_MASK_LIKE_CPP,
                 0,
@@ -244,7 +242,7 @@ impl WorldSession {
             && !npc_has_direct_interaction_like_cpp(resolved_npc_flags)
             && resolved_entry != 0
         {
-            if self
+            if crate::session::hub_ref(self)
                 .represented_npc_can_interact_with_like_cpp(
                     hello.unit,
                     NPCFlags1::QUEST_GIVER.bits(),
@@ -290,7 +288,9 @@ impl WorldSession {
             return true;
         };
 
-        let Some(player_object) = self.build_condition_player_object_like_cpp() else {
+        let Some(player_object) =
+            crate::session::hub_ref(self).build_condition_player_object_like_cpp()
+        else {
             warn!(
                 "Gossip condition check failed closed: missing player object for {:?}",
                 source_type
@@ -307,10 +307,12 @@ impl WorldSession {
             return false;
         };
 
-        let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+        let Some(player_unit_snapshot) =
+            crate::session::hub_ref(self).condition_player_unit_snapshot_like_cpp()
+        else {
             return false;
         };
-        let player_snapshot = self.condition_player_snapshot_like_cpp();
+        let player_snapshot = crate::session::hub_ref(self).condition_player_snapshot_like_cpp();
         let player_condition_store = self.player_condition_store().cloned();
         let Some(player_condition_context) = self.represented_player_condition_context_like_cpp()
         else {
@@ -646,7 +648,8 @@ impl WorldSession {
             } else {
                 NPCFlags1::GOSSIP.bits()
             };
-            self.represented_npc_can_interact_with_like_cpp(npc_guid, required_flags, 0)
+            crate::session::hub_ref(self)
+                .represented_npc_can_interact_with_like_cpp(npc_guid, required_flags, 0)
                 .is_some()
         } else if npc_guid.is_game_object() {
             self.represented_gameobject_gossip_can_interact_with_like_cpp(npc_guid)

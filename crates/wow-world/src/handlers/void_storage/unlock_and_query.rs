@@ -14,7 +14,7 @@ impl WorldSession {
         let Ok(unlock) = UnlockVoidStorage::read(&mut pkt) else {
             return;
         };
-        if self
+        if crate::session::hub_ref(self)
             .represented_npc_can_interact_with_like_cpp(
                 unlock.npc,
                 NPCFlags1::VAULT_KEEPER.bits(),
@@ -98,7 +98,7 @@ impl WorldSession {
         let Ok(query) = QueryVoidStorage::read(&mut pkt) else {
             return;
         };
-        if self
+        if crate::session::hub_ref(self)
             .represented_npc_can_interact_with_like_cpp(
                 query.npc,
                 (NPCFlags1::TRANSMOGRIFIER | NPCFlags1::VAULT_KEEPER).bits(),

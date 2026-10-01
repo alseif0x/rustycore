@@ -30,7 +30,9 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        if loot_id == 0 || self.resolved_player_is_alive_like_cpp() != Some(true) {
+        if loot_id == 0
+            || crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true)
+        {
             return;
         }
         if !crate::session::cx_loot_ref(self)

@@ -37,4 +37,9 @@ impl crate::session::WorldSession {
             .presentation
             .represented_movie_complete_events_like_cpp()
     }
+    pub(in crate::session) fn player_cinematic_state_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerCinematicStateLikeCpp> {
+        crate::session::hub_ref(self).player_cinematic_state_snapshot_like_cpp()
+    }
 }

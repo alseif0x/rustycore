@@ -348,16 +348,6 @@ impl WorldSession {
             }
         }
     }
-
-    pub(crate) fn resolved_represented_total_stat_multipliers_like_cpp(&self) -> Option<[f32; 5]> {
-        crate::session::hub_ref(self).resolved_represented_total_stat_multipliers_like_cpp()
-    }
-
-    pub(crate) fn resolved_represented_total_stat_buff_multipliers_like_cpp(
-        &self,
-    ) -> Option<[f32; 5]> {
-        crate::session::hub_ref(self).resolved_represented_total_stat_buff_multipliers_like_cpp()
-    }
 }
 
 impl crate::session::state::InventoryState {

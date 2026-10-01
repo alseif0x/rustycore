@@ -49,7 +49,8 @@ impl WorldSession {
         let store = self.catalogs.currency_types_store.as_ref()?;
         let currencies = self.player_currencies_like_cpp()?;
 
-        let player_team = player_team_for_race_cpp(self.player_race_like_cpp());
+        let player_team =
+            player_team_for_race_cpp(crate::session::hub_ref(self).player_race_like_cpp());
         let mut records = Vec::with_capacity(currencies.len());
         for (&currency_id, currency) in &currencies {
             let Some(entry) = store.get(currency_id).copied() else {
@@ -128,7 +129,10 @@ impl WorldSession {
         )
     }
     pub(crate) fn send_represented_cinematic_start_like_cpp(&mut self, cinematic_id: u32) {
-        if self.player_cinematic_state_snapshot_like_cpp().is_none() {
+        if crate::session::hub_ref(self)
+            .player_cinematic_state_snapshot_like_cpp()
+            .is_none()
+        {
             return;
         }
         self.send_packet(&wow_packet::packets::misc::TriggerCinematic {
@@ -142,7 +146,7 @@ impl WorldSession {
             .and_then(|store| store.get(cinematic_id))
         {
             let camera_ids = sequence.camera;
-            let _ = self.with_player_cinematic_state_like_cpp(|state| {
+            let _ = crate::session::hub_mut(self).with_player_cinematic_state_like_cpp(|state| {
                 state.begin_cinematic_like_cpp(cinematic_id, camera_ids);
             });
         }
@@ -151,17 +155,8 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.send_represented_resting_player_flag_update_like_cpp(hub)
     }
-    pub(crate) fn send_represented_rest_info_update_like_cpp(&self, nested_mask: u8) {
-        crate::session::hub_ref(self).send_represented_rest_info_update_like_cpp(nested_mask)
-    }
     pub fn send_tx(&self) -> &flume::Sender<Vec<u8>> {
         self.core.send_tx()
-    }
-    pub(in crate::session) fn send_represented_mount_unit_update_like_cpp(
-        &mut self,
-        display_id: i32,
-    ) {
-        crate::session::hub_mut(self).send_represented_mount_unit_update_like_cpp(display_id)
     }
     pub fn send_packet<P: wow_packet::ServerPacket>(&self, pkt: &P) -> bool {
         self.core.send_packet(pkt)

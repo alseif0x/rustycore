@@ -127,7 +127,7 @@ impl WorldSession {
                 // A validated attachment and the selected login map must be
                 // one snapshot. Fail closed instead of sending a player whose
                 // nested transport reference has no preceding CREATE block.
-                self.set_player_transport_info_like_cpp(None);
+                crate::session::hub_mut(self).set_player_transport_info_like_cpp(None);
             }
         }
         let Some(port) = self.lifecycle.player_lifecycle_port_like_cpp().cloned() else {
@@ -180,7 +180,7 @@ impl WorldSession {
             return plan;
         }
 
-        let player_transport_guid = self.player_transport_guid_like_cpp();
+        let player_transport_guid = crate::session::hub_ref(self).player_transport_guid_like_cpp();
 
         for transport in transports {
             let transport_guid =
@@ -436,7 +436,8 @@ impl WorldSession {
         );
         let attached_controller = self.ensure_login_player_controller_like_cpp(
             guid,
-            self.player_name_like_cpp()
+            crate::session::hub_ref(self)
+                .player_name_like_cpp()
                 .unwrap_or_else(|| format!("Player{}", guid.counter())),
             *position,
             map_id as u16,
@@ -448,7 +449,7 @@ impl WorldSession {
         if attached_controller {
             let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
         }
-        self.sync_canonical_player_health_like_cpp(
+        crate::session::hub_mut(self).sync_canonical_player_health_like_cpp(
             combat.health.max(0).min(u32::MAX as i64) as u32,
             combat.max_health.max(1).min(u32::MAX as i64) as u32,
         );
@@ -459,7 +460,7 @@ impl WorldSession {
         } else {
             0
         };
-        self.sync_canonical_player_primary_power_like_cpp(
+        crate::session::hub_mut(self).sync_canonical_player_primary_power_like_cpp(
             primary_power_type,
             current_power0,
             primary_max_power,
@@ -483,8 +484,8 @@ impl WorldSession {
         // equivalent, before C++ would build `Map::SendInitSelf`.
         self.loot.loot_table.clear();
         self.loot.set_active_loot_guid(ObjectGuid::EMPTY);
-        self.set_combat_target_like_cpp(None);
-        self.set_in_combat_like_cpp(false);
+        crate::session::hub_mut(self).set_combat_target_like_cpp(None);
+        crate::session::hub_mut(self).set_in_combat_like_cpp(false);
         info!(
             guid = ?guid,
             map_id,
@@ -507,16 +508,17 @@ impl WorldSession {
 
             let account_toys = self.account_toy_active_player_rows_like_cpp();
             let account_heirlooms = self.account_heirloom_active_player_rows_like_cpp();
-            let account_transmog = self.account_transmog_active_player_rows_like_cpp();
+            let account_transmog =
+                crate::session::hub_ref(self).account_transmog_active_player_rows_like_cpp();
             let trait_configs = self
                 .load_active_player_trait_configs_like_cpp(trait_node_entries, guid)
                 .await;
             let player_customizations = self.load_player_customizations_like_cpp(guid).await;
             self.set_loaded_player_customizations_like_cpp(player_customizations.clone());
             let (Some(player_xp), Some(player_next_level_xp), Some(scaling_level_delta)) = (
-                self.resolved_player_xp_like_cpp(),
-                self.resolved_player_next_level_xp_like_cpp(),
-                self.resolved_player_scaling_level_delta_like_cpp(),
+                crate::session::hub_ref(self).resolved_player_xp_like_cpp(),
+                crate::session::hub_ref(self).resolved_player_next_level_xp_like_cpp(),
+                crate::session::hub_ref(self).resolved_player_scaling_level_delta_like_cpp(),
             ) else {
                 return false;
             };
@@ -561,12 +563,13 @@ impl WorldSession {
             player_pkt.set_player_xp_like_cpp(player_xp.min(i32::MAX as u32) as i32);
             player_pkt
                 .set_player_next_level_xp_like_cpp(player_next_level_xp.min(i32::MAX as u32) as i32);
-            player_pkt
-                .set_player_max_level_like_cpp(self.player_active_max_level_like_cpp() as i32);
+            player_pkt.set_player_max_level_like_cpp(
+                crate::session::hub_ref(self).player_active_max_level_like_cpp() as i32,
+            );
             player_pkt.set_player_scaling_level_delta_like_cpp(scaling_level_delta);
             let (Some(rest_threshold), Some(rest_state)) = (
-                self.resolved_xp_rest_threshold_like_cpp(),
-                self.resolved_xp_rest_state_like_cpp(),
+                crate::session::hub_ref(self).resolved_xp_rest_threshold_like_cpp(),
+                crate::session::hub_ref(self).resolved_xp_rest_state_like_cpp(),
             ) else {
                 return false;
             };
@@ -594,7 +597,9 @@ impl WorldSession {
                 account_transmog,
                 trait_configs,
             );
-            let Some(action_buttons) = self.represented_action_buttons_snapshot_like_cpp() else {
+            let Some(action_buttons) =
+                crate::session::hub_ref(self).represented_action_buttons_snapshot_like_cpp()
+            else {
                 return false;
             };
             player_pkt.set_player_action_buttons_like_cpp(action_buttons);
@@ -602,7 +607,7 @@ impl WorldSession {
 
             if let (Some((transport_guid, _)), Some(transport_position)) = (
                 init_transports_plan.own_transport.as_ref(),
-                self.player_transport_position_like_cpp(),
+                crate::session::hub_ref(self).player_transport_position_like_cpp(),
             ) {
                 player_pkt.set_player_movement_transport_like_cpp(TransportInfo {
                     guid: *transport_guid,

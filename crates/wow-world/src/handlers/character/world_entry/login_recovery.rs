@@ -105,12 +105,14 @@ impl WorldSession {
             Ok((resolved_zone_id, resolved_area_id)) if resolved_area_id != 0 => {
                 *zone_id = i32::try_from(resolved_zone_id)
                     .expect("resolved login zone ID must fit the packet field");
-                self.set_player_zone_area_like_cpp(resolved_zone_id, resolved_area_id);
+                crate::session::hub_mut(self)
+                    .set_player_zone_area_like_cpp(resolved_zone_id, resolved_area_id);
             }
             Ok(_) => {
                 *zone_id = i32::try_from(fallback_zone_id)
                     .expect("fallback login zone ID must fit the packet field");
-                self.set_player_zone_area_like_cpp(fallback_zone_id, fallback_area_id);
+                crate::session::hub_mut(self)
+                    .set_player_zone_area_like_cpp(fallback_zone_id, fallback_area_id);
                 warn!(
                     map_id = location.map_id,
                     x = location.position.x,
@@ -123,7 +125,8 @@ impl WorldSession {
             Err(error) => {
                 *zone_id = i32::try_from(fallback_zone_id)
                     .expect("fallback login zone ID must fit the packet field");
-                self.set_player_zone_area_like_cpp(fallback_zone_id, fallback_area_id);
+                crate::session::hub_mut(self)
+                    .set_player_zone_area_like_cpp(fallback_zone_id, fallback_area_id);
                 warn!(
                     map_id = location.map_id,
                     x = location.position.x,
@@ -164,7 +167,8 @@ impl WorldSession {
         *map_id = i32::from(homebind_map_id);
         *position = homebind.position;
         self.seed_login_location_zone_area_like_cpp(zone_id, homebind);
-        self.set_player_map_position_like_cpp(homebind_map_id, homebind.position);
+        crate::session::hub_mut(self)
+            .set_player_map_position_like_cpp(homebind_map_id, homebind.position);
         let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
         self.core
             .current_canonical_player_map_key_like_cpp()

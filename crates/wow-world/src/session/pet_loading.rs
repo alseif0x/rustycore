@@ -117,12 +117,6 @@ pub(crate) struct CharacterPetDeclinedNamesRowLikeCpp {
 }
 
 impl WorldSession {
-    pub(in crate::session) fn represented_character_pet_aura_source_is_empty_like_cpp(
-        &self,
-    ) -> bool {
-        crate::session::hub_ref(self).represented_character_pet_aura_source_is_empty_like_cpp()
-    }
-
     #[allow(dead_code)]
     pub(crate) fn set_represented_pet_mode_state_with_spell_like_cpp(
         &mut self,
@@ -131,10 +125,11 @@ impl WorldSession {
         command_state: u8,
         created_by_spell: u32,
     ) {
-        if !self.set_player_pet_guid_like_cpp(pet_guid) {
+        if !crate::session::hub_mut(self).set_player_pet_guid_like_cpp(pet_guid) {
             return;
         }
-        self.invalidate_represented_character_pet_empty_authority_like_cpp();
+        crate::session::hub_mut(self)
+            .invalidate_represented_character_pet_empty_authority_like_cpp();
         let canonical = pet_guid.is_some_and(|pet_guid| {
             self.core
                 .with_canonical_pet_mut_like_cpp(pet_guid, |pet| {
@@ -159,10 +154,11 @@ impl WorldSession {
         #[cfg(not(test))]
         let _ = canonical;
         if pet_guid.is_none() {
-            let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
-                state.temporary_unsummoned_pet_number = 0;
-                state.old_pet_spell = 0;
-            });
+            let _ =
+                crate::session::hub_mut(self).update_player_pet_lifecycle_state_like_cpp(|state| {
+                    state.temporary_unsummoned_pet_number = 0;
+                    state.old_pet_spell = 0;
+                });
             #[cfg(test)]
             {
                 self.fixtures
@@ -171,7 +167,7 @@ impl WorldSession {
                     [1.0; UnitMoveTypeLikeCpp::COUNT];
             }
         }
-        let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
+        let _ = crate::session::hub_mut(self).update_player_pet_lifecycle_state_like_cpp(|state| {
             state.temporary_mount_react_state = None;
         });
     }

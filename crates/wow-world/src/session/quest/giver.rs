@@ -289,11 +289,13 @@ impl WorldSession {
         };
 
         let menu_item = if source_guid.is_any_type_creature() {
-            let Some(access) = self.represented_npc_can_interact_with_like_cpp(
-                source_guid,
-                NPCFlags1::QUEST_GIVER.bits(),
-                0,
-            ) else {
+            let Some(access) = crate::session::hub_ref(self)
+                .represented_npc_can_interact_with_like_cpp(
+                    source_guid,
+                    NPCFlags1::QUEST_GIVER.bits(),
+                    0,
+                )
+            else {
                 debug!(
                     account = self.core.account_id,
                     ?source_guid,

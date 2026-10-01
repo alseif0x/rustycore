@@ -17,8 +17,8 @@ pub(in crate::session::tests) fn configure_player_shape_mount_collision_stores_l
     session: &mut WorldSession,
 ) {
     let native_display_id = crate::handlers::character::default_display_id(
-        session.player_race_like_cpp(),
-        session.player_gender_like_cpp(),
+        crate::session::hub_ref(&session).player_race_like_cpp(),
+        crate::session::hub_ref(&session).player_gender_like_cpp(),
     );
     session.set_creature_template_mount_store(Arc::new(
         wow_data::CreatureTemplateMountStoreLikeCpp::from_entries([

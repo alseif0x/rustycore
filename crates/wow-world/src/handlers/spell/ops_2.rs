@@ -195,8 +195,9 @@ impl WorldSession {
                 )
             }
             6 => Some(
-                player_team_for_race_cpp_representable(self.player_race_like_cpp())
-                    == condition.value1,
+                player_team_for_race_cpp_representable(
+                    crate::session::hub_ref(self).player_race_like_cpp(),
+                ) == condition.value1,
             ),
             8 => Some(
                 quests
@@ -216,20 +217,23 @@ impl WorldSession {
                         .contains(&condition.value1),
             ),
             15 => Some(
-                player_class_mask_like_cpp(self.player_class_like_cpp())
+                player_class_mask_like_cpp(crate::session::hub_ref(self).player_class_like_cpp())
                     .is_some_and(|mask| mask & condition.value1 != 0),
             ),
             16 => Some(
-                player_race_mask_like_cpp(self.player_race_like_cpp())
+                player_race_mask_like_cpp(crate::session::hub_ref(self).player_race_like_cpp())
                     .is_some_and(|mask| mask & condition.value1 != 0),
             ),
-            20 => Some(u32::from(self.player_gender_like_cpp()) == condition.value1),
+            20 => Some(
+                u32::from(crate::session::hub_ref(self).player_gender_like_cpp())
+                    == condition.value1,
+            ),
             25 => i32::try_from(condition.value1)
                 .ok()
                 .map(|spell_id| self.known_spells_like_cpp().contains(&spell_id)),
             27 => condition_compare_values_like_cpp(
                 condition.value2,
-                u32::from(self.player_level_like_cpp()),
+                u32::from(crate::session::hub_ref(self).player_level_like_cpp()),
                 condition.value1,
             ),
             28 => Some(
@@ -512,7 +516,9 @@ impl WorldSession {
             Ok(request) if pkt.is_empty() => request,
             _ => return false,
         };
-        if self.player_moved_unit_guid_like_cpp() != Some(request.target_guid) {
+        if crate::session::hub_ref(self).player_moved_unit_guid_like_cpp()
+            != Some(request.target_guid)
+        {
             return false;
         }
 
@@ -620,7 +626,8 @@ impl WorldSession {
             spell_id = request.spell_id,
             "CMSG_PET_CANCEL_AURA parsed"
         );
-        self.cancel_represented_pet_aura_like_cpp(request.pet_guid, request.spell_id);
+        crate::session::hub_mut(self)
+            .cancel_represented_pet_aura_like_cpp(request.pet_guid, request.spell_id);
     }
     /// Handle `CMSG_TOTEM_DESTROYED`.
     pub async fn handle_totem_destroyed(&mut self, mut pkt: wow_packet::WorldPacket) {
@@ -641,7 +648,8 @@ impl WorldSession {
             totem_guid = ?request.totem_guid,
             "CMSG_TOTEM_DESTROYED parsed"
         );
-        self.destroy_represented_totem_like_cpp(request.slot, request.totem_guid);
+        crate::session::hub_mut(self)
+            .destroy_represented_totem_like_cpp(request.slot, request.totem_guid);
     }
     pub(crate) fn is_spell_disabled_for_player_like_cpp(&self, spell_id: i32) -> bool {
         let Some(disable_mgr) = self.disable_mgr() else {
@@ -649,7 +657,7 @@ impl WorldSession {
         };
 
         let map_id = u32::from(self.core.player_map_id_like_cpp());
-        let Some((_, area_id)) = self.player_zone_area_like_cpp() else {
+        let Some((_, area_id)) = crate::session::hub_ref(self).player_zone_area_like_cpp() else {
             return true;
         };
         let map_instance_type = self

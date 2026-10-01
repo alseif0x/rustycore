@@ -91,8 +91,8 @@ async fn far_teleport_self_create_preserves_current_xp_like_cpp() {
         0,
     );
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
-    session.set_player_xp_like_cpp(1_234_567);
-    session.set_player_next_level_xp_like_cpp(2_345_678);
+    crate::session::hub_mut(&mut session).set_player_xp_like_cpp(1_234_567);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(2_345_678);
     assert_eq!(
         session
             .send_player_self_create_for_teleport_like_cpp(
@@ -252,7 +252,7 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
         .await;
 
     assert_eq!(session.pending_teleport_like_cpp(), None);
-    assert!(!session.represented_far_teleport_pending_like_cpp());
+    assert!(!crate::session::hub_ref(&session).represented_far_teleport_pending_like_cpp());
     assert_eq!(session.core.player_map_id_like_cpp(), 0);
     assert_eq!(session.player_position_like_cpp(), Some(destination));
     // This partial fixture lacks stat catalogs: attachment is not client readiness.
@@ -322,7 +322,10 @@ async fn world_port_response_clears_far_teleport_semaphore_like_cpp() {
             .any(|bytes| bytes == 1_234_567i64.to_le_bytes())
     );
     assert_eq!(
-        session.resolved_player_vitals_like_cpp().unwrap().0,
+        crate::session::hub_ref(&session)
+            .resolved_player_vitals_like_cpp()
+            .unwrap()
+            .0,
         1_234_567
     );
     assert!(
@@ -391,7 +394,7 @@ async fn world_port_response_recomputes_destination_rest_state_post_add_like_cpp
     );
     assert!(session.adopt_registered_canonical_player_fixture_like_cpp());
     assert!(session.complete_represented_trait_config_authority_load_like_cpp([], true));
-    session.set_player_zone_area_like_cpp(10, 10);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(10, 10);
     assert!(session.update_zone_represented_like_cpp(20, 20));
     assert!(
         session.represented_is_resting_like_cpp(),
@@ -407,7 +410,10 @@ async fn world_port_response_recomputes_destination_rest_state_post_add_like_cpp
         .handle_world_port_response(WorldPacket::new_empty())
         .await;
 
-    assert_eq!(session.player_zone_area_like_cpp(), Some((200, 300)));
+    assert_eq!(
+        crate::session::hub_ref(&session).player_zone_area_like_cpp(),
+        Some((200, 300))
+    );
     assert!(
         !session.represented_is_resting_like_cpp(),
         "C++ HandleMoveWorldportAck calls UpdateZone in SendInitialPacketsAfterAddToMap before later rest-state saves observe flags"
@@ -452,7 +458,10 @@ async fn world_port_response_recomputes_destination_rest_state_post_add_like_cpp
             drop(send_rx.take());
         }
         assert!(session.apply_post_add_zone_from_terrain_like_cpp(571, &destination));
-        assert_eq!(session.player_zone_area_like_cpp(), Some((200, 300)));
+        assert_eq!(
+            crate::session::hub_ref(&session).player_zone_area_like_cpp(),
+            Some((200, 300))
+        );
         assert!(!session.represented_is_resting_like_cpp());
         assert!(zone_authority_complete());
         assert!(session.take_deferred_rest_flag_update_dirty_like_cpp());
@@ -477,12 +486,18 @@ async fn world_port_response_recomputes_destination_rest_state_post_add_like_cpp
     )
     .expect("corrupt only this test's terrain fixture");
     assert!(session.apply_post_add_zone_from_terrain_like_cpp(571, &destination));
-    assert_eq!(session.player_zone_area_like_cpp(), Some((200, 300)));
+    assert_eq!(
+        crate::session::hub_ref(&session).player_zone_area_like_cpp(),
+        Some((200, 300))
+    );
     assert!(!zone_authority_complete());
 
     // Missing tiles instead use MapStore's fallback (zero here), not the I/O-error branch.
     assert!(session.apply_post_add_zone_from_terrain_like_cpp(9999, &destination));
-    assert_eq!(session.player_zone_area_like_cpp(), Some((0, 0)));
+    assert_eq!(
+        crate::session::hub_ref(&session).player_zone_area_like_cpp(),
+        Some((0, 0))
+    );
     assert!(!zone_authority_complete());
 }
 

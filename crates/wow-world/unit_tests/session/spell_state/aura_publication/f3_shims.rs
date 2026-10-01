@@ -12,4 +12,9 @@ impl crate::session::WorldSession {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.visible_aura_slot_for_spell_like_cpp(hub, spell_id)
     }
+    pub(crate) fn resolved_player_visible_auras_like_cpp(
+        &self,
+    ) -> Option<HashMap<u8, AuraApplication>> {
+        crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
+    }
 }

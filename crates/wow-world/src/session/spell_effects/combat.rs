@@ -11,11 +11,15 @@ impl WorldSession {
         target_guid: ObjectGuid,
     ) {
         if self.player_guid() == Some(target_guid) {
-            if self.resolved_combat_target_like_cpp().flatten().is_some() {
-                let _ = self.stop_player_attack_like_cpp();
+            if crate::session::hub_ref(self)
+                .resolved_combat_target_like_cpp()
+                .flatten()
+                .is_some()
+            {
+                let _ = crate::session::hub_mut(self).stop_player_attack_like_cpp();
             }
-            self.set_combat_target_like_cpp(None);
-            self.set_in_combat_like_cpp(false);
+            crate::session::hub_mut(self).set_combat_target_like_cpp(None);
+            crate::session::hub_mut(self).set_in_combat_like_cpp(false);
         }
 
         let pve_refs = {

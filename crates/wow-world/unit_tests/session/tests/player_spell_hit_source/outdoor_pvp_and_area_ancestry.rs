@@ -21,7 +21,7 @@ fn configure_outdoor_pvp_tf_authority_fixture_like_cpp(session: &mut WorldSessio
             flags: 0,
         },
     ])));
-    session.set_player_zone_area_like_cpp(3_519, 3_697);
+    crate::session::hub_mut(session).set_player_zone_area_like_cpp(3_519, 3_697);
     session.set_player_zone_area_authority_complete_like_cpp(true);
 }
 
@@ -40,7 +40,7 @@ fn player_spell_hit_source_authority_keeps_outdoor_pvp_tf_dungeon_ids_fail_close
     for zone_id in [3_791, 3_789, 3_792, 3_790] {
         let mut session = complete_empty_player_spell_hit_authority_fixture_like_cpp();
         configure_outdoor_pvp_tf_authority_fixture_like_cpp(&mut session);
-        session.set_player_zone_area_like_cpp(zone_id, 3_697);
+        crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(zone_id, 3_697);
         assert!(
             !session.can_authorize_empty_player_spell_hit_aura_source_like_cpp(),
             "OutdoorPvPTF dungeon zone {zone_id} must remain fail-closed without C++ (Map*, zone) registration authority"

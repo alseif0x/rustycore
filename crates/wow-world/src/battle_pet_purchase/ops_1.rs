@@ -65,8 +65,8 @@ impl WorldSession {
                 BattlePetPurchaseAdmissionFailureLikeCpp::JournalLocked,
             );
         }
-        let Some(selection) =
-            self.battle_pet_trainer_selection_like_cpp(battle_pet_selection_store, &species_entry)
+        let Some(selection) = crate::session::hub_ref(self)
+            .battle_pet_trainer_selection_like_cpp(battle_pet_selection_store, &species_entry)
         else {
             return BattlePetPurchaseExecutionLikeCpp::Unavailable(
                 BattlePetPurchaseAdmissionFailureLikeCpp::SelectionUnavailable,
@@ -620,13 +620,6 @@ impl WorldSession {
         let generators = self.id_generators_for_test_like_cpp();
         self.recover_battle_pet_trainer_purchases_with_generator_like_cpp(generators.item.as_ref())
             .await
-    }
-    pub(super) fn battle_pet_trainer_selection_like_cpp(
-        &self,
-        store: &wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp,
-        species_entry: &wow_data::BattlePetSpeciesEntry,
-    ) -> Option<BattlePetTrainerSelectionLikeCpp> {
-        crate::session::hub_ref(self).battle_pet_trainer_selection_like_cpp(store, species_entry)
     }
     /// Record a success publication after the packets were queued. A failed
     /// marker leaves the command selected for a recovery re-send. Enqueue

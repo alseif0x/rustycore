@@ -3,21 +3,13 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn apply_move_time_skipped_like_cpp(
-        &mut self,
-        mover_guid: ObjectGuid,
-        time_skipped: u32,
-    ) -> bool {
-        crate::session::hub_mut(self).apply_move_time_skipped_like_cpp(mover_guid, time_skipped)
-    }
-
     pub(crate) fn record_move_spline_done_like_cpp(
         &mut self,
         status: &mut wow_packet::packets::movement::MovementInfo,
         spline_id: i32,
     ) -> bool {
         let accepted = self.validate_and_sanitize_movement_ack_status_represented_like_cpp(status);
-        self.record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
+        crate::session::hub_mut(self).record_movement_ack_event_like_cpp(MovementAckEventLikeCpp {
             opcode: ClientOpcodes::MoveSplineDone,
             mover_guid: status.guid,
             ack_index: None,
@@ -48,7 +40,8 @@ impl WorldSession {
             );
         }
 
-        let Some(taxi_state) = self.player_taxi_state_snapshot_like_cpp() else {
+        let Some(taxi_state) = crate::session::hub_ref(self).player_taxi_state_snapshot_like_cpp()
+        else {
             return self.record_move_spline_done_taxi_event_like_cpp(
                 spline_id,
                 MoveSplineDoneTaxiActionLikeCpp::IgnoredUnexpectedFinalPath,
@@ -84,7 +77,7 @@ impl WorldSession {
             if should_teleport {
                 if let (Some(map_id), Some(node)) = (destination_map_id, flight.node_after_teleport)
                 {
-                    if self
+                    if crate::session::hub_mut(self)
                         .advance_player_taxi_flight_after_teleport_like_cpp()
                         .is_none()
                     {
@@ -97,7 +90,8 @@ impl WorldSession {
                             false,
                         );
                     }
-                    self.set_player_map_position_like_cpp(map_id, node.position);
+                    crate::session::hub_mut(self)
+                        .set_player_map_position_like_cpp(map_id, node.position);
                     return self.record_move_spline_done_taxi_event_like_cpp(
                         spline_id,
                         MoveSplineDoneTaxiActionLikeCpp::TeleportRequested,
@@ -130,7 +124,7 @@ impl WorldSession {
             );
         }
 
-        if !self.cleanup_player_after_taxi_flight_like_cpp() {
+        if !crate::session::hub_mut(self).cleanup_player_after_taxi_flight_like_cpp() {
             return self.record_move_spline_done_taxi_event_like_cpp(
                 spline_id,
                 MoveSplineDoneTaxiActionLikeCpp::IgnoredUnexpectedFinalPath,
@@ -140,12 +134,12 @@ impl WorldSession {
                 false,
             );
         }
-        let current_z = self
+        let current_z = crate::session::hub_ref(self)
             .player_position_like_cpp()
             .map(|position| position.z)
             .unwrap_or(status.position.z);
-        self.set_fall_information_like_cpp(0, current_z);
-        let honorless_target_cast = self
+        crate::session::hub_mut(self).set_fall_information_like_cpp(0, current_z);
+        let honorless_target_cast = crate::session::hub_ref(self)
             .player_world_local_state_like_cpp()
             .is_some_and(|state| state.is_pvp_hostile_like_cpp());
 
@@ -247,3 +241,7 @@ impl crate::session::HubMut<'_> {
         accepted
     }
 }
+
+#[cfg(test)]
+#[path = "../../../../unit_tests/session/movement/state/spline_progression/f3_shims.rs"]
+mod f3_shims;

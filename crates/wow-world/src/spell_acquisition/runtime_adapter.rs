@@ -112,7 +112,7 @@ impl PlayerSpellAcquisitionRuntimeLikeCpp for crate::session::WorldSession {
             })
             .collect::<HashMap<_, _>>();
 
-        let mut non_durable_skill_tombstone_ids = self
+        let mut non_durable_skill_tombstone_ids = crate::session::hub_ref(self)
             .resolved_player_skill_non_durable_tombstones_like_cpp()
             .ok_or(PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp::InvalidPreparedRuntime)?;
         // C++ `Player::SetSkill` reactivates a `SKILL_DELETED` entry as

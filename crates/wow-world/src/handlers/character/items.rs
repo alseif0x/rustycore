@@ -422,7 +422,7 @@ impl WorldSession {
                     .moved_destination
                     .is_none()
                     .then_some(plan.source.db_guid),
-                quest_statuses: self
+                quest_statuses: crate::session::hub_ref(self)
                     .represented_quest_status_persistence_rows_like_cpp(&planned_quest_statuses),
             },
         );

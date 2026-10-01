@@ -199,7 +199,7 @@ impl WorldSession {
         gameobject_entry: u32,
         source: wow_entities::MeetingStoneUseSource,
     ) -> bool {
-        let target_guid = self.selection_guid_like_cpp();
+        let target_guid = crate::session::hub_ref(self).selection_guid_like_cpp();
         if !target_guid.is_some_and(|target_guid| {
             target_guid != player_guid
                 && self.represented_player_is_same_raid_with_like_cpp(player_guid, target_guid)
@@ -225,7 +225,7 @@ impl WorldSession {
             .as_ref()
             .and_then(|store| store.get(source.content_tuning_id))
         {
-            let player_level = self.player_level_like_cpp();
+            let player_level = crate::session::hub_ref(self).player_level_like_cpp();
             let target_level = self
                 .core
                 .player_registry
@@ -323,7 +323,7 @@ impl WorldSession {
                 ) = {
                     let represented_area_fishing_level =
                         self.represented_fishing_base_skill_level_like_cpp(gameobject_guid);
-                    let represented_player_fishing_level = self
+                    let represented_player_fishing_level = crate::session::hub_ref(self)
                         .player_profession_skill_value_for_exp_like_cpp(SKILL_FISHING_LIKE_CPP, 0);
                     let state = self
                         .world_entities

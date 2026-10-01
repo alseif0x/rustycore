@@ -6,16 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn owned_player_mails_like_cpp(
-        &self,
-    ) -> Option<Vec<wow_entities::PlayerMailRecord>> {
-        crate::session::hub_ref(self).owned_player_mails_like_cpp()
-    }
-    pub(in crate::session) fn completed_achievement_ids_snapshot_like_cpp(
-        &self,
-    ) -> Option<HashSet<u32>> {
-        crate::session::hub_ref(self).completed_achievement_ids_snapshot_like_cpp()
-    }
     pub(crate) fn access_requirement_leader_has_achievement_like_cpp(
         &self,
         achievement_id: u32,
@@ -39,7 +29,7 @@ impl WorldSession {
             .map(|group| group.leader_guid)
             .unwrap_or(player_guid);
         if leader_guid == player_guid {
-            return self
+            return crate::session::hub_ref(self)
                 .completed_achievement_ids_snapshot_like_cpp()
                 .is_some_and(|achievements| achievements.contains(&achievement_id));
         }

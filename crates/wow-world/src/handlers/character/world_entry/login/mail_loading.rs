@@ -7,17 +7,7 @@
 
 use super::*;
 
-impl WorldSession {
-    pub(super) async fn load_character_mail_for_login_like_cpp(
-        &mut self,
-        player_lifecycle_port: &Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>,
-        guid: ObjectGuid,
-    ) -> bool {
-        crate::session::hub_mut(self)
-            .load_character_mail_for_login_like_cpp(player_lifecycle_port, guid)
-            .await
-    }
-}
+impl WorldSession {}
 
 impl crate::session::HubMut<'_> {
     /// Returns `false` after kicking when mail hydration fails; login aborts.

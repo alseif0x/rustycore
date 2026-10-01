@@ -90,44 +90,7 @@ pub(in crate::session) fn heirloom_bonus_for_flags_like_cpp(
     0
 }
 
-impl WorldSession {
-    pub(in crate::session) fn player_collection_state_snapshot_like_cpp(
-        &self,
-    ) -> Option<wow_entities::PlayerCollectionStateLikeCpp> {
-        crate::session::hub_ref(self).player_collection_state_snapshot_like_cpp()
-    }
-
-    pub(crate) fn add_player_heirloom_dynamic_fields_like_cpp(
-        &mut self,
-        item_id: u32,
-        flags: u32,
-    ) -> Option<wow_entities::PlayerValuesUpdate> {
-        crate::session::hub_mut(self).add_player_heirloom_dynamic_fields_like_cpp(item_id, flags)
-    }
-
-    pub(crate) fn add_player_toy_dynamic_field_like_cpp(
-        &mut self,
-        item_id: u32,
-    ) -> Option<wow_entities::PlayerValuesUpdate> {
-        crate::session::hub_mut(self).add_player_toy_dynamic_field_like_cpp(item_id)
-    }
-
-    pub(crate) fn toy_clear_fanfare_like_cpp(&mut self, item_id: u32) -> bool {
-        crate::session::hub_mut(self).toy_clear_fanfare_like_cpp(item_id)
-    }
-
-    pub(crate) fn toy_set_favorite_like_cpp(&mut self, item_id: u32, favorite: bool) -> bool {
-        crate::session::hub_mut(self).toy_set_favorite_like_cpp(item_id, favorite)
-    }
-
-    pub(crate) fn mount_set_favorite_like_cpp(
-        &mut self,
-        mount_spell_id: u32,
-        is_favorite: bool,
-    ) -> bool {
-        crate::session::hub_mut(self).mount_set_favorite_like_cpp(mount_spell_id, is_favorite)
-    }
-}
+impl WorldSession {}
 
 impl crate::session::state::SessionCatalogs {
     /// C++ `DB2Manager::IsToyItem`.

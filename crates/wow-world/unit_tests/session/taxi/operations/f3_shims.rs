@@ -80,4 +80,25 @@ impl crate::session::WorldSession {
     ) -> Option<Option<wow_entities::PlayerTransportState>> {
         crate::session::hub_ref(self).player_transport_state_like_cpp()
     }
+    pub(in crate::session) fn set_player_vehicle_seat_state_like_cpp(
+        &mut self,
+        flags: Option<i32>,
+        seat_id: Option<u32>,
+    ) -> bool {
+        crate::session::hub_mut(self).set_player_vehicle_seat_state_like_cpp(flags, seat_id)
+    }
+    pub(crate) fn set_player_transport_info_like_cpp(
+        &mut self,
+        info: Option<wow_packet::packets::movement::TransportInfo>,
+    ) {
+        crate::session::hub_mut(self).set_player_transport_info_like_cpp(info)
+    }
+    pub(crate) fn represented_current_vehicle_seat_can_switch_from_like_cpp(&self) -> bool {
+        crate::session::hub_ref(self).represented_current_vehicle_seat_can_switch_from_like_cpp()
+    }
+    pub(in crate::session) fn player_mount_vehicle_kit_snapshot_like_cpp(
+        &self,
+    ) -> Option<Option<Vehicle>> {
+        crate::session::hub_ref(self).player_mount_vehicle_kit_snapshot_like_cpp()
+    }
 }

@@ -31,4 +31,11 @@ impl crate::session::WorldSession {
             .pets
             .represented_battle_pet_data_updates_like_cpp()
     }
+    pub(crate) fn battle_pet_send_error_like_cpp(
+        &mut self,
+        error: wow_packet::packets::misc::BattlePetErrorCodeLikeCpp,
+        creature_id: u32,
+    ) {
+        crate::session::hub_mut(self).battle_pet_send_error_like_cpp(error, creature_id)
+    }
 }

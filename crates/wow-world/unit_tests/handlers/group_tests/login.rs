@@ -23,14 +23,14 @@ async fn session_combat_transition_updates_the_registry_member_view_like_cpp() {
     session.set_canonical_map_manager(Arc::clone(&canonical));
     session.set_player_registry(Arc::clone(&player_registry));
 
-    session.set_in_combat_like_cpp(true);
+    crate::session::hub_mut(&mut session).set_in_combat_like_cpp(true);
     assert!(
         player_registry
             .group_presence(guid)
             .expect("member")
             .in_combat
     );
-    session.set_in_combat_like_cpp(false);
+    crate::session::hub_mut(&mut session).set_in_combat_like_cpp(false);
     assert!(
         !player_registry
             .group_presence(guid)

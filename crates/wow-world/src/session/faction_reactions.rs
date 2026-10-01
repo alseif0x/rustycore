@@ -63,17 +63,6 @@ impl WorldSession {
     pub(crate) const fn reset_schedule_like_cpp(&self) -> wow_instances::ResetSchedule {
         self.config.reset_schedule_like_cpp()
     }
-
-    pub(crate) fn set_watched_faction_index_like_cpp(&mut self, index: i32) {
-        crate::session::hub_mut(self).set_watched_faction_index_like_cpp(index)
-    }
-
-    pub(crate) fn represented_get_reaction_to_like_cpp(
-        &self,
-        input: RepresentedGetReactionInputLikeCpp,
-    ) -> wow_data::reputation::ReputationRankLikeCpp {
-        crate::session::hub_ref(self).represented_get_reaction_to_like_cpp(input)
-    }
 }
 
 impl crate::session::HubMut<'_> {

@@ -112,12 +112,14 @@ impl WorldSession {
         let mutated_form = store
             .get(mutated_spell_id)
             .and_then(shapeshift_form_of_spell_like_cpp);
-        if self.player_has_visible_aura_spell_like_cpp(mutated_spell_id) == Some(true) {
+        if crate::session::hub_ref(self).player_has_visible_aura_spell_like_cpp(mutated_spell_id)
+            == Some(true)
+        {
             let form_id = mutated_form?;
             self.set_represented_shapeshift_form_like_cpp(form_id);
             return Some(RepresentedShapeshiftMutationLikeCpp::Applied { form_id });
         }
-        let remaining_form = self
+        let remaining_form = crate::session::hub_ref(self)
             .resolved_player_visible_auras_like_cpp()
             .unwrap_or_default()
             .into_values()
@@ -128,10 +130,6 @@ impl WorldSession {
             removed_form: mutated_form.unwrap_or(0),
             new_form,
         })
-    }
-
-    pub(crate) fn represented_shapeshift_combat_round_time_like_cpp(&self) -> Option<f32> {
-        crate::session::hub_ref(self).represented_shapeshift_combat_round_time_like_cpp()
     }
 
     pub(in crate::session) fn represented_attack_speed_multipliers_like_cpp(&self) -> [f32; 3] {
@@ -150,7 +148,7 @@ impl WorldSession {
         // attacker's auras on every swing; the represented model keeps the same
         // value on the canonical Player so the map-owned swing path can apply it
         // without the spell store. This session is its only writer.
-        let autoattack_damage_multiplier = self
+        let autoattack_damage_multiplier = crate::session::hub_ref(self)
             .represented_player_autoattack_damage_multiplier_like_cpp()
             .max(0.0);
         let _ = self.core.mutate_canonical_player_like_cpp(|player| {
@@ -178,13 +176,13 @@ impl WorldSession {
         }
 
         if mount_type_id != 0 {
-            let Some(riding_skill) =
-                self.resolved_player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)
+            let Some(riding_skill) = crate::session::hub_ref(self)
+                .resolved_player_skill_value_like_cpp(SKILL_RIDING_LIKE_CPP)
             else {
                 return effect.effect_base_points;
             };
             if let Some((is_submerged, is_in_water)) =
-                self.represented_player_mount_liquid_state_like_cpp()
+                crate::session::hub_ref(self).represented_player_mount_liquid_state_like_cpp()
                 && let Ok(capability) = self
                     .represented_mount_capability_selection_for_type_like_cpp(
                         mount_type_id,

@@ -10,9 +10,13 @@ use super::*;
 impl WorldSession {
     pub(crate) fn level_up_stat_deltas_like_cpp(&self, new_level: u8) -> Option<(i32, [i32; 5])> {
         let store = self.player_stats()?;
-        let race = self.player_race_like_cpp();
-        let class = self.player_class_like_cpp();
-        let old = store.get(race, class, self.player_level_like_cpp())?;
+        let race = crate::session::hub_ref(self).player_race_like_cpp();
+        let class = crate::session::hub_ref(self).player_class_like_cpp();
+        let old = store.get(
+            race,
+            class,
+            crate::session::hub_ref(self).player_level_like_cpp(),
+        )?;
         let new = store.get(race, class, new_level)?;
         let old_stats = old.primary_stats_like_cpp();
         let new_stats = new.primary_stats_like_cpp();

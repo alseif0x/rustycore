@@ -539,7 +539,7 @@ async fn binder_activate_fans_spell_go_to_visible_nearby_observers_like_cpp() {
     session.set_player_faction_template_like_cpp(1);
     let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 32);
     insert_banker_creature(&canonical, innkeeper, NPCFlags1::INNKEEPER.bits());
-    session.set_player_zone_area_like_cpp(12, 34);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(12, 34);
     install_bind_spell_fixture(&mut session);
 
     let registry = Arc::new(crate::session::directory::PlayerRegistry::default());

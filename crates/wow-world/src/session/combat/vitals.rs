@@ -6,38 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn sync_canonical_player_primary_power_like_cpp(
-        &mut self,
-        power_type: PowerType,
-        current: i32,
-        max: i32,
-        base_mana: i32,
-    ) -> bool {
-        crate::session::hub_mut(self)
-            .sync_canonical_player_primary_power_like_cpp(power_type, current, max, base_mana)
-    }
-    pub(crate) fn sync_canonical_player_primary_power_max_like_cpp(
-        &mut self,
-        power_type: PowerType,
-        max: i32,
-        base_mana: i32,
-    ) -> Option<(i32, i32)> {
-        crate::session::hub_mut(self)
-            .sync_canonical_player_primary_power_max_like_cpp(power_type, max, base_mana)
-    }
-    pub(crate) fn sync_canonical_player_max_health_like_cpp(
-        &mut self,
-        max_health: u32,
-    ) -> Option<(u32, u32)> {
-        crate::session::hub_mut(self).sync_canonical_player_max_health_like_cpp(max_health)
-    }
-    pub(crate) fn sync_canonical_player_health_like_cpp(
-        &mut self,
-        health: u32,
-        max_health: u32,
-    ) -> Option<(u32, u32)> {
-        crate::session::hub_mut(self).sync_canonical_player_health_like_cpp(health, max_health)
-    }
     pub(crate) fn canonical_player_health_snapshot_like_cpp(&self) -> Option<(u32, u32)> {
         self.core.canonical_player_snapshot_like_cpp(|player| {
             (
@@ -111,12 +79,16 @@ impl WorldSession {
         canonical
     }
     pub(crate) fn set_player_health_like_cpp(&mut self, health: u32, max_health: u32) {
-        let _ = self.sync_canonical_player_health_like_cpp(health, max_health);
+        let _ =
+            crate::session::hub_mut(self).sync_canonical_player_health_like_cpp(health, max_health);
         self.sync_player_registry_state_like_cpp();
     }
     #[cfg(test)]
     pub(crate) fn player_max_health_like_cpp(&self) -> u32 {
-        self.resolved_player_vitals_like_cpp().unwrap().1
+        crate::session::hub_ref(self)
+            .resolved_player_vitals_like_cpp()
+            .unwrap()
+            .1
     }
 }
 

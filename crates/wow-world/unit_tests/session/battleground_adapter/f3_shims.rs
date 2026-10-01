@@ -93,4 +93,7 @@ impl crate::session::WorldSession {
             .battleground
             .represented_wargame_invite_acceptances_like_cpp()
     }
+    pub(crate) fn represented_battleground_status_is_wait_leave_like_cpp(&self) -> bool {
+        crate::session::hub_ref(self).represented_battleground_status_is_wait_leave_like_cpp()
+    }
 }

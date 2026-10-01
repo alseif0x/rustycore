@@ -6,38 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::session) fn player_pet_guid_state_like_cpp(&self) -> Option<Option<ObjectGuid>> {
-        crate::session::hub_ref(self).player_pet_guid_state_like_cpp()
-    }
-    pub(in crate::session) fn set_player_pet_guid_like_cpp(
-        &mut self,
-        pet_guid: Option<ObjectGuid>,
-    ) -> bool {
-        crate::session::hub_mut(self).set_player_pet_guid_like_cpp(pet_guid)
-    }
-    pub(in crate::session) fn disable_pet_controls_on_mount_like_cpp(
-        &mut self,
-        react_state: u8,
-        command_state: u8,
-    ) {
-        crate::session::hub_mut(self)
-            .disable_pet_controls_on_mount_like_cpp(react_state, command_state)
-    }
-    pub(in crate::session) fn enable_pet_controls_on_dismount_like_cpp(&mut self) {
-        crate::session::hub_mut(self).enable_pet_controls_on_dismount_like_cpp()
-    }
-    pub(in crate::session) fn update_player_pet_lifecycle_state_like_cpp(
-        &mut self,
-        update: impl FnOnce(&mut PlayerPetLifecycleStateLikeCpp),
-    ) -> bool {
-        crate::session::hub_mut(self).update_player_pet_lifecycle_state_like_cpp(update)
-    }
-    pub(in crate::session) fn invalidate_represented_character_pet_empty_authority_like_cpp(
-        &mut self,
-    ) {
-        crate::session::hub_mut(self)
-            .invalidate_represented_character_pet_empty_authority_like_cpp()
-    }
     #[allow(dead_code)]
     pub(crate) fn set_represented_pet_mode_state_like_cpp(
         &mut self,
@@ -62,9 +30,10 @@ impl WorldSession {
             return false;
         }
 
-        self.invalidate_represented_character_pet_empty_authority_like_cpp();
+        crate::session::hub_mut(self)
+            .invalidate_represented_character_pet_empty_authority_like_cpp();
 
-        if !self.update_player_pet_lifecycle_state_like_cpp(|state| {
+        if !crate::session::hub_mut(self).update_player_pet_lifecycle_state_like_cpp(|state| {
             for pet in state.stable.active_pets.iter_mut().flatten() {
                 pet.specialization_id = 0;
             }
@@ -82,9 +51,6 @@ impl WorldSession {
             .spells
             .clear();
         true
-    }
-    pub(crate) fn remove_represented_pet_not_in_slot_like_cpp(&mut self) {
-        crate::session::hub_mut(self).remove_represented_pet_not_in_slot_like_cpp()
     }
     #[cfg(test)]
     pub(crate) fn represented_sign_petitions_like_cpp(&self) -> &[RepresentedSignPetitionLikeCpp] {
@@ -109,7 +75,9 @@ impl WorldSession {
     ) {
         let (Some(player_guid), Some(pet_guid)) = (
             self.player_guid(),
-            self.player_pet_guid_state_like_cpp().flatten(),
+            crate::session::hub_ref(self)
+                .player_pet_guid_state_like_cpp()
+                .flatten(),
         ) else {
             return;
         };

@@ -39,11 +39,11 @@ fn canonical_player_skills_follow_active_detached_and_stale_ownership_like_cpp()
 
     assert!(session.set_complete_player_skill_records_like_cpp(owned.clone(), 1));
     assert_eq!(
-        session.resolved_player_skill_records_like_cpp(),
+        crate::session::hub_ref(&session).resolved_player_skill_records_like_cpp(),
         Some(owned.clone())
     );
     assert_eq!(
-        session.complete_player_skill_occupied_slots_like_cpp(),
+        crate::session::hub_ref(&session).complete_player_skill_occupied_slots_like_cpp(),
         Some(1)
     );
     assert!(session.remove_current_player_from_canonical_current_map_like_cpp());
@@ -55,7 +55,7 @@ fn canonical_player_skills_follow_active_detached_and_stale_ownership_like_cpp()
         Some(wow_map::PlayerResidenceLikeCpp::Detached)
     );
     assert_eq!(
-        session.resolved_player_skill_records_like_cpp(),
+        crate::session::hub_ref(&session).resolved_player_skill_records_like_cpp(),
         Some(owned.clone())
     );
 
@@ -86,8 +86,14 @@ fn canonical_player_skills_follow_active_detached_and_stale_ownership_like_cpp()
         .install_detached_player_like_cpp(replacement)
         .expect("replacement owner");
 
-    assert_eq!(session.resolved_player_skill_records_like_cpp(), None);
-    assert_eq!(session.resolved_player_skill_value_like_cpp(333), None);
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_player_skill_records_like_cpp(),
+        None
+    );
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_player_skill_value_like_cpp(333),
+        None
+    );
     assert!(!session.set_complete_player_skill_records_like_cpp(owned, 1));
     assert_eq!(
         canonical

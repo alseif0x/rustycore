@@ -540,7 +540,7 @@ impl WorldSession {
         };
 
         let cost = 0;
-        self.record_represented_confirm_barbers_choice_like_cpp(
+        crate::session::hub_mut(self).record_represented_confirm_barbers_choice_like_cpp(
             RepresentedConfirmBarbersChoiceLikeCpp {
                 customizations: request.customizations,
                 cost,
@@ -596,11 +596,11 @@ impl WorldSession {
             return;
         }
 
-        if self.resolved_is_in_taxi_flight_like_cpp() != Some(false) {
+        if crate::session::hub_ref(self).resolved_is_in_taxi_flight_like_cpp() != Some(false) {
             return;
         }
 
-        let Some((_, area_id)) = self.player_zone_area_like_cpp() else {
+        let Some((_, area_id)) = crate::session::hub_ref(self).player_zone_area_like_cpp() else {
             return;
         };
         let Some(area_table_store) = self.catalogs.area_table_store() else {
@@ -620,7 +620,7 @@ impl WorldSession {
         // C++ first lets Battlefield own the leave flow when one exists. Rust
         // has no battlefield manager attached to WorldSession yet, so this
         // represented branch covers the AreaTable/homebind path only.
-        self.apply_represented_resurrection_percent_like_cpp(1.0);
+        crate::session::hub_mut(self).apply_represented_resurrection_percent_like_cpp(1.0);
         if let Some(homebind) = self.represented_homebind_like_cpp() {
             self.teleport_to(homebind.map_id, homebind.position).await;
         }

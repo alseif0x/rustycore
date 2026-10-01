@@ -110,21 +110,24 @@ impl WorldSession {
         spell_area: &SpellAreaLikeCpp,
     ) -> bool {
         if spell_area.gender != wow_data::GENDER_NONE_LIKE_CPP
-            && spell_area.gender != self.player_gender_like_cpp()
+            && spell_area.gender != crate::session::hub_ref(self).player_gender_like_cpp()
         {
             return false;
         }
 
         if spell_area.race_mask != 0 {
-            let race_mask =
-                wow_data::skill::race_mask_for_race_like_cpp(self.player_race_like_cpp());
+            let race_mask = wow_data::skill::race_mask_for_race_like_cpp(
+                crate::session::hub_ref(self).player_race_like_cpp(),
+            );
             if race_mask != 0 && spell_area.race_mask & race_mask as u64 == 0 {
                 return false;
             }
         }
 
         if spell_area.area_id != 0 {
-            let Some(world_local) = self.player_world_local_state_like_cpp() else {
+            let Some(world_local) =
+                crate::session::hub_ref(self).player_world_local_state_like_cpp()
+            else {
                 return false;
             };
             if !world_local.has_zone_area_authority_like_cpp() {
@@ -168,7 +171,8 @@ impl WorldSession {
             let Some(required_spell_id) = spell_area.aura_spell.checked_abs() else {
                 return true;
             };
-            let Some(has_aura) = self.player_has_visible_aura_spell_like_cpp(required_spell_id)
+            let Some(has_aura) = crate::session::hub_ref(self)
+                .player_has_visible_aura_spell_like_cpp(required_spell_id)
             else {
                 return false;
             };
@@ -209,14 +213,14 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return 0;
         };
-        let Some(create_mode) = self.player_create_mode_like_cpp() else {
+        let Some(create_mode) = crate::session::hub_ref(self).player_create_mode_like_cpp() else {
             return 0;
         };
         let spells = player_bootstrap
             .cast_spells
             .cast_spells_like_cpp(
-                self.player_race_like_cpp(),
-                self.player_class_like_cpp(),
+                crate::session::hub_ref(self).player_race_like_cpp(),
+                crate::session::hub_ref(self).player_class_like_cpp(),
                 create_mode,
             )
             .to_vec();
@@ -259,9 +263,6 @@ impl WorldSession {
         )
         .await
     }
-    pub(crate) fn broadcast_to_movement_set_like_cpp(&self, bytes: Vec<u8>, _include_self: bool) {
-        crate::session::hub_ref(self).broadcast_to_movement_set_like_cpp(bytes, _include_self)
-    }
     pub(crate) fn broadcast_to_movement_set_realm_like_cpp(
         &self,
         bytes: Vec<u8>,
@@ -269,9 +270,6 @@ impl WorldSession {
     ) {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.broadcast_to_movement_set_realm_like_cpp(hub, bytes, _include_self)
-    }
-    pub(crate) fn broadcast_to_movement_set_in_range_like_cpp(&self, bytes: Vec<u8>, range: f32) {
-        crate::session::hub_ref(self).broadcast_to_movement_set_in_range_like_cpp(bytes, range)
     }
     pub(in crate::session) fn represented_login_passive_spell_cast_gate_like_cpp(
         &self,

@@ -411,7 +411,7 @@ async fn represented_xp_reaches_the_port_for_every_classified_outcome_like_cpp()
         let victim = test_creature_guid(0x7500_0302);
         session.set_player_guid(Some(guid));
         session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-        session.set_player_next_level_xp_like_cpp(1_000);
+        crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
         session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 70.0);
         install_tapped_xp_victim_like_cpp(&mut session, victim);
 

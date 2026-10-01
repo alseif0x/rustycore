@@ -69,7 +69,7 @@ async fn far_transfer_writer_fence_retains_native_authority_on_cancel_and_failur
             }
             assert_eq!(session.core.player_handle_like_cpp, Some(handle));
             assert_eq!(session.pending_teleport_like_cpp(), Some((1, destination)));
-            assert!(session.represented_far_teleport_pending_like_cpp());
+            assert!(crate::session::hub_ref(&session).represented_far_teleport_pending_like_cpp());
             if outcome != "written" && outcome != "cancelled" {
                 assert_eq!(session.state(), SessionState::Disconnecting);
             }
@@ -360,7 +360,7 @@ async fn detached_return_keeps_incarnation_through_immediate_and_delayed_entry()
                 ServerOpcodes::SuspendToken,
             ]
         );
-        assert!(session.represented_far_teleport_pending_like_cpp());
+        assert!(crate::session::hub_ref(&session).represented_far_teleport_pending_like_cpp());
         assert!(
             !session
                 .player_teleport_state_snapshot_like_cpp()

@@ -495,25 +495,25 @@ fn battle_pet_summon_toggles_known_pet_and_ignores_unknown_like_cpp() {
 
     assert!(session.battle_pet_summon_toggle_like_cpp(pet_guid));
     assert_eq!(
-        session.represented_summoned_battle_pet_guid_like_cpp(),
+        crate::session::hub_ref(&session).represented_summoned_battle_pet_guid_like_cpp(),
         Some(pet_guid)
     );
 
     assert!(session.battle_pet_summon_toggle_like_cpp(other_guid));
     assert_eq!(
-        session.represented_summoned_battle_pet_guid_like_cpp(),
+        crate::session::hub_ref(&session).represented_summoned_battle_pet_guid_like_cpp(),
         Some(other_guid)
     );
 
     assert!(session.battle_pet_summon_toggle_like_cpp(other_guid));
     assert_eq!(
-        session.represented_summoned_battle_pet_guid_like_cpp(),
+        crate::session::hub_ref(&session).represented_summoned_battle_pet_guid_like_cpp(),
         None
     );
 
     assert!(!session.battle_pet_summon_toggle_like_cpp(unknown_guid));
     assert_eq!(
-        session.represented_summoned_battle_pet_guid_like_cpp(),
+        crate::session::hub_ref(&session).represented_summoned_battle_pet_guid_like_cpp(),
         None
     );
 }

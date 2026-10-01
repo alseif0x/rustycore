@@ -289,8 +289,14 @@ fn combat_tick_canonical_player_without_victim_does_not_use_stale_session_target
             .current_hp(),
         40
     );
-    assert_eq!(session.resolved_combat_target_like_cpp(), Some(None));
-    assert_eq!(session.resolved_in_combat_like_cpp(), Some(false));
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_combat_target_like_cpp(),
+        Some(None)
+    );
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_in_combat_like_cpp(),
+        Some(false)
+    );
 }
 
 #[test]

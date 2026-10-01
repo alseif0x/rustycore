@@ -80,7 +80,9 @@ impl WorldSession {
             return;
         };
         if let Some(store) = condition_store.as_ref() {
-            let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+            let Some(player_unit_snapshot) =
+                crate::session::hub_ref(self).condition_player_unit_snapshot_like_cpp()
+            else {
                 self.send_buy_error(
                     BuyResult::CantFindItem,
                     Some(buy.vendor_guid),
@@ -88,7 +90,8 @@ impl WorldSession {
                 );
                 return;
             };
-            let player_condition_object = self.build_condition_player_object_like_cpp();
+            let player_condition_object =
+                crate::session::hub_ref(self).build_condition_player_object_like_cpp();
             let vendor_condition_object =
                 self.build_condition_creature_object_like_cpp(buy.vendor_guid);
             let (vendor_object, vendor_unit_snapshot) = vendor_condition_object
@@ -102,7 +105,7 @@ impl WorldSession {
                 player_condition_object.as_ref(),
                 vendor_object,
                 player_unit_snapshot,
-                self.condition_player_snapshot_like_cpp(),
+                crate::session::hub_ref(self).condition_player_snapshot_like_cpp(),
                 vendor_unit_snapshot,
                 player_condition_store.as_deref(),
                 player_condition_context.as_context(self),
@@ -410,8 +413,8 @@ impl WorldSession {
             allowable_class,
             bonding,
             flags2,
-            self.player_class_like_cpp(),
-            self.player_race_like_cpp(),
+            crate::session::hub_ref(self).player_class_like_cpp(),
+            crate::session::hub_ref(self).player_race_like_cpp(),
             self.core.security > 0,
         ) {
             match block {

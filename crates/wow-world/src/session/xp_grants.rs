@@ -22,10 +22,14 @@ impl WorldSession {
         if xp == 0 {
             return false;
         }
-        let Some(player_is_alive) = self.resolved_player_is_alive_like_cpp() else {
+        let Some(player_is_alive) =
+            crate::session::hub_ref(self).resolved_player_is_alive_like_cpp()
+        else {
             return false;
         };
-        if !player_is_alive && !self.player_in_represented_battleground_like_cpp() {
+        if !player_is_alive
+            && !crate::session::hub_ref(self).player_in_represented_battleground_like_cpp()
+        {
             return false;
         }
         if self.represented_player_has_flag_like_cpp(PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP) {
@@ -43,7 +47,7 @@ impl WorldSession {
         // amount, and only then checks max level. Do not reapply the xp == 0
         // guard after dispatch: C++ continues when a hook changes the amount
         // to zero.
-        let old_level = self.player_level_like_cpp();
+        let old_level = crate::session::hub_ref(self).player_level_like_cpp();
         let script_context = wow_script::player::GivePlayerXpContextLikeCpp {
             player_guid: self.player_guid().unwrap_or(wow_core::ObjectGuid::EMPTY),
             victim_guid: victim,
@@ -56,15 +60,15 @@ impl WorldSession {
         }
         #[cfg(not(test))]
         let _ = wow_script::player::on_give_player_xp_like_cpp(script_context, &mut xp);
-        if self.player_is_max_level_like_cpp() {
+        if crate::session::hub_ref(self).player_is_max_level_like_cpp() {
             return false;
         } // max level
 
         // Resolve the generation-checked owner before consuming rest state or
         // publishing LogXPGain. A stale session must produce no side effect.
         let (Some(current_xp), Some(_next_level_xp)) = (
-            self.resolved_player_xp_like_cpp(),
-            self.resolved_player_next_level_xp_like_cpp(),
+            crate::session::hub_ref(self).resolved_player_xp_like_cpp(),
+            crate::session::hub_ref(self).resolved_player_next_level_xp_like_cpp(),
         ) else {
             return false;
         };
@@ -90,25 +94,29 @@ impl WorldSession {
             amount: xp.min(i32::MAX as u32) as i32,
             group_bonus: group_rate,
         });
-        if !self.set_player_xp_like_cpp(current_xp.saturating_add(total_xp)) {
+        if !crate::session::hub_mut(self)
+            .set_player_xp_like_cpp(current_xp.saturating_add(total_xp))
+        {
             return false;
         }
 
         // C++ `Player::GiveXP`: while (newXP >= nextLvlXP && !IsMaxLevel()).
         loop {
             let (Some(current_xp), Some(next_level_xp)) = (
-                self.resolved_player_xp_like_cpp(),
-                self.resolved_player_next_level_xp_like_cpp(),
+                crate::session::hub_ref(self).resolved_player_xp_like_cpp(),
+                crate::session::hub_ref(self).resolved_player_next_level_xp_like_cpp(),
             ) else {
                 return false;
             };
-            if current_xp < next_level_xp || self.player_is_max_level_like_cpp() {
+            if current_xp < next_level_xp
+                || crate::session::hub_ref(self).player_is_max_level_like_cpp()
+            {
                 break;
             }
-            if !self.set_player_xp_like_cpp(current_xp - next_level_xp) {
+            if !crate::session::hub_mut(self).set_player_xp_like_cpp(current_xp - next_level_xp) {
                 return false;
             }
-            let new_level = self.player_level_like_cpp() + 1;
+            let new_level = crate::session::hub_ref(self).player_level_like_cpp() + 1;
 
             info!(
                 account = self.core.account_id,
@@ -124,7 +132,9 @@ impl WorldSession {
             let mut power_delta = [0i32; 10];
             power_delta[0] = base_mana_delta;
 
-            let Some(next_level_xp) = self.resolved_player_xp_for_level_like_cpp(new_level) else {
+            let Some(next_level_xp) =
+                crate::session::hub_ref(self).resolved_player_xp_for_level_like_cpp(new_level)
+            else {
                 return false;
             };
 
@@ -139,36 +149,26 @@ impl WorldSession {
             });
 
             self.set_player_level_like_cpp(new_level);
-            self.set_player_next_level_xp_like_cpp(next_level_xp);
+            crate::session::hub_mut(self).set_player_next_level_xp_like_cpp(next_level_xp);
             self.send_level_up_stat_update_like_cpp();
         }
 
-        self.sync_represented_xp_level_to_canonical_and_client_like_cpp(
-            self.player_level_like_cpp() != old_level,
-            rest_info_mask,
-        );
+        {
+            let a0 = crate::session::hub_ref(self).player_level_like_cpp() != old_level;
+            crate::session::hub_mut(self)
+                .sync_represented_xp_level_to_canonical_and_client_like_cpp(a0, rest_info_mask)
+        };
 
         true
-    }
-
-    pub(in crate::session) fn sync_represented_xp_level_to_canonical_and_client_like_cpp(
-        &mut self,
-        level_changed: bool,
-        rest_info_mask: u8,
-    ) {
-        crate::session::hub_mut(self).sync_represented_xp_level_to_canonical_and_client_like_cpp(
-            level_changed,
-            rest_info_mask,
-        )
     }
 
     /// Give XP to the player, leveling up if threshold reached.
     /// C++ `Player::GiveXP(xp, victim, group_rate)`.
     pub(crate) async fn give_xp(&mut self, xp: u32, victim: wow_core::ObjectGuid, group_rate: f32) {
-        let old_level = self.player_level_like_cpp();
+        let old_level = crate::session::hub_ref(self).player_level_like_cpp();
         let (Some(old_rest_bonus), Some(old_rest_state)) = (
-            self.resolved_xp_rest_bonus_like_cpp(),
-            self.resolved_xp_rest_state_like_cpp(),
+            crate::session::hub_ref(self).resolved_xp_rest_bonus_like_cpp(),
+            crate::session::hub_ref(self).resolved_xp_rest_state_like_cpp(),
         ) else {
             return;
         };
@@ -185,8 +185,9 @@ impl WorldSession {
             return;
         };
         let Some(request) = self.resolved_current_player_xp_persistence_request_like_cpp(
-            self.player_level_like_cpp() != old_level,
-            self.represented_xp_rest_info_changed_since_like_cpp(old_rest_bonus, old_rest_state),
+            crate::session::hub_ref(self).player_level_like_cpp() != old_level,
+            crate::session::hub_ref(self)
+                .represented_xp_rest_info_changed_since_like_cpp(old_rest_bonus, old_rest_state),
             guid.counter() as u64,
         ) else {
             return;

@@ -489,10 +489,10 @@ pub(super) fn attach_stat_update_player_with_mana_and_health(
     // production does after Player::LoadFromDB.
     let identity = (
         session.core.player_map_id_like_cpp(),
-        session.player_race_like_cpp(),
-        session.player_class_like_cpp(),
-        session.player_level_like_cpp(),
-        session.player_gender_like_cpp(),
+        crate::session::hub_ref(&session).player_race_like_cpp(),
+        crate::session::hub_ref(&session).player_class_like_cpp(),
+        crate::session::hub_ref(&session).player_level_like_cpp(),
+        crate::session::hub_ref(&session).player_gender_like_cpp(),
     );
     let mut player = wow_entities::Player::new(Some(1), false);
     player

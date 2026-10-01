@@ -65,7 +65,7 @@ fn level_up_stat_update_refills_health_and_mana_like_cpp() {
 async fn opening_cinematic_requires_zero_xp_and_prefers_class_like_cpp() {
     let (mut session, send_rx) = make_session_with_send_capacity(4);
     session.set_loaded_player_identity_like_cpp(571, 1, 8, 1, 0);
-    session.set_player_xp_like_cpp(1);
+    crate::session::hub_mut(&mut session).set_player_xp_like_cpp(1);
     session.set_chr_classes_store(Arc::new(ChrClassesStore::from_entries([chr_class_entry(
         8, 111,
     )])));
@@ -78,7 +78,7 @@ async fn opening_cinematic_requires_zero_xp_and_prefers_class_like_cpp() {
         .await;
     assert!(send_rx.try_recv().is_err());
 
-    session.set_player_xp_like_cpp(0);
+    crate::session::hub_mut(&mut session).set_player_xp_like_cpp(0);
     session
         .handle_opening_cinematic(WorldPacket::new_empty())
         .await;

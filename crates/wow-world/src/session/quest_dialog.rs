@@ -469,9 +469,9 @@ impl WorldSession {
                     quest.min_level,
                     quest.max_level,
                     quest.is_available_for(
-                        self.player_race_like_cpp(),
-                        self.player_class_like_cpp(),
-                        self.player_level_like_cpp(),
+                        crate::session::hub_ref(self).player_race_like_cpp(),
+                        crate::session::hub_ref(self).player_class_like_cpp(),
+                        crate::session::hub_ref(self).player_level_like_cpp(),
                     ),
                     self.can_take_quest(quest),
                     quests
@@ -484,9 +484,9 @@ impl WorldSession {
             .collect::<Vec<_>>();
         info!(
             creature_entry,
-            race = self.player_race_like_cpp(),
-            class = self.player_class_like_cpp(),
-            level = self.player_level_like_cpp(),
+            race = crate::session::hub_ref(self).player_race_like_cpp(),
+            class = crate::session::hub_ref(self).player_class_like_cpp(),
+            level = crate::session::hub_ref(self).player_level_like_cpp(),
             ender_candidates = ?ender_candidates,
             starter_candidates = ?starter_candidates,
             menu_items = ?self.quest_state.represented_quest_menu_item_log_rows_like_cpp(&menu_items),

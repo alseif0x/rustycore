@@ -365,8 +365,11 @@ impl WorldSession {
                 continue;
             }
 
-            let quest_level_for_gain =
-                player_quest_level_like_cpp(quest, self.player_level_like_cpp()).max(0) as u32;
+            let quest_level_for_gain = player_quest_level_like_cpp(
+                quest,
+                crate::session::hub_ref(self).player_level_like_cpp(),
+            )
+            .max(0) as u32;
             let reputation_rates = self.reputation_rates_like_cpp();
             let Some(percent_before_reward_rate) = self
                 .reputation_gain_percent_before_reward_rate_like_cpp(
@@ -392,8 +395,8 @@ impl WorldSession {
                 percent_after_reward_rate_like_cpp,
                 reputation_reward_rate_lookup,
             ) = if reputation_reward_rate_store.is_some() {
-                if let Some(rate) =
-                    self.reputation_reward_rate_for_source_like_cpp(gain_source, faction_id)
+                if let Some(rate) = crate::session::hub_ref(self)
+                    .reputation_reward_rate_for_source_like_cpp(gain_source, faction_id)
                 {
                     if rate <= 0.0 {
                         continue;
@@ -433,7 +436,8 @@ impl WorldSession {
             let current_rank_for_cap = if quest.reward_faction_cap_in[slot] != 0
                 && reputation_after_recruit_a_friend_bonus_like_cpp > 0
             {
-                self.canonical_player_reputation_standing_like_cpp(faction_id)
+                crate::session::hub_ref(self)
+                    .canonical_player_reputation_standing_like_cpp(faction_id)
                     .map(reputation_rank_from_standing_like_cpp)
             } else {
                 None
@@ -457,28 +461,29 @@ impl WorldSession {
                         paragon_reward_quest_status_none_like_cpp: true,
                         renown_current_level_like_cpp: 0,
                         renown_currency_increased_cap_quantity_like_cpp: 0,
-                        player_race: self.player_race_like_cpp(),
-                        player_class: self.player_class_like_cpp(),
+                        player_race: crate::session::hub_ref(self).player_race_like_cpp(),
+                        player_class: crate::session::hub_ref(self).player_class_like_cpp(),
                     };
                     let db_spillover_template = reputation_spillover_template_store
                         .as_deref()
                         .and_then(|store| store.get(faction_id));
-                    let mutation = self.mutate_reputation_mgr_like_cpp(|mgr| {
-                        let outcome = mgr.set_reputation_like_cpp(
-                            faction_entry,
-                            reputation_after_recruit_a_friend_bonus_like_cpp,
-                            options,
-                            faction_store,
-                            db_spillover_template,
-                            friendship_rep_reaction_store.as_deref(),
-                            paragon_reputation_store.as_deref(),
-                            currency_types_store.as_deref(),
-                        );
-                        let packet = outcome.send_state_rep_list_id.map(|rep_list_id| {
-                            mgr.set_faction_standing_packet_like_cpp(Some(rep_list_id))
+                    let mutation =
+                        crate::session::hub_mut(self).mutate_reputation_mgr_like_cpp(|mgr| {
+                            let outcome = mgr.set_reputation_like_cpp(
+                                faction_entry,
+                                reputation_after_recruit_a_friend_bonus_like_cpp,
+                                options,
+                                faction_store,
+                                db_spillover_template,
+                                friendship_rep_reaction_store.as_deref(),
+                                paragon_reputation_store.as_deref(),
+                                currency_types_store.as_deref(),
+                            );
+                            let packet = outcome.send_state_rep_list_id.map(|rep_list_id| {
+                                mgr.set_faction_standing_packet_like_cpp(Some(rep_list_id))
+                            });
+                            (outcome, packet)
                         });
-                        (outcome, packet)
-                    });
                     let owner_unavailable = mutation.is_none();
                     if let Some((_outcome, Some(packet))) = mutation {
                         self.send_packet(&packet);
@@ -672,11 +677,11 @@ impl WorldSession {
         // Every removal and grant below records what it needs durable; nothing
         // is written until the operation has finished deciding.
         let mut plan = QuestRewardDurablePlanLikeCpp::new(owner_guid, quest_id);
-        self.set_represented_can_delay_teleport_like_cpp(true);
+        crate::session::hub_mut(self).set_represented_can_delay_teleport_like_cpp(true);
 
         macro_rules! reward_abort {
             () => {{
-                self.set_represented_can_delay_teleport_like_cpp(false);
+                crate::session::hub_mut(self).set_represented_can_delay_teleport_like_cpp(false);
                 return false;
             }};
         }
@@ -870,7 +875,7 @@ impl WorldSession {
             self.give_xp(xp, ObjectGuid::EMPTY, 1.0).await;
         }
 
-        self.set_represented_can_delay_teleport_like_cpp(false);
+        crate::session::hub_mut(self).set_represented_can_delay_teleport_like_cpp(false);
 
         true
     }

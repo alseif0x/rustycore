@@ -150,7 +150,7 @@ impl crate::session::WorldSession {
         if self.state() == crate::session::SessionState::Disconnecting {
             return;
         }
-        if !self.represented_far_teleport_pending_like_cpp() {
+        if !crate::session::hub_ref(self).represented_far_teleport_pending_like_cpp() {
             return;
         }
         let Some((new_map, new_pos)) = self.pending_teleport_like_cpp() else {
@@ -197,7 +197,7 @@ impl crate::session::WorldSession {
         {
             return;
         }
-        if !self.represented_far_teleport_pending_like_cpp() {
+        if !crate::session::hub_ref(self).represented_far_teleport_pending_like_cpp() {
             warn!(
                 "WorldPortResponse from account {} but far teleport semaphore is not set",
                 self.core.account_id
@@ -223,7 +223,7 @@ impl crate::session::WorldSession {
             self.recover_rejected_worldport_like_cpp().await;
             return;
         }
-        self.set_represented_far_teleport_pending_like_cpp(false);
+        crate::session::hub_mut(self).set_represented_far_teleport_pending_like_cpp(false);
         if !self.set_pending_teleport_like_cpp(None) {
             return;
         }
@@ -237,7 +237,7 @@ impl crate::session::WorldSession {
             new_pos.z
         );
 
-        self.update_registry_position();
+        crate::session::hub_ref(self).update_registry_position();
 
         // SMSG_NEW_WORLD was already sent from handle_suspend_token_response (C++ sends it in
         // HandleSuspendTokenResponse, BEFORE the client's worldport ack — MovementHandler.cpp:253);
@@ -246,7 +246,7 @@ impl crate::session::WorldSession {
         // SMSG_RESUME_TOKEN — C++ HandleMoveWorldportAck sets SequenceIndex =
         // player->m_movementCounter (read here, before SendInitialPacketsBeforeAddToMap resets
         // it) and Reason = 1 for a non-seamless far teleport (MovementHandler.cpp:108-111).
-        let Some(resume_seq) = self.movement_counter_like_cpp() else {
+        let Some(resume_seq) = crate::session::hub_ref(self).movement_counter_like_cpp() else {
             self.kick("worldport lost its Player movement state");
             return;
         };
@@ -273,7 +273,7 @@ impl crate::session::WorldSession {
         // full before-add packet set (spells/factions/action bars/etc.) IS replayed by
         // C++ on non-seamless transfer. Rust still omits it: this is an open parity gap,
         // not proven client retention. Its DB-backed login helper needs separation.
-        self.reset_movement_counter_like_cpp();
+        crate::session::hub_mut(self).reset_movement_counter_like_cpp();
         self.send_packet(&wow_packet::packets::misc::MoveSetActiveMover { mover_guid: guid });
         self.core.send_time_sync();
 
@@ -321,7 +321,8 @@ impl crate::session::WorldSession {
         )
         .await;
 
-        let Some((zone_id, area_id)) = self.player_zone_area_like_cpp() else {
+        let Some((zone_id, area_id)) = crate::session::hub_ref(self).player_zone_area_like_cpp()
+        else {
             return;
         };
         // MovementHandler.cpp:156-234 completes after-add initialization and
@@ -421,7 +422,7 @@ impl crate::session::WorldSession {
             self.core.account_id, trigger_id, entered
         );
 
-        if self.resolved_is_in_taxi_flight_like_cpp() != Some(false) {
+        if crate::session::hub_ref(self).resolved_is_in_taxi_flight_like_cpp() != Some(false) {
             debug!(
                 "Area trigger {} ignored because player is in taxi flight",
                 trigger_id
@@ -521,14 +522,18 @@ impl crate::session::WorldSession {
         let Some(condition_store) = self.condition_store().cloned() else {
             return true;
         };
-        let Some(player_object) = self.build_condition_player_object_like_cpp() else {
+        let Some(player_object) =
+            crate::session::hub_ref(self).build_condition_player_object_like_cpp()
+        else {
             return false;
         };
 
-        let Some(player_unit_snapshot) = self.condition_player_unit_snapshot_like_cpp() else {
+        let Some(player_unit_snapshot) =
+            crate::session::hub_ref(self).condition_player_unit_snapshot_like_cpp()
+        else {
             return false;
         };
-        let player_snapshot = self.condition_player_snapshot_like_cpp();
+        let player_snapshot = crate::session::hub_ref(self).condition_player_snapshot_like_cpp();
         let area_table_store = self.catalogs.area_table_store().cloned();
 
         let mut source_info =
@@ -628,7 +633,7 @@ impl crate::session::WorldSession {
         };
 
         const NPC_FLAG_FLIGHT_MASTER: u32 = 0x2000;
-        let can_interact = self
+        let can_interact = crate::session::hub_ref(self)
             .represented_npc_can_interact_with_like_cpp(activate.vendor, NPC_FLAG_FLIGHT_MASTER, 0)
             .is_some()
             || self
@@ -651,13 +656,15 @@ impl crate::session::WorldSession {
             .find_map(|display| u32::try_from(display).ok())
             .unwrap_or_default();
 
-        self.record_represented_activate_taxi_like_cpp(RepresentedActivateTaxiLikeCpp {
-            vendor: activate.vendor,
-            node: activate.node,
-            ground_mount_id: activate.ground_mount_id,
-            flying_mount_id: activate.flying_mount_id,
-            preferred_mount_display,
-        });
+        crate::session::hub_mut(self).record_represented_activate_taxi_like_cpp(
+            RepresentedActivateTaxiLikeCpp {
+                vendor: activate.vendor,
+                node: activate.node,
+                ground_mount_id: activate.ground_mount_id,
+                flying_mount_id: activate.flying_mount_id,
+                preferred_mount_display,
+            },
+        );
     }
 
     /// CMSG_TAXI_NODE_STATUS_QUERY — client asks status of a taxi NPC.

@@ -53,11 +53,13 @@ impl WorldSession {
             }
         };
 
-        let Some(_healer) = self.represented_npc_can_interact_with_like_cpp(
-            request.healer,
-            NPCFlags1::SPIRIT_HEALER.bits(),
-            0,
-        ) else {
+        let Some(_healer) = crate::session::hub_ref(self)
+            .represented_npc_can_interact_with_like_cpp(
+                request.healer,
+                NPCFlags1::SPIRIT_HEALER.bits(),
+                0,
+            )
+        else {
             debug!(
                 account = self.core.account_id,
                 healer = ?request.healer,
@@ -516,13 +518,15 @@ impl WorldSession {
                     (self.player_guid() == Some(*guid)).then(|| {
                         crate::session::directory::PlayerNameQuerySnapshotLikeCpp {
                             guid: *guid,
-                            name: self.player_name_like_cpp().unwrap_or_default(),
+                            name: crate::session::hub_ref(self)
+                                .player_name_like_cpp()
+                                .unwrap_or_default(),
                             account_id: self.core.account_id,
                             battlenet_account_id: self.battlenet_account_id(),
-                            race: self.player_race_like_cpp(),
-                            class: self.player_class_like_cpp(),
-                            sex: self.player_gender_like_cpp(),
-                            level: self.player_level_like_cpp(),
+                            race: crate::session::hub_ref(self).player_race_like_cpp(),
+                            class: crate::session::hub_ref(self).player_class_like_cpp(),
+                            sex: crate::session::hub_ref(self).player_gender_like_cpp(),
+                            level: crate::session::hub_ref(self).player_level_like_cpp(),
                         }
                     })
                 });

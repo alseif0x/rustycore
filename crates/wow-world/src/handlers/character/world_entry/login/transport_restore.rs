@@ -40,7 +40,8 @@ impl WorldSession {
                         position: transport.world_position,
                     },
                 );
-                self.set_player_map_position_like_cpp(transport.map_id, transport.world_position);
+                crate::session::hub_mut(self)
+                    .set_player_map_position_like_cpp(transport.map_id, transport.world_position);
                 self.set_player_transport_guid_like_cpp(Some(transport.guid));
                 self.set_player_transport_position_like_cpp(Some(transport.offset));
                 if attached_controller {
@@ -62,7 +63,8 @@ impl WorldSession {
                 *map_id = i32::from(homebind_map_id);
                 *position = login_homebind.position;
                 self.seed_login_location_zone_area_like_cpp(zone, login_homebind);
-                self.set_player_map_position_like_cpp(homebind_map_id, login_homebind.position);
+                crate::session::hub_mut(self)
+                    .set_player_map_position_like_cpp(homebind_map_id, login_homebind.position);
                 self.set_player_transport_guid_like_cpp(None);
                 self.set_player_transport_position_like_cpp(None);
                 if attached_controller {

@@ -114,7 +114,9 @@ impl WorldSession {
                 let Ok(spell_id) = i32::try_from(spell_id) else {
                     return false;
                 };
-                let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+                let Some(visible_auras) =
+                    crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
+                else {
                     return false;
                 };
                 let slots = visible_auras

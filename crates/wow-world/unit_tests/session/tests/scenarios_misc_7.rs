@@ -80,10 +80,13 @@ fn player_attack_accepts_typed_player_victim_with_pvp_flag_snapshot_like_cpp() {
         assert!(victim_entity.unit().has_attacker_like_cpp(attacker));
     }
     assert_eq!(
-        session.resolved_combat_target_like_cpp(),
+        crate::session::hub_ref(&session).resolved_combat_target_like_cpp(),
         Some(Some(victim))
     );
-    assert_eq!(session.resolved_in_combat_like_cpp(), Some(true));
+    assert_eq!(
+        crate::session::hub_ref(&session).resolved_in_combat_like_cpp(),
+        Some(true)
+    );
 }
 #[test]
 fn summon_private_object_owner_derives_from_properties_like_cpp() {
@@ -269,7 +272,7 @@ fn rested_xp_uses_configured_rest_rates_like_cpp() {
 fn negative_rest_rate_is_preserved_and_clamped_by_rest_bonus_like_cpp() {
     let (mut session, _, _) = make_session();
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(72_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(72_000);
     session.set_rested_xp_config_like_cpp(80, -1.0, 1.0, 1.0);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 100.0);
 
@@ -286,7 +289,7 @@ fn negative_rest_rate_is_preserved_and_clamped_by_rest_bonus_like_cpp() {
 fn offline_rested_xp_caps_at_cpp_next_level_threshold_like_cpp() {
     let (mut session, _, _) = make_session();
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RESTED_LIKE_CPP, 700.0);
 
     let extra = session.apply_offline_xp_rest_bonus_like_cpp(1, 1_000_000, true);
@@ -304,7 +307,7 @@ fn rested_xp_uses_configured_max_player_level_like_cpp() {
     let (mut session, _, _) = make_session();
     let victim = test_creature_guid(88);
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 70, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     session.set_rested_xp_config_like_cpp(70, 1.0, 1.0, 1.0);
     install_tapped_xp_victim_like_cpp(&mut session, victim);
 
@@ -324,7 +327,7 @@ fn give_xp_uses_active_expansion_max_level_like_cpp() {
         let (mut session, _, send_rx) = make_session();
         session.core.expansion = expansion;
         session.set_loaded_player_identity_like_cpp(1, 1, 8, max_level, 0);
-        session.set_player_next_level_xp_like_cpp(1_000);
+        crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
         session.set_rested_xp_config_like_cpp(80, 1.0, 1.0, 1.0);
 
         assert!(!session.give_xp_runtime_like_cpp(50, ObjectGuid::EMPTY, 1.0));
@@ -338,7 +341,10 @@ fn active_player_max_level_combines_expansion_and_config_like_cpp() {
         let (mut session, _, _) = make_session();
         session.core.expansion = expansion;
         session.set_rested_xp_config_like_cpp(configured, 1.0, 1.0, 1.0);
-        assert_eq!(session.player_active_max_level_like_cpp(), expected);
+        assert_eq!(
+            crate::session::hub_ref(&session).player_active_max_level_like_cpp(),
+            expected
+        );
     }
 }
 #[test]
@@ -346,15 +352,15 @@ fn scaling_player_level_delta_uses_half_xp_and_compile_time_max_like_cpp() {
     let (mut session, _, _) = make_session();
     session.set_rested_xp_config_like_cpp(60, 1.0, 1.0, 1.0);
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 79, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
-    session.set_player_xp_like_cpp(499);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_xp_like_cpp(499);
     assert_eq!(session.player_scaling_level_delta_like_cpp(), -1);
 
-    session.set_player_xp_like_cpp(500);
+    crate::session::hub_mut(&mut session).set_player_xp_like_cpp(500);
     assert_eq!(session.player_scaling_level_delta_like_cpp(), 0);
 
     session.set_player_level_like_cpp(80);
-    session.set_player_xp_like_cpp(0);
+    crate::session::hub_mut(&mut session).set_player_xp_like_cpp(0);
     assert_eq!(session.player_scaling_level_delta_like_cpp(), 0);
 }
 #[test]
@@ -362,7 +368,7 @@ fn give_xp_allows_custom_levels_for_current_expansion_like_cpp() {
     let (mut session, _, _) = make_session();
     session.core.expansion = 2;
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 80, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     session.set_rested_xp_config_like_cpp(85, 1.0, 1.0, 1.0);
 
     assert!(session.give_xp_runtime_like_cpp(50, ObjectGuid::EMPTY, 1.0));
@@ -584,7 +590,7 @@ fn zero_integer_rest_award_normalizes_raf_state_without_touching_rest_flags_like
         0,
     );
     insert_session_player_into_canonical_map_like_cpp(&session, &canonical, 1, 0);
-    session.set_player_next_level_xp_like_cpp(1_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(1_000);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_RAF_LINKED_LIKE_CPP, 0.0);
     assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_TAVERN_LIKE_CPP, 42));
     let rest_time = session
@@ -639,7 +645,7 @@ fn zero_integer_rest_award_normalizes_raf_state_without_touching_rest_flags_like
 fn online_rest_update_adds_rested_xp_after_ten_seconds_like_cpp() {
     let (mut session, _, _) = make_session();
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(72_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(72_000);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
     assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0));
     session
@@ -676,7 +682,7 @@ fn online_rest_update_adds_rested_xp_after_ten_seconds_like_cpp() {
 fn online_rest_tick_only_accrues_when_cpp_three_percent_gate_passes() {
     let (mut session, _, _) = make_session();
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(72_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(72_000);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
     assert!(session.set_represented_rest_flag_like_cpp(REST_FLAG_IN_CITY_LIKE_CPP, 0));
     session

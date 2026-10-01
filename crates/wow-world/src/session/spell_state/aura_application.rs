@@ -20,7 +20,7 @@ impl WorldSession {
             return 0;
         }
 
-        let Some(is_outdoors) = self
+        let Some(is_outdoors) = crate::session::hub_ref(self)
             .player_world_local_state_like_cpp()
             .and_then(|state| state.is_outdoors_like_cpp())
         else {
@@ -38,7 +38,9 @@ impl WorldSession {
         &mut self,
         spell_id: i32,
     ) -> usize {
-        let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+        let Some(visible_auras) =
+            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
+        else {
             return 0;
         };
         let slots = visible_auras
@@ -311,7 +313,8 @@ impl WorldSession {
         for spell_id in self.known_spells_like_cpp().to_vec() {
             if spell_id <= 0
                 || !spell_store.is_passive_like_cpp(spell_id)
-                || self.player_has_visible_aura_spell_like_cpp(spell_id) != Some(false)
+                || crate::session::hub_ref(self).player_has_visible_aura_spell_like_cpp(spell_id)
+                    != Some(false)
             {
                 continue;
             }
@@ -380,7 +383,8 @@ impl WorldSession {
                     break;
                 };
                 if spell_store.is_passive_like_cpp(previous_spell_i32)
-                    && self.player_has_visible_aura_spell_like_cpp(previous_spell_i32)
+                    && crate::session::hub_ref(self)
+                        .player_has_visible_aura_spell_like_cpp(previous_spell_i32)
                         == Some(false)
                     && self.represented_login_passive_spell_cast_gate_like_cpp(previous_spell_i32)
                     && let Some(spell_info) = spell_store.get(previous_spell_i32).cloned()
@@ -494,14 +498,15 @@ impl WorldSession {
     }
     /// Remove an aura by slot and send SMSG_AURA_UPDATE.
     pub fn remove_aura(&mut self, slot: u8) -> Result<(), &'static str> {
-        let mounted_aura = self
+        let mounted_aura = crate::session::hub_ref(self)
             .resolved_player_visible_auras_like_cpp()
             .and_then(|auras| auras.get(&slot).cloned())
             .is_some_and(|aura| {
                 aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted)
             });
         let was_mounted = if mounted_aura {
-            self.resolved_player_mounted_like_cpp()
+            crate::session::hub_ref(self)
+                .resolved_player_mounted_like_cpp()
                 .ok_or("Missing Player presentation owner")?
         } else {
             false
@@ -509,7 +514,9 @@ impl WorldSession {
         let Some(aura) = self.remove_player_visible_aura_like_cpp(slot) else {
             return Err("Aura slot not found");
         };
-        if mounted_aura && !self.set_player_mount_presentation_like_cpp(0, false) {
+        if mounted_aura
+            && !crate::session::hub_mut(self).set_player_mount_presentation_like_cpp(0, false)
+        {
             let _ = self.insert_player_visible_aura_like_cpp(aura);
             return Err("Missing Player presentation owner");
         }
@@ -527,7 +534,7 @@ impl WorldSession {
         );
 
         if aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::Mounted) {
-            let vehicle_id = self
+            let vehicle_id = crate::session::hub_ref(self)
                 .player_mount_vehicle_kit_snapshot_like_cpp()
                 .flatten()
                 .map(|vehicle| vehicle.vehicle_id())
@@ -539,7 +546,7 @@ impl WorldSession {
                 vehicle_id
             };
             let mount_capability_id = aura.represented_amount;
-            let _ = self.remove_player_mount_vehicle_kit_like_cpp();
+            let _ = crate::session::hub_mut(self).remove_player_mount_vehicle_kit_like_cpp();
             #[cfg(test)]
             {
                 self.fixtures.vehicles.player_mount_vehicle_id_like_cpp = 0;
@@ -566,7 +573,7 @@ impl WorldSession {
                             .mount_vehicle_remove_requests_like_cpp
                             .saturating_add(1);
                     }
-                    self.send_set_vehicle_rec_id_like_cpp(0);
+                    crate::session::hub_mut(self).send_set_vehicle_rec_id_like_cpp(0);
                 }
                 #[cfg(test)]
                 {
@@ -578,7 +585,7 @@ impl WorldSession {
                         .mount_pet_control_enable_requests_like_cpp
                         .saturating_add(1);
                 }
-                self.enable_pet_controls_on_dismount_like_cpp();
+                crate::session::hub_mut(self).enable_pet_controls_on_dismount_like_cpp();
                 #[cfg(test)]
                 {
                     self.fixtures.pets.mount_pet_resummon_requests_like_cpp = self
@@ -595,11 +602,11 @@ impl WorldSession {
                         .saturating_add(1);
                 }
                 self.update_player_collision_height_like_cpp();
-                self.send_movement_set_collision_height_like_cpp(
+                crate::session::hub_mut(self).send_movement_set_collision_height_like_cpp(
                     wow_packet::packets::movement::UPDATE_COLLISION_HEIGHT_REASON_MOUNT_LIKE_CPP,
                 );
             }
-            self.send_represented_mount_unit_update_like_cpp(0);
+            crate::session::hub_mut(self).send_represented_mount_unit_update_like_cpp(0);
             self.remove_represented_mount_capability_speed_auras_like_cpp(mount_capability_id);
         }
         if matches!(
@@ -617,7 +624,7 @@ impl WorldSession {
                     | RepresentedAuraEffectLikeCpp::MountedSpeedNotStack
             )
         ) {
-            self.recompute_represented_run_speed_rate_like_cpp();
+            crate::session::hub_mut(self).recompute_represented_run_speed_rate_like_cpp();
         }
         if matches!(
             aura.represented_effect,
@@ -639,13 +646,13 @@ impl WorldSession {
             ) {
                 self.update_represented_flight_flags_for_flight_aura_like_cpp(false);
             }
-            self.recompute_represented_flight_speed_rate_like_cpp();
+            crate::session::hub_mut(self).recompute_represented_flight_speed_rate_like_cpp();
         }
         if matches!(
             aura.represented_effect,
             Some(RepresentedAuraEffectLikeCpp::SwimSpeed)
         ) {
-            self.recompute_represented_swim_speed_rate_like_cpp();
+            crate::session::hub_mut(self).recompute_represented_swim_speed_rate_like_cpp();
         }
         if matches!(
             aura.represented_effect,
@@ -654,11 +661,11 @@ impl WorldSession {
                     | RepresentedAuraEffectLikeCpp::UseNormalMovementSpeed
             )
         ) {
-            self.recompute_represented_swim_speed_rate_like_cpp();
-            self.recompute_represented_flight_speed_rate_like_cpp();
+            crate::session::hub_mut(self).recompute_represented_swim_speed_rate_like_cpp();
+            crate::session::hub_mut(self).recompute_represented_flight_speed_rate_like_cpp();
         }
         if aura.represented_effect == Some(RepresentedAuraEffectLikeCpp::DecreaseSpeed) {
-            self.recompute_represented_backward_speed_rates_like_cpp();
+            crate::session::hub_mut(self).recompute_represented_backward_speed_rates_like_cpp();
         }
 
         // Send SMSG_AURA_UPDATE (removal)
@@ -695,7 +702,9 @@ impl WorldSession {
         let Some(spell_store) = self.catalogs.spell_catalogs.spell_store.as_ref() else {
             return 0;
         };
-        let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+        let Some(visible_auras) =
+            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
+        else {
             return 0;
         };
 
@@ -755,7 +764,9 @@ impl WorldSession {
         represented_effect: RepresentedAuraEffectLikeCpp,
     ) -> usize {
         let no_aura_cancel = wow_data::spell::attributes::SPELL_ATTR0_NO_AURA_CANCEL;
-        let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+        let Some(visible_auras) =
+            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
+        else {
             return 0;
         };
         let slots: Vec<u8> = visible_auras
@@ -806,7 +817,9 @@ impl WorldSession {
             return 0;
         }
 
-        let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+        let Some(visible_auras) =
+            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
+        else {
             return 0;
         };
         let slots: Vec<u8> = visible_auras
@@ -847,7 +860,9 @@ impl WorldSession {
         flags: u32,
         flags2: u32,
     ) -> usize {
-        let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+        let Some(visible_auras) =
+            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
+        else {
             return 0;
         };
         let slots: Vec<u8> = visible_auras
@@ -872,7 +887,9 @@ impl WorldSession {
         // expires the creature auras it applied through the same wall-clock
         // sweep it uses for its own auras.
         self.tick_represented_creature_auras_like_cpp();
-        let Some(visible_auras) = self.resolved_player_visible_auras_like_cpp() else {
+        let Some(visible_auras) =
+            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
+        else {
             return;
         };
         if visible_auras.is_empty() {
@@ -908,7 +925,8 @@ impl WorldSession {
     pub(in crate::session) fn remove_represented_stealth_or_invisibility_auras_by_type_like_cpp(
         &mut self,
     ) -> Option<usize> {
-        let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
+        let visible_auras =
+            crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()?;
         let slots: Vec<u8> = visible_auras
             .iter()
             .filter_map(|(slot, aura)| {

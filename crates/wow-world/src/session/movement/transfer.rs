@@ -12,33 +12,13 @@ impl WorldSession {
         if let Some((map_id, position)) = self.pending_teleport_like_cpp() {
             return Some((u16::try_from(map_id).unwrap_or(u16::MAX), position));
         }
-        if let Some(teleport) = self.player_teleport_state_snapshot_like_cpp()
+        if let Some(teleport) =
+            crate::session::hub_ref(self).player_teleport_state_snapshot_like_cpp()
             && teleport.near_pending
         {
             return teleport.near_destination;
         }
         None
-    }
-    pub(in crate::session) fn send_transfer_aborted_like_cpp(
-        &self,
-        map_id: u32,
-        transfer_abort: u32,
-    ) {
-        crate::session::hub_ref(self).send_transfer_aborted_like_cpp(map_id, transfer_abort)
-    }
-    pub(in crate::session) fn send_transfer_aborted_with_params_like_cpp(
-        &self,
-        map_id: u32,
-        transfer_abort: u32,
-        arg: u8,
-        map_difficulty_x_condition_id: i32,
-    ) {
-        crate::session::hub_ref(self).send_transfer_aborted_with_params_like_cpp(
-            map_id,
-            transfer_abort,
-            arg,
-            map_difficulty_x_condition_id,
-        )
     }
     /// Teleport the player to a new map and position.
     ///
@@ -56,7 +36,7 @@ impl WorldSession {
         new_pos: wow_core::Position,
         mut options: TeleportToOptionsLikeCpp,
     ) {
-        if self
+        if crate::session::hub_ref(self)
             .player_teleport_state_snapshot_like_cpp()
             .is_some_and(|state| state.recovery == wow_entities::PlayerTransferRecovery::Terminal)
         {
@@ -85,7 +65,8 @@ impl WorldSession {
                 map_id = new_map,
                 "Teleport blocked by C++ DisableMgr map gate"
             );
-            self.send_transfer_aborted_like_cpp(new_map, TRANSFER_ABORT_MAP_NOT_ALLOWED_LIKE_CPP);
+            crate::session::hub_ref(self)
+                .send_transfer_aborted_like_cpp(new_map, TRANSFER_ABORT_MAP_NOT_ALLOWED_LIKE_CPP);
             return;
         }
 
@@ -96,7 +77,7 @@ impl WorldSession {
             .as_ref()
             .and_then(|store| store.get(new_map).copied())
             && target_map.is_battleground_or_arena()
-            && !self.player_in_represented_battleground_like_cpp()
+            && !crate::session::hub_ref(self).player_in_represented_battleground_like_cpp()
         {
             warn!(
                 account = self.core.account_id,
@@ -121,7 +102,7 @@ impl WorldSession {
                 required_expansion = target_map.expansion_like_cpp(),
                 "Teleport blocked by C++ client expansion gate"
             );
-            self.send_transfer_aborted_with_params_like_cpp(
+            crate::session::hub_ref(self).send_transfer_aborted_with_params_like_cpp(
                 new_map,
                 TRANSFER_ABORT_INSUF_EXPAN_LVL_LIKE_CPP,
                 target_map.expansion_like_cpp(),
@@ -130,7 +111,7 @@ impl WorldSession {
             return;
         }
 
-        let Some(current_pos) = self.player_position_like_cpp() else {
+        let Some(current_pos) = crate::session::hub_ref(self).player_position_like_cpp() else {
             warn!(
                 "Cannot teleport account {}: no current position",
                 self.core.account_id
@@ -139,17 +120,17 @@ impl WorldSession {
         };
 
         self.exit_represented_vehicle_for_teleport_like_cpp();
-        self.reset_teleport_movement_state_like_cpp();
+        crate::session::hub_mut(self).reset_teleport_movement_state_like_cpp();
 
-        if self.player_class_like_cpp() == CLASS_DEATH_KNIGHT_LIKE_CPP
+        if crate::session::hub_ref(self).player_class_like_cpp() == CLASS_DEATH_KNIGHT_LIKE_CPP
             && self.core.player_map_id_like_cpp() == DEATH_KNIGHT_START_MAP_LIKE_CPP
             && u32::from(self.core.player_map_id_like_cpp()) != new_map
-            && self.player_is_game_master_like_cpp() != Some(true)
+            && crate::session::hub_ref(self).player_is_game_master_like_cpp() != Some(true)
             && !self
                 .known_spells_like_cpp()
                 .contains(&DEATH_KNIGHT_ESCAPE_SPELL_LIKE_CPP)
         {
-            self.send_transfer_aborted_with_params_like_cpp(
+            crate::session::hub_ref(self).send_transfer_aborted_with_params_like_cpp(
                 new_map,
                 TRANSFER_ABORT_UNIQUE_MESSAGE_LIKE_CPP,
                 1,
@@ -163,7 +144,7 @@ impl WorldSession {
         let active_map = self.core.current_canonical_player_map_key_like_cpp();
         let same_map_near_teleport = active_map.is_some_and(|key| key.map_id == new_map);
         if same_map_near_teleport {
-            if !self.set_represented_far_teleport_pending_like_cpp(false) {
+            if !crate::session::hub_mut(self).set_represented_far_teleport_pending_like_cpp(false) {
                 return;
             }
             self.initiate_same_map_near_teleport_like_cpp(new_map, new_pos, options);
@@ -173,7 +154,7 @@ impl WorldSession {
         if let Some((transfer_abort, arg, map_difficulty_x_condition_id)) =
             self.player_cannot_enter_target_map_like_cpp(new_map)
         {
-            self.send_transfer_aborted_with_params_like_cpp(
+            crate::session::hub_ref(self).send_transfer_aborted_with_params_like_cpp(
                 new_map,
                 transfer_abort,
                 arg,
@@ -182,19 +163,20 @@ impl WorldSession {
             return;
         }
 
-        options = self.teleport_options_after_seamless_gate_like_cpp(new_map, options);
+        options = crate::session::hub_ref(self)
+            .teleport_options_after_seamless_gate_like_cpp(new_map, options);
         if active_map.is_none() {
             options &= !TELE_TO_SEAMLESS_LIKE_CPP;
         }
 
         if !same_map_near_teleport {
-            let Some(can_delay) = self
+            let Some(can_delay) = crate::session::hub_ref(self)
                 .player_teleport_state_snapshot_like_cpp()
                 .map(|state| state.can_delay)
             else {
                 return;
             };
-            if !self.update_player_teleport_state_like_cpp(|state| {
+            if !crate::session::hub_mut(self).update_player_teleport_state_like_cpp(|state| {
                 state.has_delayed = can_delay;
                 state.near_pending = false;
                 state.near_destination = None;
@@ -210,13 +192,15 @@ impl WorldSession {
                 return;
             }
 
-            self.set_selection_guid_like_cpp(None);
+            crate::session::hub_mut(self).set_selection_guid_like_cpp(None);
             self.combat_stop_like_cpp();
             self.reset_contested_pvp_like_cpp();
             self.maybe_leave_represented_battleground_on_far_teleport_like_cpp(new_map);
-            self.unsummon_represented_pet_temporary_if_any_like_cpp();
-            let _ = self.remove_all_dynamic_objects_for_current_player_like_cpp();
-            let _ = self.remove_all_area_triggers_for_current_player_like_cpp();
+            crate::session::hub_mut(self).unsummon_represented_pet_temporary_if_any_like_cpp();
+            let _ = crate::session::hub_ref(self)
+                .remove_all_dynamic_objects_for_current_player_like_cpp();
+            let _ = crate::session::hub_ref(self)
+                .remove_all_area_triggers_for_current_player_like_cpp();
             if options & TELE_TO_SPELL_LIKE_CPP == 0 {
                 let _ = self.interrupt_non_melee_spells_for_far_teleport_like_cpp();
             }
@@ -249,7 +233,8 @@ impl WorldSession {
             self.clear_active_player_transport_server_time_override_for_far_teleport_like_cpp();
         }
 
-        let _ = self.remove_current_player_from_canonical_current_map_like_cpp();
+        let _ = crate::session::hub_mut(self)
+            .remove_current_player_from_canonical_current_map_like_cpp();
 
         // 2. Store pending destination — completed in handle_world_port_response
         if !self.set_pending_teleport_like_cpp(Some((new_map, new_pos))) {
@@ -258,7 +243,7 @@ impl WorldSession {
         self.view.active_area_trigger = None;
 
         // Retain native completion authority before an interruptible writer wait.
-        if !self.set_represented_far_teleport_pending_like_cpp(true) {
+        if !crate::session::hub_mut(self).set_represented_far_teleport_pending_like_cpp(true) {
             return;
         }
         self.core.state = SessionState::Transfer;
@@ -279,7 +264,8 @@ impl WorldSession {
                 self.kick("TransferPending writer fence failed; retain native destination");
                 return;
             }
-            let Some(suspend_seq) = self.movement_counter_like_cpp() else {
+            let Some(suspend_seq) = crate::session::hub_ref(self).movement_counter_like_cpp()
+            else {
                 return;
             };
             self.send_packet(&SuspendToken {
@@ -303,7 +289,7 @@ impl WorldSession {
         );
     }
     fn exit_represented_vehicle_for_teleport_like_cpp(&mut self) -> bool {
-        if self
+        if crate::session::hub_ref(self)
             .player_vehicle_seat_state_like_cpp()
             .and_then(|(flags, _)| flags)
             .is_none()
@@ -311,22 +297,11 @@ impl WorldSession {
             return false;
         }
 
-        if !self.set_player_vehicle_seat_state_like_cpp(None, None) {
+        if !crate::session::hub_mut(self).set_player_vehicle_seat_state_like_cpp(None, None) {
             return false;
         }
         self.sync_player_registry_state_like_cpp();
         true
-    }
-    fn reset_teleport_movement_state_like_cpp(&mut self) {
-        crate::session::hub_mut(self).reset_teleport_movement_state_like_cpp()
-    }
-    fn teleport_options_after_seamless_gate_like_cpp(
-        &self,
-        new_map: u32,
-        options: TeleportToOptionsLikeCpp,
-    ) -> TeleportToOptionsLikeCpp {
-        crate::session::hub_ref(self)
-            .teleport_options_after_seamless_gate_like_cpp(new_map, options)
     }
     fn initiate_same_map_near_teleport_like_cpp(
         &mut self,
@@ -334,20 +309,20 @@ impl WorldSession {
         destination: wow_core::Position,
         options: TeleportToOptionsLikeCpp,
     ) {
-        let Some(can_delay) = self
+        let Some(can_delay) = crate::session::hub_ref(self)
             .player_teleport_state_snapshot_like_cpp()
             .map(|state| state.can_delay)
         else {
             return;
         };
-        if !self.update_player_teleport_state_like_cpp(|state| {
+        if !crate::session::hub_mut(self).update_player_teleport_state_like_cpp(|state| {
             state.has_delayed = can_delay;
         }) {
             return;
         }
         if can_delay {
             let map_id_u16 = u16::try_from(map_id).unwrap_or(self.core.player_map_id_like_cpp());
-            let _ = self.update_player_teleport_state_like_cpp(|state| {
+            let _ = crate::session::hub_mut(self).update_player_teleport_state_like_cpp(|state| {
                 state.near_pending = true;
                 state.near_destination = Some((map_id_u16, destination));
                 state.near_destination_zone_area = None;
@@ -356,12 +331,13 @@ impl WorldSession {
             return;
         }
 
-        self.unsummon_represented_pet_for_same_map_teleport_if_out_of_range_like_cpp(
-            destination,
-            options,
-        );
+        crate::session::hub_mut(self)
+            .unsummon_represented_pet_for_same_map_teleport_if_out_of_range_like_cpp(
+                destination,
+                options,
+            );
 
-        if self.resolved_player_is_alive_like_cpp() == Some(false)
+        if crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() == Some(false)
             && options & TELE_REVIVE_AT_TELEPORT_LIKE_CPP != 0
         {
             self.resurrect_player_percent_for_teleport_like_cpp(0.5);
@@ -372,7 +348,7 @@ impl WorldSession {
         }
 
         let map_id = u16::try_from(map_id).unwrap_or(self.core.player_map_id_like_cpp());
-        if !self.update_player_teleport_state_like_cpp(|state| {
+        if !crate::session::hub_mut(self).update_player_teleport_state_like_cpp(|state| {
             state.far_destination = None;
             state.near_pending = true;
             state.near_destination = Some((map_id, destination));
@@ -380,16 +356,19 @@ impl WorldSession {
         }) {
             return;
         }
-        if let Some(current_pos) = self.player_position_like_cpp() {
-            self.set_fall_information_like_cpp(0, current_pos.z);
+        if let Some(current_pos) = crate::session::hub_ref(self).player_position_like_cpp() {
+            crate::session::hub_mut(self).set_fall_information_like_cpp(0, current_pos.z);
         }
 
         if !self.lifecycle.player_logout_like_cpp {
-            let Some(sequence_index) = self.next_movement_counter_like_cpp() else {
+            let Some(sequence_index) =
+                crate::session::hub_mut(self).next_movement_counter_like_cpp()
+            else {
                 return;
             };
             if let Some(mover_guid) = self.player_guid() {
-                self.send_same_map_move_update_teleport_to_visible_set_like_cpp(mover_guid);
+                crate::session::hub_ref(self)
+                    .send_same_map_move_update_teleport_to_visible_set_like_cpp(mover_guid);
                 self.send_packet(&wow_packet::packets::movement::MoveTeleport {
                     mover_guid,
                     position: destination,
@@ -414,21 +393,25 @@ impl WorldSession {
     pub(in crate::session) async fn process_represented_delayed_teleport_after_update_like_cpp(
         &mut self,
     ) -> bool {
-        let Some(teleport) = self.player_teleport_state_snapshot_like_cpp() else {
+        let Some(teleport) =
+            crate::session::hub_ref(self).player_teleport_state_snapshot_like_cpp()
+        else {
             return false;
         };
-        if !teleport.has_delayed || self.resolved_player_is_alive_like_cpp() != Some(true) {
+        if !teleport.has_delayed
+            || crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true)
+        {
             return false;
         }
 
         let Some((map_id, destination, options)) = teleport.delayed else {
-            let _ = self.update_player_teleport_state_like_cpp(|state| {
+            let _ = crate::session::hub_mut(self).update_player_teleport_state_like_cpp(|state| {
                 state.has_delayed = false;
             });
             return false;
         };
 
-        if !self.update_player_teleport_state_like_cpp(|state| {
+        if !crate::session::hub_mut(self).update_player_teleport_state_like_cpp(|state| {
             state.delayed = None;
             state.can_delay = false;
             state.has_delayed = false;
@@ -478,10 +461,6 @@ impl WorldSession {
         }
         self.sync_player_registry_state_like_cpp();
     }
-    fn send_same_map_move_update_teleport_to_visible_set_like_cpp(&self, source_guid: ObjectGuid) {
-        crate::session::hub_ref(self)
-            .send_same_map_move_update_teleport_to_visible_set_like_cpp(source_guid)
-    }
     pub(crate) fn schedule_represented_resurrection_after_teleport_like_cpp(
         &mut self,
         request: PlayerResurrectionRequestLikeCpp,
@@ -529,7 +508,8 @@ impl WorldSession {
             return;
         };
 
-        self.apply_represented_resurrection_health_like_cpp(request.health);
+        crate::session::hub_mut(self)
+            .apply_represented_resurrection_health_like_cpp(request.health);
     }
     #[cfg(test)]
     pub(crate) fn represented_delayed_resurrection_after_teleport_like_cpp(
@@ -538,23 +518,17 @@ impl WorldSession {
         self.player_resurrection_state_snapshot_like_cpp()
             .and_then(|state| state.delayed_after_teleport)
     }
-    pub(crate) fn record_move_teleport_ack_like_cpp(
-        &mut self,
-        mover_guid: ObjectGuid,
-        ack_index: i32,
-        move_time: i32,
-    ) -> bool {
-        crate::session::hub_mut(self)
-            .record_move_teleport_ack_like_cpp(mover_guid, ack_index, move_time)
-    }
     pub(crate) fn handle_move_teleport_ack_like_cpp(
         &mut self,
         mover_guid: ObjectGuid,
         ack_index: i32,
         move_time: i32,
     ) -> MoveTeleportAckActionLikeCpp {
-        let accepted = self.record_move_teleport_ack_like_cpp(mover_guid, ack_index, move_time);
-        let Some(teleport) = self.player_teleport_state_snapshot_like_cpp() else {
+        let accepted = crate::session::hub_mut(self)
+            .record_move_teleport_ack_like_cpp(mover_guid, ack_index, move_time);
+        let Some(teleport) =
+            crate::session::hub_ref(self).player_teleport_state_snapshot_like_cpp()
+        else {
             return self.record_move_teleport_ack_event_like_cpp(
                 mover_guid,
                 ack_index,
@@ -625,7 +599,9 @@ impl WorldSession {
             );
         };
 
-        let Some(world_local_before) = self.player_world_local_state_like_cpp() else {
+        let Some(world_local_before) =
+            crate::session::hub_ref(self).player_world_local_state_like_cpp()
+        else {
             return self.record_move_teleport_ack_event_like_cpp(
                 mover_guid,
                 ack_index,
@@ -659,7 +635,9 @@ impl WorldSession {
                 false,
             );
         };
-        let Some(pvp_enabled_before) = self.player_is_pvp_like_cpp(player_guid) else {
+        let Some(pvp_enabled_before) =
+            crate::session::hub_ref(self).player_is_pvp_like_cpp(player_guid)
+        else {
             return self.record_move_teleport_ack_event_like_cpp(
                 mover_guid,
                 ack_index,
@@ -676,7 +654,9 @@ impl WorldSession {
                 false,
             );
         };
-        let Some(in_pvp_before) = self.player_has_in_pvp_flag_like_cpp(player_guid) else {
+        let Some(in_pvp_before) =
+            crate::session::hub_ref(self).player_has_in_pvp_flag_like_cpp(player_guid)
+        else {
             return self.record_move_teleport_ack_event_like_cpp(
                 mover_guid,
                 ack_index,
@@ -694,7 +674,9 @@ impl WorldSession {
             );
         };
 
-        if !self.update_player_teleport_state_like_cpp(|state| state.near_pending = false) {
+        if !crate::session::hub_mut(self)
+            .update_player_teleport_state_like_cpp(|state| state.near_pending = false)
+        {
             return self.record_move_teleport_ack_event_like_cpp(
                 mover_guid,
                 ack_index,
@@ -712,9 +694,9 @@ impl WorldSession {
             );
         }
         let old_zone = world_local_before.zone_id_like_cpp();
-        self.set_player_map_position_like_cpp(map_id, destination);
-        self.update_registry_position();
-        self.set_fall_information_like_cpp(0, destination.z);
+        crate::session::hub_mut(self).set_player_map_position_like_cpp(map_id, destination);
+        crate::session::hub_ref(self).update_registry_position();
+        crate::session::hub_mut(self).set_fall_information_like_cpp(0, destination.z);
 
         let (new_zone, new_area) = teleport
             .near_destination_zone_area
@@ -722,7 +704,9 @@ impl WorldSession {
         self.update_zone_represented_like_cpp(new_zone, new_area);
 
         let zone_changed = old_zone != new_zone;
-        let Some(world_local_after) = self.player_world_local_state_like_cpp() else {
+        let Some(world_local_after) =
+            crate::session::hub_ref(self).player_world_local_state_like_cpp()
+        else {
             return self.record_move_teleport_ack_event_like_cpp(
                 mover_guid,
                 ack_index,
@@ -745,7 +729,7 @@ impl WorldSession {
             && pvp_enabled_before
             && !in_pvp_before;
         if pvp_disabled {
-            self.update_player_pvp_like_cpp(false, true);
+            crate::session::hub_mut(self).update_player_pvp_like_cpp(false, true);
         }
 
         crate::session::cx_pets(self).resummon_pet_temporary_unsummoned_like_cpp();
@@ -827,23 +811,6 @@ impl WorldSession {
             delayed_operations_processed,
         );
         action
-    }
-    pub(in crate::session) fn player_teleport_state_snapshot_like_cpp(
-        &self,
-    ) -> Option<PlayerTeleportStateLikeCpp> {
-        crate::session::hub_ref(self).player_teleport_state_snapshot_like_cpp()
-    }
-    pub(in crate::session) fn update_player_teleport_state_like_cpp(
-        &mut self,
-        update: impl FnOnce(&mut PlayerTeleportStateLikeCpp),
-    ) -> bool {
-        crate::session::hub_mut(self).update_player_teleport_state_like_cpp(update)
-    }
-    pub(crate) fn set_represented_can_delay_teleport_like_cpp(&mut self, can_delay: bool) -> bool {
-        crate::session::hub_mut(self).set_represented_can_delay_teleport_like_cpp(can_delay)
-    }
-    pub(crate) fn near_teleport_pending_like_cpp(&self) -> bool {
-        crate::session::hub_ref(self).near_teleport_pending_like_cpp()
     }
     #[cfg(test)]
     pub(crate) fn move_teleport_ack_events_like_cpp(&self) -> &[MoveTeleportAckEventLikeCpp] {

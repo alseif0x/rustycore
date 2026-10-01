@@ -73,7 +73,10 @@ impl WorldSession {
         let cost = if no_reset_talent_cost {
             0
         } else {
-            u64::from(self.represented_next_reset_talents_cost_like_cpp(now_secs)?)
+            u64::from(
+                crate::session::hub_ref(self)
+                    .represented_next_reset_talents_cost_like_cpp(now_secs)?,
+            )
         };
 
         let money_persistence = self
@@ -177,17 +180,19 @@ impl WorldSession {
             state_plan,
         } = committed;
 
-        self.remove_represented_pet_not_in_slot_like_cpp();
+        crate::session::hub_mut(self).remove_represented_pet_not_in_slot_like_cpp();
         self.record_represented_confirm_respec_wipe_like_cpp(request);
 
         debug_assert_eq!(
-            self.represented_active_talent_group_like_cpp(),
+            crate::session::hub_ref(self).represented_active_talent_group_like_cpp(),
             Some(state_plan.active_group)
         );
         for (talent_id, rank) in &state_plan.active_talents {
             self.remove_represented_active_talent_side_effects_like_cpp(*talent_id, *rank);
         }
-        if !self.install_reset_talent_groups_like_cpp(state_plan.post_talents.clone()) {
+        if !crate::session::hub_mut(self)
+            .install_reset_talent_groups_like_cpp(state_plan.post_talents.clone())
+        {
             self.kick("canonical Player talent owner became unavailable after talent-reset COMMIT");
             return;
         }
@@ -197,13 +202,17 @@ impl WorldSession {
             self.kick("canonical Player money owner became unavailable after talent-reset COMMIT");
             return;
         }
-        if !self.set_represented_talent_reset_state_like_cpp(cost, reset_time_secs) {
+        if !crate::session::hub_mut(self)
+            .set_represented_talent_reset_state_like_cpp(cost, reset_time_secs)
+        {
             self.kick("canonical Player specialization owner became unavailable after talent-reset COMMIT");
             return;
         }
-        self.record_represented_talent_respec_criteria_like_cpp(cost);
+        crate::session::hub_mut(self).record_represented_talent_respec_criteria_like_cpp(cost);
 
-        if let Some(talent_data) = self.resolved_update_talent_data_packet_like_cpp() {
+        if let Some(talent_data) =
+            crate::session::hub_ref(self).resolved_update_talent_data_packet_like_cpp()
+        {
             self.send_packet(&talent_data);
         }
         if let Some(player_guid) = self.player_guid() {
@@ -223,11 +232,6 @@ impl WorldSession {
             item_guid_generator,
         )
         .await;
-    }
-    pub(crate) fn resolved_player_skill_non_durable_tombstones_like_cpp(
-        &self,
-    ) -> Option<BTreeSet<u16>> {
-        crate::session::hub_ref(self).resolved_player_skill_non_durable_tombstones_like_cpp()
     }
 }
 

@@ -41,17 +41,17 @@ impl RepresentedPlayerConditionContextLikeCpp {
         &'a self,
         session: &'a WorldSession,
     ) -> Option<PlayerConditionContextLikeCpp<'a>> {
-        let class = session.player_class_like_cpp();
-        let (_, area_id) = session.player_zone_area_like_cpp()?;
+        let class = crate::session::hub_ref(&session).player_class_like_cpp();
+        let (_, area_id) = crate::session::hub_ref(&session).player_zone_area_like_cpp()?;
         Some(PlayerConditionContextLikeCpp {
-            race: session.player_race_like_cpp(),
+            race: crate::session::hub_ref(&session).player_race_like_cpp(),
             class_mask: if class == 0 {
                 0
             } else {
                 1u32 << u32::from(class.saturating_sub(1))
             },
-            gender: session.player_gender_like_cpp(),
-            native_gender: session.player_gender_like_cpp(),
+            gender: crate::session::hub_ref(&session).player_gender_like_cpp(),
+            native_gender: crate::session::hub_ref(&session).player_gender_like_cpp(),
             power_type: -1,
             power: 0,
             max_power: 0,
@@ -145,7 +145,7 @@ impl WorldSession {
                     .then_some(quest_id)
             })
             .collect();
-        let auras = self
+        let auras = crate::session::hub_ref(self)
             .resolved_player_visible_auras_like_cpp()?
             .into_values()
             .filter_map(|aura| {
@@ -155,12 +155,12 @@ impl WorldSession {
                 })
             })
             .collect();
-        let skills = self
+        let skills = crate::session::hub_ref(self)
             .resolved_player_skill_values_like_cpp()?
             .iter()
             .map(|(&id, &value)| PlayerConditionSkillLikeCpp { id, value })
             .collect();
-        let (_, area_id) = self.player_zone_area_like_cpp()?;
+        let (_, area_id) = crate::session::hub_ref(self).player_zone_area_like_cpp()?;
         let explored_zones = self.player_explored_zones_snapshot_like_cpp()?;
         let (explored_area_ids, parent_area_ids) = self
             .catalogs

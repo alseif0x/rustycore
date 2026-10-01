@@ -191,7 +191,7 @@ pub(super) fn request(
             .enumerate()
         {
             for (talent_id, rank) in talents {
-                if session
+                if crate::session::hub_ref(&session)
                     .represented_talent_info_like_cpp(*talent_id, *rank)
                     .is_some()
                 {

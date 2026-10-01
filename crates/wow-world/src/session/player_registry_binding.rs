@@ -33,18 +33,19 @@ impl WorldSession {
         crate::canonical_player_sync::hydrate_player_directory_fixture_like_cpp(self);
         let (Some(guid), Some(pos), Some(name), Some(reg)) = (
             self.player_guid(),
-            self.player_position_like_cpp(),
-            self.player_name_like_cpp(),
+            crate::session::hub_ref(self).player_position_like_cpp(),
+            crate::session::hub_ref(self).player_name_like_cpp(),
             &self.core.player_registry,
         ) else {
             return;
         };
         let map_id = self.core.player_map_id_like_cpp();
-        let race = self.player_race_like_cpp();
-        let class = self.player_class_like_cpp();
-        let gender = self.player_gender_like_cpp();
-        let level = self.player_level_like_cpp();
-        let Some(is_alive) = self.resolved_player_is_alive_like_cpp() else {
+        let race = crate::session::hub_ref(self).player_race_like_cpp();
+        let class = crate::session::hub_ref(self).player_class_like_cpp();
+        let gender = crate::session::hub_ref(self).player_gender_like_cpp();
+        let level = crate::session::hub_ref(self).player_level_like_cpp();
+        let Some(is_alive) = crate::session::hub_ref(self).resolved_player_is_alive_like_cpp()
+        else {
             return;
         };
         // Fallback to 0 (world/default instance) when no canonical map key is
@@ -119,7 +120,7 @@ impl WorldSession {
         let (Some(guid), Some(registry)) = (self.player_guid(), &self.core.player_registry) else {
             return;
         };
-        self.update_registry_position();
+        crate::session::hub_ref(self).update_registry_position();
         #[cfg(test)]
         crate::canonical_player_sync::hydrate_player_directory_fixture_like_cpp(self);
         registry.replace_loot_rolls_for_control_channel(

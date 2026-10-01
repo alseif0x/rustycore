@@ -70,4 +70,18 @@ impl crate::session::WorldSession {
             legacy_raid_difficulty_id,
         )
     }
+    pub(crate) fn load_represented_talent_row_like_cpp(
+        &mut self,
+        talent_tabs: &TalentTabStore,
+        talent_id: u32,
+        rank: u8,
+        talent_group: u8,
+    ) -> bool {
+        crate::session::hub_mut(self).load_represented_talent_row_like_cpp(
+            talent_tabs,
+            talent_id,
+            rank,
+            talent_group,
+        )
+    }
 }

@@ -198,7 +198,7 @@ impl WorldSession {
             gender,
         );
 
-        if !self
+        if !crate::session::hub_mut(self)
             .load_character_mail_for_login_like_cpp(&player_lifecycle_port, guid)
             .await
         {
@@ -221,13 +221,13 @@ impl WorldSession {
             self.kick("WorldSession::HandlePlayerLogin canonical Player inventory capacity hydration failed");
             return;
         }
-        self.set_player_xp_like_cpp(base_row.xp.unwrap_or(0));
-        if !self.set_represented_talent_reset_state_like_cpp(
+        crate::session::hub_mut(self).set_player_xp_like_cpp(base_row.xp.unwrap_or(0));
+        if !crate::session::hub_mut(self).set_represented_talent_reset_state_like_cpp(
             base_row.talent_reset_cost.unwrap_or(0),
             base_row.talent_reset_time_secs.unwrap_or(0),
-        ) || !self
+        ) || !crate::session::hub_mut(self)
             .set_represented_active_talent_group_like_cpp(base_row.active_talent_group.unwrap_or(0))
-            || !self.set_represented_bonus_talent_groups_like_cpp(
+            || !crate::session::hub_mut(self).set_represented_bonus_talent_groups_like_cpp(
                 base_row.bonus_talent_groups.unwrap_or(0),
             )
         {
@@ -236,7 +236,7 @@ impl WorldSession {
             );
             return;
         }
-        self.set_player_create_mode_like_cpp(create_mode);
+        crate::session::hub_mut(self).set_player_create_mode_like_cpp(create_mode);
         if !self.set_represented_at_login_flags_like_cpp(at_login_flags) {
             self.kick(
                 "canonical Player persistent-capability owner unavailable during login hydration",
@@ -255,7 +255,7 @@ impl WorldSession {
         // C++ recalculates zone/area from terrain after AddToMap
         // (`Player::SendInitialPacketsAfterAddToMap`). Seed from DB until
         // that post-add terrain pass runs.
-        self.set_player_zone_area_like_cpp(zone as u32, zone as u32);
+        crate::session::hub_mut(self).set_player_zone_area_like_cpp(zone as u32, zone as u32);
         if !self.set_represented_homebind_like_cpp(RepresentedHomebindLikeCpp {
             map_id: login_homebind.map_id,
             area_id: login_homebind
@@ -285,7 +285,7 @@ impl WorldSession {
         .await;
         self.load_group_membership_for_login_like_cpp(&player_lifecycle_port, guid)
             .await;
-        self.refresh_next_level_xp_with_catalogs_like_cpp(progression);
+        crate::session::hub_mut(self).refresh_next_level_xp_with_catalogs_like_cpp(progression);
         self.clamp_loaded_player_xp_to_next_level_like_cpp();
         if saved_character_map_is_battleground {
             // Rust does not yet have a live BattlegroundMgr roster/status
@@ -304,7 +304,8 @@ impl WorldSession {
                 map_id = i32::from(fallback_map_id);
                 position = fallback.position;
                 self.seed_login_location_zone_area_like_cpp(&mut zone, fallback);
-                self.set_player_map_position_like_cpp(fallback_map_id, fallback.position);
+                crate::session::hub_mut(self)
+                    .set_player_map_position_like_cpp(fallback_map_id, fallback.position);
                 let _ = self.ensure_canonical_world_map_for_current_player_like_cpp();
                 info!(
                     player_guid = guid.counter(),
@@ -353,8 +354,8 @@ impl WorldSession {
                 saved_logout_time_secs,
                 saved_logout_was_resting,
                 applied_rest_bonus,
-                rest_bonus = self.resolved_xp_rest_bonus_like_cpp(),
-                rest_state = self.resolved_xp_rest_state_like_cpp(),
+                rest_bonus = crate::session::hub_ref(self).resolved_xp_rest_bonus_like_cpp(),
+                rest_state = crate::session::hub_ref(self).resolved_xp_rest_state_like_cpp(),
                 "RUST_PLAYER_REST_LOAD"
             );
         }
@@ -621,7 +622,7 @@ impl WorldSession {
                 &mut position,
             )
             .await;
-        self.refresh_next_level_xp_with_catalogs_like_cpp(progression);
+        crate::session::hub_mut(self).refresh_next_level_xp_with_catalogs_like_cpp(progression);
         // NOTE: known_spells is stored below after DBC merge (see "Merge DBC auto-learned spells")
 
         let reputation_rows_complete_like_cpp = self
@@ -678,14 +679,15 @@ impl WorldSession {
                 &mut loaded_spell_side_effect_spells,
             );
         if loaded_skill_records_like_cpp && loaded_spell_skills_complete_like_cpp {
-            let Some(canonical_skill_records) = self.resolved_player_skill_records_like_cpp()
+            let Some(canonical_skill_records) =
+                crate::session::hub_ref(self).resolved_player_skill_records_like_cpp()
             else {
                 self.kick("canonical Player skill owner unavailable during login finalization");
                 return;
             };
             skill_records = canonical_skill_records;
             let occupied_slots = u16::try_from(skill_records.len()).unwrap_or(u16::MAX);
-            if !self
+            if !crate::session::hub_mut(self)
                 .set_complete_player_skill_records_like_cpp(skill_records.clone(), occupied_slots)
             {
                 warn!(
@@ -881,7 +883,8 @@ impl WorldSession {
             self.apply_represented_first_login_explored_zones_with_catalogs_like_cpp(
                 player_bootstrap,
             );
-            self.apply_represented_first_login_reputation_with_catalogs_like_cpp(player_bootstrap);
+            crate::session::hub_mut(self)
+                .apply_represented_first_login_reputation_with_catalogs_like_cpp(player_bootstrap);
         }
 
         // C++ processes reset-at-login and first-login casts after the initial

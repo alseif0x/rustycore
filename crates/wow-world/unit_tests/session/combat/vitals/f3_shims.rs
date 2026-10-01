@@ -18,4 +18,14 @@ impl crate::session::WorldSession {
         self.core
             .canonical_player_power_snapshot_like_cpp(power_type)
     }
+    pub(crate) fn sync_canonical_player_primary_power_like_cpp(
+        &mut self,
+        power_type: PowerType,
+        current: i32,
+        max: i32,
+        base_mana: i32,
+    ) -> bool {
+        crate::session::hub_mut(self)
+            .sync_canonical_player_primary_power_like_cpp(power_type, current, max, base_mana)
+    }
 }

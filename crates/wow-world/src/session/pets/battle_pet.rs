@@ -169,7 +169,9 @@ impl WorldSession {
         let _ = self.battle_pet_remove_pet_like_cpp(pet_guid);
         self.send_packet(&wow_packet::packets::misc::BattlePetDeleted { pet_guid });
 
-        if self.represented_summoned_battle_pet_guid_like_cpp() == Some(pet_guid) {
+        if crate::session::hub_ref(self).represented_summoned_battle_pet_guid_like_cpp()
+            == Some(pet_guid)
+        {
             let _cleared = self.core.mutate_canonical_player_like_cpp(|player| {
                 player.clear_battle_pet_data_like_cpp();
             });
@@ -183,15 +185,6 @@ impl WorldSession {
         }
 
         RepresentedBattlePetCageOutcomeLikeCpp::Caged(cage_item)
-    }
-    pub(in crate::session) fn log_battle_pet_mutation_failure_like_cpp(
-        &self,
-        operation: &'static str,
-        pet_guid: ObjectGuid,
-        error: &BattlePetMutationFailureLikeCpp,
-    ) {
-        crate::session::hub_ref(self)
-            .log_battle_pet_mutation_failure_like_cpp(operation, pet_guid, error)
     }
     /// C++ `BattlePetMgr::AddPet`, represented without DB persistence and with
     /// a local GUID counter until `sObjectMgr->GetGenerator<HighGuid::BattlePet>()`
@@ -570,19 +563,14 @@ impl WorldSession {
                 RepresentedBattlePetGrantExperienceOutcomeLikeCpp::UnknownPet
             }
             Err(error) => {
-                self.log_battle_pet_mutation_failure_like_cpp("grant experience", pet_guid, &error);
+                crate::session::hub_ref(self).log_battle_pet_mutation_failure_like_cpp(
+                    "grant experience",
+                    pet_guid,
+                    &error,
+                );
                 RepresentedBattlePetGrantExperienceOutcomeLikeCpp::UnknownPet
             }
         }
-    }
-    pub(crate) fn represented_summoned_battle_pet_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        crate::session::hub_ref(self).represented_summoned_battle_pet_guid_like_cpp()
-    }
-    pub(crate) fn represented_battle_pet_query_companion_like_cpp(
-        &self,
-        unit_guid: ObjectGuid,
-    ) -> Option<RepresentedBattlePetQueryCompanionLikeCpp> {
-        crate::session::hub_ref(self).represented_battle_pet_query_companion_like_cpp(unit_guid)
     }
 }
 

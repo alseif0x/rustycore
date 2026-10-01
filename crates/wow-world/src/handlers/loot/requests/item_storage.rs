@@ -236,9 +236,10 @@ impl WorldSession {
                 wow_persistence::PlayerInventoryPersistenceRequestLikeCpp::LootQuestBoundProgress(
                     wow_persistence::LootQuestBoundProgressPersistenceLikeCpp {
                         owner_guid: player_guid.counter() as u64,
-                        quest_statuses: self.represented_quest_status_persistence_rows_like_cpp(
-                            &bound_objective_plan.statuses,
-                        ),
+                        quest_statuses: crate::session::hub_ref(self)
+                            .represented_quest_status_persistence_rows_like_cpp(
+                                &bound_objective_plan.statuses,
+                            ),
                         stored_item_source: stored_item_loot_source.map(|item_guid| {
                             wow_persistence::StoredItemLootSourcePersistenceLikeCpp {
                                 item_guid: item_guid.counter() as u64,

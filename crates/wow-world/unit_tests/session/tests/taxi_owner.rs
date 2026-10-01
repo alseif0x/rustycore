@@ -28,7 +28,9 @@ fn taxi_mutation_runs_once_on_active_and_detached_owner_and_rejects_stale_handle
         assert_eq!(calls.get(), 1);
         assert!(manager.try_lock().is_ok());
         session.set_taxi_destinations_like_cpp(vec![30, 20]);
-        let taxi = session.player_taxi_state_snapshot_like_cpp().unwrap();
+        let taxi = crate::session::hub_ref(&session)
+            .player_taxi_state_snapshot_like_cpp()
+            .unwrap();
         assert_eq!(taxi.destinations_like_cpp(), [30, 20]);
         assert!(taxi.mounted_like_cpp());
         assert_eq!(taxi.unit_flags_like_cpp(), UnitFlags::ON_TAXI.bits());

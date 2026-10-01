@@ -30,7 +30,9 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return false;
         };
-        if target_guid != player_guid || self.resolved_player_is_alive_like_cpp() != Some(true) {
+        if target_guid != player_guid
+            || crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true)
+        {
             return false;
         }
         if misc_value < 0 || misc_value >= MAX_POWERS as i32 {
@@ -128,7 +130,7 @@ impl WorldSession {
     ) -> i32 {
         let caster_is_player = self.player_guid() == Some(caster_guid);
         let caster_level = if caster_is_player {
-            self.player_level_like_cpp()
+            crate::session::hub_ref(self).player_level_like_cpp()
         } else {
             0
         };
@@ -142,7 +144,7 @@ impl WorldSession {
         // Runic Mana Injector: engineers gain 25% more.
         if spell_id == 67_490
             && caster_is_player
-            && self
+            && crate::session::hub_ref(self)
                 .resolved_player_skill_value_like_cpp(wow_entities::SKILL_ENGINEERING_LIKE_CPP)
                 .is_some_and(|value| value != 0)
         {
@@ -336,7 +338,9 @@ impl WorldSession {
         if damage < 0 || (target_guid != player_guid && !target_guid.is_creature()) {
             return false;
         }
-        if target_guid == player_guid && self.resolved_player_is_alive_like_cpp() != Some(true) {
+        if target_guid == player_guid
+            && crate::session::hub_ref(self).resolved_player_is_alive_like_cpp() != Some(true)
+        {
             return false;
         }
         if misc_value < 0 || misc_value >= MAX_POWERS as i32 {
@@ -468,7 +472,7 @@ impl WorldSession {
             // so this stays the owned-player damage path.
             let burned = (drained as f32 * value_multiplier) as i32;
             if burned > 0 {
-                let _ = self.apply_owned_player_damage_like_cpp(
+                let _ = crate::session::hub_mut(self).apply_owned_player_damage_like_cpp(
                     u32::try_from(burned).unwrap_or(u32::MAX),
                     wow_constants::DeathState::Corpse,
                 );

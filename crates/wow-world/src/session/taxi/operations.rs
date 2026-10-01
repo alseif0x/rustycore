@@ -6,29 +6,6 @@
 use super::*;
 
 impl WorldSession {
-    pub(in crate::session) fn player_vehicle_seat_state_like_cpp(
-        &self,
-    ) -> Option<(Option<i32>, Option<u32>)> {
-        crate::session::hub_ref(self).player_vehicle_seat_state_like_cpp()
-    }
-    pub(in crate::session) fn set_player_vehicle_seat_state_like_cpp(
-        &mut self,
-        flags: Option<i32>,
-        seat_id: Option<u32>,
-    ) -> bool {
-        crate::session::hub_mut(self).set_player_vehicle_seat_state_like_cpp(flags, seat_id)
-    }
-    pub(in crate::session) fn player_mount_vehicle_kit_snapshot_like_cpp(
-        &self,
-    ) -> Option<Option<Vehicle>> {
-        crate::session::hub_ref(self).player_mount_vehicle_kit_snapshot_like_cpp()
-    }
-    pub(in crate::session) fn clear_player_mount_vehicle_kit_like_cpp(&mut self) -> bool {
-        crate::session::hub_mut(self).clear_player_mount_vehicle_kit_like_cpp()
-    }
-    pub(in crate::session) fn remove_player_mount_vehicle_kit_like_cpp(&mut self) -> bool {
-        crate::session::hub_mut(self).remove_player_mount_vehicle_kit_like_cpp()
-    }
     pub fn set_vehicle_store(&mut self, store: Arc<VehicleStore>) {
         self.catalogs.vehicle_store = Some(store);
     }
@@ -41,17 +18,6 @@ impl WorldSession {
     }
     pub fn set_vehicle_accessory_store(&mut self, store: Arc<VehicleAccessoryStoreLikeCpp>) {
         self.catalogs.vehicle_accessory_store = Some(store);
-    }
-    pub(in crate::session) fn create_player_mount_vehicle_kit_like_cpp(
-        &mut self,
-        vehicle_id: u32,
-        creature_entry: u32,
-    ) -> bool {
-        crate::session::hub_mut(self)
-            .create_player_mount_vehicle_kit_like_cpp(vehicle_id, creature_entry)
-    }
-    pub(in crate::session) fn send_set_vehicle_rec_id_like_cpp(&mut self, vehicle_id: u32) {
-        crate::session::hub_mut(self).send_set_vehicle_rec_id_like_cpp(vehicle_id)
     }
     #[allow(dead_code)]
     pub(crate) fn represented_taxi_edge_distance_like_cpp(
@@ -108,17 +74,6 @@ impl WorldSession {
             })
             .map(|display| display.creature_display_info_id)
             .collect()
-    }
-    pub(crate) fn represented_current_vehicle_seat_can_switch_from_like_cpp(&self) -> bool {
-        crate::session::hub_ref(self).represented_current_vehicle_seat_can_switch_from_like_cpp()
-    }
-    pub(crate) fn represented_current_vehicle_seat_allows_turning_like_cpp(&self) -> bool {
-        crate::session::hub_ref(self).represented_current_vehicle_seat_allows_turning_like_cpp()
-    }
-    pub(in crate::session) fn represented_vehicle_base_guid_for_switch_like_cpp(
-        &self,
-    ) -> Option<ObjectGuid> {
-        crate::session::hub_ref(self).represented_vehicle_base_guid_for_switch_like_cpp()
     }
     pub(in crate::session) fn record_represented_vehicle_seat_action_like_cpp(
         &mut self,
@@ -180,7 +135,7 @@ impl WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return false;
         };
-        let Some(player_position) = self.player_position_like_cpp() else {
+        let Some(player_position) = crate::session::hub_ref(self).player_position_like_cpp() else {
             return false;
         };
         let Some(registry) = self.player_registry() else {
@@ -241,7 +196,7 @@ impl WorldSession {
         gameobject_guid: ObjectGuid,
         player_guid: ObjectGuid,
     ) -> bool {
-        if self
+        if crate::session::hub_ref(self)
             .player_vehicle_seat_state_like_cpp()
             .and_then(|(flags, _)| flags)
             .is_none()
@@ -257,9 +212,6 @@ impl WorldSession {
             },
         );
         true
-    }
-    pub(in crate::session) fn send_active_player_transport_server_time_update_like_cpp(&self) {
-        crate::session::hub_ref(self).send_active_player_transport_server_time_update_like_cpp()
     }
     pub(crate) fn represented_set_taxi_benchmark_mode_like_cpp(&mut self, enable: bool) -> bool {
         let Some(guid) = self.player_guid() else {
@@ -286,59 +238,22 @@ impl WorldSession {
             .unwrap_or(false)
             == enable
     }
-    pub(crate) fn player_taxi_state_snapshot_like_cpp(
-        &self,
-    ) -> Option<wow_entities::PlayerTaxiState> {
-        crate::session::hub_ref(self).player_taxi_state_snapshot_like_cpp()
-    }
-    pub(crate) fn advance_player_taxi_flight_after_teleport_like_cpp(
-        &mut self,
-    ) -> Option<wow_entities::PlayerTaxiFlightNodeLikeCpp> {
-        crate::session::hub_mut(self).advance_player_taxi_flight_after_teleport_like_cpp()
-    }
-    pub(crate) fn cleanup_player_after_taxi_flight_like_cpp(&mut self) -> bool {
-        crate::session::hub_mut(self).cleanup_player_after_taxi_flight_like_cpp()
-    }
-    #[cfg_attr(not(test), allow(unused_variables))]
-    pub(crate) fn record_represented_activate_taxi_like_cpp(
-        &mut self,
-        request: RepresentedActivateTaxiLikeCpp,
-    ) {
-        crate::session::hub_mut(self).record_represented_activate_taxi_like_cpp(request)
-    }
-    pub(crate) fn resolved_is_in_taxi_flight_like_cpp(&self) -> Option<bool> {
-        crate::session::hub_ref(self).resolved_is_in_taxi_flight_like_cpp()
-    }
     #[cfg(test)]
     pub(crate) fn is_in_taxi_flight_like_cpp(&self) -> bool {
-        self.resolved_is_in_taxi_flight_like_cpp()
+        crate::session::hub_ref(self)
+            .resolved_is_in_taxi_flight_like_cpp()
             .expect("test Player taxi owner must resolve")
     }
     pub(crate) fn set_player_transport_guid_like_cpp(&mut self, guid: Option<ObjectGuid>) {
         crate::session::hub_mut(self).set_player_transport_guid_like_cpp(guid)
-    }
-    pub(crate) fn set_player_transport_info_like_cpp(
-        &mut self,
-        info: Option<wow_packet::packets::movement::TransportInfo>,
-    ) {
-        crate::session::hub_mut(self).set_player_transport_info_like_cpp(info)
-    }
-    pub(crate) fn player_transport_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        crate::session::hub_ref(self).player_transport_guid_like_cpp()
-    }
-    pub(in crate::session) fn player_on_transport_state_like_cpp(&self) -> Option<bool> {
-        crate::session::hub_ref(self).player_on_transport_state_like_cpp()
     }
     pub(crate) fn should_send_init_transport_like_cpp(
         &self,
         transport_guid: ObjectGuid,
         transport_phase_shift: &PhaseShift,
     ) -> bool {
-        self.player_transport_guid_like_cpp() != Some(transport_guid)
+        crate::session::hub_ref(self).player_transport_guid_like_cpp() != Some(transport_guid)
             && self.can_see_phase_shift_like_cpp(transport_phase_shift)
-    }
-    pub(in crate::session) fn represented_player_has_active_vehicle_like_cpp(&self) -> bool {
-        crate::session::hub_ref(self).represented_player_has_active_vehicle_like_cpp()
     }
 }
 

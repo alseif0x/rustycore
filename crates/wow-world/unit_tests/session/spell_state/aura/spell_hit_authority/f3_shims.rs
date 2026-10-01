@@ -16,4 +16,9 @@ impl crate::session::WorldSession {
         let (state, hub) = crate::session::split_spell_state_ref(self);
         state.resolved_player_aura_authority_complete_like_cpp(hub)
     }
+    pub(in crate::session) fn player_aura_subsystem_snapshot_like_cpp(
+        &self,
+    ) -> Option<wow_entities::AuraSubsystem> {
+        crate::session::hub_ref(self).player_aura_subsystem_snapshot_like_cpp()
+    }
 }

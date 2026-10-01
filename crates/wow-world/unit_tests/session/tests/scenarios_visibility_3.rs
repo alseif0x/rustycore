@@ -343,7 +343,7 @@ fn overlapping_rest_flags_only_report_visible_zero_boundary_like_cpp() {
 fn fractional_rest_bonus_only_reports_visible_threshold_or_state_change_like_cpp() {
     let (mut session, _, _) = make_session();
     session.set_loaded_player_identity_like_cpp(1, 1, 8, 10, 0);
-    session.set_player_next_level_xp_like_cpp(72_000);
+    crate::session::hub_mut(&mut session).set_player_next_level_xp_like_cpp(72_000);
     session.load_represented_xp_rest_bonus_like_cpp(REST_STATE_NORMAL_LIKE_CPP, 0.0);
 
     assert_eq!(session.add_represented_xp_rest_bonus_like_cpp(0.5), 0);

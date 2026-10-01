@@ -145,7 +145,7 @@ async fn assert_post_add_scaling(worldport: bool, closure: OutputClosure) {
                 .is_err()
             );
             assert!(observed.load(std::sync::atomic::Ordering::SeqCst));
-            assert!(!session.represented_far_teleport_pending_like_cpp());
+            assert!(!crate::session::hub_ref(&session).represented_far_teleport_pending_like_cpp());
             assert!(session.pending_teleport_like_cpp().is_none());
             drop(send_rx.take());
             session.kick("controlled worldport cancellation before disconnect save");

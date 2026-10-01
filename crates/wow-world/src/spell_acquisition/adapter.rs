@@ -263,10 +263,10 @@ impl crate::session::WorldSession {
         let spell_rows = self
             .complete_represented_player_spell_rows_like_cpp()
             .ok_or(SpellAcquisitionSnapshotAdapterErrorLikeCpp::IncompleteSpellRows)?;
-        let skill_rows = self
+        let skill_rows = crate::session::hub_ref(self)
             .complete_player_skill_records_like_cpp()
             .ok_or(SpellAcquisitionSnapshotAdapterErrorLikeCpp::IncompleteSkillRows)?;
-        let occupied_skill_slots = self
+        let occupied_skill_slots = crate::session::hub_ref(self)
             .complete_player_skill_occupied_slots_like_cpp()
             .ok_or(SpellAcquisitionSnapshotAdapterErrorLikeCpp::MissingSkillSlotOccupancy)?;
         let traits = self
@@ -399,7 +399,7 @@ impl crate::session::WorldSession {
             })
             .collect::<Vec<_>>();
         primary_profession_skill_ids.sort_unstable();
-        let non_durable_skill_tombstone_ids = self
+        let non_durable_skill_tombstone_ids = crate::session::hub_ref(self)
             .resolved_player_skill_non_durable_tombstones_like_cpp()
             .ok_or(SpellAcquisitionSnapshotAdapterErrorLikeCpp::IncompleteSkillRows)?
             .iter()
@@ -414,9 +414,9 @@ impl crate::session::WorldSession {
             overrides,
             primary_profession_skill_ids,
             non_durable_skill_tombstone_ids,
-            race: self.player_race_like_cpp(),
-            class: self.player_class_like_cpp(),
-            level: self.player_level_like_cpp(),
+            race: crate::session::hub_ref(self).player_race_like_cpp(),
+            class: crate::session::hub_ref(self).player_class_like_cpp(),
+            level: crate::session::hub_ref(self).player_level_like_cpp(),
             lifecycle,
             future_player_condition_resolutions,
             cast_resolutions,

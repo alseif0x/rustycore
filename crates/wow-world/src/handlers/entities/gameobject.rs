@@ -151,7 +151,7 @@ impl crate::session::WorldSession {
             Some(go_type as u8),
             Some(template.get_interact_radius_override_like_cpp()),
         );
-        let Some(player_position) = self.player_position_like_cpp() else {
+        let Some(player_position) = crate::session::hub_ref(self).player_position_like_cpp() else {
             return;
         };
         if self.core.canonical_map_manager.is_some() {
@@ -548,7 +548,7 @@ impl crate::session::WorldSession {
         let Some(player_guid) = self.player_guid() else {
             return;
         };
-        if self.player_moved_unit_guid_like_cpp() != Some(player_guid) {
+        if crate::session::hub_ref(self).player_moved_unit_guid_like_cpp() != Some(player_guid) {
             return;
         }
 
@@ -580,7 +580,8 @@ impl crate::session::WorldSession {
             let Some(position) = state.and_then(|state| state.position) else {
                 return;
             };
-            let Some(player_position) = self.player_position_like_cpp() else {
+            let Some(player_position) = crate::session::hub_ref(self).player_position_like_cpp()
+            else {
                 return;
             };
             if !position.is_within_dist(&player_position, interaction_distance) {
@@ -623,7 +624,7 @@ impl crate::session::WorldSession {
         // represented GameObject half; constructing full scripted GO gossip
         // menus remains an explicit runtime boundary.
         if !gameobject_guid.is_game_object()
-            || self.resolved_is_in_taxi_flight_like_cpp() != Some(false)
+            || crate::session::hub_ref(self).resolved_is_in_taxi_flight_like_cpp() != Some(false)
             || !self.core.player_is_strictly_in_world_like_cpp()
         {
             return None;

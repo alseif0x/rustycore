@@ -33,7 +33,8 @@ impl WorldSession {
             } else {
                 None
             };
-        let player_team = player_team_for_race_cpp(self.player_race_like_cpp());
+        let player_team =
+            player_team_for_race_cpp(crate::session::hub_ref(self).player_race_like_cpp());
         let Some(quests) = self.player_quest_gameplay_snapshot_like_cpp() else {
             return;
         };
@@ -544,11 +545,13 @@ impl WorldSession {
 
         // Resolve the player identity before taking the canonical manager lock:
         // the session accessors re-enter it and would self-deadlock.
-        let player_race = self.player_race_like_cpp();
-        let player_class = self.player_class_like_cpp();
-        let Some(old_reputation) = self.with_reputation_mgr_like_cpp(|mgr| {
-            mgr.reputation_for_faction_like_cpp(faction_entry, player_race, player_class)
-        }) else {
+        let player_race = crate::session::hub_ref(self).player_race_like_cpp();
+        let player_class = crate::session::hub_ref(self).player_class_like_cpp();
+        let Some(old_reputation) =
+            crate::session::hub_ref(self).with_reputation_mgr_like_cpp(|mgr| {
+                mgr.reputation_for_faction_like_cpp(faction_entry, player_race, player_class)
+            })
+        else {
             return;
         };
         let new_reputation = old_reputation.saturating_add(change);

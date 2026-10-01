@@ -271,7 +271,7 @@ async fn spell_stuck_dead_player_without_death_timer_repops_like_cpp() {
         session.fixtures.combat.represented_repop_at_graveyard_count,
         1
     );
-    assert!(session.player_has_ghost_flag_like_cpp());
+    assert!(crate::session::hub_ref(&session).player_has_ghost_flag_like_cpp());
     assert_eq!(
         drain_server_opcodes(&send_rx),
         vec![ServerOpcodes::SpellGo, ServerOpcodes::CooldownEvent]

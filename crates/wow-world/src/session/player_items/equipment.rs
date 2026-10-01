@@ -35,7 +35,7 @@ impl WorldSession {
             return 0;
         };
         let item_guids: Vec<ObjectGuid> = equipped.iter().map(|(_, guid)| *guid).collect();
-        let mut stale_slots: Vec<u8> = self
+        let mut stale_slots: Vec<u8> = crate::session::hub_ref(self)
             .resolved_player_visible_auras_like_cpp()
             .unwrap_or_default()
             .values()
@@ -362,7 +362,7 @@ impl WorldSession {
         let inventory_item = self.get_inventory_item_by_pos(source_bag, source_slot)?;
         let runtime_item = self.resolved_inventory_item_object_like_cpp(inventory_item.guid)?;
         let (can_dual_wield, can_titan_grip) = self.inventory_equip_capabilities_like_cpp()?;
-        let is_in_combat = self.resolved_in_combat_like_cpp()?;
+        let is_in_combat = crate::session::hub_ref(self).resolved_in_combat_like_cpp()?;
         let outcome = self.can_equip_inventory_item_like_cpp(
             &inventory_item,
             &runtime_item,
@@ -507,7 +507,7 @@ impl WorldSession {
                 )
             })
             .unwrap_or((false, false));
-        let is_in_progress_arena = self
+        let is_in_progress_arena = crate::session::hub_ref(self)
             .player_battleground_state_snapshot_like_cpp()
             .is_some_and(|state| state.battleground_status_like_cpp() == Some(3))
             && self

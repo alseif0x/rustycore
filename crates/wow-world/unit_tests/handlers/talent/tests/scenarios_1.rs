@@ -453,8 +453,8 @@ async fn learn_talent_updates_represented_active_group_and_sends_talents_like_cp
     let (mut session, send_rx) = make_session_with_send_capacity(1);
     let talent_tabs = install_test_talent_store(&mut session, &[(101, 2, 50_101)]);
     session.mark_represented_talents_loaded_like_cpp();
-    session.set_represented_active_talent_group_like_cpp(1);
-    session.set_represented_bonus_talent_groups_like_cpp(1);
+    crate::session::hub_mut(&mut session).set_represented_active_talent_group_like_cpp(1);
+    crate::session::hub_mut(&mut session).set_represented_bonus_talent_groups_like_cpp(1);
 
     session
         .handle_learn_talent(&talent_tabs, learn_talent_packet(101, 2))

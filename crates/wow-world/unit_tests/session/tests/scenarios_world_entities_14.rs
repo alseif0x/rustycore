@@ -735,7 +735,7 @@ fn gameobject_use_meeting_stone_maps_spell_by_entry_like_cpp() {
     let target_guid = ObjectGuid::create_player(1, 100);
     let gameobject_guid =
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 23);
-    session.set_selection_guid_like_cpp(Some(target_guid));
+    crate::session::hub_mut(&mut session).set_selection_guid_like_cpp(Some(target_guid));
     let group_registry = Arc::new(GroupRegistry::default());
     let mut group = GroupInfo::new(player_guid);
     group.add_member(target_guid);
@@ -824,7 +824,7 @@ fn gameobject_use_meeting_stone_requires_selected_raid_target_like_cpp() {
         .world_entities
         .represented_gameobject_use_effects
         .clear();
-    session.set_selection_guid_like_cpp(Some(player_guid));
+    crate::session::hub_mut(&mut session).set_selection_guid_like_cpp(Some(player_guid));
 
     assert!(!session.use_represented_gameobject_meeting_stone_like_cpp(
         gameobject_guid,
@@ -844,7 +844,7 @@ fn gameobject_use_meeting_stone_requires_selected_raid_target_like_cpp() {
         .world_entities
         .represented_gameobject_use_effects
         .clear();
-    session.set_selection_guid_like_cpp(Some(target_guid));
+    crate::session::hub_mut(&mut session).set_selection_guid_like_cpp(Some(target_guid));
 
     assert!(!session.use_represented_gameobject_meeting_stone_like_cpp(
         gameobject_guid,
@@ -870,7 +870,7 @@ fn gameobject_use_meeting_stone_checks_content_tuning_levels_like_cpp() {
         ObjectGuid::create_world_object(HighGuid::GameObject, 0, 1, 571, 0, 777, 23);
     session.set_player_guid(Some(player_guid));
     session.set_player_level_like_cpp(19);
-    session.set_selection_guid_like_cpp(Some(target_guid));
+    crate::session::hub_mut(&mut session).set_selection_guid_like_cpp(Some(target_guid));
     session.set_content_tuning_store(Arc::new(ContentTuningStore::from_entries([
         wow_data::progression_rewards::ContentTuningEntry {
             id: 55,

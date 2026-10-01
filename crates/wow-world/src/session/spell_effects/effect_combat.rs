@@ -166,7 +166,7 @@ impl WorldSession {
         }
         let creature_type_mask = self.represented_target_creature_type_mask_like_cpp(target_guid);
         if creature_type_mask != 0 {
-            for (misc_value, amount) in self
+            for (misc_value, amount) in crate::session::hub_ref(self)
                 .resolved_aura_effects_by_spell_aura_type_like_cpp(
                     wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS,
                 )
@@ -179,7 +179,7 @@ impl WorldSession {
         }
         let aura_state_mask = self.represented_target_aura_state_mask_like_cpp(target_guid);
         if aura_state_mask != 0 {
-            for (misc_value, amount) in self
+            for (misc_value, amount) in crate::session::hub_ref(self)
                 .resolved_aura_effects_by_spell_aura_type_like_cpp(
                     wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE,
                 )
@@ -194,8 +194,7 @@ impl WorldSession {
         }
         let target_mechanic_mask = self.represented_target_mechanic_mask_like_cpp(target_guid);
         if target_mechanic_mask != 0 {
-            for (misc_value, amount) in self
-                .resolved_aura_effects_by_spell_aura_type_like_cpp(
+            for (misc_value, amount) in crate::session::hub_ref(self).resolved_aura_effects_by_spell_aura_type_like_cpp(
                     wow_data::spell::aura_types::
                         SPELL_AURA_MOD_DAMAGE_PERCENT_DONE_BY_TARGET_AURA_MECHANIC,
                 )
@@ -211,7 +210,7 @@ impl WorldSession {
         if let Some(mechanic) =
             self.represented_spell_damage_mechanic_like_cpp(spell_id, effect_index)
         {
-            let pct = self
+            let pct = crate::session::hub_ref(self)
                 .resolved_aura_effects_by_spell_aura_type_like_cpp(
                     wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_FOR_MECHANIC,
                 )
@@ -295,7 +294,9 @@ impl WorldSession {
         let difficulty_store = self.catalogs.difficulty_store();
         let difficulty_store = difficulty_store.map(AsRef::as_ref);
         if Some(target_guid) == self.player_guid() {
-            let Some(auras) = self.resolved_player_visible_auras_like_cpp() else {
+            let Some(auras) =
+                crate::session::hub_ref(self).resolved_player_visible_auras_like_cpp()
+            else {
                 return 0;
             };
             return crate::session_rules::aura_application_mechanic_mask_like_cpp(
@@ -353,7 +354,8 @@ impl WorldSession {
     /// target cannot be resolved.
     fn represented_target_health_pct_like_cpp(&self, target_guid: ObjectGuid) -> Option<f32> {
         if Some(target_guid) == self.player_guid() {
-            let (health, max_health, _) = self.resolved_player_vitals_like_cpp()?;
+            let (health, max_health, _) =
+                crate::session::hub_ref(self).resolved_player_vitals_like_cpp()?;
             return Some(100.0 * health as f32 / max_health.max(1) as f32);
         }
         let manager = self.core.map_manager.as_ref()?;
@@ -451,14 +453,15 @@ impl WorldSession {
             // GetTotalAuraModifierByMiscMask(SPELL_AURA_MOD_HEALING,
             // spellProto->GetSchoolMask())`.
             benefit = benefit.saturating_add(
-                self.resolved_aura_effects_by_spell_aura_type_like_cpp(
-                    wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING,
-                )
-                .unwrap_or_default()
-                .into_iter()
-                .filter(|(misc_value, _)| misc_value & i32::from(school_mask) != 0)
-                .map(|(_, amount)| amount)
-                .sum::<i32>(),
+                crate::session::hub_ref(self)
+                    .resolved_aura_effects_by_spell_aura_type_like_cpp(
+                        wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING,
+                    )
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter(|(misc_value, _)| misc_value & i32::from(school_mask) != 0)
+                    .map(|(_, amount)| amount)
+                    .sum::<i32>(),
             );
         }
         let Some(snapshot) = self.core.canonical_player_effective_combat_stats_like_cpp() else {
@@ -479,7 +482,7 @@ impl WorldSession {
             let mut modifier = snapshot.mod_healing_done_percent;
             let aura_state_mask = self.represented_target_aura_state_mask_like_cpp(target_guid);
             if aura_state_mask != 0 {
-                for (misc_value, amount) in self
+                for (misc_value, amount) in crate::session::hub_ref(self)
                     .resolved_aura_effects_by_spell_aura_type_like_cpp(
                         wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE_VERSUS_AURASTATE,
                     )
@@ -492,8 +495,7 @@ impl WorldSession {
                     }
                 }
             }
-            let effects = self
-                .resolved_aura_effects_by_spell_aura_type_like_cpp(
+            let effects = crate::session::hub_ref(self).resolved_aura_effects_by_spell_aura_type_like_cpp(
                     wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_DONE_PCT_VERSUS_TARGET_HEALTH,
                 )
                 .unwrap_or_default();
@@ -549,7 +551,7 @@ impl WorldSession {
                     as i32,
             );
         }
-        let mut benefit = self
+        let mut benefit = crate::session::hub_ref(self)
             .resolved_aura_effects_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_DONE,
             )
@@ -564,7 +566,7 @@ impl WorldSession {
             // term; the class base-mana row represents that mana slot.
             benefit = benefit.saturating_add(snapshot.stats[3].max(0));
         }
-        for (stat_index, _, amount) in self
+        for (stat_index, _, amount) in crate::session::hub_ref(self)
             .resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_SPELL_HEALING_OF_STAT_PERCENT,
             )
@@ -594,7 +596,7 @@ impl WorldSession {
         if Some(target_guid) != self.player_guid() {
             return heal_amount;
         }
-        let amounts = self
+        let amounts = crate::session::hub_ref(self)
             .resolved_aura_effects_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_PCT,
             )
@@ -651,7 +653,7 @@ impl WorldSession {
                     as i32,
             );
         }
-        let mut benefit = self
+        let mut benefit = crate::session::hub_ref(self)
             .resolved_aura_effects_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE,
             )
@@ -661,7 +663,7 @@ impl WorldSession {
             .map(|(_, amount)| amount)
             .sum::<i32>()
             .saturating_add(snapshot.spell_power);
-        for (aura_mask, stat_index, amount) in self
+        for (aura_mask, stat_index, amount) in crate::session::hub_ref(self)
             .resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_SPELL_DAMAGE_OF_STAT_PERCENT,
             )

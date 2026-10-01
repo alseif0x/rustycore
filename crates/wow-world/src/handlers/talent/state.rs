@@ -46,7 +46,8 @@ impl WorldSession {
             talent_tabs,
             request.talent_id as u32,
             request.requested_rank,
-        ) && let Some(talent_data) = self.resolved_update_talent_data_packet_like_cpp()
+        ) && let Some(talent_data) =
+            crate::session::hub_ref(self).resolved_update_talent_data_packet_like_cpp()
         {
             self.send_packet(&talent_data);
         }
@@ -74,7 +75,9 @@ impl WorldSession {
 
         for talent_id in request.talent_ids {
             if self.learn_represented_talent_like_cpp(talent_tabs, u32::from(talent_id), 0) {
-                if let Some(talent_data) = self.resolved_update_talent_data_packet_like_cpp() {
+                if let Some(talent_data) =
+                    crate::session::hub_ref(self).resolved_update_talent_data_packet_like_cpp()
+                {
                     self.send_packet(&talent_data);
                 }
             }
@@ -121,7 +124,7 @@ impl WorldSession {
         // talent topology. Pet/spell runtime removal, criteria, and packets are
         // published synchronously after COMMIT; exact `_SaveSpells` persistence
         // remains bounded until Rust retains the complete PlayerSpellMap state.
-        self.record_represented_talent_reset_script_hook_like_cpp(false);
+        crate::session::hub_mut(self).record_represented_talent_reset_script_hook_like_cpp(false);
         self.remove_represented_at_login_flag_like_cpp(AT_LOGIN_RESET_TALENTS_LIKE_CPP, true);
 
         let Some(committed) = self

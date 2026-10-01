@@ -36,7 +36,7 @@ impl WorldSession {
 
         // C++ `Player::SendInitialPacketsBeforeAddToMap` resets m_movementCounter to 0 for a
         // non-seamless add (login / far teleport; Player.cpp:23483) before any control packets.
-        self.reset_movement_counter_like_cpp();
+        crate::session::hub_mut(self).reset_movement_counter_like_cpp();
 
         // 6. TimeSyncRequest (critical — client needs time sync)
         //    Also initializes the periodic timer (5s first, then 10s).
@@ -66,7 +66,9 @@ impl WorldSession {
         self.send_packet(&login_bind_point_update_like_cpp(homebind));
 
         // 9. UpdateTalentData — C++ `Player::SendTalentsInfoData`.
-        let Some(talent_data) = self.resolved_update_talent_data_packet_like_cpp() else {
+        let Some(talent_data) =
+            crate::session::hub_ref(self).resolved_update_talent_data_packet_like_cpp()
+        else {
             return false;
         };
         self.send_packet(&talent_data);
@@ -100,7 +102,9 @@ impl WorldSession {
         {
             return false;
         }
-        self.send_packet_realm(&self.represented_active_glyphs_packet_like_cpp());
+        self.send_packet_realm(
+            &crate::session::hub_ref(self).represented_active_glyphs_packet_like_cpp(),
+        );
 
         // 15. UpdateActionButtons — populated from character_action table
         if !self
@@ -116,8 +120,8 @@ impl WorldSession {
         });
 
         // 16. InitializeFactions (1000 factions, all neutral)
-        let Some(initialize_factions) =
-            self.mutate_reputation_mgr_like_cpp(|mgr| mgr.initialize_factions_packet_like_cpp())
+        let Some(initialize_factions) = crate::session::hub_mut(self)
+            .mutate_reputation_mgr_like_cpp(|mgr| mgr.initialize_factions_packet_like_cpp())
         else {
             return false;
         };
@@ -232,7 +236,8 @@ impl WorldSession {
         // 27. InitWorldStates — C++ `Player::SendInitWorldStates` delegates to
         // `WorldStateMgr::FillInitialWorldStates`: realm values first, then map
         // values filtered by AreaIDs.
-        let Some((represented_zone_id, represented_area_id)) = self.player_zone_area_like_cpp()
+        let Some((represented_zone_id, represented_area_id)) =
+            crate::session::hub_ref(self).player_zone_area_like_cpp()
         else {
             return;
         };
@@ -275,7 +280,7 @@ impl WorldSession {
         // map object-update owner flushes that field after post-add packets.
         // Keep the marker on Player across the world-state await; only channel acceptance
         // retires it. This is not a client acknowledgement or a restart durability claim.
-        if self
+        if crate::session::hub_ref(self)
             .player_rest_state_snapshot_like_cpp()
             .is_some_and(|rest| rest.deferred_flag_update_dirty_like_cpp())
             && self.send_represented_resting_player_flag_update_like_cpp()

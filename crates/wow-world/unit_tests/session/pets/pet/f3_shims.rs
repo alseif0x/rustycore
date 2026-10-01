@@ -29,4 +29,10 @@ impl crate::session::WorldSession {
     ) -> Option<PlayerPetLifecycleStateLikeCpp> {
         crate::session::hub_ref(self).player_pet_lifecycle_state_snapshot_like_cpp()
     }
+    pub(in crate::session) fn update_player_pet_lifecycle_state_like_cpp(
+        &mut self,
+        update: impl FnOnce(&mut PlayerPetLifecycleStateLikeCpp),
+    ) -> bool {
+        crate::session::hub_mut(self).update_player_pet_lifecycle_state_like_cpp(update)
+    }
 }

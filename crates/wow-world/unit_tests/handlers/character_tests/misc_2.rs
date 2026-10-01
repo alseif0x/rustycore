@@ -158,7 +158,7 @@ async fn binder_activate_sets_current_homebind_and_sends_bind_packets_like_cpp()
     session.install_realm_send_channel_for_test(realm_tx);
     let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 30);
     insert_banker_creature(&canonical, innkeeper, NPCFlags1::INNKEEPER.bits());
-    session.set_player_zone_area_like_cpp(12, 34);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(12, 34);
     install_bind_spell_fixture(&mut session);
     session.set_player_trainer_interaction_like_cpp(innkeeper, 77);
     let _ = crate::session::game_time_ms_like_cpp();
@@ -256,7 +256,7 @@ async fn binder_activate_rejects_non_innkeeper_like_cpp() {
     insert_bank_test_player_in_world(&session, &canonical);
     let creature = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 31);
     insert_banker_creature(&canonical, creature, NPCFlags1::BANKER.bits());
-    session.set_player_zone_area_like_cpp(12, 34);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(12, 34);
 
     session
         .handle_binder_activate(Hello { unit: creature })
@@ -271,7 +271,7 @@ async fn binder_activate_rejects_player_outside_world_like_cpp() {
     insert_bank_test_player_in_world(&session, &canonical);
     let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 33);
     insert_banker_creature(&canonical, innkeeper, NPCFlags1::INNKEEPER.bits());
-    session.set_player_zone_area_like_cpp(12, 34);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(12, 34);
     install_bind_spell_fixture(&mut session);
     assert!(
         session
@@ -303,7 +303,7 @@ async fn binder_activate_rejects_player_missing_from_canonical_world_like_cpp() 
     insert_bank_test_player_in_world(&session, &canonical);
     let innkeeper = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 571, 0, 2456, 34);
     insert_banker_creature(&canonical, innkeeper, NPCFlags1::INNKEEPER.bits());
-    session.set_player_zone_area_like_cpp(12, 34);
+    crate::session::hub_mut(&mut session).set_player_zone_area_like_cpp(12, 34);
     install_bind_spell_fixture(&mut session);
     let player_guid = session.player_guid().expect("player guid");
     assert!(
