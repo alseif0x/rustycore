@@ -50,4 +50,20 @@ impl crate::session::WorldSession {
         self.inventory
             .represented_item_mod_reapply_events_like_cpp()
     }
+    pub(crate) fn can_destroy_direct_item_like_cpp(
+        &self,
+        slot: u8,
+        source_item: Option<&Item>,
+        proto: Option<&ItemStorageTemplate>,
+        source_is_not_empty_bag: bool,
+    ) -> InventoryResult {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.can_destroy_direct_item_like_cpp(
+            hub,
+            slot,
+            source_item,
+            proto,
+            source_is_not_empty_bag,
+        )
+    }
 }

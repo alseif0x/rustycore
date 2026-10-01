@@ -14,21 +14,33 @@ const ITEM_ENCHANTMENT_TYPE_DAMAGE_LIKE_CPP: u8 = 2;
 const ITEM_ENCHANTMENT_TYPE_TOTEM_LIKE_CPP: u8 = 6;
 
 impl WorldSession {
+    pub(crate) fn represented_weapon_crit_aura_modifier_like_cpp(
+        &self,
+        attack: WeaponAttackType,
+    ) -> f32 {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.represented_weapon_crit_aura_modifier_like_cpp(hub, attack)
+    }
+}
+
+impl crate::session::state::InventoryState {
     pub(in crate::session) fn represented_equipped_item_in_slot_fits_spell_requirements_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         slot: u8,
         equipped: &SpellEquippedItemsEntry,
     ) -> bool {
-        self.resolved_inventory_item_objects_like_cpp()
+        self.resolved_inventory_item_objects_like_cpp(hub)
             .is_some_and(|items| {
                 items
                     .values()
                     .find(|item| item.container_guid().is_empty() && item.slot() == slot)
                     .is_some_and(|item| {
-                        self.represented_item_fits_spell_requirements_like_cpp(
-                            item.object().entry(),
-                            equipped,
-                        )
+                        hub.catalogs
+                            .represented_item_fits_spell_requirements_like_cpp(
+                                item.object().entry(),
+                                equipped,
+                            )
                     })
             })
     }
@@ -40,26 +52,21 @@ impl WorldSession {
     /// weapon-fit producers (`UpdateWeaponDependentCritAuras`,
     /// `UpdateDamageDoneMods`, `UpdateDamagePctDoneMods`) do resolve the ranged
     /// weapon through this helper.
-    fn represented_usable_weapon_item_id_like_cpp(&self, attack: WeaponAttackType) -> Option<u32> {
+    fn represented_usable_weapon_item_id_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        attack: WeaponAttackType,
+    ) -> Option<u32> {
         let slot = match attack {
             WeaponAttackType::BaseAttack => EQUIPMENT_SLOT_MAINHAND,
             WeaponAttackType::OffAttack => EQUIPMENT_SLOT_OFFHAND,
             WeaponAttackType::RangedAttack => EQUIPMENT_SLOT_RANGED,
             WeaponAttackType::Max => return None,
         };
-        let item = self.resolved_inventory_item_like_cpp(slot)?;
-        self.resolved_inventory_item_object_like_cpp(item.guid)
+        let item = self.resolved_inventory_item_like_cpp(hub, slot)?;
+        self.resolved_inventory_item_object_like_cpp(hub, item.guid)
             .is_some_and(|object| !object.is_broken())
             .then_some(item.entry_id)
-    }
-
-    fn represented_aura_spell_fits_weapon_like_cpp(
-        &self,
-        spell_id: i32,
-        weapon_item_id: Option<u32>,
-    ) -> bool {
-        self.catalogs
-            .represented_aura_spell_fits_weapon_like_cpp(spell_id, weapon_item_id)
     }
 
     /// C++ `Unit::UpdateDamagePctDoneMods` (`Unit.cpp:9033-9072`), reached from
@@ -78,8 +85,11 @@ impl WorldSession {
     /// capture evidence for its scale. Ranged weapon requirements are also
     /// excluded rather than resolved because the represented
     /// `GetWeaponForAttack` helper covers the melee slots only.
-    pub(crate) fn represented_weapon_damage_pct_like_cpp(&self) -> [f32; 3] {
-        let effects = self
+    pub(crate) fn represented_weapon_damage_pct_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> [f32; 3] {
+        let effects = hub
             .resolved_aura_effects_with_spell_and_misc_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE,
             )
@@ -92,12 +102,13 @@ impl WorldSession {
                 wow_constants::WeaponAttackType::OffAttack => 0.5_f32,
                 _ => 1.0_f32,
             };
-            let weapon_item_id = self.represented_usable_weapon_item_id_like_cpp(attack);
+            let weapon_item_id = self.represented_usable_weapon_item_id_like_cpp(hub, attack);
             base * effects
                 .iter()
                 .filter(|(spell_id, misc_value, _)| {
                     misc_value & SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP != 0
-                        && self
+                        && hub
+                            .catalogs
                             .represented_aura_spell_fits_weapon_like_cpp(*spell_id, weapon_item_id)
                 })
                 .fold(1.0_f32, |acc, (_, _, amount)| {
@@ -112,8 +123,11 @@ impl WorldSession {
     /// the sum of every active `SPELL_AURA_MOD_DAMAGE_DONE` (13) effect that
     /// covers `SPELL_SCHOOL_MASK_NORMAL` and fits the attack's weapon, plus the
     /// weapon-enchantment `ITEM_ENCHANTMENT_TYPE_DAMAGE`/`TOTEM` term.
-    pub(crate) fn represented_weapon_damage_flat_like_cpp(&self) -> [f32; 3] {
-        let effects = self
+    pub(crate) fn represented_weapon_damage_flat_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> [f32; 3] {
+        let effects = hub
             .resolved_aura_effects_with_spell_and_misc_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE,
             )
@@ -122,17 +136,18 @@ impl WorldSession {
             let attack =
                 <wow_constants::WeaponAttackType as num_traits::FromPrimitive>::from_usize(index)
                     .unwrap_or(wow_constants::WeaponAttackType::BaseAttack);
-            let weapon_item_id = self.represented_usable_weapon_item_id_like_cpp(attack);
+            let weapon_item_id = self.represented_usable_weapon_item_id_like_cpp(hub, attack);
             let aura_sum = effects
                 .iter()
                 .filter(|(spell_id, misc_value, _)| {
                     misc_value & SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP != 0
-                        && self
+                        && hub
+                            .catalogs
                             .represented_aura_spell_fits_weapon_like_cpp(*spell_id, weapon_item_id)
                 })
                 .map(|(_, _, amount)| *amount)
                 .sum::<i32>();
-            aura_sum as f32 + self.represented_weapon_enchant_damage_like_cpp(attack)
+            aura_sum as f32 + self.represented_weapon_enchant_damage_like_cpp(hub, attack)
         })
     }
 
@@ -142,8 +157,12 @@ impl WorldSession {
     /// `SpellItemEnchantment::EffectScalingPoints`, and
     /// `ITEM_ENCHANTMENT_TYPE_TOTEM` (6) adds the same scaled by the weapon
     /// delay for shamans only.
-    fn represented_weapon_enchant_damage_like_cpp(&self, attack: WeaponAttackType) -> f32 {
-        let Some(item_id) = self.represented_usable_weapon_item_id_like_cpp(attack) else {
+    fn represented_weapon_enchant_damage_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        attack: WeaponAttackType,
+    ) -> f32 {
+        let Some(item_id) = self.represented_usable_weapon_item_id_like_cpp(hub, attack) else {
             return 0.0;
         };
         let slot = match attack {
@@ -152,16 +171,17 @@ impl WorldSession {
             WeaponAttackType::RangedAttack => EQUIPMENT_SLOT_RANGED,
             WeaponAttackType::Max => return 0.0,
         };
-        let Some(inventory_item) = self.resolved_inventory_item_like_cpp(slot) else {
+        let Some(inventory_item) = self.resolved_inventory_item_like_cpp(hub, slot) else {
             return 0.0;
         };
-        let Some(item) = self.resolved_inventory_item_object_like_cpp(inventory_item.guid) else {
+        let Some(item) = self.resolved_inventory_item_object_like_cpp(hub, inventory_item.guid)
+        else {
             return 0.0;
         };
-        let Some(enchantment_store) = self.spell_item_enchantment_store() else {
+        let Some(enchantment_store) = hub.catalogs.spell_item_enchantment_store() else {
             return 0.0;
         };
-        let delay_seconds = self
+        let delay_seconds = hub
             .catalogs
             .items
             .stats_store
@@ -169,7 +189,7 @@ impl WorldSession {
             .and_then(|store| store.weapon_template(item_id))
             .map(|weapon| f32::from(weapon.item_delay) / 1000.0)
             .unwrap_or(0.0);
-        let is_shaman = self.player_class_like_cpp() == 7;
+        let is_shaman = hub.player_class_like_cpp() == 7;
         item.data()
             .enchantments
             .iter()
@@ -198,21 +218,23 @@ impl WorldSession {
     /// stores the result per attack as the `FLAT_MOD` critical base value.
     pub(crate) fn represented_weapon_crit_aura_modifier_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         attack: WeaponAttackType,
     ) -> f32 {
-        let weapon_item_id = self.represented_usable_weapon_item_id_like_cpp(attack);
-        let weapon_dependent = self
+        let weapon_item_id = self.represented_usable_weapon_item_id_like_cpp(hub, attack);
+        let weapon_dependent = hub
             .resolved_aura_effect_amounts_by_spell_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_WEAPON_CRIT_PERCENT,
             )
             .unwrap_or_default()
             .into_iter()
             .filter(|(spell_id, _)| {
-                self.represented_aura_spell_fits_weapon_like_cpp(*spell_id, weapon_item_id)
+                hub.catalogs
+                    .represented_aura_spell_fits_weapon_like_cpp(*spell_id, weapon_item_id)
             })
             .map(|(_, amount)| amount)
             .sum::<i32>();
-        let global = self
+        let global = hub
             .resolved_aura_effect_amounts_by_spell_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_PCT,
             )
@@ -233,10 +255,11 @@ impl WorldSession {
     /// mainhand and offhand weapons can select different auras.
     pub(crate) fn represented_expertise_aura_modifier_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         attack: WeaponAttackType,
     ) -> i32 {
-        let weapon_item_id = self.represented_usable_weapon_item_id_like_cpp(attack);
-        let Some(effects) = self.resolved_aura_effect_amounts_by_spell_like_cpp(
+        let weapon_item_id = self.represented_usable_weapon_item_id_like_cpp(hub, attack);
+        let Some(effects) = hub.resolved_aura_effect_amounts_by_spell_like_cpp(
             wow_data::spell::aura_types::SPELL_AURA_MOD_EXPERTISE,
         ) else {
             return 0;
@@ -245,16 +268,21 @@ impl WorldSession {
         let mut same_effect_groups: BTreeMap<u32, i32> = BTreeMap::new();
         let mut modifier = 0;
         for (spell_id, amount) in effects {
-            if !self.represented_aura_spell_fits_weapon_like_cpp(spell_id, weapon_item_id) {
+            if !hub
+                .catalogs
+                .represented_aura_spell_fits_weapon_like_cpp(spell_id, weapon_item_id)
+            {
                 continue;
             }
             // A spell belongs to at most one same-effect group per aura type.
-            let same_effect_group = self
+            let same_effect_group = hub
+                .catalogs
                 .spell_spell_group_map_bounds_like_cpp(spell_id as u32)
                 .iter()
                 .copied()
                 .find(|group_id| {
-                    self.same_effect_stack_rule_aura_types_like_cpp(*group_id)
+                    hub.catalogs
+                        .same_effect_stack_rule_aura_types_like_cpp(*group_id)
                         .is_some_and(|aura_types| {
                             aura_types
                                 .contains(&wow_data::spell::aura_types::SPELL_AURA_MOD_EXPERTISE)

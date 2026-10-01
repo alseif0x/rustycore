@@ -15,4 +15,20 @@ impl crate::session::WorldSession {
     pub(crate) fn inventory_item_objects_like_cpp(&self) -> &HashMap<ObjectGuid, Item> {
         self.inventory.inventory_item_objects_like_cpp()
     }
+    #[cfg(test)]
+    pub(crate) fn update_inventory_item_object_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        update: impl FnOnce(&mut Item),
+    ) -> bool {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.update_inventory_item_object_like_cpp(&mut hub, item_guid, update)
+    }
+    pub(crate) fn mutate_player_inventory_runtime_like_cpp<R>(
+        &mut self,
+        update: impl FnOnce(&mut PlayerInventoryRuntime) -> R,
+    ) -> Option<R> {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.mutate_player_inventory_runtime_like_cpp(&mut hub, update)
+    }
 }

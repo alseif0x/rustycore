@@ -39,21 +39,36 @@ impl WorldSession {
         item_id: u32,
         rng: &mut R,
     ) -> LootStoreRandomProperties {
+        let (state, hub) = crate::session::split_loot_ref(self);
+        state.generate_loot_store_random_properties_with_rng_like_cpp(hub, item_id, rng)
+    }
+}
+
+impl crate::session::LootState {
+    pub(super) fn generate_loot_store_random_properties_with_rng_like_cpp<R: Rng + ?Sized>(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_id: u32,
+        rng: &mut R,
+    ) -> LootStoreRandomProperties {
         // C++ Player::StoreLootItem calls ItemEnchantmentMgr::GenerateRandomProperties(itemid).
-        let random_select = self.item_template_random_select(item_id);
-        let random_suffix = self.item_template_random_suffix_group_id(item_id);
+        let random_select = hub.catalogs.item_template_random_select(item_id);
+        let random_suffix = hub.catalogs.item_template_random_suffix_group_id(item_id);
         if random_select == 0 && random_suffix == 0 {
             return LootStoreRandomProperties { id: 0, seed: 0 };
         }
 
         if random_select != 0 {
-            let Some(random_properties_id) =
-                self.select_random_enchantment_from_group_like_cpp(u32::from(random_select), rng)
-            else {
+            let Some(random_properties_id) = self.select_random_enchantment_from_group_like_cpp(
+                hub,
+                u32::from(random_select),
+                rng,
+            ) else {
                 return LootStoreRandomProperties { id: 0, seed: 0 };
             };
 
-            if self
+            if hub
+                .catalogs
                 .item_random_properties_store()
                 .and_then(|store| store.get(random_properties_id))
                 .is_none()
@@ -68,12 +83,13 @@ impl WorldSession {
         }
 
         let Some(random_suffix_id) =
-            self.select_random_enchantment_from_group_like_cpp(u32::from(random_suffix), rng)
+            self.select_random_enchantment_from_group_like_cpp(hub, u32::from(random_suffix), rng)
         else {
             return LootStoreRandomProperties { id: 0, seed: 0 };
         };
 
-        if self
+        if hub
+            .catalogs
             .item_random_suffix_store()
             .and_then(|store| store.get(random_suffix_id))
             .is_none()
@@ -81,9 +97,10 @@ impl WorldSession {
             return LootStoreRandomProperties { id: 0, seed: 0 };
         }
 
-        let seed = self
+        let seed = hub
+            .catalogs
             .item_random_property_template(item_id)
-            .map(|template| self.random_property_points_like_cpp(template))
+            .map(|template| self.random_property_points_like_cpp(hub, template))
             .unwrap_or(0);
 
         LootStoreRandomProperties {
@@ -94,16 +111,22 @@ impl WorldSession {
 
     fn select_random_enchantment_from_group_like_cpp<R: Rng + ?Sized>(
         &self,
+        hub: crate::session::HubRef<'_>,
         group_id: u32,
         rng: &mut R,
     ) -> Option<u32> {
-        let group = self
+        let group = hub
+            .catalogs
             .item_random_enchantment_template_store()
             .and_then(|store| store.group(group_id))?;
         select_weighted_random_enchantment_like_cpp(group, rng)
     }
 
-    fn random_property_points_like_cpp(&self, template: ItemRandomPropertyTemplateEntry) -> i32 {
+    fn random_property_points_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        template: ItemRandomPropertyTemplateEntry,
+    ) -> i32 {
         let prop_index =
             match <InventoryType as num_traits::FromPrimitive>::from_i8(template.inventory_type) {
                 Some(InventoryType::NonEquip)
@@ -139,7 +162,8 @@ impl WorldSession {
                 _ => return 0,
             };
 
-        let Some(points) = self
+        let Some(points) = hub
+            .catalogs
             .rand_prop_points_store()
             .and_then(|store| store.get(u32::from(template.item_level)))
         else {

@@ -272,11 +272,8 @@ pub(in crate::session) fn player_class_by_armor_subclass_like_cpp(subclass: u32)
 
 impl WorldSession {
     pub(in crate::session) fn find_free_backpack_slot_like_cpp(&self) -> Option<u8> {
-        let inventory_end = INVENTORY_SLOT_ITEM_START
-            .saturating_add(self.resolved_player_inventory_slot_count_like_cpp()?)
-            .min(INVENTORY_SLOT_ITEM_END);
-        let inventory_items = self.resolved_inventory_items_like_cpp()?;
-        (INVENTORY_SLOT_ITEM_START..inventory_end).find(|slot| !inventory_items.contains_key(slot))
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.find_free_backpack_slot_like_cpp(hub)
     }
 
     /// C++ `sImportPriceQualityStore.LookupEntry(quality + 1)`.
@@ -360,6 +357,19 @@ impl WorldSession {
         &self,
     ) -> Option<[f32; 5]> {
         crate::session::hub_ref(self).resolved_represented_total_stat_buff_multipliers_like_cpp()
+    }
+}
+
+impl crate::session::state::InventoryState {
+    pub(in crate::session) fn find_free_backpack_slot_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<u8> {
+        let inventory_end = INVENTORY_SLOT_ITEM_START
+            .saturating_add(self.resolved_player_inventory_slot_count_like_cpp(hub)?)
+            .min(INVENTORY_SLOT_ITEM_END);
+        let inventory_items = self.resolved_inventory_items_like_cpp(hub)?;
+        (INVENTORY_SLOT_ITEM_START..inventory_end).find(|slot| !inventory_items.contains_key(slot))
     }
 }
 

@@ -12,10 +12,29 @@ impl WorldSession {
         client_slot: u8,
         requested_totem_guid: ObjectGuid,
     ) -> bool {
-        let Some(player_guid) = self.player_guid() else {
+        crate::session::hub_mut(self)
+            .destroy_represented_totem_like_cpp(client_slot, requested_totem_guid)
+    }
+
+    pub(crate) fn cancel_represented_pet_aura_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        spell_id: u32,
+    ) -> bool {
+        crate::session::hub_mut(self).cancel_represented_pet_aura_like_cpp(pet_guid, spell_id)
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(crate) fn destroy_represented_totem_like_cpp(
+        &mut self,
+        client_slot: u8,
+        requested_totem_guid: ObjectGuid,
+    ) -> bool {
+        let Some(player_guid) = self.core.player_guid() else {
             return false;
         };
-        if self.player_moved_unit_guid_like_cpp() != Some(player_guid) {
+        if self.shared().player_moved_unit_guid_like_cpp() != Some(player_guid) {
             return false;
         }
 
@@ -30,7 +49,7 @@ impl WorldSession {
         let Ok(mut manager) = manager.lock() else {
             return false;
         };
-        let map_id = u32::from(self.player_map_id_like_cpp());
+        let map_id = u32::from(self.core.player_map_id_like_cpp());
         let mut instance_id = None;
         manager.do_for_all_maps_with_map_id(map_id, |managed| {
             if instance_id.is_none() && managed.map().get_typed_player(player_guid).is_some() {
@@ -87,6 +106,7 @@ impl WorldSession {
         spell_id: u32,
     ) -> bool {
         if self
+            .catalogs
             .spell_store()
             .and_then(|store| store.get(spell_id as i32))
             .is_none()
@@ -94,7 +114,7 @@ impl WorldSession {
             return false;
         }
 
-        let Some(player_guid) = self.player_guid() else {
+        let Some(player_guid) = self.core.player_guid() else {
             return false;
         };
         let Some(manager) = self.core.canonical_map_manager.as_ref().map(Arc::clone) else {
@@ -103,7 +123,7 @@ impl WorldSession {
         let Ok(mut manager) = manager.lock() else {
             return false;
         };
-        let map_id = u32::from(self.player_map_id_like_cpp());
+        let map_id = u32::from(self.core.player_map_id_like_cpp());
         let mut instance_id = None;
         manager.do_for_all_maps_with_map_id(map_id, |managed| {
             if instance_id.is_none() && managed.map().get_typed_player(player_guid).is_some() {
@@ -125,10 +145,11 @@ impl WorldSession {
         if let Some(pet) = map.get_typed_pet_mut(pet_guid) {
             if !pet.creature().is_alive() {
                 drop(manager);
-                self.send_packet(&wow_packet::packets::pet::PetActionFeedback {
-                    spell_id: 0,
-                    response: wow_packet::packets::pet::PET_ACTION_FEEDBACK_DEAD_LIKE_CPP,
-                });
+                self.core
+                    .send_packet(&wow_packet::packets::pet::PetActionFeedback {
+                        spell_id: 0,
+                        response: wow_packet::packets::pet::PET_ACTION_FEEDBACK_DEAD_LIKE_CPP,
+                    });
                 return false;
             }
             let removed = !pet
@@ -144,10 +165,11 @@ impl WorldSession {
         if let Some(creature) = map.get_typed_creature_mut(pet_guid) {
             if !creature.is_alive() {
                 drop(manager);
-                self.send_packet(&wow_packet::packets::pet::PetActionFeedback {
-                    spell_id: 0,
-                    response: wow_packet::packets::pet::PET_ACTION_FEEDBACK_DEAD_LIKE_CPP,
-                });
+                self.core
+                    .send_packet(&wow_packet::packets::pet::PetActionFeedback {
+                        spell_id: 0,
+                        response: wow_packet::packets::pet::PET_ACTION_FEEDBACK_DEAD_LIKE_CPP,
+                    });
                 return false;
             }
             let removed = !creature

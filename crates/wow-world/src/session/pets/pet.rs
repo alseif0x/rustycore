@@ -20,69 +20,11 @@ impl WorldSession {
         react_state: u8,
         command_state: u8,
     ) {
-        let Some(pet_guid) = self.player_pet_guid_state_like_cpp().flatten() else {
-            return;
-        };
-
-        let Some((previous_react_state, _)) = self.canonical_pet_mode_state_like_cpp() else {
-            return;
-        };
-        if !self.update_player_pet_lifecycle_state_like_cpp(|state| {
-            state.temporary_mount_react_state = Some(previous_react_state);
-        }) {
-            return;
-        }
-        if !self.update_canonical_pet_mode_state_like_cpp(react_state, command_state) {
-            return;
-        }
-        self.send_packet(&wow_packet::packets::pet::PetMode {
-            pet_guid,
-            react_state,
-            command_state,
-            flag: 0,
-        });
+        crate::session::hub_mut(self)
+            .disable_pet_controls_on_mount_like_cpp(react_state, command_state)
     }
     pub(in crate::session) fn enable_pet_controls_on_dismount_like_cpp(&mut self) {
-        if let Some(pet_guid) = self.player_pet_guid_state_like_cpp().flatten() {
-            if let Some((current_react_state, command_state)) =
-                self.canonical_pet_mode_state_like_cpp()
-            {
-                let react_state = self
-                    .player_pet_lifecycle_state_snapshot_like_cpp()
-                    .and_then(|state| state.temporary_mount_react_state)
-                    .unwrap_or(current_react_state);
-                if self.update_canonical_pet_mode_state_like_cpp(react_state, command_state) {
-                    self.send_packet(&wow_packet::packets::pet::PetMode {
-                        pet_guid,
-                        react_state,
-                        command_state,
-                        flag: 0,
-                    });
-                }
-            }
-        }
-
-        let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
-            state.temporary_mount_react_state = None;
-        });
-    }
-    fn with_canonical_pet_like_cpp<R>(
-        &self,
-        pet_guid: ObjectGuid,
-        inspect: impl FnOnce(&Pet) -> R,
-    ) -> Option<R> {
-        let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
-        let mut inspect = Some(inspect);
-        let mut result = None;
-        manager.do_for_all_maps(|managed| {
-            if result.is_some() {
-                return;
-            }
-            if let Some(pet) = managed.map().get_typed_pet(pet_guid) {
-                result = Some(inspect.take().expect("pet inspector consumed once")(pet));
-            }
-        });
-        result
+        crate::session::hub_mut(self).enable_pet_controls_on_dismount_like_cpp()
     }
     pub(in crate::session) fn with_canonical_pet_mut_like_cpp<R>(
         &self,
@@ -90,59 +32,6 @@ impl WorldSession {
         mutate: impl FnOnce(&mut Pet) -> R,
     ) -> Option<R> {
         self.core.with_canonical_pet_mut_like_cpp(pet_guid, mutate)
-    }
-    fn canonical_pet_mode_state_like_cpp(&self) -> Option<(u8, u8)> {
-        let pet_guid = self.player_pet_guid_state_like_cpp().flatten()?;
-        let canonical = self.with_canonical_pet_like_cpp(pet_guid, |pet| {
-            let react_state = pet.creature().react_state() as u8;
-            let command_state = pet
-                .creature()
-                .unit()
-                .subsystems()
-                .control
-                .charm_info
-                .as_ref()
-                .map_or(wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP, |info| {
-                    info.command_state
-                });
-            (react_state, command_state)
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some((
-                self.fixtures.pets.represented_pet_react_state_like_cpp,
-                self.fixtures.pets.represented_pet_command_state_like_cpp,
-            ));
-        }
-        canonical
-    }
-    fn update_canonical_pet_mode_state_like_cpp(
-        &mut self,
-        react_state: u8,
-        command_state: u8,
-    ) -> bool {
-        let Some(pet_guid) = self.player_pet_guid_state_like_cpp().flatten() else {
-            return false;
-        };
-        let canonical = self
-            .with_canonical_pet_mut_like_cpp(pet_guid, |pet| {
-                pet.creature_mut()
-                    .set_react_state(react_state_from_db_like_cpp(react_state));
-                pet.creature_mut()
-                    .unit_mut()
-                    .subsystems_mut()
-                    .control
-                    .init_charm_info()
-                    .command_state = command_state;
-            })
-            .is_some();
-        #[cfg(test)]
-        if !canonical && self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.pets.represented_pet_react_state_like_cpp = react_state;
-            self.fixtures.pets.represented_pet_command_state_like_cpp = command_state;
-            return true;
-        }
-        canonical
     }
     pub(in crate::session) fn player_pet_lifecycle_state_snapshot_like_cpp(
         &self,
@@ -209,56 +98,12 @@ impl WorldSession {
     pub(crate) fn remove_represented_pet_not_in_slot_like_cpp(&mut self) {
         crate::session::hub_mut(self).remove_represented_pet_not_in_slot_like_cpp()
     }
-    #[cfg(test)]
-    pub(crate) fn represented_pet_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        self.player_pet_guid_state_like_cpp().flatten()
-    }
     pub(in crate::session) fn validate_represented_pet_action_bar_like_cpp(
         &self,
         charm_info: &mut wow_entities::CharmInfoState,
     ) {
-        let Some(spell_store) = self.spell_store() else {
-            return;
-        };
-
-        for button in &mut charm_info.action_bar {
-            // C++ `UNIT_ACTION_BUTTON_TYPE` drops the low bit after `MAKE_UNIT_ACTION_BUTTON`
-            // stores `ActiveStates << 23`; recover the just-loaded type to apply the
-            // intended `LoadPetActionBar` validation without changing the packed wire shape.
-            let action_type = ((*button >> 23) & 0xFF) as u8;
-            if !matches!(
-                action_type,
-                wow_entities::ACT_DISABLED_LIKE_CPP
-                    | wow_entities::ACT_ENABLED_LIKE_CPP
-                    | wow_entities::ACT_PASSIVE_LIKE_CPP
-            ) {
-                continue;
-            }
-
-            let action = wow_entities::unit_action_button_action_like_cpp(*button);
-            if spell_store
-                .get(i32::try_from(action).unwrap_or(i32::MAX))
-                .is_none()
-            {
-                *button = wow_entities::make_unit_action_button_like_cpp(
-                    0,
-                    wow_entities::ACT_PASSIVE_LIKE_CPP,
-                );
-                continue;
-            }
-
-            if self
-                .catalogs
-                .spell_catalogs
-                .spell_misc_store()
-                .is_some_and(|store| !store.is_autocastable_like_cpp(action))
-            {
-                *button = wow_entities::make_unit_action_button_like_cpp(
-                    action,
-                    wow_entities::ACT_PASSIVE_LIKE_CPP,
-                );
-            }
-        }
+        self.catalogs
+            .validate_represented_pet_action_bar_like_cpp(charm_info)
     }
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_sign_petition_like_cpp(
@@ -341,6 +186,116 @@ impl WorldSession {
                 victim_guid: creature_guid,
             });
     }
+}
+
+#[cfg(test)]
+impl crate::session::state::PetState {
+    #[cfg(test)]
+    pub(crate) fn represented_pet_speed_propagations_like_cpp(&self) -> u32 {
+        self.represented_pet_speed_propagations_like_cpp
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    pub(in crate::session) fn validate_represented_pet_action_bar_like_cpp(
+        &self,
+        charm_info: &mut wow_entities::CharmInfoState,
+    ) {
+        let Some(spell_store) = self.spell_store() else {
+            return;
+        };
+
+        for button in &mut charm_info.action_bar {
+            // C++ `UNIT_ACTION_BUTTON_TYPE` drops the low bit after `MAKE_UNIT_ACTION_BUTTON`
+            // stores `ActiveStates << 23`; recover the just-loaded type to apply the
+            // intended `LoadPetActionBar` validation without changing the packed wire shape.
+            let action_type = ((*button >> 23) & 0xFF) as u8;
+            if !matches!(
+                action_type,
+                wow_entities::ACT_DISABLED_LIKE_CPP
+                    | wow_entities::ACT_ENABLED_LIKE_CPP
+                    | wow_entities::ACT_PASSIVE_LIKE_CPP
+            ) {
+                continue;
+            }
+
+            let action = wow_entities::unit_action_button_action_like_cpp(*button);
+            if spell_store
+                .get(i32::try_from(action).unwrap_or(i32::MAX))
+                .is_none()
+            {
+                *button = wow_entities::make_unit_action_button_like_cpp(
+                    0,
+                    wow_entities::ACT_PASSIVE_LIKE_CPP,
+                );
+                continue;
+            }
+
+            if self
+                .spell_catalogs
+                .spell_misc_store()
+                .is_some_and(|store| !store.is_autocastable_like_cpp(action))
+            {
+                *button = wow_entities::make_unit_action_button_like_cpp(
+                    action,
+                    wow_entities::ACT_PASSIVE_LIKE_CPP,
+                );
+            }
+        }
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    fn with_canonical_pet_like_cpp<R>(
+        &self,
+        pet_guid: ObjectGuid,
+        inspect: impl FnOnce(&Pet) -> R,
+    ) -> Option<R> {
+        let manager = self.core.canonical_map_manager.as_ref()?.lock().ok()?;
+        let mut inspect = Some(inspect);
+        let mut result = None;
+        manager.do_for_all_maps(|managed| {
+            if result.is_some() {
+                return;
+            }
+            if let Some(pet) = managed.map().get_typed_pet(pet_guid) {
+                result = Some(inspect.take().expect("pet inspector consumed once")(pet));
+            }
+        });
+        result
+    }
+
+    fn canonical_pet_mode_state_like_cpp(&self) -> Option<(u8, u8)> {
+        let pet_guid = self.player_pet_guid_state_like_cpp().flatten()?;
+        let canonical = self.with_canonical_pet_like_cpp(pet_guid, |pet| {
+            let react_state = pet.creature().react_state() as u8;
+            let command_state = pet
+                .creature()
+                .unit()
+                .subsystems()
+                .control
+                .charm_info
+                .as_ref()
+                .map_or(wow_packet::packets::pet::COMMAND_FOLLOW_LIKE_CPP, |info| {
+                    info.command_state
+                });
+            (react_state, command_state)
+        });
+        #[cfg(test)]
+        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            return Some((
+                self.fixtures.pets.represented_pet_react_state_like_cpp,
+                self.fixtures.pets.represented_pet_command_state_like_cpp,
+            ));
+        }
+        canonical
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_pet_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        self.player_pet_guid_state_like_cpp().flatten()
+    }
+
     #[cfg(test)]
     pub(crate) fn represented_pet_movement_speed_rate_like_cpp(
         &self,
@@ -363,11 +318,92 @@ impl WorldSession {
                 .represented_pet_movement_speed_rates_like_cpp[move_type.index()],
         )
     }
-    #[cfg(test)]
-    pub(crate) fn represented_pet_speed_propagations_like_cpp(&self) -> u32 {
-        self.fixtures
-            .pets
-            .represented_pet_speed_propagations_like_cpp
+}
+
+impl crate::session::HubMut<'_> {
+    pub(in crate::session) fn disable_pet_controls_on_mount_like_cpp(
+        &mut self,
+        react_state: u8,
+        command_state: u8,
+    ) {
+        let Some(pet_guid) = self.shared().player_pet_guid_state_like_cpp().flatten() else {
+            return;
+        };
+
+        let Some((previous_react_state, _)) = self.shared().canonical_pet_mode_state_like_cpp()
+        else {
+            return;
+        };
+        if !self.update_player_pet_lifecycle_state_like_cpp(|state| {
+            state.temporary_mount_react_state = Some(previous_react_state);
+        }) {
+            return;
+        }
+        if !self.update_canonical_pet_mode_state_like_cpp(react_state, command_state) {
+            return;
+        }
+        self.core.send_packet(&wow_packet::packets::pet::PetMode {
+            pet_guid,
+            react_state,
+            command_state,
+            flag: 0,
+        });
+    }
+
+    pub(in crate::session) fn enable_pet_controls_on_dismount_like_cpp(&mut self) {
+        if let Some(pet_guid) = self.shared().player_pet_guid_state_like_cpp().flatten() {
+            if let Some((current_react_state, command_state)) =
+                self.shared().canonical_pet_mode_state_like_cpp()
+            {
+                let react_state = self
+                    .shared()
+                    .player_pet_lifecycle_state_snapshot_like_cpp()
+                    .and_then(|state| state.temporary_mount_react_state)
+                    .unwrap_or(current_react_state);
+                if self.update_canonical_pet_mode_state_like_cpp(react_state, command_state) {
+                    self.core.send_packet(&wow_packet::packets::pet::PetMode {
+                        pet_guid,
+                        react_state,
+                        command_state,
+                        flag: 0,
+                    });
+                }
+            }
+        }
+
+        let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
+            state.temporary_mount_react_state = None;
+        });
+    }
+
+    fn update_canonical_pet_mode_state_like_cpp(
+        &mut self,
+        react_state: u8,
+        command_state: u8,
+    ) -> bool {
+        let Some(pet_guid) = self.shared().player_pet_guid_state_like_cpp().flatten() else {
+            return false;
+        };
+        let canonical = self
+            .core
+            .with_canonical_pet_mut_like_cpp(pet_guid, |pet| {
+                pet.creature_mut()
+                    .set_react_state(react_state_from_db_like_cpp(react_state));
+                pet.creature_mut()
+                    .unit_mut()
+                    .subsystems_mut()
+                    .control
+                    .init_charm_info()
+                    .command_state = command_state;
+            })
+            .is_some();
+        #[cfg(test)]
+        if !canonical && self.core.player_handle_like_cpp.is_none() {
+            self.fixtures.pets.represented_pet_react_state_like_cpp = react_state;
+            self.fixtures.pets.represented_pet_command_state_like_cpp = command_state;
+            return true;
+        }
+        canonical
     }
 }
 
@@ -702,3 +738,7 @@ impl crate::session::HubRef<'_> {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/pets/pet/f3_shims.rs"]
+mod f3_shims;

@@ -117,23 +117,10 @@ pub(crate) struct CharacterPetDeclinedNamesRowLikeCpp {
 }
 
 impl WorldSession {
-    /// C++ can load/summon a `character_pet` during the Player lifetime and
-    /// pet runtime can cast owner auras. Until those transitions are fully
-    /// represented, admit only the complete empty-query state and revoke it
-    /// on every represented pet load or mutation.
     pub(in crate::session) fn represented_character_pet_aura_source_is_empty_like_cpp(
         &self,
     ) -> bool {
-        let Some(pet_lifecycle) = self.player_pet_lifecycle_state_snapshot_like_cpp() else {
-            return false;
-        };
-        pet_lifecycle.character_rows_empty_authority_complete
-            && pet_lifecycle.temporary_unsummoned_pet_number == 0
-            && self.player_pet_guid_state_like_cpp() == Some(None)
-            && pet_lifecycle.stable.current_pet_index.is_none()
-            && pet_lifecycle.stable.active_pets.is_empty()
-            && pet_lifecycle.stable.stabled_pets.is_empty()
-            && pet_lifecycle.stable.unslotted_pets.is_empty()
+        crate::session::hub_ref(self).represented_character_pet_aura_source_is_empty_like_cpp()
     }
 
     #[allow(dead_code)]
@@ -382,5 +369,26 @@ impl WorldSession {
                 .insert(pet_number, effects);
         }
         loaded
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    /// C++ can load/summon a `character_pet` during the Player lifetime and
+    /// pet runtime can cast owner auras. Until those transitions are fully
+    /// represented, admit only the complete empty-query state and revoke it
+    /// on every represented pet load or mutation.
+    pub(in crate::session) fn represented_character_pet_aura_source_is_empty_like_cpp(
+        &self,
+    ) -> bool {
+        let Some(pet_lifecycle) = self.player_pet_lifecycle_state_snapshot_like_cpp() else {
+            return false;
+        };
+        pet_lifecycle.character_rows_empty_authority_complete
+            && pet_lifecycle.temporary_unsummoned_pet_number == 0
+            && self.player_pet_guid_state_like_cpp() == Some(None)
+            && pet_lifecycle.stable.current_pet_index.is_none()
+            && pet_lifecycle.stable.active_pets.is_empty()
+            && pet_lifecycle.stable.stabled_pets.is_empty()
+            && pet_lifecycle.stable.unslotted_pets.is_empty()
     }
 }

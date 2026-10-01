@@ -61,98 +61,6 @@ impl WorldSession {
     pub fn spell_item_enchantment_store(&self) -> Option<&Arc<SpellItemEnchantmentStore>> {
         self.catalogs.spell_item_enchantment_store()
     }
-    /// C++ `Player::EnchantmentFitsRequirements` for the currently equipped gems.
-    fn enchantment_fits_requirements_like_cpp(
-        &self,
-        enchantment_condition: u32,
-        except_slot: Option<u8>,
-    ) -> bool {
-        if enchantment_condition == 0 {
-            return true;
-        }
-        let Some(condition) = self
-            .catalogs
-            .spell_catalogs
-            .spell_item_enchantment_condition_store
-            .as_ref()
-            .and_then(|store| store.get(enchantment_condition))
-        else {
-            return true;
-        };
-
-        let mut gem_counts = [0u8; 4];
-        for slot in 0..EQUIPMENT_SLOT_END {
-            if except_slot == Some(slot) {
-                continue;
-            }
-            let Some(inventory_item) = self.resolved_inventory_item_like_cpp(slot) else {
-                continue;
-            };
-            let Some(item) = self.resolved_inventory_item_object_like_cpp(inventory_item.guid)
-            else {
-                continue;
-            };
-            if item.is_broken() {
-                continue;
-            }
-            for gem in &item.data().gems {
-                let Ok(gem_item_id) = u32::try_from(gem.item_id) else {
-                    continue;
-                };
-                let Some(gem_properties_id) = self
-                    .catalogs
-                    .items
-                    .stats_store
-                    .as_ref()
-                    .and_then(|store| store.gem_properties(gem_item_id))
-                    .map(u32::from)
-                else {
-                    continue;
-                };
-                let Some(gem_type) = self
-                    .catalogs
-                    .gem_properties_store
-                    .as_ref()
-                    .and_then(|store| store.get(gem_properties_id))
-                    .map(|properties| properties.gem_type)
-                else {
-                    continue;
-                };
-                for (color, count) in gem_counts.iter_mut().enumerate() {
-                    if gem_type & (1 << color) != 0 {
-                        *count = count.saturating_add(1);
-                    }
-                }
-            }
-        }
-
-        let mut activate = true;
-        for index in 0..5 {
-            let left_type = condition.lt_operand_type[index];
-            if left_type == 0 {
-                continue;
-            }
-            let Some(&left_count) = gem_counts.get(usize::from(left_type - 1)) else {
-                return false;
-            };
-            let right_type = condition.rt_operand_type[index];
-            let right_count = if right_type == 0 {
-                condition.rt_operand[index]
-            } else {
-                let Some(&count) = gem_counts.get(usize::from(right_type - 1)) else {
-                    return false;
-                };
-                count
-            };
-            activate &= match condition.operator[index] {
-                2 => left_count < right_count,
-                3 => left_count > right_count,
-                5 => left_count >= right_count,
-                _ => true,
-            };
-        }
-        activate
-    }
     pub fn is_arena_allowed_enchantment(&self, enchantment_id: u32) -> bool {
         self.catalogs.is_arena_allowed_enchantment(enchantment_id)
     }
@@ -174,117 +82,14 @@ impl WorldSession {
     ) -> Option<[ApplyEnchantmentEffectRef; 3]> {
         self.catalogs.apply_enchantment_effect_refs(enchantment_id)
     }
-    fn current_item_enchantment_socket_context_like_cpp(
-        &self,
-        item_guid: ObjectGuid,
-        slot: EnchantmentSlot,
-    ) -> Option<ApplyEnchantmentSocketContext> {
-        let socket_index = match slot {
-            EnchantmentSlot::EnhancementSocket => 0,
-            EnchantmentSlot::EnhancementSocket2 => 1,
-            EnchantmentSlot::EnhancementSocket3 => 2,
-            _ => return None,
-        };
-        let item = self.resolved_inventory_item_object_like_cpp(item_guid)?;
-        let socket_color = self
-            .catalogs
-            .items
-            .stats_store
-            .as_ref()
-            .and_then(|store| store.socket_template(item.object().entry()))
-            .map(|template| u32::from(template.socket_types[socket_index]))
-            .unwrap_or(0);
-        let gem_requirement = item
-            .data()
-            .gems
-            .get(socket_index)
-            .and_then(|gem| u32::try_from(gem.item_id).ok())
-            .and_then(|gem_item_id| {
-                self.catalogs
-                    .items
-                    .stats_store
-                    .as_ref()?
-                    .socket_template(gem_item_id)
-            })
-            .and_then(|gem_template| {
-                Some(ApplyEnchantmentGemRequirementRef::new(
-                    u32::from(gem_template.required_skill_id),
-                    gem_template.required_skill_rank,
-                    self.resolved_player_skill_value_like_cpp(gem_template.required_skill_id)?,
-                ))
-            });
-
-        if socket_color != 0 {
-            return Some(ApplyEnchantmentSocketContext::colored(
-                socket_color,
-                gem_requirement,
-            ));
-        }
-
-        let prismatic_enchantment_id =
-            item.data().enchantments[EnchantmentSlot::EnhancementSocketPrismatic as usize].id;
-        let prismatic_enchantment = self
-            .apply_enchantment_template_ref(prismatic_enchantment_id, 0, true)
-            .and_then(|mut template| {
-                if let Ok(skill_id) = u16::try_from(template.required_skill_id) {
-                    template.required_skill_value =
-                        self.resolved_player_skill_value_like_cpp(skill_id)?;
-                }
-                Some(template)
-            });
-        Some(ApplyEnchantmentSocketContext::prismatic(
-            prismatic_enchantment,
-            gem_requirement,
-        ))
-    }
-    /// C++ `Player::ApplyEnchantment(item, slot, apply, ...)` bridge for a
-    /// represented inventory item owned by the current player.
-    ///
-    /// The item runtime lives in the session inventory while the player state
-    /// lives in the canonical map. This temporarily moves the item out, runs the
-    /// entity-level plan against the canonical player when available, then puts
-    /// the item back without clearing or setting the enchantment field itself.
     pub(crate) fn apply_current_player_item_enchantment_plan_like_cpp(
         &mut self,
         item_guid: ObjectGuid,
         slot: EnchantmentSlot,
-        mut args: ApplyEnchantmentArgs,
+        args: ApplyEnchantmentArgs,
     ) -> Option<ApplyEnchantmentPlan> {
-        let enchantment_id = self
-            .resolved_inventory_item_object_like_cpp(item_guid)?
-            .data()
-            .enchantments[slot as usize]
-            .id;
-        let condition_fits = u32::try_from(enchantment_id)
-            .ok()
-            .and_then(|id| {
-                self.catalogs
-                    .spell_catalogs
-                    .spell_item_enchantment_store
-                    .as_ref()?
-                    .get(id)
-            })
-            .is_none_or(|entry| {
-                self.enchantment_fits_requirements_like_cpp(u32::from(entry.condition_id), None)
-            });
-        if args.socket_context.is_none() {
-            args.socket_context =
-                self.current_item_enchantment_socket_context_like_cpp(item_guid, slot);
-        }
-        let mut item = self.remove_inventory_item_object(item_guid)?;
-        let mut template = self.apply_enchantment_template_ref(enchantment_id, 0, condition_fits);
-        if let Some(template) = &mut template {
-            if let Ok(skill_id) = u16::try_from(template.required_skill_id) {
-                template.required_skill_value =
-                    self.resolved_player_skill_value_like_cpp(skill_id)?;
-            }
-        }
-
-        let plan = self.mutate_canonical_player_like_cpp(|player| {
-            player.apply_enchantment_plan(Some(&mut item), slot, template, args)
-        });
-        self.insert_inventory_item_object(item);
-        plan
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.apply_current_player_item_enchantment_plan_like_cpp(&mut hub, item_guid, slot, args)
     }
     pub(in crate::session) fn apply_loaded_enchantment_spell_action_like_cpp(
         &mut self,
@@ -352,94 +157,20 @@ impl WorldSession {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.send_item_enchant_time_update_plans(hub, owner_guid, updates)
     }
-    /// C++ `_StoreItem` merge branch calls `AddEnchantmentDurations(pItem2)`
-    /// without calling `AddItemDurations` for the existing destination stack.
     pub(crate) fn refresh_inventory_item_enchantment_duration_refs_like_cpp(
         &mut self,
         item_guid: ObjectGuid,
     ) {
-        let Some(mut item) = self.resolved_inventory_item_object_like_cpp(item_guid) else {
-            return;
-        };
-        let Some((owner_guid, enchantment_updates)) =
-            self.mutate_canonical_player_like_cpp(|player| {
-                (player.guid(), player.add_enchantment_durations(&mut item))
-            })
-        else {
-            return;
-        };
-
-        self.insert_inventory_item_object(item);
-        self.send_item_enchant_time_update_plans(owner_guid, &enchantment_updates);
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.refresh_inventory_item_enchantment_duration_refs_like_cpp(&mut hub, item_guid)
     }
-    /// C++ `Player::RemoveItem` clears main-hand-only enchantments when the
-    /// main-hand item leaves that slot. Return both the post-remove DB value
-    /// and the runtime slots to clear, without mutating live state before the
-    /// caller's transaction commits.
     pub(crate) fn inventory_remove_enchantment_persistence_like_cpp(
         &self,
         item_guid: ObjectGuid,
         clear_mainhand_only: bool,
     ) -> Option<(String, Vec<EnchantmentSlot>)> {
-        let item = self.resolved_inventory_item_object_like_cpp(item_guid)?;
-        let current_durations = self
-            .canonical_player_snapshot_like_cpp(|player| {
-                player
-                    .enchant_durations()
-                    .iter()
-                    .filter(|duration| duration.item_guid == item_guid)
-                    .copied()
-                    .collect::<Vec<_>>()
-            })
-            .unwrap_or_default();
-        let mut cleared = Vec::new();
-        let mut persisted = String::new();
-
-        for (index, enchantment) in item.data().enchantments.iter().enumerate() {
-            let Some(slot) = <EnchantmentSlot as num_traits::FromPrimitive>::from_usize(index)
-            else {
-                continue;
-            };
-            let enchantment_entry = u32::try_from(enchantment.id)
-                .ok()
-                .and_then(|id| {
-                    self.catalogs
-                        .spell_catalogs
-                        .spell_item_enchantment_store
-                        .as_ref()?
-                        .get(id)
-                })
-                .copied();
-            let clear_mainhand = clear_mainhand_only
-                && enchantment_entry.is_some_and(|entry| {
-                    entry
-                        .flags
-                        .contains(SpellItemEnchantmentFlags::MAINHAND_ONLY)
-                });
-            if clear_mainhand {
-                cleared.push(slot);
-            }
-            if clear_mainhand
-                || enchantment_entry.is_none_or(|entry| {
-                    entry
-                        .flags
-                        .contains(SpellItemEnchantmentFlags::DO_NOT_SAVE_TO_DB)
-                })
-            {
-                persisted.push_str("0 0 0 ");
-            } else {
-                let duration = current_durations
-                    .iter()
-                    .find(|duration| duration.slot == slot)
-                    .map_or(enchantment.duration, |duration| duration.left_duration_ms);
-                persisted.push_str(&format!(
-                    "{} {} {} ",
-                    enchantment.id, duration, enchantment.charges
-                ));
-            }
-        }
-
-        Some((persisted, cleared))
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.inventory_remove_enchantment_persistence_like_cpp(hub, item_guid, clear_mainhand_only)
     }
     pub(crate) fn resolved_enchanting_skill_like_cpp(&self) -> Option<u16> {
         let (state, hub) = crate::session::split_inventory_ref(self);
@@ -526,18 +257,8 @@ impl WorldSession {
         &self,
         outcome: &LoadedEquippedItemEnchantmentsOutcomeLikeCpp,
     ) {
-        if let Some(owner_guid) = self.player_guid() {
-            self.send_item_enchant_time_update_plans(owner_guid, &outcome.duration_updates);
-        }
-        if !outcome.visible_item_changes.is_empty() {
-            self.send_player_values_update_from_entity_bridge(
-                &[],
-                &outcome.visible_item_changes,
-                &[],
-                &[],
-                None,
-            );
-        }
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.send_loaded_equipped_item_enchantment_updates_like_cpp(hub, outcome)
     }
     fn apply_loaded_equipped_item_enchantment_effects_like_cpp(
         &mut self,
@@ -605,6 +326,344 @@ impl WorldSession {
             self.apply_represented_item_bonus_action_state_like_cpp(action);
         }
         (changed_stats, represented_actions, unrepresented_actions)
+    }
+}
+
+impl crate::session::state::InventoryState {
+    /// C++ `Player::EnchantmentFitsRequirements` for the currently equipped gems.
+    fn enchantment_fits_requirements_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        enchantment_condition: u32,
+        except_slot: Option<u8>,
+    ) -> bool {
+        if enchantment_condition == 0 {
+            return true;
+        }
+        let Some(condition) = hub
+            .catalogs
+            .spell_catalogs
+            .spell_item_enchantment_condition_store
+            .as_ref()
+            .and_then(|store| store.get(enchantment_condition))
+        else {
+            return true;
+        };
+
+        let mut gem_counts = [0u8; 4];
+        for slot in 0..EQUIPMENT_SLOT_END {
+            if except_slot == Some(slot) {
+                continue;
+            }
+            let Some(inventory_item) = self.resolved_inventory_item_like_cpp(hub, slot) else {
+                continue;
+            };
+            let Some(item) = self.resolved_inventory_item_object_like_cpp(hub, inventory_item.guid)
+            else {
+                continue;
+            };
+            if item.is_broken() {
+                continue;
+            }
+            for gem in &item.data().gems {
+                let Ok(gem_item_id) = u32::try_from(gem.item_id) else {
+                    continue;
+                };
+                let Some(gem_properties_id) = hub
+                    .catalogs
+                    .items
+                    .stats_store
+                    .as_ref()
+                    .and_then(|store| store.gem_properties(gem_item_id))
+                    .map(u32::from)
+                else {
+                    continue;
+                };
+                let Some(gem_type) = hub
+                    .catalogs
+                    .gem_properties_store
+                    .as_ref()
+                    .and_then(|store| store.get(gem_properties_id))
+                    .map(|properties| properties.gem_type)
+                else {
+                    continue;
+                };
+                for (color, count) in gem_counts.iter_mut().enumerate() {
+                    if gem_type & (1 << color) != 0 {
+                        *count = count.saturating_add(1);
+                    }
+                }
+            }
+        }
+
+        let mut activate = true;
+        for index in 0..5 {
+            let left_type = condition.lt_operand_type[index];
+            if left_type == 0 {
+                continue;
+            }
+            let Some(&left_count) = gem_counts.get(usize::from(left_type - 1)) else {
+                return false;
+            };
+            let right_type = condition.rt_operand_type[index];
+            let right_count = if right_type == 0 {
+                condition.rt_operand[index]
+            } else {
+                let Some(&count) = gem_counts.get(usize::from(right_type - 1)) else {
+                    return false;
+                };
+                count
+            };
+            activate &= match condition.operator[index] {
+                2 => left_count < right_count,
+                3 => left_count > right_count,
+                5 => left_count >= right_count,
+                _ => true,
+            };
+        }
+        activate
+    }
+
+    fn current_item_enchantment_socket_context_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_guid: ObjectGuid,
+        slot: EnchantmentSlot,
+    ) -> Option<ApplyEnchantmentSocketContext> {
+        let socket_index = match slot {
+            EnchantmentSlot::EnhancementSocket => 0,
+            EnchantmentSlot::EnhancementSocket2 => 1,
+            EnchantmentSlot::EnhancementSocket3 => 2,
+            _ => return None,
+        };
+        let item = self.resolved_inventory_item_object_like_cpp(hub, item_guid)?;
+        let socket_color = hub
+            .catalogs
+            .items
+            .stats_store
+            .as_ref()
+            .and_then(|store| store.socket_template(item.object().entry()))
+            .map(|template| u32::from(template.socket_types[socket_index]))
+            .unwrap_or(0);
+        let gem_requirement = item
+            .data()
+            .gems
+            .get(socket_index)
+            .and_then(|gem| u32::try_from(gem.item_id).ok())
+            .and_then(|gem_item_id| {
+                hub.catalogs
+                    .items
+                    .stats_store
+                    .as_ref()?
+                    .socket_template(gem_item_id)
+            })
+            .and_then(|gem_template| {
+                Some(ApplyEnchantmentGemRequirementRef::new(
+                    u32::from(gem_template.required_skill_id),
+                    gem_template.required_skill_rank,
+                    hub.resolved_player_skill_value_like_cpp(gem_template.required_skill_id)?,
+                ))
+            });
+
+        if socket_color != 0 {
+            return Some(ApplyEnchantmentSocketContext::colored(
+                socket_color,
+                gem_requirement,
+            ));
+        }
+
+        let prismatic_enchantment_id =
+            item.data().enchantments[EnchantmentSlot::EnhancementSocketPrismatic as usize].id;
+        let prismatic_enchantment = hub
+            .catalogs
+            .apply_enchantment_template_ref(prismatic_enchantment_id, 0, true)
+            .and_then(|mut template| {
+                if let Ok(skill_id) = u16::try_from(template.required_skill_id) {
+                    template.required_skill_value =
+                        hub.resolved_player_skill_value_like_cpp(skill_id)?;
+                }
+                Some(template)
+            });
+        Some(ApplyEnchantmentSocketContext::prismatic(
+            prismatic_enchantment,
+            gem_requirement,
+        ))
+    }
+
+    /// C++ `Player::ApplyEnchantment(item, slot, apply, ...)` bridge for a
+    /// represented inventory item owned by the current player.
+    ///
+    /// The item runtime lives in the session inventory while the player state
+    /// lives in the canonical map. This temporarily moves the item out, runs the
+    /// entity-level plan against the canonical player when available, then puts
+    /// the item back without clearing or setting the enchantment field itself.
+    pub(crate) fn apply_current_player_item_enchantment_plan_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        item_guid: ObjectGuid,
+        slot: EnchantmentSlot,
+        mut args: ApplyEnchantmentArgs,
+    ) -> Option<ApplyEnchantmentPlan> {
+        let enchantment_id = self
+            .resolved_inventory_item_object_like_cpp(hub.shared(), item_guid)?
+            .data()
+            .enchantments[slot as usize]
+            .id;
+        let condition_fits = u32::try_from(enchantment_id)
+            .ok()
+            .and_then(|id| {
+                hub.catalogs
+                    .spell_catalogs
+                    .spell_item_enchantment_store
+                    .as_ref()?
+                    .get(id)
+            })
+            .is_none_or(|entry| {
+                self.enchantment_fits_requirements_like_cpp(
+                    hub.shared(),
+                    u32::from(entry.condition_id),
+                    None,
+                )
+            });
+        if args.socket_context.is_none() {
+            args.socket_context = self.current_item_enchantment_socket_context_like_cpp(
+                hub.shared(),
+                item_guid,
+                slot,
+            );
+        }
+        let mut item = self.remove_inventory_item_object(hub, item_guid)?;
+        let mut template =
+            hub.catalogs
+                .apply_enchantment_template_ref(enchantment_id, 0, condition_fits);
+        if let Some(template) = &mut template {
+            if let Ok(skill_id) = u16::try_from(template.required_skill_id) {
+                template.required_skill_value = hub
+                    .shared()
+                    .resolved_player_skill_value_like_cpp(skill_id)?;
+            }
+        }
+
+        let plan = hub.core.mutate_canonical_player_like_cpp(|player| {
+            player.apply_enchantment_plan(Some(&mut item), slot, template, args)
+        });
+        self.insert_inventory_item_object(hub, item);
+        plan
+    }
+
+    /// C++ `_StoreItem` merge branch calls `AddEnchantmentDurations(pItem2)`
+    /// without calling `AddItemDurations` for the existing destination stack.
+    pub(crate) fn refresh_inventory_item_enchantment_duration_refs_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        item_guid: ObjectGuid,
+    ) {
+        let Some(mut item) = self.resolved_inventory_item_object_like_cpp(hub.shared(), item_guid)
+        else {
+            return;
+        };
+        let Some((owner_guid, enchantment_updates)) =
+            hub.core.mutate_canonical_player_like_cpp(|player| {
+                (player.guid(), player.add_enchantment_durations(&mut item))
+            })
+        else {
+            return;
+        };
+
+        self.insert_inventory_item_object(hub, item);
+        self.send_item_enchant_time_update_plans(hub.shared(), owner_guid, &enchantment_updates);
+    }
+
+    /// C++ `Player::RemoveItem` clears main-hand-only enchantments when the
+    /// main-hand item leaves that slot. Return both the post-remove DB value
+    /// and the runtime slots to clear, without mutating live state before the
+    /// caller's transaction commits.
+    pub(crate) fn inventory_remove_enchantment_persistence_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_guid: ObjectGuid,
+        clear_mainhand_only: bool,
+    ) -> Option<(String, Vec<EnchantmentSlot>)> {
+        let item = self.resolved_inventory_item_object_like_cpp(hub, item_guid)?;
+        let current_durations = hub
+            .core
+            .canonical_player_snapshot_like_cpp(|player| {
+                player
+                    .enchant_durations()
+                    .iter()
+                    .filter(|duration| duration.item_guid == item_guid)
+                    .copied()
+                    .collect::<Vec<_>>()
+            })
+            .unwrap_or_default();
+        let mut cleared = Vec::new();
+        let mut persisted = String::new();
+
+        for (index, enchantment) in item.data().enchantments.iter().enumerate() {
+            let Some(slot) = <EnchantmentSlot as num_traits::FromPrimitive>::from_usize(index)
+            else {
+                continue;
+            };
+            let enchantment_entry = u32::try_from(enchantment.id)
+                .ok()
+                .and_then(|id| {
+                    hub.catalogs
+                        .spell_catalogs
+                        .spell_item_enchantment_store
+                        .as_ref()?
+                        .get(id)
+                })
+                .copied();
+            let clear_mainhand = clear_mainhand_only
+                && enchantment_entry.is_some_and(|entry| {
+                    entry
+                        .flags
+                        .contains(SpellItemEnchantmentFlags::MAINHAND_ONLY)
+                });
+            if clear_mainhand {
+                cleared.push(slot);
+            }
+            if clear_mainhand
+                || enchantment_entry.is_none_or(|entry| {
+                    entry
+                        .flags
+                        .contains(SpellItemEnchantmentFlags::DO_NOT_SAVE_TO_DB)
+                })
+            {
+                persisted.push_str("0 0 0 ");
+            } else {
+                let duration = current_durations
+                    .iter()
+                    .find(|duration| duration.slot == slot)
+                    .map_or(enchantment.duration, |duration| duration.left_duration_ms);
+                persisted.push_str(&format!(
+                    "{} {} {} ",
+                    enchantment.id, duration, enchantment.charges
+                ));
+            }
+        }
+
+        Some((persisted, cleared))
+    }
+
+    pub(crate) fn send_loaded_equipped_item_enchantment_updates_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        outcome: &LoadedEquippedItemEnchantmentsOutcomeLikeCpp,
+    ) {
+        if let Some(owner_guid) = hub.core.player_guid() {
+            self.send_item_enchant_time_update_plans(hub, owner_guid, &outcome.duration_updates);
+        }
+        if !outcome.visible_item_changes.is_empty() {
+            self.send_player_values_update_from_entity_bridge(
+                hub,
+                &[],
+                &outcome.visible_item_changes,
+                &[],
+                &[],
+                None,
+            );
+        }
     }
 }
 

@@ -18,39 +18,8 @@ impl WorldSession {
         &self,
         force: bool,
     ) -> Option<RepresentedAutoUnequipOffhandReasonLikeCpp> {
-        let offhand_item = self.resolved_inventory_item_like_cpp(EQUIPMENT_SLOT_OFFHAND)?;
-        let offhand_template = self.item_storage_template(offhand_item.entry_id)?;
-        let mainhand_template = self
-            .resolved_inventory_item_like_cpp(EQUIPMENT_SLOT_MAINHAND)
-            .and_then(|item| self.item_storage_template(item.entry_id));
-        let (can_dual_wield, can_titan_grip) = self.inventory_equip_capabilities_like_cpp()?;
-
-        let always_allow_dual_wield = self
-            .item_template_flags3(offhand_item.entry_id)
-            .is_some_and(|flags| (flags & ItemFlags3::AlwaysAllowDualWield as u32) != 0);
-        let lost_dual_wield = !can_dual_wield
-            && ((offhand_template.inventory_type == InventoryType::WeaponOffhand
-                && !always_allow_dual_wield)
-                || offhand_template.inventory_type == InventoryType::Weapon);
-        let is_two_hand_used = mainhand_template.is_some_and(|template| {
-            (template.inventory_type == InventoryType::Weapon2Hand && !can_titan_grip)
-                || template.inventory_type == InventoryType::Ranged
-                || (template.inventory_type == InventoryType::RangedRight
-                    && template.class_id == ItemClass::Weapon
-                    && template.subclass_id != ItemSubClassWeapon::Wand as u32)
-        });
-
-        if force {
-            Some(RepresentedAutoUnequipOffhandReasonLikeCpp::Forced)
-        } else if lost_dual_wield {
-            Some(RepresentedAutoUnequipOffhandReasonLikeCpp::LostDualWield)
-        } else if !can_titan_grip
-            && (offhand_template.inventory_type == InventoryType::Weapon2Hand || is_two_hand_used)
-        {
-            Some(RepresentedAutoUnequipOffhandReasonLikeCpp::InvalidTwoHandState)
-        } else {
-            None
-        }
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.represented_auto_unequip_offhand_reason_like_cpp(hub, force)
     }
     pub(in crate::session) fn represented_auto_unequip_offhand_if_need_like_cpp(
         &mut self,
@@ -150,13 +119,76 @@ impl WorldSession {
         true
     }
     fn clear_represented_offhand_equipped_flag_like_cpp(&mut self, item_guid: ObjectGuid) {
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.clear_represented_offhand_equipped_flag_like_cpp(&mut hub, item_guid)
+    }
+    fn send_auto_unequip_offhand_values_update_like_cpp(
+        &self,
+        stored_destination: Option<(u8, u8)>,
+        item_guid: ObjectGuid,
+    ) {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.send_auto_unequip_offhand_values_update_like_cpp(hub, stored_destination, item_guid)
+    }
+}
+
+impl crate::session::state::InventoryState {
+    pub(crate) fn represented_auto_unequip_offhand_reason_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        force: bool,
+    ) -> Option<RepresentedAutoUnequipOffhandReasonLikeCpp> {
+        let offhand_item = self.resolved_inventory_item_like_cpp(hub, EQUIPMENT_SLOT_OFFHAND)?;
+        let offhand_template = hub.catalogs.item_storage_template(offhand_item.entry_id)?;
+        let mainhand_template = self
+            .resolved_inventory_item_like_cpp(hub, EQUIPMENT_SLOT_MAINHAND)
+            .and_then(|item| hub.catalogs.item_storage_template(item.entry_id));
+        let (can_dual_wield, can_titan_grip) = self.inventory_equip_capabilities_like_cpp(hub)?;
+
+        let always_allow_dual_wield = hub
+            .catalogs
+            .item_template_flags3(offhand_item.entry_id)
+            .is_some_and(|flags| (flags & ItemFlags3::AlwaysAllowDualWield as u32) != 0);
+        let lost_dual_wield = !can_dual_wield
+            && ((offhand_template.inventory_type == InventoryType::WeaponOffhand
+                && !always_allow_dual_wield)
+                || offhand_template.inventory_type == InventoryType::Weapon);
+        let is_two_hand_used = mainhand_template.is_some_and(|template| {
+            (template.inventory_type == InventoryType::Weapon2Hand && !can_titan_grip)
+                || template.inventory_type == InventoryType::Ranged
+                || (template.inventory_type == InventoryType::RangedRight
+                    && template.class_id == ItemClass::Weapon
+                    && template.subclass_id != ItemSubClassWeapon::Wand as u32)
+        });
+
+        if force {
+            Some(RepresentedAutoUnequipOffhandReasonLikeCpp::Forced)
+        } else if lost_dual_wield {
+            Some(RepresentedAutoUnequipOffhandReasonLikeCpp::LostDualWield)
+        } else if !can_titan_grip
+            && (offhand_template.inventory_type == InventoryType::Weapon2Hand || is_two_hand_used)
+        {
+            Some(RepresentedAutoUnequipOffhandReasonLikeCpp::InvalidTwoHandState)
+        } else {
+            None
+        }
+    }
+
+    fn clear_represented_offhand_equipped_flag_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        item_guid: ObjectGuid,
+    ) {
         let _ = self.apply_inventory_item_object_updates_like_cpp(
+            hub,
             item_guid,
             &[wow_entities::ItemObjectUpdateLikeCpp::SetEquipped(false)],
         );
     }
+
     fn send_auto_unequip_offhand_values_update_like_cpp(
         &self,
+        hub: crate::session::HubRef<'_>,
         stored_destination: Option<(u8, u8)>,
         item_guid: ObjectGuid,
     ) {
@@ -166,6 +198,7 @@ impl WorldSession {
         }
 
         self.send_player_values_update_from_entity_bridge(
+            hub,
             &inv_slot_changes,
             &[(EQUIPMENT_SLOT_OFFHAND, 0, 0, 0)],
             &[],

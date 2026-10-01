@@ -275,7 +275,18 @@ impl WorldSession {
         item_id: u32,
         player_context: &RepresentedLootPlayerContext,
     ) -> bool {
-        let Some(quest_store) = &self.catalogs.quests.store else {
+        self.catalogs
+            .remote_has_incomplete_quest_item_drop_for_item_like_cpp(item_id, player_context)
+    }
+}
+
+impl crate::session::SessionCatalogs {
+    pub(super) fn remote_has_incomplete_quest_item_drop_for_item_like_cpp(
+        &self,
+        item_id: u32,
+        player_context: &RepresentedLootPlayerContext,
+    ) -> bool {
+        let Some(quest_store) = &self.quests.store else {
             return false;
         };
 

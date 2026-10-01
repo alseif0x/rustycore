@@ -45,16 +45,6 @@ impl WorldSession {
             .battle_pet_test_fixture_like_cpp
             .battle_pet_selection_store_like_cpp = Some(store);
     }
-    #[cfg(test)]
-    pub(crate) fn battle_pet_selection_store_like_cpp(
-        &self,
-    ) -> Option<&Arc<wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp>> {
-        self.fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .battle_pet_selection_store_like_cpp
-            .as_ref()
-    }
     pub(crate) fn battle_pet_purchase_store_like_cpp(
         &self,
     ) -> Option<Arc<dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp>> {
@@ -64,53 +54,6 @@ impl WorldSession {
             .battle_pet_purchase
             .as_ref()
             .map(Arc::clone)
-    }
-    #[cfg(test)]
-    pub(crate) fn set_battle_pet_purchase_selection_override_like_cpp(
-        &mut self,
-        selection: Option<wow_data::battle_pet_selection::BattlePetTrainerSelectionLikeCpp>,
-    ) {
-        self.fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .battle_pet_purchase_selection_override_like_cpp = selection;
-    }
-    #[cfg(test)]
-    pub(crate) fn battle_pet_purchase_selection_override_like_cpp(
-        &self,
-    ) -> Option<wow_data::battle_pet_selection::BattlePetTrainerSelectionLikeCpp> {
-        self.fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .battle_pet_purchase_selection_override_like_cpp
-    }
-    #[cfg(test)]
-    pub fn set_battle_pet_breed_state_store(&mut self, store: Arc<BattlePetBreedStateStore>) {
-        self.fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .battle_pet_breed_state_store = Some(store);
-    }
-    #[cfg(test)]
-    pub fn set_battle_pet_species_store(&mut self, store: Arc<BattlePetSpeciesStore>) {
-        self.fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .battle_pet_species_store = Some(store);
-    }
-    #[cfg(test)]
-    pub fn set_battle_pet_species_state_store(&mut self, store: Arc<BattlePetSpeciesStateStore>) {
-        self.fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .battle_pet_species_state_store = Some(store);
-    }
-    #[cfg(test)]
-    pub fn set_battle_pet_xp_game_table(&mut self, table: Arc<BattlePetXpGameTableLikeCpp>) {
-        self.fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .battle_pet_xp_game_table = Some(table);
     }
     pub(crate) fn battle_pet_calculate_stats_like_cpp(
         &self,
@@ -178,42 +121,6 @@ impl WorldSession {
             .is_some_and(|entry| entry.has_flag_like_cpp(flag));
         #[cfg(not(test))]
         false
-    }
-    /// Test/setup seam for represented `BattlePetMgr::_pets`.
-    #[cfg(test)]
-    pub(crate) fn add_represented_battle_pet_like_cpp(
-        &mut self,
-        pet_guid: ObjectGuid,
-        flags: u16,
-        save_info: RepresentedBattlePetSaveInfoLikeCpp,
-    ) {
-        self.fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .represented_battle_pets_like_cpp
-            .insert(
-                pet_guid,
-                RepresentedBattlePetDataLikeCpp::minimal_like_cpp(flags, save_info),
-            );
-    }
-    /// C++ `BattlePetMgr::ClearFanfare`.
-    #[cfg(test)]
-    pub(crate) fn battle_pet_clear_fanfare_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
-        let Some(pet) = self
-            .fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .represented_battle_pets_like_cpp
-            .get_mut(&pet_guid)
-        else {
-            return false;
-        };
-
-        pet.flags &= !BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP;
-        if pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::New {
-            pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Changed;
-        }
-        true
     }
     pub(crate) async fn battle_pet_clear_fanfare_durable_like_cpp(
         &mut self,
@@ -368,35 +275,6 @@ impl WorldSession {
 
         RepresentedBattlePetCageOutcomeLikeCpp::Caged(cage_item)
     }
-    /// C++ `WorldSession::HandleBattlePetSetFlags` flag mutation.
-    #[cfg(test)]
-    pub(crate) fn battle_pet_set_flags_like_cpp(
-        &mut self,
-        pet_guid: ObjectGuid,
-        flags: u16,
-        control_type: u8,
-    ) -> bool {
-        let Some(pet) = self
-            .fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .represented_battle_pets_like_cpp
-            .get_mut(&pet_guid)
-        else {
-            return false;
-        };
-
-        if control_type == BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP {
-            pet.flags |= flags;
-        } else {
-            pet.flags &= !flags;
-        }
-
-        if pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::New {
-            pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Changed;
-        }
-        true
-    }
     pub(crate) async fn battle_pet_set_flags_durable_like_cpp(
         &mut self,
         pet_guid: ObjectGuid,
@@ -434,21 +312,8 @@ impl WorldSession {
         pet_guid: ObjectGuid,
         error: &BattlePetMutationFailureLikeCpp,
     ) {
-        if matches!(
-            error,
-            BattlePetMutationFailureLikeCpp::MissingAuthority
-                | BattlePetMutationFailureLikeCpp::JournalLocked
-                | BattlePetMutationFailureLikeCpp::UnknownPet
-        ) {
-            return;
-        }
-        warn!(
-            account = self.core.account_id,
-            ?pet_guid,
-            ?error,
-            operation,
-            "Durable battle-pet mutation failed"
-        );
+        crate::session::hub_ref(self)
+            .log_battle_pet_mutation_failure_like_cpp(operation, pet_guid, error)
     }
     /// C++ `BattlePetMgr::GetPetCount`.
     #[cfg(test)]
@@ -735,40 +600,6 @@ impl WorldSession {
             }
         }
     }
-    /// C++ `BattlePetMgr::HealBattlePetsPct`.
-    ///
-    /// Fidelity note: legacy C++ does not skip removed pets and would rewrite a
-    /// damaged `BATTLE_PET_REMOVED` row to `BATTLE_PET_CHANGED`. Rust keeps the
-    /// represented removed row immutable here; if we decide to patch that legacy
-    /// bug upstream, this is the intended shared behavior.
-    #[cfg(test)]
-    pub(crate) fn battle_pet_heal_battle_pets_pct_like_cpp(&mut self, pct: u8) -> usize {
-        let mut updated = Vec::new();
-
-        for (pet_guid, pet) in &mut self
-            .fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .represented_battle_pets_like_cpp
-        {
-            if pet.save_info == RepresentedBattlePetSaveInfoLikeCpp::Removed {
-                continue;
-            }
-
-            if pet.health == pet.max_health {
-                continue;
-            }
-
-            let heal = (pet.max_health as f32 * f32::from(pct) / 100.0f32) as u32;
-            pet.health = pet.health.saturating_add(heal).min(pet.max_health);
-            if pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::New {
-                pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Changed;
-            }
-            updated.push(*pet_guid);
-        }
-
-        self.send_battle_pet_updates_like_cpp(&updated, false)
-    }
     /// C++ `BattlePetMgr::GrantBattlePetExperience`, represented after
     /// external aura multiplier resolution.
     #[cfg(test)]
@@ -988,21 +819,6 @@ impl WorldSession {
             }
         }
     }
-    #[cfg(test)]
-    pub(crate) fn represented_battle_pet_unique_owned_criteria_like_cpp(&self) -> u32 {
-        self.fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .represented_battle_pet_unique_owned_criteria_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_battle_pet_learned_new_pet_criteria_like_cpp(&self) -> &[u32] {
-        &self
-            .fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .represented_battle_pet_learned_new_pet_criteria_like_cpp
-    }
     /// C++ `WorldSession::HandleBattlePetSummon` represented toggle.
     ///
     /// `BattlePetMgr::SummonPet` silently ignores unknown pets before casting
@@ -1019,28 +835,82 @@ impl WorldSession {
         self.set_represented_summoned_battle_pet_guid_like_cpp(Some(pet_guid))
     }
     pub(crate) fn represented_summoned_battle_pet_guid_like_cpp(&self) -> Option<ObjectGuid> {
-        if let Some(guid) =
-            self.with_owned_player_like_cpp(Player::summoned_battle_pet_guid_like_cpp)
-        {
-            return guid;
-        }
-        #[cfg(test)]
-        {
-            self.fixtures
-                .pets
-                .battle_pet_test_fixture_like_cpp
-                .represented_summoned_battle_pet_guid_like_cpp
-        }
-        #[cfg(not(test))]
-        {
-            None
-        }
+        crate::session::hub_ref(self).represented_summoned_battle_pet_guid_like_cpp()
     }
     pub(in crate::session) fn set_represented_summoned_battle_pet_guid_like_cpp(
         &mut self,
         pet_guid: Option<ObjectGuid>,
     ) -> bool {
+        crate::session::hub_mut(self).set_represented_summoned_battle_pet_guid_like_cpp(pet_guid)
+    }
+    pub(crate) fn represented_battle_pet_query_companion_like_cpp(
+        &self,
+        unit_guid: ObjectGuid,
+    ) -> Option<RepresentedBattlePetQueryCompanionLikeCpp> {
+        crate::session::hub_ref(self).represented_battle_pet_query_companion_like_cpp(unit_guid)
+    }
+    pub(crate) fn represented_battle_pet_like_cpp(
+        &self,
+        pet_guid: ObjectGuid,
+    ) -> Option<RepresentedBattlePetDataLikeCpp> {
+        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
+            return attachment.owner_like_cpp().pet_snapshot_like_cpp(pet_guid);
+        }
+        #[cfg(test)]
+        return self
+            .fixtures
+            .pets
+            .battle_pet_test_fixture_like_cpp
+            .represented_battle_pets_like_cpp
+            .get(&pet_guid)
+            .cloned();
+        #[cfg(not(test))]
+        None
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    /// C++ `BattlePetMgr::HealBattlePetsPct`.
+    ///
+    /// Fidelity note: legacy C++ does not skip removed pets and would rewrite a
+    /// damaged `BATTLE_PET_REMOVED` row to `BATTLE_PET_CHANGED`. Rust keeps the
+    /// represented removed row immutable here; if we decide to patch that legacy
+    /// bug upstream, this is the intended shared behavior.
+    #[cfg(test)]
+    pub(crate) fn battle_pet_heal_battle_pets_pct_like_cpp(&mut self, pct: u8) -> usize {
+        let mut updated = Vec::new();
+
+        for (pet_guid, pet) in &mut self
+            .fixtures
+            .pets
+            .battle_pet_test_fixture_like_cpp
+            .represented_battle_pets_like_cpp
+        {
+            if pet.save_info == RepresentedBattlePetSaveInfoLikeCpp::Removed {
+                continue;
+            }
+
+            if pet.health == pet.max_health {
+                continue;
+            }
+
+            let heal = (pet.max_health as f32 * f32::from(pct) / 100.0f32) as u32;
+            pet.health = pet.health.saturating_add(heal).min(pet.max_health);
+            if pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::New {
+                pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Changed;
+            }
+            updated.push(*pet_guid);
+        }
+
+        self.send_battle_pet_updates_like_cpp(&updated, false)
+    }
+
+    pub(in crate::session) fn set_represented_summoned_battle_pet_guid_like_cpp(
+        &mut self,
+        pet_guid: Option<ObjectGuid>,
+    ) -> bool {
         if self
+            .core
             .with_owned_player_mut_like_cpp(|player| {
                 player.set_summoned_battle_pet_guid_like_cpp(
                     pet_guid.unwrap_or(wow_core::ObjectGuid::EMPTY),
@@ -1063,28 +933,52 @@ impl WorldSession {
             false
         }
     }
-    #[cfg(test)]
-    pub(crate) fn represented_battle_pet_cage_items_like_cpp(
+}
+
+impl crate::session::HubRef<'_> {
+    pub(in crate::session) fn log_battle_pet_mutation_failure_like_cpp(
         &self,
-    ) -> &[RepresentedBattlePetCageItemLikeCpp] {
-        &self
-            .fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .represented_battle_pet_cage_items_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn set_represented_battle_pet_query_companion_like_cpp(
-        &mut self,
-        unit_guid: ObjectGuid,
-        companion: RepresentedBattlePetQueryCompanionLikeCpp,
+        operation: &'static str,
+        pet_guid: ObjectGuid,
+        error: &BattlePetMutationFailureLikeCpp,
     ) {
-        self.fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .represented_battle_pet_query_companions_like_cpp
-            .insert(unit_guid, companion);
+        if matches!(
+            error,
+            BattlePetMutationFailureLikeCpp::MissingAuthority
+                | BattlePetMutationFailureLikeCpp::JournalLocked
+                | BattlePetMutationFailureLikeCpp::UnknownPet
+        ) {
+            return;
+        }
+        warn!(
+            account = self.core.account_id,
+            ?pet_guid,
+            ?error,
+            operation,
+            "Durable battle-pet mutation failed"
+        );
     }
+
+    pub(crate) fn represented_summoned_battle_pet_guid_like_cpp(&self) -> Option<ObjectGuid> {
+        if let Some(guid) = self
+            .core
+            .with_owned_player_like_cpp(Player::summoned_battle_pet_guid_like_cpp)
+        {
+            return guid;
+        }
+        #[cfg(test)]
+        {
+            self.fixtures
+                .pets
+                .battle_pet_test_fixture_like_cpp
+                .represented_summoned_battle_pet_guid_like_cpp
+        }
+        #[cfg(not(test))]
+        {
+            None
+        }
+    }
+
     pub(crate) fn represented_battle_pet_query_companion_like_cpp(
         &self,
         unit_guid: ObjectGuid,
@@ -1135,22 +1029,156 @@ impl WorldSession {
             None
         }
     }
-    pub(crate) fn represented_battle_pet_like_cpp(
+}
+
+#[cfg(test)]
+impl crate::session::state::PetState {
+    #[cfg(test)]
+    pub(crate) fn battle_pet_selection_store_like_cpp(
         &self,
+    ) -> Option<&Arc<wow_data::battle_pet_selection::BattlePetSelectionStoreLikeCpp>> {
+        self.battle_pet_test_fixture_like_cpp
+            .battle_pet_selection_store_like_cpp
+            .as_ref()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_battle_pet_purchase_selection_override_like_cpp(
+        &mut self,
+        selection: Option<wow_data::battle_pet_selection::BattlePetTrainerSelectionLikeCpp>,
+    ) {
+        self.battle_pet_test_fixture_like_cpp
+            .battle_pet_purchase_selection_override_like_cpp = selection;
+    }
+
+    #[cfg(test)]
+    pub(crate) fn battle_pet_purchase_selection_override_like_cpp(
+        &self,
+    ) -> Option<wow_data::battle_pet_selection::BattlePetTrainerSelectionLikeCpp> {
+        self.battle_pet_test_fixture_like_cpp
+            .battle_pet_purchase_selection_override_like_cpp
+    }
+
+    #[cfg(test)]
+    pub fn set_battle_pet_breed_state_store(&mut self, store: Arc<BattlePetBreedStateStore>) {
+        self.battle_pet_test_fixture_like_cpp
+            .battle_pet_breed_state_store = Some(store);
+    }
+
+    #[cfg(test)]
+    pub fn set_battle_pet_species_store(&mut self, store: Arc<BattlePetSpeciesStore>) {
+        self.battle_pet_test_fixture_like_cpp
+            .battle_pet_species_store = Some(store);
+    }
+
+    #[cfg(test)]
+    pub fn set_battle_pet_species_state_store(&mut self, store: Arc<BattlePetSpeciesStateStore>) {
+        self.battle_pet_test_fixture_like_cpp
+            .battle_pet_species_state_store = Some(store);
+    }
+
+    #[cfg(test)]
+    pub fn set_battle_pet_xp_game_table(&mut self, table: Arc<BattlePetXpGameTableLikeCpp>) {
+        self.battle_pet_test_fixture_like_cpp
+            .battle_pet_xp_game_table = Some(table);
+    }
+
+    /// Test/setup seam for represented `BattlePetMgr::_pets`.
+    #[cfg(test)]
+    pub(crate) fn add_represented_battle_pet_like_cpp(
+        &mut self,
         pet_guid: ObjectGuid,
-    ) -> Option<RepresentedBattlePetDataLikeCpp> {
-        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
-            return attachment.owner_like_cpp().pet_snapshot_like_cpp(pet_guid);
-        }
-        #[cfg(test)]
-        return self
-            .fixtures
-            .pets
+        flags: u16,
+        save_info: RepresentedBattlePetSaveInfoLikeCpp,
+    ) {
+        self.battle_pet_test_fixture_like_cpp
+            .represented_battle_pets_like_cpp
+            .insert(
+                pet_guid,
+                RepresentedBattlePetDataLikeCpp::minimal_like_cpp(flags, save_info),
+            );
+    }
+
+    /// C++ `BattlePetMgr::ClearFanfare`.
+    #[cfg(test)]
+    pub(crate) fn battle_pet_clear_fanfare_like_cpp(&mut self, pet_guid: ObjectGuid) -> bool {
+        let Some(pet) = self
             .battle_pet_test_fixture_like_cpp
             .represented_battle_pets_like_cpp
-            .get(&pet_guid)
-            .cloned();
-        #[cfg(not(test))]
-        None
+            .get_mut(&pet_guid)
+        else {
+            return false;
+        };
+
+        pet.flags &= !BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP;
+        if pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::New {
+            pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Changed;
+        }
+        true
+    }
+
+    /// C++ `WorldSession::HandleBattlePetSetFlags` flag mutation.
+    #[cfg(test)]
+    pub(crate) fn battle_pet_set_flags_like_cpp(
+        &mut self,
+        pet_guid: ObjectGuid,
+        flags: u16,
+        control_type: u8,
+    ) -> bool {
+        let Some(pet) = self
+            .battle_pet_test_fixture_like_cpp
+            .represented_battle_pets_like_cpp
+            .get_mut(&pet_guid)
+        else {
+            return false;
+        };
+
+        if control_type == BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP {
+            pet.flags |= flags;
+        } else {
+            pet.flags &= !flags;
+        }
+
+        if pet.save_info != RepresentedBattlePetSaveInfoLikeCpp::New {
+            pet.save_info = RepresentedBattlePetSaveInfoLikeCpp::Changed;
+        }
+        true
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_battle_pet_unique_owned_criteria_like_cpp(&self) -> u32 {
+        self.battle_pet_test_fixture_like_cpp
+            .represented_battle_pet_unique_owned_criteria_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_battle_pet_learned_new_pet_criteria_like_cpp(&self) -> &[u32] {
+        &self
+            .battle_pet_test_fixture_like_cpp
+            .represented_battle_pet_learned_new_pet_criteria_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_battle_pet_cage_items_like_cpp(
+        &self,
+    ) -> &[RepresentedBattlePetCageItemLikeCpp] {
+        &self
+            .battle_pet_test_fixture_like_cpp
+            .represented_battle_pet_cage_items_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_represented_battle_pet_query_companion_like_cpp(
+        &mut self,
+        unit_guid: ObjectGuid,
+        companion: RepresentedBattlePetQueryCompanionLikeCpp,
+    ) {
+        self.battle_pet_test_fixture_like_cpp
+            .represented_battle_pet_query_companions_like_cpp
+            .insert(unit_guid, companion);
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/pets/battle_pet/f3_shims.rs"]
+mod f3_shims;

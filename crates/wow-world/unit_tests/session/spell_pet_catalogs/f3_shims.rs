@@ -66,4 +66,8 @@ impl crate::session::WorldSession {
     pub(crate) fn model_for_totem_like_cpp(&self, spell_id: u32, race_id: u8) -> u32 {
         self.catalogs.model_for_totem_like_cpp(spell_id, race_id)
     }
+    pub(crate) fn spell_spell_group_map_bounds_like_cpp(&self, spell_id: u32) -> &[u32] {
+        self.catalogs
+            .spell_spell_group_map_bounds_like_cpp(spell_id)
+    }
 }

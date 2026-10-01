@@ -174,9 +174,8 @@ impl WorldSession {
         &self,
         item_id: u32,
     ) -> Option<u32> {
-        self.item_stats_store()
-            .and_then(|store| store.sparse_template(item_id))
-            .map(|template| template.flags[1])
+        let (state, hub) = crate::session::split_loot_ref(self);
+        state.item_template_flags2_like_cpp(hub, item_id)
     }
 
     pub(in crate::handlers::loot) fn item_loot_quest_status_allows_like_cpp(
@@ -289,38 +288,11 @@ impl WorldSession {
         item_object_id: i32,
         player_context: &RepresentedLootPlayerContext,
     ) -> bool {
-        let Some(quest_store) = &self.catalogs.quests.store else {
-            return false;
-        };
-
-        player_context
-            .active_quest_objective_counts
-            .iter()
-            .any(|(quest_id, objective_counts)| {
-                if player_context.quest_status(*quest_id) != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
-                    return false;
-                }
-
-                let Some(quest) = quest_store.get(*quest_id) else {
-                    return false;
-                };
-
-                quest
-                    .objectives
-                    .iter()
-                    .enumerate()
-                    .any(|(fallback_index, objective)| {
-                        if objective.obj_type != 1 || objective.object_id != item_object_id {
-                            return false;
-                        }
-
-                        let storage_index = usize::try_from(objective.storage_index)
-                            .ok()
-                            .unwrap_or(fallback_index);
-                        let current = objective_counts.get(storage_index).copied().unwrap_or(0);
-                        current < objective.amount.max(1)
-                    })
-            })
+        self.catalogs
+            .remote_has_incomplete_quest_objective_for_object_id_like_cpp(
+                item_object_id,
+                player_context,
+            )
     }
 
     pub(in crate::handlers::loot) fn direct_inventory_item_count_like_cpp(
@@ -375,25 +347,8 @@ impl WorldSession {
         objective_id: u32,
         player_context: &RepresentedLootPlayerContext,
     ) -> Option<i32> {
-        let quest_store = self.catalogs.quests.store.as_ref()?;
-
-        for (quest_id, objective_counts) in &player_context.active_quest_objective_counts {
-            let Some(quest) = quest_store.get(*quest_id) else {
-                continue;
-            };
-            let Some((_, objective)) = quest
-                .objectives
-                .iter()
-                .enumerate()
-                .find(|(_, objective)| objective.id == objective_id)
-            else {
-                continue;
-            };
-            let objective_index = objective.storage_index.max(0) as usize;
-            return Some(objective_counts.get(objective_index).copied().unwrap_or(0));
-        }
-
-        None
+        self.catalogs
+            .remote_player_quest_objective_progress_like_cpp(objective_id, player_context)
     }
 
     pub(in crate::handlers::loot) async fn load_item_template_addon_loot_metadata_for_item_ids_like_cpp<
@@ -418,5 +373,85 @@ impl WorldSession {
             );
         }
         metadata
+    }
+}
+
+impl crate::session::SessionCatalogs {
+    fn remote_has_incomplete_quest_objective_for_object_id_like_cpp(
+        &self,
+        item_object_id: i32,
+        player_context: &RepresentedLootPlayerContext,
+    ) -> bool {
+        let Some(quest_store) = &self.quests.store else {
+            return false;
+        };
+
+        player_context
+            .active_quest_objective_counts
+            .iter()
+            .any(|(quest_id, objective_counts)| {
+                if player_context.quest_status(*quest_id) != QUEST_STATUS_INCOMPLETE_LIKE_CPP {
+                    return false;
+                }
+
+                let Some(quest) = quest_store.get(*quest_id) else {
+                    return false;
+                };
+
+                quest
+                    .objectives
+                    .iter()
+                    .enumerate()
+                    .any(|(fallback_index, objective)| {
+                        if objective.obj_type != 1 || objective.object_id != item_object_id {
+                            return false;
+                        }
+
+                        let storage_index = usize::try_from(objective.storage_index)
+                            .ok()
+                            .unwrap_or(fallback_index);
+                        let current = objective_counts.get(storage_index).copied().unwrap_or(0);
+                        current < objective.amount.max(1)
+                    })
+            })
+    }
+
+    pub(in crate::handlers::loot) fn remote_player_quest_objective_progress_like_cpp(
+        &self,
+        objective_id: u32,
+        player_context: &RepresentedLootPlayerContext,
+    ) -> Option<i32> {
+        let quest_store = self.quests.store.as_ref()?;
+
+        for (quest_id, objective_counts) in &player_context.active_quest_objective_counts {
+            let Some(quest) = quest_store.get(*quest_id) else {
+                continue;
+            };
+            let Some((_, objective)) = quest
+                .objectives
+                .iter()
+                .enumerate()
+                .find(|(_, objective)| objective.id == objective_id)
+            else {
+                continue;
+            };
+            let objective_index = objective.storage_index.max(0) as usize;
+            return Some(objective_counts.get(objective_index).copied().unwrap_or(0));
+        }
+
+        None
+    }
+}
+
+impl crate::session::LootState {
+    pub(in crate::handlers::loot) fn item_template_flags2_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_id: u32,
+    ) -> Option<u32> {
+        hub.catalogs
+            .item_stats_store()
+            .and_then(|store| store.sparse_template(item_id))
+            .map(|template| template.flags[1])
     }
 }

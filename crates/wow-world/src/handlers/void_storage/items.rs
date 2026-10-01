@@ -114,25 +114,14 @@ impl WorldSession {
         inventory_item: InventoryItem,
         cleared_mainhand_enchantments: Vec<wow_constants::EnchantmentSlot>,
     ) -> Option<Vec<PlannedVoidDestroyedInventoryItemLikeCpp>> {
-        let mut destroyed_items = self
-            .represented_inventory_descendants_postorder_like_cpp(inventory_item.guid)?
-            .into_iter()
-            .map(
-                |(bag, slot, inventory_item)| PlannedVoidDestroyedInventoryItemLikeCpp {
-                    bag,
-                    slot,
-                    inventory_item,
-                    cleared_mainhand_enchantments: Vec::new(),
-                },
-            )
-            .collect::<Vec<_>>();
-        destroyed_items.push(PlannedVoidDestroyedInventoryItemLikeCpp {
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.plan_void_storage_destroyed_items_like_cpp(
+            hub,
             bag,
             slot,
             inventory_item,
             cleared_mainhand_enchantments,
-        });
-        Some(destroyed_items)
+        )
     }
 
     pub(super) fn clear_item_publication_changes_like_cpp(item: &mut wow_entities::Item) {
@@ -168,6 +157,37 @@ impl WorldSession {
         changed_quest_ids.sort_unstable();
         changed_quest_ids.dedup();
         Some((destroyed_guids, changed_quest_ids))
+    }
+}
+
+impl crate::session::InventoryState {
+    pub(super) fn plan_void_storage_destroyed_items_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        bag: u8,
+        slot: u8,
+        inventory_item: InventoryItem,
+        cleared_mainhand_enchantments: Vec<wow_constants::EnchantmentSlot>,
+    ) -> Option<Vec<PlannedVoidDestroyedInventoryItemLikeCpp>> {
+        let mut destroyed_items = self
+            .represented_inventory_descendants_postorder_like_cpp(hub, inventory_item.guid)?
+            .into_iter()
+            .map(
+                |(bag, slot, inventory_item)| PlannedVoidDestroyedInventoryItemLikeCpp {
+                    bag,
+                    slot,
+                    inventory_item,
+                    cleared_mainhand_enchantments: Vec::new(),
+                },
+            )
+            .collect::<Vec<_>>();
+        destroyed_items.push(PlannedVoidDestroyedInventoryItemLikeCpp {
+            bag,
+            slot,
+            inventory_item,
+            cleared_mainhand_enchantments,
+        });
+        Some(destroyed_items)
     }
 }
 

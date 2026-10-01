@@ -64,17 +64,8 @@ impl WorldSession {
         &mut self,
         currencies: HashMap<u32, PlayerCurrency>,
     ) -> bool {
-        let canonical = self
-            .with_owned_player_mut_like_cpp(|player| {
-                player.install_currencies_like_cpp(currencies.clone());
-            })
-            .is_some();
-        #[cfg(test)]
-        if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.inventory.player_currencies = currencies;
-            return true;
-        }
-        canonical
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.set_player_currencies_like_cpp(&mut hub, currencies)
     }
 
     pub(crate) fn clear_player_currencies_like_cpp(&mut self) -> bool {
@@ -82,11 +73,41 @@ impl WorldSession {
     }
 
     pub(crate) fn player_currencies_like_cpp(&self) -> Option<HashMap<u32, PlayerCurrency>> {
-        let canonical =
-            self.with_owned_player_like_cpp(|player| player.gameplay_state().currencies.clone());
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.player_currencies_like_cpp(hub)
+    }
+}
+
+impl crate::session::state::InventoryState {
+    pub(crate) fn set_player_currencies_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        currencies: HashMap<u32, PlayerCurrency>,
+    ) -> bool {
+        let canonical = hub
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.install_currencies_like_cpp(currencies.clone());
+            })
+            .is_some();
         #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.inventory.player_currencies.clone());
+        if canonical || hub.core.player_handle_like_cpp.is_none() {
+            self.player_currencies = currencies;
+            return true;
+        }
+        canonical
+    }
+
+    pub(crate) fn player_currencies_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<HashMap<u32, PlayerCurrency>> {
+        let canonical = hub
+            .core
+            .with_owned_player_like_cpp(|player| player.gameplay_state().currencies.clone());
+        #[cfg(test)]
+        if canonical.is_none() && hub.core.player_handle_like_cpp.is_none() {
+            return Some(self.player_currencies.clone());
         }
         canonical
     }

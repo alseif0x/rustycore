@@ -59,20 +59,6 @@ impl WorldSession {
         crate::session::hub_ref(self).resolved_aura_effects_by_spell_aura_type_like_cpp(aura_type)
     }
 
-    pub(crate) fn resolved_aura_effect_amounts_by_spell_like_cpp(
-        &self,
-        aura_type: i32,
-    ) -> Option<Vec<(i32, i32)>> {
-        crate::session::hub_ref(self).resolved_aura_effect_amounts_by_spell_like_cpp(aura_type)
-    }
-
-    pub(crate) fn resolved_aura_effects_with_spell_and_misc_like_cpp(
-        &self,
-        aura_type: i32,
-    ) -> Option<Vec<(i32, i32, i32)>> {
-        crate::session::hub_ref(self).resolved_aura_effects_with_spell_and_misc_like_cpp(aura_type)
-    }
-
     pub(crate) fn resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(
         &self,
         aura_type: i32,

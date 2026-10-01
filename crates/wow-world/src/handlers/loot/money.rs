@@ -103,20 +103,8 @@ impl WorldSession {
         loot: &CreatureLoot,
         player_guid: ObjectGuid,
     ) -> u32 {
-        if self
-            .loot
-            .represented_personal_loot_owners
-            .contains(&loot_guid)
-        {
-            return self
-                .loot
-                .represented_personal_loot_money
-                .get(&(loot_guid, player_guid))
-                .copied()
-                .unwrap_or(0);
-        }
-
-        loot.coins
+        self.loot
+            .represented_loot_money_for_player_like_cpp(loot_guid, loot, player_guid)
     }
 
     pub(super) fn represented_loot_money_command_targets_active_generation_like_cpp(
@@ -430,5 +418,24 @@ impl WorldSession {
             Ok((applied_delta, notified_amount))
         });
         Some((worker, balance_applied, publication_applied))
+    }
+}
+
+impl crate::session::LootState {
+    pub(super) fn represented_loot_money_for_player_like_cpp(
+        &self,
+        loot_guid: ObjectGuid,
+        loot: &CreatureLoot,
+        player_guid: ObjectGuid,
+    ) -> u32 {
+        if self.represented_personal_loot_owners.contains(&loot_guid) {
+            return self
+                .represented_personal_loot_money
+                .get(&(loot_guid, player_guid))
+                .copied()
+                .unwrap_or(0);
+        }
+
+        loot.coins
     }
 }

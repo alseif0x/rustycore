@@ -34,13 +34,6 @@ impl WorldSession {
         #[cfg(not(test))]
         None
     }
-    #[cfg(test)]
-    pub fn set_battle_pet_breed_quality_store(&mut self, store: Arc<BattlePetBreedQualityStore>) {
-        self.fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .battle_pet_breed_quality_store = Some(store);
-    }
     pub(in crate::session) fn battle_pet_xp_per_level_like_cpp(&self, level: u16) -> Option<u16> {
         let canonical = self
             .lifecycle
@@ -466,38 +459,6 @@ impl WorldSession {
             }
         }
     }
-    #[cfg(test)]
-    pub(crate) fn set_represented_battle_pet_xp_per_level_like_cpp(
-        &mut self,
-        level: u16,
-        xp_per_level: u16,
-    ) {
-        self.fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .represented_battle_pet_xp_per_level_like_cpp
-            .insert(level, xp_per_level);
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_battle_pet_level_criteria_like_cpp(
-        &self,
-    ) -> &[RepresentedBattlePetLevelCriteriaLikeCpp] {
-        &self
-            .fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .represented_battle_pet_level_criteria_like_cpp
-    }
-    #[cfg(test)]
-    pub(crate) fn represented_battle_pet_active_level_criteria_like_cpp(
-        &self,
-    ) -> &[RepresentedBattlePetLevelCriteriaLikeCpp] {
-        &self
-            .fixtures
-            .pets
-            .battle_pet_test_fixture_like_cpp
-            .represented_battle_pet_active_level_criteria_like_cpp
-    }
     /// C++ `BattlePetMgr::SendJournal` packet body builder.
     pub(crate) fn represented_battle_pet_journal_like_cpp(
         &self,
@@ -567,3 +528,45 @@ impl WorldSession {
         }
     }
 }
+
+#[cfg(test)]
+impl crate::session::state::PetState {
+    #[cfg(test)]
+    pub fn set_battle_pet_breed_quality_store(&mut self, store: Arc<BattlePetBreedQualityStore>) {
+        self.battle_pet_test_fixture_like_cpp
+            .battle_pet_breed_quality_store = Some(store);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn set_represented_battle_pet_xp_per_level_like_cpp(
+        &mut self,
+        level: u16,
+        xp_per_level: u16,
+    ) {
+        self.battle_pet_test_fixture_like_cpp
+            .represented_battle_pet_xp_per_level_like_cpp
+            .insert(level, xp_per_level);
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_battle_pet_level_criteria_like_cpp(
+        &self,
+    ) -> &[RepresentedBattlePetLevelCriteriaLikeCpp] {
+        &self
+            .battle_pet_test_fixture_like_cpp
+            .represented_battle_pet_level_criteria_like_cpp
+    }
+
+    #[cfg(test)]
+    pub(crate) fn represented_battle_pet_active_level_criteria_like_cpp(
+        &self,
+    ) -> &[RepresentedBattlePetLevelCriteriaLikeCpp] {
+        &self
+            .battle_pet_test_fixture_like_cpp
+            .represented_battle_pet_active_level_criteria_like_cpp
+    }
+}
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/pets/battle_pet_journal/f3_shims.rs"]
+mod f3_shims;

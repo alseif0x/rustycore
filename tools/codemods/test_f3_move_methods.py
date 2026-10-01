@@ -211,6 +211,10 @@ class F3MoveMethodsTest(unittest.TestCase):
             "impl WorldSession {\n"
             "    pub(crate) fn source_plus(&self, x: u32) -> u32 {\n"
             "        self.interaction.source + self.core.account_id + x\n    }\n"
+            "    pub(crate) fn test_only_body(&mut self) {\n        #[cfg(test)]\n        {\n"
+            "            self.interaction.source = self.core.account_id;\n        }\n    }\n"
+            "    pub(crate) fn source_from(&mut self, state: u32) {\n"
+            "        self.interaction.source = state + self.core.account_id;\n    }\n"
             "    pub(crate) fn reset_source(&mut self) {\n"
             "        self.interaction.source = self.core.account_id;\n    }\n"
             "    pub(crate) fn reset_twice(&mut self) {\n        self.reset_source();\n        self.reset_source();\n    }\n"
@@ -222,7 +226,8 @@ class F3MoveMethodsTest(unittest.TestCase):
             "            + self.with_mut(|x| x)\n",
             "            + self.with_mut(|x| x) + self.bg_status() + self.source_plus(1)\n").replace(
             "        self.ctx_only()\n", "        self.ctx_only() + self.bg_hellos() as u32\n").replace(
-            "    pub fn account_plus_foo(&self)", "    pub fn reset(&mut self) {\n        self.reset_source();\n        self.reset_twice();\n    }\n"
+            "    pub fn account_plus_foo(&self)", "    pub fn reset(&mut self) {\n        self.reset_source();\n        self.reset_twice();\n        self.source_from(1);\n"
+            "        self.test_only_body();\n    }\n"
             "    pub fn account_plus_foo(&self)"))
         self.write("crates/wow-world/src/session/state/interaction.rs",
                    "pub(in crate::session) struct InteractionState {\n    pub(crate) source: u32,\n}\n")
@@ -233,6 +238,7 @@ class F3MoveMethodsTest(unittest.TestCase):
         conn.write_text(conn.read_text().replace("self.source_plus(1)", "self.source_plus(1) + self.vendor_source()"))
         P = F.plan(self.root, {"battleground", "interaction"}, {"P", "C-hub"})
         self.assertEqual(P["blocked"]["reset_twice"], "source-text test pins the call `reset_source(`")
+        self.assertTrue(P["blocked"]["test_only_body"].startswith("uses its hub only under cfg(test)"))
         rc, out = run("apply", "--group", "battleground,interaction", "--root", str(self.root), "--text-only",
                       "--demote-blocked")
         self.assertEqual(rc, 0, out)
@@ -250,10 +256,20 @@ class F3MoveMethodsTest(unittest.TestCase):
                       "        state.source_plus(hub, x)\n", npc)
         self.assertIn("let (state, mut hub) = crate::session::split_interaction_mut(self);\n"
                       "        state.reset_source(&mut hub)\n", npc)
+        self.assertIn("let (owner, mut hub) = crate::session::split_interaction_mut(self);\n"
+                      "        owner.source_from(&mut hub, state)\n", npc)        # a `state` param is never shadowed
         self.assertIn("fn reset_source(&mut self, hub: &mut crate::session::HubMut<'_>) {\n"
                       "        self.source = hub.core.account_id;\n", npc)
         self.assertIn("pub(crate) struct InteractionState {",            # widened: named from handlers/
                       (self.root / "crates/wow-world/src/session/state/interaction.rs").read_text())
+        npc_file = self.root / "crates/wow-world/src/session/npc_interaction.rs"   # a later caller of a moved
+        npc_file.write_text(npc_file.read_text() + "impl WorldSession {\n"          # group fn passes the hub too
+                            "    pub(crate) fn later(&self) -> u32 {\n        self.interaction.source + self.source_plus(2)\n"
+                            "    }\n}\n")
+        conn.write_text(conn.read_text().replace("self.vendor_source()", "self.vendor_source() + self.later()"))
+        self.assertEqual(run("apply", "--group", "interaction", "--root", str(self.root), "--text-only",
+                             "--demote-blocked")[0], 0)
+        self.assertIn("self.source + self.source_plus(hub, 2)", npc_file.read_text())
         hub = (self.root / "crates/wow-world/src/session/state/hub.rs").read_text()
         self.assertIn("pub(crate) fn split_interaction_mut(s: &mut WorldSession) -> (&mut InteractionState, HubMut<'_>)", hub)
         self.assertIn("pub(crate) fn split_interaction_ref(s: &WorldSession)", hub)

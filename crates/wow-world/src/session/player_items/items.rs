@@ -137,18 +137,8 @@ impl WorldSession {
     pub(in crate::session) fn represented_top_level_item_mod_targets_like_cpp(
         &self,
     ) -> Option<Vec<(u8, ObjectGuid)>> {
-        let mut targets = self
-            .resolved_inventory_item_objects_like_cpp()?
-            .values()
-            .filter(|item| {
-                item.container_guid().is_empty()
-                    && item.slot() < INVENTORY_SLOT_BAG_END
-                    && !item.is_broken()
-            })
-            .map(|item| (item.slot(), item.object().guid()))
-            .collect::<Vec<_>>();
-        targets.sort_by_key(|(slot, guid)| (*slot, guid.counter()));
-        Some(targets)
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.represented_top_level_item_mod_targets_like_cpp(hub)
     }
     pub(crate) fn record_represented_items_set_item_like_cpp(
         &mut self,
@@ -277,16 +267,12 @@ impl WorldSession {
         slot: u8,
         item: InventoryItem,
     ) -> Option<InventoryItem> {
-        self.mutate_player_inventory_runtime_like_cpp(|inventory| {
-            inventory.store_buyback_item_in_slot_like_cpp(slot, item)
-        })
-        .flatten()
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.insert_buyback_item_like_cpp(&mut hub, slot, item)
     }
     pub(crate) fn remove_buyback_item_like_cpp(&mut self, slot: u8) -> Option<InventoryItem> {
-        self.mutate_player_inventory_runtime_like_cpp(|inventory| {
-            inventory.remove_buyback_item_from_slot_like_cpp(slot)
-        })
-        .flatten()
+        let (state, mut hub) = crate::session::split_inventory_mut(self);
+        state.remove_buyback_item_like_cpp(&mut hub, slot)
     }
     /// Remove a fully-looted runtime item after its DB rows were deleted.
     pub(crate) fn remove_fully_looted_runtime_item(
@@ -306,36 +292,12 @@ impl WorldSession {
         self.sync_player_registry_state_like_cpp();
     }
     pub(crate) fn represented_has_item_count_like_cpp(&self, item_entry: u32, count: u32) -> bool {
-        if count == 0 {
-            return true;
-        }
-
-        self.represented_inventory_item_counts_like_cpp()
-            .is_some_and(|counts| counts.get(&item_entry).copied().unwrap_or(0) >= count)
-    }
-    pub(crate) fn can_destroy_direct_item_like_cpp(
-        &self,
-        slot: u8,
-        source_item: Option<&Item>,
-        proto: Option<&ItemStorageTemplate>,
-        source_is_not_empty_bag: bool,
-    ) -> InventoryResult {
-        self.can_unequip_inventory_item_at_like_cpp(
-            INVENTORY_SLOT_BAG_0,
-            slot,
-            false,
-            source_item,
-            proto,
-            source_is_not_empty_bag,
-        )
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.represented_has_item_count_like_cpp(hub, item_entry, count)
     }
     pub(crate) fn direct_item_contains_items(&self, item_guid: ObjectGuid) -> bool {
-        self.resolved_inventory_item_objects_like_cpp()
-            .is_some_and(|items| {
-                items
-                    .values()
-                    .any(|item| item.container_guid() == item_guid)
-            })
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.direct_item_contains_items(hub, item_guid)
     }
     pub(crate) fn has_active_non_item_loot_views_like_cpp(&self) -> bool {
         (!self.loot.active_loot_guid.is_empty() && !self.loot.active_loot_guid.is_item())
@@ -357,72 +319,8 @@ impl WorldSession {
         &self,
         equipped: &SpellEquippedItemsEntry,
     ) -> bool {
-        const SPELL_ATTR8_REQUIRES_EQUIPPED_INV_TYPES_LIKE_CPP: u32 = 0x0010_0000;
-
-        if equipped.equipped_item_class < 0 {
-            return true;
-        }
-
-        match equipped.equipped_item_class {
-            class if class == ItemClass::Weapon as i8 => {
-                self.represented_equipped_item_in_slot_fits_spell_requirements_like_cpp(
-                    EQUIPMENT_SLOT_MAINHAND,
-                    equipped,
-                ) || self.represented_equipped_item_in_slot_fits_spell_requirements_like_cpp(
-                    EQUIPMENT_SLOT_OFFHAND,
-                    equipped,
-                )
-            }
-            class if class == ItemClass::Armor as i8 => {
-                if self
-                    .catalogs
-                    .spell_catalogs
-                    .spell_store
-                    .as_ref()
-                    .is_some_and(|store| {
-                        store.has_attribute8_like_cpp(
-                            equipped.spell_id,
-                            SPELL_ATTR8_REQUIRES_EQUIPPED_INV_TYPES_LIKE_CPP,
-                        )
-                    })
-                {
-                    [
-                        EQUIPMENT_SLOT_HEAD,
-                        EQUIPMENT_SLOT_SHOULDERS,
-                        EQUIPMENT_SLOT_CHEST,
-                        EQUIPMENT_SLOT_WAIST,
-                        EQUIPMENT_SLOT_LEGS,
-                        EQUIPMENT_SLOT_FEET,
-                        EQUIPMENT_SLOT_WRISTS,
-                        EQUIPMENT_SLOT_HANDS,
-                    ]
-                    .into_iter()
-                    .all(|slot| {
-                        self.represented_equipped_item_in_slot_fits_spell_requirements_like_cpp(
-                            slot, equipped,
-                        )
-                    })
-                } else {
-                    self.represented_equipped_item_in_slot_fits_spell_requirements_like_cpp(
-                        EQUIPMENT_SLOT_OFFHAND,
-                        equipped,
-                    ) || (EQUIPMENT_SLOT_HEAD..EQUIPMENT_SLOT_MAINHAND).any(|slot| {
-                        self.represented_equipped_item_in_slot_fits_spell_requirements_like_cpp(
-                            slot, equipped,
-                        )
-                    })
-                }
-            }
-            _ => false,
-        }
-    }
-    pub(in crate::session) fn represented_item_fits_spell_requirements_like_cpp(
-        &self,
-        item_id: u32,
-        equipped: &SpellEquippedItemsEntry,
-    ) -> bool {
-        self.catalogs
-            .represented_item_fits_spell_requirements_like_cpp(item_id, equipped)
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.represented_has_item_fit_to_spell_requirements_like_cpp(hub, equipped)
     }
     #[cfg_attr(not(test), allow(unused_variables))]
     pub(crate) fn record_represented_auction_remove_item_like_cpp(
@@ -454,8 +352,8 @@ impl WorldSession {
         self.record_represented_item_mods_like_cpp(item_guid, EQUIPMENT_SLOT_OFFHAND, false) != 0
     }
     pub(crate) fn resolved_buyback_items_like_cpp(&self) -> Option<HashMap<u8, InventoryItem>> {
-        self.resolved_player_inventory_runtime_like_cpp()
-            .map(|inventory| inventory.buyback_items().clone())
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.resolved_buyback_items_like_cpp(hub)
     }
     #[cfg(test)]
     pub(crate) fn represented_trade_spell_cast_item_like_cpp(&self) -> Option<ObjectGuid> {
@@ -468,18 +366,8 @@ impl WorldSession {
         cast_item_entry: u32,
         modifiers: SpellCastBattlePetItemModifiersLikeCpp,
     ) -> Option<(u8, u8, InventoryItem)> {
-        let (bag, slot, inventory_item) =
-            self.get_inventory_item_by_guid_like_cpp(modifiers.source_item_guid)?;
-        if inventory_item.entry_id != cast_item_entry {
-            return None;
-        }
-        let item = self.resolved_inventory_item_object_like_cpp(modifiers.source_item_guid)?;
-        (item.object().entry() == cast_item_entry
-            && item.get_modifier(ItemModifier::BattlePetSpeciesId) == modifiers.species_id
-            && item.get_modifier(ItemModifier::BattlePetBreedData) == modifiers.breed_data
-            && item.get_modifier(ItemModifier::BattlePetLevel) == u32::from(modifiers.level)
-            && item.get_modifier(ItemModifier::BattlePetDisplayId) == modifiers.display_id)
-            .then_some((bag, slot, inventory_item))
+        let (state, hub) = crate::session::split_inventory_ref(self);
+        state.uncage_cast_item_still_matches_like_cpp(hub, cast_item_entry, modifiers)
     }
     pub(crate) async fn uncage_item_state_like_cpp(
         &self,
@@ -513,6 +401,191 @@ impl WorldSession {
         );
 
         true
+    }
+}
+
+impl crate::session::state::InventoryState {
+    pub(in crate::session) fn represented_top_level_item_mod_targets_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<Vec<(u8, ObjectGuid)>> {
+        let mut targets = self
+            .resolved_inventory_item_objects_like_cpp(hub)?
+            .values()
+            .filter(|item| {
+                item.container_guid().is_empty()
+                    && item.slot() < INVENTORY_SLOT_BAG_END
+                    && !item.is_broken()
+            })
+            .map(|item| (item.slot(), item.object().guid()))
+            .collect::<Vec<_>>();
+        targets.sort_by_key(|(slot, guid)| (*slot, guid.counter()));
+        Some(targets)
+    }
+
+    pub(crate) fn insert_buyback_item_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        slot: u8,
+        item: InventoryItem,
+    ) -> Option<InventoryItem> {
+        self.mutate_player_inventory_runtime_like_cpp(hub, |inventory| {
+            inventory.store_buyback_item_in_slot_like_cpp(slot, item)
+        })
+        .flatten()
+    }
+
+    pub(crate) fn remove_buyback_item_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        slot: u8,
+    ) -> Option<InventoryItem> {
+        self.mutate_player_inventory_runtime_like_cpp(hub, |inventory| {
+            inventory.remove_buyback_item_from_slot_like_cpp(slot)
+        })
+        .flatten()
+    }
+
+    pub(crate) fn represented_has_item_count_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_entry: u32,
+        count: u32,
+    ) -> bool {
+        if count == 0 {
+            return true;
+        }
+
+        self.represented_inventory_item_counts_like_cpp(hub)
+            .is_some_and(|counts| counts.get(&item_entry).copied().unwrap_or(0) >= count)
+    }
+
+    pub(crate) fn can_destroy_direct_item_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        slot: u8,
+        source_item: Option<&Item>,
+        proto: Option<&ItemStorageTemplate>,
+        source_is_not_empty_bag: bool,
+    ) -> InventoryResult {
+        self.can_unequip_inventory_item_at_like_cpp(
+            hub,
+            INVENTORY_SLOT_BAG_0,
+            slot,
+            false,
+            source_item,
+            proto,
+            source_is_not_empty_bag,
+        )
+    }
+
+    pub(crate) fn direct_item_contains_items(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        item_guid: ObjectGuid,
+    ) -> bool {
+        self.resolved_inventory_item_objects_like_cpp(hub)
+            .is_some_and(|items| {
+                items
+                    .values()
+                    .any(|item| item.container_guid() == item_guid)
+            })
+    }
+
+    pub(in crate::session) fn represented_has_item_fit_to_spell_requirements_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        equipped: &SpellEquippedItemsEntry,
+    ) -> bool {
+        const SPELL_ATTR8_REQUIRES_EQUIPPED_INV_TYPES_LIKE_CPP: u32 = 0x0010_0000;
+
+        if equipped.equipped_item_class < 0 {
+            return true;
+        }
+
+        match equipped.equipped_item_class {
+            class if class == ItemClass::Weapon as i8 => {
+                self.represented_equipped_item_in_slot_fits_spell_requirements_like_cpp(
+                    hub,
+                    EQUIPMENT_SLOT_MAINHAND,
+                    equipped,
+                ) || self.represented_equipped_item_in_slot_fits_spell_requirements_like_cpp(
+                    hub,
+                    EQUIPMENT_SLOT_OFFHAND,
+                    equipped,
+                )
+            }
+            class if class == ItemClass::Armor as i8 => {
+                if hub
+                    .catalogs
+                    .spell_catalogs
+                    .spell_store
+                    .as_ref()
+                    .is_some_and(|store| {
+                        store.has_attribute8_like_cpp(
+                            equipped.spell_id,
+                            SPELL_ATTR8_REQUIRES_EQUIPPED_INV_TYPES_LIKE_CPP,
+                        )
+                    })
+                {
+                    [
+                        EQUIPMENT_SLOT_HEAD,
+                        EQUIPMENT_SLOT_SHOULDERS,
+                        EQUIPMENT_SLOT_CHEST,
+                        EQUIPMENT_SLOT_WAIST,
+                        EQUIPMENT_SLOT_LEGS,
+                        EQUIPMENT_SLOT_FEET,
+                        EQUIPMENT_SLOT_WRISTS,
+                        EQUIPMENT_SLOT_HANDS,
+                    ]
+                    .into_iter()
+                    .all(|slot| {
+                        self.represented_equipped_item_in_slot_fits_spell_requirements_like_cpp(
+                            hub, slot, equipped,
+                        )
+                    })
+                } else {
+                    self.represented_equipped_item_in_slot_fits_spell_requirements_like_cpp(
+                        hub,
+                        EQUIPMENT_SLOT_OFFHAND,
+                        equipped,
+                    ) || (EQUIPMENT_SLOT_HEAD..EQUIPMENT_SLOT_MAINHAND).any(|slot| {
+                        self.represented_equipped_item_in_slot_fits_spell_requirements_like_cpp(
+                            hub, slot, equipped,
+                        )
+                    })
+                }
+            }
+            _ => false,
+        }
+    }
+
+    pub(crate) fn resolved_buyback_items_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+    ) -> Option<HashMap<u8, InventoryItem>> {
+        self.resolved_player_inventory_runtime_like_cpp(hub)
+            .map(|inventory| inventory.buyback_items().clone())
+    }
+
+    pub(in crate::session) fn uncage_cast_item_still_matches_like_cpp(
+        &self,
+        hub: crate::session::HubRef<'_>,
+        cast_item_entry: u32,
+        modifiers: SpellCastBattlePetItemModifiersLikeCpp,
+    ) -> Option<(u8, u8, InventoryItem)> {
+        let (bag, slot, inventory_item) =
+            self.get_inventory_item_by_guid_like_cpp(hub, modifiers.source_item_guid)?;
+        if inventory_item.entry_id != cast_item_entry {
+            return None;
+        }
+        let item = self.resolved_inventory_item_object_like_cpp(hub, modifiers.source_item_guid)?;
+        (item.object().entry() == cast_item_entry
+            && item.get_modifier(ItemModifier::BattlePetSpeciesId) == modifiers.species_id
+            && item.get_modifier(ItemModifier::BattlePetBreedData) == modifiers.breed_data
+            && item.get_modifier(ItemModifier::BattlePetLevel) == u32::from(modifiers.level)
+            && item.get_modifier(ItemModifier::BattlePetDisplayId) == modifiers.display_id)
+            .then_some((bag, slot, inventory_item))
     }
 }
 
