@@ -17,7 +17,7 @@ from __future__ import annotations
 import argparse, collections, json, os, pathlib, re, subprocess, sys
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
-from f3_codemod_lib import (HUB_RS, SPLIT_FN, SPLIT_REF_FN, abs_vis, cargo_check, item_segments,  # noqa: E402
+from f3_codemod_lib import (HUB_RS, SPLIT_FN, SPLIT_MUT_FN, SPLIT_REF_FN, abs_vis, cargo_check, item_segments,  # noqa: E402
                             line_start, module_paths, param_span, ret_type, split_params, strip_cfg_test)
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
@@ -30,6 +30,7 @@ STATE_TYPE = {"core": "SessionCore", "catalogs": "SessionCatalogs", "config": "S
               "interaction": "InteractionState", "quest_state": "SessionQuestState", "view": "SessionWorldView",
               "phase": "SessionPhaseRail"}
 HUB_TYPES = {"HubRef", "HubMut"}
+SH = ("state-hub", "state-hubmut")                           # group state + HubRef (`&self`) / `&mut HubMut`
 # `fixtures.<group>` (cfg(test)) owner types: cfg(test)-only fns that touch only their group move onto them.
 FIXTURE_TYPE = {"identity": "PlayerIdentityState", "collections": "CollectionsState", "auras": "AuraState",
                 "progression": "ProgressionState", "combat": "CombatState", "movement": "MovementState",
@@ -108,9 +109,10 @@ def scan(root):
     raw = {r: t for r, t, _ in srcs}
     code = {r: c for r, _, c in srcs}
     groups = [f["name"] for f in W.parse_fields(raw["session/state.rs"])]
-    fns, owned = [], collections.defaultdict(set)
+    fns, owned, test_path_fns = [], collections.defaultdict(set), set()
     for rel, text, c in srcs:
-        if W.is_test_path(rel):
+        if W.is_test_path(rel):                              # test-path fns never move, but are callees
+            test_path_fns.update(W.impl_methods(c))
             continue
         for h in IMPL_ANY.finditer(c):
             tname = h.group(1)
@@ -147,7 +149,7 @@ def scan(root):
                                 domain=W.domain_of(rel)))
     names = {f["name"] for f in fns}
     for f in fns:
-        f["calls"] = [x for x in f["calls"] if x in names or x in owned]
+        f["calls"] = [x for x in f["calls"] if x in names or x in owned or x in test_path_fns]
     handlers = set()
     for rel, c in code.items():
         for sm in re.finditer(r"inventory\s*::\s*submit\s*!\s*\{", c):
@@ -165,8 +167,9 @@ def scan(root):
                 ext[x] += 1
     tests = collections.Counter()
     for p in (root / "crates/wow-world/unit_tests").rglob("*.rs"):
-        for x in ANY_CALL.findall(W.blank_noncode(p.read_text(errors="replace"))):
-            tests[x] += 1
+        if p.name != "f3_shims.rs":                          # a shim delegating is not a test caller
+            for x in ANY_CALL.findall(W.blank_noncode(p.read_text(errors="replace"))):
+                tests[x] += 1
     return W, src, raw, code, groups, fns, owned, handlers, ext, tests
 
 
@@ -232,6 +235,9 @@ def kind_of(f, classes):
     """(class, kind, target type) or a blocked reason string."""
     g = f["target"]
     fields = set(f["acc"])
+    if len(fields) == 1 and fields <= {"catalogs", "config"} and g not in ("catalogs", "config"):
+        f["store_from"], g = g, next(iter(fields))           # a pure store accessor/setter of any group
+        f["target"], f["store_rehomed"] = g, True
     if g in FIXTURE_TYPE:
         if set(f["fx"]) - {g}:
             return f"class C (other fixture groups {sorted(set(f['fx']) - {g})})"
@@ -245,15 +251,13 @@ def kind_of(f, classes):
                                                          .get(kind, FIXTURE_TYPE[g]))
     if g not in STATE_TYPE:
         return "stateless group: context-owned kind not implemented"
-    if g == "core" and len(fields) == 1 and fields <= {"catalogs", "config"}:
-        g = next(iter(fields))                               # a pure store accessor re-homed into core
-        f["target"], f["store_rehomed"] = g, True
     own = fields <= {g}
     if own:
         cls, kind = "P", "state"
     elif fields <= HUB | {g} and g not in ("catalogs", "config"):
         cls = "C-hub"
-        kind = ("hubref" if f["recv"] == "&self" else "hubmut") if g == "core" else "state-hub"
+        kind = ("hubref" if f["recv"] == "&self" else "hubmut") if g == "core" else \
+            "state-hub" if f["recv"] == "&self" else "state-hubmut"
     else:
         return f"class C (non-hub fields {sorted(fields - HUB - {g})})"
     return preconditions(f, cls, kind, classes) or (cls, kind, {"hubref": "HubRef", "hubmut": "HubMut"}
@@ -278,21 +282,21 @@ def hub_check(f, kind):
     """Precondition failures specific to the hub kinds (also applied when a P fn is upgraded)."""
     if kind in ("hubref", "hubmut") and f["ret_borrow"]:
         return "returns a borrow (would borrow a temporary hub view)"
-    if kind in ("hubref", "hubmut", "state-hub") and f.get("writes_store"):
+    if kind in ("hubref", "hubmut", *SH) and f.get("writes_store"):
         return "writes catalogs/config (shared in every hub view)"
-    if kind in ("hubref", "hubmut", "state-hub") and "config" in f["acc"] and not f["file"].startswith("session/"):
+    if kind in ("hubref", "hubmut", *SH) and "config" in f["acc"] and not f["file"].startswith("session/"):
         return "reads config outside crate::session"
     return None
 
 
 def upgrade(f, kind, classes):
     """P -> C-hub when a callee needs the hub view (core: HubRef/HubMut, other groups: state-hub)."""
-    if f.get("store_rehomed"):                               # it needs the hub after all: back to core
-        f["target"] = "core"
+    if f.get("store_rehomed"):                               # it needs the hub after all: back home
+        f["target"], f["store_rehomed"] = f["store_from"], False
     if kind != "state" or "C-hub" not in classes or f["target"] in ("catalogs", "config"):
         return None
     if f["target"] not in ("core", *FIXTURE_TYPE):
-        up = "C-hub", "state-hub", STATE_TYPE[f["target"]]
+        up = "C-hub", "state-hub" if f["recv"] == "&self" else "state-hubmut", STATE_TYPE[f["target"]]
     else:
         up = ("C-hub", "hubref", "HubRef") if f["recv"] == "&self" else ("C-hub", "hubmut", "HubMut")
     return hub_check(f, up[1]) or up
@@ -306,20 +310,27 @@ def call_prefix(caller, ctype, callee_type, callee_kind, callee_recv="&self"):
     """Receiver text replacing `self.` for a call from a moved fn, or None if impossible."""
     fg = FIXTURE_OF.get(callee_type)
     if fg and callee_type != ctype:                          # a cfg(test) fixture-group fn
-        if caller == "hubmut" or (caller in ("hubref", "state-hub") and callee_recv == "&self"):
-            return f"{'hub' if caller == 'state-hub' else 'self'}.fixtures.{fg}."
+        if caller in ("hubmut", "state-hubmut") or (caller in ("hubref", "state-hub") and callee_recv == "&self"):
+            return f"{'hub' if caller in SH else 'self'}.fixtures.{fg}."
         return None
     if caller == "state":
         if callee_type == ctype and callee_kind == "state":
             return "self."
         return None
-    if caller == "state-hub":
+    if caller in SH:
+        mut = caller == "state-hubmut"
         if callee_type == ctype:
-            return "self." if callee_kind == "state" else ("self.", "hub")
+            if callee_kind == "state":
+                return "self."
+            if callee_kind == "state-hub":
+                return "self.", "hub.shared()" if mut else "hub"
+            return ("self.", "hub") if mut else None
         g = {v: k for k, v in STATE_TYPE.items()}.get(callee_type)
         if g in HUB:
             return f"hub.{g}."
-        return "hub." if callee_type == "HubRef" else None
+        if callee_type == "HubRef":
+            return "hub.shared()." if mut else "hub."
+        return "hub." if callee_type == "HubMut" and mut else None
     g = {v: k for k, v in STATE_TYPE.items()}.get(callee_type)
     if g in HUB:
         return f"self.{g}."
@@ -408,7 +419,7 @@ def plan(root, groups_wanted, classes):
         bad = []
         for n in cand:
             try:
-                signature(by[n], code, raw, cand[n][1] == "state-hub")
+                signature(by[n], code, raw, cand[n][1] in SH)
             except CodemodError as e:
                 bad.append((n, "unsupported parameter pattern: " + str(e).rsplit(": ", 1)[-1]))
         for n, why in bad:
@@ -453,8 +464,15 @@ def plan(root, groups_wanted, classes):
     stale = [t for t in thunks if t not in HANDLERS | PERMANENT_THUNKS
              and not resident_thunk(t, code, moved_spans, EXT, in_test)
              and not (all_by[t]["vis"] == "pub" and not all_by[t]["cfg_test"])]
+    src_calls = collections.Counter(m.group(1) for rel, c in code.items() for m in ANY_CALL.finditer(c)
+                                    if not any(a <= m.start() <= b for a, b in moved_spans.get(rel, [])))
+    stale_shims = {}                                          # shims whose last test caller moved
+    for p in sorted((root / "crates/wow-world/unit_tests").rglob("f3_shims.rs")):
+        for name in W.impl_methods(W.blank_noncode(p.read_text())):
+            if not tests[name] and not src_calls[name] and name not in all_by:
+                stale_shims[name] = p
     return dict(W=W, src=src, raw=raw, code=code, by=by, cand=cand, blocked=blocked, rows=rows, loc=loc,
-                count=count, thunks=thunks, stale=stale, test_called={
+                count=count, thunks=thunks, stale=stale, stale_shims=stale_shims, test_called={
                     t for t in stale if any(m.group(1) == t and in_test(rel, m.start())
                                             for rel, c in code.items() for m in ANY_CALL.finditer(c))}, modpaths=module_paths(src, code), tests=tests,
                 allfns={f["name"]: f for f in fns})
@@ -546,26 +564,27 @@ def rewrite_body(P, f, kind, tname):
             if isinstance(pref, tuple):
                 paren = e + c[e:].index("(") + 1
                 edits.append((s, e - len(name), pref[0]))
-                edits.append((paren, paren, "hub, " if c[paren:paren + 1] != ")" else "hub"))
+                edits.append((paren, paren, pref[1] + (", " if c[paren:paren + 1] != ")" else "")))
             else:
                 edits.append((s, e - len(name), pref))
         elif kind == "state" and g in FIXTURE_TYPE and name == "fixtures":
             seg = re.match(r"\s*\.\s*" + g + r"\b(\s*\.)?", after)
             if seg:
                 edits.append((s, e + seg.end(), "self." if seg.group(1) else "(*self)"))
-        elif kind in ("state", "state-hub") and name == g:
+        elif kind in ("state", *SH) and name == g:
             dot = re.match(r"\s*\.", after)
             edits.append((s, e + (dot.end() if dot else 0), "self." if dot else "(*self)"))
-        elif kind == "state-hub" and name in HUB:
+        elif kind in SH and name in HUB:
             edits.append((s, s + len("self"), "hub"))
     text = r[a:b]
     for s, e, rep in sorted(edits, reverse=True):
         text = text[:s - a] + rep + text[e - a:]
-    if kind == "state-hub":
+    if kind in SH:
         _, _, _, popen = signature(f, P["code"], P["raw"])
         k = popen - a
         recv_end = text.index(",", k) + 1 if "," in text[k:text.index(")", k)] else text.index(")", k)
-        insert = " hub: crate::session::HubRef<'_>," if text[recv_end - 1] == "," else ", hub: crate::session::HubRef<'_>"
+        ty = "crate::session::HubRef<'_>" if kind == "state-hub" else "&mut crate::session::HubMut<'_>"
+        insert = f" hub: {ty}," if text[recv_end - 1] == "," else f", hub: {ty}"
         text = text[:recv_end] + insert + text[recv_end:]
     return a, b, text
 
@@ -582,8 +601,10 @@ def thunk_text(P, f, kind, tname, indent="    ", vis=None):
     lines = {"state": [f"self.{'fixtures.' if g in FIXTURE_TYPE else ''}{g}.{n}({args}){aw}"],
              "hubref": [f"crate::session::hub_ref(self).{n}({args}){aw}"],
              "hubmut": [f"crate::session::hub_mut(self).{n}({args}){aw}"],
-             "state-hub": [f"let (state, hub) = crate::session::split_{g}{'_ref' if f['recv'] == '&self' else ''}(self);",
-                           f"state.{n}(hub{', ' if args else ''}{args}){aw}"]}[kind]
+             "state-hub": [f"let (state, hub) = crate::session::split_{g}_ref(self);",
+                           f"state.{n}(hub{', ' if args else ''}{args}){aw}"],
+             "state-hubmut": [f"let (state, mut hub) = crate::session::split_{g}_mut(self);",
+                              f"state.{n}(&mut hub{', ' if args else ''}{args}){aw}"]}[kind]
     head = "".join(indent + a.strip() + "\n" for a in attrs.splitlines() if a.strip())
     if n in PERMANENT_THUNKS and vis is None:
         head += indent + "#[inline]\n"
@@ -596,11 +617,11 @@ def ensure_prelude(src, kinds, groups_state_hub, outside_types):
     state, mod = src / "session/state.rs", src / "session/mod.rs"
     st, md = state.read_text(), mod.read_text()
     hub = src / "session/state/hub.rs"
-    if kinds & {"hubref", "hubmut", "state-hub"}:
+    if kinds & {"hubref", "hubmut", *SH}:
         text = hub.read_text() if hub.exists() else HUB_RS
         for g, variant in sorted(groups_state_hub):
             if f"fn split_{g}{variant}(" not in text:
-                text += (SPLIT_REF_FN if variant else SPLIT_FN).format(g=g, t=STATE_TYPE[g])
+                text += {"_ref": SPLIT_REF_FN, "_mut": SPLIT_MUT_FN, "": SPLIT_FN}[variant].format(g=g, t=STATE_TYPE[g])
         if not hub.exists() or hub.read_text() != text:
             hub.write_text(text)
             written.append(hub)
@@ -610,7 +631,7 @@ def ensure_prelude(src, kinds, groups_state_hub, outside_types):
         exports = ["HubMut", "HubRef"] + sorted(re.findall(r"(?m)^pub\(crate\) fn (" + IDENT + r")\(", text))
         st = re.sub(r"pub\(crate\) use hub::\{[^}]*\};", "pub(crate) use hub::{" + ", ".join(exports) + "};", st)
         md_line = "pub(crate) use state::{" + ", ".join(exports) + "};"
-        md = re.sub(r"pub\(crate\) use state::\{Hub[^}]*\};\n", "", md)
+        md = re.sub(r"pub\(crate\) use state::\{\s*Hub[^}]*\};\n", "", md)
         md = md.replace("pub use state::WorldSession;", "pub use state::WorldSession;\n" + md_line, 1)
     for t in sorted(outside_types):
         st = re.sub(r"pub\(in crate::session\) use (\w+)::" + t + ";", r"pub(crate) use \1::" + t + ";", st)
@@ -625,19 +646,28 @@ def ensure_prelude(src, kinds, groups_state_hub, outside_types):
 
 def apply_text(root, P):
     rows = P["rows"]
-    if not rows and not P["stale"]:
+    if not rows and not P["stale"] and not P["stale_shims"]:
         return []
+    written = []
+    for name, shim in P["stale_shims"].items():               # remove shims nobody calls any more
+        t = shim.read_text()
+        code = P["W"].blank_noncode(t)
+        m = re.search(r"(?m)^[ \t]*(?:#\[[^\]]*\][ \t]*\n[ \t]*)*(?:pub[^\n]*?)?fn\s+" + name + r"\b", code)
+        close = P["W"].matching_close(code, code.index("{", m.end())) + 1
+        shim.write_text(t[:m.start()] + t[close:].lstrip("\n"))
+        P["manifest"].setdefault("retired_shims", []).append(name)
+        written.append(shim)
     by, src = P["by"], P["src"]
     kinds = {r["kind"] for r in rows}
-    sh_groups = {(by[r["name"]]["target"], "_ref" if r["recv"] == "&self" else "")
-                 for r in rows if r["kind"] == "state-hub"}
-    outside = {r["type"] for r in rows if r["kind"] in ("state", "state-hub") and not r["file"].startswith("session/")}
+    sh_groups = {(by[r["name"]]["target"], "_ref" if r["kind"] == "state-hub" else "_mut")
+                 for r in rows if r["kind"] in SH}
+    outside = {r["type"] for r in rows if r["kind"] in ("state", *SH) and not r["file"].startswith("session/")}
     for t in outside:
         if t not in ("SessionCore", "SessionCatalogs", "LootState", "WorldEntitiesState", "VisibilityState",
                      "InteractionState", "InstanceState", "SessionSpellState", "SessionQuestState", "SessionSocialLimits",
                      "SessionLifecycleState"):
             raise CodemodError(f"{t} is not pub(crate); a fn outside crate::session cannot name it")
-    written = ensure_prelude(src, kinds, sh_groups, outside)
+    written += ensure_prelude(src, kinds, sh_groups, outside)
     per_file = collections.defaultdict(list)
     for r in rows:
         per_file[r["file"]].append(r)
@@ -776,7 +806,8 @@ def report(P, groups):
         f = by[r["name"]]
         rw = {"state": f"self.{f['target']}. -> self.", "hubref": "fields unchanged; moved-callee receivers",
               "hubmut": "fields unchanged; HubRef callees via self.shared()",
-              "state-hub": f"self.{f['target']}. -> self.; self.<hub> -> hub.<hub>; +hub param"}[r["kind"]]
+              "state-hub": f"self.{f['target']}. -> self.; self.<hub> -> hub.<hub>; +HubRef param",
+              "state-hubmut": f"self.{f['target']}. -> self.; self.<hub> -> hub.<hub>; +&mut HubMut param"}[r["kind"]]
         out.append(f"{r['file']}:{r['line']}\t{r['name']}\t{r['cls']}\timpl {r['type']}\t{rw}\t"
                    f"thunk={'yes (' + r['thunk'] + ')' if r['thunk'] else 'no'}\tshim={'yes' if r['shim'] else 'no'}")
     return "\n".join(out)

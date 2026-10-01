@@ -21,11 +21,4 @@ impl crate::session::WorldSession {
     ) -> Option<R> {
         self.core.mutate_player_unit_presentation_like_cpp(mutate)
     }
-    #[cfg(test)]
-    pub(in crate::session) fn mutate_player_battleground_state_like_cpp<R>(
-        &mut self,
-        mutate: impl FnOnce(&mut wow_entities::PlayerBattlegroundState) -> R,
-    ) -> Option<R> {
-        crate::session::hub_mut(self).mutate_player_battleground_state_like_cpp(mutate)
-    }
 }

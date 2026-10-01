@@ -749,8 +749,19 @@ impl WorldSession {
         &mut self,
         command: SendRepresentedDuelRequestedLikeCppCommand,
     ) {
-        self.set_represented_duel_arbiter_guid_like_cpp(Some(command.arbiter_guid));
-        self.send_raw_packet(&command.packet_bytes);
+        let (state, mut hub) = crate::session::split_social_mut(self);
+        state.handle_send_represented_duel_requested_command_like_cpp(&mut hub, command)
+    }
+}
+
+impl crate::session::SessionSocialLimits {
+    pub(crate) fn handle_send_represented_duel_requested_command_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        command: SendRepresentedDuelRequestedLikeCppCommand,
+    ) {
+        self.set_represented_duel_arbiter_guid_like_cpp(hub, Some(command.arbiter_guid));
+        hub.core.send_raw_packet(&command.packet_bytes);
     }
 }
 

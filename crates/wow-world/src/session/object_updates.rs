@@ -146,6 +146,18 @@ fn filter_player_values_update_for_target_like_cpp(update: &mut PlayerValuesUpda
 }
 
 impl WorldSession {
+    pub(crate) fn send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(
+        &mut self,
+    ) -> usize {
+        let (state, mut hub) = crate::session::split_visibility_mut(self);
+        state
+            .send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(
+                &mut hub,
+            )
+    }
+}
+
+impl crate::session::state::VisibilityState {
     /// Deliver the Player and Unit VALUES snapshots captured by the canonical
     /// map's `Map::SendObjectUpdates` phase.
     ///
@@ -161,17 +173,18 @@ impl WorldSession {
     /// producer paths.
     pub(crate) fn send_represented_player_unit_values_updates_from_last_map_send_object_updates_like_cpp(
         &mut self,
+        hub: &mut crate::session::HubMut<'_>,
     ) -> usize {
-        let Some(key) = self.current_canonical_player_map_key_like_cpp() else {
+        let Some(key) = hub.core.current_canonical_player_map_key_like_cpp() else {
             return 0;
         };
         let Ok(packet_map_id) = u16::try_from(key.map_id) else {
             return 0;
         };
-        let Some(manager) = self.core.canonical_map_manager.as_ref() else {
+        let Some(manager) = hub.core.canonical_map_manager.as_ref() else {
             return 0;
         };
-        let Some(viewer_guid) = self.player_guid() else {
+        let Some(viewer_guid) = hub.core.player_guid() else {
             return 0;
         };
 
@@ -202,7 +215,7 @@ impl WorldSession {
                 let source_guid = represented_update.guid;
                 let source_is_viewer = source_guid == viewer_guid;
                 let source_visible = source_is_viewer
-                    || (self
+                    || (hub
                         .core
                         .client_visible_guids_like_cpp
                         .contains(&source_guid)
@@ -239,7 +252,7 @@ impl WorldSession {
 
             for represented_update in summary.unit_values_updates {
                 let source_guid = represented_update.guid;
-                if !self
+                if !hub
                     .core
                     .client_visible_guids_like_cpp
                     .contains(&source_guid)
@@ -279,7 +292,7 @@ impl WorldSession {
         // A session can change instance while the map lock is released.  The
         // snapshot is scoped to the admitted map key; fail closed before any
         // packet leaves the Session if that key is no longer current.
-        if self.current_canonical_player_map_key_like_cpp() != Some(key) {
+        if hub.core.current_canonical_player_map_key_like_cpp() != Some(key) {
             return 0;
         }
 
@@ -288,7 +301,7 @@ impl WorldSession {
             // Recheck `HaveAtClient` after dropping the map lock.  A queued
             // visibility transition may have retired the source meanwhile.
             if source_guid != viewer_guid
-                && !self
+                && !hub
                     .core
                     .client_visible_guids_like_cpp
                     .contains(&source_guid)
@@ -301,7 +314,6 @@ impl WorldSession {
                     &bytes,
                 );
             if !self
-                .visibility
                 .represented_player_unit_values_updates_delivered_like_cpp
                 .insert((
                     key.map_id,
@@ -313,7 +325,7 @@ impl WorldSession {
             {
                 continue;
             }
-            self.send_raw_packet(&bytes);
+            hub.core.send_raw_packet(&bytes);
             sent += 1;
         }
         sent

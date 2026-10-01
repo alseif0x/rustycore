@@ -58,6 +58,8 @@ FILES = {
         "    fn only_tests(&self) -> u32 {\n"
         "        self.catalogs.bar + 1\n"
         "    }\n"
+        "    #[cfg(test)]\n    fn uses_test_support(&self) -> u32 {\n"
+        "        self.catalogs.bar + self.fixture_view()\n    }\n"
         "    pub(crate) fn pair(&self) -> [u32; 2] {\n"
         "        [self.catalogs.bar, 0]\n"
         "    }\n"
@@ -80,6 +82,8 @@ FILES = {
         "        self.ctx_only()\n"
         "    }\n"
         "}\n"),
+    "crates/wow-world/src/session/test_support/ops.rs": (
+        "impl WorldSession {\n    pub(crate) fn fixture_view(&self) -> u32 {\n        0\n    }\n}\n"),
     "crates/wow-world/unit_tests/catalogs_tests.rs": (
         "fn t(session: &mut WorldSession) -> u32 {\n    session.set_foo_store(1);\n"
         "    session.only_tests() + session.tests_only_two()\n}\n"),
@@ -129,17 +133,18 @@ class F3MoveMethodsTest(unittest.TestCase):
         self.assertEqual((rows["only_tests"]["thunk"], bool(rows["only_tests"]["shim"])), ("", True))
         self.assertTrue(P["blocked"]["uses_whole"].startswith("whole-self"))
         self.assertIn("never_called", P["blocked"])                                     # uncalled: stays
+        self.assertEqual(P["blocked"]["uses_test_support"], "callee fixture_view not moved")  # test-path callee
         self.assertTrue(P["blocked"]["tests_only_two"].startswith("dead in non-test builds"))  # lint group
 
     def test_upgrade_keeps_hub_preconditions(self):
-        f = dict(target="config", store_rehomed=True, recv="&self", acc={"config": 1},
+        f = dict(target="config", store_rehomed=True, store_from="core", recv="&self", acc={"config": 1},
                  file="handlers/stats.rs", ret_borrow=False)
         self.assertEqual(F.upgrade(f, "state", {"P", "C-hub"}), "reads config outside crate::session")
-        f.update(target="config", store_rehomed=True, file="session/stats.rs", ret_borrow=True)
+        f.update(target="config", store_rehomed=True, store_from="core", file="session/stats.rs", ret_borrow=True)
         self.assertTrue(F.upgrade(f, "state", {"P", "C-hub"}).startswith("returns a borrow"))
-        f.update(target="config", store_rehomed=True, ret_borrow=False, writes_store=True)
+        f.update(target="config", store_rehomed=True, store_from="core", ret_borrow=False, writes_store=True)
         self.assertTrue(F.upgrade(f, "state", {"P", "C-hub"}).startswith("writes catalogs/config"))
-        f.update(target="config", store_rehomed=True, writes_store=False)
+        f.update(target="config", store_rehomed=True, store_from="core", writes_store=False)
         self.assertEqual(F.upgrade(f, "state", {"P", "C-hub"}), ("C-hub", "hubref", "HubRef"))
         self.assertTrue(F.STORE_WRITE.search("self.config.max_level = 3;"))
         self.assertTrue(F.STORE_WRITE.search("take(&mut self.catalogs.x)"))
@@ -162,6 +167,13 @@ class F3MoveMethodsTest(unittest.TestCase):
         P = F.plan(self.root, {"core"}, {"P", "C-hub"})
         self.assertEqual(P["blocked"].get("uses_limit"), "callee on an unreachable owner")
         self.assertTrue(P["blocked"]["inner_limit"].startswith("no callers"))  # reachable inside session
+        self.write("crates/wow-world/src/session/social/ops.rs",
+                   "impl WorldSession {\n    pub fn set_level_req(&mut self, v: u32) {\n"
+                   "        self.config.level = v;\n    }\n}\n")
+        tests = self.root / "crates/wow-world/unit_tests/catalogs_tests.rs"
+        tests.write_text(tests.read_text() + "fn s(x: &mut WorldSession) { x.set_level_req(2) }\n")
+        P = F.plan(self.root, {"social", "config"}, {"P", "C-hub"})
+        self.assertEqual(P["cand"]["set_level_req"], ("P", "state", "SessionWorldConfig"))  # any group's setter
 
     def test_player_guid_is_a_permanent_inline_thunk(self):
         self.write("crates/wow-world/src/session/player_binding.rs",
@@ -219,13 +231,19 @@ class F3MoveMethodsTest(unittest.TestCase):
                       "        self.source + hub.core.account_id + x\n", npc)
         self.assertIn("let (state, hub) = crate::session::split_interaction_ref(self);\n"
                       "        state.source_plus(hub, x)\n", npc)
-        self.assertIn("let (state, hub) = crate::session::split_interaction(self);\n"
-                      "        state.reset_source(hub)\n", npc)
+        self.assertIn("let (state, mut hub) = crate::session::split_interaction_mut(self);\n"
+                      "        state.reset_source(&mut hub)\n", npc)
+        self.assertIn("fn reset_source(&mut self, hub: &mut crate::session::HubMut<'_>) {\n"
+                      "        self.source = hub.core.account_id;\n", npc)
         hub = (self.root / "crates/wow-world/src/session/state/hub.rs").read_text()
-        self.assertIn("pub(crate) fn split_interaction(s: &mut WorldSession)", hub)
+        self.assertIn("pub(crate) fn split_interaction_mut(s: &mut WorldSession) -> (&mut InteractionState, HubMut<'_>)", hub)
         self.assertIn("pub(crate) fn split_interaction_ref(s: &WorldSession)", hub)
         exports = (self.root / "crates/wow-world/src/session/mod.rs").read_text()
-        self.assertIn("split_interaction, split_interaction_ref};", exports)
+        self.assertIn("split_interaction_mut, split_interaction_ref};", exports)
+        mod = self.root / "crates/wow-world/src/session/mod.rs"           # rustfmt-wrapped export line
+        mod.write_text(mod.read_text().replace("use state::{HubMut", "use state::{\n    HubMut"))
+        F.ensure_prelude(self.root / "crates/wow-world/src", {"hubref"}, set(), set())
+        self.assertEqual(mod.read_text().count("use state::{"), 1)   # rewritten, never duplicated
 
     def write(self, rel, text):
         path = self.root / rel
@@ -277,6 +295,14 @@ class F3MoveMethodsTest(unittest.TestCase):
         self.assertNotIn("fn foo_store", head)
         self.assertIn("fn set_foo_store", head)                      # pub API thunk is never stale
         self.assertEqual(self.plan()["stale"], [])
+        tests = self.root / "crates/wow-world/unit_tests/catalogs_tests.rs"     # the last shim caller goes
+        tests.write_text(tests.read_text().replace("session.only_tests() + ", ""))
+        shim = self.root / "crates/wow-world/unit_tests/session/catalogs/ops/f3_shims.rs"
+        self.assertEqual(list(self.plan()["stale_shims"]), ["only_tests"])
+        self.assertEqual(self.apply("--demote-blocked")[0], 0)
+        self.assertNotIn("fn only_tests", shim.read_text())
+        self.assertIn("fn ctx_only", shim.read_text())
+        self.assertEqual(self.plan()["stale_shims"], {})
 
 
 if __name__ == "__main__":

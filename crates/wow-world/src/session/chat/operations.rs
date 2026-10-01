@@ -11,98 +11,12 @@ impl WorldSession {
         mode: PlayerAwayModeLikeCpp,
         text: String,
     ) -> bool {
-        if self.resolved_in_combat_like_cpp() != Some(false) || text.len() > 511 {
-            return false;
-        }
-
-        if self.player_guid().is_none() {
-            return false;
-        }
-
-        let default_text = match mode {
-            PlayerAwayModeLikeCpp::Afk => "Away from Keyboard",
-            PlayerAwayModeLikeCpp::Dnd => "Do not Disturb",
-        };
-
-        // C++ `WorldSession::HandleChatMessageAFKOpcode` (ChatHandler.cpp:594)
-        // and its DND twin (:640) compose two Player transitions in this exact
-        // order: assign the auto-reply message, clear the opposite mode, then
-        // toggle this one. The session adapts the packet; the Player owns both
-        // steps.
-        //
-        // Unimplemented participant: Classic then notifies the guild through
-        // `Guild::SendEventAwayChanged`.
-        self.mutate_canonical_player_like_cpp(move |player| {
-            let already_active = match mode {
-                PlayerAwayModeLikeCpp::Afk => player.is_afk_like_cpp(),
-                PlayerAwayModeLikeCpp::Dnd => player.is_dnd_like_cpp(),
-            };
-            if already_active {
-                if text.is_empty() {
-                    match mode {
-                        PlayerAwayModeLikeCpp::Afk => player.toggle_afk_like_cpp(),
-                        PlayerAwayModeLikeCpp::Dnd => player.toggle_dnd_like_cpp(),
-                    }
-                } else {
-                    player.set_auto_reply_message_like_cpp(text);
-                }
-                return;
-            }
-
-            player.set_auto_reply_message_like_cpp(if text.is_empty() {
-                default_text.to_string()
-            } else {
-                text
-            });
-            match mode {
-                PlayerAwayModeLikeCpp::Afk => {
-                    if player.is_dnd_like_cpp() {
-                        player.toggle_dnd_like_cpp();
-                    }
-                    player.toggle_afk_like_cpp();
-                }
-                PlayerAwayModeLikeCpp::Dnd => {
-                    if player.is_afk_like_cpp() {
-                        player.toggle_afk_like_cpp();
-                    }
-                    player.toggle_dnd_like_cpp();
-                }
-            }
-        })
-        .is_some()
-    }
-    /// Set the C++ Emotes.db2 store for `Unit::HandleEmoteCommand`.
-    #[cfg(test)]
-    pub fn set_emotes_store_like_cpp(&mut self, store: Arc<EmotesStore>) {
-        self.catalogs.emotes_store = Some(store);
-    }
-    /// Set the C++ EmotesText.db2 store for `HandleTextEmoteOpcode`.
-    #[cfg(test)]
-    pub fn set_emotes_text_store_like_cpp(&mut self, store: Arc<EmotesTextStore>) {
-        self.catalogs.emotes_text_store = Some(store);
-    }
-    #[cfg(test)]
-    pub fn set_chat_fake_message_preventing_like_cpp(&mut self, enabled: bool) {
-        self.config.chat_fake_message_preventing_like_cpp = enabled;
+        let (state, mut hub) = crate::session::split_social_mut(self);
+        state.apply_chat_away_mode_like_cpp(&mut hub, mode, text)
     }
     #[cfg(test)]
     pub fn set_chat_strict_link_checking_kick_like_cpp(&mut self, enabled: bool) {
         self.config.chat_strict_link_checking_kick_like_cpp = enabled;
-    }
-    #[cfg(test)]
-    pub fn set_chat_level_requirements_like_cpp(
-        &mut self,
-        requirements: ChatLevelRequirementsLikeCpp,
-    ) {
-        self.config.chat_level_requirements_like_cpp = requirements;
-    }
-    #[cfg(test)]
-    pub fn set_chat_listen_ranges_like_cpp(&mut self, ranges: ChatListenRangesLikeCpp) {
-        self.config.chat_listen_ranges_like_cpp = ranges;
-    }
-    #[cfg(test)]
-    pub fn set_chat_flood_config_like_cpp(&mut self, config: ChatFloodConfigLikeCpp) {
-        self.config.chat_flood_config_like_cpp = config;
     }
     pub fn set_remote_address_like_cpp(&mut self, address: Option<String>) {
         self.core.transport.remote_address_like_cpp = address;
@@ -135,11 +49,6 @@ impl WorldSession {
     }
     pub(in crate::session) fn resolved_player_emote_state_like_cpp(&self) -> Option<u32> {
         crate::session::hub_ref(self).resolved_player_emote_state_like_cpp()
-    }
-    #[cfg(test)]
-    pub(crate) fn player_emote_state_like_cpp(&self) -> u32 {
-        self.resolved_player_emote_state_like_cpp()
-            .expect("test Player emote-state owner must resolve")
     }
     pub(crate) fn clear_player_gossip_options_like_cpp(&mut self) -> bool {
         let canonical = self
@@ -255,6 +164,121 @@ impl WorldSession {
     }
 }
 
+impl crate::session::state::SessionWorldConfig {
+    #[cfg(test)]
+    pub fn set_chat_fake_message_preventing_like_cpp(&mut self, enabled: bool) {
+        self.chat_fake_message_preventing_like_cpp = enabled;
+    }
+
+    #[cfg(test)]
+    pub fn set_chat_level_requirements_like_cpp(
+        &mut self,
+        requirements: ChatLevelRequirementsLikeCpp,
+    ) {
+        self.chat_level_requirements_like_cpp = requirements;
+    }
+
+    #[cfg(test)]
+    pub fn set_chat_listen_ranges_like_cpp(&mut self, ranges: ChatListenRangesLikeCpp) {
+        self.chat_listen_ranges_like_cpp = ranges;
+    }
+
+    #[cfg(test)]
+    pub fn set_chat_flood_config_like_cpp(&mut self, config: ChatFloodConfigLikeCpp) {
+        self.chat_flood_config_like_cpp = config;
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    /// Set the C++ Emotes.db2 store for `Unit::HandleEmoteCommand`.
+    #[cfg(test)]
+    pub fn set_emotes_store_like_cpp(&mut self, store: Arc<EmotesStore>) {
+        self.emotes_store = Some(store);
+    }
+
+    /// Set the C++ EmotesText.db2 store for `HandleTextEmoteOpcode`.
+    #[cfg(test)]
+    pub fn set_emotes_text_store_like_cpp(&mut self, store: Arc<EmotesTextStore>) {
+        self.emotes_text_store = Some(store);
+    }
+}
+
+impl crate::session::state::SessionSocialLimits {
+    pub(crate) fn apply_chat_away_mode_like_cpp(
+        &mut self,
+        hub: &mut crate::session::HubMut<'_>,
+        mode: PlayerAwayModeLikeCpp,
+        text: String,
+    ) -> bool {
+        if hub.shared().resolved_in_combat_like_cpp() != Some(false) || text.len() > 511 {
+            return false;
+        }
+
+        if hub.core.player_guid().is_none() {
+            return false;
+        }
+
+        let default_text = match mode {
+            PlayerAwayModeLikeCpp::Afk => "Away from Keyboard",
+            PlayerAwayModeLikeCpp::Dnd => "Do not Disturb",
+        };
+
+        // C++ `WorldSession::HandleChatMessageAFKOpcode` (ChatHandler.cpp:594)
+        // and its DND twin (:640) compose two Player transitions in this exact
+        // order: assign the auto-reply message, clear the opposite mode, then
+        // toggle this one. The session adapts the packet; the Player owns both
+        // steps.
+        //
+        // Unimplemented participant: Classic then notifies the guild through
+        // `Guild::SendEventAwayChanged`.
+        hub.core
+            .mutate_canonical_player_like_cpp(move |player| {
+                let already_active = match mode {
+                    PlayerAwayModeLikeCpp::Afk => player.is_afk_like_cpp(),
+                    PlayerAwayModeLikeCpp::Dnd => player.is_dnd_like_cpp(),
+                };
+                if already_active {
+                    if text.is_empty() {
+                        match mode {
+                            PlayerAwayModeLikeCpp::Afk => player.toggle_afk_like_cpp(),
+                            PlayerAwayModeLikeCpp::Dnd => player.toggle_dnd_like_cpp(),
+                        }
+                    } else {
+                        player.set_auto_reply_message_like_cpp(text);
+                    }
+                    return;
+                }
+
+                player.set_auto_reply_message_like_cpp(if text.is_empty() {
+                    default_text.to_string()
+                } else {
+                    text
+                });
+                match mode {
+                    PlayerAwayModeLikeCpp::Afk => {
+                        if player.is_dnd_like_cpp() {
+                            player.toggle_dnd_like_cpp();
+                        }
+                        player.toggle_afk_like_cpp();
+                    }
+                    PlayerAwayModeLikeCpp::Dnd => {
+                        if player.is_afk_like_cpp() {
+                            player.toggle_afk_like_cpp();
+                        }
+                        player.toggle_dnd_like_cpp();
+                    }
+                }
+            })
+            .is_some()
+    }
+
+    #[cfg(test)]
+    pub(crate) fn player_emote_state_like_cpp(&self, hub: crate::session::HubRef<'_>) -> u32 {
+        hub.resolved_player_emote_state_like_cpp()
+            .expect("test Player emote-state owner must resolve")
+    }
+}
+
 impl crate::session::state::SessionCore {
     fn player_emote_state_update_packet_like_cpp(
         &self,
@@ -325,3 +349,7 @@ impl crate::session::HubMut<'_> {
             .player_emote_state_update_packet_like_cpp(emote_state)
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/chat/operations/f3_shims.rs"]
+mod f3_shims;

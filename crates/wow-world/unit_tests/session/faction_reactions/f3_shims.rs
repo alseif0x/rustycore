@@ -13,4 +13,11 @@ impl crate::session::WorldSession {
     ) -> wow_data::reputation::ReputationRankLikeCpp {
         crate::session::hub_ref(self).represented_faction_reaction_to_like_cpp(input)
     }
+    pub(crate) fn resolved_watched_faction_index_like_cpp(&self) -> Option<i32> {
+        crate::session::hub_ref(self).resolved_watched_faction_index_like_cpp()
+    }
+    #[cfg(test)]
+    pub(crate) fn watched_faction_index_like_cpp(&self) -> i32 {
+        crate::session::hub_ref(self).watched_faction_index_like_cpp()
+    }
 }

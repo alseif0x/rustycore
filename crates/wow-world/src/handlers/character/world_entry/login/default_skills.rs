@@ -8,6 +8,25 @@
 use super::*;
 
 impl WorldSession {
+    pub(super) fn apply_default_skills_for_login_like_cpp(
+        &mut self,
+        race: u8,
+        class: u8,
+        level: u8,
+        skill_records: &mut HashMap<u16, crate::session::RepresentedPlayerSkillLikeCpp>,
+        skill_info_by_id: &mut BTreeMap<u16, wow_data::SkillInfoEntry>,
+    ) -> Option<Vec<wow_data::SkillInfoEntry>> {
+        crate::session::hub_mut(self).apply_default_skills_for_login_like_cpp(
+            race,
+            class,
+            level,
+            skill_records,
+            skill_info_by_id,
+        )
+    }
+}
+
+impl crate::session::HubMut<'_> {
     /// Returns the newly learned default skill entries, or `None` after
     /// kicking when the canonical Player skill owner is unavailable.
     pub(super) fn apply_default_skills_for_login_like_cpp(
@@ -25,9 +44,9 @@ impl WorldSession {
         // `LearnSkillRewardedSpells` with that real value.
         let mut default_skill_entries = Vec::new();
         if let (Some(skill_store), Some(skill_line_store), Some(skill_tiers_store)) = (
-            self.skill_store().cloned(),
-            self.skill_line_store().cloned(),
-            self.skill_tiers_store().cloned(),
+            self.catalogs.skill_store().cloned(),
+            self.catalogs.skill_line_store().cloned(),
+            self.catalogs.skill_tiers_store().cloned(),
         ) {
             for entry in skill_store.default_starting_skill_info_like_cpp(
                 race,
@@ -77,7 +96,8 @@ impl WorldSession {
                 default_skill_entries.push(entry);
             }
             if !self.replace_player_skill_records_like_cpp(skill_records.clone(), true, false) {
-                self.kick("canonical Player skill owner unavailable while applying default skills");
+                self.core
+                    .kick("canonical Player skill owner unavailable while applying default skills");
                 return None;
             }
         }

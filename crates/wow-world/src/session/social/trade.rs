@@ -7,13 +7,7 @@ use super::*;
 
 impl WorldSession {
     pub(crate) fn record_represented_trade_cancel_like_cpp(&mut self, status: u8) {
-        #[cfg(test)]
-        self.social
-            .trade_test_fixture_like_cpp
-            .represented_trade_cancel_statuses_like_cpp
-            .push(status);
-        #[cfg(not(test))]
-        let _ = status;
+        self.social.record_represented_trade_cancel_like_cpp(status)
     }
     pub(in crate::session) fn player_trade_state_snapshot_like_cpp(
         &self,
@@ -410,11 +404,26 @@ impl WorldSession {
             ),
         );
     }
+}
+
+impl crate::session::state::SessionSocialLimits {
+    pub(crate) fn record_represented_trade_cancel_like_cpp(&mut self, status: u8) {
+        #[cfg(test)]
+        self.trade_test_fixture_like_cpp
+            .represented_trade_cancel_statuses_like_cpp
+            .push(status);
+        #[cfg(not(test))]
+        let _ = status;
+    }
+
     #[cfg(test)]
     pub(crate) fn represented_trade_cancel_statuses_like_cpp(&self) -> &[u8] {
         &self
-            .social
             .trade_test_fixture_like_cpp
             .represented_trade_cancel_statuses_like_cpp
     }
 }
+
+#[cfg(test)]
+#[path = "../../../unit_tests/session/social/trade/f3_shims.rs"]
+mod f3_shims;

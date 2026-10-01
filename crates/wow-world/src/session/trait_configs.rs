@@ -11,15 +11,104 @@ use wow_entities::{PlayerTraitConfigDetails, PlayerTraitEntry};
 use wow_packet::packets::update::{TraitConfigCreateData, TraitEntryCreateData};
 
 impl WorldSession {
+    pub(crate) fn normalize_trait_configs_like_cpp(
+        &self,
+        configs: &[TraitConfigCreateData],
+    ) -> Option<Vec<TraitConfigCreateData>> {
+        crate::session::hub_ref(self).normalize_trait_configs_like_cpp(configs)
+    }
+
+    pub(crate) fn trait_authority_complete_like_cpp(
+        &self,
+        configs: &[TraitConfigCreateData],
+        node_entries: &TraitNodeEntryStore,
+        player_guid: ObjectGuid,
+    ) -> bool {
+        crate::session::hub_ref(self).trait_authority_complete_like_cpp(
+            configs,
+            node_entries,
+            player_guid,
+        )
+    }
+
+    pub(crate) fn retain_loaded_trait_configs_like_cpp(
+        &mut self,
+        configs: &[TraitConfigCreateData],
+    ) -> bool {
+        crate::session::hub_mut(self).retain_loaded_trait_configs_like_cpp(configs)
+    }
+
+    pub(crate) fn owned_trait_configs_for_create_like_cpp(
+        &self,
+    ) -> Option<Vec<TraitConfigCreateData>> {
+        crate::session::hub_ref(self).owned_trait_configs_for_create_like_cpp()
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub(crate) fn retain_loaded_trait_configs_like_cpp(
+        &mut self,
+        configs: &[TraitConfigCreateData],
+    ) -> bool {
+        // The owner enforces that this hydration describes exactly the rows it
+        // loaded; the session only shapes the packet payload into the details
+        // it stores.
+        let hydration = configs
+            .iter()
+            .enumerate()
+            .map(|(create_index, config)| {
+                (
+                    config.id,
+                    (
+                        config.config_type,
+                        config.chr_specialization_id,
+                        config.combat_config_flags,
+                    ),
+                    PlayerTraitConfigDetails {
+                        create_index,
+                        local_identifier: config.local_identifier,
+                        skill_line_id: config.skill_line_id,
+                        trait_system_id: config.trait_system_id,
+                        name: config.name.clone(),
+                        entries: config
+                            .entries
+                            .iter()
+                            .map(|entry| PlayerTraitEntry {
+                                trait_node_id: entry.trait_node_id,
+                                trait_node_entry_id: entry.trait_node_entry_id,
+                                rank: entry.rank,
+                                granted_ranks: entry.granted_ranks,
+                            })
+                            .collect(),
+                    },
+                )
+            })
+            .collect::<Vec<_>>();
+
+        self.core
+            .with_owned_player_mut_like_cpp(|player| {
+                player
+                    .gameplay_state_mut()
+                    .spells
+                    .install_loaded_trait_config_details_like_cpp(&hydration)
+            })
+            .unwrap_or(false)
+    }
+}
+
+impl crate::session::HubRef<'_> {
     fn trait_tree_ids_for_config_like_cpp(
         &self,
         config: &TraitConfigCreateData,
     ) -> Option<Vec<u32>> {
-        let index = self.trait_tree_skill_line_index()?.as_ref();
+        let index = self.catalogs.trait_tree_skill_line_index()?.as_ref();
         let tree_ids = match config.config_type {
             1 => {
                 let specialization_id = u32::try_from(config.chr_specialization_id).ok()?;
-                let specialization = self.chr_specialization_store()?.get(specialization_id)?;
+                let specialization = self
+                    .catalogs
+                    .chr_specialization_store()?
+                    .get(specialization_id)?;
                 if !index.has_class_like_cpp(specialization.class_id) {
                     return None;
                 }
@@ -57,7 +146,7 @@ impl WorldSession {
         BTreeSet<u32>,
         BTreeSet<u32>,
     )> {
-        self.with_owned_player_like_cpp(|player| {
+        self.core.with_owned_player_like_cpp(|player| {
             let currencies = player
                 .gameplay_state()
                 .currencies
@@ -92,7 +181,7 @@ impl WorldSession {
         &self,
         configs: &[TraitConfigCreateData],
     ) -> Option<Vec<TraitConfigCreateData>> {
-        let index = self.trait_tree_skill_line_index()?.as_ref();
+        let index = self.catalogs.trait_tree_skill_line_index()?.as_ref();
         if !index.graph_loaded_like_cpp() {
             return None;
         }
@@ -195,59 +284,66 @@ impl WorldSession {
                         <= i64::from(node_entry.max_ranks)
             });
         let complete = entries_complete
-            && self.trait_tree_skill_line_index().is_none_or(|index| {
-                configs.iter().all(|config| {
-                    let tree_ids = match config.config_type {
-                        1 => u32::try_from(config.chr_specialization_id)
-                            .ok()
-                            .and_then(|specialization_id| {
-                                self.chr_specialization_store()
-                                    .and_then(|store| store.get(specialization_id))
-                                    .map(|specialization| {
-                                        (
-                                            index.has_class_like_cpp(specialization.class_id),
-                                            index.trees_for_class_like_cpp(specialization.class_id),
-                                        )
-                                    })
-                            })
-                            .and_then(|(present, ids)| present.then_some(ids)),
-                        2 => u32::try_from(config.skill_line_id)
-                            .ok()
-                            .map(|skill_line_id| {
-                                (
-                                    index.has_skill_line_like_cpp(skill_line_id),
-                                    index.trees_for_skill_line_like_cpp(skill_line_id),
-                                )
-                            })
-                            .and_then(|(present, ids)| present.then_some(ids)),
-                        3 => u32::try_from(config.trait_system_id)
-                            .ok()
-                            .map(|trait_system_id| {
-                                (
-                                    index.has_trait_system_like_cpp(trait_system_id),
-                                    index.trees_for_trait_system_like_cpp(trait_system_id),
-                                )
-                            })
-                            .and_then(|(present, ids)| present.then_some(ids)),
-                        _ => Some(&[] as &[u32]),
-                    };
-                    let Some(tree_ids) = tree_ids else {
-                        return false;
-                    };
-                    if !index.graph_loaded_like_cpp() {
-                        return true;
-                    }
-                    config.entries.iter().all(|entry| {
-                        let Some(node_id) = u32::try_from(entry.trait_node_id).ok() else {
+            && self
+                .catalogs
+                .trait_tree_skill_line_index()
+                .is_none_or(|index| {
+                    configs.iter().all(|config| {
+                        let tree_ids = match config.config_type {
+                            1 => u32::try_from(config.chr_specialization_id)
+                                .ok()
+                                .and_then(|specialization_id| {
+                                    self.catalogs
+                                        .chr_specialization_store()
+                                        .and_then(|store| store.get(specialization_id))
+                                        .map(|specialization| {
+                                            (
+                                                index.has_class_like_cpp(specialization.class_id),
+                                                index.trees_for_class_like_cpp(
+                                                    specialization.class_id,
+                                                ),
+                                            )
+                                        })
+                                })
+                                .and_then(|(present, ids)| present.then_some(ids)),
+                            2 => u32::try_from(config.skill_line_id)
+                                .ok()
+                                .map(|skill_line_id| {
+                                    (
+                                        index.has_skill_line_like_cpp(skill_line_id),
+                                        index.trees_for_skill_line_like_cpp(skill_line_id),
+                                    )
+                                })
+                                .and_then(|(present, ids)| present.then_some(ids)),
+                            3 => u32::try_from(config.trait_system_id)
+                                .ok()
+                                .map(|trait_system_id| {
+                                    (
+                                        index.has_trait_system_like_cpp(trait_system_id),
+                                        index.trees_for_trait_system_like_cpp(trait_system_id),
+                                    )
+                                })
+                                .and_then(|(present, ids)| present.then_some(ids)),
+                            _ => Some(&[] as &[u32]),
+                        };
+                        let Some(tree_ids) = tree_ids else {
                             return false;
                         };
-                        let Some(entry_id) = u32::try_from(entry.trait_node_entry_id).ok() else {
-                            return false;
-                        };
-                        index.entry_belongs_to_tree_set_like_cpp(tree_ids, node_id, entry_id)
+                        if !index.graph_loaded_like_cpp() {
+                            return true;
+                        }
+                        config.entries.iter().all(|entry| {
+                            let Some(node_id) = u32::try_from(entry.trait_node_id).ok() else {
+                                return false;
+                            };
+                            let Some(entry_id) = u32::try_from(entry.trait_node_entry_id).ok()
+                            else {
+                                return false;
+                            };
+                            index.entry_belongs_to_tree_set_like_cpp(tree_ids, node_id, entry_id)
+                        })
                     })
-                })
-            });
+                });
         if !complete {
             warn!(
                 player_guid = player_guid.counter(),
@@ -257,58 +353,10 @@ impl WorldSession {
         complete
     }
 
-    pub(crate) fn retain_loaded_trait_configs_like_cpp(
-        &mut self,
-        configs: &[TraitConfigCreateData],
-    ) -> bool {
-        // The owner enforces that this hydration describes exactly the rows it
-        // loaded; the session only shapes the packet payload into the details
-        // it stores.
-        let hydration = configs
-            .iter()
-            .enumerate()
-            .map(|(create_index, config)| {
-                (
-                    config.id,
-                    (
-                        config.config_type,
-                        config.chr_specialization_id,
-                        config.combat_config_flags,
-                    ),
-                    PlayerTraitConfigDetails {
-                        create_index,
-                        local_identifier: config.local_identifier,
-                        skill_line_id: config.skill_line_id,
-                        trait_system_id: config.trait_system_id,
-                        name: config.name.clone(),
-                        entries: config
-                            .entries
-                            .iter()
-                            .map(|entry| PlayerTraitEntry {
-                                trait_node_id: entry.trait_node_id,
-                                trait_node_entry_id: entry.trait_node_entry_id,
-                                rank: entry.rank,
-                                granted_ranks: entry.granted_ranks,
-                            })
-                            .collect(),
-                    },
-                )
-            })
-            .collect::<Vec<_>>();
-
-        self.with_owned_player_mut_like_cpp(|player| {
-            player
-                .gameplay_state_mut()
-                .spells
-                .install_loaded_trait_config_details_like_cpp(&hydration)
-        })
-        .unwrap_or(false)
-    }
-
     pub(crate) fn owned_trait_configs_for_create_like_cpp(
         &self,
     ) -> Option<Vec<TraitConfigCreateData>> {
-        self.with_owned_player_like_cpp(|player| {
+        self.core.with_owned_player_like_cpp(|player| {
             let runtime = &player.gameplay_state().spells;
             if !runtime.trait_config_rows_complete_like_cpp()
                 || !runtime.trait_entry_rows_complete_like_cpp()
