@@ -57,3 +57,22 @@ pub(crate) fn hub_mut(s: &mut WorldSession) -> HubMut<'_> {
         fixtures: &mut s.fixtures,
     }
 }
+
+/// `&mut` group state plus the shared hub, borrowed from disjoint WorldSession fields.
+pub(crate) fn split_interaction(s: &mut WorldSession) -> (&mut InteractionState, HubRef<'_>) {
+    (
+        &mut s.interaction,
+        HubRef {
+            core: &s.core,
+            catalogs: &s.catalogs,
+            config: &s.config,
+            #[cfg(test)]
+            fixtures: &s.fixtures,
+        },
+    )
+}
+
+/// Shared group state plus the shared hub for `&self` methods.
+pub(crate) fn split_interaction_ref(s: &WorldSession) -> (&InteractionState, HubRef<'_>) {
+    (&s.interaction, hub_ref(s))
+}

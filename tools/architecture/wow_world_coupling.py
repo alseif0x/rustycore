@@ -356,7 +356,15 @@ def analyze(root: pathlib.Path, hub_threshold: int = DEFAULT_HUB_THRESHOLD,
 
     # #1241 F3: fns moved onto sub-state / hub-view impls, the WorldSession thunks that still
     # delegate to them (same name on both), and unit_tests-only WorldSession shims.
-    owner_head = impl_head({type_ident(f["type"]) for f in fields} | {"HubRef", "HubMut"})
+    owner_types = {type_ident(f["type"]) for f in fields} | {"HubRef", "HubMut"}
+    for f in fields:  # container members (`fixtures.<group>`) own moved fns too
+        if f["name"] in CONTAINER_FIELDS:
+            for _rel, _text, code in sources:
+                m = re.search(r"\bstruct\s+" + re.escape(type_ident(f["type"])) + r"\b[^{;()]*\{", code)
+                if m:
+                    owner_types |= {type_ident(x["type"]) for x in struct_fields(code, m)}
+                    break
+    owner_head = impl_head(owner_types)
     owned_names: set[str] = set()
     owned_total = 0
     for rel, _text, code in sources:

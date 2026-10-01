@@ -79,10 +79,6 @@ impl WorldSession {
         }
     }
 
-    pub(in crate::session) fn active_player_update_state_like_cpp(&self) -> Option<(u32, i32, u8)> {
-        crate::session::hub_ref(self).active_player_update_state_like_cpp()
-    }
-
     pub(in crate::session) fn mutate_active_player_update_state_like_cpp<R>(
         &mut self,
         mutate: impl FnOnce(&mut wow_entities::PlayerGameplayState) -> R,
@@ -284,3 +280,7 @@ impl crate::session::HubRef<'_> {
         canonical
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/session/action_bar_adapter/f3_shims.rs"]
+mod f3_shims;

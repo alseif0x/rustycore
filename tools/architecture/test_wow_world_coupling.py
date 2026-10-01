@@ -269,6 +269,13 @@ class CouplingTests(unittest.TestCase):
         self.write("session/state.rs", """
             pub struct WorldSession {
                 pub(crate) catalogs: SessionCatalogs,
+                #[cfg(test)]
+                pub(crate) fixtures: SessionFixtures,
+            }
+        """)
+        self.write("session/state/fixtures.rs", """
+            pub(crate) struct SessionFixtures {
+                pub(crate) movement: MovementState,
             }
         """)
         self.write("session/state/catalogs.rs", """
@@ -289,6 +296,10 @@ class CouplingTests(unittest.TestCase):
             impl<'a> HubRef<'a> {
                 fn hub_fn(&self) {}
             }
+            #[cfg(test)]
+            impl crate::session::state::MovementState {
+                fn fixture_fn(&self) {}
+            }
         """)
         shim = self.root / coupling.CRATE_SRC.parent / "unit_tests/session/alpha/f3_shims.rs"
         shim.parent.mkdir(parents=True, exist_ok=True)
@@ -296,10 +307,10 @@ class CouplingTests(unittest.TestCase):
                         "    fn shim_b(&self) {}\n}\n", encoding="utf-8")
         r5 = self.report()["r5"]
         self.assertEqual(r5["impl_methods_production"], 4)  # alpha.rs 3 (`[u8; 3]` return) + beta_one
-        self.assertEqual(r5["substate_impl_methods_production"], 3)
+        self.assertEqual(r5["substate_impl_methods_production"], 4)  # incl. the fixtures.movement owner
         self.assertEqual(r5["worldsession_thunks"], 1)
         self.assertEqual(r5["f3_test_shims"], 2)
-        self.assertIn("moved onto sub-states             3  fns (1 WorldSession thunks keep their name),"
+        self.assertIn("moved onto sub-states             4  fns (1 WorldSession thunks keep their name),"
                       " 2 unit_tests shims", coupling.render(self.report(), 3))
 
     def test_missing_struct_is_an_error(self):

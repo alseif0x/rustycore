@@ -176,6 +176,57 @@ class F3MoveMethodsTest(unittest.TestCase):
         self.assertIn("impl crate::session::state::SessionCore {", text)
         self.assertFalse((self.root / "crates/wow-world/unit_tests/session/player_binding").exists())
 
+    def test_fixture_group_and_state_hub_kinds(self):
+        state = self.root / "crates/wow-world/src/session/state.rs"
+        state.write_text(state.read_text().replace(
+            "    pub(crate) catalogs: SessionCatalogs,\n",
+            "    pub(crate) catalogs: SessionCatalogs,\n    #[cfg(test)]\n    pub(crate) fixtures: SessionFixtures,\n"
+            "    pub(crate) interaction: InteractionState,\n").replace(
+            "mod session_core;", "mod interaction;\npub(in crate::session) use interaction::InteractionState;\n"
+            "mod session_core;"))
+        mod = self.root / "crates/wow-world/src/session/mod.rs"
+        mod.write_text("mod battleground_adapter;\nmod npc_interaction;\n" + mod.read_text())
+        self.write("crates/wow-world/src/session/battleground_adapter.rs", (
+            "impl WorldSession {\n"
+            "    #[cfg(test)]\n    pub(crate) fn bg_hellos(&self) -> usize {\n"
+            "        self.fixtures.battleground.hellos.len()\n    }\n"
+            "    pub(crate) fn bg_status(&self) -> u32 {\n        self.core.account_id\n    }\n}\n"))
+        self.write("crates/wow-world/src/session/npc_interaction.rs", (
+            "impl WorldSession {\n"
+            "    pub(crate) fn source_plus(&self, x: u32) -> u32 {\n"
+            "        self.interaction.source + self.core.account_id + x\n    }\n"
+            "    pub(crate) fn reset_source(&mut self) {\n"
+            "        self.interaction.source = self.core.account_id;\n    }\n}\n"))
+        conn = self.root / "crates/wow-world/src/session/connection.rs"
+        conn.write_text(conn.read_text().replace(
+            "            + self.with_mut(|x| x)\n",
+            "            + self.with_mut(|x| x) + self.bg_status() + self.source_plus(1)\n").replace(
+            "        self.ctx_only()\n", "        self.ctx_only() + self.bg_hellos() as u32\n").replace(
+            "    pub fn account_plus_foo(&self)", "    pub fn reset(&mut self) {\n        self.reset_source();\n    }\n"
+            "    pub fn account_plus_foo(&self)"))
+        rc, out = run("apply", "--group", "battleground,interaction", "--root", str(self.root), "--text-only",
+                      "--demote-blocked")
+        self.assertEqual(rc, 0, out)
+        bg = (self.root / "crates/wow-world/src/session/battleground_adapter.rs").read_text()
+        self.assertIn("#[cfg(test)]\nimpl crate::session::state::BattlegroundState {\n    #[cfg(test)]\n"
+                      "    pub(crate) fn bg_hellos(&self) -> usize {\n        self.hellos.len()\n", bg)
+        shim = (self.root / "crates/wow-world/unit_tests/session/battleground_adapter/f3_shims.rs").read_text()
+        self.assertIn("    #[cfg(test)]\n    pub(crate) fn bg_hellos(&self) -> usize {\n"
+                      "        self.fixtures.battleground.bg_hellos()\n", shim)     # cfg(test) caller: a shim
+        self.assertIn("impl crate::session::HubRef<'_> {\n    pub(crate) fn bg_status(&self)", bg)
+        npc = (self.root / "crates/wow-world/src/session/npc_interaction.rs").read_text()
+        self.assertIn("fn source_plus(&self, hub: crate::session::HubRef<'_>, x: u32) -> u32 {\n"
+                      "        self.source + hub.core.account_id + x\n", npc)
+        self.assertIn("let (state, hub) = crate::session::split_interaction_ref(self);\n"
+                      "        state.source_plus(hub, x)\n", npc)
+        self.assertIn("let (state, hub) = crate::session::split_interaction(self);\n"
+                      "        state.reset_source(hub)\n", npc)
+        hub = (self.root / "crates/wow-world/src/session/state/hub.rs").read_text()
+        self.assertIn("pub(crate) fn split_interaction(s: &mut WorldSession)", hub)
+        self.assertIn("pub(crate) fn split_interaction_ref(s: &WorldSession)", hub)
+        exports = (self.root / "crates/wow-world/src/session/mod.rs").read_text()
+        self.assertIn("split_interaction, split_interaction_ref};", exports)
+
     def write(self, rel, text):
         path = self.root / rel
         path.parent.mkdir(parents=True, exist_ok=True)

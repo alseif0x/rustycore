@@ -597,10 +597,8 @@ impl WorldSession {
     }
 
     pub(crate) fn send_close_gossip_like_cpp(&mut self) {
-        self.reset_player_interaction_data_like_cpp();
-        self.send_packet_realm(&GossipComplete {
-            suppress_sound: false,
-        });
+        let (state, hub) = crate::session::split_interaction(self);
+        state.send_close_gossip_like_cpp(hub)
     }
 
     /// Handle CMSG_GOSSIP_SELECT_OPTION — player selects a gossip menu option.
@@ -758,5 +756,14 @@ impl WorldSession {
         // For now, respond with a default "found" response.
         // BroadcastTextID=0 tells the client to use local DB2 data for text.
         self.send_packet(&QueryNpcTextResponse::with_text(query.text_id, 0));
+    }
+}
+
+impl crate::session::InteractionState {
+    pub(crate) fn send_close_gossip_like_cpp(&mut self, hub: crate::session::HubRef<'_>) {
+        self.reset_player_interaction_data_like_cpp(hub);
+        hub.core.send_packet_realm(&GossipComplete {
+            suppress_sound: false,
+        });
     }
 }
