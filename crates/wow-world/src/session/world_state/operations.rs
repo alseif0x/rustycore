@@ -660,7 +660,7 @@ impl crate::session::state::InstanceState {
     }
 }
 
-impl crate::session::state::SessionWorldConfig {
+impl crate::session::state::SessionWorldView {
     #[cfg(test)]
     pub fn set_area_trigger_script_dispatcher_like_cpp(
         &mut self,

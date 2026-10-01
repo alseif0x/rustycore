@@ -19,9 +19,6 @@ pub(in crate::session) struct SessionWorldConfig {
 
     pub(in crate::session) legacy_creature_aggro_config_like_cpp: LegacyCreatureAggroConfigLikeCpp,
     #[cfg(test)]
-    pub(in crate::session) area_trigger_script_dispatcher_like_cpp:
-        Option<AreaTriggerScriptDispatcherLikeCpp>,
-    #[cfg(test)]
     pub(in crate::session) give_player_xp_script_dispatcher_like_cpp:
         Option<GivePlayerXpScriptDispatcherLikeCpp>,
     #[cfg(test)]

@@ -54,8 +54,6 @@ mod queued_packets {
         let (mut session, _tx, _rx) = make_session();
         // Replace only this session's entry; the production inventory is untouched.
         session
-            .core
-            .admission
             .dispatch_table
             .insert(ClientOpcodes::QueryTime, &PROBE);
         for marker in [1, 2, 3] {

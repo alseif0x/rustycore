@@ -20,7 +20,7 @@ impl crate::session::WorldSession {
         &mut self,
         dispatcher: AreaTriggerScriptDispatcherLikeCpp,
     ) {
-        self.config
+        self.view
             .set_area_trigger_script_dispatcher_like_cpp(dispatcher)
     }
     #[cfg(test)]

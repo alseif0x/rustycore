@@ -81,8 +81,6 @@ fn reconciled_handler_registrations_match_cpp_metadata_and_rust_targets() {
 
     for (opcode, status, processing, handler_name) in expected {
         let entry = session
-            .core
-            .admission
             .dispatch_table
             .get(&opcode)
             .unwrap_or_else(|| panic!("missing linked registration for {opcode:?}"));
@@ -95,7 +93,7 @@ fn reconciled_handler_registrations_match_cpp_metadata_and_rust_targets() {
 #[test]
 fn dispatch_metadata_matches_cpp_for_registered_active_opcodes() {
     let (session, _, _) = make_session();
-    let table = &session.core.admission.dispatch_table;
+    let table = &session.dispatch_table;
 
     fn status_from_cpp(value: &str) -> Option<SessionStatus> {
         match value {

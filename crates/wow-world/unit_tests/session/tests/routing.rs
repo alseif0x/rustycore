@@ -98,8 +98,6 @@ async fn borrowed_hotfix_catalog_dispatch_preserves_locale_unknown_push_and_curr
         session.install_realm_send_channel_for_test(realm_tx);
         session.core.locale = locale.to_owned();
         let entry = session
-            .core
-            .admission
             .dispatch_table
             .get(&ClientOpcodes::HotfixRequest)
             .unwrap();
