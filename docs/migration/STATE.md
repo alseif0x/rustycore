@@ -5,7 +5,29 @@ Branch naming, 2026-10-02: the experimental target branch is now **`forever`**
 remains `1.60.1.70170`; `3.4.3` is a separate development line, not the merge
 destination of this port. Older evidence below retains its original branch name.
 
-## Latest Forever branch boundary — 2026-10-02 22:28 UTC
+## Latest Forever data/transport boundary — 2026-10-02 23:14 UTC
+
+Candidate `ba74a2ce` acquires the actual build-70170/esES ChrClasses/ChrRaces
+read-only and validates their WDC5/version-5 schemas and IDs through Rust:
+9 classes, 58 race rows, including 95/96. The immutable catalog is presence
+only; old 3.4.3 typed field offsets and hardcoded availability are not target
+authority. It is production-linked by a read-only example, not WorldSession.
+
+At that candidate, 760 data / 37 transport / 133 BNet / 4 fixture tests,
+CASC header self-test, 6 acquisition guards and 9 actual-file private-copy
+negative cases passed. The installed release fixture again verifies the native
+digest/ACK/encrypted ping, sends Pong followed by deliberate ERROR_DENIED=3,
+and the fresh client shows BLZ51900003. This is encrypted rejection evidence,
+not successful session admission; native Pong latency was not observed.
+The sole realm was restored offline/normal; restored BNet smoke passes.
+
+Real session initialization, Character/world/hotfix prerequisites, creation and
+initial loading remain open. Full final still fails unchanged inherited hotspot
+limits; no ceilings were relaxed. The owning [runbook](../operations/forever-login.md#build-70170-character-data-prerequisite)
+records exact source, commands, timings and limitations. Forever has no 3.4.3
+compatibility obligation, and the separate branch is untouched.
+
+## Earlier Forever branch boundary — 2026-10-02 22:28 UTC
 
 The real build-70170 client now verifies strict AuthSession proof, acknowledges
 the signed encryption offer, and sends an AES-256-GCM-authenticated encrypted

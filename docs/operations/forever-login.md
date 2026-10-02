@@ -1078,6 +1078,47 @@ The fork's extra recent-ally response is commented for **70009**, not exact
 Only the isolated Auth fixture currently exists; the required Character/world/
 hotfix data and real session owner must be integrated before successful admission.
 
+#### Character-data candidate acceptance
+
+At committed **`ba74a2ceef57e819625a603057d628aa8a45fc52`** on Linux x86_64:
+
+- Full final manifest `20261002T230637.362191Z-1667649-final.json` passes
+  whitespace, Python syntax, rustfmt and physical files (2289), then fails the
+  unchanged inherited hotspot ratchet in 27.799s. Protected gameplay/runtime/
+  architecture paths remain byte-identical to fork `2df57d6f`; no limits changed.
+- `cargo test --locked -p wow-data -p wow-network --lib --timings`: **760/37
+  passed**, build 37.80s, tests 0.02/0.30s; timing `20261002T230712006Z`.
+  Existing asset-conditional tests do not prove installed-data acceptance.
+- Strict fixture **4 passed**, build 3.17s; timing `20261002T230757003Z`.
+  BNet binary **133 passed**, build 2.22s, tests 24.30s;
+  timing `20261002T231052799Z`. Release fixture build **passed, 24.01s**;
+  timing `20261002T231139702Z`.
+- Actual-file `forever_character_tables` consumer **passed**, build 31.26s;
+  timing `20261002T230835420Z`. It reads 9/58 IDs and confirms presence of
+  95/96. A fresh acquisition by the committed C++ tool also succeeds and is
+  decoded by that binary; client assets remain private and uncommitted.
+- Pinned CMake configure/build, **one CTest header contract**, **six CLI guard
+  tests** and **nine production-linked private-copy negatives passed**. The
+  negatives cover table/layout, ID source, truncation, old format, sparse,
+  encrypted sections, short ID lists and missing copy sources. Only temporary
+  private copies are changed; no installation/account/database mutation.
+
+At **23:13–23:14Z**, the installed `ba74a2ce` release fixture repeats strict
+native proof, 40-byte persistence, signed ACK and encrypted ping. It sends
+serial-only Pong followed by encrypted ERROR_DENIED=3; the fresh UI shows
+**BLZ51900003**, consistent with that deliberate denial. There is no successful
+AuthResponse or WorldSession, and Pong's native latency callback was not observed.
+No further client frame arrives within five seconds. The guarded realm restore
+returns flag/icon to 2/0, port 18085 closes, BNet restarts at warn level and its
+restored-offline smoke passes. Structured metadata is ignored at
+`target/forever-login/data-world-probe-20261002T2314Z.json`.
+
+Acceptance for this completed data slice began **23:06:32Z**; publication
+closeout below records its end. The preceding acquisition/bootstrap/coding
+phase is separate, not a warm acceptance run. The earlier world-crypto campaign
+extended through its 22:35:08Z smoke (**2626 seconds** from 21:51:22Z), so its
+600-second target remains **not met**, not reset by this slice.
+
 ### Publication validation boundary
 
 At README candidate `a53a88d0`, `validation-v2 final --base origin/3.4.3
