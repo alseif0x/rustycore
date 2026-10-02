@@ -1,10 +1,24 @@
 # RustyCore — Honest Current State (single source of truth)
 
+**Distribución wow-world, P4a aceptada — 2026-10-02:** #1263 continúa tras P3
+integrada por #1264 en `1f8a7c800`. La rama `1263-f4a-p4a-world-core` mueve las dependencias
+independientes del hub a `wow-world-core`, con consumidores, fixtures y scanner. Código
+aceptado `d9c9e3637`: final/arquitectura verde (385,703 s), configuraciones e integración
+verdes, 3.950 identidades conservadas, cero mensajes de warning nuevos e inventario completo
+verde (9.939 registros, 1.034 grupos). El snapshot heredado se reconcilió después de revisar
+190 altas/88 entradas obsoletas en seis fuentes sin cambios en P4a; no se reparó gameplay.
+Campaña 11:55:50–15:19:37 UTC, 12.227,640 s de pared; incluso las órdenes
+ordinarias del candidato definitivo suman 691,218 s sin su inventario de 784,958 s.
+**Objetivo de 600 s incumplido.** SHAs, manifiestos, reparaciones y costes separados en
+[wow-world-distribution-plan.md §8](../architecture/wow-world-distribution-plan.md).
+La publicación/integración de la fase se registra en #1263; P4b/F4b/F5/F6 siguen pendientes. No reclama
+paridad nueva, retirada de runtime legado ni cierre de #1263/#584; sin despliegue o QA live.
+
 **Continuación de distribución wow-world — 2026-10-02:** #1263 conserva el trabajo
-pendiente de #1241 bajo #584. Integración remota contrastada: `ec5d6071` (PR #1262);
-F0–F3 y F4a P1/P2 integradas. P3 tiene aceptación acotada verde en `002ff5e46`
+pendiente de #1241 bajo #584. Base integrada contrastada: `1f8a7c800` (PR #1264);
+F0–F3 y F4a P1–P3 integradas. P3 tiene aceptación acotada verde en `002ff5e46`
 (movimiento `6f0660ab0`), con publicación/integración posterior registrada en #1263;
-F4a P4a/P4b, F4b, F5 y F6 siguen pendientes. #1241 ya está
+P4a tiene la aceptación descrita arriba; P4b, F4b, F5 y F6 siguen pendientes. #1241 ya está
 cerrada en GitHub, sin que eso pruebe cierre técnico. La revisión del plan y la
 consulta de estado no revalidaron las fases anteriores ni reclaman nueva paridad.
 Campaña P3 de código 09:30:05–10:20:07 UTC, 3.002 s de pared; final inicial 622,487 s,

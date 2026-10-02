@@ -87,25 +87,25 @@ use aura_effect_values::CanonicalThreatAuraSnapshotLikeCpp;
 use aura_effect_values::represented_aura_effect_amounts_like_cpp;
 use aura_effect_values::unit_owned_apply_aura_effect_mask_like_cpp;
 mod battle_pet_adapter;
-#[cfg(test)]
-pub(crate) use battle_pet_adapter::NEXT_REPRESENTED_BATTLE_PET_COUNTER_LIKE_CPP;
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(crate) use battle_pet_adapter::RepresentedBattlePetCageItemLikeCpp;
-#[cfg(test)]
-pub(crate) use battle_pet_adapter::RepresentedBattlePetCageOutcomeLikeCpp;
-pub(crate) use battle_pet_adapter::RepresentedBattlePetCalculatedStatsLikeCpp;
-pub(crate) use battle_pet_adapter::RepresentedBattlePetDataLikeCpp;
 pub(crate) use battle_pet_adapter::RepresentedBattlePetGrantExperienceOutcomeLikeCpp;
 pub(crate) use battle_pet_adapter::RepresentedBattlePetGrantLevelOutcomeLikeCpp;
-pub(crate) use battle_pet_adapter::RepresentedBattlePetLevelCriteriaLikeCpp;
 pub(crate) use battle_pet_adapter::RepresentedBattlePetQualityOutcomeLikeCpp;
-pub(crate) use battle_pet_adapter::RepresentedBattlePetQueryCompanionLikeCpp;
-pub(crate) use battle_pet_adapter::RepresentedBattlePetSaveInfoLikeCpp;
-pub(crate) use battle_pet_adapter::RepresentedBattlePetSlotLikeCpp;
 pub(crate) use battle_pet_adapter::RepresentedBattlePetXpSourceLikeCpp;
 pub(crate) use battle_pet_adapter::apply_battle_pet_calculated_stats_like_cpp;
 #[cfg(test)]
-pub(crate) use battle_pet_adapter::next_represented_battle_pet_guid_like_cpp;
+pub(crate) use battle_pet_adapter::{
+    NEXT_REPRESENTED_BATTLE_PET_COUNTER_LIKE_CPP, RepresentedBattlePetCageOutcomeLikeCpp,
+    next_represented_battle_pet_guid_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetCageItemLikeCpp;
+pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetCalculatedStatsLikeCpp;
+pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetDataLikeCpp;
+pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetLevelCriteriaLikeCpp;
+pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetQueryCompanionLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetSaveInfoLikeCpp;
+pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetSlotLikeCpp;
 mod battleground_adapter;
 pub(crate) use battleground_adapter::RepresentedBattlefieldListLikeCpp;
 pub(crate) use battleground_adapter::RepresentedBattlefieldPortLikeCpp;
@@ -839,9 +839,15 @@ pub(crate) const MAX_SPECIALIZATIONS_LIKE_CPP: usize = 4;
 const NEEDED_TALENT_POINT_PER_TIER_LIKE_CPP: u32 = 5;
 const PLAYER_FLAGS_UBER_LIKE_CPP: u32 = 0x0008_0000;
 const PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP: u32 = 0x0000_0001;
-pub(crate) const PLAYER_FLAGS_AFK_LIKE_CPP: u32 = 0x0000_0002;
-pub(crate) const PLAYER_FLAGS_DND_LIKE_CPP: u32 = 0x0000_0004;
-pub(crate) const PLAYER_FLAGS_GHOST_LIKE_CPP: u32 = 0x0000_0010;
+pub(crate) use wow_world_core::session::{
+    AFLAG_SCALABLE_LIKE_CPP, BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP,
+    PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP, PLAYER_FLAGS_GHOST_LIKE_CPP, SKILL_ENCHANTING_LIKE_CPP,
+};
+#[cfg(test)]
+pub(crate) use wow_world_core::session::{
+    PLAYER_FLAGS_AFK_LIKE_CPP, PLAYER_FLAGS_DND_LIKE_CPP,
+    battle_pet_adapter::DEFAULT_MAX_BATTLE_PETS_PER_SPECIES_LIKE_CPP,
+};
 const PLAYER_FLAGS_RESTING_LIKE_CPP: u32 = 0x0000_0020;
 const PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP: u32 = 0x0000_0800;
 const PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP: u32 = 0x0200_0000;
@@ -884,7 +890,6 @@ const DIFFICULTY_NORMAL_RAID_LIKE_CPP: u32 = 14;
 const DIFFICULTY_10_N_LIKE_CPP: u32 = 3;
 const MAP_INSTANCE_LIKE_CPP: u8 = 1;
 const MAP_RAID_LIKE_CPP: u8 = 2;
-pub(crate) const PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP: u32 = 0x0000_0100;
 const PLAYER_FLAGS_IN_PVP_LIKE_CPP: u32 = 0x0000_0200;
 const PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP: u32 = 0x0002_0000;
 const PLAYER_FLAGS_PVP_TIMER_LIKE_CPP: u32 = 0x0004_0000;
@@ -964,20 +969,17 @@ const BATTLEGROUND_EY_LIKE_CPP: u32 = 7;
 pub(crate) use wow_entities::PlayerAccountHeirloomDataLikeCpp as AccountHeirloomDataLikeCpp;
 pub(crate) use wow_entities::PlayerFavoriteAppearanceStateLikeCpp as FavoriteAppearanceStateLikeCpp;
 
-pub(crate) const BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP: u16 = 0x01;
 pub(crate) const BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP: u8 = 1;
-pub(crate) const BATTLE_PET_SLOT_COUNT_LIKE_CPP: usize = 3;
+pub(crate) use wow_world_core::session::battle_pet_adapter::BATTLE_PET_SLOT_COUNT_LIKE_CPP;
 #[cfg(test)]
 pub(crate) const BATTLE_PET_CAGE_ITEM_ID_LIKE_CPP: u32 = 82_800;
 #[allow(dead_code)]
 pub(crate) const BATTLE_PET_BREED_QUALITY_RARE_LIKE_CPP: u8 = 3;
 pub(crate) const BATTLE_PET_SPELL_VISUAL_UNCAGE_PET_LIKE_CPP: u32 = 222;
-pub(crate) const DEFAULT_MAX_BATTLE_PETS_PER_SPECIES_LIKE_CPP: u8 = 3;
 pub(crate) const MAX_BATTLE_PET_LEVEL_LIKE_CPP: u16 = 25;
 
 pub(crate) const SKILL_FISHING_LIKE_CPP: u16 = 356;
 pub(crate) const SKILL_RIDING_LIKE_CPP: u16 = 762;
-pub(crate) const SKILL_ENCHANTING_LIKE_CPP: u16 = 333;
 pub const LIQUID_MAP_IN_WATER_LIKE_CPP: u32 = 0x0000_0004;
 pub const LIQUID_MAP_UNDER_WATER_LIKE_CPP: u32 = 0x0000_0008;
 const TOY_FLAG_FAVORITE_LIKE_CPP: u32 = 0x01;
@@ -993,7 +995,7 @@ pub(crate) const SPELL_MOUNTED_DUEL_LIKE_CPP: u32 = 62875;
 #[cfg(test)]
 pub(crate) const SPELL_DUEL_BEG_LIKE_CPP: u32 = 7267;
 pub(crate) const DUEL_COUNTDOWN_MS_LIKE_CPP: u32 = 3000;
-pub type SharedCanonicalMapManager = Arc<Mutex<wow_map::MapManager>>;
+pub use wow_world_core::session::SharedCanonicalMapManager;
 
 // Compatibility paths while #578 moves cast consumers out of the Session adapter.
 pub(crate) use wow_entities::PendingSpellCastRequestLikeCpp as RepresentedPendingSpellCastRequestLikeCpp;
@@ -1030,11 +1032,9 @@ const FIRST_LOGIN_START_REPUTATION_HORDE_FACTIONS_LIKE_CPP: &[u32] = &[
 const WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP: u8 = 80;
 
 pub use wow_entities::AuraApplicationLikeCpp as AuraApplication;
-
 pub use wow_entities::{RepresentedAuraEffectAmountLikeCpp, RepresentedAuraEffectLikeCpp};
 
 const AFLAG_NOCASTER_LIKE_CPP: u32 = 0x0000_0001;
-pub(crate) const AFLAG_SCALABLE_LIKE_CPP: u32 = 0x0000_0008;
 
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LOOTING_LIKE_CPP: u32 = 0x0000_0800;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_ANIM_LIKE_CPP: u32 = 0x0000_0020;

@@ -9,6 +9,9 @@ const TRANSLATE: &str = r#"
     }
 "#;
 
+const CORE_MAP_DEFINITIONS: &str =
+    "pub struct MapManager; pub struct WorldCreature; pub struct SharedMapManager;";
+
 fn mounted<'a>(module: &'a str, path: &'a str, text: &'a str) -> BridgeSource<'a> {
     BridgeSource {
         package: "fixture",
@@ -17,6 +20,88 @@ fn mounted<'a>(module: &'a str, path: &'a str, text: &'a str) -> BridgeSource<'a
         inherited_cfg: &[],
         source: text,
     }
+}
+
+fn package_mount<'a>(
+    package: &'a str,
+    module: &'a str,
+    path: &'a str,
+    text: &'a str,
+) -> BridgeSource<'a> {
+    BridgeSource {
+        package,
+        module,
+        source_path: path,
+        inherited_cfg: &[],
+        source: text,
+    }
+}
+
+fn core_package<'a>(module: &'a str, path: &'a str, source: &'a str) -> BridgeSource<'a> {
+    package_mount("wow-world-core", module, path, source)
+}
+
+fn core_root() -> BridgeSource<'static> {
+    core_package(
+        "crate",
+        "crates/wow-world-core/src/lib.rs",
+        "pub mod map_manager;",
+    )
+}
+
+fn core_module<'a>(path: &'a str, source: &'a str) -> BridgeSource<'a> {
+    core_package("crate::map_manager", path, source)
+}
+
+fn core_map_file<'a>(source: &'a str) -> BridgeSource<'a> {
+    core_module("crates/wow-world-core/src/map_manager.rs", source)
+}
+
+fn server_bridge(source: &str) -> BridgeSource<'_> {
+    package_mount(
+        "world-server",
+        "crate::bridge",
+        "crates/world-server/src/bridge.rs",
+        source,
+    )
+}
+
+fn server_root(source: &str) -> BridgeSource<'_> {
+    package_mount(
+        "world-server",
+        "crate",
+        "crates/world-server/src/lib.rs",
+        source,
+    )
+}
+
+fn world_root(source: &str) -> BridgeSource<'_> {
+    package_mount("wow-world", "crate", "crates/wow-world/src/lib.rs", source)
+}
+
+fn core_mounts<'a>(map_source: &'a str) -> [BridgeSource<'a>; 2] {
+    [
+        core_root(),
+        core_module("crates/wow-world-core/src/map_manager.rs", map_source),
+    ]
+}
+
+fn evidence_labels(
+    baseline: &BridgeAccessBaseline,
+) -> BTreeSet<(BridgeSide, BridgeEvidenceKind, String, usize)> {
+    baseline
+        .bridges
+        .iter()
+        .flat_map(|record| record.evidence.iter())
+        .map(|evidence| {
+            (
+                evidence.side,
+                evidence.kind,
+                evidence.symbol.clone(),
+                evidence.multiplicity,
+            )
+        })
+        .collect()
 }
 
 fn pair(parent: &str, child: &str) -> Result<BridgeAccessBaseline, String> {
@@ -357,6 +442,296 @@ fn same_named_modules_in_other_packages_cannot_supply_provenance() {
     ])
     .expect("provenance stays within the source package");
     assert!(result.bridges.is_empty());
+}
+
+#[test]
+fn core_map_manager_definitions_resolve_as_exact_legacy_symbols() {
+    let mut sources = core_mounts(CORE_MAP_DEFINITIONS).to_vec();
+    sources.push(server_bridge(
+        r#"
+            fn translate(new: &wow_entities::Creature,
+                map: &wow_world_core::map_manager::MapManager,
+                creature: &wow_world_core::map_manager::WorldCreature,
+                shared: &wow_world_core::map_manager::SharedMapManager) {}
+        "#,
+    ));
+
+    let baseline = inventory_bridge_accesses(&sources)
+        .expect("supplied Core map-manager definitions resolve by their exact package");
+    assert_eq!(baseline.bridges.len(), 1);
+    let labels = evidence_labels(&baseline);
+    for symbol in ["MapManager", "WorldCreature", "SharedMapManager"] {
+        assert!(
+            labels.contains(&(
+                BridgeSide::Legacy,
+                BridgeEvidenceKind::TypeReference,
+                symbol.to_owned(),
+                1,
+            )),
+            "Core {symbol} was not recorded as legacy evidence: {labels:#?}"
+        );
+    }
+    assert!(labels.contains(&(
+        BridgeSide::Canonical,
+        BridgeEvidenceKind::TypeReference,
+        "Creature".to_owned(),
+        1,
+    )));
+
+    let reversed = sources.iter().rev().copied().collect::<Vec<_>>();
+    let reordered = inventory_bridge_accesses(&reversed)
+        .expect("Core provenance does not depend on source input order");
+    compare_bridge_access_baseline(&baseline, &reordered)
+        .expect("Core source ordering preserves exact bridge evidence");
+}
+
+#[test]
+fn core_map_manager_type_aliases_keep_exact_legacy_provenance() {
+    let mut sources = core_mounts(CORE_MAP_DEFINITIONS).to_vec();
+    sources.push(server_bridge(
+        r#"
+            use wow_world_core::map_manager::{
+                MapManager as CoreMap, WorldCreature as CoreCreature, SharedMapManager as CoreShared,
+            };
+            fn translate(
+                old: &wow_world::SharedMapManager,
+                new: &wow_entities::Creature,
+                map: &CoreMap, creature: &CoreCreature, shared: &CoreShared) {}
+        "#,
+    ));
+
+    let baseline = inventory_bridge_accesses(&sources)
+        .expect("explicit aliases resolve to the supplied Core definitions");
+    assert_eq!(baseline.bridges.len(), 1);
+    let labels = evidence_labels(&baseline);
+    assert!(
+        labels
+            .iter()
+            .any(|(side, _, _, _)| *side == BridgeSide::Legacy)
+    );
+    assert!(
+        labels
+            .iter()
+            .any(|(side, _, _, _)| *side == BridgeSide::Canonical)
+    );
+    assert!(
+        labels
+            .iter()
+            .filter(|(side, _, _, _)| *side == BridgeSide::Legacy)
+            .map(|(_, _, _, multiplicity)| *multiplicity)
+            .sum::<usize>()
+            >= 4,
+        "the old authority plus all three aliased Core types must be recorded: {labels:#?}"
+    );
+}
+
+#[test]
+fn exact_world_facade_reexport_uses_the_same_core_authority_evidence() {
+    let core = core_mounts("pub struct WorldCreature;");
+    let direct = world_root(
+        r#"
+            fn bridge(
+                old: &wow_world::SharedMapManager,
+                new: &wow_entities::Creature,
+                moved: &wow_world_core::map_manager::WorldCreature,
+            ) {}
+        "#,
+    );
+    let facade = world_root(
+        r#"
+            pub use wow_world_core::map_manager;
+            fn bridge(
+                old: &wow_world::SharedMapManager,
+                new: &wow_entities::Creature,
+                moved: &crate::map_manager::WorldCreature,
+            ) {}
+        "#,
+    );
+    let direct_sources = [core[0], core[1], direct];
+    let facade_sources = [core[0], core[1], facade];
+    let direct_baseline =
+        inventory_bridge_accesses(&direct_sources).expect("direct Core authority resolves");
+    let facade_baseline = inventory_bridge_accesses(&facade_sources)
+        .expect("the exact public world facade resolves to supplied Core");
+    assert_eq!(direct_baseline.bridges.len(), 1);
+    assert_eq!(facade_baseline.bridges.len(), 1);
+    assert_eq!(
+        evidence_labels(&direct_baseline),
+        evidence_labels(&facade_baseline),
+        "the facade must retain the same canonical and Core authority evidence"
+    );
+}
+
+#[test]
+fn pure_core_catalog_module_import_is_not_bridge_authority() {
+    let sources = [
+        package_mount(
+            "wow-world-core",
+            "crate",
+            "crates/wow-world-core/src/lib.rs",
+            "pub mod catalogs;",
+        ),
+        core_package(
+            "crate::catalogs",
+            "crates/wow-world-core/src/catalogs.rs",
+            "pub struct Catalog;",
+        ),
+        world_root(
+            "pub(crate) use wow_world_core::catalogs; fn inspect(value: &catalogs::Catalog) {}",
+        ),
+    ];
+    let baseline = inventory_bridge_accesses(&sources)
+        .expect("the existing Core catalogs reexport resolves as an ordinary module");
+    assert!(baseline.bridges.is_empty());
+}
+
+#[test]
+fn core_authority_requires_its_exact_supplied_root_and_module() {
+    let consumer =
+        server_bridge("fn inspect(moved: &wow_world_core::map_manager::WorldCreature) {}");
+    let core_root = core_root();
+    let unknown_consumer =
+        server_bridge("fn inspect(moved: &wow_world_core::map_manager::UnknownAuthority) {}");
+    let cases = [
+        (
+            "the known Core root cannot be silently missing",
+            vec![consumer],
+        ),
+        (
+            "the Core map-manager source mount is required at use",
+            vec![core_root, consumer],
+        ),
+        (
+            "an unresolved Core authority name cannot be treated as non-authority",
+            vec![
+                core_root,
+                core_map_file("pub struct WorldCreature;"),
+                unknown_consumer,
+            ],
+        ),
+        (
+            "an unrelated Core definition cannot stand in for WorldCreature",
+            vec![core_root, core_map_file("pub struct Unrelated;"), consumer],
+        ),
+        (
+            "a foreign package with equal module names cannot supply Core provenance",
+            vec![
+                package_mount(
+                    "foreign-core",
+                    "crate",
+                    "foreign/src/lib.rs",
+                    "pub mod map_manager;",
+                ),
+                package_mount(
+                    "foreign-core",
+                    "crate::map_manager",
+                    "foreign/src/map_manager.rs",
+                    "pub struct WorldCreature;",
+                ),
+                consumer,
+            ],
+        ),
+    ];
+    for (reason, sources) in cases {
+        inventory_bridge_accesses(&sources).expect_err(reason);
+    }
+}
+
+#[test]
+fn local_core_named_module_shadows_the_external_core_package() {
+    let mut sources = core_mounts("pub struct WorldCreature;").to_vec();
+    sources.push(server_root(
+        r#"
+            mod wow_world_core {
+                pub mod map_manager { pub struct WorldCreature; }
+            }
+            fn inspect(
+                canonical: &wow_entities::Creature,
+                shadowed: &wow_world_core::map_manager::WorldCreature,
+            ) {}
+        "#,
+    ));
+    let baseline = inventory_bridge_accesses(&sources)
+        .expect("the local module wins over the external crate root");
+    assert!(baseline.bridges.is_empty());
+}
+
+#[test]
+fn overlapping_core_module_providers_fail_only_when_authority_is_used() {
+    let core_root = core_root();
+    let first = core_module(
+        "crates/wow-world-core/src/map_manager_a.rs",
+        "pub struct WorldCreature;",
+    );
+    let second = core_module(
+        "crates/wow-world-core/src/map_manager_b.rs",
+        "pub struct WorldCreature;",
+    );
+    let consumer = server_bridge(
+        "fn bridge(old: &wow_world::SharedMapManager, new: &wow_entities::Creature, moved: &wow_world_core::map_manager::WorldCreature) {}",
+    );
+    let error = inventory_bridge_accesses(&[core_root, first, second, consumer])
+        .expect_err("overlapping Core source mounts are ambiguous at a use site");
+    assert!(
+        error.contains("ambiguous supplied source providers"),
+        "{error}"
+    );
+}
+
+#[test]
+fn disjoint_core_module_cfg_providers_remain_available_alternatives() {
+    let core_root = core_root();
+    let enabled_cfg = ["cfg(feature = \"core-alt\")".to_owned()];
+    let disabled_cfg = ["cfg(not(feature = \"core-alt\"))".to_owned()];
+    let providers = [
+        (
+            "crates/wow-world-core/src/map_manager_enabled.rs",
+            &enabled_cfg,
+        ),
+        (
+            "crates/wow-world-core/src/map_manager_disabled.rs",
+            &disabled_cfg,
+        ),
+    ]
+    .map(|(source_path, inherited_cfg)| BridgeSource {
+        package: "wow-world-core",
+        module: "crate::map_manager",
+        source_path,
+        inherited_cfg,
+        source: "pub struct WorldCreature;",
+    });
+    let consumer = server_bridge(
+        "fn bridge(old: &wow_world::SharedMapManager, new: &wow_entities::Creature, moved: &wow_world_core::map_manager::WorldCreature) {}",
+    );
+    let result = inventory_bridge_accesses(&[core_root, providers[0], providers[1], consumer])
+        .expect("mutually exclusive Core source providers are cfg alternatives");
+    assert!(result.bridges.iter().any(|record| {
+        record
+            .evidence
+            .iter()
+            .any(|evidence| evidence.side == BridgeSide::Legacy)
+    }));
+}
+
+#[test]
+fn core_namespace_aliases_and_globs_fail_closed() {
+    let core = core_mounts("pub struct WorldCreature;");
+    for import in [
+        "use wow_world_core as core;",
+        "pub use wow_world_core as core;",
+        "use wow_world_core::map_manager as maps;",
+        "pub use wow_world_core::map_manager as maps;",
+        "use wow_world_core::*;",
+        "use wow_world_core::map_manager::*;",
+    ] {
+        let consumer = server_root(import);
+        let error = inventory_bridge_accesses(&[core[0], core[1], consumer])
+            .expect_err("hidden Core namespaces must be rejected");
+        assert!(
+            error.contains("bridge-capable") || error.contains("hides exact"),
+            "{import} -> {error}"
+        );
+    }
 }
 
 #[test]

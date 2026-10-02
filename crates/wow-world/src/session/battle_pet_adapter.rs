@@ -4,7 +4,12 @@
 //! Battle pet adapter: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{AuraApplication, Instant, ObjectGuid, RepresentedAuraEffectLikeCpp, WorldSession};
+#[cfg(test)]
+use super::RepresentedBattlePetCageItemLikeCpp;
+use super::{
+    AuraApplication, Instant, ObjectGuid, RepresentedAuraEffectLikeCpp,
+    RepresentedBattlePetCalculatedStatsLikeCpp, RepresentedBattlePetDataLikeCpp, WorldSession,
+};
 use super::{represented_aura_effect_amounts_like_cpp, warn};
 
 #[cfg(test)]
@@ -38,25 +43,6 @@ pub(crate) enum RepresentedBattlePetXpSourceLikeCpp {
     Invalid,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedBattlePetSaveInfoLikeCpp {
-    New,
-    Changed,
-    #[allow(dead_code)]
-    Unchanged,
-    Removed,
-}
-
-#[cfg(any(test, feature = "test-fixtures"))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedBattlePetCageItemLikeCpp {
-    pub(crate) item_id: u32,
-    pub(crate) species_id: u32,
-    pub(crate) breed_data: u32,
-    pub(crate) level: u16,
-    pub(crate) display_id: u32,
-}
-
 #[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedBattlePetCageOutcomeLikeCpp {
@@ -70,13 +56,6 @@ pub(crate) enum RepresentedBattlePetCageOutcomeLikeCpp {
     StoreFailed,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedBattlePetCalculatedStatsLikeCpp {
-    pub(crate) max_health: u32,
-    pub(crate) power: u32,
-    pub(crate) speed: u32,
-}
-
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedBattlePetQualityOutcomeLikeCpp {
@@ -86,12 +65,6 @@ pub(crate) enum RepresentedBattlePetQualityOutcomeLikeCpp {
     QualityAboveRare,
     CantBattle,
     NotUpgrade,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedBattlePetLevelCriteriaLikeCpp {
-    pub(crate) species: u32,
-    pub(crate) level: u16,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -113,118 +86,6 @@ pub(crate) enum RepresentedBattlePetGrantExperienceOutcomeLikeCpp {
     CantBattle,
     AlreadyMaxLevel,
     MissingXpRow,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RepresentedBattlePetDataLikeCpp {
-    pub(crate) species: u32,
-    pub(crate) creature_id: u32,
-    pub(crate) display_id: u32,
-    pub(crate) breed: u16,
-    pub(crate) level: u16,
-    pub(crate) exp: u16,
-    pub(crate) flags: u16,
-    pub(crate) power: u32,
-    pub(crate) health: u32,
-    pub(crate) max_health: u32,
-    pub(crate) speed: u32,
-    pub(crate) quality: u8,
-    pub(crate) owner_info: Option<wow_packet::packets::misc::BattlePetJournalPetOwnerInfo>,
-    pub(crate) name: String,
-    pub(crate) name_timestamp: i64,
-    pub(crate) declined_names: Option<wow_packet::packets::misc::DeclinedNamesLikeCpp>,
-    pub(crate) save_info: RepresentedBattlePetSaveInfoLikeCpp,
-}
-
-/// Represented ObjectAccessor/TempSummon facts needed by
-/// `WorldSession::HandleQueryBattlePetName`.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedBattlePetQueryCompanionLikeCpp {
-    pub(crate) creature_id: i32,
-    pub(crate) name_timestamp: i64,
-    pub(crate) is_summon: bool,
-    pub(crate) owner_is_player: bool,
-    pub(crate) battle_pet_companion_guid: Option<ObjectGuid>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedBattlePetSlotLikeCpp {
-    pub(crate) pet_guid: Option<ObjectGuid>,
-    pub(crate) collar_id: u32,
-    pub(crate) index: u8,
-    pub(crate) locked: bool,
-}
-
-impl RepresentedBattlePetSlotLikeCpp {
-    pub(crate) fn locked_empty(index: u8) -> Self {
-        Self {
-            pet_guid: None,
-            collar_id: 0,
-            index,
-            locked: true,
-        }
-    }
-
-    pub(crate) fn packet_slot_like_cpp(&self) -> wow_packet::packets::misc::BattlePetJournalSlot {
-        wow_packet::packets::misc::BattlePetJournalSlot {
-            pet_guid: self
-                .pet_guid
-                .unwrap_or_else(wow_packet::packets::misc::empty_battle_pet_guid_like_cpp),
-            collar_id: self.collar_id,
-            index: self.index,
-            locked: self.locked,
-        }
-    }
-}
-
-impl RepresentedBattlePetDataLikeCpp {
-    pub(crate) fn minimal_like_cpp(
-        flags: u16,
-        save_info: RepresentedBattlePetSaveInfoLikeCpp,
-    ) -> Self {
-        Self {
-            species: 0,
-            creature_id: 0,
-            display_id: 0,
-            breed: 0,
-            level: 0,
-            exp: 0,
-            flags,
-            power: 0,
-            health: 0,
-            max_health: 0,
-            speed: 0,
-            quality: 0,
-            owner_info: None,
-            name: String::new(),
-            name_timestamp: 0,
-            declined_names: None,
-            save_info,
-        }
-    }
-
-    pub(crate) fn packet_info_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) -> wow_packet::packets::misc::BattlePetJournalPet {
-        wow_packet::packets::misc::BattlePetJournalPet {
-            guid,
-            species: self.species,
-            creature_id: self.creature_id,
-            display_id: self.display_id,
-            breed: self.breed,
-            level: self.level,
-            exp: self.exp,
-            flags: self.flags,
-            power: self.power,
-            health: self.health,
-            max_health: self.max_health,
-            speed: self.speed,
-            quality: self.quality,
-            owner_info: self.owner_info,
-            name: self.name.clone(),
-        }
-    }
 }
 
 impl WorldSession {

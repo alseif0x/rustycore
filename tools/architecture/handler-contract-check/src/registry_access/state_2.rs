@@ -60,16 +60,18 @@ pub(super) fn collect_use_bindings(
             }
         }
         UseTree::Glob(_) => {
-            // `directory` is the relocated player-directory owner module from
-            // issue #138 and `wow_social`/`group` the relocated Group owner from
-            // issue #137; `player_registry` remains the `wow-network` mailbox.
+            // Core's `wow_world_core`/`player_directory` path and the older
+            // `wow_world`/`directory` and `wow_network` owners can all expose
+            // registry aliases through a glob.
             let hides_registry = prefix.iter().any(|segment| {
                 matches!(
                     segment.as_str(),
                     "wow_network"
                         | "wow_world"
+                        | "wow_world_core"
                         | "wow_social"
                         | "player_registry"
+                        | "player_directory"
                         | "group_registry"
                         | "group"
                         | "directory"

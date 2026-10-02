@@ -28,7 +28,8 @@
     "application": [
       "wow-conditions",
       "wow-spell-acquisition",
-      "wow-world"
+      "wow-world",
+      "wow-world-core"
     ],
     "adapter-platform": [
       "wow-config",
@@ -88,6 +89,20 @@
     ]
   },
   "restricted_packages": {
+    "wow-world-core": [
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-handler",
+      "wow-loot",
+      "wow-map",
+      "wow-movement",
+      "wow-packet",
+      "wow-persistence",
+      "wow-recastdetour",
+      "wow-social"
+    ],
     "wow-conditions": [
       "wow-constants",
       "wow-data",
@@ -386,6 +401,15 @@
         ],
         "build": []
       },
+      "wow-world-core": {
+        "normal": [
+          "dashmap",
+          "flume",
+          "rand",
+          "tracing"
+        ],
+        "build": []
+      },
       "wow-util-collections": {
         "normal": [
           "smallvec"
@@ -407,6 +431,13 @@
       }
     },
     "exceptions": [
+      {
+        "from": "wow-world-core",
+        "to": "tokio",
+        "kind": "normal",
+        "tracking_issue": 584,
+        "reason": "#1263 F4a P4a moves the existing battle-pet operation gates and loot persistence completion coordination unchanged. Tokio synchronization remains inherited application debt and does not grant ownership of the Session driver, runtime tasks or clocks."
+      },
       {
         "from": "wow-loot",
         "to": "tokio",

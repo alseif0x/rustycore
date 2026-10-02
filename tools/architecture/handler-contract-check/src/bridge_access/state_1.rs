@@ -265,9 +265,13 @@ impl Symbols {
     pub(super) fn for_module(package: &str, module: &str) -> Self {
         let mut symbols = Self::default();
         symbols.add("SharedCanonicalMapManager", [BridgeSide::Canonical]);
-        symbols.add("LegacyMapManager", [BridgeSide::Legacy]);
-        symbols.add("SharedMapManager", [BridgeSide::Legacy]);
-        if package == "wow-world" && is_legacy_map_module(module) {
+        // Core bridge symbols are bound from supplied declarations in its
+        // ModuleIndex entry; package identity alone is not authority proof.
+        if package != "wow-world-core" {
+            symbols.add("LegacyMapManager", [BridgeSide::Legacy]);
+            symbols.add("SharedMapManager", [BridgeSide::Legacy]);
+        }
+        if package == "wow-world" && is_legacy_map_owner(package, module) {
             symbols.add("MapManager", [BridgeSide::Legacy]);
             symbols.add("WorldCreature", [BridgeSide::Legacy]);
         }
@@ -429,6 +433,10 @@ pub(super) fn is_legacy_map_module(module: &str) -> bool {
     module == "crate::map_manager" || module.starts_with("crate::map_manager::")
 }
 
+pub(super) fn is_legacy_map_owner(package: &str, module: &str) -> bool {
+    matches!(package, "wow-world" | "wow-world-core") && is_legacy_map_module(module)
+}
+
 pub(super) fn is_loot_compatibility_module(package: &str, module: &str) -> bool {
     package == "wow-world"
         && (module == "crate::handlers::loot" || module.starts_with("crate::handlers::loot::"))
@@ -533,18 +541,17 @@ pub(super) fn sides_for_segments(symbols: &Symbols, segments: &[String]) -> BTre
 }
 
 pub(super) fn bridge_capable_glob_prefix(segments: &[String]) -> bool {
-    segments
-        .first()
-        .is_some_and(|segment| matches!(segment.as_str(), "wow_entities" | "wow_map" | "wow_world"))
-        || segments.iter().any(|segment| {
-            matches!(
-                segment.as_str(),
-                "map_manager"
-                    | "SharedCanonicalMapManager"
-                    | "SharedMapManager"
-                    | "LegacyMapManager"
-            )
-        })
+    segments.first().is_some_and(|segment| {
+        matches!(
+            segment.as_str(),
+            "wow_entities" | "wow_map" | "wow_world" | "wow_world_core"
+        )
+    }) || segments.iter().any(|segment| {
+        matches!(
+            segment.as_str(),
+            "map_manager" | "SharedCanonicalMapManager" | "SharedMapManager" | "LegacyMapManager"
+        )
+    })
 }
 
 pub(super) fn bridge_capable_namespace_import(segments: &[String]) -> bool {
@@ -560,6 +567,12 @@ pub(super) fn bridge_capable_namespace_import(segments: &[String]) -> bool {
                     .is_some_and(|segment| matches!(segment.as_str(), "manager" | "map"))
         }
         "wow_world" => {
+            segments.len() == 1
+                || segments
+                    .last()
+                    .is_some_and(|segment| segment == "map_manager")
+        }
+        "wow_world_core" => {
             segments.len() == 1
                 || segments
                     .last()
@@ -732,9 +745,12 @@ pub(super) fn add_use_to_symbols(
     for (local, full) in bindings {
         let sides = sides_for_segments(symbols, &full);
         let issue = symbols.path_issue_for_segments(&full).map(str::to_owned);
+        let core_namespace = full
+            .first()
+            .is_some_and(|segment| segment == "wow_world_core");
         if sides.is_empty()
             && bridge_capable_namespace_import(&full)
-            && !(full.len() == 1 && local == full[0])
+            && (core_namespace || !(full.len() == 1 && local == full[0]))
         {
             errors.push(format!(
                 "bridge-capable namespace import `{}` as `{local}` hides exact legacy/canonical symbols",
@@ -752,6 +768,17 @@ pub(super) fn add_use_to_symbols(
             ));
         }
     }
+}
+
+pub(super) fn is_explicit_core_facade_reexport(item_use: &syn::ItemUse) -> bool {
+    matches!(
+        (&item_use.vis, &item_use.tree),
+        (
+            syn::Visibility::Public(_),
+            syn::UseTree::Path(path)
+        ) if path.ident == "wow_world_core"
+            && matches!(&*path.tree, syn::UseTree::Name(name) if name.ident == "map_manager")
+    )
 }
 
 pub(super) struct TypeSideCollector<'a> {

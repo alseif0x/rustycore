@@ -88,6 +88,10 @@ last caller deletes it.
 
 **Visibility.** Use the narrowest visibility that compiles; structure-and-conventions §5 gives the
 ladder. Don't add `pub` fields or wrappers to relocate code. A moved member keeps its visibility.
+The approved #1241/#1263 F4 internal-crate exception in AGENTS.md permits widening a moved
+member only for an inspected cross-crate consumer in `publish = false` wow-world-* crates.
+Keep crate-private members private where possible and review the actual re-export surface.
+This exception does not expose storage through wow-module-api or establish isolation.
 
 **Drop order.** `WorldSession`'s declaration order is its drop order. Read the comment above
 `pub struct WorldSession` in session/state.rs before adding or reordering members. Never reorder

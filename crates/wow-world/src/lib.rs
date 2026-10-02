@@ -5,7 +5,7 @@
 
 //! World server core: session management, handlers, and world state.
 
-pub(crate) mod battle_pet_account;
+pub(crate) use wow_world_core::battle_pet_account;
 pub(crate) mod battle_pet_purchase;
 pub mod canonical_player_access;
 mod canonical_player_sync;
@@ -19,7 +19,7 @@ pub mod conditions;
 pub mod entity_update_bridge;
 pub mod handlers;
 pub mod loot_persistence;
-pub mod map_manager;
+pub use wow_world_core::map_manager;
 pub mod phasing;
 mod player;
 mod player_cast;
@@ -38,7 +38,7 @@ mod spell_cast_adapter;
 #[allow(dead_code)] // Private decision seam introduced by trainer issue #157.
 pub(crate) mod trainer_offer;
 
-mod catalogs;
+pub(crate) use wow_world_core::catalogs;
 #[cfg(test)]
 #[path = "../unit_tests/handler_contract_tests.rs"]
 mod handler_contract_tests;

@@ -3,9 +3,6 @@
 //! Grouped from the player_* siblings under #697; each module keeps its
 //! items and its re-exported names.
 
-pub mod directory_canonical_queries;
-#[cfg(any(test, feature = "test-fixtures"))]
-pub mod directory_test_fixtures;
 #[cfg(test)]
 #[path = "../../unit_tests/player/inventory_persistence_test_fixture.rs"]
 pub mod inventory_persistence_test_fixture;

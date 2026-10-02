@@ -21,7 +21,7 @@
 //! count and a worse boundary; the honest seam is the loot rail draining the way
 //! the command rails now do, which is loot's own work and not this issue's.
 
-use super::protocol::*;
+use super::SessionCommand;
 use crate::session::{SessionHandlerCatalogsLikeCpp, SessionState, WorldSession};
 
 impl WorldSession {
