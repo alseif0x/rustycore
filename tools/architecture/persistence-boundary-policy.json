@@ -10085,7 +10085,7 @@
       "capability_owner": "MariaDB adapter for the SQLx-free character administration capability (#169) currently owns the complete wow-database workflow impl wow_persistence::CharacterAdministrationPersistencePortLikeCpp for MariaDbCharacterAdministrationPersistenceAdapterLikeCpp::delete_owned_character_like_cpp in crates/wow-database/src/character_administration_adapter.rs.",
       "connection_affinity": "The adapter uses only the exact Character and/or World handles named by this workflow; the existing best-effort creation sequence is not promoted to a cross-database transaction.",
       "current_order": "Attempt the ownership lookup, delete unless a successful empty result returns early, then remove the cache entry only when deletion succeeds.",
-      "failure_and_unknown_commit": "A failed deletion preserves the cache entry; the existing mutation result is retained and no unknown-COMMIT guarantee is inferred.",
+      "failure_and_unknown_commit": "An ownership-query error is ignored and deletion is still attempted. A delete-execution error preserves the cache entry and returns Failed; no unknown-COMMIT guarantee is inferred.",
       "target_issues": [],
       "retirement_condition": "This adapter workflow is an intended stable boundary; future callers must use its typed contract without leaking the underlying pool.",
       "stable_boundary": true
