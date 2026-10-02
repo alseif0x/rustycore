@@ -80,9 +80,10 @@ def parse_http_header(data):
     return status, length
 
 
-def rpc_header(service, method, token, size=0, service_hash=None):
+def rpc_header(service, method, token, size=0, service_hash=None, ciid=None):
     value = var(1, service) + var(2, method) + var(3, token) + var(5, size)
-    return value + (fixed(11, service_hash) if service_hash is not None else b"")
+    value += fixed(11, service_hash) if service_hash is not None else b""
+    return value + (raw(13, ciid) if ciid is not None else b"")
 
 
 def parse_rpc_header(data):
@@ -91,10 +92,34 @@ def parse_rpc_header(data):
     for number, wire, value in fields(data):
         if number in (1, 2, 3, 5, 6) and wire != 0: raise ValueError("RPC varint field has wrong wire type")
         if number == 11 and wire != 5: raise ValueError("RPC service hash has wrong wire type")
+        if number == 13 and wire != 2: raise ValueError("RPC CIID has wrong wire type")
         header[number] = value if wire != 5 else int.from_bytes(value, "little")
     if 1 not in header or 3 not in header: raise ValueError("RPC header is missing required fields")
     if header.get(5, 0) > MAX_PROTO: raise ValueError("RPC payload is too large")
     return header
+
+
+def connect_identity(payload, header):
+    """Validate modern TC Connect's ProcessIds, CIID and bindless default.
+
+    ConnectionService::HandleConnect / Session::SendResponse, master 6ebe044c.
+    This smoke omits client_id and use_bindless_rpc in its Connect request.
+    """
+    parts = {n: (w, v) for n, w, v in fields(payload)}
+    ids = []
+    for number in (1, 2):
+        if number not in parts or parts[number][0] != 2:
+            raise ValueError("Connect is missing a ProcessId")
+        process = {n: (w, v) for n, w, v in fields(parts[number][1])}
+        for field in (1, 2):
+            if field not in process or process[field][0] != 0 or not 0 < process[field][1] <= 0xFFFFFFFF:
+                raise ValueError("invalid Connect ProcessId")
+            ids.append(process[field][1])
+    expected = ("%08X%08X-%08X%08X" % tuple(ids)).encode("ascii")
+    if parts.get(9) != (2, expected) or header.get(13) != expected:
+        raise ValueError("Connect CIID mismatch")
+    if parts.get(7) != (0, 1): raise ValueError("Connect bindless default mismatch")
+    return expected
 
 
 def decode_frame(data):

@@ -15,6 +15,7 @@ use std::net::SocketAddr;
 use std::sync::Arc;
 use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use wow_proto::bgs::protocol::Header;
+use wow_proto::bgs::protocol::connection::v1::{ConnectRequest, ConnectResponse};
 use wow_proto::{RESPONSE_SERVICE_ID, service_hash};
 
 use crate::state::{AccountInfo, AppState};
@@ -50,6 +51,7 @@ pub struct RpcSession<S> {
     stream: S,
     addr: SocketAddr,
     state: Arc<AppState>,
+    identity: super::identity::ConnectionIdentity,
 
     /// Whether authentication is complete.
     pub authed: bool,
@@ -82,6 +84,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> RpcSession<S> {
             stream,
             addr,
             state,
+            identity: super::identity::ConnectionIdentity::new(),
             authed: false,
             account_info: None,
             selected_game_account_id: None,
@@ -94,6 +97,11 @@ impl<S: AsyncRead + AsyncWrite + Unpin> RpcSession<S> {
             request_token: 0,
             response_callbacks: HashMap::new(),
         }
+    }
+
+    /// Establish the connection identity before serializing the Connect reply.
+    pub(super) fn connect(&mut self, request: &ConnectRequest) -> ConnectResponse {
+        self.identity.connect(request)
     }
 
     /// Main session loop — read and dispatch messages.
@@ -225,7 +233,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> RpcSession<S> {
             ..Default::default()
         };
 
-        self.send_header_and_payload(&header, payload).await
+        self.send_header_and_payload(header, payload).await
     }
 
     /// Send a response with status only, no body (matching C# SendResponse(token, status)).
@@ -237,7 +245,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> RpcSession<S> {
             ..Default::default()
         };
 
-        self.send_header_and_payload(&header, &[]).await
+        self.send_header_and_payload(header, &[]).await
     }
 
     /// Send a server-initiated request to the client.
@@ -263,11 +271,14 @@ impl<S: AsyncRead + AsyncWrite + Unpin> RpcSession<S> {
             ..Default::default()
         };
 
-        self.send_header_and_payload(&header, payload).await
+        self.send_header_and_payload(header, payload).await
     }
 
     /// Write header + payload to the stream.
-    async fn send_header_and_payload(&mut self, header: &Header, payload: &[u8]) -> Result<()> {
+    async fn send_header_and_payload(&mut self, mut header: Header, payload: &[u8]) -> Result<()> {
+        // Modern TC Session puts the session CIID on every response and notification.
+        // Our 3.4.3 protobuf names wire field 13 `client_id`; its wire role is CIID.
+        header.client_id = Some(self.identity.ciid().unwrap_or_default().to_owned());
         let header_bytes = header.encode_to_vec();
         let header_len = header_bytes.len() as u16;
 

@@ -2,6 +2,7 @@
 //!
 //! Handles TLS connections with binary protobuf framing on port 1119.
 
+mod identity;
 pub mod services;
 pub mod session;
 
@@ -10,6 +11,10 @@ use tokio::net::TcpListener;
 use tokio_rustls::TlsAcceptor;
 
 use crate::state::AppState;
+
+pub(crate) fn initialize_server_identity() {
+    identity::initialize_server_identity();
+}
 
 /// Accept loop for BNet RPC connections with TLS.
 pub async fn accept_loop(listener: TcpListener, state: Arc<AppState>, tls_acceptor: TlsAcceptor) {
