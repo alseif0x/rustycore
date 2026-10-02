@@ -18,6 +18,13 @@ def f(number, wire, value): return vi(number << 3 | wire) + value
 def var(number, value): return f(number, 0, vi(value))
 
 
+def int64(number, value):
+    """Encode a signed protobuf int64 (negative values use two's complement)."""
+    if type(value) is not int or not -(1 << 63) <= value < (1 << 63):
+        raise ValueError("protobuf int64 is out of range")
+    return f(number, 0, vi(value & ((1 << 64) - 1)))
+
+
 def raw(number, value): return f(number, 2, vi(len(value)) + value)
 
 
@@ -215,6 +222,13 @@ def attribute(name, value, string=False, v2=False):
     return raw(1, name.encode()) + raw(2, raw(field, value))
 
 
+def v2_int_attribute(name, value):
+    """Build a V2 Attribute whose Variant is the signed int64 field."""
+    if not isinstance(name, str) or not name:
+        raise ValueError("V2 attribute name is invalid")
+    return raw(1, name.encode()) + raw(2, int64(2, value))
+
+
 def client_request(attributes):
     return b"".join(raw(1, item) for item in attributes)
 
@@ -227,4 +241,50 @@ def response_attributes(payload, v2=False):
         name = parts.get(1, b"").decode()
         values = {n: v for n, w, v in fields(parts.get(2, b"")) if w == 2}
         result[name] = values.get(5, values.get(4, b"")) if v2 else values.get(6, values.get(5, b""))
+    return result
+
+
+def v2_attributes(payload):
+    """Decode V2 response attributes as (name, kind, value) tuples.
+
+    This intentionally preserves the signed int64 distinction needed by the
+    build-70170 LastChar response instead of coercing every value to bytes.
+    """
+    result = []
+    unknown_outer = False
+    for number, wire, item in fields(payload):
+        if number != 1 or wire != 2:
+            unknown_outer = True
+            continue
+        parts = list(fields(item))
+        names = [(w, value) for n, w, value in parts if n == 1]
+        variants = [(w, value) for n, w, value in parts if n == 2]
+        if len(names) != 1 or names[0][0] != 2 or len(variants) != 1 or variants[0][0] != 2:
+            raise ValueError("invalid V2 attribute envelope")
+        try:
+            name = names[0][1].decode("utf-8")
+        except UnicodeDecodeError as error:
+            raise ValueError("invalid V2 attribute name") from error
+        variant = list(fields(variants[0][1]))
+        if len(variant) != 1:
+            raise ValueError("invalid V2 attribute variant")
+        field, variant_wire, value = variant[0]
+        if field == 1 and variant_wire == 0:
+            kind, value = "bool", bool(value)
+        elif field == 2 and variant_wire == 0:
+            kind = "int"
+            value = value - (1 << 64) if value >= 1 << 63 else value
+        elif field == 3 and variant_wire == 1:
+            kind, value = "float", struct.unpack("<d", value)[0]
+        elif field == 4 and variant_wire == 2:
+            kind = "string"
+        elif field == 5 and variant_wire == 2:
+            kind = "blob"
+        elif field == 6 and variant_wire == 0:
+            kind = "uint"
+        else:
+            raise ValueError("unsupported V2 attribute variant")
+        result.append((name, kind, value))
+    if unknown_outer and not result:
+        raise ValueError("V2 response contains only unknown fields")
     return result

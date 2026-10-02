@@ -33,6 +33,37 @@ def realm_blob(name="RustyCore Forever - Login Test", version=(1, 60, 1, 70170),
     return len(text).to_bytes(4, "little") + zlib.compress(text)
 
 
+def json_blob(prefix, value):
+    text = prefix + json.dumps(value, separators=(",", ":")).encode() + b"\0"
+    return len(text).to_bytes(4, "little") + zlib.compress(text)
+
+
+def forever_realm_entry_blob(**changes):
+    value = {
+        "wowRealmAddress": 0x02010001, "cfgTimezonesID": 1, "populationState": 1,
+        "cfgCategoriesID": 1,
+        "version": {"versionMajor": 1, "versionMinor": 60,
+                     "versionRevision": 1, "versionBuild": 70170},
+        "cfgRealmsID": 1, "flags": 0, "name": "Forever test", "cfgConfigsID": 2,
+        "cfgLanguagesID": 1, "cfgContentSetID": 136, "superDistrictID": 1,
+        "useBleepChance": 0.0,
+    }
+    value.update(changes)
+    return json_blob(b"JamJSONRealmEntry:", value)
+
+
+def last_char_payload(realm=None, last_played=123):
+    return wire.client_request([
+        wire.attribute("Param_RealmEntry", realm or forever_realm_entry_blob(), v2=True),
+        wire.v2_int_attribute("Param_LastPlayedTime", last_played),
+        wire.attribute(
+            "Param_UtilityInfo",
+            json_blob(b"JSONUtilityInfo:", {"realmPermissions": 512}),
+            v2=True,
+        ),
+    ])
+
+
 class ForeverBnetWireTests(unittest.TestCase):
     def test_v2_record_projection_and_notification_order(self):
         game = wire.var(1, 1) + wire.var(2, 0x576F57) + wire.var(3, 2)
@@ -152,6 +183,16 @@ class ForeverBnetWireTests(unittest.TestCase):
             expected = value.encode() if isinstance(value, str) else value
             self.assertEqual(wire.response_attributes(v2, v2=True), {"Param_Test": expected})
 
+    def test_signed_v2_int64_is_twos_complement_and_unknown_only_is_not_empty(self):
+        payload = wire.client_request([wire.v2_int_attribute("Param_ContentSetIDFilter", -1)])
+        self.assertEqual(wire.v2_attributes(payload), [("Param_ContentSetIDFilter", "int", -1)])
+        maximum = wire.client_request([
+            wire.v2_int_attribute("Param_ContentSetIDFilter", (1 << 63) - 1)])
+        self.assertEqual(wire.v2_attributes(maximum), [
+            ("Param_ContentSetIDFilter", "int", (1 << 63) - 1)])
+        with self.assertRaises(ValueError): wire.v2_int_attribute("x", 1 << 63)
+        with self.assertRaises(ValueError): wire.v2_attributes(wire.raw(9, b"forward-only"))
+
 
 class ForeverBnetShapeTests(unittest.TestCase):
     def test_super_district_schema_and_jam_envelope(self):
@@ -234,6 +275,60 @@ class ForeverBnetShapeTests(unittest.TestCase):
                 smoke.realm_metadata(realm_blob(**kwargs))
         with self.assertRaises(ValueError): smoke.realm_metadata(b"\x00")
         with self.assertRaises(ValueError): smoke.realm_metadata(b"\x04\x00\x00\x00bad")
+
+    def test_last_char_request_uses_real_subregion_and_signed_filter(self):
+        attrs = wire.v2_attributes(smoke.last_char_request(-1))
+        self.assertEqual(attrs, [
+            ("Command_LastCharPlayedRequest_v1_classic", "string", "70-1-70".encode()),
+            ("Param_ContentSetIDFilter", "int", -1),
+        ])
+        attrs = wire.v2_attributes(smoke.last_char_request(136))
+        self.assertEqual(attrs[-1], ("Param_ContentSetIDFilter", "int", 136))
+
+    def test_last_char_online_projection_is_exact_and_secret_free(self):
+        self.assertEqual(smoke.last_char_metadata(last_char_payload()), {
+            "wow_realm_address": 0x02010001, "realm_id": 1,
+            "content_set_id": 136, "super_district_id": 1, "build": 70170,
+            "population_state": 1, "last_played_time_positive": True,
+            "utility_permissions": 512,
+        })
+        for payload in (
+            last_char_payload(last_played=0),
+            last_char_payload(realm=forever_realm_entry_blob(flags=2)),
+            last_char_payload(realm=forever_realm_entry_blob(populationState=0)),
+            last_char_payload(realm=forever_realm_entry_blob(cfgContentSetID=137)),
+            last_char_payload(realm=forever_realm_entry_blob(
+                version={"versionMajor": 1, "versionMinor": 60,
+                         "versionRevision": 2, "versionBuild": 70170})),
+            last_char_payload(realm=forever_realm_entry_blob(useBleepChance=1.0)),
+            last_char_payload(realm=forever_realm_entry_blob(
+                wowRealmAddress=0x02010002)),
+        ):
+            with self.subTest(payload=payload), self.assertRaises(ValueError):
+                smoke.last_char_metadata(payload)
+
+    def test_last_char_rejects_wrong_envelopes_types_and_character_attrs(self):
+        utility = json_blob(b"JSONUtilityInfo:", {"realmPermissions": 512})
+        valid = last_char_payload()
+        wrong_type = wire.client_request([
+            wire.attribute("Param_RealmEntry", forever_realm_entry_blob(), v2=True),
+            wire.attribute("Param_LastPlayedTime", b"123", v2=True),
+            wire.attribute("Param_UtilityInfo", utility, v2=True),
+        ])
+        with self.assertRaises(ValueError): smoke.last_char_metadata(wrong_type)
+        for extra in (
+            wire.attribute("Param_CharacterName", "No character", True, v2=True),
+            wire.attribute("Param_CharacterGUID", b"guid", v2=True),
+        ):
+            with self.subTest(extra=extra), self.assertRaises(ValueError):
+                smoke.last_char_metadata(valid + wire.raw(1, extra))
+        with self.assertRaises(ValueError): wire.v2_attributes(wire.raw(9, b"unknown"))
+        bad_realm = wire.client_request([
+            wire.attribute("Param_RealmEntry", realm_blob(), v2=True),
+            wire.v2_int_attribute("Param_LastPlayedTime", 1),
+            wire.attribute("Param_UtilityInfo", utility, v2=True),
+        ])
+        with self.assertRaises(ValueError): smoke.last_char_metadata(bad_realm)
 
 
 if __name__ == "__main__":

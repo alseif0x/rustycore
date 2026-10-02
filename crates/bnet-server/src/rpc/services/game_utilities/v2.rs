@@ -1,12 +1,15 @@
 //! Login/realm-list adapter for modern GameUtilities, TC 6ebe044c.
 //! V2 has different Variant tags and first-match parameter semantics. Reuse the
-//! existing realm readers, not V1 bytes on the wire. World join remains outside
-//! this branch's login-only acceptance and is explicitly not implemented here.
+//! existing realm readers, not V1 bytes on the wire. Build-70170 discovery has
+//! its own target-backed adapter; modern world join is not implemented yet.
 
 use super::*;
 use types::variant::Type;
 use wow_proto::bgs::protocol::game_utilities::v2::client as wire;
 use wow_proto::bgs::protocol::v2 as types;
+
+mod discovery;
+mod discovery_trace;
 
 fn decode<M: Message + Default>(payload: &[u8]) -> Result<M> {
     M::decode(payload).map_err(|_| RpcStatusError::new(status::ERROR_RPC_MALFORMED_REQUEST).into())
@@ -28,6 +31,7 @@ pub async fn handle<S: AsyncRead + AsyncWrite + Unpin>(
                 .map(|attr| remove_suffix(&attr.name))
                 .ok_or_else(|| RpcStatusError::new(status::ERROR_RPC_MALFORMED_REQUEST))?;
             tracing::debug!(command, "GameUtilities V2 command");
+            discovery_trace::trace_discovery(command, &request.attribute);
             let response = match command {
                 "Command_SuperDistrictListRequest_v1" => {
                     if session.build != 70170 {
@@ -64,7 +68,29 @@ pub async fn handle<S: AsyncRead + AsyncWrite + Unpin>(
                             RpcStatusError::new(status::ERROR_UTIL_SERVER_UNKNOWN_REALM).into()
                         );
                     }
-                    get_last_char_played(session, &request).await?
+                    if session.build == 70170 {
+                        let account = account_info_or_status_like_cpp(
+                            session.account_info.as_ref(),
+                            status::ERROR_USER_SERVER_BAD_WOW_ACCOUNT,
+                        )?;
+                        let game = selected_game_account_like_cpp(
+                            account,
+                            session.selected_game_account_id,
+                        )?;
+                        let now = std::time::SystemTime::now()
+                            .duration_since(std::time::UNIX_EPOCH)?
+                            .as_secs();
+                        let response = discovery::last_character(
+                            session.state().forever_catalog(),
+                            &session.state().realm_mgr.read(),
+                            game,
+                            &request,
+                            now,
+                        )?;
+                        Some(response.encode_to_vec())
+                    } else {
+                        get_last_char_played(session, &request).await?
+                    }
                 }
                 "Command_RealmListRequest_v1" => get_realm_list(session, &request).await?,
                 _ => return Err(RpcStatusError::new(status::ERROR_RPC_NOT_IMPLEMENTED).into()),

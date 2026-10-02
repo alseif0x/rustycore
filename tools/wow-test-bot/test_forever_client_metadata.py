@@ -43,6 +43,18 @@ def _put_ptr(data, rva, target):
     _put(data, rva, struct.pack("<Q", metadata.EXPECTED_IMAGE_BASE + target))
 
 
+def _put_descriptor(data, rva, name_rva, names_rva, types_rva, offsets_rva, fields):
+    _put_u32(data, rva, len(fields))
+    _put_ptr(data, rva + 0x10, names_rva)
+    _put_ptr(data, rva + 0x18, types_rva)
+    _put_ptr(data, rva + 0x20, offsets_rva)
+    _put_ptr(data, rva + 0x50, name_rva)
+    for index, (field_name_rva, type_rva, offset) in enumerate(fields):
+        _put_ptr(data, names_rva + index * 8, field_name_rva)
+        _put_ptr(data, types_rva + index * 8, type_rva)
+        _put_u16(data, offsets_rva + index * 2, offset)
+
+
 def _metadata_fixture():
     layout = metadata.MetadataLayout(0x1800, 0x1900, 0x1A00, (0x1B00, 0x1B10, 0x1B20))
     data = _minimal_pe()
@@ -73,6 +85,52 @@ def _metadata_fixture():
         _put_u16(data, 0x2100 + index * 2, offset)
     for type_rva in (layout.outer_type_rva, *layout.entry_type_rvas):
         _put(data, type_rva, b"type")
+    return bytes(data), layout
+
+
+def _realm_metadata_fixture():
+    data, base = _metadata_fixture()
+    data = bytearray(data)
+    layout = metadata.MetadataLayout(
+        base.outer_descriptor_rva,
+        base.entry_descriptor_rva,
+        base.outer_type_rva,
+        base.entry_type_rvas,
+        0x2200,
+        0x2500,
+    )
+    strings = {
+        0x2A00: "JamJSONRealmEntry",
+        0x2A20: "JSONUtilityInfo",
+    }
+    for index, (field_name, _) in enumerate(metadata.REALM_ENTRY_FIELDS):
+        strings[0x2A40 + index * 0x20] = field_name
+    for index, (field_name, _) in enumerate(metadata.UTILITY_INFO_FIELDS):
+        strings[0x2C20 + index * 0x20] = field_name
+    for rva, value in strings.items():
+        _put(data, rva, value.encode("ascii") + b"\0")
+
+    realm_types = [
+        metadata.SUPER_DISTRICT_TYPE_RVAS[2], 0x3100,
+        metadata.SUPER_DISTRICT_TYPE_RVAS[2], 0x3110,
+        metadata.SUPER_DISTRICT_TYPE_RVAS[2], 0x3120,
+        metadata.SUPER_DISTRICT_TYPE_RVAS[2], metadata.SUPER_DISTRICT_TYPE_RVAS[2],
+        metadata.SUPER_DISTRICT_TYPE_RVAS[2], 0x3130,
+        metadata.SUPER_DISTRICT_TYPE_RVAS[2], metadata.SUPER_DISTRICT_TYPE_RVAS[2],
+        metadata.SUPER_DISTRICT_TYPE_RVAS[2], metadata.SUPER_DISTRICT_TYPE_RVAS[2],
+    ]
+    realm_fields = [
+        (0x2A40 + index * 0x20, type_rva, offset)
+        for index, ((_, offset), type_rva) in enumerate(
+            zip(metadata.REALM_ENTRY_FIELDS, realm_types)
+        )
+    ]
+    _put_descriptor(data, 0x2200, 0x2A00, 0x2280, 0x2300, 0x2380, realm_fields)
+    utility_fields = [
+        (0x2C20 + index * 0x20, 0x3140 + index * 0x10, offset)
+        for index, (_, offset) in enumerate(metadata.UTILITY_INFO_FIELDS)
+    ]
+    _put_descriptor(data, 0x2500, 0x2A20, 0x2580, 0x2600, 0x2680, utility_fields)
     return bytes(data), layout
 
 
@@ -133,6 +191,43 @@ class SuperDistrictMetadataTests(unittest.TestCase):
                 with self.assertRaises(metadata.MetadataError) as error:
                     metadata.read_verified_client(path)
             self.assertIn("SHA-256", str(error.exception))
+
+
+class RealmMetadataTests(unittest.TestCase):
+    def test_realm_entry_and_utility_info_are_projected_with_unknown_types_bounded(self):
+        data, layout = _realm_metadata_fixture()
+        report = metadata.extract_realm_metadata(data, layout=layout)
+
+        realm = report["realm_entry"]
+        self.assertEqual(realm["name"], "JamJSONRealmEntry")
+        self.assertEqual(realm["descriptor_rva"], "0x2200")
+        self.assertEqual(
+            [(field["name"], field["offset"]) for field in realm["fields"]],
+            list(metadata.REALM_ENTRY_FIELDS),
+        )
+        self.assertEqual(realm["fields"][0]["type"], "uint32")
+        self.assertIsNone(realm["fields"][1]["type"])
+        self.assertEqual(realm["fields"][1]["type_rva"], "0x3100")
+
+        utility = report["utility_info"]
+        self.assertEqual(utility["name"], "JSONUtilityInfo")
+        self.assertEqual(
+            [(field["name"], field["offset"]) for field in utility["fields"]],
+            list(metadata.UTILITY_INFO_FIELDS),
+        )
+        self.assertTrue(all(field["type"] is None for field in utility["fields"]))
+
+    def test_additional_descriptor_names_and_offsets_are_fail_closed(self):
+        data, layout = _realm_metadata_fixture()
+        bad = bytearray(data)
+        _put_u16(bad, 0x2380, 1)
+        with self.assertRaises(metadata.MetadataError):
+            metadata.extract_realm_metadata(bytes(bad), layout=layout)
+
+        bad = bytearray(data)
+        _put_ptr(bad, 0x2500 + 0x50, 0x2A00)
+        with self.assertRaises(metadata.MetadataError):
+            metadata.extract_realm_metadata(bytes(bad), layout=layout)
 
 
 if __name__ == "__main__":

@@ -2,8 +2,8 @@
 """Read-only schema inspection for the original WoW Forever 1.60.1 client.
 
 The command verifies the supplied executable before parsing it and emits only
-sanitized SuperDistrictList descriptor metadata.  It never executes the
-client and does not print binary payloads.
+sanitized discovery descriptor metadata.  It never executes the client and
+does not print binary payloads.
 """
 
 import argparse
@@ -24,11 +24,35 @@ SUPER_DISTRICT_LIST_RVA = 0x49BD060
 SUPER_DISTRICT_ENTRY_RVA = 0x49BCF50
 SUPER_DISTRICT_LIST_TYPE_RVA = 0x4DFC2E0
 SUPER_DISTRICT_TYPE_RVAS = (0x48E2ED0, 0x48E3420, 0x48E3530)
+REALM_ENTRY_RVA = 0x49BDFD0
+UTILITY_INFO_RVA = 0x49BD6A0
+KNOWN_TYPE_NAMES = {
+    0x48E2ED0: "bool",
+    0x48E3420: "int32",
+    0x48E3530: "uint32",
+}
 SUPER_DISTRICT_FIELDS = (
     ("disallowLogin", 8, "bool", 0x48E2ED0),
     ("superDistrictID", 0, "int32", 0x48E3420),
     ("holdDownUntilTime", 4, "uint32", 0x48E3530),
 )
+REALM_ENTRY_FIELDS = (
+    ("wowRealmAddress", 0),
+    ("useBleepChance", 320),
+    ("cfgTimezonesID", 280),
+    ("populationState", 312),
+    ("cfgCategoriesID", 268),
+    ("version", 296),
+    ("cfgRealmsID", 4),
+    ("gameServiceRegionId", 292),
+    ("flags", 316),
+    ("name", 8),
+    ("cfgConfigsID", 276),
+    ("cfgContentSetID", 284),
+    ("cfgLanguagesID", 272),
+    ("superDistrictID", 288),
+)
+UTILITY_INFO_FIELDS = (("realmPermissions", 0), ("loginLicenses", 8))
 
 
 class MetadataError(ValueError):
@@ -111,9 +135,14 @@ class MetadataLayout:
     entry_descriptor_rva: int = SUPER_DISTRICT_ENTRY_RVA
     outer_type_rva: int = SUPER_DISTRICT_LIST_TYPE_RVA
     entry_type_rvas: tuple[int, int, int] = SUPER_DISTRICT_TYPE_RVAS
+    realm_entry_descriptor_rva: int | None = None
+    utility_info_descriptor_rva: int | None = None
 
 
-FOREVER_LAYOUT = MetadataLayout()
+FOREVER_LAYOUT = MetadataLayout(
+    realm_entry_descriptor_rva=REALM_ENTRY_RVA,
+    utility_info_descriptor_rva=UTILITY_INFO_RVA,
+)
 
 
 def parse_pe(data: bytes) -> PEImage:
@@ -175,6 +204,53 @@ def _descriptor(pe: PEImage, rva: int, count: int) -> dict:
             "names": names, "types": types, "offsets": offsets}
 
 
+def _schema_report(pe: PEImage, rva: int, count: int, name: str,
+                   fields: tuple[tuple[str, int], ...]) -> dict:
+    descriptor = _descriptor(pe, rva, count)
+    expected = list(fields)
+    actual = list(zip(descriptor["names"], descriptor["offsets"]))
+    if descriptor["name"] != name or actual != expected:
+        raise MetadataError(f"unexpected {name} descriptor")
+    return {
+        "name": descriptor["name"],
+        "descriptor_rva": f"0x{descriptor['descriptor_rva']:x}",
+        "names_array_rva": f"0x{descriptor['names_rva']:x}",
+        "types_array_rva": f"0x{descriptor['types_rva']:x}",
+        "offsets_array_rva": f"0x{descriptor['offsets_rva']:x}",
+        "fields": [
+            {
+                "name": field_name,
+                "offset": offset,
+                "type": KNOWN_TYPE_NAMES.get(type_rva),
+                "type_rva": f"0x{type_rva:x}",
+            }
+            for (field_name, offset), type_rva in zip(
+                actual, descriptor["types"]
+            )
+        ],
+    }
+
+
+def _additional_metadata(pe: PEImage, layout: MetadataLayout) -> dict:
+    report = {}
+    if layout.realm_entry_descriptor_rva is not None:
+        report["realm_entry"] = _schema_report(
+            pe, layout.realm_entry_descriptor_rva, len(REALM_ENTRY_FIELDS),
+            "JamJSONRealmEntry", REALM_ENTRY_FIELDS,
+        )
+    if layout.utility_info_descriptor_rva is not None:
+        report["utility_info"] = _schema_report(
+            pe, layout.utility_info_descriptor_rva, len(UTILITY_INFO_FIELDS),
+            "JSONUtilityInfo", UTILITY_INFO_FIELDS,
+        )
+    return report
+
+
+def extract_realm_metadata(data: bytes, layout: MetadataLayout = FOREVER_LAYOUT) -> dict:
+    """Return the bounded RealmEntry/UtilityInfo projections without hashing."""
+    return _additional_metadata(parse_pe(data), layout)
+
+
 def extract_metadata(data: bytes, digest: str | None = None, layout: MetadataLayout = FOREVER_LAYOUT) -> dict:
     pe = parse_pe(data)
     outer = _descriptor(pe, layout.outer_descriptor_rva, 1)
@@ -214,6 +290,7 @@ def extract_metadata(data: bytes, digest: str | None = None, layout: MetadataLay
     }
     if digest is not None:
         report["sha256"] = digest
+    report.update(_additional_metadata(pe, layout))
     return report
 
 
