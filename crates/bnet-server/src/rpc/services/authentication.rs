@@ -163,8 +163,9 @@ pub(super) async fn load_authenticated_account_like_cpp<S: AsyncRead + AsyncWrit
     //   Columns 0-7: BNet account (same across all rows)
     //     0: ba.id, 1: UPPER(ba.email), 2: ba.locked, 3: ba.lock_country,
     //     4: ba.last_ip, 5: ba.LoginTicketExpiry, 6: is_banned, 7: is_permanently_banned
-    //   Columns 8-12: Game account (one row per game account)
-    //     8: a.id, 9: a.username, 10: ab.unbandate, 11: ab.permanently_banned, 12: aa.SecurityLevel
+    //   Columns 8-13: Game account (one row per game account)
+    //     8: a.id, 9: a.username, 10: ab.unbandate, 11: ab.permanently_banned,
+    //     12: aa.SecurityLevel, 13: ab.bandate (modern restriction metadata)
     let state = session.state();
     let mut stmt = state
         .login_db
@@ -214,6 +215,7 @@ pub(super) async fn load_authenticated_account_like_cpp<S: AsyncRead + AsyncWrit
                     id: ga_id,
                     name: ga_name,
                     display_name,
+                    ban_date: result.try_read::<u64>(13).unwrap_or(0),
                     unban_date: ga_unban,
                     is_permanently_banned: ga_perma_banned,
                     is_banned: ga_perma_banned || ga_unban > 0,

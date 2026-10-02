@@ -73,12 +73,12 @@ pub(super) fn decode_base64_standard_like_cpp(input: &str) -> Option<Vec<u8>> {
     }
 }
 
-pub(super) fn hex_decode(hex: &str) -> Vec<u8> {
-    (0..hex.len())
-        .step_by(2)
-        .filter_map(|i| {
-            hex.get(i..i + 2)
-                .and_then(|s| u8::from_str_radix(s, 16).ok())
-        })
-        .collect()
+pub(super) fn hex_decode(hex: &str) -> Option<Vec<u8>> {
+    // LoginRESTService::HandlePostLogin constructs BigNumber from a hexadecimal
+    // integer, not byte pairs: an odd-length value must keep its final nibble.
+    // Fail closed on malformed input instead of silently discarding characters.
+    if hex.is_empty() || !hex.bytes().all(|byte| byte.is_ascii_hexdigit()) {
+        return None;
+    }
+    num_bigint::BigUint::parse_bytes(hex.as_bytes(), 16).map(|value| value.to_bytes_be())
 }

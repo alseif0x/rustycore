@@ -371,7 +371,7 @@ impl StatementDef for LoginStatements {
                 "SELECT ba.id, UPPER(ba.email), ba.locked, ba.lock_country, ba.last_ip, ",
                 "ba.LoginTicketExpiry, bab.unbandate > UNIX_TIMESTAMP() OR bab.unbandate = bab.bandate, ",
                 "bab.unbandate = bab.bandate, a.id, a.username, ab.unbandate, ",
-                "ab.unbandate = ab.bandate, aa.SecurityLevel ",
+                "ab.unbandate = ab.bandate, aa.SecurityLevel, ab.bandate ",
                 "FROM battlenet_accounts ba LEFT JOIN battlenet_account_bans bab ON ba.id = bab.id ",
                 "LEFT JOIN account a ON ba.id = a.battlenet_account ",
                 "LEFT JOIN account_banned ab ON a.id = ab.id AND ab.active = 1 ",

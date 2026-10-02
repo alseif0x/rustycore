@@ -194,26 +194,29 @@ async fn post_login(
         "REST: POST /bnetserver/login/ — {} inputs",
         form.inputs.len()
     );
-    for input in &form.inputs {
-        let val = if input.input_id == "password" {
-            "***"
-        } else {
-            &input.value
-        };
-        tracing::debug!("  input: {} = {val}", input.input_id);
-    }
 
     // Extract fields
     let account_name = find_input(&form, "account_name");
     let password = find_input(&form, "password");
     let client_a = find_input(&form, "public_A");
     let client_m1 = find_input(&form, "client_evidence_M1");
+    tracing::debug!(
+        has_account = account_name.is_some(),
+        has_password = password.is_some(),
+        public_a_chars = client_a.as_ref().map(String::len),
+        client_m1_chars = client_m1.as_ref().map(String::len),
+        has_srp = connection_state.bnet_srp.is_some(),
+        "REST login proof metadata"
+    );
 
     // SRP challenge-response flow (client sends A and M1)
     if let (Some(a_hex), Some(m1_hex)) = (client_a, client_m1) {
-        if let Some(session) = connection_state.bnet_srp.take() {
-            let a_bytes = hex_decode(&a_hex);
-            let m1_bytes = hex_decode(&m1_hex);
+        // LoginRESTService::HandlePostLogin retains SRP in the HTTP session,
+        // including after a rejected proof. The transport serializes this session.
+        if let Some(session) = connection_state.bnet_srp.as_ref() {
+            let (Some(a_bytes), Some(m1_bytes)) = (hex_decode(&a_hex), hex_decode(&m1_hex)) else {
+                return json_response(error_result("Invalid SRP hex"));
+            };
             if let Some(proof) = session.srp.verify_client_evidence(&a_bytes, &m1_bytes) {
                 let m2_hex = hex_encode(&proof.server_evidence.to_bytes_be());
                 return match create_login_ticket(state, session.account_id).await {

@@ -1,0 +1,26 @@
+// Authentication V2 service message projections used by modern WoW login.
+
+syntax = "proto2";
+package bgs.protocol.authentication.v2.client;
+
+import "bgs/low/pb/client/api/client/v2/authentication_types.proto";
+
+message LogonRequest {
+  optional uint32 title_id = 1;
+  optional string platform = 2;
+  optional string locale = 3;
+  optional uint32 application_version = 4;
+  optional LogonOptions logon_options = 10;
+}
+
+message VerifyAuthTokenRequest {
+  optional bytes auth_token = 1;
+}
+
+message GenerateAuthTokenRequest {
+  optional uint32 title_id = 1;
+}
+
+message GenerateAuthTokenResponse {
+  optional bytes auth_token = 1;
+}

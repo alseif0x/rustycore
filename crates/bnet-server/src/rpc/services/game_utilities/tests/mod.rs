@@ -26,6 +26,7 @@ fn test_game_account(id: u32, name: &str) -> GameAccountInfo {
         id,
         name: name.to_string(),
         display_name: name.to_string(),
+        ban_date: 0,
         unban_date: 0,
         is_permanently_banned: false,
         is_banned: false,

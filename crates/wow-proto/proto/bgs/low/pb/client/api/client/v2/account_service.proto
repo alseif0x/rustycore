@@ -1,0 +1,13 @@
+// Consumed Account V2 projection from TC 6ebe044c account_service.pb.h.
+syntax = "proto2";
+package bgs.protocol.account.v2.client;
+import "bgs/low/pb/client/api/common/v2/account_types.proto";
+import "bgs/low/pb/client/api/common/v2/game_account_handle.proto";
+message GetAccountInfoRequest {}
+message GetAccountInfoResponse { optional bgs.protocol.account.v2.AccountInfo info = 1; }
+message GetRestrictionRequest {}
+message GetRestrictionResponse { repeated bgs.protocol.account.v2.Restriction restrictions = 1; }
+message GetGameAccountInfoRequest { optional bgs.protocol.account.v2.GameAccountHandle game_account = 1; }
+message GetGameAccountInfoResponse { optional bgs.protocol.account.v2.GameAccountInfo info = 1; }
+message GetGameAccountRestrictionRequest { optional bgs.protocol.account.v2.GameAccountHandle game_account = 1; }
+message GetGameAccountRestrictionResponse { repeated bgs.protocol.account.v2.Restriction restrictions = 1; }

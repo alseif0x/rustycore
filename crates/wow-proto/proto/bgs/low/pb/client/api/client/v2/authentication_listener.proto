@@ -1,0 +1,17 @@
+// Authentication V2 listener message projections used by modern WoW login.
+
+syntax = "proto2";
+package bgs.protocol.authentication.v2.client;
+
+import "bgs/low/pb/client/api/client/v2/authentication_types.proto";
+
+message LogonCompleteNotification {
+  optional uint32 error_code = 1;
+  optional LogonRecord record = 2;
+}
+
+message ExternalChallengeNotification {
+  optional string request_token = 1;
+  optional string payload_type = 2;
+  optional bytes payload = 3;
+}

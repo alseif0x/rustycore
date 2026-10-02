@@ -1,4 +1,5 @@
 """Private bounded wire helpers for the Forever BNet smoke."""
+import re
 import struct
 
 MAX_PROTO, MAX_HTTP_HEADER, MAX_HTTP_BODY = 1 << 20, 16 << 10, 4 << 20
@@ -60,10 +61,16 @@ def fields(data):
             raise ValueError("unsupported protobuf wire type")
 
 
-def parse_http_header(data):
+def parse_http_response_header(data):
+    """Parse a bounded HTTP response header and retain case-insensitive headers."""
     if len(data) > MAX_HTTP_HEADER: raise ValueError("HTTP header is too large")
-    lines = data.decode("iso-8859-1").splitlines()
-    if not lines: raise ValueError("missing HTTP status line")
+    if not data.endswith(b"\r\n\r\n"):
+        raise ValueError("incomplete HTTP header")
+    try:
+        lines = data[:-4].decode("iso-8859-1").split("\r\n")
+    except UnicodeDecodeError as error:
+        raise ValueError("invalid HTTP header") from error
+    if not lines or not lines[0]: raise ValueError("missing HTTP status line")
     parts = lines[0].split()
     if len(parts) < 2 or not parts[0].startswith("HTTP/"):
         raise ValueError("malformed HTTP status")
@@ -72,12 +79,67 @@ def parse_http_header(data):
     if status < 100 or status > 599: raise ValueError("invalid HTTP status")
     headers = {}
     for line in lines[1:]:
-        if ":" in line:
-            name, value = line.split(":", 1); headers[name.strip().lower()] = value.strip()
-    try: length = int(headers["content-length"])
-    except (KeyError, ValueError) as error: raise ValueError("invalid HTTP content length") from error
-    if length < 0 or length > MAX_HTTP_BODY: raise ValueError("HTTP body is too large")
+        if not line or ":" not in line:
+            raise ValueError("malformed HTTP header field")
+        name, value = line.split(":", 1)
+        name, value = name.strip().lower(), value.strip()
+        if not name:
+            raise ValueError("malformed HTTP header field")
+        if name == "content-length" and name in headers and headers[name] != value:
+            raise ValueError("conflicting HTTP content length")
+        headers[name] = value
+    content_length = headers.get("content-length")
+    if content_length is None or not content_length.isdigit():
+        raise ValueError("invalid HTTP content length")
+    length = int(content_length)
+    if length > MAX_HTTP_BODY: raise ValueError("HTTP body is too large")
+    return status, length, headers
+
+
+def parse_http_header(data):
+    """Compatibility wrapper returning only status and content length."""
+    status, length, _ = parse_http_response_header(data)
     return status, length
+
+
+def extract_session_cookie(set_cookie):
+    """Validate the C++ login session cookie and return a Cookie header value."""
+    if not isinstance(set_cookie, str):
+        raise ValueError("missing session cookie")
+    parts = [part.strip() for part in set_cookie.split(";")]
+    if not parts or "=" not in parts[0]:
+        raise ValueError("invalid session cookie")
+    name, value = parts[0].split("=", 1)
+    if name != "JSESSIONID" or not re.fullmatch(
+            r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", value):
+        raise ValueError("invalid session cookie")
+    attributes = {}
+    for part in parts[1:]:
+        if not part:
+            continue
+        key, separator, attr_value = part.partition("=")
+        attributes[key.strip().lower()] = attr_value.strip().lower() if separator else None
+    if (attributes.get("path") != "/bnetserver" or attributes.get("samesite") != "none" or
+            "secure" not in attributes or "httponly" not in attributes):
+        raise ValueError("invalid session cookie attributes")
+    return f"JSESSIONID={value}"
+
+
+def http_request(path, body, host, cookie=None, close=True):
+    """Build a bounded HTTP/1.1 request without exposing body/cookie values."""
+    if not isinstance(body, bytes) or len(body) > MAX_HTTP_BODY:
+        raise ValueError("HTTP request body is too large")
+    if any(token in path or token in host for token in ("\r", "\n")):
+        raise ValueError("invalid HTTP request target")
+    if cookie is not None and any(token in cookie for token in ("\r", "\n")):
+        raise ValueError("invalid HTTP cookie")
+    connection = "close" if close else "keep-alive"
+    headers = [f"POST {path} HTTP/1.1", f"Host: {host}",
+               "Content-Type: application/json", f"Content-Length: {len(body)}",
+               f"Connection: {connection}"]
+    if cookie is not None:
+        headers.append(f"Cookie: {cookie}")
+    return ("\r\n".join(headers) + "\r\n\r\n").encode() + body
 
 
 def rpc_header(service, method, token, size=0, service_hash=None, ciid=None):
@@ -122,6 +184,22 @@ def connect_identity(payload, header):
     return expected
 
 
+def v2_logon_record(payload):
+    parts = {n: (w, v) for n, w, v in fields(payload)}
+    if parts.get(1) != (0, 0) or parts.get(2, (None,))[0] != 2:
+        raise ValueError("invalid V2 logon completion")
+    record = list(fields(parts[2][1]))
+    if next((v for n, w, v in record if n == 1 and w == 0), None) != 1:
+        raise ValueError("unexpected V2 account")
+    games = [{n: (w, v) for n, w, v in fields(value)}
+             for number, wire, value in record if number == 2 and wire == 2]
+    if games != [{1: (0, 1), 2: (0, 0x576F57), 3: (0, 2)}]:
+        raise ValueError("unexpected V2 game-account handles")
+    key = next((v for n, w, v in record if n == 5 and w == 2), b"")
+    if len(key) != 64: raise ValueError("invalid V2 session key size")
+    return {"account_id": 1, "game_account_id": 1, "region": 2, "session_key_length": 64}
+
+
 def decode_frame(data):
     if len(data) < 2: raise ValueError("truncated RPC frame length")
     size = struct.unpack(">H", data[:2])[0]
@@ -131,21 +209,22 @@ def decode_frame(data):
     return header, data[2 + size:end]
 
 
-def attribute(name, value, string=False):
+def attribute(name, value, string=False, v2=False):
     value = value.encode() if isinstance(value, str) else value
-    return raw(1, name.encode()) + raw(2, raw(5 if string else 6, value))
+    field = (4 if string else 5) if v2 else (5 if string else 6)
+    return raw(1, name.encode()) + raw(2, raw(field, value))
 
 
 def client_request(attributes):
     return b"".join(raw(1, item) for item in attributes)
 
 
-def response_attributes(payload):
+def response_attributes(payload, v2=False):
     result = {}
     for number, wire, item in fields(payload):
         if number != 1 or wire != 2: continue
         parts = {n: v for n, w, v in fields(item) if w == 2}
         name = parts.get(1, b"").decode()
         values = {n: v for n, w, v in fields(parts.get(2, b"")) if w == 2}
-        result[name] = values.get(6, values.get(5, b""))
+        result[name] = values.get(5, values.get(4, b"")) if v2 else values.get(6, values.get(5, b""))
     return result

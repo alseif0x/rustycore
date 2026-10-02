@@ -1,9 +1,7 @@
 //! REST API for BNet login — raw HTTP implementation.
 //!
-//! Uses raw HTTP over TLS to match C#'s SslStream behavior exactly.
-//! Hyper/axum sends TLS CloseNotify after responses, which the WoW 3.4.3
-//! client interprets as an error. This raw implementation keeps the TLS
-//! connection open after writing the response, matching C#'s behavior.
+//! Raw HTTP over TLS, with modern cookie-bound login sessions and request
+//! keep-alive semantics (TrinityCore 6ebe044c Http::DispatcherService).
 //!
 //! Endpoints:
 //! - `GET  /bnetserver/login/`       — Login form definition
@@ -14,7 +12,9 @@
 //! - `POST /bnetserver/refreshLoginTicket/` — Refresh login ticket
 
 pub mod handlers;
+mod sessions;
 pub mod types;
+pub use sessions::RestSessions;
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -123,19 +123,20 @@ impl Drop for RestRequestGuard {
 
 /// Handle a single REST (HTTPS) connection using raw HTTP.
 ///
-/// After writing the response, the server keeps the TLS connection open
-/// and waits for the client to close it. This matches C#'s SslStream
-/// behavior where the stream stays open after WriteAsync() completes.
+/// A BNet session lease survives for this connection; its SRP state remains
+/// recoverable by cookie for five minutes after the last connection closes.
 pub async fn handle_rest_connection<S>(
     stream: S,
     state: Arc<AppState>,
     addr: std::net::SocketAddr,
     drain: RestDrain,
+    sessions: RestSessions,
 ) where
     S: AsyncRead + AsyncWrite + Unpin,
 {
     let mut buf_stream = BufReader::new(stream);
-    let mut connection_state = handlers::RestConnectionState::default();
+    let mut bot_connection_state = handlers::RestConnectionState::default();
+    let mut login_session: Option<sessions::SessionLease> = None;
 
     loop {
         if drain.is_shutting_down() {
@@ -157,26 +158,62 @@ pub async fn handle_rest_connection<S>(
         };
 
         tracing::info!("REST {} {} (from {addr})", request.method, request.path);
-        for (name, value) in &request.headers {
-            tracing::debug!("  Header: {name}: {value}");
+        let mut set_cookie = None;
+        // Bot-only endpoints retain their separate connection-local contract.
+        let mut response = if request.path.starts_with("/bnetserver/") {
+            if login_session.is_none() {
+                let (lease, created) =
+                    sessions.acquire(request.headers.get("cookie").map(String::as_str), addr.ip());
+                if created {
+                    set_cookie = Some(
+                        lease.set_cookie(
+                            request
+                                .headers
+                                .get("host")
+                                .map(String::as_str)
+                                .unwrap_or_default(),
+                        ),
+                    );
+                }
+                login_session = Some(lease);
+            }
+            let mut session = login_session
+                .as_ref()
+                .expect("acquired login session")
+                .lock()
+                .await;
+            handlers::route(
+                &state,
+                &request.method,
+                &request.path,
+                &request.headers,
+                request.body.as_deref(),
+                &mut session,
+            )
+            .await
+        } else {
+            handlers::route(
+                &state,
+                &request.method,
+                &request.path,
+                &request.headers,
+                request.body.as_deref(),
+                &mut bot_connection_state,
+            )
+            .await
+        };
+        if let Some(cookie) = set_cookie {
+            response.headers.push(("Set-Cookie", cookie));
         }
 
-        // Route to handler
-        let response = handlers::route(
-            &state,
-            &request.method,
-            &request.path,
-            &request.headers,
-            request.body.as_deref(),
-            &mut connection_state,
-        )
-        .await;
-
-        // Build raw HTTP response matching C# header format exactly:
-        //   Content-Length, Connection: close, [handler headers], then body
         let body_len = response.body.len();
+        let connection = if request.keep_alive {
+            "keep-alive"
+        } else {
+            "close"
+        };
         let mut resp_text = format!(
-            "HTTP/1.1 {} {}\r\nContent-Length: {body_len}\r\nConnection: close\r\n",
+            "HTTP/1.1 {} {}\r\nContent-Length: {body_len}\r\nConnection: {connection}\r\n",
             response.status_code, response.status_text
         );
         for (name, value) in &response.headers {
@@ -191,7 +228,8 @@ pub async fn handle_rest_connection<S>(
             request.path,
             response.status_code
         );
-        tracing::debug!("REST response:\n{resp_text}");
+        // Bodies and headers carry passwords, proofs, cookies and login tickets.
+        // Log only the metadata above, even with debug logging enabled.
 
         // Write complete response as a single write
         let writer = buf_stream.get_mut();
@@ -204,9 +242,9 @@ pub async fn handle_rest_connection<S>(
             return;
         }
 
-        // Do NOT close the TLS connection or call shutdown().
-        // Wait for the client to close (next read returns EOF).
-        // This matches C#'s SslStream behavior exactly.
+        if !request.keep_alive {
+            return;
+        }
     }
 }
 
@@ -216,6 +254,7 @@ struct HttpRequest {
     path: String,
     headers: HashMap<String, String>,
     body: Option<Vec<u8>>,
+    keep_alive: bool,
 }
 
 /// Read a complete HTTP request (request line + headers + optional body).
@@ -241,12 +280,13 @@ where
 
     // Parse "METHOD /path HTTP/1.1"
     let parts: Vec<&str> = request_line.splitn(3, ' ').collect();
-    if parts.len() < 2 {
+    if parts.len() != 3 || !matches!(parts[2], "HTTP/1.0" | "HTTP/1.1") {
         tracing::warn!("REST: malformed request line: {request_line}");
         return None;
     }
     let method = parts[0].to_string();
     let path = parts[1].to_string();
+    let http11 = parts[2] == "HTTP/1.1";
 
     // Read headers until empty line
     let mut headers = HashMap::new();
@@ -289,17 +329,42 @@ where
         None
     };
 
+    let connection = headers
+        .get("connection")
+        .map(String::as_str)
+        .unwrap_or_default();
+    let tokens: Vec<_> = connection.split(',').map(str::trim).collect();
+    let keep_alive = !tokens.iter().any(|s| s.eq_ignore_ascii_case("close"))
+        && (http11 || tokens.iter().any(|s| s.eq_ignore_ascii_case("keep-alive")));
     Some(HttpRequest {
         method,
         path,
         headers,
         body,
+        keep_alive,
     })
 }
 
 #[cfg(test)]
 mod tests {
     use super::RestDrain;
+
+    #[tokio::test]
+    async fn http_connection_policy_matches_request_version_and_tokens() {
+        for (version, connection, expected) in [
+            ("HTTP/1.1", "", true),
+            ("HTTP/1.1", "Connection: close\r\n", false),
+            ("HTTP/1.1", "Connection: Keep-Alive, Close\r\n", false),
+            ("HTTP/1.0", "", false),
+            ("HTTP/1.0", "Connection: keep-alive\r\n", true),
+        ] {
+            let bytes =
+                format!("GET /bnetserver/login/ {version}\r\nHost: localhost\r\n{connection}\r\n");
+            let mut reader = super::BufReader::new(bytes.as_bytes());
+            let request = super::read_http_request(&mut reader).await.unwrap();
+            assert_eq!(request.keep_alive, expected);
+        }
+    }
 
     #[test]
     fn rest_drain_rejects_new_requests_after_shutdown_like_cpp_stop_accepting() {

@@ -2,8 +2,10 @@
 
 This is a bounded, local smoke for the WoW Forever client build `1.60.1.70170`.
 It exercises RustyCore's normal Battle.net REST SRPv2 flow and protobuf RPC realm
-list flow against an isolated Auth database. It does not start `world-server`,
-authenticate a World `AuthSession`, or prove real-client login.
+list flow against an isolated Auth database. The synthetic smoke alone does not
+prove real-client login. The separate real-client evidence below now proves BNet
+authentication and account/realm-ticket queries, but not the realm-selector UI.
+Neither procedure starts `world-server` or authenticates a World `AuthSession`.
 
 The procedure is operator-only. It mutates the disposable Auth database and
 issues normal login/ticket requests. Do not point it at a shared realm, reuse a
@@ -205,6 +207,204 @@ at `99b5600e250d2da2e26461dd33361b8d2d84458b`. Its
 It is a useful reference for phase-specific failures and parser tests, **not**
 an implementation of BNet TLS/protobuf, CIID, modern auth tokens or build 70170.
 No Benilla wire constants or crypto were imported into this branch.
+
+### Modern authentication and HTTP-session contract
+
+The `1.60.1` adapter implements Authentication V2, original service hash
+`0xC02F8216`, methods Logon (1), VerifyAuthToken (2), GenerateAuthToken (3).
+It uses V2 protobuf layouts, not V1 messages under another hash. Its listener
+`0x9DA8116B` sends ExternalChallenge (4) and LogonComplete (1). Admission shares
+V1's existing DB ticket/expiry/IP/country/ban checks; the extracted loader does
+not publish account state. V1 retains its prior notification/reply order. V2
+sends the successful reply, then LogonComplete, then publishes authentication,
+following `Shared::Authentication::HandleVerifyAuthToken`. Transport failure
+does not produce a second reply or publish authentication. V2 accepts the six
+modern platform names, validates WoW title/locale, and decodes device `UTCO` as
+a timezone-name hash (not raw minutes). The protos are the consumed/emitted
+projection, not a complete implementation of every modern BNet service.
+
+Exact source: TrinityCore `6ebe044cbb9895b458fcd3244639acadff287809`,
+`src/server/bnetserver/Services/AuthenticationService.cpp` (Shared and V2),
+`ClientBuildInfo.cpp`, `src/common/Time/Timezone.cpp`, and generated V2
+`authentication_{types,service,listener}.pb.{h,cc}` under
+`src/server/proto/Client/api/client/v2/`. Proto field numbers and method IDs
+come from those generated sources. The real client requested this service
+after Connect; no post-auth Account V2/GameUtilities V2 support is implied.
+
+At `17:38:29Z` the real client accepted V2 Logon and received its HTTPS challenge,
+but rejected an IP-literal URL (`BLZ51914003`). Changing only the isolated
+`LoginREST.ExternalAddress` and `LoginREST.LocalAddress` to `localhost` reached
+GET `/bnetserver/login/` and POST `/bnetserver/login/srp/` at `17:40:03Z`–
+`17:40:04Z`. Both returned 200 on distinct TCP connections; no proof POST
+followed, and the UI showed `WOW51900317`. Therefore use the certificate's
+`localhost` hostname for this fixture. TLS remains enabled and verified.
+
+The subsequent REST repair deliberately changes the inherited behavior:
+
+- JSON `public_B` follows `src/server/proto/Login/Login.proto`, not the Rust
+  member spelling `public_b`.
+- `rest::RestSessions`, owned by the listener, is the sole registry for normal
+  login SRP state. A TCP connection acquires one random `JSESSIONID` lease,
+  requires the same remote IP on reconnect, and publishes the C++ Secure,
+  HttpOnly, SameSite=None cookie. Unknown IDs never become server IDs.
+- The last connection drop starts five-minute inactivity retention. Admission
+  lazily removes expired entries; unlike C++'s minute sweep, unused entries may
+  occupy memory until the next admission, but cannot be reacquired after expiry.
+  Active leases pin the canonical state. No new cleanup task is introduced.
+- The registry's synchronous lock never spans await. A per-session async gate
+  serializes SRP replacement/proof and ticket DB work, blocks only that login
+  session, and is released before output. Cancellation releases both guard and
+  lease; an already-created challenge remains recoverable after failed output.
+  This does not add a DB durability/unknown-COMMIT guarantee.
+- `BaseHttpSocket::HandleMessage` is the lifetime reference; `LoginHttpSession`
+  obtains the cookie state; `HttpService` owns IP matching/inactivity and mirrors
+  request keep-alive. Responses now honor close/keep-alive instead of advertising
+  close while retaining the socket. Bot-only endpoints remain connection-local.
+- `HandlePostLogin` retains SRP after a rejected proof. Tests no longer mistake
+  cookie-free handler headers for absence of a transport-layer cookie. Raw HTTP
+  headers/bodies and login inputs are not logged by the changed transport.
+
+Keeping only connection-local SRP (even with corrected keep-alive) was rejected:
+the real client already opens different connections. No cookie-to-IP fallback,
+password bypass or synthetic authentication success was added. Cookie lifecycle,
+wrong-IP/unknown-cookie isolation, per-session serialization, keep-alive policy,
+JSON casing and cross-connection wrong/valid SRP proofs are acceptance cases.
+
+The initial V2 campaign ran `17:35:18Z`–`17:39:28Z` (250 seconds), based at
+`4c446a13` with uncommitted changes: wow-proto 11/11, BNet 96/96, Python 13/13,
+release build, rustfmt/diff/physical checks and live V1/V2 smoke. It verified
+malformed/invalid V2 admission, reply/notification order, generated tokens and
+fresh cached-token login. The later hostname and REST diagnostics are separate;
+that campaign alone did not prove real-client login.
+
+The REST-cookie acceptance slice (`17:49:46Z`–`17:52:36Z`, 170 seconds) passed
+BNet 102/102, Python 15/15, release build, rustfmt/diff/physical-file checks and
+the restarted live V1/V2 smoke using separate TLS connections for SRP challenge,
+wrong proof and valid proof of the same challenge. At `17:52:26Z`, `WowB.exe`
+first submitted the proof POST, but received the no-ticket rejection. That first
+rejection's precise cause was not captured and must not be attributed to a
+specific arithmetic bug. A subsequent metadata-only diagnostic build did not
+change SRP arithmetic. At `17:55:32Z` the same real client sent A/M1 with
+512/64 hex characters, received a ticket/M2 response, sent V2 VerifyAuthToken
+(method 2, 45-byte payload), received success followed by V2 LogonComplete
+(83-byte payload), and requested Account V2 methods 101/104/201/203. Those
+unsupported requests returned status 1 and the client disconnected. Three
+further real attempts at `18:03:02Z`, `18:03:09Z` and `18:03:16Z` also completed
+SRP and sent VerifyAuthToken without changing crypto. This is real BNet-auth
+success, not yet a successful realm-selector UI or a world login.
+
+Code inspection separately found that REST's hex byte-pair decoder discarded
+the final nibble of odd-length integers. `HandlePostLogin` constructs C++
+`BigNumber` from hex integers, so valid odd lengths must preserve their value.
+The repair accepts those integer forms and rejects malformed strings instead
+of silently skipping characters. An oversized-A guard intentionally fails closed
+before Rust's fixed-width hashing assertion; this is input hardening, not a
+claim that the C++ assertion failure is preserved. These findings do not prove
+the cause of the first uncaptured rejection.
+
+The complete modern-login investigation includes repeated acceptance after live
+findings and diagnostic builds; its total wall span exceeds 600 seconds. The
+ordinary ten-minute end-to-end performance target is **not met**. The bounded
+slice timings above identify actual executions, not separate claims that the
+whole delivery met that budget; investigation/editing time was not timed apart
+precisely enough to subtract it from the full span.
+
+### Account V2 and the real-client post-auth boundary
+
+The next implementation is still login-only. At TrinityCore
+`6ebe044cbb9895b458fcd3244639acadff287809`, the exact anchors are
+`Services/AccountService.cpp` (V2 handlers 101/104/201/203),
+`Services/GameUtilitiesService.cpp` (`Shared::{FindParamValue,GetRealmListTicket}`
+and V2 adapters), and generated
+`src/server/proto/Client/api/{client,common}/v2/*.pb.{h,cc}`.
+
+- `rpc/services/account_v2.rs` projects the existing authenticated account
+  snapshot; it creates no second account authority. It provides account ID and
+  privacy flag 7, game-account display name, and ordered ban/suspension metadata.
+  `SEL_BNET_ACCOUNT_INFO` appends `ab.bandate` at column 13, preserving columns
+  0–12. Restriction creation/expiry use the stored timestamps in milliseconds,
+  not the current clock. An explicit fail-closed authentication gate is retained;
+  the referenced C++ V2 handlers assume a populated account.
+- `rpc/services/game_utilities/v2.rs` supports realm-list ticket, empty-fixture
+  last-character query, subregions, and the existing realm-list reader. V2 uses
+  its actual Variant tags (string 4/blob 5/uint 6), first-match parameter order,
+  and the NUL-terminated `AuthRealmListTicket` marker. V1 wire behavior is not
+  replaced. The service hash `0x5DBB51C2` is the generated service's
+  `OriginalHash`, not the FNV hash of its present fully qualified name.
+- World join, BLEEP proxies and Forever's new SuperDistrict list are not
+  implemented. Nonempty last-character/modern utility-info and full modern
+  realm schema parity are also not proven by the empty offline fixture. Do not
+  advertise this bounded adapter as a complete modern GameUtilities service.
+
+After the new release build was installed in the isolated BNet process, the
+V1/V2 live smoke passed at `18:20 UTC`, including
+all four Account V2 queries, unauthenticated/malformed/unknown-method rejection,
+subregions, the exact V2 realm-ticket marker and decoded offline realm metadata.
+No account secrets or session bytes are retained in the report.
+
+The real build-70170 client then produced this action-specific trace on
+`2026-10-02T18:20:49Z`–`18:20:50Z`. Sizes are protobuf payload bytes; these
+sanitized frame observations are not a full decrypted payload capture:
+
+| Client operation | Request bytes | Observed server result |
+| --- | ---: | --- |
+| Connect | 62 | Success, 66 bytes |
+| Auth V2 Logon | 503 | Challenge notification, then empty success |
+| Normal HTTPS SRP proof | A/M1: 512/64 hex chars | Ticket/M2 response, 230-byte JSON body |
+| Auth V2 VerifyAuthToken | 45 | Empty success, then 83-byte OnLogonComplete |
+| Account V2 101 / 104 | 0 / 0 | Success, 6 / 0 bytes |
+| Account V2 201 / 203 | 11 / 11 | Success, 10 / 0 bytes |
+| RealmListTicket | 727 | Success, 49 bytes |
+| FetchBleepProxies | 50 | Not implemented, status 3015; client continues |
+| GetAllValuesForAttribute | 38 | Success, 9 bytes |
+| LastCharPlayed | 185 | Empty success |
+| SuperDistrictList | 99 | Not implemented, status 3015; client disconnects |
+
+The isolated window displayed **“Actualmente no hay reinos disponibles.
+(WOW51900309)”**. This is genuine successful authentication followed by a
+realm-discovery failure, not a completed login UI. `SuperDistrictList` is absent
+from the pinned modern C++ command dispatcher; the public master file inspected
+on this date also lacks it. The failed request alone does not establish the
+correct response schema, so no guessed success or 3.4.3 packet substitution was
+added. A target-build response capture or independently established client
+decoder contract is the next evidence prerequisite for that operation.
+
+The client was run in its own Wine prefix/client copy using the diagnostic
+launcher setup. Original client files were preserved. The launcher still needed
+diagnostic intervention; unattended startup and the experimental in-memory
+certificate provider are not accepted deliverables. This does not affect the
+observed server-side SRP proof, but limits reproducibility of the UI procedure.
+
+Post-auth acceptance started at `2026-10-02T18:11:01Z`, in the dirty worktree
+based at `051559a6`. Commands used one Cargo job, the checkout's `target`, and
+`PROTOC=/tmp/rustycore-protoc-28.3/bin/protoc` on this x86_64 host:
+
+```bash
+cargo test --locked --release -p wow-proto -p wow-crypto -p wow-database --lib --timings
+cargo test --locked --release -p bnet-server --bin bnet-server --timings
+RUSTYCORE_CPP_REFERENCE_ROOT=/tmp/rustycore-forever-cpp \
+  cargo test --locked --release -p wow-proto -p wow-database --lib --timings
+cargo test --locked --release -p wow-proto --lib --timings
+cargo build --locked --release -p bnet-server --bin bnet-server --timings
+python3 -m unittest discover -s tools/wow-test-bot -p test_forever_bnet_smoke.py
+cargo fmt --all -- --check
+git diff --check
+python3 tools/architecture/check_architecture.py physical-files
+python3 tools/wow-test-bot/forever_bnet_smoke.py --runtime "$RUNTIME"
+```
+
+Results: crypto 53/53; BNet 108/108; database 362 passed/2 ignored with the
+explicit C++ reference; protobuf 11/11; Python 16/16; format, diff and physical
+checks passed. The initial DB run failed five reference-location checks because
+`/home/server/...` is absent here. The rerun used checkout `a22fd98b554f55156913158a6571bcf9fa0ceb48`,
+not the documentation's unavailable default reference pin. One newly added
+protobuf test incorrectly derived GameUtilities OriginalHash from the present
+name; the test was corrected against the generated C++ constant and passed.
+The production hash was already correct. The release build took 48.42 seconds;
+Cargo reports are under `target/cargo-timings`. The only production change
+after the 108-test run was command-name-only debug tracing, exercised by the
+release build/live trace. A committed-candidate check is recorded below once
+completed. No final runner, push, PR or world-server test was performed.
 
 ### Previous fixture campaign
 

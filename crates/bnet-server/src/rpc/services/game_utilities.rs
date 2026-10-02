@@ -1,5 +1,7 @@
 //! GameUtilities service handler (hash 0x3FC1274D).
 
+pub mod v2;
+
 use anyhow::{Result, bail};
 use prost::Message;
 use wow_database::{LoginStatements, PreparedStatement};

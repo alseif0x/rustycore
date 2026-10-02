@@ -1,0 +1,16 @@
+// TC 6ebe044c, api/client/v2/game_utilities_service.pb.h.
+syntax = "proto2";
+package bgs.protocol.game_utilities.v2.client;
+import "bgs/low/pb/client/api/common/v2/attribute_types.proto";
+
+message ProcessTaskRequest {
+  repeated bgs.protocol.v2.Attribute attribute = 1;
+  repeated bgs.protocol.v2.Attribute payload = 2;
+}
+message ProcessTaskResponse {
+  repeated bgs.protocol.v2.Attribute result = 1;
+}
+message GetAllValuesForAttributeRequest { optional string attribute_key = 1; }
+message GetAllValuesForAttributeResponse {
+  repeated bgs.protocol.v2.Variant attribute_value = 1;
+}

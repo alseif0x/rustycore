@@ -16,7 +16,7 @@ def challenge():
     return {
         "version": 2, "iterations": 15000, "hash_function": "SHA-256",
         "modulus": smoke.SRP_V2_MODULUS.hex().upper(), "generator": "02", "salt": "00" * 32,
-        "username": smoke.EXPECTED_USERNAME, "public_b": "02",
+        "username": smoke.EXPECTED_USERNAME, "public_B": "02",
     }
 
 
@@ -34,6 +34,27 @@ def realm_blob(name="RustyCore Forever - Login Test", version=(1, 60, 1, 70170),
 
 
 class ForeverBnetWireTests(unittest.TestCase):
+    def test_v2_record_projection_and_notification_order(self):
+        game = wire.var(1, 1) + wire.var(2, 0x576F57) + wire.var(3, 2)
+        record = wire.var(1, 1) + wire.raw(2, game) + wire.raw(5, b"x" * 64)
+        complete = wire.var(1, 0) + wire.raw(2, record)
+        self.assertEqual(wire.v2_logon_record(complete), {
+            "account_id": 1, "game_account_id": 1, "region": 2, "session_key_length": 64})
+        for bad in (b"", wire.var(1, 3), wire.var(1, 0) + wire.raw(2, wire.var(1, 1)),
+                    complete.replace(b"x" * 64, b"y" * 63)):
+            with self.assertRaises(ValueError): wire.v2_logon_record(bad)
+        rpc = object.__new__(smoke.RPCSession)
+        rpc.reply_seen, rpc.v2_record, rpc.challenge = False, None, None
+        acknowledgements = []
+        rpc.respond = acknowledgements.append
+        header = {11: smoke.ALIST_V2, 2: 1, 3: 7}
+        with self.assertRaises(ValueError): rpc.notification(header, complete)
+        rpc.reply_seen = True
+        rpc.notification(header, complete)
+        self.assertEqual(acknowledgements, [7])
+        self.assertIsNotNone(rpc.v2_record)
+        with self.assertRaises(ValueError): rpc.notification({11: smoke.ALIST_V2, 2: 4}, b"")
+
     def test_fields_decode_supported_wire_types(self):
         encoded = wire.var(1, 42) + wire.raw(2, b"abc") + wire.fixed(3, 0xAABBCCDD)
         self.assertEqual(list(wire.fields(encoded)), [
@@ -77,6 +98,29 @@ class ForeverBnetWireTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             wire.parse_http_header(b"x" * (wire.MAX_HTTP_HEADER + 1))
 
+    def test_http_transport_preserves_close_and_session_cookie(self):
+        cookie = ("JSESSIONID=01234567-89ab-cdef-0123-456789abcdef; "
+                  "Path=/bnetserver; Domain=127.0.0.1; Secure; HttpOnly; SameSite=None")
+        status, length, headers = wire.parse_http_response_header(
+            ("HTTP/1.1 200 OK\r\ncontent-length: 2\r\nset-cookie: " + cookie +
+             "\r\nConnection: close\r\n\r\n").encode("ascii"))
+        self.assertEqual((status, length), (200, 2))
+        session = wire.extract_session_cookie(headers["set-cookie"])
+        self.assertEqual(session, "JSESSIONID=01234567-89ab-cdef-0123-456789abcdef")
+        request = wire.http_request("/bnetserver/login/", b"{}", "127.0.0.1:18081", session)
+        self.assertIn(b"Connection: close\r\n", request)
+        self.assertIn(b"Cookie: JSESSIONID=01234567-89ab-cdef-0123-456789abcdef\r\n", request)
+        self.assertTrue(request.endswith(b"\r\n\r\n{}"))
+
+    def test_session_cookie_rejects_missing_cpp_attributes_or_bad_uuid(self):
+        base = "JSESSIONID=01234567-89ab-cdef-0123-456789abcdef"
+        for suffix in ("", "; Secure; HttpOnly; SameSite=None", "; Path=/other; Secure; HttpOnly; SameSite=None",
+                       "; Path=/bnetserver; Secure; SameSite=None", "; Path=/bnetserver; Secure; HttpOnly; SameSite=Lax"):
+            with self.subTest(suffix=suffix), self.assertRaises(ValueError):
+                wire.extract_session_cookie(base + suffix)
+        with self.assertRaises(ValueError):
+            wire.extract_session_cookie("JSESSIONID=not-a-uuid; Path=/bnetserver; Secure; HttpOnly; SameSite=None")
+
     def test_modern_connect_identity_and_header_wire(self):
         ciid = b"0000001200000034-0000009A000000BC"
         process = lambda label, epoch: wire.var(1, label) + wire.var(2, epoch)
@@ -100,6 +144,14 @@ class ForeverBnetWireTests(unittest.TestCase):
         wrong = wire.client_request([wire.attribute("Param_RealmListTicket", b"not-a-ticket")])
         self.assertNotEqual(wire.response_attributes(wrong)["Param_RealmListTicket"], b"AuthRealmListTicket")
 
+    def test_modern_attribute_wire_uses_v2_variant_tags(self):
+        for value, string in ((b"AuthRealmListTicket\0", False), ("2-1-0", True)):
+            v1 = wire.client_request([wire.attribute("Param_Test", value, string)])
+            v2 = wire.client_request([wire.attribute("Param_Test", value, string, v2=True)])
+            self.assertNotEqual(v1, v2)
+            expected = value.encode() if isinstance(value, str) else value
+            self.assertEqual(wire.response_attributes(v2, v2=True), {"Param_Test": expected})
+
 
 class ForeverBnetShapeTests(unittest.TestCase):
     def test_tls_identity_is_localhost_and_loopback(self):
@@ -116,13 +168,15 @@ class ForeverBnetShapeTests(unittest.TestCase):
     def test_srp_challenge_validation_rejects_wrong_hash_and_bounds(self):
         for key, value in (("hash_function", "SHA-512"), ("iterations", 1),
                            ("generator", "03"), ("salt", "00"), ("username", "ab" * 32),
-                           ("public_b", "00"), ("modulus", "F" * 510)):
+                           ("public_B", "00"), ("modulus", "F" * 510)):
             invalid = challenge(); invalid[key] = value
             with self.subTest(key=key), self.assertRaises(ValueError):
                 smoke.validate_srp_challenge(invalid)
-        invalid = challenge(); invalid["public_b"] = invalid["modulus"]
+        invalid = challenge(); invalid["public_B"] = invalid["modulus"]
         with self.assertRaises(ValueError): smoke.validate_srp_challenge(invalid)
         invalid = challenge(); invalid["modulus"] = "A" * 512
+        with self.assertRaises(ValueError): smoke.validate_srp_challenge(invalid)
+        invalid = challenge(); invalid["public_b"] = invalid.pop("public_B")
         with self.assertRaises(ValueError): smoke.validate_srp_challenge(invalid)
 
     def test_password_reader_is_bounded_and_matches_fixture_rules(self):

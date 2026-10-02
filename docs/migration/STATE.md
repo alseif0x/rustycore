@@ -54,6 +54,34 @@ Auth/realm-list smoke is accepted locally, while full real-client compatibility
 remains unresolved and failed in this attempt; no full compatibility claim is
 made from this evidence.
 
+**Later real-client update, 2026-10-02 17:55–18:03 UTC:** build 70170 now
+completes normal REST SRP and Authentication V2 VerifyAuthToken, receives
+successful reply/OnLogonComplete, then requests Account V2 methods
+101/104/201/203. Four consecutive diagnostic attempts reached this post-auth
+boundary. The tested worktree was based at `4c446a13` with uncommitted V2/REST
+changes; the behavior-preserving ticket-admission extraction was subsequently
+committed locally as `051559a6`. This is genuine BNet authentication evidence,
+not yet a successful realm-selector UI or a world login. The first proof attempt
+was rejected; its uncaptured cause remains unknown, and later success required
+no SRP arithmetic change. REST now follows modern `public_B`, JSESSIONID/IP-bound
+session lifetime and keep-alive contracts. `localhost` is required for the
+fixture's advertised HTTPS URLs. V1/V2 synthetic smoke also passed, including
+wrong proof then valid proof across separate TLS connections. See the owning
+runbook for source anchors, actual slice timings and the acknowledged total
+campaign span exceeding the 600-second ordinary acceptance target.
+
+**Post-auth update, 2026-10-02 18:20 UTC:** after implementing Account V2 and
+the bounded GameUtilities V2 adapter, the real build-70170 client also passed
+account methods 101/104/201/203, realm-list ticket, subregions and the empty
+last-character query. It then requested `Command_SuperDistrictListRequest_v1`,
+received not-implemented status 3015, and displayed `WOW51900309` (no realms).
+The pinned modern C++ dispatcher does not define this new Forever operation;
+its response requires target-build evidence before implementation. BNet login
+is proven, but realm-selector UI/world login and unattended launcher startup
+remain unaccepted. The extended synthetic V1/V2 smoke passed through offline
+realm-list decoding. The owning runbook records the sanitized real-client
+trace, explicit incomplete service boundaries and post-auth test results.
+
 **Integration head — 2026-09-19:** the current integration head on `3.4.3` is
 `a82f4b2f` (PR #1226, following PR #1225's #29 creature-victim damage-immunity
 slice and PR #1224's school-absorb slice). The older #31

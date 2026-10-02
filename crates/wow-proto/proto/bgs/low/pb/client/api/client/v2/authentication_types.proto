@@ -1,0 +1,29 @@
+// Authentication V2 message projections used by the modern login path.
+
+syntax = "proto2";
+package bgs.protocol.authentication.v2.client;
+
+import "bgs/low/pb/client/api/common/v2/game_account_handle.proto";
+
+message LogonOptions {
+  optional bytes auth_token = 1;
+  optional string user_agent = 2;
+  optional string device_id = 3;
+
+  oneof additional_id {
+    string email = 10;
+    string phone_number = 11;
+  }
+
+  optional string auth_platform = 12;
+}
+
+message LogonRecord {
+  optional uint64 account_id = 1;
+  repeated bgs.protocol.account.v2.GameAccountHandle game_account = 2;
+  optional string battle_tag = 3;
+  optional string geoip_country = 4;
+  optional bytes session_key = 5;
+  optional bool employee_only_mode = 6;
+  optional string login_ticket = 7;
+}

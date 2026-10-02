@@ -1,0 +1,17 @@
+// Emitted Account V2 projection from TC 6ebe044c account_types.pb.h.
+syntax = "proto2";
+package bgs.protocol.account.v2;
+message AccountInfo {
+  optional uint64 account_id = 1;
+  repeated uint32 flags = 14;
+}
+message GameAccountInfo {
+  optional uint64 account_id = 1;
+  optional string name = 2;
+}
+message Restriction {
+  optional uint32 title_id = 2;
+  optional uint32 type = 3;
+  optional uint64 created_time_ms = 5;
+  optional uint64 expire_time_ms = 6;
+}
