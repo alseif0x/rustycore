@@ -6,13 +6,22 @@ y GitHub #49. No es un plan de issues alternativo: el índice macro, sus lanes y
 dependencias viven en el plan de port; aquí se fijan propietario, consumidores,
 anclas C++, orden de ejecución y criterios de aceptación de la arquitectura.
 
-La forma objetivo de crates/capas, los presupuestos duros y la secuencia de fases de la
+La forma objetivo de crates/capas, los presupuestos vigentes y la secuencia de fases de la
 distribución de `wow-world` se detallan en
 [wow-world-distribution-plan.md](wow-world-distribution-plan.md); este documento sigue siendo el
 plan técnico general y aquel no lo sustituye.
-El enfoque de esa distribución es ahora #1241 (mover sin copiar, un PR por fase o dominio);
-[wow-world-distribution-plan.md](wow-world-distribution-plan.md) se reescribió como su documento
-de progreso y sustituye el enfoque de #1233.
+
+**Actualización de coordinación — 2026-10-02:** #1263 es la continuación pendiente
+del programa #1241 bajo #584 y sustituye el enfoque de entrega de #1233.
+F0–F3 y F4a P1/P2 están integradas; P3 tiene aceptación acotada en `002ff5e46`,
+con publicación/integración posterior registrada en #1263.
+La secuencia restante es F4a P4a/P4b → F4b → diseño/implementación F5 → F6.
+El plan enlazado mantiene el detalle y sus criterios de aceptación; esta nota no
+reabre ni da por completada #1241, ya cerrada en el tracker, y no cierra #584/#583/#153.
+Las secciones de #1233 y sus rutas son evidencia histórica, no instrucciones activas
+para recuperar su rama aparcada. Desde F1, los tests privados trasladados se encuentran
+en `crates/wow-world/unit_tests/` con sus rutas espejo.
+
 Desde #1241 F1, los ficheros de test solo-`cfg(test)` que las secciones fechadas citan bajo
 `crates/wow-world/src/` viven en la misma ruta relativa bajo `crates/wow-world/unit_tests/`
 (mismos módulos y tests; registro reproducible en `tools/codemods/f1_relocate_unit_tests.py`).
