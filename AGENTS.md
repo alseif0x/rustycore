@@ -174,7 +174,7 @@ evidence as passing.
 
 ### #1241 wow-world split programme
 
-This programme exception is owned by #1241 and
+This programme exception is owned by #1241, continued by #1263, and
 [wow-world-distribution-plan.md](docs/architecture/wow-world-distribution-plan.md):
 
 - It uses one PR per phase (F0, F1, ...) or per domain, merged continuously into 3.4.3,
@@ -186,6 +186,17 @@ This programme exception is owned by #1241 and
   (`cargo check -p wow-world --all-targets` plus the moved domain's crate), pass the moved
   domain's tests (R3) and pass the R1 net-move check
   `python3 tools/architecture/net_move.py check --base origin/3.4.3`.
+- In the approved F4 extraction, moved items/fields may become `pub` inside internal
+  `publish = false` `wow-world-*` crates only where a concrete cross-crate consumer needs
+  that access. Review each widening and re-export; keep narrower visibility for members
+  used only inside their defining crate. Preserve one authority and invariant-bearing
+  operations, without adding wrappers, clones or new mutable paths just to relocate code.
+  `publish = false` is not isolation. External module APIs must not expose Session,
+  domain storage or these internal states; #583's module contract remains separate.
+- The maintained distribution plan §10 owns the single candidate-bound acceptance
+  campaign. Workers do not run a duplicate campaign at internal handoffs. Across crate
+  moves preserve the union of test identities, cfg/features and ignored state, rather
+  than requiring the historical total to remain in the origin crate alone.
 
 ### Local development levels
 

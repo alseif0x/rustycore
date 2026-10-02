@@ -25,7 +25,10 @@ pub(super) fn collect_units(
         .iter()
         .filter(|unit| {
             unit.availability.source_class().is_some()
-                && matches!(unit.role, PackageRole::World | PackageRole::Server)
+                && matches!(
+                    unit.role,
+                    PackageRole::World | PackageRole::WorldCore | PackageRole::Server
+                )
         })
         .map(|unit| BridgeSource {
             package: unit.role.package_name(),
@@ -197,6 +200,12 @@ pub(super) fn collect_repository_baseline_with_persistence(
         WORLD_PACKAGE_ROOT,
         WORLD_CRATE_ROOT,
     )?;
+    units.extend(repository_units(
+        repository_root,
+        PackageRole::WorldCore,
+        WORLD_CORE_PACKAGE_ROOT,
+        WORLD_CORE_CRATE_ROOT,
+    )?);
     units.extend(repository_units(
         repository_root,
         PackageRole::Server,

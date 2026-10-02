@@ -65,9 +65,22 @@ fn synthetic_baseline_with_network(
     server: &str,
     network: &str,
 ) -> Result<SessionSyntaxBaseline, String> {
+    synthetic_baseline_with_core(world, server, network, "")
+}
+
+pub(super) fn synthetic_baseline_with_core(
+    world: &str,
+    server: &str,
+    network: &str,
+    world_core: &str,
+) -> Result<SessionSyntaxBaseline, String> {
     collect_units(
         vec![
             unit(PackageRole::World, "wow-world/src/lib.rs", world),
+            // Older scenario snippets model the pre-P4a layout. Keep an
+            // explicit empty core unit so fixture omission never masks a
+            // missing production root.
+            unit(PackageRole::WorldCore, WORLD_CORE_CRATE_ROOT, world_core),
             unit(PackageRole::Server, "world-server/src/main.rs", server),
             unit(PackageRole::Network, "wow-network/src/lib.rs", network),
         ],
@@ -113,6 +126,7 @@ fn test_only_external_modules_supply_bridge_import_context() {
     let baseline = collect_units(
         vec![
             unit(PackageRole::World, "wow-world/src/lib.rs", &world),
+            unit(PackageRole::WorldCore, WORLD_CORE_CRATE_ROOT, ""),
             fixture,
             unit(PackageRole::Server, "world-server/src/main.rs", &server_source("", "")),
             unit(PackageRole::Network, "wow-network/src/lib.rs",
@@ -125,7 +139,7 @@ fn test_only_external_modules_supply_bridge_import_context() {
     assert_eq!(baseline.bridge_accesses.bridges[0].cfg, vec!["cfg (test)"]);
 }
 
-fn world_source(field: &str, extra_impl_item: &str) -> String {
+pub(super) fn world_source(field: &str, extra_impl_item: &str) -> String {
     format!(
         r#"
             pub mod session {{
@@ -149,7 +163,7 @@ fn world_source(field: &str, extra_impl_item: &str) -> String {
     )
 }
 
-fn server_source(extra_field: &str, extra_factory: &str) -> String {
+pub(super) fn server_source(extra_field: &str, extra_factory: &str) -> String {
     format!(
         r#"
             mod session_resources {{

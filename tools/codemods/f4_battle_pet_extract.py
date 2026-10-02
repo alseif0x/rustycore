@@ -1,0 +1,352 @@
+#!/usr/bin/env python3
+"""Cut the reviewed battle-pet DTO items into wow-world-core for #1263 F4a P4a."""
+from __future__ import annotations
+
+import argparse
+import re
+import sys
+from pathlib import Path
+
+
+REPO = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import f4_test_fixtures_gate as item_tools
+
+
+SOURCE = Path("crates/wow-world/src/session/battle_pet_adapter.rs")
+CORE = Path("crates/wow-world-core/src/session/battle_pet_adapter.rs")
+SESSION_MOD = Path("crates/wow-world/src/session/mod.rs")
+SHELL_IMPORT_OLD = "use super::{AuraApplication, Instant, ObjectGuid, RepresentedAuraEffectLikeCpp, WorldSession};"
+SHELL_IMPORT_NEW = """use super::{
+    AuraApplication, Instant, ObjectGuid, RepresentedAuraEffectLikeCpp,
+    RepresentedBattlePetCalculatedStatsLikeCpp, RepresentedBattlePetDataLikeCpp,
+    RepresentedBattlePetLevelCriteriaLikeCpp, RepresentedBattlePetQueryCompanionLikeCpp,
+    RepresentedBattlePetSaveInfoLikeCpp, RepresentedBattlePetSlotLikeCpp, WorldSession,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+use super::RepresentedBattlePetCageItemLikeCpp;"""
+
+DTO_KINDS = {
+    "RepresentedBattlePetSaveInfoLikeCpp": "enum",
+    "RepresentedBattlePetCageItemLikeCpp": "struct",
+    "RepresentedBattlePetCalculatedStatsLikeCpp": "struct",
+    "RepresentedBattlePetLevelCriteriaLikeCpp": "struct",
+    "RepresentedBattlePetDataLikeCpp": "struct",
+    "RepresentedBattlePetQueryCompanionLikeCpp": "struct",
+    "RepresentedBattlePetSlotLikeCpp": "struct",
+}
+
+DTO_FIELDS = {
+    "RepresentedBattlePetCageItemLikeCpp": (
+        "item_id",
+        "species_id",
+        "breed_data",
+        "level",
+        "display_id",
+    ),
+    "RepresentedBattlePetCalculatedStatsLikeCpp": ("max_health", "power", "speed"),
+    "RepresentedBattlePetLevelCriteriaLikeCpp": ("species", "level"),
+    "RepresentedBattlePetDataLikeCpp": (
+        "species",
+        "creature_id",
+        "display_id",
+        "breed",
+        "level",
+        "exp",
+        "flags",
+        "power",
+        "health",
+        "max_health",
+        "speed",
+        "quality",
+        "owner_info",
+        "name",
+        "name_timestamp",
+        "declined_names",
+        "save_info",
+    ),
+    "RepresentedBattlePetQueryCompanionLikeCpp": (
+        "creature_id",
+        "name_timestamp",
+        "is_summon",
+        "owner_is_player",
+        "battle_pet_companion_guid",
+    ),
+    "RepresentedBattlePetSlotLikeCpp": ("pet_guid", "collar_id", "index", "locked"),
+}
+
+DTO_IMPLS = (
+    "RepresentedBattlePetSlotLikeCpp",
+    "RepresentedBattlePetDataLikeCpp",
+)
+
+DTO_METHODS = (
+    "locked_empty",
+    "packet_slot_like_cpp",
+    "minimal_like_cpp",
+    "packet_info_like_cpp",
+)
+
+CORE_IMPORTS = """//! Session-owned battle-pet data transfer objects shared with the world shell.
+
+use wow_core::ObjectGuid;
+"""
+
+SHELL_TYPES = tuple(DTO_KINDS)
+
+
+class CodemodError(Exception):
+    """The reviewed source shape or one of its exact item targets changed."""
+
+
+def _item_support(root: Path):
+    return item_tools.lib(root)
+
+
+def _named_item_matches(source: str, lexer, name: str):
+    code = lexer.blank_noncode(source)
+    pattern = re.compile(item_tools.ITEM_HEAD + re.escape(name) + r"\b")
+    return list(pattern.finditer(code))
+
+
+def _exact_statement_count(source: str, lexer, statement: str) -> int:
+    code = lexer.blank_noncode(source)
+    pattern = re.compile(r"(?m)^[ \t]*" + re.escape(statement) + r"[ \t]*$")
+    return len(pattern.findall(code))
+
+
+def _exact_code_block_count(source: str, lexer, block: str) -> int:
+    code = lexer.blank_noncode(source)
+    block_code = lexer.blank_noncode(block)
+    count = 0
+    start = 0
+    while True:
+        start = source.find(block, start)
+        if start < 0:
+            return count
+        end = start + len(block)
+        # Lexical blanking hides string contents, so also compare the raw block
+        # to keep literal-bearing imports exact.
+        if code[start:end] == block_code:
+            count += 1
+        start += 1
+
+
+def _selected_spans(source: str, lexer):
+    code = lexer.blank_noncode(source)
+    spans: list[tuple[int, int, str]] = []
+    for name, kind in DTO_KINDS.items():
+        matches = _named_item_matches(source, lexer, name)
+        if len(matches) != 1:
+            raise CodemodError(f"expected one DTO declaration for {name}, found {len(matches)}")
+        span = item_tools.item_span(lexer, source, code, name)
+        if span is None:
+            raise CodemodError(f"missing DTO item: {name}")
+        start, end = span
+        header = re.search(
+            rf"(?m)^\s*pub\(crate\)\s+{kind}\s+{re.escape(name)}\b",
+            source[start:end],
+        )
+        if header is None:
+            raise CodemodError(f"unexpected declaration for {name}")
+        spans.append((start, end, name))
+
+    impls = item_tools.impl_blocks(lexer, code)
+    for name in DTO_IMPLS:
+        matches = [(start, end) for start, end, self_type in impls if self_type == name]
+        if len(matches) != 1:
+            raise CodemodError(f"expected one inherent impl for {name}, found {len(matches)}")
+        start, end = matches[0]
+        spans.append((start, end, f"impl {name}"))
+    return sorted(spans)
+
+
+def extract_dto_items(source: str, lexer) -> tuple[str, str]:
+    """Return source with only the seven DTOs/two impls removed and their exact text."""
+    spans = _selected_spans(source, lexer)
+    snippets = [source[start:end] for start, end, _ in spans]
+    remaining = source
+    for start, end, _ in reversed(spans):
+        remaining = remaining[:start] + remaining[end:]
+    return remaining, "\n\n".join(snippets)
+
+
+def _widen_one(source: str, pattern: re.Pattern[str], label: str) -> tuple[str, bool]:
+    matches = list(pattern.finditer(source))
+    if len(matches) != 1:
+        raise CodemodError(f"expected one declaration for {label}, found {len(matches)}")
+    match = matches[0]
+    if match.group("visibility") == "pub":
+        return source, False
+    start, end = match.span("visibility")
+    return source[:start] + "pub" + source[end:], True
+
+
+def widen_moved_items(source: str, lexer) -> tuple[str, list[str]]:
+    """Widen only the seven DTOs, their externally used fields, and four methods."""
+    changed: list[str] = []
+    for name, kind in DTO_KINDS.items():
+        pattern = re.compile(
+            rf"(?m)^(?P<indent>[ \t]*)(?P<visibility>pub(?:\(crate\))?)"
+            rf"(?=\s+{kind}\s+{re.escape(name)}\b)"
+        )
+        source, did_change = _widen_one(source, pattern, f"{kind} {name}")
+        if did_change:
+            changed.append(f"{kind} {name}")
+
+    for type_name, fields in DTO_FIELDS.items():
+        for field in fields:
+            code = lexer.blank_noncode(source)
+            span = item_tools.item_span(lexer, source, code, type_name)
+            if span is None:
+                raise CodemodError(f"missing DTO item while widening {type_name}.{field}")
+            start, end = span
+            item_text = source[start:end]
+            pattern = re.compile(
+                rf"(?m)^(?P<indent>[ \t]*)(?P<visibility>pub(?:\(crate\))?)"
+                rf"(?=\s+{re.escape(field)}\s*:)"
+            )
+            updated, did_change = _widen_one(item_text, pattern, f"{type_name}.{field}")
+            if did_change:
+                source = source[:start] + updated + source[end:]
+                changed.append(f"field {type_name}.{field}")
+
+    for name in DTO_METHODS:
+        pattern = re.compile(
+            rf"(?m)^(?P<indent>[ \t]*)(?P<visibility>pub(?:\(crate\))?)"
+            rf"(?=\s+(?:async\s+)?fn\s+{re.escape(name)}\s*\()"
+        )
+        source, did_change = _widen_one(source, pattern, f"method {name}")
+        if did_change:
+            changed.append(f"method {name}")
+    return source, changed
+
+
+def _build_core_module(original: str, lexer) -> tuple[str, str, list[str]]:
+    remaining, items = extract_dto_items(original, lexer)
+    widened, changed = widen_moved_items(CORE_IMPORTS + "\n" + items + "\n", lexer)
+    return remaining, widened, changed
+
+
+def _update_shell_import(source: str, lexer) -> tuple[str, bool]:
+    old_count = _exact_statement_count(source, lexer, SHELL_IMPORT_OLD)
+    new_count = _exact_code_block_count(source, lexer, SHELL_IMPORT_NEW)
+    if new_count == 1 and old_count == 0:
+        return source, False
+    if new_count != 0 or old_count != 1:
+        raise CodemodError("expected one original battle-pet shell import")
+    return source.replace(SHELL_IMPORT_OLD, SHELL_IMPORT_NEW), True
+
+
+def _update_shell_reexports(source: str) -> tuple[str, list[str]]:
+    changed: list[str] = []
+    for name in SHELL_TYPES:
+        old = f"pub(crate) use battle_pet_adapter::{name};"
+        new = f"pub(crate) use wow_world_core::session::battle_pet_adapter::{name};"
+        if new in source:
+            continue
+        if source.count(old) != 1:
+            raise CodemodError(f"expected one shell reexport for {name}")
+        source = source.replace(old, new)
+        changed.append(name)
+    return source, changed
+
+
+def _already_applied(source: str, core: str, session_mod: str, lexer) -> bool:
+    no_source_dtos = all(not _named_item_matches(source, lexer, name) for name in DTO_KINDS)
+    source_import_updated = (
+        _exact_code_block_count(source, lexer, SHELL_IMPORT_NEW) == 1
+        and _exact_statement_count(source, lexer, SHELL_IMPORT_OLD) == 0
+    )
+    source_code = lexer.blank_noncode(source)
+    no_source_impls = not any(
+        self_type in DTO_IMPLS for _, _, self_type in item_tools.impl_blocks(lexer, source_code)
+    )
+
+    core_has_items = True
+    for name, kind in DTO_KINDS.items():
+        matches = _named_item_matches(core, lexer, name)
+        if len(matches) != 1:
+            core_has_items = False
+            break
+        declaration = matches[0].group(0)
+        if not re.search(rf"\bpub\s+{kind}\s+{re.escape(name)}\b", declaration):
+            core_has_items = False
+            break
+
+    core_code = lexer.blank_noncode(core)
+    core_impls = item_tools.impl_blocks(lexer, core_code)
+    core_has_impls = all(
+        sum(self_type == name for _, _, self_type in core_impls) == 1 for name in DTO_IMPLS
+    )
+    shell_has_reexports = all(
+        _exact_statement_count(
+            session_mod,
+            lexer,
+            f"pub(crate) use wow_world_core::session::battle_pet_adapter::{name};",
+        )
+        == 1
+        and _exact_statement_count(
+            session_mod, lexer, f"pub(crate) use battle_pet_adapter::{name};"
+        )
+        == 0
+        for name in SHELL_TYPES
+    )
+    return (
+        no_source_dtos
+        and no_source_impls
+        and source_import_updated
+        and core_has_items
+        and core_has_impls
+        and shell_has_reexports
+    )
+
+
+def run(action: str, root: Path) -> None:
+    source_path = root / SOURCE
+    core_path = root / CORE
+    session_mod_path = root / SESSION_MOD
+    for path in (source_path, session_mod_path):
+        if not path.is_file():
+            raise CodemodError(f"missing source file: {path}")
+
+    source = source_path.read_text(encoding="utf-8")
+    session_mod = session_mod_path.read_text(encoding="utf-8")
+    lexer = _item_support(root)
+    if core_path.exists():
+        core = core_path.read_text(encoding="utf-8")
+        if not _already_applied(source, core, session_mod, lexer):
+            raise CodemodError(f"partial or unexpected extraction state at {core_path}")
+        print("battle-pet DTO cut: already applied")
+        return
+
+    new_source, new_core, changed = _build_core_module(source, lexer)
+    new_source, import_changed = _update_shell_import(new_source, lexer)
+    new_session_mod, reexports = _update_shell_reexports(session_mod)
+    print("battle-pet DTO cut: move seven DTOs and two inherent impls")
+    print(f"  public declarations: {len(changed)}")
+    print(f"  shell reexports: {len(reexports)}")
+    if action == "apply":
+        core_path.parent.mkdir(parents=True, exist_ok=True)
+        core_path.write_text(new_core, encoding="utf-8")
+        source_path.write_text(new_source, encoding="utf-8")
+        session_mod_path.write_text(new_session_mod, encoding="utf-8")
+        print(f"  shell import updated: {import_changed}")
+
+
+def main() -> int:
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("action", choices=("plan", "apply"))
+    parser.add_argument("--root", type=Path, default=REPO)
+    args = parser.parse_args()
+    try:
+        run(args.action, args.root)
+    except (CodemodError, OSError) as error:
+        print(f"f4_battle_pet_extract: {error}", file=sys.stderr)
+        return 2
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

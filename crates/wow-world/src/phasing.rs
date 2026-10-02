@@ -5,7 +5,7 @@
 
 //! C++ `PhasingHandler` façade slices that are independent of runtime unit graphs.
 
-use std::{collections::HashSet, error::Error, fmt};
+use std::collections::HashSet;
 
 use std::fmt::Write as _;
 
@@ -14,7 +14,9 @@ use wow_core::ObjectGuid;
 use wow_data::{AreaTableStore, PhaseGroupStore, PhaseInfoStore, PhaseStore, TerrainSwapStore};
 use wow_entities::{PhaseShift, Unit, WorldObject};
 use wow_packet::packets::misc::{PhaseShiftChange, PhaseShiftDataPhase};
-use wow_packet::packets::party::{PartyMemberPhase, PartyMemberPhaseStates};
+#[cfg(test)]
+use wow_packet::packets::party::PartyMemberPhase;
+pub use wow_world_core::phasing::{PhaseShiftPacketBuildError, party_member_phase_states_like_cpp};
 
 pub const PHASE_USE_FLAGS_ALWAYS_VISIBLE: u8 = 0x01;
 pub const PHASE_USE_FLAGS_INVERSE: u8 = 0x02;
@@ -34,37 +36,6 @@ impl PhaseVisibilityUpdate {
         }
     }
 }
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PhaseShiftPacketBuildError {
-    PhaseIdOutOfRange(u32),
-    VisibleMapIdOutOfRange(u32),
-    UiMapPhaseIdOutOfRange(u32),
-}
-
-impl fmt::Display for PhaseShiftPacketBuildError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::PhaseIdOutOfRange(id) => {
-                write!(f, "phase id {id} does not fit SMSG_PHASE_SHIFT_CHANGE")
-            }
-            Self::VisibleMapIdOutOfRange(id) => {
-                write!(
-                    f,
-                    "visible map id {id} does not fit SMSG_PHASE_SHIFT_CHANGE"
-                )
-            }
-            Self::UiMapPhaseIdOutOfRange(id) => {
-                write!(
-                    f,
-                    "UI map phase id {id} does not fit SMSG_PHASE_SHIFT_CHANGE"
-                )
-            }
-        }
-    }
-}
-
-impl Error for PhaseShiftPacketBuildError {}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ControlledUnitInfo {
@@ -739,28 +710,6 @@ pub fn phase_shift_change_for_player_like_cpp(
         visible_map_ids,
         preload_map_ids: Vec::new(),
         ui_map_phase_ids,
-    })
-}
-
-/// C++ `PhasingHandler::FillPartyMemberPhase`.
-pub fn party_member_phase_states_like_cpp(
-    phase_shift: &PhaseShift,
-) -> Result<PartyMemberPhaseStates, PhaseShiftPacketBuildError> {
-    let phases = phase_shift
-        .phases_like_cpp()
-        .map(|phase| {
-            Ok(PartyMemberPhase {
-                flags: u32::from(phase.flags().bits()),
-                id: u16::try_from(phase.id())
-                    .map_err(|_| PhaseShiftPacketBuildError::PhaseIdOutOfRange(phase.id()))?,
-            })
-        })
-        .collect::<Result<Vec<_>, _>>()?;
-
-    Ok(PartyMemberPhaseStates {
-        phase_shift_flags: phase_shift.flags_like_cpp().bits(),
-        personal_guid: phase_shift.personal_guid_like_cpp(),
-        phases,
     })
 }
 

@@ -3463,6 +3463,29 @@ dependencies = [
  "wow-session",
  "wow-social",
  "wow-spell-acquisition",
+ "wow-world-core",
+]
+
+[[package]]
+name = "wow-world-core"
+version = "0.1.0"
+dependencies = [
+ "dashmap",
+ "flume",
+ "rand",
+ "tokio",
+ "tracing",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-loot",
+ "wow-map",
+ "wow-movement",
+ "wow-packet",
+ "wow-persistence",
+ "wow-recastdetour",
+ "wow-social",
 ]
 
 [[package]]

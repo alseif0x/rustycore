@@ -22,6 +22,10 @@ pub(super) const WORLD_PACKAGE_ROOT: &str = "crates/wow-world";
 
 pub(super) const WORLD_CRATE_ROOT: &str = "crates/wow-world/src/lib.rs";
 
+pub(super) const WORLD_CORE_PACKAGE_ROOT: &str = "crates/wow-world-core";
+
+pub(super) const WORLD_CORE_CRATE_ROOT: &str = "crates/wow-world-core/src/lib.rs";
+
 pub(super) const SERVER_PACKAGE_ROOT: &str = "crates/world-server";
 
 pub(super) const SERVER_CRATE_ROOT: &str = "crates/world-server/src/lib.rs";
@@ -70,6 +74,10 @@ pub(super) const SOCIAL_GROUP_MODULE: &str = "crate::group";
 /// Issue #138 relocated the opaque connected-session directory here, so direct
 /// registry access remains part of the ownership scan.
 pub(super) const WORLD_SESSION_DIRECTORY_MODULE: &str = "crate::session::directory";
+
+/// The directory owner is mounted at the crate root and may also have an
+/// explicit Session facade mount in destination layouts.
+pub(super) const WORLD_PLAYER_DIRECTORY_MODULE: &str = "crate::player_directory";
 
 pub(super) const SESSION_COMMAND_NAME: &str = "SessionCommand";
 
@@ -254,6 +262,7 @@ pub(super) struct BaselineEnvelope<'a> {
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub(super) enum PackageRole {
     World,
+    WorldCore,
     Server,
     Network,
     Social,
@@ -273,6 +282,7 @@ impl PackageRole {
     pub(super) fn package_name(self) -> &'static str {
         match self {
             Self::World => "wow-world",
+            Self::WorldCore => "wow-world-core",
             Self::Server => "world-server",
             Self::Network => "wow-network",
             Self::Social => "wow-social",

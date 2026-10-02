@@ -5,9 +5,11 @@ use std::collections::BTreeMap;
 use syn::{Attribute, Item, Type, UseTree};
 
 use super::super::{
-    BridgeSide, Symbols, bridge_capable_namespace_import, sides_for_segments, validate_cfg,
+    BridgeSide, Symbols, bridge_capable_namespace_import, is_explicit_core_facade_reexport,
+    is_legacy_map_owner, sides_for_segments, validate_cfg,
 };
-use super::source_graph::IndexedModule;
+use super::combine_cfg;
+use super::source_graph::{IndexedModule, ModuleIndex};
 use crate::ownership::{
     cfg_context_allows_production, cfg_context_allows_test, extend_cfg_context,
 };
@@ -92,7 +94,43 @@ fn cfg_for_binding(parent: &[String], attrs: &[Attribute]) -> Option<Vec<String>
     (production || test).then_some(cfg)
 }
 
-pub(super) fn collect_scope(module: &IndexedModule, errors: &mut Vec<String>) -> ModuleScope {
+fn supplied_core_facade_target(index: &ModuleIndex, cfg: &[String]) -> bool {
+    index.modules.iter().any(|root| {
+        root.package == "wow-world-core"
+            && root.module == "crate"
+            && index.modules.iter().any(|map_manager| {
+                map_manager.package == "wow-world-core"
+                    && map_manager.module == "crate::map_manager"
+                    && combine_cfg(cfg, &root.cfg)
+                        .and_then(|combined| combine_cfg(&combined, &map_manager.cfg))
+                        .is_some()
+            })
+    })
+}
+
+fn is_core_facade_import(
+    module: &IndexedModule,
+    index: &ModuleIndex,
+    item_use: &syn::ItemUse,
+    local: &str,
+    path: &[String],
+    cfg: &[String],
+) -> bool {
+    module.package == "wow-world"
+        && module.module == "crate"
+        && local == "map_manager"
+        && path.len() == 2
+        && path[0] == "wow_world_core"
+        && path[1] == "map_manager"
+        && is_explicit_core_facade_reexport(item_use)
+        && supplied_core_facade_target(index, cfg)
+}
+
+pub(super) fn collect_scope(
+    module: &IndexedModule,
+    index: &ModuleIndex,
+    errors: &mut Vec<String>,
+) -> ModuleScope {
     let mut scope = ModuleScope::default();
     for (name, sides) in Symbols::for_module(&module.package, &module.module).named {
         if let Some(side) = sides.iter().next().copied() {
@@ -111,6 +149,14 @@ pub(super) fn collect_scope(module: &IndexedModule, errors: &mut Vec<String>) ->
                 let mut globs = Vec::new();
                 collect_use_specs(&item_use.tree, &mut Vec::new(), &mut explicit, &mut globs);
                 for (local, path) in explicit {
+                    let core_facade =
+                        is_core_facade_import(module, index, item_use, &local, &path, &cfg);
+                    let hidden_namespace =
+                        if path.first().is_some_and(|root| root == "wow_world_core") {
+                            !core_facade
+                        } else {
+                            !(path.len() == 1 && local == path[0])
+                        };
                     if sides_for_segments(
                         &Symbols::for_module(&module.package, &module.module),
                         &path,
@@ -120,7 +166,7 @@ pub(super) fn collect_scope(module: &IndexedModule, errors: &mut Vec<String>) ->
                         && path.first().is_some_and(|root| {
                             !matches!(root.as_str(), "crate" | "self" | "super")
                         })
-                        && !(path.len() == 1 && local == path[0])
+                        && hidden_namespace
                     {
                         errors.push(format!(
                             "bridge-capable namespace import `{}` as `{local}` hides exact legacy/canonical symbols",
@@ -138,7 +184,10 @@ pub(super) fn collect_scope(module: &IndexedModule, errors: &mut Vec<String>) ->
                 }
                 for path in globs {
                     if path.first().is_some_and(|root| {
-                        matches!(root.as_str(), "wow_map" | "wow_entities" | "wow_world")
+                        matches!(
+                            root.as_str(),
+                            "wow_map" | "wow_entities" | "wow_world" | "wow_world_core"
+                        )
                     }) {
                         errors.push(format!(
                             "bridge-capable glob import `{}` hides exact legacy/canonical symbols",
@@ -152,8 +201,7 @@ pub(super) fn collect_scope(module: &IndexedModule, errors: &mut Vec<String>) ->
                 }
             }
             Item::Type(item_type) => {
-                let binding = if module.package == "wow-world"
-                    && module.module == "crate::map_manager"
+                let binding = if is_legacy_map_owner(&module.package, &module.module)
                     && matches!(
                         item_type.ident.to_string().as_str(),
                         "MapManager" | "WorldCreature" | "SharedMapManager"
@@ -170,8 +218,7 @@ pub(super) fn collect_scope(module: &IndexedModule, errors: &mut Vec<String>) ->
             }
             _ => {
                 if let Some(name) = item_declared_name(item) {
-                    let binding = if module.package == "wow-world"
-                        && module.module == "crate::map_manager"
+                    let binding = if is_legacy_map_owner(&module.package, &module.module)
                         && matches!(
                             name.as_str(),
                             "MapManager" | "WorldCreature" | "SharedMapManager"

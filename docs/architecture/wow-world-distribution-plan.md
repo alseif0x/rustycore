@@ -173,6 +173,16 @@ ejecutar directamente los comandos canónicos, conservando su evidencia y códig
 
 ### F4a P4a — dependencias base de `wow-world-core`
 
+**Ejecución iniciada — 2026-10-02:** rama `1263-f4a-p4a-world-core`, base integrada
+`1f8a7c800` (P3, PR #1264). Extracción local completa: catálogos, map manager legado,
+directorio, buzón independiente del pump, mascotas de cuenta, persistencia de loot,
+políticas y helpers canónicos/phasing con sus consumidores, tests y scanner.
+La campaña de aceptación comenzó a las 11:55:50 UTC; todavía no hay aceptación P4a
+ni publicación de su implementación. La dev-dependency
+elegida es `wow-world-core` con `test-fixtures`, sin una dependencia de wow-world sobre
+sí mismo; su grafo efectivo y la composición sin fixtures se comprobarán en la campaña
+final de la fase. La excepción de visibilidad se documenta en AGENTS.md/develop-rustycore.
+
 - Crear `crates/wow-world-core`, `publish = false`, con las piezas que no nombran
   `WorldSession` ni los grupos hub: `map_manager/**` legado, `session/directory`,
   `session/mailbox/{durable,protocol,session_phase_permit,session_phase_rail}`,
@@ -180,13 +190,19 @@ ejecutar directamente los comandos canónicos, conservando su evidencia y códig
   auxiliares. Estimación heredada: ~16.4k líneas, 53 ficheros completos y 41 cortes.
 - Conservar montajes y rutas lógicas con una fachada deliberada y un `prelude.rs` acotado;
   `wow-world` depende del nuevo crate y reexporta solo las rutas de compatibilidad necesarias.
-- Trasladar los 173 tests estimados a `wow-world-core/unit_tests/`, con rutas espejo.
+- Trasladar los tests a `wow-world-core/unit_tests/`, con rutas espejo. La lista compilada
+  de P3 en `6f0660ab0`, con código Rust conservado en la base integrada `1f8a7c800`,
+  contiene 187 unitarios en las familias seleccionadas: map_manager 139, battle_pet_account
+  24, loot_persistence 5, mailbox 9, permisos de fase 5 y fixtures del directorio 5;
+  además se traslada un doctest del directorio. Sustituye la estimación heredada de 173,
+  sin reclamar ejecución o aceptación de esos tests en el destino P4a.
   Comparar el conjunto combinado de tests de origen y destino, conforme a §10; no exigir
   que `wow-world` conserve por sí solo los 3.950 tests.
 - Definir y propagar `test-fixtures` a `wow-world-core` y `wow-session/test-support`.
-  Verificar con Cargo la estrategia de dev-dependencies en la fase: una dependencia propia
-  `wow-world = { path = ".", features = ["test-fixtures"] }` es una hipótesis, no una decisión
-  comprobada. Si no sirve, ejecutar los tests consumidores con `--features test-fixtures`.
+  La dev-dependency de wow-world hacia wow-world-core activa los helpers trasladados para
+  los tests del consumidor; `wow-world/test-fixtures` propaga la feature explícita al core.
+  Verificar con Cargo el grafo efectivo en la fase, sin depender de la antigua hipótesis
+  de una self dev-dependency ni trasladar ese experimento a producción.
   Comprobar también la composición de producción sin activar fixtures.
 - Ampliar la cobertura del scanner antes de aceptar la extracción. El collector actual
   (`session_ownership/state_3.rs::collect_repository_baseline_with_persistence`) carga

@@ -545,7 +545,7 @@
     },
     "session_command": {
       "coverage_source": {
-        "file": "crates/wow-world/src/session/mailbox/protocol.rs",
+        "file": "crates/wow-world-core/src/session/mailbox/protocol.rs",
         "rust_item": "SessionCommand",
         "parser": "syn::ItemEnum variants",
         "include_cfg": "all",
@@ -669,8 +669,8 @@
           "crates/world-server/src/runtime/delivery.rs",
           "crates/world-server/src/runtime/game_events.rs",
           "crates/wow-world/src/session/mod.rs",
-          "crates/wow-world/src/map_manager.rs",
-          "crates/wow-world/src/handlers/loot.rs"
+          "crates/wow-world-core/src/map_manager/mod.rs",
+          "crates/wow-world/src/handlers/loot/mod.rs"
         ],
         "discovery_rule": "AST function/call names containing canonical+legacy, mirror_, or run_legacy_creature_*_and_deliver_once_like_cpp, plus explicit bridge markers maintained by #188",
         "default_entry": "unclassified_bridge_site"
@@ -681,7 +681,7 @@
           "anchors": [
             "world-server::mirror_loaded_grid_creature_to_legacy_like_cpp"
           ],
-          "direction": "canonical wow-map loaded/spawned creature -> legacy wow-world MapManager",
+          "direction": "canonical wow-map loaded/spawned creature -> legacy wow-world-core MapManager through the retained wow-world facade",
           "owner": "canonical load/spawn path supplies the source; world-server bridge performs the compatibility insertion.",
           "open_retirement_issues": [
             584

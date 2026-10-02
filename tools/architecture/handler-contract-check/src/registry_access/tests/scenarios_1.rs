@@ -165,6 +165,64 @@ fn registry_inventory_resolves_cross_file_alias_reexports() {
 }
 
 #[test]
+fn registry_inventory_tracks_core_player_directory_alias_and_mutation() {
+    let core_directory = ProductionRegistrySource {
+        package: "wow-world-core",
+        module: "crate::player_directory",
+        source_path: "crates/wow-world-core/src/player_directory.rs",
+        inherited_cfg: &[],
+        source: "pub struct PlayerRegistry;",
+    };
+    let consumer = ProductionRegistrySource {
+        package: "world-server",
+        module: "crate::directory_bridge",
+        source_path: "crates/world-server/src/directory_bridge.rs",
+        inherited_cfg: &[],
+        source: r#"
+            use wow_world_core::player_directory::PlayerRegistry as Players;
+
+            fn read(players: &Players) {
+                players.get(&7);
+            }
+
+            fn update(players: &mut wow_world_core::player_directory::PlayerRegistry) {
+                players.get_mut(&8);
+                players.insert(9, value);
+            }
+        "#,
+    };
+
+    let baseline = inventory_registry_accesses(&[core_directory, consumer])
+        .expect("the supplied Core player-directory source resolves by package and path");
+    let consumer_rows: BTreeSet<_> = baseline
+        .accesses
+        .iter()
+        .filter(|record| record.module == "crate::directory_bridge")
+        .map(|record| (record.registry, record.operation, record.symbol.clone()))
+        .collect();
+    for expected in [
+        (
+            RegistryKind::Player,
+            RegistryOperation::ImportAlias,
+            "Players",
+        ),
+        (
+            RegistryKind::Player,
+            RegistryOperation::TypeReference,
+            "players",
+        ),
+        (RegistryKind::Player, RegistryOperation::Get, "get"),
+        (RegistryKind::Player, RegistryOperation::GetMut, "get_mut"),
+        (RegistryKind::Player, RegistryOperation::Insert, "insert"),
+    ] {
+        assert!(
+            consumer_rows.contains(&(expected.0, expected.1, expected.2.to_owned())),
+            "missing Core player-directory provenance {expected:?} from {consumer_rows:#?}"
+        );
+    }
+}
+
+#[test]
 fn registry_inventory_follows_accessors_combinators_and_tuple_bindings() {
     let baseline = inventory(
         r#"
@@ -317,6 +375,34 @@ fn registry_inventory_rejects_relocated_directory_glob() {
         .expect("an unrelated session submodule glob stays allowed");
 }
 
+#[test]
+fn registry_inventory_rejects_core_player_directory_globs() {
+    for import in [
+        "use wow_world_core::*;\n",
+        "use wow_world_core::player_directory::*;\n",
+        "use crate::player_directory::*;\n",
+    ] {
+        let error = inventory(import)
+            .expect_err("a glob over the Core player-directory path must fail closed");
+        assert!(
+            error.contains("can hide a registry alias"),
+            "{import} -> {error}"
+        );
+    }
+
+    for legacy_import in [
+        "use wow_world::session::directory::*;\n",
+        "use crate::session::directory::*;\n",
+    ] {
+        let error = inventory(legacy_import)
+            .expect_err("the legacy player-directory paths remain protected");
+        assert!(
+            error.contains("can hide a registry alias"),
+            "{legacy_import} -> {error}"
+        );
+    }
+}
+
 /// Issue #137 moved the Group owner to `wow_social::group`. The glob guard
 /// must fail closed on the relocated owner exactly as it already does on
 /// `wow_network`, otherwise one `use ...::group::*;` would silently
@@ -451,4 +537,49 @@ fn registry_baseline_rejects_multiplicity_and_noncanonical_rows() {
     let error = compare_registry_access_baseline(&zero, &actual)
         .expect_err("zero-count rows are meaningless");
     assert!(error.contains("zero-count row"), "{error}");
+}
+
+#[test]
+fn registry_baseline_rejects_core_insert_against_clean_player_read() {
+    let core_directory = ProductionRegistrySource {
+        package: "wow-world-core",
+        module: "crate::player_directory",
+        source_path: "crates/wow-world-core/src/player_directory.rs",
+        inherited_cfg: &[],
+        source: "pub struct PlayerRegistry;",
+    };
+    let read = ProductionRegistrySource {
+        package: "world-server",
+        module: "crate::directory_bridge",
+        source_path: "crates/world-server/src/directory_bridge.rs",
+        inherited_cfg: &[],
+        source: r#"
+            use wow_world_core::player_directory::PlayerRegistry as Players;
+            fn inspect(players: &Players) { players.get(&7); }
+        "#,
+    };
+    let expected = inventory_registry_accesses(&[core_directory, read])
+        .expect("Core PlayerRegistry read baseline resolves");
+    let inserted = inventory_registry_accesses(&[
+        core_directory,
+        ProductionRegistrySource {
+            source: r#"
+                use wow_world_core::player_directory::PlayerRegistry as Players;
+                fn inspect(players: &mut Players) { players.insert(7, value); }
+            "#,
+            ..read
+        },
+    ])
+    .expect("Core PlayerRegistry insertion resolves");
+
+    let error = compare_registry_access_baseline(&expected, &inserted)
+        .expect_err("Core insertion must differ from the clean read-only baseline");
+    assert!(
+        error.contains("untracked direct registry access"),
+        "{error}"
+    );
+    assert!(
+        error.contains("obsolete direct registry baseline row"),
+        "{error}"
+    );
 }

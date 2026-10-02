@@ -54974,22 +54974,22 @@
           "count": 1
         },
         {
-          "package": "wow-world",
+          "package": "wow-world-core",
           "module": "crate::player::directory_canonical_queries",
-          "source": "crates/wow-world/src/player/directory_canonical_queries.rs",
+          "source": "crates/wow-world-core/src/player/directory_canonical_queries.rs",
           "enclosing": "module",
           "registry": "PlayerRegistry",
           "operation": "import_alias",
           "symbol": "PlayerRegistry",
           "visibility": "",
           "cfg": [],
-          "fingerprint": "crate::player_directory::PlayerRegistry",
+          "fingerprint": "crate::session::directory::PlayerRegistry",
           "count": 1
         },
         {
-          "package": "wow-world",
+          "package": "wow-world-core",
           "module": "crate::player_directory::group_state",
-          "source": "crates/wow-world/src/lib.rs",
+          "source": "crates/wow-world-core/src/lib.rs",
           "enclosing": "module",
           "registry": "PlayerRegistry",
           "operation": "import_alias",
@@ -58081,6 +58081,19 @@
           "visibility": "pub (crate)",
           "cfg": [],
           "fingerprint": "self . core . player_registry",
+          "count": 1
+        },
+        {
+          "package": "wow-world",
+          "module": "crate::player_directory",
+          "source": "crates/wow-world/src/lib.rs",
+          "enclosing": "module",
+          "registry": "PlayerRegistry",
+          "operation": "import_alias",
+          "symbol": "PlayerRegistry",
+          "visibility": "pub",
+          "cfg": [],
+          "fingerprint": "wow_world_core::session::directory::{PlayerAggroCandidateSnapshot,PlayerControlAddress,PlayerDirectoryIdentityLikeCpp,PlayerDirectoryPlacementLikeCpp,PlayerDirectoryReliableSendOutcome,PlayerDirectorySendError,PlayerGroupPresenceSnapshot,PlayerGroupRewardSnapshot,PlayerInspectSnapshot,PlayerLootContextSnapshot,PlayerLootPresenceSnapshot,PlayerMovementDirectoryUpdate,PlayerNameQuerySnapshotLikeCpp,PlayerPartyMemberSnapshot,PlayerQuestSharingSnapshot,PlayerRegistration,PlayerRegistry,PlayerRuntimeRecipient,PlayerSessionRegistrationLikeCpp,PlayerSocialRecipientSnapshot,PlayerVehicleInteractionSnapshot,PlayerVisibilityCreateSnapshot,PrepareLootMoneyApplicationLikeCpp,PreparedLootMoneyApplicationLikeCpp,SessionPhaseAddressLikeCpp,detached_session_phase_rail_like_cpp}",
           "count": 1
         }
       ]
@@ -63297,9 +63310,9 @@
           "multiplicity": 1
         },
         {
-          "package": "wow-world",
+          "package": "wow-world-core",
           "module": "crate::map_manager::movement::motion_master",
-          "path": "crates/wow-world/src/map_manager/movement/motion_master.rs",
+          "path": "crates/wow-world-core/src/map_manager/movement/motion_master.rs",
           "enclosing": "WorldCreature::new_runtime_motion_master_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -63353,9 +63366,9 @@
           "multiplicity": 1
         },
         {
-          "package": "wow-world",
+          "package": "wow-world-core",
           "module": "crate::map_manager::pending_respawn",
-          "path": "crates/wow-world/src/map_manager/pending_respawn.rs",
+          "path": "crates/wow-world-core/src/map_manager/pending_respawn.rs",
           "enclosing": "fn::world_creature_from_pending_respawn_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -63857,9 +63870,9 @@
           "multiplicity": 1
         },
         {
-          "package": "wow-world",
+          "package": "wow-world-core",
           "module": "crate::map_manager::runtime::creature",
-          "path": "crates/wow-world/src/map_manager/runtime/creature.rs",
+          "path": "crates/wow-world-core/src/map_manager/runtime/creature.rs",
           "enclosing": "WorldCreature::create_data_from_canonical_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -64319,9 +64332,9 @@
           "multiplicity": 1
         },
         {
-          "package": "wow-world",
+          "package": "wow-world-core",
           "module": "crate::map_manager::runtime::creature",
-          "path": "crates/wow-world/src/map_manager/runtime/creature.rs",
+          "path": "crates/wow-world-core/src/map_manager/runtime/creature.rs",
           "enclosing": "WorldCreature::from_canonical",
           "direction_markers": [
             "unresolved_dual_side"
@@ -64480,9 +64493,9 @@
           "multiplicity": 1
         },
         {
-          "package": "wow-world",
+          "package": "wow-world-core",
           "module": "crate::map_manager::runtime::creature",
-          "path": "crates/wow-world/src/map_manager/runtime/creature.rs",
+          "path": "crates/wow-world-core/src/map_manager/runtime/creature.rs",
           "enclosing": "WorldCreature::from_loaded_grid_canonical_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -64515,9 +64528,9 @@
           "multiplicity": 1
         },
         {
-          "package": "wow-world",
+          "package": "wow-world-core",
           "module": "crate::map_manager::runtime::creature",
-          "path": "crates/wow-world/src/map_manager/runtime/creature.rs",
+          "path": "crates/wow-world-core/src/map_manager/runtime/creature.rs",
           "enclosing": "WorldCreature::new",
           "direction_markers": [
             "unresolved_dual_side"
@@ -64690,9 +64703,9 @@
           "multiplicity": 1
         },
         {
-          "package": "wow-world",
+          "package": "wow-world-core",
           "module": "crate::map_manager::runtime::creature",
-          "path": "crates/wow-world/src/map_manager/runtime/creature.rs",
+          "path": "crates/wow-world-core/src/map_manager/runtime/creature.rs",
           "enclosing": "WorldCreature::runtime_default_generator_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -64753,9 +64766,9 @@
           "multiplicity": 1
         },
         {
-          "package": "wow-world",
+          "package": "wow-world-core",
           "module": "crate::map_manager::tests::combat",
-          "path": "crates/wow-world/src/map_manager/mod.rs",
+          "path": "crates/wow-world-core/src/map_manager/mod.rs",
           "enclosing": "fn::create_data_from_canonical_clamps_zero_base_attack_time_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -64853,9 +64866,9 @@
           "multiplicity": 1
         },
         {
-          "package": "wow-world",
+          "package": "wow-world-core",
           "module": "crate::map_manager::tests::combat",
-          "path": "crates/wow-world/src/map_manager/mod.rs",
+          "path": "crates/wow-world-core/src/map_manager/mod.rs",
           "enclosing": "fn::create_data_from_canonical_preserves_nonzero_base_attack_time_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -64953,9 +64966,9 @@
           "multiplicity": 1
         },
         {
-          "package": "wow-world",
+          "package": "wow-world-core",
           "module": "crate::map_manager::tests::misc",
-          "path": "crates/wow-world/src/map_manager/mod.rs",
+          "path": "crates/wow-world-core/src/map_manager/mod.rs",
           "enclosing": "fn::create_data_from_canonical_keeps_base_mana_distinct_from_non_mana_power_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -65074,9 +65087,9 @@
           "multiplicity": 1
         },
         {
-          "package": "wow-world",
+          "package": "wow-world-core",
           "module": "crate::map_manager::tests::persistence",
-          "path": "crates/wow-world/src/map_manager/mod.rs",
+          "path": "crates/wow-world-core/src/map_manager/mod.rs",
           "enclosing": "fn::loaded_grid_canonical_bridge_only_sets_vehicle_create_flag_for_real_vehicle_kit_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"
@@ -65146,9 +65159,9 @@
           "multiplicity": 1
         },
         {
-          "package": "wow-world",
+          "package": "wow-world-core",
           "module": "crate::map_manager::tests::persistence",
-          "path": "crates/wow-world/src/map_manager/mod.rs",
+          "path": "crates/wow-world-core/src/map_manager/mod.rs",
           "enclosing": "fn::loaded_grid_canonical_bridge_preserves_level_and_stats_like_cpp",
           "direction_markers": [
             "unresolved_dual_side"

@@ -1,0 +1,35 @@
+[package]
+name = "wow-world-core"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+# No moved Core fixture currently requires a kernel dependency.
+test-fixtures = []
+
+[dependencies]
+dashmap = { workspace = true }
+flume = { workspace = true }
+rand = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+wow-constants = { workspace = true }
+wow-core = { workspace = true }
+wow-data = { workspace = true }
+wow-packet = { workspace = true }
+wow-entities = { workspace = true }
+wow-loot = { workspace = true }
+wow-map = { workspace = true }
+wow-movement = { workspace = true }
+wow-persistence = { workspace = true }
+wow-social = { workspace = true }
+wow-recastdetour = { workspace = true }
+
+[dev-dependencies]
+wow-recastdetour = { workspace = true, features = ["test-fixtures"] }
+
+[lints]
+workspace = true

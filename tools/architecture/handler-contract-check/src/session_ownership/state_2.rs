@@ -344,6 +344,29 @@ pub(super) fn collect_expression_surfaces(
     collector.visit_item(item);
 }
 
+fn module_is_or_below(module: &str, root: &str) -> bool {
+    module == root
+        || module
+            .strip_prefix(root)
+            .is_some_and(|suffix| suffix.starts_with("::"))
+}
+
+fn collects_session_contract_types(role: PackageRole, module: &str) -> bool {
+    match role {
+        PackageRole::Network => true,
+        PackageRole::World | PackageRole::WorldCore => [
+            WORLD_SESSION_MAILBOX_MODULE,
+            WORLD_LOOT_PERSISTENCE_MODULE,
+            WORLD_PLAYER_DIRECTORY_MODULE,
+            WORLD_SESSION_DIRECTORY_MODULE,
+        ]
+        .into_iter()
+        .any(|root| module_is_or_below(module, root)),
+        PackageRole::Social => module_is_or_below(module, SOCIAL_GROUP_MODULE),
+        PackageRole::Server => false,
+    }
+}
+
 pub(super) fn collect_items(
     role: PackageRole,
     items: &[Item],
@@ -442,16 +465,31 @@ pub(super) fn collect_items(
             ));
         }
 
-        if role == PackageRole::Network
-            || (role == PackageRole::World
-                && (module == WORLD_SESSION_DIRECTORY_MODULE
-                    || module == WORLD_SESSION_MAILBOX_MODULE
-                    || module.starts_with(&format!("{WORLD_SESSION_MAILBOX_MODULE}::"))
-                    || module == WORLD_LOOT_PERSISTENCE_MODULE))
-            || (role == PackageRole::Social
-                && (module == SOCIAL_GROUP_MODULE
-                    || module.starts_with(&format!("{SOCIAL_GROUP_MODULE}::"))))
-        {
+        if role == PackageRole::WorldCore {
+            match item {
+                Item::Struct(item_struct) if item_struct.ident == WORLD_SESSION_NAME => {
+                    builder.errors.push(format!(
+                        "{module} in {} defines a {WORLD_SESSION_NAME} struct; \
+                         its ownership must remain in {}",
+                        role.package_name(),
+                        PackageRole::World.package_name(),
+                    ));
+                }
+                Item::Impl(item_impl)
+                    if type_path_ends_with(&item_impl.self_ty, WORLD_SESSION_NAME) =>
+                {
+                    builder.errors.push(format!(
+                        "{module} in {} defines a {WORLD_SESSION_NAME} impl; \
+                         its ownership must remain in {}",
+                        role.package_name(),
+                        PackageRole::World.package_name(),
+                    ));
+                }
+                _ => {}
+            }
+        }
+
+        if collects_session_contract_types(role, module) {
             collect_contract_type(item, module, &item_cfg, item_availability, builder);
         }
 

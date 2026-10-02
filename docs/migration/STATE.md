@@ -1,5 +1,12 @@
 # RustyCore — Honest Current State (single source of truth)
 
+**Distribución wow-world, P4a en curso — 2026-10-02:** #1263 continúa tras P3
+integrada por #1264 en `1f8a7c800`. La rama `1263-f4a-p4a-world-core` extrae las
+dependencias de Session independientes del hub a `wow-world-core`, con sus consumidores,
+pruebas y cobertura de scanner. Implementación local en curso, sin aceptación P4a ni
+publicación de código de esta fase; no reclama paridad, retirada de runtime legado ni
+cierre de #1263/#584. El plan de distribución mantiene su alcance y aceptación.
+
 **Continuación de distribución wow-world — 2026-10-02:** #1263 conserva el trabajo
 pendiente de #1241 bajo #584. Integración remota contrastada: `ec5d6071` (PR #1262);
 F0–F3 y F4a P1/P2 integradas. P3 tiene aceptación acotada verde en `002ff5e46`

@@ -9,7 +9,7 @@ license.workspace = true
 # Directory fixture helpers for cross-crate tests, and (#1241 F4a-P2) the test-only state and hooks
 # gated `any(test, feature = "test-fixtures")` so code moving to wow-world-core stays visible to
 # dependents' tests. Enabled only through dev-dependencies; never in a production build.
-test-fixtures = ["wow-session/test-support"]
+test-fixtures = ["wow-session/test-support", "wow-world-core/test-fixtures"]
 
 [dependencies]
 tokio = { workspace = true }
@@ -45,10 +45,12 @@ wow-instances = { workspace = true }
 wow-script = { workspace = true }
 wow-social = { workspace = true }
 wow-spell-acquisition = { workspace = true }
+wow-world-core = { workspace = true }
 
 [dev-dependencies]
 wow-progression = { workspace = true, features = ["test-fixtures"] }
 wow-spell-acquisition = { workspace = true, features = ["test-fixtures"] }
+wow-world-core = { workspace = true, features = ["test-fixtures"] }
 wow-session = { workspace = true, features = ["test-support"] }
 # Real Detour navmesh fixtures for the live creature-pathfinding regressions.
 wow-recastdetour = { workspace = true, features = ["test-fixtures"] }
