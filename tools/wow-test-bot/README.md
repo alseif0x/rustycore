@@ -12,6 +12,16 @@ For the current RustyCore login gate, see:
 - `run_rustycore_login_smoke.sh`
 - [Player cast lifecycle scenarios](CAST_LIFECYCLE.md) (`--cast-lifecycle-plan`)
 
+On the independent `forever` branch, use the
+[build-70170 runbook](../../docs/operations/forever-login.md#strict-build-70170-world-authentication-contract).
+The legacy Rust bot's 3.4.3 world wire protocol is not a Forever acceptance tool.
+`forever_bnet_smoke.py` covers modern BNet; the strict Rust
+`forever_world_fixture` example covers isolated authentication/encryption only.
+`client-build-key-probe` is a hash-pinned Windows operator diagnostic, never an
+ordinary CI step or a turnkey client patcher. Its ignored private outputs and
+public certificate input must not be committed. None of these tools establishes
+playable characters or world loading without the corresponding native scenario.
+
 Examples beginning `tools/` run from the repository root; examples beginning
 `./run_rustycore_login_smoke.sh` run from `tools/wow-test-bot`.
 
