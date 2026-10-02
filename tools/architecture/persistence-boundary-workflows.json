@@ -5042,8 +5042,8 @@
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The adapter uses only the exact Character and/or World handles named by this workflow; the existing best-effort creation sequence is not promoted to a cross-database transaction.",
-      "current_order": "Preserve each administration request exactly as implemented: guarded reads and writes retain their source/await order, and character creation remains character row, customizations, World action lookup, then action rows.",
-      "failure_and_unknown_commit": "Preserve Loaded/NotFound/Failed and mutation outcomes exactly; best-effort customization/action writes remain best effort, and syntax adds no unknown-COMMIT guarantee."
+      "current_order": "Construction stores Character and World handles plus the identity cache; it performs no query.",
+      "failure_and_unknown_commit": "Construction is infallible and performs no I/O or transaction."
     },
     {
       "package": "wow-database",
@@ -5057,8 +5057,8 @@
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The adapter uses only the exact Character and/or World handles named by this workflow; the existing best-effort creation sequence is not promoted to a cross-database transaction.",
-      "current_order": "Preserve each administration request exactly as implemented: guarded reads and writes retain their source/await order, and character creation remains character row, customizations, World action lookup, then action rows.",
-      "failure_and_unknown_commit": "Preserve Loaded/NotFound/Failed and mutation outcomes exactly; best-effort customization/action writes remain best effort, and syntax adds no unknown-COMMIT guarantee."
+      "current_order": "Append customization replacement, name/flag update and declined-name deletion to the Character transaction; update the cached name only when its call returns success.",
+      "failure_and_unknown_commit": "The existing transaction error maps to Failed; the cache is unchanged on that branch and no unknown-COMMIT resolution is implied."
     },
     {
       "package": "wow-database",
@@ -5072,8 +5072,8 @@
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The adapter uses only the exact Character and/or World handles named by this workflow; the existing best-effort creation sequence is not promoted to a cross-database transaction.",
-      "current_order": "Preserve each administration request exactly as implemented: guarded reads and writes retain their source/await order, and character creation remains character row, customizations, World action lookup, then action rows.",
-      "failure_and_unknown_commit": "Preserve Loaded/NotFound/Failed and mutation outcomes exactly; best-effort customization/action writes remain best effort, and syntax adds no unknown-COMMIT guarantee."
+      "current_order": "Append the name update and declined-name deletion to the Character transaction; update the cached name only when its call returns success.",
+      "failure_and_unknown_commit": "The existing transaction error maps to Failed; the cache is unchanged on that branch and no unknown-COMMIT resolution is implied."
     },
     {
       "package": "wow-database",
@@ -5088,8 +5088,8 @@
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The adapter uses only the exact Character and/or World handles named by this workflow; the existing best-effort creation sequence is not promoted to a cross-database transaction.",
-      "current_order": "Preserve each administration request exactly as implemented: guarded reads and writes retain their source/await order, and character creation remains character row, customizations, World action lookup, then action rows.",
-      "failure_and_unknown_commit": "Preserve Loaded/NotFound/Failed and mutation outcomes exactly; best-effort customization/action writes remain best effort, and syntax adds no unknown-COMMIT guarantee."
+      "current_order": "Insert the character row, attempt customizations and World action rows best effort, then upsert the identity cache.",
+      "failure_and_unknown_commit": "A failed character insert returns Failed before cache publication; secondary writes remain best effort, with no atomicity or unknown-COMMIT guarantee inferred."
     },
     {
       "package": "wow-database",
@@ -5103,8 +5103,8 @@
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The adapter uses only the exact Character and/or World handles named by this workflow; the existing best-effort creation sequence is not promoted to a cross-database transaction.",
-      "current_order": "Preserve each administration request exactly as implemented: guarded reads and writes retain their source/await order, and character creation remains character row, customizations, World action lookup, then action rows.",
-      "failure_and_unknown_commit": "Preserve Loaded/NotFound/Failed and mutation outcomes exactly; best-effort customization/action writes remain best effort, and syntax adds no unknown-COMMIT guarantee."
+      "current_order": "Attempt the ownership lookup, delete unless a successful empty result returns early, then remove the cache entry only when deletion succeeds.",
+      "failure_and_unknown_commit": "A failed deletion preserves the cache entry; the existing mutation result is retained and no unknown-COMMIT guarantee is inferred."
     },
     {
       "package": "wow-database",
@@ -5118,8 +5118,8 @@
       "target_issues": [],
       "stable_boundary": true,
       "connection_affinity": "The adapter uses only the exact Character and/or World handles named by this workflow; the existing best-effort creation sequence is not promoted to a cross-database transaction.",
-      "current_order": "Preserve each administration request exactly as implemented: guarded reads and writes retain their source/await order, and character creation remains character row, customizations, World action lookup, then action rows.",
-      "failure_and_unknown_commit": "Preserve Loaded/NotFound/Failed and mutation outcomes exactly; best-effort customization/action writes remain best effort, and syntax adds no unknown-COMMIT guarantee."
+      "current_order": "Bind the requested name and query SEL_CHECK_NAME on the Character handle; this read does not update the identity cache.",
+      "failure_and_unknown_commit": "An empty result is NotFound, a nonempty result is Loaded, and a query error is Failed; reads have no COMMIT outcome."
     },
     {
       "package": "wow-database",
@@ -6966,6 +6966,36 @@
       "package": "wow-database",
       "module": "crate::hotfix::skill_catalog_adapter",
       "source": "crates/wow-database/src/hotfix/skill_catalog_adapter.rs",
+      "enclosing": "const TRAIT_CATALOG_LOCALE_TABLES_LIKE_CPP",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free effective skill-catalog Hotfix capability (#523)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Static locale-table, statement and column-count inventory only; it opens no connection or transaction.",
+      "current_order": "Locale table inventory order determines query order; each table is read official then custom with the requested locale bound.",
+      "failure_and_unknown_commit": "The declaration performs no I/O and implies no failure or COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::hotfix::skill_catalog_adapter",
+      "source": "crates/wow-database/src/hotfix/skill_catalog_adapter.rs",
+      "enclosing": "const TRAIT_CATALOG_TABLES_LIKE_CPP",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free effective skill-catalog Hotfix capability (#523)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Static table, statement and column-count inventory only; it opens no connection or transaction.",
+      "current_order": "Trait catalog table inventory order determines query order; each table is read official then custom.",
+      "failure_and_unknown_commit": "The declaration performs no I/O and implies no failure or COMMIT outcome."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::hotfix::skill_catalog_adapter",
+      "source": "crates/wow-database/src/hotfix/skill_catalog_adapter.rs",
       "enclosing": "fn read_integer_checked_like_cpp",
       "logical_databases": [
         "hotfix"
@@ -6976,6 +7006,21 @@
       "connection_affinity": "All staged reads use the adapter's one Hotfix database handle; decoding itself opens no connection or transaction.",
       "current_order": "Try every represented signed and unsigned SQL integer width without fabricating a default.",
       "failure_and_unknown_commit": "A missing or non-integer consumed field fails the complete stage before any batch crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::hotfix::skill_catalog_adapter",
+      "source": "crates/wow-database/src/hotfix/skill_catalog_adapter.rs",
+      "enclosing": "fn trait_catalog_value_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free effective skill-catalog Hotfix capability (#523)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Decoding consumes a row from the adapter's one Hotfix handle and opens no connection or transaction.",
+      "current_order": "Convert one value in null, signed integer, unsigned integer, real, string, then lossy UTF-8 byte order.",
+      "failure_and_unknown_commit": "An unsupported SQL value returns an error to the enclosing loader, which returns Failed without publishing a partial batch."
     },
     {
       "package": "wow-database",
@@ -7041,16 +7086,76 @@
       "package": "wow-database",
       "module": "crate::hotfix::skill_catalog_adapter",
       "source": "crates/wow-database/src/hotfix/skill_catalog_adapter.rs",
-      "enclosing": "impl wow_persistence::SkillCatalogHotfixPersistencePortLikeCpp for MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp::load_skill_relation_hotfix_rows_like_cpp",
+      "enclosing": "impl wow_persistence::SkillCatalogHotfixPersistencePortLikeCpp for MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp::load_skill_line_ability_hotfix_rows_like_cpp",
       "logical_databases": [
         "hotfix"
       ],
       "boundary": "MariaDB adapter for the SQLx-free effective skill-catalog Hotfix capability (#523)",
       "target_issues": [],
       "stable_boundary": true,
-      "connection_affinity": "All four relation reads use one Hotfix handle sequentially and imply no transaction.",
-      "current_order": "Preserve the pre-#523 Rust order: for official and then custom, fully decode SkillLineAbility before SkillRaceClassInfo. C++ table-granular convergence is tracked separately by #524.",
-      "failure_and_unknown_commit": "Any query, missing/non-integer field or invalid ID becomes one Failed outcome; no partial relation batch crosses the port."
+      "connection_affinity": "Both overlay reads use one Hotfix handle sequentially and imply no transaction.",
+      "current_order": "Query and fully decode official SkillLineAbility rows before custom rows in selected-column order.",
+      "failure_and_unknown_commit": "Any query, missing/non-integer field or invalid ID becomes Failed; no partial batch crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::hotfix::skill_catalog_adapter",
+      "source": "crates/wow-database/src/hotfix/skill_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::SkillCatalogHotfixPersistencePortLikeCpp for MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp::load_skill_line_x_trait_tree_hotfix_rows_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free effective skill-catalog Hotfix capability (#523)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Both overlay reads use one Hotfix handle sequentially and imply no transaction.",
+      "current_order": "Query official then custom rows and decode ID, SkillLineID, TraitTreeID and OrderIndex in selected-column order.",
+      "failure_and_unknown_commit": "Any query, missing/non-integer field or invalid ID becomes Failed; no partial batch crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::hotfix::skill_catalog_adapter",
+      "source": "crates/wow-database/src/hotfix/skill_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::SkillCatalogHotfixPersistencePortLikeCpp for MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp::load_skill_race_class_info_hotfix_rows_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free effective skill-catalog Hotfix capability (#523)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "Both overlay reads use one Hotfix handle sequentially and imply no transaction.",
+      "current_order": "Query official then custom rows and decode all eight SkillRaceClassInfo columns in selected-column order.",
+      "failure_and_unknown_commit": "Any query, missing/non-integer field or invalid ID becomes Failed; no partial batch crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::hotfix::skill_catalog_adapter",
+      "source": "crates/wow-database/src/hotfix/skill_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::SkillCatalogHotfixPersistencePortLikeCpp for MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp::load_trait_catalog_hotfix_rows_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free effective skill-catalog Hotfix capability (#523)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "All table reads use one Hotfix handle sequentially and imply no transaction.",
+      "current_order": "Visit catalog tables in declared order; query and fully decode official then custom rows for each table.",
+      "failure_and_unknown_commit": "Query, column-count or value-decoding errors become Failed; no partial table batch crosses the port."
+    },
+    {
+      "package": "wow-database",
+      "module": "crate::hotfix::skill_catalog_adapter",
+      "source": "crates/wow-database/src/hotfix/skill_catalog_adapter.rs",
+      "enclosing": "impl wow_persistence::SkillCatalogHotfixPersistencePortLikeCpp for MariaDbSkillCatalogHotfixPersistenceAdapterLikeCpp::load_trait_catalog_locale_hotfix_rows_like_cpp",
+      "logical_databases": [
+        "hotfix"
+      ],
+      "boundary": "MariaDB adapter for the SQLx-free effective skill-catalog Hotfix capability (#523)",
+      "target_issues": [],
+      "stable_boundary": true,
+      "connection_affinity": "All locale-table reads use one Hotfix handle sequentially and imply no transaction.",
+      "current_order": "Visit locale tables in declared order; query and fully decode official then custom rows with the requested locale bound.",
+      "failure_and_unknown_commit": "Query, column-count or value-decoding errors become Failed; no partial locale batch crosses the port."
     },
     {
       "package": "wow-database",
@@ -9980,16 +10085,17 @@
       "package": "wow-database",
       "module": "crate::player::name_query_adapter",
       "source": "crates/wow-database/src/player/name_query_adapter.rs",
-      "enclosing": "fn statement_like_cpp",
+      "enclosing": "fn build_player_name_query_port_like_cpp",
       "logical_databases": [
-        "characters"
+        "characters",
+        "login"
       ],
       "boundary": "wow-database MariaDB adapter for SQLx-free player-name reads (#487)",
       "target_issues": [],
       "stable_boundary": true,
-      "connection_affinity": "Pure construction of one Character-database prepared statement; it opens no connection or transaction.",
-      "current_order": "Build CHAR_SEL_CHARACTER and bind the requested GUID counter exactly once.",
-      "failure_and_unknown_commit": "No I/O occurs while constructing a statement."
+      "connection_affinity": "Startup projection reads use the configured Character and Login handles sequentially; no cross-database transaction is implied.",
+      "current_order": "Create the shared identity cache and adapter, load both startup projections, then return the cache and typed port.",
+      "failure_and_unknown_commit": "Either startup query failure returns an error before the port is returned; reads have no COMMIT outcome."
     },
     {
       "package": "wow-database",
@@ -10002,24 +10108,25 @@
       "boundary": "wow-database MariaDB adapter for SQLx-free player-name reads (#487)",
       "target_issues": [],
       "stable_boundary": true,
-      "connection_affinity": "Composition supplies exactly one Character database handle before sessions are accepted.",
-      "current_order": "Construction stores the handle only and performs no query.",
+      "connection_affinity": "Stores one Character database handle and the shared process-local identity cache; no Login handle is retained.",
+      "current_order": "Construction stores the handle and cache only and performs no query.",
       "failure_and_unknown_commit": "Construction is infallible and opens no transaction."
     },
     {
       "package": "wow-database",
       "module": "crate::player::name_query_adapter",
       "source": "crates/wow-database/src/player/name_query_adapter.rs",
-      "enclosing": "impl wow_persistence::PlayerNameQueryPersistencePortLikeCpp for MariaDbPlayerNameQueryPersistenceAdapterLikeCpp::load_player_name_like_cpp",
+      "enclosing": "impl MariaDbPlayerNameQueryPersistenceAdapterLikeCpp::load_character_identity_cache_like_cpp",
       "logical_databases": [
-        "characters"
+        "characters",
+        "login"
       ],
       "boundary": "wow-database MariaDB adapter for SQLx-free player-name reads (#487)",
       "target_issues": [],
       "stable_boundary": true,
-      "connection_affinity": "Every lookup uses the adapter's single Character database handle; no cross-database boundary is implied.",
-      "current_order": "Execute one CHAR_SEL_CHARACTER read and decode name, race, class, sex and level in existing column order.",
-      "failure_and_unknown_commit": "Missing rows remain Missing; database errors become Failed without exposing the driver error. Reads have no COMMIT outcome."
+      "connection_affinity": "The startup projection uses one Character and one Login handle sequentially and implies no cross-database transaction.",
+      "current_order": "Read and decode Character identity rows first, then Login account mappings, and replace the shared cache only after both queries succeed.",
+      "failure_and_unknown_commit": "Either query error aborts startup before cache replacement; reads have no COMMIT outcome."
     },
     {
       "package": "wow-database",
@@ -10027,14 +10134,15 @@
       "source": "crates/wow-database/src/player/name_query_adapter.rs",
       "enclosing": "module",
       "logical_databases": [
-        "characters"
+        "characters",
+        "login"
       ],
       "boundary": "wow-database MariaDB adapter for SQLx-free player-name reads (#487)",
       "target_issues": [],
       "stable_boundary": true,
-      "connection_affinity": "The module owns only the transitional Character query adapter.",
-      "current_order": "SQL identity, GUID bind and row projection stay private; request ordering and packet construction remain in wow-world.",
-      "failure_and_unknown_commit": "No SQLx row or database error crosses the typed port."
+      "connection_affinity": "Startup projection reads use Character and Login handles; packet-time queries use only the in-memory identity cache.",
+      "current_order": "Load Character identity rows then Login account mappings and publish the cache before sessions are accepted; packet ordering and construction remain in wow-world.",
+      "failure_and_unknown_commit": "Startup failure prevents port construction; packet-time lookups perform no I/O and no read has a COMMIT outcome."
     },
     {
       "package": "wow-database",
@@ -10047,9 +10155,9 @@
       "boundary": "wow-database MariaDB adapter for SQLx-free player-name reads (#487)",
       "target_issues": [],
       "stable_boundary": true,
-      "connection_affinity": "The adapter stores exactly one Character database handle.",
-      "current_order": "The handle surface implies no runtime order beyond the port method.",
-      "failure_and_unknown_commit": "The handle surface implies no failure or COMMIT outcome."
+      "connection_affinity": "The adapter stores one Character database handle and the shared process-local identity cache.",
+      "current_order": "The stored Character handle and cache imply no runtime order beyond startup loading and cache-backed port reads.",
+      "failure_and_unknown_commit": "The stored state performs no I/O and implies no failure or COMMIT outcome."
     },
     {
       "package": "wow-database",
