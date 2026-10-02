@@ -505,6 +505,29 @@ contract is the transition after the selected ruleset's last-character query.
 Client-input helper adjustments were private diagnostic work, not a shipped
 launcher. This does not establish unattended startup.
 
+Follow-up read-only contrast: both the local 3.4.3 reference
+`a22fd98b554f55156913158a6571bcf9fa0ceb48` (`Server/Session.cpp:620-646`) and
+modern `6ebe044c` (`Shared::GameUtilities::GetLastCharPlayed`) return empty
+success when there is no last character. The local realm reference derives
+`2-1-0` from region 2/battlegroup 1; this is not proof of a Forever district
+mapping. Client builder/parser areas `0x22adfe9`–`0x22ae431` reference
+`Param_ContentSetIDFilter` and `Param_FilterToPreferredLocality`; these names
+alone do not establish the added request's values. The response parser around
+`0x22ae8e0`–`0x22aed19` reads `Param_RealmEntry`, `Param_LastPlayedTime` and
+optional `Param_UtilityInfo`, calling `0x22b23e0` on a decoded entry. No
+fabricated last-character row, guessed subregion rewrite or fallback realm
+response has been installed to force progress. The next investigation needs
+target-build request attributes and the empty-response continuation contract.
+
+At committed candidate `580b26f1`, BNet passed 110/110 again, Python passed
+23/23, and the tree/diff checks were clean. The same release binary (unchanged
+build inputs) was restarted with `RUST_LOG=warn`; extended live V1/V2 smoke
+passed again. The scoped campaign ended at `19:10:42Z`, **368 seconds** after
+its start, including the UI diagnostic adjustments and candidate check.
+This scoped duration does not make the blocked full final gate green or erase
+the earlier 835-second campaign overrun. Subsequent closeout prose is a
+documentation-only delta, not relabeled compiled evidence at a later SHA.
+
 ### Publication validation boundary
 
 At README candidate `a53a88d0`, `validation-v2 final --base origin/3.4.3

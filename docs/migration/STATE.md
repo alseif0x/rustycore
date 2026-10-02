@@ -9,7 +9,9 @@ decoded callback, verified by the integrated read-only metadata tool. After the
 choice, `LastCharPlayedRequest` receives empty success and the client disconnects
 with `WOW51900309`; no realm join, character or world-load success is claimed.
 The dirty candidate based at `a53a88d0` passed 110 BNet / 23 Python tests,
-release build, format/physical checks and extended live V1/V2 smoke. Exact
+release build, format/physical checks and extended live V1/V2 smoke; committed
+candidate `580b26f1` passed the BNet/Python suites and live smoke again. This
+scoped campaign ran 19:04:34–19:10:42 UTC (368 seconds), not a full final pass. Exact
 commands, source anchors and native frame metadata are in the
 [owning runbook](../operations/forever-login.md#build-70170-superdistrict-discovery-contract).
 The full final runner remains blocked by inherited hotspot-ratchet failures in
