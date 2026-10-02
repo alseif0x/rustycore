@@ -12,7 +12,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg" alt="License: GPL-3.0-or-later"></a>
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Rust-1.98.0-orange.svg" alt="Rust 1.98.0"></a>
   <a href="docs/operations/forever-login.md"><img src="https://img.shields.io/badge/client-Forever%201.60.1%20%2870170%29-6f42c1.svg" alt="WoW Forever 1.60.1 build 70170"></a>
-  <img src="https://img.shields.io/badge/milestone-realm%20join%20request-2ea44f.svg" alt="Real-client realm join request reached">
+  <img src="https://img.shields.io/badge/milestone-world%20connection%20preamble-2ea44f.svg" alt="Real-client world connection preamble verified">
   <img src="https://img.shields.io/badge/status-experimental-e09f3e.svg" alt="Experimental; not playable yet">
   <a href="https://discord.gg/mH6ACpGPb2"><img src="https://img.shields.io/badge/Discord-join%20the%20community-5865F2.svg" alt="Join the Discord community"></a>
 </p>
@@ -42,13 +42,13 @@ The first real-client milestone is in: build **70170** completes normal HTTPS
 SRP authentication, Battle.net Authentication V2, account queries and a realm-list
 ticket exchange against RustyCore. It now also displays Forever's **ruleset
 selection screen**, with the PvP option from the configured SuperDistrict.
-In the isolated online-metadata probe, it accepts the configured realm and
-sends **`RealmJoinRequest`** to RustyCore.
+In the isolated online probe, it accepts the configured realm and modern join
+ticket, opens the world connection and exchanges the **V2 connection preamble**.
 No password bypass or synthetic login success.
 
-> **Research preview — not playable yet.** Realm discovery now advances to
-> the modern **realm-join operation**, which is not implemented yet
-> (`BLZ51903015` in the online-metadata probe). The normal fixture stays offline.
+> **Research preview — not playable yet.** Modern **BNet realm join works**;
+> the one-shot world probe deliberately stops before AuthChallenge. World
+> authentication is not implemented for this build. The normal fixture stays offline.
 > Character creation and initial world loading are the next goals, not completed
 > features. The diagnostic launcher setup is not a turnkey client installer.
 
@@ -66,12 +66,14 @@ an isolated Wine environment on a Linux x86_64 host:
 | Offline realm-list serialization | Smoke-tested | V1/V2 test client decodes `1.60.1.70170`; not a realm-selector UI pass |
 | Forever `SuperDistrictList` and ruleset UI | Verified | Real client displays and selects PvP for configured district 1 |
 | Realm discovery after ruleset choice | Verified in isolated probe | Client accepts content 136 / district 1 and requests realm `0x02010001` |
-| Modern realm join / world authentication | Current boundary | V2 join returns not-implemented; no world socket started |
+| Modern BNet realm join | Verified | JSON ticket, build variant and session-key persistence; real client accepts the response |
+| World TCP connection and V2 preamble | Verified in isolated probe | Native client replies to the greeting; probe closes before AuthChallenge |
+| World authentication | Current boundary | Target-build key/crypto/packet contract still unresolved; no authentication bypass |
 | Character selection / creation | Pending | Requires realm discovery and compatible world authentication |
 | Initial world load | Pending | Requires target-build packets and appropriate world/client data |
 
-The current evidence includes **124 BNet tests**, **29 Python tests** (smoke and
-read-only client metadata), and
+The current evidence includes **133 BNet tests**, **362 database tests** (2
+additional integration tests ignored), **36 Python tests**, and
 live V1/V2 positive/negative authentication scenarios. These counts describe the
 recorded scoped checks, not a full-workspace or gameplay-parity certification.
 The [runbook](docs/operations/forever-login.md) records exact revisions, source
@@ -95,13 +97,12 @@ unless explicitly marked otherwise.
 
 ## Roadmap
 
-1. **Implement modern realm join.** Discovery is accepted; add the target's join
-   ticket and session-key handoff with matching admission and persistence checks.
-2. **Connect the world socket.** Verify build admission, authentication, opcode
-   mappings and packet layouts before enabling the inherited world path.
-3. **Reach character creation.** Validate character enumeration, creation and
+1. **Authenticate the world connection.** BNet join and the initial preamble are
+   verified. Resolve the build-auth key, crypto, admission and target packet
+   layouts before enabling the inherited world path.
+2. **Reach character creation.** Validate character enumeration, creation and
    persistence with the real client.
-4. **Load the initial world.** Confirm the required data, initial packet sequence
+3. **Load the initial world.** Confirm the required data, initial packet sequence
    and client loading result.
 
 These are dependency-ordered goals, not release dates or completed compatibility
