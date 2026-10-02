@@ -75,7 +75,7 @@ an isolated Wine environment on a Linux x86_64 host:
 | Realm discovery after ruleset choice | Verified in isolated probe | Client accepts content 136 / district 1 and requests realm `0x02010001` |
 | Modern BNet realm join | Verified | JSON ticket, build variant and session-key persistence; real client accepts the response |
 | World TCP, V2 preamble and AuthSession proof | Verified in isolated probe | Native 70170 digest verified; 40-byte session key persisted; build key kept private |
-| Signed encryption / incoming AES-256-GCM packet | Verified in isolated probe | Native ACK and authenticated encrypted ping; no signature bypass |
+| Signed encryption / AES-256-GCM traffic | Verified in isolated probe | Native ACK, encrypted ping and fresh encrypted-denial UI; no signature bypass or successful WorldSession |
 | Target character-data acquisition | Verified locally | Original client read-only: build-70170 `ChrClasses` / `ChrRaces`, WDC5; not character/gameplay acceptance |
 | WorldSession admission / initial server packet sequence | Current boundary | Requires target-backed successful admission and native packet acceptance |
 | Character selection / creation | Pending | Requires an admitted encrypted WorldSession and target character packets/data |
@@ -88,6 +88,10 @@ live V1/V2 positive/negative authentication scenarios. These counts describe the
 recorded scoped checks, not a full-workspace or gameplay-parity certification.
 The [runbook](docs/operations/forever-login.md) records exact revisions, source
 anchors, failures, timings and the observed client trace.
+The character-data candidate additionally passed **760 data tests**, **4 strict
+fixture tests**, **6 acquisition guards** and **9 negative private-copy cases**;
+the real tables decode through Rust. These are data/admission prerequisites,
+not playable-race selection or character creation.
 
 The full `validation-v2 final` gate is currently blocked by inherited architecture
 hotspot limits in unchanged 3.4.3 code. The passing scoped checks above are not
