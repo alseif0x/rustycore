@@ -49,7 +49,7 @@ use wow_constants::unit::{
 use wow_constants::{
     ClientOpcodes, ConditionSourceType, CreatureFlagsExtra, EnchantmentSlot, InventoryResult,
     InventoryType, ItemBondingType, ItemContext, ItemExtendedCostFlags, ItemFieldFlags, ItemFlags,
-    ItemFlags2, ItemModifier, ItemUpdateState, ItemVendorType, PowerType, Team, TypeId, TypeMask,
+    ItemFlags2, ItemModifier, ItemUpdateState, ItemVendorType, PowerType, TypeId, TypeMask,
     UnitStandStateType,
 };
 use wow_core::guid::HighGuid;
@@ -80,6 +80,7 @@ use wow_entities::{
 };
 use wow_handler::{PacketProcessing, SessionStatus};
 
+use crate::session::hub_support::{player_class_mask, player_team_for_race_cpp};
 use crate::session::registry::PacketHandlerEntry;
 use wow_packet::packets::auth::{
     ConnectTo, ConnectToAddress, ConnectToFailed, ConnectToKey, ConnectToSerial, ResumeComms,
@@ -954,21 +955,6 @@ fn item_is_not_empty_bag_like_cpp(
     contains_items: bool,
 ) -> bool {
     matches!(inventory_type, Some(InventoryType::Bag)) && contains_items
-}
-
-fn player_class_mask(player_class: u8) -> u32 {
-    player_class
-        .checked_sub(1)
-        .and_then(|shift| 1u32.checked_shl(u32::from(shift)))
-        .unwrap_or(0)
-}
-
-fn player_team_for_race_cpp(race: u8) -> Team {
-    match race {
-        // C++ resolves this from ChrRacesEntry::Alliance: 1 = Horde, 0 = Alliance.
-        2 | 5 | 6 | 8 | 9 | 10 | 26 | 27 | 28 | 31 | 35 | 36 | 70 => Team::Horde,
-        _ => Team::Alliance,
-    }
 }
 
 #[cfg(test)]

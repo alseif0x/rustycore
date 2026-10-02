@@ -95,6 +95,7 @@ use wow_entities::{
 };
 use wow_handler::{PacketProcessing, SessionStatus};
 
+use crate::session::hub_support::RepresentedLootPlayerContext;
 use crate::session::registry::PacketHandlerEntry;
 use wow_loot::{
     GeneratedLootItem, LootClaimCommitError, LootClaimError, LootClaimLease, LootClaimPayload,
@@ -158,7 +159,7 @@ use storage_plans::{
 };
 use wow_conditions::{
     QUEST_STATUS_COMPLETE_LIKE_CPP, QUEST_STATUS_FAILED_LIKE_CPP, QUEST_STATUS_INCOMPLETE_LIKE_CPP,
-    QUEST_STATUS_NONE_LIKE_CPP, QUEST_STATUS_REWARDED_LIKE_CPP,
+    QUEST_STATUS_NONE_LIKE_CPP,
 };
 const MAX_NR_LOOT_ITEMS_LIKE_CPP: usize = 18;
 const LOOT_ROLL_TIMEOUT_MS_LIKE_CPP: u32 = 60_000;
@@ -224,41 +225,6 @@ fn master_loot_error_for_inventory_result_like_cpp(result: InventoryResult) -> O
 struct ItemTemplateAddonLootMetadataLikeCpp {
     flags_cu: u32,
     quest_log_item_id: i32,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-struct RepresentedLootPlayerContext {
-    race: u8,
-    class: u8,
-    gender: u8,
-    level: u8,
-    known_spells: Vec<i32>,
-    active_quest_statuses: HashMap<u32, u8>,
-    active_quest_objective_counts: HashMap<u32, Vec<i32>>,
-    rewarded_quests: HashSet<u32>,
-    inventory_item_counts: HashMap<u32, u32>,
-    is_current: bool,
-}
-
-impl RepresentedLootPlayerContext {
-    fn quest_status(&self, quest_id: u32) -> u8 {
-        self.active_quest_statuses
-            .get(&quest_id)
-            .copied()
-            .or_else(|| {
-                self.rewarded_quests
-                    .contains(&quest_id)
-                    .then_some(QUEST_STATUS_REWARDED_LIKE_CPP)
-            })
-            .unwrap_or(QUEST_STATUS_NONE_LIKE_CPP)
-    }
-
-    fn inventory_item_count(&self, item_id: u32) -> u32 {
-        self.inventory_item_counts
-            .get(&item_id)
-            .copied()
-            .unwrap_or(0)
-    }
 }
 
 impl ItemTemplateAddonLootMetadataLikeCpp {

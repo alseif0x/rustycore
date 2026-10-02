@@ -165,6 +165,9 @@ pub(crate) use hub::{
 };
 mod session_core;
 pub(crate) use session_core::SessionCore;
+mod driver_phase;
+pub(crate) use driver_phase::SessionDriverPhaseLikeCpp;
+pub(crate) mod hub_support;
 mod loot;
 pub(crate) use loot::LootState;
 mod catalogs;

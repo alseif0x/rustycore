@@ -38,8 +38,7 @@ pub(crate) struct SessionCore {
     /// it exists so tests assert on the production sequence in
     /// `session::driver` instead of reimplementing it.
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub(in crate::session) driver_phase_trace_like_cpp:
-        Vec<crate::session::driver::phases::SessionDriverPhaseLikeCpp>,
+    pub(in crate::session) driver_phase_trace_like_cpp: Vec<super::SessionDriverPhaseLikeCpp>,
 
     // Shared player registry for broadcasting to nearby sessions
     pub(in crate::session) player_registry: Option<Arc<PlayerRegistry>>,
