@@ -3479,6 +3479,7 @@ dependencies = [
  "wow-core",
  "wow-data",
  "wow-entities",
+ "wow-handler",
  "wow-loot",
  "wow-map",
  "wow-movement",

@@ -88,7 +88,7 @@ pub(crate) use wow_persistence::{
 };""",
         """#[cfg(any(test, feature = "test-fixtures"))]
 pub use wow_persistence::DurableBattlePetAddReceiptLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 pub(crate) use wow_persistence::PersistenceFutureLikeCpp as PersistenceFuture;""",
     ),
 )

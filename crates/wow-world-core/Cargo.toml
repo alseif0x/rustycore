@@ -21,6 +21,7 @@ wow-core = { workspace = true }
 wow-data = { workspace = true }
 wow-packet = { workspace = true }
 wow-entities = { workspace = true }
+wow-handler = { workspace = true }
 wow-loot = { workspace = true }
 wow-map = { workspace = true }
 wow-movement = { workspace = true }

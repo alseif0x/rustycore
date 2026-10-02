@@ -2,8 +2,8 @@
 
 use wow_core::ObjectGuid;
 
-pub const BATTLE_PET_SLOT_COUNT_LIKE_CPP: usize = 3usize;
-pub const DEFAULT_MAX_BATTLE_PETS_PER_SPECIES_LIKE_CPP: u8 = 3u8;
+pub const BATTLE_PET_SLOT_COUNT_LIKE_CPP: usize = 3;
+pub const DEFAULT_MAX_BATTLE_PETS_PER_SPECIES_LIKE_CPP: u8 = 3;
 pub const BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP: u16 = 0x01;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

@@ -30,7 +30,7 @@ use wow_packet::packets::misc::{
 use wow_persistence::BattlePetDeclinedNamesLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use wow_persistence::DurableBattlePetAddReceiptLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 pub(crate) use wow_persistence::PersistenceFutureLikeCpp as PersistenceFuture;
 pub use wow_persistence::{
     BattlePetAccountPersistencePortLikeCpp as BattlePetPersistenceLikeCpp,

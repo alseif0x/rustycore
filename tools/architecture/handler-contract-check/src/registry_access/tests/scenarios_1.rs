@@ -4,6 +4,26 @@
 
 use super::*;
 
+fn core_player_directory() -> ProductionRegistrySource<'static> {
+    ProductionRegistrySource {
+        package: "wow-world-core",
+        module: "crate::player_directory",
+        source_path: "crates/wow-world-core/src/player_directory.rs",
+        inherited_cfg: &[],
+        source: "pub struct PlayerRegistry;",
+    }
+}
+
+fn server_directory_bridge(source: &'static str) -> ProductionRegistrySource<'static> {
+    ProductionRegistrySource {
+        package: "world-server",
+        module: "crate::directory_bridge",
+        source_path: "crates/world-server/src/directory_bridge.rs",
+        inherited_cfg: &[],
+        source,
+    }
+}
+
 #[test]
 fn registry_inventory_tracks_nested_types_aliases_members_methods_clones_and_returns() {
     let baseline = inventory(
@@ -166,31 +186,16 @@ fn registry_inventory_resolves_cross_file_alias_reexports() {
 
 #[test]
 fn registry_inventory_tracks_core_player_directory_alias_and_mutation() {
-    let core_directory = ProductionRegistrySource {
-        package: "wow-world-core",
-        module: "crate::player_directory",
-        source_path: "crates/wow-world-core/src/player_directory.rs",
-        inherited_cfg: &[],
-        source: "pub struct PlayerRegistry;",
-    };
-    let consumer = ProductionRegistrySource {
-        package: "world-server",
-        module: "crate::directory_bridge",
-        source_path: "crates/world-server/src/directory_bridge.rs",
-        inherited_cfg: &[],
-        source: r#"
+    let core_directory = core_player_directory();
+    let consumer = server_directory_bridge(
+        r#"
             use wow_world_core::player_directory::PlayerRegistry as Players;
-
-            fn read(players: &Players) {
-                players.get(&7);
-            }
-
+            fn read(players: &Players) { players.get(&7); }
             fn update(players: &mut wow_world_core::player_directory::PlayerRegistry) {
-                players.get_mut(&8);
-                players.insert(9, value);
+                players.get_mut(&8); players.insert(9, value);
             }
         "#,
-    };
+    );
 
     let baseline = inventory_registry_accesses(&[core_directory, consumer])
         .expect("the supplied Core player-directory source resolves by package and path");
@@ -200,20 +205,13 @@ fn registry_inventory_tracks_core_player_directory_alias_and_mutation() {
         .filter(|record| record.module == "crate::directory_bridge")
         .map(|record| (record.registry, record.operation, record.symbol.clone()))
         .collect();
+    use RegistryOperation::{Get, GetMut, ImportAlias, Insert, TypeReference};
     for expected in [
-        (
-            RegistryKind::Player,
-            RegistryOperation::ImportAlias,
-            "Players",
-        ),
-        (
-            RegistryKind::Player,
-            RegistryOperation::TypeReference,
-            "players",
-        ),
-        (RegistryKind::Player, RegistryOperation::Get, "get"),
-        (RegistryKind::Player, RegistryOperation::GetMut, "get_mut"),
-        (RegistryKind::Player, RegistryOperation::Insert, "insert"),
+        (RegistryKind::Player, ImportAlias, "Players"),
+        (RegistryKind::Player, TypeReference, "players"),
+        (RegistryKind::Player, Get, "get"),
+        (RegistryKind::Player, GetMut, "get_mut"),
+        (RegistryKind::Player, Insert, "insert"),
     ] {
         assert!(
             consumer_rows.contains(&(expected.0, expected.1, expected.2.to_owned())),
@@ -541,34 +539,17 @@ fn registry_baseline_rejects_multiplicity_and_noncanonical_rows() {
 
 #[test]
 fn registry_baseline_rejects_core_insert_against_clean_player_read() {
-    let core_directory = ProductionRegistrySource {
-        package: "wow-world-core",
-        module: "crate::player_directory",
-        source_path: "crates/wow-world-core/src/player_directory.rs",
-        inherited_cfg: &[],
-        source: "pub struct PlayerRegistry;",
-    };
-    let read = ProductionRegistrySource {
-        package: "world-server",
-        module: "crate::directory_bridge",
-        source_path: "crates/world-server/src/directory_bridge.rs",
-        inherited_cfg: &[],
-        source: r#"
-            use wow_world_core::player_directory::PlayerRegistry as Players;
-            fn inspect(players: &Players) { players.get(&7); }
-        "#,
-    };
+    let core_directory = core_player_directory();
+    let read = server_directory_bridge(
+        "use wow_world_core::player_directory::PlayerRegistry as Players; fn inspect(players: &Players) { players.get(&7); }",
+    );
     let expected = inventory_registry_accesses(&[core_directory, read])
         .expect("Core PlayerRegistry read baseline resolves");
     let inserted = inventory_registry_accesses(&[
         core_directory,
-        ProductionRegistrySource {
-            source: r#"
-                use wow_world_core::player_directory::PlayerRegistry as Players;
-                fn inspect(players: &mut Players) { players.insert(7, value); }
-            "#,
-            ..read
-        },
+        server_directory_bridge(
+            "use wow_world_core::player_directory::PlayerRegistry as Players; fn inspect(players: &mut Players) { players.insert(7, value); }",
+        ),
     ])
     .expect("Core PlayerRegistry insertion resolves");
 

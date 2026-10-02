@@ -94,18 +94,45 @@ impl OtherOwnerLikeCpp {
         self.assertEqual(repeated, widened)
         self.assertIn("pub(crate) use wow_persistence::PersistenceFutureLikeCpp", widened)
 
-    def test_receipt_alias_keeps_its_fixture_gate_and_future_alias_private(self):
+    def test_receipt_alias_keeps_feature_gate_and_future_alias_is_test_only(self):
         _, old, new = codemod.ALIAS_BLOCKS[1]
 
         widened, changed = codemod._replace_exact_block(old, "receipt alias", old, new)
 
         self.assertTrue(changed)
-        self.assertIn('#[cfg(any(test, feature = "test-fixtures"))]\npub use ', widened)
+        self.assertEqual(widened, new)
         self.assertIn(
-            '#[cfg(any(test, feature = "test-fixtures"))]\npub(crate) use '
+            '#[cfg(any(test, feature = "test-fixtures"))]\n'
+            "pub use wow_persistence::DurableBattlePetAddReceiptLikeCpp;",
+            widened,
+        )
+        self.assertIn(
+            "#[cfg(test)]\n"
+            'pub(crate) use '
             'wow_persistence::PersistenceFutureLikeCpp as PersistenceFuture;',
             widened,
         )
+        self.assertNotIn(
+            '#[cfg(any(test, feature = "test-fixtures"))]\n'
+            'pub(crate) use wow_persistence::PersistenceFutureLikeCpp as PersistenceFuture;',
+            widened,
+        )
+
+        repeated, changed_again = codemod._replace_exact_block(
+            widened, "receipt alias", old, new
+        )
+        self.assertFalse(changed_again)
+        self.assertEqual(repeated, widened)
+
+        malformed_gate = new.replace(
+            "#[cfg(test)]\npub(crate) use wow_persistence::PersistenceFutureLikeCpp as PersistenceFuture;",
+            '#[cfg(feature = "test-fixtures")]\n'
+            "pub(crate) use wow_persistence::PersistenceFutureLikeCpp as PersistenceFuture;",
+        )
+        with self.assertRaisesRegex(codemod.CodemodError, "one original or widened"):
+            codemod._replace_exact_block(
+                malformed_gate, "receipt alias", old, new
+            )
 
 
 if __name__ == "__main__":

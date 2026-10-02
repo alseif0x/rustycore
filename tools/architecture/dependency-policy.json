@@ -94,6 +94,7 @@
       "wow-core",
       "wow-data",
       "wow-entities",
+      "wow-handler",
       "wow-loot",
       "wow-map",
       "wow-movement",
@@ -132,18 +133,6 @@
     ]
   },
   "exceptions": [
-    {
-      "from": "wow-world-core",
-      "to": "wow-data",
-      "tracking_issue": 584,
-      "reason": "#1263 F4a P4a relocates the existing immutable catalog owners and battle-pet catalog readers from wow-world unchanged. Concrete static-data coupling remains inherited application debt; the move does not retire it."
-    },
-    {
-      "from": "wow-world-core",
-      "to": "wow-packet",
-      "tracking_issue": 584,
-      "reason": "#1263 F4a P4a relocates the existing mailbox DTOs, directory fan-out and battle-pet journal presentation unchanged. Packet consumption remains an application adapter edge, with no new domain owner or protocol behavior."
-    },
     {
       "from": "wow-anticheat",
       "to": "wow-packet",
