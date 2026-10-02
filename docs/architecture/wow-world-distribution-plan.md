@@ -464,8 +464,16 @@ resolver esa diferencia. Es inspección de cuerpos y evidencia versionada, no
 una nueva prueba de paridad. Estas reparaciones todavía necesitan aceptación.
 Los dos comandos de formato terminaron con exit 0; la revisión del delta conserva
 los cuerpos y cfg, con los roots del checker en 58 y 71 líneas. La generación
-del baseline de sintaxis se ejecuta como diagnóstico de reparación y no acredita
-una aceptación final.
+del baseline de sintaxis terminó con exit 0 en 217,528 s (21:49:59–21:53:36 UTC),
+sobre `5a0e68293` con las reparaciones dirty; su checkpoint posterior es `4ac154416`.
+Es diagnóstico de reparación, no aceptación final. La delta revisada conserva los
+84 bridges y los 3.204 items WorldSession; registros 645→648 por traslados/imports,
+inputs 57→58 por el atributo inline del driver ya existente. El nuevo dueño nominal
+registra 36 campos ordenados, 34 impls/127 items y un proveedor Core único para
+`WorldSession.core`. Solo se sustituyó ese subárbol revisado; los baselines de
+persistencia todavía requieren contraste. R1 tras formato mantiene base, ratio y
+slack: S=20.696, G=24.170, tolerancia 22.030,8, exceso 2.139,2, exit 1; el corte
+sigue sin autorización técnica de publicación.
 
 La construcción debe conservar el orden exacto de expresiones, RNG, relojes, canales
 y campos. Extraer primero el literal de `SessionCore` a una inicialización propia;
