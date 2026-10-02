@@ -6,7 +6,7 @@ use super::*;
 
 // ── Reader ───────────────────────────────────────────────────────────
 
-/// Parsed WDC4 file ready for field access.
+/// Parsed WDC4 or bounded regular WDC5 file ready for field access.
 pub struct Wdc4Reader {
     pub(super) header: Wdc4Header,
     pub(super) field_info: Vec<FieldStorageInfo>,
@@ -36,16 +36,21 @@ pub struct Wdc4Reader {
 }
 
 impl Wdc4Reader {
-    /// Open and parse a WDC4 file.
+    /// Open WDC4 or bounded regular WDC5. Full target-schema checks belong to
+    /// the typed table consumer, not a generic header's declared hash alone.
     pub fn open(path: &Path) -> Result<Self> {
         let data =
             std::fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
 
-        ensure!(data.len() >= HEADER_SIZE, "file too small for WDC4 header");
+        ensure!(
+            data.len() >= WDC4_HEADER_SIZE,
+            "file too small for DB2 header"
+        );
 
         let header = parse_header(&data)?;
         debug!(
-            "WDC4: records={}, fields={}, record_size={}, sections={}, table_hash=0x{:08X}",
+            "WDC{}: records={}, fields={}, record_size={}, sections={}, table_hash=0x{:08X}",
+            header.format_version,
             header.record_count,
             header.field_count,
             header.record_size,
@@ -53,11 +58,29 @@ impl Wdc4Reader {
             header.table_hash
         );
 
+        ensure!(
+            header.format_version != 5 || header.flags & 0x01 == 0,
+            "WDC5 sparse files are not supported by the regular reader"
+        );
+
+        let header_size = match header.format_version {
+            4 => WDC4_HEADER_SIZE,
+            5 => WDC5_HEADER_SIZE,
+            version => bail!("unsupported DB2 format version {version}"),
+        };
         let section_count = header.section_count as usize;
-        let field_count = header.total_field_count.max(header.field_count) as usize;
+        let section_bytes = section_count
+            .checked_mul(SECTION_HEADER_SIZE)
+            .context("WDC section header size overflow")?;
+        ensure!(
+            header_size
+                .checked_add(section_bytes)
+                .is_some_and(|end| end <= data.len()),
+            "truncated section headers"
+        );
 
         // Parse section headers
-        let mut offset = HEADER_SIZE;
+        let mut offset = header_size;
         let mut sections = Vec::with_capacity(section_count);
         for _ in 0..section_count {
             ensure!(
@@ -66,6 +89,21 @@ impl Wdc4Reader {
             );
             sections.push(parse_section_header(&data[offset..]));
             offset += SECTION_HEADER_SIZE;
+        }
+
+        if header.format_version == 5 {
+            ensure!(
+                sections.iter().all(|section| section._tact_key_hash == 0),
+                "WDC5 TACT/encrypted sections are not supported"
+            );
+            ensure!(
+                sections
+                    .iter()
+                    .map(|section| u64::from(section.record_count))
+                    .sum::<u64>()
+                    == u64::from(header.record_count),
+                "WDC5 section record counts do not match the header"
+            );
         }
 
         let has_no_records = header.record_count == 0
@@ -90,35 +128,64 @@ impl Wdc4Reader {
             });
         }
 
-        // Parse field meta (unused directly — field_storage_info has all we need)
-        let _field_meta_end = offset + field_count * FIELD_META_SIZE;
-        offset = _field_meta_end;
+        // Parse field meta (unused directly — column metadata has the offsets
+        // and compression data needed by this reader). WDC5 deliberately uses
+        // FieldCount for this 4-byte table and TotalFieldCount for columns;
+        // taking their maximum here would shift the following metadata.
+        let field_meta_count = header.field_count as usize;
+        let field_meta_bytes = field_meta_count
+            .checked_mul(FIELD_META_SIZE)
+            .context("DB2 field metadata size overflow")?;
+        let field_meta_end = offset
+            .checked_add(field_meta_bytes)
+            .context("DB2 field metadata offset overflow")?;
+        ensure!(field_meta_end <= data.len(), "truncated field metadata");
+        offset = field_meta_end;
 
-        // Parse field storage info
-        let fsi_count = header.field_storage_info_size as usize / FIELD_STORAGE_INFO_SIZE;
+        // Parse column metadata. WDC4 historically used one storage record per
+        // max(field_count,total_field_count); WDC5's count is exact and its
+        // byte size must describe complete 24-byte columns.
         ensure!(
-            fsi_count == field_count,
-            "field_storage_info count ({fsi_count}) != field_count ({field_count})"
+            header.field_storage_info_size as usize % FIELD_STORAGE_INFO_SIZE == 0,
+            "DB2 column metadata size is not divisible by 24"
         );
+        let fsi_count = header.field_storage_info_size as usize / FIELD_STORAGE_INFO_SIZE;
+        let expected_fsi_count = if header.format_version == 5 {
+            header.total_field_count as usize
+        } else {
+            header.total_field_count.max(header.field_count) as usize
+        };
+        ensure!(
+            fsi_count == expected_fsi_count,
+            "column metadata count ({fsi_count}) != expected field count ({expected_fsi_count})"
+        );
+        let storage_end = offset
+            .checked_add(header.field_storage_info_size as usize)
+            .context("DB2 column metadata offset overflow")?;
+        ensure!(storage_end <= data.len(), "truncated column metadata");
         let mut field_info = Vec::with_capacity(fsi_count);
         for _ in 0..fsi_count {
             ensure!(
                 offset + FIELD_STORAGE_INFO_SIZE <= data.len(),
-                "truncated field_storage_info"
+                "truncated column metadata"
             );
             field_info.push(parse_field_storage_info(&data[offset..])?);
             offset += FIELD_STORAGE_INFO_SIZE;
         }
 
         // Parse pallet data
-        let pallet_end = offset + header.pallet_data_size as usize;
+        let pallet_end = offset
+            .checked_add(header.pallet_data_size as usize)
+            .context("DB2 pallet data offset overflow")?;
         ensure!(pallet_end <= data.len(), "truncated pallet data");
         let pallet_raw = &data[offset..pallet_end];
         let pallet_data = split_pallet_data(pallet_raw, &field_info);
         offset = pallet_end;
 
         // Parse common data
-        let common_end = offset + header.common_data_size as usize;
+        let common_end = offset
+            .checked_add(header.common_data_size as usize)
+            .context("DB2 common data offset overflow")?;
         ensure!(common_end <= data.len(), "truncated common data");
         let common_raw = &data[offset..common_end];
         let common_data = split_common_data(common_raw, &field_info);
@@ -138,6 +205,10 @@ impl Wdc4Reader {
         let mut string_tables: Vec<Vec<u8>> = Vec::new();
         let mut record_string_table_indices: Vec<Option<usize>> = Vec::new();
 
+        if header.format_version == 5 && header.record_count > 0 {
+            ensure!(header.record_size > 0, "WDC5 records have zero record size");
+        }
+
         for (si, sec) in sections.iter().enumerate() {
             if sec.record_count == 0 && sec.copy_table_count == 0 {
                 continue;
@@ -155,9 +226,15 @@ impl Wdc4Reader {
                     rec_end <= data.len(),
                     "section {si} record data truncated (offset_map)"
                 );
+                ensure!(
+                    sec_offset <= rec_end,
+                    "section {si} offset-map range reversed"
+                );
                 record_data.extend_from_slice(&data[sec_offset..rec_end]);
                 if sec.string_table_size > 0 {
-                    let string_end = rec_end + sec.string_table_size as usize;
+                    let string_end = rec_end
+                        .checked_add(sec.string_table_size as usize)
+                        .context("section string table offset overflow")?;
                     ensure!(
                         string_end <= data.len(),
                         "section {si} string table truncated (offset_map)"
@@ -168,11 +245,21 @@ impl Wdc4Reader {
                 rec_end
             } else {
                 // Fixed-size records
-                let rec_bytes = sec.record_count as usize * record_size;
-                let rec_end = sec_offset + rec_bytes;
+                let rec_bytes = (sec.record_count as usize)
+                    .checked_mul(record_size)
+                    .context("section record data size overflow")?;
+                let rec_end = sec_offset
+                    .checked_add(rec_bytes)
+                    .context("section record data offset overflow")?;
+                ensure!(
+                    sec_offset <= data.len(),
+                    "section {si} record offset out of bounds"
+                );
                 ensure!(rec_end <= data.len(), "section {si} record data truncated");
                 record_data.extend_from_slice(&data[sec_offset..rec_end]);
-                let string_end = rec_end + sec.string_table_size as usize;
+                let string_end = rec_end
+                    .checked_add(sec.string_table_size as usize)
+                    .context("section string table offset overflow")?;
                 ensure!(
                     string_end <= data.len(),
                     "section {si} string table truncated"
@@ -185,7 +272,15 @@ impl Wdc4Reader {
             };
 
             // ID list
-            let id_list_end = after_records + sec.id_list_size as usize;
+            let id_list_end = after_records
+                .checked_add(sec.id_list_size as usize)
+                .context("section id list offset overflow")?;
+            if header.format_version == 5 && has_id_list {
+                ensure!(
+                    u64::from(sec.id_list_size) == u64::from(sec.record_count) * 4,
+                    "WDC5 external id list must contain exactly one id per record"
+                );
+            }
             if has_id_list && sec.id_list_size > 0 {
                 ensure!(id_list_end <= data.len(), "section {si} id_list truncated");
                 let id_count = sec.id_list_size as usize / 4;
@@ -214,8 +309,12 @@ impl Wdc4Reader {
 
             // Copy table
             if sec.copy_table_count > 0 {
-                let copy_bytes = sec.copy_table_count as usize * 8;
-                let copy_end = cursor + copy_bytes;
+                let copy_bytes = (sec.copy_table_count as usize)
+                    .checked_mul(8)
+                    .context("section copy table size overflow")?;
+                let copy_end = cursor
+                    .checked_add(copy_bytes)
+                    .context("section copy table offset overflow")?;
                 ensure!(copy_end <= data.len(), "section {si} copy_table truncated");
                 for i in 0..sec.copy_table_count as usize {
                     let co = cursor + i * 8;
@@ -225,7 +324,9 @@ impl Wdc4Reader {
             }
 
             if !has_offset_map && sec._relationship_data_size > 0 {
-                let rel_end = cursor + sec._relationship_data_size as usize;
+                let rel_end = cursor
+                    .checked_add(sec._relationship_data_size as usize)
+                    .context("section relationship data offset overflow")?;
                 ensure!(
                     rel_end <= data.len(),
                     "section {si} relationship_data truncated"
@@ -251,8 +352,12 @@ impl Wdc4Reader {
                 let om_count = sec._offset_map_id_count as usize;
 
                 // Parse offset map entries
-                let om_bytes = om_count * 6;
-                let om_end = cursor + om_bytes;
+                let om_bytes = om_count
+                    .checked_mul(6)
+                    .context("section offset map size overflow")?;
+                let om_end = cursor
+                    .checked_add(om_bytes)
+                    .context("section offset map offset overflow")?;
                 ensure!(om_end <= data.len(), "section {si} offset_map truncated");
 
                 let mut om_entries: Vec<(u32, u16)> = Vec::with_capacity(om_count);
@@ -265,7 +370,9 @@ impl Wdc4Reader {
                 cursor = om_end;
 
                 if sec._relationship_data_size > 0 {
-                    let rel_end = cursor + sec._relationship_data_size as usize;
+                    let rel_end = cursor
+                        .checked_add(sec._relationship_data_size as usize)
+                        .context("section relationship data offset overflow")?;
                     ensure!(
                         rel_end <= data.len(),
                         "section {si} relationship_data truncated"
@@ -279,8 +386,12 @@ impl Wdc4Reader {
                 }
 
                 // Parse offset map ID list
-                let om_id_bytes = om_count * 4;
-                let om_id_end = cursor + om_id_bytes;
+                let om_id_bytes = om_count
+                    .checked_mul(4)
+                    .context("section offset map id-list size overflow")?;
+                let om_id_end = cursor
+                    .checked_add(om_id_bytes)
+                    .context("section offset map id-list offset overflow")?;
                 ensure!(
                     om_id_end <= data.len(),
                     "section {si} offset_map_id_list truncated"
@@ -347,13 +458,35 @@ impl Wdc4Reader {
             );
         }
 
+        if header.format_version == 5
+            && header.record_count > 0
+            && !has_id_list
+            && header.id_index == u16::MAX
+        {
+            bail!("WDC5 regular file has neither an external id list nor an inline id field");
+        }
+
         if !has_id_list && !has_offset_map && header.id_index != u16::MAX {
             let id_field = usize::from(header.id_index);
             ensure!(
                 id_field < field_info.len(),
-                "inline id field {id_field} is outside {} WDC4 fields",
+                "inline id field {id_field} is outside {} DB2 fields",
                 field_info.len()
             );
+            if header.format_version == 5 {
+                let info = &field_info[id_field];
+                let field_end = usize::from(info.field_offset_bits)
+                    .checked_add(usize::from(info.field_size_bits))
+                    .context("WDC5 inline id bit range overflow")?;
+                ensure!(
+                    info.field_size_bits > 0 && info.field_size_bits <= 32,
+                    "WDC5 inline id field must contain 1..=32 bits"
+                );
+                ensure!(
+                    field_end <= record_size.saturating_mul(8),
+                    "WDC5 inline id field exceeds the record bit width"
+                );
+            }
             ensure!(
                 record_ids.len() == record_offsets.len(),
                 "inline id record/offset count mismatch ({} != {})",
@@ -380,7 +513,8 @@ impl Wdc4Reader {
         }
 
         debug!(
-            "WDC4: loaded {} records + {} copies = {} total, {} pallet fields, offset_map={}",
+            "WDC{}: loaded {} records + {} copies = {} total, {} pallet fields, offset_map={}",
+            header.format_version,
             record_ids.len(),
             copy_table.len(),
             record_ids.len() + copy_table.len(),
@@ -609,6 +743,21 @@ impl Wdc4Reader {
         self.field_info.len()
     }
 
+    /// Return the DB2 wire format version (4 for WDC4, 5 for WDC5).
+    pub fn format_version(&self) -> u32 {
+        self.header.format_version
+    }
+
+    /// Return the inline ID column, or `None` when IDs are supplied by a
+    /// section ID table (including the on-disk -1 sentinel).
+    pub fn inline_id_field(&self) -> Option<usize> {
+        if self.header.flags & 0x04 != 0 || self.header.id_index == u16::MAX {
+            None
+        } else {
+            Some(usize::from(self.header.id_index))
+        }
+    }
+
     /// Get the record index for a given record ID.
     pub fn get_record_index(&self, record_id: u32) -> Option<usize> {
         self.id_to_index.get(&record_id).copied()
@@ -661,6 +810,11 @@ impl Wdc4Reader {
     /// Return the table hash from the DB2 header.
     pub fn table_hash(&self) -> u32 {
         self.header.table_hash
+    }
+
+    /// Return the schema/layout hash from the DB2 header.
+    pub fn layout_hash(&self) -> u32 {
+        self.header._layout_hash
     }
 
     /// Iterate over all records including copies: yields (record_id, record_index).

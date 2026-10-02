@@ -14,6 +14,9 @@ pub const AUTH_SESSION: u32 = 0x450001;
 pub const ENTER_ENCRYPTED_MODE: u32 = 0x4D0004;
 pub const ENTER_ENCRYPTED_MODE_ACK: u32 = 0x450005;
 pub const AUTH_RESPONSE: u32 = 0x460001;
+pub const PING: u32 = 0x450006;
+// Native build-70170 descriptor RVA 0xA1AF10, not the older C++ 0x4C0009.
+pub const PONG: u32 = 0x4D0009;
 
 #[cfg(test)]
 mod tests;

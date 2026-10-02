@@ -8,3 +8,4 @@ use super::*;
 
 /// Diagnostic test: probe ItemSparse.db2 field layout to find stat modifier fields.
 mod scenarios;
+mod wdc5;

@@ -995,6 +995,89 @@ costs, including the unintended cold debug-profile compilation. The closing
 runner manifests record their own exact start/end times. Publication does not
 mean a playable realm or authorization to merge into `3.4.3`.
 
+### Build-70170 character-data prerequisite
+
+At **2026-10-02 22:51:27 UTC**, the operator-only
+[`client-data-probe`](../../tools/wow-test-bot/client-data-probe/README.md)
+read two actual files from the installed `wow_classic_beta` build **70170**, using
+the hash-pinned reference's CascLib. The installation was opened read-only;
+no login, account operation, download, imported missing key or zero-filled
+fallback was used. Private outputs are mode 0600, in the ignored fixture only.
+They are not redistributable repository fixtures.
+
+- `ChrClasses`: FDID **1361031**, **6200 bytes**, WDC5/version 5; 9 records,
+  43 fields, table hash `F5889D8C`, layout `AFC9B0C2`; inline ID column 29.
+- `ChrRaces`: FDID **1305311**, **22095 bytes**, WDC5/version 5; 58 records,
+  51 fields, table hash `53F1783C`, layout `4F44C796`; external 232-byte ID list.
+
+Both files have one unencrypted DB2 section and no pallet/common data or parent
+lookup. The target schemas match `02245dcd`'s
+`src/server/game/DataStores/DB2Metadata.h::{ChrClassesMeta,ChrRacesMeta}`.
+`src/common/DataStores/DB2FileLoader.h::DB2Header` has **204 bytes**, including
+version and a 128-byte schema field; `DB2FileLoader::LoadHeaders` checks WDC5,
+version 5 and metadata layout/field compatibility. WDC4's 72-byte header is not
+interchangeable. Existing `character_progression` field offsets remain inherited
+and are **not** used as the target character-availability contract.
+
+The first acquisition selected `enUS` and failed with **CASC error 1007
+(`ERROR_FILE_OFFLINE`)**. The installed client selects `esES`; opening that
+storage locale succeeded. In this pinned `CascOpenFile.cpp`, the file-open locale
+argument is ignored: selection belongs to storage/root opening. This is evidence
+for these files, not a general claim that every missing file is a locale mismatch.
+
+Acquired rows/IDs alone do not define playable combinations. The target world
+SQL race/class expansion and race-unlock requirements, actual Character/Auth
+query-holder results and the ordered initialization packets are still required.
+There is no admitted WorldSession, character creation or initial world-load
+acceptance at this boundary. A presence catalog must not advertise every DB2
+race as playable, or silently fill an absent DB result with invented values.
+
+The native `AuthResponse` decoder was independently traced through dispatcher
+RVA `8E11F0` → `7EEFC0` → callback/wrapper `232DCD0`: a u32 result and flags
+(`bit7` success, `bit6` wait). The error body `03 00 00 00 00` is complete;
+the earlier waiting UI does not prove a missing field. Native Pong descriptor
+`A1AF10` gives **`0x4D0009`**, and dispatcher `A1AF50` reads a serial-only u32
+before callback `1F2A970`. These are format/ID findings, **not native acceptance
+of a newly sent Pong or successful AuthResponse**.
+
+The implemented data boundary reuses the binary reader, not the inherited
+typed field offsets. `wow-data::forever_character_ids::ForeverCharacterIds`
+requires WDC5 and exact table/layout/field/ID-source metadata, rejects zero,
+duplicate and unresolved-copy IDs, and owns only immutable presence sets.
+`forever_character_tables` is a read-only production-linked example, not a
+WorldSession integration. Sparse/encrypted WDC5 is rejected. Only the target
+regular header/ID path is claimed; remaining inherited compression, strings and
+relationship accessors have no new whole-WDC5 parity claim.
+
+The remaining complete admission operation is source-backed by `02245dcd`:
+
+- `WorldSocket.cpp::HandleAuthSession` / encrypted ACK adds the admitted session
+  only after credential, permission and encryption transitions.
+- `WorldSession.cpp:1273–1388`, both account query holders, requires real
+  CharacterDB `account_data`, `account_tutorial`, `account_instance_times` and
+  Auth collection, pet/slot, realm-count, appearance/transmog/warband/player-data
+  queries. Zero rows are legitimate for a fresh account; absent tables/failed
+  queries are not equivalent to zero rows.
+- `WorldSession.cpp:1392–1480` joins both holders, loads state, then publishes
+  AuthResponse, timezone, glue status, cache version, available hotfixes, global
+  account-data times, tutorials and BNet connection status in source order.
+  Character counts and battle pets are loaded into their owning session state.
+- `AuthHandler.cpp::SendAuthResponse` and
+  `ObjectMgr.cpp::LoadRaceAndClassExpansionRequirements` / race unlock loading
+  require actual `class_expansion_requirement` and `race_unlock_requirement`.
+  The custom `sql/custom/world/2026_09_27_00_world_forever_baseline_01.sql` and
+  `_02.sql` add availability/unlock rows for 95/96; they are not a complete
+  world database.
+- `CharacterHandler.cpp::EnumCharactersQueryHolder` / enum callback and
+  `CharacterDatabase.cpp:68–87` require expired-ban cleanup, enum/customization
+  queries and availability/unlock state. A truly empty account may return a
+  valid empty enum; that does not authorize inventing creation options.
+
+The fork's extra recent-ally response is commented for **70009**, not exact
+70170 native evidence. It remains a hypothesis until action-specific capture.
+Only the isolated Auth fixture currently exists; the required Character/world/
+hotfix data and real session owner must be integrated before successful admission.
+
 ### Publication validation boundary
 
 At README candidate `a53a88d0`, `validation-v2 final --base origin/3.4.3

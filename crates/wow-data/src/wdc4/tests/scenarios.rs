@@ -51,6 +51,7 @@ fn test_sign_extend() {
 fn get_field_i32_sign_extends_narrow_bitpacked_signed_like_cpp() {
     let reader = Wdc4Reader {
         header: Wdc4Header {
+            format_version: 4,
             record_count: 2,
             field_count: 2,
             record_size: 1,
@@ -65,6 +66,7 @@ fn get_field_i32_sign_extends_narrow_bitpacked_signed_like_cpp() {
             total_field_count: 2,
             _packed_data_offset: 0,
             _lookup_column_count: 0,
+            _parent_lookup_count: 0,
             field_storage_info_size: (2 * FIELD_STORAGE_INFO_SIZE) as u32,
             common_data_size: 0,
             pallet_data_size: 0,
@@ -210,6 +212,7 @@ fn inline_record_ids_key_common_fields_like_cpp() {
         .collect::<Vec<_>>();
     let reader = Wdc4Reader {
         header: Wdc4Header {
+            format_version: 4,
             record_count: 2,
             field_count: 2,
             record_size: 4,
@@ -224,6 +227,7 @@ fn inline_record_ids_key_common_fields_like_cpp() {
             total_field_count: 2,
             _packed_data_offset: 0,
             _lookup_column_count: 0,
+            _parent_lookup_count: 0,
             field_storage_info_size: 0,
             common_data_size: 0,
             pallet_data_size: 0,

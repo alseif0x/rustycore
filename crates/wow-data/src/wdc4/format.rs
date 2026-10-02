@@ -5,8 +5,10 @@
 use super::*;
 
 const WDC4_MAGIC: u32 = 0x3443_4457; // "WDC4" in little-endian
+const WDC5_MAGIC: u32 = 0x3543_4457; // "WDC5" in little-endian
 
-pub(super) const HEADER_SIZE: usize = 72;
+pub(super) const WDC4_HEADER_SIZE: usize = 72;
+pub(super) const WDC5_HEADER_SIZE: usize = 204;
 
 pub(super) const SECTION_HEADER_SIZE: usize = 40;
 
@@ -45,6 +47,7 @@ impl CompressionType {
 
 #[derive(Debug)]
 pub(super) struct Wdc4Header {
+    pub(super) format_version: u32,
     pub(super) record_count: u32,
     pub(super) field_count: u32,
     pub(super) record_size: u32,
@@ -59,6 +62,7 @@ pub(super) struct Wdc4Header {
     pub(super) total_field_count: u32,
     pub(super) _packed_data_offset: u32,
     pub(super) _lookup_column_count: u32,
+    pub(super) _parent_lookup_count: u32,
     pub(super) field_storage_info_size: u32,
     pub(super) common_data_size: u32,
     pub(super) pallet_data_size: u32,
@@ -93,29 +97,76 @@ pub(super) struct FieldStorageInfo {
 }
 
 pub(super) fn parse_header(data: &[u8]) -> Result<Wdc4Header> {
+    ensure!(data.len() >= 4, "file too small for DB2 signature");
     let magic = read_u32_le(data, 0);
-    ensure!(magic == WDC4_MAGIC, "not a WDC4 file (magic=0x{magic:08X})");
-
-    Ok(Wdc4Header {
-        record_count: read_u32_le(data, 4),
-        field_count: read_u32_le(data, 8),
-        record_size: read_u32_le(data, 12),
-        string_table_size: read_u32_le(data, 16),
-        table_hash: read_u32_le(data, 20),
-        _layout_hash: read_u32_le(data, 24),
-        min_id: read_u32_le(data, 28),
-        max_id: read_u32_le(data, 32),
-        _locale: read_u32_le(data, 36),
-        flags: read_u16_le(data, 40),
-        id_index: read_u16_le(data, 42),
-        total_field_count: read_u32_le(data, 44),
-        _packed_data_offset: read_u32_le(data, 48),
-        _lookup_column_count: read_u32_le(data, 52),
-        field_storage_info_size: read_u32_le(data, 56),
-        common_data_size: read_u32_le(data, 60),
-        pallet_data_size: read_u32_le(data, 64),
-        section_count: read_u32_le(data, 68),
-    })
+    match magic {
+        WDC4_MAGIC => {
+            ensure!(
+                data.len() >= WDC4_HEADER_SIZE,
+                "file too small for WDC4 header"
+            );
+            Ok(Wdc4Header {
+                format_version: 4,
+                record_count: read_u32_le(data, 4),
+                field_count: read_u32_le(data, 8),
+                record_size: read_u32_le(data, 12),
+                string_table_size: read_u32_le(data, 16),
+                table_hash: read_u32_le(data, 20),
+                _layout_hash: read_u32_le(data, 24),
+                min_id: read_u32_le(data, 28),
+                max_id: read_u32_le(data, 32),
+                _locale: read_u32_le(data, 36),
+                flags: read_u16_le(data, 40),
+                id_index: read_u16_le(data, 42),
+                total_field_count: read_u32_le(data, 44),
+                _packed_data_offset: read_u32_le(data, 48),
+                _lookup_column_count: read_u32_le(data, 52),
+                _parent_lookup_count: 0,
+                field_storage_info_size: read_u32_le(data, 56),
+                common_data_size: read_u32_le(data, 60),
+                pallet_data_size: read_u32_le(data, 64),
+                section_count: read_u32_le(data, 68),
+            })
+        }
+        WDC5_MAGIC => {
+            ensure!(
+                data.len() >= WDC5_HEADER_SIZE,
+                "file too small for WDC5 header"
+            );
+            let version = read_u32_le(data, 4);
+            ensure!(version == 5, "unsupported WDC5 version {version}");
+            let parent_lookup_count = read_u32_le(data, 184);
+            ensure!(
+                parent_lookup_count <= 1,
+                "unsupported WDC5 parent lookup count {parent_lookup_count}"
+            );
+            Ok(Wdc4Header {
+                format_version: 5,
+                record_count: read_u32_le(data, 136),
+                field_count: read_u32_le(data, 140),
+                record_size: read_u32_le(data, 144),
+                string_table_size: read_u32_le(data, 148),
+                table_hash: read_u32_le(data, 152),
+                _layout_hash: read_u32_le(data, 156),
+                min_id: read_u32_le(data, 160),
+                max_id: read_u32_le(data, 164),
+                _locale: read_u32_le(data, 168),
+                flags: read_u16_le(data, 172),
+                // WDC5 stores IndexField as signed int16; -1 is represented by
+                // the same sentinel used by the WDC4 reader.
+                id_index: read_u16_le(data, 174),
+                total_field_count: read_u32_le(data, 176),
+                _packed_data_offset: read_u32_le(data, 180),
+                _lookup_column_count: 0,
+                _parent_lookup_count: parent_lookup_count,
+                field_storage_info_size: read_u32_le(data, 188),
+                common_data_size: read_u32_le(data, 192),
+                pallet_data_size: read_u32_le(data, 196),
+                section_count: read_u32_le(data, 200),
+            })
+        }
+        _ => bail!("unsupported DB2 signature (magic=0x{magic:08X})"),
+    }
 }
 
 pub(super) fn parse_section_header(data: &[u8]) -> SectionHeader {
