@@ -4,8 +4,9 @@ This is a bounded, local smoke for the WoW Forever client build `1.60.1.70170`.
 It exercises RustyCore's normal Battle.net REST SRPv2 flow and protobuf RPC realm
 list flow against an isolated Auth database. The synthetic smoke alone does not
 prove real-client login. The separate real-client evidence below now proves BNet
-authentication, account/realm-ticket queries and the ruleset-selection UI, but
-not successful realm selection.
+authentication, account/realm-ticket queries, the ruleset-selection UI and
+acceptance of realm discovery in an isolated online-metadata probe. Modern
+realm join remains unimplemented; this is not world authentication.
 Neither procedure starts `world-server` or authenticates a World `AuthSession`.
 
 The procedure is operator-only. It mutates the disposable Auth database and
@@ -610,6 +611,64 @@ Use that option only during a separately authorized isolated online-metadata
 probe; restore the fixture offline afterwards. A discovery success is not a
 World AuthSession or character-selection acceptance.
 
+#### Native-client acceptance and current boundary
+
+The combined acceptance began `2026-10-02T19:44:10Z` on x86_64. Initial
+candidate `d35f4f0f` passed 29/29 Python tests and the hash-gated metadata CLI,
+but Rust compilation found a private-compressor call. The correction keeps
+UtilityInfo compression inside the realm discovery owner rather than exposing
+the generic compressor. Corrected, clean candidate **`d8e728af`** passed:
+
+- `cargo test --locked --release -p bnet-server --bin bnet-server --timings`:
+  **124/124**, 31.40-second compile and 1.47-second tests.
+- `cargo build --locked --release -p bnet-server --bin bnet-server --timings`:
+  **PASS**, 53.00 seconds. Reports are
+  `cargo-timing-20261002T194523134Z-dca5975bb34c7c17.html` and
+  `cargo-timing-20261002T194605486Z-dca5975bb34c7c17.html` under `target/cargo-timings`.
+- Python inputs are byte-identical to tested `d35f4f0f`, verified with
+  `git diff --exit-code d35f4f0f HEAD -- tools/wow-test-bot`; their **29/29**
+  result and metadata CLI are reused, not claimed as rerun at the corrected SHA.
+- Restarted isolated BNet, default V1/V2 smoke **PASS** with offline realm;
+  `--expect-discovery-realm` **PASS** during the temporary online-metadata probe;
+  default smoke **PASS again** after restoration and restart with `RUST_LOG=warn`.
+
+Cargo used one job, this checkout's `target`, and protoc 28.3. `final --base
+origin/3.4.3 --timings` was run at both the initial and corrected candidates.
+The corrected candidate manifest
+`target/validation-v2/manifests/20261002T194849.554172Z-1617047-final.json`
+passed whitespace, Python compile, rustfmt and physical-file checks (2272
+files), then failed only the previously recorded inherited hotspot ratchet,
+before workspace builds/tests. The initial manifest is
+`20261002T194410.868835Z-1613955-final.json`. The six affected source/policy
+paths listed in the publication section remain unchanged against `2df57d6f`.
+This is **not** a green full final gate; the operator's scoped publication
+waiver still applies. No actual world or gameplay acceptance is inferred.
+
+Fresh native trace, corrected release binary:
+
+| UTC | Operation | Observed result |
+| --- | --- | --- |
+| 19:47:45 | Initial LastChar, `70-1-70` | Signed filter **-1**, locality false; empty success followed by ruleset UI |
+| 19:48:20.918 | Selected PvP LastChar, 254 bytes | Filter **136**, locality true; **382-byte successful response** |
+| 19:48:20.971 | **RealmJoinRequest**, 298 bytes | Client supplies full `Param_RealmAddress=33619969` (`0x02010001`) |
+| 19:48:20.971 | Join response | Status **3015 / 0xBC7**, no payload; current V2 adapter has no join implementation |
+| 19:48:21.066 | Client disconnect | UI **BLZ51903015**, not the former empty-discovery WOW51900309 |
+
+The probe changed only fixture realm 1's `flag=2,icon=0` to `flag=0,icon=1`,
+under predicates for its exact build/region/site/port, and restored both
+original values (one affected row each time). `account_last_played_character`
+contained zero rows before and after. RealmBindings stayed explicit and the
+client executable was not changed. The final BNet is warning-only, with the
+realm offline. This temporary advertisement proves response consumption and
+the next RPC request, **not** a playable realm or a running world listener.
+
+Next dependency: implement modern join and World AuthSession together with
+target-backed ticket/build-variant/crypto admission. Complementary fork
+`02245dcd` now supplies relevant `WorldSocket.cpp`, `ClassicOpcodes.cpp`,
+`ClassicClientOpcodes.inc`, `CharacterPackets.cpp` and `CharacterHandler.cpp`
+anchors for further contrast. Its declaration of build 70170 is not by itself
+proof that inherited 70009 packet layouts, our 3.4.3 runtime or world data work.
+
 ### Publication validation boundary
 
 At README candidate `a53a88d0`, `validation-v2 final --base origin/3.4.3
@@ -627,9 +686,11 @@ The routine final gate remains blocked; scoped login tests do not replace it.
 On 2026-10-02 the operator explicitly authorized publishing the experimental
 `1.60.1` branch despite that inherited failure. This is a scoped publication
 waiver, not a passing final result, a baseline adjustment, merge authority, or
-approval to deploy a shared realm. Candidate `580b26f1`'s focused evidence is
-retained for unchanged production/QA inputs; later closeout/publication changes
-are documentation-only. The separate `3.4.3` branch is not modified.
+approval to deploy a shared realm. Candidate `580b26f1`'s focused evidence
+supported initial publication `c33987a2` (whose later closeout changes were
+documentation-only). The newer ruleset-routing implementation has its own
+corrected candidate and acceptance above; it does not reuse the old production
+tests as proof of new code. The separate `3.4.3` branch is not modified.
 
 ### Previous fixture campaign
 
