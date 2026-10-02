@@ -53,6 +53,11 @@ async fn main() -> Result<()> {
     }
 
     let config_report = load_bnet_config(&cli)?;
+    let forever = realm::forever::ForeverCatalog::parse(&wow_config::get_string_default(
+        "Forever.SuperDistricts",
+        "[]",
+    ))
+    .context("Invalid Forever.SuperDistricts configuration")?;
     log_startup_banner_like_cpp(&config_report);
     log_thread_config_like_cpp();
     create_pid_file_from_config_like_cpp()?;
@@ -154,6 +159,7 @@ async fn main() -> Result<()> {
         wrong_pass_ban_time,
         wrong_pass_ban_type,
         wrong_pass_logging,
+        forever,
     ));
 
     // Initialize realm manager

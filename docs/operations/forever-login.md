@@ -4,7 +4,8 @@ This is a bounded, local smoke for the WoW Forever client build `1.60.1.70170`.
 It exercises RustyCore's normal Battle.net REST SRPv2 flow and protobuf RPC realm
 list flow against an isolated Auth database. The synthetic smoke alone does not
 prove real-client login. The separate real-client evidence below now proves BNet
-authentication and account/realm-ticket queries, but not the realm-selector UI.
+authentication, account/realm-ticket queries and the ruleset-selection UI, but
+not successful realm selection.
 Neither procedure starts `world-server` or authenticates a World `AuthSession`.
 
 The procedure is operator-only. It mutates the disposable Auth database and
@@ -420,6 +421,104 @@ The 600-second target was not met. This closeout documentation delta is outside
 that measured interval and does not change compiled inputs. No final runner,
 push, PR or world-server test was performed. The disposable MariaDB and BNet
 listeners remain local; diagnostic logging has been disabled.
+
+### Build-70170 SuperDistrict discovery contract
+
+The next adapter is based on the approved original client hash above, not the
+3.4.3 realm-list layout. `tools/wow-test-bot/forever_client_metadata.py --client
+/path/to/original/WowB.exe` verifies SHA-256 **before** interpreting PE data and
+prints only schema names, types, offsets and RVAs. No executable or extracted
+client bytes are distributed. The reproducible metadata anchors (image base
+`0x140000000`) are:
+
+- `JSONSuperDistrictList` descriptor RVA `0x49bd060`, field `superDistricts`;
+  the type-chain entry pointer stored at `0x49bcf28` points to `0x49bcf50`.
+- `JamJSONSuperDistrictEntry` descriptor RVA `0x49bcf50`: `superDistrictID`
+  is int32 at member offset 0, `holdDownUntilTime` is uint32 at offset 4,
+  `disallowLogin` is bool at offset 8. The offset array uses **u16**, not u32.
+  Type RVAs are respectively `0x48e3420`, `0x48e3530`, `0x48e2ed0`.
+- The locally decoded client callback checks `Param_SuperDistrictList` at
+  RVA `0x22af2cc`, blob Variant case 5 at `0x22af319`, then invokes the Jam
+  decoder at `0x22af377` with descriptor `0x49bd060` and size cap `0x40000`.
+  String getter `0x931120` returns `JSONSuperDistrictList`.
+- Consumer `0x24c6630` walks 12-byte entries and resolves the ID through
+  `0x630cd0` against the client's `AvailableSuperDistrict` data. Unknown IDs
+  are skipped; a valid JSON response does **not** prove a visible selector.
+  It reads bool at `0x24c68a6` and uint32 hold time at `0x24c68b3`.
+
+`realm/forever.rs` owns an immutable, explicitly configured catalog, loaded
+once by `main.rs` into `AppState`. Under `[bnetserver]`, optional configuration is:
+
+```ini
+# Empty by default; no assumption that a 3.4.3 realm ID is a SuperDistrict ID.
+Forever.SuperDistricts = []
+```
+
+Entries require exactly `superDistrictID` (positive int32), `disallowLogin`
+(bool), and `holdDownUntilTime` (uint32). Invalid/duplicate entries fail startup;
+operator input is capped at 16 KiB / 64 entries. The isolated diagnostic fixture
+uses `[{"superDistrictID":1,"disallowLogin":false,"holdDownUntilTime":0}]`
+as an explicit diagnostic choice. The 19:07 UTC client test below establishes
+that this ID is recognized as PvP; no other district mapping is claimed.
+V2 requires authenticated build 70170 and a selected game account from the
+realm ticket. It returns `Param_SuperDistrictList` with little-endian u32
+uncompressed length, zlib, and NUL-terminated
+`JSONSuperDistrictList:{"superDistricts":[...]}`. No mutable realm cache,
+database district rows or world listener are introduced.
+
+`Command_FetchBleepProxiesRequest_v1` separately returns an empty
+`Param_BleepProxyList` / `JSONBleepProxyList:{"proxies":[]}` envelope. Its
+reference is TrinityCore `6ebe044cbb9895b458fcd3244639acadff287809`,
+`Services/GameUtilitiesService.cpp::Shared::GetBleepProxies` and
+`RealmList.proto::BleepProxyList`. This advertises no proxy service.
+
+The extended smoke checks pre-ticket rejection, the exact bounded district
+envelope/schema, and the empty proxy response.
+
+Scoped acceptance started `2026-10-02T19:04:34Z` in the dirty worktree based at
+`a53a88d0`, with the same one-job/target/protoc environment as above. BNet passed
+110/110 (26.98-second compile, 1.37-second tests), Python
+`unittest discover -s tools/wow-test-bot -p 'test_forever_*.py'` passed 23/23,
+the metadata CLI verified the original client, and rustfmt/diff/physical-file
+checks passed (2266 files). Release build passed in 47.93 seconds. After
+restarting only the isolated BNet, the extended V1/V2 live smoke passed with
+district 1, both pre-ticket rejection and post-ticket acceptance, and empty
+BLEEP proxies. No world server or character database was used.
+
+Fresh native-client trace at `19:07:08Z`–`19:08:13Z`:
+
+| Operation | Request bytes | Response / visible outcome |
+| --- | ---: | --- |
+| Normal REST SRP and Authentication V2 | Same flow as above | Successful authentication |
+| Realm-list ticket | 733 | Success, 49 bytes |
+| FetchBleepProxies | 50 | Success, 77 bytes; client polls again every ~5 seconds |
+| Initial LastCharPlayed | 185 | Empty success |
+| SuperDistrictList | 99 | Success, 131 bytes; **ruleset-selection UI displays PvP** |
+| LastCharPlayed after choosing PvP | 254 | Empty success, then client requests disconnect |
+
+The user-visible state advances from the former immediate no-realms failure to
+`Elige tu conjunto de reglas` with a selectable `JcJ` card. Choosing it still
+ends in `WOW51900309`; no `RealmListRequest`, `RealmJoinRequest`, world socket,
+character enumeration/creation or world load was observed. Empty BLEEP is an
+implemented response, not a proven usable proxy service. The next unresolved
+contract is the transition after the selected ruleset's last-character query.
+Client-input helper adjustments were private diagnostic work, not a shipped
+launcher. This does not establish unattended startup.
+
+### Publication validation boundary
+
+At README candidate `a53a88d0`, `validation-v2 final --base origin/3.4.3
+--timings` did **not** pass. Two bootstrap attempts required fetching missing
+locked dependencies. The subsequent runner manifest
+`target/validation-v2/manifests/20261002T185029.358620Z-1594545-final.json`
+passed whitespace, Python compilation, rustfmt and physical-file checks, then
+failed the inherited hotspot ratchet before workspace build/tests. The failing
+areas are Session, Map, character/quest handlers, world-server composition and
+Player. Their source and architecture-policy paths are byte-identical to fork
+base `2df57d6f`, verified with `git diff --exit-code` over `crates/wow-world`,
+`crates/wow-map`, `crates/world-server`, `crates/wow-entities`,
+`tools/architecture`, and `docs/architecture`. No limits were relaxed.
+The routine final gate remains blocked; scoped login tests do not replace it.
 
 ### Previous fixture campaign
 

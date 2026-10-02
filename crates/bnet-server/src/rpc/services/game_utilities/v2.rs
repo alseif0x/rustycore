@@ -29,6 +29,32 @@ pub async fn handle<S: AsyncRead + AsyncWrite + Unpin>(
                 .ok_or_else(|| RpcStatusError::new(status::ERROR_RPC_MALFORMED_REQUEST))?;
             tracing::debug!(command, "GameUtilities V2 command");
             let response = match command {
+                "Command_SuperDistrictListRequest_v1" => {
+                    if session.build != 70170 {
+                        return Err(RpcStatusError::new(status::ERROR_RPC_NOT_IMPLEMENTED).into());
+                    }
+                    // Discovery is admitted only after a game-account ticket.
+                    let account = session.account_info.as_ref().ok_or_else(|| {
+                        RpcStatusError::new(status::ERROR_USER_SERVER_BAD_WOW_ACCOUNT)
+                    })?;
+                    selected_game_account_like_cpp(account, session.selected_game_account_id)?;
+                    let data = session.state().forever_catalog().compressed_list()?;
+                    Some(
+                        ClientResponse {
+                            attribute: vec![make_blob_attribute("Param_SuperDistrictList", &data)],
+                        }
+                        .encode_to_vec(),
+                    )
+                }
+                "Command_FetchBleepProxiesRequest_v1" => {
+                    let data = crate::realm::forever::compressed_empty_bleep_proxies();
+                    Some(
+                        ClientResponse {
+                            attribute: vec![make_blob_attribute("Param_BleepProxyList", &data)],
+                        }
+                        .encode_to_vec(),
+                    )
+                }
                 "Command_RealmListTicketRequest_v1" => realm_list_ticket(session, &request).await?,
                 "Command_LastCharPlayedRequest_v1" => {
                     let attr = find_command_param_like_cpp(&request.attribute, command)

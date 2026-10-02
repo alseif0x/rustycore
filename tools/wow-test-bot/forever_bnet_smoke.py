@@ -379,6 +379,42 @@ def rpc_login_v2(runtime, password):
     finally: rpc.close()
 
 
+def discovery_blob(blob, prefix):
+    """Strict bounded Jam JSON envelope, including its terminating NUL."""
+    if not isinstance(blob, bytes) or not 4 <= len(blob) <= 0x40000:
+        raise ValueError("invalid discovery blob")
+    size = int.from_bytes(blob[:4], "little")
+    if not 1 <= size <= 0x40000: raise ValueError("invalid discovery size")
+    try:
+        decoder = zlib.decompressobj()
+        value = decoder.decompress(blob[4:], size + 1)
+        if (decoder.unconsumed_tail or decoder.unused_data or not decoder.eof or
+                len(value) != size or not value.startswith(prefix) or not value.endswith(b"\0")):
+            raise ValueError("invalid discovery envelope")
+        return json.loads(value[len(prefix):-1])
+    except (zlib.error, UnicodeDecodeError, json.JSONDecodeError) as error:
+        raise ValueError("invalid discovery JSON") from error
+
+
+def super_district_metadata(blob):
+    value = discovery_blob(blob, b"JSONSuperDistrictList:")
+    if not isinstance(value, dict) or set(value) != {"superDistricts"}:
+        raise ValueError("invalid district catalog")
+    districts = value["superDistricts"]
+    if not isinstance(districts, list) or len(districts) > 64:
+        raise ValueError("invalid district count")
+    ids = set()
+    for row in districts:
+        if not isinstance(row, dict) or set(row) != {"superDistrictID", "disallowLogin", "holdDownUntilTime"}:
+            raise ValueError("invalid district fields")
+        identity, held, until = row["superDistrictID"], row["disallowLogin"], row["holdDownUntilTime"]
+        if (type(identity) is not int or not 1 <= identity <= 0x7FFFFFFF or identity in ids or
+                type(held) is not bool or type(until) is not int or not 0 <= until <= 0xFFFFFFFF):
+            raise ValueError("invalid district values")
+        ids.add(identity)
+    return districts
+
+
 def rpc_post_login_v2(rpc):
     handle = raw(1, var(1, 1) + var(2, 0x576F57) + var(3, 2))
     for method, request in ((101, b""), (104, b""), (201, handle), (203, handle)):
@@ -404,6 +440,10 @@ def rpc_post_login_v2(rpc):
     command = b"Command_RealmListRequest_v1_classic"
     status, body = rpc.send(GAME_V2, 2, raw(1, command))
     if status or not body: raise ValueError("V2 subregion list failed")
+    district_request = client_request([
+        attribute("Command_SuperDistrictListRequest_v1_classic", "2-1-0", True, v2=True)])
+    status, _ = rpc.send(GAME_V2, 1, district_request)
+    if status != 0x800000D3: raise ValueError("district discovery admitted before account selection")
     identity = b'JSONRealmListTicketIdentity:{"gameAccountID":1}'
     info = b"JSONRealmListTicketClientInformation:" + json.dumps(
         {"info": {"secret": list(secrets.token_bytes(32))}}, separators=(",", ":")).encode()
@@ -412,12 +452,21 @@ def rpc_post_login_v2(rpc):
         attribute("Param_Identity", identity, v2=True), attribute("Param_ClientInfo", info, v2=True)]))
     if status or response_attributes(body, v2=True).get("Param_RealmListTicket") != b"AuthRealmListTicket\0":
         raise ValueError("V2 realm ticket failed")
+    status, body = rpc.send(GAME_V2, 1, district_request)
+    if status: raise ValueError("V2 district discovery failed")
+    districts = super_district_metadata(response_attributes(body, v2=True).get("Param_SuperDistrictList"))
+    status, body = rpc.send(GAME_V2, 1, client_request([
+        attribute("Command_FetchBleepProxiesRequest_v1_classic", "", True, v2=True)]))
+    if status: raise ValueError("V2 BLEEP discovery failed")
+    proxies = discovery_blob(response_attributes(body, v2=True).get("Param_BleepProxyList"), b"JSONBleepProxyList:")
+    if proxies != {"proxies": []}: raise ValueError("unexpected fixture proxy")
     status, body = rpc.send(GAME_V2, 1, client_request([
         attribute(command.decode(), "2-1-0", True, v2=True)]))
     if status: raise ValueError("V2 realm list failed")
     realm = realm_metadata(response_attributes(body, v2=True)["Param_RealmList"])
     return {"account_services": True, "negative_admission": True,
-            "subregions": True, "realm_list_ticket": True, "realm": realm}
+            "subregions": True, "realm_list_ticket": True, "realm": realm,
+            "super_districts": districts, "empty_bleep_proxies": True}
 
 
 def main():

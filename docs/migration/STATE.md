@@ -1,5 +1,21 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## Latest Forever branch boundary — 2026-10-02 19:08 UTC
+
+On `1.60.1`, the real build-70170 client now reaches **ruleset selection** and
+displays/selects the PvP (`JcJ`) card for explicitly configured SuperDistrict 1.
+The new response schema is grounded in the approved client's PE metadata and
+decoded callback, verified by the integrated read-only metadata tool. After the
+choice, `LastCharPlayedRequest` receives empty success and the client disconnects
+with `WOW51900309`; no realm join, character or world-load success is claimed.
+The dirty candidate based at `a53a88d0` passed 110 BNet / 23 Python tests,
+release build, format/physical checks and extended live V1/V2 smoke. Exact
+commands, source anchors and native frame metadata are in the
+[owning runbook](../operations/forever-login.md#build-70170-superdistrict-discovery-contract).
+The full final runner remains blocked by inherited hotspot-ratchet failures in
+unchanged 3.4.3 paths; no baseline limits have been relaxed and no push has been
+performed. These are branch-only additions, not new 3.4.3 parity claims.
+
 ## Branch-specific WoW Forever 1.60.1 login evidence — 2026-10-02
 
 This is a branch-only evidence entry for `1.60.1`, based at `2df57d6f` on the

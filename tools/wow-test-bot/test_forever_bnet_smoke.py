@@ -154,6 +154,33 @@ class ForeverBnetWireTests(unittest.TestCase):
 
 
 class ForeverBnetShapeTests(unittest.TestCase):
+    def test_super_district_schema_and_jam_envelope(self):
+        def blob(value, prefix=b"JSONSuperDistrictList:", nul=b"\0"):
+            data = prefix + json.dumps(value).encode() + nul
+            return len(data).to_bytes(4, "little") + zlib.compress(data)
+        row = {"superDistrictID": 1, "disallowLogin": False, "holdDownUntilTime": 0}
+        self.assertEqual(smoke.super_district_metadata(blob({"superDistricts": [row]})), [row])
+        self.assertEqual(smoke.super_district_metadata(blob({"superDistricts": []})), [])
+        for value in ([], {}, {"superDistricts": {}}, {"superDistricts": [row, row]},
+                      {"superDistricts": [{**row, "superDistrictID": True}]},
+                      {"superDistricts": [{**row, "superDistrictID": 0}]},
+                      {"superDistricts": [{**row, "holdDownUntilTime": -1}]},
+                      {"superDistricts": [{**row, "disallowLogin": 0}]}):
+            with self.subTest(value=value), self.assertRaises(ValueError):
+                smoke.super_district_metadata(blob(value))
+        valid = blob({"superDistricts": [row]})
+        for invalid in (None, b"", valid + b"extra", valid[:-1],
+                        (0x40001).to_bytes(4, "little") + valid[4:],
+                        blob({"superDistricts": [row]}, nul=b""),
+                        blob({"superDistricts": [row]}, prefix=b"JSONRealmListUpdates:")):
+            with self.subTest(value=invalid), self.assertRaises(ValueError):
+                smoke.super_district_metadata(invalid)
+
+    def test_empty_bleep_proxy_envelope(self):
+        value = b'JSONBleepProxyList:{"proxies":[]}\0'
+        blob = len(value).to_bytes(4, "little") + zlib.compress(value)
+        self.assertEqual(smoke.discovery_blob(blob, b"JSONBleepProxyList:"), {"proxies": []})
+
     def test_tls_identity_is_localhost_and_loopback(self):
         self.assertEqual((smoke.HOST, smoke.SERVER_NAME), ("127.0.0.1", "localhost"))
 
