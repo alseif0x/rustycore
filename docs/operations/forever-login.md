@@ -542,6 +542,12 @@ base `2df57d6f`, verified with `git diff --exit-code` over `crates/wow-world`,
 `crates/wow-map`, `crates/world-server`, `crates/wow-entities`,
 `tools/architecture`, and `docs/architecture`. No limits were relaxed.
 The routine final gate remains blocked; scoped login tests do not replace it.
+On 2026-10-02 the operator explicitly authorized publishing the experimental
+`1.60.1` branch despite that inherited failure. This is a scoped publication
+waiver, not a passing final result, a baseline adjustment, merge authority, or
+approval to deploy a shared realm. Candidate `580b26f1`'s focused evidence is
+retained for unchanged production/QA inputs; later closeout/publication changes
+are documentation-only. The separate `3.4.3` branch is not modified.
 
 ### Previous fixture campaign
 

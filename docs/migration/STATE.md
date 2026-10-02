@@ -16,7 +16,10 @@ commands, source anchors and native frame metadata are in the
 [owning runbook](../operations/forever-login.md#build-70170-superdistrict-discovery-contract).
 The full final runner remains blocked by inherited hotspot-ratchet failures in
 unchanged 3.4.3 paths; no baseline limits have been relaxed and no push has been
-performed. These are branch-only additions, not new 3.4.3 parity claims.
+performed as of that acceptance. The operator subsequently authorized a scoped
+experimental-branch publication waiver on 2026-10-02, recorded in the runbook;
+this does not make the final gate green. These are branch-only additions, not
+new 3.4.3 parity claims.
 
 ## Branch-specific WoW Forever 1.60.1 login evidence — 2026-10-02
 
