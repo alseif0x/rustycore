@@ -1,5 +1,46 @@
 # RustyCore — Honest Current State (single source of truth)
 
+## Branch-specific WoW Forever 1.60.1 login evidence — 2026-10-02
+
+This is a branch-only evidence entry for `1.60.1`, based at `2df57d6f` on the
+`3.4.3` line. It does not change or supersede the integration history below.
+The local `WowB.exe` evidence is `.build.info = 1.60.1.70170` with SHA-256
+`369ce842043f6177850947274287fc5a6cec3ee033a891faa0400a1d0a475d8e`.
+
+The isolated Auth fixture uses disposable MariaDB 11.4 on loopback port `13316`,
+database `auth_forever_70170`, Battle.net identity `FOREVER@LOCAL.TEST`, and
+linked game account `1#1`. Rust BNet serves REST on `127.0.0.1:18081` and RPC
+TLS on `127.0.0.1:1119`; the seeded realm is offline, named `RustyCore Forever -
+Login Test`, and its Auth row stores world metadata `127.0.0.1:18085`; it reports
+build/version `70170` / `1.60.1`. The gitignored runtime is `target/forever-login`;
+schema provenance is TrinityCore `sql/base/auth_database.sql` at
+`ac16f8ec88625d732a22a197839183aeec41e951`; the fixture applies and validates
+the Rust Auth migration manifest before seeding.
+
+The first live, pre-reinforcement smoke on 2026-10-02 at 16:17 UTC passed wrong
+SRP `M1` rejection, valid `M2`/ticket, RPC `OnLogonComplete`, and decoded realm
+list build `70170`/offline metadata. The final local acceptance campaign ran from
+`2026-10-02T16:52:11Z` through `16:53:32Z` (81 seconds) in the worktree based
+at `2df57d6f`; that worktree had uncommitted changes and was not a clean
+candidate. It passed the fixture example tests (3/3), the `bnet-server` binary
+suite (87/87), the Python smoke tests (11/11), the live REST/RPC smoke, rustfmt,
+`git diff --check`, and the physical-files architecture check. The live smoke
+passed wrong-M1 rejection, valid M2/ticket, RPC logon completion, realm ticket,
+and decoded offline build/version `1.60.1.70170`. A prior cold release build
+took 7m04 and is separate from this 81-second campaign. No final runner, push,
+or publication was performed. See the [WoW Forever login runbook](../operations/forever-login.md)
+for the bounded procedure and log-safety rules.
+
+No world-server login or World `AuthSession` was exercised. A real-client UI
+attempt was exercised in isolated Wine with DXVK after removing the rejected
+`-gxapi` argument; several TLS connections were accepted by the server, but the
+client terminated with `WOW51900340` before completing login. The Arctium-derived
+launcher revision `f2eb6c9` remains insufficient for the Client Modern path.
+An experimental in-memory certificate provider is not a deliverable. The BNet
+Auth/realm-list smoke is accepted locally, while full real-client compatibility
+remains unresolved and failed in this attempt; no full compatibility claim is
+made from this evidence.
+
 **Integration head — 2026-09-19:** the current integration head on `3.4.3` is
 `a82f4b2f` (PR #1226, following PR #1225's #29 creature-victim damage-immunity
 slice and PR #1224's school-absorb slice). The older #31
