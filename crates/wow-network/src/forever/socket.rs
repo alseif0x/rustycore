@@ -19,6 +19,10 @@ pub enum ForeverSocketError {
     Phase,
     #[error("world authentication proof rejected")]
     Proof,
+    #[error(
+        "unexpected encryption acknowledgement: opcode=0x{opcode:06X}, payload_bytes={payload_bytes}"
+    )]
+    UnexpectedEncryptionAck { opcode: u32, payload_bytes: usize },
     #[error("world session persistence was not confirmed")]
     Persistence,
     #[error("world packet authentication failed")]
@@ -187,7 +191,10 @@ impl ForeverSocket {
         if acknowledgement.opcode() != ENTER_ENCRYPTED_MODE_ACK
             || !acknowledgement.payload().is_empty()
         {
-            return Err(ForeverSocketError::Protocol);
+            return Err(ForeverSocketError::UnexpectedEncryptionAck {
+                opcode: acknowledgement.opcode(),
+                payload_bytes: acknowledgement.payload().len(),
+            });
         }
         let key = self
             .keys

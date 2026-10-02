@@ -17,6 +17,16 @@ struct Ticket {
     kind: u32,
 }
 
+fn admits_ticket(raw: &str) -> bool {
+    let Ok(ticket) = serde_json::from_str::<Ticket>(raw) else {
+        return false;
+    };
+    ticket.game_account == "1#1"
+        && ticket.platform == u32::from_be_bytes(*b"\0Win")
+        && ticket.client_arch == u32::from_be_bytes(*b"\0x64")
+        && ticket.kind == u32::from_be_bytes(*b"WoWB")
+}
+
 #[tokio::main]
 async fn main() {
     // Database/serde errors may contain request data: never render their chain.
@@ -77,12 +87,7 @@ async fn run() -> Result<()> {
     }
     let mut socket = ForeverSocket::new(stream, 0x02010001, 0);
     socket.start().await?;
-    let ticket: Ticket = serde_json::from_str(socket.join_ticket()?)?;
-    if ticket.game_account != "1#1"
-        || ticket.platform != u32::from_be_bytes(*b"\0Win")
-        || ticket.client_arch != u32::from_be_bytes(*b"\0x64")
-        || ticket.kind != u32::from_be_bytes(*b"WoWB")
-    {
+    if !admits_ticket(socket.join_ticket()?) {
         bail!("fixture variant rejected");
     }
     // Same account/link/build/ban/IP/country admission as WorldSocket.cpp,
@@ -110,7 +115,11 @@ async fn run() -> Result<()> {
     persist.set_bytes(0, socket.session_key()?.to_vec());
     persist.set_bytes(1, join_key.to_vec());
     let rows = db.execute(&persist).await?;
-    socket.complete_encryption(rows).await?;
+    if let Err(error) = socket.complete_encryption(rows).await {
+        // This error type carries only phase/shape metadata, never key or bytes.
+        eprintln!("Encryption transition rejected: {error}");
+        return Err(error.into());
+    }
     println!("Signed encryption offer acknowledged; 40-byte session key persisted.");
     // Target AuthResponse::Write: ERROR_DENIED=3, absent success/wait option bits.
     // Stop honestly before creating a WorldSession; this is encrypted QA only.
@@ -122,4 +131,45 @@ async fn run() -> Result<()> {
         frame.payload().len()
     );
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    fn fixture_ticket() -> serde_json::Value {
+        serde_json::json!({"gameAccount":"1#1", "platform":u32::from_be_bytes(*b"\0Win"),
+            "clientArch":u32::from_be_bytes(*b"\0x64"), "type":u32::from_be_bytes(*b"WoWB")})
+    }
+    #[test]
+    fn exact_fixture_variant_is_admitted() {
+        assert!(admits_ticket(&fixture_ticket().to_string()));
+    }
+    #[test]
+    fn malformed_incomplete_unknown_and_duplicate_fields_fail_closed() {
+        for raw in [
+            "",
+            "null",
+            "{}",
+            "[]",
+            r#"{"gameAccount":"1#1","gameAccount":"1#1"}"#,
+        ] {
+            assert!(!admits_ticket(raw));
+        }
+        let mut unknown = fixture_ticket();
+        unknown["extra"] = 1.into();
+        assert!(!admits_ticket(&unknown.to_string()));
+    }
+    #[test]
+    fn other_account_or_platform_is_not_this_fixture() {
+        for (field, value) in [
+            ("gameAccount", serde_json::json!("2#1")),
+            ("platform", serde_json::json!(0)),
+            ("clientArch", serde_json::json!(0)),
+            ("type", serde_json::json!(0)),
+        ] {
+            let mut wrong = fixture_ticket();
+            wrong[field] = value;
+            assert!(!admits_ticket(&wrong.to_string()));
+        }
+    }
 }

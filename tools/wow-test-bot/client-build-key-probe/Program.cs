@@ -6,6 +6,15 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 
+if (args.Length > 0 && args[0] == "--observe-world-certificates")
+{
+    if (args.Length != 2)
+        throw new ArgumentException("Usage: --observe-world-certificates <isolated WowB.exe>");
+
+    WorldCertificates.Observe(Path.GetFullPath(args[1]));
+    return;
+}
+
 if (args.Length != 3 || args[0] != "--capture")
     throw new ArgumentException("Usage: --capture <isolated WowB.exe> <new private key file>");
 string executable = Path.GetFullPath(args[1]);

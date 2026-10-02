@@ -196,6 +196,12 @@ async fn nonempty_ack_fails_before_encrypted_traffic() {
         write_plain(&mut peer, ENTER_ENCRYPTED_MODE_ACK, &[0]).await;
     };
     let (result, ()) = tokio::join!(socket.complete_encryption(1), client_side);
-    assert!(matches!(result, Err(ForeverSocketError::Protocol)));
+    assert!(matches!(
+        result,
+        Err(ForeverSocketError::UnexpectedEncryptionAck {
+            opcode: ENTER_ENCRYPTED_MODE_ACK,
+            payload_bytes: 1
+        })
+    ));
     assert!(socket.send(AUTH_RESPONSE, &[]).await.is_err());
 }
