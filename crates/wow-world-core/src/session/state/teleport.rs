@@ -1,0 +1,53 @@
+// Copyright (c) 2026 alseif0x
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+
+//! `WorldSession::teleport` sub-state (#1241 F2): moved fields, no logic.
+
+#[cfg(any(test, feature = "test-fixtures"))]
+use crate::session::movement_protocol::{
+    MoveSplineDoneTaxiEventLikeCpp, MoveTeleportAckEventLikeCpp, TeleportToOptionsLikeCpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_entities::PlayerHomebindLikeCpp as RepresentedHomebindLikeCpp;
+
+/// Near, far and delayed teleport state and acks, the pending teleport, the homebind and spline-
+/// done taxi events.
+pub struct TeleportState {
+    /// `MoveSplineDone` taxi decisions recorded until full Taxi/MotionMaster runtime exists.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub move_spline_done_taxi_events_like_cpp:
+        Vec<MoveSplineDoneTaxiEventLikeCpp>,
+    /// C++ `Player::m_bCanDelayTeleport`, represented around update-owned work.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub represented_can_delay_teleport_like_cpp: bool,
+    /// C++ `Player::m_bHasDelayedTeleport`, represented for same-map near teleports.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub represented_has_delayed_teleport_like_cpp: bool,
+    /// C++ `Player::mSemaphoreTeleport_Near` represented state.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub near_teleport_pending_like_cpp: bool,
+    /// C++ `Player::mSemaphoreTeleport_Far` represented state.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub represented_far_teleport_pending_like_cpp: bool,
+    /// C++ `Player::m_teleport_dest` represented state for near teleports.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub near_teleport_destination_like_cpp: Option<(u16, wow_core::Position)>,
+    /// Saved `TeleportTo` arguments while `m_bHasDelayedTeleport` is set.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub represented_delayed_teleport_like_cpp:
+        Option<(u32, wow_core::Position, TeleportToOptionsLikeCpp)>,
+    /// Represented zone/area for the pending near-teleport destination.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub near_teleport_destination_zone_area_like_cpp: Option<(u32, u32)>,
+    /// Handle-less compatibility for older tests. Production C++
+    /// `Player::m_homebind` lives on the canonical Player.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub represented_homebind_like_cpp: Option<RepresentedHomebindLikeCpp>,
+    /// Near teleport ACK side-effect audit events.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub move_teleport_ack_events_like_cpp: Vec<MoveTeleportAckEventLikeCpp>,
+
+    /// Ownerless legacy fixtures only; production uses Player's teleport state.
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub pending_teleport: Option<(u32, wow_core::Position)>,
+}

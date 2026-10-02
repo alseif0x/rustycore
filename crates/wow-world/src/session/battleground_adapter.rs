@@ -9,59 +9,14 @@ use super::{RepresentedBattlegroundObjectUseRejection, RepresentedCapturePointSt
 use super::{RepresentedGameObjectUseEffect, RepresentedNewFlagStateRequest};
 use super::{RepresentedWargameInviteAcceptanceLikeCpp, UnitFlags, WorldSession};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedBattlemasterHelloLikeCpp {
-    pub unit: ObjectGuid,
-    pub entry: u32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedBattlefieldListLikeCpp {
-    pub list_id: u32,
-}
-
-pub(crate) type RepresentedBattlegroundQueueTypeIdLikeCpp =
-    wow_entities::PlayerBattlegroundQueueTypeIdLikeCpp;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RepresentedBattlemasterJoinLikeCpp {
-    pub packed_queue_id: u64,
-    pub queue_type_id: RepresentedBattlegroundQueueTypeIdLikeCpp,
-    pub roles: u8,
-    pub blacklist_map: [i32; 2],
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RepresentedBattlemasterJoinArenaLikeCpp {
-    pub team_size_index: u8,
-    pub roles: u8,
-    pub arena_type: u8,
-    pub group_guid: u64,
-    pub queue_type_id: RepresentedBattlegroundQueueTypeIdLikeCpp,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RepresentedBattlemasterJoinSkirmishLikeCpp {
-    pub bg_type_id: u32,
-    pub bracket_id: u32,
-    pub as_group: bool,
-    pub is_rated_packet_value: u8,
-    pub arena_type: u8,
-    pub group_guid: Option<u64>,
-    pub queue_type_id: RepresentedBattlegroundQueueTypeIdLikeCpp,
-}
-
+pub(crate) use wow_world_core::session::{
+    RepresentedBattlefieldListLikeCpp, RepresentedBattlefieldPortLikeCpp,
+    RepresentedBattlemasterHelloLikeCpp, RepresentedBattlemasterJoinArenaLikeCpp,
+    RepresentedBattlemasterJoinLikeCpp, RepresentedBattlemasterJoinSkirmishLikeCpp,
+    RepresentedBattlegroundQueueTypeIdLikeCpp,
+};
 #[cfg(any(test, feature = "test-fixtures"))]
-pub(crate) type RepresentedBattlegroundQueueSlotLikeCpp =
-    wow_entities::PlayerBattlegroundQueueSlotLikeCpp;
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RepresentedBattlefieldPortLikeCpp {
-    pub ticket: wow_packet::packets::misc::LfgRideTicket,
-    pub accepted_invite: bool,
-    pub queue_type_id: RepresentedBattlegroundQueueTypeIdLikeCpp,
-    pub invited_instance_guid: u32,
-}
+pub(crate) use wow_world_core::session::RepresentedBattlegroundQueueSlotLikeCpp;
 
 pub(crate) fn battleground_queue_type_id_from_packed_like_cpp(
     packed_queue_id: u64,

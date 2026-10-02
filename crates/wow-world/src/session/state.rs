@@ -11,10 +11,6 @@ use super::BattlePetTestFixtureLikeCpp;
 use super::PlayerConditionStore;
 use super::PlayerCurrency;
 use super::RepresentedBankItemMoveLikeCpp;
-use super::RepresentedBattlefieldListLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
-use super::RepresentedBattlegroundQueueSlotLikeCpp;
-use super::RepresentedBattlemasterJoinSkirmishLikeCpp;
 #[cfg(test)]
 use super::RepresentedCreatureKillEventLikeCpp;
 #[cfg(test)]
@@ -102,15 +98,12 @@ use super::PlayerInteractionDataLikeCpp;
 use super::{PlayerResurrectionRequestLikeCpp, PlayerStatsStore, PowerTypeStore, PvpItemStore};
 use super::{RandPropPointsStore, RegenGameTablesLikeCpp, RepSpilloverTemplateStoreLikeCpp};
 use super::{RepresentedActivateTaxiLikeCpp, RepresentedAdventureMapStartQuestLikeCpp};
-use super::{RepresentedAlterAppearanceLikeCpp, RepresentedAuctionPlaceBidLikeCpp};
+use super::RepresentedAuctionPlaceBidLikeCpp;
 #[cfg(test)]
 use super::{RepresentedAreaZoneCriteriaLikeCpp, RepresentedAtLoginFlagRemovalLikeCpp};
 use super::{RepresentedAuctionRemoveItemLikeCpp, RepresentedAuctionReplicateRequestLikeCpp};
 use super::{RepresentedAuctionSellItemLikeCpp, RepresentedAutoUnequipOffhandLikeCpp};
-use super::{RepresentedBattlefieldPortLikeCpp, RepresentedBattlemasterHelloLikeCpp};
-use super::{RepresentedBattlemasterJoinArenaLikeCpp, RepresentedBattlemasterJoinLikeCpp};
 use super::{RepresentedCharacterSpellChargeLikeCpp, RepresentedCharacterSpellCooldownLikeCpp};
-use super::{RepresentedConfirmBarbersChoiceLikeCpp, RepresentedConfirmRespecWipeLikeCpp};
 use super::{RepresentedDeclinePetitionLikeCpp, RepresentedGameObjectUseEffect};
 use super::{RepresentedGameObjectUseState, RepresentedGuildRepairBankStateLikeCpp};
 #[cfg(test)]
@@ -118,18 +111,16 @@ use super::{RepresentedGuildBankInventoryMoveLikeCpp, RepresentedGuildBankListRe
 #[cfg(test)]
 use super::{RepresentedGuildBankMoneyMoveLikeCpp, RepresentedGuildBankTabActionLikeCpp};
 #[cfg(any(test, feature = "test-fixtures"))]
-use super::{RepresentedLiveApplicationLikeCpp, RepresentedLootRollCriteriaEvent};
+use super::RepresentedLootRollCriteriaEvent;
 use super::{RepresentedLootRollState, RepresentedPendingBind};
-#[cfg(any(test, feature = "test-fixtures"))]
-use super::{RepresentedTalentResetScriptHookLikeCpp, RepresentedTalentRespecCriteriaEventLikeCpp};
-use super::{RepresentedTalentRespecVisualSpellCastLikeCpp, RepresentedVoidStorageItemLikeCpp};
+use super::RepresentedVoidStorageItemLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::{RepresentedTaxiFlightStateLikeCpp, RepresentedTransmogCriteriaEvent};
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::{RepresentedVehicleBaseMovementLikeCpp, RepresentedVehicleDismissMovementLikeCpp};
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::{RepresentedVehicleEnterRequestLikeCpp, RepresentedVehicleSeatChangeRequestLikeCpp};
-use super::{RepresentedWargameInviteAcceptanceLikeCpp, ReputationRatesLikeCpp};
+use super::ReputationRatesLikeCpp;
 use super::{ReputationRewardRateStoreLikeCpp, ScalingStatDistributionStore};
 use super::{ScalingStatValuesStore, ScriptNameInternerLikeCpp};
 use super::SessionPersistencePortsLikeCpp;

@@ -6,75 +6,20 @@
 
 use super::{ClientOpcodes, MovementFlag, ObjectGuid, ServerOpcodes, WorldSession, trace};
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct MovementAckEventLikeCpp {
-    pub opcode: ClientOpcodes,
-    pub mover_guid: ObjectGuid,
-    pub ack_index: Option<i32>,
-    pub movement_force_id: Option<ObjectGuid>,
-    pub movement_force_type: Option<u8>,
-    pub adjusted_time: Option<u32>,
-    pub speed: Option<f32>,
-    pub time_skipped: Option<u32>,
-    pub spline_id: Option<i32>,
-    pub accepted: bool,
-}
+pub(crate) use wow_world_core::session::movement_protocol::MovementAckEventLikeCpp;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum MoveSplineDoneTaxiActionLikeCpp {
-    InvalidMovement,
-    InProgressNoFlightGenerator,
-    InProgressNoTeleport,
-    TeleportRequested,
-    FinalCleanup,
-    IgnoredUnexpectedFinalPath,
-}
+pub(crate) use wow_world_core::session::movement_protocol::MoveSplineDoneTaxiActionLikeCpp;
 
 #[cfg(any(test, feature = "test-fixtures"))]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct RepresentedTaxiFlightNodeLikeCpp {
-    pub map_id: u16,
-    pub position: wow_core::Position,
-    pub teleport_flag: bool,
-}
+pub(crate) use wow_world_core::session::movement_protocol::RepresentedTaxiFlightNodeLikeCpp;
 
 #[cfg(any(test, feature = "test-fixtures"))]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct MoveSplineDoneTaxiEventLikeCpp {
-    pub spline_id: i32,
-    pub action: MoveSplineDoneTaxiActionLikeCpp,
-    pub destination_node_id: Option<u32>,
-    pub teleport_map_id: Option<u16>,
-    pub teleport_position: Option<wow_core::Position>,
-    pub honorless_target_cast: bool,
-}
+pub(crate) use wow_world_core::session::movement_protocol::MoveSplineDoneTaxiEventLikeCpp;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum MoveTeleportAckActionLikeCpp {
-    NotBeingTeleportedNear,
-    WrongMover,
-    MissingDestination,
-    MissingPlayerOwner,
-    Accepted,
-}
+pub(crate) use wow_world_core::session::movement_protocol::MoveTeleportAckActionLikeCpp;
 
 #[cfg(any(test, feature = "test-fixtures"))]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct MoveTeleportAckEventLikeCpp {
-    pub mover_guid: ObjectGuid,
-    pub ack_index: i32,
-    pub move_time: i32,
-    pub action: MoveTeleportAckActionLikeCpp,
-    pub destination_map_id: Option<u16>,
-    pub destination_position: Option<wow_core::Position>,
-    pub old_zone_id: Option<u32>,
-    pub new_zone_id: Option<u32>,
-    pub new_area_id: Option<u32>,
-    pub honorless_target_cast: bool,
-    pub pvp_disabled: bool,
-    pub pet_resummon_requested: bool,
-    pub delayed_operations_processed: bool,
-}
+pub(crate) use wow_world_core::session::movement_protocol::MoveTeleportAckEventLikeCpp;
 
 #[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -86,11 +31,7 @@ pub(crate) enum RepresentedAreaZoneCriteriaLikeCpp {
 }
 
 #[cfg(any(test, feature = "test-fixtures"))]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(in crate::session) struct RepresentedTaxiFlightStateLikeCpp {
-    pub(in crate::session) current_node: RepresentedTaxiFlightNodeLikeCpp,
-    pub(in crate::session) node_after_teleport: Option<RepresentedTaxiFlightNodeLikeCpp>,
-}
+pub(in crate::session) use wow_world_core::session::movement_protocol::RepresentedTaxiFlightStateLikeCpp;
 
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) fn canonical_taxi_flight_node_like_cpp(
@@ -138,34 +79,9 @@ pub(in crate::session) fn represented_taxi_flight_state_like_cpp(
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum MovementSpeedAckActionLikeCpp {
-    Accepted,
-    SkippedPending,
-    Corrected,
-    Kicked,
-}
+pub(crate) use wow_world_core::session::movement_protocol::MovementSpeedAckActionLikeCpp;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum UnitMoveTypeLikeCpp {
-    Walk = 0,
-    Run = 1,
-    RunBack = 2,
-    Swim = 3,
-    SwimBack = 4,
-    TurnRate = 5,
-    Flight = 6,
-    FlightBack = 7,
-    PitchRate = 8,
-}
-
-impl UnitMoveTypeLikeCpp {
-    pub(crate) const COUNT: usize = 9;
-
-    pub(crate) fn index(self) -> usize {
-        self as usize
-    }
-}
+pub(crate) use wow_world_core::session::movement_protocol::UnitMoveTypeLikeCpp;
 
 pub(crate) fn movement_speed_ack_move_type_like_cpp(
     opcode: ClientOpcodes,
@@ -232,15 +148,7 @@ pub(crate) fn creature_movement_spline_speed_opcode_like_cpp(
     })
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct MovementSpeedAckEventLikeCpp {
-    pub opcode: ClientOpcodes,
-    pub move_type: Option<UnitMoveTypeLikeCpp>,
-    pub ack_speed: f32,
-    pub expected_speed: Option<f32>,
-    pub remaining_forced_changes: Option<u8>,
-    pub action: MovementSpeedAckActionLikeCpp,
-}
+pub(crate) use wow_world_core::session::movement_protocol::MovementSpeedAckEventLikeCpp;
 
 pub(in crate::session) const PLAYER_BASE_MOVE_SPEED_LIKE_CPP: [f32; UnitMoveTypeLikeCpp::COUNT] = [
     2.5,      // MOVE_WALK
@@ -254,19 +162,9 @@ pub(in crate::session) const PLAYER_BASE_MOVE_SPEED_LIKE_CPP: [f32; UnitMoveType
     3.14,     // MOVE_PITCH_RATE
 ];
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct MovementFallDamageEvent {
-    pub z_diff: f32,
-    pub damage: u32,
-    pub final_damage: u32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct MovementUnderMapDamageEvent {
-    pub z: f32,
-    pub min_height: f32,
-    pub damage: u32,
-}
+pub(crate) use wow_world_core::session::movement_protocol::{
+    MovementFallDamageEvent, MovementUnderMapDamageEvent,
+};
 
 impl WorldSession {}
 

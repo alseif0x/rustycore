@@ -4,7 +4,7 @@
 //! Spell click values: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{HighGuid, MAX_GAMEOBJECT_SLOT_LIKE_CPP, MovementFlag, ObjectGuid, PhaseShift};
+use super::{HighGuid, MAX_GAMEOBJECT_SLOT_LIKE_CPP, ObjectGuid, PhaseShift};
 use super::{Position, SPELL_CAST_SOURCE_NORMAL_LIKE_CPP};
 
 pub(in crate::session) fn spell_effect_is_represented_summon_object_slot_like_cpp(
@@ -117,44 +117,15 @@ pub(crate) struct RepresentedSpellClickExecutionOutcomeLikeCpp {
 }
 
 #[cfg(any(test, feature = "test-fixtures"))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedVehicleSeatChangeRequestLikeCpp {
-    pub seat_id: i8,
-    pub next: bool,
-}
+pub(crate) use wow_world_core::session::{
+    RepresentedVehicleEnterRequestLikeCpp, RepresentedVehicleSeatChangeRequestLikeCpp,
+    RepresentedVehicleSeatSpellClickRequestLikeCpp,
+};
 
 #[cfg(any(test, feature = "test-fixtures"))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedVehicleSeatSpellClickRequestLikeCpp {
-    pub vehicle_guid: ObjectGuid,
-    pub seat_id: i8,
-    pub planned_casts: usize,
-    pub exact_context_unrepresented: bool,
-}
-
-#[cfg(any(test, feature = "test-fixtures"))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedVehicleEnterRequestLikeCpp {
-    pub vehicle_guid: ObjectGuid,
-}
-
-#[cfg(any(test, feature = "test-fixtures"))]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct RepresentedVehicleDismissMovementLikeCpp {
-    pub vehicle_guid: ObjectGuid,
-    pub sanitized_flags: MovementFlag,
-    pub position: Position,
-    pub time: u32,
-}
-
-#[cfg(any(test, feature = "test-fixtures"))]
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct RepresentedVehicleBaseMovementLikeCpp {
-    pub vehicle_guid: ObjectGuid,
-    pub sanitized_flags: MovementFlag,
-    pub position: Position,
-    pub time: u32,
-}
+pub(crate) use wow_world_core::session::{
+    RepresentedVehicleBaseMovementLikeCpp, RepresentedVehicleDismissMovementLikeCpp,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(in crate::session) enum RepresentedSpellClickClickeeCasterOutcomeLikeCpp {

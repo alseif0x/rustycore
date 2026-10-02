@@ -742,43 +742,6 @@ impl crate::session::state::SessionCatalogs {
     }
 }
 
-impl crate::session::state::SessionCore {
-    pub fn send_equip_error(
-        &self,
-        result: InventoryResult,
-        item1: Option<ObjectGuid>,
-        item2: Option<ObjectGuid>,
-        required_level: u32,
-        limit_category: u32,
-    ) {
-        let mut packet = InventoryChangeFailure::new(
-            result,
-            item1.unwrap_or(ObjectGuid::EMPTY),
-            item2.unwrap_or(ObjectGuid::EMPTY),
-        );
-
-        if result != InventoryResult::Ok {
-            packet.container_b_slot = 0;
-            match result {
-                InventoryResult::CantEquipLevelI | InventoryResult::PurchaseLevelTooLow => {
-                    packet.level = required_level;
-                }
-                InventoryResult::ItemMaxLimitCategoryCountExceededIs
-                | InventoryResult::ItemMaxLimitCategorySocketedExceededIs
-                | InventoryResult::ItemMaxLimitCategoryEquippedExceededIs => {
-                    packet.limit_category = limit_category;
-                }
-                _ => {}
-            }
-        }
-
-        // C++ `Opcodes.cpp` registers `SMSG_INVENTORY_CHANGE_FAILURE` on
-        // `CONNECTION_TYPE_REALM`, including errors raised by instance-routed
-        // inventory requests after `ConnectTo`.
-        self.send_packet_realm(&packet);
-    }
-}
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/player_items/equipment/f3_shims.rs"]
 mod f3_shims;

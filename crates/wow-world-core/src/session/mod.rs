@@ -1,4 +1,4 @@
-//! Session-independent owners shared by the world shell and core.
+//! Shared session owners for the world shell and Core.
 
 pub use crate::player_directory as directory;
 
@@ -29,6 +29,33 @@ pub use connection_identity::{
 mod connection;
 mod canonical_access;
 mod instances;
+mod construction;
+mod movement;
+mod visibility;
+mod spell_state;
+mod player_items;
+mod social;
+mod chat;
+mod combat;
+pub use combat::{DAMAGE_FALL_LIKE_CPP, DAMAGE_FALL_TO_VOID_LIKE_CPP};
+mod admission;
+mod player_registry_binding;
+mod lifecycle_ops;
+mod publication;
+mod battleground_adapter;
+pub use battleground_adapter::{
+    RepresentedBattlefieldListLikeCpp, RepresentedBattlefieldPortLikeCpp,
+    RepresentedBattlemasterHelloLikeCpp, RepresentedBattlemasterJoinArenaLikeCpp,
+    RepresentedBattlemasterJoinLikeCpp, RepresentedBattlemasterJoinSkirmishLikeCpp,
+    RepresentedBattlegroundQueueTypeIdLikeCpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use battleground_adapter::RepresentedBattlegroundQueueSlotLikeCpp;
+
+mod social_requests;
+pub use social_requests::RepresentedWargameInviteAcceptanceLikeCpp;
+mod taxi_contracts;
+pub use taxi_contracts::RepresentedActivateTaxiLikeCpp;
 
 mod creature_aggro_contracts;
 pub use creature_aggro_contracts::{
@@ -39,12 +66,58 @@ pub use creature_aggro_contracts::{
 mod creature_spell_metadata;
 pub use creature_spell_metadata::creature_ai_spell_difficulty_chain_like_cpp;
 
+mod stand_state_adapter;
+pub use stand_state_adapter::{
+    RepresentedLiveIntentAppliedLikeCpp, RepresentedLiveIntentApplyOutcomeLikeCpp,
+    RepresentedLiveIntentLikeCpp, RepresentedStandChannelCancellationBoundary,
+    RepresentedStandStateChangedLikeCpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use stand_state_adapter::RepresentedLiveApplicationLikeCpp;
+
+mod character_customization;
+pub use character_customization::{
+    RepresentedAlterAppearanceLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
+    RepresentedConfirmRespecWipeLikeCpp, RepresentedTalentRespecVisualSpellCastLikeCpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use character_customization::{
+    RepresentedTalentResetScriptHookLikeCpp, RepresentedTalentRespecCriteriaEventLikeCpp,
+};
+
+mod player_spell_records;
+pub use player_spell_records::{
+    RepresentedPlayerSkillLikeCpp, RepresentedPlayerSkillStateLikeCpp,
+};
+
+#[cfg(any(test, feature = "test-fixtures"))]
+mod spell_click_values;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use spell_click_values::{
+    RepresentedVehicleBaseMovementLikeCpp, RepresentedVehicleDismissMovementLikeCpp,
+    RepresentedVehicleEnterRequestLikeCpp, RepresentedVehicleSeatChangeRequestLikeCpp,
+    RepresentedVehicleSeatSpellClickRequestLikeCpp,
+};
+
+mod progression;
+pub use progression::MAX_SPECIALIZATIONS_LIKE_CPP;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use progression::PlayerSkillTestFixtureLikeCpp;
+
+#[cfg(any(test, feature = "test-fixtures"))]
+mod rest_progression;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use rest_progression::RestMgrTestFixtureLikeCpp;
+
 pub mod persistence_capabilities;
 
 pub mod player_binding;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use player_binding::PlayerTransportLoginStateLikeCpp;
 pub use player_binding::PlayerIdentityBootstrapLikeCpp;
+
+pub mod movement_protocol;
+pub mod pets;
 
 pub mod time_synchronization;
 pub use time_synchronization::{game_time_ms_like_cpp, TimeSynchronizationStateLikeCpp};

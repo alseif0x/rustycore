@@ -1,6 +1,7 @@
 //! Session-independent mailbox protocol, durable rails, and phase admission values.
 
 mod durable;
+mod pump;
 mod protocol;
 mod session_phase_permit;
 mod session_phase_rail;

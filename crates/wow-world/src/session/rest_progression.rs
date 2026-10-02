@@ -7,55 +7,11 @@
 use super::{Arc, AreaTriggerDb2Store, PLAYER_FLAGS_RESTING_LIKE_CPP};
 use super::{PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP, REST_FLAG_IN_TAVERN_LIKE_CPP};
 #[cfg(any(test, feature = "test-fixtures"))]
-use super::{REST_BONUS_MAX_NEXT_LEVEL_XP_FACTOR_LIKE_CPP, REST_STATE_NORMAL_LIKE_CPP};
+use super::REST_BONUS_MAX_NEXT_LEVEL_XP_FACTOR_LIKE_CPP;
 use super::{RepresentedAuraEffectLikeCpp, WorldSession, max_level_for_expansion_like_cpp};
 
-/// Handle-less test fixture for RestMgr state and test-only rate configuration.
-/// Production rest authority remains on the canonical `Player`.
 #[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) struct RestMgrTestFixtureLikeCpp {
-    /// C++ `RestMgr::_restBonus[REST_TYPE_XP]`.
-    pub(in crate::session) represented_rest_bonus_xp_like_cpp: f32,
-    /// C++ `UF::ActivePlayerData::RestInfo[REST_TYPE_XP].StateID`.
-    pub(in crate::session) represented_rest_state_xp_like_cpp: u8,
-    /// C++ `RestMgr::_restFlagMask`.
-    pub(in crate::session) represented_rest_flag_mask_like_cpp: u32,
-    /// Whether area and zone fixture updates initialized the rest flags.
-    pub(in crate::session) represented_rest_location_initialized_like_cpp: bool,
-    /// Coalesce area and zone fixture changes into one visible flag transition.
-    pub(in crate::session) represented_defer_rest_flag_sync_like_cpp: bool,
-    /// Deferred transition that marks `PLAYER_FLAGS_RESTING` dirty.
-    pub(in crate::session) represented_deferred_rest_flag_update_dirty_like_cpp: bool,
-    /// C++ `RestMgr::_innAreaTriggerId`.
-    pub(in crate::session) represented_inn_area_trigger_id_like_cpp: u32,
-    /// C++ `RestMgr::_restTime`, represented as Unix seconds.
-    pub(in crate::session) represented_rest_time_secs_like_cpp: u64,
-    /// Test policy value corresponding to `RATE_REST_OFFLINE_IN_WILDERNESS`.
-    pub(in crate::session) rest_offline_wilderness_rate_like_cpp: f32,
-    /// Test policy value corresponding to `RATE_REST_OFFLINE_IN_TAVERN_OR_CITY`.
-    pub(in crate::session) rest_offline_tavern_or_city_rate_like_cpp: f32,
-    /// Test policy value corresponding to `RATE_REST_INGAME`.
-    pub(in crate::session) rest_ingame_rate_like_cpp: f32,
-}
-
-#[cfg(any(test, feature = "test-fixtures"))]
-impl Default for RestMgrTestFixtureLikeCpp {
-    fn default() -> Self {
-        Self {
-            represented_rest_bonus_xp_like_cpp: 0.0,
-            represented_rest_state_xp_like_cpp: REST_STATE_NORMAL_LIKE_CPP,
-            represented_rest_flag_mask_like_cpp: 0,
-            represented_rest_location_initialized_like_cpp: false,
-            represented_defer_rest_flag_sync_like_cpp: false,
-            represented_deferred_rest_flag_update_dirty_like_cpp: false,
-            represented_inn_area_trigger_id_like_cpp: 0,
-            represented_rest_time_secs_like_cpp: 0,
-            rest_offline_wilderness_rate_like_cpp: 1.0,
-            rest_offline_tavern_or_city_rate_like_cpp: 1.0,
-            rest_ingame_rate_like_cpp: 1.0,
-        }
-    }
-}
+pub(in crate::session) use wow_world_core::session::RestMgrTestFixtureLikeCpp;
 
 impl WorldSession {
     #[cfg(test)]

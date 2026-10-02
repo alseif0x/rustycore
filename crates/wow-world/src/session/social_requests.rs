@@ -41,14 +41,7 @@ pub(in crate::session) fn party_member_power_to_u16_like_cpp(value: i32) -> u16 
     u16::try_from(value.max(0)).unwrap_or(u16::MAX)
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RepresentedWargameInviteAcceptanceLikeCpp {
-    pub inviter_name: String,
-    pub inviter_guid: ObjectGuid,
-    pub player_group_guid: u64,
-    pub inviter_group_guid: u64,
-    pub group_size: usize,
-}
+pub(crate) use wow_world_core::session::RepresentedWargameInviteAcceptanceLikeCpp;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedSignPetitionLikeCpp {

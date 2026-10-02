@@ -327,20 +327,6 @@ impl crate::session::state::SessionSpellState {
     }
 }
 
-impl crate::session::state::SessionCore {
-    pub(in crate::session) fn invalidate_canonical_player_spell_hit_aura_authority_like_cpp(
-        &mut self,
-    ) {
-        let _ = self.mutate_canonical_player_like_cpp(|player| {
-            player
-                .unit_mut()
-                .subsystems_mut()
-                .auras
-                .invalidate_spell_hit_aura_authority_like_cpp();
-        });
-    }
-}
-
 impl crate::session::HubRef<'_> {
     pub(in crate::session) fn player_aura_subsystem_snapshot_like_cpp(
         &self,

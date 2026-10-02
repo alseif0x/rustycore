@@ -20,7 +20,9 @@ pub use catalogs::SessionCatalogs;
 pub mod config;
 pub use config::SessionWorldConfig;
 
+#[cfg(any(test, feature = "test-fixtures"))]
 pub mod combat;
+#[cfg(any(test, feature = "test-fixtures"))]
 pub use combat::CombatState;
 
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -37,6 +39,41 @@ pub use collections::CollectionsState;
 pub mod auras;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use auras::AuraState;
+
+#[cfg(any(test, feature = "test-fixtures"))]
+mod progression;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use progression::ProgressionState;
+
+#[cfg(any(test, feature = "test-fixtures"))]
+mod presentation;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use presentation::PlayerPresentationState;
+
+#[cfg(any(test, feature = "test-fixtures"))]
+mod movement;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use movement::MovementState;
+
+#[cfg(any(test, feature = "test-fixtures"))]
+mod pets;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use pets::PetState;
+
+#[cfg(any(test, feature = "test-fixtures"))]
+mod teleport;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use teleport::TeleportState;
+
+#[cfg(any(test, feature = "test-fixtures"))]
+mod vehicles;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use vehicles::TaxiVehicleState;
+
+#[cfg(any(test, feature = "test-fixtures"))]
+mod battleground;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use battleground::BattlegroundState;
 
 pub mod session_core;
 pub use session_core::SessionCore;

@@ -730,21 +730,6 @@ impl crate::session::state::SessionLifecycleState {
     }
 }
 
-impl crate::session::state::SessionCore {
-    pub fn battlenet_account_id(&self) -> u32 {
-        self.account_state.battlenet_account_id
-    }
-
-    /// Kick the session (mark as disconnecting).
-    pub fn kick(&mut self, reason: &str) {
-        warn!(
-            "Kicking account {} ({}): {reason}",
-            self.account_id, self.account_name
-        );
-        self.state = SessionState::Disconnecting;
-    }
-}
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/lifecycle_ops/operations/f3_shims.rs"]
 mod f3_shims;

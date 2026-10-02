@@ -4,13 +4,4 @@
 //! Taxi contracts: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::ObjectGuid;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedActivateTaxiLikeCpp {
-    pub vendor: ObjectGuid,
-    pub node: u32,
-    pub ground_mount_id: u32,
-    pub flying_mount_id: u32,
-    pub preferred_mount_display: u32,
-}
+pub(crate) use wow_world_core::session::RepresentedActivateTaxiLikeCpp;

@@ -4,35 +4,16 @@
 //! Character customization: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{ObjectGuid, WorldSession};
+use super::WorldSession;
 
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RepresentedAlterAppearanceLikeCpp {
-    pub new_sex: u8,
-    pub customizations: Vec<wow_packet::packets::character::ChrCustomizationChoice>,
-    pub customized_race: i32,
-    pub customized_chr_model_id: i32,
-    pub cost: u64,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RepresentedConfirmBarbersChoiceLikeCpp {
-    pub customizations: Vec<wow_packet::packets::character::ChrCustomizationChoice>,
-    pub cost: u64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedConfirmRespecWipeLikeCpp {
-    pub respec_master: ObjectGuid,
-    pub respec_type: u8,
-}
-
-/// Evidence for C++ `sScriptMgr->OnPlayerTalentsReset(this, noCost)`.
+pub(crate) use wow_world_core::session::{
+    RepresentedAlterAppearanceLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
+    RepresentedConfirmRespecWipeLikeCpp, RepresentedTalentRespecVisualSpellCastLikeCpp,
+};
 #[cfg(any(test, feature = "test-fixtures"))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedTalentResetScriptHookLikeCpp {
-    pub no_cost: bool,
-}
+pub(crate) use wow_world_core::session::{
+    RepresentedTalentResetScriptHookLikeCpp, RepresentedTalentRespecCriteriaEventLikeCpp,
+};
 
 /// Evidence for C++ `RemoveAtLoginFlag(flags, persist=true)`.
 ///
@@ -44,24 +25,6 @@ pub(crate) struct RepresentedAtLoginFlagRemovalLikeCpp {
     pub flags: u16,
     pub persist: bool,
     pub db_statement_unrepresented: bool,
-}
-
-/// Evidence for `unit->CastSpell(_player, 14867, true)` after talent reset.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedTalentRespecVisualSpellCastLikeCpp {
-    pub caster_guid: ObjectGuid,
-    pub target_guid: ObjectGuid,
-    pub spell_id: u32,
-    pub triggered: bool,
-    pub spell_runtime_unrepresented: bool,
-}
-
-/// Evidence for the two C++ `Player::ResetTalents` achievement criteria updates.
-#[cfg(any(test, feature = "test-fixtures"))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedTalentRespecCriteriaEventLikeCpp {
-    MoneySpentOnRespecs { amount: u32 },
-    TotalRespecs { quantity: u32 },
 }
 
 impl WorldSession {

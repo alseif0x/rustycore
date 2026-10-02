@@ -6,23 +6,9 @@
 
 use super::{BTreeMap, BTreeSet, HashMap, HashSet};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedPlayerSkillStateLikeCpp {
-    Unchanged,
-    Changed,
-    New,
-    Deleted,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedPlayerSkillLikeCpp {
-    pub skill_id: u16,
-    pub step: u16,
-    pub value: u16,
-    pub max: u16,
-    pub profession_slot: i8,
-    pub state: RepresentedPlayerSkillStateLikeCpp,
-}
+pub(crate) use wow_world_core::session::{
+    RepresentedPlayerSkillLikeCpp, RepresentedPlayerSkillStateLikeCpp,
+};
 
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) fn is_non_durable_skill_tombstone_like_cpp(

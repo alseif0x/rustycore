@@ -281,13 +281,26 @@ la definición en Core por sí sola no establece compilación ni cierre de P4b.
 El cierre de publicación requiere también `entity_update_bridge`: los impls de
 Core llaman a `player_values_update_to_update_object`, cuya conversión usa los
 helpers privados de los dos módulos del puente. El movimiento local del módulo
-completo conserva sus divisiones físicas y la fachada World; sus proveedores son
+completo, guardado en `a7cb324bb`, conserva sus divisiones físicas y la fachada World; sus proveedores son
 `wow-entities`, `wow-packet`, `wow-data` y `wow-core`. La revisión del diff constató
 que sus tres archivos de código y tres de pruebas conservan el contenido byte a
 byte; contienen 33 declaraciones de test, todavía sin ejecutar. No se añadió una
 llamada de vuelta a World ni se duplicó la conversión. **NO VALIDADO:** conservar
 el conjunto ejecutado de tests y los resultados de serialización sigue siendo una
 obligación de la aceptación de P4b.
+
+La continuación local tras ese checkpoint trasladó las definiciones de los once
+grupos de fixtures y sus DTOs necesarios. Se conserva cada gate, el orden de campos
+y los defaults de skills/rest/battle pets; las fachadas usan los reexports públicos
+de Core, sin abrir sus módulos privados. Se corrigió en revisión el gate del módulo
+de combate y se retuvieron los imports que todavía consume el inicializador World
+de `SessionFixtures`. También se trasladaron los impls Core de admisión, drenaje de
+comandos, publicación, actualizaciones de combate y acceso a dificultad/posición/
+farsight/auras, con sus consumidores. La revisión distinguió el `ChatMsg` de
+`wow-packet` del homónimo en `wow-constants`; se conserva el primero en los paquetes.
+**NO VALIDADO:** faltan el agregado `SessionFixtures`, las vistas del hub, los impls
+restantes y la aceptación completa; esta revisión del diff no sustituye compilación,
+tests, inventario ni evidencia de producción.
 
 La construcción debe conservar el orden exacto de expresiones, RNG, relojes, canales
 y campos. Extraer primero el literal de `SessionCore` a una inicialización propia;
