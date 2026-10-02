@@ -134,6 +134,95 @@ class ExactPhasingCutTests(unittest.TestCase):
             self.assertNotIn("PartyMemberPhaseStates};", result)
             self.assertIn("pub use wow_world_core::phasing::", result)
 
+    def test_rustfmt_formatted_reexport_is_idempotent(self):
+        formatted = (
+            "pub use wow_world_core::phasing::{PhaseShiftPacketBuildError, "
+            "party_member_phase_states_like_cpp};"
+        )
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            write_fixture(root)
+            with redirect_stdout(StringIO()):
+                codemod.run("apply", root)
+
+            source_path = root / codemod.SOURCE
+            source = source_path.read_text(encoding="utf-8")
+            self.assertEqual(source.count(codemod.PARTY_REEXPORT), 1)
+            party_import = "#[cfg ( test )]\nuse wow_packet :: packets :: party :: PartyMemberPhase ;"
+            rendered_source = source.replace(codemod.PARTY_REEXPORT, formatted).replace(
+                codemod.PARTY_IMPORT_NEW, party_import
+            )
+            source_path.write_text(
+                rendered_source, encoding="utf-8"
+            )
+            before = source_path.read_bytes()
+            with redirect_stdout(StringIO()) as output:
+                codemod.run("plan", root)
+
+            self.assertIn("already applied", output.getvalue())
+            self.assertEqual(source_path.read_bytes(), before)
+            self.assertIn(party_import, rendered_source)
+            self.assertIn(formatted, rendered_source)
+
+    def test_wrong_party_import_cfg_is_rejected(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            write_fixture(root)
+            with redirect_stdout(StringIO()):
+                codemod.run("apply", root)
+
+            source_path = root / codemod.SOURCE
+            source = source_path.read_text(encoding="utf-8").replace(
+                "#[cfg(test)]\nuse wow_packet::packets::party::PartyMemberPhase;",
+                "#[cfg(not(test))]\nuse wow_packet::packets::party::PartyMemberPhase;",
+            )
+            source_path.write_text(source, encoding="utf-8")
+            before = source_path.read_bytes()
+            with self.assertRaisesRegex(codemod.CodemodError, "partial or unexpected"):
+                codemod.run("plan", root)
+            self.assertEqual(source_path.read_bytes(), before)
+
+    def test_comments_do_not_satisfy_core_reexport(self):
+        formatted = (
+            "pub use wow_world_core::phasing::{PhaseShiftPacketBuildError, "
+            "party_member_phase_states_like_cpp};"
+        )
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            write_fixture(root)
+            with redirect_stdout(StringIO()):
+                codemod.run("apply", root)
+
+            source_path = root / codemod.SOURCE
+            source = source_path.read_text(encoding="utf-8")
+            source = source.replace(codemod.PARTY_REEXPORT, formatted)
+            self.assertEqual(source.count(formatted), 1)
+            source = source.replace(formatted, "// " + formatted, 1)
+            source_path.write_text(source, encoding="utf-8")
+            before = source_path.read_bytes()
+            with self.assertRaisesRegex(codemod.CodemodError, "partial or unexpected"):
+                codemod.run("plan", root)
+            self.assertEqual(source_path.read_bytes(), before)
+
+    def test_duplicate_core_reexports_are_rejected(self):
+        formatted = (
+            "pub use wow_world_core::phasing::{PhaseShiftPacketBuildError, "
+            "party_member_phase_states_like_cpp};"
+        )
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            write_fixture(root)
+            with redirect_stdout(StringIO()):
+                codemod.run("apply", root)
+
+            source_path = root / codemod.SOURCE
+            source = source_path.read_text(encoding="utf-8")
+            source_path.write_text(source + "\n" + formatted + "\n", encoding="utf-8")
+            before = source_path.read_bytes()
+            with self.assertRaisesRegex(codemod.CodemodError, "partial or unexpected"):
+                codemod.run("plan", root)
+            self.assertEqual(source_path.read_bytes(), before)
+
     def test_missing_function_is_rejected_without_writes(self):
         with TemporaryDirectory() as temporary:
             root = Path(temporary)

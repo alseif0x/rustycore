@@ -18,14 +18,32 @@ SOURCE = Path("crates/wow-world/src/session/battle_pet_adapter.rs")
 CORE = Path("crates/wow-world-core/src/session/battle_pet_adapter.rs")
 SESSION_MOD = Path("crates/wow-world/src/session/mod.rs")
 SHELL_IMPORT_OLD = "use super::{AuraApplication, Instant, ObjectGuid, RepresentedAuraEffectLikeCpp, WorldSession};"
-SHELL_IMPORT_NEW = """use super::{
+SHELL_IMPORT_OLD_MEMBERS = (
+    "AuraApplication",
+    "Instant",
+    "ObjectGuid",
+    "RepresentedAuraEffectLikeCpp",
+    "WorldSession",
+)
+SHELL_IMPORT_NEW_MEMBERS = (
+    "AuraApplication",
+    "Instant",
+    "ObjectGuid",
+    "RepresentedAuraEffectLikeCpp",
+    "RepresentedBattlePetCalculatedStatsLikeCpp",
+    "RepresentedBattlePetDataLikeCpp",
+    "WorldSession",
+)
+SHELL_CAGE_IMPORT = "RepresentedBattlePetCageItemLikeCpp"
+SHELL_IMPORT_TARGETS = frozenset(
+    (*SHELL_IMPORT_OLD_MEMBERS, *SHELL_IMPORT_NEW_MEMBERS, SHELL_CAGE_IMPORT)
+)
+SHELL_IMPORT_NEW = """#[cfg(test)]
+use super::RepresentedBattlePetCageItemLikeCpp;
+use super::{
     AuraApplication, Instant, ObjectGuid, RepresentedAuraEffectLikeCpp,
-    RepresentedBattlePetCalculatedStatsLikeCpp, RepresentedBattlePetDataLikeCpp,
-    RepresentedBattlePetLevelCriteriaLikeCpp, RepresentedBattlePetQueryCompanionLikeCpp,
-    RepresentedBattlePetSaveInfoLikeCpp, RepresentedBattlePetSlotLikeCpp, WorldSession,
-};
-#[cfg(any(test, feature = "test-fixtures"))]
-use super::RepresentedBattlePetCageItemLikeCpp;"""
+    RepresentedBattlePetCalculatedStatsLikeCpp, RepresentedBattlePetDataLikeCpp, WorldSession,
+};"""
 
 DTO_KINDS = {
     "RepresentedBattlePetSaveInfoLikeCpp": "enum",
@@ -88,6 +106,20 @@ DTO_METHODS = (
     "packet_info_like_cpp",
 )
 
+IDENTIFIER = r"[A-Za-z_][A-Za-z0-9_]*"
+SUPER_USE_HEAD = re.compile(
+    r"(?m)^[ \t]*(?:(?:pub(?:\([^)]*\))?)[ \t]+)?"
+    r"use[ \t]+super[ \t]*::"
+)
+CFG_TEST_BEFORE_IMPORT = re.compile(
+    r"(?m)^[ \t]*#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\][ \t]*(?:\r?\n[ \t]*)+$"
+)
+ROOT_CAGE_CFG_BEFORE_REEXPORT = re.compile(
+    r'(?m)^[ \t]*#\s*\[\s*cfg\s*\(\s*any\s*\(\s*test\s*,\s*'
+    r'feature\s*=\s*"test-fixtures"\s*\)\s*\)\s*\][ \t]*'
+    r"(?:\r?\n[ \t]*)+$"
+)
+
 CORE_IMPORTS = """//! Session-owned battle-pet data transfer objects shared with the world shell.
 
 use wow_core::ObjectGuid;
@@ -116,21 +148,112 @@ def _exact_statement_count(source: str, lexer, statement: str) -> int:
     return len(pattern.findall(code))
 
 
-def _exact_code_block_count(source: str, lexer, block: str) -> int:
+def _parse_super_import(statement: str) -> tuple[str, list[str]] | None:
+    statement = statement.strip()
+    grouped = re.fullmatch(
+        r"use\s+super\s*::\s*\{(?P<members>[^{}]*)\}\s*;", statement, re.S
+    )
+    if grouped is not None:
+        parts = grouped.group("members").split(",")
+        if parts and not parts[-1].strip():
+            parts.pop()
+        members = [part.strip() for part in parts]
+        if not members or any(re.fullmatch(IDENTIFIER, member) is None for member in members):
+            return None
+        return "group", members
+
+    single = re.fullmatch(rf"use\s+super\s*::\s*({IDENTIFIER})\s*;", statement, re.S)
+    if single is not None:
+        return "single", [single.group(1)]
+    return None
+
+
+def _has_exact_attribute_before(source: str, code: str, lexer, item_start: int, pattern) -> bool:
+    preceding = source[:item_start]
+    match = pattern.search(preceding)
+    if match is None or match.end() != len(preceding):
+        return False
+    return code[match.start() : match.end()] == lexer.blank_noncode(match.group(0))
+
+
+def _has_unexpected_preceding_attribute(code: str, item_start: int) -> bool:
+    return code[:item_start].rstrip().endswith("]")
+
+
+def _is_module_level(code: str, item_start: int) -> bool:
+    depth = 0
+    for char in code[:item_start]:
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth < 0:
+                return False
+    return depth == 0
+
+
+def _shell_import_layout(source: str, lexer) -> tuple[str, list[tuple[int, int, str, list[str]]]]:
+    """Recognize only the exact old or new DTO-related `use super` shape."""
     code = lexer.blank_noncode(source)
-    block_code = lexer.blank_noncode(block)
-    count = 0
-    start = 0
-    while True:
-        start = source.find(block, start)
-        if start < 0:
-            return count
-        end = start + len(block)
-        # Lexical blanking hides string contents, so also compare the raw block
-        # to keep literal-bearing imports exact.
-        if code[start:end] == block_code:
-            count += 1
-        start += 1
+    imports: list[tuple[int, int, str, list[str]]] = []
+    for match in SUPER_USE_HEAD.finditer(code):
+        semicolon = code.find(";", match.end())
+        if semicolon < 0:
+            raise CodemodError("unterminated battle-pet shell import")
+        statement = code[match.start() : semicolon + 1]
+        mentioned = set(re.findall(IDENTIFIER, statement)) & SHELL_IMPORT_TARGETS
+        if not mentioned:
+            continue
+        if not _is_module_level(code, match.start()):
+            raise CodemodError("battle-pet shell imports must be module-level")
+        parsed = _parse_super_import(statement)
+        if parsed is None:
+            raise CodemodError("malformed battle-pet shell import")
+        kind, members = parsed
+        if kind == "group" and _has_unexpected_preceding_attribute(code, match.start()):
+            raise CodemodError("battle-pet grouped shell import must be unconditional")
+        imports.append((match.start(), semicolon + 1, kind, members))
+
+    if (
+        len(imports) == 1
+        and imports[0][2] == "group"
+        and len(imports[0][3]) == len(SHELL_IMPORT_OLD_MEMBERS)
+        and set(imports[0][3]) == set(SHELL_IMPORT_OLD_MEMBERS)
+    ):
+        return "old", imports
+
+    grouped = [item for item in imports if item[2] == "group"]
+    cage = [
+        item
+        for item in imports
+        if item[2] == "single" and item[3] == [SHELL_CAGE_IMPORT]
+    ]
+    if (
+        len(imports) == 2
+        and len(grouped) == 1
+        and len(cage) == 1
+        and len(grouped[0][3]) == len(SHELL_IMPORT_NEW_MEMBERS)
+        and set(grouped[0][3]) == set(SHELL_IMPORT_NEW_MEMBERS)
+        and _has_exact_attribute_before(
+            source, code, lexer, cage[0][0], CFG_TEST_BEFORE_IMPORT
+        )
+    ):
+        return "new", imports
+
+    raise CodemodError("unexpected battle-pet shell import set or cfg")
+
+
+def _has_root_cage_fixture_gate(session_mod: str, lexer) -> bool:
+    code = lexer.blank_noncode(session_mod)
+    cage_reexport = re.compile(
+        r"(?m)^[ \t]*pub\(crate\)[ \t]+use[ \t]+wow_world_core[ \t]*::"
+        r"[ \t]*session[ \t]*::[ \t]*battle_pet_adapter[ \t]*::[ \t]*"
+        r"RepresentedBattlePetCageItemLikeCpp[ \t]*;[ \t]*$"
+    )
+    matches = list(cage_reexport.finditer(code))
+    return len(matches) == 1 and _has_exact_attribute_before(
+        session_mod, code, lexer, matches[0].start(), ROOT_CAGE_CFG_BEFORE_REEXPORT
+    )
 
 
 def _selected_spans(source: str, lexer):
@@ -230,13 +353,11 @@ def _build_core_module(original: str, lexer) -> tuple[str, str, list[str]]:
 
 
 def _update_shell_import(source: str, lexer) -> tuple[str, bool]:
-    old_count = _exact_statement_count(source, lexer, SHELL_IMPORT_OLD)
-    new_count = _exact_code_block_count(source, lexer, SHELL_IMPORT_NEW)
-    if new_count == 1 and old_count == 0:
+    layout, imports = _shell_import_layout(source, lexer)
+    if layout == "new":
         return source, False
-    if new_count != 0 or old_count != 1:
-        raise CodemodError("expected one original battle-pet shell import")
-    return source.replace(SHELL_IMPORT_OLD, SHELL_IMPORT_NEW), True
+    start, end = imports[0][:2]
+    return source[:start] + SHELL_IMPORT_NEW + source[end:], True
 
 
 def _update_shell_reexports(source: str) -> tuple[str, list[str]]:
@@ -255,10 +376,10 @@ def _update_shell_reexports(source: str) -> tuple[str, list[str]]:
 
 def _already_applied(source: str, core: str, session_mod: str, lexer) -> bool:
     no_source_dtos = all(not _named_item_matches(source, lexer, name) for name in DTO_KINDS)
-    source_import_updated = (
-        _exact_code_block_count(source, lexer, SHELL_IMPORT_NEW) == 1
-        and _exact_statement_count(source, lexer, SHELL_IMPORT_OLD) == 0
-    )
+    try:
+        source_import_updated = _shell_import_layout(source, lexer)[0] == "new"
+    except CodemodError:
+        source_import_updated = False
     source_code = lexer.blank_noncode(source)
     no_source_impls = not any(
         self_type in DTO_IMPLS for _, _, self_type in item_tools.impl_blocks(lexer, source_code)
@@ -292,7 +413,7 @@ def _already_applied(source: str, core: str, session_mod: str, lexer) -> bool:
         )
         == 0
         for name in SHELL_TYPES
-    )
+    ) and _has_root_cage_fixture_gate(session_mod, lexer)
     return (
         no_source_dtos
         and no_source_impls

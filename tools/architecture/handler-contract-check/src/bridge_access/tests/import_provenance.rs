@@ -37,7 +37,7 @@ fn package_mount<'a>(
     }
 }
 
-fn core_package(module: &str, path: &str, source: &str) -> BridgeSource<'_> {
+fn core_package<'a>(module: &'a str, path: &'a str, source: &'a str) -> BridgeSource<'a> {
     package_mount("wow-world-core", module, path, source)
 }
 
@@ -49,8 +49,12 @@ fn core_root() -> BridgeSource<'static> {
     )
 }
 
-fn core_module(path: &str, source: &str) -> BridgeSource<'_> {
+fn core_module<'a>(path: &'a str, source: &'a str) -> BridgeSource<'a> {
     core_package("crate::map_manager", path, source)
+}
+
+fn core_map_file<'a>(source: &'a str) -> BridgeSource<'a> {
+    core_module("crates/wow-world-core/src/map_manager.rs", source)
 }
 
 fn server_bridge(source: &str) -> BridgeSource<'_> {

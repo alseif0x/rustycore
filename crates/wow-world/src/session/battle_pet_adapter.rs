@@ -4,13 +4,11 @@
 //! Battle pet adapter: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 use super::RepresentedBattlePetCageItemLikeCpp;
 use super::{
     AuraApplication, Instant, ObjectGuid, RepresentedAuraEffectLikeCpp,
-    RepresentedBattlePetCalculatedStatsLikeCpp, RepresentedBattlePetDataLikeCpp,
-    RepresentedBattlePetLevelCriteriaLikeCpp, RepresentedBattlePetQueryCompanionLikeCpp,
-    RepresentedBattlePetSaveInfoLikeCpp, RepresentedBattlePetSlotLikeCpp, WorldSession,
+    RepresentedBattlePetCalculatedStatsLikeCpp, RepresentedBattlePetDataLikeCpp, WorldSession,
 };
 use super::{represented_aura_effect_amounts_like_cpp, warn};
 

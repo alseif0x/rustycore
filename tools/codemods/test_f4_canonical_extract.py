@@ -105,6 +105,28 @@ class CanonicalPlayerExtractTests(unittest.TestCase):
         self.assertNotIn("canonical_player_honor_stats_like_cpp", shell)
         self.assertNotIn("canonical_player_aggro_unit_state_like_cpp", shell)
 
+    def test_world_only_helpers_stay_in_their_original_cfg_group(self):
+        _, shell, _ = codemod.transform_source(sample_source(), self.lexer)
+
+        self.assertIn(
+            """pub(crate) use wow_world_core::canonical_player_access::{
+    set_player_visible_item_values_like_cpp, with_canonical_player_at_like_cpp,
+};""",
+            shell,
+        )
+        self.assertIn(
+            """#[cfg(test)]
+pub(crate) use wow_world_core::canonical_player_access::{
+    canonical_player_presentation_like_cpp, configure_canonical_player_party_flags_for_test,
+    configure_canonical_player_vitals_for_test, with_canonical_player_at_mut_like_cpp,
+};""",
+            shell,
+        )
+        self.assertEqual(
+            shell.count("#[cfg(test)]\npub(crate) use wow_world_core::canonical_player_access::{"),
+            1,
+        )
+
     def test_missing_and_ambiguous_installer_are_rejected(self):
         source = sample_source()
         without_installer, _ = codemod.extract_installer(source, self.lexer)

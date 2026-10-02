@@ -35,6 +35,14 @@ CORE_IMPORTS = """use std::{error::Error, fmt};
 use wow_entities::PhaseShift;
 use wow_packet::packets::party::{PartyMemberPhase, PartyMemberPhaseStates};"""
 
+USE_ITEM = re.compile(
+    r"(?m)^[ \t]*(?P<attrs>(?:\#[ \t]*\[[^\]\n]*\][ \t]*(?:\r?\n[ \t]*)?)*)"
+    r"(?P<visibility>pub(?:[ \t]*\([^)]*\))?[ \t]+)?use[ \t]+(?P<path>[^;]+);"
+)
+PARTY_MODULE = "wow_packet::packets::party"
+CORE_PHASING_MODULE = "wow_world_core::phasing"
+CORE_REEXPORTS = {ERROR_TYPE, PARTY_FUNCTION}
+
 
 class CodemodError(Exception):
     """The reviewed source shape or an exact extraction target changed."""
@@ -137,14 +145,73 @@ def _replace_once(source: str, old: str, new: str, label: str) -> str:
     return source.replace(old, new, 1)
 
 
+def _top_level_use_items(source: str, lexer):
+    code = lexer.blank_noncode(source)
+    items = []
+    for match in USE_ITEM.finditer(code):
+        prefix = code[:match.start()]
+        if prefix.count("{") != prefix.count("}"):
+            continue
+        items.append(
+            {
+                "attrs": re.sub(r"\s+", "", match.group("attrs")),
+                "visibility": re.sub(r"\s+", "", match.group("visibility") or ""),
+                "path": re.sub(r"\s+", "", match.group("path")),
+            }
+        )
+    return items
+
+
+def _module_imports(items, module: str):
+    return [
+        item for item in items
+        if item["path"] == module or item["path"].startswith(module + "::")
+    ]
+
+
+def _has_exact_party_import(source: str, lexer) -> bool:
+    party_imports = _module_imports(_top_level_use_items(source, lexer), PARTY_MODULE)
+    return (
+        len(party_imports) == 1
+        and party_imports[0]["attrs"] == "#[cfg(test)]"
+        and party_imports[0]["visibility"] == ""
+        and party_imports[0]["path"] == PARTY_MODULE + "::PartyMemberPhase"
+    )
+
+
+def _has_exact_core_reexport(source: str, lexer) -> bool:
+    reexports = _module_imports(_top_level_use_items(source, lexer), CORE_PHASING_MODULE)
+    if len(reexports) != 1:
+        return False
+    item = reexports[0]
+    path = item["path"]
+    prefix = CORE_PHASING_MODULE + "::"
+    if item["attrs"] or item["visibility"] != "pub" or not path.startswith(prefix):
+        return False
+    tree = path[len(prefix):]
+    if not (tree.startswith("{") and tree.endswith("}")):
+        return False
+    names = [name for name in tree[1:-1].split(",") if name]
+    return len(names) == len(CORE_REEXPORTS) and set(names) == CORE_REEXPORTS
+
+
 def _update_world_imports(source: str, lexer) -> str:
     code = lexer.blank_noncode(source)
-    if code.count(STD_IMPORT_NEW) or code.count(PARTY_IMPORT_NEW):
+    party_imports = _module_imports(_top_level_use_items(source, lexer), PARTY_MODULE)
+    old_party_path = re.sub(
+        r"\s+", "", PARTY_IMPORT_OLD.removeprefix("use ").removesuffix(";")
+    )
+    if (
+        code.count(STD_IMPORT_NEW)
+        or len(party_imports) != 1
+        or party_imports[0]["attrs"]
+        or party_imports[0]["visibility"]
+        or party_imports[0]["path"] != old_party_path
+    ):
         raise CodemodError("partial or unexpected phasing import state")
     source = _replace_once(source, STD_IMPORT_OLD, STD_IMPORT_NEW, "standard-library import")
     source = _replace_once(source, PARTY_IMPORT_OLD, PARTY_IMPORT_NEW, "party-payload import")
-    code = lexer.blank_noncode(source)
-    if code.count(PARTY_REEXPORT):
+    if _module_imports(_top_level_use_items(source, lexer), CORE_PHASING_MODULE):
         raise CodemodError("phasing Core reexport already exists without its destination")
     source = _replace_once(
         source,
@@ -174,9 +241,8 @@ def _already_applied(source: str, core: str, lexer) -> bool:
         and residual.strip() == CORE_IMPORTS.strip()
         and lexer.blank_noncode(source).count(STD_IMPORT_NEW) == 1
         and lexer.blank_noncode(source).count(STD_IMPORT_OLD) == 0
-        and lexer.blank_noncode(source).count(PARTY_IMPORT_NEW) == 1
-        and lexer.blank_noncode(source).count(PARTY_IMPORT_OLD) == 0
-        and lexer.blank_noncode(source).count(PARTY_REEXPORT) == 1
+        and _has_exact_party_import(source, lexer)
+        and _has_exact_core_reexport(source, lexer)
     )
 
 

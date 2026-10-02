@@ -59,6 +59,18 @@ def fixture_source():
     return codemod.SHELL_IMPORT_OLD + "\n\n" + sample_source()
 
 
+def rustfmt_shell_import():
+    return """#[cfg(test)]
+use super::RepresentedBattlePetCageItemLikeCpp;
+use super::{
+    WorldSession,
+    RepresentedBattlePetDataLikeCpp,
+    ObjectGuid, Instant,
+    RepresentedBattlePetCalculatedStatsLikeCpp,
+    RepresentedAuraEffectLikeCpp, AuraApplication,
+};"""
+
+
 def fixture_session_mod():
     lines = []
     for name in codemod.SHELL_TYPES:
@@ -83,6 +95,65 @@ def write_fixture(root, *, source=None, core=None, session_mod=None):
 
 
 class ExactBattlePetCutTests(unittest.TestCase):
+    def test_shell_import_layout_accepts_rustfmt_order_and_member_order(self):
+        lexer = codemod._item_support(Path(REPO))
+        source = (
+            rustfmt_shell_import()
+            + "\nuse super::{represented_aura_effect_amounts_like_cpp, warn};\n"
+        )
+
+        layout, imports = codemod._shell_import_layout(source, lexer)
+
+        self.assertEqual(layout, "new")
+        self.assertEqual(len(imports), 2)
+
+        old_import = """use super::{
+    WorldSession, ObjectGuid,
+    RepresentedAuraEffectLikeCpp, Instant, AuraApplication,
+};"""
+        self.assertEqual(codemod._shell_import_layout(old_import, lexer)[0], "old")
+        indented_root_imports = "\n".join(
+            f"    {line}" if line else line for line in source.splitlines()
+        )
+        self.assertEqual(
+            codemod._shell_import_layout(indented_root_imports, lexer)[0], "new"
+        )
+
+    def test_shell_import_layout_rejects_partial_duplicate_and_spoofed_shapes(self):
+        lexer = codemod._item_support(Path(REPO))
+        valid = rustfmt_shell_import()
+        grouped = valid[valid.index("use super::{") :]
+        nested_group = (
+            valid[: valid.index("use super::{")]
+            + "fn helper() {\n"
+            + grouped
+            + "\n}\n"
+        )
+        malformed = (
+            valid.replace("RepresentedBattlePetDataLikeCpp,\n", ""),
+            valid.replace("WorldSession,", "WorldSession, WorldSession,"),
+            valid.replace("WorldSession,", "WorldSession, UnreviewedType,"),
+            valid.replace("use super::{", "#[cfg(test)]\nuse super::{"),
+            "#[cfg(test)]\n" + grouped,
+            nested_group,
+            valid.replace("#[cfg(test)]", '#[cfg(any(test, feature = "test-fixtures"))]'),
+            valid.replace(
+                "RepresentedBattlePetDataLikeCpp,",
+                "/* RepresentedBattlePetDataLikeCpp, */",
+            ),
+            valid.replace(
+                "RepresentedBattlePetDataLikeCpp,",
+                '"RepresentedBattlePetDataLikeCpp",',
+            ),
+            valid + "\n" + valid,
+            "/*\n" + valid + "\n*/",
+            'const IMPORT_SPOOF: &str = r##"' + valid + '"##;\n',
+        )
+        for candidate in malformed:
+            with self.subTest(candidate=candidate):
+                with self.assertRaises(codemod.CodemodError):
+                    codemod._shell_import_layout(candidate, lexer)
+
     def test_extracts_only_named_dtos_and_complete_impls(self):
         lexer = codemod._item_support(Path(REPO))
         source = sample_source()
@@ -152,6 +223,7 @@ class ExactBattlePetCutTests(unittest.TestCase):
         core, _ = widen_moved_items(codemod.CORE_IMPORTS + "\n" + moved + "\n", lexer)
         remaining, _ = codemod._update_shell_import(remaining, lexer)
         session_mod, _ = codemod._update_shell_reexports(fixture_session_mod())
+        remaining = remaining.replace(codemod.SHELL_IMPORT_NEW, rustfmt_shell_import(), 1)
 
         self.assertTrue(codemod._already_applied(remaining, core, session_mod, lexer))
         duplicated_type = core + "\npub struct RepresentedBattlePetSlotLikeCpp {}\n"
@@ -162,15 +234,31 @@ class ExactBattlePetCutTests(unittest.TestCase):
         self.assertFalse(
             codemod._already_applied(remaining, duplicated_impl, session_mod, lexer)
         )
+        wrong_root_gate = session_mod.replace('"test-fixtures"', '"fixture-spoof"', 1)
+        self.assertFalse(
+            codemod._already_applied(remaining, core, wrong_root_gate, lexer)
+        )
 
-    def test_apply_is_idempotent_for_complete_destination_fixture(self):
+    def test_plan_and_apply_accept_rustfmt_ordered_complete_destination(self):
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
             write_fixture(root)
 
             with redirect_stdout(StringIO()) as output:
                 codemod.run("apply", root)
+                source_path = root / codemod.SOURCE
+                source = source_path.read_text(encoding="utf-8")
+                self.assertEqual(source.count(codemod.SHELL_IMPORT_NEW), 1)
+                source_path.write_text(
+                    source.replace(codemod.SHELL_IMPORT_NEW, rustfmt_shell_import(), 1),
+                    encoding="utf-8",
+                )
                 first = tuple(
+                    (root / path).read_bytes()
+                    for path in (codemod.SOURCE, codemod.CORE, codemod.SESSION_MOD)
+                )
+                codemod.run("plan", root)
+                planned = tuple(
                     (root / path).read_bytes()
                     for path in (codemod.SOURCE, codemod.CORE, codemod.SESSION_MOD)
                 )
@@ -180,6 +268,7 @@ class ExactBattlePetCutTests(unittest.TestCase):
                     for path in (codemod.SOURCE, codemod.CORE, codemod.SESSION_MOD)
                 )
 
+            self.assertEqual(first, planned)
             self.assertEqual(first, second)
             self.assertIn("already applied", output.getvalue())
 

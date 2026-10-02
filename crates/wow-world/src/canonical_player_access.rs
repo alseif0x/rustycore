@@ -8,13 +8,13 @@ pub use wow_world_core::canonical_player_access::{
 };
 
 pub(crate) use wow_world_core::canonical_player_access::{
-    canonical_player_presentation_like_cpp, set_player_visible_item_values_like_cpp,
-    with_canonical_player_at_like_cpp, with_canonical_player_at_mut_like_cpp,
+    set_player_visible_item_values_like_cpp, with_canonical_player_at_like_cpp,
 };
 
 #[cfg(test)]
 pub(crate) use wow_world_core::canonical_player_access::{
-    configure_canonical_player_party_flags_for_test, configure_canonical_player_vitals_for_test,
+    canonical_player_presentation_like_cpp, configure_canonical_player_party_flags_for_test,
+    configure_canonical_player_vitals_for_test, with_canonical_player_at_mut_like_cpp,
 };
 
 #[cfg(test)]

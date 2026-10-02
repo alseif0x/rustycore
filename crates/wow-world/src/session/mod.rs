@@ -839,7 +839,9 @@ pub(crate) const MAX_SPECIALIZATIONS_LIKE_CPP: usize = 4;
 const NEEDED_TALENT_POINT_PER_TIER_LIKE_CPP: u32 = 5;
 const PLAYER_FLAGS_UBER_LIKE_CPP: u32 = 0x0008_0000;
 const PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP: u32 = 0x0000_0001;
+#[cfg(test)]
 pub(crate) use wow_world_core::session::PLAYER_FLAGS_AFK_LIKE_CPP;
+#[cfg(test)]
 pub(crate) use wow_world_core::session::PLAYER_FLAGS_DND_LIKE_CPP;
 pub(crate) use wow_world_core::session::PLAYER_FLAGS_GHOST_LIKE_CPP;
 const PLAYER_FLAGS_RESTING_LIKE_CPP: u32 = 0x0000_0020;
@@ -972,6 +974,7 @@ pub(crate) const BATTLE_PET_CAGE_ITEM_ID_LIKE_CPP: u32 = 82_800;
 #[allow(dead_code)]
 pub(crate) const BATTLE_PET_BREED_QUALITY_RARE_LIKE_CPP: u8 = 3;
 pub(crate) const BATTLE_PET_SPELL_VISUAL_UNCAGE_PET_LIKE_CPP: u32 = 222;
+#[cfg(test)]
 pub(crate) use wow_world_core::session::battle_pet_adapter::DEFAULT_MAX_BATTLE_PETS_PER_SPECIES_LIKE_CPP;
 pub(crate) const MAX_BATTLE_PET_LEVEL_LIKE_CPP: u16 = 25;
 
