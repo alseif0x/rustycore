@@ -3,113 +3,160 @@
 </p>
 
 <p align="center">
-  <strong>Bringing Azeroth to Rust.</strong><br>
-  A WotLK Classic 3.4.3 server emulator built for faithful behavior and a welcoming community.
+  <strong>RustyCore · Forever</strong><br>
+  Bringing a new generation of Classic to Rust.<br>
+  Experimental server support for <strong>WoW Forever 1.60.1 · build 70170 · Beta x64</strong>.
 </p>
 
 <p align="center">
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg" alt="License: GPL-3.0-or-later"></a>
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Rust-1.98.0-orange.svg" alt="Rust 1.98.0"></a>
-  <a href="docs/README.md"><img src="https://img.shields.io/badge/target-WotLK%20Classic%203.4.3.54261-6f42c1.svg" alt="WotLK Classic 3.4.3.54261 target"></a>
-  <img src="https://img.shields.io/badge/status-active%20development-e09f3e.svg" alt="Active development">
+  <a href="docs/operations/forever-login.md"><img src="https://img.shields.io/badge/client-Forever%201.60.1%20%2870170%29-6f42c1.svg" alt="WoW Forever 1.60.1 build 70170"></a>
+  <img src="https://img.shields.io/badge/milestone-real%20client%20BNet%20auth-2ea44f.svg" alt="Real-client BNet authentication verified">
+  <img src="https://img.shields.io/badge/status-experimental-e09f3e.svg" alt="Experimental; not playable yet">
   <a href="https://discord.gg/mH6ACpGPb2"><img src="https://img.shields.io/badge/Discord-join%20the%20community-5865F2.svg" alt="Join the Discord community"></a>
 </p>
 
 <p align="center">
-  <a href="#quick-start">Get started</a> ·
-  <a href="https://alseif0x.github.io/rustycore/">Documentation</a> ·
-  <a href="#roadmap">Roadmap</a> ·
+  <a href="#what-works-today">Progress</a> ·
+  <a href="#quick-start">Build & test</a> ·
+  <a href="docs/operations/forever-login.md">Forever runbook</a> ·
+  <a href="#roadmap">Next milestones</a> ·
   <a href="#contributing">Contribute</a> ·
   <a href="#community">Community</a>
 </p>
 
-## About
+## A new Classic client. A Rust foundation.
 
-RustyCore is an active, full-port effort: a TrinityCore-style WotLK Classic server being
-rebuilt in Rust. The target is full behavioral parity with the 3.4.3 C++ reference, with
-packet formats, database behavior, gameplay rules, and runtime order checked against the
-source before they are treated as correct.
+This is the **`1.60.1` development branch** of RustyCore, starting from the
+[WotLK Classic `3.4.3` codebase](https://github.com/alseif0x/rustycore/tree/3.4.3)
+at `2df57d6f`. Its target is the **modern WoW Forever client**, not the original
+Vanilla 1.12.1 protocol.
 
-Parts of login and world entry work, and many systems are represented in the workspace.
-The live gameplay runtime is still under migration, so RustyCore is not a drop-in replacement
-or a claim of complete gameplay parity yet. The [current state](docs/migration/STATE.md) is
-dated and records the evidence behind each status claim.
+The first real-client milestone is in: build **70170** completes normal HTTPS
+SRP authentication, Battle.net Authentication V2, account queries and a realm-list
+ticket exchange against RustyCore. No password bypass or synthetic login success.
+
+> **Research preview — not playable yet.** The client currently stops during
+> realm discovery with `WOW51900309` (“No realms are currently available”).
+> Character creation and initial world loading are the next goals, not completed
+> features. The diagnostic launcher setup is not a turnkey client installer.
+
+## What works today
+
+Evidence recorded on **2026-10-02**, with the real Windows x64 client running in
+an isolated Wine environment on a Linux x86_64 host:
+
+| Stage | Status | Evidence / boundary |
+| --- | --- | --- |
+| BNet TLS connection and connection identity | Verified | Real build-70170 client |
+| HTTPS SRPv2 and Authentication V2 | Verified | Successful proof, token verification and `OnLogonComplete` |
+| Account V2 queries | Verified | Account and game-account information/restrictions |
+| Realm-list ticket and subregion discovery | Verified | Real client accepts the responses |
+| Offline realm-list serialization | Smoke-tested | V1/V2 test client decodes `1.60.1.70170`; not a realm-selector UI pass |
+| Forever `SuperDistrictList` | Next protocol boundary | Currently returns not implemented |
+| Character selection / creation | Pending | Requires realm discovery and compatible world authentication |
+| Initial world load | Pending | Requires target-build packets and appropriate world/client data |
+
+The current evidence includes **108 BNet tests**, **16 Python smoke tests**, and
+live V1/V2 positive/negative authentication scenarios. These counts describe the
+recorded scoped checks, not a full-workspace or gameplay-parity certification.
+The [runbook](docs/operations/forever-login.md) records exact revisions, source
+anchors, failures, timings and the observed client trace.
 
 ## Documentation
 
-The [documentation map](docs/README.md) routes each question to its maintained source.
+Start with the branch-specific material; inherited guides still describe 3.4.3
+unless explicitly marked otherwise.
 
+- [Forever login runbook](docs/operations/forever-login.md) — isolated fixture, protocol evidence and current blocker.
 - [Current state](docs/migration/STATE.md) — implementation, evidence, and known boundaries.
-- [Server setup](docs/wiki/server/setup.md) — requirements, configuration, and startup.
-- [Client setup](docs/wiki/client/setup.md) — endpoints and the login/world-entry smoke path.
-- [Database bootstrap](docs/operations/db-bootstrap.md) — schemas, TDB content, and migrations.
+- [Documentation map](docs/README.md) — maintained project references.
+- [Inherited server setup](docs/wiki/server/setup.md) and [database bootstrap](docs/operations/db-bootstrap.md) — 3.4.3 foundation, not verified Forever world setup.
 - [Validation V2](docs/operations/validation-v2.md) — focused, final, and exhaustive checks.
 - [Live client debugging](docs/operations/live-client-debug.md) — authorized runtime evidence.
 
 ## Roadmap
 
-The [port plan](docs/migration/PORT_PLAN.md) describes the full-parity work and its order.
-Use the [current state](docs/migration/STATE.md) for what has evidence today; historical
-roadmaps, percentages, and archived handoffs do not replace it.
+1. **Understand Forever realm discovery.** Establish `SuperDistrictList` from
+   target-build evidence and reach the actual realm selector.
+2. **Connect the world socket.** Verify build admission, authentication, opcode
+   mappings and packet layouts before enabling the inherited world path.
+3. **Reach character creation.** Validate character enumeration, creation and
+   persistence with the real client.
+4. **Load the initial world.** Confirm the required data, initial packet sequence
+   and client loading result.
+
+These are dependency-ordered goals, not release dates or completed compatibility
+claims. The parent [3.4.3 port plan](docs/migration/PORT_PLAN.md) remains separate;
+inherited gameplay implementation does not establish support for build 70170.
 
 ## Target and prerequisites
 
 | Area | Current target |
 | --- | --- |
-| Client | WotLK Classic `3.4.3.54261` |
+| Client | WoW Forever `1.60.1.70170` — Beta x64 |
+| Branch / foundation | `1.60.1`, based on `3.4.3` at `2df57d6f` |
 | Rust | `1.98.0`, pinned in [`rust-toolchain.toml`](rust-toolchain.toml) |
 | Protobuf compiler | `28.3`, pinned in [`.protoc-version`](.protoc-version) |
-| Databases | MariaDB `10.6+` or MySQL `8.x`; `auth`, `characters`, `world`, `hotfixes` |
-| World data | Trinity/TDB-style content; expected `TDB 343.24081`, `cache_id = 24081` |
-| Manual testing | Extracted client data (`dbc`, `db2`, `maps`, `vmaps`, `mmaps` as needed) |
+| Accepted local fixture | Disposable MariaDB `11.4`, isolated Auth schema |
+| World data | Forever compatibility not established; do not treat 3.4.3 TDB/data as drop-in support |
+| Manual testing | Your own client installation and the documented diagnostic launcher setup |
 
 You will also need a local configuration and, for Battle.net authentication, TLS certificate
 material. Keep credentials, certificates, database URLs, and runtime configuration outside Git.
-The [server setup guide](docs/wiki/server/setup.md) and [DB bootstrap guide](docs/operations/db-bootstrap.md)
-cover the operator prerequisites.
+Use the [Forever runbook](docs/operations/forever-login.md) for the accepted local
+scope. It deliberately keeps the test realm offline and does not start a world server.
 
 ## Quick start
 
-Clone the integration branch and let `rustup` use the repository's pinned toolchain:
+Clone this experimental branch and let `rustup` use the pinned toolchain:
 
 ```bash
-git clone https://github.com/alseif0x/rustycore.git
+git clone --branch 1.60.1 https://github.com/alseif0x/rustycore.git
 cd rustycore
-git switch 3.4.3
 ```
 
 Install a `protoc` release matching `.protoc-version` (`28.3`), then point `PROTOC` at it.
-Build the two server binaries with one Cargo job:
+Build the Battle.net server with one Cargo job:
 
 ```bash
 PROTOC=/path/to/protoc cargo build --locked --release -j1 \
-  -p bnet-server -p world-server
+  -p bnet-server
 ```
 
-Prepare the four databases and required world data with the [DB bootstrap guide](docs/operations/db-bootstrap.md).
-Create private `bnetserver.conf` and `worldserver.conf` files, then set their database,
-TLS, realm, and `DataDir` values. The root-level config names and `.conf.d` directories are
-ignored by Git.
-
-Start Battle.net first and the world server second, in separate terminals:
+Provision **a fresh disposable Auth database** and private TLS/configuration
+material using the [runbook](docs/operations/forever-login.md). Provisioning is
+operator-controlled, not a one-command install; never point the fixture at a
+shared or existing realm database. After preparation, start the local BNet server:
 
 ```bash
-./target/release/bnet-server --config /absolute/path/to/bnetserver.conf
-./target/release/world-server --config /absolute/path/to/worldserver.conf
+RUST_LOG=warn ./target/release/bnet-server \
+  --config /absolute/path/to/private-runtime/bnetserver.conf
 ```
 
-The usual local ports are:
+In another terminal, exercise the normal authentication path:
+
+```bash
+python3 tools/wow-test-bot/forever_bnet_smoke.py \
+  --runtime /absolute/path/to/private-runtime
+```
+
+The checker reads the fixture's private password file, verifies the TLS
+certificate and SRP server proof, and reports sanitized results. It does not
+create a character or join a world. There is **no published default password**.
+
+The recorded isolated fixture uses loopback-only endpoints:
 
 | Service | Port |
 | --- | ---: |
 | Battle.net RPC over TLS | `1119` |
-| Battle.net REST | `8081` |
-| World socket | `8085` |
-| Instance socket | `8086` |
+| Battle.net HTTPS REST | `18081` |
+| Disposable MariaDB | `13316` |
+| World metadata only — no listener started | `18085` |
 
-Check the [client setup guide](docs/wiki/client/setup.md) before connecting a client. The
-integrated [smoke bot](tools/wow-test-bot/README.md) covers a narrow login and world-entry
-scenario; passing it does not establish full gameplay parity.
+Advertised HTTPS URLs use `localhost` to match the test certificate. Do not copy
+these development endpoints, credentials or certificates into a public deployment.
 
 ## Workspace
 
