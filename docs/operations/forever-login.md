@@ -149,6 +149,65 @@ retail/Arctium-derived launcher handles the modern client certificate loader.
 
 ## Acceptance boundary
 
+### Modern connection identity contract
+
+On this branch, `rpc/identity.rs` owns one identity per `RpcSession`. Server PID
+and startup epoch are process-wide; fallback client ID and creation epoch are
+connection-scoped. `Connect` returns both process IDs, current server milliseconds,
+an explicit bindless value (default true), and the uppercase 33-byte CIID. The
+outgoing session writer includes that same CIID in every RPC header, including
+status-only errors and server notifications. Wire field 13 is still named
+`client_id` in the inherited protobuf; no schema rename or world protocol change
+is required.
+
+This deliberate modern-client adaptation follows TrinityCore master
+`6ebe044cbb9895b458fcd3244639acadff287809`:
+`src/server/bnetserver/Services/ConnectionService.cpp::HandleConnect` and
+`src/server/bnetserver/Server/Session.cpp::{Session,SendResponse,SendRequest}`.
+It is not attributed to the 3.4.3 fork. The Python smoke omits client ID/bindless
+in Connect to exercise their defaults and verifies CIID on the Connect reply,
+an unknown-service status error, subsequent replies, and `OnLogonComplete`.
+
+Before this change the real build-70170 client completed TLS and sent
+`ConnectionService.Connect` (token 0), then sent `RequestDisconnect` (token 1,
+error code 0) without `AuthenticationService.Logon`. The old Connect response
+omitted both the fallback client ID and CIID. This narrows the observed failure;
+it does not by itself prove that CIID is the only remaining incompatibility.
+
+The CIID campaign on 2026-10-02 ran from `17:17:24Z` through `17:19:45Z`
+(141 seconds) on x86_64, based at `27c58fd1` with the identity/consumer changes
+uncommitted. Commands: `cargo test --locked --release -p bnet-server --bin
+bnet-server --timings` (92/92), `cargo build --locked --release -p bnet-server
+--bin bnet-server --timings`, Python `unittest discover` for
+`test_forever_bnet_smoke.py` (12/12), targeted rustfmt, `git diff --check`,
+`check_architecture.py physical-files`, and the restarted isolated runtime's
+`forever_bnet_smoke.py`. Cargo used one job, the worktree's `target`, and local
+protoc 28.3. The live smoke passed SRP negatives/mutual proof and the added
+CIID/status-only checks through offline realm list. Timing reports are
+`cargo-timing-20261002T171724637Z-dca5975bb34c7c17.html` and
+`cargo-timing-20261002T171809147Z-dca5975bb34c7c17.html`.
+
+The same real client then **passed Connect**: the sanitized sequence at
+`17:19:38Z` was client `0x65446991:1`, token 0, payload 62 → server success,
+payload 66/header 42 → client `0xC02F8216:1`, token 1, payload 503/header 90.
+The latter service was unsupported, returned status 1, and was followed by
+`RequestDisconnect`, token 2/error 0. Thus the CIID change has fresh real-client
+progress evidence, but full login still fails at the next service. No world
+server was started. No final publication runner or push was performed.
+
+### Benilla comparison
+
+The user-supplied [Benilla](https://github.com/samwhosung/benilla) was inspected
+at `99b5600e250d2da2e26461dd33361b8d2d84458b`. Its
+`crates/benilla-protocol/src/auth.rs`, `lib.rs::logon`, and
+`world/session.rs::WorldSession::connect_queued` implement Vanilla
+`1.12.1.5875`: realmd TCP/SRP6, legacy realm list and world auth/header crypto.
+It is a useful reference for phase-specific failures and parser tests, **not**
+an implementation of BNet TLS/protobuf, CIID, modern auth tokens or build 70170.
+No Benilla wire constants or crypto were imported into this branch.
+
+### Previous fixture campaign
+
 The first live run of the original helper on 2026-10-02 at 16:17 UTC passed the
 negative SRP proof, valid `M2`/ticket, RPC logon completion and decoded offline
 realm build. The final local campaign ran from `2026-10-02T16:52:11Z` through

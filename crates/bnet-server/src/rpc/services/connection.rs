@@ -2,7 +2,6 @@
 
 use anyhow::Result;
 use prost::Message;
-use wow_proto::bgs::protocol::ProcessId;
 use wow_proto::bgs::protocol::connection::v1::*;
 
 use crate::rpc::session::RpcSession;
@@ -26,29 +25,12 @@ pub async fn handle<S: AsyncRead + AsyncWrite + Unpin>(
 
 /// Method 1: Connect
 async fn handle_connect<S: AsyncRead + AsyncWrite + Unpin>(
-    _session: &mut RpcSession<S>,
+    session: &mut RpcSession<S>,
     payload: &[u8],
 ) -> Result<Option<Vec<u8>>> {
     let request = ConnectRequest::decode(payload)?;
 
-    let pid = std::process::id();
-    let epoch = std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as u32;
-
-    let response = ConnectResponse {
-        server_id: ProcessId { label: pid, epoch },
-        client_id: request.client_id,
-        server_time: Some(
-            std::time::SystemTime::now()
-                .duration_since(std::time::UNIX_EPOCH)
-                .unwrap_or_default()
-                .as_millis() as u64,
-        ),
-        use_bindless_rpc: request.use_bindless_rpc,
-        ..Default::default()
-    };
+    let response = session.connect(&request);
 
     tracing::debug!("ConnectionService: Connect handled");
     Ok(Some(response.encode_to_vec()))

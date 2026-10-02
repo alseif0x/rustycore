@@ -31,7 +31,20 @@ took 7m04 and is separate from this 81-second campaign. No final runner, push,
 or publication was performed. See the [WoW Forever login runbook](../operations/forever-login.md)
 for the bounded procedure and log-safety rules.
 
-No world-server login or World `AuthSession` was exercised. A real-client UI
+The next local CIID campaign (`17:17:24Z`–`17:19:45Z`, 141 seconds), based at
+`27c58fd1` with uncommitted production/QA changes, passed 92 BNet tests, 12
+Python tests, a release build, targeted rustfmt/diff/physical-file checks, and
+the restarted live REST/RPC smoke with CIID on replies, status-only errors and
+notifications. The modern connection identity follows TrinityCore master
+`6ebe044cbb9895b458fcd3244639acadff287809`, `ConnectionService::HandleConnect`
+and `Session::{Session,SendResponse,SendRequest}`; it is not 3.4.3 wire evidence.
+The real client now passes Connect and next requests `0xC02F8216:1` (token 1,
+503-byte payload), which was unsupported and returned status 1. Full login is
+still unresolved at that next service. See the runbook for exact commands,
+source paths and sanitized before/after frame metadata. Benilla was also
+reviewed at `99b5600e`; its 1.12.1/5875 authentication is not BNet-compatible.
+
+No world-server login or World `AuthSession` was exercised. The earlier real-client UI
 attempt was exercised in isolated Wine with DXVK after removing the rejected
 `-gxapi` argument; several TLS connections were accepted by the server, but the
 client terminated with `WOW51900340` before completing login. The Arctium-derived

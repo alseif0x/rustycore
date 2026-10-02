@@ -77,6 +77,23 @@ class ForeverBnetWireTests(unittest.TestCase):
         with self.assertRaises(ValueError):
             wire.parse_http_header(b"x" * (wire.MAX_HTTP_HEADER + 1))
 
+    def test_modern_connect_identity_and_header_wire(self):
+        ciid = b"0000001200000034-0000009A000000BC"
+        process = lambda label, epoch: wire.var(1, label) + wire.var(2, epoch)
+        base = wire.raw(1, process(0x12, 0x34)) + wire.raw(2, process(0x9A, 0xBC))
+        payload = base + wire.var(7, 1) + wire.raw(9, ciid)
+        header = wire.parse_rpc_header(wire.rpc_header(0xFE, 0, 1, ciid=ciid))
+        self.assertEqual(wire.connect_identity(payload, header), ciid)
+        for invalid in (base + wire.raw(9, ciid), base + wire.var(7, 0) + wire.raw(9, ciid),
+                        base + wire.var(7, 1), payload.replace(ciid, ciid.lower()),
+                        wire.raw(1, process(0x12, 0x34)) + wire.var(7, 1) + wire.raw(9, ciid)):
+            with self.subTest(payload=invalid), self.assertRaises(ValueError):
+                wire.connect_identity(invalid, header)
+        for wrong_header in ({}, {13: ciid.lower()}):
+            with self.assertRaises(ValueError): wire.connect_identity(payload, wrong_header)
+        with self.assertRaises(ValueError):
+            wire.parse_rpc_header(wire.rpc_header(0xFE, 0, 1) + wire.var(13, 1))
+
     def test_attributes_decode_ticket_value_not_name_only(self):
         body = wire.client_request([wire.attribute("Param_RealmListTicket", b"AuthRealmListTicket")])
         self.assertEqual(wire.response_attributes(body)["Param_RealmListTicket"], b"AuthRealmListTicket")

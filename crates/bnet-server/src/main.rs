@@ -32,6 +32,7 @@ const BNET_CONFIG_DIR: &str = "bnetserver.conf.d";
 
 #[tokio::main]
 async fn main() -> Result<()> {
+    rpc::initialize_server_identity();
     // Initialize logging
     tracing_subscriber::fmt()
         .with_env_filter(

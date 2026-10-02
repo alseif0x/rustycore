@@ -18,7 +18,7 @@ import zlib
 from pathlib import Path
 from forever_bnet_wire import (MAX_HTTP_BODY, MAX_HTTP_HEADER, attribute, client_request,
                                fields, parse_http_header, parse_rpc_header, raw, response_attributes,
-                               rpc_header, var)
+                               rpc_header, var, connect_identity)
 
 HOST, REST, RPC = "127.0.0.1", 18081, 1119
 EMAIL, BUILD, VERSION = "FOREVER@LOCAL.TEST", 70170, "1.60.1"
@@ -184,6 +184,7 @@ def validate_rejected_result(status, result):
 class RPCSession:
     def __init__(self, runtime):
         self.tls, self.token, self.logon_error = TLS(runtime, RPC), 1, None
+        self.ciid = None
 
     def close(self): self.tls.close()
 
@@ -191,19 +192,23 @@ class RPCSession:
         size = struct.unpack(">H", self.tls.read(2))[0]
         if not size: raise ValueError("empty RPC header")
         header = parse_rpc_header(self.tls.read(size))
+        if self.ciid is not None and header.get(13) != self.ciid:
+            raise ValueError("RPC response/notification CIID mismatch")
         return header, self.tls.read(header.get(5, 0))
 
     def respond(self, token):
-        header = rpc_header(RESPONSE, 0, token)
+        header = rpc_header(RESPONSE, 0, token, ciid=self.ciid)
         self.tls.sock.sendall(struct.pack(">H", len(header)) + header)
 
     def send(self, service_hash, method, payload):
         token = self.token; self.token += 1
-        header = rpc_header(0, method, token, len(payload), service_hash)
+        header = rpc_header(0, method, token, len(payload), service_hash, self.ciid)
         self.tls.sock.sendall(struct.pack(">H", len(header)) + header + payload)
         while True:
             header, body = self.frame()
             if header.get(1) == RESPONSE and header.get(3) == token:
+                if service_hash == CONN and method == 1 and not header.get(6, 0):
+                    self.ciid = connect_identity(body, header)
                 return header.get(6, 0), body
             if header.get(11) == ALIST and header.get(2) == 5:
                 self.logon_error = next((v for n, w, v in fields(body) if n == 1 and w == 0), None)
@@ -253,8 +258,10 @@ def realm_metadata(blob):
 def rpc_login(runtime, ticket):
     rpc = RPCSession(runtime)
     try:
-        status, _ = rpc.send(CONN, 1, var(3, 1))
+        status, _ = rpc.send(CONN, 1, b"")
         if status: raise ValueError("Connect failed")
+        status, _ = rpc.send(0xFFFFFFFF, 1, b"")
+        if status != 1: raise ValueError("status-only error response failed")
         logon = (raw(1, b"WoW") + raw(2, b"Wn64") + raw(3, b"esES") + raw(5, VERSION.encode()) +
                  var(6, BUILD) + raw(12, ticket.encode()))
         status, _ = rpc.send(AUTH, 1, logon)
@@ -273,7 +280,8 @@ def rpc_login(runtime, ticket):
             attribute("Command_RealmListRequest_v1_classic", "2-1-0", True)]))
         if status: raise ValueError("realm list failed")
         realm = realm_metadata(response_attributes(body)["Param_RealmList"])
-        return {"connect": True, "on_logon_complete": True, "realm_list_ticket": True,
+        return {"connect": True, "ciid_all_frames": True, "status_only": True,
+                "on_logon_complete": True, "realm_list_ticket": True,
                 "realm_list": True, "realm": realm}
     finally: rpc.close()
 
