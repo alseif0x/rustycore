@@ -685,7 +685,8 @@ only the documentation-delta check, with no repeated builds or live mutations.
 
 ### Modern realm-join contract on `forever`
 
-The next BNet adapter follows `advocaite/TrinityCore` commit `02245dcd`:
+The BNet adapter at code candidate `8691506f` follows `advocaite/TrinityCore`
+commit `02245dcd`:
 `GameUtilitiesService.cpp::{GetRealmListTicket,JoinRealm}`,
 `RealmList.cpp::JoinRealm`, `RealmList/RealmList.proto::RealmJoinTicket`, and
 `common/Utilities/FourCC.h`. V2 build 70170 retains the admitted client-info
@@ -728,6 +729,71 @@ the Win-x64-WoWB build-auth key is unknown and refers to its optional check bypa
 That bypass is **not** imported here. The inherited zero fixture seeds are not
 valid 70170 authentication evidence; a successful World AuthSession needs its
 own target-backed key/crypto/packet contract and real client acceptance.
+
+#### Realm-join acceptance — 2026-10-02
+
+Validation began at `20:16:24Z` on clean committed candidate `8691506f`, Linux
+x86_64, one Cargo job and the checkout's existing `target`. Exact commands:
+
+```bash
+export PATH=/home/joe/.cargo/bin:/usr/local/bin:/usr/bin:/bin
+export PROTOC=/tmp/rustycore-protoc-28.3/bin/protoc
+export CARGO_TARGET_DIR=/home/joe/projects/dream/wow/rustycore/target
+export CARGO_BUILD_JOBS=1 VALIDATION_V2_CARGO_JOBS=1
+export RUSTYCORE_CPP_REFERENCE_ROOT=/tmp/rustycore-forever-cpp
+./tools/validation-v2 final --base origin/3.4.3 --timings
+cargo test --locked --release -p bnet-server --bin bnet-server --timings
+cargo test --locked --release -p wow-database --lib --timings
+python3 -m unittest discover -s tools/wow-test-bot -p 'test_forever_*.py'
+cargo build --locked --release -p bnet-server --bin bnet-server --timings
+python3 tools/wow-test-bot/forever_bnet_smoke.py --runtime "$RUNTIME"
+# Only with the isolated realm temporarily online/PvP:
+python3 tools/wow-test-bot/forever_bnet_smoke.py --runtime "$RUNTIME" \
+  --expect-discovery-realm --expect-realm-join
+python3 tools/wow-test-bot/forever_world_probe.py --ack-isolated-probe
+# Restore offline/normal metadata, restart isolated BNet, repeat default smoke.
+```
+
+- Full final **FAIL**, manifest
+  `target/validation-v2/manifests/20261002T201625.054191Z-1623405-final.json`:
+  whitespace, Python compilation, rustfmt and 2277-file physical scan passed;
+  the inherited hotspot ratchet failed before workspace builds/tests. The
+  publication-section paths were again byte-identical to fork base `2df57d6f`.
+- BNet **133 passed**, 50.78s compilation plus 1.39s tests; Python **36 passed**.
+  Database **362 passed / 2 ignored**. Its first invocation omitted the C++
+  reference environment variable and returned 357 passed / 5 missing-reference
+  failures / 2 ignored; rerunning with the existing reference passed (0.13s
+  warm build). An earlier command also returned 127 because Cargo was not on
+  PATH; the corrected environment above was used. Neither failure is hidden.
+- Release binary **PASS**, 50.34s. Only the isolated BNet was restarted.
+  The default offline smoke and explicit online discovery/join smoke passed,
+  including pre-ticket rejection, malformed client variant, offline realm,
+  overflowing/aliased/unknown address rejection and exact positive ticket shape.
+- At approximately `20:22Z`, native build 70170 logged in, selected JcJ and
+  reached the one-shot listener. It returned the exact V2 client preamble;
+  `world_connection_preamble=true`, `world_authentication_tested=false`,
+  `character_selection_tested=false`. Deliberate probe closure produced UI
+  `WOW51900319`. This is fresh action-specific native evidence, not an
+  AuthSession/encryption/character test. The client Connection.log was buffered
+  at an older event; no new log-frame timing is claimed for this probe.
+- Direct DB read confirmed game-account 1 has `client_build=70170` and a
+  64-byte `session_key_bnet`, without exposing it; last-played-character rows
+  remain zero. Guarded updates restored the sole realm to `flag=2, icon=0`;
+  BNet was restarted at warn level, and no listener remains on world port 18085.
+- The first restored-offline smoke returned unclassified **ValueError**.
+  A diagnostic rerun that prints only exception locations passed with unchanged
+  inputs. Its transient cause is unresolved; this is not a claim of repeated
+  end-to-end stability. No credential reset or unrelated runtime change occurred.
+
+The existing scoped experimental publication waiver applies to the renamed
+`forever` line; this evidence does not make the full final gate green.
+The implementation acceptance campaign ran `20:16:24Z`–`20:24:18Z` (474s),
+including the failed invocations, diagnostic rerun and documentation-only quick
+check (`20261002T202417.968476Z-1625987-quick.json`). No production-code repair
+occurred during acceptance. The private UI helper's coordinate adjustment and
+rebuild are included in that interval. The timing closeout, documentation-only
+committed final check and publication occur afterwards and are separately
+identified; they must not be relabeled as a green full-workspace final.
 
 #### Manual-login follow-up
 

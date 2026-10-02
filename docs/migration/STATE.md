@@ -5,7 +5,26 @@ Branch naming, 2026-10-02: the experimental target branch is now **`forever`**
 remains `1.60.1.70170`; `3.4.3` is a separate development line, not the merge
 destination of this port. Older evidence below retains its original branch name.
 
-## Latest Forever branch boundary — 2026-10-02 19:48 UTC
+## Latest Forever branch boundary — 2026-10-02 20:22 UTC
+
+On `forever`, code candidate `8691506f` implements build-70170 BNet realm join:
+validated client variant and realm admission, persisted 64-byte join key/build,
+and the modern JSON ticket/addresses/secret response. In the isolated probe,
+the real client selected JcJ, accepted the join, opened `127.0.0.1:18085` and
+returned the exact V2 world-connection preamble. The one-shot probe then closed
+before AuthChallenge (`WOW51900319`); this is **not world authentication or
+character access**. The realm was restored offline/normal and BNet restarted.
+
+The reference explicitly lacks a known Win-x64-WoWB 70170 build-auth key. Its
+optional verification bypass was not imported. Target world crypto/packets,
+character creation and initial loading remain unresolved. Acceptance includes
+133 BNet, 362 database (2 ignored) and 36 Python tests, a release build and live
+join/admission checks. Full final still fails the inherited hotspot ratchet;
+one restored-offline smoke transiently failed with an unclassified ValueError,
+then passed on a location-only diagnostic rerun. Exact limitations and campaign
+evidence are in the [runbook](../operations/forever-login.md#modern-realm-join-contract-on-forever).
+
+## Earlier Forever discovery boundary — 2026-10-02 19:48 UTC
 
 On `1.60.1`, real client build 70170 now accepts the ruleset-to-realm response
 and sends **`Command_RealmJoinRequest_v1`** for `0x02010001`. This is fresh
