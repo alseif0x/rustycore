@@ -4,9 +4,6 @@
 
 use super::*;
 
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(super) use wow_world_core::session::PlayerSkillTestFixtureLikeCpp;
-
 mod reputation;
 mod skills;
 mod talents;

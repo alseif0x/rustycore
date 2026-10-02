@@ -5,5 +5,3 @@
 use super::*;
 
 mod operations;
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(crate) mod test_fixtures;

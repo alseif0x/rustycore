@@ -515,6 +515,20 @@ El formato de este lote terminó con exit 0 en 9,944 s (22:48:48–22:48:58 UTC)
 la revisión conserva los cuerpos y la cadena nominal de `WorldSession.core`.
 Las fachadas retiradas no definen tipos de registro ni inputs generados: no se
 modifican los baselines por esta limpieza sin comprobar antes su delta real.
+El checkpoint local `99d86c533` guarda el lote revisado. Su comprobación afectada
+del workspace terminó con exit 101 en 157,004 s, 22:50:04,200–22:52:41,204 UTC,
+con árbol limpio: los cinco imports anteriores ya compilan; queda un import del
+callback XP en el shim de progresión, retirado durante la limpieza. Se restaura
+su proveedor Core mediante la fachada existente. El contraste por símbolo,
+evitando diferencias de agrupación/ruta del diagnóstico, identifica los aliases
+internos que quedaron huérfanos tras retirar sus bindings World. Se completa esa
+cadena conservando los consumidores de tests; no se ejecutaron las suites ni se
+acredita aceptación del nuevo lote. Los fingerprints y diagnósticos de ese SHA
+se retuvieron antes de la siguiente compilación.
+La revisión del cierre de aliases conserva los proveedores efectivos de los
+shims y retira dos archivos World que solo reexportaban fixtures Core sin
+consumidores. No cambia definiciones, campos ni cuerpos. El formato terminó
+con exit 0 en 9,944 s (23:08:13–23:08:23 UTC); el lote permanece sin aceptación.
 
 La construcción debe conservar el orden exacto de expresiones, RNG, relojes, canales
 y campos. Extraer primero el literal de `SessionCore` a una inicialización propia;
@@ -568,6 +582,13 @@ lo guarda en sesión. El movimiento conserva ese comportamiento y no acredita
 paridad de owner; la diferencia de lifetime permanece para la pista F6. Addon
 registro/unregister conserva `WorldSession.cpp:948–976`, incluido limpiar la
 lista sin alterar el flag. No hay todavía implementación ni aceptación F4b.
+El contraste de proveedores en `99d86c533` confirma que `HubRef`/`HubMut` y
+`SessionCommand`/payloads de duelo pertenecen ya a Core; no bloquean el traslado
+de los nueve impls sociales. El cierre World real incluye las DTO de
+calendar/petitions/duel, el evento de force-deselect, el enum de reconciliación,
+la distancia de XP de grupo y las constantes de duelo/guild que comparten los
+wrappers. Conservar sus fachadas necesarias, el cuerpo de flood con su `HubMut`
+Core y el puente `test-fixtures` aprobado; los shells/builders siguen en World.
 
 ### F5 — handlers y orquestación
 

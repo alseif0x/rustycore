@@ -10,7 +10,7 @@ pub(crate) use wow_world_core::session::{
     RepresentedAlterAppearanceLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
     RepresentedConfirmRespecWipeLikeCpp, RepresentedTalentRespecVisualSpellCastLikeCpp,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 pub(crate) use wow_world_core::session::{
     RepresentedTalentResetScriptHookLikeCpp, RepresentedTalentRespecCriteriaEventLikeCpp,
 };

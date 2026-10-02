@@ -11,13 +11,12 @@ use super::{RepresentedBattlegroundObjectUseRejection, RepresentedCapturePointSt
 use super::{RepresentedGameObjectUseEffect, RepresentedNewFlagStateRequest};
 use super::{UnitFlags, WorldSession};
 
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(crate) use wow_world_core::session::RepresentedBattlegroundQueueSlotLikeCpp;
+pub(crate) use wow_world_core::session::RepresentedBattlegroundQueueTypeIdLikeCpp;
+#[cfg(test)]
 pub(crate) use wow_world_core::session::{
     RepresentedBattlefieldListLikeCpp, RepresentedBattlefieldPortLikeCpp,
-    RepresentedBattlegroundQueueTypeIdLikeCpp, RepresentedBattlemasterHelloLikeCpp,
-    RepresentedBattlemasterJoinArenaLikeCpp, RepresentedBattlemasterJoinLikeCpp,
-    RepresentedBattlemasterJoinSkirmishLikeCpp,
+    RepresentedBattlemasterHelloLikeCpp, RepresentedBattlemasterJoinArenaLikeCpp,
+    RepresentedBattlemasterJoinLikeCpp, RepresentedBattlemasterJoinSkirmishLikeCpp,
 };
 
 pub(crate) use wow_world_core::session::battleground_queue_type_id_from_packed_like_cpp;

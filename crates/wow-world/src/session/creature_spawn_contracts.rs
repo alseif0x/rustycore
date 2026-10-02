@@ -13,10 +13,6 @@ pub struct PendingCreatureSpawn {
     pub zone_id: u32,
 }
 
-pub(crate) use wow_world_core::session::{
-    CreatureCreateDisplaySelectionLikeCpp, CreatureCreateModelScalarsLikeCpp,
-};
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct CreatureCreateStatsLikeCpp {
     pub health: i64,

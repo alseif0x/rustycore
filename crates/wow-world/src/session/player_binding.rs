@@ -7,8 +7,6 @@
 use super::WorldSession;
 use super::{Arc, DurableLootMoneyPersistenceTrackerLikeCpp, ObjectGuid};
 pub(in crate::session) use wow_world_core::session::PlayerIdentityBootstrapLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) use wow_world_core::session::PlayerTransportLoginStateLikeCpp;
 
 #[derive(Debug, Clone)]
 pub(crate) struct SessionPlayerController {

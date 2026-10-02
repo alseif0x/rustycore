@@ -10,7 +10,7 @@ pub(crate) use wow_world_core::session::movement_protocol::MovementAckEventLikeC
 
 pub(crate) use wow_world_core::session::movement_protocol::MoveSplineDoneTaxiActionLikeCpp;
 
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 pub(crate) use wow_world_core::session::movement_protocol::RepresentedTaxiFlightNodeLikeCpp;
 
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -30,32 +30,16 @@ pub(crate) enum RepresentedAreaZoneCriteriaLikeCpp {
     LeaveTopLevelArea(u32),
 }
 
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) use wow_world_core::session::movement_protocol::RepresentedTaxiFlightStateLikeCpp;
-
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) use wow_world_core::session::movement_protocol::canonical_taxi_flight_node_like_cpp;
-
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) use wow_world_core::session::movement_protocol::canonical_taxi_flight_state_like_cpp;
-
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) use wow_world_core::session::movement_protocol::represented_taxi_flight_state_like_cpp;
-
 pub(crate) use wow_world_core::session::movement_protocol::MovementSpeedAckActionLikeCpp;
 
 pub(crate) use wow_world_core::session::movement_protocol::UnitMoveTypeLikeCpp;
 
 pub(crate) use wow_world_core::session::movement_protocol::MovementSpeedAckEventLikeCpp;
 
+#[cfg(test)]
 pub(crate) use wow_world_core::session::movement_protocol::TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP;
 
-pub(crate) use wow_world_core::session::movement_protocol::{
-    creature_movement_spline_speed_opcode_like_cpp, movement_speed_ack_move_type_like_cpp,
-    player_movement_speed_opcodes_like_cpp,
-};
-
-pub(in crate::session) use wow_world_core::session::movement_protocol::PLAYER_BASE_MOVE_SPEED_LIKE_CPP;
+pub(crate) use wow_world_core::session::movement_protocol::movement_speed_ack_move_type_like_cpp;
 
 pub(crate) use wow_world_core::session::movement_protocol::{
     MovementFallDamageEvent, MovementUnderMapDamageEvent,

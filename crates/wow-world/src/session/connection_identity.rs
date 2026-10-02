@@ -8,10 +8,10 @@
 use super::ObjectGuidGenerator;
 use super::WorldSession;
 use super::{Arc, NUM_ACCOUNT_DATA_TYPES, ObjectGuid, SessionManager};
+#[cfg(test)]
+pub(in crate::session) use wow_world_core::session::PacketSpoofPendingBanLikeCpp;
+pub(in crate::session) use wow_world_core::session::PacketSpoofPendingBanTargetLikeCpp;
 pub use wow_world_core::session::SessionState;
-pub(in crate::session) use wow_world_core::session::{
-    PacketCounterLikeCpp, PacketSpoofPendingBanLikeCpp, PacketSpoofPendingBanTargetLikeCpp,
-};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PlayerAwayModeLikeCpp {

@@ -8,9 +8,6 @@ use super::{Arc, AreaTriggerDb2Store, PLAYER_FLAGS_RESTING_LIKE_CPP};
 use super::{PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP, REST_FLAG_IN_TAVERN_LIKE_CPP};
 use super::{RepresentedAuraEffectLikeCpp, WorldSession};
 
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) use wow_world_core::session::RestMgrTestFixtureLikeCpp;
-
 impl WorldSession {
     #[cfg(test)]
     pub(in crate::session) fn replace_player_rest_state_like_cpp(

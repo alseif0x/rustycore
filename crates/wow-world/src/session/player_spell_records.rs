@@ -10,11 +10,10 @@ pub(crate) use wow_world_core::session::{
     RepresentedPlayerSkillLikeCpp, RepresentedPlayerSkillStateLikeCpp,
 };
 
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 pub(crate) use wow_world_core::session::is_non_durable_skill_tombstone_like_cpp;
 pub(in crate::session) use wow_world_core::session::{
     canonical_player_skill_record_like_cpp, represented_player_skill_record_like_cpp,
-    represented_skill_records_from_values_like_cpp, represented_skill_values_from_records_like_cpp,
 };
 
 #[allow(dead_code)]

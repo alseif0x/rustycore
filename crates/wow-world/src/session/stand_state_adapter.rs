@@ -8,7 +8,7 @@
 use super::TitanGripPenaltyAction;
 use super::{Arc, RepresentedGameObjectUseEffect, UnitStandStateType, WorldSession, debug};
 
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 pub(crate) use wow_world_core::session::RepresentedLiveApplicationLikeCpp;
 pub(crate) use wow_world_core::session::{
     RepresentedLiveIntentAppliedLikeCpp, RepresentedLiveIntentApplyOutcomeLikeCpp,

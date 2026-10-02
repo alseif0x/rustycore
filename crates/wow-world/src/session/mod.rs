@@ -47,8 +47,6 @@ pub(crate) use object_updates::represented_dynamic_object_values_update_delivery
 pub(crate) use object_updates::represented_gameobject_dynamic_flags_update_like_cpp;
 mod persistence;
 mod pets;
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(crate) use pets::test_fixtures::BattlePetTestFixtureLikeCpp;
 mod player_cast;
 mod player_items;
 mod progression;
@@ -353,12 +351,10 @@ mod movement_protocol;
 pub(crate) use movement_protocol::RepresentedAreaZoneCriteriaLikeCpp;
 #[cfg(test)]
 pub(crate) use movement_protocol::RepresentedTaxiFlightNodeLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
-use movement_protocol::RepresentedTaxiFlightStateLikeCpp;
 #[cfg(test)]
 pub(crate) use movement_protocol::TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP;
 pub(crate) use movement_protocol::{MoveSplineDoneTaxiActionLikeCpp, MovementAckEventLikeCpp};
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 pub(crate) use movement_protocol::{MoveSplineDoneTaxiEventLikeCpp, MoveTeleportAckEventLikeCpp};
 pub(crate) use movement_protocol::{MoveTeleportAckActionLikeCpp, MovementSpeedAckActionLikeCpp};
 pub(crate) use movement_protocol::{MovementFallDamageEvent, MovementUnderMapDamageEvent};
@@ -389,8 +385,6 @@ pub(crate) use pet_loading::{CharacterPetAuraRowLikeCpp, CharacterPetSpellCharge
 pub(crate) use pet_loading::{CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp};
 mod player_binding;
 use player_binding::PlayerIdentityBootstrapLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
-use player_binding::PlayerTransportLoginStateLikeCpp;
 pub(crate) use player_binding::SessionPlayerController;
 mod player_bootstrap;
 mod player_condition_values;
@@ -505,15 +499,15 @@ use spell_click_values::RepresentedSpellClickCreatureSnapshotLikeCpp;
 pub(crate) use spell_click_values::RepresentedSpellClickExecutionOutcomeLikeCpp;
 pub(crate) use spell_click_values::RepresentedSpellClickPlanLikeCpp;
 pub(crate) use spell_click_values::RepresentedSpellClickUnitRefLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 pub(crate) use spell_click_values::RepresentedVehicleBaseMovementLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 pub(crate) use spell_click_values::RepresentedVehicleDismissMovementLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 pub(crate) use spell_click_values::RepresentedVehicleEnterRequestLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 pub(crate) use spell_click_values::RepresentedVehicleSeatChangeRequestLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 pub(crate) use spell_click_values::RepresentedVehicleSeatSpellClickRequestLikeCpp;
 use spell_click_values::represented_spell_cast_guid_for_map_like_cpp;
 use spell_click_values::represented_spell_click_school_damage_amount_like_cpp;
@@ -574,7 +568,9 @@ use std::sync::{
 };
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
-use rand::{Rng, RngCore, SeedableRng, rngs::StdRng, seq::SliceRandom};
+use rand::{Rng, RngCore, seq::SliceRandom};
+#[cfg(test)]
+use rand::{SeedableRng, rngs::StdRng};
 use tracing::{debug, info, warn};
 
 use crate::battle_pet_account::{
@@ -641,7 +637,7 @@ use wow_core::{
     EquipmentSetGuidGeneratorLikeCpp, ObjectGuid, ObjectGuidGenerator, Position,
     VoidStorageItemIdGeneratorLikeCpp, guid::HighGuid,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 use wow_data::VehicleTemplateStoreLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_data::calculate_battle_pet_stats_like_cpp;
@@ -658,14 +654,12 @@ use wow_data::{
     CreatureTemplateLifecycleStoreLikeCpp, CreatureTemplateMountStoreLikeCpp, CurrencyTypesEntry,
     CurrencyTypesStore, DISABLE_TYPE_BATTLEGROUND, DISABLE_TYPE_MAP, DifficultyStore,
     DisableMgrLikeCpp, DisableWorldObjectRefLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
-    DurabilityQualityStore, EmotesStore, EmotesTextStore, ExplorationBaseXpStoreLikeCpp,
-    FishingBaseSkillStoreLikeCpp, GameObjectDisplayInfoStore,
-    GameObjectTemplateLifecycleStoreLikeCpp, GemPropertiesStore, GlyphPropertiesStore,
-    GraveyardStore, HeirloomEntry, HeirloomStore, HotfixBlobCache, ImportPriceStores,
-    ItemAppearanceStore, ItemBonusDb2Store, ItemChildEquipmentStore, ItemClassStore,
-    ItemCurrencyCostStore, ItemDisenchantLootStore, ItemEffectStore, ItemExtendedCostStore,
-    ItemLimitCategoryConditionStore, ItemLimitCategoryStore, ItemModifiedAppearanceStore,
-    ItemPriceBaseStore, ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore,
+    DurabilityQualityStore, EmotesStore, EmotesTextStore, FishingBaseSkillStoreLikeCpp,
+    GameObjectDisplayInfoStore, GameObjectTemplateLifecycleStoreLikeCpp, GemPropertiesStore,
+    GlyphPropertiesStore, GraveyardStore, HeirloomEntry, HeirloomStore, HotfixBlobCache,
+    ItemAppearanceStore, ItemBonusDb2Store, ItemChildEquipmentStore, ItemEffectStore,
+    ItemExtendedCostStore, ItemLimitCategoryConditionStore, ItemLimitCategoryStore,
+    ItemModifiedAppearanceStore, ItemRandomEnchantmentTemplateStore, ItemRandomPropertiesStore,
     ItemRandomSuffixStore, ItemSearchNameStore, ItemSetSpellStore, ItemSetStore,
     ItemSpecOverrideStore, ItemStatsStore, ItemStore, LfgDungeonStoreLikeCpp, LfgDungeonsStore,
     LockStore, MapDifficultyStore, MapDifficultyXConditionStore, MapStore, MountCapabilityStore,
@@ -715,6 +709,11 @@ use wow_data::{
 };
 #[cfg(test)]
 use wow_data::{
+    ExplorationBaseXpStoreLikeCpp, ImportPriceStores, ItemClassStore, ItemCurrencyCostStore,
+    ItemDisenchantLootStore, ItemPriceBaseStore,
+};
+#[cfg(test)]
+use wow_data::{
     PetDefaultSpellStoreLikeCpp, PetDefaultSpellsEntryLikeCpp, PetFamilySpellStoreLikeCpp,
     PetLevelupSpellSetLikeCpp, PetLevelupSpellStoreLikeCpp, ServersideSpellInfoLikeCpp,
     ServersideSpellStoreLikeCpp, SpellEnchantProcEntryLikeCpp, SpellEnchantProcStoreLikeCpp,
@@ -725,6 +724,8 @@ use wow_data::{
     PlayerCreateInfoCastSpellStoreLikeCpp, PlayerCreateInfoCustomSpellStoreLikeCpp,
     PlayerCreateInfoStoreLikeCpp, SpellGroupStackRuleLikeCpp,
 };
+#[cfg(test)]
+use wow_entities::PetStable;
 #[cfg(test)]
 use wow_entities::TitanGripPenaltyAction;
 use wow_entities::player_rules::is_using_two_handed_weapon_in_one_hand_template as two_handed_in_one_hand_like_cpp;
@@ -752,16 +753,16 @@ use wow_entities::{
     ItemStorageTemplate, ItemValuesUpdate, MAX_BAG_SIZE, MAX_ITEM_SPELLS, MAX_MONEY_AMOUNT,
     MAX_POWERS, MAX_POWERS_PER_CLASS, NULL_BAG, NULL_SLOT, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP,
     PLAYER_SLOT_END, PROFESSION_SLOT_END, Pet, PetDeclinedNamesLikeCpp, PetSpellState,
-    PetSpellType, PetStable, PetType, PhaseShift, Player, PlayerEnchantTimeUpdate,
+    PetSpellType, PetType, PhaseShift, Player, PlayerEnchantTimeUpdate,
     PlayerInteractionDataLikeCpp, PlayerInventoryRuntime, PlayerItemTimeUpdate,
     PlayerPetLifecycleStateLikeCpp, PlayerQuestGameplayState, PlayerResurrectionRequestLikeCpp,
     PlayerResurrectionStateLikeCpp, PlayerTeleportStateLikeCpp, QUESTS_COMPLETED_BITS_PER_BLOCK,
     QUESTS_COMPLETED_BITS_SIZE, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START, SendNewItemDelivery,
     SendNewItemDisplayText, SendNewItemPlan, SocketedGemUniqueRef, SwapItemPreflightItem,
     SwapItemPreflightPlan, TYPEID_CONTAINER, TYPEID_ITEM, Unit,
-    UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle, VehicleAccessory, VisibleItemValues,
-    WorldObject, explored_zones_db_string_from_blocks_like_cpp, is_bag_pos,
-    is_equipment_packed_pos, is_inventory_pos, item_resistance_bonus_actions_like_cpp,
+    UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle, VisibleItemValues, WorldObject,
+    explored_zones_db_string_from_blocks_like_cpp, is_bag_pos, is_equipment_packed_pos,
+    is_inventory_pos, item_resistance_bonus_actions_like_cpp,
     item_scaling_stat_bonus_actions_like_cpp, item_shield_block_bonus_action_like_cpp,
     item_stat_bonus_actions_like_cpp, item_weapon_damage_actions_like_cpp, make_item_pos,
     parse_explored_zones_db_string_like_cpp,
@@ -875,7 +876,7 @@ static ACTIVE_CHARACTER_LOGIN_CLAIMS_LIKE_CPP: OnceLock<dashmap::DashMap<ObjectG
 pub type AreaTriggerScriptDispatcherLikeCpp =
     Arc<dyn Fn(&mut WorldSession, ScriptIdLikeCpp, u32, bool) -> bool + Send + Sync>;
 
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 use wow_world_core::session::state::config::GivePlayerXpScriptDispatcherLikeCpp;
 
 const REST_FLAG_IN_TAVERN_LIKE_CPP: u32 = 0x1;

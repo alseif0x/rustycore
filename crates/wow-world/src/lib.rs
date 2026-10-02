@@ -38,7 +38,6 @@ mod spell_cast_adapter;
 #[allow(dead_code)] // Private decision seam introduced by trainer issue #157.
 pub(crate) mod trainer_offer;
 
-pub(crate) use wow_world_core::catalogs;
 #[cfg(test)]
 #[path = "../unit_tests/handler_contract_tests.rs"]
 mod handler_contract_tests;

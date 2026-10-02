@@ -3,6 +3,8 @@
 
 //! #1241 F3 test shims: WorldSession entry points kept only for unit_tests callers.
 
+use crate::session::GivePlayerXpScriptDispatcherLikeCpp;
+
 #[allow(unused_imports)]
 use super::*;
 
