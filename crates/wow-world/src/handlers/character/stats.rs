@@ -14,7 +14,7 @@ use super::*;
 pub(crate) use crate::session::hub_support::RepresentedPlayerGearStatsLikeCpp;
 use crate::session::hub_support::{
     SPELL_SCHOOL_MASK_ALL_LIKE_CPP, SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP,
-    SPELL_SCHOOL_MASK_SPELL_LIKE_CPP, class_uses_wands_like_cpp,
+    SPELL_SCHOOL_MASK_SPELL_LIKE_CPP,
 };
 
 impl WorldSession {

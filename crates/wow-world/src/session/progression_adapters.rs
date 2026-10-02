@@ -4,8 +4,6 @@
 //! Progression adapters: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-#[cfg(any(test, feature = "test-fixtures"))]
-use super::GivePlayerXpScriptDispatcherLikeCpp;
 use super::{Arc, QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP};
 use super::{WorldSession, catalogs};
 

@@ -5,6 +5,8 @@
 
 #[allow(unused_imports)]
 use super::*;
+use wow_constants::UnitFlags;
+use wow_core::ObjectGuid;
 
 impl crate::session::WorldSession {
     pub(crate) fn represented_shapeshift_form_like_cpp(&self) -> Option<u32> {

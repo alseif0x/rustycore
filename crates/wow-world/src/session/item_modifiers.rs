@@ -7,10 +7,9 @@
 #[cfg(test)]
 use super::TitanGripPenaltyAction;
 use super::{ApplyEnchantmentEffectAction, ApplyEnchantmentPlan, Arc, BANK_SLOT_BAG_START};
-use super::{
-    BANK_SLOT_BAG_END, BTreeMap, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND,
-    INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
-};
+use super::{BANK_SLOT_BAG_END, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START};
+#[cfg(test)]
+use super::{EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND};
 use super::{INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START, ItemSubClassArmor, ObjectGuid};
 use super::{
     PlayerEnchantTimeUpdate, PlayerStatsStore, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START,

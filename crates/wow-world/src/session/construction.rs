@@ -23,11 +23,16 @@ use crate::session::state::SessionWorldView;
 use crate::session::state::VisibilityState;
 use crate::session::state::WorldEntitiesState;
 
+#[cfg(test)]
+use super::BTreeMap;
 use super::ChatFloodThrottleDataLikeCpp;
 use super::DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP;
 use super::ObjectGuid;
 use super::PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP;
 use super::PlayerInteractionDataLikeCpp;
+#[cfg(test)]
+use super::SeedableRng;
+#[cfg(test)]
 use super::StdRng;
 #[cfg(test)]
 use super::instances::test_fixtures::InstanceTestFixtureLikeCpp;
@@ -51,10 +56,10 @@ use super::spell_state::PlayerSpellAndTraitTestFixtureLikeCpp;
 use super::support_features::test_fixtures::SupportFeatureTestFixtureLikeCpp;
 #[cfg(test)]
 use super::visibility::test_fixtures::VisibilityTestFixtureLikeCpp;
-use super::{Arc, BTreeMap, BTreeSet};
+use super::{Arc, BTreeSet};
 use super::{DurableItemLootPersistenceTrackerLikeCpp, DurableLootMoneyPersistenceTrackerLikeCpp};
-use super::{HashMap, HashSet, Instant};
-use super::{PhaseShift, RepresentedBattlePetSlotLikeCpp, Rng, RngCore, SeedableRng};
+use super::{HashMap, Instant};
+use super::{PhaseShift, RepresentedBattlePetSlotLikeCpp};
 use super::{VecDeque, WorldPacket, WorldSession, build_dispatch_table, connection};
 use super::{default_account_data_like_cpp, lifecycle};
 

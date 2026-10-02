@@ -4,16 +4,30 @@
 //! State: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
+use super::AccountDataLikeCpp;
+use super::Arc;
+use super::AreaTriggerScriptDispatcherLikeCpp;
 #[cfg(test)]
 use super::AtomicUsize;
-#[cfg(any(test, feature = "test-fixtures"))]
-use super::BattlePetTestFixtureLikeCpp;
-use super::ExplorationBaseXpStoreLikeCpp;
-use super::FriendshipRepReactionStore;
+#[cfg(test)]
+use super::BTreeMap;
+use super::BTreeSet;
+use super::BattlePetAccountAttachmentLikeCpp;
+use super::ChatFloodThrottleDataLikeCpp;
+use super::ClientOpcodes;
+use super::DurableItemLootPersistenceTrackerLikeCpp;
+use super::DurableLootMoneyPersistenceTrackerLikeCpp;
+use super::GossipOptionInfo;
+use super::HashMap;
+use super::NUM_ACCOUNT_DATA_TYPES;
+use super::ObjectGuid;
+use super::OwnedLootAuthority;
+use super::PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP;
 use super::PacketHandlerEntry;
-use super::PlayerConditionStore;
+use super::PhaseShift;
 use super::PlayerCurrency;
 use super::PlayerInteractionDataLikeCpp;
+use super::RepresentedAdventureMapStartQuestLikeCpp;
 use super::RepresentedAuctionPlaceBidLikeCpp;
 use super::RepresentedBankItemMoveLikeCpp;
 #[cfg(test)]
@@ -22,7 +36,6 @@ use super::RepresentedCreatureKillEventLikeCpp;
 use super::RepresentedGameObjectCriteriaEvent;
 #[cfg(test)]
 use super::RepresentedGuildRepairBankWithdrawLikeCpp;
-use super::RepresentedHomebindLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::RepresentedLootRollCriteriaEvent;
 use super::RepresentedPendingSpellCastRequestLikeCpp;
@@ -33,22 +46,22 @@ use super::RepresentedSignPetitionLikeCpp;
 #[cfg(test)]
 use super::RepresentedSilencePartyTalkerLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
-use super::RepresentedVehicleSeatSpellClickRequestLikeCpp;
+use super::RepresentedTransmogCriteriaEvent;
 use super::RepresentedVoidStorageItemLikeCpp;
-use super::ReputationRatesLikeCpp;
 use super::SessionPersistencePortsLikeCpp;
+use super::SpellCastState;
+use super::VecDeque;
+#[cfg(any(test, feature = "test-fixtures"))]
+use super::VendorBuyItemTestOverrideLikeCpp;
+use super::VendorItemCount;
 #[cfg(test)]
 use super::instances::test_fixtures::InstanceTestFixtureLikeCpp;
 #[cfg(test)]
 use super::persistence::test_fixtures::LoadedPlayerFlagsTestFixtureLikeCpp;
 #[cfg(test)]
 use super::player_items::test_fixtures::PlayerItemTestFixtureLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
-use super::progression::PlayerSkillTestFixtureLikeCpp;
 #[cfg(test)]
 use super::quest::test_fixtures::QuestTestFixtureLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
-use super::rest_progression::RestMgrTestFixtureLikeCpp;
 #[cfg(test)]
 use super::social::test_fixtures::CalendarTestFixtureLikeCpp;
 #[cfg(test)]
@@ -61,49 +74,10 @@ use super::social::test_fixtures::TradeTestFixtureLikeCpp;
 use super::spell_state::PlayerSpellAndTraitTestFixtureLikeCpp;
 #[cfg(test)]
 use super::support_features::test_fixtures::SupportFeatureTestFixtureLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
-use super::test_support::test_fixtures::PlayerBootstrapCatalogTestFixtureLikeCpp;
 #[cfg(test)]
 use super::visibility::test_fixtures::VisibilityTestFixtureLikeCpp;
-use super::{AccessRequirementStoreLikeCpp, AccountDataLikeCpp, AccountHeirloomDataLikeCpp};
-use super::{AdventureMapPoiStore, Arc, AreaTableStore, AreaTriggerDb2Store};
-use super::{AreaTriggerScriptDispatcherLikeCpp, AreaTriggerScriptStoreLikeCpp, AreaTriggerStore};
-use super::{AuraApplication, BTreeMap, BTreeSet};
-use super::{BankBagSlotPricesStore, BattlePetAccountAttachmentLikeCpp};
-use super::{BattlemasterListStore, CanonicalThreatAuraSnapshotLikeCpp};
-use super::{CharacterPowerSnapshotLikeCpp, ChatFloodConfigLikeCpp, ChatFloodThrottleDataLikeCpp};
-use super::{ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp, CinematicSequencesStore};
-use super::{ClientOpcodes, CombatRatingsGameTableLikeCpp, ConditionEntriesByTypeStore};
-use super::{ContentTuningStore, CreatureAddonStoreLikeCpp, CreatureBaseStatsStoreLikeCpp};
-use super::{CreatureClassificationHealthRatesLikeCpp, CreatureDifficultyStoreLikeCpp};
-use super::{CreatureEquipmentStoreLikeCpp, CurrencyTypesStore, CurvePointStore, CurveStore};
-use super::{DifficultyStore, DisableMgrLikeCpp, DungeonEncounterStore, DurabilityCostsStore};
-use super::{DurabilityQualityStore, DurableItemLootPersistenceTrackerLikeCpp};
-use super::{DurableLootMoneyPersistenceTrackerLikeCpp, EmotesStore, EmotesTextStore};
-use super::{FavoriteAppearanceStateLikeCpp, FishingBaseSkillStoreLikeCpp};
-use super::{GameObjectTemplateLifecycleStoreLikeCpp, GemPropertiesStore, GossipOptionInfo};
-#[cfg(any(test, feature = "test-fixtures"))]
-use super::{GivePlayerXpScriptDispatcherLikeCpp, MoveSplineDoneTaxiEventLikeCpp};
-use super::{GraveyardStore, HashMap, HashSet, HeirloomStore};
-use super::{HomebindPersistenceJobLikeCpp, ImportPriceStores, Instant, Item};
-use super::{ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore, ItemPriceBaseStore};
-use super::{
-    LegacyCreatureAggroConfigLikeCpp, LfgDungeonStoreLikeCpp, LfgDungeonsStore, LockStore,
-};
-use super::{LootDropRatesLikeCpp, LootStores, MAX_SPECIALIZATIONS_LIKE_CPP};
-use super::{MMapRuntimeConfigLikeCpp, MountCapabilityStore, MountDefinitionStoreLikeCpp};
-use super::{MountStore, MountTypeXCapabilityStore, MountXDisplayStore, MovementAckEventLikeCpp};
-#[cfg(any(test, feature = "test-fixtures"))]
-use super::{MoveTeleportAckEventLikeCpp, PlayerTransportLoginStateLikeCpp};
-use super::{MovementFallDamageEvent, MovementFlag, MovementSpeedAckEventLikeCpp};
-use super::{MovementUnderMapDamageEvent, MovieStore, NUM_ACCOUNT_DATA_TYPES};
-use super::{NumTalentsAtLevelStore, ObjectGuid, ObjectMgrCatalogsLikeCpp};
-use super::{OwnedLootAuthority, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP};
-use super::{ParagonReputationStore, PendingCreatureKillRewardLikeCpp, PendingCreatureSpawn};
-use super::{PetStable, PhaseGroupStore, PhaseShift, PhaseStore};
-use super::{PlayerResurrectionRequestLikeCpp, PlayerStatsStore, PowerTypeStore, PvpItemStore};
-use super::{RandPropPointsStore, RegenGameTablesLikeCpp, RepSpilloverTemplateStoreLikeCpp};
-use super::{RepresentedActivateTaxiLikeCpp, RepresentedAdventureMapStartQuestLikeCpp};
+use super::{HomebindPersistenceJobLikeCpp, Instant, Item};
+use super::{PendingCreatureKillRewardLikeCpp, PendingCreatureSpawn};
 #[cfg(test)]
 use super::{RepresentedAreaZoneCriteriaLikeCpp, RepresentedAtLoginFlagRemovalLikeCpp};
 use super::{RepresentedAuctionRemoveItemLikeCpp, RepresentedAuctionReplicateRequestLikeCpp};
@@ -116,25 +90,8 @@ use super::{RepresentedGuildBankInventoryMoveLikeCpp, RepresentedGuildBankListRe
 #[cfg(test)]
 use super::{RepresentedGuildBankMoneyMoveLikeCpp, RepresentedGuildBankTabActionLikeCpp};
 use super::{RepresentedLootRollState, RepresentedPendingBind};
-#[cfg(any(test, feature = "test-fixtures"))]
-use super::{RepresentedTaxiFlightStateLikeCpp, RepresentedTransmogCriteriaEvent};
-#[cfg(any(test, feature = "test-fixtures"))]
-use super::{RepresentedVehicleBaseMovementLikeCpp, RepresentedVehicleDismissMovementLikeCpp};
-#[cfg(any(test, feature = "test-fixtures"))]
-use super::{RepresentedVehicleEnterRequestLikeCpp, RepresentedVehicleSeatChangeRequestLikeCpp};
-use super::{ReputationRewardRateStoreLikeCpp, ScalingStatDistributionStore};
-use super::{ScalingStatValuesStore, ScriptNameInternerLikeCpp};
-use super::{ShieldBlockRegularGameTableLikeCpp, SkillLineStore};
-use super::{SkillStore, SkillTiersStoreLikeCpp, SpellCastState};
-use super::{SpellChargeEntry, SpellHistoryEntry, TactKeyStore};
-use super::{TalentStore, TavernAreaTriggerStoreLikeCpp, TeleportToOptionsLikeCpp, ToyStore};
-use super::{TrainerStoreLikeCpp, TraitDefinitionStore, TransmogSetItemStore};
-use super::{TrinityStringStoreLikeCpp, UnitFlags, UnitMoveTypeLikeCpp, UnitStandStateType};
-use super::{VecDeque, Vehicle, VehicleAccessory, VehicleAccessoryStoreLikeCpp, VehicleSeatStore};
-use super::{VehicleStore, VendorItemCount, WaypointPathResolverLikeCpp};
-#[cfg(any(test, feature = "test-fixtures"))]
-use super::{VehicleTemplateStoreLikeCpp, VendorBuyItemTestOverrideLikeCpp};
-use super::{WorldSafeLocStore, driver, lifecycle};
+use super::{SpellChargeEntry, SpellHistoryEntry};
+use super::{driver, lifecycle};
 
 #[cfg(any(test, feature = "test-fixtures"))]
 mod fixtures;
@@ -163,64 +120,16 @@ mod catalogs;
 pub(crate) use catalogs::SessionCatalogs;
 mod config;
 pub(in crate::session) use config::SessionWorldConfig;
-#[cfg(any(test, feature = "test-fixtures"))]
-mod identity;
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) use identity::PlayerIdentityState;
 mod inventory_state;
 pub(crate) use inventory_state::InventoryState;
-#[cfg(any(test, feature = "test-fixtures"))]
-mod collections;
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) use collections::CollectionsState;
-#[cfg(any(test, feature = "test-fixtures"))]
-mod auras;
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) use auras::AuraState;
-#[cfg(any(test, feature = "test-fixtures"))]
-mod progression;
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) use progression::ProgressionState;
-#[cfg(any(test, feature = "test-fixtures"))]
-mod combat;
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) use combat::CombatState;
-#[cfg(any(test, feature = "test-fixtures"))]
-mod movement;
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) use movement::MovementState;
-#[cfg(any(test, feature = "test-fixtures"))]
-mod teleport;
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) use teleport::TeleportState;
-#[cfg(any(test, feature = "test-fixtures"))]
-mod vehicles;
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) use vehicles::TaxiVehicleState;
-#[cfg(any(test, feature = "test-fixtures"))]
-mod pets;
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) use pets::PetState;
-#[cfg(any(test, feature = "test-fixtures"))]
-mod battleground;
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) use battleground::BattlegroundState;
 mod instances;
 pub(crate) use instances::InstanceState;
 mod world_entities;
 pub(crate) use world_entities::WorldEntitiesState;
 mod visibility;
 pub(crate) use visibility::VisibilityState;
-#[cfg(any(test, feature = "test-fixtures"))]
-mod presentation;
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) use presentation::PlayerPresentationState;
 mod interaction;
 pub(crate) use interaction::InteractionState;
-
-pub(in crate::session) use wow_world_core::session::state::{
-    SessionDirectory, SessionDriverServices,
-};
 
 /// Social admission limits the session applies: the C++ Recruit-A-Friend XP
 /// level gates and the chat anti-flood throttle state charged per message.
@@ -481,11 +390,6 @@ pub(crate) struct SessionLifecycleState {
     pub(crate) loaded_player_customizations_like_cpp:
         Box<Vec<wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate>>,
 }
-
-pub(crate) use wow_world_core::session::state::{
-    SessionAccountState, SessionAdmissionState, SessionRealmPolicy, SessionSharedFlags,
-    SessionTransport,
-};
 
 // Declaration order is drop order (#1241 F2). These side-effecting members must
 // keep this relative order: `core.session_command_tx`/`session_command_rx`

@@ -5,6 +5,7 @@
 
 #[allow(unused_imports)]
 use super::*;
+use wow_core::VoidStorageItemIdGeneratorLikeCpp;
 
 impl crate::session::WorldSession {
     pub(crate) fn auto_reply_msg_like_cpp(&self) -> Option<String> {

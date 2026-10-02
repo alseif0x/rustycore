@@ -9,7 +9,7 @@ use std::collections::HashSet;
 
 use std::fmt::Write as _;
 
-use wow_constants::{PhaseFlags, PhaseShiftFlags, TypeId};
+use wow_constants::{PhaseFlags, TypeId};
 use wow_core::ObjectGuid;
 use wow_data::{AreaTableStore, PhaseGroupStore, PhaseInfoStore, PhaseStore, TerrainSwapStore};
 use wow_entities::{PhaseShift, Unit, WorldObject};

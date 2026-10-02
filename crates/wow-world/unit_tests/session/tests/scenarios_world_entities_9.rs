@@ -4,6 +4,9 @@
 //! are unchanged and the shared fixtures stay in the parent module.
 
 use super::*;
+use crate::phasing::init_db_phase_shift_like_cpp;
+use wow_constants::UnitFlags;
+use wow_core::ObjectGuid;
 
 #[test]
 fn represented_gameobject_runtime_state_upserts_into_player_instance_like_cpp() {

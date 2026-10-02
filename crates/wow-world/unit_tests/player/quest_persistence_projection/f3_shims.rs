@@ -5,6 +5,7 @@
 
 #[allow(unused_imports)]
 use super::*;
+use crate::handlers::quest::PlayerQuestStatus;
 
 impl crate::session::WorldSession {
     pub(crate) fn represented_quest_status_persistence_like_cpp(

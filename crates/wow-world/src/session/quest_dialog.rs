@@ -4,7 +4,9 @@
 //! Quest dialog: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{ActiveState, Arc, InventoryResult, ObjectGuid, PowerType};
+#[cfg(test)]
+use super::PowerType;
+use super::{ActiveState, Arc, InventoryResult, ObjectGuid};
 use super::{QUEST_MENU_ICON_AVAILABLE_LIKE_CPP, QUEST_MENU_ICON_COMPLETE_LIKE_CPP};
 use super::{QUEST_MENU_ICON_TURN_IN_LIKE_CPP, QUEST_OBJECTIVE_ITEM_LIKE_CPP, QuestListEntry};
 use super::{QuestRewardsBlock, RepresentedGameObjectUseEffect, SheathState};

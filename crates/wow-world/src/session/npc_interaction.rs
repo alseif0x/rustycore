@@ -5,6 +5,7 @@
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
 use super::{ObjectGuid, PlayerInteractionDataLikeCpp, WorldSession};
+#[cfg(test)]
 pub(crate) use wow_world_core::session::RepresentedCreatureAccessLikeCpp;
 
 impl WorldSession {

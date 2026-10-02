@@ -37,9 +37,6 @@ pub(in crate::session) use wow_world_core::session::movement_protocol::Represent
 pub(in crate::session) use wow_world_core::session::movement_protocol::canonical_taxi_flight_node_like_cpp;
 
 #[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) use wow_world_core::session::movement_protocol::represented_taxi_flight_node_like_cpp;
-
-#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) use wow_world_core::session::movement_protocol::canonical_taxi_flight_state_like_cpp;
 
 #[cfg(any(test, feature = "test-fixtures"))]

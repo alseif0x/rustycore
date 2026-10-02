@@ -492,8 +492,29 @@ el contador mutable del opcode solicitado y World conserva instante, incremento
 y políticas (`WorldSession::DosProtection::EvaluateOpcode`, C++ 1251–1270).
 La fixture usa un tipo no suministrado sin alias/ruta inválida, conservando ambos
 asserts y el rechazo; se elimina un import Core cuya llamada ya era cualificada.
-Estas correcciones siguen sin aceptación. La delta de warnings World aún no está
-certificada: la compilación fallida no dejó fingerprint completo de esa configuración.
+El checkpoint local `d58a5dffd` conserva estas correcciones sin aceptación.
+La comprobación afectada `cargo check --locked --workspace --all-targets --jobs 1 --timings`
+terminó con exit 101 en 499,774 s, 22:23:03,711–22:31:23,485 UTC, sobre ese SHA
+con árbol limpio. La biblioteca World compiló y su fingerprint confirma
+`test-fixtures`; cinco referencias sin import impiden compilar sus unitarios
+(status de quest, generador de void storage, flags/GUID de presentación e
+inicialización de phasing). No se ejecutaron esas suites. Se reparan sus imports
+y se contrasta la delta de warnings con la configuración retenida equivalente.
+Los registros están en `target/validation-v2/evidence/p4b-acceptance-20261002/repair-diagnostics/`.
+La campaña completa continúa abierta; estos tiempos no cumplen el presupuesto
+total de 600 s ni sustituyen los extras de aceptación pendientes.
+La comparación de warnings de la biblioteca Core con `test-fixtures` no encontró
+mensajes nuevos: tres ya estaban en Core y cinco conservan el mensaje y el código
+señalado en el bootstrap trasladado desde World. La asociación histórica del
+artefacto a P4a es inferida, no una atestación de SHA; el contraste no acredita
+los unitarios ni la configuración de producción sin fixtures. La reparación de
+imports World conserva los proveedores de test y retira once fachadas internas
+sin consumidores; los campos y cuerpos retenidos de `state.rs` coinciden con el
+checkpoint anterior. La compilación y las suites del nuevo lote siguen pendientes.
+El formato de este lote terminó con exit 0 en 9,944 s (22:48:48–22:48:58 UTC);
+la revisión conserva los cuerpos y la cadena nominal de `WorldSession.core`.
+Las fachadas retiradas no definen tipos de registro ni inputs generados: no se
+modifican los baselines por esta limpieza sin comprobar antes su delta real.
 
 La construcción debe conservar el orden exacto de expresiones, RNG, relojes, canales
 y campos. Extraer primero el literal de `SessionCore` a una inicialización propia;

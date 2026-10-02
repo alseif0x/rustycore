@@ -127,6 +127,8 @@ impl SessionCore {
 
 impl SessionAdmissionState {
     pub fn packet_counter_like_cpp(&mut self, opcode_raw: u16) -> &mut PacketCounterLikeCpp {
-        self.packet_throttling_like_cpp.entry(opcode_raw).or_default()
+        self.packet_throttling_like_cpp
+            .entry(opcode_raw)
+            .or_default()
     }
 }
