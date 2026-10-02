@@ -26,6 +26,8 @@ initial loading remain open. Full final still fails unchanged inherited hotspot
 limits; no ceilings were relaxed. The owning [runbook](../operations/forever-login.md#build-70170-character-data-prerequisite)
 records exact source, commands, timings and limitations. Forever has no 3.4.3
 compatibility obligation, and the separate branch is untouched.
+The full acceptance checkpoint is already 614 seconds before publication
+closeout; its ordinary 600-second performance target is not met.
 
 ## Earlier Forever branch boundary — 2026-10-02 22:28 UTC
 
