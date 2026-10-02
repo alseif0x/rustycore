@@ -243,39 +243,6 @@ impl WorldSession {
     }
 }
 
-#[cfg(any(test, feature = "test-fixtures"))]
-impl crate::session::state::MovementState {
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn movement_ack_events_like_cpp(&self) -> &[MovementAckEventLikeCpp] {
-        &self.movement_ack_events_like_cpp
-    }
-}
-
-impl crate::session::HubRef<'_> {
-    pub(crate) fn validate_movement_ack_status_like_cpp(
-        &self,
-        status: &wow_packet::packets::movement::MovementInfo,
-    ) -> bool {
-        let Some(player_guid) = self.core.player_guid() else {
-            return false;
-        };
-
-        status.guid == player_guid && status.position.is_valid_map_coord_like_cpp()
-    }
-}
-
-impl crate::session::HubMut<'_> {
-    pub(crate) fn record_movement_ack_event_like_cpp(&mut self, event: MovementAckEventLikeCpp) {
-        #[cfg(any(test, feature = "test-fixtures"))]
-        self.fixtures
-            .movement
-            .movement_ack_events_like_cpp
-            .push(event);
-        #[cfg(not(any(test, feature = "test-fixtures")))]
-        let _ = event;
-    }
-}
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/movement/movement_validation/f3_shims.rs"]
 mod f3_shims;

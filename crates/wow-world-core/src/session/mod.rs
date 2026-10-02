@@ -35,7 +35,10 @@ mod world_state;
 mod runtime_policy_access;
 mod construction;
 mod movement;
+pub use movement::MovementTransportMembershipLikeCpp;
 mod visibility;
+mod condition_objects;
+mod player_stat_queries;
 mod player_presentation;
 pub use player_presentation::{LIQUID_MAP_IN_WATER_LIKE_CPP, LIQUID_MAP_UNDER_WATER_LIKE_CPP};
 mod player_vitals_adapter;
@@ -193,6 +196,7 @@ pub use player_binding::PlayerTransportLoginStateLikeCpp;
 pub use player_binding::PlayerIdentityBootstrapLikeCpp;
 
 pub mod movement_protocol;
+pub use movement_protocol::creature_movement_spline_speed_opcode_like_cpp;
 pub mod pets;
 
 pub mod time_synchronization;

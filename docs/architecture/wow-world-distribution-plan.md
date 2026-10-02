@@ -336,7 +336,7 @@ su destinatario y su orden. La comparación de cuerpos no encontró cambios en l
 14 bloques de combate ni en los 43 métodos del último lote de auras, facciones y
 accesos de configuración. Las dependencias del hub aún alojadas en World se cierran
 en los lotes siguientes, sin stubs ni nuevos propietarios de estado.
-La continuación local traslada los catálogos de spells y objetos, los accesos de NPCs,
+El checkpoint local `6621390e0` traslada los catálogos de spells y objetos, los accesos de NPCs,
 las operaciones del hub de reputación, descanso y talentos, y las proyecciones de
 traits. Los DTOs de bootstrap y reputación mantienen una sola definición en Core;
 las listas de reputación conservan sus consumidores de pruebas mediante fachadas
@@ -357,6 +357,23 @@ encantamientos conservan sus tres bloques, incluido el comportamiento existente
 iniciales conservan la autoridad de slots/tombstones y el orden de publicación;
 sus cinco conversiones auxiliares tienen una sola definición en Core. El cierre de
 imports/montajes sigue sin aceptación, publicación o QA live.
+El siguiente lote mueve los ocho bloques del hub/catálogos que seguían en los
+handlers de condiciones, stats, mail de login, emote, loot y persistencia de quest
+status a hojas privadas de Core. Sus cuerpos se conservan; la firma de quest status
+usa el mismo tipo nominal `wow_entities::PlayerQuestStatusRecord` de la fachada
+World. Mail conserva el await anterior a la instalación del estado y sus ramas de
+fallo; emote conserva el envío propio anterior al broadcast. Los once bloques de
+estado/protocolo/validación de movimiento conservan los cuerpos y gates, la
+precedencia legacy/canónica de Creature/Pet, el fallback del reloj y el contador
+wrapping. El DTO de pertenencia a transporte, tres helpers de opcodes y la tabla
+de velocidades quedan definidos una sola vez en Core con fachadas World. La
+revisión corrigió un import de fachada copiado a Core y restituyó el DTO del ACK
+de velocidad en World. Las anclas contrastadas son `Unit::SetSpeedRate` y
+`Unit::UpdateSpeed` en `src/server/game/Entities/Unit/Unit.cpp:8294,8460`, y las
+ramas de mover/transporte de `src/server/game/Handlers/MovementHandler.cpp`,
+checkout `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`; este traslado no acredita
+nueva paridad de los adaptadores ni retirada del runtime legado. Tampoco inicia
+la aceptación de P4b.
 **NO VALIDADO:** faltan los impls restantes y la aceptación completa; esta revisión
 del diff no sustituye compilación, tests, inventario ni evidencia de producción.
 

@@ -280,19 +280,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::SessionCatalogs {
-    pub(super) fn represented_spell_max_range_like_cpp(&self, spell_id: i32) -> Option<f32> {
-        let spell_store = self.spell_store()?;
-        let spell_misc_store = self.spell_catalogs.spell_misc_store()?;
-        let spell_range_store = self.spell_catalogs.spell_range_store()?;
-        spell_store.get(spell_id)?;
-        let spell_id = u32::try_from(spell_id).ok()?;
-        let range_index = spell_misc_store.get(spell_id)?.range_index;
-        let range = spell_range_store.get(u32::from(range_index))?;
-        Some(range.range_max[1].max(range.range_max[0]))
-    }
-}
-
 impl crate::session::LootState {
     /// True only while a request still belongs to the exact object lifetime
     /// whose loot window this session opened.
