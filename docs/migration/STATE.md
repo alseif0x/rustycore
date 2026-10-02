@@ -81,6 +81,10 @@ is proven, but realm-selector UI/world login and unattended launcher startup
 remain unaccepted. The extended synthetic V1/V2 smoke passed through offline
 realm-list decoding. The owning runbook records the sanitized real-client
 trace, explicit incomplete service boundaries and post-auth test results.
+Candidate `ee710e4e` passed the final scoped BNet suite (108), Python tests (16),
+physical/format/diff checks and restarted V1/V2 live smoke. The post-auth
+campaign ran `18:11:01Z`–`18:24:56Z` (835 seconds), exceeding the 600-second
+target. This closeout is documentation-only; no publication was authorized.
 
 **Integration head — 2026-09-19:** the current integration head on `3.4.3` is
 `a82f4b2f` (PR #1226, following PR #1225's #29 creature-victim damage-immunity
