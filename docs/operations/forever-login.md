@@ -1114,10 +1114,25 @@ restored-offline smoke passes. Structured metadata is ignored at
 `target/forever-login/data-world-probe-20261002T2314Z.json`.
 
 Acceptance for this completed data slice began **23:06:32Z**; publication
-closeout below records its end. The preceding acquisition/bootstrap/coding
+closeout records the measured bounds. The preceding acquisition/bootstrap/coding
 phase is separate, not a warm acceptance run. The earlier world-crypto campaign
 extended through its 22:35:08Z smoke (**2626 seconds** from 21:51:22Z), so its
 600-second target remains **not met**, not reset by this slice.
+
+At documentation-only candidate **`61ab7b9a`**, committed publication final
+`20261002T231549.927099Z-1672760-final.json` again passes hygiene/physical checks
+then fails the same inherited hotspot limits before Cargo. The code/test inputs
+are unchanged from `ba74a2ce`, so its green scoped and native evidence is reused
+with its actual tested SHA, not relabeled as a new build.
+
+The measured complete-campaign checkpoint **23:06:32Z–23:16:46Z is 614 seconds**,
+including the required data, negative, transport/runtime and closing checks.
+The **600-second target is not met**, even before the remaining documentation
+validation/publication closeout. No command was removed or reclassified to claim
+a warm pass. Exact final endpoint and publication candidate are retained in the
+ignored structured scenario metadata named above. The initial data-example
+subset needed additional compilation (31.26s); this is not a clean warm-cache
+performance benchmark. Closing checks extend this envelope, not a new campaign.
 
 ### Publication validation boundary
 
