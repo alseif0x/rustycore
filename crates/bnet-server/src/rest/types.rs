@@ -52,6 +52,7 @@ pub struct SrpLoginChallenge {
     pub hash_function: &'static str,
     pub username: String,
     pub salt: String,
+    #[serde(rename = "public_B")]
     pub public_b: String,
 }
 
@@ -92,4 +93,27 @@ pub struct LoginRefreshResult {
     pub login_ticket_expiry: Option<u64>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub is_expired: Option<bool>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn srp_public_key_json_uses_login_proto_public_b_capitalization() {
+        let value = serde_json::to_value(SrpLoginChallenge {
+            version: 2,
+            iterations: 15000,
+            modulus: "FF".into(),
+            generator: "02".into(),
+            hash_function: "SHA-256",
+            username: "TEST".into(),
+            salt: "01".into(),
+            public_b: "02".into(),
+        })
+        .unwrap();
+        assert_eq!(value["public_B"], "02");
+        assert!(value.get("public_b").is_none());
+        assert_eq!(value.as_object().unwrap().len(), 8);
+    }
 }

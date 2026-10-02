@@ -138,6 +138,7 @@ pub struct GameAccountInfo {
     pub id: u32,
     pub name: String,
     pub display_name: String,
+    pub ban_date: u64,
     pub unban_date: u64,
     pub is_permanently_banned: bool,
     pub is_banned: bool,

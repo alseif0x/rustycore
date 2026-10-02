@@ -28,7 +28,7 @@ fn wrong_password_remote_ip_falls_back_to_external_address_like_cpp() {
 }
 
 #[test]
-fn login_form_headers_do_not_set_cookie_like_cpp() {
+fn login_form_handler_leaves_cookie_to_http_session_layer() {
     let headers = login_form_headers_like_cpp();
 
     assert_eq!(
@@ -43,7 +43,7 @@ fn login_form_headers_do_not_set_cookie_like_cpp() {
 }
 
 #[test]
-fn srp_challenge_headers_do_not_set_cookie_like_cpp() {
+fn srp_challenge_handler_leaves_cookie_to_http_session_layer() {
     let headers = srp_challenge_headers_like_cpp();
 
     assert_eq!(
@@ -60,6 +60,17 @@ fn srp_challenge_headers_do_not_set_cookie_like_cpp() {
 #[test]
 fn hex_encode_uses_cpp_uppercase() {
     assert_eq!(hex_encode(&[0x00, 0x0a, 0xbc, 0xff]), "000ABCFF");
+}
+
+#[test]
+fn srp_hex_decodes_integer_not_truncated_byte_pairs() {
+    assert_eq!(hex_decode("ABC"), Some(vec![0x0A, 0xBC]));
+    assert_eq!(hex_decode("000abc"), Some(vec![0x0A, 0xBC]));
+    assert_eq!(hex_decode("F"), Some(vec![0x0F]));
+    assert_eq!(hex_decode("00"), Some(vec![0]));
+    for invalid in ["", "12GG34", "1 ", "-01", "é"] {
+        assert!(hex_decode(invalid).is_none());
+    }
 }
 
 #[test]

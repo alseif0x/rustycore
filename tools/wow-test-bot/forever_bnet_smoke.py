@@ -17,12 +17,16 @@ import sys
 import zlib
 from pathlib import Path
 from forever_bnet_wire import (MAX_HTTP_BODY, MAX_HTTP_HEADER, attribute, client_request,
-                               fields, parse_http_header, parse_rpc_header, raw, response_attributes,
-                               rpc_header, var, connect_identity)
+                               extract_session_cookie, fields, http_request,
+                               parse_http_response_header, parse_rpc_header, raw,
+                               response_attributes, rpc_header, var, connect_identity,
+                               v2_logon_record)
 
 HOST, REST, RPC = "127.0.0.1", 18081, 1119
 EMAIL, BUILD, VERSION = "FOREVER@LOCAL.TEST", 70170, "1.60.1"
 RESPONSE, CONN, AUTH, GAME, ALIST = 0xFE, 0x65446991, 0x0DECFC01, 0x3FC1274D, 0x71240E35
+AUTH_V2, ALIST_V2 = 0xC02F8216, 0x9DA8116B
+ACCOUNT_V2, GAME_V2 = 0x22DC2464, 0x5DBB51C2
 MAJOR, MINOR, REVISION = 1, 60, 1
 SERVER_NAME = "localhost"
 MAX_PASSWORD_CHARS, MAX_PASSWORD_FILE_BYTES = 128, 1024
@@ -90,14 +94,20 @@ def read_password(path):
     with path.open("rb") as stream:
         return parse_password(stream.read(MAX_PASSWORD_FILE_BYTES + 1))
 
-def http_json(conn, path, value):
+def http_json(conn, path, value, cookie=None):
     body = json.dumps(value, separators=(",", ":")).encode()
-    request = (f"POST {path} HTTP/1.1\r\nHost: {HOST}:{REST}\r\n"
-               f"Content-Type: application/json\r\nContent-Length: {len(body)}\r\n"
-               "Connection: keep-alive\r\n\r\n").encode()
-    conn.sock.sendall(request + body)
-    status, length = parse_http_header(conn.until(b"\r\n\r\n"))
-    return status, json.loads(conn.read(length))
+    conn.sock.sendall(http_request(path, body, f"{HOST}:{REST}", cookie, close=True))
+    status, length, headers = parse_http_response_header(conn.until(b"\r\n\r\n"))
+    return status, json.loads(conn.read(length)), headers
+
+
+def rest_json(runtime, path, value, cookie=None):
+    """Issue one REST request on one TLS connection, honoring Connection: close."""
+    conn = TLS(runtime, REST)
+    try:
+        return http_json(conn, path, value, cookie)
+    finally:
+        conn.close()
 
 
 def broken(value):
@@ -123,7 +133,9 @@ def validate_srp_challenge(challenge):
     username = challenge.get("username")
     if username != EXPECTED_USERNAME:
         raise ValueError("invalid SRP username")
-    public_b = _hex(challenge.get("public_b"), (2, 512), "public B")
+    if "public_B" not in challenge or "public_b" in challenge:
+        raise ValueError("invalid SRP public B field")
+    public_b = _hex(challenge.get("public_B"), (2, 512), "public B")
     B, N = int.from_bytes(public_b, "big"), int.from_bytes(modulus, "big")
     if not 0 < B < N: raise ValueError("invalid SRP public B")
     return N, int.from_bytes(generator, "big"), salt, username
@@ -138,7 +150,7 @@ def srp_proof(challenge, password):
         rem = ((1 << 512) - xu) % n1; x = 0 if rem == 0 else n1 - rem
     else: x = xu % n1
     a = int.from_bytes(secrets.token_bytes(width), "big") % n1 or 1
-    A, B = pow(g, a, n), int(challenge["public_b"], 16)
+    A, B = pow(g, a, n), int(challenge["public_B"], 16)
     h = lambda value: int.from_bytes(hashlib.sha256(value).digest(), "big")
     k = h(n.to_bytes(width, "big") + g.to_bytes(width, "big"))
     u = h(A.to_bytes(width, "big") + B.to_bytes(width, "big"))
@@ -149,28 +161,33 @@ def srp_proof(challenge, password):
 
 
 def rest_login(runtime, password, negative):
-    conn = TLS(runtime, REST)
-    try:
-        status, challenge = http_json(conn, "/bnetserver/login/srp/", {
-            "inputs": [{"input_id": "account_name", "value": EMAIL}]})
-        if status != 200: raise ValueError("SRP challenge HTTP failure")
-        validate_srp_challenge(challenge)
-        A, m1, expected_m2 = srp_proof(challenge, password)
-        if negative:
-            bad = bytearray(m1); bad[-1] ^= 1; m1 = bytes(bad)
-        status, result = http_json(conn, "/bnetserver/login/", {"inputs": [
-            {"input_id": "public_A", "value": A.to_bytes(256, "big").hex().upper()},
-            {"input_id": "client_evidence_M1", "value": m1.hex().upper()}]})
-        if negative:
-            validate_rejected_result(status, result)
-            return {"challenge": True, "wrong_m1_rejected": True}
-        if status != 200: raise ValueError("SRP proof HTTP failure")
-        ticket = result.get("login_ticket")
-        if not isinstance(ticket, str) or not ticket: raise ValueError("no login ticket")
-        if result.get("server_evidence_M2", "").upper() != expected_m2:
-            raise ValueError("server M2 did not verify")
-        return {"challenge": True, "valid_m2": True, "ticket": True, "ticket_value": ticket}
-    finally: conn.close()
+    status, challenge, headers = rest_json(runtime, "/bnetserver/login/srp/", {
+        "inputs": [{"input_id": "account_name", "value": EMAIL}]})
+    if status != 200: raise ValueError("SRP challenge HTTP failure")
+    validate_srp_challenge(challenge)
+    cookie = extract_session_cookie(headers.get("set-cookie"))
+    A, m1, expected_m2 = srp_proof(challenge, password)
+    public_a = A.to_bytes(256, "big").hex().upper()
+
+    def prove(proof):
+        return rest_json(runtime, "/bnetserver/login/", {"inputs": [
+            {"input_id": "public_A", "value": public_a},
+            {"input_id": "client_evidence_M1", "value": proof.hex().upper()}]}, cookie)
+
+    if negative:
+        bad = bytearray(m1); bad[-1] ^= 1
+        status, result, _ = prove(bytes(bad))
+        validate_rejected_result(status, result)
+        # Reuse the original challenge after the failed proof on another TCP.
+        status, result, _ = prove(m1)
+        ticket = validate_success_result(status, result, expected_m2)
+        return {"challenge": True, "session_cookie": True, "wrong_m1_rejected": True,
+                "valid_after_wrong_m1": True, "ticket": bool(ticket)}
+
+    status, result, _ = prove(m1)
+    ticket = validate_success_result(status, result, expected_m2)
+    return {"challenge": True, "session_cookie": True, "valid_m2": True,
+            "ticket": True, "ticket_value": ticket}
 
 
 def validate_rejected_result(status, result):
@@ -181,10 +198,24 @@ def validate_rejected_result(status, result):
     if any(result.get(key) is not None for key in ("error_code", "error_message", "url", "login_ticket", "server_evidence_M2")):
         raise ValueError("SRP rejection contained a result")
 
+
+def validate_success_result(status, result, expected_m2):
+    if status != 200 or not isinstance(result, dict):
+        raise ValueError("SRP proof HTTP failure")
+    ticket = result.get("login_ticket")
+    if result.get("authentication_state") != "DONE" or not isinstance(ticket, str) or not ticket:
+        raise ValueError("no login ticket")
+    if result.get("server_evidence_M2", "").upper() != expected_m2:
+        raise ValueError("server M2 did not verify")
+    return ticket
+
 class RPCSession:
     def __init__(self, runtime):
         self.tls, self.token, self.logon_error = TLS(runtime, RPC), 1, None
         self.ciid = None
+        self.challenge = None
+        self.v2_record = None
+        self.reply_seen = False
 
     def close(self): self.tls.close()
 
@@ -202,17 +233,30 @@ class RPCSession:
 
     def send(self, service_hash, method, payload):
         token = self.token; self.token += 1
+        self.reply_seen = False
         header = rpc_header(0, method, token, len(payload), service_hash, self.ciid)
         self.tls.sock.sendall(struct.pack(">H", len(header)) + header + payload)
         while True:
             header, body = self.frame()
             if header.get(1) == RESPONSE and header.get(3) == token:
+                self.reply_seen = True
                 if service_hash == CONN and method == 1 and not header.get(6, 0):
                     self.ciid = connect_identity(body, header)
                 return header.get(6, 0), body
-            if header.get(11) == ALIST and header.get(2) == 5:
-                self.logon_error = next((v for n, w, v in fields(body) if n == 1 and w == 0), None)
-                self.respond(header.get(3, 0))
+            self.notification(header, body)
+
+    def notification(self, header, body):
+        service, method = header.get(11), header.get(2)
+        if service == ALIST and method == 5:
+            self.logon_error = next((v for n, w, v in fields(body) if n == 1 and w == 0), None)
+        elif service == ALIST_V2 and method == 4:
+            if self.reply_seen: raise ValueError("V2 challenge arrived after Logon reply")
+            self.challenge = {n: v for n, w, v in fields(body) if w == 2}
+        elif service == ALIST_V2 and method == 1:
+            if not self.reply_seen: raise ValueError("V2 completion arrived before auth reply")
+            self.v2_record = v2_logon_record(body)
+        else: raise ValueError("unexpected RPC notification")
+        self.respond(header.get(3, 0))
 
 
 def realm_metadata(blob):
@@ -286,6 +330,96 @@ def rpc_login(runtime, ticket):
     finally: rpc.close()
 
 
+def rpc_login_v2(runtime, password):
+    rpc = RPCSession(runtime)
+    try:
+        status, _ = rpc.send(CONN, 1, b"")
+        if status: raise ValueError("V2 Connect failed")
+        for service, method in ((ACCOUNT_V2, 101), (ACCOUNT_V2, 104),
+                                (ACCOUNT_V2, 201), (ACCOUNT_V2, 203),
+                                (GAME_V2, 1), (GAME_V2, 2)):
+            status, _ = rpc.send(service, method, b"")
+            if status != 3: raise ValueError("post-auth service admitted unauthenticated request")
+        logon = var(1, 0x576F57) + raw(2, b"Wn64") + raw(3, b"esES") + var(4, BUILD)
+        for method, payload, expected in (
+                (99, b"", 0xBC3), (1, b"\x52\xff", 0xBC5), (1, b"", 0x4D),
+                (1, var(1, 0x576F57), 0x4F),
+                (1, var(1, 0x576F57) + raw(2, b"Wn64"), 0x4E),
+                (2, b"", 3), (2, raw(1, b"invalid-local-token"), 3), (3, b"", 3)):
+            status, _ = rpc.send(AUTH_V2, method, payload)
+            if status != expected: raise ValueError("V2 negative admission mismatch")
+        status, _ = rpc.send(AUTH_V2, 0x40000001, logon)
+        if status or rpc.challenge is None: raise ValueError("V2 external challenge missing")
+        if (rpc.challenge.get(2) != b"web_auth_url" or rpc.challenge.get(3) not in
+                (b"https://127.0.0.1:18081/bnetserver/login/", b"https://localhost:18081/bnetserver/login/")):
+            raise ValueError("V2 challenge is not the isolated HTTPS target")
+        valid = rest_login(runtime, password, False)
+        ticket = valid["ticket_value"].encode()
+        status, _ = rpc.send(AUTH_V2, 2, raw(1, ticket))
+        if status: raise ValueError("V2 auth token rejected")
+        rpc.notification(*rpc.frame())
+        if rpc.v2_record is None: raise ValueError("V2 logon completion missing")
+        status, body = rpc.send(AUTH_V2, 3, var(1, 0x576F57))
+        generated = next((v for n, w, v in fields(body) if n == 1 and w == 2), None)
+        if status or generated != ticket: raise ValueError("V2 generated token mismatch")
+        # A fresh connection exercises the alternate cached-token Logon path.
+        cached = RPCSession(runtime)
+        try:
+            status, _ = cached.send(CONN, 1, b"")
+            if status: raise ValueError("V2 cached Connect failed")
+            status, _ = cached.send(AUTH_V2, 1, logon + raw(10, raw(1, ticket)))
+            if status: raise ValueError("V2 cached Logon failed")
+            cached.notification(*cached.frame())
+            if cached.v2_record is None: raise ValueError("V2 cached completion missing")
+        finally: cached.close()
+        post_login = rpc_post_login_v2(rpc)
+        return {"external_challenge": True, "negative_admission": True, "reply_before_complete": True,
+                "on_logon_complete": True, "generated_token": True, "cached_logon": True,
+                "ciid_all_frames": True, "record": rpc.v2_record, "post_login": post_login}
+    finally: rpc.close()
+
+
+def rpc_post_login_v2(rpc):
+    handle = raw(1, var(1, 1) + var(2, 0x576F57) + var(3, 2))
+    for method, request in ((101, b""), (104, b""), (201, handle), (203, handle)):
+        status, body = rpc.send(ACCOUNT_V2, method, request)
+        if status: raise ValueError("V2 account request failed")
+        if method in (104, 203):
+            if body: raise ValueError("fixture unexpectedly restricted")
+        else:
+            info = next((v for n, w, v in fields(body) if n == 1 and w == 2), None)
+            if info is None: raise ValueError("missing account info")
+            info = {n: (w, v) for n, w, v in fields(info)}
+            if info.get(1) != (0, 1): raise ValueError("incorrect account info ID")
+            if method == 101 and info.get(14) not in ((0, 7), (2, b"\x07")):
+                raise ValueError("incorrect account privacy flags")
+            if method == 201 and info.get(2) != (2, b"WoW1"):
+                raise ValueError("incorrect game account display name")
+    for service, method, payload, expected in ((ACCOUNT_V2, 999, b"", 0xBC3),
+            (ACCOUNT_V2, 201, b"\x0a\xff", 0xBC5),
+            (GAME_V2, 99, b"", 0xBC3), (GAME_V2, 1, b"\x0a\xff", 0xBC5),
+            (GAME_V2, 1, b"", 0xBC5), (GAME_V2, 2, raw(1, b"unknown"), 0xBC7)):
+        status, _ = rpc.send(service, method, payload)
+        if status != expected: raise ValueError("post-login negative status mismatch")
+    command = b"Command_RealmListRequest_v1_classic"
+    status, body = rpc.send(GAME_V2, 2, raw(1, command))
+    if status or not body: raise ValueError("V2 subregion list failed")
+    identity = b'JSONRealmListTicketIdentity:{"gameAccountID":1}'
+    info = b"JSONRealmListTicketClientInformation:" + json.dumps(
+        {"info": {"secret": list(secrets.token_bytes(32))}}, separators=(",", ":")).encode()
+    status, body = rpc.send(GAME_V2, 1, client_request([
+        attribute("Command_RealmListTicketRequest_v1_classic", "", True, v2=True),
+        attribute("Param_Identity", identity, v2=True), attribute("Param_ClientInfo", info, v2=True)]))
+    if status or response_attributes(body, v2=True).get("Param_RealmListTicket") != b"AuthRealmListTicket\0":
+        raise ValueError("V2 realm ticket failed")
+    status, body = rpc.send(GAME_V2, 1, client_request([
+        attribute(command.decode(), "2-1-0", True, v2=True)]))
+    if status: raise ValueError("V2 realm list failed")
+    realm = realm_metadata(response_attributes(body, v2=True)["Param_RealmList"])
+    return {"account_services": True, "negative_admission": True,
+            "subregions": True, "realm_list_ticket": True, "realm": realm}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime", required=True, type=Path)
@@ -298,6 +432,7 @@ def main():
         rejected = rest_login(runtime, password, True)
         valid = rest_login(runtime, password, False); ticket = valid.pop("ticket_value")
         result = {"rest": rejected | valid, "rpc": rpc_login(runtime, ticket),
+                  "rpc_v2": rpc_login_v2(runtime, password),
                   "build": BUILD, "version": VERSION}
         print(json.dumps(result, sort_keys=True)); return 0
     except Exception as error:

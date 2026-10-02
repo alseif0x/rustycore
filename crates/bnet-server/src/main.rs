@@ -173,6 +173,7 @@ async fn main() -> Result<()> {
     let rest_drain = rest::RestDrain::new();
     let rest_state = Arc::clone(&state);
     let rest_drain_for_accept = rest_drain.clone();
+    let rest_sessions = rest::RestSessions::default();
     let mut rest_handle = tokio::spawn(async move {
         loop {
             match rest_listener.accept().await {
@@ -181,6 +182,7 @@ async fn main() -> Result<()> {
                     let acceptor = rest_tls_acceptor.clone();
                     let state = Arc::clone(&rest_state);
                     let drain = rest_drain_for_accept.clone();
+                    let sessions = rest_sessions.clone();
                     tokio::spawn(async move {
                         match state
                             .remote_ip_is_banned_like_cpp(&addr.ip().to_string())
@@ -206,9 +208,8 @@ async fn main() -> Result<()> {
                             }
                         };
                         tracing::debug!("REST: TLS established with {addr}");
-                        // Use raw HTTP handler — avoids hyper's TLS CloseNotify
-                        // that the WoW client doesn't handle correctly.
-                        rest::handle_rest_connection(tls_stream, state, addr, drain).await;
+                        rest::handle_rest_connection(tls_stream, state, addr, drain, sessions)
+                            .await;
                     });
                 }
                 Err(e) => {

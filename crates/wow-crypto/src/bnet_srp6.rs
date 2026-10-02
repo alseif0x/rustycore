@@ -180,6 +180,12 @@ impl BnetSrp6 {
         let a = BigUint::from_bytes_be(client_a);
         let m1 = BigUint::from_bytes_be(client_m1);
 
+        // Reject an unrepresentable public operand before fixed-width hashing.
+        // This is fail-closed input hardening, not C++'s assertion failure.
+        if a.bits() > self.n.bits() {
+            return None;
+        }
+
         // Validate A != 0 mod N
         if (&a % &self.n).is_zero() {
             return None;
@@ -679,5 +685,14 @@ mod tests {
         assert_eq!(challenge.modulus.len(), 128);
         assert!(!challenge.public_b.is_empty());
         assert_eq!(challenge.username, username);
+    }
+
+    #[test]
+    fn oversized_public_operand_is_rejected_without_panicking() {
+        for version in [SrpVersion::V1, SrpVersion::V2] {
+            let srp = BnetSrp6::new(version, SrpHashFunction::Sha256, "", &[1; 32], &[2]);
+            let oversized = vec![1; srp_fixed_operand_len(version) + 1];
+            assert!(srp.verify_client_evidence(&oversized, &[1; 32]).is_none());
+        }
     }
 }

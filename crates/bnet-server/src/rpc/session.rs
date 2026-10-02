@@ -184,6 +184,10 @@ impl<S: AsyncRead + AsyncWrite + Unpin> RpcSession<S> {
         let method = header.method_id.unwrap_or(0);
         let token = header.token;
 
+        if hash == service_hash::AUTHENTICATION_SERVICE_V2 {
+            return super::services::authentication_v2::handle(self, method, token, payload).await;
+        }
+
         let result = match hash {
             service_hash::CONNECTION_SERVICE => {
                 super::services::connection::handle(self, method, payload).await
@@ -194,8 +198,14 @@ impl<S: AsyncRead + AsyncWrite + Unpin> RpcSession<S> {
             service_hash::ACCOUNT_SERVICE => {
                 super::services::account::handle(self, method, payload).await
             }
+            service_hash::ACCOUNT_SERVICE_V2 => {
+                super::services::account_v2::handle(self, method, payload).await
+            }
             service_hash::GAME_UTILITIES_SERVICE => {
                 super::services::game_utilities::handle(self, method, payload).await
+            }
+            service_hash::GAME_UTILITIES_SERVICE_V2 => {
+                super::services::game_utilities::v2::handle(self, method, payload).await
             }
             _ => {
                 tracing::warn!("Unknown service hash {hash:#010x} method {method}");

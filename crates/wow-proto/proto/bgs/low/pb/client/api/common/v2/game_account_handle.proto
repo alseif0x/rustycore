@@ -1,0 +1,10 @@
+// Authentication V2 game-account handle projection.
+
+syntax = "proto2";
+package bgs.protocol.account.v2;
+
+message GameAccountHandle {
+  optional uint64 id = 1;
+  optional uint32 title_id = 2;
+  optional uint32 region = 3;
+}
