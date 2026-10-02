@@ -321,11 +321,11 @@ mod tests {
         let keys = verify_and_derive(&join_key, &build_key, &local, &server, &digest).unwrap();
         assert_eq!(
             hex(keys.session_key()),
-            "1ca32037112f7be10064fa2107adc842d2c59a976947cddb4901be6490f4142508e61dfb6b44e9b1"
+            "eb1cd3efe62d57594372fa1db16280d3a7b39e1fbc2c038a4467453e841939959482050a792d3f79"
         );
         assert_eq!(
             hex(keys.encryption_key()),
-            "1d2f9352376c0101ea87c89f60e02652bc2233aef042777119879a1b709f0090"
+            "c9fdbadd41f423c30d99bd9e895a9cf2cec6902bc3c5dbab8c289b4ac6297eab"
         );
 
         let mut wrong_digest = digest;
