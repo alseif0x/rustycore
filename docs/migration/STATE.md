@@ -1,6 +1,28 @@
 # RustyCore — Honest Current State (single source of truth)
 
-## Latest Forever branch boundary — 2026-10-02 19:08 UTC
+## Latest Forever branch boundary — 2026-10-02 19:48 UTC
+
+On `1.60.1`, real client build 70170 now accepts the ruleset-to-realm response
+and sends **`Command_RealmJoinRequest_v1`** for `0x02010001`. This is fresh
+native evidence, not only a synthetic smoke. The probe temporarily advertised
+the single isolated Auth fixture realm online/PvP; it was restored to its
+original offline/normal state afterwards. No world server was started.
+Modern V2 realm join returns `0xBC7` (not implemented), with client UI
+`BLZ51903015`; character enumeration/creation and world loading remain pending.
+
+Code candidate `d8e728af` adds explicit immutable `Forever.RealmBindings`, exact
+70170 realm-entry JSON, admission-aware content routing, a no-character routing
+response and secret-safe discovery tracing. The integrated PE inspector and
+V1/V2 smoke gained schema and positive/negative discovery checks. BNet passed
+124/124 tests and the release build; Python passed 29/29 on unchanged QA inputs;
+offline, online-discovery and restored-offline live smokes passed. The client
+capture shows `LastCharPlayed` 254-byte request → 382-byte success → 298-byte
+realm-join request. The full final gate still fails the same inherited hotspot
+ratchet in unchanged 3.4.3 paths. No limits were relaxed. Exact revisions,
+commands, timing and the authorized experimental publication boundary are in
+the [runbook](../operations/forever-login.md#build-70170-ruleset-to-realm-discovery-contract).
+
+## Earlier Forever ruleset-selection evidence — 2026-10-02 19:08 UTC
 
 On `1.60.1`, the real build-70170 client now reaches **ruleset selection** and
 displays/selects the PvP (`JcJ`) card for explicitly configured SuperDistrict 1.
