@@ -114,11 +114,12 @@ SUPER_USE_HEAD = re.compile(
 CFG_TEST_BEFORE_IMPORT = re.compile(
     r"(?m)^[ \t]*#\s*\[\s*cfg\s*\(\s*test\s*\)\s*\][ \t]*(?:\r?\n[ \t]*)+$"
 )
-ROOT_CAGE_CFG_BEFORE_REEXPORT = re.compile(
+ROOT_FIXTURE_CFG_BEFORE_REEXPORT = re.compile(
     r'(?m)^[ \t]*#\s*\[\s*cfg\s*\(\s*any\s*\(\s*test\s*,\s*'
     r'feature\s*=\s*"test-fixtures"\s*\)\s*\)\s*\][ \t]*'
     r"(?:\r?\n[ \t]*)+$"
 )
+ROOT_FIXTURE_GATE = '#[cfg(any(test, feature = "test-fixtures"))]'
 
 CORE_IMPORTS = """//! Session-owned battle-pet data transfer objects shared with the world shell.
 
@@ -142,10 +143,10 @@ def _named_item_matches(source: str, lexer, name: str):
     return list(pattern.finditer(code))
 
 
-def _exact_statement_count(source: str, lexer, statement: str) -> int:
+def _statement_matches(source: str, lexer, statement: str):
     code = lexer.blank_noncode(source)
     pattern = re.compile(r"(?m)^[ \t]*" + re.escape(statement) + r"[ \t]*$")
-    return len(pattern.findall(code))
+    return list(pattern.finditer(code))
 
 
 def _parse_super_import(statement: str) -> tuple[str, list[str]] | None:
@@ -173,7 +174,10 @@ def _has_exact_attribute_before(source: str, code: str, lexer, item_start: int, 
     match = pattern.search(preceding)
     if match is None or match.end() != len(preceding):
         return False
-    return code[match.start() : match.end()] == lexer.blank_noncode(match.group(0))
+    return (
+        code[match.start() : match.end()] == lexer.blank_noncode(match.group(0))
+        and not _has_unexpected_preceding_attribute(code, match.start())
+    )
 
 
 def _has_unexpected_preceding_attribute(code: str, item_start: int) -> bool:
@@ -243,17 +247,54 @@ def _shell_import_layout(source: str, lexer) -> tuple[str, list[tuple[int, int, 
     raise CodemodError("unexpected battle-pet shell import set or cfg")
 
 
-def _has_root_cage_fixture_gate(session_mod: str, lexer) -> bool:
+def _root_reexport_statement(name: str, *, core: bool) -> str:
+    owner = "wow_world_core::session::battle_pet_adapter" if core else "battle_pet_adapter"
+    return f"pub(crate) use {owner}::{name};"
+
+
+def _root_reexport_layout(session_mod: str, lexer) -> str:
+    """Require all seven shell paths in one complete old or new layout."""
     code = lexer.blank_noncode(session_mod)
-    cage_reexport = re.compile(
-        r"(?m)^[ \t]*pub\(crate\)[ \t]+use[ \t]+wow_world_core[ \t]*::"
-        r"[ \t]*session[ \t]*::[ \t]*battle_pet_adapter[ \t]*::[ \t]*"
-        r"RepresentedBattlePetCageItemLikeCpp[ \t]*;[ \t]*$"
-    )
-    matches = list(cage_reexport.finditer(code))
-    return len(matches) == 1 and _has_exact_attribute_before(
-        session_mod, code, lexer, matches[0].start(), ROOT_CAGE_CFG_BEFORE_REEXPORT
-    )
+    item_matches: dict[str, tuple[str, re.Match[str]]] = {}
+    states: set[str] = set()
+    for name in SHELL_TYPES:
+        old_matches = _statement_matches(
+            session_mod, lexer, _root_reexport_statement(name, core=False)
+        )
+        new_matches = _statement_matches(
+            session_mod, lexer, _root_reexport_statement(name, core=True)
+        )
+        if len(old_matches) == 1 and not new_matches:
+            states.add("old")
+            item_matches[name] = ("old", old_matches[0])
+        elif len(new_matches) == 1 and not old_matches:
+            states.add("new")
+            item_matches[name] = ("new", new_matches[0])
+        else:
+            raise CodemodError(f"expected one unique old or Core shell reexport for {name}")
+        if not _is_module_level(code, item_matches[name][1].start()):
+            raise CodemodError(f"{name} shell reexport must be module-level")
+
+    if len(states) != 1:
+        raise CodemodError("mixed old and Core battle-pet shell reexport set")
+    state = next(iter(states))
+
+    for name, (item_state, match) in item_matches.items():
+        requires_fixture_gate = name == "RepresentedBattlePetCageItemLikeCpp" or (
+            name == "RepresentedBattlePetSaveInfoLikeCpp" and item_state == "new"
+        )
+        if requires_fixture_gate:
+            if not _has_exact_attribute_before(
+                session_mod,
+                code,
+                lexer,
+                match.start(),
+                ROOT_FIXTURE_CFG_BEFORE_REEXPORT,
+            ):
+                raise CodemodError(f"expected one exact fixture gate on {name} reexport")
+        elif _has_unexpected_preceding_attribute(code, match.start()):
+            raise CodemodError(f"unexpected attribute on {name} shell reexport")
+    return state
 
 
 def _selected_spans(source: str, lexer):
@@ -360,17 +401,26 @@ def _update_shell_import(source: str, lexer) -> tuple[str, bool]:
     return source[:start] + SHELL_IMPORT_NEW + source[end:], True
 
 
-def _update_shell_reexports(source: str) -> tuple[str, list[str]]:
+def _update_shell_reexports(source: str, lexer) -> tuple[str, list[str]]:
+    if _root_reexport_layout(source, lexer) != "old":
+        raise CodemodError("expected the complete old battle-pet shell reexport set")
+
     changed: list[str] = []
     for name in SHELL_TYPES:
-        old = f"pub(crate) use battle_pet_adapter::{name};"
-        new = f"pub(crate) use wow_world_core::session::battle_pet_adapter::{name};"
-        if new in source:
-            continue
-        if source.count(old) != 1:
-            raise CodemodError(f"expected one shell reexport for {name}")
-        source = source.replace(old, new)
+        old = _root_reexport_statement(name, core=False)
+        new = _root_reexport_statement(name, core=True)
+        match = _statement_matches(source, lexer, old)[0]
+        matched_text = source[match.start() : match.end()]
+        indent = matched_text[: len(matched_text) - len(matched_text.lstrip(" \t"))]
+        replacement = (
+            f"{indent}{ROOT_FIXTURE_GATE}\n{indent}{new}"
+            if name == "RepresentedBattlePetSaveInfoLikeCpp"
+            else f"{indent}{new}"
+        )
+        source = source[: match.start()] + replacement + source[match.end() :]
         changed.append(name)
+    if _root_reexport_layout(source, lexer) != "new":
+        raise CodemodError("updated battle-pet shell reexports failed exact layout check")
     return source, changed
 
 
@@ -401,19 +451,10 @@ def _already_applied(source: str, core: str, session_mod: str, lexer) -> bool:
     core_has_impls = all(
         sum(self_type == name for _, _, self_type in core_impls) == 1 for name in DTO_IMPLS
     )
-    shell_has_reexports = all(
-        _exact_statement_count(
-            session_mod,
-            lexer,
-            f"pub(crate) use wow_world_core::session::battle_pet_adapter::{name};",
-        )
-        == 1
-        and _exact_statement_count(
-            session_mod, lexer, f"pub(crate) use battle_pet_adapter::{name};"
-        )
-        == 0
-        for name in SHELL_TYPES
-    ) and _has_root_cage_fixture_gate(session_mod, lexer)
+    try:
+        shell_has_reexports = _root_reexport_layout(session_mod, lexer) == "new"
+    except CodemodError:
+        shell_has_reexports = False
     return (
         no_source_dtos
         and no_source_impls
@@ -444,7 +485,7 @@ def run(action: str, root: Path) -> None:
 
     new_source, new_core, changed = _build_core_module(source, lexer)
     new_source, import_changed = _update_shell_import(new_source, lexer)
-    new_session_mod, reexports = _update_shell_reexports(session_mod)
+    new_session_mod, reexports = _update_shell_reexports(session_mod, lexer)
     print("battle-pet DTO cut: move seven DTOs and two inherent impls")
     print(f"  public declarations: {len(changed)}")
     print(f"  shell reexports: {len(reexports)}")

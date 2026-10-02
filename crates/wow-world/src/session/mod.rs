@@ -103,6 +103,7 @@ pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePet
 pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetDataLikeCpp;
 pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetLevelCriteriaLikeCpp;
 pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetQueryCompanionLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetSaveInfoLikeCpp;
 pub(crate) use wow_world_core::session::battle_pet_adapter::RepresentedBattlePetSlotLikeCpp;
 mod battleground_adapter;
@@ -1031,7 +1032,6 @@ const FIRST_LOGIN_START_REPUTATION_HORDE_FACTIONS_LIKE_CPP: &[u32] = &[
 const WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP: u8 = 80;
 
 pub use wow_entities::AuraApplicationLikeCpp as AuraApplication;
-
 pub use wow_entities::{RepresentedAuraEffectAmountLikeCpp, RepresentedAuraEffectLikeCpp};
 
 const AFLAG_NOCASTER_LIKE_CPP: u32 = 0x0000_0001;

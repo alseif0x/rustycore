@@ -95,6 +95,101 @@ def write_fixture(root, *, source=None, core=None, session_mod=None):
 
 
 class ExactBattlePetCutTests(unittest.TestCase):
+    def test_shell_reexports_add_exact_save_info_gate_to_complete_set(self):
+        lexer = codemod._item_support(Path(REPO))
+        old = fixture_session_mod()
+
+        updated, changed = codemod._update_shell_reexports(old, lexer)
+
+        self.assertEqual(changed, list(codemod.SHELL_TYPES))
+        self.assertEqual(codemod._root_reexport_layout(old, lexer), "old")
+        self.assertEqual(codemod._root_reexport_layout(updated, lexer), "new")
+        self.assertEqual(updated.count(codemod.ROOT_FIXTURE_GATE), 2)
+        self.assertIn(
+            codemod.ROOT_FIXTURE_GATE
+            + "\n"
+            + codemod._root_reexport_statement(
+                "RepresentedBattlePetSaveInfoLikeCpp", core=True
+            ),
+            updated,
+        )
+        self.assertIn(
+            codemod._root_reexport_statement(
+                "RepresentedBattlePetLevelCriteriaLikeCpp", core=True
+            ),
+            updated,
+        )
+        self.assertNotIn("pub(crate) use battle_pet_adapter::", updated)
+
+    def test_shell_reexports_reject_incomplete_mixed_and_bad_old_sets(self):
+        lexer = codemod._item_support(Path(REPO))
+        old = fixture_session_mod()
+        cage = "RepresentedBattlePetCageItemLikeCpp"
+        save_info = "RepresentedBattlePetSaveInfoLikeCpp"
+        other = "RepresentedBattlePetCalculatedStatsLikeCpp"
+        cage_old = codemod._root_reexport_statement(cage, core=False)
+        save_old = codemod._root_reexport_statement(save_info, core=False)
+        other_old = codemod._root_reexport_statement(other, core=False)
+        cage_gate = codemod.ROOT_FIXTURE_GATE + "\n" + cage_old
+        malformed = (
+            old.replace(other_old, "", 1),
+            old + other_old + "\n",
+            old.replace(other_old, codemod._root_reexport_statement(other, core=True), 1),
+            old.replace(other_old, "fn helper() {\n" + other_old + "\n}", 1),
+            old.replace(cage_gate, cage_old, 1),
+            old.replace(cage_gate, "#[cfg(test)]\n" + cage_old, 1),
+            old.replace(cage_gate, codemod.ROOT_FIXTURE_GATE + "\n" + cage_gate, 1),
+            old.replace(save_old, codemod.ROOT_FIXTURE_GATE + "\n" + save_old, 1),
+        )
+        for candidate in malformed:
+            with self.subTest(candidate=candidate):
+                with self.assertRaises(codemod.CodemodError):
+                    codemod._update_shell_reexports(candidate, lexer)
+
+    def test_already_applied_requires_exact_save_info_and_cage_gates(self):
+        lexer = codemod._item_support(Path(REPO))
+        remaining, moved = extract_dto_items(fixture_source(), lexer)
+        core, _ = widen_moved_items(codemod.CORE_IMPORTS + "\n" + moved + "\n", lexer)
+        remaining, _ = codemod._update_shell_import(remaining, lexer)
+        session_mod, _ = codemod._update_shell_reexports(fixture_session_mod(), lexer)
+        remaining = remaining.replace(codemod.SHELL_IMPORT_NEW, rustfmt_shell_import(), 1)
+
+        save_info_line = codemod._root_reexport_statement(
+            "RepresentedBattlePetSaveInfoLikeCpp", core=True
+        )
+        save_info_gate = codemod.ROOT_FIXTURE_GATE + "\n" + save_info_line
+        cage_line = codemod._root_reexport_statement(
+            "RepresentedBattlePetCageItemLikeCpp", core=True
+        )
+        cage_gate = codemod.ROOT_FIXTURE_GATE + "\n" + cage_line
+        other_line = codemod._root_reexport_statement(
+            "RepresentedBattlePetCalculatedStatsLikeCpp", core=True
+        )
+        other_old_line = codemod._root_reexport_statement(
+            "RepresentedBattlePetCalculatedStatsLikeCpp", core=False
+        )
+        malformed = (
+            session_mod.replace(save_info_gate, save_info_line, 1),
+            session_mod.replace(save_info_gate, "#[cfg(test)]\n" + save_info_line, 1),
+            session_mod.replace(
+                save_info_gate,
+                codemod.ROOT_FIXTURE_GATE + "\n" + save_info_gate,
+                1,
+            ),
+            session_mod.replace(cage_gate, cage_line, 1),
+            session_mod.replace(cage_gate, "#[cfg(test)]\n" + cage_line, 1),
+            session_mod.replace(cage_gate, codemod.ROOT_FIXTURE_GATE + "\n" + cage_gate, 1),
+            session_mod.replace(other_line, other_old_line, 1),
+            session_mod.replace(other_line, "", 1),
+            session_mod + other_line + "\n",
+            session_mod + save_info_line + "\n",
+        )
+        for candidate in malformed:
+            with self.subTest(candidate=candidate):
+                self.assertFalse(
+                    codemod._already_applied(remaining, core, candidate, lexer)
+                )
+
     def test_shell_import_layout_accepts_rustfmt_order_and_member_order(self):
         lexer = codemod._item_support(Path(REPO))
         source = (
@@ -222,7 +317,7 @@ class ExactBattlePetCutTests(unittest.TestCase):
         remaining, moved = extract_dto_items(fixture_source(), lexer)
         core, _ = widen_moved_items(codemod.CORE_IMPORTS + "\n" + moved + "\n", lexer)
         remaining, _ = codemod._update_shell_import(remaining, lexer)
-        session_mod, _ = codemod._update_shell_reexports(fixture_session_mod())
+        session_mod, _ = codemod._update_shell_reexports(fixture_session_mod(), lexer)
         remaining = remaining.replace(codemod.SHELL_IMPORT_NEW, rustfmt_shell_import(), 1)
 
         self.assertTrue(codemod._already_applied(remaining, core, session_mod, lexer))
