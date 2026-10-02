@@ -243,9 +243,7 @@ impl super::WorldSession {
         let counter = self
             .core
             .admission
-            .packet_throttling_like_cpp
-            .entry(pkt.opcode_raw())
-            .or_default();
+            .packet_counter_like_cpp(pkt.opcode_raw());
         if counter.last_receive_time_secs != now {
             counter.last_receive_time_secs = now;
             counter.amount_counter = 0;

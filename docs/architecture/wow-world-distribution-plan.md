@@ -473,7 +473,27 @@ registra 36 campos ordenados, 34 impls/127 items y un proveedor Core único para
 `WorldSession.core`. Solo se sustituyó ese subárbol revisado; los baselines de
 persistencia todavía requieren contraste. R1 tras formato mantiene base, ratio y
 slack: S=20.696, G=24.170, tolerancia 22.030,8, exceso 2.139,2, exit 1; el corte
-sigue sin autorización técnica de publicación.
+sigue sin aceptación para publicación.
+
+**Repetición tras reparación, `c8c7443f1` — 2026-10-02:** árbol limpio;
+manifiesto `target/validation-v2/manifests/20261002T215924.304069Z-38677-final.json`,
+21:59:24,303–22:06:58,430 UTC, 454,127 s, **FAILED**, exit 1; `verify` lo rechaza.
+Arquitectura/fixtures, sintaxis ownership, formato e higiene pasan. R1 conserva su
+fallo; World/Core no ejecutan suites por un acceso del shell al contador anti-flood
+privado de Core. El checker pasa 405/406: la fixture de proveedor ausente sigue
+siendo rechazada por el scanner de bridges antes del diagnóstico nominal esperado.
+Se corrigen esas dos fronteras y se contrastan warnings por configuración; no se
+rebaja la validación ni se acredita cierre de P4b. El corte no exige publicación
+propia antes del trabajo local F4b: se continúa la secuencia dentro de #1263 cuando
+su dependencia técnica de Core tenga evidencia, conservando R1 para publicación
+y la revisión explícita del diseño F5. Extras/inventario/campaña completa pendientes.
+La segunda reparación mantiene privado el mapa de AntiDOS: Core devuelve solo
+el contador mutable del opcode solicitado y World conserva instante, incremento
+y políticas (`WorldSession::DosProtection::EvaluateOpcode`, C++ 1251–1270).
+La fixture usa un tipo no suministrado sin alias/ruta inválida, conservando ambos
+asserts y el rechazo; se elimina un import Core cuya llamada ya era cualificada.
+Estas correcciones siguen sin aceptación. La delta de warnings World aún no está
+certificada: la compilación fallida no dejó fingerprint completo de esa configuración.
 
 La construcción debe conservar el orden exacto de expresiones, RNG, relojes, canales
 y campos. Extraer primero el literal de `SessionCore` a una inicialización propia;
@@ -515,6 +535,18 @@ antes de cada extracción. Cada crate recibe el estado, los impls que no nombran
 `WorldSession`/Cx residentes en el shell, y sus tests independientes de sesión.
 Los impls todavía ligados al shell conservan un dueño explícito y se trasladan en F5;
 no se duplican para aparentar una extracción completa.
+
+Preparación social sobre `c8c7443f1`: los nueve impls de `SessionSocialLimits`
+usan Hub Core, pero su cierre incluye addon-filter, throttle, DTOs y cuatro
+fixtures hoy definidos en World, con consumidores en otros dominios/tests.
+`wow-world-social` dependerá de Core y del `wow-social` inferior; reutilizar este
+último crearía un ciclo. Conservar el literal RaF 85/4: `Default` da 0/0.
+El contraste `a5f8da2eb` corrige una atribución heredada: `m_chatFloodData` vive
+en C++ Player (`Player.h:2397–2410,2928`, `Player.cpp:20556–20598`), mientras Rust
+lo guarda en sesión. El movimiento conserva ese comportamiento y no acredita
+paridad de owner; la diferencia de lifetime permanece para la pista F6. Addon
+registro/unregister conserva `WorldSession.cpp:948–976`, incluido limpiar la
+lista sin alterar el flag. No hay todavía implementación ni aceptación F4b.
 
 ### F5 — handlers y orquestación
 

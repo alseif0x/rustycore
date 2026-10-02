@@ -6,8 +6,6 @@
 use std::collections::{BTreeSet, HashMap};
 use std::sync::Arc;
 
-#[cfg(any(test, feature = "test-fixtures"))]
-use crate::session::is_non_durable_skill_tombstone_like_cpp;
 use crate::session::{
     RepresentedPlayerSkillLikeCpp, RepresentedPlayerSkillStateLikeCpp, SKILL_ENCHANTING_LIKE_CPP,
     canonical_player_skill_record_like_cpp, represented_player_skill_record_like_cpp,

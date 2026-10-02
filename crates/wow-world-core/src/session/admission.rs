@@ -2,9 +2,10 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 use crate::session::mailbox::{KickLikeCppCommand, SessionCommand};
-use crate::session::state::SessionCore;
+use crate::session::state::{SessionAdmissionState, SessionCore};
 use crate::session::{
-    PacketSpoofPendingBanLikeCpp, PacketSpoofPendingBanTargetLikeCpp, SessionState,
+    PacketCounterLikeCpp, PacketSpoofPendingBanLikeCpp, PacketSpoofPendingBanTargetLikeCpp,
+    SessionState,
 };
 use crate::session_policy::PacketSpoofConfigLikeCpp;
 use std::time::{Duration, Instant};
@@ -121,5 +122,11 @@ impl SessionCore {
             sent = sent.saturating_add(1);
         }
         sent
+    }
+}
+
+impl SessionAdmissionState {
+    pub fn packet_counter_like_cpp(&mut self, opcode_raw: u16) -> &mut PacketCounterLikeCpp {
+        self.packet_throttling_like_cpp.entry(opcode_raw).or_default()
     }
 }

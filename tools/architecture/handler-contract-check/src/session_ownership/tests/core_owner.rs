@@ -246,12 +246,9 @@ fn world_session_core_field_rejects_a_foreign_alias_provider() {
 
 #[test]
 fn world_session_core_field_rejects_a_missing_provider() {
-    // Keep the unresolved target non-bridge-shaped so bridge inventory does
-    // not preempt the nominal WorldSession.core ownership diagnostic.
-    let world = world_with_core_type(
-        "MissingOwnerAlias",
-        "pub type MissingOwnerAlias = crate::absent::MissingType;",
-    );
+    // No declaration or alias supplies this field type, so the nominal
+    // WorldSession.core ownership check observes a genuinely missing provider.
+    let world = world_with_core_type("MissingOwnerType", "");
     let error = baseline(&world, &core_source(""))
         .expect_err("a named field without a supplied provider must fail closed");
     assert!(error.contains("WorldSession.core"), "{error}");
