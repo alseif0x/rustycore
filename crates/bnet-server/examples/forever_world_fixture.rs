@@ -1,0 +1,125 @@
+//! Strict one-shot world-auth QA, NOT a playable realm or authentication bypass.
+//! Mutates only the disposable account's continued-session key, after proof.
+use anyhow::{Context, Result, bail};
+use serde::Deserialize;
+use std::{env, fs, path::Path, time::Duration};
+use tokio::{net::TcpListener, time::timeout};
+use wow_database::{LoginDatabase, PreparedStatement, build_connection_string_with_ssl_like_cpp};
+use wow_network::forever::{AUTH_RESPONSE, ForeverSocket};
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct Ticket {
+    game_account: String,
+    platform: u32,
+    client_arch: u32,
+    #[serde(rename = "type")]
+    kind: u32,
+}
+
+#[tokio::main]
+async fn main() {
+    // Database/serde errors may contain request data: never render their chain.
+    if run().await.is_err() {
+        eprintln!("Isolated world authentication probe failed; no character access claimed.");
+        std::process::exit(1);
+    }
+}
+
+async fn run() -> Result<()> {
+    let args: Vec<_> = env::args_os().skip(1).collect();
+    if args.len() != 3 || args[0] != "--ack-isolated-probe" {
+        bail!("usage: --ack-isolated-probe <bnet-config> <private-build-key-file>");
+    }
+    wow_config::load_config(args[1].to_str().context("config path")?)?;
+    let info = wow_config::parse_database_info(
+        "LoginDatabaseInfo",
+        &wow_config::get_string_default("LoginDatabaseInfo", ""),
+    )?;
+    if info.host != "127.0.0.1"
+        || info.port_or_socket != "13316"
+        || info.database != "auth_forever_70170"
+        || wow_config::get_string_default("BindIP", "") != "127.0.0.1"
+    {
+        bail!("non-fixture target");
+    }
+    let key_path = Path::new(&args[2]);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if fs::metadata(key_path)?.permissions().mode() & 0o077 != 0 {
+            bail!("key file is not private");
+        }
+    }
+    let build_key: [u8; 16] = fs::read(key_path)?
+        .try_into()
+        .map_err(|_| anyhow::anyhow!("build-key length"))?;
+    let url = build_connection_string_with_ssl_like_cpp(
+        &info.host,
+        &info.port_or_socket,
+        &info.username,
+        &info.password,
+        &info.database,
+        info.ssl,
+    );
+    let db = LoginDatabase::open_with_pool_size(&url, 1).await?;
+    wow_database::migration::validate_runtime_schema(
+        db.pool(),
+        &wow_database::migration::bundled_manifest()?,
+        wow_database::migration::DatabaseKind::Auth,
+    )
+    .await?;
+    let listener = TcpListener::bind("127.0.0.1:18085").await?;
+    println!("Isolated strict world-auth probe ready on 127.0.0.1:18085");
+    let (stream, peer) = timeout(Duration::from_secs(120), listener.accept()).await??;
+    if !peer.ip().is_loopback() {
+        bail!("non-loopback peer");
+    }
+    let mut socket = ForeverSocket::new(stream, 0x02010001, 0);
+    socket.start().await?;
+    let ticket: Ticket = serde_json::from_str(socket.join_ticket()?)?;
+    if ticket.game_account != "1#1"
+        || ticket.platform != u32::from_be_bytes(*b"\0Win")
+        || ticket.client_arch != u32::from_be_bytes(*b"\0x64")
+        || ticket.kind != u32::from_be_bytes(*b"WoWB")
+    {
+        bail!("fixture variant rejected");
+    }
+    // Same account/link/build/ban/IP/country admission as WorldSocket.cpp,
+    // with deliberately narrower fixture-only account and realm predicates.
+    let account = db.direct_query(concat!(
+        "SELECT a.session_key_bnet FROM account a JOIN battlenet_accounts b ON a.battlenet_account=b.id ",
+        "WHERE a.id=1 AND a.username='1#1' AND a.client_build=70170 AND LENGTH(a.session_key_bnet)=64 ",
+        "AND b.id=1 AND b.email='FOREVER@LOCAL.TEST' AND (b.locked=0 OR b.last_ip='127.0.0.1') ",
+        "AND b.lock_country IN ('','00') ",
+        "AND NOT EXISTS (SELECT 1 FROM account_banned ab WHERE ab.id=a.id AND ab.active=1 AND (ab.unbandate>UNIX_TIMESTAMP() OR ab.unbandate=ab.bandate)) ",
+        "AND NOT EXISTS (SELECT 1 FROM battlenet_account_bans bb WHERE bb.id=b.id AND (bb.unbandate>UNIX_TIMESTAMP() OR bb.unbandate=bb.bandate)) ",
+        "AND EXISTS (SELECT 1 FROM realmlist r WHERE r.id=1 AND r.gamebuild=70170 AND r.Region=2 AND r.Battlegroup=1 AND r.port=18085 AND r.flag=0 AND r.icon=1 AND r.allowedSecurityLevel=0)"
+    )).await?;
+    let join_key: [u8; 64] = account
+        .try_read::<Vec<u8>>(0)
+        .context("fixture admission")?
+        .try_into()
+        .map_err(|_| anyhow::anyhow!("join-key length"))?;
+    socket.verify_credentials(&join_key, &build_key)?;
+    println!("Native AuthSession digest verified (24 bytes); no verification bypass.");
+    // Guard the source's 64 -> 40 transition against a concurrent fresh BNet join.
+    let mut persist = PreparedStatement::new(
+        "UPDATE account SET session_key_bnet=? WHERE id=1 AND client_build=70170 AND session_key_bnet=?",
+    );
+    persist.set_bytes(0, socket.session_key()?.to_vec());
+    persist.set_bytes(1, join_key.to_vec());
+    let rows = db.execute(&persist).await?;
+    socket.complete_encryption(rows).await?;
+    println!("Signed encryption offer acknowledged; 40-byte session key persisted.");
+    // Target AuthResponse::Write: ERROR_DENIED=3, absent success/wait option bits.
+    // Stop honestly before creating a WorldSession; this is encrypted QA only.
+    socket.send(AUTH_RESPONSE, &[3, 0, 0, 0, 0]).await?;
+    let frame = socket.receive().await?;
+    println!(
+        "Encrypted client response authenticated: opcode=0x{:06X}, payload_bytes={}; character_selection_tested=false",
+        frame.opcode(),
+        frame.payload().len()
+    );
+    Ok(())
+}

@@ -44,5 +44,8 @@ wow-crypto = { workspace = true, features = ["srp-debug"] }
 wow-database = { workspace = true }
 wow-proto = { workspace = true }
 
+[dev-dependencies]
+wow-network = { workspace = true }
+
 [lints]
 workspace = true

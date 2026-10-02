@@ -821,6 +821,15 @@ pub fn sign_enable_encryption(encrypt_key: &[u8; 16], enabled: bool) -> [u8; 64]
     )
 }
 
+/// Reuse the network-owned signer for the distinct Forever signing contract.
+pub(crate) fn sign_enable_encryption_forever(encrypt_key: &[u8; 32]) -> [u8; 64] {
+    wow_crypto::forever::enable_encryption_signature(
+        encrypt_key,
+        &ENTER_ENCRYPTED_MODE_PRIVATE_KEY,
+        true,
+    )
+}
+
 /// Convert a hex string to bytes.
 pub(super) fn hex_to_bytes(hex: &str) -> Vec<u8> {
     (0..hex.len())

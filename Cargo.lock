@@ -255,6 +255,7 @@ dependencies = [
  "wow-crypto",
  "wow-database",
  "wow-logging",
+ "wow-network",
  "wow-proto",
 ]
 
