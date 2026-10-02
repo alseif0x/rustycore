@@ -1,6 +1,18 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
+mod default_skills;
+mod reputation;
+mod skills;
+mod talents;
+
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use reputation::{
+    FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP,
+    FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP,
+    FIRST_LOGIN_START_REPUTATION_HORDE_FACTIONS_LIKE_CPP,
+};
+
 #[cfg(any(test, feature = "test-fixtures"))]
 use std::collections::{BTreeSet, HashMap};
 #[cfg(any(test, feature = "test-fixtures"))]

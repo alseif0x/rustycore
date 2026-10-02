@@ -312,15 +312,15 @@ límite. El método Core de estacionalidad LFG, antes alojado en un handler, pas
 La revisión corrigió un import requerido por las pruebas de soporte y la visibilidad
 del getter de exploración usado desde el shim World. La constante WAR_MODE mantiene
 su consumidor de test; la de alcance de combate queda privada en Core.
-La continuación local traslada los impls del hub de presentación/vitales del jugador,
+El checkpoint local `21159a71c` traslada los impls del hub de presentación/vitales del jugador,
 los de poderes/salud y los accesos de catálogos de criaturas, gameobjects, moneda y
 zona/área. La conversión `const fn` de poderes conserva sus 25 ramas y su fallback a
 Mana; las constantes de estado líquido conservan la API World mediante fachadas.
 La comparación textual de los 20 bloques de esos siete archivos, normalizando solo
 la visibilidad necesaria al cruzar crates, no encontró cambios de cuerpo. Es revisión
-de fuente, no evidencia de aceptación. El acceso de spawn requiere cerrar también
-los helpers `InitDbPhaseShift`/`InitDbVisibleMapId` alojados en `phasing`; conservar una
-única definición y las fachadas World, sin deducir su traslado del corte anterior.
+de fuente, no evidencia de aceptación. El acceso de spawn cierra también su dependencia
+de los helpers `InitDbPhaseShift`/`InitDbVisibleMapId` alojados en `phasing`, con una
+única definición y las fachadas World; su traslado no se dedujo del corte anterior.
 Los tres helpers trasladados conservan sus cuerpos; sus anclas C++ son
 `src/server/game/Phasing/PhasingHandler.cpp:47,528,564`, checkout
 `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`. Este movimiento conserva también los
@@ -336,6 +336,27 @@ su destinatario y su orden. La comparación de cuerpos no encontró cambios en l
 14 bloques de combate ni en los 43 métodos del último lote de auras, facciones y
 accesos de configuración. Las dependencias del hub aún alojadas en World se cierran
 en los lotes siguientes, sin stubs ni nuevos propietarios de estado.
+La continuación local traslada los catálogos de spells y objetos, los accesos de NPCs,
+las operaciones del hub de reputación, descanso y talentos, y las proyecciones de
+traits. Los DTOs de bootstrap y reputación mantienen una sola definición en Core;
+las listas de reputación conservan sus consumidores de pruebas mediante fachadas
+gated. La revisión de fuente conserva los cuerpos de los 15 bloques de objetos,
+los ocho de reputación, los cinco de los adaptadores de progresión, los dos de
+descanso y los seis de talentos, normalizando solo visibilidad y espacios. También
+conserva los tres bloques de stand-state, los dos de traits y el getter de
+tombstones de habilidades; los tests y adaptadores del shell permanecen en World.
+Las visibilidades se contrastan con consumidores de `src`, `unit_tests` y `tests`,
+incluidos los resets de talentos existentes: su callback compartido no acredita
+la separación de orquestación pendiente en F5. Core añade las dependencias directas
+ya existentes en el workspace `num-traits`, `wow-ai` y `wow-progression`; la revisión
+de sus manifiestos no encuentra una dependencia de vuelta a Core. Estos traslados
+incluyen también los catálogos compartidos de progresión y valoración, sus fachadas
+y defaults, y los cuatro bloques del hub de XP/escalado. La valoración y los
+encantamientos conservan sus tres bloques, incluido el comportamiento existente
+`standard_price = false`. Los seis bloques de habilidades y el de habilidades
+iniciales conservan la autoridad de slots/tombstones y el orden de publicación;
+sus cinco conversiones auxiliares tienen una sola definición en Core. El cierre de
+imports/montajes sigue sin aceptación, publicación o QA live.
 **NO VALIDADO:** faltan los impls restantes y la aceptación completa; esta revisión
 del diff no sustituye compilación, tests, inventario ni evidencia de producción.
 

@@ -11,54 +11,22 @@ use super::{BattlemasterListStore, ChatFloodConfigLikeCpp, ChatLevelRequirements
 use super::{ChatListenRangesLikeCpp, CreatureAddonStoreLikeCpp, CreatureBaseStatsStoreLikeCpp};
 use super::{CreatureClassificationHealthRatesLikeCpp, CreatureDifficultyStoreLikeCpp};
 use super::{CreatureEquipmentStoreLikeCpp, EmotesStore, EmotesTextStore};
-use super::{EquipmentSetGuidGeneratorLikeCpp, ExplorationBaseXpStoreLikeCpp};
-use super::{GlyphPropertiesStore, GraveyardStore, HighGuid};
-use super::{HotfixBlobCache, ImportPriceStores, ItemClassStore, ItemCurrencyCostStore};
-use super::{ItemDisenchantLootStore, ItemPriceBaseStore, LfgDungeonStoreLikeCpp};
-use super::{ObjectGuidGenerator, PlayerCreateInfoCastSpellStoreLikeCpp};
-use super::{PlayerCreateInfoCustomSpellStoreLikeCpp, PlayerCreateInfoStoreLikeCpp};
+use super::EquipmentSetGuidGeneratorLikeCpp;
+use super::{GraveyardStore, HighGuid};
+use super::HotfixBlobCache;
+use super::LfgDungeonStoreLikeCpp;
+use super::ObjectGuidGenerator;
+
 use super::{PlayerGridLoadOutcomeLikeCpp, PlayerGridLoadResolverLikeCpp};
 use super::{PlayerRegenerationRatesLikeCpp, PowerTypeStore, QuestInfoStore, TactKeyStore};
-use super::{TalentTabStore, TavernAreaTriggerStoreLikeCpp, TraitNodeEntryStore};
+use super::TavernAreaTriggerStoreLikeCpp;
 use wow_world_core::session::SupportFeaturePolicyLikeCpp;
 
 pub use wow_world_core::session::GroupInvitePolicyLikeCpp;
 pub use wow_world_core::session::catalog_capabilities::ObjectMgrCatalogsLikeCpp;
 
-/// Process-owned DB2 catalogs used by C++'s static item valuation helpers.
-///
-/// C++ reads these globals directly in `Item::GetBuyPrice`,
-/// `Item::GetSellPrice`, and `Item::GetDisenchantLoot`
-/// (`Entities/Item/Item.cpp:1732-1969`); `WorldSession` owns none of them.
-pub struct ItemValuationCatalogsLikeCpp {
-    pub import_prices: Arc<ImportPriceStores>,
-    pub price_base: Arc<ItemPriceBaseStore>,
-    pub item_classes: Arc<ItemClassStore>,
-    pub currency_costs: Arc<ItemCurrencyCostStore>,
-    pub disenchant_loot: Arc<ItemDisenchantLootStore>,
-}
-
-/// Process-owned C++ Player creation data and glyph catalog borrowed during login.
-///
-/// C++ stores the base row plus `customSpells` and per-create-mode
-/// `castSpells` under `ObjectMgr` (`Globals/ObjectMgr.h:649-663`) and resolves
-/// it through `sObjectMgr->GetPlayerInfo`; it is never session-owned.
-pub struct PlayerBootstrapCatalogsLikeCpp {
-    pub create_info: Arc<PlayerCreateInfoStoreLikeCpp>,
-    /// C++ process-wide sGlyphPropertiesStore, borrowed during Player::_LoadGlyphs.
-    pub glyph_properties: Arc<GlyphPropertiesStore>,
-    pub talent_tabs: Arc<TalentTabStore>,
-    /// C++ process-owned sTraitNodeEntryStore, borrowed while loading traits.
-    pub trait_node_entries: Arc<TraitNodeEntryStore>,
-    pub cast_spells: Arc<PlayerCreateInfoCastSpellStoreLikeCpp>,
-    pub custom_spells: Arc<PlayerCreateInfoCustomSpellStoreLikeCpp>,
-    /// C++ `World` policy consumed by `Player::LearnCustomSpells`.
-    pub start_all_spells: bool,
-    /// C++ `World` policy consumed by the first-login `Player` path.
-    pub start_all_explored: bool,
-    /// C++ `World` policy consumed by the first-login `Player` path.
-    pub start_all_reputation: bool,
-}
+pub use wow_world_core::session::ItemValuationCatalogsLikeCpp;
+pub use wow_world_core::session::PlayerBootstrapCatalogsLikeCpp;
 
 /// Process-owned C++ `World` rates borrowed by `Player`/`RestMgr` transitions.
 ///
@@ -88,23 +56,7 @@ pub struct CreatureSpawnCatalogsLikeCpp {
     pub power_types: Arc<PowerTypeStore>,
 }
 
-/// Process-owned player-level and exploration XP catalogs plus immutable World policy.
-///
-/// C++ resolves these through ObjectMgr world tables and `sWorld` while
-/// adapting Player progression operations. A `WorldSession` borrows this
-/// capability for the operation; it does not own a copy of any catalog or
-/// configuration value.
-#[derive(Clone)]
-#[cfg_attr(any(test, feature = "test-fixtures"), derive(Default))]
-pub struct ProgressionCatalogsLikeCpp {
-    pub player_xp: Arc<Vec<u32>>,
-    pub exploration_base_xp: Arc<ExplorationBaseXpStoreLikeCpp>,
-    pub exploration_xp_rate: f32,
-    pub min_discovered_scaled_xp_ratio: u32,
-    /// C++ World policy read by Player::ResetTalents, never cached on Session.
-    pub no_reset_talent_cost: bool,
-}
-
+pub use wow_world_core::session::ProgressionCatalogsLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 impl Default for CreatureSpawnCatalogsLikeCpp {
     fn default() -> Self {
@@ -159,40 +111,6 @@ impl Default for ChatPolicyCatalogsLikeCpp {
     }
 }
 
-#[cfg(any(test, feature = "test-fixtures"))]
-impl Default for ItemValuationCatalogsLikeCpp {
-    fn default() -> Self {
-        Self {
-            import_prices: Arc::new(ImportPriceStores {
-                armor: wow_data::ImportPriceArmorStore::from_entries([]),
-                quality: wow_data::ImportPriceQualityStore::from_entries([]),
-                shield: wow_data::ImportPriceShieldStore::from_entries([]),
-                weapon: wow_data::ImportPriceWeaponStore::from_entries([]),
-            }),
-            price_base: Arc::new(ItemPriceBaseStore::from_entries([])),
-            item_classes: Arc::new(ItemClassStore::from_entries([])),
-            currency_costs: Arc::new(ItemCurrencyCostStore::from_entries([])),
-            disenchant_loot: Arc::new(ItemDisenchantLootStore::from_entries([])),
-        }
-    }
-}
-
-#[cfg(any(test, feature = "test-fixtures"))]
-impl Default for PlayerBootstrapCatalogsLikeCpp {
-    fn default() -> Self {
-        Self {
-            create_info: Arc::new(PlayerCreateInfoStoreLikeCpp::default()),
-            glyph_properties: Arc::new(GlyphPropertiesStore::from_entries([])),
-            talent_tabs: Arc::new(TalentTabStore::from_entries([])),
-            trait_node_entries: Arc::new(TraitNodeEntryStore::from_entries([])),
-            cast_spells: Arc::new(PlayerCreateInfoCastSpellStoreLikeCpp::default()),
-            custom_spells: Arc::new(PlayerCreateInfoCustomSpellStoreLikeCpp::default()),
-            start_all_spells: false,
-            start_all_explored: false,
-            start_all_reputation: false,
-        }
-    }
-}
 
 /// Process-owned area-trigger lookup and extension capability.
 ///

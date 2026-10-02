@@ -684,21 +684,6 @@ impl crate::session::state::InventoryState {
     }
 }
 
-impl crate::session::state::SessionCatalogs {
-    /// Set the C++ BankBagSlotPrices.db2 store for this session.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_bank_bag_slot_prices_store(&mut self, store: Arc<BankBagSlotPricesStore>) {
-        self.bank_bag_slot_prices_store = Some(store);
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn bank_bag_slot_prices_store_for_test_like_cpp(
-        &self,
-    ) -> Option<&Arc<BankBagSlotPricesStore>> {
-        self.bank_bag_slot_prices_store.as_ref()
-    }
-}
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/player_items/bank/f3_shims.rs"]
 mod f3_shims;

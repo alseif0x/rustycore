@@ -51,3 +51,13 @@ pub struct RepresentedVehicleBaseMovementLikeCpp {
     pub position: Position,
     pub time: u32,
 }
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RepresentedCreatureAccessLikeCpp {
+    pub entry: u32,
+    pub position: wow_core::Position,
+    pub npc_flags: u32,
+    pub npc_flags2: u32,
+    pub trainer_class: u8,
+    pub faction_template_id: u32,
+}

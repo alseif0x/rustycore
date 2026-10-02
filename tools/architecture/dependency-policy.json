@@ -90,6 +90,7 @@
   },
   "restricted_packages": {
     "wow-world-core": [
+      "wow-ai",
       "wow-conditions",
       "wow-config",
       "wow-constants",
@@ -105,6 +106,7 @@
       "wow-network",
       "wow-packet",
       "wow-persistence",
+      "wow-progression",
       "wow-recastdetour",
       "wow-script",
       "wow-session",
@@ -412,6 +414,7 @@
         "normal": [
           "dashmap",
           "flume",
+          "num-traits",
           "rand",
           "tracing"
         ],

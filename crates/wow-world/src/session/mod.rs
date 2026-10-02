@@ -836,7 +836,6 @@ const QUEST_FLAGS_PLAYER_CAST_ACCEPT_LIKE_CPP: u32 = 0x0010_0000;
 const QUEST_FLAGS_EX_RECAST_ACCEPT_SPELL_ON_LOGIN_LIKE_CPP: u32 = 0x0000_1000;
 const MAX_GAMEOBJECT_SLOT_LIKE_CPP: usize = 4;
 pub(crate) use wow_world_core::session::MAX_SPECIALIZATIONS_LIKE_CPP;
-const NEEDED_TALENT_POINT_PER_TIER_LIKE_CPP: u32 = 5;
 const PLAYER_FLAGS_UBER_LIKE_CPP: u32 = 0x0008_0000;
 const PLAYER_FLAGS_GROUP_LEADER_LIKE_CPP: u32 = 0x0000_0001;
 pub(crate) use wow_world_core::session::{
@@ -878,9 +877,6 @@ use wow_world_core::session::state::config::GivePlayerXpScriptDispatcherLikeCpp;
 const REST_FLAG_IN_TAVERN_LIKE_CPP: u32 = 0x1;
 const REST_FLAG_IN_CITY_LIKE_CPP: u32 = 0x2;
 const REST_FLAG_IN_FACTION_AREA_LIKE_CPP: u32 = 0x4;
-// C++ `RestMgr::SetRestBonus`: `float(next_level_xp) * 1.5f / 2`.
-#[cfg(any(test, feature = "test-fixtures"))]
-const REST_BONUS_MAX_NEXT_LEVEL_XP_FACTOR_LIKE_CPP: f32 = 1.5 / 2.0;
 const REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP: f32 = 0.031;
 const REST_OFFLINE_TAVERN_OR_CITY_BUBBLE_LIKE_CPP: f32 = 0.125;
 const REST_ONLINE_INGAME_BUBBLE_LIKE_CPP: f32 = 0.125;
@@ -1013,19 +1009,13 @@ pub(crate) use wow_entities::{
     PlayerVoidStorageItemLikeCpp as RepresentedVoidStorageItemLikeCpp,
 };
 
-const FIRST_LOGIN_START_REPUTATION_STANDING_LIKE_CPP: i32 = 42_999;
-const FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP: &[u32] = &[
-    942, 935, 936, 1011, 970, 967, 989, 932, 934, 1038, 1077, 1106, 1104, 1090, 1098, 1156, 1073,
-    1105, 1119, 1091,
-];
-const FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP: &[u32] = &[
-    72, 47, 69, 930, 730, 978, 54, 946, 1037, 1068, 1126, 1094, 1050,
-];
-const FIRST_LOGIN_START_REPUTATION_HORDE_FACTIONS_LIKE_CPP: &[u32] = &[
-    76, 68, 81, 911, 729, 941, 530, 947, 1052, 1067, 1124, 1064, 1085,
-];
-
-const WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP: u8 = 80;
+use wow_world_core::session::WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP;
+#[cfg(test)]
+use wow_world_core::session::{
+    FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP,
+    FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP,
+    FIRST_LOGIN_START_REPUTATION_HORDE_FACTIONS_LIKE_CPP,
+};
 
 pub use wow_entities::AuraApplicationLikeCpp as AuraApplication;
 pub use wow_entities::{RepresentedAuraEffectAmountLikeCpp, RepresentedAuraEffectLikeCpp};

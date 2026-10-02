@@ -3,6 +3,22 @@
 
 use wow_core::ObjectGuid;
 
+impl crate::session::HubMut<'_> {
+    #[cfg_attr(not(any(test, feature = "test-fixtures")), allow(unused_variables))]
+    pub fn record_represented_confirm_barbers_choice_like_cpp(
+        &mut self,
+        request: RepresentedConfirmBarbersChoiceLikeCpp,
+    ) {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        {
+            self.fixtures
+                .presentation
+                .represented_confirm_barbers_choice_requests_like_cpp
+                .push(request);
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RepresentedAlterAppearanceLikeCpp {
     pub new_sex: u8,

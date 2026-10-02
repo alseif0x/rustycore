@@ -39,19 +39,23 @@ mod visibility;
 mod player_presentation;
 pub use player_presentation::{LIQUID_MAP_IN_WATER_LIKE_CPP, LIQUID_MAP_UNDER_WATER_LIKE_CPP};
 mod player_vitals_adapter;
+mod pet_dismissal;
 mod spell_state;
 mod spell_pet_catalogs;
 mod quest_dialog;
 pub use quest_dialog::power_type_from_u8_like_cpp;
 mod player_items;
 mod item_modifiers;
-pub use item_modifiers::RepresentedScalingStatContextLikeCpp;
+pub use item_modifiers::{
+    RepresentedScalingStatContextLikeCpp, player_class_mask_for_transmog_like_cpp,
+};
 mod player_melee_application;
 pub use player_melee_application::begin_combat_ref_on_map_like_cpp;
 mod social;
 mod chat;
 mod faction_reactions;
 pub use faction_reactions::{
+    AttackReputationFactionSnapshotLikeCpp, ReputationGainSourceLikeCpp,
     RepresentedFactionReactionInputLikeCpp, RepresentedGetReactionInputLikeCpp,
 };
 mod combat;
@@ -63,6 +67,7 @@ mod admission;
 mod player_registry_binding;
 mod lifecycle_ops;
 mod publication;
+mod npc_interaction;
 mod battleground_adapter;
 pub use battleground_adapter::{
     RepresentedBattlefieldListLikeCpp, RepresentedBattlefieldPortLikeCpp,
@@ -110,6 +115,13 @@ mod player_spell_records;
 pub use player_spell_records::{
     RepresentedPlayerSkillLikeCpp, RepresentedPlayerSkillStateLikeCpp,
 };
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use player_spell_records::is_non_durable_skill_tombstone_like_cpp;
+pub use player_spell_records::{
+    canonical_player_skill_record_like_cpp, represented_player_skill_record_like_cpp,
+    represented_skill_records_from_values_like_cpp, represented_skill_values_from_records_like_cpp,
+};
+mod trait_configs;
 
 mod spell_click_values;
 pub use spell_click_values::RepresentedGameObjectAccessLikeCpp;
@@ -124,12 +136,23 @@ mod progression;
 pub use progression::MAX_SPECIALIZATIONS_LIKE_CPP;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use progression::PlayerSkillTestFixtureLikeCpp;
-
 #[cfg(any(test, feature = "test-fixtures"))]
+pub use progression::{
+    FIRST_LOGIN_START_REPUTATION_ALLIANCE_FACTIONS_LIKE_CPP,
+    FIRST_LOGIN_START_REPUTATION_COMMON_FACTIONS_LIKE_CPP,
+    FIRST_LOGIN_START_REPUTATION_HORDE_FACTIONS_LIKE_CPP,
+};
+
 mod rest_progression;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use rest_progression::RestMgrTestFixtureLikeCpp;
 
+mod progression_adapters;
+pub use progression_adapters::WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP;
+
+pub use spell_click_values::RepresentedCreatureAccessLikeCpp;
+
+mod persistence;
 pub mod persistence_capabilities;
 
 mod action_bar_adapter;
@@ -185,8 +208,10 @@ pub mod map_admission;
 pub use map_admission::{MMapRuntimeConfigLikeCpp, WaypointPathResolverLikeCpp};
 
 pub mod catalog_capabilities;
+pub use catalog_capabilities::{ItemValuationCatalogsLikeCpp, ProgressionCatalogsLikeCpp};
 pub use catalog_capabilities::GroupInvitePolicyLikeCpp;
 pub use catalog_capabilities::ObjectMgrCatalogsLikeCpp;
+pub use catalog_capabilities::PlayerBootstrapCatalogsLikeCpp;
 pub use catalog_capabilities::SupportFeaturePolicyLikeCpp;
 
 #[cfg(any(test, feature = "test-fixtures"))]

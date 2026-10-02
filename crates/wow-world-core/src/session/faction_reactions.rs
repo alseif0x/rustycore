@@ -264,3 +264,21 @@ impl crate::session::HubRef<'_> {
         })
     }
 }
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct AttackReputationFactionSnapshotLikeCpp {
+    pub faction_id: u32,
+    pub contested_guard: bool,
+    pub can_have_reputation: Option<bool>,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ReputationGainSourceLikeCpp {
+    Kill,
+    Quest,
+    DailyQuest,
+    WeeklyQuest,
+    MonthlyQuest,
+    RepeatableQuest,
+    Spell,
+}

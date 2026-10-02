@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::session::state::SessionCatalogs;
+use crate::session::ProgressionCatalogsLikeCpp;
 use wow_packet::packets::misc::{FeatureSystemStatus, FeatureSystemStatusGlueScreen};
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::ObjectMgrCatalogsLikeCpp;
@@ -168,5 +169,39 @@ impl SessionCatalogs {
         store: Arc<ExplorationBaseXpStoreLikeCpp>,
     ) {
         self.exploration_base_xp_store = Some(store);
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    /// Update player_next_level_xp from the table based on current level.
+    pub fn refresh_next_level_xp_with_catalogs_like_cpp(
+        &mut self,
+        catalogs: &ProgressionCatalogsLikeCpp,
+    ) {
+        let lvl = self.shared().player_level_like_cpp() as usize;
+        let next_level_xp = catalogs.player_xp.get(lvl).copied().unwrap_or(u32::MAX);
+        let table = Arc::clone(&catalogs.player_xp);
+        let installed = self
+            .core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.install_player_xp_table_like_cpp(table);
+            })
+            .is_some();
+        if installed {
+            self.set_player_next_level_xp_like_cpp(next_level_xp);
+        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if !installed && self.core.player_handle_like_cpp.is_none() {
+            self.set_player_next_level_xp_like_cpp(next_level_xp);
+        }
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let _ = installed;
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub fn player_is_at_configured_max_level_like_cpp(&self) -> bool {
+        let max_level = self.config.max_player_level_config_like_cpp;
+        max_level != 0 && u32::from(self.player_level_like_cpp()) >= max_level
     }
 }

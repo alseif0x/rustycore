@@ -2,6 +2,7 @@ use crate::session::state::SessionCore;
 use wow_constants::InventoryResult;
 use wow_core::ObjectGuid;
 use wow_packet::packets::item::InventoryChangeFailure;
+use wow_data::ItemChildEquipmentEntry;
 
 impl SessionCore {
     pub fn send_equip_error(
@@ -37,5 +38,19 @@ impl SessionCore {
         // `CONNECTION_TYPE_REALM`, including errors raised by instance-routed
         // inventory requests after `ConnectTo`.
         self.send_packet_realm(&packet);
+    }
+}
+
+impl crate::session::state::SessionCatalogs {
+    /// C++ `DB2Manager::GetItemChildEquipment(parentItemId)`.
+    pub fn item_child_equipment_for_parent_like_cpp(
+        &self,
+        parent_item_id: u32,
+    ) -> Option<&ItemChildEquipmentEntry> {
+        self.items
+            .child_equipment_store
+            .as_ref()?
+            .values()
+            .find(|entry| entry.parent_item_id == parent_item_id)
     }
 }

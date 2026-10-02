@@ -1,2 +1,11 @@
 mod equipment;
 mod items;
+mod appearance;
+mod bank;
+mod catalog;
+mod durability;
+mod equipment_slots;
+mod modifiers;
+mod storage;
+mod enchantment;
+mod valuation;

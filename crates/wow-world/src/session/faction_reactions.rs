@@ -7,26 +7,9 @@
 use super::WorldSession;
 
 pub(crate) use wow_world_core::session::{
+    AttackReputationFactionSnapshotLikeCpp, ReputationGainSourceLikeCpp,
     RepresentedFactionReactionInputLikeCpp, RepresentedGetReactionInputLikeCpp,
 };
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::session) struct AttackReputationFactionSnapshotLikeCpp {
-    pub(in crate::session) faction_id: u32,
-    pub(in crate::session) contested_guard: bool,
-    pub(in crate::session) can_have_reputation: Option<bool>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ReputationGainSourceLikeCpp {
-    Kill,
-    Quest,
-    DailyQuest,
-    WeeklyQuest,
-    MonthlyQuest,
-    RepeatableQuest,
-    Spell,
-}
 
 impl WorldSession {
     pub(crate) const fn reset_schedule_like_cpp(&self) -> wow_instances::ResetSchedule {

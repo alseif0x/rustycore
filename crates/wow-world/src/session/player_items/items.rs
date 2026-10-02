@@ -567,75 +567,6 @@ impl crate::session::state::InventoryState {
     }
 }
 
-impl crate::session::state::SessionCatalogs {
-    pub(in crate::session) fn item_spec_class_mask_from_overrides_like_cpp(
-        &self,
-        item_id: u32,
-    ) -> Option<u32> {
-        let overrides = self
-            .items
-            .spec_override_store
-            .as_ref()?
-            .overrides_for_item_like_cpp(item_id)?;
-        let chr_specializations = self.chr.specialization_store.as_ref()?;
-
-        let mut mask = 0_u32;
-        for item_spec_override in overrides {
-            if let Some(specialization) =
-                chr_specializations.get(u32::from(item_spec_override.spec_id))
-            {
-                mask |= player_class_mask_for_transmog_like_cpp(specialization.class_id);
-            }
-        }
-
-        Some(mask)
-    }
-
-    /// C++ `DB2Manager::GetItemDisplayId`.
-    pub fn item_display_id(&self, item_id: u32, appearance_mod_id: u32) -> Option<u32> {
-        let modified = self
-            .items
-            .modified_appearance_store
-            .as_ref()
-            .and_then(|store| store.get_for_item(item_id, appearance_mod_id))?;
-        let appearance_id = u32::try_from(modified.item_appearance_id).ok()?;
-        self.items
-            .appearance_store
-            .as_ref()
-            .and_then(|store| store.item_display_info_id(appearance_id))
-    }
-
-    pub(crate) fn item_effect_count_like_cpp(&self, item_entry: u32) -> usize {
-        self.items
-            .effect_store
-            .as_ref()
-            .map(|store| {
-                store
-                    .item_effects_for_item_id_like_cpp(item_entry)
-                    .len()
-                    .min(MAX_ITEM_SPELLS)
-            })
-            .unwrap_or(0)
-    }
-
-    pub(in crate::session) fn item_shield_block_value_like_cpp(&self, item_id: u32) -> Option<i16> {
-        let basic = self.items.store.as_ref()?.get(item_id)?;
-        if basic.class_id != ItemClass::Armor as u8
-            || basic.subclass_id != ItemSubClassArmor::Shield as u8
-        {
-            return None;
-        }
-
-        let template = self.item_random_property_template(item_id)?;
-        let item_level = u32::from(template.item_level);
-        let quality = u32::try_from(template.quality).ok()?;
-        self.shield_block_regular_game_table
-            .as_ref()?
-            .shield_block_for_quality_like_cpp(item_level, quality)
-            .filter(|value| *value != 0)
-    }
-}
-
 impl crate::session::state::InventoryState {
     /// Install the process-wide C++
     /// `sObjectMgr->GetGenerator<HighGuid::Item>()` mirror.
@@ -792,40 +723,6 @@ impl crate::session::state::InventoryState {
         &self
             .player_item_test_fixture_like_cpp
             .represented_item_mod_reapply_events_like_cpp
-    }
-}
-
-impl crate::session::state::SessionCatalogs {
-    pub(in crate::session) fn represented_item_fits_spell_requirements_like_cpp(
-        &self,
-        item_id: u32,
-        equipped: &SpellEquippedItemsEntry,
-    ) -> bool {
-        let Some(item) = self
-            .items
-            .store
-            .as_ref()
-            .and_then(|store| store.get(item_id))
-        else {
-            return false;
-        };
-
-        if equipped.equipped_item_class >= 0 {
-            if equipped.equipped_item_class != item.class_id as i8 {
-                return false;
-            }
-
-            if equipped.equipped_item_subclass != 0 {
-                let subclass = u32::from(item.subclass_id);
-                if subclass >= i32::BITS
-                    || (equipped.equipped_item_subclass & (1_i32 << subclass)) == 0
-                {
-                    return false;
-                }
-            }
-        }
-
-        true
     }
 }
 

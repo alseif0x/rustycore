@@ -101,19 +101,3 @@ impl WorldSession {
         canonical.expect("test Player title owner must resolve")
     }
 }
-
-impl crate::session::HubMut<'_> {
-    #[cfg_attr(not(any(test, feature = "test-fixtures")), allow(unused_variables))]
-    pub(crate) fn record_represented_confirm_barbers_choice_like_cpp(
-        &mut self,
-        request: RepresentedConfirmBarbersChoiceLikeCpp,
-    ) {
-        #[cfg(any(test, feature = "test-fixtures"))]
-        {
-            self.fixtures
-                .presentation
-                .represented_confirm_barbers_choice_requests_like_cpp
-                .push(request);
-        }
-    }
-}

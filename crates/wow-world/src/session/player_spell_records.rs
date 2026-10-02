@@ -11,67 +11,11 @@ pub(crate) use wow_world_core::session::{
 };
 
 #[cfg(any(test, feature = "test-fixtures"))]
-pub(crate) fn is_non_durable_skill_tombstone_like_cpp(
-    skill: &RepresentedPlayerSkillLikeCpp,
-) -> bool {
-    skill.step == 0
-        && skill.value == 0
-        && skill.max == 0
-        && skill.profession_slot == -1
-        && matches!(
-            skill.state,
-            RepresentedPlayerSkillStateLikeCpp::Unchanged
-                | RepresentedPlayerSkillStateLikeCpp::Deleted
-        )
-}
-
-pub(in crate::session) fn canonical_player_skill_record_like_cpp(
-    skill: RepresentedPlayerSkillLikeCpp,
-) -> wow_entities::PlayerSkillRecord {
-    wow_entities::PlayerSkillRecord {
-        skill_line_id: u32::from(skill.skill_id),
-        current_value: skill.value,
-        max_value: skill.max,
-        step: skill.step,
-        profession_slot: skill.profession_slot,
-        state: match skill.state {
-            RepresentedPlayerSkillStateLikeCpp::Unchanged => {
-                wow_entities::PlayerSkillLoadState::Unchanged
-            }
-            RepresentedPlayerSkillStateLikeCpp::Changed => {
-                wow_entities::PlayerSkillLoadState::Changed
-            }
-            RepresentedPlayerSkillStateLikeCpp::New => wow_entities::PlayerSkillLoadState::New,
-            RepresentedPlayerSkillStateLikeCpp::Deleted => {
-                wow_entities::PlayerSkillLoadState::Deleted
-            }
-        },
-    }
-}
-
-pub(in crate::session) fn represented_player_skill_record_like_cpp(
-    skill: &wow_entities::PlayerSkillRecord,
-) -> Option<RepresentedPlayerSkillLikeCpp> {
-    Some(RepresentedPlayerSkillLikeCpp {
-        skill_id: u16::try_from(skill.skill_line_id).ok()?,
-        step: skill.step,
-        value: skill.current_value,
-        max: skill.max_value,
-        profession_slot: skill.profession_slot,
-        state: match skill.state {
-            wow_entities::PlayerSkillLoadState::Unchanged => {
-                RepresentedPlayerSkillStateLikeCpp::Unchanged
-            }
-            wow_entities::PlayerSkillLoadState::Changed => {
-                RepresentedPlayerSkillStateLikeCpp::Changed
-            }
-            wow_entities::PlayerSkillLoadState::New => RepresentedPlayerSkillStateLikeCpp::New,
-            wow_entities::PlayerSkillLoadState::Deleted => {
-                RepresentedPlayerSkillStateLikeCpp::Deleted
-            }
-        },
-    })
-}
+pub(crate) use wow_world_core::session::is_non_durable_skill_tombstone_like_cpp;
+pub(in crate::session) use wow_world_core::session::{
+    canonical_player_skill_record_like_cpp, represented_player_skill_record_like_cpp,
+    represented_skill_records_from_values_like_cpp, represented_skill_values_from_records_like_cpp,
+};
 
 #[allow(dead_code)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -281,35 +225,4 @@ pub(crate) struct RepresentedCharacterSpellChargeLikeCpp {
     pub category_id: u32,
     pub recharge_start_unix_secs: i64,
     pub recharge_end_unix_secs: i64,
-}
-
-#[allow(dead_code)]
-pub(in crate::session) fn represented_skill_records_from_values_like_cpp(
-    skill_values: &HashMap<u16, u16>,
-) -> HashMap<u16, RepresentedPlayerSkillLikeCpp> {
-    skill_values
-        .iter()
-        .map(|(&skill_id, &value)| {
-            (
-                skill_id,
-                RepresentedPlayerSkillLikeCpp {
-                    skill_id,
-                    step: 0,
-                    value,
-                    max: value,
-                    profession_slot: -1,
-                    state: RepresentedPlayerSkillStateLikeCpp::Unchanged,
-                },
-            )
-        })
-        .collect()
-}
-
-pub(in crate::session) fn represented_skill_values_from_records_like_cpp(
-    skill_records: &HashMap<u16, RepresentedPlayerSkillLikeCpp>,
-) -> HashMap<u16, u16> {
-    skill_records
-        .iter()
-        .map(|(&skill_id, record)| (skill_id, record.value))
-        .collect()
 }

@@ -52,15 +52,7 @@ pub(in crate::session) fn represented_spell_cast_guid_for_map_like_cpp(
 
 pub(crate) use wow_world_core::session::RepresentedGameObjectAccessLikeCpp;
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct RepresentedCreatureAccessLikeCpp {
-    pub entry: u32,
-    pub position: wow_core::Position,
-    pub npc_flags: u32,
-    pub npc_flags2: u32,
-    pub trainer_class: u8,
-    pub faction_template_id: u32,
-}
+pub(crate) use wow_world_core::session::RepresentedCreatureAccessLikeCpp;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedCanSeeSpellClickOutcomeLikeCpp {

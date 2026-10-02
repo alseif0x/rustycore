@@ -728,20 +728,6 @@ impl crate::session::state::InventoryState {
     }
 }
 
-impl crate::session::state::SessionCatalogs {
-    /// C++ `DB2Manager::GetItemChildEquipment(parentItemId)`.
-    pub(crate) fn item_child_equipment_for_parent_like_cpp(
-        &self,
-        parent_item_id: u32,
-    ) -> Option<&ItemChildEquipmentEntry> {
-        self.items
-            .child_equipment_store
-            .as_ref()?
-            .values()
-            .find(|entry| entry.parent_item_id == parent_item_id)
-    }
-}
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/player_items/equipment/f3_shims.rs"]
 mod f3_shims;
