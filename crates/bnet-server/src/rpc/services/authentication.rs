@@ -115,7 +115,7 @@ fn validate_logon_client_info_like_cpp(
     Ok(())
 }
 
-fn is_valid_locale_like_cpp(locale: &str) -> bool {
+pub(super) fn is_valid_locale_like_cpp(locale: &str) -> bool {
     matches!(
         locale,
         "enUS"
@@ -147,10 +147,13 @@ fn cached_web_credentials_like_cpp(web_credentials: Vec<u8>) -> String {
     String::from_utf8_lossy(&web_credentials).to_string()
 }
 
-async fn verify_web_credentials_like_cpp<S: AsyncRead + AsyncWrite + Unpin>(
+/// Shared ticket admission. It performs the existing reads/checks in order;
+/// the version-specific caller owns success framing and account publication.
+/// TC master 6ebe044c, Shared::Authentication::HandleVerifyAuthToken.
+pub(super) async fn load_authenticated_account_like_cpp<S: AsyncRead + AsyncWrite + Unpin>(
     session: &mut RpcSession<S>,
     ticket: String,
-) -> Result<Option<Vec<u8>>> {
+) -> Result<AccountInfo> {
     if ticket.is_empty() {
         return Err(RpcStatusError::new(status::ERROR_DENIED).into());
     }
@@ -320,9 +323,28 @@ async fn verify_web_credentials_like_cpp<S: AsyncRead + AsyncWrite + Unpin>(
         return Err(RpcStatusError::new(error_status).into());
     }
 
-    // Build LogonResult
+    Ok(AccountInfo {
+        id: account_id,
+        login,
+        is_locked_to_ip,
+        lock_country,
+        last_ip,
+        failed_logins: 0,
+        is_banned,
+        is_permanently_banned,
+        game_accounts,
+    })
+}
+
+async fn verify_web_credentials_like_cpp<S: AsyncRead + AsyncWrite + Unpin>(
+    session: &mut RpcSession<S>,
+    ticket: String,
+) -> Result<Option<Vec<u8>>> {
+    let account = load_authenticated_account_like_cpp(session, ticket).await?;
+    let account_id = account.id;
+    // Preserve V1's existing bytes and publication/notification/reply order.
     let mut game_account_ids = Vec::new();
-    for ga in game_accounts.values() {
+    for ga in account.game_accounts.values() {
         game_account_ids.push(EntityId {
             high: 0x0200_0002_0057_6F57, // "WoW" encoded in high bits
             low: u64::from(ga.id),
@@ -351,17 +373,7 @@ async fn verify_web_credentials_like_cpp<S: AsyncRead + AsyncWrite + Unpin>(
 
     // Store account info in session
     session.authed = true;
-    session.account_info = Some(AccountInfo {
-        id: account_id,
-        login,
-        is_locked_to_ip,
-        lock_country,
-        last_ip,
-        failed_logins: 0,
-        is_banned,
-        is_permanently_banned,
-        game_accounts,
-    });
+    session.account_info = Some(account);
 
     // Send LogonResult to AuthenticationListener method 5
     session
