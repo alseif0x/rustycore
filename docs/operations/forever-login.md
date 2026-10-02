@@ -669,6 +669,16 @@ target-backed ticket/build-variant/crypto admission. Complementary fork
 anchors for further contrast. Its declaration of build 70170 is not by itself
 proof that inherited 70009 packet layouts, our 3.4.3 runtime or world data work.
 
+Acceptance closeout: `2026-10-02T19:44:10Z`–`2026-10-02T19:52:22Z`,
+**492 seconds wall time**, including the roughly 37-second compiler-error
+repair interval and documentation closeout. Coding before the campaign and the
+earlier request-diagnostic run are separate costs. This stays below 600 seconds
+for the scoped campaign but does not turn the blocked full final gate green.
+Documentation candidate `b7b07cad` passed `quick --base d8e728af`, manifest
+`20261002T195124.215466Z-1618524-quick.json`; reviewed code/tool/build inputs
+remain byte-identical to the tested candidate. This closing timing note receives
+only the documentation-delta check, with no repeated builds or live mutations.
+
 ### Publication validation boundary
 
 At README candidate `a53a88d0`, `validation-v2 final --base origin/3.4.3
