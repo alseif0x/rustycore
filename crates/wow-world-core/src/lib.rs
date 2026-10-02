@@ -3,6 +3,7 @@
 pub mod battle_pet_account;
 pub mod canonical_player_access;
 pub mod catalogs;
+pub mod entity_update_bridge;
 pub mod loot_persistence;
 pub mod map_manager;
 pub mod phasing;

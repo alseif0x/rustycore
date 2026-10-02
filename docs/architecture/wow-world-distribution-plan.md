@@ -260,7 +260,7 @@ ni campaña de aceptación. El hub principal y su cierre de dependencias siguen
 pendientes; este commit no se publicó ni acredita finalización de P4b. El scanner y
 los codemods se guardaron después en el checkpoint descrito abajo.
 
-Después de ese checkpoint se trasladaron la definición y el constructor de
+El checkpoint local posterior `6dea7d06b` conserva la definición y el constructor de
 `SessionCore`, sus siete estados anidados y el registro de fases a Core, conservando
 las fachadas World. También salieron `MMapRuntimeConfigLikeCpp`,
 `WaypointPathResolverLikeCpp`, `ObjectMgrCatalogsLikeCpp` y la fixture de catálogos
@@ -268,13 +268,26 @@ bootstrap. `SessionCatalogs` y `SessionWorldConfig` conservan sus inicializadore
 la configuración incluye ahora su cierre de aggro y selección de dificultad.
 Los impls de conexión, identidad de conexión, sincronización temporal y acceso
 canónico al Player se trasladan junto con sus dependencias. Los estados de fixture
-de identidad, colecciones y auras conservan sus gates y campos, sin nueva autoridad.
+de identidad, colecciones, auras y combate conservan sus gates y campos, sin nueva
+autoridad. Incluye la resolución del mapa canónico y los tipos/helpers de snapshots
+de poderes; los puertos de persistencia permanecen en World.
 El manifiesto, la política y el lock incorporan las aristas inferiores de
 transporte/instancias/configuración; `wow-module-api` y `wow-script` quedan opcionales
 para `test-fixtures` y como dependencias de desarrollo, con propagación de
 `wow-session/test-support`.
 **Trabajo local NO VALIDADO:** los impls restantes todavía se están extrayendo;
 la definición en Core por sí sola no establece compilación ni cierre de P4b.
+
+El cierre de publicación requiere también `entity_update_bridge`: los impls de
+Core llaman a `player_values_update_to_update_object`, cuya conversión usa los
+helpers privados de los dos módulos del puente. El movimiento local del módulo
+completo conserva sus divisiones físicas y la fachada World; sus proveedores son
+`wow-entities`, `wow-packet`, `wow-data` y `wow-core`. La revisión del diff constató
+que sus tres archivos de código y tres de pruebas conservan el contenido byte a
+byte; contienen 33 declaraciones de test, todavía sin ejecutar. No se añadió una
+llamada de vuelta a World ni se duplicó la conversión. **NO VALIDADO:** conservar
+el conjunto ejecutado de tests y los resultados de serialización sigue siendo una
+obligación de la aceptación de P4b.
 
 La construcción debe conservar el orden exacto de expresiones, RNG, relojes, canales
 y campos. Extraer primero el literal de `SessionCore` a una inicialización propia;
