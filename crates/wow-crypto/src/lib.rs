@@ -6,11 +6,13 @@
 //! - [`bnet_srp6`] -- BNet SRP-6 authentication (SHA-256/512 variants for BNet login).
 //! - [`sarc4`] -- RC4 stream cipher used in legacy packet header encryption.
 //! - [`world_crypt`] -- AES-128-GCM packet encryption for the world session.
+//! - [`forever`] -- SHA-512/AES-256-GCM authentication for the Forever client.
 //! - [`session_key`] -- Session-key generators (SHA-1 and SHA-256 variants).
 //! - [`hmac_utils`] -- Thin wrappers around HMAC-SHA1 and HMAC-SHA256.
 
 pub mod bnet_srp6;
 pub mod ed25519ctx;
+pub mod forever;
 pub mod hmac_utils;
 pub mod rsa_sign;
 pub mod sarc4;
@@ -23,6 +25,10 @@ pub use bnet_srp6::{
     BnetSrp6, BnetSrpChallenge, BnetSrpProof, SrpHashFunction, SrpVersion,
     compute_bnet_v1_verifier_from_legacy_sha_hash, compute_bnet_verifier, generate_bnet_salt,
     srp_username, utf8_to_upper_only_latin_like_cpp,
+};
+pub use forever::{
+    AuthError as ForeverAuthError, ForeverWorldCrypt, ForeverWorldCryptError, SessionKeys,
+    enable_encryption_signature, verify_and_derive,
 };
 pub use hmac_utils::{HmacSha1, HmacSha256};
 pub use sarc4::SArc4;

@@ -7,6 +7,7 @@
 //! the authentication handshake flow.
 
 pub mod accept;
+pub mod forever;
 pub mod session_mgr;
 pub mod world_socket;
 
