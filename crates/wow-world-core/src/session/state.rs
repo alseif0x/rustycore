@@ -17,6 +17,14 @@ use crate::session_policy::PacketSpoofConfigLikeCpp;
 pub mod catalogs;
 pub use catalogs::SessionCatalogs;
 
+#[cfg(any(test, feature = "test-fixtures"))]
+mod fixtures;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use fixtures::SessionFixtures;
+
+mod hub;
+pub use hub::{HubMut, HubRef};
+
 pub mod config;
 pub use config::SessionWorldConfig;
 

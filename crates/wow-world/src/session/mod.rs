@@ -120,7 +120,8 @@ pub(crate) use battleground_adapter::battleground_queue_type_id_from_packed_like
 use battleground_adapter::{arena_skirmish_type_like_cpp, arena_team_type_by_slot_like_cpp};
 mod buyback_adapter;
 mod catalog_capabilities;
-pub use catalog_capabilities::{AreaTriggerCatalogsLikeCpp, SupportFeaturePolicyLikeCpp};
+pub use catalog_capabilities::AreaTriggerCatalogsLikeCpp;
+pub use wow_world_core::session::SupportFeaturePolicyLikeCpp;
 pub use catalog_capabilities::{ChatPolicyCatalogsLikeCpp, GroupInvitePolicyLikeCpp};
 pub use catalog_capabilities::{CreatureSpawnCatalogsLikeCpp, ProgressionCatalogsLikeCpp};
 pub use catalog_capabilities::{ItemValuationCatalogsLikeCpp, ObjectMgrCatalogsLikeCpp};
@@ -800,9 +801,9 @@ use wow_packet::packets::item::{
 use wow_packet::packets::misc::{
     AccountHeirloom, AccountHeirloomUpdate, AccountMount, AccountMountUpdate, AccountToy,
     AccountToyUpdate, BuyFailed, DungeonDifficultySet, EQUIP_ERR_NOT_ENOUGH_MONEY_LIKE_CPP,
-    FeatureSystemConfigLikeCpp, FeatureSystemStatus, FeatureSystemStatusGlueScreen,
-    MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP, MountResult, NUM_ACCOUNT_DATA_TYPES, RaidDifficultySet,
-    SellResponse, SetProficiency, SetupCurrency, SetupCurrencyRecord, SpellChargeEntry,
+    FeatureSystemStatus, FeatureSystemStatusGlueScreen, MOUNT_RESULT_SHAPESHIFTED_LIKE_CPP,
+    MountResult, NUM_ACCOUNT_DATA_TYPES, RaidDifficultySet, SellResponse, SetProficiency,
+    SetupCurrency, SetupCurrencyRecord, SpellChargeEntry,
     SpellHistoryEntry, TRADE_SLOT_COUNT_LIKE_CPP, TRADE_STATUS_ACCEPTED_LIKE_CPP,
     TRADE_STATUS_CANCELLED_LIKE_CPP, TRADE_STATUS_STATE_CHANGED_LIKE_CPP,
     TRADE_STATUS_UNACCEPTED_LIKE_CPP, TradeStatus,
@@ -899,7 +900,8 @@ const LANG_RESET_TALENTS_LIKE_CPP: u32 = 216;
 const LANG_RESET_SPELLS_TEXT_LIKE_CPP: &str = "Your spells have been reset.";
 const LANG_RESET_TALENTS_TEXT_LIKE_CPP: &str = "Your talents have been reset.";
 pub(crate) const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
-const PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP: u32 = 0x0000_0800;
+#[cfg(test)]
+use wow_world_core::session::PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP;
 const AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP: u32 = 0x0000_0010;
 const AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP: u32 = 0x0000_0080;
 const AREA_FLAG_CONTESTED_LIKE_CPP: u32 = 0x0004_0000;
@@ -922,7 +924,6 @@ pub(crate) const TELE_TO_TRANSPORT_TELEPORT_LIKE_CPP: TeleportToOptionsLikeCpp =
 pub(crate) const TELE_REVIVE_AT_TELEPORT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x40;
 pub(crate) const TELE_TO_SEAMLESS_LIKE_CPP: TeleportToOptionsLikeCpp = 0x80;
 const ATTACK_DISPLAY_DELAY_LIKE_CPP_MS: u32 = 200;
-const DEFAULT_PLAYER_COMBAT_REACH_LIKE_CPP: f32 = 1.5;
 const MIN_MELEE_REACH_LIKE_CPP: f32 = 2.0;
 const NOMINAL_MELEE_RANGE_LIKE_CPP: f32 = 5.0;
 const SUMMON_PROPERTIES_ONLY_VISIBLE_TO_SUMMONER_LIKE_CPP: u32 = 0x0000_0010;
@@ -981,8 +982,7 @@ pub(crate) const SKILL_FISHING_LIKE_CPP: u16 = 356;
 pub(crate) const SKILL_RIDING_LIKE_CPP: u16 = 762;
 pub const LIQUID_MAP_IN_WATER_LIKE_CPP: u32 = 0x0000_0004;
 pub const LIQUID_MAP_UNDER_WATER_LIKE_CPP: u32 = 0x0000_0008;
-const TOY_FLAG_FAVORITE_LIKE_CPP: u32 = 0x01;
-const TOY_FLAG_HAS_FANFARE_LIKE_CPP: u32 = 0x02;
+use wow_world_core::session::{TOY_FLAG_FAVORITE_LIKE_CPP, TOY_FLAG_HAS_FANFARE_LIKE_CPP};
 const DAMAGE_FIRE_LIKE_CPP: u8 = 5;
 use wow_world_core::session::{DAMAGE_FALL_LIKE_CPP, DAMAGE_FALL_TO_VOID_LIKE_CPP};
 const SPELL_SHAPESHIFT_FORM_FLAG_STANCE_LIKE_CPP: i32 = 0x0000_0001;
@@ -1043,7 +1043,7 @@ pub(crate) const SPELL_AURA_INTERRUPT_FLAG_MOVING_OR_TURNING_LIKE_CPP: u32 =
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG_LANDING_OR_FLIGHT_LIKE_CPP: u32 = 0x0200_0000;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG2_JUMP_LIKE_CPP: u32 = 0x0000_0020;
 pub(crate) const SPELL_AURA_INTERRUPT_FLAG2_CHANGE_TALENT_LIKE_CPP: u32 = 0x0000_4000;
-pub(crate) const PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP: u32 = 0x0000_8000;
+pub(crate) use wow_world_core::session::PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP;
 
 #[cfg(test)]
 #[path = "../../unit_tests/session_tests.rs"]

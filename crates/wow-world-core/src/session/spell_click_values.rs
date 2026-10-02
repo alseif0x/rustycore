@@ -6,6 +6,12 @@ use wow_constants::MovementFlag;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_core::{ObjectGuid, Position};
 
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub struct RepresentedGameObjectAccessLikeCpp {
+    pub entry: u32,
+    pub position: wow_core::Position,
+}
+
 #[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RepresentedVehicleSeatChangeRequestLikeCpp {

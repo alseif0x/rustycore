@@ -50,11 +50,7 @@ pub(in crate::session) fn represented_spell_cast_guid_for_map_like_cpp(
     )
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct RepresentedGameObjectAccessLikeCpp {
-    pub entry: u32,
-    pub position: wow_core::Position,
-}
+pub(crate) use wow_world_core::session::RepresentedGameObjectAccessLikeCpp;
 
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct RepresentedCreatureAccessLikeCpp {

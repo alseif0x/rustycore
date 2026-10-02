@@ -1,9 +1,11 @@
 use crate::entity_update_bridge::player_values_update_to_update_object;
 use crate::session::mailbox::SessionCommand;
+use crate::session::set_active_player_update_bit_like_cpp;
 use crate::session::state::SessionCore;
 use tracing::{info, trace, warn};
 use wow_constants::{BuyResult, ItemModifier, SellResult};
 use wow_core::ObjectGuid;
+use wow_entities::Player;
 use wow_entities::PlayerVoidStorageItemLikeCpp as RepresentedVoidStorageItemLikeCpp;
 use wow_packet::packets::chat::{ChatMsg, ChatPkt, PrintNotification};
 use wow_packet::packets::misc::{BuyFailed, SellResponse};
@@ -228,5 +230,76 @@ impl SessionCore {
         {
             let _ = address.try_send(command);
         }
+    }
+}
+
+impl crate::session::HubMut<'_> {
+    pub fn send_represented_mount_unit_update_like_cpp(
+        &mut self,
+        display_id: i32,
+    ) {
+        let Some(player_guid) = self.core.player_guid() else {
+            return;
+        };
+        let Some((unit_flags, _, _)) = self.shared().player_unit_presentation_snapshot_like_cpp()
+        else {
+            return;
+        };
+
+        use wow_packet::packets::update::{UnitDataValuesDeltaUpdate, UpdateObject};
+        let mut data = UnitDataValuesDeltaUpdate::default();
+        data.unit_data_mask[1] |= 1 << (41 - 32);
+        data.unit_data_mask[1] |= 1 << (51 - 32);
+        data.flags = unit_flags.bits();
+        data.mount_display_id = display_id;
+
+        self.core.send_packet(&UpdateObject::unit_values_update(
+            player_guid,
+            self.core.player_map_id_like_cpp(),
+            data,
+        ));
+    }
+}
+
+impl crate::session::HubRef<'_> {
+    pub fn send_represented_rest_info_update_like_cpp(&self, nested_mask: u8) {
+        let Some(guid) = self.core.player_guid() else {
+            return;
+        };
+        let mut player = Player::new(None, false);
+        let Some(rest_threshold) = self.resolved_xp_rest_threshold_like_cpp() else {
+            return;
+        };
+        let Some(rest_state) = self.resolved_xp_rest_state_like_cpp() else {
+            return;
+        };
+        player.prepare_rest_info_values_update_like_cpp(0, rest_threshold, rest_state, nested_mask);
+        let update = player.values_update(true);
+        if let Some(packet) =
+            player_values_update_to_update_object(guid, self.core.player_map_id_like_cpp(), &update)
+        {
+            self.core.send_packet(&packet);
+        }
+    }
+
+    pub fn send_active_player_multi_action_bars_update_like_cpp(
+        &self,
+        guid: ObjectGuid,
+    ) {
+        let Some((_, _, multi_action_bars)) = self.active_player_update_state_like_cpp() else {
+            return;
+        };
+        use wow_packet::packets::update::{ActivePlayerDataValuesUpdate, UpdateObject};
+
+        let mut data = ActivePlayerDataValuesUpdate::default();
+        set_active_player_update_bit_like_cpp(&mut data.active_player_data_mask, 70);
+        set_active_player_update_bit_like_cpp(&mut data.active_player_data_mask, 72);
+        data.multi_action_bars = multi_action_bars;
+        self.core
+            .send_packet(&UpdateObject::full_active_player_values_update(
+                guid,
+                self.core.player_map_id_like_cpp(),
+                data,
+            ));
     }
 }

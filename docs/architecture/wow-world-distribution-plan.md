@@ -289,7 +289,7 @@ llamada de vuelta a World ni se duplicó la conversión. **NO VALIDADO:** conser
 el conjunto ejecutado de tests y los resultados de serialización sigue siendo una
 obligación de la aceptación de P4b.
 
-La continuación local tras ese checkpoint trasladó las definiciones de los once
+El checkpoint local `bfabaaf39` trasladó las definiciones de los once
 grupos de fixtures y sus DTOs necesarios. Se conserva cada gate, el orden de campos
 y los defaults de skills/rest/battle pets; las fachadas usan los reexports públicos
 de Core, sin abrir sus módulos privados. Se corrigió en revisión el gate del módulo
@@ -298,9 +298,22 @@ de `SessionFixtures`. También se trasladaron los impls Core de admisión, drena
 comandos, publicación, actualizaciones de combate y acceso a dificultad/posición/
 farsight/auras, con sus consumidores. La revisión distinguió el `ChatMsg` de
 `wow-packet` del homónimo en `wow-constants`; se conserva el primero en los paquetes.
-**NO VALIDADO:** faltan el agregado `SessionFixtures`, las vistas del hub, los impls
-restantes y la aceptación completa; esta revisión del diff no sustituye compilación,
-tests, inventario ni evidencia de producción.
+La continuación local incorpora el agregado `SessionFixtures` (inicializador byte a
+byte), `HubRef`/`HubMut` y su préstamo `shared`; los builders que toman `WorldSession`
+siguen en World. También se trasladan la política de soporte y sus dos mensajes de
+estado, y el adaptador canónico de criaturas con los métodos de sincronización y
+rebinding de loot, conservando los cuerpos y el orden de locks/publicación. Los
+imports y montajes se revisan junto a sus consumidores, incluidos los de pruebas.
+El lote posterior incluye los accesos al jugador, barras de acción, perfiles CUF,
+cinemáticas, publicaciones del hub y colecciones; sus cuerpos conservan el orden y
+las ramas de fixtures. Los accesores de catálogos y política runtime cruzan el mismo
+límite. El método Core de estacionalidad LFG, antes alojado en un handler, pasa a
+`session/instances/lfg.rs` conservando su fallback y sin alterar los registros.
+La revisión corrigió un import requerido por las pruebas de soporte y la visibilidad
+del getter de exploración usado desde el shim World. La constante WAR_MODE mantiene
+su consumidor de test; la de alcance de combate queda privada en Core.
+**NO VALIDADO:** faltan los impls restantes y la aceptación completa; esta revisión
+del diff no sustituye compilación, tests, inventario ni evidencia de producción.
 
 La construcción debe conservar el orden exacto de expresiones, RNG, relojes, canales
 y campos. Extraer primero el literal de `SessionCore` a una inicialización propia;

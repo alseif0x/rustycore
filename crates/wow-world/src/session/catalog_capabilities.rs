@@ -12,7 +12,7 @@ use super::{ChatListenRangesLikeCpp, CreatureAddonStoreLikeCpp, CreatureBaseStat
 use super::{CreatureClassificationHealthRatesLikeCpp, CreatureDifficultyStoreLikeCpp};
 use super::{CreatureEquipmentStoreLikeCpp, EmotesStore, EmotesTextStore};
 use super::{EquipmentSetGuidGeneratorLikeCpp, ExplorationBaseXpStoreLikeCpp};
-use super::{FeatureSystemConfigLikeCpp, GlyphPropertiesStore, GraveyardStore, HighGuid};
+use super::{GlyphPropertiesStore, GraveyardStore, HighGuid};
 use super::{HotfixBlobCache, ImportPriceStores, ItemClassStore, ItemCurrencyCostStore};
 use super::{ItemDisenchantLootStore, ItemPriceBaseStore, LfgDungeonStoreLikeCpp};
 use super::{ObjectGuidGenerator, PlayerCreateInfoCastSpellStoreLikeCpp};
@@ -20,6 +20,7 @@ use super::{PlayerCreateInfoCustomSpellStoreLikeCpp, PlayerCreateInfoStoreLikeCp
 use super::{PlayerGridLoadOutcomeLikeCpp, PlayerGridLoadResolverLikeCpp};
 use super::{PlayerRegenerationRatesLikeCpp, PowerTypeStore, QuestInfoStore, TactKeyStore};
 use super::{TalentTabStore, TavernAreaTriggerStoreLikeCpp, TraitNodeEntryStore};
+use wow_world_core::session::SupportFeaturePolicyLikeCpp;
 
 pub use wow_world_core::session::catalog_capabilities::ObjectMgrCatalogsLikeCpp;
 
@@ -166,65 +167,6 @@ pub struct GroupInvitePolicyLikeCpp {
     pub allow_gm_group: bool,
     pub allow_two_side_interaction: bool,
     pub minimum_level: u32,
-}
-
-/// Process-owned support and feature-system policy borrowed by Session edges.
-///
-/// C++ initializes the support switches in `World.cpp:584-595` and the feature
-/// switches in `World.cpp:1597-1599`. `SupportMgr` and the feature-status send
-/// helpers read that process state; it is not copied into each `WorldSession`.
-#[derive(Debug, Clone, Copy)]
-pub struct SupportFeaturePolicyLikeCpp {
-    pub support_enabled: bool,
-    pub tickets_enabled: bool,
-    pub bugs_enabled: bool,
-    pub complaints_enabled: bool,
-    pub suggestions_enabled: bool,
-    pub character_undelete_enabled: bool,
-    pub bpay_store_enabled: bool,
-    pub max_characters_per_realm: u32,
-    pub declined_names_used: bool,
-}
-
-impl Default for SupportFeaturePolicyLikeCpp {
-    fn default() -> Self {
-        Self {
-            support_enabled: true,
-            tickets_enabled: false,
-            bugs_enabled: false,
-            complaints_enabled: false,
-            suggestions_enabled: false,
-            character_undelete_enabled: false,
-            bpay_store_enabled: false,
-            max_characters_per_realm: 60,
-            declined_names_used: false,
-        }
-    }
-}
-
-impl SupportFeaturePolicyLikeCpp {
-    pub(crate) fn bug_system_enabled_like_cpp(self) -> bool {
-        self.support_enabled && self.bugs_enabled
-    }
-
-    pub(crate) fn complaint_system_enabled_like_cpp(self) -> bool {
-        self.support_enabled && self.complaints_enabled
-    }
-
-    pub(crate) fn suggestion_system_enabled_like_cpp(self) -> bool {
-        self.support_enabled && self.suggestions_enabled
-    }
-
-    pub(in crate::session) fn feature_system_config_like_cpp(self) -> FeatureSystemConfigLikeCpp {
-        FeatureSystemConfigLikeCpp {
-            support_tickets_enabled: self.tickets_enabled,
-            support_bugs_enabled: self.bugs_enabled,
-            support_complaints_enabled: self.complaints_enabled,
-            support_suggestions_enabled: self.suggestions_enabled,
-            char_undelete_enabled: self.character_undelete_enabled,
-            bpay_store_enabled: self.bpay_store_enabled,
-        }
-    }
 }
 
 impl Default for GroupInvitePolicyLikeCpp {

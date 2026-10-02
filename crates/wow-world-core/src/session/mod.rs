@@ -29,6 +29,8 @@ pub use connection_identity::{
 mod connection;
 mod canonical_access;
 mod instances;
+mod catalogs;
+mod runtime_policy_access;
 mod construction;
 mod movement;
 mod visibility;
@@ -90,8 +92,8 @@ pub use player_spell_records::{
     RepresentedPlayerSkillLikeCpp, RepresentedPlayerSkillStateLikeCpp,
 };
 
-#[cfg(any(test, feature = "test-fixtures"))]
 mod spell_click_values;
+pub use spell_click_values::RepresentedGameObjectAccessLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use spell_click_values::{
     RepresentedVehicleBaseMovementLikeCpp, RepresentedVehicleDismissMovementLikeCpp,
@@ -111,7 +113,39 @@ pub use rest_progression::RestMgrTestFixtureLikeCpp;
 
 pub mod persistence_capabilities;
 
+mod action_bar_adapter;
+pub use action_bar_adapter::{
+    action_button_action_like_cpp, action_button_type_like_cpp, make_action_button_like_cpp,
+    set_active_player_update_bit_like_cpp,
+};
+mod collections;
+mod collection_adapter;
+pub use collection_adapter::{TOY_FLAG_FAVORITE_LIKE_CPP, TOY_FLAG_HAS_FANFARE_LIKE_CPP};
+
+mod appearance;
+mod raid_profile_values;
+pub use raid_profile_values::{
+    player_cuf_profile_from_packet_like_cpp, player_cuf_profile_to_packet_like_cpp,
+};
+mod cinematic_adapter;
+
+mod world_entities;
+mod loot;
+mod creature_canonical_adapter;
+pub use creature_canonical_adapter::{
+    add_canonical_creature_respawn_info_and_remove_map_object_on_map_like_cpp,
+    reconcile_creature_loot_authority_mirrors_like_cpp,
+    relocate_canonical_creature_map_object_on_map_like_cpp,
+    remove_canonical_creature_map_object_on_map_like_cpp,
+    remove_canonical_respawn_time_on_map_like_cpp,
+    sync_canonical_creature_entity_on_map_like_cpp,
+};
+
 pub mod player_binding;
+pub use player_binding::{
+    PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP,
+    PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP,
+};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use player_binding::PlayerTransportLoginStateLikeCpp;
 pub use player_binding::PlayerIdentityBootstrapLikeCpp;
@@ -125,6 +159,7 @@ pub use time_synchronization::{game_time_ms_like_cpp, TimeSynchronizationStateLi
 pub mod mailbox;
 pub mod state;
 pub use state::{SessionCatalogs, SessionCore, SessionDriverPhaseLikeCpp};
+pub use state::{HubMut, HubRef};
 pub use state::SessionWorldConfig;
 
 pub mod map_admission;
@@ -132,6 +167,7 @@ pub use map_admission::{MMapRuntimeConfigLikeCpp, WaypointPathResolverLikeCpp};
 
 pub mod catalog_capabilities;
 pub use catalog_capabilities::ObjectMgrCatalogsLikeCpp;
+pub use catalog_capabilities::SupportFeaturePolicyLikeCpp;
 
 #[cfg(any(test, feature = "test-fixtures"))]
 pub mod test_support;
