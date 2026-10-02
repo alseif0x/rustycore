@@ -17,6 +17,7 @@ import struct
 import sys
 import zlib
 from pathlib import Path
+from forever_bnet_join import client_information, join_metadata, join_request
 from forever_bnet_wire import (MAX_HTTP_BODY, MAX_HTTP_HEADER, attribute, client_request,
                                extract_session_cookie, fields, http_request,
                                parse_http_response_header, parse_rpc_header, raw,
@@ -339,7 +340,7 @@ def rpc_login(runtime, ticket, expect_discovery_realm=False):
     finally: rpc.close()
 
 
-def rpc_login_v2(runtime, password, expect_discovery_realm=False):
+def rpc_login_v2(runtime, password, expect_discovery_realm=False, expect_realm_join=False):
     rpc = RPCSession(runtime)
     try:
         status, _ = rpc.send(CONN, 1, b"")
@@ -381,7 +382,7 @@ def rpc_login_v2(runtime, password, expect_discovery_realm=False):
             cached.notification(*cached.frame())
             if cached.v2_record is None: raise ValueError("V2 cached completion missing")
         finally: cached.close()
-        post_login = rpc_post_login_v2(rpc, expect_discovery_realm)
+        post_login = rpc_post_login_v2(rpc, expect_discovery_realm, expect_realm_join)
         return {"external_challenge": True, "negative_admission": True, "reply_before_complete": True,
                 "on_logon_complete": True, "generated_token": True, "cached_logon": True,
                 "ciid_all_frames": True, "record": rpc.v2_record, "post_login": post_login}
@@ -475,7 +476,10 @@ def super_district_metadata(blob):
     return districts
 
 
-def rpc_post_login_v2(rpc, expect_discovery_realm=False):
+def rpc_post_login_v2(rpc, expect_discovery_realm=False, expect_realm_join=False):
+    status, body = rpc.send(GAME_V2, 1, join_request())
+    if status != 0x800000D3 or body:
+        raise ValueError("realm join admitted before game-account selection")
     status, _ = rpc.send(GAME_V2, 1, last_char_request(-1))
     if status != 0x800000D3:
         raise ValueError("LastChar admitted before realm ticket")
@@ -508,8 +512,18 @@ def rpc_post_login_v2(rpc, expect_discovery_realm=False):
     status, _ = rpc.send(GAME_V2, 1, district_request)
     if status != 0x800000D3: raise ValueError("district discovery admitted before account selection")
     identity = b'JSONRealmListTicketIdentity:{"gameAccountID":1}'
-    info = b"JSONRealmListTicketClientInformation:" + json.dumps(
-        {"info": {"secret": list(secrets.token_bytes(32))}}, separators=(",", ":")).encode()
+    info = client_information(secrets.token_bytes(32))
+    malformed_info = b"JSONRealmListTicketClientInformation:" + json.dumps(
+        {"info": {"secret": [0] * 32}}, separators=(",", ":")).encode()
+    status, body = rpc.send(GAME_V2, 1, client_request([
+        attribute("Command_RealmListTicketRequest_v1_classic", "", True, v2=True),
+        attribute("Param_Identity", identity, v2=True),
+        attribute("Param_ClientInfo", malformed_info, v2=True)]))
+    if status != 0x80000132 or body:
+        raise ValueError("missing client variant was not denied")
+    status, body = rpc.send(GAME_V2, 1, join_request())
+    if status != 0x800000D3 or body:
+        raise ValueError("failed realm ticket changed game-account selection")
     status, body = rpc.send(GAME_V2, 1, client_request([
         attribute("Command_RealmListTicketRequest_v1_classic", "", True, v2=True),
         attribute("Param_Identity", identity, v2=True), attribute("Param_ClientInfo", info, v2=True)]))
@@ -555,6 +569,20 @@ def rpc_post_login_v2(rpc, expect_discovery_realm=False):
         result["last_char_realm"] = discovery
     else:
         result["realm"] = realm_metadata(response_attributes(body, v2=True)["Param_RealmList"])
+    if expect_realm_join:
+        status, body = rpc.send(GAME_V2, 1, join_request())
+        if status: raise ValueError("modern realm join failed")
+        result["realm_join"] = join_metadata(body, discovery_blob)
+    elif not expect_discovery_realm:
+        status, body = rpc.send(GAME_V2, 1, join_request())
+        if status != 0x800000E1 or body:
+            raise ValueError("offline realm join was not denied")
+        result["offline_realm_join_denied"] = True
+    for address in ((1 << 32) | 0x02010001, 0x03010001, 0x02010002):
+        status, body = rpc.send(GAME_V2, 1, join_request(address))
+        if status != 0x80000069 or body:
+            raise ValueError("invalid realm address did not fail closed")
+    result["join_address_admission"] = True
     return result
 
 
@@ -563,7 +591,11 @@ def main():
     parser.add_argument("--runtime", required=True, type=Path)
     parser.add_argument("--expect-discovery-realm", action="store_true",
                         help="assert the online build-70170 LastChar routing projection")
+    parser.add_argument("--expect-realm-join", action="store_true",
+                        help="also request a join ticket; writes the isolated game-account session key")
     args = parser.parse_args(); runtime = args.runtime.resolve()
+    if args.expect_realm_join and not args.expect_discovery_realm:
+        parser.error("--expect-realm-join requires --expect-discovery-realm")
     password_path = runtime / "account-password"
     if not runtime.is_dir() or not password_path.is_file():
         parser.error("--runtime must name the isolated fixture directory")
@@ -573,7 +605,7 @@ def main():
         valid = rest_login(runtime, password, False); ticket = valid.pop("ticket_value")
         result = {"rest": rejected | valid,
                   "rpc": rpc_login(runtime, ticket, args.expect_discovery_realm),
-                  "rpc_v2": rpc_login_v2(runtime, password, args.expect_discovery_realm),
+                  "rpc_v2": rpc_login_v2(runtime, password, args.expect_discovery_realm, args.expect_realm_join),
                   "build": BUILD, "version": VERSION}
         print(json.dumps(result, sort_keys=True)); return 0
     except Exception as error:

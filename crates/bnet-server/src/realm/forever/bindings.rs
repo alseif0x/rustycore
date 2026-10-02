@@ -9,6 +9,7 @@ use anyhow::{Result, bail};
 use serde::Deserialize;
 use serde_json::json;
 use std::collections::HashSet;
+use std::net::IpAddr;
 
 #[derive(Debug, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -56,6 +57,63 @@ impl ForeverCatalog {
             .iter()
             .find(|b| b.content_set == content_set)
             .map(|b| b.address)
+    }
+
+    /// Prepare the realm-owned part of the modern 70170 JoinRealm operation.
+    ///
+    /// Unlike the inherited low-16-bit lookup, Forever bindings require the
+    /// complete region/site/realm address and an enabled district.  This
+    /// method performs only synchronous snapshot work; callers must release
+    /// the realm-manager guard before persisting the generated join key.
+    pub(crate) fn prepare_join_realm(
+        &self,
+        realms: &RealmManager,
+        address: u32,
+        build: u32,
+        security: u8,
+        client_ip: Option<IpAddr>,
+    ) -> std::result::Result<
+        crate::realm::JoinRealmPreparedLikeCpp,
+        crate::realm::JoinRealmPrepareErrorLikeCpp,
+    > {
+        if build != 70170 {
+            return Err(crate::realm::JoinRealmPrepareErrorLikeCpp::UserServerNotPermittedOnRealm);
+        }
+        let binding = self
+            .bindings
+            .iter()
+            .find(|binding| binding.address == address)
+            .ok_or(crate::realm::JoinRealmPrepareErrorLikeCpp::UnknownRealm)?;
+        let district = self
+            .districts
+            .iter()
+            .find(|district| district.id == binding.district)
+            .ok_or(crate::realm::JoinRealmPrepareErrorLikeCpp::UnknownRealm)?;
+        let now = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(0, |duration| duration.as_secs());
+        if district.disallow_login || u64::from(district.hold_down_until_time) > now {
+            return Err(crate::realm::JoinRealmPrepareErrorLikeCpp::UserServerNotPermittedOnRealm);
+        }
+
+        let realm = realms
+            .get_realm_by_realm_address_like_cpp(address)
+            .ok_or(crate::realm::JoinRealmPrepareErrorLikeCpp::UnknownRealm)?;
+        let actual = RealmHandleLikeCpp::new_like_cpp(realm.region, realm.battlegroup, realm.id);
+        if actual.get_address_like_cpp() != address || realm.id > u16::MAX as u32 {
+            return Err(crate::realm::JoinRealmPrepareErrorLikeCpp::UnknownRealm);
+        }
+        if realm.flag.contains(Flags::OFFLINE)
+            || realm.build != build
+            || security < realm.allowed_security_level
+        {
+            return Err(crate::realm::JoinRealmPrepareErrorLikeCpp::UserServerNotPermittedOnRealm);
+        }
+
+        Ok(crate::realm::JoinRealmPreparedLikeCpp {
+            server_addresses: realms.get_realm_server_addresses_json_like_cpp(realm, client_ip),
+            realm_name: realm.name.clone(),
+        })
     }
 
     /// Read canonical realm state on every request; config never overrides its

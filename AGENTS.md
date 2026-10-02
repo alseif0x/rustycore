@@ -7,6 +7,20 @@ is correctness proof. This guide does not override explicit user scope or approv
 
 ## Project and sources of truth
 
+### Forever branch scope
+
+On the `forever` branch (renamed from `1.60.1` on 2026-10-02), the explicit
+target is modern WoW Forever `1.60.1.70170` Beta x64. It is a long-lived version
+line forked from `3.4.3`, not a feature branch to merge back wholesale. Work on
+this port stays on `forever`; any future feature PR for this target uses
+`forever` as its base. The `3.4.3` integration/PR instructions below continue
+to govern WotLK work, not cross-version merging. Versioned target evidence is
+recorded in `docs/operations/forever-login.md`; inherited code is not 70170 proof.
+Keep the existing validation/evidence and publication gates, including the
+documented experimental waiver; a branch rename does not waive checks.
+
+### Shared project baseline
+
 - Repository: /home/server/rustycore; remote: https://github.com/alseif0x/rustycore.git.
 - Target-version reference: /home/server/woltk-trinity-legacy (3.4.3).
 - Complementary gameplay reference: /home/server/azerothcore-wotlk-reference (3.3.5a).

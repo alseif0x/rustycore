@@ -20,6 +20,40 @@ use wow_proto::{RESPONSE_SERVICE_ID, service_hash};
 
 use crate::state::{AccountInfo, AppState};
 
+/// The build variant captured by modern GameUtilities V2 client info.
+///
+/// TrinityCore keeps this on the BNet session after GetRealmListTicket and
+/// passes it unchanged into RealmList::JoinRealm.  Keep the storage private
+/// to RpcSession; callers get a copy through the narrow accessors below.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) struct ClientBuildVariant {
+    platform: u32,
+    arch: u32,
+    kind: u32,
+}
+
+impl ClientBuildVariant {
+    pub(crate) const fn new(platform: u32, arch: u32, kind: u32) -> Self {
+        Self {
+            platform,
+            arch,
+            kind,
+        }
+    }
+
+    pub(crate) const fn platform(self) -> u32 {
+        self.platform
+    }
+
+    pub(crate) const fn arch(self) -> u32 {
+        self.arch
+    }
+
+    pub(crate) const fn kind(self) -> u32 {
+        self.kind
+    }
+}
+
 /// Service handler error that should be returned as a BNet RPC status code.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RpcStatusError {
@@ -65,6 +99,8 @@ pub struct RpcSession<S> {
     pub os: String,
     /// Client build number.
     pub build: u32,
+    /// Modern V2 client build variant captured by RealmListTicket.
+    client_build_variant: Option<ClientBuildVariant>,
     /// Timezone offset.
     pub timezone_offset: i32,
     /// Client IP country.
@@ -91,6 +127,7 @@ impl<S: AsyncRead + AsyncWrite + Unpin> RpcSession<S> {
             locale: String::new(),
             os: String::new(),
             build: 0,
+            client_build_variant: None,
             timezone_offset: 0,
             ip_country: String::new(),
             client_secret: Vec::new(),
@@ -102,6 +139,14 @@ impl<S: AsyncRead + AsyncWrite + Unpin> RpcSession<S> {
     /// Establish the connection identity before serializing the Connect reply.
     pub(super) fn connect(&mut self, request: &ConnectRequest) -> ConnectResponse {
         self.identity.connect(request)
+    }
+
+    pub(crate) fn client_build_variant(&self) -> Option<ClientBuildVariant> {
+        self.client_build_variant
+    }
+
+    pub(crate) fn set_client_build_variant(&mut self, variant: Option<ClientBuildVariant>) {
+        self.client_build_variant = variant;
     }
 
     /// Main session loop — read and dispatch messages.

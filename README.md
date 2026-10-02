@@ -28,10 +28,15 @@
 
 ## A new Classic client. A Rust foundation.
 
-This is the **`1.60.1` development branch** of RustyCore, starting from the
+This is the **`forever` development branch** of RustyCore, starting from the
 [WotLK Classic `3.4.3` codebase](https://github.com/alseif0x/rustycore/tree/3.4.3)
 at `2df57d6f`. Its target is the **modern WoW Forever client**, not the original
 Vanilla 1.12.1 protocol.
+
+`3.4.3` and `forever` are independent version lines. Forever fixes and pull
+requests target `forever`; this port is not intended to be merged wholesale
+into `3.4.3`. A GitHub **Compare & pull request** suggestion after a push does
+not change that workflow. Client version numbers remain separate from branch names.
 
 The first real-client milestone is in: build **70170** completes normal HTTPS
 SRP authentication, Battle.net Authentication V2, account queries and a realm-list
@@ -108,7 +113,7 @@ inherited gameplay implementation does not establish support for build 70170.
 | Area | Current target |
 | --- | --- |
 | Client | WoW Forever `1.60.1.70170` — Beta x64 |
-| Branch / foundation | `1.60.1`, based on `3.4.3` at `2df57d6f` |
+| Branch / foundation | `forever`, based on `3.4.3` at `2df57d6f` |
 | Rust | `1.98.0`, pinned in [`rust-toolchain.toml`](rust-toolchain.toml) |
 | Protobuf compiler | `28.3`, pinned in [`.protoc-version`](.protoc-version) |
 | Accepted local fixture | Disposable MariaDB `11.4`, isolated Auth schema |
@@ -125,7 +130,7 @@ scope. It deliberately keeps the test realm offline and does not start a world s
 Clone this experimental branch and let `rustup` use the pinned toolchain:
 
 ```bash
-git clone --branch 1.60.1 https://github.com/alseif0x/rustycore.git
+git clone --branch forever https://github.com/alseif0x/rustycore.git
 cd rustycore
 ```
 

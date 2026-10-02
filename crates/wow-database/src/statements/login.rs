@@ -101,6 +101,8 @@ pub enum LoginStatements {
     SEL_BNET_ACCOUNT_INFO,
     UPD_BNET_LAST_LOGIN_INFO,
     UPD_BNET_GAME_ACCOUNT_LOGIN_INFO,
+    /// Modern GameUtilities V2 RealmJoin persistence, including the client build.
+    UPD_BNET_GAME_ACCOUNT_LOGIN_INFO_V2,
     SEL_BNET_CHARACTER_COUNTS_BY_ACCOUNT_ID,
     SEL_BNET_CHARACTER_COUNTS_BY_BNET_ID,
     SEL_BNET_LAST_PLAYER_CHARACTERS,
@@ -383,6 +385,9 @@ impl StatementDef for LoginStatements {
             }
             Self::UPD_BNET_GAME_ACCOUNT_LOGIN_INFO => {
                 "UPDATE account SET session_key_bnet = ?, last_ip = ?, last_login = NOW(), locale = ?, failed_logins = 0, os = ?, timezone_offset = ? WHERE username = ?"
+            }
+            Self::UPD_BNET_GAME_ACCOUNT_LOGIN_INFO_V2 => {
+                "UPDATE account SET session_key_bnet = ?, last_ip = ?, last_login = NOW(), client_build = ?, locale = ?, failed_logins = 0, os = ?, timezone_offset = ? WHERE username = ?"
             }
             Self::SEL_BNET_CHARACTER_COUNTS_BY_ACCOUNT_ID => {
                 "SELECT rc.acctid, rc.numchars, r.id, r.Region, r.Battlegroup FROM realmcharacters rc INNER JOIN realmlist r ON rc.realmid = r.id WHERE rc.acctid = ?"
