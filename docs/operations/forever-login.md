@@ -9,9 +9,12 @@ It exercises RustyCore's normal Battle.net REST SRPv2 flow and protobuf RPC real
 list flow against an isolated Auth database. The synthetic smoke alone does not
 prove real-client login. The separate real-client evidence below now proves BNet
 authentication, account/realm-ticket queries, the ruleset-selection UI and
-acceptance of realm discovery in an isolated online-metadata probe. Modern
-realm join remains unimplemented; this is not world authentication.
-Neither procedure starts `world-server` or authenticates a World `AuthSession`.
+acceptance of realm discovery and modern realm join in an isolated probe.
+The native client now also passes strict World `AuthSession` digest verification
+and the derived session key is persisted. The signed encryption offer is now
+acknowledged and an encrypted client ping authenticates. Real `WorldSession`
+admission remains pending; this is not character access or a complete world
+login. These probes do not start the full `world-server`.
 
 The procedure is operator-only. It mutates the disposable Auth database and
 issues normal login/ticket requests. Do not point it at a shared realm, reuse a
@@ -816,6 +819,152 @@ The four reference rulesets are district/content `1/136` JcJ, `2/137` Normal/JcE
 the current isolated realm. Listing a mode would not implement its gameplay or
 provision a usable realm. This mapping is reference evidence; only the JcJ card
 has been exercised with the native client in this fixture.
+
+### Strict build-70170 world authentication contract
+
+The `forever` implementation is independent of 3.4.3 compatibility. Reuse does
+not make inherited 16-bit world opcodes, SHA-256 derivation or packet layouts
+valid for this target. The pinned Forever reference remains
+`advocaite/TrinityCore@02245dcd245e7433e524577656177723d3e4992e`:
+`src/server/game/Server/WorldSocket.cpp` (V2 preamble, AuthSession verification,
+continued-session persistence and encryption transition),
+`src/server/game/Server/Packets/AuthenticationPackets.cpp` (packet writers),
+`src/common/Cryptography/SessionKeyGenerator.h` (SHA-512 generator), and the
+Login database `UPD_ACCOUNT_INFO_CONTINUED_SESSION` statement. Do not dump the
+authentication source's private-key declaration into logs or documentation.
+
+`crates/wow-crypto/src/forever.rs` owns target SHA-512/HMAC derivation,
+Ed25519-context signing and AES-256-GCM with a 12-byte tag. The plaintext V2
+header is size-u32 plus tag-12; the opcode is u32 inside the framed data. The
+direction-specific IV is counter-u64 plus direction-u32. Plain challenge,
+AuthSession, offer and ACK consume counters; first encrypted packets start at
+counter two in each direction. Invalid tags do not advance the counter and
+the socket becomes terminally failed.
+
+`crates/wow-network/src/forever/` owns one socket's phase, pending request,
+keys and counters. Account admission and SQL remain in composition. Proof
+requires the full 64-byte join key and the correct private 16-byte build key;
+it checks a constant-time 24-byte digest. The guarded existing
+`account.session_key_bnet` transition to 40 bytes must affect exactly one row
+before the signed 69-byte encryption offer. No legacy statement column order
+was changed. Cancellation leaves an incomplete transition unusable. The
+fixture's admit-before-persist ordering and strict exact ticket/padding/length
+checks are intentional fail-closed restrictions, not unqualified C++ parity.
+Compression and playable WorldSession composition are not implemented here.
+
+The production-linked `bnet-server` example `forever_world_fixture` binds only
+`127.0.0.1:18085`, accepts one connection and admits only the disposable fixture
+account, build/variant and online PvP realm. It does not create a WorldSession.
+If encryption succeeds it sends an encrypted **denial**, not a fabricated
+successful login, and authenticates the encrypted client response. That last
+step passed with the native client's encrypted ping, but native parsing of the
+server denial is not yet proven. Default fixture state stays offline.
+
+The integrated `client-build-key-probe` tool is limited to the isolated
+SHA-256-pinned executable. Its build-key observation leaves the native digest
+implementation unchanged and writes only a new ignored private file. Its
+certificate observer reports bounded count/region/flag/key-match metadata, not
+certificate contents, credentials or private keys. The local client resource
+provider is still experimental; neither the original installation nor the
+official account was used for this campaign.
+
+Native certificate parsing is anchored at client RVAs `0x471FE60`,
+`0x47204C0`, `0x4720560`, constructor `0x1F25730` and selector `0x1F2C61B`.
+The resource is PEM/X.509 (TACT file ID 7725530), not JSON. The key must be
+Ed25519/32 bytes. `serverAuth` and vendor `.303.1.1.2`/`.303.1.1.3` EKU values
+provide admission/flag metadata; `.303.1.2.<decimal>` provides RegionGroup.
+The cached certificate's `.303.1.2.0` means group **0**, not geographic Region 2.
+The server fixture now follows the reference's independent
+`Network.EnterEncryptedModeRegionGroup` configuration (default 0); it must not
+derive this selector from the realm address. Changing it blindly to 2 would
+not address the current rejection.
+
+#### World-auth acceptance and unresolved encryption boundary
+
+Campaign start: **2026-10-02 21:51:22 UTC**, Linux x86_64, one Cargo job, same
+checkout `target`. The default debug-profile test commands rebuilt dependencies
+not present in that profile's cache; this must not be presented as a ten-minute
+warm acceptance pass. The campaign envelope already exceeds 600 seconds, so
+the ordinary performance target is **not met**. Error repair and continuing
+certificate/protocol investigation remain identified separately.
+
+```bash
+./tools/validation-v2 final --base origin/3.4.3 --timings
+cargo test --locked -p wow-crypto -p wow-network --lib --timings
+cargo test --locked -p wow-network --lib --timings
+cargo test --locked -p bnet-server --bin bnet-server \
+  --example forever_world_fixture --timings
+cargo build --release --locked -p bnet-server \
+  --example forever_world_fixture --timings
+python3 -m unittest discover -s tools/wow-test-bot -p 'test_forever*.py'
+# Isolated runtime/private paths only; never copy their contents into Git:
+./target/release/examples/forever_world_fixture --ack-isolated-probe \
+  "$RUNTIME/bnetserver.conf" "$RUNTIME/build-auth-key-70170"
+```
+
+- `64612059` full final failed inherited hotspot limits before Cargo; manifest
+  `20261002T215122.706666Z-1637881-final.json`. Its crypto suite initially passed
+  58/59: the synthetic expected session/encryption vectors were incorrect.
+  Production derivation was checked against exact C++ and independent SHA-512
+  calculations; only those two expected vectors changed in `e48246ec`.
+- `e48246ec`: **59 crypto and 37 network tests passed**; timing artifact
+  `20261002T215324949Z`. Its release fixture build passed (83 seconds), Python
+  passed **40/40**. Crypto and Python inputs have not subsequently changed.
+- At `21:55:54Z`, native 70170 authentication and JcJ selection reached the
+  strict fixture: **24-byte AuthSession proof verified**, then the guarded DB
+  write stored a 40-byte session key. Client UI returned `WOW51900319` before
+  encryption ACK; no encrypted session was established.
+- `c4e36296` full final again failed the same inherited hotspot ratchet;
+  manifest `20261002T220414.094630Z-1650244-final.json`. Whitespace, Python,
+  rustfmt and physical-files checks passed. No ceilings were relaxed; affected
+  inherited gameplay/runtime/architecture paths match fork base `2df57d6f`.
+- `aa5f42c5`: **37 network / 133 BNet / 3 fixture tests passed**. Cargo timings
+  `20261002T220532006Z` and `20261002T220542386Z`; the BNet debug build took
+  171 seconds plus 23.63 seconds of tests. Release fixture build passed in
+  21.87 seconds (`20261002T220918686Z`). The Windows observer published with
+  .NET 8; no fixture account secrets were printed or committed.
+- At `22:16Z`, the installed `aa5f42c5` fixture again verified the native digest
+  and persisted 40 bytes. Instead of ACK it received **opcode `0x450007`,
+  payload length 4** (disconnect). The certificate observer failed its bounded
+  vector check; this is a failed diagnostic, not proof that the keyring is empty.
+  The cached certificate is Ed25519 and its public key matches the signer; its
+  EKU includes serverAuth plus vendor region/flag identifiers. Native selection
+  and verification remain unresolved. Guarded restore returned the sole realm
+  to `flag=2, icon=0`; BNet restarted at warn level and port 18085 is closed.
+
+At `22:27–22:28Z`, a fresh isolated process with the integrated certificate
+resource provider accepted the signed encryption offer. The observer reported
+**one certificate, RegionGroup 0, flag 1, matching key**, and restored the native
+selection instructions. Its provider call counter was one. The fixture
+authenticated an **encrypted client ping `0x450006`, eight payload bytes** at
+counter two. Thus strict proof, signed ACK and inbound AES-256-GCM are native
+evidence, not just synthetic tests. The UI remained in game-server admission
+before the one-shot listener closed; server AuthResponse parsing, WorldSession
+admission and characters are not inferred from the ping. The sole realm was
+restored offline/normal and BNet restarted. The ignored structured result is
+`target/forever-login/native-world-auth-20261002T2227Z.json`.
+
+This live probe used uncommitted source based on `aa5f42c5`, subsequently
+committed without executable changes as **`b919ba12`**. The affected 37 network
+and 3 fixture tests passed (4.74s build / 0.30s tests; Cargo timing
+`20261002T222539334Z`); release fixture build passed in 20.43s
+(`20261002T222604158Z`). The .NET publish passed. Four native CLI negative checks
+rejected an outside-isolation path, a synthetic PRIVATE KEY block, malformed
+certificate PEM and a wrong executable hash before any client modification.
+No original-client file was touched. The local resource provider is limited to
+the isolated hash-pinned build and does not disable native signature validation.
+Its installation suspends/resumes only its own increment, preserves pre-existing
+launcher suspension, restores code protection, and rolls back a failed detour.
+It retains separate read-only PEM, executable code and writable diagnostic pages
+until process exit. The launcher still needs operator coordination; this is not
+an unattended client installer.
+
+Native challenge (`0x4D0000`), AuthSession (`0x450001`), encryption ACK
+(`0x450005`) and ping (`0x450006`) are proven here;
+the disconnect opcode is directly observed. Remaining world IDs and layouts
+are source-backed hypotheses until their specific native actions pass. Successful
+synthetic encryption/signature tests are not character enumeration, character
+creation, durable relogin or initial world-load evidence.
 
 ### Publication validation boundary
 

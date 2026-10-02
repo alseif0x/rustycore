@@ -5,7 +5,54 @@ Branch naming, 2026-10-02: the experimental target branch is now **`forever`**
 remains `1.60.1.70170`; `3.4.3` is a separate development line, not the merge
 destination of this port. Older evidence below retains its original branch name.
 
-## Latest Forever branch boundary — 2026-10-02 20:22 UTC
+## Latest Forever branch boundary — 2026-10-02 22:28 UTC
+
+The real build-70170 client now verifies strict AuthSession proof, acknowledges
+the signed encryption offer, and sends an AES-256-GCM-authenticated encrypted
+ping (`0x450006`, eight bytes). The 40-byte continued-session key is persisted.
+A fresh isolated client with the native-parser resource provider reports one
+matching certificate (RegionGroup 0, flag 1); the observer restores its hook.
+This is **not WorldSession admission, character selection or world loading**:
+native server AuthResponse parsing and the following successful initialization
+sequence remain unresolved. The sole fixture realm was restored offline/normal.
+
+The source used by this live probe was dirty on `aa5f42c5`, committed unchanged
+as `b919ba12`. Its affected 37 transport and 3 strict-fixture tests, release
+fixture build, .NET publish and four native negative CLI guards passed. No
+signature/digest bypass was imported and no original-client file or official
+account was used. Full final still fails inherited hotspot limits; the 600-second
+campaign performance target is not met. Exact source, commands, native boundary,
+failures and timing are in the [world-auth runbook](../operations/forever-login.md#strict-build-70170-world-authentication-contract).
+
+## Earlier Forever encryption boundary — 2026-10-02 22:16 UTC
+
+On `forever`, code `e48246ec` verifies the **real build-70170 AuthSession
+digest**, without the reference's optional bypass, and persists the guarded
+64-to-40-byte continued-session key transition. `aa5f42c5` adds safe encryption
+diagnostics and a certificate-selection observer. Native probes at 21:55Z and
+22:16Z still disconnect before encryption acknowledgement: the second returns
+`0x450007` with four payload bytes instead of the expected empty ACK. This is
+**not complete world login, character access or initial loading**. The sole
+fixture realm was restored offline/normal; only isolated BNet remains running.
+
+The build key was observed privately through the hash-pinned isolated client's
+unchanged digest calculation; no key is published. The cached public certificate
+has a matching Ed25519 public key. Its native region selection remains under
+investigation: the observer's bounded vector check failed, so no selected-region
+claim is made. SHA-512 derivation, Ed25519-context signing and AES-256-GCM framing
+have synthetic tests, not native encrypted-session acceptance yet.
+
+Acceptance: 59 crypto / 37 network / 133 BNet / 3 strict fixture / 40 Python
+tests passed at the revisions recorded in the runbook. An initial crypto vector
+test failed and was corrected against independent source-derived vectors.
+Full final still fails unchanged inherited hotspot limits before Cargo. This
+campaign has already exceeded the ordinary 600-second envelope; the performance
+target is **not met**. Continued native certificate investigation and remaining
+character/world integration are not waived by those tests. Forever has no
+requirement to preserve incompatible 3.4.3 behavior; that separate branch stays
+untouched. See the [world-authentication contract](../operations/forever-login.md#strict-build-70170-world-authentication-contract).
+
+## Earlier Forever branch boundary — 2026-10-02 20:22 UTC
 
 On `forever`, code candidate `8691506f` implements build-70170 BNet realm join:
 validated client variant and realm admission, persisted 64-byte join key/build,
