@@ -10,8 +10,8 @@ fn repository_handler_contract_passes() {
         .unwrap_or_else(|error| panic!("invalid repository handler contract:\n{error}"));
     assert!(report.starts_with("handler contract: PASS"), "{report}");
     assert!(report.contains("one dispatch mechanism"), "{report}");
-    let owners = "world-modules, world-server, wow-handler, wow-world)";
-    assert!(report.contains(owners), "{report}");
+    let owners = "world-modules, world-server, wow-handler, wow-world, wow-world-core)";
+    assert!(report.ends_with(owners), "{report}");
 }
 
 #[test]
