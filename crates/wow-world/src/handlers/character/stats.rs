@@ -11,43 +11,11 @@
 //! remains in the character handler adapters.
 
 use super::*;
-
-/// C++ `SPELL_SCHOOL_MASK_NORMAL` (`SharedDefines.h:329`).
-const SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP: i32 = 1;
-/// C++ `SPELL_SCHOOL_MASK_ALL` (`SharedDefines.h:335`): the seven school bits
-/// `SpellBaseHealingBonusDone` uses for `ModHealingDonePos`.
-const SPELL_SCHOOL_MASK_ALL_LIKE_CPP: i32 = 0x7F;
-/// C++ `SPELL_SCHOOL_MASK_SPELL` (`SharedDefines.h:340-343`): fire, nature,
-/// frost, shadow and arcane — the full magic mask aura 123 tests against.
-const SPELL_SCHOOL_MASK_SPELL_LIKE_CPP: i32 = 0x3E;
-
-/// C++ `CLASSMASK_WAND_USERS` (`SharedDefines.h:190`): the priest, mage and
-/// warlock classes ignore the ranged attack power aura producers
-/// (`HandleAuraModRangedAttackPower`).
-fn class_uses_wands_like_cpp(class: u8) -> bool {
-    matches!(class, 5 | 8 | 9)
-}
-
-#[derive(Debug, Clone, Default)]
-pub(crate) struct RepresentedPlayerGearStatsLikeCpp {
-    pub(super) stats: [i32; 5],
-    pub(super) attack_power: i32,
-    pub(super) ranged_attack_power: i32,
-    pub(super) health: i32,
-    pub(super) mana: i32,
-    pub(super) combat_ratings: [i32; 32],
-    pub(super) spell_power: i32,
-    pub(super) armor: i32,
-    pub(super) resistances: [i32; 7],
-    pub(super) mana_regen_bonus: i32,
-    pub(super) health_regen_bonus: i32,
-    pub(super) spell_penetration_bonus: i32,
-    pub(super) shield_block_base_mod: i32,
-    pub(super) shield_block_value: u32,
-    /// C++ `UnitData` weapon ranges installed by `_ApplyWeaponDamage`.
-    pub(super) weapon_damage: [[f32; 2]; 3],
-    pub(super) base_attack_time: [u32; 3],
-}
+pub(crate) use crate::session::hub_support::RepresentedPlayerGearStatsLikeCpp;
+use crate::session::hub_support::{
+    SPELL_SCHOOL_MASK_ALL_LIKE_CPP, SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP,
+    SPELL_SCHOOL_MASK_SPELL_LIKE_CPP, class_uses_wands_like_cpp,
+};
 
 impl WorldSession {
     pub(super) fn represented_player_gear_stats_like_cpp(

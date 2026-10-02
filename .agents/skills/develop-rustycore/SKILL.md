@@ -10,7 +10,8 @@ own the rules. The rules come from:
 
 - [AGENTS.md](../../../AGENTS.md): scope, authority, validation and Git;
 - [wow-world-distribution-plan.md](../../../docs/architecture/wow-world-distribution-plan.md):
-  the #1241 programme, with rules R1–R5 (§3) and module compatibility M1–M4 (§4);
+  the #1241 programme continued in #1263, with rules R1–R5 (§3), module compatibility
+  M1–M4 (§4) and the candidate-bound acceptance campaign (§10);
 - [structure-and-conventions.md](../../../docs/architecture/structure-and-conventions.md):
   layers, naming, visibility, test placement and budgets.
 
@@ -109,7 +110,7 @@ a `<Domain>State`. Hook call points move unchanged (same point, order and contex
 
 ## Programme workflow for structural moves
 
-Read [refactor-rustycore-safely](../refactor-rustycore-safely/SKILL.md) first. For #1241:
+Read [refactor-rustycore-safely](../refactor-rustycore-safely/SKILL.md) first. For #1241/#1263:
 
 - Open one PR per phase or domain and merge it continuously into `3.4.3`. Don't keep a
   long-lived WIP branch.
@@ -131,31 +132,34 @@ Read [refactor-rustycore-safely](../refactor-rustycore-safely/SKILL.md) first. F
 
 ## Per-PR acceptance checklist
 
-Run these in order, one at a time, on the committed candidate, with this environment:
+Follow the single campaign in
+[wow-world-distribution-plan.md §10](../../../docs/architecture/wow-world-distribution-plan.md#10-aceptación-por-pr-sin-repetir-evidencia).
+The parent schedules acceptance or assigns one exclusive executor. The worker's coding
+feedback follows AGENTS.md; it does not start a second acceptance campaign.
+
+Use this environment on the committed candidate:
 
 ```bash
-export PROTOC=/home/ubuntu/.local/protoc/bin/protoc CARGO_BUILD_JOBS=1
+export PROTOC=/home/ubuntu/.local/protoc/bin/protoc CARGO_BUILD_JOBS=1 VALIDATION_V2_CARGO_JOBS=1
 export CARGO_TARGET_DIR=<checkout>/target   # per worktree, absolute
 ```
 
-1. `python3 tools/architecture/ignored_sources.py check`. Also confirm that
-   `git status --short --ignored -- crates` shows no untracked or ignored source the build needs.
-2. Check matrix, all exit 0: `cargo check -p wow-world --all-targets`,
-   `cargo check -p wow-world --all-targets --features test-fixtures`,
-   `cargo check -p world-server --all-targets` and `cargo check -p world-modules --all-targets`.
-   Add a moved domain crate if there is one. Check for new warnings: there must be none.
-3. Save `cargo test -p wow-world -- --list` under `$CARGO_TARGET_DIR`, at the base and at the
-   candidate, and diff the two. They must match, unless the PR adds tests on purpose. Then list
-   the added tests.
-4. `cargo test -p wow-world` (the full suite). Report passed, failed and ignored.
-5. `python3 tools/architecture/check_architecture.py check --self-test` and session ownership
-   `--syntax-only` (the command is in AGENTS.md). Both also run inside step 8; on their own they
-   are only a quick pre-check.
-6. `python3 tools/architecture/net_move.py check --base origin/3.4.3` for a move.
-7. `git diff --check` and `cargo fmt --all --check` (format with `cargo fmt --all`, as above).
-8. Parent or validation owner only: `./tools/validation-v2 final --base origin/3.4.3 --architecture
-   --timings --logs`, then `./tools/validation-v2 verify --manifest <path> --require-profile final`.
-   The implementing worker runs steps 1–7 and reports them.
+1. Run `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings --logs`,
+   then verify the manifest from that exact invocation with `--require-profile final`.
+   Check its SHA, base, root and dirty status; missing, failed or stale evidence is failure.
+2. Credit checks and suites actually covered by final. Add only missing configurations and
+   real integration/doc-test targets from the plan's matrix and suites, including moved crates,
+   world-server lib, handler-contract-check release, module/hook fixtures and `compose.py check`.
+   Compare warnings to the same base/configuration. Do not repeat a covered identical suite.
+3. Compare test identities at base and candidate. P3 keeps the wow-world list; from P4a compare
+   the union of source/destination crates with a mapping for crate/module/name moves and explicit
+   cfg/features/ignored status. Historical 3,950 is not a permanent per-crate count.
+4. Add scoped persistence inventory, production integration, capture/live and terminal
+   semantic/physical evidence when required. Normal migration PASS does not prove terminal
+   closeout. Review baseline deltas and record R1's actual PASS or NOT-APPLICABLE result.
+5. Time from the first required check to the last, including extras and test lists. Record
+   failures and repairs; rerun affected evidence when inputs change. Follow validation-v2's
+   explicit reuse rule for a reviewed documentation-only delta, preserving both SHAs.
 
 Keep each command's real exit status. Save long output to a log; never let a pipe mask the exit.
 A zero-test filter proves nothing.
@@ -163,6 +167,7 @@ A zero-test filter proves nothing.
 The PR body records:
 - the candidate SHA and whether the tree was clean;
 - the campaign start/end and duration. The budget is 600 s; report an overrun, don't hide it;
+- final's own duration, remaining evidence and any explicitly separate cold/live/audit cost;
 - R5 before → after (from the coupling report);
 - the baseline deltas you reviewed.
 

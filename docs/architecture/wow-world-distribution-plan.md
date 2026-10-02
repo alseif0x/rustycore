@@ -1,17 +1,25 @@
-# Distribución de `wow-world` — programa #1241
+# Distribución de `wow-world` — programa #1241, continuación #1263
 
-**Estado:** F0 en curso. **Autoridad:** #1241, hija de #584; el plan técnico general sigue siendo
-[refactor-completion-plan.md](refactor-completion-plan.md). Este documento es el registro de
-progreso del programa y **sustituye** el enfoque anterior de #1233 (una rama, validación
-diferida); no hay un segundo plan activo. **No reclama** paridad, ahorro de build ni cierre de
-issue.
+**Revisión del plan y aceptación P3 — 2026-10-02:** F0–F3 y F4a P1/P2 integradas;
+P3 aceptada en `002ff5e46`, con publicación/integración registradas en #1263.
+**Responsabilidad pendiente:** [#1263](https://github.com/alseif0x/rustycore/issues/1263),
+continuación de [#1241](https://github.com/alseif0x/rustycore/issues/1241) bajo #584.
+#1241 ya está cerrada en GitHub; ese estado no demuestra que F4–F6 estén terminadas.
+El plan técnico general sigue siendo [refactor-completion-plan.md](refactor-completion-plan.md).
+Este documento mantiene las decisiones, el estado fechado y los criterios de aceptación;
+#1263 es su lista operativa de trabajo restante. Sustituye el enfoque anterior de #1233
+(una rama, validación diferida). La aceptación acotada de P3 se registra en §8;
+no revalida las fases anteriores ni reclama nueva paridad o ahorro de build.
 
 Base: `3.4.3` @ `e786ece1`. Una rama y un PR por fase (F0, F1, ...) o por dominio, integrados de
-forma continua en `3.4.3`. La excepción correspondiente de proceso está en
-[AGENTS.md](../../AGENTS.md) ("#1241 wow-world split programme").
+forma continua en `3.4.3`. La continuación conserva el alcance y las condiciones del programa
+#1241; no amplía la autoridad de publicación, runtime o base de datos. La excepción de proceso
+está en [AGENTS.md](../../AGENTS.md) ("#1241 wow-world split programme").
 
-Referencia estructural vigente (capas, nombres, visibilidad, colocación de tests, presupuestos):
-[structure-and-conventions.md](structure-and-conventions.md). El orden global del workspace vive
+Referencia de capas, nombres, visibilidad y colocación de tests:
+[structure-and-conventions.md](structure-and-conventions.md). Los presupuestos físicos y
+excepciones los mantiene [module-design-guidelines.md](module-design-guidelines.md).
+El orden global del workspace vive
 en [workspace-structure-programme.md](workspace-structure-programme.md).
 
 ## 1. Diagnóstico (medido en `3.4.3` @ `e786ece1`)
@@ -75,6 +83,14 @@ submódulos que se creen: partir ficheros dentro del crate no es distribuir.
    requiere nueva re-auditoría C++ ni comparación por helper. Los cambios de comportamiento van a
    F6 con evidencia de paridad.
 4. Nombres de crate `crates/wow-world-<dominio>`, en el layout plano, crate igual que su carpeta.
+5. Decisiones de F4 conservadas de los comentarios de #1241: el hub y sus dependencias van a
+   `wow-world-core`; el `map_manager` legado se mueve allí y su retirada pertenece a F6;
+   los fixtures cruzan el límite mediante `test-fixtures`.
+6. Visibilidad interna: en crates `wow-world-*` con `publish = false`, un miembro trasladado
+   puede ser `pub` cuando un consumidor entre crates lo necesite. Revisar cada ampliación,
+   limitar los reexports y conservar las invariantes; `publish = false` no aísla el estado.
+   No se expone ese estado en `wow-module-api` ni se crean copias o escritores nuevos.
+   P4a debe trasladar esta excepción acotada a AGENTS.md y a la guía de desarrollo.
 
 ## 3. Reglas de ejecución
 
@@ -88,6 +104,8 @@ submódulos que se creen: partir ficheros dentro del crate no es distribuir.
   scripts guiados por el compilador.
 - **R5 Una métrica pública:** líneas de producción de `wow-world` y número de métodos
   `impl WorldSession`. Sin porcentajes por helper ni párrafos de checkpoint.
+- Los PRs parciales enlazan #1263 como seguimiento; no usan `Closes #1263` hasta
+  satisfacer el cierre completo de F4–F6. La integración de una fase no cierra el programa.
 - Siguen vigentes las restricciones congeladas de #1233: firmas visibles a handlers, registros,
   bytes y orden de paquetes, admisión por fase, persistencia/recuperación de COMMIT, locks y
   dueños de runtime.
@@ -117,9 +135,13 @@ submódulos que se creen: partir ficheros dentro del crate no es distribuir.
    cx: LootCx<'_>, ...) }`, donde `LootCx` es un struct de préstamos disjuntos por dominio
    (p. ej. `{ items: &mut ItemsState, map: &MapHandle, core: &SessionCore }`), no un contexto
    universal.
-3. **Registro invertido:** cada crate expone `pub fn register(registry: &mut HandlerRegistry)` y
-   `world-server` los compone. `PacketHandlerEntry` sigue siendo la única fuente de registro y
-   llamada.
+3. **Registro invertido como objetivo de F5:** cada dominio contribuye sus handlers y
+   `world-server` los compone. La API exacta sigue pendiente del diseño de F5:
+   `PacketHandlerFn` recibe hoy `&mut WorldSession` y
+   `&SessionHandlerCatalogsLikeCpp` (`session/registry.rs`).
+   No mover ese contrato a un dominio creando una dependencia de vuelta a `wow-world`.
+   F5 debe definir el contrato bajo, la construcción de contextos y los adaptadores;
+   `PacketHandlerEntry` seguirá siendo la única fuente de registro, admisión y llamada.
 4. **DAG por capas sin ciclos**, según llamadas entrantes:
    - base: `player_binding`, `publication`, `canonical_access`, `player_items`, `instances`,
      `spell_state` (orden propuesto por la herramienta: entrantes − salientes);
@@ -133,17 +155,114 @@ Modelo de referencia: patrón común de rustc (`provide`), axum (`FromRef`), Bev
 rust-analyzer (capas con invariantes probados). TrinityCore/AzerothCore son solo referencia de
 **comportamiento**.
 
-## 6. Fases y aceptación
+## 6. Fases y trabajo restante, en orden
 
-| fase | alcance | aceptación |
-|---|---|---|
-| F0 | Base y herramientas: aparcar la rama, mapa de acoplamiento, net-move (R1) planificado por `tools/validation-v2` en quick/final cuando cambia `crates/wow-world/src/`, enmienda de `AGENTS.md`/skill y este documento | herramientas con tests; documentos sin plan competidor |
-| F1 | Tests fuera de `src`: los que usan API pública o `test-fixtures` a `crates/wow-world/tests/`; fixtures compartidos a `wow-world-testkit`; los de acceso privado quedan `#[cfg(test)]` en ficheros hermanos | `wow-world/src` ≤ ~190k líneas; mismo número de tests (antes/después registrado); suites movidas verdes |
-| F2 | Sub-estados: agrupar los 455 campos en ~25 `<Dominio>State` + `SessionCore`, por codemod, aún dentro de `wow-world` | `WorldSession` = `core` + ~25 campos; compila; suite completa de `wow-world` verde |
-| F3 | Métodos a sub-estados, de abajo arriba en orden DAG: `impl WorldSession` -> `impl <Dominio>State` con `<Dominio>Cx`, dejando thunks de una línea; un PR por dominio | métodos `impl WorldSession` bajan de 3 834 hacia ~uno por handler/thunk |
-| F4 | Extracción: cuando un dominio ya no nombra `WorldSession`, `git mv` a `crates/wow-world-<dominio>/` con `register()`; movimiento puro (R1) | `wow-world` queda como cáscara (core, driver, composición) |
-| F5 | Registro dentro de los dominios: thunks a sus crates mediante traits extractores (`HasLoot`, `HasItems`, ...) definidos en un crate API bajo e implementados por `WorldSession` | `wow-world` con 20k-40k líneas de producción |
-| F6 | Pista de comportamiento, separada: por dominio, elegir y borrar `represented_*` o canónico; decidir `session/legacy_runtime` (8 432 líneas) | evidencia de paridad por retirada (anclas C++, capturas y QA live donde se requiera) |
+F0–F3 son preparación estructural integrada; las cadenas y thunks restantes forman parte de F5.
+F4 puede extraer aproximadamente 48k de las ~200k líneas actuales: no basta para alcanzar el
+objetivo final de 20k–40k. Las estimaciones de cortes se remiden en la base de cada fase.
+
+### F4a P3 — aceptación completada
+
+Rama `1241-f4a-p3-pure-helpers`: movimiento `6f0660ab0`, corrección de tooling y candidato
+aceptado `002ff5e462ba2c5c948934a270e67b137b456fcf` (evidencia en §8).
+Mueve helpers del hub a `session/state/{hub_support,driver_phase}.rs`.
+La campaña de §8 reemplaza los resultados de implementación del relevo como evidencia de
+aceptación. La publicación/integración se tramita bajo la autoridad vigente y se registra en #1263.
+No utilizar el helper local para decidir aceptación o merge hasta cumplir §11; se pueden
+ejecutar directamente los comandos canónicos, conservando su evidencia y códigos reales.
+
+### F4a P4a — dependencias base de `wow-world-core`
+
+- Crear `crates/wow-world-core`, `publish = false`, con las piezas que no nombran
+  `WorldSession` ni los grupos hub: `map_manager/**` legado, `session/directory`,
+  `session/mailbox/{durable,protocol,session_phase_permit,session_phase_rail}`,
+  `battle_pet_account`, `catalogs/**`, `loot_persistence`, `session_policy` y sus piezas
+  auxiliares. Estimación heredada: ~16.4k líneas, 53 ficheros completos y 41 cortes.
+- Conservar montajes y rutas lógicas con una fachada deliberada y un `prelude.rs` acotado;
+  `wow-world` depende del nuevo crate y reexporta solo las rutas de compatibilidad necesarias.
+- Trasladar los 173 tests estimados a `wow-world-core/unit_tests/`, con rutas espejo.
+  Comparar el conjunto combinado de tests de origen y destino, conforme a §10; no exigir
+  que `wow-world` conserve por sí solo los 3.950 tests.
+- Definir y propagar `test-fixtures` a `wow-world-core` y `wow-session/test-support`.
+  Verificar con Cargo la estrategia de dev-dependencies en la fase: una dependencia propia
+  `wow-world = { path = ".", features = ["test-fixtures"] }` es una hipótesis, no una decisión
+  comprobada. Si no sirve, ejecutar los tests consumidores con `--features test-fixtures`.
+  Comprobar también la composición de producción sin activar fixtures.
+- Ampliar la cobertura del scanner antes de aceptar la extracción. El collector actual
+  (`session_ownership/state_3.rs::collect_repository_baseline_with_persistence`) carga
+  explícitamente `wow-world`, `world-server`, `wow-network` y `wow-social`.
+  Añadir las raíces de `wow-world-core` y adaptar `PackageRole`, selección de módulos,
+  resolución de símbolos/reexports y gates de mailbox/directory/loot_persistence según sus
+  consumidores. Cambiar solo constantes de rutas en `state_1.rs`/`state_2.rs` no basta.
+  Añadir casos positivos y negativos que prueben que una infracción en el crate destino
+  sigue detectándose y que la fachada de origen resuelve a la misma definición.
+- Revisar `dependency-policy.json`, workspace/lockfile, filas físicas y el delta del
+  inventario exhaustivo de persistencia. La sintaxis `--syntax-only` y `final --architecture`
+  no sustituyen ese inventario cuando cambian sus entradas. No borrar baselines para
+  ocultar código que dejó de ser inspeccionado.
+- R1 debe pasar y el diff debe borrar cada origen trasladado. El margen heredado de unas
+  550 líneas es una estimación, no aceptación ni autorización para cambiar la tolerancia.
+
+### F4a P4b — hub en `wow-world-core`
+
+Mover `SessionCore` y sus structs anidados, `HubRef`/`HubMut`, `SessionCatalogs`,
+`SessionWorldConfig`, `SessionFixtures`, sus 11 estados de fixture y `session/appearance.rs`.
+Estimación heredada: ~16.1k líneas y 293 bloques impl en unos 117 ficheros.
+Incluir los impls del hub todavía alojados en handlers, por ejemplo
+`handlers/character/condition_objects.rs` y `handlers/loot/requests/{context,generation}.rs`.
+
+Los builders `hub_*`/`split_*`/`cx_*` que nombran `WorldSession` y los Cx correspondientes
+permanecen en `wow-world` durante este corte. No afirmar que sus impls han salido del crate.
+Preservar orden de drop, hooks, locks, cancelación y persistencia. Medir la deuda de 56 warnings
+informada en P2 para builds con feature: hacer público un item no garantiza eliminar todos;
+aceptar solo el delta revisado y ningún warning nuevo.
+
+### F4b — crates de dominio
+
+Orden propuesto por menor cierre de dependencias: social, spell_state, interaction, instances,
+visibility; después loot, world_entities, inventory y lifecycle. Confirmar el cierre real
+antes de cada extracción. Cada crate recibe el estado, los impls que no nombran
+`WorldSession`/Cx residentes en el shell, y sus tests independientes de sesión.
+Los impls todavía ligados al shell conservan un dueño explícito y se trasladan en F5;
+no se duplican para aparentar una extracción completa.
+
+### F5 — handlers y orquestación
+
+Diseñar con el censo actualizado después de F4:
+
+- Fijar el contrato de registro sin ciclos, el lugar de definición de los contextos y sus
+  builders, la composición y la adaptación de futures/lifetimes.
+- Mantener el conjunto exacto de opcodes, metadata, admisión, conexión y orden observables;
+  incluir las pruebas de registro y composición de producción correspondientes.
+- Handlers en sus dominios mediante contextos acotados; orquestación multidominio
+  (login, loot, quest rewards) en responsabilidades de aplicación por encima de los dominios.
+  El shell conserva driver y composición, sin convertirse en otro servicio universal.
+- Desbloquear `player_quest_gameplay_snapshot_like_cpp`,
+  `mutate_player_quest_gameplay_like_cpp`, `resolved_group_guid_like_cpp`,
+  `mutate_player_spell_runtime_like_cpp`, `sync_player_registry_state_like_cpp` y los
+  accesores de trade. Acotar `represented_owned_loot_authority_like_cpp` y `as_context(self)`
+  en commits dedicados, preservando comportamiento.
+- Revisar los 202 split thunks con más de dos sitios y los 61 diferidos por legibilidad.
+
+Objetivo físico: `wow-world` con 20k–40k líneas de producción. Es un criterio junto con los
+dueños semánticos y la migración completa de consumidores; el número por sí solo no demuestra
+modularidad ni paridad.
+
+### F6 — retirada de duplicados, pista de comportamiento
+
+Por dominio, retirar la duplicidad `represented_*`/canónica y resolver
+`session/legacy_runtime` y el `map_manager` legado. Elegir por la operación completa y
+evidencia versionada C++/capturas, no por el nombre de la ruta. Conservar una sola autoridad,
+fences y publicación; tests de fallo, capturas y QA live cuando corresponda.
+La autorización de runtime/QA heredada de #1241 conserva sus blancos y restricciones;
+no autoriza DROP, TRUNCATE, restauración de datos ni exposición de secretos.
+
+### Cierre de la continuación
+
+Cerrar #1263 solo tras F4–F6 y su aceptación. Actualizar este documento y las casillas de
+#1263; enlazar el resultado desde #1241 si corresponde, sin volver a cerrarla ni atribuirle
+un cierre técnico anterior. Conservar el gate #584 → #583 → #153: esta entrega no cierra
+automáticamente la arquitectura global ni el port.
 
 ## 7. Rama aparcada
 
@@ -180,17 +299,78 @@ Pendientes heredados, a reevaluar solo si se rescata la pieza afectada:
 - Hallazgos de la puerta en `5b443512`: 188 entradas obsoletas del baseline de campos, crecimiento
   del ratchet de hotspots y arista `wow-world -> wow-spell` sin dueño.
 
-## 8. Estado
+## 8. Estado contrastado — 2026-10-02
 
-| fase | estado | PR | métrica R5 al cerrar |
-|---|---|---|---|
-| F0 | en curso | — | — |
-| F1 | pendiente | — | — |
-| F2 | pendiente | — | — |
-| F3 | pendiente | — | — |
-| F4 | pendiente | — | — |
-| F5 | pendiente | — | — |
-| F6 | pendiente | — | — |
+Integración remota `3.4.3`: `ec5d60717f86d936b7ce341f50b49f37264853ff` (PR #1262).
+Worktree P3: candidato aceptado `002ff5e462ba2c5c948934a270e67b137b456fcf`, limpio durante
+final. La consulta inicial no revalidó PRs históricos. #1263 registra la publicación e
+integración posterior; los SHAs de aceptación y de squash no se confunden.
+
+| fase | estado | PR/evidencia |
+|---|---|---|
+| F0 | integrada | #1242 |
+| F1 | integrada, adaptación de tests privados | #1243: 488 ficheros a `unit_tests/`; testkit diferido |
+| F2 | integrada | #1244: 455 campos agrupados |
+| F3-0 | integrada | #1245: 11 grupos de fixture |
+| F3-1…F3-12 | integradas | #1246–#1257: 1.726 métodos trasladados |
+| F3-I | integrada | #1258–#1260: 1.160 → 443 thunks |
+| guía develop-rustycore | integrada | #1253 |
+| F4a P1 | integrada | #1261: dispatch_table fuera de SessionCore |
+| F4a P2 | integrada | #1262: base test-fixtures y dos regresiones corregidas |
+| F4a P3 | aceptación completada; publicación/integración en #1263 | movimiento `6f0660ab0`, candidato `002ff5e46` |
+| F4a P4a/P4b | pendientes | §6 |
+| F4b | pendiente | §6 |
+| F5 | diseño detallado e implementación pendientes | §6 |
+| F6 | pendiente | pista de comportamiento |
+
+R5 leído con `python3 -B tools/architecture/wow_world_coupling.py report --json` en P3:
+17 miembros superiores, 199.895 líneas clasificadas como producción, 2.598 métodos contabilizados
+por el scanner, 443 thunks y 1.726 métodos en subestados. Este reporte textual puede incluir
+items con cfg internos; no es un censo del código realmente compilado ni prueba del DAG completo.
+
+El censo manual post F3-I del comentario de #1241 distingue 2.293 funciones de producción y
+305 de test dentro de sus 2.598 funciones. Es evidencia histórica con otra clasificación:
+378 handlers, 194 API externas, 442/1 thunks producción/test, 50/8 movibles,
+88/69 stateless y 1.141/227 bloqueadas. Mantener separados ambos métodos de conteo;
+remedir al diseñar F5, sin usar 2.598 como garantía de funciones activas en producción.
+
+### Evidencia de aceptación F4a P3
+
+Host aarch64, Rust 1.98.0, jobs=1, target absoluto del worktree. Base P2 `ec5d6071`;
+su árbol coincide con el candidato P2 `66527fab` que produjo el listado histórico.
+El movimiento de P3 conserva cuerpos, orden de fases y puntos de llamada; no cambia
+paquetes, SQL, persistencia ni owners runtime. Los deltas de baseline se revisaron:
+Session crece lógicamente al entrar los helpers en su subárbol; no desaparece evidencia
+de persistencia. R1 devolvió **NOT-APPLICABLE**, no PASS de extracción ni ahorro de LOC.
+
+- Final `--base origin/3.4.3 --architecture --timings --logs` en `6f0660ab0`:
+  `/tmp/rustycore-p3-final-20261002-acceptance.json`, verde y verificado, 622,487 s.
+  Arquitectura/self-test, ownership syntax-only, fixtures físicos, higiene, fmt y
+  checks afectados verdes; lib wow-world: 3.901 aprobados / 1 ignorado.
+- Extras en ese SHA: cuatro configuraciones `--all-targets` (wow-world default,
+  test-fixtures, world-server, world-modules), 47 tests de integración, 1 doc-test,
+  597 tests world-server lib y 369 handler-contract-check release aprobados.
+  Órdenes, tiempos y salidas en `/tmp/rustycore-p3-20261002.extras.json` y sus logs.
+  Listado idéntico de 3.950 identidades (cero altas/bajas), registrado en
+  `/tmp/rustycore-p3-20261002-test-identities.json`; hash SHA256 del listado base:
+  `cd888877c68a5a2d58cb0dba97a4bcaff74649acd9a457731eb2d5c404df1e22`.
+- `compose.py check` detectó un defecto previo del generador: omitía `[lints] workspace=true`
+  del manifiesto ya comprometido. El commit separado `002ff5e46` corrige la plantilla,
+  con regresión positiva/negativa/restauración. Compose y las 12 fixtures pasan.
+  El delta desde `6f0660ab0` solo toca esos dos ficheros Python; las suites Rust extra
+  se acreditan en su SHA original, con fuentes/manifiestos/Cargo.lock idénticos.
+- Final del candidato corregido, misma orden: `/tmp/rustycore-p3-final-20261002-repaired.json`,
+  verde y verificado, árbol limpio, 10:17:19,501–10:19:21,594 UTC, **122,093 s**.
+  No se atribuyen los extras anteriores a este SHA. Las posteriores instrucciones/docs
+  usan el delta documental `quick --base 002ff5e46`, conservando su propio manifiesto.
+
+Campaña de código: **09:30:05–10:20:07 UTC (3.002 s de pared)**, incluido el primer intento
+bloqueado por permisos, extras, listado, reparación y verificación final. Conserva el fallo
+de compose previo y el intento de sandbox; no es una campaña de 122 s. El tiempo de
+reparación/espera no se midió aisladamente; las dos ejecuciones verdes de final ya suman
+744,580 s sin extras. **Objetivo de 600 s incumplido.** La higiene del delta documental
+y publicación posteriores tienen su registro separado y no convierten ese coste en verde.
+No se desplegó ni reinició runtime, ni se ejecutó QA live o auditoría C++ de comportamiento.
 
 ## 9. Herramientas
 
@@ -198,6 +378,75 @@ Pendientes heredados, a reevaluar solo si se rescata la pieza afectada:
   hub, aristas de métodos entre dominios, violaciones del DAG) y métrica R5.
 - `tools/architecture/net_move.py`: comprobación R1 net-move
   (`python3 tools/architecture/net_move.py check --base origin/3.4.3`).
+
+## 10. Aceptación por PR, sin repetir evidencia
+
+Esta sección concreta R3 para #1263 y reemplaza la receta de repetir pasos 1–8 del antiguo
+checklist de develop-rustycore, alineado en esta entrega. La guía remite a este documento
+y no crea otro criterio de aceptación.
+
+1. Planificar una campaña sobre el candidato comprometido y registrar SHA, base, estado del
+   árbol, configuraciones y blancos. Reservar un ejecutor; comprobar procesos, RAM y disco.
+   Mantener `PROTOC`, `CARGO_BUILD_JOBS=1`, `VALIDATION_V2_CARGO_JOBS=1` y el target absoluto
+   del worktree; no compartir caché con worktrees activos.
+2. Ejecutar una vez
+   `./tools/validation-v2 final --base origin/3.4.3 --architecture --timings --logs`.
+   Verificar el manifiesto exacto de esa invocación con `--require-profile final` y cotejar
+   `provenance.head`, raíz, base y estado con el candidato. Ausencia de manifiesto o
+   cualquier fallo es aceptación fallida. Respetar las reglas documentadas para deltas
+   exclusivamente documentales; no relabelar un SHA anterior.
+3. Leer las órdenes y suites realmente ejecutadas en el manifiesto. Acreditar las suites
+   completas de librería, checks afectados, arquitectura/self-test, sintaxis ownership,
+   fmt, whitespace, fuentes ignoradas y R1 que ya cubra. Añadir solo evidencia no cubierta:
+   los blancos de integración/doc-tests exigidos y las configuraciones que falten de
+   `wow-world --all-targets`, `wow-world --all-targets --features test-fixtures`,
+   `world-server --all-targets`, `world-modules --all-targets` y los crates trasladados.
+   Mantener cero warnings nuevos respecto de la base en la misma configuración.
+4. Preservar la suite completa de `wow-world`, la de cada dominio trasladado,
+   `cargo test -p world-server --lib` y los tests release de handler-contract-check.
+   No repetir una suite/configuración idéntica ya acreditada por final. Conservar
+   pruebas de módulos/hooks y el fixture `tools/modules/compose.py check` con sus argumentos
+   vigentes; final no los sustituye automáticamente.
+5. Antes/después: comparar identidades de test, no solo totales. P3 conserva la lista de
+   `wow-world`; desde P4a comparar la unión de crates origen/destino, con un mapa de
+   cambios de crate/módulo/nombre, cfg/features y estado ignored. Los 3.950 tests son la
+   base histórica de F1/P3, no una cifra perpetua por crate. Registrar cada adición o
+   retirada intencional; no aceptar pérdida de escenarios por mover cfg o fixtures.
+   Separar tests bajo fixtures de pruebas con composición de producción.
+6. Añadir el inventario exhaustivo y los gates de referencias/snapshots cuando una fase
+   mueva accesos de persistencia; incluir aceptación de producción, capturas y runtime
+   según el cambio. En el cierre físico de las responsabilidades afectadas aplicar los
+   presupuestos y excepciones de module-design-guidelines, con evidencia terminal
+   acotada al alcance; no declarar terminado #584 por un PASS de migración.
+7. Medir desde el primer check requerido hasta el último, incluidos extras y listados.
+   Registrar inicio, fin y duración total, además de la duración de final. Más de 600 s
+   incumple el objetivo de rendimiento aunque la corrección sea verde. Bootstrap frío,
+   auditoría exhaustiva y QA live se etiquetan como costes distintos; cualquier coste
+   adicional se informa, sin ocultarlo en campañas nominalmente separadas.
+   Tras fallos, reparar el conjunto relacionado y repetir solo la evidencia afectada.
+
+## 11. Helper local de orquestación: pendiente de reparación
+
+`/home/server/rustycore-1241-orchestration/phase.sh` no es actualmente una barrera fiable:
+solo usa `set -u`, imprime varios códigos y continúa, usa tuberías sin preservar los fallos,
+elige el manifiesto más reciente y su operación merge no exige evidencia del candidato.
+Esta revisión cambia el plan; no ha reparado ni ejecutado el helper.
+
+Antes de usarlo para aceptar o integrar:
+
+- Propagar los códigos de todas las órdenes; una tubería o un mensaje LIST-DIFFERS no puede
+  transformar un fallo en salida 0. Si se acumulan diagnósticos, el resultado final sigue rojo.
+- Capturar el manifiesto de la invocación actual y vincularlo al SHA/base/worktree exactos,
+  junto con resultados de extras y el conjunto de tests. Nunca recuperar evidencia antigua
+  cuando falte el manifiesto actual.
+- Bloquear push/merge automatizados sin evidencia vigente, verde y correspondiente a la rama;
+  conservar la autoridad separada de publicación/runtime, no concederla desde el helper.
+- Registrar inicio/fin y duración de la campaña completa y quitar repeticiones según §10.
+- Integrar el contrato y la herramienta útil en el repositorio, con casos negativos de fallo
+  de final, verify, tests, listado y SHA incorrecto; no depender solo de una ruta privada del host.
+
+P3 se acepta con las órdenes canónicas y el registro explícito de §8. Las fases siguientes
+mantienen este procedimiento hasta reparar el helper.
 
 ## Nota histórica
 
