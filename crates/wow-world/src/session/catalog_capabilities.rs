@@ -22,6 +22,7 @@ use super::{PlayerRegenerationRatesLikeCpp, PowerTypeStore, QuestInfoStore, Tact
 use super::{TalentTabStore, TavernAreaTriggerStoreLikeCpp, TraitNodeEntryStore};
 use wow_world_core::session::SupportFeaturePolicyLikeCpp;
 
+pub use wow_world_core::session::GroupInvitePolicyLikeCpp;
 pub use wow_world_core::session::catalog_capabilities::ObjectMgrCatalogsLikeCpp;
 
 /// Process-owned DB2 catalogs used by C++'s static item valuation helpers.
@@ -154,27 +155,6 @@ impl Default for ChatPolicyCatalogsLikeCpp {
             listen_ranges: ChatListenRangesLikeCpp::default(),
             flood: ChatFloodConfigLikeCpp::default(),
             party_raid_warnings: false,
-        }
-    }
-}
-
-/// Process-owned C++ `World` policy for party invitation admission.
-///
-/// C++ loads these at `World.cpp:790,913,1163`; `GroupHandler.cpp:78-108`
-/// borrows them through `sWorld` while validating an invitation.
-#[derive(Debug, Clone, Copy)]
-pub struct GroupInvitePolicyLikeCpp {
-    pub allow_gm_group: bool,
-    pub allow_two_side_interaction: bool,
-    pub minimum_level: u32,
-}
-
-impl Default for GroupInvitePolicyLikeCpp {
-    fn default() -> Self {
-        Self {
-            allow_gm_group: false,
-            allow_two_side_interaction: false,
-            minimum_level: 1,
         }
     }
 }

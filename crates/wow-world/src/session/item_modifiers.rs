@@ -172,16 +172,7 @@ pub(in crate::session) fn represented_player_stat_changes_like_cpp(
     changes
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(in crate::session) struct RepresentedScalingStatContextLikeCpp {
-    pub(in crate::session) stat_id: [i32; 10],
-    pub(in crate::session) bonus: [i32; 10],
-    pub(in crate::session) ssd_multiplier: i32,
-    pub(in crate::session) spell_bonus: i32,
-    pub(in crate::session) armor_mod: i32,
-    pub(in crate::session) dps_mod: i32,
-    pub(in crate::session) is_two_hand: bool,
-}
+pub(in crate::session) use wow_world_core::session::RepresentedScalingStatContextLikeCpp;
 
 #[cfg(test)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

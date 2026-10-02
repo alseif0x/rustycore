@@ -298,7 +298,7 @@ de `SessionFixtures`. También se trasladaron los impls Core de admisión, drena
 comandos, publicación, actualizaciones de combate y acceso a dificultad/posición/
 farsight/auras, con sus consumidores. La revisión distinguió el `ChatMsg` de
 `wow-packet` del homónimo en `wow-constants`; se conserva el primero en los paquetes.
-La continuación local incorpora el agregado `SessionFixtures` (inicializador byte a
+El checkpoint local `e4c379ec2` incorpora el agregado `SessionFixtures` (inicializador byte a
 byte), `HubRef`/`HubMut` y su préstamo `shared`; los builders que toman `WorldSession`
 siguen en World. También se trasladan la política de soporte y sus dos mensajes de
 estado, y el adaptador canónico de criaturas con los métodos de sincronización y
@@ -312,6 +312,30 @@ límite. El método Core de estacionalidad LFG, antes alojado en un handler, pas
 La revisión corrigió un import requerido por las pruebas de soporte y la visibilidad
 del getter de exploración usado desde el shim World. La constante WAR_MODE mantiene
 su consumidor de test; la de alcance de combate queda privada en Core.
+La continuación local traslada los impls del hub de presentación/vitales del jugador,
+los de poderes/salud y los accesos de catálogos de criaturas, gameobjects, moneda y
+zona/área. La conversión `const fn` de poderes conserva sus 25 ramas y su fallback a
+Mana; las constantes de estado líquido conservan la API World mediante fachadas.
+La comparación textual de los 20 bloques de esos siete archivos, normalizando solo
+la visibilidad necesaria al cruzar crates, no encontró cambios de cuerpo. Es revisión
+de fuente, no evidencia de aceptación. El acceso de spawn requiere cerrar también
+los helpers `InitDbPhaseShift`/`InitDbVisibleMapId` alojados en `phasing`; conservar una
+única definición y las fachadas World, sin deducir su traslado del corte anterior.
+Los tres helpers trasladados conservan sus cuerpos; sus anclas C++ son
+`src/server/game/Phasing/PhasingHandler.cpp:47,528,564`, checkout
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`. Este movimiento conserva también los
+filtros de datos existentes en Rust; no declara nueva paridad de esos filtros.
+Otros nueve bloques de catálogos de spells/pets, chat y contactos conservan sus
+cuerpos y gates, con montajes privados en Core y los shims en World.
+El mismo lote traslada las vistas del hub de combate, reacciones de facción y auras,
+y los accesos de configuración/catálogos de dificultad, loot, visibilidad y grupos.
+Los DTOs de reacción, escalado y política de invitación tienen una sola definición
+en Core, con fachadas World. Los helpers de inicio de combate conservan el orden
+de lecturas, escrituras y liberación del guard; los broadcasts de spells mantienen
+su destinatario y su orden. La comparación de cuerpos no encontró cambios en los
+14 bloques de combate ni en los 43 métodos del último lote de auras, facciones y
+accesos de configuración. Las dependencias del hub aún alojadas en World se cierran
+en los lotes siguientes, sin stubs ni nuevos propietarios de estado.
 **NO VALIDADO:** faltan los impls restantes y la aceptación completa; esta revisión
 del diff no sustituye compilación, tests, inventario ni evidencia de producción.
 

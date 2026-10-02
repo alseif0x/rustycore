@@ -4,6 +4,27 @@
 use std::sync::Arc;
 use wow_packet::packets::misc::FeatureSystemConfigLikeCpp;
 
+/// Process-owned C++ `World` policy for party invitation admission.
+///
+/// C++ loads these at `World.cpp:790,913,1163`; `GroupHandler.cpp:78-108`
+/// borrows them through `sWorld` while validating an invitation.
+#[derive(Debug, Clone, Copy)]
+pub struct GroupInvitePolicyLikeCpp {
+    pub allow_gm_group: bool,
+    pub allow_two_side_interaction: bool,
+    pub minimum_level: u32,
+}
+
+impl Default for GroupInvitePolicyLikeCpp {
+    fn default() -> Self {
+        Self {
+            allow_gm_group: false,
+            allow_two_side_interaction: false,
+            minimum_level: 1,
+        }
+    }
+}
+
 /// Capability-specific immutable query owner consumed by query/gameobject
 /// handlers. It mirrors C++ ObjectMgr startup stores and contains no database
 /// handle or mutable gameplay state.

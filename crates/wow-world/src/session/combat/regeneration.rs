@@ -406,22 +406,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::HubRef<'_> {
-    /// Test accessor for the canonical five-second-rule state after a cast.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn represented_player_mp5_regen_interrupted_like_cpp(&self) -> bool {
-        self.core
-            .with_owned_player_like_cpp(|player| {
-                player
-                    .unit()
-                    .is_power_regen_interrupted_by_mp5_rule_like_cpp(
-                        crate::session::game_time_ms_like_cpp(),
-                    )
-            })
-            .unwrap_or(false)
-    }
-}
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/combat/regeneration/f3_shims.rs"]
 mod f3_shims;

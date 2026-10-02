@@ -603,7 +603,6 @@ use crate::map_manager::{
     PendingRespawn, RecipientRule, RuntimeEvent, RuntimeOutput, RuntimePlan, RuntimeTickOwner,
     WorldMMapPathfinderWorkerLikeCpp,
 };
-use crate::phasing::{init_db_phase_shift_like_cpp, init_db_visible_map_id_like_cpp};
 use crate::session::directory::{
     PlayerRegistry, PlayerSessionRegistrationLikeCpp, PlayerVisibilityCreateSnapshot,
 };
@@ -890,11 +889,11 @@ const DIFFICULTY_NORMAL_RAID_LIKE_CPP: u32 = 14;
 const DIFFICULTY_10_N_LIKE_CPP: u32 = 3;
 const MAP_INSTANCE_LIKE_CPP: u8 = 1;
 const MAP_RAID_LIKE_CPP: u8 = 2;
-const PLAYER_FLAGS_IN_PVP_LIKE_CPP: u32 = 0x0000_0200;
+use wow_world_core::session::PLAYER_FLAGS_IN_PVP_LIKE_CPP;
 const PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP: u32 = 0x0002_0000;
 const PLAYER_FLAGS_PVP_TIMER_LIKE_CPP: u32 = 0x0004_0000;
 const PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP: u32 = 0x0800_0000;
-const SPELL_PVP_RULES_ENABLED_LIKE_CPP: i32 = 134_735;
+use wow_world_core::session::SPELL_PVP_RULES_ENABLED_LIKE_CPP;
 const LANG_RESET_SPELLS_LIKE_CPP: u32 = 215;
 const LANG_RESET_TALENTS_LIKE_CPP: u32 = 216;
 const LANG_RESET_SPELLS_TEXT_LIKE_CPP: &str = "Your spells have been reset.";
@@ -980,8 +979,7 @@ pub(crate) const MAX_BATTLE_PET_LEVEL_LIKE_CPP: u16 = 25;
 
 pub(crate) const SKILL_FISHING_LIKE_CPP: u16 = 356;
 pub(crate) const SKILL_RIDING_LIKE_CPP: u16 = 762;
-pub const LIQUID_MAP_IN_WATER_LIKE_CPP: u32 = 0x0000_0004;
-pub const LIQUID_MAP_UNDER_WATER_LIKE_CPP: u32 = 0x0000_0008;
+pub use wow_world_core::session::{LIQUID_MAP_IN_WATER_LIKE_CPP, LIQUID_MAP_UNDER_WATER_LIKE_CPP};
 use wow_world_core::session::{TOY_FLAG_FAVORITE_LIKE_CPP, TOY_FLAG_HAS_FANFARE_LIKE_CPP};
 const DAMAGE_FIRE_LIKE_CPP: u8 = 5;
 use wow_world_core::session::{DAMAGE_FALL_LIKE_CPP, DAMAGE_FALL_TO_VOID_LIKE_CPP};

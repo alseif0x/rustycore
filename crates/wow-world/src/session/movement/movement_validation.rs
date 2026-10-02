@@ -265,27 +265,6 @@ impl crate::session::HubRef<'_> {
 }
 
 impl crate::session::HubMut<'_> {
-    pub(in crate::session) fn remove_canonical_attacker_like_cpp(
-        &mut self,
-        victim: ObjectGuid,
-        attacker: ObjectGuid,
-    ) {
-        if self
-            .core
-            .mutate_canonical_player_by_guid_like_cpp(victim, |victim| {
-                victim.unit_mut().remove_attacker_like_cpp(attacker)
-            })
-            .is_some()
-        {
-            return;
-        }
-        let _ = self
-            .core
-            .mutate_canonical_creature_by_guid_like_cpp(victim, |victim| {
-                victim.unit_mut().remove_attacker_like_cpp(attacker)
-            });
-    }
-
     pub(crate) fn record_movement_ack_event_like_cpp(&mut self, event: MovementAckEventLikeCpp) {
         #[cfg(any(test, feature = "test-fixtures"))]
         self.fixtures

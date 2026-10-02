@@ -404,32 +404,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::state::SessionWorldConfig {
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub(crate) fn group_invite_policy_for_test_like_cpp(&self) -> GroupInvitePolicyLikeCpp {
-        GroupInvitePolicyLikeCpp {
-            allow_gm_group: self.allow_gm_group_like_cpp,
-            allow_two_side_interaction: self.allow_two_side_interaction_group_like_cpp,
-            minimum_level: self.party_level_req_like_cpp,
-        }
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_party_raid_warnings_like_cpp(&mut self, enabled: bool) {
-        self.party_raid_warnings_like_cpp = enabled;
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_allow_gm_group_like_cpp(&mut self, enabled: bool) {
-        self.allow_gm_group_like_cpp = enabled;
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_party_level_req_like_cpp(&mut self, level: u32) {
-        self.party_level_req_like_cpp = level;
-    }
-}
-
 impl crate::session::state::SessionSocialLimits {
     pub(in crate::session) fn current_player_is_in_group_guid_like_cpp(
         &self,

@@ -379,12 +379,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::state::SessionCatalogs {
-    pub(crate) fn map_difficulty_store(&self) -> Option<&Arc<MapDifficultyStore>> {
-        self.maps.difficulty_store.as_ref()
-    }
-}
-
 impl crate::session::state::InstanceState {
     pub(crate) fn create_map_difficulty_context_like_cpp(
         &self,
@@ -659,12 +653,6 @@ impl crate::session::state::InstanceState {
             });
         }
         true
-    }
-}
-
-impl crate::session::state::SessionCatalogs {
-    pub(crate) fn difficulty_store(&self) -> Option<&Arc<DifficultyStore>> {
-        self.difficulty_store.as_ref()
     }
 }
 

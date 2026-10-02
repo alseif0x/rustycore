@@ -30,16 +30,35 @@ mod connection;
 mod canonical_access;
 mod instances;
 mod catalogs;
+mod money;
+mod world_state;
 mod runtime_policy_access;
 mod construction;
 mod movement;
 mod visibility;
+mod player_presentation;
+pub use player_presentation::{LIQUID_MAP_IN_WATER_LIKE_CPP, LIQUID_MAP_UNDER_WATER_LIKE_CPP};
+mod player_vitals_adapter;
 mod spell_state;
+mod spell_pet_catalogs;
+mod quest_dialog;
+pub use quest_dialog::power_type_from_u8_like_cpp;
 mod player_items;
+mod item_modifiers;
+pub use item_modifiers::RepresentedScalingStatContextLikeCpp;
+mod player_melee_application;
+pub use player_melee_application::begin_combat_ref_on_map_like_cpp;
 mod social;
 mod chat;
+mod faction_reactions;
+pub use faction_reactions::{
+    RepresentedFactionReactionInputLikeCpp, RepresentedGetReactionInputLikeCpp,
+};
 mod combat;
-pub use combat::{DAMAGE_FALL_LIKE_CPP, DAMAGE_FALL_TO_VOID_LIKE_CPP};
+pub use combat::{
+    DAMAGE_FALL_LIKE_CPP, DAMAGE_FALL_TO_VOID_LIKE_CPP, PLAYER_FLAGS_IN_PVP_LIKE_CPP,
+    SPELL_PVP_RULES_ENABLED_LIKE_CPP,
+};
 mod admission;
 mod player_registry_binding;
 mod lifecycle_ops;
@@ -166,6 +185,7 @@ pub mod map_admission;
 pub use map_admission::{MMapRuntimeConfigLikeCpp, WaypointPathResolverLikeCpp};
 
 pub mod catalog_capabilities;
+pub use catalog_capabilities::GroupInvitePolicyLikeCpp;
 pub use catalog_capabilities::ObjectMgrCatalogsLikeCpp;
 pub use catalog_capabilities::SupportFeaturePolicyLikeCpp;
 

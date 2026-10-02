@@ -1,4 +1,17 @@
+use std::sync::Arc;
+
 use crate::session::state::SessionCore;
+use wow_data::{DifficultyStore, MapDifficultyStore};
+
+impl crate::session::state::SessionCatalogs {
+    pub fn map_difficulty_store(&self) -> Option<&Arc<MapDifficultyStore>> {
+        self.maps.difficulty_store.as_ref()
+    }
+
+    pub fn difficulty_store(&self) -> Option<&Arc<DifficultyStore>> {
+        self.difficulty_store.as_ref()
+    }
+}
 
 impl SessionCore {
     pub fn current_map_difficulty_id_like_cpp(&self) -> u8 {

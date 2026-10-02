@@ -583,23 +583,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::state::SessionCatalogs {
-    /// Set the C++ AdventureMapPOI.db2 store for this session.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_adventure_map_poi_store(&mut self, store: Arc<AdventureMapPoiStore>) {
-        self.adventure_map_poi_store = Some(store);
-    }
-
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn adventure_map_poi_store(&self) -> Option<&Arc<AdventureMapPoiStore>> {
-        self.adventure_map_poi_store.as_ref()
-    }
-
-    pub(crate) fn dungeon_encounter_store(&self) -> Option<&Arc<DungeonEncounterStore>> {
-        self.dungeon_encounter_store.as_ref()
-    }
-}
-
 impl crate::session::state::InstanceState {
     pub(crate) fn create_map_db2_entries_like_cpp(
         &self,
@@ -665,23 +648,6 @@ impl crate::session::state::InstanceState {
         map_id: u32,
     ) -> bool {
         self.is_disabled_map_type_for_player_like_cpp(hub, DISABLE_TYPE_MAP, map_id)
-    }
-}
-
-impl crate::session::state::SessionCatalogs {
-    pub(crate) fn map_store(&self) -> Option<&Arc<MapStore>> {
-        self.maps.store.as_ref()
-    }
-}
-
-impl crate::session::state::SessionWorldConfig {
-    pub(crate) fn player_map_visibility_range_like_cpp(&self, map_id: u16) -> f32 {
-        self.legacy_creature_aggro_config_like_cpp
-            .map_visibility_range_like_cpp(map_id)
-    }
-
-    pub fn mmap_runtime_config_like_cpp(&self) -> &MMapRuntimeConfigLikeCpp {
-        &self.mmap_runtime_config_like_cpp
     }
 }
 

@@ -548,21 +548,6 @@ impl crate::session::state::InventoryState {
     }
 }
 
-impl crate::session::state::SessionCatalogs {
-    /// Set the item currency cost store for this session.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_item_currency_cost_store(&mut self, store: Arc<ItemCurrencyCostStore>) {
-        self.item_currency_cost_store = Some(store);
-    }
-}
-
-impl crate::session::state::SessionCatalogs {
-    /// Get the currency types store reference.
-    pub fn currency_types_store(&self) -> Option<&Arc<CurrencyTypesStore>> {
-        self.currency_types_store.as_ref()
-    }
-}
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/money/operations/f3_shims.rs"]
 mod f3_shims;

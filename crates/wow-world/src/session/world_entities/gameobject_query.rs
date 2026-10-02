@@ -330,18 +330,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::state::SessionCatalogs {
-    pub(crate) fn gameobject_display_info_store(&self) -> Option<&Arc<GameObjectDisplayInfoStore>> {
-        self.gameobjects.display_info_store.as_ref()
-    }
-
-    pub(crate) fn gameobject_template_lifecycle_store(
-        &self,
-    ) -> Option<&Arc<GameObjectTemplateLifecycleStoreLikeCpp>> {
-        self.gameobject_template_lifecycle_store_like_cpp.as_ref()
-    }
-}
-
 impl crate::session::state::WorldEntitiesState {
     #[cfg(test)]
     pub(crate) fn record_represented_gameobject_faction_template_like_cpp(
