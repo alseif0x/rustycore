@@ -10,7 +10,9 @@ internal static class WorldCertificates
 {
     private const string ExpectedClientSha256 =
         "369CE842043F6177850947274287FC5A6CEC3EE033A891FAA0400A1D0A475D8E";
-    private const int ConstructorRva = 0x1F25730;
+    // After lazy loading, RAX owns the certificate dictionary, including cached
+    // dictionaries on subsequent logins. No certificate/verification is changed.
+    private const int SelectionRva = 0x1F2C61B;
     private const int CaptureOffset = 0x200;
     private const int ReadyOffset = 0x220;
     private const int VectorOffset = 0x28;
@@ -23,8 +25,8 @@ internal static class WorldCertificates
     private const uint MemReserve = 0x2000;
     private const uint PageExecuteReadWrite = 0x40;
 
-    private static readonly byte[] ConstructorPrologue =
-        Convert.FromHexString("40555341544156488D6C24C14881ECD8000000");
+    private static readonly byte[] SelectionInstructions =
+        Convert.FromHexString("458B7E20488D58284D8D66204489BD58010000");
 
     private static readonly byte[] KnownWorldPublicKey =
         Convert.FromHexString("02596f0d0c061a8b30745988fd72c59e29ec367fb0f341f28e0f08d037bafc69");
@@ -53,10 +55,10 @@ internal static class WorldCertificates
         {
             nint imageBase = process.MainModule?.BaseAddress
                 ?? throw new InvalidOperationException("Client image unavailable");
-            entry = Add(imageBase, ConstructorRva);
-            if (!Read(processHandle, entry, ConstructorPrologue.Length)
-                    .SequenceEqual(ConstructorPrologue))
-                throw new InvalidOperationException("Unexpected certificate constructor; no modification made");
+            entry = Add(imageBase, SelectionRva);
+            if (!Read(processHandle, entry, SelectionInstructions.Length)
+                    .SequenceEqual(SelectionInstructions))
+                throw new InvalidOperationException("Unexpected certificate selection; no modification made");
 
             allocation = WorldNative.VirtualAllocEx(
                 processHandle, 0, 0x1000, MemCommit | MemReserve, PageExecuteReadWrite);
@@ -65,16 +67,16 @@ internal static class WorldCertificates
 
             nint capturedObject = Add(allocation, CaptureOffset);
             nint readyFlag = Add(allocation, ReadyOffset);
-            byte[] trampoline = BuildTrampoline(capturedObject, Add(entry, ConstructorPrologue.Length));
+            byte[] trampoline = BuildTrampoline(capturedObject, Add(entry, SelectionInstructions.Length));
             Write(processHandle, allocation, trampoline);
 
             if (!WorldNative.VirtualProtectEx(
-                    processHandle, entry, (nuint)ConstructorPrologue.Length,
+                    processHandle, entry, (nuint)SelectionInstructions.Length,
                     PageExecuteReadWrite, out originalProtection))
                 throw new InvalidOperationException("Cannot install observation");
 
             installed = true;
-            byte[] patch = JumpWithPadding(allocation, ConstructorPrologue.Length);
+            byte[] patch = JumpWithPadding(allocation, SelectionInstructions.Length);
             Write(processHandle, entry, patch);
             WorldNative.FlushInstructionCache(processHandle, allocation, (nuint)trampoline.Length);
             WorldNative.FlushInstructionCache(processHandle, entry, (nuint)patch.Length);
@@ -83,7 +85,7 @@ internal static class WorldCertificates
             WaitForReady(process, processHandle, readyFlag);
             Thread.Sleep(500);
             nint objectAddress = new(BinaryPrimitives.ReadInt64LittleEndian(Read(processHandle, capturedObject, 8)));
-            if (objectAddress == 0) throw new InvalidOperationException("No constructor object observed");
+            if (objectAddress == 0) throw new InvalidOperationException("No certificate dictionary observed");
             CertificateVector vector = ReadStableVector(processHandle, objectAddress);
             IReadOnlyList<CertificateRecord> records = ReadRecords(processHandle, vector);
 
@@ -99,11 +101,11 @@ internal static class WorldCertificates
             {
                 if (installed && !HasExited(process))
                 {
-                    Write(processHandle, entry, ConstructorPrologue);
-                    WorldNative.FlushInstructionCache(processHandle, entry, (nuint)ConstructorPrologue.Length);
-                    if (!WorldNative.VirtualProtectEx(processHandle, entry, (nuint)ConstructorPrologue.Length,
-                        originalProtection, out _)) throw new InvalidOperationException("Constructor protection restoration failed");
-                    Console.WriteLine("Original certificate constructor restored.");
+                    Write(processHandle, entry, SelectionInstructions);
+                    WorldNative.FlushInstructionCache(processHandle, entry, (nuint)SelectionInstructions.Length);
+                    if (!WorldNative.VirtualProtectEx(processHandle, entry, (nuint)SelectionInstructions.Length,
+                        originalProtection, out _)) throw new InvalidOperationException("Selection protection restoration failed");
+                    Console.WriteLine("Original certificate selection restored.");
                 }
             }
             finally
@@ -227,17 +229,17 @@ internal static class WorldCertificates
         var code = new List<byte>();
         code.Add(0x50); // push rax
         code.Add(0x52); // push rdx
-        code.AddRange(MoveRax(capturedObject));
-        code.AddRange(new byte[] { 0x48, 0x89, 0x08 }); // mov [rax], rcx
-        code.AddRange(new byte[] { 0xC7, 0x40, 0x20, 0x01, 0x00, 0x00, 0x00 });
+        code.AddRange(MoveRdx(capturedObject));
+        code.AddRange(new byte[] { 0x48, 0x89, 0x02 }); // mov [rdx], original rax
+        code.AddRange(new byte[] { 0xC7, 0x42, 0x20, 0x01, 0x00, 0x00, 0x00 });
         code.Add(0x5A); // pop rdx
         code.Add(0x58); // pop rax
-        code.AddRange(ConstructorPrologue);
+        code.AddRange(SelectionInstructions);
         code.AddRange(Jump(returnAddress));
         return code.ToArray();
     }
 
-    private static byte[] MoveRax(nint value) => new byte[] { 0x48, 0xB8 }
+    private static byte[] MoveRdx(nint value) => new byte[] { 0x48, 0xBA }
         .Concat(BitConverter.GetBytes(value.ToInt64())).ToArray();
 
     private static byte[] Jump(nint target) => new byte[] { 0xFF, 0x25, 0, 0, 0, 0 }
