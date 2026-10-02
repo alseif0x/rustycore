@@ -26,6 +26,21 @@ pub use connection_identity::{
     SessionState,
 };
 
+mod connection;
+mod canonical_access;
+mod instances;
+
+mod creature_aggro_contracts;
+pub use creature_aggro_contracts::{
+    DEFAULT_VISIBILITY_BGARENAS_LIKE_CPP, LegacyCreatureAggroConfigLikeCpp,
+    spell_has_no_unrepresented_runtime_hooks_from_authority_like_cpp,
+};
+
+mod creature_spell_metadata;
+pub use creature_spell_metadata::creature_ai_spell_difficulty_chain_like_cpp;
+
+pub mod persistence_capabilities;
+
 pub mod player_binding;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use player_binding::PlayerTransportLoginStateLikeCpp;
@@ -36,3 +51,16 @@ pub use time_synchronization::{game_time_ms_like_cpp, TimeSynchronizationStateLi
 
 pub mod mailbox;
 pub mod state;
+pub use state::{SessionCatalogs, SessionCore, SessionDriverPhaseLikeCpp};
+pub use state::SessionWorldConfig;
+
+pub mod map_admission;
+pub use map_admission::{MMapRuntimeConfigLikeCpp, WaypointPathResolverLikeCpp};
+
+pub mod catalog_capabilities;
+pub use catalog_capabilities::ObjectMgrCatalogsLikeCpp;
+
+#[cfg(any(test, feature = "test-fixtures"))]
+pub mod test_support;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use test_support::test_fixtures::PlayerBootstrapCatalogTestFixtureLikeCpp;

@@ -234,7 +234,75 @@ nombra `WaypointPathResolverLikeCpp` (`session/map_admission.rs`),
 al cortar las definiciones, sin crear una arista de vuelta Core → World. Los campos
 ResetSchedule/InstanceLockMgr y el ModuleRegistry de fixtures requieren revisar las aristas
 wow-instances y wow-module-api y la propagación de features antes de implementar P4b;
-aún no se añadieron al manifiesto Core. Esta lectura prepara el corte, no lo acepta.
+en aquel candidato aún no estaban en el manifiesto Core. Esta lectura preparó el
+corte, sin aceptarlo.
+
+**Corte P4b en curso — 2026-10-02, base `24a513855`:** trasladar también
+`state/driver_phase.rs` y `state/hub_support.rs`, creados en P3 después del inventario
+inicial. `SessionDirectory` contiene tres referencias de registro/canal; las fixtures
+sociales vecinas pertenecen a `SessionSocialLimits` y no entran en este corte. Los
+campos de transporte justifican las dependencias inferiores `wow-session` y
+`wow-network`; los helpers de condiciones requieren `wow-conditions`. No crear una
+dependencia Core → World ni trasladar el driver o sus builders.
+
+El censo léxico inicial de implementación, después de extraer los inicializadores, registró
+272 bloques objetivo en 527 fuentes Rust: 68 `HubMut`, 74 `HubRef`, 65 `SessionCatalogs`,
+34 `SessionCore` y 31 de los otros tipos; diez están en handlers. Incluye los tres
+`impl Default` añadidos para catálogos/configuración/fixtures y el nuevo constructor
+Core. Sustituye la estimación de 293 para preparar los cortes, no prueba la resolución
+de imports ni la paridad. `f4_hub_extract.py plan` conserva rutas físicas como hints;
+la aceptación deberá comprobar los montajes lógicos reales y el conjunto trasladado.
+
+Checkpoint local `4c2179c82`, rama `1263-f4a-p4b-hub`: inicializadores propios,
+helpers del hub, seis tipos auxiliares y estado/fuente de sincronización temporal;
+fachadas World conservadas. **NO VALIDADO:** no se ejecutaron Cargo, tests, formato
+ni campaña de aceptación. El hub principal y su cierre de dependencias siguen
+pendientes; este commit no se publicó ni acredita finalización de P4b. El scanner y
+los codemods se guardaron después en el checkpoint descrito abajo.
+
+Después de ese checkpoint se trasladaron la definición y el constructor de
+`SessionCore`, sus siete estados anidados y el registro de fases a Core, conservando
+las fachadas World. También salieron `MMapRuntimeConfigLikeCpp`,
+`WaypointPathResolverLikeCpp`, `ObjectMgrCatalogsLikeCpp` y la fixture de catálogos
+bootstrap. `SessionCatalogs` y `SessionWorldConfig` conservan sus inicializadores;
+la configuración incluye ahora su cierre de aggro y selección de dificultad.
+Los impls de conexión, identidad de conexión, sincronización temporal y acceso
+canónico al Player se trasladan junto con sus dependencias. Los estados de fixture
+de identidad, colecciones y auras conservan sus gates y campos, sin nueva autoridad.
+El manifiesto, la política y el lock incorporan las aristas inferiores de
+transporte/instancias/configuración; `wow-module-api` y `wow-script` quedan opcionales
+para `test-fixtures` y como dependencias de desarrollo, con propagación de
+`wow-session/test-support`.
+**Trabajo local NO VALIDADO:** los impls restantes todavía se están extrayendo;
+la definición en Core por sí sola no establece compilación ni cierre de P4b.
+
+La construcción debe conservar el orden exacto de expresiones, RNG, relojes, canales
+y campos. Extraer primero el literal de `SessionCore` a una inicialización propia;
+los rails y la conexión con su endpoint siguen construyéndose en `WorldSession::new`.
+Los literales de catálogos/configuración/fixtures necesitan el mismo tratamiento al
+cruzar la frontera. La feature de fixtures puede estar activa en Core cuando World
+compila como biblioteca sin `cfg(test)`: un constructor resuelve los campos internos,
+pero no puede inventar el préstamo `HubRef::fixtures` de un campo ausente en World.
+Para ese préstamo, P4b añade una dev-dependency de World sobre sí mismo con
+`test-fixtures`, conservando la propagación a Core/Session. No importar el self-crate
+en los unitarios ni mezclar sus identidades con las del crate compilado para tests.
+La decisión se limita a la composición de pruebas; comprobar durante la aceptación
+los targets unitarios/integración y el grafo de producción sin fixtures. Está todavía
+sin validar. La solución de P4a mediante dev-dependency de Core no probaba este nuevo
+caso de P4b, por lo que su resultado sin self-dependency no se extrapola a las vistas.
+
+El checkpoint local `e047d2336` incorpora el scanner y los codemods de preparación,
+todavía **NO VALIDADOS** y sin publicar. El scanner conserva su superficie de `WorldSession` y añade una superficie
+separada de `SessionCore`: definición, campos e impls con paquete, módulo y cfg,
+incluida la resolución del campo `WorldSession.core` a través de las fachadas.
+Resuelve los proveedores nominales en una consulta por lote, incluidos aliases
+renombrados y `self as Alias`; el ordinal de cada campo conserva el orden de
+declaración en la superficie comparada. Las regresiones escritas cubren proveedores
+ausentes/ambiguos/ajenos, aliases, homónimos, eliminación de impls y reordenación de
+campos. No basta con conservar el texto `SessionCore` en el baseline. Se mantienen
+los rechazos de definiciones duplicadas/ajenas y de `WorldSession` alojado en Core.
+Pruebas, reconciliación del baseline y aceptación siguen pendientes; este checkpoint
+no es evidencia verde ni cierre de fase.
 
 Preservar orden de drop, hooks, locks, cancelación y persistencia. Medir la deuda de 56 warnings
 informada en P2 para builds con feature: hacer público un item no garantiza eliminar todos;

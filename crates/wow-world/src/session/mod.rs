@@ -76,7 +76,7 @@ mod world_state;
 mod action_bar_adapter;
 use action_bar_adapter::make_action_button_like_cpp;
 use action_bar_adapter::{action_button_action_like_cpp, action_button_type_like_cpp};
-use action_bar_adapter::{rounded_median_u32, set_active_player_update_bit_like_cpp};
+use action_bar_adapter::set_active_player_update_bit_like_cpp;
 mod auction_contracts;
 pub(crate) use auction_contracts::RepresentedAuctionPlaceBidLikeCpp;
 pub(crate) use auction_contracts::RepresentedAuctionRemoveItemLikeCpp;
@@ -873,8 +873,7 @@ pub type AreaTriggerScriptDispatcherLikeCpp =
     Arc<dyn Fn(&mut WorldSession, ScriptIdLikeCpp, u32, bool) -> bool + Send + Sync>;
 
 #[cfg(any(test, feature = "test-fixtures"))]
-type GivePlayerXpScriptDispatcherLikeCpp =
-    Arc<dyn Fn(wow_script::player::GivePlayerXpContextLikeCpp, &mut u32) + Send + Sync>;
+use wow_world_core::session::state::config::GivePlayerXpScriptDispatcherLikeCpp;
 
 const REST_FLAG_IN_TAVERN_LIKE_CPP: u32 = 0x1;
 const REST_FLAG_IN_CITY_LIKE_CPP: u32 = 0x2;

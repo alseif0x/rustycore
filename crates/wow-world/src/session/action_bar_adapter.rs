@@ -6,16 +6,6 @@
 
 use super::{Player, WorldSession};
 
-pub(in crate::session) fn rounded_median_u32(sorted_values: &[u32]) -> u32 {
-    debug_assert!(!sorted_values.is_empty());
-    let mid = sorted_values.len() / 2;
-    if sorted_values.len() % 2 == 1 {
-        sorted_values[mid]
-    } else {
-        ((f64::from(sorted_values[mid - 1]) + f64::from(sorted_values[mid])) / 2.0).round() as u32
-    }
-}
-
 pub(in crate::session) fn set_active_player_update_bit_like_cpp(mask: &mut [u32; 48], bit: usize) {
     mask[bit / 32] |= 1 << (bit % 32);
 }

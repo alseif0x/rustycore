@@ -91,17 +91,23 @@
   "restricted_packages": {
     "wow-world-core": [
       "wow-conditions",
+      "wow-config",
       "wow-constants",
       "wow-core",
       "wow-data",
       "wow-entities",
       "wow-handler",
+      "wow-instances",
       "wow-loot",
       "wow-map",
+      "wow-module-api",
       "wow-movement",
+      "wow-network",
       "wow-packet",
       "wow-persistence",
       "wow-recastdetour",
+      "wow-script",
+      "wow-session",
       "wow-social"
     ],
     "wow-conditions": [

@@ -21,17 +21,7 @@ use super::{PlayerGridLoadOutcomeLikeCpp, PlayerGridLoadResolverLikeCpp};
 use super::{PlayerRegenerationRatesLikeCpp, PowerTypeStore, QuestInfoStore, TactKeyStore};
 use super::{TalentTabStore, TavernAreaTriggerStoreLikeCpp, TraitNodeEntryStore};
 
-/// Capability-specific immutable query owner consumed by query/gameobject
-/// handlers. It mirrors C++ ObjectMgr startup stores and contains no database
-/// handle or mutable gameplay state.
-#[derive(Debug, Clone)]
-#[cfg_attr(any(test, feature = "test-fixtures"), derive(Default))]
-pub struct ObjectMgrCatalogsLikeCpp {
-    pub creature: Arc<wow_data::CreatureQueryCatalogLikeCpp>,
-    pub gameobject: Arc<wow_data::GameObjectQueryCatalogLikeCpp>,
-    pub gameobject_quest_items: Arc<wow_data::GameObjectQuestItemStoreLikeCpp>,
-    pub page_text: Arc<wow_data::PageTextCatalogLikeCpp>,
-}
+pub use wow_world_core::session::catalog_capabilities::ObjectMgrCatalogsLikeCpp;
 
 /// Process-owned DB2 catalogs used by C++'s static item valuation helpers.
 ///

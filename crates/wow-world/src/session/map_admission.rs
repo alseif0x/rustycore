@@ -5,9 +5,13 @@
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
 use super::trinity_sprintf_like_cpp;
-use super::{Arc, HashSet, ObjectGuid, Position, TRANSFER_ABORT_DIFFICULTY_LIKE_CPP};
+use super::{Arc, ObjectGuid, Position, TRANSFER_ABORT_DIFFICULTY_LIKE_CPP};
 use super::{TRANSFER_ABORT_ERROR_LIKE_CPP, Team, WorldSession};
 use super::{is_player_meeting_condition_like_cpp, player_team_for_race_cpp};
+
+pub use wow_world_core::session::map_admission::{
+    MMapRuntimeConfigLikeCpp, WaypointPathResolverLikeCpp,
+};
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub(crate) struct CreateMapSideEffectApplySummaryLikeCpp {
@@ -20,16 +24,6 @@ pub(crate) struct CreateMapSideEffectApplySummaryLikeCpp {
     pub skipped_instance_lock_instance_id_updates: u32,
     pub pending_battleground_entry_teleports: u32,
 }
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MMapRuntimeConfigLikeCpp {
-    pub data_dir: String,
-    pub enabled: bool,
-    pub disabled_map_ids: HashSet<u32>,
-}
-
-pub type WaypointPathResolverLikeCpp =
-    Arc<dyn Fn(u32) -> Option<wow_movement::WaypointPath> + Send + Sync>;
 
 #[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct PlayerGridLoadOutcomeLikeCpp {
@@ -55,30 +49,6 @@ pub struct PlayerGridLoadOutcomeLikeCpp {
 
 pub type PlayerGridLoadResolverLikeCpp =
     Arc<dyn Fn(u16, Option<u32>, Position) -> PlayerGridLoadOutcomeLikeCpp + Send + Sync>;
-
-impl Default for MMapRuntimeConfigLikeCpp {
-    fn default() -> Self {
-        Self {
-            data_dir: "./Data".to_string(),
-            enabled: true,
-            disabled_map_ids: HashSet::new(),
-        }
-    }
-}
-
-impl MMapRuntimeConfigLikeCpp {
-    pub fn pathfinding_enabled_for_map_like_cpp(&self, map_id: u32) -> bool {
-        self.enabled && !self.disabled_map_ids.contains(&map_id)
-    }
-
-    pub fn should_try_pathfinding_like_cpp(
-        &self,
-        map_id: u32,
-        owner_ignores_pathfinding: bool,
-    ) -> bool {
-        self.pathfinding_enabled_for_map_like_cpp(map_id) && !owner_ignores_pathfinding
-    }
-}
 
 pub(in crate::session) fn create_map_instance_lock_token_like_cpp(
     owner_guid: ObjectGuid,

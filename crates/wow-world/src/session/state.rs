@@ -57,13 +57,12 @@ use super::spell_state::PlayerSpellAndTraitTestFixtureLikeCpp;
 use super::support_features::test_fixtures::SupportFeatureTestFixtureLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::test_support::test_fixtures::PlayerBootstrapCatalogTestFixtureLikeCpp;
-use super::time_synchronization::TimeSynchronizationStateLikeCpp;
 #[cfg(test)]
 use super::visibility::test_fixtures::VisibilityTestFixtureLikeCpp;
 use super::{AccessRequirementStoreLikeCpp, AccountDataLikeCpp, AccountHeirloomDataLikeCpp};
 use super::{AdventureMapPoiStore, Arc, AreaTableStore, AreaTriggerDb2Store};
 use super::{AreaTriggerScriptDispatcherLikeCpp, AreaTriggerScriptStoreLikeCpp, AreaTriggerStore};
-use super::{AtomicBool, AuraApplication, BTreeMap, BTreeSet};
+use super::{AuraApplication, BTreeMap, BTreeSet};
 use super::{BankBagSlotPricesStore, BattlePetAccountAttachmentLikeCpp};
 use super::{BattlemasterListStore, CanonicalThreatAuraSnapshotLikeCpp};
 use super::{CharacterPowerSnapshotLikeCpp, ChatFloodConfigLikeCpp, ChatFloodThrottleDataLikeCpp};
@@ -75,13 +74,13 @@ use super::{CreatureEquipmentStoreLikeCpp, CurrencyTypesStore, CurvePointStore, 
 use super::{DifficultyStore, DisableMgrLikeCpp, DungeonEncounterStore, DurabilityCostsStore};
 use super::{DurabilityQualityStore, DurableItemLootPersistenceTrackerLikeCpp};
 use super::{DurableLootMoneyPersistenceTrackerLikeCpp, EmotesStore, EmotesTextStore};
-use super::{EquipmentSetGuidGeneratorLikeCpp, ExplorationBaseXpStoreLikeCpp};
+use super::ExplorationBaseXpStoreLikeCpp;
 use super::{FavoriteAppearanceStateLikeCpp, FishingBaseSkillStoreLikeCpp};
-use super::{FriendshipRepReactionStore, GameEventQuestCompleteCommandLikeCpp};
+use super::FriendshipRepReactionStore;
 use super::{GameObjectTemplateLifecycleStoreLikeCpp, GemPropertiesStore, GossipOptionInfo};
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::{GivePlayerXpScriptDispatcherLikeCpp, MoveSplineDoneTaxiEventLikeCpp};
-use super::{GraveyardStore, GroupRegistry, HashMap, HashSet, HeirloomStore};
+use super::{GraveyardStore, HashMap, HashSet, HeirloomStore};
 use super::{HomebindPersistenceJobLikeCpp, ImportPriceStores, Instant, Item};
 use super::{ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore, ItemPriceBaseStore};
 use super::{
@@ -94,12 +93,12 @@ use super::{MountStore, MountTypeXCapabilityStore, MountXDisplayStore, MovementA
 use super::{MoveTeleportAckEventLikeCpp, PlayerTransportLoginStateLikeCpp};
 use super::{MovementFallDamageEvent, MovementFlag, MovementSpeedAckEventLikeCpp};
 use super::{MovementUnderMapDamageEvent, MovieStore, NUM_ACCOUNT_DATA_TYPES};
-use super::{NumTalentsAtLevelStore, ObjectGuid, ObjectGuidGenerator, ObjectMgrCatalogsLikeCpp};
-use super::{OwnedLootAuthority, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP, PacketCounterLikeCpp};
-use super::{PacketHandlerEntry, PacketSpoofConfigLikeCpp, PacketSpoofPendingBanLikeCpp};
+use super::{NumTalentsAtLevelStore, ObjectGuid, ObjectMgrCatalogsLikeCpp};
+use super::{OwnedLootAuthority, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP};
+use super::PacketHandlerEntry;
 use super::{ParagonReputationStore, PendingCreatureKillRewardLikeCpp, PendingCreatureSpawn};
-use super::{PendingInvites, PetStable, PhaseGroupStore, PhaseShift, PhaseStore};
-use super::{PlayerIdentityBootstrapLikeCpp, PlayerInteractionDataLikeCpp, PlayerRegistry};
+use super::{PetStable, PhaseGroupStore, PhaseShift, PhaseStore};
+use super::PlayerInteractionDataLikeCpp;
 use super::{PlayerResurrectionRequestLikeCpp, PlayerStatsStore, PowerTypeStore, PvpItemStore};
 use super::{RandPropPointsStore, RegenGameTablesLikeCpp, RepSpilloverTemplateStoreLikeCpp};
 use super::{RepresentedActivateTaxiLikeCpp, RepresentedAdventureMapStartQuestLikeCpp};
@@ -132,19 +131,18 @@ use super::{RepresentedVehicleBaseMovementLikeCpp, RepresentedVehicleDismissMove
 use super::{RepresentedVehicleEnterRequestLikeCpp, RepresentedVehicleSeatChangeRequestLikeCpp};
 use super::{RepresentedWargameInviteAcceptanceLikeCpp, ReputationRatesLikeCpp};
 use super::{ReputationRewardRateStoreLikeCpp, ScalingStatDistributionStore};
-use super::{ScalingStatValuesStore, ScriptNameInternerLikeCpp, SessionCommand, SessionManager};
-use super::{SessionPersistencePortsLikeCpp, SessionState, SharedCanonicalMapManager};
-use super::{SharedClientVisibleGuidsLikeCpp, ShieldBlockRegularGameTableLikeCpp, SkillLineStore};
-use super::{SkillStore, SkillTiersStoreLikeCpp, SocketTimeoutsLikeCpp, SpellCastState};
-use super::{SpellChargeEntry, SpellHistoryEntry, StdRng, TactKeyStore};
+use super::{ScalingStatValuesStore, ScriptNameInternerLikeCpp};
+use super::SessionPersistencePortsLikeCpp;
+use super::{ShieldBlockRegularGameTableLikeCpp, SkillLineStore};
+use super::{SkillStore, SkillTiersStoreLikeCpp, SpellCastState};
+use super::{SpellChargeEntry, SpellHistoryEntry, TactKeyStore};
 use super::{TalentStore, TavernAreaTriggerStoreLikeCpp, TeleportToOptionsLikeCpp, ToyStore};
 use super::{TrainerStoreLikeCpp, TraitDefinitionStore, TransmogSetItemStore};
 use super::{TrinityStringStoreLikeCpp, UnitFlags, UnitMoveTypeLikeCpp, UnitStandStateType};
 use super::{VecDeque, Vehicle, VehicleAccessory, VehicleAccessoryStoreLikeCpp, VehicleSeatStore};
-use super::{VehicleStore, VendorItemCount, VoidStorageItemIdGeneratorLikeCpp};
+use super::{VehicleStore, VendorItemCount, WaypointPathResolverLikeCpp};
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::{VehicleTemplateStoreLikeCpp, VendorBuyItemTestOverrideLikeCpp};
-use super::{WaypointPathResolverLikeCpp, WorldMMapPathfinderWorkerLikeCpp, WorldPacket};
 use super::{WorldSafeLocStore, driver, lifecycle};
 
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -229,17 +227,9 @@ pub(in crate::session) use presentation::PlayerPresentationState;
 mod interaction;
 pub(crate) use interaction::InteractionState;
 
-/// Shared registries and the game-event channel the session coordinates through.
-#[derive(Default)]
-pub(in crate::session) struct SessionDirectory {
-    /// Session -> world-server bridge for C++ GameEventMgr::HandleQuestComplete.
-    pub(in crate::session) game_event_quest_complete_tx:
-        Option<flume::Sender<GameEventQuestCompleteCommandLikeCpp>>,
-    /// Shared group registry for party management.
-    pub(in crate::session) group_registry: Option<Arc<GroupRegistry>>,
-    /// Pending party invites: invited_guid → inviter_guid.
-    pub(in crate::session) pending_invites: Option<Arc<PendingInvites>>,
-}
+pub(in crate::session) use wow_world_core::session::state::{
+    SessionDirectory, SessionDriverServices,
+};
 
 /// Social admission limits the session applies: the C++ Recruit-A-Friend XP
 /// level gates and the chat anti-flood throttle state charged per message.
@@ -287,17 +277,6 @@ pub(crate) struct SessionSocialLimits {
     /// Detached duel state and evidence used only by tests.
     #[cfg(test)]
     pub(in crate::session) duel_test_fixture_like_cpp: DuelTestFixtureLikeCpp,
-}
-
-/// Session-owned services the phase driver consults: the canonical time-sync
-/// protocol state and the represented gameplay RNG.
-pub(in crate::session) struct SessionDriverServices {
-    /// Canonical per-session time-sync protocol state.
-    pub(in crate::session) time_synchronization: TimeSynchronizationStateLikeCpp,
-    /// Session-owned RNG for represented gameplay choices that C++ resolves through
-    /// `urand`/`SelectRandomContainerElement` while the owning Player/Map runtime is
-    /// still being split out of `WorldSession`.
-    pub(in crate::session) represented_runtime_rng_like_cpp: StdRng,
 }
 
 /// The session's view of the world it is in: the active area trigger, the taxi
@@ -512,85 +491,10 @@ pub(crate) struct SessionLifecycleState {
         Box<Vec<wow_packet::packets::update::ChrCustomizationChoiceValuesUpdate>>,
 }
 
-/// The session's transport and connection identity: the `wow-session` transport
-/// kernel (#297), the physical remote address, the authentication session key
-/// and the shared session manager handle for the ConnectTo flow.
-pub(crate) struct SessionTransport {
-    /// The realm/instance transport, owned by `wow-session` (#297).
-    ///
-    /// The first piece of this type to earn its own crate: it compiles without
-    /// gameplay, databases or catalogs, so the compiler now prevents transport
-    /// decisions from reaching a `Player`, a `Map` or a query.
-    pub(in crate::session) connection: wow_session::SessionConnection,
-    pub(in crate::session) remote_address_like_cpp: Option<String>,
-    pub session_key: Vec<u8>,
-    /// Session manager for ConnectTo flow (shared with instance listener).
-    pub(in crate::session) session_mgr: Option<Arc<SessionManager>>,
-}
-
-/// Packet admission state: the ingress throttle and spoof-ban bookkeeping, the
-/// pending packet queue and the socket timeout and phase-authority fences for
-/// the admitted traffic.
-pub(crate) struct SessionAdmissionState {
-    pub(in crate::session) last_packet_time: Instant,
-    /// The producer and step this session last accepted, per phase (#787).
-    ///
-    /// C++ has one caller and needs no such watermark. Here it is what rejects
-    /// a foreign producer, a retired step and a replay of one already served,
-    /// none of which the identity of the player can distinguish. It is kept per
-    /// phase because one step legitimately issues the world phase and then the
-    /// map phase under the same epoch (`World.cpp:2704` then `World.cpp:2748`).
-    pub(in crate::session) last_phase_authority_like_cpp: [Option<(u64, u64)>; 2],
-    /// Set by the first canonical map-phase request (#787). Until then this
-    /// session has no coordinator and keeps draining its own queue.
-    pub(in crate::session) map_phase_coordinated_like_cpp: bool,
-    pub(in crate::session) packet_spoof_config_like_cpp: PacketSpoofConfigLikeCpp,
-    pub(in crate::session) packet_throttling_like_cpp: HashMap<u16, PacketCounterLikeCpp>,
-    pub(in crate::session) pending_packet_spoof_ban_like_cpp: Option<PacketSpoofPendingBanLikeCpp>,
-    pub(in crate::session) pending_packets: VecDeque<WorldPacket>,
-    pub(in crate::session) socket_timeout_deadline_like_cpp: Instant,
-    pub(in crate::session) socket_timeouts_like_cpp: SocketTimeoutsLikeCpp,
-}
-
-/// The realm and instance policy the session admits play under: the realm's
-/// region, battlegroup, name table and secret, the server expansion cap, the
-/// hourly instance budget and the two instance-ignore switches.
-pub(crate) struct SessionRealmPolicy {
-    pub(in crate::session) realm_battlegroup: u8,
-    pub(in crate::session) realm_region: u8,
-    pub(in crate::session) realm_names_like_cpp: BTreeMap<u32, (String, String)>,
-    pub(in crate::session) realm_list_secret_like_cpp: [u8; 32],
-    pub(in crate::session) server_expansion_like_cpp: u8,
-    pub(in crate::session) max_instances_per_hour_like_cpp: u32,
-    pub(in crate::session) instance_ignore_level_like_cpp: bool,
-    pub(in crate::session) instance_ignore_raid_like_cpp: bool,
-}
-
-/// Account-level session state: the Battle.net account id, the recruit-a-friend
-/// edges, the account's legitimate characters, the recent character low guid and
-/// the mute expiry the chat handlers enforce.
-pub(crate) struct SessionAccountState {
-    pub(in crate::session) battlenet_account_id: u32,
-    pub(in crate::session) is_a_recruiter_like_cpp: bool,
-    pub(in crate::session) recruiter_id_like_cpp: u32,
-    pub(in crate::session) legit_characters: Vec<ObjectGuid>,
-    /// C++ `WorldSession::m_GUIDLow`: last logged-in character low GUID kept after logout.
-    pub(in crate::session) recent_player_guid_low_like_cpp: u64,
-    pub(in crate::session) mute_time_like_cpp: i64,
-}
-
-/// Cross-thread session flags shared with the services that publish for this
-/// session: whether advanced combat logging selects the full spell-log payload,
-/// and whether a deferred visibility refresh is still owed.
-pub(crate) struct SessionSharedFlags {
-    /// C++ `Player::_advancedCombatLoggingEnabled`; consumed when combat-log fanout selects full/basic payloads.
-    /// C++ `WorldSession::_filterAddonMessages`' sibling for
-    /// `SMSG_SPELL_GO`: shared so a producer can commit the combat-log packet
-    /// variant per recipient while distributing a cast, the way C++ selects it
-    /// synchronously inside `WorldObject::SendCombatLogMessage`.
-    pub(in crate::session) advanced_combat_logging_enabled_like_cpp: Arc<AtomicBool>,
-    pub(in crate::session) visibility_refresh_pending_like_cpp: Arc<AtomicBool>,
-}
+pub(crate) use wow_world_core::session::state::{
+    SessionAccountState, SessionAdmissionState, SessionRealmPolicy, SessionSharedFlags,
+    SessionTransport,
+};
 
 // Declaration order is drop order (#1241 F2). These side-effecting members must
 // keep this relative order: `core.session_command_tx`/`session_command_rx`

@@ -5,7 +5,7 @@
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
 use super::{Arc, Item, NUM_ACCOUNT_DATA_TYPES, ObjectGuid, ObjectGuidGenerator, SessionManager};
-use super::{VoidStorageItemIdGeneratorLikeCpp, WorldSession};
+use super::WorldSession;
 pub(in crate::session) use wow_world_core::session::{
     PacketCounterLikeCpp, PacketSpoofPendingBanLikeCpp, PacketSpoofPendingBanTargetLikeCpp,
 };
@@ -75,13 +75,7 @@ pub(in crate::session) fn trinity_sprintf_like_cpp(format: &str, args: &[&str]) 
     output
 }
 
-/// Current Unix timestamp (seconds since epoch).
-pub(in crate::session) fn unix_now() -> i64 {
-    std::time::SystemTime::now()
-        .duration_since(std::time::UNIX_EPOCH)
-        .unwrap_or_default()
-        .as_secs() as i64
-}
+pub(in crate::session) use wow_world_core::session::connection_identity::unix_now;
 
 impl WorldSession {
     pub fn set_realm_id(&mut self, realm_id: u16) {
@@ -215,109 +209,6 @@ impl crate::session::state::SessionSocialLimits {
                 .registered_addon_prefixes
                 .iter()
                 .any(|registered| registered == prefix)
-    }
-}
-
-impl crate::session::state::SessionCore {
-    pub(crate) fn auto_reply_msg_like_cpp(&self) -> Option<String> {
-        self.canonical_player_snapshot_like_cpp(|player| {
-            player
-                .gameplay_state()
-                .social
-                .auto_reply_msg_like_cpp
-                .clone()
-        })
-    }
-
-    pub fn set_realm_id(&mut self, realm_id: u16) {
-        self.realm_id = realm_id;
-    }
-
-    /// Compute the Virtual Realm Address: `(Region << 24) | (Battlegroup << 16) | RealmId`.
-    ///
-    /// Region and Battlegroup come from the active `realmlist` row, matching C++
-    /// `Battlenet::RealmHandle{ realm.Id.Region, realm.Id.Site, realm.Id.Realm }.GetAddress()`.
-    pub(crate) fn virtual_realm_address(&self) -> u32 {
-        (u32::from(self.realm_policy.realm_region) << 24)
-            | (u32::from(self.realm_policy.realm_battlegroup) << 16)
-            | u32::from(self.realm_id)
-    }
-
-    pub(crate) fn realm_names_for_address_like_cpp(
-        &self,
-        realm_address: u32,
-    ) -> Option<(&str, &str)> {
-        self.realm_policy
-            .realm_names_like_cpp
-            .get(&realm_address)
-            .map(|(actual, normalized)| (actual.as_str(), normalized.as_str()))
-    }
-
-    /// Install the process-wide C++ `sObjectMgr->GenerateVoidStorageItemId()` mirror.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_void_storage_item_id_generator_like_cpp(
-        &mut self,
-        generator: Arc<VoidStorageItemIdGeneratorLikeCpp>,
-    ) {
-        self.void_storage_item_id_generator_like_cpp = Some(generator);
-    }
-
-    pub(crate) fn set_realm_list_secret_like_cpp(&mut self, secret: [u8; 32]) {
-        self.realm_policy.realm_list_secret_like_cpp = secret;
-    }
-
-    pub(crate) fn realm_list_secret_like_cpp(&self) -> &[u8; 32] {
-        &self.realm_policy.realm_list_secret_like_cpp
-    }
-
-    pub(crate) fn can_speak_like_cpp(&self) -> bool {
-        self.account_state.mute_time_like_cpp <= unix_now()
-    }
-
-    pub(crate) fn mute_time_remaining_secs_like_cpp(&self) -> Option<u64> {
-        let remaining = self
-            .account_state
-            .mute_time_like_cpp
-            .saturating_sub(unix_now());
-        (remaining > 0).then_some(remaining as u64)
-    }
-
-    pub(crate) fn recruiter_id_like_cpp(&self) -> u32 {
-        self.account_state.recruiter_id_like_cpp
-    }
-
-    pub(crate) fn is_a_recruiter_like_cpp(&self) -> bool {
-        self.account_state.is_a_recruiter_like_cpp
-    }
-
-    pub(crate) fn session_locale_name_like_cpp(&self) -> &str {
-        &self.locale
-    }
-
-    /// Get the realm ID.
-    pub fn realm_id(&self) -> u16 {
-        self.realm_id
-    }
-
-    /// Get the GUID generator test fixture.
-    #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn guid_generator(&self) -> Option<&Arc<ObjectGuidGenerator>> {
-        self.guid_generator.as_ref()
-    }
-
-    /// Get the session manager reference.
-    pub fn session_mgr(&self) -> Option<&Arc<SessionManager>> {
-        self.transport.session_mgr.as_ref()
-    }
-
-    /// Set the list of legitimate characters for this account.
-    pub fn set_legit_characters(&mut self, guids: Vec<ObjectGuid>) {
-        self.account_state.legit_characters = guids;
-    }
-
-    /// Check if a GUID is in the legit characters list.
-    pub fn is_legit_character(&self, guid: &ObjectGuid) -> bool {
-        self.account_state.legit_characters.contains(guid)
     }
 }
 

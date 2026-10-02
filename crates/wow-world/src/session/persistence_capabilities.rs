@@ -4,45 +4,18 @@
 //! Persistence capabilities: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{Arc, MAX_POWERS_PER_CLASS, ObjectGuid, Position};
+use super::Arc;
 
-pub(crate) type CharacterPowerSnapshotLikeCpp = [Option<i32>; MAX_POWERS_PER_CLASS];
-
+pub(crate) use wow_world_core::session::persistence_capabilities::{
+    CharacterPowerSnapshotLikeCpp, PlayerSaveToDbSnapshotLikeCpp,
+};
 #[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) fn empty_character_power_snapshot_like_cpp() -> CharacterPowerSnapshotLikeCpp
-{
-    [None; MAX_POWERS_PER_CLASS]
-}
-
-pub(in crate::session) fn loaded_character_power_snapshot_like_cpp(
-    powers: [i32; MAX_POWERS_PER_CLASS],
-) -> CharacterPowerSnapshotLikeCpp {
-    powers.map(|power| Some(power.max(0)))
-}
-
-pub(in crate::session) fn character_power_snapshot_values_like_cpp(
-    powers: &CharacterPowerSnapshotLikeCpp,
-) -> Option<[i32; MAX_POWERS_PER_CLASS]> {
-    let mut values = [0; MAX_POWERS_PER_CLASS];
-    for (index, power) in powers.iter().copied().enumerate() {
-        values[index] = power?;
-    }
-    Some(values)
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct PlayerSaveToDbSnapshotLikeCpp {
-    pub guid: ObjectGuid,
-    pub map_id: u16,
-    pub instance_id: u32,
-    pub position: Position,
-    pub level: u8,
-    pub xp: u32,
-    pub money: u64,
-    pub health: u32,
-    pub max_health: u32,
-    pub powers: CharacterPowerSnapshotLikeCpp,
-}
+pub(in crate::session) use wow_world_core::session::persistence_capabilities::{
+    empty_character_power_snapshot_like_cpp,
+};
+pub(in crate::session) use wow_world_core::session::persistence_capabilities::{
+    character_power_snapshot_values_like_cpp, loaded_character_power_snapshot_like_cpp,
+};
 
 /// Per-player session on the world server.
 ///

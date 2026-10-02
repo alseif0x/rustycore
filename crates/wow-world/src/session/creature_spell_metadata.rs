@@ -136,30 +136,7 @@ pub(in crate::session) fn creature_ai_spell_condition_like_cpp(
     }
 }
 
-pub(in crate::session) fn creature_ai_spell_difficulty_chain_like_cpp(
-    difficulty_id: u8,
-    config: &LegacyCreatureAggroConfigLikeCpp,
-) -> Vec<u8> {
-    let mut chain = Vec::new();
-    let mut visited = [false; 256];
-    let mut current = difficulty_id;
-    loop {
-        if visited[usize::from(current)] {
-            break;
-        }
-        visited[usize::from(current)] = true;
-        chain.push(current);
-        if current == 0 {
-            break;
-        }
-        current = config
-            .difficulty_store
-            .as_ref()
-            .and_then(|store| store.get(u32::from(current)))
-            .map_or(0, |difficulty| difficulty.fallback_difficulty_id);
-    }
-    chain
-}
+pub(in crate::session) use wow_world_core::session::creature_ai_spell_difficulty_chain_like_cpp;
 
 pub(in crate::session) fn creature_ai_spell_has_unrepresented_target_restrictions_like_cpp(
     spell_id: u32,
