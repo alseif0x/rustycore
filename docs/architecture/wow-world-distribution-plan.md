@@ -536,6 +536,30 @@ World. Quedan siete aliases privados con warnings nuevos en sus fachadas; cuatro
 atributos se limitan a `cfg(test)`, igual que sus consumidores. Esa delta está
 revisada, no recompilada. Compilación no equivale a ejecución de suites: pruebas,
 configuración de producción, inventario y gates de publicación siguen pendientes.
+El candidato limpio `e5de2c450` vuelve a pasar el workspace `--all-targets`
+en 42,623 s (23:17:31,758–23:18:14,381 UTC). La ejecución conjunta de las
+bibliotecas World/Core termina con exit 101 en 257,058 s
+(23:18:14,381–23:22:31,439 UTC): Core pasa 220 casos; World pasa 3.679,
+falla dos comprobaciones textuales de login y conserva un caso ignorado.
+Estas comprobaciones aún buscan el cuerpo de habilidades iniciales y correo
+en sus antiguos archivos World. Se revisan contra los proveedores Core y la
+delegación/orden del coordinador, sin retirar sus condiciones. Sus cuerpos
+coinciden con la base P4a; este resultado no acredita paridad nueva de login.
+Los listados ejecutables conservan la unión de identidades de las dos bibliotecas:
+33 casos pasan de World a Core con el mismo nombre, sin altas/bajas ni cambio
+del caso ignorado. World ahora activa `test-fixtures`; la base World retenida
+no la activaba, por lo que este contraste no sustituye la configuración de
+producción. Los registros y la comparación están en
+`technical-e5de2c450/` dentro de la evidencia de esta campaña. La secuencia se
+detiene antes del scanner y sus suites release; esos pasos siguen pendientes.
+La reparación de las dos comprobaciones conserva todos sus marcadores y añade
+la delegación exacta de argumentos/resultado desde World; únicamente cambia el
+archivo que contiene el cuerpo comprobado. La comparación de avisos unitarios
+World/Core con los artefactos retenidos de `test-fixtures` no encuentra nuevas
+identidades: los cinco avisos de bootstrap conservan mensaje y texto señalado
+al pasar a Core. Se conserva la limitación de procedencia histórica: el perfil
+del fingerprint difiere y su comando original no está atestado. Esto no acredita
+equivalencia exacta de perfil ni convierte el resultado rojo en aceptación.
 
 La construcción debe conservar el orden exacto de expresiones, RNG, relojes, canales
 y campos. Extraer primero el literal de `SessionCore` a una inicialización propia;

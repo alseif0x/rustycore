@@ -219,8 +219,10 @@ fn spell_login_phase_returns_projected_rows_and_favorites() {
 #[test]
 fn default_skill_login_phase_follows_quests_and_returns_learned_entries() {
     let login = include_str!("../../../src/handlers/character/world_entry/login.rs");
-    let default_skills =
+    let default_skills_forwarder =
         include_str!("../../../src/handlers/character/world_entry/login/default_skills.rs");
+    let default_skills_core =
+        include_str!("../../../../wow-world-core/src/session/progression/default_skills.rs");
     let quests_offset = login
         .find("self.load_player_quests().await;")
         .expect("quest loading precedes default skills");
@@ -238,6 +240,9 @@ fn default_skill_login_phase_follows_quests_and_returns_learned_entries() {
     assert!(default_offset < rewarded_offset);
     assert!(!login.contains("default_starting_skill_info_like_cpp"));
     assert!(!login.contains("let mut default_skill_entries"));
+    assert!(default_skills_forwarder.contains(
+        ") -> Option<Vec<wow_data::SkillInfoEntry>> {\n        crate::session::hub_mut(self).apply_default_skills_for_login_like_cpp(\n            race,\n            class,\n            level,\n            skill_records,\n            skill_info_by_id,\n        )"
+    ));
 
     for marker in [
         "default_starting_skill_info_like_cpp(",
@@ -253,7 +258,7 @@ fn default_skill_login_phase_follows_quests_and_returns_learned_entries() {
         "Some(default_skill_entries)",
     ] {
         assert!(
-            default_skills.contains(marker),
+            default_skills_core.contains(marker),
             "default-skill phase lost `{marker}`"
         );
     }
@@ -391,8 +396,8 @@ fn group_membership_login_phase_resets_then_restores_represented_group() {
 #[test]
 fn mail_login_phase_follows_controller_and_aborts_on_failure() {
     let login = include_str!("../../../src/handlers/character/world_entry/login.rs");
-    let mail_loading =
-        include_str!("../../../src/handlers/character/world_entry/login/mail_loading.rs");
+    let mail_loading_core =
+        include_str!("../../../../wow-world-core/src/session/persistence/login_mail.rs");
     let controller_offset = login
         .find("ensure_login_player_controller_like_cpp(")
         .expect("login establishes the Player controller before mail");
@@ -406,6 +411,9 @@ fn mail_login_phase_follows_controller_and_aborts_on_failure() {
     assert!(mail_offset < money_offset);
     assert!(!login.contains("PlayerLoginAuxiliaryLoadRequestLikeCpp::Mail"));
     assert!(!login.contains("replace_owned_player_mails_like_cpp"));
+    assert!(login.contains(
+        "if !crate::session::hub_mut(self)\n            .load_character_mail_for_login_like_cpp(&player_lifecycle_port, guid)\n            .await\n        {\n            return;\n        }"
+    ));
 
     for marker in [
         "PlayerLoginAuxiliaryLoadRequestLikeCpp::Mail",
@@ -417,7 +425,7 @@ fn mail_login_phase_follows_controller_and_aborts_on_failure() {
         "canonical Player mail owner disappeared",
         "return false;",
     ] {
-        assert!(mail_loading.contains(marker), "mail phase lost `{marker}`");
+        assert!(mail_loading_core.contains(marker), "mail phase lost `{marker}`");
     }
 }
 
