@@ -85,7 +85,10 @@ async fn run() -> Result<()> {
     if !peer.ip().is_loopback() {
         bail!("non-loopback peer");
     }
-    let mut socket = ForeverSocket::new(stream, 0x02010001, 0);
+    // WorldSocket.cpp::LoadSessionPermissionsCallback uses this independent
+    // certificate keyring selector; it is not the realm's geographic Region.
+    let region_group = wow_config::get_value_default("Network.EnterEncryptedModeRegionGroup", 0_i32);
+    let mut socket = ForeverSocket::new(stream, 0x02010001, region_group);
     socket.start().await?;
     if !admits_ticket(socket.join_ticket()?) {
         bail!("fixture variant rejected");
