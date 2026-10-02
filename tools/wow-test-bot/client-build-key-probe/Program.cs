@@ -6,6 +6,16 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 
+if (args.Length > 0 && args[0] == "--provide-local-world-certificate")
+{
+    if (args.Length != 3)
+        throw new ArgumentException(
+            "Usage: --provide-local-world-certificate <isolated WowB.exe> <public PEM bundle>");
+
+    LocalCertificateProvider.Install(Path.GetFullPath(args[1]), Path.GetFullPath(args[2]));
+    return;
+}
+
 if (args.Length > 0 && args[0] == "--observe-world-certificates")
 {
     if (args.Length != 2)

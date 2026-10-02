@@ -16,6 +16,8 @@ internal static class WorldCertificates
     private const int CaptureOffset = 0x200;
     private const int ReadyOffset = 0x220;
     private const int VectorOffset = 0x28;
+    // At client RVA 0x1F2C63D, RBX is object+0x28 and [RBX+8] is consumed as
+    // the element count; this is object+0x30 (not object+0x38).
     private const int CountOffset = 0x30;
     private const int ElementSize = 40;
     private const int PublicKeyOffset = 4;
@@ -24,6 +26,7 @@ internal static class WorldCertificates
     private const uint MemCommit = 0x1000;
     private const uint MemReserve = 0x2000;
     private const uint PageExecuteReadWrite = 0x40;
+    private const uint StillActive = 259;
 
     private static readonly byte[] SelectionInstructions =
         Convert.FromHexString("458B7E20488D58284D8D66204489BD58010000");
@@ -82,7 +85,7 @@ internal static class WorldCertificates
             WorldNative.FlushInstructionCache(processHandle, entry, (nuint)patch.Length);
 
             Console.WriteLine("World certificate observation ready; perform one isolated world login.");
-            WaitForReady(process, processHandle, readyFlag);
+            WaitForReady(processHandle, readyFlag);
             Thread.Sleep(500);
             nint objectAddress = new(BinaryPrimitives.ReadInt64LittleEndian(Read(processHandle, capturedObject, 8)));
             if (objectAddress == 0) throw new InvalidOperationException("No certificate dictionary observed");
@@ -99,7 +102,22 @@ internal static class WorldCertificates
         {
             try
             {
-                if (installed && !HasExited(process))
+                bool restore = installed;
+                if (installed)
+                {
+                    try
+                    {
+                        // Only a confirmed non-STILL_ACTIVE exit makes restoration unnecessary.
+                        restore = IsRunning(processHandle);
+                    }
+                    catch (InvalidOperationException)
+                    {
+                        Console.Error.WriteLine(
+                            "Client process-state query failed; attempting certificate selection restoration.");
+                    }
+                }
+
+                if (restore)
                 {
                     Write(processHandle, entry, SelectionInstructions);
                     WorldNative.FlushInstructionCache(processHandle, entry, (nuint)SelectionInstructions.Length);
@@ -155,11 +173,13 @@ internal static class WorldCertificates
             throw new ArgumentException("Only the isolated Forever WowB.exe is allowed");
     }
 
-    private static void WaitForReady(Process process, nint processHandle, nint readyFlag)
+    private static void WaitForReady(nint processHandle, nint readyFlag)
     {
         DateTime deadline = DateTime.UtcNow.AddSeconds(90);
-        while (DateTime.UtcNow < deadline && !HasExited(process))
+        while (DateTime.UtcNow < deadline)
         {
+            if (!IsRunning(processHandle))
+                throw new InvalidOperationException("Client exited before certificate metadata observation");
             if (BinaryPrimitives.ReadUInt32LittleEndian(Read(processHandle, readyFlag, sizeof(uint))) == 1)
                 return;
             Thread.Sleep(100);
@@ -171,8 +191,8 @@ internal static class WorldCertificates
     private static CertificateVector ReadStableVector(nint processHandle, nint objectAddress)
     {
         CertificateVector first = ReadVector(processHandle, objectAddress);
-        if (first.Count == 0 || first.Count > 32)
-            throw new InvalidOperationException("World certificate count outside bounded range");
+        if (first.Count > 32)
+            throw new InvalidOperationException($"World certificate count outside bounded range: {first.Count}");
 
         Thread.Sleep(50);
         CertificateVector second = ReadVector(processHandle, objectAddress);
@@ -255,16 +275,11 @@ internal static class WorldCertificates
     private static nint Add(nint address, int offset) =>
         new(checked(address.ToInt64() + offset));
 
-    private static bool HasExited(Process process)
+    private static bool IsRunning(nint processHandle)
     {
-        try
-        {
-            return process.HasExited;
-        }
-        catch (InvalidOperationException)
-        {
-            return true;
-        }
+        if (!WorldNative.GetExitCodeProcess(processHandle, out uint exitCode))
+            throw new InvalidOperationException("Cannot query client process state");
+        return exitCode == StillActive;
     }
 
     private readonly record struct CertificateVector(nint Pointer, ulong Count);
@@ -296,5 +311,8 @@ internal static class WorldCertificates
 
         [DllImport("kernel32.dll")]
         internal static extern bool CloseHandle(nint handle);
+
+        [DllImport("kernel32.dll", SetLastError = true)]
+        internal static extern bool GetExitCodeProcess(nint process, out uint exitCode);
     }
 }

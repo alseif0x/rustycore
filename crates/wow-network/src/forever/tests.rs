@@ -71,7 +71,8 @@ async fn pending() -> (ForeverSocket, TcpStream, SessionKeys) {
         listener.accept()
     );
     let mut peer = client.unwrap();
-    let mut socket = ForeverSocket::new(accepted.unwrap().0, 0x02010001, 0);
+    // The certificate RegionGroup is independent of geographic realm Region 2.
+    let mut socket = ForeverSocket::new(accepted.unwrap().0, 0x02010001, 7);
     let client_side = async {
         let mut hello = vec![0; wire::SERVER_HELLO.len()];
         peer.read_exact(&mut hello).await.unwrap();
@@ -128,6 +129,7 @@ async fn native_order_requires_proof_persistence_ack_and_counter_two() {
         let frame = Frame::decode(data).unwrap();
         assert_eq!(frame.opcode(), ENTER_ENCRYPTED_MODE);
         assert_eq!(frame.payload().len(), 69);
+        assert_eq!(&frame.payload()[..4], &7_i32.to_le_bytes());
         assert_eq!(frame.payload()[68], 0x80);
         assert_eq!(
             &frame.payload()[4..68],
