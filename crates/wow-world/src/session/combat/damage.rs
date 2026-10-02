@@ -157,7 +157,7 @@ impl WorldSession {
 }
 
 impl crate::session::HubMut<'_> {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_player_normal_damage_immune_like_cpp(&mut self, immune: bool) {
         let canonical = self
             .core
@@ -170,7 +170,7 @@ impl crate::session::HubMut<'_> {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_player_environmental_damage_immune_like_cpp(&mut self, immune: bool) {
         let canonical = self
             .core
@@ -226,7 +226,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.damage_control_like_cpp());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(wow_entities::PlayerDamageControlStateLikeCpp {
                 cheat_god: self.fixtures.combat.player_cheat_god_like_cpp,
@@ -268,7 +268,7 @@ impl crate::session::HubMut<'_> {
             player.unit_mut().set_health(u64::from(after));
             (before, after, max_health, applied, killed)
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             let max_health = self.fixtures.combat.player_max_health_like_cpp.max(1);
             let before = self.fixtures.combat.player_health_like_cpp.min(max_health);

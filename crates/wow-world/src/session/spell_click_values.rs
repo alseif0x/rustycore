@@ -116,14 +116,14 @@ pub(crate) struct RepresentedSpellClickExecutionOutcomeLikeCpp {
     pub failed_casts: usize,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedVehicleSeatChangeRequestLikeCpp {
     pub seat_id: i8,
     pub next: bool,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedVehicleSeatSpellClickRequestLikeCpp {
     pub vehicle_guid: ObjectGuid,
@@ -132,13 +132,13 @@ pub(crate) struct RepresentedVehicleSeatSpellClickRequestLikeCpp {
     pub exact_context_unrepresented: bool,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedVehicleEnterRequestLikeCpp {
     pub vehicle_guid: ObjectGuid,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct RepresentedVehicleDismissMovementLikeCpp {
     pub vehicle_guid: ObjectGuid,
@@ -147,7 +147,7 @@ pub(crate) struct RepresentedVehicleDismissMovementLikeCpp {
     pub time: u32,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct RepresentedVehicleBaseMovementLikeCpp {
     pub vehicle_guid: ObjectGuid,

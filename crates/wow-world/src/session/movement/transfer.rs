@@ -825,7 +825,7 @@ impl crate::session::HubMut<'_> {
         };
         let movement_flags = movement_flags & MovementFlag::MASK_HAS_PLAYER_STATUS_OPCODE;
         self.set_player_movement_flags_like_cpp(movement_flags);
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             self.fixtures.movement.player_movement_jump_like_cpp =
                 wow_packet::packets::movement::JumpInfo::default();
@@ -860,7 +860,7 @@ impl crate::session::HubMut<'_> {
         accepted
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_near_teleport_pending_like_cpp(
         &mut self,
         pending: bool,
@@ -983,13 +983,13 @@ impl crate::session::HubRef<'_> {
             .is_some_and(|state| state.can_delay)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_has_delayed_teleport_like_cpp(&self) -> bool {
         self.player_teleport_state_snapshot_like_cpp()
             .is_some_and(|state| state.has_delayed)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_delayed_teleport_like_cpp(
         &self,
     ) -> Option<(u32, wow_core::Position, TeleportToOptionsLikeCpp)> {
@@ -1016,7 +1016,7 @@ impl crate::session::HubMut<'_> {
                 })
                 .is_some();
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             let mut state = self
                 .shared()
@@ -1041,7 +1041,7 @@ impl crate::session::HubMut<'_> {
                 .near_teleport_destination_zone_area_like_cpp = state.near_destination_zone_area;
             true
         }
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         {
             let _ = update;
             false
@@ -1060,7 +1060,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| *player.teleport_state_like_cpp());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(PlayerTeleportStateLikeCpp {
                 recovery: Default::default(),

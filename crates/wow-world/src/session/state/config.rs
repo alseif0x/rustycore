@@ -8,20 +8,20 @@ use super::*;
 /// Immutable world configuration and rate values (C++ `sWorld` config subsets) and the script
 /// dispatchers injected at composition.
 pub(in crate::session) struct SessionWorldConfig {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) characters_per_realm_like_cpp: u32,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) declined_names_used_like_cpp: bool,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) feature_system_bpay_store_enabled_like_cpp: bool,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) feature_system_character_undelete_enabled_like_cpp: bool,
 
     pub(in crate::session) legacy_creature_aggro_config_like_cpp: LegacyCreatureAggroConfigLikeCpp,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) give_player_xp_script_dispatcher_like_cpp:
         Option<GivePlayerXpScriptDispatcherLikeCpp>,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) creature_health_rates_like_cpp: CreatureClassificationHealthRatesLikeCpp,
 
     // Characters confirmed for this account
@@ -39,9 +39,9 @@ pub(in crate::session) struct SessionWorldConfig {
     pub(in crate::session) max_primary_trade_skills_like_cpp: u8,
     /// C++ `CONFIG_CAST_UNSTUCK` immutable world policy injected into spell effects.
     pub(in crate::session) represented_cast_unstuck_enabled_like_cpp: bool,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) exploration_xp_rate_like_cpp: f32,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) min_discovered_scaled_xp_ratio_like_cpp: u32,
     /// C++ `sWorld->getRate(...)` subset used by represented loot generation.
     pub(in crate::session) loot_drop_rates: LootDropRatesLikeCpp,
@@ -64,34 +64,34 @@ pub(in crate::session) struct SessionWorldConfig {
     /// C++ `CONFIG_ENABLE_AE_LOOT` represented switch.
     pub(in crate::session) enable_ae_loot_like_cpp: bool,
     /// C++ `CONFIG_ADDON_CHANNEL` represented switch.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) addon_channel_like_cpp: bool,
     /// C++ `CONFIG_CHAT_FAKE_MESSAGE_PREVENTING` represented switch for chat validation.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) chat_fake_message_preventing_like_cpp: bool,
     /// C++ `CONFIG_CHAT_PARTY_RAID_WARNINGS` represented switch.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) party_raid_warnings_like_cpp: bool,
     /// C++ `CONFIG_ALLOW_GM_GROUP` represented switch.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) allow_gm_group_like_cpp: bool,
     /// C++ `CONFIG_ALLOW_TWO_SIDE_INTERACTION_GROUP` represented switch.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) allow_two_side_interaction_group_like_cpp: bool,
     /// C++ `CONFIG_PARTY_LEVEL_REQ` represented gate.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) party_level_req_like_cpp: u32,
     /// C++ `CONFIG_CHAT_STRICT_LINK_CHECKING_KICK` represented switch.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) chat_strict_link_checking_kick_like_cpp: bool,
     /// C++ `CONFIG_CHAT_*_LEVEL_REQ` represented chat level gates.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) chat_level_requirements_like_cpp: ChatLevelRequirementsLikeCpp,
     /// C++ `CONFIG_LISTEN_RANGE_*` represented nearby-chat ranges.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) chat_listen_ranges_like_cpp: ChatListenRangesLikeCpp,
     /// C++ `CONFIG_CHATFLOOD_*` represented chat spam protection.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) chat_flood_config_like_cpp: ChatFloodConfigLikeCpp,
     /// C++ `CONFIG_ENABLE_MMAPS` + `DataDir` represented until map lifecycle owns real mmaps.
     pub(in crate::session) mmap_runtime_config_like_cpp: MMapRuntimeConfigLikeCpp,

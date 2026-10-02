@@ -79,7 +79,7 @@ impl SpellCatalogsLikeCpp {
     ) {
         self.npc_spell_click_store = Some(store);
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_serverside_spell_store(
         &mut self,
         store: Arc<wow_data::ServersideSpellStoreLikeCpp>,
@@ -184,7 +184,7 @@ impl SpellCatalogsLikeCpp {
     ) {
         self.spell_target_restrictions_store = Some(store);
     }
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_spell_totem_model_store(
         &mut self,
         store: Arc<wow_data::SpellTotemModelStoreLikeCpp>,

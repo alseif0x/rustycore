@@ -370,16 +370,16 @@ impl WorldSession {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl crate::session::state::MovementState {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_vehicle_dismiss_movements_like_cpp(
         &self,
     ) -> &[RepresentedVehicleDismissMovementLikeCpp] {
         &self.represented_vehicle_dismiss_movements_like_cpp
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_vehicle_base_movements_like_cpp(
         &self,
     ) -> &[RepresentedVehicleBaseMovementLikeCpp] {
@@ -442,14 +442,14 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.unit().movement_counter_like_cpp());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(self.fixtures.movement.movement_counter_like_cpp);
         }
         canonical
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn player_movement_flags_like_cpp(&self) -> MovementFlag {
         self.resolved_player_movement_flags_like_cpp()
             .expect("test Player movement owner must resolve")
@@ -464,7 +464,7 @@ impl crate::session::HubRef<'_> {
                 .movement_control
                 .mover_fixed_position_vehicle
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
                 self.fixtures
@@ -488,7 +488,7 @@ impl crate::session::HubRef<'_> {
             let canonical = self.core.with_owned_player_like_cpp(|player| {
                 player.unit().subsystems().motion.spline.finalized
             });
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
                 // Handle-less movement fixtures have no materialized Player;
                 // C++'s freshly constructed MoveSpline is finalized.
@@ -568,7 +568,7 @@ impl crate::session::HubRef<'_> {
             let canonical = self.core.with_owned_player_like_cpp(|player| {
                 player.unit().movement_force_mod_magnitude_like_cpp()
             });
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
                 return Some(self.fixtures.movement.movement_force_mod_magnitude_like_cpp);
             }
@@ -613,13 +613,13 @@ impl crate::session::HubRef<'_> {
         requested_transport_guid: Option<ObjectGuid>,
     ) -> MovementTransportMembershipLikeCpp {
         let Some(key) = self.core.current_canonical_player_map_key_like_cpp() else {
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             return requested_transport_guid
                 .filter(|guid| !guid.is_empty())
                 .map_or(MovementTransportMembershipLikeCpp::Detached, |guid| {
                     MovementTransportMembershipLikeCpp::Attached(guid)
                 });
-            #[cfg(not(test))]
+            #[cfg(not(any(test, feature = "test-fixtures")))]
             return MovementTransportMembershipLikeCpp::Detached;
         };
         let Some(manager) = self.core.canonical_map_manager.as_ref().cloned() else {
@@ -667,7 +667,7 @@ impl crate::session::HubRef<'_> {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn player_movement_time_like_cpp(&self) -> u32 {
         self.resolved_player_movement_time_like_cpp()
             .expect("test Player movement-time owner must resolve")
@@ -679,7 +679,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self.core.with_owned_player_like_cpp(|player| {
             player.movement_force_mod_magnitude_changes_like_cpp()
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
                 self.fixtures
@@ -774,11 +774,13 @@ impl crate::session::HubMut<'_> {
                 player.unit_mut().world_mut().relocate(position);
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical || self.core.player_handle_like_cpp.is_none() {
             self.fixtures.movement.player_position = Some(position);
         }
-        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
+        canonical
+            || cfg!(any(test, feature = "test-fixtures"))
+                && self.core.player_handle_like_cpp.is_none()
     }
 
     pub(crate) fn set_player_movement_time_like_cpp(&mut self, time: u32) {
@@ -788,7 +790,7 @@ impl crate::session::HubMut<'_> {
                 player.unit_mut().set_movement_time_like_cpp(time);
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if _canonical || self.core.player_handle_like_cpp.is_none() {
             self.fixtures.movement.player_movement_time_like_cpp = time;
         }
@@ -801,7 +803,7 @@ impl crate::session::HubMut<'_> {
                 player.unit_mut().set_movement_flags_like_cpp(flags);
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if _canonical || self.core.player_handle_like_cpp.is_none() {
             self.fixtures.movement.player_movement_flags_like_cpp = flags;
         }
@@ -813,7 +815,7 @@ impl crate::session::HubMut<'_> {
         let canonical = self.core.with_owned_player_mut_like_cpp(|player| {
             player.consume_movement_force_mod_magnitude_change_like_cpp()
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             if self
                 .fixtures
@@ -838,7 +840,7 @@ impl crate::session::HubMut<'_> {
         canonical
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_movement_force_mod_magnitude_changes_like_cpp(&mut self, count: u8) {
         let canonical = self
             .core
@@ -853,7 +855,7 @@ impl crate::session::HubMut<'_> {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_movement_force_mod_magnitude_like_cpp(&mut self, magnitude: f32) {
         let canonical = self
             .core
@@ -913,7 +915,7 @@ impl crate::session::HubMut<'_> {
         self.core.current_map_id = map_id;
         self.core
             .sync_canonical_player_position_if_same_or_detached_like_cpp(map_id, position);
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none()
             || self.shared().player_position_like_cpp() == Some(position)
         {
@@ -928,7 +930,7 @@ impl crate::session::HubMut<'_> {
         let canonical = self.core.with_owned_player_mut_like_cpp(|player| {
             player.unit_mut().next_movement_counter_like_cpp()
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             let sequence_index = self.fixtures.movement.movement_counter_like_cpp;
             self.fixtures.movement.movement_counter_like_cpp = self
@@ -950,15 +952,17 @@ impl crate::session::HubMut<'_> {
                 player.unit_mut().reset_movement_counter_like_cpp();
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical || self.core.player_handle_like_cpp.is_none() {
             self.fixtures.movement.movement_counter_like_cpp = 0;
         }
-        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
+        canonical
+            || cfg!(any(test, feature = "test-fixtures"))
+                && self.core.player_handle_like_cpp.is_none()
     }
 
     pub fn set_player_moved_unit_guid_like_cpp(&mut self, guid: ObjectGuid) {
-        #[cfg_attr(not(test), allow(unused_variables))]
+        #[cfg_attr(not(any(test, feature = "test-fixtures")), allow(unused_variables))]
         let canonical = self
             .core
             .with_owned_player_mut_like_cpp(|player| {
@@ -969,7 +973,7 @@ impl crate::session::HubMut<'_> {
                     .set_moved_unit((!guid.is_empty()).then_some(guid));
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical || self.core.player_handle_like_cpp.is_none() {
             self.fixtures.movement.player_moved_unit_guid_like_cpp = guid;
         }
@@ -999,7 +1003,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.unit().world().position());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return self.fixtures.movement.player_position;
         }
@@ -1012,7 +1016,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.unit().movement_flags_like_cpp());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(self.fixtures.movement.player_movement_flags_like_cpp);
         }
@@ -1023,7 +1027,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self.core.with_owned_player_like_cpp(|player| {
             player.unit().subsystems().control.unit_moved_by_me
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             let guid = if self
                 .fixtures
@@ -1044,7 +1048,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.unit().movement_time_like_cpp());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(self.fixtures.movement.player_movement_time_like_cpp);
         }

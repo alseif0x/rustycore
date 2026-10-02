@@ -79,7 +79,7 @@ impl crate::session::HubMut<'_> {
                 player.hydrate_completed_achievements_like_cpp(achievements);
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             self.fixtures
                 .collections
@@ -122,7 +122,7 @@ impl crate::session::HubRef<'_> {
                 .map(|achievement| achievement.achievement_id)
                 .collect()
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
                 self.fixtures

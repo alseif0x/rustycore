@@ -50,7 +50,7 @@ pub(crate) enum RepresentedLiveIntentApplyOutcomeLikeCpp {
     RejectedMissingCanonicalPlayer,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) struct RepresentedLiveApplicationLikeCpp {
     pub intent: RepresentedLiveIntentLikeCpp,
@@ -416,14 +416,14 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.unit().stand_state_like_cpp());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(self.fixtures.presentation.player_stand_state_like_cpp);
         }
         canonical
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn player_stand_state_like_cpp(&self) -> UnitStandStateType {
         self.resolved_player_stand_state_like_cpp()
             .expect("test Player stand-state owner must resolve")
@@ -444,9 +444,9 @@ impl crate::session::HubRef<'_> {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl crate::session::state::PlayerPresentationState {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_live_applications_like_cpp(
         &self,
     ) -> &[RepresentedLiveApplicationLikeCpp] {
@@ -462,7 +462,7 @@ impl crate::session::HubMut<'_> {
                 player.unit_mut().set_stand_state_like_cpp(state)
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if _canonical || self.core.player_handle_like_cpp.is_none() {
             self.fixtures.presentation.player_stand_state_like_cpp = state;
         }

@@ -158,12 +158,12 @@ impl WorldSession {
 }
 
 impl crate::session::state::SessionWorldConfig {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_chat_fake_message_preventing_like_cpp(&mut self, enabled: bool) {
         self.chat_fake_message_preventing_like_cpp = enabled;
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_chat_level_requirements_like_cpp(
         &mut self,
         requirements: ChatLevelRequirementsLikeCpp,
@@ -171,12 +171,12 @@ impl crate::session::state::SessionWorldConfig {
         self.chat_level_requirements_like_cpp = requirements;
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_chat_listen_ranges_like_cpp(&mut self, ranges: ChatListenRangesLikeCpp) {
         self.chat_listen_ranges_like_cpp = ranges;
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_chat_flood_config_like_cpp(&mut self, config: ChatFloodConfigLikeCpp) {
         self.chat_flood_config_like_cpp = config;
     }
@@ -184,13 +184,13 @@ impl crate::session::state::SessionWorldConfig {
 
 impl crate::session::state::SessionCatalogs {
     /// Set the C++ Emotes.db2 store for `Unit::HandleEmoteCommand`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_emotes_store_like_cpp(&mut self, store: Arc<EmotesStore>) {
         self.emotes_store = Some(store);
     }
 
     /// Set the C++ EmotesText.db2 store for `HandleTextEmoteOpcode`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_emotes_text_store_like_cpp(&mut self, store: Arc<EmotesTextStore>) {
         self.emotes_text_store = Some(store);
     }
@@ -303,7 +303,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.unit().emote_state_like_cpp());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(self.fixtures.presentation.player_emote_state_like_cpp);
         }
@@ -326,7 +326,7 @@ impl crate::session::HubMut<'_> {
                 player.unit_mut().set_emote_state_like_cpp(emote_state);
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical || self.core.player_handle_like_cpp.is_none() {
             self.fixtures.presentation.player_emote_state_like_cpp = emote_state;
             if !canonical {
@@ -335,7 +335,10 @@ impl crate::session::HubMut<'_> {
                 });
             }
         }
-        if !canonical && !(cfg!(test) && self.core.player_handle_like_cpp.is_none()) {
+        if !canonical
+            && !(cfg!(any(test, feature = "test-fixtures"))
+                && self.core.player_handle_like_cpp.is_none())
+        {
             return None;
         }
         self.core

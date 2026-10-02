@@ -21,7 +21,7 @@ sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 from f3_codemod_lib import (  # noqa: E402
     add_cx_items, HUB_RS, Spans, regen_cx_items, remove_shim_fn, SPLIT_FN, SPLIT_MUT_FN, SPLIT_REF_FN,
     abs_vis, cargo_check, item_segments, git_ignored, line_start, module_paths, param_span,
-    relocate_ignored_shims, ret_type, shim_path, split_params, strip_cfg_test)
+    relocate_ignored_shims, ret_type, shim_path, split_params, strip_cfg_test, FIXTURES_ATTR, TEST_CFG)
 from f3_codemod_model import *  # noqa: E402,F401,F403  (groups, owner types, patterns, kind rules)
 
 REPO = pathlib.Path(__file__).resolve().parents[2]
@@ -51,8 +51,10 @@ def scan(root):
             if tname != "WorldSession" and not is_owner_type(tname):
                 continue
             close = W.matching_close(c, h.end() - 1)
-            pre = c[max(0, h.start() - 160):h.start()].rstrip()
-            impl_attr = re.findall(r"#\s*\[[^\]]*\]\s*$", pre)
+            p0 = max(0, h.start() - 160)
+            pre = c[p0:h.start()].rstrip()
+            am = re.search(r"#\s*\[[^\]]*\]\s*$", pre)          # raw text: blanking empties `"test-fixtures"`
+            impl_attr = [text[p0 + am.start():p0 + am.end()]] if am else []
             for seg, m, bo, bc in item_segments(W, c, h.end() - 1, close):
                 if tname != "WorldSession":
                     owned[m.group(1)].add((tname, rel))
@@ -72,8 +74,7 @@ def scan(root):
                 pbody = strip_cfg_test(body)
                 acc = collections.Counter(x for x in SELF_FIELD.findall(body) if x in groups)
                 pacc = collections.Counter(x for x in SELF_FIELD.findall(pbody) if x in groups)
-                cfg_test = bool(impl_attr and re.search(r"cfg\s*\(\s*test\s*\)", impl_attr[-1])) or bool(
-                    re.search(r"cfg\s*\(\s*test\s*\)", attrs))
+                cfg_test = bool(impl_attr and TEST_CFG.search(impl_attr[-1])) or bool(TEST_CFG.search(attrs))
                 fns.append(dict(name=m.group(1), file=rel, line=c.count("\n", 0, m.start()) + 1,
                                 impl_start=h.start(), impl_attr=impl_attr, seg=seg, fn_at=m.start(), body_open=bo,
                                 body_close=bc, vis=("pub" + (vm.group(1) or "").replace(" ", "")) if vm else "priv",
@@ -602,8 +603,8 @@ def apply_text(root, P):
             close = P["W"].matching_close(P["code"][rel], P["code"][rel].index("{", impl_start)) + 1
             attrs = next(f for f in by.values() if f["file"] == rel and f["impl_start"] == impl_start)["impl_attr"]
             lt = "<'_>" if tname in HUB_TYPES or tname.endswith(("Cx", "CxRef")) else ""
-            attrs = list(attrs) + (["#[cfg(test)]"] if tname in FIXTURE_OF and not any(
-                re.search(r"cfg\s*\(\s*test\s*\)", x) for x in attrs) else [])
+            attrs = list(attrs) + ([FIXTURES_ATTR] if tname in FIXTURE_OF and not any(   # fixture types: core-gated
+                TEST_CFG.search(x) for x in attrs) else [])
             head = "".join(x.strip() + "\n" for x in attrs) + f"impl {type_path(tname, rel)}{lt} {{\n"
             edits.append((close, close, "\n\n" + head + "\n".join(p.rstrip() + "\n" for p in parts) + "}"))
         for a, b, rep in sorted(edits, key=lambda e: (e[0], e[1]), reverse=True):

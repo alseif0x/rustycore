@@ -5,5 +5,5 @@
 use super::*;
 
 mod operations;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) mod test_fixtures;

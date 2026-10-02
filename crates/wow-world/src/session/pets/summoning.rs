@@ -348,13 +348,13 @@ impl crate::session::PetsCx<'_> {
 }
 
 impl crate::session::HubRef<'_> {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_pet_stable_current_index_like_cpp(&self) -> Option<u32> {
         self.player_pet_lifecycle_state_snapshot_like_cpp()
             .and_then(|state| state.stable.current_pet_index)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_temporary_unsummoned_pet_number_like_cpp(&self) -> u32 {
         self.player_pet_lifecycle_state_snapshot_like_cpp()
             .map_or(0, |state| state.temporary_unsummoned_pet_number)
@@ -570,7 +570,7 @@ impl crate::session::HubMut<'_> {
         }
 
         let _ = self.set_player_pet_guid_like_cpp(None);
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             self.fixtures.pets.represented_pet_created_by_spell_like_cpp = 0;
             self.fixtures.pets.represented_pet_react_state_like_cpp =

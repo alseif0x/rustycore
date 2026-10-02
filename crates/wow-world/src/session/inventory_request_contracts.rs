@@ -78,7 +78,7 @@ pub(crate) struct VendorItemCount {
     pub last_increment_time: u64,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct VendorBuyItemTestOverrideLikeCpp {
     pub(crate) item_id: u32,

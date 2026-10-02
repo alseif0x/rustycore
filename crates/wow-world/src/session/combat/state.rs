@@ -351,11 +351,11 @@ impl crate::session::HubMut<'_> {
         // the flag and the timer move together and this session only asks for
         // it.
         let now_secs = wow_entities::game_time_secs_like_cpp();
-        #[cfg_attr(not(test), allow(unused_mut))]
+        #[cfg_attr(not(any(test, feature = "test-fixtures")), allow(unused_mut))]
         let mut mutated = self.core.with_owned_player_mut_like_cpp(|player| {
             player.update_pvp_like_cpp(state, now_secs, override_state);
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if mutated.is_none()
             && self.core.player_handle_like_cpp.is_none()
             && let Some(guid) = self.core.player_guid()
@@ -366,7 +366,7 @@ impl crate::session::HubMut<'_> {
                     player.update_pvp_like_cpp(state, now_secs, override_state);
                 });
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             self.fixtures.combat.player_pvp_end_timer_like_cpp = if !state || override_state {
                 None
@@ -436,14 +436,14 @@ impl crate::session::HubMut<'_> {
             .store(enable, Ordering::Relaxed);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     fn set_player_pvp_hostile_fixture_like_cpp(&mut self, hostile: bool) {
         let _ = self.mutate_player_world_local_state_like_cpp(|state| {
             state.set_pvp_hostile_like_cpp(hostile);
         });
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_player_pvp_state_like_cpp(
         &mut self,
         hostile: bool,
@@ -480,7 +480,7 @@ impl crate::session::HubRef<'_> {
                 .pvp_flags_like_cpp()
                 .contains(UnitPvpFlags::PVP)
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             if let Some(flags) = self.canonical_player_pvp_flags_like_cpp(guid) {
                 return Some(flags.contains(UnitPvpFlags::PVP));
@@ -490,7 +490,7 @@ impl crate::session::HubRef<'_> {
         canonical
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn canonical_player_pvp_flags_like_cpp(
         &self,
         guid: ObjectGuid,
@@ -527,7 +527,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self.core.with_owned_player_like_cpp(|player| {
             player.has_player_flag(PLAYER_FLAGS_IN_PVP_LIKE_CPP)
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             if let Some(value) = self
                 .core
@@ -549,7 +549,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.unit().attacking());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(self.fixtures.combat.combat_target);
         }
@@ -569,7 +569,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.unit().subsystems().combat.has_combat());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(self.fixtures.combat.in_combat);
         }
@@ -583,18 +583,20 @@ impl crate::session::HubMut<'_> {
             .core
             .with_owned_player_mut_like_cpp(|player| player.unit_mut().set_attacking(target))
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical || self.core.player_handle_like_cpp.is_none() {
             self.fixtures.combat.combat_target = target;
         }
-        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
+        canonical
+            || cfg!(any(test, feature = "test-fixtures"))
+                && self.core.player_handle_like_cpp.is_none()
     }
 
     /// Publish C++ `CombatManager::HasCombat` from the canonical Player to the
     /// bounded directory view. The argument remains only for pre-owner tests;
     /// production never manufactures combat state outside `CombatSubsystem`.
     pub(crate) fn set_in_combat_like_cpp(&mut self, in_combat: bool) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             self.fixtures.combat.in_combat = in_combat;
             if let (Some(guid), Some(registry)) =
@@ -609,7 +611,7 @@ impl crate::session::HubMut<'_> {
             return;
         }
         let canonical = self.shared().resolved_in_combat_like_cpp();
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         let _ = in_combat;
         let Some(in_combat) = canonical else {
             return;

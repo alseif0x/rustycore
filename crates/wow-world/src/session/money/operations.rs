@@ -550,7 +550,7 @@ impl crate::session::state::InventoryState {
 
 impl crate::session::state::SessionCatalogs {
     /// Set the item currency cost store for this session.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_item_currency_cost_store(&mut self, store: Arc<ItemCurrencyCostStore>) {
         self.item_currency_cost_store = Some(store);
     }

@@ -39,7 +39,7 @@ impl crate::session::PetsCx<'_> {
 
 impl crate::session::HubMut<'_> {
     /// C++ `BattlePetMgr::SendUpdates`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn send_battle_pet_updates_like_cpp(
         &mut self,
         pet_guids: &[ObjectGuid],
@@ -105,11 +105,11 @@ impl crate::session::HubMut<'_> {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl crate::session::state::PetState {
     /// Test/setup seam for represented `BattlePet::PacketInfo` rows already
     /// loaded into `BattlePetMgr::_pets`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn add_represented_battle_pet_packet_info_like_cpp(
         &mut self,
         pet_guid: ObjectGuid,
@@ -120,7 +120,7 @@ impl crate::session::state::PetState {
             .insert(pet_guid, packet_info);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_battle_pet_data_updates_like_cpp(&self) -> &[ObjectGuid] {
         &self
             .battle_pet_test_fixture_like_cpp

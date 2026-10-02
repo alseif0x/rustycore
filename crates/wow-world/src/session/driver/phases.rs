@@ -76,9 +76,9 @@ impl crate::session::state::SessionCore {
     /// to prove the production order, not to cost anything in production.
     #[inline]
     pub(crate) fn record_driver_phase_like_cpp(&mut self, phase: SessionDriverPhaseLikeCpp) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         self.driver_phase_trace_like_cpp.push(phase);
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         let _ = phase;
     }
 }

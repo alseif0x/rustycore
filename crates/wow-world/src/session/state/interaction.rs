@@ -13,7 +13,7 @@ pub(crate) struct InteractionState {
     pub(crate) vendor_item_counts: HashMap<(wow_core::ObjectGuid, u32), VendorItemCount>,
     /// Test-only replacement for one resolved `VendorItem` row. Production
     /// always resolves the row through CharacterHandler's WorldDB query.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) vendor_buy_item_test_override_like_cpp:
         Option<VendorBuyItemTestOverrideLikeCpp>,
     /// Detached support feature configuration used only by tests.

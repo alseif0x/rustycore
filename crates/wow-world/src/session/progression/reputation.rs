@@ -237,14 +237,14 @@ impl crate::session::HubMut<'_> {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl crate::session::state::ProgressionState {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn reputation_mgr_like_cpp(&self) -> ReputationMgrRefLikeCpp<'_> {
         ReputationMgrLikeCpp::borrowing_like_cpp(&self.reputation_state_like_cpp)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn reputation_mgr_like_cpp_mut(&mut self) -> ReputationMgrMutLikeCpp<'_> {
         ReputationMgrLikeCpp::borrowing_mut_like_cpp(&mut self.reputation_state_like_cpp)
     }
@@ -363,13 +363,13 @@ impl crate::session::state::SessionCatalogs {
             })
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_start_all_reputation_like_cpp(&mut self, enabled: bool) {
         self.player_bootstrap_catalog_test_fixture_like_cpp
             .start_all_reputation_like_cpp = enabled;
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn start_all_reputation_like_cpp(&self) -> bool {
         self.player_bootstrap_catalog_test_fixture_like_cpp
             .start_all_reputation_like_cpp
@@ -458,7 +458,7 @@ impl crate::session::HubMut<'_> {
         if canonical.is_some() {
             return canonical;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             let mut manager = ReputationMgrLikeCpp::borrowing_mut_like_cpp(
                 &mut self.fixtures.progression.reputation_state_like_cpp,
@@ -506,7 +506,7 @@ impl crate::session::HubRef<'_> {
         if canonical.is_some() {
             return canonical;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             let manager = ReputationMgrLikeCpp::borrowing_like_cpp(
                 &self.fixtures.progression.reputation_state_like_cpp,

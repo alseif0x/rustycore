@@ -5,7 +5,7 @@
 use super::*;
 
 /// Handle-less test fixture for the canonical Player skill-state fallback.
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(super) struct PlayerSkillTestFixtureLikeCpp {
     pub(super) player_skill_values_like_cpp: HashMap<u16, u16>,
     pub(super) player_skill_records_like_cpp: HashMap<u16, RepresentedPlayerSkillLikeCpp>,
@@ -15,7 +15,7 @@ pub(super) struct PlayerSkillTestFixtureLikeCpp {
     pub(super) player_skill_occupied_slots_like_cpp: Option<u16>,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl Default for PlayerSkillTestFixtureLikeCpp {
     fn default() -> Self {
         Self {

@@ -80,7 +80,7 @@ use crate::session::{
     RepresentedQuestRewardReputationSourceLikeCpp, ReputationGainSourceLikeCpp,
     SeasonalQuestStatusDbRowLikeCpp, WorldSession,
 };
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::{
     RepresentedQuestRewardMailLikeCpp, RepresentedQuestRewardReputationLikeCpp,
     RepresentedQuestRewardSpellCastLikeCpp, RepresentedQuestRewardSpellKindLikeCpp,

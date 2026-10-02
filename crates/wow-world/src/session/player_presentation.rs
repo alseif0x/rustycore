@@ -4,7 +4,7 @@
 //! Player presentation: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::RepresentedForceDeselectLikeCpp;
 use super::debug;
 use super::{LIQUID_MAP_IN_WATER_LIKE_CPP, LIQUID_MAP_UNDER_WATER_LIKE_CPP, MovementFlag};
@@ -315,7 +315,7 @@ impl crate::session::HubMut<'_> {
                 );
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if !canonical
             && self.core.player_handle_like_cpp.is_none()
             && let Some(guid) = self.core.player_guid()
@@ -330,7 +330,7 @@ impl crate::session::HubMut<'_> {
                 })
                 .is_some();
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical || self.core.player_handle_like_cpp.is_none() {
             self.fixtures.vehicles.player_mount_display_id_like_cpp = display_id;
             self.fixtures.vehicles.player_mounted_like_cpp = mounted;
@@ -356,7 +356,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(Player::is_game_master_like_cpp);
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(self.fixtures.combat.player_game_master_like_cpp);
         }
@@ -373,7 +373,7 @@ impl crate::session::HubRef<'_> {
                 player.unit().world().object().scale(),
             )
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some((
                 self.fixtures.presentation.player_unit_flags_like_cpp,
@@ -396,7 +396,7 @@ impl crate::session::HubRef<'_> {
                 player.shapeshift_form_id_like_cpp()
             }
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(self.fixtures.auras.represented_shapeshift_form_like_cpp);
         }

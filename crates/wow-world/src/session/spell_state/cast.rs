@@ -300,7 +300,7 @@ impl WorldSession {
 }
 
 impl crate::session::state::SessionCatalogs {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_player_create_cast_spell_store_like_cpp(
         &mut self,
         store: Arc<PlayerCreateInfoCastSpellStoreLikeCpp>,

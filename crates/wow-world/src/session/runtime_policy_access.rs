@@ -92,13 +92,13 @@ impl WorldSession {
 }
 
 impl crate::session::state::SessionCatalogs {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_start_all_explored_like_cpp(&mut self, enabled: bool) {
         self.player_bootstrap_catalog_test_fixture_like_cpp
             .start_all_explored_like_cpp = enabled;
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn start_all_explored_like_cpp(&self) -> bool {
         self.player_bootstrap_catalog_test_fixture_like_cpp
             .start_all_explored_like_cpp
@@ -124,7 +124,7 @@ impl crate::session::HubMut<'_> {
 }
 
 impl crate::session::state::SessionWorldConfig {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_declined_names_used_like_cpp(&mut self, used: bool) {
         self.declined_names_used_like_cpp = used;
     }

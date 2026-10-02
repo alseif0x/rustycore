@@ -5,7 +5,7 @@
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
 use super::{Arc, BTreeSet, PetAuraLikeCpp, ScriptIdLikeCpp, ScriptNameInternerLikeCpp};
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::{PetDefaultSpellsEntryLikeCpp, PetLevelupSpellSetLikeCpp};
 use super::{SpellGroupStackRuleLikeCpp, WorldSession};
 
@@ -133,7 +133,7 @@ impl crate::session::state::SessionCatalogs {
             .and_then(|store| store.get_pet_aura_like_cpp(spell_id, effect_index))
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn pet_levelup_spell_list_like_cpp(
         &self,
         pet_family: u32,
@@ -144,7 +144,7 @@ impl crate::session::state::SessionCatalogs {
             .and_then(|store| store.get_pet_levelup_spell_list_like_cpp(pet_family))
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn pet_default_spells_entry_like_cpp(
         &self,
         id: i32,
@@ -155,7 +155,7 @@ impl crate::session::state::SessionCatalogs {
             .and_then(|store| store.get_pet_default_spells_entry_like_cpp(id))
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn pet_family_spells_like_cpp(&self, pet_family: u32) -> Option<Vec<u32>> {
         self.spell_catalogs
             .pet_family_spell_store
@@ -163,7 +163,7 @@ impl crate::session::state::SessionCatalogs {
             .and_then(|store| store.get_pet_family_spells_like_cpp(pet_family))
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn model_for_totem_like_cpp(&self, spell_id: u32, race_id: u8) -> u32 {
         self.spell_catalogs
             .spell_totem_model_store

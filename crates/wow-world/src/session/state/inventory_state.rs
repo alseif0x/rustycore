@@ -80,6 +80,6 @@ pub(crate) struct InventoryState {
     /// alone is not source proof because malformed rows may be rejected.
     #[cfg(test)]
     pub(in crate::session) player_equipment_inventory_authority_complete_like_cpp: bool,
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) represented_transmog_criteria_events: Vec<RepresentedTransmogCriteriaEvent>,
 }

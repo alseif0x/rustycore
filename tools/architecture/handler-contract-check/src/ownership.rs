@@ -541,9 +541,18 @@ enum CfgExpression {
     Any(Vec<CfgExpression>),
 }
 
+/// The wow-world `test-fixtures` feature (#1241 F4a-P2) is enabled only through
+/// dev-dependencies, never in a production build, so it is read like `test`.
+fn is_test_fixtures_feature(meta: &Meta) -> bool {
+    matches!(meta, Meta::NameValue(name_value) if name_value.path.is_ident("feature")
+        && matches!(&name_value.value, syn::Expr::Lit(syn::ExprLit { lit: syn::Lit::Str(value), .. })
+            if value.value() == "test-fixtures"))
+}
+
 fn cfg_meta_expression(meta: &Meta, test_enabled: bool) -> Result<CfgExpression, String> {
     match meta {
         Meta::Path(path) if path.is_ident("test") => Ok(CfgExpression::Constant(test_enabled)),
+        _ if is_test_fixtures_feature(meta) => Ok(CfgExpression::Constant(test_enabled)),
         Meta::Path(_) | Meta::NameValue(_) => {
             Ok(CfgExpression::Atom(meta.to_token_stream().to_string()))
         }
@@ -1091,7 +1100,7 @@ fn cfg_is_test_only(cfg: &str) -> bool {
 }
 
 fn cfg_predicate_is_test_only(predicate: &str) -> bool {
-    if predicate == "test" {
+    if predicate == "test" || predicate == "feature=\"test-fixtures\"" {
         return true;
     }
     if let Some(inner) = predicate
@@ -1963,3 +1972,7 @@ pub(crate) fn audit_registration_ownership(
         package_names,
     })
 }
+
+#[cfg(test)]
+#[path = "ownership_gate_tests.rs"]
+mod test_fixtures_gate_tests;

@@ -6,8 +6,10 @@ rust-version.workspace = true
 license.workspace = true
 
 [features]
-# Directory fixture helpers for cross-crate tests; never enabled in production.
-test-fixtures = []
+# Directory fixture helpers for cross-crate tests, and (#1241 F4a-P2) the test-only state and hooks
+# gated `any(test, feature = "test-fixtures")` so code moving to wow-world-core stays visible to
+# dependents' tests. Enabled only through dev-dependencies; never in a production build.
+test-fixtures = ["wow-session/test-support"]
 
 [dependencies]
 tokio = { workspace = true }

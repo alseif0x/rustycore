@@ -313,7 +313,7 @@ impl WorldCreature {
             .saturating_add(u64::from(diff_ms));
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn backdate_runtime_clock_for_test(&mut self, elapsed: Duration) {
         self.runtime_elapsed_ms_like_cpp = elapsed.as_millis().min(u128::from(u64::MAX)) as u64;
     }

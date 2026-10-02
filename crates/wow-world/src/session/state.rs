@@ -6,13 +6,13 @@
 
 #[cfg(test)]
 use super::AtomicUsize;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::BattlePetTestFixtureLikeCpp;
 use super::PlayerConditionStore;
 use super::PlayerCurrency;
 use super::RepresentedBankItemMoveLikeCpp;
 use super::RepresentedBattlefieldListLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::RepresentedBattlegroundQueueSlotLikeCpp;
 use super::RepresentedBattlemasterJoinSkirmishLikeCpp;
 #[cfg(test)]
@@ -29,7 +29,7 @@ use super::RepresentedQuestObjectiveProgressEventLikeCpp;
 use super::RepresentedSignPetitionLikeCpp;
 #[cfg(test)]
 use super::RepresentedSilencePartyTalkerLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::RepresentedVehicleSeatSpellClickRequestLikeCpp;
 #[cfg(test)]
 use super::instances::test_fixtures::InstanceTestFixtureLikeCpp;
@@ -37,11 +37,11 @@ use super::instances::test_fixtures::InstanceTestFixtureLikeCpp;
 use super::persistence::test_fixtures::LoadedPlayerFlagsTestFixtureLikeCpp;
 #[cfg(test)]
 use super::player_items::test_fixtures::PlayerItemTestFixtureLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::progression::PlayerSkillTestFixtureLikeCpp;
 #[cfg(test)]
 use super::quest::test_fixtures::QuestTestFixtureLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::rest_progression::RestMgrTestFixtureLikeCpp;
 #[cfg(test)]
 use super::social::test_fixtures::CalendarTestFixtureLikeCpp;
@@ -55,7 +55,7 @@ use super::social::test_fixtures::TradeTestFixtureLikeCpp;
 use super::spell_state::PlayerSpellAndTraitTestFixtureLikeCpp;
 #[cfg(test)]
 use super::support_features::test_fixtures::SupportFeatureTestFixtureLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::test_support::test_fixtures::PlayerBootstrapCatalogTestFixtureLikeCpp;
 use super::time_synchronization::TimeSynchronizationStateLikeCpp;
 #[cfg(test)]
@@ -79,7 +79,7 @@ use super::{EquipmentSetGuidGeneratorLikeCpp, ExplorationBaseXpStoreLikeCpp};
 use super::{FavoriteAppearanceStateLikeCpp, FishingBaseSkillStoreLikeCpp};
 use super::{FriendshipRepReactionStore, GameEventQuestCompleteCommandLikeCpp};
 use super::{GameObjectTemplateLifecycleStoreLikeCpp, GemPropertiesStore, GossipOptionInfo};
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::{GivePlayerXpScriptDispatcherLikeCpp, MoveSplineDoneTaxiEventLikeCpp};
 use super::{GraveyardStore, GroupRegistry, HashMap, HashSet, HeirloomStore};
 use super::{HomebindPersistenceJobLikeCpp, ImportPriceStores, Instant, Item};
@@ -90,7 +90,7 @@ use super::{
 use super::{LootDropRatesLikeCpp, LootStores, MAX_SPECIALIZATIONS_LIKE_CPP};
 use super::{MMapRuntimeConfigLikeCpp, MountCapabilityStore, MountDefinitionStoreLikeCpp};
 use super::{MountStore, MountTypeXCapabilityStore, MountXDisplayStore, MovementAckEventLikeCpp};
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::{MoveTeleportAckEventLikeCpp, PlayerTransportLoginStateLikeCpp};
 use super::{MovementFallDamageEvent, MovementFlag, MovementSpeedAckEventLikeCpp};
 use super::{MovementUnderMapDamageEvent, MovieStore, NUM_ACCOUNT_DATA_TYPES};
@@ -118,17 +118,17 @@ use super::{RepresentedGameObjectUseState, RepresentedGuildRepairBankStateLikeCp
 use super::{RepresentedGuildBankInventoryMoveLikeCpp, RepresentedGuildBankListRequestLikeCpp};
 #[cfg(test)]
 use super::{RepresentedGuildBankMoneyMoveLikeCpp, RepresentedGuildBankTabActionLikeCpp};
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::{RepresentedLiveApplicationLikeCpp, RepresentedLootRollCriteriaEvent};
 use super::{RepresentedLootRollState, RepresentedPendingBind};
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::{RepresentedTalentResetScriptHookLikeCpp, RepresentedTalentRespecCriteriaEventLikeCpp};
 use super::{RepresentedTalentRespecVisualSpellCastLikeCpp, RepresentedVoidStorageItemLikeCpp};
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::{RepresentedTaxiFlightStateLikeCpp, RepresentedTransmogCriteriaEvent};
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::{RepresentedVehicleBaseMovementLikeCpp, RepresentedVehicleDismissMovementLikeCpp};
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::{RepresentedVehicleEnterRequestLikeCpp, RepresentedVehicleSeatChangeRequestLikeCpp};
 use super::{RepresentedWargameInviteAcceptanceLikeCpp, ReputationRatesLikeCpp};
 use super::{ReputationRewardRateStoreLikeCpp, ScalingStatDistributionStore};
@@ -142,14 +142,14 @@ use super::{TrainerStoreLikeCpp, TraitDefinitionStore, TransmogSetItemStore};
 use super::{TrinityStringStoreLikeCpp, UnitFlags, UnitMoveTypeLikeCpp, UnitStandStateType};
 use super::{VecDeque, Vehicle, VehicleAccessory, VehicleAccessoryStoreLikeCpp, VehicleSeatStore};
 use super::{VehicleStore, VendorItemCount, VoidStorageItemIdGeneratorLikeCpp};
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::{VehicleTemplateStoreLikeCpp, VendorBuyItemTestOverrideLikeCpp};
 use super::{WaypointPathResolverLikeCpp, WorldMMapPathfinderWorkerLikeCpp, WorldPacket};
 use super::{WorldSafeLocStore, driver, lifecycle};
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 mod fixtures;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) use fixtures::SessionFixtures;
 mod hub;
 pub(crate) use hub::{
@@ -171,47 +171,47 @@ mod catalogs;
 pub(crate) use catalogs::SessionCatalogs;
 mod config;
 pub(in crate::session) use config::SessionWorldConfig;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 mod identity;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) use identity::PlayerIdentityState;
-mod inventory;
-pub(crate) use inventory::InventoryState;
-#[cfg(test)]
+mod inventory_state;
+pub(crate) use inventory_state::InventoryState;
+#[cfg(any(test, feature = "test-fixtures"))]
 mod collections;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) use collections::CollectionsState;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 mod auras;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) use auras::AuraState;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 mod progression;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) use progression::ProgressionState;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 mod combat;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) use combat::CombatState;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 mod movement;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) use movement::MovementState;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 mod teleport;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) use teleport::TeleportState;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 mod vehicles;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) use vehicles::TaxiVehicleState;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 mod pets;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) use pets::PetState;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 mod battleground;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) use battleground::BattlegroundState;
 mod instances;
 pub(crate) use instances::InstanceState;
@@ -219,9 +219,9 @@ mod world_entities;
 pub(crate) use world_entities::WorldEntitiesState;
 mod visibility;
 pub(crate) use visibility::VisibilityState;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 mod presentation;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) use presentation::PlayerPresentationState;
 mod interaction;
 pub(crate) use interaction::InteractionState;
@@ -621,7 +621,7 @@ pub struct WorldSession {
     pub(in crate::session) config: SessionWorldConfig,
     /// Test-only fixture groups (#1241 F3-0): the 11 cfg(test) domain groups, nested unchanged so
     /// an F3 context borrows one member instead of eleven.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fixtures: SessionFixtures,
     /// Player items, bank and equipment sets, money and currencies, and the represented bank,
     /// guild-bank and auction request sinks.

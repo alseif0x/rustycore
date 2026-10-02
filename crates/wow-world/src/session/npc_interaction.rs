@@ -230,7 +230,7 @@ impl crate::session::HubRef<'_> {
                     canonical_fail_closed_like_cpp = true;
                     return None;
                 }
-                #[cfg(test)]
+                #[cfg(any(test, feature = "test-fixtures"))]
                 let is_alive = if canonical_player.unit().data().max_health == 0
                     && self.core.player_handle_like_cpp.is_none()
                 {
@@ -239,12 +239,12 @@ impl crate::session::HubRef<'_> {
                 } else {
                     canonical_player.unit().is_alive() && canonical_player.unit().data().health > 0
                 };
-                #[cfg(not(test))]
+                #[cfg(not(any(test, feature = "test-fixtures")))]
                 let is_alive =
                     canonical_player.unit().is_alive() && canonical_player.unit().data().health > 0;
                 is_alive
             } else {
-                #[cfg(test)]
+                #[cfg(any(test, feature = "test-fixtures"))]
                 {
                     if self.core.player_handle_like_cpp.is_some() {
                         canonical_fail_closed_like_cpp = true;
@@ -253,7 +253,7 @@ impl crate::session::HubRef<'_> {
                     self.fixtures.combat.player_alive_like_cpp
                         && self.fixtures.combat.player_health_like_cpp > 0
                 }
-                #[cfg(not(test))]
+                #[cfg(not(any(test, feature = "test-fixtures")))]
                 {
                     canonical_fail_closed_like_cpp = true;
                     return None;

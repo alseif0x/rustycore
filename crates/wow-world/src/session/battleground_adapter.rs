@@ -51,7 +51,7 @@ pub(crate) struct RepresentedBattlemasterJoinSkirmishLikeCpp {
     pub queue_type_id: RepresentedBattlegroundQueueTypeIdLikeCpp,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) type RepresentedBattlegroundQueueSlotLikeCpp =
     wow_entities::PlayerBattlegroundQueueSlotLikeCpp;
 
@@ -508,51 +508,51 @@ impl WorldSession {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl crate::session::state::BattlegroundState {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_battlemaster_hellos_like_cpp(
         &self,
     ) -> &[RepresentedBattlemasterHelloLikeCpp] {
         &self.represented_battlemaster_hellos_like_cpp
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_battlefield_lists_like_cpp(
         &self,
     ) -> &[RepresentedBattlefieldListLikeCpp] {
         &self.represented_battlefield_lists_like_cpp
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_battlemaster_joins_like_cpp(
         &self,
     ) -> &[RepresentedBattlemasterJoinLikeCpp] {
         &self.represented_battlemaster_joins_like_cpp
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_battlemaster_join_arenas_like_cpp(
         &self,
     ) -> &[RepresentedBattlemasterJoinArenaLikeCpp] {
         &self.represented_battlemaster_join_arenas_like_cpp
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_battlemaster_join_skirmishes_like_cpp(
         &self,
     ) -> &[RepresentedBattlemasterJoinSkirmishLikeCpp] {
         &self.represented_battlemaster_join_skirmishes_like_cpp
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_battlefield_ports_like_cpp(
         &self,
     ) -> &[RepresentedBattlefieldPortLikeCpp] {
         &self.represented_battlefield_ports_like_cpp
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_wargame_invite_acceptances_like_cpp(
         &self,
     ) -> &[RepresentedWargameInviteAcceptanceLikeCpp] {
@@ -615,7 +615,7 @@ impl crate::session::HubRef<'_> {
 }
 
 impl crate::session::HubMut<'_> {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_player_battleground_type_id_like_cpp(&mut self, bg_type_id: u32) -> bool {
         let canonical = self
             .core
@@ -633,7 +633,7 @@ impl crate::session::HubMut<'_> {
         canonical
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_player_battleground_context_like_cpp(
         &mut self,
         bg_type_id: u32,
@@ -655,7 +655,7 @@ impl crate::session::HubMut<'_> {
         canonical
     }
 
-    #[cfg_attr(not(test), allow(unused_variables))]
+    #[cfg_attr(not(any(test, feature = "test-fixtures")), allow(unused_variables))]
     pub(crate) fn set_represented_battleground_status_like_cpp(&mut self, status: Option<u8>) {
         let canonical = self
             .core
@@ -663,7 +663,7 @@ impl crate::session::HubMut<'_> {
                 player.set_battleground_status_like_cpp(status)
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if !canonical && self.core.player_handle_like_cpp.is_none() {
             let _ = self.mutate_player_battleground_state_like_cpp(|state| {
                 state.set_battleground_status_like_cpp(status);
@@ -671,7 +671,7 @@ impl crate::session::HubMut<'_> {
         }
     }
 
-    #[cfg_attr(not(test), allow(unused_variables))]
+    #[cfg_attr(not(any(test, feature = "test-fixtures")), allow(unused_variables))]
     pub(crate) fn battlemaster_hello_like_cpp(&mut self, unit: ObjectGuid) -> bool {
         let Some((npc_flags, entry)) = self
             .core
@@ -684,7 +684,7 @@ impl crate::session::HubMut<'_> {
             return false;
         }
 
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         self.fixtures
             .battleground
             .represented_battlemaster_hellos_like_cpp
@@ -692,7 +692,7 @@ impl crate::session::HubMut<'_> {
         true
     }
 
-    #[cfg_attr(not(test), allow(unused_variables))]
+    #[cfg_attr(not(any(test, feature = "test-fixtures")), allow(unused_variables))]
     pub(crate) fn battlefield_list_like_cpp(
         &mut self,
         battlemaster_lists: &BattlemasterListStore,
@@ -705,7 +705,7 @@ impl crate::session::HubMut<'_> {
             return false;
         }
 
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         self.fixtures
             .battleground
             .represented_battlefield_lists_like_cpp
@@ -713,7 +713,7 @@ impl crate::session::HubMut<'_> {
         true
     }
 
-    #[cfg_attr(not(test), allow(unused_variables))]
+    #[cfg_attr(not(any(test, feature = "test-fixtures")), allow(unused_variables))]
     pub(crate) fn battlemaster_join_like_cpp(
         &mut self,
         battlemaster_lists: &BattlemasterListStore,
@@ -757,7 +757,7 @@ impl crate::session::HubMut<'_> {
             return false;
         }
 
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         self.fixtures
             .battleground
             .represented_battlemaster_joins_like_cpp
@@ -770,7 +770,7 @@ impl crate::session::HubMut<'_> {
         true
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn add_represented_battleground_queue_slot_like_cpp(
         &mut self,
         slot: u32,
@@ -795,7 +795,7 @@ impl crate::session::HubMut<'_> {
         }
     }
 
-    #[cfg_attr(not(test), allow(unused_variables))]
+    #[cfg_attr(not(any(test, feature = "test-fixtures")), allow(unused_variables))]
     pub(crate) fn battlefield_port_like_cpp(
         &mut self,
         ticket: wow_packet::packets::misc::LfgRideTicket,
@@ -819,7 +819,7 @@ impl crate::session::HubMut<'_> {
             return false;
         }
 
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         self.fixtures
             .battleground
             .represented_battlefield_ports_like_cpp
@@ -840,7 +840,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.battleground_state_like_cpp());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
                 wow_entities::PlayerBattlegroundState::from_represented_parts_like_cpp(

@@ -125,9 +125,9 @@ impl WorldSession {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl crate::session::state::MovementState {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn movement_speed_ack_events_like_cpp(&self) -> &[MovementSpeedAckEventLikeCpp] {
         &self.movement_speed_ack_events_like_cpp
     }
@@ -144,12 +144,12 @@ impl crate::session::HubMut<'_> {
         &mut self,
         event: MovementSpeedAckEventLikeCpp,
     ) {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         self.fixtures
             .movement
             .movement_speed_ack_events_like_cpp
             .push(event);
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         let _ = event;
     }
 
@@ -164,7 +164,7 @@ impl crate::session::HubMut<'_> {
                 player.consume_forced_speed_change_like_cpp(index)
             })
             .flatten();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             let count = &mut self.fixtures.movement.forced_speed_changes_like_cpp[index];
             if *count > 0 {
@@ -175,7 +175,7 @@ impl crate::session::HubMut<'_> {
         canonical
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_forced_speed_changes_like_cpp(
         &mut self,
         move_type: UnitMoveTypeLikeCpp,
@@ -193,7 +193,7 @@ impl crate::session::HubMut<'_> {
         }
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_player_movement_speed_rate_like_cpp(
         &mut self,
         move_type: UnitMoveTypeLikeCpp,
@@ -204,7 +204,7 @@ impl crate::session::HubMut<'_> {
 }
 
 impl crate::session::HubRef<'_> {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn player_movement_speed_like_cpp(&self, move_type: UnitMoveTypeLikeCpp) -> f32 {
         self.resolved_player_movement_speed_like_cpp(move_type)
             .expect("test Player movement-speed owner must resolve")
@@ -219,14 +219,14 @@ impl crate::session::HubRef<'_> {
             .core
             .with_owned_player_like_cpp(|player| player.forced_speed_changes_like_cpp(index))
             .flatten();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(self.fixtures.movement.forced_speed_changes_like_cpp[index]);
         }
         canonical
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn forced_speed_changes_like_cpp(&self, move_type: UnitMoveTypeLikeCpp) -> u8 {
         self.resolved_forced_speed_changes_like_cpp(move_type)
             .expect("test Player forced-speed owner must resolve")
@@ -246,11 +246,13 @@ impl crate::session::HubMut<'_> {
                 player.unit_mut().set_speed_rate_at_like_cpp(index, rate)
             })
             .unwrap_or(false);
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical || self.core.player_handle_like_cpp.is_none() {
             self.fixtures.movement.movement_speed_rates_like_cpp[index] = rate;
         }
-        canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
+        canonical
+            || cfg!(any(test, feature = "test-fixtures"))
+                && self.core.player_handle_like_cpp.is_none()
     }
 
     pub(in crate::session) fn recompute_represented_run_speed_rate_like_cpp(&mut self) {
@@ -382,7 +384,7 @@ impl crate::session::HubMut<'_> {
                 player.increment_forced_speed_changes_like_cpp(index)
             })
             .flatten();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             let count = &mut self.fixtures.movement.forced_speed_changes_like_cpp[index];
             *count = count.saturating_add(1);
@@ -402,7 +404,7 @@ impl crate::session::HubRef<'_> {
             .core
             .with_owned_player_like_cpp(|player| player.unit().speed_rate_at_like_cpp(index))
             .flatten();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(self.fixtures.movement.movement_speed_rates_like_cpp[index]);
         }

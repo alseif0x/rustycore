@@ -672,17 +672,17 @@ impl crate::session::state::SessionWorldView {
 
 impl crate::session::state::SessionCatalogs {
     /// Set the DB2-backed area trigger store for this session.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_area_trigger_db2_store(&mut self, store: Arc<AreaTriggerDb2Store>) {
         self.area_trigger_db2_store = Some(store);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_area_trigger_script_store(&mut self, store: Arc<AreaTriggerScriptStoreLikeCpp>) {
         self.area_trigger_script_store = Some(store);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_tavern_area_trigger_store(&mut self, store: Arc<TavernAreaTriggerStoreLikeCpp>) {
         self.tavern_area_trigger_store = Some(store);
     }

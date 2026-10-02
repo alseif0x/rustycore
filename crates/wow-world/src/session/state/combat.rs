@@ -9,81 +9,81 @@ use super::*;
 /// and resurrection.
 pub(crate) struct CombatState {
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_player_powers_like_cpp: CharacterPowerSnapshotLikeCpp,
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_player_max_powers_like_cpp: CharacterPowerSnapshotLikeCpp,
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_player_base_mana_like_cpp: i32,
     /// Currently selected target GUID (SetSelection).
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) selection_guid: Option<wow_core::ObjectGuid>,
 
     // ── Combat state ─────────────────────────────────────────────
     /// Current auto-attack target (None if not in combat).
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) combat_target: Option<wow_core::ObjectGuid>,
     /// True when the player is engaged in combat.
     /// Test-only bootstrap for fixtures without a canonical `Player` owner.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) in_combat: bool,
     /// Test-only legacy fixture for sessions without an installed Player owner.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_alive_like_cpp: bool,
     /// Handle-less fixture for C++ `Player::IsGameMaster()`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_game_master_like_cpp: bool,
     /// Represented `CHEAT_GOD` movement/fall guard.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_cheat_god_like_cpp: bool,
     /// Represented `IsImmunedToDamage(SPELL_SCHOOL_MASK_NORMAL)` fall guard.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_normal_damage_immune_like_cpp: bool,
     /// Represented `IsImmuneToEnvironmentalDamage()` guard inside EnvironmentalDamage.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_environmental_damage_immune_like_cpp: bool,
     /// Test-only legacy health fixture for sessions without a Player handle.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_health_like_cpp: u32,
     /// Test-only legacy max-health fixture for sessions without a Player handle.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_max_health_like_cpp: u32,
     /// C++ `Player::_areaSpiritHealerGUID`, represented until battleground/player resurrection owns it.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) area_spirit_healer_guid_like_cpp: ObjectGuid,
     /// Represented `pvpInfo.IsHostile` branch for Honorless Target after taxi landing.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_pvp_hostile_like_cpp: bool,
     /// Represented `Player::IsPvP()` branch for friendly-area near teleport handling.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_pvp_enabled_like_cpp: bool,
     /// Represented `PLAYER_FLAGS_IN_PVP` branch for friendly-area near teleport handling.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_in_pvp_flag_like_cpp: bool,
     /// Represented `pvpInfo.EndTimer` consumed by `Player::UpdatePvPFlag`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_pvp_end_timer_like_cpp: Option<i64>,
     /// C++ `Player::m_contestedPvPTimer`, reset by `Player::ResetContestedPvP`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) player_contested_pvp_timer_like_cpp: u32,
     /// C++ `Player::_resurrectionData`, represented until real Player/Spell
     /// resurrection request ownership exists.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_resurrection_request_like_cpp:
         Option<PlayerResurrectionRequestLikeCpp>,
     /// C++ `DELAYED_RESURRECT_PLAYER`, represented for resurrection requests
     /// that initiate teleport and must apply after WorldPortResponse.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_delayed_resurrection_after_teleport_like_cpp:
         Option<PlayerResurrectionRequestLikeCpp>,
     /// C++ `Player::GetDeathTimer()` represented for `Spell::EffectStuck`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) represented_death_timer_active_like_cpp: bool,
     /// Count of represented `Player::RepopAtGraveyard` calls from rejected pending binds.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) represented_repop_at_graveyard_count: u32,
 }

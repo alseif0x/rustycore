@@ -193,7 +193,7 @@ impl crate::session::state::SessionCore {
     /// The pending ConnectTo key, if a redirect is in flight.
     /// Test-only, like the kernel query it forwards to: production reads
     /// transport state through the operations above, never field by field.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn connect_to_key(&self) -> Option<i64> {
         self.transport.connection.connect_to_key()
     }
@@ -201,7 +201,7 @@ impl crate::session::state::SessionCore {
     /// Whether a ConnectTo serial is still recorded.
     /// Test-only, like the kernel query it forwards to: production reads
     /// transport state through the operations above, never field by field.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn has_connect_to_serial(&self) -> bool {
         self.transport.connection.has_connect_to_serial()
     }
@@ -209,7 +209,7 @@ impl crate::session::state::SessionCore {
     /// Whether an instance link receiver is installed and still awaited.
     /// Test-only, like the kernel query it forwards to: production reads
     /// transport state through the operations above, never field by field.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn is_awaiting_instance_link(&self) -> bool {
         self.transport.connection.is_awaiting_instance_link()
     }
@@ -217,7 +217,7 @@ impl crate::session::state::SessionCore {
     /// Whether a realm send channel is parked.
     /// Test-only, like the kernel query it forwards to: production reads
     /// transport state through the operations above, never field by field.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn has_parked_realm_send_channel(&self) -> bool {
         self.transport.connection.has_parked_realm_send_channel()
     }
@@ -235,7 +235,7 @@ impl crate::session::state::SessionCore {
     /// Replace the primary receive channel.
     /// Test-only, like the kernel query it forwards to: production reads
     /// transport state through the operations above, never field by field.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn set_packet_rx(&mut self, rx: flume::Receiver<wow_packet::WorldPacket>) {
         self.transport.connection.set_packet_rx(rx);
     }
@@ -244,7 +244,7 @@ impl crate::session::state::SessionCore {
     ///
     /// Test-only, like the kernel setter it forwards to: parking a channel
     /// outside the atomic instance-link transition is not a production state.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn install_realm_packet_channel(
         &mut self,
         rx: flume::Receiver<wow_packet::WorldPacket>,
@@ -287,12 +287,12 @@ impl crate::session::state::SessionCore {
             .await
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn install_realm_send_channel_for_test(&mut self, tx: flume::Sender<Vec<u8>>) {
         self.transport.connection.install_realm_send_channel(tx);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn install_realm_send_write_fence_for_test(
         &mut self,
         fence: SocketWriteFenceLikeCpp,

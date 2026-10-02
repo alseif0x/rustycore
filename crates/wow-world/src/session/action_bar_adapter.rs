@@ -124,7 +124,7 @@ impl crate::session::HubMut<'_> {
                 player.set_action_button_like_cpp(index, action, action_type)
             })
             .unwrap_or(false);
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             let Some(button) = self
                 .fixtures
@@ -145,7 +145,7 @@ impl crate::session::HubMut<'_> {
             .core
             .with_owned_player_mut_like_cpp(Player::reset_action_buttons_for_load_like_cpp)
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             self.fixtures
                 .presentation
@@ -159,21 +159,21 @@ impl crate::session::HubMut<'_> {
 }
 
 impl crate::session::HubRef<'_> {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn active_player_local_flags_like_cpp(&self) -> u32 {
         self.active_player_update_state_like_cpp()
             .expect("test active Player owner must resolve")
             .0
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn active_player_multi_action_bars_like_cpp(&self) -> u8 {
         self.active_player_update_state_like_cpp()
             .expect("test active Player owner must resolve")
             .2
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_action_button_like_cpp(&self, index: u8) -> Option<u32> {
         if let Some(canonical) = self
             .core
@@ -200,7 +200,7 @@ impl crate::session::HubMut<'_> {
         &mut self,
         mutate: impl FnOnce(&mut wow_entities::PlayerGameplayState) -> R,
     ) -> Option<R> {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             let mut state =
                 wow_entities::PlayerGameplayState::with_active_player_update_fields_like_cpp(
@@ -241,7 +241,7 @@ impl crate::session::HubRef<'_> {
                 state.multi_action_bars,
             )
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some((
                 self.fixtures
@@ -264,7 +264,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(Player::action_buttons_snapshot_like_cpp);
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
                 self.fixtures

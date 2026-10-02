@@ -22,6 +22,12 @@ RUST_LITERAL_OR_COMMENT_TRANSLATION = bytes(
 EXACT_CFG_TEST_ATTRIBUTE = re.compile(
     rb"\s*cfg\s*\(\s*test\s*\)\s*\Z"
 )
+# #1241 F4a-P2: the wow-world `test-fixtures` gate is test-only too. The feature is
+# enabled only through dev-dependencies, never in a production build. Matched on the
+# raw (unmasked) bytes because masking blanks the feature string.
+TEST_FIXTURES_CFG_ATTRIBUTE = re.compile(
+    rb'\s*cfg\s*\(\s*any\s*\(\s*test\s*,\s*feature\s*=\s*"test-fixtures"\s*\)\s*\)\s*\Z'
+)
 
 
 def blank_rust_noncode(masked: bytearray, start: int, end: int) -> None:
@@ -308,6 +314,7 @@ def cfg_test_item_end(source: bytes, cursor: int, kind: str) -> int:
 def top_level_cfg_test_item_spans(source: str) -> list[tuple[int, int]]:
     """Return exact byte spans of test-only top-level items in a Rust file."""
     masked = mask_rust_noncode(source)
+    original = source.encode("utf-8")
     spans: list[tuple[int, int]] = []
     brace_depth = 0
     cursor = 0
@@ -329,6 +336,8 @@ def top_level_cfg_test_item_spans(source: str) -> list[tuple[int, int]]:
                     )
                 if EXACT_CFG_TEST_ATTRIBUTE.fullmatch(
                     masked[bracket + 1 : closing]
+                ) or TEST_FIXTURES_CFG_ATTRIBUTE.fullmatch(
+                    original[bracket + 1 : closing]
                 ):
                     item_start = closing + 1
                     kind, search_start = cfg_test_item_kind(masked, item_start)
@@ -365,7 +374,7 @@ def file_is_entirely_cfg_test(source: str) -> bool:
         stripped = line.strip()
         if not stripped or stripped.startswith("//"):
             continue
-        if stripped == "#![cfg(test)]":
+        if stripped in ("#![cfg(test)]", '#![cfg(any(test, feature = "test-fixtures"))]'):
             return True
         if stripped.startswith("#!["):
             continue
@@ -443,6 +452,10 @@ def run_hotspot_classifier_self_tests() -> int:
         "fn production_possible() {}",
         'const FAKE: &str = "#[cfg(test)] mod fake { }";',
         "pub fn production_after() {}",
+        '#[cfg(any(test, feature = "test-fixtures"))]',
+        "fn fixture_gated() {}",
+        '#[cfg(any(test, feature = "test-fixtures", unix))]',
+        "fn not_exactly_the_gate() {}",
     ]
     source = "\n".join(lines) + "\n"
     expected = (
@@ -450,6 +463,7 @@ def run_hotspot_classifier_self_tests() -> int:
         | set(range(11, 15))
         | set(range(15, 20))
         | set(range(20, 25))
+        | {31, 32}
     )
     actual = top_level_cfg_test_line_indexes(source)
     if actual != expected:

@@ -47,7 +47,7 @@ pub(crate) enum RepresentedBattlePetSaveInfoLikeCpp {
     Removed,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct RepresentedBattlePetCageItemLikeCpp {
     pub(crate) item_id: u32,
@@ -348,9 +348,9 @@ impl WorldSession {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl crate::session::state::PetState {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_dismissed_critter_guids_like_cpp(&self) -> &[ObjectGuid] {
         &self
             .battle_pet_test_fixture_like_cpp
@@ -366,14 +366,14 @@ impl crate::session::HubRef<'_> {
         {
             return guid;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             self.fixtures
                 .pets
                 .battle_pet_test_fixture_like_cpp
                 .represented_critter_guid_like_cpp
         }
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         {
             None
         }
@@ -391,7 +391,7 @@ impl crate::session::HubMut<'_> {
         {
             return;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             self.fixtures
                 .pets
@@ -427,7 +427,7 @@ impl crate::session::HubMut<'_> {
         }
 
         self.set_represented_critter_guid_like_cpp(None);
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         self.fixtures
             .pets
             .battle_pet_test_fixture_like_cpp

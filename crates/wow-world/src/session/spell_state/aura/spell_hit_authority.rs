@@ -348,7 +348,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.unit().subsystems().auras.clone());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             let mut auras = wow_entities::AuraSubsystem::default();
             auras.set_persisted_player_aura_authority_complete_like_cpp(

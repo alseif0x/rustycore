@@ -585,12 +585,12 @@ impl WorldSession {
 
 impl crate::session::state::SessionCatalogs {
     /// Set the C++ AdventureMapPOI.db2 store for this session.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_adventure_map_poi_store(&mut self, store: Arc<AdventureMapPoiStore>) {
         self.adventure_map_poi_store = Some(store);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn adventure_map_poi_store(&self) -> Option<&Arc<AdventureMapPoiStore>> {
         self.adventure_map_poi_store.as_ref()
     }

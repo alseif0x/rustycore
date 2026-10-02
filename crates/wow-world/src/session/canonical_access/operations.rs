@@ -292,7 +292,7 @@ impl WorldSession {
 }
 
 impl crate::session::HubMut<'_> {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn mutate_player_world_local_state_like_cpp<R>(
         &mut self,
         mutate: impl FnOnce(&mut wow_entities::PlayerWorldLocalState) -> R,
@@ -303,7 +303,7 @@ impl crate::session::HubMut<'_> {
                 &mut player.gameplay_state_mut().world_local,
             )
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             let mut state = self
                 .shared()
@@ -331,7 +331,7 @@ impl crate::session::HubMut<'_> {
             .core
             .with_owned_player_mut_like_cpp(|player| player.set_zone_id_like_cpp(zone_id))
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if !canonical && self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_world_local_state_like_cpp(|state| {
@@ -347,7 +347,7 @@ impl crate::session::HubMut<'_> {
             .core
             .with_owned_player_mut_like_cpp(|player| player.set_area_id_like_cpp(area_id))
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if !canonical && self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_world_local_state_like_cpp(|state| {
@@ -369,7 +369,7 @@ impl crate::session::HubMut<'_> {
                 player.set_zone_area_like_cpp(zone_id, area_id)
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if !canonical && self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_world_local_state_like_cpp(|state| {
@@ -390,7 +390,7 @@ impl crate::session::HubMut<'_> {
                 player.set_zone_area_authority_like_cpp(complete)
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if !canonical && self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_world_local_state_like_cpp(|state| {
@@ -406,7 +406,7 @@ impl crate::session::HubMut<'_> {
             .core
             .with_owned_player_mut_like_cpp(|player| player.set_pvp_hostile_like_cpp(hostile))
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if !canonical && self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_world_local_state_like_cpp(|state| {
@@ -425,7 +425,7 @@ impl crate::session::HubMut<'_> {
             .core
             .with_owned_player_mut_like_cpp(|player| player.set_pvp_end_timer_like_cpp(end_timer))
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if !canonical && self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_world_local_state_like_cpp(|state| {
@@ -444,7 +444,7 @@ impl crate::session::HubMut<'_> {
             .core
             .with_owned_player_mut_like_cpp(|player| player.set_is_outdoors_like_cpp(is_outdoors))
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if !canonical && self.core.player_handle_like_cpp.is_none() {
             return self
                 .mutate_player_world_local_state_like_cpp(|state| {
@@ -479,7 +479,7 @@ impl crate::session::HubMut<'_> {
         if canonical.is_some() {
             return canonical;
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
             let result = apply(
                 &mut self
@@ -512,7 +512,7 @@ impl crate::session::HubMut<'_> {
             player.unit_mut().set_health(u64::from(after));
             (before, after, max_health, after.saturating_sub(before))
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             let max_health = self.fixtures.combat.player_max_health_like_cpp.max(1);
             let before = self.fixtures.combat.player_health_like_cpp.min(max_health);
@@ -526,7 +526,7 @@ impl crate::session::HubMut<'_> {
         canonical
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn mutate_player_battleground_state_like_cpp<R>(
         &mut self,
         mutate: impl FnOnce(&mut wow_entities::PlayerBattlegroundState) -> R,
@@ -597,7 +597,7 @@ impl crate::session::state::SessionCore {
         &self,
         f: impl FnOnce(&Player) -> R,
     ) -> Option<R> {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.player_handle_like_cpp.is_none() {
             return self.canonical_player_snapshot_like_cpp(f);
         }
@@ -638,9 +638,9 @@ impl crate::session::state::SessionCore {
             if owned.is_some() {
                 return owned;
             }
-            #[cfg(not(test))]
+            #[cfg(not(any(test, feature = "test-fixtures")))]
             return None;
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             if self.player_handle_like_cpp.is_some() {
                 return None;
             }
@@ -680,7 +680,7 @@ impl crate::session::state::SessionCore {
         result
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn mutate_player_unit_presentation_like_cpp<R>(
         &mut self,
         mutate: impl FnOnce(&mut Player) -> R,

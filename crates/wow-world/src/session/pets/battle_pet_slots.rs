@@ -40,9 +40,9 @@ impl crate::session::PetsCx<'_> {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl crate::session::state::PetState {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_battle_pet_slot_like_cpp(&self, slot: u8) -> Option<ObjectGuid> {
         self.battle_pet_test_fixture_like_cpp
             .represented_battle_pet_slots_like_cpp
@@ -50,7 +50,7 @@ impl crate::session::state::PetState {
             .and_then(|slot| slot.pet_guid)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_battle_pet_slot_locked_like_cpp(&self, slot: u8) -> Option<bool> {
         self.battle_pet_test_fixture_like_cpp
             .represented_battle_pet_slots_like_cpp
@@ -61,7 +61,7 @@ impl crate::session::state::PetState {
 
 impl crate::session::HubMut<'_> {
     /// C++ `WorldSession::HandleBattlePetSetBattleSlot`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn battle_pet_set_battle_slot_like_cpp(
         &mut self,
         pet_guid: ObjectGuid,
@@ -93,7 +93,7 @@ impl crate::session::HubMut<'_> {
     }
 
     /// C++ `BattlePetMgr::UnlockSlot`.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn battle_pet_unlock_slot_like_cpp(&mut self, slot: u8) -> bool {
         let Some(slot_ref) = self
             .fixtures
@@ -127,7 +127,7 @@ impl crate::session::HubMut<'_> {
     /// attachment owns this authority in production; this seam exists for
     /// isolated represented tests and rejects missing, duplicate, or
     /// out-of-range slot rows.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn complete_represented_battle_pet_slot_authority_load_like_cpp(
         &mut self,
         rows: impl IntoIterator<Item = (u8, Option<ObjectGuid>, bool)>,

@@ -144,13 +144,13 @@ impl crate::session::state::InventoryState {
 
 impl crate::session::state::SessionCatalogs {
     /// Set the C++ ItemPriceBase.db2 store for this session.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_item_price_base_store(&mut self, store: Arc<ItemPriceBaseStore>) {
         self.item_price_base_store = Some(store);
     }
 
     /// Set the item class store for this session.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_item_class_store(&mut self, store: Arc<ItemClassStore>) {
         self.item_class_store = Some(store);
     }

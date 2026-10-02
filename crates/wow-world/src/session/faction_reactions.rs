@@ -73,7 +73,7 @@ impl crate::session::HubMut<'_> {
                 player.set_watched_faction_index_like_cpp(index)
             })
             .is_some();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if !_canonical && self.core.player_handle_like_cpp.is_none() {
             self.fixtures.progression.watched_faction_index_like_cpp = index;
         }
@@ -85,14 +85,14 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.watched_faction_index_like_cpp());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(self.fixtures.progression.watched_faction_index_like_cpp);
         }
         canonical
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn watched_faction_index_like_cpp(&self) -> i32 {
         self.resolved_watched_faction_index_like_cpp()
             .expect("Player watched-faction owner must resolve")

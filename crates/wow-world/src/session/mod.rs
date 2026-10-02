@@ -47,7 +47,7 @@ pub(crate) use object_updates::represented_dynamic_object_values_update_delivery
 pub(crate) use object_updates::represented_gameobject_dynamic_flags_update_like_cpp;
 mod persistence;
 mod pets;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use pets::test_fixtures::BattlePetTestFixtureLikeCpp;
 mod player_cast;
 mod player_items;
@@ -89,7 +89,7 @@ use aura_effect_values::unit_owned_apply_aura_effect_mask_like_cpp;
 mod battle_pet_adapter;
 #[cfg(test)]
 pub(crate) use battle_pet_adapter::NEXT_REPRESENTED_BATTLE_PET_COUNTER_LIKE_CPP;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use battle_pet_adapter::RepresentedBattlePetCageItemLikeCpp;
 #[cfg(test)]
 pub(crate) use battle_pet_adapter::RepresentedBattlePetCageOutcomeLikeCpp;
@@ -109,7 +109,7 @@ pub(crate) use battle_pet_adapter::next_represented_battle_pet_guid_like_cpp;
 mod battleground_adapter;
 pub(crate) use battleground_adapter::RepresentedBattlefieldListLikeCpp;
 pub(crate) use battleground_adapter::RepresentedBattlefieldPortLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use battleground_adapter::RepresentedBattlegroundQueueSlotLikeCpp;
 pub(crate) use battleground_adapter::RepresentedBattlegroundQueueTypeIdLikeCpp;
 pub(crate) use battleground_adapter::RepresentedBattlemasterHelloLikeCpp;
@@ -134,9 +134,9 @@ pub(crate) use character_customization::RepresentedAlterAppearanceLikeCpp;
 pub(crate) use character_customization::RepresentedAtLoginFlagRemovalLikeCpp;
 pub(crate) use character_customization::RepresentedConfirmBarbersChoiceLikeCpp;
 pub(crate) use character_customization::RepresentedConfirmRespecWipeLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use character_customization::RepresentedTalentResetScriptHookLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use character_customization::RepresentedTalentRespecCriteriaEventLikeCpp;
 pub(crate) use character_customization::RepresentedTalentRespecVisualSpellCastLikeCpp;
 mod cinematic_adapter;
@@ -144,7 +144,7 @@ mod collection_adapter;
 pub(crate) use collection_adapter::AccountHeirloomSaveRowLikeCpp;
 pub(crate) use collection_adapter::AccountItemAppearanceSavePlanLikeCpp;
 pub(crate) use collection_adapter::AccountTransmogIllusionSavePlanLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use collection_adapter::RepresentedTransmogCriteriaEvent;
 pub(crate) use collection_adapter::{AccountMountSaveRowLikeCpp, AccountToySaveRowLikeCpp};
 use collection_adapter::{DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP, heirloom_bonus_for_flags_like_cpp};
@@ -292,7 +292,7 @@ pub(crate) use inventory_request_contracts::DirectInventoryStorageOverlayLikeCpp
 pub(crate) use inventory_request_contracts::MAX_EQUIPMENT_SET_INDEX_LIKE_CPP;
 pub(crate) use inventory_request_contracts::RepresentedAutoUnequipOffhandLikeCpp;
 pub(crate) use inventory_request_contracts::RepresentedAutoUnequipOffhandReasonLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use inventory_request_contracts::VendorBuyItemTestOverrideLikeCpp;
 use inventory_request_contracts::represented_equipment_set_from_packet_like_cpp;
 pub(crate) use inventory_request_contracts::{
@@ -327,7 +327,7 @@ pub(crate) use loot_delivery_contracts::DurableItemLootPersistenceTrackerLikeCpp
 pub(crate) use loot_delivery_contracts::DurableLootItemFanoutLikeCpp;
 pub(crate) use loot_delivery_contracts::LootMoneyDeliveryAddressLikeCpp;
 pub(crate) use loot_delivery_contracts::LootMoneyViewerFanoutLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use loot_delivery_contracts::RepresentedLootRollCriteriaEvent;
 pub(crate) use loot_delivery_contracts::loot_money_durable_outcome_like_cpp;
 pub(crate) use loot_delivery_contracts::{RepresentedLootRollState, RepresentedLootRollVote};
@@ -349,16 +349,16 @@ mod movement_protocol;
 use movement_protocol::PLAYER_BASE_MOVE_SPEED_LIKE_CPP;
 #[cfg(test)]
 pub(crate) use movement_protocol::RepresentedAreaZoneCriteriaLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use movement_protocol::RepresentedTaxiFlightNodeLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use movement_protocol::canonical_taxi_flight_state_like_cpp;
 #[cfg(test)]
 use movement_protocol::represented_taxi_flight_node_like_cpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use movement_protocol::represented_taxi_flight_state_like_cpp;
 pub(crate) use movement_protocol::{MoveSplineDoneTaxiActionLikeCpp, MovementAckEventLikeCpp};
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use movement_protocol::{MoveSplineDoneTaxiEventLikeCpp, MoveTeleportAckEventLikeCpp};
 pub(crate) use movement_protocol::{MoveTeleportAckActionLikeCpp, MovementSpeedAckActionLikeCpp};
 pub(crate) use movement_protocol::{MovementFallDamageEvent, MovementUnderMapDamageEvent};
@@ -367,7 +367,7 @@ pub(crate) use movement_protocol::{
     creature_movement_spline_speed_opcode_like_cpp, movement_speed_ack_move_type_like_cpp,
     player_movement_speed_opcodes_like_cpp,
 };
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use movement_protocol::{RepresentedTaxiFlightStateLikeCpp, canonical_taxi_flight_node_like_cpp};
 mod npc_interaction;
 mod persistence_capabilities;
@@ -379,7 +379,7 @@ pub use persistence_capabilities::SessionAdmissionPersistenceLikeCpp;
 pub use persistence_capabilities::SessionPersistencePortsLikeCpp;
 pub use persistence_capabilities::WorldPersistenceCapabilitiesLikeCpp;
 use persistence_capabilities::character_power_snapshot_values_like_cpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use persistence_capabilities::empty_character_power_snapshot_like_cpp;
 use persistence_capabilities::loaded_character_power_snapshot_like_cpp;
 mod pet_dismissal;
@@ -393,7 +393,7 @@ pub(crate) use pet_loading::{CharacterPetAuraRowLikeCpp, CharacterPetSpellCharge
 pub(crate) use pet_loading::{CharacterPetSpellRowLikeCpp, CharacterPetStableRowLikeCpp};
 mod player_binding;
 use player_binding::PlayerIdentityBootstrapLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use player_binding::PlayerTransportLoginStateLikeCpp;
 pub(crate) use player_binding::SessionPlayerController;
 mod player_bootstrap;
@@ -435,7 +435,7 @@ use player_spell_records::canonical_player_skill_record_like_cpp;
 use player_spell_records::canonical_player_spell_record_like_cpp;
 #[cfg(test)]
 use player_spell_records::canonical_player_spell_runtime_like_cpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use player_spell_records::is_non_durable_skill_tombstone_like_cpp;
 use player_spell_records::represented_player_skill_record_like_cpp;
 use player_spell_records::represented_player_spell_record_like_cpp;
@@ -454,23 +454,23 @@ pub(crate) use quest_dialog::RepresentedQuestCompleteStatusUpdateLikeCpp;
 pub(crate) use quest_dialog::RepresentedQuestConfirmAcceptLikeCpp;
 pub(crate) use quest_dialog::RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp;
 pub(crate) use quest_dialog::RepresentedQuestPushResultResponseLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::RepresentedQuestRewardMailLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::RepresentedQuestRewardReputationLikeCpp;
 pub(crate) use quest_dialog::RepresentedQuestRewardReputationSourceLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::RepresentedQuestRewardSpellCastLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::RepresentedQuestRewardSpellKindLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::RepresentedQuestRewardTalentPointsLikeCpp;
 pub(crate) use quest_dialog::ResetSeasonalQuestStatusOutcomeLikeCpp;
 pub(crate) use quest_dialog::ResetSeasonalQuestStatusReasonLikeCpp;
 pub(crate) use quest_dialog::SeasonalQuestStatusDbRowLikeCpp;
 #[cfg(test)]
 use quest_dialog::primary_power_type_for_player_class_like_cpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::{
     RepresentedForceDeselectLikeCpp, RepresentedQuestRewardTitleLikeCpp,
 };
@@ -510,15 +510,15 @@ use spell_click_values::RepresentedSpellClickCreatureSnapshotLikeCpp;
 pub(crate) use spell_click_values::RepresentedSpellClickExecutionOutcomeLikeCpp;
 pub(crate) use spell_click_values::RepresentedSpellClickPlanLikeCpp;
 pub(crate) use spell_click_values::RepresentedSpellClickUnitRefLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use spell_click_values::RepresentedVehicleBaseMovementLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use spell_click_values::RepresentedVehicleDismissMovementLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use spell_click_values::RepresentedVehicleEnterRequestLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use spell_click_values::RepresentedVehicleSeatChangeRequestLikeCpp;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use spell_click_values::RepresentedVehicleSeatSpellClickRequestLikeCpp;
 use spell_click_values::represented_spell_cast_guid_for_map_like_cpp;
 use spell_click_values::represented_spell_click_school_damage_amount_like_cpp;
@@ -526,7 +526,7 @@ use spell_click_values::spell_effect_has_non_or_db_nearby_entry_destination_like
 use spell_click_values::spell_effect_is_represented_summon_object_slot_like_cpp;
 mod spell_pet_catalogs;
 mod stand_state_adapter;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use stand_state_adapter::RepresentedLiveApplicationLikeCpp;
 pub(crate) use stand_state_adapter::RepresentedLiveIntentAppliedLikeCpp;
 pub(crate) use stand_state_adapter::RepresentedLiveIntentApplyOutcomeLikeCpp;
@@ -711,12 +711,12 @@ use wow_data::{
     },
     spell_duration_ms_like_cpp, spell_effect_radius_like_cpp,
 };
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use wow_data::{
     BattlePetBreedQualityStore, BattlePetBreedStateStore, BattlePetSpeciesStateStore,
     BattlePetSpeciesStore, BattlePetXpGameTableLikeCpp, calculate_battle_pet_stats_like_cpp,
 };
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use wow_data::{
     PetDefaultSpellStoreLikeCpp, PetDefaultSpellsEntryLikeCpp, PetFamilySpellStoreLikeCpp,
     PetLevelupSpellSetLikeCpp, PetLevelupSpellStoreLikeCpp, ServersideSpellInfoLikeCpp,
@@ -866,7 +866,7 @@ static ACTIVE_CHARACTER_LOGIN_CLAIMS_LIKE_CPP: OnceLock<dashmap::DashMap<ObjectG
 pub type AreaTriggerScriptDispatcherLikeCpp =
     Arc<dyn Fn(&mut WorldSession, ScriptIdLikeCpp, u32, bool) -> bool + Send + Sync>;
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 type GivePlayerXpScriptDispatcherLikeCpp =
     Arc<dyn Fn(wow_script::player::GivePlayerXpContextLikeCpp, &mut u32) + Send + Sync>;
 
@@ -874,7 +874,7 @@ const REST_FLAG_IN_TAVERN_LIKE_CPP: u32 = 0x1;
 const REST_FLAG_IN_CITY_LIKE_CPP: u32 = 0x2;
 const REST_FLAG_IN_FACTION_AREA_LIKE_CPP: u32 = 0x4;
 // C++ `RestMgr::SetRestBonus`: `float(next_level_xp) * 1.5f / 2`.
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 const REST_BONUS_MAX_NEXT_LEVEL_XP_FACTOR_LIKE_CPP: f32 = 1.5 / 2.0;
 const REST_OFFLINE_WILDERNESS_BUBBLE_LIKE_CPP: f32 = 0.031;
 const REST_OFFLINE_TAVERN_OR_CITY_BUBBLE_LIKE_CPP: f32 = 0.125;

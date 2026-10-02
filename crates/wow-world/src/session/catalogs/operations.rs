@@ -542,11 +542,11 @@ impl crate::session::HubMut<'_> {
         if installed {
             self.set_player_next_level_xp_like_cpp(next_level_xp);
         }
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if !installed && self.core.player_handle_like_cpp.is_none() {
             self.set_player_next_level_xp_like_cpp(next_level_xp);
         }
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         let _ = installed;
     }
 }
@@ -587,7 +587,7 @@ impl crate::session::state::SessionCatalogs {
     }
 
     /// Set the C++ ImportPrice*.db2 stores for this session.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_import_price_stores(&mut self, stores: Arc<ImportPriceStores>) {
         self.import_price_stores = Some(stores);
     }
@@ -612,17 +612,17 @@ impl crate::session::state::SessionCatalogs {
     }
 
     /// Set the TactKey.db2 store for typed SMSG_DB_REPLY serialization.
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_tact_key_store(&mut self, store: Arc<TactKeyStore>) {
         self.tact_key_store = Some(store);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_graveyard_store(&mut self, store: Arc<GraveyardStore>) {
         self.graveyard_store = Some(store);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn graveyard_store(&self) -> Option<&Arc<GraveyardStore>> {
         self.graveyard_store.as_ref()
     }
@@ -640,12 +640,12 @@ impl crate::session::state::SessionCatalogs {
         self.access_requirement_store.as_ref()
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn lfg_dungeon_store_like_cpp(&self) -> Option<&Arc<LfgDungeonStoreLikeCpp>> {
         self.lfg_dungeon_store_like_cpp.as_ref()
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_battlemaster_list_store(&mut self, store: Arc<BattlemasterListStore>) {
         self.battlemaster_list_store = Some(store);
     }
@@ -672,17 +672,17 @@ impl crate::session::state::SessionCatalogs {
         self.spell_catalogs.spell_pet_aura_store.as_deref()
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_pet_levelup_spell_store(&mut self, store: Arc<PetLevelupSpellStoreLikeCpp>) {
         self.spell_catalogs.pet_levelup_spell_store = Some(store);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_pet_default_spell_store(&mut self, store: Arc<PetDefaultSpellStoreLikeCpp>) {
         self.spell_catalogs.pet_default_spell_store = Some(store);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_pet_family_spell_store(&mut self, store: Arc<PetFamilySpellStoreLikeCpp>) {
         self.spell_catalogs.pet_family_spell_store = Some(store);
     }
@@ -691,17 +691,17 @@ impl crate::session::state::SessionCatalogs {
         self.cinematic_sequences_store = Some(store);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_object_mgr_catalogs_like_cpp(&mut self, catalogs: Arc<ObjectMgrCatalogsLikeCpp>) {
         self.object_mgr_catalogs_like_cpp = Some(catalogs);
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn world_query_catalogs_like_cpp(&self) -> Option<&ObjectMgrCatalogsLikeCpp> {
         self.object_mgr_catalogs_like_cpp.as_deref()
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_exploration_base_xp_store_like_cpp(
         &mut self,
         store: Arc<ExplorationBaseXpStoreLikeCpp>,

@@ -6,13 +6,13 @@
 
 use super::{Arc, AreaTriggerDb2Store, PLAYER_FLAGS_RESTING_LIKE_CPP};
 use super::{PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP, REST_FLAG_IN_TAVERN_LIKE_CPP};
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 use super::{REST_BONUS_MAX_NEXT_LEVEL_XP_FACTOR_LIKE_CPP, REST_STATE_NORMAL_LIKE_CPP};
 use super::{RepresentedAuraEffectLikeCpp, WorldSession, max_level_for_expansion_like_cpp};
 
 /// Handle-less test fixture for RestMgr state and test-only rate configuration.
 /// Production rest authority remains on the canonical `Player`.
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) struct RestMgrTestFixtureLikeCpp {
     /// C++ `RestMgr::_restBonus[REST_TYPE_XP]`.
     pub(in crate::session) represented_rest_bonus_xp_like_cpp: f32,
@@ -38,7 +38,7 @@ pub(in crate::session) struct RestMgrTestFixtureLikeCpp {
     pub(in crate::session) rest_ingame_rate_like_cpp: f32,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl Default for RestMgrTestFixtureLikeCpp {
     fn default() -> Self {
         Self {
@@ -378,7 +378,7 @@ impl crate::session::HubRef<'_> {
         u32::from(self.player_level_like_cpp()) >= self.player_active_max_level_like_cpp()
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn can_gain_represented_xp_rest_bonus_like_cpp(&self) -> Option<bool> {
         if self.player_is_at_configured_max_level_like_cpp() {
             return Some(false);
@@ -388,7 +388,7 @@ impl crate::session::HubRef<'_> {
         Some(next_level_xp != 0 && next_level_xp != u32::MAX)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn represented_xp_rest_bonus_cap_like_cpp(&self) -> Option<f32> {
         Some(
             self.resolved_player_next_level_xp_like_cpp()? as f32
@@ -396,7 +396,7 @@ impl crate::session::HubRef<'_> {
         )
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(in crate::session) fn calc_represented_xp_rest_extra_per_sec_like_cpp(
         &self,
         bubble: f32,
@@ -407,25 +407,25 @@ impl crate::session::HubRef<'_> {
         Some(self.resolved_player_next_level_xp_like_cpp()? as f32 / 72_000.0 * bubble)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_xp_rest_bonus_like_cpp(&self) -> f32 {
         self.resolved_xp_rest_bonus_like_cpp()
             .expect("test Player rest owner must resolve")
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_xp_rest_state_like_cpp(&self) -> u8 {
         self.resolved_xp_rest_state_like_cpp()
             .expect("test Player rest owner must resolve")
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_xp_rest_threshold_like_cpp(&self) -> u32 {
         self.resolved_xp_rest_threshold_like_cpp()
             .expect("test Player rest owner must resolve")
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn represented_is_resting_like_cpp(&self) -> bool {
         self.resolved_is_resting_like_cpp()
             .expect("test Player rest owner must resolve")
@@ -457,7 +457,7 @@ impl crate::session::HubRef<'_> {
         let canonical = self
             .core
             .with_owned_player_for_rest_like_cpp(|player| player.rest_state_like_cpp().clone());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(
                 wow_entities::PlayerRestState::from_represented_parts_like_cpp(

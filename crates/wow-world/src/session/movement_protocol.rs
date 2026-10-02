@@ -30,7 +30,7 @@ pub(crate) enum MoveSplineDoneTaxiActionLikeCpp {
     IgnoredUnexpectedFinalPath,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct RepresentedTaxiFlightNodeLikeCpp {
     pub map_id: u16,
@@ -38,7 +38,7 @@ pub(crate) struct RepresentedTaxiFlightNodeLikeCpp {
     pub teleport_flag: bool,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct MoveSplineDoneTaxiEventLikeCpp {
     pub spline_id: i32,
@@ -58,7 +58,7 @@ pub(crate) enum MoveTeleportAckActionLikeCpp {
     Accepted,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(crate) struct MoveTeleportAckEventLikeCpp {
     pub mover_guid: ObjectGuid,
@@ -85,14 +85,14 @@ pub(crate) enum RepresentedAreaZoneCriteriaLikeCpp {
     LeaveTopLevelArea(u32),
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub(in crate::session) struct RepresentedTaxiFlightStateLikeCpp {
     pub(in crate::session) current_node: RepresentedTaxiFlightNodeLikeCpp,
     pub(in crate::session) node_after_teleport: Option<RepresentedTaxiFlightNodeLikeCpp>,
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) fn canonical_taxi_flight_node_like_cpp(
     node: RepresentedTaxiFlightNodeLikeCpp,
 ) -> wow_entities::PlayerTaxiFlightNodeLikeCpp {
@@ -103,7 +103,7 @@ pub(in crate::session) fn canonical_taxi_flight_node_like_cpp(
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) fn represented_taxi_flight_node_like_cpp(
     node: wow_entities::PlayerTaxiFlightNodeLikeCpp,
 ) -> RepresentedTaxiFlightNodeLikeCpp {
@@ -114,7 +114,7 @@ pub(in crate::session) fn represented_taxi_flight_node_like_cpp(
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) fn canonical_taxi_flight_state_like_cpp(
     flight: RepresentedTaxiFlightStateLikeCpp,
 ) -> wow_entities::PlayerTaxiFlightStateLikeCpp {
@@ -126,7 +126,7 @@ pub(in crate::session) fn canonical_taxi_flight_state_like_cpp(
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) fn represented_taxi_flight_state_like_cpp(
     flight: wow_entities::PlayerTaxiFlightStateLikeCpp,
 ) -> RepresentedTaxiFlightStateLikeCpp {
@@ -307,7 +307,7 @@ impl crate::session::HubMut<'_> {
         let canonical_changed = self.core.with_owned_player_mut_like_cpp(|player| {
             player.set_can_transition_between_swim_and_fly_like_cpp(enable)
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         let changed = canonical_changed.unwrap_or_else(|| {
             if self.core.player_handle_like_cpp.is_some()
                 || self
@@ -323,7 +323,7 @@ impl crate::session::HubMut<'_> {
                 .represented_can_swim_to_fly_transition_like_cpp = enable;
             true
         });
-        #[cfg(not(test))]
+        #[cfg(not(any(test, feature = "test-fixtures")))]
         let Some(changed) = canonical_changed else {
             return false;
         };
@@ -331,7 +331,7 @@ impl crate::session::HubMut<'_> {
             return false;
         }
 
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if canonical_changed.is_some() {
             self.fixtures
                 .movement
@@ -346,9 +346,9 @@ impl crate::session::HubMut<'_> {
     }
 }
 
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 impl crate::session::state::MovementState {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn player_out_of_bounds_like_cpp(&self) -> bool {
         self.player_out_of_bounds_like_cpp
     }

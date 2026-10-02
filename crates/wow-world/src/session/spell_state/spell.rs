@@ -788,13 +788,13 @@ impl WorldSession {
 }
 
 impl crate::session::state::SessionCatalogs {
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn set_start_all_spells_like_cpp(&mut self, enabled: bool) {
         self.player_bootstrap_catalog_test_fixture_like_cpp
             .start_all_spells_like_cpp = enabled;
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn start_all_spells_like_cpp(&self) -> bool {
         self.player_bootstrap_catalog_test_fixture_like_cpp
             .start_all_spells_like_cpp
@@ -836,7 +836,7 @@ impl crate::session::state::SessionCatalogs {
             .unwrap_or(0)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub(crate) fn serverside_spell_like_cpp(
         &self,
         spell_id: u32,
