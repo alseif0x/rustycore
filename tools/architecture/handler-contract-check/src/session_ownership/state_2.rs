@@ -489,6 +489,15 @@ pub(super) fn collect_items(
             }
         }
 
+        core_owner::collect_item(
+            item,
+            role,
+            module,
+            &item_cfg,
+            item_availability,
+            builder,
+        );
+
         if collects_session_contract_types(role, module) {
             collect_contract_type(item, module, &item_cfg, item_availability, builder);
         }
@@ -755,6 +764,8 @@ impl BaselineBuilder {
         bridge_accesses: BridgeAccessBaseline,
     ) -> Result<SessionSyntaxBaseline, String> {
         let session_helper_bodies = self.session_helper_bodies();
+        let mut session_core_owner = self.session_core_owner;
+        session_core_owner.canonicalize();
         let network_contract = network_contract(&self.contract_types);
         let mut errors = self.errors;
         let world_session_definition = self.world_session_definition.ok_or_else(|| {
@@ -811,6 +822,7 @@ impl BaselineBuilder {
                     .collect(),
                 impl_items: self.world_session_impl_items.into_iter().collect(),
             },
+            session_core_owner,
             session_resources: SessionResourcesSurface {
                 definition: session_resources_definition.expect("validated definition"),
                 fields: self.session_resources_fields.into_iter().collect(),

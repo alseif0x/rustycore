@@ -8,8 +8,9 @@ use super::super::{
     BridgeSide, Symbols, bridge_capable_namespace_import, is_explicit_core_facade_reexport,
     is_legacy_map_owner, sides_for_segments, validate_cfg,
 };
-use super::combine_cfg;
+use super::{ResolverMode, combine_cfg};
 use super::source_graph::{IndexedModule, ModuleIndex};
+use super::type_identity::TypeIdentityKind;
 use crate::ownership::{
     cfg_context_allows_production, cfg_context_allows_test, extend_cfg_context,
 };
@@ -19,7 +20,17 @@ pub(super) enum LocalBinding {
     NonAuthority,
     Authority(BridgeSide),
     Module(String),
-    Alias(Type),
+    Alias {
+        ty: Type,
+        generic: bool,
+        legacy_authority: Option<BridgeSide>,
+    },
+    Nominal {
+        kind: TypeIdentityKind,
+        generic: bool,
+        declaration_index: usize,
+        legacy_authority: Option<BridgeSide>,
+    },
 }
 
 #[derive(Clone)]
@@ -130,6 +141,7 @@ pub(super) fn collect_scope(
     module: &IndexedModule,
     index: &ModuleIndex,
     errors: &mut Vec<String>,
+    mode: ResolverMode,
 ) -> ModuleScope {
     let mut scope = ModuleScope::default();
     for (name, sides) in Symbols::for_module(&module.package, &module.module).named {
@@ -137,7 +149,7 @@ pub(super) fn collect_scope(
             scope.builtins.insert(name, side);
         }
     }
-    for item in &module.items {
+    for (declaration_index, item) in module.items.iter().enumerate() {
         let attrs = item_attributes(item);
         validate_cfg(&module.cfg, attrs, &module.module, errors);
         let Some(cfg) = cfg_for_binding(&module.cfg, attrs) else {
@@ -157,11 +169,12 @@ pub(super) fn collect_scope(
                         } else {
                             !(path.len() == 1 && local == path[0])
                         };
-                    if sides_for_segments(
-                        &Symbols::for_module(&module.package, &module.module),
-                        &path,
-                    )
-                    .is_empty()
+                    if mode == ResolverMode::Bridge
+                        && sides_for_segments(
+                            &Symbols::for_module(&module.package, &module.module),
+                            &path,
+                        )
+                        .is_empty()
                         && bridge_capable_namespace_import(&path)
                         && path.first().is_some_and(|root| {
                             !matches!(root.as_str(), "crate" | "self" | "super")
@@ -183,12 +196,14 @@ pub(super) fn collect_scope(
                         });
                 }
                 for path in globs {
-                    if path.first().is_some_and(|root| {
-                        matches!(
-                            root.as_str(),
-                            "wow_map" | "wow_entities" | "wow_world" | "wow_world_core"
-                        )
-                    }) {
+                    if mode == ResolverMode::Bridge
+                        && path.first().is_some_and(|root| {
+                            matches!(
+                                root.as_str(),
+                                "wow_map" | "wow_entities" | "wow_world" | "wow_world_core"
+                            )
+                        })
+                    {
                         errors.push(format!(
                             "bridge-capable glob import `{}` hides exact legacy/canonical symbols",
                             path.join("::")
@@ -201,14 +216,16 @@ pub(super) fn collect_scope(
                 }
             }
             Item::Type(item_type) => {
-                let binding = if is_legacy_map_owner(&module.package, &module.module)
+                let legacy_authority = (is_legacy_map_owner(&module.package, &module.module)
                     && matches!(
                         item_type.ident.to_string().as_str(),
                         "MapManager" | "WorldCreature" | "SharedMapManager"
-                    ) {
-                    LocalBinding::Authority(BridgeSide::Legacy)
-                } else {
-                    LocalBinding::Alias((*item_type.ty).clone())
+                    ))
+                .then_some(BridgeSide::Legacy);
+                let binding = LocalBinding::Alias {
+                    ty: (*item_type.ty).clone(),
+                    generic: !item_type.generics.params.is_empty(),
+                    legacy_authority,
                 };
                 scope
                     .declarations
@@ -218,16 +235,36 @@ pub(super) fn collect_scope(
             }
             _ => {
                 if let Some(name) = item_declared_name(item) {
-                    let binding = if is_legacy_map_owner(&module.package, &module.module)
+                    let legacy_authority = (is_legacy_map_owner(&module.package, &module.module)
                         && matches!(
                             name.as_str(),
                             "MapManager" | "WorldCreature" | "SharedMapManager"
-                        ) {
-                        LocalBinding::Authority(BridgeSide::Legacy)
-                    } else if matches!(item, Item::Mod(_)) {
-                        LocalBinding::Module(format!("{}::{name}", module.module))
-                    } else {
-                        LocalBinding::NonAuthority
+                        ))
+                    .then_some(BridgeSide::Legacy);
+                    let binding = match item {
+                        Item::Struct(item) => LocalBinding::Nominal {
+                            kind: TypeIdentityKind::Struct,
+                            generic: !item.generics.params.is_empty(),
+                            declaration_index,
+                            legacy_authority,
+                        },
+                        Item::Enum(item) => LocalBinding::Nominal {
+                            kind: TypeIdentityKind::Enum,
+                            generic: !item.generics.params.is_empty(),
+                            declaration_index,
+                            legacy_authority,
+                        },
+                        Item::Union(item) => LocalBinding::Nominal {
+                            kind: TypeIdentityKind::Union,
+                            generic: !item.generics.params.is_empty(),
+                            declaration_index,
+                            legacy_authority,
+                        },
+                        Item::Mod(_) if legacy_authority.is_none() => {
+                            LocalBinding::Module(format!("{}::{name}", module.module))
+                        }
+                        _ => legacy_authority
+                            .map_or(LocalBinding::NonAuthority, LocalBinding::Authority),
                     };
                     scope
                         .declarations

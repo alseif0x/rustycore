@@ -40,13 +40,32 @@ pub(super) fn collect_units(
         .collect();
     let bridge_accesses = inventory_bridge_accesses(&bridge_sources)
         .map_err(|error| format!("cannot inventory legacy/canonical bridges:\n{error}"))?;
-    let mut builder = BaselineBuilder::default();
+
+    let mut parsed_units = Vec::new();
     for unit in units {
         if unit.availability.source_class().is_none() {
             continue;
         }
         let syntax = syn::parse_file(&unit.source)
             .map_err(|error| format!("cannot parse {}: {error}", unit.source_path.display()))?;
+        parsed_units.push((unit, syntax));
+    }
+    let identity_sources: Vec<_> = parsed_units
+        .iter()
+        .map(|(unit, _)| BridgeSource {
+            package: unit.role.package_name(),
+            module: &unit.logical_module_path,
+            source_path: &unit.repository_relative_path,
+            inherited_cfg: &unit.cfg,
+            source: &unit.source,
+        })
+        .collect();
+    let mut owner_types =
+        core_owner::resolve_owner_types(&parsed_units, &identity_sources)?;
+    let mut builder = BaselineBuilder::default();
+    builder.session_core_owner_impl_providers =
+        std::mem::take(&mut owner_types.impl_providers);
+    for (unit, syntax) in parsed_units {
         let mut include_guard = IncludeMacroGuard::default();
         include_guard.visit_file(&syntax);
         if include_guard.count > 0 {
@@ -66,6 +85,7 @@ pub(super) fn collect_units(
             &mut builder,
         );
     }
+    core_owner::install_resolved_field_bindings(owner_types, &mut builder);
     builder.finish(registry_accesses, persistence_accesses, bridge_accesses)
 }
 
@@ -230,6 +250,8 @@ pub(super) fn collect_repository_baseline_with_persistence(
         PersistenceAccessBaseline::default()
     };
     let baseline = collect_units(units, persistence_accesses)?;
+    core_owner::require_production_definition(&baseline.session_core_owner)?;
+    core_owner::require_production_field_binding(&baseline.session_core_owner)?;
     validate_curated_bridge_anchors(&baseline.bridge_accesses)
         .map_err(|error| format!("invalid curated bridge inventory:\n{error}"))?;
     Ok(baseline)
@@ -282,6 +304,11 @@ pub(super) fn compare_baseline(
         "WorldSession impl item",
         &expected.world_session.impl_items,
         &actual.world_session.impl_items,
+        &mut errors,
+    );
+    core_owner::compare(
+        &expected.session_core_owner,
+        &actual.session_core_owner,
         &mut errors,
     );
     if expected.session_resources.definition != actual.session_resources.definition {

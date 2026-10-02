@@ -42,12 +42,15 @@ use crate::registry_access::{
 mod state_1;
 mod state_2;
 mod state_3;
+mod core_owner;
 #[allow(unused_imports)]
 pub use state_1::*;
 #[allow(unused_imports)]
 pub use state_2::*;
 #[allow(unused_imports)]
 pub use state_3::*;
+#[allow(unused_imports)]
+pub use core_owner::*;
 
 /// Real-source regression assertions share one complete syntax graph. Partial
 /// file fixtures cannot prove lexical imports after a physical module move.

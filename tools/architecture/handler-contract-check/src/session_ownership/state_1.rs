@@ -87,8 +87,9 @@ pub(super) const FNV1A_64_OFFSET_A: u64 = 0xcbf2_9ce4_8422_2325;
 
 pub(super) const FNV1A_64_OFFSET_B: u64 = 0x8422_2325_cbf2_9ce4;
 
-pub(super) const OWNERSHIP_TARGET_NAMES: [&str; 3] = [
+pub(super) const OWNERSHIP_TARGET_NAMES: [&str; 4] = [
     WORLD_SESSION_NAME,
+    core_owner::SESSION_CORE_NAME,
     SESSION_RESOURCES_NAME,
     SESSION_COMMAND_NAME,
 ];
@@ -229,6 +230,8 @@ pub struct SessionFactoryHelperSurface {
 #[serde(deny_unknown_fields)]
 pub struct SessionSyntaxBaseline {
     pub world_session: WorldSessionSurface,
+    #[serde(default)]
+    pub session_core_owner: core_owner::SessionCoreSurface,
     pub session_resources: SessionResourcesSurface,
     pub session_factory: SessionFactorySurface,
     pub session_command: TypeSurface,
@@ -311,6 +314,9 @@ impl Availability {
 #[derive(Default)]
 pub(super) struct BaselineBuilder {
     pub(super) errors: Vec<String>,
+    pub(super) session_core_owner: core_owner::SessionCoreSurface,
+    pub(super) session_core_owner_impl_providers:
+        BTreeMap<usize, Vec<core_owner::SessionCoreProviderSurface>>,
     pub(super) world_session_definition: Option<DefinitionSurface>,
     pub(super) world_session_fields: BTreeSet<FieldSurface>,
     pub(super) world_session_impls: BTreeSet<(String, Option<String>, Vec<String>, String)>,

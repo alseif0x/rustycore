@@ -768,3 +768,202 @@ fn moved_pending_respawn_bridge_matches_its_exact_reviewed_record() {
         .expect("reviewed bridge remains in the exact inventory");
     assert_eq!(&serde_json::to_value(actual[0]).unwrap(), expected);
 }
+
+fn nominal_identity(
+    sources: &[BridgeSource<'_>],
+    package: &str,
+    module: &str,
+    type_path: &str,
+    cfg: &[String],
+) -> Result<Vec<SuppliedTypeIdentity>, TypeIdentityError> {
+    let ty = syn::parse_str::<syn::Type>(type_path).expect("fixture type parses");
+    resolve_supplied_type_identity(sources, package, module, &ty, cfg)
+}
+
+#[test]
+fn nominal_identity_follows_exact_alias_rename_and_glob_reexports() {
+    let sources = [
+        core_package("crate", "core/lib.rs", "pub mod model; pub mod facade;"),
+        core_module("core/model.rs", "pub struct SessionCore;"),
+        core_package(
+            "crate::facade",
+            "core/facade.rs",
+            "pub use crate::model::SessionCore as CoreFacade;",
+        ),
+        world_root("pub mod facade; pub mod consumer;"),
+        package_mount(
+            "wow-world",
+            "crate::facade",
+            "world/facade.rs",
+            "pub use wow_world_core::{self, facade::CoreFacade as RenamedCore};",
+        ),
+        package_mount(
+            "wow-world",
+            "crate::consumer",
+            "world/consumer.rs",
+            "use crate::facade::*; pub type ExactAlias = RenamedCore;",
+        ),
+    ];
+    let alias = syn::parse_str::<syn::Type>("ExactAlias").unwrap();
+    let direct = syn::parse_str::<syn::Type>("wow_world_core::model::SessionCore").unwrap();
+    let cfg = Vec::new();
+    let batch = resolve_supplied_type_identities(
+        &sources,
+        &[
+            TypeIdentityQuery {
+                package: "wow-world",
+                module: "crate::consumer",
+                ty: &alias,
+                cfg: &cfg,
+            },
+            TypeIdentityQuery {
+                package: "wow-world",
+                module: "crate::consumer",
+                ty: &direct,
+                cfg: &cfg,
+            },
+        ],
+    )
+    .expect("one batch builds the supplied graph and resolver");
+    let found = batch[0]
+        .as_ref()
+        .expect("the nominal owner follows the supplied Core reexports");
+    let direct = batch[1]
+        .as_ref()
+        .expect("the exact Core root resolves in the same batch");
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].package, "wow-world-core");
+    assert_eq!(found[0].module, "crate::model");
+    assert_eq!(found[0].symbol, "SessionCore");
+    assert_eq!(found[0].kind, TypeIdentityKind::Struct);
+    assert_eq!(found[0].source_path, "core/model.rs");
+    assert_eq!(direct[0].package, found[0].package);
+    assert_eq!(direct[0].module, found[0].module);
+}
+
+#[test]
+fn nominal_identity_uses_local_type_before_glob_candidate() {
+    let sources = [mounted(
+        "crate",
+        "src/lib.rs",
+        "pub mod source { pub struct Payload; } pub mod consumer { use crate::source::*; pub struct Payload; }",
+    )];
+    let found = nominal_identity(&sources, "fixture", "crate::consumer", "Payload", &[])
+        .expect("the local nominal declaration shadows its glob candidate");
+    assert_eq!(found.len(), 1);
+    assert_eq!(found[0].module, "crate::consumer");
+}
+
+#[test]
+fn nominal_identity_reports_missing_source_and_missing_alias_target() {
+    assert!(matches!(
+        nominal_identity(&[], "fixture", "crate::consumer", "Payload", &[]),
+        Err(TypeIdentityError::Missing(_))
+    ));
+    let sources = [mounted(
+        "crate",
+        "src/lib.rs",
+        "pub struct Other; pub type Payload = NotSupplied;",
+    )];
+    assert!(matches!(
+        nominal_identity(&sources, "fixture", "crate::consumer", "Payload", &[]),
+        Err(TypeIdentityError::Missing(_))
+    ));
+    assert!(matches!(
+        nominal_identity(&sources, "fixture", "crate", "Payload", &[]),
+        Err(TypeIdentityError::Missing(_))
+    ));
+}
+
+#[test]
+fn non_nominal_binding_does_not_prove_type_identity() {
+    let sources = [mounted(
+        "crate",
+        "src/lib.rs",
+        "pub const SessionCore: u8 = 0;",
+    )];
+    assert!(matches!(
+        nominal_identity(&sources, "fixture", "crate", "SessionCore", &[]),
+        Err(TypeIdentityError::NotNominal(_))
+    ));
+}
+
+#[test]
+fn nominal_identity_rejects_compatible_glob_providers_but_keeps_cfg_alternatives() {
+    let ambiguous = [
+        mounted("crate", "src/lib.rs", "pub mod left; pub mod right; pub mod consumer;"),
+        mounted("crate::left", "src/left.rs", "pub struct Payload;"),
+        mounted("crate::right", "src/right.rs", "pub enum Payload {}"),
+        mounted(
+            "crate::consumer",
+            "src/consumer.rs",
+            "use crate::left::*; use crate::right::*;",
+        ),
+    ];
+    assert!(matches!(
+        nominal_identity(&ambiguous, "fixture", "crate::consumer", "Payload", &[]),
+        Err(TypeIdentityError::Ambiguous(_))
+    ));
+
+    let alternatives = [mounted(
+        "crate",
+        "src/lib.rs",
+        "#[cfg(feature = \"identity-alt\")] pub struct Payload; #[cfg(not(feature = \"identity-alt\"))] pub enum Payload {}",
+    )];
+    let found = nominal_identity(&alternatives, "fixture", "crate", "Payload", &[])
+        .expect("mutually exclusive cfg definitions remain separate alternatives");
+    assert_eq!(found.len(), 2);
+    assert_ne!(found[0].kind, found[1].kind);
+    assert!(found.iter().all(|identity| !identity.guards.is_empty()));
+}
+
+#[test]
+fn nominal_identity_does_not_borrow_a_foreign_same_named_module() {
+    let sources = [
+        package_mount(
+            "foreign-package",
+            "crate::model",
+            "foreign/model.rs",
+            "pub struct SessionCore;",
+        ),
+        package_mount(
+            "wow-world",
+            "crate::consumer",
+            "world/consumer.rs",
+            "",
+        ),
+    ];
+    assert!(matches!(
+        nominal_identity(
+            &sources,
+            "wow-world",
+            "crate::consumer",
+            "wow_world_core::model::SessionCore",
+            &[],
+        ),
+        Err(TypeIdentityError::Missing(_))
+    ));
+}
+
+#[test]
+fn nominal_identity_rejects_wrapper_aliases_and_reports_alias_cycles() {
+    let wrapper = [mounted(
+        "crate",
+        "src/lib.rs",
+        "pub struct Payload; pub type Wrapped = std::sync::Arc<Payload>;",
+    )];
+    assert!(matches!(
+        nominal_identity(&wrapper, "fixture", "crate", "Wrapped", &[]),
+        Err(TypeIdentityError::Unsupported(_))
+    ));
+
+    let cycle = [mounted(
+        "crate",
+        "src/lib.rs",
+        "pub type First = Second; pub type Second = First;",
+    )];
+    assert!(matches!(
+        nominal_identity(&cycle, "fixture", "crate", "First", &[]),
+        Err(TypeIdentityError::Cycle(_))
+    ));
+}
