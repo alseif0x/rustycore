@@ -794,6 +794,12 @@ occurred during acceptance. The private UI helper's coordinate adjustment and
 rebuild are included in that interval. The timing closeout, documentation-only
 committed final check and publication occur afterwards and are separately
 identified; they must not be relabeled as a green full-workspace final.
+The committed documentation delta `96c23258` passed
+`validation-v2 final --base 8691506f --timings` at `20:24:41Z`, manifest
+`20261002T202440.855307Z-1626115-final.json` (whitespace and physical-files;
+no Cargo rerun). Including this required closeout gives a 497-second campaign
+envelope from the original start. This timing/evidence-only append is checked
+with `git diff --check`; no code or test inputs changed after `8691506f`.
 
 #### Manual-login follow-up
 
