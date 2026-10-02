@@ -392,7 +392,7 @@ impl WorldSession {
                     level,
                     gender,
                 });
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             {
                 self.fixtures.identity.player_race = race;
                 self.fixtures.identity.player_class = class;
@@ -916,7 +916,7 @@ impl crate::session::state::SessionLifecycleState {
             .player_identity_bootstrap_like_cpp
             .get_or_insert_default()
             .name = Some(name.clone());
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             hub.fixtures.identity.player_name = Some(name);
         }

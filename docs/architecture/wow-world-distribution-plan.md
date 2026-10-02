@@ -585,6 +585,26 @@ Los registros y artefactos están en `extras-9ce2f28da/`; la secuencia se detuvo
 antes de integraciones, doctest y herramientas. La nueva delta requiere repetir
 su evidencia afectada. Inventario exhaustivo y publicación siguen pendientes;
 las ejecuciones previas conservan sus SHA reales y no se relabelan.
+El checkpoint limpio `695c27aba` pasa producción en 17,010 s, Core
+predeterminado en 2,720 s, World/Core lib en 64,969 s (3.681/220 PASS y
+un ignorado) y world-server lib en 36,259 s (597 PASS). La configuración
+equivalente de producción conserva cero avisos nuevos tras retirar los cuatro
+imports de fixtures; se mantiene la limitación de procedencia histórica.
+La integración falla en 21,717 s: renombrado pasa sus 12 casos y registro su
+caso; login/owner pasa uno y falla 33 en la hidratación inicial compartida.
+La traza identifica un desajuste del puente: World biblioteca activa
+`test-fixtures`, los lectores Core de identidad usan esa feature, pero cinco
+bloques existentes que escriben esos campos Core siguen bajo `cfg(test)` en
+World. El nombre de fixture vacío corta `build_initial_player_for_owner_like_cpp`
+antes de instalar el handle; la hidratación de correo rechaza correctamente
+el propietario ausente. Se alinean esos escritores con la disponibilidad de
+sus campos, conservando los guards de propietario/instalación y los fixtures
+todavía propios de World. No se debilita la resolución canónica ni las pruebas.
+El contrato de orden se contrasta con `CharacterHandler.cpp:1061–1077` y
+`Player.cpp:17759,18560` de `a5f8da2eb`. La secuencia está en
+`affected-and-extras-695c27aba/sequence.json`; doctest, herramientas e inventario
+no llegaron a ejecutarse. Esta regresión mantiene bloqueado el siguiente traslado
+local hasta reparar y acreditar la integración; no hay publicación ni QA live.
 
 La construcción debe conservar el orden exacto de expresiones, RNG, relojes, canales
 y campos. Extraer primero el literal de `SessionCore` a una inicialización propia;

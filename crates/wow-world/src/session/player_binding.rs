@@ -205,13 +205,13 @@ impl WorldSession {
             level: controller.level(),
             gender: controller.gender(),
         });
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             self.fixtures.identity.player_name = Some(controller.name().to_string());
             self.fixtures.movement.player_position = Some(controller_position);
         }
         self.core.current_map_id = controller.map_id();
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         {
             self.fixtures.identity.player_race = controller.race();
             self.fixtures.identity.player_class = controller.class();
@@ -262,7 +262,7 @@ impl WorldSession {
                 .player_identity_bootstrap_like_cpp
                 .get_or_insert_default()
                 .level = level;
-            #[cfg(test)]
+            #[cfg(any(test, feature = "test-fixtures"))]
             {
                 self.fixtures.identity.player_level = level;
             }
