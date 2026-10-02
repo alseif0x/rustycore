@@ -104,13 +104,13 @@ pub(crate) struct RepresentedSpellClickExecutionOutcomeLikeCpp {
     pub failed_casts: usize,
 }
 
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 pub(crate) use wow_world_core::session::{
     RepresentedVehicleEnterRequestLikeCpp, RepresentedVehicleSeatChangeRequestLikeCpp,
     RepresentedVehicleSeatSpellClickRequestLikeCpp,
 };
 
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 pub(crate) use wow_world_core::session::{
     RepresentedVehicleBaseMovementLikeCpp, RepresentedVehicleDismissMovementLikeCpp,
 };

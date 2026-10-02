@@ -13,12 +13,12 @@ pub(crate) use wow_world_core::session::movement_protocol::MoveSplineDoneTaxiAct
 #[cfg(test)]
 pub(crate) use wow_world_core::session::movement_protocol::RepresentedTaxiFlightNodeLikeCpp;
 
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 pub(crate) use wow_world_core::session::movement_protocol::MoveSplineDoneTaxiEventLikeCpp;
 
 pub(crate) use wow_world_core::session::movement_protocol::MoveTeleportAckActionLikeCpp;
 
-#[cfg(any(test, feature = "test-fixtures"))]
+#[cfg(test)]
 pub(crate) use wow_world_core::session::movement_protocol::MoveTeleportAckEventLikeCpp;
 
 #[cfg(test)]

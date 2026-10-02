@@ -529,6 +529,13 @@ La revisión del cierre de aliases conserva los proveedores efectivos de los
 shims y retira dos archivos World que solo reexportaban fixtures Core sin
 consumidores. No cambia definiciones, campos ni cuerpos. El formato terminó
 con exit 0 en 9,944 s (23:08:13–23:08:23 UTC); el lote permanece sin aceptación.
+El checkpoint `67fd33466` pasa la comprobación completa del workspace y sus
+targets en 108,580 s, 23:10:22,736–23:12:11,316 UTC, exit 0 y árbol limpio.
+Los fingerprints confirman `test-fixtures` en la biblioteca y los unitarios de
+World. Quedan siete aliases privados con warnings nuevos en sus fachadas; cuatro
+atributos se limitan a `cfg(test)`, igual que sus consumidores. Esa delta está
+revisada, no recompilada. Compilación no equivale a ejecución de suites: pruebas,
+configuración de producción, inventario y gates de publicación siguen pendientes.
 
 La construcción debe conservar el orden exacto de expresiones, RNG, relojes, canales
 y campos. Extraer primero el literal de `SessionCore` a una inicialización propia;
