@@ -1,17 +1,17 @@
 # Distribución de `wow-world` — programa #1241, continuación #1263
 
-**Revisión del plan y aceptación P3 — 2026-10-02:** F0–F3 y F4a P1/P2 integradas;
-P3 aceptada en `002ff5e46`, con publicación/integración registradas en #1263.
+**Aceptación P4a — 2026-10-02:** F0–F3 y F4a P1–P3 integradas;
+P4a aceptada en `d9c9e3637`, con publicación/integración registradas en #1263.
 **Responsabilidad pendiente:** [#1263](https://github.com/alseif0x/rustycore/issues/1263),
 continuación de [#1241](https://github.com/alseif0x/rustycore/issues/1241) bajo #584.
 #1241 ya está cerrada en GitHub; ese estado no demuestra que F4–F6 estén terminadas.
 El plan técnico general sigue siendo [refactor-completion-plan.md](refactor-completion-plan.md).
 Este documento mantiene las decisiones, el estado fechado y los criterios de aceptación;
 #1263 es su lista operativa de trabajo restante. Sustituye el enfoque anterior de #1233
-(una rama, validación diferida). La aceptación acotada de P3 se registra en §8;
+(una rama, validación diferida). Las aceptaciones acotadas de P3/P4a se registran en §8;
 no revalida las fases anteriores ni reclama nueva paridad o ahorro de build.
 
-Base: `3.4.3` @ `e786ece1`. Una rama y un PR por fase (F0, F1, ...) o por dominio, integrados de
+Base original del programa: `3.4.3` @ `e786ece1`; base de P4a: P3 integrada `1f8a7c800`. Una rama y un PR por fase (F0, F1, ...) o por dominio, integrados de
 forma continua en `3.4.3`. La continuación conserva el alcance y las condiciones del programa
 #1241; no amplía la autoridad de publicación, runtime o base de datos. La excepción de proceso
 está en [AGENTS.md](../../AGENTS.md) ("#1241 wow-world split programme").
@@ -173,15 +173,13 @@ ejecutar directamente los comandos canónicos, conservando su evidencia y códig
 
 ### F4a P4a — dependencias base de `wow-world-core`
 
-**Ejecución iniciada — 2026-10-02:** rama `1263-f4a-p4a-world-core`, base integrada
-`1f8a7c800` (P3, PR #1264). Extracción local completa: catálogos, map manager legado,
-directorio, buzón independiente del pump, mascotas de cuenta, persistencia de loot,
-políticas y helpers canónicos/phasing con sus consumidores, tests y scanner.
-La campaña de aceptación comenzó a las 11:55:50 UTC; todavía no hay aceptación P4a
-ni publicación de su implementación. La dev-dependency
-elegida es `wow-world-core` con `test-fixtures`, sin una dependencia de wow-world sobre
-sí mismo; su grafo efectivo y la composición sin fixtures se comprobarán en la campaña
-final de la fase. La excepción de visibilidad se documenta en AGENTS.md/develop-rustycore.
+**Aceptación completada — 2026-10-02:** rama `1263-f4a-p4a-world-core`, base integrada
+`1f8a7c800` (P3, PR #1264), candidato `d9c9e3637`. Extracción y consumidores aceptados:
+catálogos, map manager legado, directorio, buzón independiente del pump, mascotas de cuenta,
+persistencia de loot, políticas y helpers canónicos/phasing; tests/scanners y evidencia en §8.
+La dev-dependency de wow-world activa `wow-world-core/test-fixtures`, sin self-dependency;
+el binario de producción no activa fixtures/test-support. La excepción de visibilidad queda
+acotada por los consumidores reales y AGENTS.md/develop-rustycore. P4b permanece pendiente.
 
 - Crear `crates/wow-world-core`, `publish = false`, con las piezas que no nombran
   `WorldSession` ni los grupos hub: `map_manager/**` legado, `session/directory`,
@@ -195,23 +193,21 @@ final de la fase. La excepción de visibilidad se documenta en AGENTS.md/develop
   contiene 187 unitarios en las familias seleccionadas: map_manager 139, battle_pet_account
   24, loot_persistence 5, mailbox 9, permisos de fase 5 y fixtures del directorio 5;
   además se traslada un doctest del directorio. Sustituye la estimación heredada de 173,
-  sin reclamar ejecución o aceptación de esos tests en el destino P4a.
+  con ejecución y aceptación en el destino P4a registradas en §8.
   Comparar el conjunto combinado de tests de origen y destino, conforme a §10; no exigir
   que `wow-world` conserve por sí solo los 3.950 tests.
 - Definir y propagar `test-fixtures` a `wow-world-core` y `wow-session/test-support`.
   La dev-dependency de wow-world hacia wow-world-core activa los helpers trasladados para
   los tests del consumidor; `wow-world/test-fixtures` propaga la feature explícita al core.
-  Verificar con Cargo el grafo efectivo en la fase, sin depender de la antigua hipótesis
-  de una self dev-dependency ni trasladar ese experimento a producción.
-  Comprobar también la composición de producción sin activar fixtures.
+  El grafo efectivo y la composición de producción sin fixtures se comprobaron en §8,
+  sin depender de la antigua hipótesis de una self dev-dependency.
 - Ampliar la cobertura del scanner antes de aceptar la extracción. El collector actual
   (`session_ownership/state_3.rs::collect_repository_baseline_with_persistence`) carga
-  explícitamente `wow-world`, `world-server`, `wow-network` y `wow-social`.
-  Añadir las raíces de `wow-world-core` y adaptar `PackageRole`, selección de módulos,
+  explícitamente `wow-world`, `wow-world-core`, `world-server`, `wow-network` y `wow-social`
+  tras P4a. La extracción amplía `PackageRole`, selección de módulos,
   resolución de símbolos/reexports y gates de mailbox/directory/loot_persistence según sus
-  consumidores. Cambiar solo constantes de rutas en `state_1.rs`/`state_2.rs` no basta.
-  Añadir casos positivos y negativos que prueben que una infracción en el crate destino
-  sigue detectándose y que la fachada de origen resuelve a la misma definición.
+  consumidores. Las 17 regresiones nuevas prueban detección en el destino y resolución
+  de fachadas/imports; no se limitan a cambiar constantes en `state_1.rs`/`state_2.rs`.
 - Revisar `dependency-policy.json`, workspace/lockfile, filas físicas y el delta del
   inventario exhaustivo de persistencia. La sintaxis `--syntax-only` y `final --architecture`
   no sustituyen ese inventario cuando cambian sus entradas. No borrar baselines para
@@ -229,6 +225,17 @@ Incluir los impls del hub todavía alojados en handlers, por ejemplo
 
 Los builders `hub_*`/`split_*`/`cx_*` que nombran `WorldSession` y los Cx correspondientes
 permanecen en `wow-world` durante este corte. No afirmar que sus impls han salido del crate.
+
+Cierre inmediato observado en `d9c9e3637`: el campo bootstrap de SessionCore también
+requiere `PlayerIdentityBootstrapLikeCpp` de `session/player_binding.rs`. SessionCatalogs
+nombra `WaypointPathResolverLikeCpp` (`session/map_admission.rs`),
+`PlayerBootstrapCatalogTestFixtureLikeCpp` (`session/test_support/test_fixtures.rs`) y
+`ObjectMgrCatalogsLikeCpp` (`session/catalog_capabilities.rs`). Verificar sus consumidores
+al cortar las definiciones, sin crear una arista de vuelta Core → World. Los campos
+ResetSchedule/InstanceLockMgr y el ModuleRegistry de fixtures requieren revisar las aristas
+wow-instances y wow-module-api y la propagación de features antes de implementar P4b;
+aún no se añadieron al manifiesto Core. Esta lectura prepara el corte, no lo acepta.
+
 Preservar orden de drop, hooks, locks, cancelación y persistencia. Medir la deuda de 56 warnings
 informada en P2 para builds con feature: hacer público un item no garantiza eliminar todos;
 aceptar solo el delta revisado y ningún warning nuevo.
@@ -317,7 +324,7 @@ Pendientes heredados, a reevaluar solo si se rescata la pieza afectada:
 
 ## 8. Estado contrastado — 2026-10-02
 
-Integración remota `3.4.3`: `ec5d60717f86d936b7ce341f50b49f37264853ff` (PR #1262).
+Base integrada observada para P4a: `1f8a7c800d56ff3247784148dc94b0dea1c27586` (PR #1264).
 Worktree P3: candidato aceptado `002ff5e462ba2c5c948934a270e67b137b456fcf`, limpio durante
 final. La consulta inicial no revalidó PRs históricos. #1263 registra la publicación e
 integración posterior; los SHAs de aceptación y de squash no se confunden.
@@ -333,8 +340,9 @@ integración posterior; los SHAs de aceptación y de squash no se confunden.
 | guía develop-rustycore | integrada | #1253 |
 | F4a P1 | integrada | #1261: dispatch_table fuera de SessionCore |
 | F4a P2 | integrada | #1262: base test-fixtures y dos regresiones corregidas |
-| F4a P3 | aceptación completada; publicación/integración en #1263 | movimiento `6f0660ab0`, candidato `002ff5e46` |
-| F4a P4a/P4b | pendientes | §6 |
+| F4a P3 | integrada | #1264; movimiento `6f0660ab0`, candidato aceptado `002ff5e46` |
+| F4a P4a | aceptación completada; publicación/integración en #1263 | candidato `d9c9e3637`, evidencia abajo |
+| F4a P4b | pendiente | §6 |
 | F4b | pendiente | §6 |
 | F5 | diseño detallado e implementación pendientes | §6 |
 | F6 | pendiente | pista de comportamiento |
@@ -387,6 +395,84 @@ reparación/espera no se midió aisladamente; las dos ejecuciones verdes de fina
 744,580 s sin extras. **Objetivo de 600 s incumplido.** La higiene del delta documental
 y publicación posteriores tienen su registro separado y no convierten ese coste en verde.
 No se desplegó ni reinició runtime, ni se ejecutó QA live o auditoría C++ de comportamiento.
+
+### Evidencia de aceptación F4a P4a
+
+Candidato de código `d9c9e3637f165b438b41c9fb8d2658e6f256f184`, base P3 integrada
+`1f8a7c800d56ff3247784148dc94b0dea1c27586`; host aarch64, Rust 1.98.0, jobs=1 y
+target absoluto del worktree. La extracción conserva cuerpos, admisión, orden de fases,
+paquetes, persistencia y los seis owners de reloj; no retira el MapManager legado.
+
+- Final `--base origin/3.4.3 --architecture --timings --logs --keep-going`: manifiesto
+  `target/validation-v2/manifests/20261002T145342.104305Z-2317361-final.json`, verde y
+  verificado en ese SHA, árbol limpio, **385,703 s**. Arquitectura/self-test, sintaxis
+  ownership, límites físicos, R1, higiene/fmt y workspace `--all-targets` pasan.
+  World lib: 3.714 aprobados / 1 ignorado; Core lib: 187 aprobados. El helper ignorado
+  sigue siendo `handler_contract_tests::print_world_handler_contract_snapshot`.
+- Extras en `/tmp/rustycore-p4a-20261002-d9c9e3637.extras.json`: World default y
+  test-fixtures `--all-targets`, 47 tests de integración, un doctest de Core, 597 tests
+  world-server lib y 386 tests de handler-contract-check release pasan. Las dos
+  configuraciones aisladas de Core se acreditan en `027b7d918`, con fuentes/manifiestos
+  y lockfile idénticos; no se relabelan como ejecutadas en el SHA definitivo.
+  Compose, sus 12 fixtures, 48 pruebas Python de codemods, dos selftests y los siete
+  planes idempotentes pasan. El scanner añade 17 regresiones positivas/negativas de
+  ownership, imports y resolución de fachadas; sus 386 tests debug pasan en final.
+- La unión World/Core conserva exactamente **3.950 identidades**, cero altas/bajas:
+  `/tmp/rustycore-p4a-20261002-d9c9e3637-test-identities.json`. Solo se normalizan la
+  ruta del crate y línea del doctest trasladado. La composición del binario world-server
+  reporta features vacías para wow-world, wow-world-core y wow-session: sin fixtures ni
+  test-support. Ambas configuraciones mantienen cero mensajes de warning nuevos tras
+  normalizar los imports trasladados; encabezados diagnósticos default 415 → 405,
+  fixtures 464 → 451. Son emisiones de Cargo, no un censo de deuda única.
+- R1: **S=14.372, G=15.385, allowance=15.390,6**, con ratio 5% + slack 300 intactos.
+  Session root queda en su techo de 1.052 líneas; protocolo Core tiene 967 bajo el techo
+  de 1.000. No se amplían excepciones físicas. La arista Core → wow-handler transporta
+  únicamente PacketUpdatePhase y no crea otro scheduler. Core no depende de World/Session.
+
+El inventario exhaustivo pasa con 9.939 registros: 7.718 de producción y 2.221 de fixtures,
+cuatro entradas generadas y 1.034 grupos (1.031 workflows de producción + tres de fixtures).
+Su ejecución se registra en los extras, con sus tiempos y salida reales. El primer intento
+había fallado por drift heredado: **190 identidades añadidas y 88 obsoletas**, con 9.749 filas
+exactamente conservadas. Los seis archivos afectados no cambian entre la base y P4a:
+app, administración de personajes, catálogos de skills/Trait, name query y sus dos módulos
+de statements. Se revisaron las huellas y orden actuales antes de actualizar snapshot,
+anotaciones y política; no se borraron filas por dejar de inspeccionar el destino.
+
+La revisión de procedencia usa Trinity 3.4.3 en
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`: HotfixDatabaseConnection::DoPrepareStatements
+(`src/server/database/Database/Implementation/HotfixDatabase.cpp`, Skill/Trait), load info
+Skill/Trait (`src/server/game/DataStores/DB2LoadInfo.h`) y DB2Manager::LoadHotfixData
+(`src/server/game/DataStores/DB2Stores.cpp`); CharacterCache::LoadCharacterCacheStorage
+(`src/server/game/Cache/CharacterCache.cpp`) y PlayerGuidLookupData::Initialize
+(`src/server/game/Server/Packets/QueryPackets.cpp`). Son anclas de los flujos previamente
+integrados de #524/#807, no nueva prueba de paridad. TraitDefinitionEffectPoints y la
+aceptación restante de #524 conservan sus límites en STATE/refactor-completion-plan.
+La metadata conserva consultas de startup Character → Login antes de publicar el cache,
+actualizaciones de cache tras las ramas SQL de éxito y los errores existentes, incluido
+el ownership-query error que el borrado actual ignora. No se repara gameplay ni se infiere
+atomicidad o resolución de unknown-COMMIT.
+
+R5 en ese SHA: **185.925** líneas clasificadas como producción
+(frente a 199.895 en P3), 2.598 métodos, 443 thunks y 1.726 métodos en subestados.
+El reporte sigue siendo textual: sus cfg internos no prueban un censo compilado ni el DAG completo.
+
+Campaña de código **11:55:50–15:19:37 UTC, 12.227,640 s de pared**;
+registro completo: `/tmp/rustycore-p4a-20261002-campaign.json`. Conserva cuatro finales
+fallidos (97,236 / 563,987 / 1.135,966 / 536,889 s), el final verde intermedio en
+`027b7d918` (545,879 s) que todavía no aceptaba la fase por el gate exhaustivo fallido,
+y el final interrumpido en `d4f5dab8d` (336,861 s, exit 130) para precisar la metadata
+revisada del borrado. Ventanas de reparación/revisión registradas aparte; algunas marcas
+son aproximadas y no se midió CPU de reparación de forma aislada. Los costes de inventario
+son explícitos: primer check fallido 779,910 s, ventana observable del diagnóstico
+890,159 s (no tiempo aislado de CPU), check aceptado 784,958 s.
+El candidato definitivo suma **691,218 s de órdenes ordinarias**, aun excluyendo ese
+último inventario. **Objetivo completo de 600 s incumplido.** No se ocultan los intentos
+previos, reparaciones, diagnósticos ni extras detrás de los 385,703 s del final verde.
+La posterior documentación/publicación tiene su registro separado y no relabela este SHA.
+
+La publicación/integración de la fase se registra en #1263 bajo la autoridad conservada.
+P4b, F4b, F5 y F6 siguen pendientes; esta aceptación no cierra #1263/#584 ni demuestra
+ahorro de build. No se desplegó ni reinició runtime ni se reclama QA live.
 
 ## 9. Herramientas
 
