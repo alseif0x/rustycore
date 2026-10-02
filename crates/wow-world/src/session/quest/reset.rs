@@ -33,9 +33,3 @@ impl WorldSession {
     }
 }
 
-impl crate::session::state::SessionCatalogs {
-    /// Set the represented QuestPoolMgr active snapshot shared reference.
-    pub fn set_quest_pool_store(&mut self, store: Arc<wow_data::quest::QuestPoolStoreLikeCpp>) {
-        self.quests.pool_store = Some(store);
-    }
-}

@@ -219,13 +219,8 @@ pub(in crate::session) fn is_represented_bag_slot(slot: u8) -> bool {
 
 pub(crate) use wow_world_core::session::player_class_mask_for_transmog_like_cpp;
 
-pub(in crate::session) fn player_class_mask_for_talent_like_cpp(class_id: u8) -> Option<u32> {
-    if class_id == 0 || class_id > 32 {
-        None
-    } else {
-        Some(1_u32 << u32::from(class_id - 1))
-    }
-}
+pub(crate) use wow_world_core::session::player_class_mask_for_talent_like_cpp;
+
 
 pub(in crate::session) fn player_class_by_armor_subclass_like_cpp(subclass: u32) -> u32 {
     match subclass {

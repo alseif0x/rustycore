@@ -43,14 +43,20 @@ mod player_presentation;
 pub use player_presentation::{LIQUID_MAP_IN_WATER_LIKE_CPP, LIQUID_MAP_UNDER_WATER_LIKE_CPP};
 mod player_vitals_adapter;
 mod pet_dismissal;
+mod pet_loading;
+pub use pet_loading::CharacterPetStableRowLikeCpp;
 mod spell_state;
 mod spell_pet_catalogs;
 mod quest_dialog;
-pub use quest_dialog::power_type_from_u8_like_cpp;
+pub use quest_dialog::{
+    pet_type_from_db_like_cpp, power_type_from_u8_like_cpp, react_state_from_db_like_cpp,
+};
+mod quest_catalog_queries;
 mod player_items;
 mod item_modifiers;
 pub use item_modifiers::{
-    RepresentedScalingStatContextLikeCpp, player_class_mask_for_transmog_like_cpp,
+    RepresentedScalingStatContextLikeCpp, player_class_mask_for_talent_like_cpp,
+    player_class_mask_for_transmog_like_cpp,
 };
 mod player_melee_application;
 pub use player_melee_application::begin_combat_ref_on_map_like_cpp;
@@ -73,6 +79,7 @@ mod publication;
 mod npc_interaction;
 mod battleground_adapter;
 pub use battleground_adapter::{
+    battleground_queue_type_id_from_packed_like_cpp,
     RepresentedBattlefieldListLikeCpp, RepresentedBattlefieldPortLikeCpp,
     RepresentedBattlemasterHelloLikeCpp, RepresentedBattlemasterJoinArenaLikeCpp,
     RepresentedBattlemasterJoinLikeCpp, RepresentedBattlemasterJoinSkirmishLikeCpp,
@@ -83,8 +90,11 @@ pub use battleground_adapter::RepresentedBattlegroundQueueSlotLikeCpp;
 
 mod social_requests;
 pub use social_requests::RepresentedWargameInviteAcceptanceLikeCpp;
+mod taxi;
 mod taxi_contracts;
-pub use taxi_contracts::RepresentedActivateTaxiLikeCpp;
+pub use taxi_contracts::{
+    PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP, RepresentedActivateTaxiLikeCpp,
+};
 
 mod creature_aggro_contracts;
 pub use creature_aggro_contracts::{
@@ -152,6 +162,7 @@ pub use rest_progression::RestMgrTestFixtureLikeCpp;
 
 mod progression_adapters;
 pub use progression_adapters::WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP;
+mod xp_grants;
 
 pub use spell_click_values::RepresentedCreatureAccessLikeCpp;
 
@@ -175,6 +186,10 @@ pub use raid_profile_values::{
 mod cinematic_adapter;
 
 mod world_entities;
+mod creature_spawn_contracts;
+pub use creature_spawn_contracts::{
+    CreatureCreateDisplaySelectionLikeCpp, CreatureCreateModelScalarsLikeCpp,
+};
 mod loot;
 mod creature_canonical_adapter;
 pub use creature_canonical_adapter::{
@@ -196,7 +211,9 @@ pub use player_binding::PlayerTransportLoginStateLikeCpp;
 pub use player_binding::PlayerIdentityBootstrapLikeCpp;
 
 pub mod movement_protocol;
-pub use movement_protocol::creature_movement_spline_speed_opcode_like_cpp;
+pub use movement_protocol::{
+    creature_movement_spline_speed_opcode_like_cpp, player_movement_speed_opcodes_like_cpp,
+};
 pub mod pets;
 
 pub mod time_synchronization;

@@ -776,22 +776,6 @@ impl crate::session::state::SessionQuestState {
     }
 }
 
-impl crate::session::state::SessionCatalogs {
-    pub(crate) fn represented_quest_can_increase_rewarded_counters_like_cpp(
-        &self,
-        quest_id: u32,
-    ) -> Option<bool> {
-        self.quests.store.as_ref()?.get(quest_id).map(|quest| {
-            !quest.is_df_quest_like_cpp()
-                && !quest.is_daily_like_cpp()
-                && (!quest.is_repeatable()
-                    || quest.is_weekly_like_cpp()
-                    || quest.is_monthly_like_cpp()
-                    || quest.is_seasonal_like_cpp())
-        })
-    }
-}
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/quest/objectives/f3_shims.rs"]
 mod f3_shims;

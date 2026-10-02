@@ -3,6 +3,8 @@
 
 use wow_core::ObjectGuid;
 
+pub const PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP: u32 = 0x0002_0000;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RepresentedActivateTaxiLikeCpp {
     pub vendor: ObjectGuid,

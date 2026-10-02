@@ -70,6 +70,52 @@ pub struct RepresentedTaxiFlightStateLikeCpp {
     pub node_after_teleport: Option<RepresentedTaxiFlightNodeLikeCpp>,
 }
 
+#[cfg(any(test, feature = "test-fixtures"))]
+pub fn canonical_taxi_flight_node_like_cpp(
+    node: RepresentedTaxiFlightNodeLikeCpp,
+) -> wow_entities::PlayerTaxiFlightNodeLikeCpp {
+    wow_entities::PlayerTaxiFlightNodeLikeCpp {
+        map_id: node.map_id,
+        position: node.position,
+        teleport_flag: node.teleport_flag,
+    }
+}
+
+#[cfg(any(test, feature = "test-fixtures"))]
+pub fn represented_taxi_flight_node_like_cpp(
+    node: wow_entities::PlayerTaxiFlightNodeLikeCpp,
+) -> RepresentedTaxiFlightNodeLikeCpp {
+    RepresentedTaxiFlightNodeLikeCpp {
+        map_id: node.map_id,
+        position: node.position,
+        teleport_flag: node.teleport_flag,
+    }
+}
+
+#[cfg(any(test, feature = "test-fixtures"))]
+pub fn canonical_taxi_flight_state_like_cpp(
+    flight: RepresentedTaxiFlightStateLikeCpp,
+) -> wow_entities::PlayerTaxiFlightStateLikeCpp {
+    wow_entities::PlayerTaxiFlightStateLikeCpp {
+        current_node: canonical_taxi_flight_node_like_cpp(flight.current_node),
+        node_after_teleport: flight
+            .node_after_teleport
+            .map(canonical_taxi_flight_node_like_cpp),
+    }
+}
+
+#[cfg(any(test, feature = "test-fixtures"))]
+pub fn represented_taxi_flight_state_like_cpp(
+    flight: wow_entities::PlayerTaxiFlightStateLikeCpp,
+) -> RepresentedTaxiFlightStateLikeCpp {
+    RepresentedTaxiFlightStateLikeCpp {
+        current_node: represented_taxi_flight_node_like_cpp(flight.current_node),
+        node_after_teleport: flight
+            .node_after_teleport
+            .map(represented_taxi_flight_node_like_cpp),
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub struct MovementAckEventLikeCpp {
     pub opcode: ClientOpcodes,
@@ -332,3 +378,4 @@ impl crate::session::HubRef<'_> {
 }
 
 pub const TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP: TeleportToOptionsLikeCpp = 0x08;
+pub const TELE_TO_SEAMLESS_LIKE_CPP: TeleportToOptionsLikeCpp = 0x80;

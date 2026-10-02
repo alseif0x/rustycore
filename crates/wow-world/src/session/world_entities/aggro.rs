@@ -385,21 +385,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::state::SessionCatalogs {
-    pub(crate) fn spell_threat_entry_like_cpp(
-        &self,
-        spell_id: u32,
-    ) -> Option<&SpellThreatEntryLikeCpp> {
-        let store = self.spell_catalogs.spell_threat_store.as_ref()?;
-        store.get_spell_threat_entry_like_cpp(spell_id, |lookup_spell_id| {
-            self.spell_catalogs
-                .spell_chain_store
-                .as_ref()
-                .map(|spell_chains| spell_chains.first_spell_in_chain_like_cpp(lookup_spell_id))
-                .unwrap_or(lookup_spell_id)
-        })
-    }
-}
 
 impl crate::session::state::WorldEntitiesState {
     pub(crate) fn creature_aggro_radius_for_faction_template_like_cpp(

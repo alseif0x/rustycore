@@ -120,3 +120,11 @@ impl crate::session::state::SessionCatalogs {
         self.player_stats.as_ref()
     }
 }
+
+pub fn player_class_mask_for_talent_like_cpp(class_id: u8) -> Option<u32> {
+    if class_id == 0 || class_id > 32 {
+        None
+    } else {
+        Some(1_u32 << u32::from(class_id - 1))
+    }
+}

@@ -398,66 +398,6 @@ impl crate::session::state::SessionLifecycleState {
     }
 }
 
-impl crate::session::state::SessionCatalogs {
-    /// C++ `Player::_SaveCurrency` plan for changed/new currency rows.
-    /// Gameplay owns filtering and state transitions; the persistence adapter
-    /// owns statement identity, bind order, and transaction execution.
-    pub(crate) fn plan_player_currency_save_like_cpp(
-        &self,
-        character_guid: u64,
-        currencies: &mut HashMap<u32, PlayerCurrency>,
-    ) -> wow_persistence::PlayerCurrencySaveRequestLikeCpp {
-        let mut rows = Vec::new();
-        let Some(store) = self.currency_types_store.as_ref() else {
-            return wow_persistence::PlayerCurrencySaveRequestLikeCpp {
-                player_guid: character_guid,
-                rows,
-            };
-        };
-        for (&currency_id, currency) in currencies.iter_mut() {
-            if !store.has_record(currency_id) {
-                continue;
-            }
-            let Ok(currency_db_id) = u16::try_from(currency_id) else {
-                continue;
-            };
-
-            match currency.state {
-                PlayerCurrencyState::New => {
-                    rows.push(wow_persistence::PlayerCurrencySaveRowLikeCpp {
-                        kind: wow_persistence::PlayerCurrencySaveKindLikeCpp::New,
-                        currency_id: currency_db_id,
-                        quantity: currency.quantity,
-                        weekly_quantity: currency.weekly_quantity,
-                        tracked_quantity: currency.tracked_quantity,
-                        increased_cap_quantity: currency.increased_cap_quantity,
-                        earned_quantity: currency.earned_quantity,
-                        flags: currency.flags,
-                    });
-                    currency.state = PlayerCurrencyState::Unchanged;
-                }
-                PlayerCurrencyState::Changed => {
-                    rows.push(wow_persistence::PlayerCurrencySaveRowLikeCpp {
-                        kind: wow_persistence::PlayerCurrencySaveKindLikeCpp::Changed,
-                        currency_id: currency_db_id,
-                        quantity: currency.quantity,
-                        weekly_quantity: currency.weekly_quantity,
-                        tracked_quantity: currency.tracked_quantity,
-                        increased_cap_quantity: currency.increased_cap_quantity,
-                        earned_quantity: currency.earned_quantity,
-                        flags: currency.flags,
-                    });
-                    currency.state = PlayerCurrencyState::Unchanged;
-                }
-                PlayerCurrencyState::Unchanged | PlayerCurrencyState::Removed => {}
-            }
-        }
-        wow_persistence::PlayerCurrencySaveRequestLikeCpp {
-            player_guid: character_guid,
-            rows,
-        }
-    }
-}
 
 #[cfg(test)]
 #[path = "../../../unit_tests/session/persistence/save/f3_shims.rs"]

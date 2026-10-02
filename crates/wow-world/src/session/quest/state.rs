@@ -746,23 +746,6 @@ impl crate::session::QuestStateCx<'_> {
     }
 }
 
-impl crate::session::state::SessionCatalogs {
-    /// C++ `Player::PushQuests` scans the complete global quest-template map
-    /// during login and area updates. `AddQuest` can cast an AUTO_PUSH quest's
-    /// SourceSpellID, so the narrow empty-source proof requires that the
-    /// authoritative store contain no such template at all.
-    pub(in crate::session) fn represented_auto_push_quest_aura_source_is_empty_like_cpp(
-        &self,
-    ) -> bool {
-        const QUEST_FLAGS_EX_AUTO_PUSH_LIKE_CPP: u32 = 0x0400_0000;
-        self.quests.store.as_ref().is_some_and(|quests| {
-            quests
-                .quests_like_cpp()
-                .all(|quest| quest.flags_ex & QUEST_FLAGS_EX_AUTO_PUSH_LIKE_CPP == 0)
-        })
-    }
-}
-
 impl crate::session::state::SessionQuestState {
     pub(crate) fn represented_raid_difficulty_request_like_cpp(
         &self,
@@ -1042,19 +1025,6 @@ impl crate::session::state::SessionQuestState {
     }
 }
 
-impl crate::session::HubMut<'_> {
-    pub(crate) fn request_temporary_pet_unsummon_like_cpp(&mut self) {
-        self.invalidate_represented_character_pet_empty_authority_like_cpp();
-        #[cfg(any(test, feature = "test-fixtures"))]
-        {
-            self.fixtures.pets.temporary_pet_unsummon_requests_like_cpp = self
-                .fixtures
-                .pets
-                .temporary_pet_unsummon_requests_like_cpp
-                .saturating_add(1);
-        }
-    }
-}
 
 /// Which recurrence bucket one rewarded quest belongs to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

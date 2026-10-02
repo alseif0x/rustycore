@@ -121,18 +121,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::HubMut<'_> {
-    pub(crate) fn set_represented_far_teleport_pending_like_cpp(&mut self, pending: bool) -> bool {
-        self.update_player_teleport_state_like_cpp(|state| state.far_pending = pending)
-    }
-}
-
-impl crate::session::HubRef<'_> {
-    pub(crate) fn represented_far_teleport_pending_like_cpp(&self) -> bool {
-        self.player_teleport_state_snapshot_like_cpp()
-            .is_some_and(|state| state.far_pending)
-    }
-}
 
 #[cfg(test)]
 #[path = "../../../unit_tests/session/movement/far_transfer/f3_shims.rs"]

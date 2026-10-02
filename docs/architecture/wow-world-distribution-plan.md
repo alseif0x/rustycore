@@ -357,7 +357,7 @@ encantamientos conservan sus tres bloques, incluido el comportamiento existente
 iniciales conservan la autoridad de slots/tombstones y el orden de publicación;
 sus cinco conversiones auxiliares tienen una sola definición en Core. El cierre de
 imports/montajes sigue sin aceptación, publicación o QA live.
-El siguiente lote mueve los ocho bloques del hub/catálogos que seguían en los
+El checkpoint local `86d843930` mueve los ocho bloques del hub/catálogos que seguían en los
 handlers de condiciones, stats, mail de login, emote, loot y persistencia de quest
 status a hojas privadas de Core. Sus cuerpos se conservan; la firma de quest status
 usa el mismo tipo nominal `wow_entities::PlayerQuestStatusRecord` de la fachada
@@ -374,8 +374,57 @@ ramas de mover/transporte de `src/server/game/Handlers/MovementHandler.cpp`,
 checkout `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`; este traslado no acredita
 nueva paridad de los adaptadores ni retirada del runtime legado. Tampoco inicia
 la aceptación de P4b.
-**NO VALIDADO:** faltan los impls restantes y la aceptación completa; esta revisión
-del diff no sustituye compilación, tests, inventario ni evidencia de producción.
+La continuación de mascotas conserva los diez bloques de catálogos, hub y fixtures
+de pet/summoning, la prueba de fuente vacía de `character_pet` y la solicitud de
+unsummon temporal. El DTO de filas del stable mantiene sus 16 campos y derive; los
+dos decodificadores mantienen sus ramas y defaults, con fachadas World. La revisión
+de fuente conserva los cuerpos, los callbacks de una sola ejecución, el tratamiento
+del handle obsoleto y la liberación de guards antes de enviar o difundir paquetes.
+El traslado conserva los límites de persistencia del adaptador Rust; no acredita
+una nueva implementación de `Pet::SavePetToDB`. Referencia contrastada:
+`Player::RemovePet`, `src/server/game/Entities/Player/Player.cpp:20863`, del mismo
+checkout versionado. El censo de continuación incluye también los bloques del hub de
+`battle_pet_purchase/ops_1.rs` y `player/quest_persistence_projection.rs`, fuera
+de `session` y `handlers`; su cierre sigue dentro de P4b.
+La continuación revisada mueve los 19 bloques de velocidad, caída, publicación,
+transferencia y avance de spline a hojas privadas de Core, conservando firmas,
+cuerpos y gates. Se corrigió antes de aceptar un error mecánico que había borrado
+nombres de métodos. Los 14 bloques originales de catálogos de Creature, amenaza,
+battleground, XP, talentos, moneda y misiones conservan sus operaciones; el bloque
+de catálogos de Creature queda repartido en dos impls sin cambiar sus tres métodos.
+Los dos DTO de creación, el helper de máscara de clase y el decoder de queue ID
+tienen una sola definición con fachadas World. La proyección de quest status usa
+el mismo tipo nominal de la fachada anterior.
+Los 12 bloques de battle pets conservan la selección de trainer, slots, journal,
+flags y publicación. La revisión retiró tres bloques duplicados en la hoja de
+destino y mantiene el límite de persistencia del dueño de cuenta. Conserva también
+la divergencia Rust ya documentada para filas Removed durante heal; este traslado
+no la repara ni reclama paridad nueva. Referencias contrastadas: `BattlePetMgr`
+en `src/server/game/BattlePets/BattlePetMgr.cpp:584,799,890,900` y
+`src/server/game/Handlers/BattlePetHandler.cpp:38,96`, del mismo checkout versionado.
+Taxi conserva los cinco bloques y sus 38 métodos, las cuatro conversiones fixture
+y los valores de sus constantes. Mantiene la precedencia canónica, el rechazo de
+handles obsoletos, el filtro de GUID vacío, la instalación y retirada del vehículo,
+y el orden del contador y de los dos paquetes de vehicle ID. Se corrigió el gate
+de un import usado en producción. Referencias: `Player::CleanupAfterTaxiFlight`,
+`src/server/game/Entities/Player/Player.cpp:22019`, y `Unit::CreateVehicleKit` /
+`Unit::SendSetVehicleRecId`, `src/server/game/Entities/Unit/Unit.cpp:11298,13031`.
+El censo por fuente ya no encuentra impls de HubRef/HubMut/SessionCore/SessionCatalogs
+en World; los substates de dominio y su orquestación siguen pendientes de F4b/F5.
+La revisión por fuente de imports, montajes y consumidores del lote está cerrada;
+incluye las fachadas de teleport, los gates de fall/battleground y los helpers
+internos de mascotas con visibilidad limitada a sus consumidores Core.
+**NO VALIDADO:** falta reconciliar los metadatos y baselines revisados y ejecutar
+la aceptación completa. La inspección de cuerpos no sustituye compilación, tests,
+inventario ni evidencia de producción.
+El reinicio del host borró los listados P4a de `/tmp`. Antes de compilar P4b se
+conservaron cinco binarios de test y sus fingerprints de Cargo en
+`target/validation-v2/evidence/p4b-baseline-retained-20261002/`, con hashes y
+proveniencia. Su asociación al manifiesto P4a es una inferencia apoyada en targets,
+features, fechas y ausencia de builds P4b; el binario no certifica un SHA. Todavía
+no se ejecutaron sus listados. La comparación deberá recuperar sus identidades,
+cotejar las fuentes de la base y registrar esta limitación sin atribuir a P4b
+resultados de una ejecución anterior.
 
 La construcción debe conservar el orden exacto de expresiones, RNG, relojes, canales
 y campos. Extraer primero el literal de `SessionCore` a una inicialización propia;

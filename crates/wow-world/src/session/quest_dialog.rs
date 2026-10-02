@@ -4,10 +4,10 @@
 //! Quest dialog: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{ActiveState, Arc, InventoryResult, ObjectGuid, PetType, PowerType};
+use super::{ActiveState, Arc, InventoryResult, ObjectGuid, PowerType};
 use super::{QUEST_MENU_ICON_AVAILABLE_LIKE_CPP, QUEST_MENU_ICON_COMPLETE_LIKE_CPP};
 use super::{QUEST_MENU_ICON_TURN_IN_LIKE_CPP, QUEST_OBJECTIVE_ITEM_LIKE_CPP, QuestListEntry};
-use super::{QuestRewardsBlock, ReactState, RepresentedGameObjectUseEffect, SheathState};
+use super::{QuestRewardsBlock, RepresentedGameObjectUseEffect, SheathState};
 use super::{UnitStandStateType, WorldSession, info, quest};
 
 pub(in crate::session) fn quest_has_represented_item_objective_like_cpp(
@@ -57,22 +57,9 @@ pub(in crate::session) fn quest_giver_creature_id_from_source_like_cpp(
     }
 }
 
-pub(in crate::session) const fn react_state_from_db_like_cpp(value: u8) -> ReactState {
-    match value {
-        0 => ReactState::Passive,
-        1 => ReactState::Defensive,
-        2 => ReactState::Aggressive,
-        _ => ReactState::Passive,
-    }
-}
-
-pub(in crate::session) const fn pet_type_from_db_like_cpp(value: u8) -> PetType {
-    match value {
-        0 => PetType::Summon,
-        1 => PetType::Hunter,
-        _ => PetType::Max,
-    }
-}
+pub(in crate::session) use wow_world_core::session::{
+    pet_type_from_db_like_cpp, react_state_from_db_like_cpp,
+};
 
 pub(in crate::session) const fn active_state_from_db_like_cpp(value: u8) -> ActiveState {
     match value {

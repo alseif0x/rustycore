@@ -13,20 +13,9 @@ pub struct PendingCreatureSpawn {
     pub zone_id: u32,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct CreatureCreateModelScalarsLikeCpp {
-    pub display_scale: f32,
-    pub native_x_display_scale: f32,
-    pub bounding_radius: f32,
-    pub combat_reach: f32,
-    pub hover_height: f32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct CreatureCreateDisplaySelectionLikeCpp {
-    pub display_id: u32,
-    pub display_scale: f32,
-}
+pub(crate) use wow_world_core::session::{
+    CreatureCreateDisplaySelectionLikeCpp, CreatureCreateModelScalarsLikeCpp,
+};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct CreatureCreateStatsLikeCpp {

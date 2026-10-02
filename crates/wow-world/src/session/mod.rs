@@ -887,7 +887,7 @@ const DIFFICULTY_10_N_LIKE_CPP: u32 = 3;
 const MAP_INSTANCE_LIKE_CPP: u8 = 1;
 const MAP_RAID_LIKE_CPP: u8 = 2;
 use wow_world_core::session::PLAYER_FLAGS_IN_PVP_LIKE_CPP;
-const PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP: u32 = 0x0002_0000;
+pub(crate) use wow_world_core::session::PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP;
 const PLAYER_FLAGS_PVP_TIMER_LIKE_CPP: u32 = 0x0004_0000;
 const PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP: u32 = 0x0800_0000;
 use wow_world_core::session::SPELL_PVP_RULES_ENABLED_LIKE_CPP;
@@ -903,7 +903,9 @@ const AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP: u32 = 0x0000_0080;
 const AREA_FLAG_CONTESTED_LIKE_CPP: u32 = 0x0004_0000;
 const AREA_FLAG_COMBAT_ZONE_LIKE_CPP: u32 = 0x0100_0000;
 const CURRENCY_DB_UNUSED_FLAGS_LIKE_CPP: u8 = 0x13;
-pub(crate) use wow_world_core::session::movement_protocol::TeleportToOptionsLikeCpp;
+pub(crate) use wow_world_core::session::movement_protocol::{
+    TELE_TO_SEAMLESS_LIKE_CPP, TeleportToOptionsLikeCpp,
+};
 pub(crate) const TELE_TO_NONE_LIKE_CPP: TeleportToOptionsLikeCpp = 0x00;
 #[allow(dead_code)]
 pub(crate) const TELE_TO_GM_MODE_LIKE_CPP: TeleportToOptionsLikeCpp = 0x01;
@@ -916,7 +918,6 @@ pub(crate) const TELE_TO_SPELL_LIKE_CPP: TeleportToOptionsLikeCpp = 0x10;
 pub(crate) const TELE_TO_TRANSPORT_TELEPORT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x20;
 #[allow(dead_code)]
 pub(crate) const TELE_REVIVE_AT_TELEPORT_LIKE_CPP: TeleportToOptionsLikeCpp = 0x40;
-pub(crate) const TELE_TO_SEAMLESS_LIKE_CPP: TeleportToOptionsLikeCpp = 0x80;
 const ATTACK_DISPLAY_DELAY_LIKE_CPP_MS: u32 = 200;
 const MIN_MELEE_REACH_LIKE_CPP: f32 = 2.0;
 const NOMINAL_MELEE_RANGE_LIKE_CPP: f32 = 5.0;
@@ -963,7 +964,9 @@ const BATTLEGROUND_EY_LIKE_CPP: u32 = 7;
 pub(crate) use wow_entities::PlayerAccountHeirloomDataLikeCpp as AccountHeirloomDataLikeCpp;
 pub(crate) use wow_entities::PlayerFavoriteAppearanceStateLikeCpp as FavoriteAppearanceStateLikeCpp;
 
-pub(crate) const BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP: u8 = 1;
+pub(crate) use wow_world_core::session::battle_pet_adapter::{
+    BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP,
+};
 pub(crate) use wow_world_core::session::battle_pet_adapter::BATTLE_PET_SLOT_COUNT_LIKE_CPP;
 #[cfg(test)]
 pub(crate) const BATTLE_PET_CAGE_ITEM_ID_LIKE_CPP: u32 = 82_800;
