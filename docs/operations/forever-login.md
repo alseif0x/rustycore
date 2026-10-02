@@ -528,6 +528,88 @@ This scoped duration does not make the blocked full final gate green or erase
 the earlier 835-second campaign overrun. Subsequent closeout prose is a
 documentation-only delta, not relabeled compiled evidence at a later SHA.
 
+### Build-70170 ruleset-to-realm discovery contract
+
+The safe diagnostic capture at `2026-10-02T19:28:47Z`–`19:29:07Z` established
+that the real client requests subregion `70-1-70` both before and after ruleset
+selection. After choosing district 1 (PvP), it sends signed
+`Param_ContentSetIDFilter=136` and `Param_FilterToPreferredLocality=true`.
+Before selection the locality flag is false; the first diagnostic deliberately
+redacted negative integers, so that capture alone did not establish the initial
+filter value. No opaque attributes, tickets or client secrets were recorded.
+
+The extended hash-gated `forever_client_metadata.py` reports the approved PE's
+`JamJSONRealmEntry` descriptor at RVA `0x49bdfd0` (14 fields) and
+`JSONUtilityInfo` at `0x49bd6a0` (2 fields). Unknown converter types remain
+unclassified, with their RVA, rather than inferred from member offsets.
+The target response callback at `0x22ae8e0`–`0x22aed19` requires a blob
+`Param_RealmEntry` and signed `Param_LastPlayedTime`; empty success reaches
+`0x22aecf2` and invokes the completion with `0x80000135`. Coordinator
+`0x2251d10` selects a nonzero realm and positive time; its immutable client
+feature byte at `0x48b7308` is enabled, so the ordinary empty-last-character
+fallback to `RealmListRequest` is not the active path. These are local
+code-only diagnostic anchors, not redistributed client bytes.
+
+Additional versioned source is
+[advocaite/TrinityCore Forever at 02245dcd](https://github.com/advocaite/TrinityCore/tree/02245dcd245e7433e524577656177723d3e4992e):
+`Services/GameUtilitiesService.cpp::Shared::GetLastCharPlayed` selects a realm
+by content set for a new account and returns RealmEntry, current signed time,
+and UtilityInfo (`realmPermissions=0x200`). `shared/Realm/RealmList.cpp`
+(`GetRealmIdForContentSet`, `FillRealmEntry`, `GetRealmEntryJSON`) and
+`Realm.h` establish the version/security/online gates and modern population
+conversion. Its `Realm.cpp` maps content 136 to district 1, independently
+consistent with our real-client selection. This fork is complementary
+implementation evidence, not a blanket certification of 70170 gameplay.
+
+The branch's V2/build-70170 adapter now implements that discovery operation.
+`ForeverCatalog` remains the immutable configuration owner and `RealmManager`
+remains the only current realm-state owner. The optional binding config is:
+
+```ini
+Forever.RealmBindings = []
+# Isolated fixture mapping; use only with the matching Auth realm:
+# Forever.RealmBindings = [{"realmAddress":33619969,"contentSetID":136,"superDistrictID":1}]
+```
+
+Bindings require exact fields, positive content IDs, nonzero packed region/site/
+realm, unique realm addresses/content IDs and an already configured district.
+They have the same 16 KiB / 64-entry bounds as the district catalog and do not
+change the inherited Auth schema. Configuration never overrides online state,
+build, account security or district hold/disallow flags. Full packed addresses
+are rechecked after the inherited low-ID lookup. The builder uses exact target
+JSON spelling (`cfgRealmsID`, not inherited `cfgRealmsId`), content/district
+fields and modern population/flag conversion. No BLEEP endpoint is advertised.
+
+Intentional bounded differences from the complementary fork: there is no
+first-unrelated-realm fallback, no guessed default content/district mapping,
+and no permissive bool/float-to-content-ID coercion. The observed signed filter
+is accepted (`-1` means no filter); other negative values, wrong types and
+overflow fail malformed. Existing character data comes only from the selected
+game account's Auth snapshot and must match the selected realm. A new account
+receives a routing timestamp, **not** a fabricated character name/GUID or a
+persisted last-played row. V1 and other client builds keep their old handler.
+
+`RUST_LOG=warn,bnet.discovery=debug` enables a bounded allowlist trace of only
+discovery commands and numeric/bool routing fields. Strings/blobs are length
+only, unknown attributes are count only, and at most 16 recognized attributes
+are projected. The diagnostics are off at the normal `warn` setting.
+
+The diagnostic-only build based on `c33987a2` passed 115 BNet tests and a
+49.70-second release build before the request capture above (work started
+`19:25:10Z`). That evidence covers the trace module's original projection,
+not the later routing implementation. The later acceptance must exercise the
+combined routing/QA candidate; the diagnostic run is not relabeled as final.
+
+The default integrated smoke retains its offline assertions and also checks
+LastChar pre-ticket rejection, unfiltered/unknown-content empty responses,
+offline non-advertisement and malformed-filter errors. Its explicit
+`--expect-discovery-realm` mode instead validates the new no-character response
+for the fixed content-136 fixture. It never changes DB state or starts a world
+server, and marks the old RealmList metadata assertion as skipped in that mode.
+Use that option only during a separately authorized isolated online-metadata
+probe; restore the fixture offline afterwards. A discovery success is not a
+World AuthSession or character-selection acceptance.
+
 ### Publication validation boundary
 
 At README candidate `a53a88d0`, `validation-v2 final --base origin/3.4.3

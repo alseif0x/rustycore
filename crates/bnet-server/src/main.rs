@@ -57,7 +57,12 @@ async fn main() -> Result<()> {
         "Forever.SuperDistricts",
         "[]",
     ))
-    .context("Invalid Forever.SuperDistricts configuration")?;
+    .context("Invalid Forever.SuperDistricts configuration")?
+    .with_realm_bindings(&wow_config::get_string_default(
+        "Forever.RealmBindings",
+        "[]",
+    ))
+    .context("Invalid Forever.RealmBindings configuration")?;
     log_startup_banner_like_cpp(&config_report);
     log_thread_config_like_cpp();
     create_pid_file_from_config_like_cpp()?;

@@ -6,11 +6,16 @@ use anyhow::{Result, bail};
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
+mod bindings;
+#[cfg(test)]
+pub(crate) mod test_fixture;
+
 const MAX_DISTRICTS: usize = 64;
 
 #[derive(Debug, Default)]
 pub(crate) struct ForeverCatalog {
     districts: Vec<SuperDistrict>,
+    bindings: Vec<bindings::RealmBinding>,
 }
 
 #[derive(Debug, Deserialize, Serialize)]
@@ -40,7 +45,10 @@ impl ForeverCatalog {
                 bail!("Forever.SuperDistricts requires positive, unique district IDs");
             }
         }
-        Ok(Self { districts })
+        Ok(Self {
+            districts,
+            bindings: Vec::new(),
+        })
     }
 
     pub(crate) fn compressed_list(&self) -> Result<Vec<u8>> {
@@ -64,6 +72,12 @@ pub(crate) fn compressed_empty_bleep_proxies() -> Vec<u8> {
     // TC 6ebe044c Shared::GameUtilities::GetBleepProxies and
     // RealmList.proto::BleepProxyList. No proxy endpoint is advertised.
     super::zlib_compress(b"JSONBleepProxyList:{\"proxies\":[]}\0")
+}
+
+pub(crate) fn compressed_utility_info() -> Vec<u8> {
+    // Match Forever GetLastCharPlayed's minimal account realm permissions.
+    // No login licenses are advertised by this projection.
+    super::zlib_compress(b"JSONUtilityInfo:{\"realmPermissions\":512}\0")
 }
 
 #[cfg(test)]

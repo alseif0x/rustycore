@@ -4,7 +4,8 @@
 The wire operations follow Rust `rpc/session.rs`, `rpc/services/authentication.rs`,
 `game_utilities.rs` and C++ fork a22fd98b (Server/Session.cpp,
 REST/LoginRESTService.cpp); this is not a claim of retail-client parity.
-The bounded result ends at an offline realm list; it does not join a realm.
+By default the bounded result ends at an offline realm list. The explicit
+discovery mode checks an online realm projection but never joins a world.
 """
 import argparse
 import hashlib
@@ -20,7 +21,7 @@ from forever_bnet_wire import (MAX_HTTP_BODY, MAX_HTTP_HEADER, attribute, client
                                extract_session_cookie, fields, http_request,
                                parse_http_response_header, parse_rpc_header, raw,
                                response_attributes, rpc_header, var, connect_identity,
-                               v2_logon_record)
+                               v2_attributes, v2_int_attribute, v2_logon_record)
 
 HOST, REST, RPC = "127.0.0.1", 18081, 1119
 EMAIL, BUILD, VERSION = "FOREVER@LOCAL.TEST", 70170, "1.60.1"
@@ -299,7 +300,7 @@ def realm_metadata(blob):
             "wow_realm_address": realm_address, "deleting": deleting}
 
 
-def rpc_login(runtime, ticket):
+def rpc_login(runtime, ticket, expect_discovery_realm=False):
     rpc = RPCSession(runtime)
     try:
         status, _ = rpc.send(CONN, 1, b"")
@@ -323,14 +324,22 @@ def rpc_login(runtime, ticket):
         status, body = rpc.send(GAME, 1, client_request([
             attribute("Command_RealmListRequest_v1_classic", "2-1-0", True)]))
         if status: raise ValueError("realm list failed")
-        realm = realm_metadata(response_attributes(body)["Param_RealmList"])
-        return {"connect": True, "ciid_all_frames": True, "status_only": True,
-                "on_logon_complete": True, "realm_list_ticket": True,
-                "realm_list": True, "realm": realm}
+        attrs = response_attributes(body)
+        result = {"connect": True, "ciid_all_frames": True, "status_only": True,
+                  "on_logon_complete": True, "realm_list_ticket": True,
+                  "realm_list": True, "realm_list_response_received": True}
+        if expect_discovery_realm:
+            # This mode asserts LastChar, not the offline RealmList fixture.
+            del result["realm_list"]
+            result["realm_metadata_checked"] = False
+        else:
+            result["realm"] = realm_metadata(attrs["Param_RealmList"])
+            result["realm_metadata_checked"] = True
+        return result
     finally: rpc.close()
 
 
-def rpc_login_v2(runtime, password):
+def rpc_login_v2(runtime, password, expect_discovery_realm=False):
     rpc = RPCSession(runtime)
     try:
         status, _ = rpc.send(CONN, 1, b"")
@@ -372,7 +381,7 @@ def rpc_login_v2(runtime, password):
             cached.notification(*cached.frame())
             if cached.v2_record is None: raise ValueError("V2 cached completion missing")
         finally: cached.close()
-        post_login = rpc_post_login_v2(rpc)
+        post_login = rpc_post_login_v2(rpc, expect_discovery_realm)
         return {"external_challenge": True, "negative_admission": True, "reply_before_complete": True,
                 "on_logon_complete": True, "generated_token": True, "cached_logon": True,
                 "ciid_all_frames": True, "record": rpc.v2_record, "post_login": post_login}
@@ -396,6 +405,57 @@ def discovery_blob(blob, prefix):
         raise ValueError("invalid discovery JSON") from error
 
 
+def last_char_request(filter_value):
+    """Build the V2 LastChar request with a signed int64 content filter."""
+    return client_request([
+        attribute("Command_LastCharPlayedRequest_v1_classic", "70-1-70", True, v2=True),
+        v2_int_attribute("Param_ContentSetIDFilter", filter_value),
+    ])
+
+
+def last_char_metadata(payload):
+    """Validate the 70170 no-character LastChar routing projection."""
+    attrs = v2_attributes(payload)
+    expected = ["Param_RealmEntry", "Param_LastPlayedTime", "Param_UtilityInfo"]
+    if [name for name, _, _ in attrs] != expected:
+        raise ValueError("unexpected LastChar attributes")
+    _, entry_kind, entry_blob = attrs[0]
+    _, time_kind, last_played = attrs[1]
+    _, utility_kind, utility_blob = attrs[2]
+    if entry_kind != "blob" or time_kind != "int" or utility_kind != "blob":
+        raise ValueError("unexpected LastChar attribute types")
+    if type(last_played) is not int or last_played <= 0:
+        raise ValueError("invalid LastChar timestamp")
+    realm = discovery_blob(entry_blob, b"JamJSONRealmEntry:")
+    if not isinstance(realm, dict):
+        raise ValueError("invalid LastChar realm entry")
+    try:
+        version = realm["version"]
+        required = (
+            realm["wowRealmAddress"], realm["cfgRealmsID"], realm["cfgContentSetID"],
+            realm["superDistrictID"], realm["flags"], realm["populationState"],
+            realm["useBleepChance"], version["versionMajor"], version["versionMinor"],
+            version["versionRevision"], version["versionBuild"],
+        )
+    except (KeyError, TypeError) as error:
+        raise ValueError("incomplete LastChar realm entry") from error
+    integer_fields = required[:6] + required[7:]
+    if (not all(type(value) is int for value in integer_fields) or
+            required[-1] != BUILD or required[0] != 0x02010001 or required[1] != 1 or
+            required[2] != 136 or required[3] != 1 or required[4] != 0 or
+            required[5] != 1 or type(required[6]) is not float or required[6] != 0.0 or
+            version["versionMajor"] != MAJOR or version["versionMinor"] != MINOR or
+            version["versionRevision"] != REVISION):
+        raise ValueError("LastChar realm metadata mismatch")
+    utility = discovery_blob(utility_blob, b"JSONUtilityInfo:")
+    if utility != {"realmPermissions": 512}:
+        raise ValueError("LastChar utility metadata mismatch")
+    return {"wow_realm_address": required[0], "realm_id": required[1],
+            "content_set_id": required[2], "super_district_id": required[3],
+            "build": required[-1], "population_state": required[5],
+            "last_played_time_positive": True, "utility_permissions": 512}
+
+
 def super_district_metadata(blob):
     value = discovery_blob(blob, b"JSONSuperDistrictList:")
     if not isinstance(value, dict) or set(value) != {"superDistricts"}:
@@ -415,7 +475,10 @@ def super_district_metadata(blob):
     return districts
 
 
-def rpc_post_login_v2(rpc):
+def rpc_post_login_v2(rpc, expect_discovery_realm=False):
+    status, _ = rpc.send(GAME_V2, 1, last_char_request(-1))
+    if status != 0x800000D3:
+        raise ValueError("LastChar admitted before realm ticket")
     handle = raw(1, var(1, 1) + var(2, 0x576F57) + var(3, 2))
     for method, request in ((101, b""), (104, b""), (201, handle), (203, handle)):
         status, body = rpc.send(ACCOUNT_V2, method, request)
@@ -452,6 +515,26 @@ def rpc_post_login_v2(rpc):
         attribute("Param_Identity", identity, v2=True), attribute("Param_ClientInfo", info, v2=True)]))
     if status or response_attributes(body, v2=True).get("Param_RealmListTicket") != b"AuthRealmListTicket\0":
         raise ValueError("V2 realm ticket failed")
+    for filter_value in (-1, 137):
+        status, body = rpc.send(GAME_V2, 1, last_char_request(filter_value))
+        if status or v2_attributes(body):
+            raise ValueError("unexpected LastChar empty response")
+    status, body = rpc.send(GAME_V2, 1, last_char_request(136))
+    if status:
+        raise ValueError("LastChar content-set request failed")
+    discovery = last_char_metadata(body) if expect_discovery_realm else None
+    if not expect_discovery_realm and v2_attributes(body):
+        raise ValueError("offline LastChar unexpectedly returned a realm")
+    for request, expected in (
+        (client_request([
+            attribute("Command_LastCharPlayedRequest_v1_classic", "70-1-70", True, v2=True),
+            attribute("Param_ContentSetIDFilter", "136", True, v2=True),
+        ]), 0xBC5),
+        (last_char_request((1 << 63) - 1), 0xBC5),
+    ):
+        status, _ = rpc.send(GAME_V2, 1, request)
+        if status != expected:
+            raise ValueError("LastChar malformed-filter status mismatch")
     status, body = rpc.send(GAME_V2, 1, district_request)
     if status: raise ValueError("V2 district discovery failed")
     districts = super_district_metadata(response_attributes(body, v2=True).get("Param_SuperDistrictList"))
@@ -463,15 +546,23 @@ def rpc_post_login_v2(rpc):
     status, body = rpc.send(GAME_V2, 1, client_request([
         attribute(command.decode(), "2-1-0", True, v2=True)]))
     if status: raise ValueError("V2 realm list failed")
-    realm = realm_metadata(response_attributes(body, v2=True)["Param_RealmList"])
-    return {"account_services": True, "negative_admission": True,
-            "subregions": True, "realm_list_ticket": True, "realm": realm,
-            "super_districts": districts, "empty_bleep_proxies": True}
+    result = {"account_services": True, "negative_admission": True,
+              "subregions": True, "realm_list_ticket": True,
+              "super_districts": districts, "empty_bleep_proxies": True,
+              "last_char": True, "realm_list_response_received": True,
+              "realm_metadata_checked": not expect_discovery_realm}
+    if discovery is not None:
+        result["last_char_realm"] = discovery
+    else:
+        result["realm"] = realm_metadata(response_attributes(body, v2=True)["Param_RealmList"])
+    return result
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--runtime", required=True, type=Path)
+    parser.add_argument("--expect-discovery-realm", action="store_true",
+                        help="assert the online build-70170 LastChar routing projection")
     args = parser.parse_args(); runtime = args.runtime.resolve()
     password_path = runtime / "account-password"
     if not runtime.is_dir() or not password_path.is_file():
@@ -480,8 +571,9 @@ def main():
         password = read_password(password_path)
         rejected = rest_login(runtime, password, True)
         valid = rest_login(runtime, password, False); ticket = valid.pop("ticket_value")
-        result = {"rest": rejected | valid, "rpc": rpc_login(runtime, ticket),
-                  "rpc_v2": rpc_login_v2(runtime, password),
+        result = {"rest": rejected | valid,
+                  "rpc": rpc_login(runtime, ticket, args.expect_discovery_realm),
+                  "rpc_v2": rpc_login_v2(runtime, password, args.expect_discovery_realm),
                   "build": BUILD, "version": VERSION}
         print(json.dumps(result, sort_keys=True)); return 0
     except Exception as error:
