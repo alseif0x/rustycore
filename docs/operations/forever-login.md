@@ -1,5 +1,9 @@
 # WoW Forever 1.60.1 login-only runbook
 
+The target branch is **`forever`**, renamed from `1.60.1` on 2026-10-02.
+This is an independent version line based on `3.4.3`, not a feature branch to
+merge back wholesale. Historical acceptance names below refer to the old name.
+
 This is a bounded, local smoke for the WoW Forever client build `1.60.1.70170`.
 It exercises RustyCore's normal Battle.net REST SRPv2 flow and protobuf RPC realm
 list flow against an isolated Auth database. The synthetic smoke alone does not
@@ -678,6 +682,68 @@ Documentation candidate `b7b07cad` passed `quick --base d8e728af`, manifest
 `20261002T195124.215466Z-1618524-quick.json`; reviewed code/tool/build inputs
 remain byte-identical to the tested candidate. This closing timing note receives
 only the documentation-delta check, with no repeated builds or live mutations.
+
+### Modern realm-join contract on `forever`
+
+The next BNet adapter follows `advocaite/TrinityCore` commit `02245dcd`:
+`GameUtilitiesService.cpp::{GetRealmListTicket,JoinRealm}`,
+`RealmList.cpp::JoinRealm`, `RealmList/RealmList.proto::RealmJoinTicket`, and
+`common/Utilities/FourCC.h`. V2 build 70170 retains the admitted client-info
+`platformType`, `clientArch` and `type` on its RPC session. These are numeric
+FourCC values, distinct from the Logon platform string `Wn64`.
+
+The operation validates the selected game account and full packed realm address,
+configured binding/district, current online/build/security state, and exact
+32-byte client secret before issuing a join response. RealmManager remains the
+current realm-state authority, with no guard retained over the database await.
+The new statement records the 64-byte client-secret/server-secret concatenation
+and the build in the inherited schema's `account.client_build` column, alongside
+IP/locale/OS/timezone. A successful response requires exactly one affected row.
+Database errors (including an unknown commit outcome) publish no success; a
+subsequent normal join generates a new secret and can retry. No durable-session
+or crash-recovery guarantee is inferred from this bounded operation.
+
+The ordered response is `Param_RealmJoinTicket` (unprefixed JSON, no NUL),
+`Param_ServerAddresses` (existing length/zlib/NUL Jam envelope), and
+`Param_JoinSecret` (32 bytes). The JSON ticket contains `gameAccount`, `platform`,
+`type` and `clientArch`. V1 keeps its account-name ticket and original statement.
+Strict u32 address admission, explicit configuration and failure-before-success
+are intentional differences from permissive/truncating or unchecked inherited
+paths; there is no fallback into another ruleset.
+
+The integrated smoke has an explicit `--expect-realm-join` mode, requiring
+`--expect-discovery-realm`. It writes the disposable game-account's join session
+key and validates the JSON ticket, variant, secret length and loopback address.
+Default offline checks reject join and malformed/aliased addresses. The separate
+`forever_world_probe.py --ack-isolated-probe` binds only `127.0.0.1:18085`,
+accepts one connection, exchanges the exact V2 preamble from reference
+`WorldSocket.cpp:82–99`, and closes **before AuthChallenge**. It has no account,
+character or authentication bypass. Preamble success is not World AuthSession,
+encryption, character selection or world loading. Keep the realm offline outside
+an explicitly scoped probe and restore its original flags/type afterwards.
+
+There is a further target-evidence gap: the reference's
+`sql/custom/auth/2026_10_02_00_auth_classic_beta_70170.sql` explicitly states that
+the Win-x64-WoWB build-auth key is unknown and refers to its optional check bypass.
+That bypass is **not** imported here. The inherited zero fixture seeds are not
+valid 70170 authentication evidence; a successful World AuthSession needs its
+own target-backed key/crypto/packet contract and real client acceptance.
+
+#### Manual-login follow-up
+
+After the user's initial attempts returned client code 317 at the REST form
+response, the unchanged installed binary completed their manual authentication
+at `2026-10-02T20:01:47Z` and again at `20:02:59Z`. The sanitized client log
+reports form/credentials/logon result 0, a valid realm-list ticket and the
+SuperDistrict response. Selecting the configured JcJ card then returned code
+309 with the realm offline. No password reset or authentication patch was made;
+the cause of the earlier rejected attempts was not established.
+
+The four reference rulesets are district/content `1/136` JcJ, `2/137` Normal/JcE,
+`3/138` Roleplay and `4/140` Hardcore (`Realm.cpp`). Only `1/136` is configured in
+the current isolated realm. Listing a mode would not implement its gameplay or
+provision a usable realm. This mapping is reference evidence; only the JcJ card
+has been exercised with the native client in this fixture.
 
 ### Publication validation boundary
 

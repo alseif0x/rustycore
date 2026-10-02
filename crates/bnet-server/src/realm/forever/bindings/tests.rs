@@ -126,6 +126,72 @@ fn unavailable_or_mismatched_realms_are_not_recommended() {
 }
 
 #[test]
+fn join_requires_full_address_and_online_build_security_gates() {
+    let (catalog, realms) = fixture();
+    let prepared = catalog
+        .prepare_join_realm(
+            &realms,
+            ADDRESS,
+            70170,
+            0,
+            Some("127.0.0.1".parse().unwrap()),
+        )
+        .unwrap();
+    assert_eq!(prepared.realm_name, "Forever test");
+    assert!(!prepared.server_addresses.is_empty());
+
+    assert!(matches!(
+        catalog.prepare_join_realm(&realms, ADDRESS + 1, 70170, 0, None),
+        Err(crate::realm::JoinRealmPrepareErrorLikeCpp::UnknownRealm)
+    ));
+    assert!(matches!(
+        catalog.prepare_join_realm(&realms, ADDRESS, u32::MAX, 0, None),
+        Err(crate::realm::JoinRealmPrepareErrorLikeCpp::UserServerNotPermittedOnRealm)
+    ));
+
+    let mut offline = realms;
+    offline.realms.values_mut().next().unwrap().flag = Flags::OFFLINE;
+    assert!(matches!(
+        catalog.prepare_join_realm(&offline, ADDRESS, 70170, 0, None),
+        Err(crate::realm::JoinRealmPrepareErrorLikeCpp::UserServerNotPermittedOnRealm)
+    ));
+
+    let mut restricted = fixture().1;
+    restricted
+        .realms
+        .values_mut()
+        .next()
+        .unwrap()
+        .allowed_security_level = 1;
+    assert!(matches!(
+        catalog.prepare_join_realm(&restricted, ADDRESS, 70170, 0, None),
+        Err(crate::realm::JoinRealmPrepareErrorLikeCpp::UserServerNotPermittedOnRealm)
+    ));
+}
+
+#[test]
+fn join_rechecks_district_hold_and_actual_address_after_low_id_lookup() {
+    let (mut catalog, mut realms) = fixture();
+    catalog.districts[0].disallow_login = true;
+    assert!(matches!(
+        catalog.prepare_join_realm(&realms, ADDRESS, 70170, 0, None),
+        Err(crate::realm::JoinRealmPrepareErrorLikeCpp::UserServerNotPermittedOnRealm)
+    ));
+    catalog.districts[0].disallow_login = false;
+    catalog.districts[0].hold_down_until_time = u32::MAX;
+    assert!(matches!(
+        catalog.prepare_join_realm(&realms, ADDRESS, 70170, 0, None),
+        Err(crate::realm::JoinRealmPrepareErrorLikeCpp::UserServerNotPermittedOnRealm)
+    ));
+    catalog.districts[0].hold_down_until_time = 0;
+    realms.realms.values_mut().next().unwrap().region = 3;
+    assert!(matches!(
+        catalog.prepare_join_realm(&realms, ADDRESS, 70170, 0, None),
+        Err(crate::realm::JoinRealmPrepareErrorLikeCpp::UnknownRealm)
+    ));
+}
+
+#[test]
 fn district_hold_and_legacy_population_conversion_are_explicit() {
     let (_, realms) = fixture();
     for districts in [

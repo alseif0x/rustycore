@@ -8273,6 +8273,11 @@ El alcance, secuencia y aceptación corregida viven en
 [wow-world-distribution-plan.md](../architecture/wow-world-distribution-plan.md);
 las entradas fechadas anteriores conservan sus propios límites de evidencia.
 
+Branch naming, 2026-10-02: the experimental target branch is now **`forever`**
+(renamed from `1.60.1`, with the same published commit `4d3c029a`). Client target
+remains `1.60.1.70170`; `3.4.3` is a separate development line, not the merge
+destination of this port. Older evidence below retains its original branch name.
+
 ## Latest Forever branch boundary — 2026-10-02 19:48 UTC
 
 On `1.60.1`, real client build 70170 now accepts the ruleset-to-realm response
