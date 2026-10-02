@@ -489,14 +489,7 @@ pub(super) fn collect_items(
             }
         }
 
-        core_owner::collect_item(
-            item,
-            role,
-            module,
-            &item_cfg,
-            item_availability,
-            builder,
-        );
+        core_owner::collect_item(item, role, module, &item_cfg, item_availability, builder);
 
         if collects_session_contract_types(role, module) {
             collect_contract_type(item, module, &item_cfg, item_availability, builder);

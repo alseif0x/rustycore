@@ -1167,7 +1167,6 @@ impl crate::session::state::SessionLifecycleState {
     }
 }
 
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/persistence/load/f3_shims.rs"]
 mod f3_shims;

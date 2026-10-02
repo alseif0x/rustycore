@@ -364,7 +364,6 @@ impl crate::session::PetsCx<'_> {
     }
 }
 
-
 #[cfg(test)]
 #[path = "../../unit_tests/session/pet_loading/f3_shims.rs"]
 mod f3_shims;

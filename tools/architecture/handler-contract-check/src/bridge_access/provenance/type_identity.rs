@@ -225,11 +225,11 @@ impl<'a> Resolver<'a> {
         active.remove(&node);
         found
     }
-
 }
 
 /// Resolve a path-shaped type through the supplied lexical modules and reexports.
 /// This query does not classify either bridge authority side.
+#[cfg(test)]
 pub(crate) fn resolve_supplied_type_identity(
     sources: &[BridgeSource<'_>],
     package: &str,
@@ -397,7 +397,8 @@ fn resolve_query(
         let Provenance::Nominal(provider) = &candidate.provenance else {
             return Err(TypeIdentityError::NotNominal(format!(
                 "{} resolves to {:?}, not a supplied struct, enum, or union",
-                ty.to_token_stream(), candidate.provenance
+                ty.to_token_stream(),
+                candidate.provenance
             )));
         };
         providers.push((provider.clone(), candidate.cfg.clone()));

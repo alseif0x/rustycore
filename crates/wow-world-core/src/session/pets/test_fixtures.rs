@@ -28,8 +28,7 @@ pub struct BattlePetTestFixtureLikeCpp {
     /// C++ `BattlePetMgr::_pets`, represented minimally until full battle-pet runtime is ported.
     /// Production sessions use `battle_pet_account_attachment_like_cpp`; this
     /// map remains only as the isolated represented/test fallback.
-    pub represented_battle_pets_like_cpp:
-        HashMap<ObjectGuid, RepresentedBattlePetDataLikeCpp>,
+    pub represented_battle_pets_like_cpp: HashMap<ObjectGuid, RepresentedBattlePetDataLikeCpp>,
     /// World-DB breed/quality selection tables for battle-pet trainer
     /// purchases (issue #161), loaded once at bootstrap.
     pub battle_pet_selection_store_like_cpp: Option<Arc<BattlePetSelectionStoreLikeCpp>>,

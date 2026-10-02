@@ -818,7 +818,6 @@ impl WorldSession {
     }
 }
 
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/movement/transfer/f3_shims.rs"]
 mod f3_shims;

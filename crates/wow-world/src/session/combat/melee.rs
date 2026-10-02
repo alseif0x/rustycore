@@ -791,4 +791,3 @@ impl WorldSession {
         PlayerAttackStartLikeCppResult::Accepted { send_attack_start }
     }
 }
-

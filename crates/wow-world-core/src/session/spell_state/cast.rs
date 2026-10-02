@@ -2,9 +2,9 @@
 use std::sync::Arc;
 use std::time::Instant;
 
+use crate::session::mailbox::{SendIfVisibleLikeCppCommand, SessionCommand};
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_data::PlayerCreateInfoCastSpellStoreLikeCpp;
-use crate::session::mailbox::{SendIfVisibleLikeCppCommand, SessionCommand};
 
 impl crate::session::state::SessionCatalogs {
     #[cfg(any(test, feature = "test-fixtures"))]

@@ -50,8 +50,7 @@ pub struct RepresentedBattlemasterJoinSkirmishLikeCpp {
 }
 
 #[cfg(any(test, feature = "test-fixtures"))]
-pub type RepresentedBattlegroundQueueSlotLikeCpp =
-    wow_entities::PlayerBattlegroundQueueSlotLikeCpp;
+pub type RepresentedBattlegroundQueueSlotLikeCpp = wow_entities::PlayerBattlegroundQueueSlotLikeCpp;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RepresentedBattlefieldPortLikeCpp {
@@ -82,16 +81,12 @@ impl crate::session::state::BattlegroundState {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn represented_battlefield_lists_like_cpp(
-        &self,
-    ) -> &[RepresentedBattlefieldListLikeCpp] {
+    pub fn represented_battlefield_lists_like_cpp(&self) -> &[RepresentedBattlefieldListLikeCpp] {
         &self.represented_battlefield_lists_like_cpp
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn represented_battlemaster_joins_like_cpp(
-        &self,
-    ) -> &[RepresentedBattlemasterJoinLikeCpp] {
+    pub fn represented_battlemaster_joins_like_cpp(&self) -> &[RepresentedBattlemasterJoinLikeCpp] {
         &self.represented_battlemaster_joins_like_cpp
     }
 
@@ -110,9 +105,7 @@ impl crate::session::state::BattlegroundState {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn represented_battlefield_ports_like_cpp(
-        &self,
-    ) -> &[RepresentedBattlefieldPortLikeCpp] {
+    pub fn represented_battlefield_ports_like_cpp(&self) -> &[RepresentedBattlefieldPortLikeCpp] {
         &self.represented_battlefield_ports_like_cpp
     }
 

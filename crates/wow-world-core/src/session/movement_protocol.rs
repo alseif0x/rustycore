@@ -183,9 +183,7 @@ pub struct MovementUnderMapDamageEvent {
     pub damage: u32,
 }
 
-pub fn movement_speed_ack_move_type_like_cpp(
-    opcode: ClientOpcodes,
-) -> Option<UnitMoveTypeLikeCpp> {
+pub fn movement_speed_ack_move_type_like_cpp(opcode: ClientOpcodes) -> Option<UnitMoveTypeLikeCpp> {
     match opcode {
         ClientOpcodes::MoveForceWalkSpeedChangeAck => Some(UnitMoveTypeLikeCpp::Walk),
         ClientOpcodes::MoveForceRunSpeedChangeAck => Some(UnitMoveTypeLikeCpp::Run),
@@ -290,10 +288,7 @@ impl crate::session::HubMut<'_> {
         true
     }
 
-    pub fn set_represented_can_swim_to_fly_transition_like_cpp(
-        &mut self,
-        enable: bool,
-    ) -> bool {
+    pub fn set_represented_can_swim_to_fly_transition_like_cpp(&mut self, enable: bool) -> bool {
         let canonical_changed = self.core.with_owned_player_mut_like_cpp(|player| {
             player.set_can_transition_between_swim_and_fly_like_cpp(enable)
         });

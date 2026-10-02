@@ -97,10 +97,7 @@ impl crate::session::state::SessionCore {
     /// Test-only, like the kernel setter it forwards to: parking a channel
     /// outside the atomic instance-link transition is not a production state.
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn install_realm_packet_channel(
-        &mut self,
-        rx: flume::Receiver<wow_packet::WorldPacket>,
-    ) {
+    pub fn install_realm_packet_channel(&mut self, rx: flume::Receiver<wow_packet::WorldPacket>) {
         self.transport.connection.install_realm_packet_channel(rx);
     }
 
@@ -145,10 +142,7 @@ impl crate::session::state::SessionCore {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn install_realm_send_write_fence_for_test(
-        &mut self,
-        fence: SocketWriteFenceLikeCpp,
-    ) {
+    pub fn install_realm_send_write_fence_for_test(&mut self, fence: SocketWriteFenceLikeCpp) {
         self.transport
             .connection
             .install_realm_send_write_fence(fence);

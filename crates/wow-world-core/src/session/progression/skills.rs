@@ -9,21 +9,16 @@ use std::sync::Arc;
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::is_non_durable_skill_tombstone_like_cpp;
 use crate::session::{
+    RepresentedPlayerSkillLikeCpp, RepresentedPlayerSkillStateLikeCpp, SKILL_ENCHANTING_LIKE_CPP,
     canonical_player_skill_record_like_cpp, represented_player_skill_record_like_cpp,
     represented_skill_records_from_values_like_cpp, represented_skill_values_from_records_like_cpp,
-    RepresentedPlayerSkillLikeCpp, RepresentedPlayerSkillStateLikeCpp, SKILL_ENCHANTING_LIKE_CPP,
 };
-use wow_data::{
-    FishingBaseSkillStoreLikeCpp, SkillLineStore, SkillStore, SkillTiersStoreLikeCpp,
-};
+use wow_data::{FishingBaseSkillStoreLikeCpp, SkillLineStore, SkillStore, SkillTiersStoreLikeCpp};
 use wow_entities::Player;
 
 impl crate::session::HubMut<'_> {
     #[allow(dead_code)]
-    pub fn set_player_skill_values_like_cpp(
-        &mut self,
-        skill_values: HashMap<u16, u16>,
-    ) -> bool {
+    pub fn set_player_skill_values_like_cpp(&mut self, skill_values: HashMap<u16, u16>) -> bool {
         let skill_records = represented_skill_records_from_values_like_cpp(&skill_values);
         self.replace_player_skill_records_like_cpp(skill_records, true, false)
     }
@@ -471,10 +466,7 @@ impl crate::session::HubRef<'_> {
             ));
     }
 
-    pub fn resolved_player_skill_max_value_like_cpp(
-        &self,
-        skill_id: u16,
-    ) -> Option<u16> {
+    pub fn resolved_player_skill_max_value_like_cpp(&self, skill_id: u16) -> Option<u16> {
         Some(
             self.resolved_player_skill_records_like_cpp()?
                 .get(&skill_id)
@@ -494,9 +486,7 @@ impl crate::session::HubRef<'_> {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn player_skill_records_like_cpp(
-        &self,
-    ) -> HashMap<u16, RepresentedPlayerSkillLikeCpp> {
+    pub fn player_skill_records_like_cpp(&self) -> HashMap<u16, RepresentedPlayerSkillLikeCpp> {
         self.resolved_player_skill_records_like_cpp()
             .expect("test Player skill owner must resolve")
     }

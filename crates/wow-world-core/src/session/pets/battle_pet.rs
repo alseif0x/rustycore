@@ -9,7 +9,7 @@ use wow_entities::Player;
 
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::battle_pet_adapter::{
-    BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP, BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP,
+    BATTLE_PET_FLAG_FANFARE_NEEDED_LIKE_CPP, BATTLE_PET_FLAGS_CONTROL_TYPE_APPLY_LIKE_CPP,
     RepresentedBattlePetCageItemLikeCpp, RepresentedBattlePetDataLikeCpp,
     RepresentedBattlePetSaveInfoLikeCpp,
 };

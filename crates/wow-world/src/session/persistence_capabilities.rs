@@ -6,12 +6,10 @@
 
 use super::Arc;
 
+#[cfg(any(test, feature = "test-fixtures"))]
+pub(in crate::session) use wow_world_core::session::persistence_capabilities::empty_character_power_snapshot_like_cpp;
 pub(crate) use wow_world_core::session::persistence_capabilities::{
     CharacterPowerSnapshotLikeCpp, PlayerSaveToDbSnapshotLikeCpp,
-};
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) use wow_world_core::session::persistence_capabilities::{
-    empty_character_power_snapshot_like_cpp,
 };
 pub(in crate::session) use wow_world_core::session::persistence_capabilities::{
     character_power_snapshot_values_like_cpp, loaded_character_power_snapshot_like_cpp,

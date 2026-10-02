@@ -7,11 +7,7 @@ use crate::session::movement_protocol::MovementAckEventLikeCpp;
 use wow_core::ObjectGuid;
 
 impl crate::session::HubMut<'_> {
-    pub fn remove_canonical_attacker_like_cpp(
-        &mut self,
-        victim: ObjectGuid,
-        attacker: ObjectGuid,
-    ) {
+    pub fn remove_canonical_attacker_like_cpp(&mut self, victim: ObjectGuid, attacker: ObjectGuid) {
         if self
             .core
             .mutate_canonical_player_by_guid_like_cpp(victim, |victim| {

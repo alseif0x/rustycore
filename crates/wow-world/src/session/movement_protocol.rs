@@ -54,8 +54,8 @@ pub(crate) use wow_world_core::session::movement_protocol::MovementSpeedAckEvent
 pub(crate) use wow_world_core::session::movement_protocol::TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP;
 
 pub(crate) use wow_world_core::session::movement_protocol::{
-    creature_movement_spline_speed_opcode_like_cpp,
-    movement_speed_ack_move_type_like_cpp, player_movement_speed_opcodes_like_cpp,
+    creature_movement_spline_speed_opcode_like_cpp, movement_speed_ack_move_type_like_cpp,
+    player_movement_speed_opcodes_like_cpp,
 };
 
 pub(in crate::session) use wow_world_core::session::movement_protocol::PLAYER_BASE_MOVE_SPEED_LIKE_CPP;

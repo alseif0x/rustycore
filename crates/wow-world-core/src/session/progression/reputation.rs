@@ -3,18 +3,16 @@
 
 //! Canonical Player reputation adapters shared with World.
 
+use crate::session::state::hub_support::player_team_for_race_cpp;
 use crate::session::{
     AttackReputationFactionSnapshotLikeCpp, PlayerBootstrapCatalogsLikeCpp,
     ReputationGainSourceLikeCpp,
 };
-use crate::session::state::hub_support::player_team_for_race_cpp;
 use crate::session_policy::ReputationRatesLikeCpp;
 use std::sync::Arc;
 use wow_constants::Team;
-use wow_data::{
-    ParagonReputationStore, RepSpilloverTemplateStoreLikeCpp,
-    ReputationRewardRateStoreLikeCpp,
-};
+use wow_data::progression_rewards::ParagonReputationStore;
+use wow_data::reputation::{RepSpilloverTemplateStoreLikeCpp, ReputationRewardRateStoreLikeCpp};
 use wow_progression::{ReputationMgrLikeCpp, ReputationMgrMutLikeCpp, ReputationMgrRefLikeCpp};
 
 const FIRST_LOGIN_START_REPUTATION_STANDING_LIKE_CPP: i32 = 42_999;
@@ -139,10 +137,7 @@ impl crate::session::HubRef<'_> {
         1.0 - 0.05 * f32::from(rank.as_u8() - ReputationRankLikeCpp::Neutral.as_u8())
     }
 
-    pub fn canonical_player_reputation_standing_like_cpp(
-        &self,
-        faction_id: u32,
-    ) -> Option<i32> {
+    pub fn canonical_player_reputation_standing_like_cpp(&self, faction_id: u32) -> Option<i32> {
         self.core.canonical_player_snapshot_like_cpp(|player| {
             player
                 .reputation_like_cpp()
@@ -219,9 +214,7 @@ impl crate::session::state::SessionCatalogs {
             .start_all_reputation_like_cpp
     }
 
-    pub fn reputation_reward_rate_store(
-        &self,
-    ) -> Option<&Arc<ReputationRewardRateStoreLikeCpp>> {
+    pub fn reputation_reward_rate_store(&self) -> Option<&Arc<ReputationRewardRateStoreLikeCpp>> {
         self.reputation_reward_rate_store.as_ref()
     }
 }

@@ -15,18 +15,18 @@ use crate::session::{
     TimeSynchronizationStateLikeCpp,
 };
 use crate::session_policy::PacketSpoofConfigLikeCpp;
-use rand::{rngs::StdRng, SeedableRng};
+use rand::{SeedableRng, rngs::StdRng};
 use std::collections::{BTreeMap, HashMap, VecDeque};
-use std::sync::{atomic::AtomicBool, Arc};
+use std::sync::{Arc, atomic::AtomicBool};
 use std::time::{Duration, Instant};
 use wow_core::ObjectGuid;
-use wow_instances::InstanceLockMgr;
-use wow_map::PlayerHandle;
-use wow_network::SocketTimeoutsLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_core::{
     EquipmentSetGuidGeneratorLikeCpp, ObjectGuidGenerator, VoidStorageItemIdGeneratorLikeCpp,
 };
+use wow_instances::InstanceLockMgr;
+use wow_map::PlayerHandle;
+use wow_network::SocketTimeoutsLikeCpp;
 
 /// Hub state every domain reads: account and realm identity, the session state and command rails,
 /// the selected-player binding, the map/registry/instance handles, the id generators and module
@@ -98,12 +98,10 @@ pub struct SessionCore {
     pub item_guid_generator_like_cpp: Option<Arc<ObjectGuidGenerator>>,
     // Process-wide C++ ObjectMgr generator shared by equipment and transmog sets.
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub equipment_set_guid_generator_like_cpp:
-        Option<Arc<EquipmentSetGuidGeneratorLikeCpp>>,
+    pub equipment_set_guid_generator_like_cpp: Option<Arc<EquipmentSetGuidGeneratorLikeCpp>>,
     // Process-wide C++ ObjectMgr generator for character_void_storage.itemId.
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub void_storage_item_id_generator_like_cpp:
-        Option<Arc<VoidStorageItemIdGeneratorLikeCpp>>,
+    pub void_storage_item_id_generator_like_cpp: Option<Arc<VoidStorageItemIdGeneratorLikeCpp>>,
 
     /// GUID of the character currently logged in (set after login completes).
     pub player_guid: Option<ObjectGuid>,
@@ -119,8 +117,7 @@ pub struct SessionCore {
 
     /// Login-only identity input consumed while the canonical Player is being
     /// constructed. Production reads resolve from that Player after install.
-    pub player_identity_bootstrap_like_cpp:
-        Option<PlayerIdentityBootstrapLikeCpp>,
+    pub player_identity_bootstrap_like_cpp: Option<PlayerIdentityBootstrapLikeCpp>,
 
     /// Shared, server-wide map state. When `Some`, creature reads/writes can
     /// route through here so all sessions on the same map see the same world.
@@ -222,9 +219,7 @@ impl SessionCore {
                 pending_packet_spoof_ban_like_cpp: None,
                 pending_packets: VecDeque::new(),
                 socket_timeout_deadline_like_cpp: Instant::now()
-                    + Duration::from_secs(
-                        SocketTimeoutsLikeCpp::default().unauthenticated_secs,
-                    ),
+                    + Duration::from_secs(SocketTimeoutsLikeCpp::default().unauthenticated_secs),
                 socket_timeouts_like_cpp: SocketTimeoutsLikeCpp::default(),
             },
             transport: SessionTransport {

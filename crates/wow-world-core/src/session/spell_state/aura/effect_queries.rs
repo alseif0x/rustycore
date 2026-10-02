@@ -28,7 +28,7 @@ impl crate::session::HubRef<'_> {
         // Delegates to the receiver-free projection the map-owned swing path
         // uses, so both owners resolve the same canonical auras identically.
         Some(
-            crate::session_rules::player_aura_effects_by_spell_aura_type_like_cpp(
+            crate::session::player_aura_effects_by_spell_aura_type_like_cpp(
                 &visible_auras,
                 spell_store,
                 aura_type,

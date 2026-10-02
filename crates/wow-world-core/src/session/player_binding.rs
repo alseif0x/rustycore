@@ -199,9 +199,7 @@ impl crate::session::HubRef<'_> {
             .unwrap_or(true)
     }
 
-    pub fn player_world_local_state_like_cpp(
-        &self,
-    ) -> Option<wow_entities::PlayerWorldLocalState> {
+    pub fn player_world_local_state_like_cpp(&self) -> Option<wow_entities::PlayerWorldLocalState> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.gameplay_state().world_local);

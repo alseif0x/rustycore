@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use wow_data::reputation::CreatureOnKillReputationStoreLikeCpp;
 use wow_data::CreatureTemplateLifecycleStoreLikeCpp;
+use wow_data::reputation::CreatureOnKillReputationStoreLikeCpp;
 
 impl crate::session::state::SessionCatalogs {
     pub fn creature_faction_template_is_neutral_to_all_like_cpp(

@@ -1,8 +1,8 @@
 use crate::session::item_modifiers::player_class_mask_for_transmog_like_cpp;
 use crate::session::state::SessionCore;
 use wow_constants::{ItemClass, ItemSubClassArmor};
-use wow_data::SpellEquippedItemsEntry;
 use wow_core::{ObjectGuid, ObjectGuidGenerator, guid::HighGuid};
+use wow_data::SpellEquippedItemsEntry;
 use wow_entities::MAX_ITEM_SPELLS;
 
 impl SessionCore {
@@ -37,10 +37,7 @@ impl SessionCore {
 }
 
 impl crate::session::state::SessionCatalogs {
-    pub fn item_spec_class_mask_from_overrides_like_cpp(
-        &self,
-        item_id: u32,
-    ) -> Option<u32> {
+    pub fn item_spec_class_mask_from_overrides_like_cpp(&self, item_id: u32) -> Option<u32> {
         let overrides = self
             .items
             .spec_override_store

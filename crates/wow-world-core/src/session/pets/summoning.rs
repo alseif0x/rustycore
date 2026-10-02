@@ -3,7 +3,7 @@
 use std::sync::Arc;
 
 use crate::session::movement_protocol::{
-    TeleportToOptionsLikeCpp, TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP,
+    TELE_TO_NOT_UNSUMMON_PET_LIKE_CPP, TeleportToOptionsLikeCpp,
 };
 use crate::session::{
     CharacterPetStableRowLikeCpp, pet_type_from_db_like_cpp, react_state_from_db_like_cpp,

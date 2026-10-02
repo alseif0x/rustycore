@@ -12,6 +12,6 @@ use super::*;
 // A missing or non-JSON snapshot must name the offending path instead of
 // rendering a policy from nothing: this command exists to install a CI
 // artifact, so the plausible mistake is pointing it at the wrong download.
-mod scenarios_1;
 mod core_owner;
+mod scenarios_1;
 mod world_core;

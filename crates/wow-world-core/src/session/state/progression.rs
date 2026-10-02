@@ -52,8 +52,7 @@ pub struct ProgressionState {
     pub represented_armor_proficiency_like_cpp: u32,
     /// Represented accepted talent-respec wipe requests until Player::ResetTalents is canonical.
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub represented_confirm_respec_wipe_requests_like_cpp:
-        Vec<RepresentedConfirmRespecWipeLikeCpp>,
+    pub represented_confirm_respec_wipe_requests_like_cpp: Vec<RepresentedConfirmRespecWipeLikeCpp>,
     /// Represented `sScriptMgr->OnPlayerTalentsReset` calls until ScriptMgr is live.
     #[cfg(any(test, feature = "test-fixtures"))]
     pub represented_talent_reset_script_hooks_like_cpp:

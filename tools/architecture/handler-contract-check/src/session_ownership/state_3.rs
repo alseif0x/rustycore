@@ -60,11 +60,9 @@ pub(super) fn collect_units(
             source: &unit.source,
         })
         .collect();
-    let mut owner_types =
-        core_owner::resolve_owner_types(&parsed_units, &identity_sources)?;
+    let mut owner_types = core_owner::resolve_owner_types(&parsed_units, &identity_sources)?;
     let mut builder = BaselineBuilder::default();
-    builder.session_core_owner_impl_providers =
-        std::mem::take(&mut owner_types.impl_providers);
+    builder.session_core_owner_impl_providers = std::mem::take(&mut owner_types.impl_providers);
     for (unit, syntax) in parsed_units {
         let mut include_guard = IncludeMacroGuard::default();
         include_guard.visit_file(&syntax);

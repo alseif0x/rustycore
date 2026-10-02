@@ -40,7 +40,6 @@ impl crate::session::PetsCx<'_> {
     }
 }
 
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/pets/battle_pet_slots/f3_shims.rs"]
 mod f3_shims;

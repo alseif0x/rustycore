@@ -78,8 +78,7 @@ pub struct CombatState {
     /// C++ `Player::_resurrectionData`, represented until real Player/Spell
     /// resurrection request ownership exists.
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub represented_resurrection_request_like_cpp:
-        Option<PlayerResurrectionRequestLikeCpp>,
+    pub represented_resurrection_request_like_cpp: Option<PlayerResurrectionRequestLikeCpp>,
     /// C++ `DELAYED_RESURRECT_PLAYER`, represented for resurrection requests
     /// that initiate teleport and must apply after WorldPortResponse.
     #[cfg(any(test, feature = "test-fixtures"))]

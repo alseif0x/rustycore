@@ -33,6 +33,5 @@ pub struct AuraState {
     pub player_aura_authority_complete_like_cpp: bool,
     /// Difficulty-selected C++ `AuraEffect` identity captured when the aura is applied.
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub canonical_threat_aura_snapshots_like_cpp:
-        HashMap<u8, CanonicalThreatAuraSnapshotLikeCpp>,
+    pub canonical_threat_aura_snapshots_like_cpp: HashMap<u8, CanonicalThreatAuraSnapshotLikeCpp>,
 }

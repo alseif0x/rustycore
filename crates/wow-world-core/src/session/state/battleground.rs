@@ -39,16 +39,14 @@ pub struct BattlegroundState {
     pub represented_battlemaster_joins_like_cpp: Vec<RepresentedBattlemasterJoinLikeCpp>,
     /// Represented rated arena queue intents from CMSG_BATTLEMASTER_JOIN_ARENA.
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub represented_battlemaster_join_arenas_like_cpp:
-        Vec<RepresentedBattlemasterJoinArenaLikeCpp>,
+    pub represented_battlemaster_join_arenas_like_cpp: Vec<RepresentedBattlemasterJoinArenaLikeCpp>,
     /// Represented arena skirmish queue intents from CMSG_BATTLEMASTER_JOIN_SKIRMISH.
     #[cfg(any(test, feature = "test-fixtures"))]
     pub represented_battlemaster_join_skirmishes_like_cpp:
         Vec<RepresentedBattlemasterJoinSkirmishLikeCpp>,
     /// Represented `Player::m_bgBattlegroundQueueID[PLAYER_MAX_BATTLEGROUND_QUEUES]`.
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub represented_battleground_queue_slots_like_cpp:
-        Vec<RepresentedBattlegroundQueueSlotLikeCpp>,
+    pub represented_battleground_queue_slots_like_cpp: Vec<RepresentedBattlegroundQueueSlotLikeCpp>,
     /// Represented accepted/leave requests from CMSG_BATTLEFIELD_PORT before live BattlegroundMgr.
     #[cfg(any(test, feature = "test-fixtures"))]
     pub represented_battlefield_ports_like_cpp: Vec<RepresentedBattlefieldPortLikeCpp>,

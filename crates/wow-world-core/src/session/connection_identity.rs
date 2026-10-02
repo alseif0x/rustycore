@@ -74,10 +74,7 @@ impl crate::session::state::SessionCore {
             | u32::from(self.realm_id)
     }
 
-    pub fn realm_names_for_address_like_cpp(
-        &self,
-        realm_address: u32,
-    ) -> Option<(&str, &str)> {
+    pub fn realm_names_for_address_like_cpp(&self, realm_address: u32) -> Option<(&str, &str)> {
         self.realm_policy
             .realm_names_like_cpp
             .get(&realm_address)

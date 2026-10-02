@@ -3,9 +3,9 @@
 
 //! Hub views (#1241 F3): split borrows of the hub members, built from disjoint WorldSession fields.
 
-use super::{SessionCatalogs, SessionCore, SessionWorldConfig};
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::SessionFixtures;
+use super::{SessionCatalogs, SessionCore, SessionWorldConfig};
 
 /// Shared hub view: core, catalogs, config and the cfg(test) fixtures. Copy; it holds only
 /// shared references and never a lock guard, so it is Send wherever the session is Sync.

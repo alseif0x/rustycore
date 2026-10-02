@@ -8,13 +8,13 @@
 use super::TitanGripPenaltyAction;
 use super::{Arc, RepresentedGameObjectUseEffect, UnitStandStateType, WorldSession, debug};
 
+#[cfg(any(test, feature = "test-fixtures"))]
+pub(crate) use wow_world_core::session::RepresentedLiveApplicationLikeCpp;
 pub(crate) use wow_world_core::session::{
     RepresentedLiveIntentAppliedLikeCpp, RepresentedLiveIntentApplyOutcomeLikeCpp,
     RepresentedLiveIntentLikeCpp, RepresentedStandChannelCancellationBoundary,
     RepresentedStandStateChangedLikeCpp,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(crate) use wow_world_core::session::RepresentedLiveApplicationLikeCpp;
 
 impl WorldSession {
     /// Session-owned represented->live boundary.

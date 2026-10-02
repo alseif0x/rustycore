@@ -4,12 +4,12 @@
 //! Connection identity: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{Arc, Item, NUM_ACCOUNT_DATA_TYPES, ObjectGuid, ObjectGuidGenerator, SessionManager};
 use super::WorldSession;
+use super::{Arc, Item, NUM_ACCOUNT_DATA_TYPES, ObjectGuid, ObjectGuidGenerator, SessionManager};
+pub use wow_world_core::session::SessionState;
 pub(in crate::session) use wow_world_core::session::{
     PacketCounterLikeCpp, PacketSpoofPendingBanLikeCpp, PacketSpoofPendingBanTargetLikeCpp,
 };
-pub use wow_world_core::session::SessionState;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PlayerAwayModeLikeCpp {

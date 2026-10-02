@@ -206,10 +206,7 @@ impl crate::session::HubMut<'_> {
     /// `TempSummon::UnSummon` remain part of the live companion runtime. This
     /// represented path preserves the C++ no-response semantics and only acts
     /// when the requested GUID is the player's active critter.
-    pub fn represented_dismiss_critter_like_cpp(
-        &mut self,
-        critter_guid: ObjectGuid,
-    ) -> bool {
+    pub fn represented_dismiss_critter_like_cpp(&mut self, critter_guid: ObjectGuid) -> bool {
         if self.shared().represented_critter_guid_like_cpp() != Some(critter_guid) {
             return false;
         }

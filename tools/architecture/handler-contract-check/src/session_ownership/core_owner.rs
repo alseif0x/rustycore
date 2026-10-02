@@ -12,8 +12,7 @@ use crate::bridge_access::{
 pub(super) const SESSION_CORE_NAME: &str = "SessionCore";
 
 /// The destination identity is pinned separately from the WorldSession facade.
-pub(super) const WORLD_CORE_SESSION_CORE_MODULE: &str =
-    "crate::session::state::session_core";
+pub(super) const WORLD_CORE_SESSION_CORE_MODULE: &str = "crate::session::state::session_core";
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
 #[serde(deny_unknown_fields)]
@@ -141,9 +140,7 @@ pub(super) fn require_production_definition(surface: &SessionCoreSurface) -> Res
     }
 }
 
-pub(super) fn require_production_field_binding(
-    surface: &SessionCoreSurface,
-) -> Result<(), String> {
+pub(super) fn require_production_field_binding(surface: &SessionCoreSurface) -> Result<(), String> {
     if surface.world_session_core_bindings.iter().any(|binding| {
         binding.package == PackageRole::World.package_name()
             && binding.availability.production
@@ -165,9 +162,7 @@ fn is_canonical_provider(provider: &SessionCoreProviderSurface) -> bool {
         && provider.kind == "struct"
 }
 
-fn provider_surfaces(
-    identities: Vec<SuppliedTypeIdentity>,
-) -> Vec<SessionCoreProviderSurface> {
+fn provider_surfaces(identities: Vec<SuppliedTypeIdentity>) -> Vec<SessionCoreProviderSurface> {
     let mut providers = identities
         .into_iter()
         .map(|identity| SessionCoreProviderSurface {
@@ -495,7 +490,10 @@ fn last_type_path_ident(ty: &Type) -> Option<String> {
     let Type::Path(path) = ty else {
         return None;
     };
-    path.path.segments.last().map(|segment| segment.ident.to_string())
+    path.path
+        .segments
+        .last()
+        .map(|segment| segment.ident.to_string())
 }
 
 fn session_core_aliases(units: &[(SourceUnit, syn::File)]) -> BTreeSet<String> {
@@ -548,9 +546,7 @@ fn collect_use_aliases(tree: &UseTree, aliases: &mut BTreeSet<String>, prefix: &
         }
         UseTree::Rename(rename)
             if rename.ident == "self"
-                && prefix
-                    .last()
-                    .is_some_and(|name| aliases.contains(name)) =>
+                && prefix.last().is_some_and(|name| aliases.contains(name)) =>
         {
             aliases.insert(rename.rename.to_string());
         }
@@ -590,9 +586,8 @@ pub(super) fn collect_item(
         }
         Item::Impl(item_impl) => {
             let item_key = item_impl as *const ItemImpl as usize;
-            let Some(resolved_provider) = builder
-                .session_core_owner_impl_providers
-                .remove(&item_key)
+            let Some(resolved_provider) =
+                builder.session_core_owner_impl_providers.remove(&item_key)
             else {
                 return;
             };
@@ -706,19 +701,22 @@ fn collect_definition(
                 &field_cfg,
                 field_availability,
             ));
-        builder.session_core_owner.fields.push(SessionCoreFieldSurface {
-            package: PackageRole::WorldCore.package_name().to_owned(),
-            module: module.to_owned(),
-            availability: field_availability.into(),
-            declaration_ordinal,
-            field: FieldSurface {
-                name: name.to_string(),
-                type_expression: normalized_tokens(&field.ty),
-                visibility: normalized_visibility(&field.vis),
-                cfg: field_cfg,
-                source_class: field_source_class.to_owned(),
-            },
-        });
+        builder
+            .session_core_owner
+            .fields
+            .push(SessionCoreFieldSurface {
+                package: PackageRole::WorldCore.package_name().to_owned(),
+                module: module.to_owned(),
+                availability: field_availability.into(),
+                declaration_ordinal,
+                field: FieldSurface {
+                    name: name.to_string(),
+                    type_expression: normalized_tokens(&field.ty),
+                    visibility: normalized_visibility(&field.vis),
+                    cfg: field_cfg,
+                    source_class: field_source_class.to_owned(),
+                },
+            });
     }
 }
 
@@ -862,7 +860,12 @@ pub(super) fn compare(
             expected.definition, actual.definition
         ));
     }
-    compare_exact("SessionCore field", &expected.fields, &actual.fields, errors);
+    compare_exact(
+        "SessionCore field",
+        &expected.fields,
+        &actual.fields,
+        errors,
+    );
     compare_exact("SessionCore impl", &expected.impls, &actual.impls, errors);
     compare_exact(
         "WorldSession.core resolved provider",

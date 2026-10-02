@@ -5,7 +5,6 @@
 
 use super::*;
 
-
 impl WorldSession {
     pub(crate) fn set_represented_item_level_caps_like_cpp(
         &mut self,

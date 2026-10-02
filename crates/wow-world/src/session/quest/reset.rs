@@ -32,4 +32,3 @@ impl WorldSession {
             .seasonal_quest_changed_like_cpp()
     }
 }
-

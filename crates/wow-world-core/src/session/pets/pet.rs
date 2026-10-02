@@ -1,9 +1,7 @@
 use std::{sync::Arc, time::Instant};
 
 use crate::session::mailbox::{SendIfVisibleLikeCppCommand, SessionCommand};
-use crate::session::movement_protocol::{
-    PLAYER_BASE_MOVE_SPEED_LIKE_CPP, UnitMoveTypeLikeCpp,
-};
+use crate::session::movement_protocol::{PLAYER_BASE_MOVE_SPEED_LIKE_CPP, UnitMoveTypeLikeCpp};
 use crate::session::react_state_from_db_like_cpp;
 use crate::session::state::SessionCore;
 use tracing::warn;
@@ -179,11 +177,7 @@ impl crate::session::HubRef<'_> {
 }
 
 impl crate::session::HubMut<'_> {
-    pub fn disable_pet_controls_on_mount_like_cpp(
-        &mut self,
-        react_state: u8,
-        command_state: u8,
-    ) {
+    pub fn disable_pet_controls_on_mount_like_cpp(&mut self, react_state: u8, command_state: u8) {
         let Some(pet_guid) = self.shared().player_pet_guid_state_like_cpp().flatten() else {
             return;
         };
@@ -266,10 +260,7 @@ impl crate::session::HubMut<'_> {
 }
 
 impl crate::session::HubMut<'_> {
-    pub fn set_player_pet_guid_like_cpp(
-        &mut self,
-        pet_guid: Option<ObjectGuid>,
-    ) -> bool {
+    pub fn set_player_pet_guid_like_cpp(&mut self, pet_guid: Option<ObjectGuid>) -> bool {
         let canonical = self
             .core
             .with_owned_player_mut_like_cpp(|player| {
@@ -324,9 +315,7 @@ impl crate::session::HubMut<'_> {
         }
     }
 
-    pub fn invalidate_represented_character_pet_empty_authority_like_cpp(
-        &mut self,
-    ) {
+    pub fn invalidate_represented_character_pet_empty_authority_like_cpp(&mut self) {
         let _ = self.update_player_pet_lifecycle_state_like_cpp(|state| {
             state.character_rows_empty_authority_complete = false;
         });

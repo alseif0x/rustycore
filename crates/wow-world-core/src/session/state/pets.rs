@@ -62,8 +62,7 @@ pub struct PetState {
     pub temporary_pet_resummon_requests_like_cpp: u32,
     /// C++ `Player::GetPet()->SetSpeedRate` propagation represented until pet Unit runtime owns it.
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub represented_pet_movement_speed_rates_like_cpp:
-        [f32; UnitMoveTypeLikeCpp::COUNT],
+    pub represented_pet_movement_speed_rates_like_cpp: [f32; UnitMoveTypeLikeCpp::COUNT],
     /// Count of represented player speed changes propagated to the active pet.
     #[cfg(any(test, feature = "test-fixtures"))]
     pub represented_pet_speed_propagations_like_cpp: u32,

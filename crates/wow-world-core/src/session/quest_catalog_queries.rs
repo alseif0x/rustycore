@@ -8,9 +8,7 @@ impl crate::session::state::SessionCatalogs {
     /// during login and area updates. `AddQuest` can cast an AUTO_PUSH quest's
     /// SourceSpellID, so the narrow empty-source proof requires that the
     /// authoritative store contain no such template at all.
-    pub fn represented_auto_push_quest_aura_source_is_empty_like_cpp(
-        &self,
-    ) -> bool {
+    pub fn represented_auto_push_quest_aura_source_is_empty_like_cpp(&self) -> bool {
         const QUEST_FLAGS_EX_AUTO_PUSH_LIKE_CPP: u32 = 0x0400_0000;
         self.quests.store.as_ref().is_some_and(|quests| {
             quests

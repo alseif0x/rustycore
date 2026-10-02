@@ -1,8 +1,8 @@
 use std::collections::BTreeSet;
 
+use wow_data::SpellGroupStackRuleLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_data::{PetDefaultSpellsEntryLikeCpp, PetLevelupSpellSetLikeCpp};
-use wow_data::SpellGroupStackRuleLikeCpp;
 use wow_entities::PetAuraLikeCpp;
 
 impl crate::session::state::SessionCatalogs {
@@ -32,11 +32,7 @@ impl crate::session::state::SessionCatalogs {
             .unwrap_or(&[])
     }
 
-    pub fn is_spell_member_of_spell_group_like_cpp(
-        &self,
-        spell_id: u32,
-        group_id: u32,
-    ) -> bool {
+    pub fn is_spell_member_of_spell_group_like_cpp(&self, spell_id: u32, group_id: u32) -> bool {
         self.spell_catalogs
             .spell_group_store
             .as_ref()
@@ -66,10 +62,7 @@ impl crate::session::state::SessionCatalogs {
             .unwrap_or_default()
     }
 
-    pub fn spell_group_stack_rule_like_cpp(
-        &self,
-        group_id: u32,
-    ) -> SpellGroupStackRuleLikeCpp {
+    pub fn spell_group_stack_rule_like_cpp(&self, group_id: u32) -> SpellGroupStackRuleLikeCpp {
         self.spell_catalogs
             .spell_group_stack_rule_store
             .as_ref()
@@ -95,11 +88,7 @@ impl crate::session::state::SessionCatalogs {
         )
     }
 
-    pub fn pet_aura_like_cpp(
-        &self,
-        spell_id: u32,
-        effect_index: u8,
-    ) -> Option<&PetAuraLikeCpp> {
+    pub fn pet_aura_like_cpp(&self, spell_id: u32, effect_index: u8) -> Option<&PetAuraLikeCpp> {
         self.spell_catalogs
             .spell_pet_aura_store
             .as_ref()

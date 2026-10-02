@@ -2,14 +2,14 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 use std::sync::Arc;
-use wow_packet::packets::misc::FeatureSystemConfigLikeCpp;
+use wow_data::trait_tree::TraitNodeEntryStore;
 use wow_data::{
     ExplorationBaseXpStoreLikeCpp, GlyphPropertiesStore, ImportPriceStores, ItemClassStore,
     ItemCurrencyCostStore, ItemDisenchantLootStore, ItemPriceBaseStore,
     PlayerCreateInfoCastSpellStoreLikeCpp, PlayerCreateInfoCustomSpellStoreLikeCpp,
     PlayerCreateInfoStoreLikeCpp, TalentTabStore,
 };
-use wow_data::trait_tree::TraitNodeEntryStore;
+use wow_packet::packets::misc::FeatureSystemConfigLikeCpp;
 
 /// Process-owned C++ Player creation data and glyph catalog borrowed during login.
 ///

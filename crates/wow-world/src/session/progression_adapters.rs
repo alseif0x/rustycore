@@ -107,7 +107,6 @@ impl WorldSession {
     }
 }
 
-
 #[cfg(test)]
 #[path = "../../unit_tests/session/progression_adapters/f3_shims.rs"]
 mod f3_shims;

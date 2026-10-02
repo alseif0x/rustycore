@@ -53,9 +53,7 @@ pub struct RepresentedLiveApplicationLikeCpp {
 }
 
 impl crate::session::HubRef<'_> {
-    pub fn resolved_player_stand_state_like_cpp(
-        &self,
-    ) -> Option<UnitStandStateType> {
+    pub fn resolved_player_stand_state_like_cpp(&self) -> Option<UnitStandStateType> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.unit().stand_state_like_cpp());
@@ -90,9 +88,7 @@ impl crate::session::HubRef<'_> {
 #[cfg(any(test, feature = "test-fixtures"))]
 impl crate::session::state::PlayerPresentationState {
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn represented_live_applications_like_cpp(
-        &self,
-    ) -> &[RepresentedLiveApplicationLikeCpp] {
+    pub fn represented_live_applications_like_cpp(&self) -> &[RepresentedLiveApplicationLikeCpp] {
         &self.represented_live_applications_like_cpp
     }
 }

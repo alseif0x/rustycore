@@ -131,9 +131,7 @@ impl crate::session::HubRef<'_> {
             .expect("test Player movement owner must resolve")
     }
 
-    pub fn resolved_mover_fixed_position_vehicle_like_cpp(
-        &self,
-    ) -> Option<bool> {
+    pub fn resolved_mover_fixed_position_vehicle_like_cpp(&self) -> Option<bool> {
         let canonical = self.core.with_owned_player_like_cpp(|player| {
             player
                 .gameplay_state()
@@ -201,10 +199,7 @@ impl crate::session::HubRef<'_> {
     /// applies the grid-size comparison to every `Unit*`, including a
     /// controlled creature or pet; keep the legacy map runtime as the first
     /// authority and the canonical map projection as its bounded fallback.
-    pub fn mover_position_like_cpp(
-        &self,
-        mover_guid: ObjectGuid,
-    ) -> Option<wow_core::Position> {
+    pub fn mover_position_like_cpp(&self, mover_guid: ObjectGuid) -> Option<wow_core::Position> {
         if self.core.player_guid() == Some(mover_guid) {
             return self.player_position_like_cpp();
         }
@@ -349,9 +344,7 @@ impl crate::session::HubRef<'_> {
             .expect("test Player movement-time owner must resolve")
     }
 
-    pub fn resolved_movement_force_mod_magnitude_changes_like_cpp(
-        &self,
-    ) -> Option<u8> {
+    pub fn resolved_movement_force_mod_magnitude_changes_like_cpp(&self) -> Option<u8> {
         let canonical = self.core.with_owned_player_like_cpp(|player| {
             player.movement_force_mod_magnitude_changes_like_cpp()
         });
@@ -485,9 +478,7 @@ impl crate::session::HubMut<'_> {
         }
     }
 
-    pub fn consume_movement_force_mod_magnitude_change_like_cpp(
-        &mut self,
-    ) -> Option<u8> {
+    pub fn consume_movement_force_mod_magnitude_change_like_cpp(&mut self) -> Option<u8> {
         let canonical = self.core.with_owned_player_mut_like_cpp(|player| {
             player.consume_movement_force_mod_magnitude_change_like_cpp()
         });
@@ -548,11 +539,7 @@ impl crate::session::HubMut<'_> {
 }
 
 impl crate::session::HubMut<'_> {
-    pub fn set_player_map_position_like_cpp(
-        &mut self,
-        map_id: u16,
-        position: wow_core::Position,
-    ) {
+    pub fn set_player_map_position_like_cpp(&mut self, map_id: u16, position: wow_core::Position) {
         if self.core.player_map_id_like_cpp() != map_id {
             self.core
                 .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
@@ -655,9 +642,7 @@ impl crate::session::HubRef<'_> {
         canonical
     }
 
-    pub fn resolved_player_movement_flags_like_cpp(
-        &self,
-    ) -> Option<MovementFlag> {
+    pub fn resolved_player_movement_flags_like_cpp(&self) -> Option<MovementFlag> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.unit().movement_flags_like_cpp());

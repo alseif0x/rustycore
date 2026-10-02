@@ -99,11 +99,7 @@ impl crate::session::HubMut<'_> {
         .unwrap_or(false)
     }
 
-    pub fn mount_set_favorite_like_cpp(
-        &mut self,
-        mount_spell_id: u32,
-        is_favorite: bool,
-    ) -> bool {
+    pub fn mount_set_favorite_like_cpp(&mut self, mount_spell_id: u32, is_favorite: bool) -> bool {
         let Ok(spell_id) = i32::try_from(mount_spell_id) else {
             return false;
         };

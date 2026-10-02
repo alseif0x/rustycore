@@ -15,8 +15,7 @@ use wow_entities::PlayerHomebindLikeCpp as RepresentedHomebindLikeCpp;
 pub struct TeleportState {
     /// `MoveSplineDone` taxi decisions recorded until full Taxi/MotionMaster runtime exists.
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub move_spline_done_taxi_events_like_cpp:
-        Vec<MoveSplineDoneTaxiEventLikeCpp>,
+    pub move_spline_done_taxi_events_like_cpp: Vec<MoveSplineDoneTaxiEventLikeCpp>,
     /// C++ `Player::m_bCanDelayTeleport`, represented around update-owned work.
     #[cfg(any(test, feature = "test-fixtures"))]
     pub represented_can_delay_teleport_like_cpp: bool,

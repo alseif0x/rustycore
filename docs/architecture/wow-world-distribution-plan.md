@@ -426,6 +426,47 @@ no se ejecutaron sus listados. La comparación deberá recuperar sus identidades
 cotejar las fuentes de la base y registrar esta limitación sin atribuir a P4b
 resultados de una ejecución anterior.
 
+**Primera aceptación P4b, candidato `5a0e68293` — 2026-10-02:** árbol limpio;
+`final --base origin/3.4.3 --architecture --timings --logs --keep-going`, un job,
+manifiesto `target/validation-v2/manifests/20261002T212119.987775Z-33228-final.json`.
+Resultado **FAILED**, exit 1, duración 501,887 s; `verify --require-profile final`
+rechaza ese manifiesto. Inicio 21:21:19,987 UTC y fin 21:29:41,874 UTC. El primer
+listado requerido comenzó a las 21:21:09,598 UTC y la verificación posterior se
+registró a las 21:31:12 UTC; la campaña completa sigue pendiente, con reparaciones
+medidas aparte. Los listados retenidos recuperan 3.949 casos y un ignored; falta
+compararlos con el candidato y añadir el doctest. Los 33 casos del bridge son
+R100 y cambian solo de crate; no hay otras altas/bajas World/Core por fuente.
+El checker ejecutó 406 pruebas: 400 PASS y seis FAIL; World/Core no llegaron a
+ejecutar sus suites porque Core tiene tres errores de imports/dependencias.
+Los fallos incluyen dos techos físicos de roots, dos fachadas glob que impiden
+inventariar registros, diferencias de formato y tres regresiones nuevas de
+fixtures/diagnóstico; los otros tres fallos de tests comparten el bloqueo glob.
+El baseline nominal nuevo y los extras de producción/configuración/inventario
+todavía no están aceptados. R1 da S=20.503, G=24.270, tolerancia 21.828,2 y exceso
+2.441,8: Core producción añade 22.194 líneas netas y el checker 2.076; los 1.026
+test LOC trasladados se cancelan. La revisión no encontró una copia de cuerpos
+o del inicializador de fixtures que justifique retirarlos. R1 sigue abierto;
+no se rebaja el gate ni se elimina cobertura para publicar este corte.
+Las reparaciones revisadas corrigen los proveedores de reputación y trasladan la
+dependencia que faltaba de consultas de aura: dos DTO, cuatro funciones y su
+conversión conservan campos, derives y cuerpos; World mantiene sus aliases y
+Core una sola implementación. El porcentaje de autoataque conserva su pliegue
+en un helper privado junto a su único consumidor. Las fachadas glob pasan a
+exports nombrados: el bridge conserva sus 27 funciones públicas y hub_support
+sus ocho items. El checker corrige el montaje de una fixture, conserva los
+rechazos de ausencia/duplicidad con diagnósticos precisos y limita el resolver
+singular a tests. Los dos techos físicos se ajustan solo a sus siete líneas
+necesarias de montaje, sin margen ni cambio de la observación histórica.
+La revisión corrigió además un comentario heredado: C++ usa `forward_list`
+(`Unit.h:631`), `push_front` (`Unit.cpp:3567`) y devuelve `m_modAuras[type]`
+(`Unit.h:1284`); el traslado mantiene el orden Rust por slots ascendentes, sin
+resolver esa diferencia. Es inspección de cuerpos y evidencia versionada, no
+una nueva prueba de paridad. Estas reparaciones todavía necesitan aceptación.
+Los dos comandos de formato terminaron con exit 0; la revisión del delta conserva
+los cuerpos y cfg, con los roots del checker en 58 y 71 líneas. La generación
+del baseline de sintaxis se ejecuta como diagnóstico de reparación y no acredita
+una aceptación final.
+
 La construcción debe conservar el orden exacto de expresiones, RNG, relojes, canales
 y campos. Extraer primero el literal de `SessionCore` a una inicialización propia;
 los rails y la conexión con su endpoint siguen construyéndose en `WorldSession::new`.

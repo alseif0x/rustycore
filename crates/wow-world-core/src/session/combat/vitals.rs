@@ -5,8 +5,7 @@ use wow_constants::PowerType;
 use wow_core::ObjectGuid;
 use wow_data::character_progression::PowerTypeStore;
 use wow_entities::{
-    MAX_POWERS_PER_CLASS, Player, UNIT_DATA_HEALTH_BIT, UnitDataUpdate, UnitDataValues,
-    UpdateMask,
+    MAX_POWERS_PER_CLASS, Player, UNIT_DATA_HEALTH_BIT, UnitDataUpdate, UnitDataValues, UpdateMask,
 };
 
 impl SessionCore {
@@ -37,11 +36,7 @@ impl SessionCore {
         })
     }
 
-    pub fn send_player_health_values_update_like_cpp(
-        &self,
-        guid: ObjectGuid,
-        health: u64,
-    ) {
+    pub fn send_player_health_values_update_like_cpp(&self, guid: ObjectGuid, health: u64) {
         let mut mask = UpdateMask::new(UNIT_DATA_HEALTH_BIT + 1);
         mask.set(UNIT_DATA_HEALTH_BIT);
         let update = wow_entities::PlayerValuesUpdate {

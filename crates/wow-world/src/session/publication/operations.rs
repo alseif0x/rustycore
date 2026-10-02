@@ -362,4 +362,3 @@ impl crate::session::state::SessionLifecycleState {
         }
     }
 }
-

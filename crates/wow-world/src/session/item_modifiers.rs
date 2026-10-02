@@ -221,7 +221,6 @@ pub(crate) use wow_world_core::session::player_class_mask_for_transmog_like_cpp;
 
 pub(crate) use wow_world_core::session::player_class_mask_for_talent_like_cpp;
 
-
 pub(in crate::session) fn player_class_by_armor_subclass_like_cpp(subclass: u32) -> u32 {
     match subclass {
         x if x == ItemSubClassArmor::Miscellaneous as u32 => 0x0FFF,
@@ -393,7 +392,6 @@ impl crate::session::state::InventoryState {
             .expect("test Player aura owner must resolve")
     }
 }
-
 
 #[cfg(test)]
 #[path = "../../unit_tests/session/item_modifiers/f3_shims.rs"]

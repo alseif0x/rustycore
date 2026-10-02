@@ -6,6 +6,7 @@
 use std::collections::BTreeSet;
 use std::sync::Arc;
 
+use super::creature_ai_spell_difficulty_chain_like_cpp;
 use wow_data::character_progression::ChrRacesStore;
 use wow_data::progression_rewards::{FactionStore, FactionTemplateStore};
 use wow_data::{
@@ -15,7 +16,6 @@ use wow_data::{
     SpellLinkedTypeLikeCpp, SpellMiscStore, SpellRangeStore, SpellStore,
     SpellTargetRestrictionsStore,
 };
-use super::creature_ai_spell_difficulty_chain_like_cpp;
 
 pub const DEFAULT_VISIBILITY_BGARENAS_LIKE_CPP: f32 = 533.0;
 
@@ -176,10 +176,7 @@ impl Default for LegacyCreatureAggroConfigLikeCpp {
 }
 
 impl LegacyCreatureAggroConfigLikeCpp {
-    pub fn spell_has_no_unrepresented_runtime_hooks_like_cpp(
-        &self,
-        spell_id: u32,
-    ) -> bool {
+    pub fn spell_has_no_unrepresented_runtime_hooks_like_cpp(&self, spell_id: u32) -> bool {
         let Some(conditions) = self.spell_condition_store.as_deref() else {
             return false;
         };
@@ -216,10 +213,7 @@ impl LegacyCreatureAggroConfigLikeCpp {
     /// Startup installs the effective DB2 + SQL + hotfix authority. Missing
     /// authority and spell IDs outside DB2's signed key domain fail closed;
     /// an absent effective row means the spell has no such requirement.
-    pub fn spell_has_no_unrepresented_casting_requirements_like_cpp(
-        &self,
-        spell_id: u32,
-    ) -> bool {
+    pub fn spell_has_no_unrepresented_casting_requirements_like_cpp(&self, spell_id: u32) -> bool {
         let Some(store) = self.spell_casting_requirements_store.as_deref() else {
             return false;
         };

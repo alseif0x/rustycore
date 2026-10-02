@@ -121,7 +121,6 @@ impl WorldSession {
     }
 }
 
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/movement/far_transfer/f3_shims.rs"]
 mod f3_shims;

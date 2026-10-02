@@ -1,8 +1,8 @@
 //! Closed-world SessionCore owner regressions.
 
+use super::super::core_owner::{SESSION_CORE_NAME, WORLD_CORE_SESSION_CORE_MODULE};
 use super::scenarios_1::{server_source, synthetic_baseline_with_core, world_source};
 use super::*;
-use super::super::core_owner::{SESSION_CORE_NAME, WORLD_CORE_SESSION_CORE_MODULE};
 
 const NETWORK: &str =
     "pub enum SessionCommand { Kick(KickCommand) } pub struct KickCommand { pub reason: String }";
@@ -69,10 +69,7 @@ fn world_core_session_core_definition_fields_and_impls_are_pinned() {
     let definition = owner.definition.as_ref().expect("one Core definition");
 
     assert_eq!(definition.package, "wow-world-core");
-    assert_eq!(
-        definition.definition.module,
-        WORLD_CORE_SESSION_CORE_MODULE
-    );
+    assert_eq!(definition.definition.module, WORLD_CORE_SESSION_CORE_MODULE);
     assert_eq!(definition.definition.name, SESSION_CORE_NAME);
     assert!(definition.availability.production && definition.availability.test);
     assert!(owner.fields.iter().any(|field| {
@@ -124,10 +121,7 @@ fn world_core_session_core_definition_fields_and_impls_are_pinned() {
     assert_eq!(binding.type_expression, "state :: SessionCore");
     assert_eq!(binding.providers.len(), 1);
     assert_eq!(binding.providers[0].package, "wow-world-core");
-    assert_eq!(
-        binding.providers[0].module,
-        WORLD_CORE_SESSION_CORE_MODULE
-    );
+    assert_eq!(binding.providers[0].module, WORLD_CORE_SESSION_CORE_MODULE);
     assert_eq!(binding.providers[0].symbol, SESSION_CORE_NAME);
     assert_eq!(binding.providers[0].kind, "struct");
 }
@@ -153,12 +147,18 @@ fn reordering_session_core_fields_is_baseline_drift_for_drop_order() {
         "pub account_id: u32,\n                            #[cfg(test)] pub test_slot: bool,",
         "#[cfg(test)] pub test_slot: bool,\n                            pub account_id: u32,",
     );
-    assert_ne!(reordered_core, original_core, "the fixture must reorder fields");
+    assert_ne!(
+        reordered_core, original_core,
+        "the fixture must reorder fields"
+    );
     let actual = baseline(&world, &reordered_core).expect("the reordered Core owner parses");
 
     let error = compare_baseline(&expected, &actual)
         .expect_err("field declaration order must remain pinned to preserve drop order");
-    assert!(error.contains("SessionCore field surface changed"), "{error}");
+    assert!(
+        error.contains("SessionCore field surface changed"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -188,7 +188,10 @@ fn removing_the_core_definition_and_impls_is_baseline_drift() {
     let error = compare_baseline(&expected, &actual)
         .expect_err("removing the required Core owner must drift from its pinned surface");
     assert!(error.contains("SessionCore definition changed"), "{error}");
-    assert!(error.contains("SessionCore impl surface changed"), "{error}");
+    assert!(
+        error.contains("SessionCore impl surface changed"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -197,7 +200,8 @@ fn duplicate_core_session_core_definitions_are_rejected() {
     let error = baseline(&world_with_core_facade(), &duplicate)
         .expect_err("duplicate definitions at the canonical destination must fail closed");
     assert!(error.contains("SessionCore"), "{error}");
-    assert!(error.contains("conflicting definitions"), "{error}");
+    assert!(error.contains("mounted more than once"), "{error}");
+    assert!(error.contains("ambiguous"), "{error}");
 }
 
 #[test]
@@ -242,7 +246,12 @@ fn world_session_core_field_rejects_a_foreign_alias_provider() {
 
 #[test]
 fn world_session_core_field_rejects_a_missing_provider() {
-    let world = world_with_core_type("crate::absent::SessionCore", "");
+    // Keep the unresolved target non-bridge-shaped so bridge inventory does
+    // not preempt the nominal WorldSession.core ownership diagnostic.
+    let world = world_with_core_type(
+        "MissingOwnerAlias",
+        "pub type MissingOwnerAlias = crate::absent::MissingType;",
+    );
     let error = baseline(&world, &core_source(""))
         .expect_err("a named field without a supplied provider must fail closed");
     assert!(error.contains("WorldSession.core"), "{error}");
@@ -310,17 +319,22 @@ fn renamed_core_alias_impl_is_counted_and_changes_are_baseline_drift() {
         item.self_type == "CoreAlias"
             && item.module == format!("{WORLD_CORE_SESSION_CORE_MODULE}::other_owner")
     }));
-    assert!(!expected
-        .session_core_owner
-        .impls
-        .iter()
-        .any(|item| item.self_type.starts_with("Wrapper")));
+    assert!(
+        !expected
+            .session_core_owner
+            .impls
+            .iter()
+            .any(|item| item.self_type.starts_with("Wrapper"))
+    );
 
     let actual = baseline(&world, &core_source(""))
         .expect("removing the alias impl remains a comparable source surface");
     let error = compare_baseline(&expected, &actual)
         .expect_err("the baseline must detect removal of a renamed Core impl");
-    assert!(error.contains("SessionCore impl surface changed"), "{error}");
+    assert!(
+        error.contains("SessionCore impl surface changed"),
+        "{error}"
+    );
 }
 
 #[test]
@@ -364,15 +378,16 @@ fn self_imported_core_alias_impls_are_counted_and_changes_are_baseline_drift() {
         .expect("removing the self-imported alias impls remains comparable");
     let error = compare_baseline(&expected, &actual)
         .expect_err("the baseline must detect removal of self-imported Core impls");
-    assert!(error.contains("SessionCore impl surface changed"), "{error}");
+    assert!(
+        error.contains("SessionCore impl surface changed"),
+        "{error}"
+    );
 }
 
 #[test]
 fn unresolved_or_ambiguous_core_alias_impl_candidates_fail_closed() {
     let world = world_with_core_facade();
-    let missing = core_source(
-        "use crate::absent::SessionCore as CoreAlias; impl CoreAlias {}",
-    );
+    let missing = core_source("use crate::absent::SessionCore as CoreAlias; impl CoreAlias {}");
     let error = baseline(&world, &missing)
         .expect_err("an alias candidate with no supplied provider is not ignored");
     assert!(error.contains("candidate CoreAlias"), "{error}");

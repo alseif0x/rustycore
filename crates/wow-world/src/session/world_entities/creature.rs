@@ -330,7 +330,6 @@ impl WorldSession {
     }
 }
 
-
 impl crate::session::state::WorldEntitiesState {
     pub(in crate::session) fn represented_can_see_or_detect_world_creature_like_cpp(
         &self,

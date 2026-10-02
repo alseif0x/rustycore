@@ -193,7 +193,6 @@ impl WorldSession {
     }
 }
 
-
 #[cfg(test)]
 #[path = "../../../../unit_tests/session/movement/state/spline_progression/f3_shims.rs"]
 mod f3_shims;

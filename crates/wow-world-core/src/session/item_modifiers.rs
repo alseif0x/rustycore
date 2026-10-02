@@ -102,9 +102,7 @@ impl crate::session::HubRef<'_> {
         Some(multipliers)
     }
 
-    pub fn resolved_represented_total_stat_buff_multipliers_like_cpp(
-        &self,
-    ) -> Option<[f32; 5]> {
+    pub fn resolved_represented_total_stat_buff_multipliers_like_cpp(&self) -> Option<[f32; 5]> {
         let mut multipliers = [1.0; 5];
         for (stat, multiplier) in multipliers.iter_mut().enumerate() {
             *multiplier =

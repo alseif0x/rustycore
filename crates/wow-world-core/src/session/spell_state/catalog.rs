@@ -1,11 +1,11 @@
 use std::sync::Arc;
 
+use wow_data::SpellStore;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_data::{
     PlayerCreateInfoCustomSpellStoreLikeCpp, ServersideSpellStoreLikeCpp,
     SpellTotemModelStoreLikeCpp,
 };
-use wow_data::SpellStore;
 
 impl crate::session::state::SessionCatalogs {
     #[cfg(any(test, feature = "test-fixtures"))]

@@ -92,10 +92,7 @@ impl crate::session::HubRef<'_> {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn calc_represented_xp_rest_extra_per_sec_like_cpp(
-        &self,
-        bubble: f32,
-    ) -> Option<f32> {
+    pub fn calc_represented_xp_rest_extra_per_sec_like_cpp(&self, bubble: f32) -> Option<f32> {
         if !self.can_gain_represented_xp_rest_bonus_like_cpp()? {
             return Some(0.0);
         }
@@ -146,9 +143,7 @@ impl crate::session::HubRef<'_> {
 }
 
 impl crate::session::HubRef<'_> {
-    pub fn player_rest_state_snapshot_like_cpp(
-        &self,
-    ) -> Option<wow_entities::PlayerRestState> {
+    pub fn player_rest_state_snapshot_like_cpp(&self) -> Option<wow_entities::PlayerRestState> {
         let canonical = self
             .core
             .with_owned_player_for_rest_like_cpp(|player| player.rest_state_like_cpp().clone());

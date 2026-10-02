@@ -20,10 +20,7 @@ impl SessionCore {
 }
 
 impl crate::session::state::SessionCatalogs {
-    pub fn spell_threat_entry_like_cpp(
-        &self,
-        spell_id: u32,
-    ) -> Option<&SpellThreatEntryLikeCpp> {
+    pub fn spell_threat_entry_like_cpp(&self, spell_id: u32) -> Option<&SpellThreatEntryLikeCpp> {
         let store = self.spell_catalogs.spell_threat_store.as_ref()?;
         store.get_spell_threat_entry_like_cpp(spell_id, |lookup_spell_id| {
             self.spell_catalogs

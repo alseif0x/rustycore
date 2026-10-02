@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
 use crate::session::{
-    CreatureCreateDisplaySelectionLikeCpp, CreatureCreateModelScalarsLikeCpp,
-    state::SessionCore,
+    CreatureCreateDisplaySelectionLikeCpp, CreatureCreateModelScalarsLikeCpp, state::SessionCore,
 };
 use rand::Rng;
 use wow_constants::{CreatureFlagsExtra, PowerType};

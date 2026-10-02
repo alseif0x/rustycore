@@ -2,18 +2,12 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 use crate::session::state::hub_support::{
-    class_uses_wands_like_cpp, RepresentedPlayerGearStatsLikeCpp,
-    SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP,
+    RepresentedPlayerGearStatsLikeCpp, SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP, class_uses_wands_like_cpp,
 };
 use wow_constants::PowerType;
 
 impl crate::session::HubRef<'_> {
-    pub fn mana_regen_from_stats_like_cpp(
-        &self,
-        level: u8,
-        class: u8,
-        stats: [i32; 5],
-    ) -> f32 {
+    pub fn mana_regen_from_stats_like_cpp(&self, level: u8, class: u8, stats: [i32; 5]) -> f32 {
         // C++ `Player::OCTRegenMPPerSpirit` returns Spirit multiplied by the
         // level/class row from `RegenMPPerSpt.txt`; `UpdateManaRegen` then
         // multiplies that value by sqrt(Intellect). Aura percentages are a

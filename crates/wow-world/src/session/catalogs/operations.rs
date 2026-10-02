@@ -524,7 +524,6 @@ impl crate::session::state::SessionSocialLimits {
     }
 }
 
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/catalogs/operations/f3_shims.rs"]
 mod f3_shims;

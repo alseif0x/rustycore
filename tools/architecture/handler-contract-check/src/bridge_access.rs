@@ -41,11 +41,11 @@ mod provenance;
 mod state_1;
 mod state_2;
 mod state_3;
-use provenance::{build_module_index, resolve_module_symbols};
 pub(crate) use provenance::{
     SuppliedTypeIdentity, TypeIdentityError, TypeIdentityKind, TypeIdentityQuery,
-    resolve_supplied_type_identities, resolve_supplied_type_identity,
+    resolve_supplied_type_identities,
 };
+use provenance::{build_module_index, resolve_module_symbols};
 #[allow(unused_imports)]
 pub use state_1::*;
 #[allow(unused_imports)]

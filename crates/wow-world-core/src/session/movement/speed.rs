@@ -1,7 +1,7 @@
 //! Hub operations for represented movement speed.
 
 use crate::session::movement_protocol::{
-    MovementSpeedAckEventLikeCpp, UnitMoveTypeLikeCpp, PLAYER_BASE_MOVE_SPEED_LIKE_CPP,
+    MovementSpeedAckEventLikeCpp, PLAYER_BASE_MOVE_SPEED_LIKE_CPP, UnitMoveTypeLikeCpp,
 };
 use tracing::warn;
 use wow_entities::RepresentedAuraEffectLikeCpp;
@@ -56,11 +56,7 @@ impl crate::session::HubMut<'_> {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn set_forced_speed_changes_like_cpp(
-        &mut self,
-        move_type: UnitMoveTypeLikeCpp,
-        count: u8,
-    ) {
+    pub fn set_forced_speed_changes_like_cpp(&mut self, move_type: UnitMoveTypeLikeCpp, count: u8) {
         let index = move_type.index();
         let canonical = self
             .core

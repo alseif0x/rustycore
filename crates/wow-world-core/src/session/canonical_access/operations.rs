@@ -22,10 +22,7 @@ impl crate::session::state::SessionCore {
     ///
     /// Unlike the transitional GUID/map lookup helpers, this deliberately has
     /// no fallback: a stale or missing handle means that the owner is unknown.
-    pub fn with_owned_player_like_cpp<R>(
-        &self,
-        f: impl FnOnce(&Player) -> R,
-    ) -> Option<R> {
+    pub fn with_owned_player_like_cpp<R>(&self, f: impl FnOnce(&Player) -> R) -> Option<R> {
         let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
         let handle = self.player_handle_like_cpp?;
         let manager = manager.lock().ok()?;
@@ -35,10 +32,7 @@ impl crate::session::state::SessionCore {
     }
 
     /// Mutating counterpart to `with_owned_player_like_cpp`.
-    pub fn with_owned_player_mut_like_cpp<R>(
-        &self,
-        f: impl FnOnce(&mut Player) -> R,
-    ) -> Option<R> {
+    pub fn with_owned_player_mut_like_cpp<R>(&self, f: impl FnOnce(&mut Player) -> R) -> Option<R> {
         let manager = Arc::clone(self.canonical_map_manager.as_ref()?);
         let handle = self.player_handle_like_cpp?;
         let mut manager = manager.lock().ok()?;
@@ -147,10 +141,7 @@ impl crate::session::state::SessionCore {
     /// Resolving the GUID and map key is the only session-local part; the read
     /// itself is the placement-addressed accessor a remote reader uses too
     /// (#252), so one player's canonical state cannot be reached two ways.
-    pub fn canonical_player_snapshot_like_cpp<R>(
-        &self,
-        f: impl FnOnce(&Player) -> R,
-    ) -> Option<R> {
+    pub fn canonical_player_snapshot_like_cpp<R>(&self, f: impl FnOnce(&Player) -> R) -> Option<R> {
         let guid = self.player_guid()?;
         if let (Some(manager), Some(handle)) = (
             self.canonical_map_manager.as_ref(),
@@ -298,10 +289,7 @@ impl crate::session::HubMut<'_> {
         canonical
     }
 
-    pub fn set_player_zone_area_authority_like_cpp(
-        &mut self,
-        complete: bool,
-    ) -> bool {
+    pub fn set_player_zone_area_authority_like_cpp(&mut self, complete: bool) -> bool {
         let canonical = self
             .core
             .with_owned_player_mut_like_cpp(|player| {
@@ -335,10 +323,7 @@ impl crate::session::HubMut<'_> {
         canonical
     }
 
-    pub fn set_player_pvp_end_timer_like_cpp(
-        &mut self,
-        end_timer: Option<i64>,
-    ) -> bool {
+    pub fn set_player_pvp_end_timer_like_cpp(&mut self, end_timer: Option<i64>) -> bool {
         let canonical = self
             .core
             .with_owned_player_mut_like_cpp(|player| player.set_pvp_end_timer_like_cpp(end_timer))

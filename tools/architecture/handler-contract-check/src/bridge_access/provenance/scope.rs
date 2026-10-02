@@ -8,9 +8,9 @@ use super::super::{
     BridgeSide, Symbols, bridge_capable_namespace_import, is_explicit_core_facade_reexport,
     is_legacy_map_owner, sides_for_segments, validate_cfg,
 };
-use super::{ResolverMode, combine_cfg};
 use super::source_graph::{IndexedModule, ModuleIndex};
 use super::type_identity::TypeIdentityKind;
+use super::{ResolverMode, combine_cfg};
 use crate::ownership::{
     cfg_context_allows_production, cfg_context_allows_test, extend_cfg_context,
 };

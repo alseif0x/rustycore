@@ -672,8 +672,8 @@
     {
       "path": "tools/architecture/handler-contract-check/src/bridge_access.rs",
       "observed_lines": 2128,
-      "ceiling_lines": 54,
-      "split": "Separate the bridge access record, accumulator and symbol table from their regressions. #660 decomposes the 2,128-line root into three state modules and one regression module, dropping it to 52 lines. #716 adds two reviewed wiring lines for private lexical provenance resolution; the root is 54 lines, with no relocation counted as ownership retirement.",
+      "ceiling_lines": 58,
+      "split": "Separate the bridge access record, accumulator and symbol table from their regressions. #660 decomposes the 2,128-line root into three state modules and one regression module, dropping it to 52 lines. #716 adds two reviewed wiring lines for private lexical provenance resolution; the root is 54 lines, with no relocation counted as ownership retirement. P4b adds four required lines re-exporting the nominal identity types and batch resolver for CoreOwner; the exact ceiling is 58 lines, with the historical observation unchanged.",
       "review_checkpoint": "584:C4"
     },
     {
@@ -693,8 +693,8 @@
     {
       "path": "tools/architecture/handler-contract-check/src/session_ownership.rs",
       "observed_lines": 2996,
-      "ceiling_lines": 68,
-      "split": "Separate the package roles, the expression-surface collector and the baseline builder. #660 decomposes the 2,996-line root into three state modules and one regression module, dropping it to 54 lines. #716 adds a 14-line cfg(test) cached complete repository syntax fixture: real bridge and ownership assertions share actual lexical context instead of incomplete file subsets or repeated full syntax scans. The reviewed 68-line root retains the same production owner and inventory obligations.",
+      "ceiling_lines": 71,
+      "split": "Separate the package roles, the expression-surface collector and the baseline builder. #660 decomposes the 2,996-line root into three state modules and one regression module, dropping it to 54 lines. #716 adds a 14-line cfg(test) cached complete repository syntax fixture: real bridge and ownership assertions share actual lexical context instead of incomplete file subsets or repeated full syntax scans. P4b adds three required lines mounting and re-exporting the separate CoreOwner analyzer; the exact ceiling is 71 lines, with no extra headroom and the historical observation unchanged.",
       "review_checkpoint": "584:C4"
     },
     {

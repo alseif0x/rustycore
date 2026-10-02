@@ -1025,7 +1025,6 @@ impl crate::session::state::SessionQuestState {
     }
 }
 
-
 /// Which recurrence bucket one rewarded quest belongs to.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum RepresentedQuestRecurrenceLikeCpp {

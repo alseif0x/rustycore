@@ -23,9 +23,7 @@ impl crate::session::HubRef<'_> {
     /// pet runtime can cast owner auras. Until those transitions are fully
     /// represented, admit only the complete empty-query state and revoke it
     /// on every represented pet load or mutation.
-    pub fn represented_character_pet_aura_source_is_empty_like_cpp(
-        &self,
-    ) -> bool {
+    pub fn represented_character_pet_aura_source_is_empty_like_cpp(&self) -> bool {
         let Some(pet_lifecycle) = self.player_pet_lifecycle_state_snapshot_like_cpp() else {
             return false;
         };

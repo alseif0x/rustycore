@@ -4,6 +4,10 @@
 //! Catalog capabilities: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
+use super::EquipmentSetGuidGeneratorLikeCpp;
+use super::HotfixBlobCache;
+use super::LfgDungeonStoreLikeCpp;
+use super::ObjectGuidGenerator;
 use super::VoidStorageItemIdGeneratorLikeCpp;
 use super::{AdventureMapPoiStore, Arc, AreaTriggerDb2Store, AreaTriggerScriptDispatcherLikeCpp};
 use super::{AreaTriggerScriptStoreLikeCpp, AreaTriggerStore, BankBagSlotPricesStore};
@@ -11,15 +15,11 @@ use super::{BattlemasterListStore, ChatFloodConfigLikeCpp, ChatLevelRequirements
 use super::{ChatListenRangesLikeCpp, CreatureAddonStoreLikeCpp, CreatureBaseStatsStoreLikeCpp};
 use super::{CreatureClassificationHealthRatesLikeCpp, CreatureDifficultyStoreLikeCpp};
 use super::{CreatureEquipmentStoreLikeCpp, EmotesStore, EmotesTextStore};
-use super::EquipmentSetGuidGeneratorLikeCpp;
 use super::{GraveyardStore, HighGuid};
-use super::HotfixBlobCache;
-use super::LfgDungeonStoreLikeCpp;
-use super::ObjectGuidGenerator;
 
+use super::TavernAreaTriggerStoreLikeCpp;
 use super::{PlayerGridLoadOutcomeLikeCpp, PlayerGridLoadResolverLikeCpp};
 use super::{PlayerRegenerationRatesLikeCpp, PowerTypeStore, QuestInfoStore, TactKeyStore};
-use super::TavernAreaTriggerStoreLikeCpp;
 use wow_world_core::session::SupportFeaturePolicyLikeCpp;
 
 pub use wow_world_core::session::GroupInvitePolicyLikeCpp;
@@ -110,7 +110,6 @@ impl Default for ChatPolicyCatalogsLikeCpp {
         }
     }
 }
-
 
 /// Process-owned area-trigger lookup and extension capability.
 ///

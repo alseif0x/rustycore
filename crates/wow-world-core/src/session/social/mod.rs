@@ -1,2 +1,2 @@
-mod group;
 mod contacts;
+mod group;

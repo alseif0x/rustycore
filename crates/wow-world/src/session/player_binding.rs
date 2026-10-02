@@ -4,8 +4,8 @@
 //! Player binding: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{Arc, DurableLootMoneyPersistenceTrackerLikeCpp, ObjectGuid};
 use super::WorldSession;
+use super::{Arc, DurableLootMoneyPersistenceTrackerLikeCpp, ObjectGuid};
 pub(in crate::session) use wow_world_core::session::PlayerIdentityBootstrapLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(in crate::session) use wow_world_core::session::PlayerTransportLoginStateLikeCpp;
@@ -323,7 +323,6 @@ impl crate::session::state::InventoryState {
         canonical || cfg!(test) && hub.core.player_handle_like_cpp.is_none()
     }
 }
-
 
 #[cfg(test)]
 #[path = "../../unit_tests/session/player_binding/f3_shims.rs"]

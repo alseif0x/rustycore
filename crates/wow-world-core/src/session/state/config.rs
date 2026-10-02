@@ -4,12 +4,12 @@
 //! Shared immutable world configuration consumed by the World session shell.
 
 use crate::session::MMapRuntimeConfigLikeCpp;
+use crate::session::creature_aggro_contracts::LegacyCreatureAggroConfigLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session_policy::{
     ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp, ChatListenRangesLikeCpp,
 };
 use crate::session_policy::{LootDropRatesLikeCpp, ReputationRatesLikeCpp};
-use crate::session::creature_aggro_contracts::LegacyCreatureAggroConfigLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_data::CreatureClassificationHealthRatesLikeCpp;
 use wow_data::StatsLimitsLikeCpp;
@@ -132,7 +132,8 @@ impl Default for SessionWorldConfig {
             creature_health_rates_like_cpp: CreatureClassificationHealthRatesLikeCpp::default(),
 
             max_player_level_config_like_cpp: 80,
-            max_primary_trade_skills_like_cpp: wow_config::DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP,
+            max_primary_trade_skills_like_cpp:
+                wow_config::DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP,
             represented_cast_unstuck_enabled_like_cpp: true,
             #[cfg(any(test, feature = "test-fixtures"))]
             exploration_xp_rate_like_cpp: 1.0,

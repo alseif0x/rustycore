@@ -46,9 +46,7 @@ impl crate::session::HubRef<'_> {
         })
     }
 
-    pub fn condition_player_snapshot_like_cpp(
-        &self,
-    ) -> wow_conditions::ConditionPlayerSnapshot {
+    pub fn condition_player_snapshot_like_cpp(&self) -> wow_conditions::ConditionPlayerSnapshot {
         wow_conditions::ConditionPlayerSnapshot {
             team: player_team_for_race_cpp(self.player_race_like_cpp()) as u32,
             native_gender: u32::from(self.player_gender_like_cpp()),

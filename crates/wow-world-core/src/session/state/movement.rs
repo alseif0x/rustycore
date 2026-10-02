@@ -81,8 +81,7 @@ pub struct MovementState {
         Vec<RepresentedVehicleDismissMovementLikeCpp>,
     /// Represented `vehicle_base->m_movementInfo = MoveChangeVehicleSeats.Status`.
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub represented_vehicle_base_movements_like_cpp:
-        Vec<RepresentedVehicleBaseMovementLikeCpp>,
+    pub represented_vehicle_base_movements_like_cpp: Vec<RepresentedVehicleBaseMovementLikeCpp>,
     /// C++ `Unit::m_movementCounter`: one per-player counter shared by ALL movement-control
     /// packets (vehicle-rec, collision height, near-teleport, speed/flag changes) and read
     /// for `SMSG_RESUME_TOKEN` SequenceIndex on far teleport. Reset to 0 in

@@ -1,15 +1,14 @@
 use std::sync::Arc;
 
-use crate::session::state::SessionCatalogs;
-use crate::session::ProgressionCatalogsLikeCpp;
-use wow_packet::packets::misc::{FeatureSystemStatus, FeatureSystemStatusGlueScreen};
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::ObjectMgrCatalogsLikeCpp;
+use crate::session::ProgressionCatalogsLikeCpp;
+use crate::session::state::SessionCatalogs;
 use wow_data::trait_tree::TraitDefinitionStore;
 use wow_data::{
     AccessRequirementStoreLikeCpp, ChrSpecializationStore, CinematicSequencesStore,
-    ConditionEntriesByTypeStore, LockStore, MountStore, PlayerConditionStore,
-    RandPropPointsStore, SpellPetAuraStoreLikeCpp, TrainerStoreLikeCpp, WorldSafeLocStore,
+    ConditionEntriesByTypeStore, LockStore, MountStore, PlayerConditionStore, RandPropPointsStore,
+    SpellPetAuraStoreLikeCpp, TrainerStoreLikeCpp, WorldSafeLocStore,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_data::{
@@ -17,6 +16,7 @@ use wow_data::{
     LfgDungeonStoreLikeCpp, PetDefaultSpellStoreLikeCpp, PetFamilySpellStoreLikeCpp,
     PetLevelupSpellStoreLikeCpp, TactKeyStore,
 };
+use wow_packet::packets::misc::{FeatureSystemStatus, FeatureSystemStatusGlueScreen};
 
 use crate::session::SupportFeaturePolicyLikeCpp;
 

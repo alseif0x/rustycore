@@ -5,9 +5,9 @@
 
 use std::sync::Arc;
 
+use crate::session::MMapRuntimeConfigLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_data::AdventureMapPoiStore;
-use crate::session::MMapRuntimeConfigLikeCpp;
 use wow_data::{DungeonEncounterStore, MapStore};
 
 impl crate::session::state::SessionCatalogs {

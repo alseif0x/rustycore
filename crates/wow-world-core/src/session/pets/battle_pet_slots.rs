@@ -27,11 +27,7 @@ impl crate::session::state::PetState {
 impl crate::session::HubMut<'_> {
     /// C++ `WorldSession::HandleBattlePetSetBattleSlot`.
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn battle_pet_set_battle_slot_like_cpp(
-        &mut self,
-        pet_guid: ObjectGuid,
-        slot: u8,
-    ) -> bool {
+    pub fn battle_pet_set_battle_slot_like_cpp(&mut self, pet_guid: ObjectGuid, slot: u8) -> bool {
         if !self
             .fixtures
             .pets

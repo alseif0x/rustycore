@@ -1,5 +1,12 @@
-mod spell_hit_authority;
 mod effect_queries;
+mod player_effect_projection;
+mod spell_hit_authority;
+
+pub use player_effect_projection::{
+    AppliedAuraEffectLikeCpp, PlayerAuraEffectLikeCpp, player_aura_effects_all_like_cpp,
+    player_aura_effects_by_spell_aura_type_like_cpp,
+    player_aura_effects_full_by_spell_aura_type_like_cpp,
+};
 
 impl crate::session::state::SessionCatalogs {
     pub fn spell_area_for_aura_map_bounds_like_cpp(

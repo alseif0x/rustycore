@@ -99,11 +99,7 @@ impl HubRef<'_> {
 }
 
 impl SessionCatalogs {
-    pub fn spell_school_mask_for_difficulty_like_cpp(
-        &self,
-        spell_id: u32,
-        difficulty: u8,
-    ) -> u32 {
+    pub fn spell_school_mask_for_difficulty_like_cpp(&self, spell_id: u32, difficulty: u8) -> u32 {
         self.spell_catalogs
             .spell_misc_store()
             .and_then(|store| {

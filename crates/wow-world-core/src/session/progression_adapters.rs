@@ -3,9 +3,9 @@
 
 //! Canonical player progression adapters shared with World.
 
-use wow_core::ObjectGuid;
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::state::config::GivePlayerXpScriptDispatcherLikeCpp;
+use wow_core::ObjectGuid;
 
 pub const WRATH_OF_THE_LICH_KING_MAX_LEVEL_LIKE_CPP: u8 = 80;
 
@@ -86,9 +86,7 @@ impl crate::session::HubRef<'_> {
         }
     }
 
-    pub fn represented_championing_faction_for_kill_like_cpp(
-        &self,
-    ) -> Option<u32> {
+    pub fn represented_championing_faction_for_kill_like_cpp(&self) -> Option<u32> {
         let championing_faction = self.resolved_championing_faction_like_cpp()?;
         if championing_faction == 0 {
             return None;
@@ -154,10 +152,7 @@ impl crate::session::HubRef<'_> {
         canonical
     }
 
-    pub fn resolved_player_xp_for_level_like_cpp(
-        &self,
-        level: u8,
-    ) -> Option<u32> {
+    pub fn resolved_player_xp_for_level_like_cpp(&self, level: u8) -> Option<u32> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.player_xp_for_level_like_cpp(level))

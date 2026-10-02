@@ -5,34 +5,11 @@
 
 //! Receiver-free melee damage rules used by the world-session runtime.
 
-use super::aura_effects::{
-    AppliedAuraEffectLikeCpp, player_aura_effects_all_like_cpp,
-    player_aura_effects_by_spell_aura_type_like_cpp,
-};
+use super::aura_effects::{AppliedAuraEffectLikeCpp, player_aura_effects_all_like_cpp};
 
 use std::collections::HashMap;
 use wow_data::SpellStore;
 use wow_entities::AuraApplicationLikeCpp;
-
-/// C++ `Unit::MeleeDamageBonusDone`'s auto-attack percentage term
-/// (`Unit.cpp:7620-7627`): `AddPct(DoneTotalMod, amount)` for every active
-/// `SPELL_AURA_MOD_AUTOATTACK_DAMAGE` effect. The represented white swing
-/// multiplies its rolled damage by the returned factor; `1.0` when nothing is
-/// active.
-pub(crate) fn represented_autoattack_damage_multiplier_like_cpp(
-    auras: &HashMap<u8, AuraApplicationLikeCpp>,
-    spell_store: &SpellStore,
-) -> f32 {
-    player_aura_effects_by_spell_aura_type_like_cpp(
-        auras,
-        spell_store,
-        wow_data::spell::aura_types::SPELL_AURA_MOD_AUTOATTACK_DAMAGE,
-    )
-    .into_iter()
-    .fold(1.0_f32, |total, (_, amount)| {
-        total * (1.0 + amount as f32 / 100.0)
-    })
-}
 
 /// C++ `Unit::MeleeDamageBonusDone`'s white-swing terms (`Unit.cpp:7558-7650`)
 /// resolved from one attacker's aura effects: the flat

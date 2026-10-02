@@ -53,11 +53,7 @@ impl crate::session::state::SessionCore {
         self.driver.time_synchronization.pending_requests.clear();
     }
 
-    pub fn record_time_sync_response_like_cpp(
-        &mut self,
-        sequence_index: u32,
-        client_time: u32,
-    ) {
+    pub fn record_time_sync_response_like_cpp(&mut self, sequence_index: u32, client_time: u32) {
         let Some(server_time_at_sent) = self
             .driver
             .time_synchronization

@@ -22,9 +22,7 @@ pub struct RepresentedPlayerSkillLikeCpp {
 }
 
 #[cfg(any(test, feature = "test-fixtures"))]
-pub fn is_non_durable_skill_tombstone_like_cpp(
-    skill: &RepresentedPlayerSkillLikeCpp,
-) -> bool {
+pub fn is_non_durable_skill_tombstone_like_cpp(skill: &RepresentedPlayerSkillLikeCpp) -> bool {
     skill.step == 0
         && skill.value == 0
         && skill.max == 0

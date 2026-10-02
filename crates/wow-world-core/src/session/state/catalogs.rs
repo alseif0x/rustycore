@@ -6,47 +6,43 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use crate::session::WaypointPathResolverLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::ObjectMgrCatalogsLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::PlayerBootstrapCatalogTestFixtureLikeCpp;
+use crate::session::WaypointPathResolverLikeCpp;
 use wow_data::character_progression::PowerTypeStore;
 use wow_data::progression_rewards::{
     ContentTuningStore, CurvePointStore, CurveStore, FriendshipRepReactionStore,
     NumTalentsAtLevelStore, ParagonReputationStore, ScalingStatDistributionStore,
     ScalingStatValuesStore,
 };
+use wow_data::reputation::{RepSpilloverTemplateStoreLikeCpp, ReputationRewardRateStoreLikeCpp};
 use wow_data::trait_tree::TraitDefinitionStore;
-use wow_data::reputation::{
-    RepSpilloverTemplateStoreLikeCpp, ReputationRewardRateStoreLikeCpp,
-};
 use wow_data::{
     AccessRequirementStoreLikeCpp, AreaTableStore, CinematicSequencesStore,
     CombatRatingsGameTableLikeCpp, ConditionEntriesByTypeStore, CurrencyTypesStore,
     DifficultyStore, DisableMgrLikeCpp, DungeonEncounterStore, DurabilityCostsStore,
-    DurabilityQualityStore, FishingBaseSkillStoreLikeCpp, GemPropertiesStore, HeirloomStore,
-    LfgDungeonsStore,
-    GameObjectTemplateLifecycleStoreLikeCpp, LockStore, MountCapabilityStore,
-    MountDefinitionStoreLikeCpp, MountStore,
-    MountTypeXCapabilityStore, MountXDisplayStore, MovieStore, PhaseGroupStore, PhaseStore,
-    PlayerConditionStore, PlayerStatsStore, PvpItemStore, RandPropPointsStore,
-    RegenGameTablesLikeCpp, ScriptNameInternerLikeCpp, ShieldBlockRegularGameTableLikeCpp,
-    SkillLineStore, SkillStore, SkillTiersStoreLikeCpp, TalentStore, TrainerStoreLikeCpp,
-    TransmogSetItemStore, ToyStore, TrinityStringStoreLikeCpp, VehicleAccessoryStoreLikeCpp,
-    VehicleSeatStore, VehicleStore, WorldSafeLocStore,
+    DurabilityQualityStore, FishingBaseSkillStoreLikeCpp, GameObjectTemplateLifecycleStoreLikeCpp,
+    GemPropertiesStore, HeirloomStore, LfgDungeonsStore, LockStore, MountCapabilityStore,
+    MountDefinitionStoreLikeCpp, MountStore, MountTypeXCapabilityStore, MountXDisplayStore,
+    MovieStore, PhaseGroupStore, PhaseStore, PlayerConditionStore, PlayerStatsStore, PvpItemStore,
+    RandPropPointsStore, RegenGameTablesLikeCpp, ScriptNameInternerLikeCpp,
+    ShieldBlockRegularGameTableLikeCpp, SkillLineStore, SkillStore, SkillTiersStoreLikeCpp,
+    TalentStore, ToyStore, TrainerStoreLikeCpp, TransmogSetItemStore, TrinityStringStoreLikeCpp,
+    VehicleAccessoryStoreLikeCpp, VehicleSeatStore, VehicleStore, WorldSafeLocStore,
 };
 use wow_loot::LootStores;
 
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_data::{
-    AdventureMapPoiStore, AreaTriggerDb2Store, AreaTriggerScriptStoreLikeCpp,
-    AreaTriggerStore, BankBagSlotPricesStore, BattlemasterListStore,
-    CreatureAddonStoreLikeCpp, CreatureBaseStatsStoreLikeCpp, CreatureDifficultyStoreLikeCpp,
-    CreatureEquipmentStoreLikeCpp, EmotesStore, EmotesTextStore, GraveyardStore,
-    ImportPriceStores, ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore,
-    ItemPriceBaseStore, LfgDungeonStoreLikeCpp, TactKeyStore, TavernAreaTriggerStoreLikeCpp,
-    VehicleTemplateStoreLikeCpp, ExplorationBaseXpStoreLikeCpp,
+    AdventureMapPoiStore, AreaTriggerDb2Store, AreaTriggerScriptStoreLikeCpp, AreaTriggerStore,
+    BankBagSlotPricesStore, BattlemasterListStore, CreatureAddonStoreLikeCpp,
+    CreatureBaseStatsStoreLikeCpp, CreatureDifficultyStoreLikeCpp, CreatureEquipmentStoreLikeCpp,
+    EmotesStore, EmotesTextStore, ExplorationBaseXpStoreLikeCpp, GraveyardStore, ImportPriceStores,
+    ItemClassStore, ItemCurrencyCostStore, ItemDisenchantLootStore, ItemPriceBaseStore,
+    LfgDungeonStoreLikeCpp, TactKeyStore, TavernAreaTriggerStoreLikeCpp,
+    VehicleTemplateStoreLikeCpp,
 };
 
 /// Immutable catalog bundles and DB2/world-DB store handles injected at composition; read-only
@@ -54,8 +50,7 @@ use wow_data::{
 pub struct SessionCatalogs {
     /// Detached Player bootstrap-catalog inputs used only by tests.
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub player_bootstrap_catalog_test_fixture_like_cpp:
-        PlayerBootstrapCatalogTestFixtureLikeCpp,
+    pub player_bootstrap_catalog_test_fixture_like_cpp: PlayerBootstrapCatalogTestFixtureLikeCpp,
 
     // Dispatch table (built once, shared ref)
 
@@ -111,8 +106,7 @@ pub struct SessionCatalogs {
     pub regen_game_tables: Option<Arc<RegenGameTablesLikeCpp>>,
 
     // C++ `sShieldBlockRegularGameTable` used by `ItemTemplate::GetShieldBlockValue`.
-    pub shield_block_regular_game_table:
-        Option<Arc<ShieldBlockRegularGameTableLikeCpp>>,
+    pub shield_block_regular_game_table: Option<Arc<ShieldBlockRegularGameTableLikeCpp>>,
 
     // C++ `Spell::_executeLogEffects` (`Spell.h:519`, `Spell.cpp:5048-5095`):
     // the current cast's execute-log effects, published once by
@@ -159,8 +153,7 @@ pub struct SessionCatalogs {
     pub content_tuning_store: Option<Arc<ContentTuningStore>>,
     pub curve_store: Option<Arc<CurveStore>>,
     pub curve_point_store: Option<Arc<CurvePointStore>>,
-    pub scaling_stat_distribution_store:
-        Option<Arc<ScalingStatDistributionStore>>,
+    pub scaling_stat_distribution_store: Option<Arc<ScalingStatDistributionStore>>,
     pub scaling_stat_values_store: Option<Arc<ScalingStatValuesStore>>,
 
     // C++ DisableMgr store loaded from world.disables.
@@ -233,28 +226,22 @@ pub struct SessionCatalogs {
     pub factions: crate::catalogs::faction::FactionCatalogsLikeCpp,
     pub friendship_rep_reaction_store: Option<Arc<FriendshipRepReactionStore>>,
     pub paragon_reputation_store: Option<Arc<ParagonReputationStore>>,
-    pub reputation_reward_rate_store:
-        Option<Arc<ReputationRewardRateStoreLikeCpp>>,
+    pub reputation_reward_rate_store: Option<Arc<ReputationRewardRateStoreLikeCpp>>,
     /// Creature template and creature-data catalogs a session reads. Owned by one type (#670).
     pub creatures: crate::catalogs::creature::CreatureCatalogsLikeCpp,
-    pub reputation_spillover_template_store:
-        Option<Arc<RepSpilloverTemplateStoreLikeCpp>>,
+    pub reputation_spillover_template_store: Option<Arc<RepSpilloverTemplateStoreLikeCpp>>,
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub creature_equipment_store_like_cpp:
-        Option<Arc<CreatureEquipmentStoreLikeCpp>>,
+    pub creature_equipment_store_like_cpp: Option<Arc<CreatureEquipmentStoreLikeCpp>>,
     /// GameObject template catalogs a session reads. Owned by one type (#670).
     pub gameobjects: crate::catalogs::gameobject::GameObjectCatalogsLikeCpp,
     #[cfg(any(test, feature = "test-fixtures"))]
     pub creature_addon_store_like_cpp: Option<Arc<CreatureAddonStoreLikeCpp>>,
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub creature_difficulty_store_like_cpp:
-        Option<Arc<CreatureDifficultyStoreLikeCpp>>,
+    pub creature_difficulty_store_like_cpp: Option<Arc<CreatureDifficultyStoreLikeCpp>>,
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub creature_base_stats_store_like_cpp:
-        Option<Arc<CreatureBaseStatsStoreLikeCpp>>,
+    pub creature_base_stats_store_like_cpp: Option<Arc<CreatureBaseStatsStoreLikeCpp>>,
     pub mount_store: Option<Arc<MountStore>>,
-    pub mount_definition_store_like_cpp:
-        Option<Arc<MountDefinitionStoreLikeCpp>>,
+    pub mount_definition_store_like_cpp: Option<Arc<MountDefinitionStoreLikeCpp>>,
     pub mount_capability_store: Option<Arc<MountCapabilityStore>>,
     pub mount_type_x_capability_store: Option<Arc<MountTypeXCapabilityStore>>,
     pub mount_x_display_store: Option<Arc<MountXDisplayStore>>,

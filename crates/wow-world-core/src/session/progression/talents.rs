@@ -13,8 +13,8 @@ use super::MAX_SPECIALIZATIONS_LIKE_CPP;
 use crate::session::{
     RepresentedTalentResetScriptHookLikeCpp, RepresentedTalentRespecCriteriaEventLikeCpp,
 };
-use wow_data::progression_rewards::NumTalentsAtLevelStore;
 use wow_data::TalentStore;
+use wow_data::progression_rewards::NumTalentsAtLevelStore;
 
 const NEEDED_TALENT_POINT_PER_TIER_LIKE_CPP: u32 = 5;
 
@@ -189,10 +189,7 @@ impl crate::session::HubRef<'_> {
             .expect("test Player talent owner must resolve")
     }
 
-    pub fn represented_next_reset_talents_cost_like_cpp(
-        &self,
-        now_secs: u64,
-    ) -> Option<u32> {
+    pub fn represented_next_reset_talents_cost_like_cpp(&self, now_secs: u64) -> Option<u32> {
         let canonical = self.core.with_owned_player_like_cpp(|player| {
             player
                 .talent_runtime_like_cpp()
@@ -310,10 +307,7 @@ impl crate::session::HubMut<'_> {
         .is_some()
     }
 
-    pub fn set_represented_active_talent_group_like_cpp(
-        &mut self,
-        active_group: u8,
-    ) -> bool {
+    pub fn set_represented_active_talent_group_like_cpp(&mut self, active_group: u8) -> bool {
         let active_group = active_group.min((MAX_SPECIALIZATIONS_LIKE_CPP - 1) as u8);
         if self.shared().represented_active_talent_group_like_cpp() != Some(active_group) {
             self.core
@@ -325,10 +319,7 @@ impl crate::session::HubMut<'_> {
         .is_some()
     }
 
-    pub fn set_represented_bonus_talent_groups_like_cpp(
-        &mut self,
-        bonus_groups: u8,
-    ) -> bool {
+    pub fn set_represented_bonus_talent_groups_like_cpp(&mut self, bonus_groups: u8) -> bool {
         let bonus_groups = bonus_groups.min((MAX_SPECIALIZATIONS_LIKE_CPP - 1) as u8);
         self.mutate_player_talent_runtime_like_cpp(|runtime| {
             runtime.set_bonus_groups_like_cpp(bonus_groups);
@@ -336,10 +327,7 @@ impl crate::session::HubMut<'_> {
         .is_some()
     }
 
-    pub fn record_represented_talent_respec_criteria_like_cpp(
-        &mut self,
-        cost: u32,
-    ) {
+    pub fn record_represented_talent_respec_criteria_like_cpp(&mut self, cost: u32) {
         #[cfg(any(test, feature = "test-fixtures"))]
         self.fixtures
             .progression

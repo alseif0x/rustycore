@@ -1,7 +1,29 @@
 use crate::session::state::SessionCore;
+use std::collections::HashMap;
 use std::sync::Arc;
 use wow_core::ObjectGuid;
-use wow_data::VEHICLE_SEAT_FLAG_CAN_ATTACK;
+use wow_data::{SpellStore, VEHICLE_SEAT_FLAG_CAN_ATTACK};
+use wow_entities::AuraApplicationLikeCpp;
+
+/// C++ `Unit::MeleeDamageBonusDone`'s auto-attack percentage term
+/// (`Unit.cpp:7620-7627`): `AddPct(DoneTotalMod, amount)` for every active
+/// `SPELL_AURA_MOD_AUTOATTACK_DAMAGE` effect. The represented white swing
+/// multiplies its rolled damage by the returned factor; `1.0` when nothing is
+/// active.
+fn represented_autoattack_damage_multiplier_like_cpp(
+    auras: &HashMap<u8, AuraApplicationLikeCpp>,
+    spell_store: &SpellStore,
+) -> f32 {
+    crate::session::player_aura_effects_by_spell_aura_type_like_cpp(
+        auras,
+        spell_store,
+        wow_data::spell::aura_types::SPELL_AURA_MOD_AUTOATTACK_DAMAGE,
+    )
+    .into_iter()
+    .fold(1.0_f32, |total, (_, amount)| {
+        total * (1.0 + amount as f32 / 100.0)
+    })
+}
 
 impl SessionCore {
     pub fn set_player_attack_swing_error_like_cpp(&mut self, error: Option<u8>) {
@@ -75,9 +97,7 @@ impl crate::session::HubMut<'_> {
 }
 
 impl crate::session::HubRef<'_> {
-    pub fn canonical_player_attack_state_like_cpp(
-        &self,
-    ) -> Option<Option<ObjectGuid>> {
+    pub fn canonical_player_attack_state_like_cpp(&self) -> Option<Option<ObjectGuid>> {
         let guid = self.core.player_guid?;
         let map_id = u32::from(self.core.player_map_id_like_cpp());
         let manager = Arc::clone(self.core.canonical_map_manager.as_ref()?);
@@ -99,16 +119,14 @@ impl crate::session::HubRef<'_> {
     ///
     /// The owning session writes the result on the canonical Player through the
     /// aura-mutation sync, so the map-owned swing path only reads it.
-    pub fn represented_player_autoattack_damage_multiplier_like_cpp(
-        &self,
-    ) -> f32 {
+    pub fn represented_player_autoattack_damage_multiplier_like_cpp(&self) -> f32 {
         let (Some(auras), Some(spell_store)) = (
             self.resolved_player_visible_auras_like_cpp(),
             self.catalogs.spell_store(),
         ) else {
             return 1.0;
         };
-        crate::session_rules::represented_autoattack_damage_multiplier_like_cpp(&auras, spell_store)
+        represented_autoattack_damage_multiplier_like_cpp(&auras, spell_store)
     }
 
     pub fn player_vehicle_seat_allows_attack_like_cpp(&self) -> bool {

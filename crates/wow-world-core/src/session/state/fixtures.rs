@@ -5,16 +5,16 @@
 
 use std::collections::{BTreeMap, HashMap, HashSet};
 
+use super::{
+    AuraState, BattlegroundState, CollectionsState, CombatState, MovementState, PetState,
+    PlayerIdentityState, PlayerPresentationState, ProgressionState, TaxiVehicleState,
+    TeleportState,
+};
 use crate::session::movement_protocol::UnitMoveTypeLikeCpp;
 use crate::session::persistence_capabilities::empty_character_power_snapshot_like_cpp;
 use crate::session::pets::test_fixtures::BattlePetTestFixtureLikeCpp;
 use crate::session::{
     MAX_SPECIALIZATIONS_LIKE_CPP, PlayerSkillTestFixtureLikeCpp, RestMgrTestFixtureLikeCpp,
-};
-use super::{
-    AuraState, BattlegroundState, CollectionsState, CombatState, MovementState, PetState,
-    PlayerIdentityState, PlayerPresentationState, ProgressionState, TaxiVehicleState,
-    TeleportState,
 };
 use wow_constants::{MovementFlag, UnitFlags, UnitStandStateType};
 use wow_core::ObjectGuid;
@@ -185,8 +185,7 @@ impl Default for SessionFixtures {
                 represented_glyphs_loaded_like_cpp: false,
                 #[cfg(any(test, feature = "test-fixtures"))]
                 #[cfg(any(test, feature = "test-fixtures"))]
-                reputation_state_like_cpp: wow_entities::PlayerReputationStateLikeCpp::default(
-                ),
+                reputation_state_like_cpp: wow_entities::PlayerReputationStateLikeCpp::default(),
                 #[cfg(any(test, feature = "test-fixtures"))]
                 watched_faction_index_like_cpp: -1,
             },
@@ -195,8 +194,7 @@ impl Default for SessionFixtures {
                 #[cfg(any(test, feature = "test-fixtures"))]
                 represented_player_powers_like_cpp: empty_character_power_snapshot_like_cpp(),
                 #[cfg(any(test, feature = "test-fixtures"))]
-                represented_player_max_powers_like_cpp: empty_character_power_snapshot_like_cpp(
-                ),
+                represented_player_max_powers_like_cpp: empty_character_power_snapshot_like_cpp(),
                 #[cfg(any(test, feature = "test-fixtures"))]
                 represented_player_base_mana_like_cpp: 0,
                 #[cfg(any(test, feature = "test-fixtures"))]
@@ -253,8 +251,7 @@ impl Default for SessionFixtures {
                 #[cfg(any(test, feature = "test-fixtures"))]
                 player_movement_time_like_cpp: 0,
                 #[cfg(any(test, feature = "test-fixtures"))]
-                player_movement_jump_like_cpp: wow_packet::packets::movement::JumpInfo::default(
-                ),
+                player_movement_jump_like_cpp: wow_packet::packets::movement::JumpInfo::default(),
                 #[cfg(any(test, feature = "test-fixtures"))]
                 last_fall_time_like_cpp: 0,
                 #[cfg(any(test, feature = "test-fixtures"))]
@@ -402,8 +399,7 @@ impl Default for SessionFixtures {
                 #[cfg(any(test, feature = "test-fixtures"))]
                 temporary_pet_resummon_requests_like_cpp: 0,
                 #[cfg(any(test, feature = "test-fixtures"))]
-                represented_pet_movement_speed_rates_like_cpp: [1.0;
-                    UnitMoveTypeLikeCpp::COUNT],
+                represented_pet_movement_speed_rates_like_cpp: [1.0; UnitMoveTypeLikeCpp::COUNT],
                 #[cfg(any(test, feature = "test-fixtures"))]
                 represented_pet_speed_propagations_like_cpp: 0,
                 #[cfg(any(test, feature = "test-fixtures"))]

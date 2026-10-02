@@ -385,7 +385,6 @@ impl WorldSession {
     }
 }
 
-
 impl crate::session::state::WorldEntitiesState {
     pub(crate) fn creature_aggro_radius_for_faction_template_like_cpp(
         &self,

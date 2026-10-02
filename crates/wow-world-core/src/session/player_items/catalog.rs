@@ -1,13 +1,15 @@
 use std::sync::Arc;
 
-use wow_constants::{BagFamilyMask, InventoryType, ItemBondingType, ItemClass, ItemFlags, ItemFlags2};
+use wow_constants::{
+    BagFamilyMask, InventoryType, ItemBondingType, ItemClass, ItemFlags, ItemFlags2,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_data::{ItemClassStore, ItemPriceBaseStore};
 use wow_data::{
     ItemExtendedCostStore, ItemRandomPropertiesStore, ItemRandomPropertyTemplateEntry,
     ItemRandomSuffixStore, ItemStatsStore, ItemStore,
 };
 use wow_entities::ItemStorageTemplate;
-#[cfg(any(test, feature = "test-fixtures"))]
-use wow_data::{ItemClassStore, ItemPriceBaseStore};
 
 impl crate::session::state::SessionCatalogs {
     /// Set the C++ ItemPriceBase.db2 store for this session.
@@ -51,10 +53,7 @@ impl crate::session::state::SessionCatalogs {
     }
 
     /// Resolve cached C++ `ItemTemplate::QuestLogItemId` from `item_template_addon`.
-    pub fn item_template_addon_quest_log_item_id_like_cpp(
-        &self,
-        item_id: u32,
-    ) -> Option<u32> {
+    pub fn item_template_addon_quest_log_item_id_like_cpp(&self, item_id: u32) -> Option<u32> {
         self.item_template_addon_quest_log_item_ids_like_cpp
             .get(&item_id)
             .copied()

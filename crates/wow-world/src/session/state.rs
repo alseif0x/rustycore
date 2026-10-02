@@ -8,8 +8,13 @@
 use super::AtomicUsize;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::BattlePetTestFixtureLikeCpp;
+use super::ExplorationBaseXpStoreLikeCpp;
+use super::FriendshipRepReactionStore;
+use super::PacketHandlerEntry;
 use super::PlayerConditionStore;
 use super::PlayerCurrency;
+use super::PlayerInteractionDataLikeCpp;
+use super::RepresentedAuctionPlaceBidLikeCpp;
 use super::RepresentedBankItemMoveLikeCpp;
 #[cfg(test)]
 use super::RepresentedCreatureKillEventLikeCpp;
@@ -18,6 +23,8 @@ use super::RepresentedGameObjectCriteriaEvent;
 #[cfg(test)]
 use super::RepresentedGuildRepairBankWithdrawLikeCpp;
 use super::RepresentedHomebindLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+use super::RepresentedLootRollCriteriaEvent;
 use super::RepresentedPendingSpellCastRequestLikeCpp;
 use super::RepresentedQueryPetitionLikeCpp;
 use super::RepresentedQuestCompleteStatusUpdateLikeCpp;
@@ -27,6 +34,9 @@ use super::RepresentedSignPetitionLikeCpp;
 use super::RepresentedSilencePartyTalkerLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::RepresentedVehicleSeatSpellClickRequestLikeCpp;
+use super::RepresentedVoidStorageItemLikeCpp;
+use super::ReputationRatesLikeCpp;
+use super::SessionPersistencePortsLikeCpp;
 #[cfg(test)]
 use super::instances::test_fixtures::InstanceTestFixtureLikeCpp;
 #[cfg(test)]
@@ -70,9 +80,7 @@ use super::{CreatureEquipmentStoreLikeCpp, CurrencyTypesStore, CurvePointStore, 
 use super::{DifficultyStore, DisableMgrLikeCpp, DungeonEncounterStore, DurabilityCostsStore};
 use super::{DurabilityQualityStore, DurableItemLootPersistenceTrackerLikeCpp};
 use super::{DurableLootMoneyPersistenceTrackerLikeCpp, EmotesStore, EmotesTextStore};
-use super::ExplorationBaseXpStoreLikeCpp;
 use super::{FavoriteAppearanceStateLikeCpp, FishingBaseSkillStoreLikeCpp};
-use super::FriendshipRepReactionStore;
 use super::{GameObjectTemplateLifecycleStoreLikeCpp, GemPropertiesStore, GossipOptionInfo};
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::{GivePlayerXpScriptDispatcherLikeCpp, MoveSplineDoneTaxiEventLikeCpp};
@@ -91,14 +99,11 @@ use super::{MovementFallDamageEvent, MovementFlag, MovementSpeedAckEventLikeCpp}
 use super::{MovementUnderMapDamageEvent, MovieStore, NUM_ACCOUNT_DATA_TYPES};
 use super::{NumTalentsAtLevelStore, ObjectGuid, ObjectMgrCatalogsLikeCpp};
 use super::{OwnedLootAuthority, PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP};
-use super::PacketHandlerEntry;
 use super::{ParagonReputationStore, PendingCreatureKillRewardLikeCpp, PendingCreatureSpawn};
 use super::{PetStable, PhaseGroupStore, PhaseShift, PhaseStore};
-use super::PlayerInteractionDataLikeCpp;
 use super::{PlayerResurrectionRequestLikeCpp, PlayerStatsStore, PowerTypeStore, PvpItemStore};
 use super::{RandPropPointsStore, RegenGameTablesLikeCpp, RepSpilloverTemplateStoreLikeCpp};
 use super::{RepresentedActivateTaxiLikeCpp, RepresentedAdventureMapStartQuestLikeCpp};
-use super::RepresentedAuctionPlaceBidLikeCpp;
 #[cfg(test)]
 use super::{RepresentedAreaZoneCriteriaLikeCpp, RepresentedAtLoginFlagRemovalLikeCpp};
 use super::{RepresentedAuctionRemoveItemLikeCpp, RepresentedAuctionReplicateRequestLikeCpp};
@@ -110,20 +115,15 @@ use super::{RepresentedGameObjectUseState, RepresentedGuildRepairBankStateLikeCp
 use super::{RepresentedGuildBankInventoryMoveLikeCpp, RepresentedGuildBankListRequestLikeCpp};
 #[cfg(test)]
 use super::{RepresentedGuildBankMoneyMoveLikeCpp, RepresentedGuildBankTabActionLikeCpp};
-#[cfg(any(test, feature = "test-fixtures"))]
-use super::RepresentedLootRollCriteriaEvent;
 use super::{RepresentedLootRollState, RepresentedPendingBind};
-use super::RepresentedVoidStorageItemLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::{RepresentedTaxiFlightStateLikeCpp, RepresentedTransmogCriteriaEvent};
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::{RepresentedVehicleBaseMovementLikeCpp, RepresentedVehicleDismissMovementLikeCpp};
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::{RepresentedVehicleEnterRequestLikeCpp, RepresentedVehicleSeatChangeRequestLikeCpp};
-use super::ReputationRatesLikeCpp;
 use super::{ReputationRewardRateStoreLikeCpp, ScalingStatDistributionStore};
 use super::{ScalingStatValuesStore, ScriptNameInternerLikeCpp};
-use super::SessionPersistencePortsLikeCpp;
 use super::{ShieldBlockRegularGameTableLikeCpp, SkillLineStore};
 use super::{SkillStore, SkillTiersStoreLikeCpp, SpellCastState};
 use super::{SpellChargeEntry, SpellHistoryEntry, TactKeyStore};
@@ -143,8 +143,8 @@ pub(in crate::session) use fixtures::SessionFixtures;
 mod hub;
 pub(crate) use hub::{
     HubMut, HubRef, InventoryCx, InventoryCxRef, LifecycleCx, LifecycleCxRef, LootCx, LootCxRef,
-    PetsCx, PetsCxRef, QuestStateCx, QuestStateCxRef, cx_inventory, cx_inventory_ref,
-    cx_lifecycle, cx_lifecycle_ref, cx_loot, cx_loot_ref, cx_pets, cx_pets_ref, cx_quest_state,
+    PetsCx, PetsCxRef, QuestStateCx, QuestStateCxRef, cx_inventory, cx_inventory_ref, cx_lifecycle,
+    cx_lifecycle_ref, cx_loot, cx_loot_ref, cx_pets, cx_pets_ref, cx_quest_state,
     cx_quest_state_ref, hub_mut, hub_ref, split_instances_mut, split_instances_ref,
     split_interaction, split_interaction_ref, split_inventory_mut, split_inventory_ref,
     split_lifecycle_mut, split_lifecycle_ref, split_loot_mut, split_loot_ref,

@@ -13,9 +13,7 @@ impl SessionCore {
 }
 
 impl crate::session::HubRef<'_> {
-    pub fn player_aura_subsystem_snapshot_like_cpp(
-        &self,
-    ) -> Option<wow_entities::AuraSubsystem> {
+    pub fn player_aura_subsystem_snapshot_like_cpp(&self) -> Option<wow_entities::AuraSubsystem> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.unit().subsystems().auras.clone());

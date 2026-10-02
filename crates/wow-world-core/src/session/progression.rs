@@ -14,9 +14,9 @@ pub use reputation::{
 };
 
 #[cfg(any(test, feature = "test-fixtures"))]
-use std::collections::{BTreeSet, HashMap};
-#[cfg(any(test, feature = "test-fixtures"))]
 use super::RepresentedPlayerSkillLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+use std::collections::{BTreeSet, HashMap};
 
 pub const MAX_SPECIALIZATIONS_LIKE_CPP: usize = 4;
 

@@ -15,8 +15,7 @@ pub struct PlayerBootstrapCatalogTestFixtureLikeCpp {
     pub start_all_reputation_like_cpp: bool,
     pub start_all_spells_like_cpp: bool,
     pub player_create_info_store_like_cpp: Option<Arc<PlayerCreateInfoStoreLikeCpp>>,
-    pub player_create_cast_spell_store_like_cpp:
-        Option<Arc<PlayerCreateInfoCastSpellStoreLikeCpp>>,
+    pub player_create_cast_spell_store_like_cpp: Option<Arc<PlayerCreateInfoCastSpellStoreLikeCpp>>,
     pub player_create_custom_spell_store_like_cpp:
         Option<Arc<PlayerCreateInfoCustomSpellStoreLikeCpp>>,
 }

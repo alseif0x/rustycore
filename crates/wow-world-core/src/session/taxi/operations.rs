@@ -1,6 +1,8 @@
 //! Taxi, transport, and vehicle Hub operations.
 
 #[cfg(any(test, feature = "test-fixtures"))]
+use crate::session::PlayerTransportLoginStateLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::movement_protocol::{
     RepresentedTaxiFlightNodeLikeCpp, canonical_taxi_flight_node_like_cpp,
     canonical_taxi_flight_state_like_cpp, represented_taxi_flight_state_like_cpp,
@@ -8,8 +10,6 @@ use crate::session::movement_protocol::{
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::taxi_contracts::PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP;
 use crate::session::{RepresentedActivateTaxiLikeCpp, set_active_player_update_bit_like_cpp};
-#[cfg(any(test, feature = "test-fixtures"))]
-use crate::session::PlayerTransportLoginStateLikeCpp;
 use wow_constants::{TypeId, UnitFlags};
 use wow_core::ObjectGuid;
 use wow_entities::{Vehicle, VehicleAccessory};
@@ -565,9 +565,7 @@ impl crate::session::HubMut<'_> {
 }
 
 impl crate::session::HubRef<'_> {
-    pub fn player_vehicle_seat_state_like_cpp(
-        &self,
-    ) -> Option<(Option<i32>, Option<u32>)> {
+    pub fn player_vehicle_seat_state_like_cpp(&self) -> Option<(Option<i32>, Option<u32>)> {
         let canonical = self.core.with_owned_player_like_cpp(|player| {
             let state = player.gameplay_state();
             (state.vehicle_seat_flags, state.vehicle_seat_id)
@@ -582,9 +580,7 @@ impl crate::session::HubRef<'_> {
         canonical
     }
 
-    pub fn player_mount_vehicle_kit_snapshot_like_cpp(
-        &self,
-    ) -> Option<Option<Vehicle>> {
+    pub fn player_mount_vehicle_kit_snapshot_like_cpp(&self) -> Option<Option<Vehicle>> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.mount_vehicle_kit_snapshot_like_cpp());
@@ -606,9 +602,7 @@ impl crate::session::HubRef<'_> {
             .is_some_and(wow_data::vehicle_seat_flags_can_switch_from_seat_like_cpp)
     }
 
-    pub fn represented_vehicle_base_guid_for_switch_like_cpp(
-        &self,
-    ) -> Option<ObjectGuid> {
+    pub fn represented_vehicle_base_guid_for_switch_like_cpp(&self) -> Option<ObjectGuid> {
         if self
             .player_vehicle_seat_state_like_cpp()
             .and_then(|(flags, _)| flags)
@@ -619,9 +613,7 @@ impl crate::session::HubRef<'_> {
         self.player_moved_unit_guid_like_cpp()
     }
 
-    pub fn player_taxi_state_snapshot_like_cpp(
-        &self,
-    ) -> Option<wow_entities::PlayerTaxiState> {
+    pub fn player_taxi_state_snapshot_like_cpp(&self) -> Option<wow_entities::PlayerTaxiState> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| player.taxi_state_like_cpp().clone());

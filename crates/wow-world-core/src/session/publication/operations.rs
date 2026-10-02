@@ -43,10 +43,7 @@ impl SessionCore {
         }
     }
 
-    pub fn send_player_values_update_like_cpp(
-        &self,
-        update: &wow_entities::PlayerValuesUpdate,
-    ) {
+    pub fn send_player_values_update_like_cpp(&self, update: &wow_entities::PlayerValuesUpdate) {
         let Some(guid) = self.player_guid() else {
             return;
         };
@@ -234,10 +231,7 @@ impl SessionCore {
 }
 
 impl crate::session::HubMut<'_> {
-    pub fn send_represented_mount_unit_update_like_cpp(
-        &mut self,
-        display_id: i32,
-    ) {
+    pub fn send_represented_mount_unit_update_like_cpp(&mut self, display_id: i32) {
         let Some(player_guid) = self.core.player_guid() else {
             return;
         };
@@ -282,10 +276,7 @@ impl crate::session::HubRef<'_> {
         }
     }
 
-    pub fn send_active_player_multi_action_bars_update_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) {
+    pub fn send_active_player_multi_action_bars_update_like_cpp(&self, guid: ObjectGuid) {
         let Some((_, _, multi_action_bars)) = self.active_player_update_state_like_cpp() else {
             return;
         };

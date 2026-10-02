@@ -4,21 +4,21 @@
 //! Battleground adapter: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
+#[cfg(test)]
+use super::RepresentedWargameInviteAcceptanceLikeCpp;
 use super::{BattlemasterListStore, DISABLE_TYPE_BATTLEGROUND, Duration, Instant, ObjectGuid};
 use super::{RepresentedBattlegroundObjectUseRejection, RepresentedCapturePointStateLikeCpp};
 use super::{RepresentedGameObjectUseEffect, RepresentedNewFlagStateRequest};
 use super::{UnitFlags, WorldSession};
-#[cfg(test)]
-use super::RepresentedWargameInviteAcceptanceLikeCpp;
 
-pub(crate) use wow_world_core::session::{
-    RepresentedBattlefieldListLikeCpp, RepresentedBattlefieldPortLikeCpp,
-    RepresentedBattlemasterHelloLikeCpp, RepresentedBattlemasterJoinArenaLikeCpp,
-    RepresentedBattlemasterJoinLikeCpp, RepresentedBattlemasterJoinSkirmishLikeCpp,
-    RepresentedBattlegroundQueueTypeIdLikeCpp,
-};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use wow_world_core::session::RepresentedBattlegroundQueueSlotLikeCpp;
+pub(crate) use wow_world_core::session::{
+    RepresentedBattlefieldListLikeCpp, RepresentedBattlefieldPortLikeCpp,
+    RepresentedBattlegroundQueueTypeIdLikeCpp, RepresentedBattlemasterHelloLikeCpp,
+    RepresentedBattlemasterJoinArenaLikeCpp, RepresentedBattlemasterJoinLikeCpp,
+    RepresentedBattlemasterJoinSkirmishLikeCpp,
+};
 
 pub(crate) use wow_world_core::session::battleground_queue_type_id_from_packed_like_cpp;
 
@@ -455,7 +455,6 @@ impl WorldSession {
         true
     }
 }
-
 
 #[cfg(test)]
 #[path = "../../unit_tests/session/battleground_adapter/f3_shims.rs"]

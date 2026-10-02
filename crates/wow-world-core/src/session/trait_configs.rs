@@ -319,9 +319,7 @@ impl crate::session::HubRef<'_> {
         complete
     }
 
-    pub fn owned_trait_configs_for_create_like_cpp(
-        &self,
-    ) -> Option<Vec<TraitConfigCreateData>> {
+    pub fn owned_trait_configs_for_create_like_cpp(&self) -> Option<Vec<TraitConfigCreateData>> {
         self.core.with_owned_player_like_cpp(|player| {
             let runtime = &player.gameplay_state().spells;
             if !runtime.trait_config_rows_complete_like_cpp()

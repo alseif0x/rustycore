@@ -777,14 +777,16 @@ fn nominal_identity(
     cfg: &[String],
 ) -> Result<Vec<SuppliedTypeIdentity>, TypeIdentityError> {
     let ty = syn::parse_str::<syn::Type>(type_path).expect("fixture type parses");
-    resolve_supplied_type_identity(sources, package, module, &ty, cfg)
+    crate::bridge_access::provenance::resolve_supplied_type_identity(
+        sources, package, module, &ty, cfg,
+    )
 }
 
 #[test]
 fn nominal_identity_follows_exact_alias_rename_and_glob_reexports() {
     let sources = [
         core_package("crate", "core/lib.rs", "pub mod model; pub mod facade;"),
-        core_module("core/model.rs", "pub struct SessionCore;"),
+        core_package("crate::model", "core/model.rs", "pub struct SessionCore;"),
         core_package(
             "crate::facade",
             "core/facade.rs",
@@ -891,7 +893,11 @@ fn non_nominal_binding_does_not_prove_type_identity() {
 #[test]
 fn nominal_identity_rejects_compatible_glob_providers_but_keeps_cfg_alternatives() {
     let ambiguous = [
-        mounted("crate", "src/lib.rs", "pub mod left; pub mod right; pub mod consumer;"),
+        mounted(
+            "crate",
+            "src/lib.rs",
+            "pub mod left; pub mod right; pub mod consumer;",
+        ),
         mounted("crate::left", "src/left.rs", "pub struct Payload;"),
         mounted("crate::right", "src/right.rs", "pub enum Payload {}"),
         mounted(
@@ -926,12 +932,7 @@ fn nominal_identity_does_not_borrow_a_foreign_same_named_module() {
             "foreign/model.rs",
             "pub struct SessionCore;",
         ),
-        package_mount(
-            "wow-world",
-            "crate::consumer",
-            "world/consumer.rs",
-            "",
-        ),
+        package_mount("wow-world", "crate::consumer", "world/consumer.rs", ""),
     ];
     assert!(matches!(
         nominal_identity(

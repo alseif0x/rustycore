@@ -7,8 +7,8 @@
 use super::WorldSession;
 
 pub(crate) use wow_world_core::session::{
-    AttackReputationFactionSnapshotLikeCpp, ReputationGainSourceLikeCpp,
-    RepresentedFactionReactionInputLikeCpp, RepresentedGetReactionInputLikeCpp,
+    AttackReputationFactionSnapshotLikeCpp, RepresentedFactionReactionInputLikeCpp,
+    RepresentedGetReactionInputLikeCpp, ReputationGainSourceLikeCpp,
 };
 
 impl WorldSession {

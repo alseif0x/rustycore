@@ -3,8 +3,8 @@
 
 //! Canonical player presentation adapters shared with World.
 
-use wow_constants::movement::MovementFlag;
 use wow_constants::UnitFlags;
+use wow_constants::movement::MovementFlag;
 use wow_core::ObjectGuid;
 use wow_entities::Player;
 
@@ -12,10 +12,7 @@ pub const LIQUID_MAP_IN_WATER_LIKE_CPP: u32 = 0x0000_0004;
 pub const LIQUID_MAP_UNDER_WATER_LIKE_CPP: u32 = 0x0000_0008;
 
 impl crate::session::HubMut<'_> {
-    pub fn represented_eject_passenger_like_cpp(
-        &mut self,
-        passenger_guid: ObjectGuid,
-    ) -> bool {
+    pub fn represented_eject_passenger_like_cpp(&mut self, passenger_guid: ObjectGuid) -> bool {
         if !passenger_guid.is_unit() {
             return false;
         }
@@ -87,9 +84,7 @@ impl crate::session::HubRef<'_> {
         canonical
     }
 
-    pub fn player_unit_presentation_snapshot_like_cpp(
-        &self,
-    ) -> Option<(UnitFlags, i32, f32)> {
+    pub fn player_unit_presentation_snapshot_like_cpp(&self) -> Option<(UnitFlags, i32, f32)> {
         let canonical = self.core.with_owned_player_like_cpp(|player| {
             (
                 player.unit().unit_flags_like_cpp(),

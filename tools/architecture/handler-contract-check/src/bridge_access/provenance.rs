@@ -21,9 +21,11 @@ mod source_graph;
 mod type_identity;
 use scope::{LocalBinding, ModuleScope, collect_use_specs};
 pub(super) use source_graph::ModuleIndex;
+#[cfg(test)]
+pub(crate) use type_identity::resolve_supplied_type_identity;
 pub(crate) use type_identity::{
     SuppliedTypeIdentity, TypeIdentityError, TypeIdentityKind, TypeIdentityQuery,
-    resolve_supplied_type_identities, resolve_supplied_type_identity,
+    resolve_supplied_type_identities,
 };
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -241,10 +243,9 @@ impl<'a> Resolver<'a> {
                     generic,
                     legacy_authority,
                 } => match (self.mode, legacy_authority) {
-                    (ResolverMode::Bridge, Some(side)) => Resolution::one(
-                        Provenance::Authority(BTreeSet::from([*side])),
-                        &branch_cfg,
-                    ),
+                    (ResolverMode::Bridge, Some(side)) => {
+                        Resolution::one(Provenance::Authority(BTreeSet::from([*side])), &branch_cfg)
+                    }
                     (ResolverMode::TypeIdentity, _) if *generic => self.unresolved(
                         node,
                         name,

@@ -12,11 +12,7 @@ pub const PLAYER_FLAGS_IN_PVP_LIKE_CPP: u32 = 0x0000_0200;
 pub const SPELL_PVP_RULES_ENABLED_LIKE_CPP: i32 = 134_735;
 
 impl crate::session::HubMut<'_> {
-    pub fn update_player_pvp_like_cpp(
-        &mut self,
-        state: bool,
-        override_state: bool,
-    ) {
+    pub fn update_player_pvp_like_cpp(&mut self, state: bool, override_state: bool) {
         // C++ `Player::UpdatePvP` (Player.cpp:22663) is a Player transition:
         // the flag and the timer move together and this session only asks for
         // it.
@@ -78,10 +74,7 @@ impl crate::session::HubMut<'_> {
         )
     }
 
-    pub fn revalidate_canonical_player_combat_refs_like_cpp(
-        &mut self,
-        player_guid: ObjectGuid,
-    ) {
+    pub fn revalidate_canonical_player_combat_refs_like_cpp(&mut self, player_guid: ObjectGuid) {
         let Some(map_key) = self.core.current_canonical_player_map_key_like_cpp() else {
             return;
         };
@@ -161,10 +154,7 @@ impl crate::session::HubRef<'_> {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub fn canonical_player_pvp_flags_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) -> Option<UnitPvpFlags> {
+    pub fn canonical_player_pvp_flags_like_cpp(&self, guid: ObjectGuid) -> Option<UnitPvpFlags> {
         if self.core.player_guid() == Some(guid)
             && let Some(flags) = self
                 .core
@@ -187,10 +177,7 @@ impl crate::session::HubRef<'_> {
         result
     }
 
-    pub fn player_has_in_pvp_flag_like_cpp(
-        &self,
-        guid: ObjectGuid,
-    ) -> Option<bool> {
+    pub fn player_has_in_pvp_flag_like_cpp(&self, guid: ObjectGuid) -> Option<bool> {
         if self.core.player_guid() != Some(guid) {
             return None;
         }

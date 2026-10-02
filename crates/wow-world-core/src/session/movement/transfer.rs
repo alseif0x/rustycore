@@ -1,7 +1,7 @@
 //! Hub operations for movement transfer and teleport state.
 
 use crate::session::movement_protocol::{
-    MovementAckEventLikeCpp, TeleportToOptionsLikeCpp, TELE_TO_SEAMLESS_LIKE_CPP,
+    MovementAckEventLikeCpp, TELE_TO_SEAMLESS_LIKE_CPP, TeleportToOptionsLikeCpp,
 };
 use std::time::Instant;
 use wow_constants::{ClientOpcodes, MovementFlag};
@@ -65,11 +65,7 @@ impl crate::session::HubMut<'_> {
     }
 }
 impl crate::session::HubRef<'_> {
-    pub fn send_transfer_aborted_like_cpp(
-        &self,
-        map_id: u32,
-        transfer_abort: u32,
-    ) {
+    pub fn send_transfer_aborted_like_cpp(&self, map_id: u32, transfer_abort: u32) {
         self.send_transfer_aborted_with_params_like_cpp(map_id, transfer_abort, 0, 0);
     }
 
@@ -125,7 +121,10 @@ impl crate::session::HubRef<'_> {
         options
     }
 
-    pub fn send_same_map_move_update_teleport_to_visible_set_like_cpp(&self, source_guid: ObjectGuid) {
+    pub fn send_same_map_move_update_teleport_to_visible_set_like_cpp(
+        &self,
+        source_guid: ObjectGuid,
+    ) {
         use wow_packet::ServerPacket;
 
         let Some(registry) = self.core.player_registry() else {
@@ -241,9 +240,7 @@ impl crate::session::HubMut<'_> {
     }
 }
 impl crate::session::HubRef<'_> {
-    pub fn player_teleport_state_snapshot_like_cpp(
-        &self,
-    ) -> Option<PlayerTeleportStateLikeCpp> {
+    pub fn player_teleport_state_snapshot_like_cpp(&self) -> Option<PlayerTeleportStateLikeCpp> {
         let canonical = self
             .core
             .with_owned_player_like_cpp(|player| *player.teleport_state_like_cpp());

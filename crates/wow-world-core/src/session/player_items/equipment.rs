@@ -1,8 +1,8 @@
 use crate::session::state::SessionCore;
 use wow_constants::InventoryResult;
 use wow_core::ObjectGuid;
-use wow_packet::packets::item::InventoryChangeFailure;
 use wow_data::ItemChildEquipmentEntry;
+use wow_packet::packets::item::InventoryChangeFailure;
 
 impl SessionCore {
     pub fn send_equip_error(

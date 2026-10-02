@@ -176,7 +176,6 @@ impl crate::session::state::InteractionState {
     }
 }
 
-
 #[cfg(test)]
 #[path = "../../unit_tests/session/npc_interaction/f3_shims.rs"]
 mod f3_shims;

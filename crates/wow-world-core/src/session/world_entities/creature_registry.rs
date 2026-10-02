@@ -1,12 +1,9 @@
-use crate::session::state::SessionCore;
 use crate::session::creature_canonical_adapter::sync_canonical_creature_entity_on_map_like_cpp;
+use crate::session::state::SessionCore;
 use wow_core::ObjectGuid;
 
 impl SessionCore {
-    pub fn sync_canonical_creature_entity_like_cpp(
-        &mut self,
-        creature: wow_entities::Creature,
-    ) {
+    pub fn sync_canonical_creature_entity_like_cpp(&mut self, creature: wow_entities::Creature) {
         let guid = creature.guid();
         let expected_legacy_authority = creature.loot_authority_like_cpp().clone();
         let expected_legacy_stamp = expected_legacy_authority.stamp_like_cpp();

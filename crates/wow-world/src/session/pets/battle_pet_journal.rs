@@ -575,7 +575,6 @@ impl crate::session::PetsCxRef<'_> {
     }
 }
 
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/pets/battle_pet_journal/f3_shims.rs"]
 mod f3_shims;

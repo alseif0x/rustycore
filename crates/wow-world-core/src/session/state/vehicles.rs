@@ -4,14 +4,14 @@
 //! `WorldSession::vehicles` sub-state (#1241 F2): moved fields, no logic.
 
 #[cfg(any(test, feature = "test-fixtures"))]
+use crate::session::PlayerTransportLoginStateLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::movement_protocol::RepresentedTaxiFlightStateLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::{
-    RepresentedVehicleEnterRequestLikeCpp, RepresentedVehicleSeatChangeRequestLikeCpp,
-    RepresentedVehicleSeatSpellClickRequestLikeCpp, RepresentedActivateTaxiLikeCpp,
+    RepresentedActivateTaxiLikeCpp, RepresentedVehicleEnterRequestLikeCpp,
+    RepresentedVehicleSeatChangeRequestLikeCpp, RepresentedVehicleSeatSpellClickRequestLikeCpp,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
-use crate::session::PlayerTransportLoginStateLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_constants::UnitFlags;
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -25,8 +25,7 @@ pub struct TaxiVehicleState {
     pub taxi_destinations_like_cpp: Vec<u32>,
     /// Represented accepted `CMSG_ACTIVATE_TAXI` requests until TaxiPathGraph/MotionMaster are canonical.
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub represented_activate_taxi_requests_like_cpp:
-        Vec<RepresentedActivateTaxiLikeCpp>,
+    pub represented_activate_taxi_requests_like_cpp: Vec<RepresentedActivateTaxiLikeCpp>,
     /// Represented active `FlightPathMovementGenerator`, if any.
     #[cfg(any(test, feature = "test-fixtures"))]
     pub taxi_flight_state_like_cpp: Option<RepresentedTaxiFlightStateLikeCpp>,
@@ -70,8 +69,7 @@ pub struct TaxiVehicleState {
         Vec<RepresentedVehicleSeatSpellClickRequestLikeCpp>,
     /// Represented `Player::EnterVehicle(targetPlayer)` requests from `CMSG_RIDE_VEHICLE_INTERACT`.
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub represented_vehicle_enter_requests_like_cpp:
-        Vec<RepresentedVehicleEnterRequestLikeCpp>,
+    pub represented_vehicle_enter_requests_like_cpp: Vec<RepresentedVehicleEnterRequestLikeCpp>,
     /// Count of C++ `CreateVehicleKit` mount side effects represented until Vehicle runtime sends packets.
     #[cfg(any(test, feature = "test-fixtures"))]
     pub mount_vehicle_create_requests_like_cpp: u32,
@@ -93,6 +91,5 @@ pub struct TaxiVehicleState {
     /// Current C++ `m_movementInfo.transport.guid`, used to exclude the
     /// player's own transport from `Map::SendInitTransports`.
     #[cfg(any(test, feature = "test-fixtures"))]
-    pub player_transport_login_state_like_cpp:
-        Option<Box<PlayerTransportLoginStateLikeCpp>>,
+    pub player_transport_login_state_like_cpp: Option<Box<PlayerTransportLoginStateLikeCpp>>,
 }

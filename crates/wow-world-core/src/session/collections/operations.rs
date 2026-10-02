@@ -46,18 +46,14 @@ impl crate::session::HubRef<'_> {
             .is_some()
     }
 
-    pub fn owned_player_mails_like_cpp(
-        &self,
-    ) -> Option<Vec<wow_entities::PlayerMailRecord>> {
+    pub fn owned_player_mails_like_cpp(&self) -> Option<Vec<wow_entities::PlayerMailRecord>> {
         self.core
             .with_owned_player_like_cpp(|player| player.gameplay_state().mails.clone())
     }
 }
 
 impl crate::session::HubRef<'_> {
-    pub fn completed_achievement_ids_snapshot_like_cpp(
-        &self,
-    ) -> Option<HashSet<u32>> {
+    pub fn completed_achievement_ids_snapshot_like_cpp(&self) -> Option<HashSet<u32>> {
         let canonical = self.core.with_owned_player_like_cpp(|player| {
             player
                 .gameplay_state()
