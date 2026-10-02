@@ -16,6 +16,11 @@ this port stays on `forever`; any future feature PR for this target uses
 `forever` as its base. The `3.4.3` integration/PR instructions below continue
 to govern WotLK work, not cross-version merging. Versioned target evidence is
 recorded in `docs/operations/forever-login.md`; inherited code is not 70170 proof.
+The operator confirmed on 2026-10-03 (Europe/Madrid) that compatibility with
+3.4.3 is not a Forever requirement. Reuse code only where target evidence supports
+it; replace or retire incompatible paths when integrating their Forever owners.
+Do not retain an obsolete wire format merely to preserve the fork's layout, and
+do not interpret this as a request for an unrelated bulk deletion of unported code.
 Keep the existing validation/evidence and publication gates, including the
 documented experimental waiver; a branch rename does not waive checks.
 
