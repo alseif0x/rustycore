@@ -4,7 +4,9 @@
 //! Canonical combat state adapters shared with World.
 
 use crate::session::begin_combat_ref_on_map_like_cpp;
-use std::sync::{Arc, atomic::Ordering};
+#[cfg(any(test, feature = "test-fixtures"))]
+use std::sync::Arc;
+use std::sync::atomic::Ordering;
 use wow_constants::UnitPvpFlags;
 use wow_core::ObjectGuid;
 

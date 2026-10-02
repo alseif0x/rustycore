@@ -560,6 +560,31 @@ identidades: los cinco avisos de bootstrap conservan mensaje y texto señalado
 al pasar a Core. Se conserva la limitación de procedencia histórica: el perfil
 del fingerprint difiere y su comando original no está atestado. Esto no acredita
 equivalencia exacta de perfil ni convierte el resultado rojo en aceptación.
+El candidato limpio `9ce2f28da` repite las bibliotecas con la misma selección
+World/Core y pasa en 53,890 s: 3.681 casos World, 220 Core y el mismo caso
+ignorado. La sintaxis ownership pasa en 45,834 s; las 406 regresiones del
+checker pasan en release en 245,622 s, incluidos 48,50 s de ejecución.
+La secuencia se registra en `technical-9ce2f28da/sequence.json`.
+La comparación de perfiles se acota: Core tiene un artefacto histórico unitario
+equivalente, y World tiene un check unitario equivalente cuyos avisos coinciden
+con los del ejecutable actual. No existe un ejecutable World histórico con
+esa misma feature; la asociación a SHA/comando de la base sigue siendo inferida.
+Los extras de `9ce2f28da` pasan `cargo check --locked -p world-server --bin
+world-server --jobs 1 --timings --message-format=json` en 231,754 s y Core
+predeterminado `--all-targets` en 8,542 s. Los artefactos del binario prueban
+features vacías en World/Core/Session. El contraste equivalente de avisos de
+producción encuentra cuatro imports nuevos de Core usados solo por fixtures;
+se alinean con el cfg de sus consumidores, conservando los cuerpos. El aviso
+`unused_mut` de presentación conserva la identidad y código trasladados de World.
+La suite de world-server termina roja en 316,235 s: 596 PASS y un FAIL textual
+que aún busca el catálogo de encuentros en World. Su reparación conserva carga,
+instalación y tipo del catálogo, añade el accessor prestado Core y verifica
+el setter World. Se contrasta `DB2Stores.cpp:124,699` y
+`Player.cpp:20725–20744` de `a5f8da2eb`; no se cambia esa operación.
+Los registros y artefactos están en `extras-9ce2f28da/`; la secuencia se detuvo
+antes de integraciones, doctest y herramientas. La nueva delta requiere repetir
+su evidencia afectada. Inventario exhaustivo y publicación siguen pendientes;
+las ejecuciones previas conservan sus SHA reales y no se relabelan.
 
 La construcción debe conservar el orden exacto de expresiones, RNG, relojes, canales
 y campos. Extraer primero el literal de `SessionCore` a una inicialización propia;

@@ -3,11 +3,15 @@
 
 //! Canonical represented skill-state adapters shared with World.
 
-use std::collections::{BTreeSet, HashMap};
+#[cfg(any(test, feature = "test-fixtures"))]
+use std::collections::BTreeSet;
+use std::collections::HashMap;
 use std::sync::Arc;
 
+#[cfg(any(test, feature = "test-fixtures"))]
+use crate::session::SKILL_ENCHANTING_LIKE_CPP;
 use crate::session::{
-    RepresentedPlayerSkillLikeCpp, RepresentedPlayerSkillStateLikeCpp, SKILL_ENCHANTING_LIKE_CPP,
+    RepresentedPlayerSkillLikeCpp, RepresentedPlayerSkillStateLikeCpp,
     canonical_player_skill_record_like_cpp, represented_player_skill_record_like_cpp,
     represented_skill_records_from_values_like_cpp, represented_skill_values_from_records_like_cpp,
 };

@@ -4,9 +4,9 @@ use crate::session::state::SessionCore;
 use wow_constants::PowerType;
 use wow_core::ObjectGuid;
 use wow_data::character_progression::PowerTypeStore;
-use wow_entities::{
-    MAX_POWERS_PER_CLASS, Player, UNIT_DATA_HEALTH_BIT, UnitDataUpdate, UnitDataValues, UpdateMask,
-};
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_entities::MAX_POWERS_PER_CLASS;
+use wow_entities::{Player, UNIT_DATA_HEALTH_BIT, UnitDataUpdate, UnitDataValues, UpdateMask};
 
 impl SessionCore {
     /// Test fixtures created before #578 may inject a typed Player directly
