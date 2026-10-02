@@ -4,6 +4,9 @@
 //! `WorldSession::catalogs` sub-state (#1241 F2): moved fields, no logic.
 
 use super::*;
+use super::HashMap;
+#[cfg(any(test, feature = "test-fixtures"))]
+use super::PlayerBootstrapCatalogTestFixtureLikeCpp;
 
 /// Immutable catalog bundles and DB2/world-DB store handles injected at composition; read-only
 /// after construction.
@@ -246,4 +249,137 @@ pub(crate) struct SessionCatalogs {
     /// C++ `sWaypointMgr->GetPath(pathId)` resolver for session-created legacy `WorldCreature`
     /// compatibility objects. The canonical path store is owned by `world-server`.
     pub(in crate::session) waypoint_path_resolver_like_cpp: Option<WaypointPathResolverLikeCpp>,
+}
+
+impl Default for SessionCatalogs {
+    fn default() -> Self {
+        Self {
+            #[cfg(any(test, feature = "test-fixtures"))]
+            player_bootstrap_catalog_test_fixture_like_cpp:
+                PlayerBootstrapCatalogTestFixtureLikeCpp::default(),
+
+            trainer_store_like_cpp: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            bank_bag_slot_prices_store: None,
+            currency_types_store: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            import_price_stores: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            emotes_store: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            emotes_text_store: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            item_class_store: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            item_currency_cost_store: None,
+            items: crate::catalogs::item::ItemCatalogsLikeCpp::default(),
+            trinity_string_store: None,
+            heirloom_store: None,
+            toy_store: None,
+            combat_ratings_game_table: None,
+            regen_game_tables: None,
+            shield_block_regular_game_table: None,
+
+            transmog_set_item_store: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            item_price_base_store: None,
+            player_stats: None,
+            pvp_item_store: None,
+            spell_catalogs: crate::catalogs::spell::SpellCatalogsLikeCpp::default(),
+            durability_costs_store: None,
+            durability_quality_store: None,
+            item_template_addon_quest_log_item_ids_like_cpp: HashMap::new(),
+            rand_prop_points_store: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            item_disenchant_loot_store: None,
+            loot_stores: None,
+            condition_store: None,
+            player_condition_store: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            adventure_map_poi_store: None,
+            content_tuning_store: None,
+            curve_store: None,
+            curve_point_store: None,
+            scaling_stat_distribution_store: None,
+            scaling_stat_values_store: None,
+            disable_mgr: None,
+            difficulty_store: None,
+            lock_store: None,
+            gem_properties_store: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            tact_key_store: None,
+            skill_store: None,
+            trait_definition_store: None,
+            trait_tree_skill_line_index: None,
+            skill_line_store: None,
+            skill_tiers_store: None,
+            area_table_store: None,
+            fishing_base_skill_store: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            area_trigger_db2_store: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            area_trigger_store: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            area_trigger_script_store: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            tavern_area_trigger_store: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            graveyard_store: None,
+            chr: crate::catalogs::chr::ChrCatalogsLikeCpp::default(),
+            maps: crate::catalogs::map::MapCatalogsLikeCpp::default(),
+            dungeon_encounter_store: None,
+            world_safe_loc_store_like_cpp: None,
+            access_requirement_store: None,
+            lfg_dungeons_store: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            lfg_dungeon_store_like_cpp: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            battlemaster_list_store: None,
+            factions: crate::catalogs::faction::FactionCatalogsLikeCpp::default(),
+            friendship_rep_reaction_store: None,
+            paragon_reputation_store: None,
+            reputation_reward_rate_store: None,
+            creatures: crate::catalogs::creature::CreatureCatalogsLikeCpp::default(),
+            reputation_spillover_template_store: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            creature_equipment_store_like_cpp: None,
+            gameobjects: crate::catalogs::gameobject::GameObjectCatalogsLikeCpp::default(),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            creature_addon_store_like_cpp: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            creature_difficulty_store_like_cpp: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            creature_base_stats_store_like_cpp: None,
+            mount_store: None,
+            mount_definition_store_like_cpp: None,
+            mount_capability_store: None,
+            mount_type_x_capability_store: None,
+            mount_x_display_store: None,
+            vehicle_store: None,
+            vehicle_seat_store: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            vehicle_template_store: None,
+            vehicle_accessory_store: None,
+            terrain_swap_store: None,
+            phase_store: None,
+            phase_group_store: None,
+
+            talent_store: None,
+            num_talents_at_level_store: None,
+            power_type_store: None,
+            cinematic_sequences_store: None,
+            movie_store: None,
+            script_name_interner: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            object_mgr_catalogs_like_cpp: None,
+            gameobject_template_lifecycle_store_like_cpp: None,
+            quests: crate::catalogs::quest::QuestCatalogsLikeCpp::default(),
+            quest_poi_store_like_cpp: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            player_xp_table: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            exploration_base_xp_store: None,
+            waypoint_path_resolver_like_cpp: None,
+        }
+    }
 }

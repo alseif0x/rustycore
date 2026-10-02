@@ -20,4 +20,19 @@ pub use battle_pet_adapter::{
     RepresentedBattlePetSlotLikeCpp,
 };
 
+pub mod connection_identity;
+pub use connection_identity::{
+    PacketCounterLikeCpp, PacketSpoofPendingBanLikeCpp, PacketSpoofPendingBanTargetLikeCpp,
+    SessionState,
+};
+
+pub mod player_binding;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use player_binding::PlayerTransportLoginStateLikeCpp;
+pub use player_binding::PlayerIdentityBootstrapLikeCpp;
+
+pub mod time_synchronization;
+pub use time_synchronization::{game_time_ms_like_cpp, TimeSynchronizationStateLikeCpp};
+
 pub mod mailbox;
+pub mod state;

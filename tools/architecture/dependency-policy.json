@@ -90,6 +90,7 @@
   },
   "restricted_packages": {
     "wow-world-core": [
+      "wow-conditions",
       "wow-constants",
       "wow-core",
       "wow-data",

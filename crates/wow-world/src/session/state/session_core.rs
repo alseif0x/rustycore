@@ -3,7 +3,20 @@
 
 //! `WorldSession::core` sub-state (#1241 F2): moved fields, no logic.
 
-use super::*;
+use super::{
+    Arc, AtomicBool, BTreeMap, HashMap, Instant, ObjectGuid, PacketSpoofConfigLikeCpp,
+    PlayerIdentityBootstrapLikeCpp, PlayerRegistry, SessionAccountState, SessionAdmissionState,
+    SessionCommand, SessionDirectory, SessionDriverServices, SessionRealmPolicy, SessionSharedFlags,
+    SessionState, SessionTransport, SharedCanonicalMapManager, SharedClientVisibleGuidsLikeCpp,
+    SocketTimeoutsLikeCpp, StdRng, TimeSynchronizationStateLikeCpp, VecDeque,
+    WorldMMapPathfinderWorkerLikeCpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+use super::{
+    EquipmentSetGuidGeneratorLikeCpp, ObjectGuidGenerator, VoidStorageItemIdGeneratorLikeCpp,
+};
+use rand::SeedableRng;
+use std::time::Duration;
 
 /// Hub state every domain reads: account and realm identity, the session state and command rails,
 /// the selected-player binding, the map/registry/instance handles, the id generators and module
@@ -125,4 +138,117 @@ pub(crate) struct SessionCore {
     /// C++ `Player::m_clientGUIDs`: exact objects currently known by this client.
     /// Updated on login and each visibility refresh (player movement).
     pub(crate) client_visible_guids_like_cpp: SharedClientVisibleGuidsLikeCpp,
+}
+
+impl SessionCore {
+    pub(in crate::session) fn new_for_world_session_like_cpp(
+        account_id: u32,
+        account_name: String,
+        security: u8,
+        expansion: u8,
+        account_expansion: u8,
+        build: u32,
+        locale: String,
+        session_command_tx: flume::Sender<SessionCommand>,
+        session_command_rx: flume::Receiver<SessionCommand>,
+        connection: wow_session::SessionConnection,
+        session_key: Vec<u8>,
+    ) -> Self {
+        Self {
+            account_id,
+
+            account_name,
+            security,
+            expansion,
+            account_expansion,
+            build,
+            locale,
+
+            session_command_tx,
+            session_command_rx,
+
+            durable_creature_runtime_commands_like_cpp: Default::default(),
+
+            state: SessionState::Authed,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            driver_phase_trace_like_cpp: Vec::new(),
+            player_registry: None,
+            directory: SessionDirectory::default(),
+            driver: SessionDriverServices {
+                time_synchronization: TimeSynchronizationStateLikeCpp::default(),
+                represented_runtime_rng_like_cpp: StdRng::from_entropy(),
+            },
+            flags: SessionSharedFlags {
+                advanced_combat_logging_enabled_like_cpp: Arc::new(AtomicBool::new(false)),
+                visibility_refresh_pending_like_cpp: Arc::new(AtomicBool::new(false)),
+            },
+            realm_policy: SessionRealmPolicy {
+                realm_battlegroup: 1,
+                realm_region: 1,
+                realm_names_like_cpp: BTreeMap::from([(
+                    0x0101_0001,
+                    ("RustyCore".to_string(), "RustyCore".to_string()),
+                )]),
+                realm_list_secret_like_cpp: [0; 32],
+                server_expansion_like_cpp: 2,
+                max_instances_per_hour_like_cpp: 5,
+                instance_ignore_level_like_cpp: false,
+                instance_ignore_raid_like_cpp: false,
+            },
+            account_state: SessionAccountState {
+                battlenet_account_id: account_id,
+                is_a_recruiter_like_cpp: false,
+                recruiter_id_like_cpp: 0,
+                legit_characters: Vec::new(),
+                recent_player_guid_low_like_cpp: 0,
+                mute_time_like_cpp: 0,
+            },
+            admission: SessionAdmissionState {
+                last_packet_time: Instant::now(),
+                last_phase_authority_like_cpp: [None, None],
+                map_phase_coordinated_like_cpp: false,
+                packet_spoof_config_like_cpp: PacketSpoofConfigLikeCpp::default(),
+                packet_throttling_like_cpp: HashMap::new(),
+                pending_packet_spoof_ban_like_cpp: None,
+                pending_packets: VecDeque::new(),
+                socket_timeout_deadline_like_cpp: Instant::now()
+                    + Duration::from_secs(
+                        SocketTimeoutsLikeCpp::default().unauthenticated_secs,
+                    ),
+                socket_timeouts_like_cpp: SocketTimeoutsLikeCpp::default(),
+            },
+            transport: SessionTransport {
+                connection,
+                remote_address_like_cpp: None,
+                session_key,
+                session_mgr: None,
+            },
+            realm_id: 1,
+
+            #[cfg(any(test, feature = "test-fixtures"))]
+            guid_generator: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            item_guid_generator_like_cpp: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            equipment_set_guid_generator_like_cpp: None,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            void_storage_item_id_generator_like_cpp: None,
+            player_guid: None,
+
+            #[cfg(any(test, feature = "test-fixtures"))]
+            player_bootstrap_attached_like_cpp: false,
+            current_map_id: 0,
+            player_identity_bootstrap_like_cpp: None,
+            map_manager: None,
+            canonical_map_manager: None,
+            player_handle_like_cpp: None,
+
+            mmap_pathfinder_like_cpp: None,
+            instance_lock_mgr: None,
+
+            #[cfg(any(test, feature = "test-fixtures"))]
+            module_registry_like_cpp: None,
+            client_visible_guids_like_cpp: SharedClientVisibleGuidsLikeCpp::default(),
+        }
+    }
 }

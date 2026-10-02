@@ -7,6 +7,9 @@
 use super::PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP;
 use super::{Arc, DurableLootMoneyPersistenceTrackerLikeCpp, ObjectGuid};
 use super::{PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP, Player, WorldSession};
+pub(in crate::session) use wow_world_core::session::PlayerIdentityBootstrapLikeCpp;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub(in crate::session) use wow_world_core::session::PlayerTransportLoginStateLikeCpp;
 
 #[derive(Debug, Clone)]
 pub(crate) struct SessionPlayerController {
@@ -74,23 +77,6 @@ impl SessionPlayerController {
     pub(crate) fn gender(&self) -> u8 {
         self.gender
     }
-}
-
-#[cfg(any(test, feature = "test-fixtures"))]
-pub(in crate::session) struct PlayerTransportLoginStateLikeCpp {
-    pub(in crate::session) info: wow_packet::packets::movement::TransportInfo,
-}
-
-/// Login-only identity input consumed while the canonical Player is being
-/// constructed. Once a generation-checked Player exists this value is retired;
-/// it is not a second runtime identity authority.
-#[derive(Debug, Clone, Default)]
-pub(in crate::session) struct PlayerIdentityBootstrapLikeCpp {
-    pub(in crate::session) name: Option<String>,
-    pub(in crate::session) race: u8,
-    pub(in crate::session) class: u8,
-    pub(in crate::session) level: u8,
-    pub(in crate::session) gender: u8,
 }
 
 impl WorldSession {

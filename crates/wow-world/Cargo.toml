@@ -52,6 +52,9 @@ wow-progression = { workspace = true, features = ["test-fixtures"] }
 wow-spell-acquisition = { workspace = true, features = ["test-fixtures"] }
 wow-world-core = { workspace = true, features = ["test-fixtures"] }
 wow-session = { workspace = true, features = ["test-support"] }
+# Keep WorldSession fixture fields cfg-aligned with Core while tests borrow Hub views.
+# Core feature unification alone does not set wow-world's test-fixtures cfg.
+wow-world = { workspace = true, features = ["test-fixtures"] }
 # Real Detour navmesh fixtures for the live creature-pathfinding regressions.
 wow-recastdetour = { workspace = true, features = ["test-fixtures"] }
 serde = { workspace = true }

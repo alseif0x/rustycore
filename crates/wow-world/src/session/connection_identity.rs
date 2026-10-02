@@ -6,29 +6,15 @@
 
 use super::{Arc, Item, NUM_ACCOUNT_DATA_TYPES, ObjectGuid, ObjectGuidGenerator, SessionManager};
 use super::{VoidStorageItemIdGeneratorLikeCpp, WorldSession};
+pub(in crate::session) use wow_world_core::session::{
+    PacketCounterLikeCpp, PacketSpoofPendingBanLikeCpp, PacketSpoofPendingBanTargetLikeCpp,
+};
+pub use wow_world_core::session::SessionState;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) enum PlayerAwayModeLikeCpp {
     Afk,
     Dnd,
-}
-
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
-pub(in crate::session) struct PacketCounterLikeCpp {
-    pub(in crate::session) last_receive_time_secs: u64,
-    pub(in crate::session) amount_counter: u32,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::session) enum PacketSpoofPendingBanTargetLikeCpp {
-    Account { account_id: u32 },
-    Ip { address: String },
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(in crate::session) struct PacketSpoofPendingBanLikeCpp {
-    pub(in crate::session) target: PacketSpoofPendingBanTargetLikeCpp,
-    pub(in crate::session) duration_secs: u32,
 }
 
 #[derive(Debug, Clone, Copy, Default)]
@@ -41,19 +27,6 @@ pub(in crate::session) struct ChatFloodThrottleDataLikeCpp {
 pub(crate) enum ChatFloodThrottleIndexLikeCpp {
     Regular = 0,
     Addon = 1,
-}
-
-/// Current state of the session.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum SessionState {
-    /// Authenticated but no character selected.
-    Authed,
-    /// Character is logged into the world.
-    LoggedIn,
-    /// Character is transferring between maps.
-    Transfer,
-    /// Session is being disconnected.
-    Disconnecting,
 }
 
 /// C++ `WorldSession::_accountData[NUM_ACCOUNT_DATA_TYPES]` entry.

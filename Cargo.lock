@@ -3463,6 +3463,7 @@ dependencies = [
  "wow-session",
  "wow-social",
  "wow-spell-acquisition",
+ "wow-world",
  "wow-world-core",
 ]
 
@@ -3475,6 +3476,7 @@ dependencies = [
  "rand",
  "tokio",
  "tracing",
+ "wow-conditions",
  "wow-constants",
  "wow-core",
  "wow-data",

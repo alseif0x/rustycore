@@ -5,37 +5,8 @@
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
 use super::{WorldSession, info, rounded_median_u32};
-use std::collections::{HashMap, VecDeque};
-use std::sync::OnceLock;
-use std::time::Instant;
-
-/// The single session-owned state for request sequencing and clock-delta estimation.
-pub(super) struct TimeSynchronizationStateLikeCpp {
-    pub(super) next_counter: u32,
-    pub(super) timer_ms: u32,
-    pub(super) pending_requests: HashMap<u32, u32>,
-    pub(super) clock_delta_queue: VecDeque<(i64, u32)>,
-    pub(super) clock_delta: i64,
-}
-
-impl Default for TimeSynchronizationStateLikeCpp {
-    fn default() -> Self {
-        Self {
-            next_counter: 0,
-            timer_ms: 0,
-            pending_requests: HashMap::new(),
-            clock_delta_queue: VecDeque::with_capacity(6),
-            clock_delta: 0,
-        }
-    }
-}
-
-/// Monotonic millisecond counter matching TrinityCore's `getMSTime()` scale.
-pub(crate) fn game_time_ms_like_cpp() -> u32 {
-    static SERVER_START: OnceLock<Instant> = OnceLock::new();
-    let start = SERVER_START.get_or_init(Instant::now);
-    start.elapsed().as_millis() as u32
-}
+pub(super) use wow_world_core::session::TimeSynchronizationStateLikeCpp;
+pub(crate) use wow_world_core::session::game_time_ms_like_cpp;
 
 impl WorldSession {}
 
