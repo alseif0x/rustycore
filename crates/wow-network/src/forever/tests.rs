@@ -141,12 +141,20 @@ async fn native_order_requires_proof_persistence_ack_and_counter_two() {
     completed.unwrap();
     assert!(socket.join_ticket().is_err());
     assert!(socket.start().await.is_err());
-    socket.send(AUTH_RESPONSE, &[3, 0, 0, 0, 0]).await.unwrap();
-    let (data, tag) = read_frame(&mut peer).await;
-    let expected = ForeverWorldCrypt::new(keys.encryption_key(), 2, 2)
-        .encrypt(&wire::frame_data(AUTH_RESPONSE, &[3, 0, 0, 0, 0]).unwrap())
-        .unwrap();
-    assert_eq!((data, tag), expected);
+    // The first outbound encrypted packet is now the native Pong (counter 2),
+    // followed by the complete denial response at counter 3, not a reused IV.
+    let mut expected_crypt = ForeverWorldCrypt::new(keys.encryption_key(), 2, 2);
+    for (opcode, body) in [
+        (PONG, &[1, 2, 3, 4][..]),
+        (AUTH_RESPONSE, &[3, 0, 0, 0, 0][..]),
+    ] {
+        socket.send(opcode, body).await.unwrap();
+        let (data, tag) = read_frame(&mut peer).await;
+        let expected = expected_crypt
+            .encrypt(&wire::frame_data(opcode, body).unwrap())
+            .unwrap();
+        assert_eq!((data, tag), expected);
+    }
     // Tampered client packet fails terminally, with no phase retry.
     peer.write_all(&wire::header(4, [1; 12]).unwrap())
         .await

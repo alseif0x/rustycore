@@ -5,7 +5,7 @@ use serde::Deserialize;
 use std::{env, fs, path::Path, time::Duration};
 use tokio::{net::TcpListener, time::timeout};
 use wow_database::{LoginDatabase, PreparedStatement, build_connection_string_with_ssl_like_cpp};
-use wow_network::forever::{AUTH_RESPONSE, ForeverSocket};
+use wow_network::forever::{AUTH_RESPONSE, ForeverSocket, PING, PONG};
 
 #[derive(Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -25,6 +25,15 @@ fn admits_ticket(raw: &str) -> bool {
         && ticket.platform == u32::from_be_bytes(*b"\0Win")
         && ticket.client_arch == u32::from_be_bytes(*b"\0x64")
         && ticket.kind == u32::from_be_bytes(*b"WoWB")
+}
+
+fn ping_serial(opcode: u32, payload: &[u8]) -> Result<[u8; 4]> {
+    // WorldSocket::HandlePing / Ping::Read: serial:u32, latency:u32.
+    // Native Pong dispatcher 0xA1AF50 reads only the four-byte serial.
+    if opcode != PING || payload.len() != 8 {
+        bail!("not the bounded native ping");
+    }
+    Ok(payload[..4].try_into().expect("validated ping length"))
 }
 
 #[tokio::main]
@@ -125,15 +134,33 @@ async fn run() -> Result<()> {
         return Err(error.into());
     }
     println!("Signed encryption offer acknowledged; 40-byte session key persisted.");
-    // Target AuthResponse::Write: ERROR_DENIED=3, absent success/wait option bits.
-    // Stop honestly before creating a WorldSession; this is encrypted QA only.
-    socket.send(AUTH_RESPONSE, &[3, 0, 0, 0, 0]).await?;
-    let frame = socket.receive().await?;
+    let frame = timeout(Duration::from_secs(30), socket.receive()).await??;
+    let serial = ping_serial(frame.opcode(), frame.payload())?;
     println!(
         "Encrypted client response authenticated: opcode=0x{:06X}, payload_bytes={}; character_selection_tested=false",
         frame.opcode(),
         frame.payload().len()
     );
+    socket.send(PONG, &serial).await?;
+    println!(
+        "Encrypted Pong sent with the native serial-only layout; native parsing not inferred."
+    );
+    // Native decoder RVA 0x7EEFC0 and target AuthResponse::Write:
+    // ERROR_DENIED=3, absent success/wait option bits. No fake session success.
+    socket.send(AUTH_RESPONSE, &[3, 0, 0, 0, 0]).await?;
+    // Give the client a bounded chance to process the terminal response before
+    // closing. Transport delivery alone is not native parser acceptance.
+    match timeout(Duration::from_secs(5), socket.receive()).await {
+        Ok(Ok(frame)) => println!(
+            "Post-denial client frame: opcode=0x{:06X}, payload_bytes={}",
+            frame.opcode(),
+            frame.payload().len()
+        ),
+        Ok(Err(_)) => println!("Client transport closed after denial; UI result not inferred."),
+        Err(_) => {
+            println!("No post-denial client frame within five seconds; UI result not inferred.")
+        }
+    }
     Ok(())
 }
 
@@ -175,5 +202,18 @@ mod tests {
             wrong[field] = value;
             assert!(!admits_ticket(&wrong.to_string()));
         }
+    }
+
+    #[test]
+    fn native_ping_returns_only_its_serial() {
+        assert_eq!(
+            ping_serial(PING, &[0x12, 0x34, 0x56, 0x78, 1, 2, 3, 4]).unwrap(),
+            [0x12, 0x34, 0x56, 0x78]
+        );
+        for len in [0, 4, 7, 9] {
+            assert!(ping_serial(PING, &vec![0; len]).is_err());
+        }
+        assert!(ping_serial(PING + 1, &[0; 8]).is_err());
+        assert_eq!(PONG, 0x4D0009);
     }
 }

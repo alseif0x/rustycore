@@ -76,6 +76,7 @@ an isolated Wine environment on a Linux x86_64 host:
 | Modern BNet realm join | Verified | JSON ticket, build variant and session-key persistence; real client accepts the response |
 | World TCP, V2 preamble and AuthSession proof | Verified in isolated probe | Native 70170 digest verified; 40-byte session key persisted; build key kept private |
 | Signed encryption / incoming AES-256-GCM packet | Verified in isolated probe | Native ACK and authenticated encrypted ping; no signature bypass |
+| Target character-data acquisition | Verified locally | Original client read-only: build-70170 `ChrClasses` / `ChrRaces`, WDC5; not character/gameplay acceptance |
 | WorldSession admission / initial server packet sequence | Current boundary | Requires target-backed successful admission and native packet acceptance |
 | Character selection / creation | Pending | Requires an admitted encrypted WorldSession and target character packets/data |
 | Initial world load | Pending | Requires target-build packets and appropriate world/client data |
@@ -117,6 +118,12 @@ unless explicitly marked otherwise.
 These are dependency-ordered goals, not release dates or completed compatibility
 claims. The parent [3.4.3 port plan](docs/migration/PORT_PLAN.md) remains separate;
 inherited gameplay implementation does not establish support for build 70170.
+
+The installed client's two character tables have been acquired privately in
+`esES`. Forever uses **WDC5/version 5**, not the inherited WDC4 header. Their
+schema hashes match the pinned Forever reference; old field mappings are not
+treated as interchangeable. See the [character-data prerequisite](docs/operations/forever-login.md#build-70170-character-data-prerequisite)
+for acquisition, validation and the remaining world/character database boundary.
 
 ## Target and prerequisites
 

@@ -3,10 +3,12 @@
 // Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Generic WDC4 (DB2) file parser.
+//! WDC4 and bounded regular WDC5 (DB2) file parser.
 //!
-//! Supports the six compression types used in WoW 3.4.3 client data files:
-//! None, Immediate (Bitpacked), SignedImmediate, Pallet, PalletArray, Common.
+//! Retains the six WDC4 compression readers. WDC5 header and regular IDs are
+//! validated for the target ChrClasses/ChrRaces tables; that is not a whole-WDC5
+//! compression/string/relationship parity claim. WDC5 sparse/Tact sections are
+//! rejected, not skipped or replaced with zero-filled records.
 
 use std::collections::HashMap;
 use std::path::Path;
@@ -28,8 +30,9 @@ use bits::{
 };
 
 use format::{
-    CompressionType, FIELD_META_SIZE, FIELD_STORAGE_INFO_SIZE, FieldStorageInfo, HEADER_SIZE,
-    SECTION_HEADER_SIZE, Wdc4Header, parse_field_storage_info, parse_header, parse_section_header,
+    CompressionType, FIELD_META_SIZE, FIELD_STORAGE_INFO_SIZE, FieldStorageInfo,
+    SECTION_HEADER_SIZE, WDC4_HEADER_SIZE, WDC5_HEADER_SIZE, Wdc4Header, parse_field_storage_info,
+    parse_header, parse_section_header,
 };
 
 // ── Tests ────────────────────────────────────────────────────────────
