@@ -6,6 +6,7 @@ use wow_core::IpLocationStore;
 use wow_database::{DatabaseError, LoginDatabase, LoginStatements};
 
 use crate::realm::RealmManager;
+use crate::realm::forever::ForeverCatalog;
 
 /// Shared application state accessible from all handlers.
 pub struct AppState {
@@ -33,6 +34,9 @@ pub struct AppState {
     /// Log wrong-password attempts.
     pub wrong_pass_logging: bool,
 
+    /// Immutable, explicitly configured build-70170 discovery catalog.
+    forever: ForeverCatalog,
+
     /// Realm manager (initialized after construction).
     pub realm_mgr: RwLock<RealmManager>,
 }
@@ -50,6 +54,7 @@ impl AppState {
         wrong_pass_ban_time: u32,
         wrong_pass_ban_type: u32,
         wrong_pass_logging: bool,
+        forever: ForeverCatalog,
     ) -> Self {
         Self {
             login_db,
@@ -63,8 +68,13 @@ impl AppState {
             wrong_pass_ban_time,
             wrong_pass_ban_type,
             wrong_pass_logging,
+            forever,
             realm_mgr: RwLock::new(RealmManager::new()),
         }
+    }
+
+    pub(crate) fn forever_catalog(&self) -> &ForeverCatalog {
+        &self.forever
     }
 
     /// Mirror TrinityCore bnetserver's pre-handshake `LOGIN_SEL_IP_INFO` check.

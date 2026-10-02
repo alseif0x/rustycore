@@ -12,7 +12,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg" alt="License: GPL-3.0-or-later"></a>
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Rust-1.98.0-orange.svg" alt="Rust 1.98.0"></a>
   <a href="docs/operations/forever-login.md"><img src="https://img.shields.io/badge/client-Forever%201.60.1%20%2870170%29-6f42c1.svg" alt="WoW Forever 1.60.1 build 70170"></a>
-  <img src="https://img.shields.io/badge/milestone-real%20client%20BNet%20auth-2ea44f.svg" alt="Real-client BNet authentication verified">
+  <img src="https://img.shields.io/badge/milestone-ruleset%20selection%20UI-2ea44f.svg" alt="Real-client ruleset selection reached">
   <img src="https://img.shields.io/badge/status-experimental-e09f3e.svg" alt="Experimental; not playable yet">
   <a href="https://discord.gg/mH6ACpGPb2"><img src="https://img.shields.io/badge/Discord-join%20the%20community-5865F2.svg" alt="Join the Discord community"></a>
 </p>
@@ -35,10 +35,13 @@ Vanilla 1.12.1 protocol.
 
 The first real-client milestone is in: build **70170** completes normal HTTPS
 SRP authentication, Battle.net Authentication V2, account queries and a realm-list
-ticket exchange against RustyCore. No password bypass or synthetic login success.
+ticket exchange against RustyCore. It now also displays Forever's **ruleset
+selection screen**, with the PvP option from the configured SuperDistrict.
+No password bypass or synthetic login success.
 
 > **Research preview — not playable yet.** The client currently stops during
-> realm discovery with `WOW51900309` (“No realms are currently available”).
+> realm discovery **after choosing a ruleset**, with `WOW51900309` (“No realms
+> are currently available”).
 > Character creation and initial world loading are the next goals, not completed
 > features. The diagnostic launcher setup is not a turnkey client installer.
 
@@ -54,15 +57,21 @@ an isolated Wine environment on a Linux x86_64 host:
 | Account V2 queries | Verified | Account and game-account information/restrictions |
 | Realm-list ticket and subregion discovery | Verified | Real client accepts the responses |
 | Offline realm-list serialization | Smoke-tested | V1/V2 test client decodes `1.60.1.70170`; not a realm-selector UI pass |
-| Forever `SuperDistrictList` | Next protocol boundary | Currently returns not implemented |
+| Forever `SuperDistrictList` and ruleset UI | Verified | Real client displays and selects PvP for configured district 1 |
+| Realm discovery after ruleset choice | Current boundary | Empty last-character response is followed by no-realms disconnect |
 | Character selection / creation | Pending | Requires realm discovery and compatible world authentication |
 | Initial world load | Pending | Requires target-build packets and appropriate world/client data |
 
-The current evidence includes **108 BNet tests**, **16 Python smoke tests**, and
+The current evidence includes **110 BNet tests**, **23 Python tests** (smoke and
+read-only client metadata), and
 live V1/V2 positive/negative authentication scenarios. These counts describe the
 recorded scoped checks, not a full-workspace or gameplay-parity certification.
 The [runbook](docs/operations/forever-login.md) records exact revisions, source
 anchors, failures, timings and the observed client trace.
+
+The full `validation-v2 final` gate is currently blocked by inherited architecture
+hotspot limits in unchanged 3.4.3 code. The passing scoped checks above are not
+a substitute for that gate; see the runbook's publication boundary.
 
 ## Documentation
 
@@ -78,8 +87,8 @@ unless explicitly marked otherwise.
 
 ## Roadmap
 
-1. **Understand Forever realm discovery.** Establish `SuperDistrictList` from
-   target-build evidence and reach the actual realm selector.
+1. **Complete Forever realm discovery.** Ruleset selection is reached; resolve
+   the subsequent last-character/subregion transition and reach a realm.
 2. **Connect the world socket.** Verify build admission, authentication, opcode
    mappings and packet layouts before enabling the inherited world path.
 3. **Reach character creation.** Validate character enumeration, creation and

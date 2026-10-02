@@ -2,6 +2,8 @@
 //!
 //! Periodically polls the `realmlist` table and provides realm data to clients.
 
+pub(crate) mod forever;
+
 use anyhow::Result;
 use bitflags::bitflags;
 use flate2::Compression;
