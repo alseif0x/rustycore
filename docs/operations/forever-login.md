@@ -402,9 +402,24 @@ protobuf test incorrectly derived GameUtilities OriginalHash from the present
 name; the test was corrected against the generated C++ constant and passed.
 The production hash was already correct. The release build took 48.42 seconds;
 Cargo reports are under `target/cargo-timings`. The only production change
-after the 108-test run was command-name-only debug tracing, exercised by the
-release build/live trace. A committed-candidate check is recorded below once
-completed. No final runner, push, PR or world-server test was performed.
+after the initial 108-test run was command-name-only debug tracing, exercised by
+the release build/live trace and the committed-candidate rerun below.
+
+At committed candidate `ee710e4eb15947b750d279d04324ae45c7ff88eb`, the BNet
+binary suite passed again (108/108), Python passed (16/16), and physical-files,
+rustfmt and diff checks passed. The installed binary's V1/V2 live smoke passed
+again after restarting only the isolated BNet process at `RUST_LOG=warn`.
+The candidate tree was clean during these checks; earlier crypto/database/
+protobuf results remain evidence from the explicitly identified dirty tree,
+not retrospectively relabeled runs at this SHA. Production/test inputs were
+unchanged except the described tracing line and corrected protobuf test.
+
+The post-auth campaign ended at `2026-10-02T18:24:56Z`: **835 seconds** from
+`18:11:01Z`, including investigation/corrections and the final candidate rerun.
+The 600-second target was not met. This closeout documentation delta is outside
+that measured interval and does not change compiled inputs. No final runner,
+push, PR or world-server test was performed. The disposable MariaDB and BNet
+listeners remain local; diagnostic logging has been disabled.
 
 ### Previous fixture campaign
 
