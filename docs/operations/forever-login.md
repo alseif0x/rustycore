@@ -966,6 +966,35 @@ are source-backed hypotheses until their specific native actions pass. Successfu
 synthetic encryption/signature tests are not character enumeration, character
 creation, durable relogin or initial world-load evidence.
 
+#### Committed-candidate validation closeout
+
+At `98b5c061`, full final found a formatting-only failure in the fixture's new
+configuration read; manifest `20261002T223039.137750Z-1661237-final.json`.
+`ea87f09a` fixes only that wrapping. Full final on that clean committed candidate
+passed whitespace, Python syntax, rustfmt and physical-files (2283 files), then
+failed the unchanged inherited hotspot ratchet before Cargo:
+`20261002T223105.115464Z-1661371-final.json`. Exact affected inherited paths were
+again byte-identical to `2df57d6f`; the existing experimental publication waiver
+is retained, not represented as a green full-workspace gate.
+
+At `ea87f09a`, the complete affected **37 network / 3 fixture tests passed**
+again, build 1.17s and tests 0.30s; timing `20261002T223210048Z`.
+Earlier 59 crypto and 133 BNet results retain their actual revisions above;
+their unchanged inputs were not needlessly recompiled. The native installed
+fixture was built from `b919ba12`'s source before its commit; the later delta is
+only the documented formatting. This is not a claim that a prior binary build
+or live probe ran at a later SHA.
+
+The measured campaign checkpoint is `21:51:22Z`–`22:33:07Z` (**2505 seconds**),
+before this final documentation/publication closeout. Required closing checks
+extend that envelope; they do not create a second nominal ten-minute campaign.
+The 600-second target is **not met**. Coding/error repair and diagnostics were
+interleaved, and no independent coding stopwatch was retained; this is not a
+clean warm-cache benchmark. Cargo timing reports above separate actual build
+costs, including the unintended cold debug-profile compilation. The closing
+runner manifests record their own exact start/end times. Publication does not
+mean a playable realm or authorization to merge into `3.4.3`.
+
 ### Publication validation boundary
 
 At README candidate `a53a88d0`, `validation-v2 final --base origin/3.4.3

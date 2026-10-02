@@ -106,9 +106,9 @@ unless explicitly marked otherwise.
 
 ## Roadmap
 
-1. **Authenticate the world connection.** BNet join and the initial preamble are
-   verified. Resolve the build-auth key, crypto, admission and target packet
-   layouts before enabling the inherited world path.
+1. **Admit a real Forever WorldSession.** Native proof, signed encryption ACK
+   and incoming encrypted traffic are verified. Implement and exercise the
+   target's successful admission and initial server-packet sequence.
 2. **Reach character creation.** Validate character enumeration, creation and
    persistence with the real client.
 3. **Load the initial world.** Confirm the required data, initial packet sequence
