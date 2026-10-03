@@ -2403,9 +2403,12 @@ de consumidores y módulos. El lifetime del store de áreas de la proyección
 de condiciones está corregido. No se ejecutaron compilación ni aceptación.
 
 Revisión de consumidores XP (2026-10-03, NO VALIDADO): el adaptador del request
-de persistencia cambió su receptor World de `&self` a `&mut self` para construir
-QuestRewardCx. Se asignó conservar la firma original mediante un proveedor App
-de lectura seleccionado y único, sin prestar participantes mutables innecesarios.
+de persistencia había cambiado su receptor World de `&self` a `&mut self` para
+construir QuestRewardCx. La corrección escrita conserva ya `&self` y delega en
+un proveedor App de lectura seleccionado, sin prestar participantes mutables
+innecesarios. La operación XP se está separando en hojas privadas de RAF, reposo
+y persistencia; los helpers llamados desde el padre necesitan visibilidad
+`pub(super)`, cuyo cierre se ha asignado sin ampliar campos públicos.
 La evidencia existente a ejecutar incluye los escenarios de script/zero/max-level,
 reposo, RAF, campos canónicos y conexión Realm de `scenarios_misc_8.rs`, y
 `lifecycle_persistence/player_persistence.rs::represented_xp_reaches_the_port_for_every_classified_outcome_like_cpp`
@@ -2430,7 +2433,10 @@ la proyección completa de condiciones cuando existe el store de condiciones,
 incluso sin filas aplicables. Esa proyección consulta AvgTotal al final. Inventory
 no puede llamar Application para resolverlo sin invertir la dependencia.
 El coordinador completo AvgTotal/CanEquip se asigna por ello a una hoja privada
-Application de valoración; Inventory conserva ItemLevel, AvgEquipped y kernels
+Application de valoración. Ya está escrito el catálogo prestado seleccionado
+`Core/catalogs/inventory_valuation.rs::InventoryValuationCatalogViewLikeCpp`,
+con campos privados y sin clonar Arcs ni tomar snapshots; ItemLevel/AvgEquipped
+lo consumen en lugar del catálogo completo. Inventory conserva esos cuerpos y kernels
 de almacenamiento/equipabilidad. Application materializa las condiciones en la
 fase original y pasa el contexto al kernel de cantidad de límite. No se admite
 callback World, una dependencia Inventory → Application ni omitir/cachear el
@@ -2438,7 +2444,113 @@ promedio para ocultar la reentrada. La posible recursión del código previo se
 conserva como límite de comportamiento pendiente de contraste F6. La proyección
 de condiciones llamará AvgTotal App y después AvgEquipped Inventory por separado.
 
+Revisión de reposo XP (2026-10-03, NO VALIDADO): la hoja privada App conserva
+el consumo incondicional mediante SetRestBonus incluso con premio entero cero,
+el orden bonus/modificador y la máscara `0x07` cuando cambian threshold o estado.
+El contraste con `World/test_support/operations.rs:237–293` detectó que el
+borrador agrupaba las dos relecturas finales en una tupla: debe retornar si
+threshold no está disponible antes de leer estado, como el cuerpo original.
+La corrección está asignada; el snapshot inicial de la envoltura async sí tiene
+evaluación de tupla en el original y debe conservar ambas lecturas. La existencia
+de estas diferencias de fase se comprueba por fuente, sin ejecución de tests.
+
+Integración del filtro spell-click (2026-10-03, NO VALIDADO): la fachada World
+ya delega el filtro completo a App y construye capacidades seleccionadas inertes;
+el snapshot Domain se llama directamente sin split Hub. La revisión detectó dos
+tipos fixture referidos desde el namespace World sin reexport; se asignaron
+imports gated directos de Core en el archivo consumidor. La proyección completa
+de condiciones y la publicación de visibilidad aún requieren cierre. En reposo
+XP ya se corrigieron las dos guardas secuenciales finales y el let-else inválido.
+Estos resultados son inspección de fuente, sin compilación ni captura.
+
+Revisión del owner de guardado (2026-10-03, NO VALIDADO): el borrador añadió
+cuarentena al acceso de captura que conserva `&SessionCore`, aunque `Core::kick`
+requiere `&mut self` para pasar a Disconnecting. La corrección asignada mantiene
+la API de captura de lectura. El owner opaco mutable ya está escrito para el
+coordinador completo, con reborrow de captura en su fase tardía y cuarentena
+mediante receptor mutable. La factory ya liga explícitamente los lifetimes de
+Core y sus dos stores. No debe debilitarse kick,
+exponerse Core a App ni cambiarse la firma de los consumidores de captura.
+La proyección de condiciones ya llama AvgTotal App antes de AvgEquipped
+Inventory, con guardas separadas y sin adelantar snapshots; la hoja AvgTotal y
+sus constantes todavía no están escritas, por lo que esa llamada sigue siendo
+una dependencia de fuente incompleta. El helper World de flags de reposo ya
+delega al proveedor App de lectura compartido, preservando su receptor `&self`.
+
+Revisión de continuidad (2026-10-03, NO VALIDADO): se verificaron los cuatro
+handles de implementación. Trainer estaba idle tras una revisión de firma que
+no necesitó cambios; se reanudó su entrega de List/Buy completos. Guardado ya
+delega la persistencia y cuarentena al acceso mutable App, pero la coordinación
+de admisión, loot, reconciliación, bloqueo, captura y drenaje permanece World:
+esa delegación no demuestra traslado completo de SaveToDB. En XP, el helper RAF
+privado tiene ahora visibilidad de padre correcta; los dos cuerpos fixture de
+SetRestBonus/consumo aún duplican las transiciones App. Se asignaron solamente
+esas dos fachadas World al dueño de XP para conservar un único proveedor y el
+orden de consultas. No se ejecutaron compilación, tests ni aceptación.
+
+La revisión siguiente del catálogo de valoración confirma por fuente que map,
+faction y friendship seleccionan los mismos stores que los getters existentes.
+Los helpers Core de bonus de nivel, bonus PvP y efectos ya delegan al nuevo view
+sin duplicar sus algoritmos. En Inventory todavía hay dos cuerpos del cálculo
+de curva (valuation.rs y valuation/item_level.rs); se asignó su consolidación al
+mismo dueño. La hoja App AvgTotal sigue ausente en esta observación: no hay cierre
+de condiciones ni evidencia de compilación de ese consumidor.
+
+Revisión de confirmación de guardado (2026-10-03, NO VALIDADO): Core intersecta
+grupos esperados/confirmados y exige handle y GUID actuales antes de resolver el
+Player por su handle en Map. La nueva capacidad mutable reusa esa confirmación.
+El consumidor World solo marca tutorials cargados tras insert confirmado y solo
+limpia dirty si los valores actuales coinciden con el receipt; Registry se publica
+después. Los tests existentes de Entities cubren filas modificadas durante el
+commit, pero no prueban el enlace Core/Session de handle obsoleto ni tutorials
+posteriores. Esas regresiones de integración se asignaron al dueño de Save,
+manteniendo pendiente el traslado del coordinador completo y su aceptación.
+
+El caso existente `scenarios_persistence_3.rs:283`,
+`player_save_plan_marks_dirty_state_only_after_commit_like_cpp`, comprueba dirty
+antes/después de la confirmación mediante el shim fixture y sin modificar
+tutorials entre captura y confirmación. Se conserva; no sustituye las dos
+regresiones del receipt canónico identificadas arriba ni requiere duplicarse.
+
+Primera implementación App AvgTotal (2026-10-03, NO VALIDADO): la hoja ya está
+escrita. La revisión de su scan confirma dos pasadas, snapshot de objetos antes
+del inventario directo, ItemLevel antes de elegibilidad, fast-path de slot
+equipado y ajuste de arma a dos manos conservados frente al cuerpo World.
+Faltan montar la hoja, enlazar su entrada con `project_like_cpp` y cerrar los
+proveedores de elegibilidad; el cuerpo World original aún no está retirado.
+Esta observación sustituye la ausencia registrada arriba, sin demostrar cierre
+del traslado ni compilación. Se notificaron firma/mount a sus dueños disjuntos.
+
+La revisión de CanUse contra `World/player_items/persistence_load.rs:9–154`
+detectó dos diferencias de ese borrador: primary specialization debe salir del
+mismo Player snapshot inicial, no de una segunda consulta de la capacidad;
+el fallback de spells de un consumidor World cfg(test) debe propagarse con
+feature test-fixtures y su bool consumidor, no con cfg(test) del crate App.
+Ambas correcciones se asignaron antes de retirar el cuerpo original. Los
+valores constantes de otros argumentos ya estaban presentes en ese original;
+conservarlos en F5 no establece su paridad C++.
+
+Revisión de condiciones de trainer (2026-10-03, NO VALIDADO): el nuevo cuerpo
+App conserva store, objeto jugador, proyección completa, snapshots Unit/Player
+y evaluación por condición con contexto vivo y bandera Unsupported. Se mantiene
+el predicado de igualdad de área del trainer, distinto al IsInArea de spell-click.
+Se detectó un tipo de store referenciado desde wow-conditions sin reexport;
+se asignó usar el owner wow-data. La proyección tardía y los coordinadores List/Buy
+siguen pendientes; el helper no demuestra su operación completa.
+
 ### F6 — retirada de duplicados, pista de comportamiento
+
+Contraste de la reentrada condiciones/valoración (2026-10-03, fuente C++):
+`Player.cpp:28732–28747::GetItemLimitCategoryQuantity`, SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`, evalúa las condiciones por fila.
+`ConditionMgr.cpp:3206–3216` lee los campos canónicos almacenados
+`m_playerData->AvgItemLevel[0/1]`; no llama a los calculadores de promedio.
+`Player.cpp:28803–28877` actualiza esos campos después de los cálculos completos.
+La reentrada del holder Rust no queda acreditada como paridad por ese código.
+F6 necesita localizar la autoridad y todos los writers/readers de esos valores,
+con actualización/publicación y pruebas de la condición del límite; añadir un
+cache de sesión o quitar la lectura del promedio no satisface ese contrato.
+El descriptor Rust `AvgItemLevel` por sí solo no demuestra almacenamiento efectivo.
 
 Contrato de extracción RewardQuest (2026-10-03, fuente Rust NO VALIDADA):
 `World/handlers/quest/rewards.rs:563–785` todavía posee el coordinador completo.
