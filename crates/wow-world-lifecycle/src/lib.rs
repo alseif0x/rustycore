@@ -74,8 +74,9 @@ pub use persistence_capabilities::{
 
 #[doc(hidden)]
 pub use state::{
-    DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP, LootMoneyPersistenceErrorLikeCpp,
-    RepresentedTalentResetStatePlanLikeCpp, SessionLifecycleState,
+    group_persistence_command_like_cpp, DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP,
+    LootMoneyPersistenceErrorLikeCpp, LootTemplateRow, LootTemplateTable,
+    RepresentedTalentResetStatePlanLikeCpp, SessionLifecycleState, WrappedGiftLoad, WrappedGiftRow,
 };
 
 #[cfg(any(test, feature = "test-fixtures"))]

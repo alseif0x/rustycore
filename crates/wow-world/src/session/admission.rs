@@ -2,9 +2,8 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 use super::{
-    ClientOpcodes, PACKET_SPOOF_BAN_AUTHOR_LIKE_CPP, PACKET_SPOOF_BAN_REASON_LIKE_CPP,
-    PLAYER_SLOT_END, PacketSpoofConfigLikeCpp, PacketSpoofPendingBanTargetLikeCpp, SystemTime,
-    UNIX_EPOCH, WorldPacket, warn,
+    ClientOpcodes, PLAYER_SLOT_END, PacketSpoofConfigLikeCpp, SystemTime, UNIX_EPOCH, WorldPacket,
+    warn,
 };
 
 impl super::WorldSession {
@@ -281,71 +280,6 @@ impl super::WorldSession {
     pub(super) async fn flush_packet_spoof_ban_like_cpp(&mut self) {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
         state.flush_packet_spoof_ban_like_cpp(&mut hub).await
-    }
-}
-
-impl crate::session::state::SessionLifecycleState {
-    pub(super) async fn flush_packet_spoof_ban_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-    ) {
-        let Some(plan) = hub.core.admission.pending_packet_spoof_ban_like_cpp.take() else {
-            return;
-        };
-        let Some(port) = self
-            .persistence_ports_like_cpp
-            .admission
-            .packet_spoof_ban
-            .clone()
-        else {
-            warn!(
-                account = hub.core.account_id,
-                "AntiDOS: PacketSpoof ban requested but login DB is unavailable"
-            );
-            hub.core.admission.pending_packet_spoof_ban_like_cpp = Some(plan);
-            return;
-        };
-
-        let affected_account_ids = hub
-            .core
-            .packet_spoof_ban_affected_account_ids_like_cpp(port.as_ref(), &plan)
-            .await;
-        let target = match &plan.target {
-            PacketSpoofPendingBanTargetLikeCpp::Account { account_id } => {
-                wow_persistence::PacketSpoofBanTargetLikeCpp::Account {
-                    account_id: *account_id,
-                }
-            }
-            PacketSpoofPendingBanTargetLikeCpp::Ip { address } => {
-                wow_persistence::PacketSpoofBanTargetLikeCpp::Ip {
-                    address: address.clone(),
-                }
-            }
-        };
-        let result = port
-            .persist_packet_spoof_ban_like_cpp(wow_persistence::PacketSpoofBanWriteRequestLikeCpp {
-                target,
-                duration_secs: plan.duration_secs,
-                author: PACKET_SPOOF_BAN_AUTHOR_LIKE_CPP.to_string(),
-                reason: PACKET_SPOOF_BAN_REASON_LIKE_CPP.to_string(),
-            })
-            .await;
-
-        match result {
-            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {
-                hub.core
-                    .kick_packet_spoof_affected_sessions_like_cpp(&affected_account_ids);
-            }
-            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
-            | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
-                warn!(
-                    account = hub.core.account_id,
-                    error = %reason,
-                    "AntiDOS: failed to persist PacketSpoof ban"
-                );
-                hub.core.admission.pending_packet_spoof_ban_like_cpp = Some(plan);
-            }
-        }
     }
 }
 

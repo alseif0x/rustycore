@@ -183,7 +183,9 @@ impl WorldSession {
         }
 
         #[cfg(test)]
-        let test_result = self.lifecycle.loot_money_persistence_test_result_like_cpp;
+        let test_result = self
+            .lifecycle
+            .loot_money_persistence_test_result_like_cpp();
         #[cfg(not(test))]
         let test_result: Option<bool> = None;
 

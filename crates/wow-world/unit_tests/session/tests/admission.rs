@@ -94,7 +94,9 @@ async fn timed_logout_preserves_player_until_disconnect_save_like_cpp() {
     let guid = ObjectGuid::create_player(1, 77);
     session.set_player_guid(Some(guid));
     session.set_state(SessionState::LoggedIn);
-    session.lifecycle.logout_time = Some(Instant::now() - Duration::from_secs(1));
+    session
+        .lifecycle
+        .set_logout_time_for_test_like_cpp(Some(Instant::now() - Duration::from_secs(1)));
 
     session.update(100).await;
 

@@ -152,8 +152,7 @@ async fn standalone_durability_repair_persists_before_runtime_publication_like_c
 
     session
         .inventory
-        .inventory_item_objects
-        .get_mut(&item_guid)
+        .inventory_item_object_mut_for_test_like_cpp(&item_guid)
         .unwrap()
         .set_durability(10);
     let failed_port = RecordingPortLikeCpp::new(PersistenceOutcomeLikeCpp::Failed {

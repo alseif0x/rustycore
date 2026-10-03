@@ -191,8 +191,7 @@ impl WorldSession {
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(resolve(
                 self.lifecycle
-                    .player_flags_test_fixture_like_cpp
-                    .represented_loaded_player_flags_like_cpp
+                    .represented_loaded_player_flags_for_test_like_cpp()
                     .unwrap_or(0),
                 &crate::session::hub_ref(self).player_rest_state_snapshot_like_cpp()?,
             ));
@@ -204,8 +203,7 @@ impl WorldSession {
         self.resolved_player_flags_for_rest_state_save_like_cpp()
             .unwrap_or_else(|| {
                 self.lifecycle
-                    .player_flags_test_fixture_like_cpp
-                    .represented_loaded_player_flags_like_cpp
+                    .represented_loaded_player_flags_for_test_like_cpp()
                     .unwrap_or(0)
             })
     }

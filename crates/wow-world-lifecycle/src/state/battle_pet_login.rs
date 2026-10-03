@@ -6,6 +6,19 @@ use wow_world_core::session::{
 use super::SessionLifecycleState;
 
 impl SessionLifecycleState {
+    pub fn battle_pet_account_attachment_like_cpp(
+        &self,
+    ) -> Option<&wow_world_core::battle_pet_account::BattlePetAccountAttachmentLikeCpp> {
+        self.battle_pet_account_attachment_like_cpp.as_ref()
+    }
+
+    pub fn set_battle_pet_account_attachment_like_cpp(
+        &mut self,
+        attachment: wow_world_core::battle_pet_account::BattlePetAccountAttachmentLikeCpp,
+    ) {
+        self.battle_pet_account_attachment_like_cpp = Some(attachment);
+    }
+
     /// C++ login learns spell 125610 when battle-pet slot zero is unlocked.
     /// The account-wide owner is authoritative only after its complete load;
     /// isolated tests must explicitly publish the equivalent three-slot
@@ -14,7 +27,7 @@ impl SessionLifecycleState {
         &self,
         hub: HubRef<'_>,
     ) -> bool {
-        let slots = if let Some(attachment) = &self.battle_pet_account_attachment_like_cpp {
+        let slots = if let Some(attachment) = self.battle_pet_account_attachment_like_cpp() {
             attachment
                 .owner_like_cpp()
                 .journal_like_cpp(attachment.lease_id_like_cpp(), hub.core.player_guid())

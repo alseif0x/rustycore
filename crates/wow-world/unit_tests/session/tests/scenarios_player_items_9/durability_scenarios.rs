@@ -160,9 +160,7 @@ async fn repair_all_inventory_item_durability_uses_guild_bank_limit_like_cpp() {
     ])));
     session
         .inventory
-        .player_item_test_fixture_like_cpp
-        .inventory_items
-        .insert(
+        .insert_inventory_item_for_test_like_cpp(
             EQUIPMENT_SLOT_OFFHAND,
             InventoryItem {
                 guid: weapon_guid,
@@ -173,9 +171,7 @@ async fn repair_all_inventory_item_durability_uses_guild_bank_limit_like_cpp() {
         );
     session
         .inventory
-        .player_item_test_fixture_like_cpp
-        .inventory_items
-        .insert(
+        .insert_inventory_item_for_test_like_cpp(
             INVENTORY_SLOT_BAG_START,
             InventoryItem {
                 guid: bag_guid,
@@ -251,14 +247,12 @@ async fn repair_all_inventory_item_durability_uses_guild_bank_limit_like_cpp() {
 
     session
         .inventory
-        .inventory_item_objects
-        .get_mut(&weapon_guid)
+        .inventory_item_object_mut_for_test_like_cpp(&weapon_guid)
         .unwrap()
         .set_durability(0);
     session
         .inventory
-        .inventory_item_objects
-        .get_mut(&armor_guid)
+        .inventory_item_object_mut_for_test_like_cpp(&armor_guid)
         .unwrap()
         .set_durability(10);
     session.set_represented_guild_repair_bank_state_like_cpp(Some(
@@ -403,9 +397,7 @@ fn equip_durability_test_weapon_like_cpp(
     ));
     session
         .inventory
-        .player_item_test_fixture_like_cpp
-        .inventory_items
-        .insert(
+        .insert_inventory_item_for_test_like_cpp(
             EQUIPMENT_SLOT_MAINHAND,
             InventoryItem {
                 guid: weapon_guid,

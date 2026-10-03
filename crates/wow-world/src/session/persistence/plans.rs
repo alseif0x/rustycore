@@ -106,7 +106,10 @@ impl WorldSession {
     pub(crate) async fn begin_exclusive_player_money_persistence_like_cpp(
         &mut self,
     ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
-        let tracker = Arc::clone(&self.lifecycle.durable_loot_money_persistence_like_cpp);
+        let tracker = Arc::clone(
+            self.lifecycle
+                .durable_loot_money_persistence_tracker_like_cpp(),
+        );
         let save_fence = tracker.close_admission_for_save_like_cpp();
         tracker.wait_until_idle_like_cpp().await;
         if !self
@@ -140,7 +143,10 @@ impl WorldSession {
         let new_money = mutation(old_money);
 
         #[cfg(test)]
-        if let Some(success) = self.lifecycle.loot_money_persistence_test_result_like_cpp {
+        if let Some(success) = self
+            .lifecycle
+            .loot_money_persistence_test_result_like_cpp()
+        {
             if !success {
                 return None;
             }
@@ -222,7 +228,9 @@ impl WorldSession {
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return Some(wow_entities::PlayerPersistentCapabilityStateLikeCpp {
-                at_login_flags: self.lifecycle.represented_at_login_flags_like_cpp,
+                at_login_flags: self
+                    .lifecycle
+                    .represented_at_login_flags_for_test_like_cpp(),
                 weapon_proficiency: self
                     .fixtures
                     .progression
@@ -242,7 +250,8 @@ impl WorldSession {
     ) -> Option<R> {
         let mut state = self.player_persistent_capability_state_snapshot_like_cpp()?;
         let result = mutate(&mut state);
-        self.lifecycle.represented_at_login_flags_like_cpp = state.at_login_flags;
+        self.lifecycle
+            .set_represented_at_login_flags_for_test_like_cpp(state.at_login_flags);
         self.fixtures
             .progression
             .represented_weapon_proficiency_like_cpp = state.weapon_proficiency;

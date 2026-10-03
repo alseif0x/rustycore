@@ -4,6 +4,24 @@ use super::SessionLifecycleState;
 use crate::SessionPersistencePortsLikeCpp;
 
 impl SessionLifecycleState {
+    pub fn battle_pet_purchase_persistence_port_like_cpp(
+        &self,
+    ) -> Option<&Arc<dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp
+            .player
+            .battle_pet_purchase
+            .as_ref()
+    }
+
+    pub fn session_account_state_port_like_cpp(
+        &self,
+    ) -> Option<&Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>> {
+        self.persistence_ports_like_cpp
+            .admission
+            .session_account_state
+            .as_ref()
+    }
+
     pub fn set_session_account_state_port_like_cpp(
         &mut self,
         port: Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>,
@@ -316,5 +334,85 @@ impl SessionLifecycleState {
         &self,
     ) -> Option<Arc<dyn wow_persistence::InstanceLockPersistencePortLikeCpp>> {
         self.persistence_ports_like_cpp.player.instance_lock.clone()
+    }
+
+    pub fn set_battle_pet_purchase_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.player.battle_pet_purchase = Some(port);
+    }
+
+    pub fn quest_poi_persistence_port_like_cpp(
+        &self,
+    ) -> Option<&Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.catalogs.quest_poi.as_ref()
+    }
+
+    pub fn set_quest_poi_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.catalogs.quest_poi = Some(port);
+    }
+
+    pub fn player_spell_acquisition_persistence_port_like_cpp(
+        &self,
+    ) -> Option<&Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp
+            .player
+            .player_spell_acquisition
+            .as_ref()
+    }
+
+    pub fn set_player_spell_acquisition_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.player.player_spell_acquisition = Some(port);
+    }
+
+    pub fn group_loot_money_persistence_port_like_cpp(
+        &self,
+    ) -> Option<&Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.world.group_loot_money.as_ref()
+    }
+
+    pub fn set_group_loot_money_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.world.group_loot_money = Some(port);
+    }
+
+    pub fn stored_item_money_persistence_port_like_cpp(
+        &self,
+    ) -> Option<&Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.player.stored_item_money.as_ref()
+    }
+
+    pub fn set_stored_item_money_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.player.stored_item_money = Some(port);
+    }
+
+    pub fn item_template_addon_catalog_persistence_port_like_cpp(
+        &self,
+    ) -> Option<&Arc<dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp
+            .catalogs
+            .item_template_addon_catalog
+            .as_ref()
+    }
+
+    pub fn set_item_template_addon_catalog_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp
+            .catalogs
+            .item_template_addon_catalog = Some(port);
     }
 }

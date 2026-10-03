@@ -367,11 +367,11 @@ pub(super) fn request(
     // yet. Rewriting every active quest here can delete objective rows that were not mapped
     // into represented state, so preserve them until that dirty tracking exists.
 
-    let tutorials = if session.lifecycle.tutorials_changed_like_cpp {
-        if session.lifecycle.tutorials_loaded_coherently_like_cpp {
+    let tutorials = if session.lifecycle.tutorials_changed_like_cpp() {
+        if session.lifecycle.tutorials_loaded_coherently_like_cpp() {
             Some(PlayerTutorialsSaveLikeCpp {
-                tutorials: session.lifecycle.tutorials_like_cpp,
-                already_persisted: session.lifecycle.tutorials_loaded_from_db_like_cpp,
+                tutorials: *session.lifecycle.tutorial_values_like_cpp(),
+                already_persisted: session.lifecycle.tutorials_loaded_from_db_like_cpp(),
             })
         } else {
             None

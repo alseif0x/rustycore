@@ -130,7 +130,10 @@ impl WorldSession {
     pub(in crate::session) async fn reconcile_durable_loot_money_before_save_like_cpp(
         &mut self,
     ) -> bool {
-        let tracker = Arc::clone(&self.lifecycle.durable_loot_money_persistence_like_cpp);
+        let tracker = Arc::clone(
+            self.lifecycle
+                .durable_loot_money_persistence_tracker_like_cpp(),
+        );
         tracker.wait_until_idle_like_cpp().await;
         let completions = tracker.pending_completions_like_cpp();
         for completion in completions {
@@ -237,16 +240,17 @@ impl crate::session::LootCxRef<'_> {
         &self,
     ) -> Option<Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>> {
         self.lifecycle
-            .persistence_ports_like_cpp
-            .world
-            .group_loot_money
-            .clone()
+            .group_loot_money_persistence_port_like_cpp()
+            .cloned()
     }
 
     pub(crate) fn durable_loot_money_persistence_tracker_like_cpp(
         &self,
     ) -> Arc<DurableLootMoneyPersistenceTrackerLikeCpp> {
-        Arc::clone(&self.lifecycle.durable_loot_money_persistence_like_cpp)
+        Arc::clone(
+            self.lifecycle
+                .durable_loot_money_persistence_tracker_like_cpp(),
+        )
     }
 }
 
@@ -266,9 +270,7 @@ impl crate::session::LootCx<'_> {
         port: Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>,
     ) {
         self.lifecycle
-            .persistence_ports_like_cpp
-            .world
-            .group_loot_money = Some(port);
+            .set_group_loot_money_persistence_port_like_cpp(port);
     }
 }
 

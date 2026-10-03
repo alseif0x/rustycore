@@ -130,5 +130,3 @@ mod quest;
 mod skill;
 #[path = "character_tests/spell.rs"]
 mod spell;
-#[path = "character_tests/visibility.rs"]
-mod visibility;

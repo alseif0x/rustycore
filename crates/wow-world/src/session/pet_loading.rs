@@ -127,12 +127,10 @@ impl crate::session::PetsCx<'_> {
         let loaded = spells.len();
         if loaded == 0 {
             self.lifecycle
-                .pet_load_query_holder_rows_like_cpp
-                .remove_spells_for_pet_number(pet_number);
+                .pet_load_remove_spells_for_pet_number_like_cpp(pet_number);
         } else {
             self.lifecycle
-                .pet_load_query_holder_rows_like_cpp
-                .insert_spells_for_pet_number(pet_number, spells);
+                .pet_load_insert_spells_for_pet_number_like_cpp(pet_number, spells);
         }
         loaded
     }
@@ -157,12 +155,10 @@ impl crate::session::PetsCx<'_> {
         let loaded = cooldowns.len();
         if loaded == 0 {
             self.lifecycle
-                .pet_load_query_holder_rows_like_cpp
-                .remove_spell_cooldowns_for_pet_number(pet_number);
+                .pet_load_remove_spell_cooldowns_for_pet_number_like_cpp(pet_number);
         } else {
             self.lifecycle
-                .pet_load_query_holder_rows_like_cpp
-                .insert_spell_cooldowns_for_pet_number(pet_number, cooldowns);
+                .pet_load_insert_spell_cooldowns_for_pet_number_like_cpp(pet_number, cooldowns);
         }
         loaded
     }
@@ -192,12 +188,10 @@ impl crate::session::PetsCx<'_> {
         let loaded = charges.len();
         if loaded == 0 {
             self.lifecycle
-                .pet_load_query_holder_rows_like_cpp
-                .remove_spell_charges_for_pet_number(pet_number);
+                .pet_load_remove_spell_charges_for_pet_number_like_cpp(pet_number);
         } else {
             self.lifecycle
-                .pet_load_query_holder_rows_like_cpp
-                .insert_spell_charges_for_pet_number(pet_number, charges);
+                .pet_load_insert_spell_charges_for_pet_number_like_cpp(pet_number, charges);
         }
         loaded
     }
@@ -275,12 +269,10 @@ impl crate::session::PetsCx<'_> {
         let loaded = auras.len();
         if loaded == 0 {
             self.lifecycle
-                .pet_load_query_holder_rows_like_cpp
-                .remove_auras_for_pet_number(pet_number);
+                .pet_load_remove_auras_for_pet_number_like_cpp(pet_number);
         } else {
             self.lifecycle
-                .pet_load_query_holder_rows_like_cpp
-                .insert_auras_for_pet_number(pet_number, auras);
+                .pet_load_insert_auras_for_pet_number_like_cpp(pet_number, auras);
         }
         loaded
     }
@@ -303,12 +295,10 @@ impl crate::session::PetsCx<'_> {
         let loaded = effects.len();
         if loaded == 0 {
             self.lifecycle
-                .pet_load_query_holder_rows_like_cpp
-                .remove_aura_effects_for_pet_number(pet_number);
+                .pet_load_remove_aura_effects_for_pet_number_like_cpp(pet_number);
         } else {
             self.lifecycle
-                .pet_load_query_holder_rows_like_cpp
-                .insert_aura_effects_for_pet_number(pet_number, effects);
+                .pet_load_insert_aura_effects_for_pet_number_like_cpp(pet_number, effects);
         }
         loaded
     }

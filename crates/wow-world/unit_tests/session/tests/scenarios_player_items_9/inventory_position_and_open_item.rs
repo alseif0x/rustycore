@@ -9,9 +9,7 @@ fn open_item_get_inventory_item_by_pos_resolves_top_level_like_cpp() {
     let top_guid = ObjectGuid::create_item(1, 900);
     session
         .inventory
-        .player_item_test_fixture_like_cpp
-        .inventory_items
-        .insert(
+        .insert_inventory_item_for_test_like_cpp(
             23,
             InventoryItem {
                 guid: top_guid,
@@ -37,9 +35,7 @@ fn open_item_get_inventory_item_by_pos_excludes_buyback_top_level_like_cpp() {
     let (mut session, _, _) = make_session();
     session
         .inventory
-        .player_item_test_fixture_like_cpp
-        .buyback_items
-        .insert(
+        .insert_buyback_item_for_test_like_cpp(
             BUYBACK_SLOT_START,
             InventoryItem {
                 guid: ObjectGuid::create_item(1, 901),
@@ -133,8 +129,7 @@ fn open_item_nested_item_preserves_top_level_bag_slot_and_inner_slot() {
 
     let child = session
         .inventory
-        .inventory_item_objects
-        .get(&child_guid)
+        .inventory_item_object_for_test_like_cpp(&child_guid)
         .unwrap();
     assert_eq!(child.container_guid(), bag_guid);
     assert_eq!(child.bag_slot(), INVENTORY_SLOT_BAG_START);
@@ -171,8 +166,7 @@ async fn open_item_wrapped_without_has_loot_does_not_generate_loot_like_cpp() {
     insert_open_item_top_level(&mut session, player_guid, 23, item_guid, 700, true);
     session
         .inventory
-        .inventory_item_objects
-        .get_mut(&item_guid)
+        .inventory_item_object_mut_for_test_like_cpp(&item_guid)
         .unwrap()
         .set_item_flag(ItemFieldFlags::WRAPPED);
 
@@ -185,8 +179,7 @@ async fn open_item_wrapped_without_has_loot_does_not_generate_loot_like_cpp() {
     assert!(
         session
             .inventory
-            .inventory_item_objects
-            .get(&item_guid)
+            .inventory_item_object_for_test_like_cpp(&item_guid)
             .is_some_and(|item| !item.loot_generated() && item.is_wrapped())
     );
 }

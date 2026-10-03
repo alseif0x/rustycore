@@ -15,10 +15,6 @@ pub(super) const ITEM_FLAGS_CU_IGNORE_QUEST_STATUS_LIKE_CPP: u32 = 0x0002;
 
 pub(super) const ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP: u32 = 0x0004;
 
-pub(super) const CONDITION_SOURCE_TYPE_ITEM_LOOT_TEMPLATE_LIKE_CPP: i32 = 5;
-
-pub(super) const CONDITION_SOURCE_TYPE_REFERENCE_LOOT_TEMPLATE_LIKE_CPP: i32 = 10;
-
 pub(super) const CONDITION_OBJECT_ENTRY_GUID_LIKE_CPP: i32 = 51;
 
 pub(super) const CONDITION_TYPE_MASK_LIKE_CPP: i32 = 52;
@@ -42,18 +38,9 @@ pub(super) fn normalize_item_money_loot_bounds_like_cpp(
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) struct WrappedGiftRow {
-    pub(super) entry: u32,
-    pub(super) flags: u32,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(super) enum WrappedGiftLoad {
-    Found(WrappedGiftRow),
-    Missing,
-    Unavailable,
-}
+pub(super) use wow_world_lifecycle::{
+    LootTemplateRow, LootTemplateTable, WrappedGiftLoad, WrappedGiftRow,
+};
 
 #[cfg(test)]
 pub(super) fn apply_wrapped_gift_transform_like_cpp(
@@ -70,16 +57,6 @@ pub(super) fn apply_wrapped_gift_transform_like_cpp(
     item.set_max_durability(max_durability);
     item.set_state(ItemUpdateState::Changed);
     durability
-}
-
-pub(super) fn stored_loot_item_should_persist_like_cpp(
-    template_exists: bool,
-    bag_family: BagFamilyMask,
-) -> bool {
-    if !template_exists {
-        return false;
-    }
-    !bag_family.contains(BagFamilyMask::CURRENCY_TOKENS)
 }
 
 pub(super) fn roll_chance_with_rate_like_cpp<R: Rng + ?Sized>(
@@ -219,33 +196,6 @@ where
     }
 }
 
-pub(super) fn stored_item_row_can_load_like_cpp_representable(
-    item_id: u32,
-    count: u32,
-    item_index: u32,
-    blocked: bool,
-    _needs_quest: bool,
-    _random_properties_id: i32,
-    _random_properties_seed: i32,
-    _context: u8,
-    item_exists: bool,
-) -> bool {
-    item_id != 0 && item_exists && count != 0 && item_index <= u32::from(u8::MAX) && !blocked
-}
-
-#[derive(Debug, Clone)]
-pub(super) struct LootTemplateRow {
-    pub(super) item_id: u32,
-    pub(super) reference: u32,
-    pub(super) chance: f32,
-    pub(super) needs_quest: bool,
-    pub(super) loot_mode: u16,
-    pub(super) group_id: u8,
-    pub(super) min_count: u8,
-    pub(super) max_count: u8,
-    pub(super) conditions: Vec<LootConditionRowLikeCpp>,
-}
-
 #[derive(Debug)]
 pub(super) struct LootTemplateFrame {
     pub(super) rows: Vec<LootTemplateRow>,
@@ -337,28 +287,6 @@ pub(super) fn player_team_for_race_cpp_representable(race: u8) -> u32 {
     match race {
         2 | 5 | 6 | 8 | 9 | 10 => 67,
         _ => 469,
-    }
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(super) enum LootTemplateTable {
-    Item,
-    Reference,
-}
-
-impl LootTemplateTable {
-    pub(super) fn name(self) -> &'static str {
-        match self {
-            Self::Item => "item_loot_template",
-            Self::Reference => "reference_loot_template",
-        }
-    }
-
-    pub(super) fn condition_source_type_like_cpp(self) -> i32 {
-        match self {
-            Self::Item => CONDITION_SOURCE_TYPE_ITEM_LOOT_TEMPLATE_LIKE_CPP,
-            Self::Reference => CONDITION_SOURCE_TYPE_REFERENCE_LOOT_TEMPLATE_LIKE_CPP,
-        }
     }
 }
 

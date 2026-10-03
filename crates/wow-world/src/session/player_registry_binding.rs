@@ -99,7 +99,10 @@ impl WorldSession {
                     &self.core.flags.visibility_refresh_pending_like_cpp,
                 ),
             },
-            Arc::clone(&self.lifecycle.durable_loot_money_persistence_like_cpp),
+            Arc::clone(
+                self.lifecycle
+                    .durable_loot_money_persistence_tracker_like_cpp(),
+            ),
         );
         // Production already has the canonical Player before publication. The
         // explicit owner-installing test harness creates it while registering,

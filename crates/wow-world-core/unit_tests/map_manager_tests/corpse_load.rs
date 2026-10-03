@@ -1,9 +1,9 @@
-//! Visibility scenarios for [`super`].
-//!
-//! Split out of character_tests.rs under #628; assertions and
-//! registrations are unchanged and shared fixtures stay in the parent module.
+use std::collections::{BTreeSet, HashMap};
 
 use super::*;
+use wow_core::guid::HighGuid;
+use wow_core::{ObjectGuid, Position};
+use wow_entities::{CorpseCustomizationChoice, CorpseType};
 
 #[test]
 fn map_corpse_loader_applies_persisted_phases_and_customizations_once_like_cpp() {

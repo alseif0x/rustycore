@@ -65,10 +65,8 @@ impl crate::session::QuestStateCxRef<'_> {
         &self,
     ) -> Option<Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>> {
         self.lifecycle
-            .persistence_ports_like_cpp
-            .catalogs
-            .quest_poi
-            .clone()
+            .quest_poi_persistence_port_like_cpp()
+            .cloned()
     }
 }
 
@@ -77,6 +75,6 @@ impl crate::session::QuestStateCx<'_> {
         &mut self,
         port: Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>,
     ) {
-        self.lifecycle.persistence_ports_like_cpp.catalogs.quest_poi = Some(port);
+        self.lifecycle.set_quest_poi_persistence_port_like_cpp(port);
     }
 }

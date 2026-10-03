@@ -842,10 +842,10 @@ async fn periodic_player_save_defers_while_teleport_pending_like_cpp() {
         .await;
 
     assert!(
-        session.lifecycle.pending_periodic_player_save_like_cpp,
+        session.lifecycle.pending_periodic_player_save_like_cpp(),
         "autosave remains pending until the teleport handshake clears"
     );
-    assert_eq!(session.lifecycle.next_player_save_ms_like_cpp, 0);
+    assert_eq!(session.lifecycle.next_player_save_ms_like_cpp(), 0);
 }
 #[test]
 fn player_currency_remove_and_save_state_match_cpp() {
@@ -855,7 +855,7 @@ fn player_currency_remove_and_save_state_match_cpp() {
         currency_entry(396),
         currency_entry(397),
     ])));
-    session.inventory.player_currencies.insert(
+    session.inventory.insert_player_currency_for_test_like_cpp(
         395,
         PlayerCurrency {
             state: PlayerCurrencyState::Unchanged,
@@ -867,7 +867,7 @@ fn player_currency_remove_and_save_state_match_cpp() {
             flags: 9,
         },
     );
-    session.inventory.player_currencies.insert(
+    session.inventory.insert_player_currency_for_test_like_cpp(
         396,
         PlayerCurrency {
             state: PlayerCurrencyState::New,
@@ -879,7 +879,7 @@ fn player_currency_remove_and_save_state_match_cpp() {
             flags: 0,
         },
     );
-    session.inventory.player_currencies.insert(
+    session.inventory.insert_player_currency_for_test_like_cpp(
         397,
         PlayerCurrency {
             state: PlayerCurrencyState::Unchanged,
@@ -897,8 +897,7 @@ fn player_currency_remove_and_save_state_match_cpp() {
     assert_eq!(
         session
             .inventory
-            .player_currencies
-            .get(&395)
+            .player_currency_for_test_like_cpp(&395)
             .map(|currency| currency.state),
         Some(PlayerCurrencyState::Changed)
     );
@@ -913,24 +912,21 @@ fn player_currency_remove_and_save_state_match_cpp() {
     assert_eq!(
         session
             .inventory
-            .player_currencies
-            .get(&395)
+            .player_currency_for_test_like_cpp(&395)
             .map(|currency| currency.state),
         Some(PlayerCurrencyState::Unchanged)
     );
     assert_eq!(
         session
             .inventory
-            .player_currencies
-            .get(&396)
+            .player_currency_for_test_like_cpp(&396)
             .map(|currency| currency.state),
         Some(PlayerCurrencyState::Unchanged)
     );
     assert_eq!(
         session
             .inventory
-            .player_currencies
-            .get(&397)
+            .player_currency_for_test_like_cpp(&397)
             .map(|currency| currency.state),
         Some(PlayerCurrencyState::Unchanged)
     );

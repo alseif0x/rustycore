@@ -1457,6 +1457,121 @@ La revisión detectó 17 APIs fixture todavía ausentes tras adaptar esos consum
 se completan en el módulo privado gated `fixtures.rs`. La lectura posterior encuentra
 un proveedor único para cada nueva llamada, con los mismos push/extend y préstamos.
 Esto cierra ese hallazgo de fuente, sin sustituir compilación ni aceptación.
+El corte queda guardado en `9e001cc1b9d2c0c417d7269285435df3676eeb10`, con 177
+archivos y árbol limpio al commit de las 05:34:01 UTC. Es checkpoint local
+explícitamente **NO VALIDADO**; R1, la campaña ordinaria de 600 s, aceptación del
+macro y gates F5–F6 conservan su estado pendiente.
+El acceso de carga de void storage se cierra después con una inserción fixture
+concreta por slot y item prestado. Conserva guard de owner, indexación, rechazo de
+slot ocupado/id repetido y un único clon; `AddItemAppearance` sigue después del
+éxito. `Player.cpp:18334–18373` de `a5f8da2eb` contiene `_LoadVoidStorage`: el
+C++ asigna el slot tras sus guards, mientras el fallback Rust previo rechaza
+ocupación/duplicado; esa diferencia se conserva y necesita contrato/evidencia F6.
+Runtime traslada otros cinco métodos Lifecycle (124/145 escritos, 21 pendientes)
+y las dos constantes literales de AntiDOS a su consumidor único. Los cuerpos
+conservan canales, callback, paquete tutorial, reloj y requeue según resultado;
+el enum de fase usa su proveedor Core. Se corrigen las anclas del timer a
+`WorldSession.cpp:505–511`, manteniendo el orden de packet loop/callbacks/decisión.
+Este corte sigue **NO VALIDADO** y no acredita equivalencia de COMMIT/cancelación
+con el C++ síncrono ni aceptación de lifecycle live.
+El corte de commit traslada otros dos métodos a `state/money_persistence.rs`:
+126/145 originales escritos y 19 pendientes. Conserva guard, clone del puerto,
+transacción, await y retorno del guard de exclusión; el shortcut y tombstones
+mantienen su gate de fixtures. El símbolo target localizado es
+`WorldSession::HandleTrainerBuySpellOpcode` en `NPCHandler.cpp:132`, no el nombre
+`SpellHandler::HandleTrainerBuySpell` de la asignación inicial. El traslado de
+fuente no demuestra por sí mismo la equivalencia completa de compra/COMMIT.
+Inventory cierra los 78 accesos cualificados de 16 fixtures de sesión mediante
+16 operaciones gated por clave, slot, valor o slice. Conserva los préstamos de
+item/currency, el retorno de insert y el acceso `HashMap[index]`; no añade clones
+ni mapas mutables públicos. La comparación de fuente mantiene 208 nombres de
+función y 1.024 macros de aserción en esos archivos. La lectura actual de campos
+declarados no encuentra accesos `.inventory.<campo privado>` en World src ni
+unit_tests; es cierre léxico acotado, no prueba compilada de todos los aliases.
+Tutorials cierra 18 accesos en cuatro archivos World y añade nueve operaciones
+acotadas entre `state/account.rs` y `state/persistence_ports.rs`. El reset conserva
+sus cuatro asignaciones antes del puerto/await; set-int conserva índice y dirty
+solo por cambio. Proyección/ACK permanecen World con snapshot, grupos, guards y
+fences; solo limpian dirty cuando el array actual coincide con el confirmado.
+El puerto mantiene una sola copia de Arc. Todo sigue **NO VALIDADO**, sin ejecutar
+Cargo, suites ni aceptación, y los restantes consumidores/fixtures Lifecycle
+continúan dentro del macro autorizado.
+La carga auxiliar traslada seis métodos a `state/login_load.rs`: achievements y
+su fixture, toys/heirlooms, glyphs y action buttons. Los seis cuerpos conservan
+la fuente original, incluidos vaciado, resultado inesperado, loaded flags y
+orden de carga; la fixture conserva test/test-fixtures. Group traslada un método
+y su converter de once variantes a `state/group.rs`; la dificultad de instancia
+y tests existentes usan la fachada World del mismo proveedor. Se gana la arista
+normal Lifecycle → `wow-social`, crate inferior, por el intent tipado actual.
+La metadata de esa arista se incorpora manualmente a Cargo.lock y a la allowlist
+de dependencias, sin añadir paquetes, cambiar versiones ni ampliar techos. Las
+dos pruebas puras del converter Group conservan cuerpos y aserciones en
+`wow-world-lifecycle/unit_tests/group_mapping.rs`, montadas con `cfg(test)`.
+La carga de cadáveres mueve un método a `state/corpses.rs` y conserva la
+comprobación bajo lock, su liberación antes del await del puerto y la segunda
+adquisición para materializar. Core mantiene un único proveedor de los dos DTOs
+y los dos helpers, con fachada nombrada World; conserva el consumo del GUID antes
+de rechazar coordenadas y la marca loaded después del bucle. La prueba pura
+conserva su cuerpo en `wow-world-core/unit_tests/map_manager_tests/corpse_load.rs`.
+Los anchors consultados son `Map::LoadCorpseData` (`Map.cpp:3623–3705`) y
+`Corpse::LoadCorpseFromDB` (`Corpse.cpp:181–234`); esto no demuestra equivalencia
+async por sí solo. El bootstrap traslada sus dos métodos a `state/bootstrap.rs`
+con el gate de fixtures explícito y conserva sus cuerpos. Core mantiene los
+proveedores únicos del selector de poder y de `default_display_id`; World
+conserva solo la fachada requerida para el segundo. Sus veinte combinaciones y
+fallback 49 siguen iguales, sin afirmar que coincidan con los datos `ChrRaces`.
+Los veinte accesos al pet-load holder en cuatro consumidores World pasan por
+operaciones tipadas por familia/número, conservando préstamos y los clones ya
+existentes. El holder conserva sus seis mapas privados. Los ocho accesos del
+coordinador de rename pasan por forwards tipados, manteniendo los resultados
+prestados, conteos, admisión, enqueue/poll y drain de sus handles; la entrega
+y los kicks permanecen en el coordinador World.
+Otros once accesos a puertos y tres al tracker de objetos se cierran mediante
+getters/setters tipados y delegates de begin/wait/take. Las fachadas conservan
+una clonación por getter y los guards/await originales. Diez accesos del flujo
+de conexión/logout usan las operaciones existentes y un setter literal de
+loading: limpiar timer antes del ACK, loading antes de liberar claim y loading
+antes de sincronizar visibilidad. La fábrica lazy y el único worker FIFO de
+homebind pasan a `state/homebind.rs`; conserva recepción, await, clasificación,
+warnings y envío, con el mismo `SendError<Job>`. World mantiene guards y request
+antes de llamar a esa cola (`Player::SetHomebind`, `Player.cpp:17023–17038`).
+Las quince fixtures de Lifecycle migran 74 accesos directos mediante doce APIs
+acotadas de fixture y getters normales. Las seis consultas de vacío examinan
+los mapas completos del holder; no sustituyen vacío global por ausencia de una
+clave ni exponen mapas. Account-data conserva el préstamo por índice, los
+timestamps crudos y el retiro específico del puerto. La comparación de fuente
+conserva 196 nombres de función y 808 macros de aserción en el mismo orden.
+Esto no acredita compilación, ejecución ni paridad de esas pruebas.
+Los nueve métodos restantes de persistencia de spell se trasladan a
+`state/stored_item_loot.rs`. Sus cuerpos y los de las dos pruebas puras de
+helpers conservan la fuente original; las pruebas se montan fuera de `src`.
+Cuatro DTOs salen mediante exports nombrados en State y el root, manteniendo
+privado el módulo de contratos; los dos helpers quedan internos al crate.
+World conserva las fachadas con consumidores reales y retira los imports
+que quedaron sin uso. Lifecycle alcanza **145/145 originales escritos**.
+Los diecisiete accesos restantes a flags, at-login y customizations se cierran
+con operaciones crudas gated: el reset mantiene None/None/false, el registro
+mantiene un push y el lector mantiene un slice prestado. El módulo fixture
+queda en veinte APIs ganadas; se retiran dos propuestas que no tenían consumidor.
+La lectura de campos declarados no encuentra accesos cualificados
+`.lifecycle.<campo privado>` en World src ni unit_tests. No demuestra el cierre
+de todos los aliases ni la resolución compilada de providers y montajes.
+Sigue **NO VALIDADO**, sin ejecución de Cargo/suites ni cierre del macro.
+La revisión acotada de exports nombrados de Inventory y Lifecycle encuentra
+providers únicos, visibilidad y gates compatibles por fuente; no equivale a
+resolución compilada. La preparación de tests independientes de los nueve
+dominios conserva los cinco cuerpos puros trasladados (grupo: dos, corpse: uno,
+stored-item loot: dos). No identifica otros cuerpos World trasladables intactos:
+las pruebas de sesión, mapa, ownership y transporte permanecen en sus seams.
+Interaction, Loot, Entities y Spell ya contienen familias puras locales; no se
+añaden pruebas espejo de getters para aparentar cobertura. Falta contrastar en
+aceptación el conjunto ejecutado, sus gates y la composición de producción.
+La revisión de los exports Inventory detecta un provider perdido durante la
+extracción: `item_storage_fields_values_update_like_cpp` tenía fachada y callers,
+pero ninguna definición. Se recupera en `publication.rs` desde `b7a6b7a43^`, con
+cuerpo literal idéntico, incluidos bits/máscara y el único clone original.
+World conserva su fachada y la regresión de banco/enchant integrada; no se
+modifican bytes ni se acredita que esa regresión haya vuelto a ejecutarse.
 
 El scanner ya incorpora los roots y roles de Loot, Entities, Inventory y
 Lifecycle. Se extienden las pruebas existentes de montaje y de rechazo de

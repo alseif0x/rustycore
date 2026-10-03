@@ -287,9 +287,7 @@ pub(in crate::session::tests) fn insert_open_item_bag_with_child(
     let bag_guid = ObjectGuid::create_item(1, 1001);
     session
         .inventory
-        .player_item_test_fixture_like_cpp
-        .inventory_items
-        .insert(
+        .insert_inventory_item_for_test_like_cpp(
             bag_slot,
             InventoryItem {
                 guid: bag_guid,
@@ -398,9 +396,7 @@ pub(in crate::session::tests) fn insert_open_item_top_level(
 ) {
     session
         .inventory
-        .player_item_test_fixture_like_cpp
-        .inventory_items
-        .insert(
+        .insert_inventory_item_for_test_like_cpp(
             slot,
             InventoryItem {
                 guid: item_guid,
@@ -445,8 +441,7 @@ pub(in crate::session::tests) async fn assert_open_item_nested_has_loot_opens_wi
     assert!(
         session
             .inventory
-            .inventory_item_objects
-            .get(&child_guid)
+            .inventory_item_object_for_test_like_cpp(&child_guid)
             .is_some_and(|item| item.loot_generated())
     );
 }
@@ -461,8 +456,7 @@ pub(in crate::session::tests) fn assert_open_item_release_destroy_nested_item_le
         insert_open_item_bag_with_child(&mut session, player_guid, bag_slot, 5);
     let child = session
         .inventory
-        .inventory_item_objects
-        .get(&child_guid)
+        .inventory_item_object_for_test_like_cpp(&child_guid)
         .unwrap();
     let child_bag = child.bag_slot();
     let child_slot = child.slot();
@@ -480,22 +474,18 @@ pub(in crate::session::tests) fn assert_open_item_release_destroy_nested_item_le
     assert!(
         !session
             .inventory
-            .inventory_item_objects
-            .contains_key(&child_guid)
+            .inventory_item_object_contains_for_test_like_cpp(&child_guid)
     );
     assert!(
         session
             .inventory
-            .player_item_test_fixture_like_cpp
-            .inventory_items
-            .contains_key(&bag_slot)
+            .inventory_item_slot_contains_for_test_like_cpp(&bag_slot)
     );
     assert_eq!(
         session
-            .inventory
-            .player_item_test_fixture_like_cpp
-            .inventory_items[&bag_slot]
-            .guid,
+        .inventory
+        .inventory_item_at_slot_for_test_like_cpp(&bag_slot)
+        .guid,
         bag_guid
     );
 }

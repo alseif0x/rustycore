@@ -1,4 +1,6 @@
 use std::sync::Arc;
+#[cfg(any(test, feature = "test-fixtures"))]
+use std::collections::BTreeSet;
 
 use super::SessionLifecycleState;
 use crate::{
@@ -7,8 +9,78 @@ use crate::{
 };
 use tracing::warn;
 use wow_world_core::session::HubMut;
+#[cfg(any(test, feature = "test-fixtures"))]
+use wow_world_core::session::HubRef;
 
 impl SessionLifecycleState {
+    pub fn durable_loot_money_persistence_tracker_like_cpp(
+        &self,
+    ) -> &Arc<wow_world_core::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp> {
+        &self.durable_loot_money_persistence_like_cpp
+    }
+
+    pub fn reset_durable_loot_money_persistence_tracker_like_cpp(&mut self) {
+        self.durable_loot_money_persistence_like_cpp = Arc::new(
+            wow_world_core::loot_persistence::DurableLootMoneyPersistenceTrackerLikeCpp::default(),
+        );
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn loot_money_persistence_test_result_like_cpp(&self) -> Option<bool> {
+        self.loot_money_persistence_test_result_like_cpp
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn set_loot_money_persistence_test_result_like_cpp(&mut self, value: Option<bool>) {
+        self.loot_money_persistence_test_result_like_cpp = value;
+    }
+
+    /// Commit a trainer fee when the represented cast has no durable
+    /// spell/skill mutation (for example, every acquisition effect was
+    /// suppressed by target immunity). C++ charges and publishes its trainer
+    /// visuals before that triggered cast resolves its hit effects.
+    pub async fn commit_exclusive_trainer_money_only_like_cpp(
+        &mut self,
+        hub: &mut HubMut<'_>,
+        money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
+        money_before: u64,
+        money_after: u64,
+    ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if let Some(success) = self.loot_money_persistence_test_result_like_cpp {
+            return success.then_some(money_persistence);
+        }
+
+        if money_before == money_after {
+            return Some(money_persistence);
+        }
+        let guid = hub.core.player_guid()?.counter() as u64;
+        let port = self.player_lifecycle_port_like_cpp().map(Arc::clone)?;
+        let request = wow_persistence::PlayerMoneyTransactionRequestLikeCpp {
+            player_guid: guid,
+            money_after,
+            durability_repairs: Vec::new(),
+        };
+        self.await_exclusive_player_money_transaction_outcome_like_cpp(
+            hub,
+            money_persistence,
+            port.persist_money_transaction_like_cpp(request),
+            money_before,
+            money_after,
+            "trainer fee without durable acquisition mutation",
+        )
+        .await
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn player_skill_non_durable_tombstones_like_cpp(
+        &self,
+        hub: HubRef<'_>,
+    ) -> BTreeSet<u16> {
+        hub.resolved_player_skill_non_durable_tombstones_like_cpp()
+            .expect("test Player skill owner must resolve")
+    }
+
     /// Await a typed adapter transaction while the cancellation fence and the
     /// Session-owned money exclusion remain active. The adapter observes the
     /// durable money marker; Session owns reconciliation and quarantine.

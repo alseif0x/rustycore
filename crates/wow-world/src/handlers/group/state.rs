@@ -3,6 +3,7 @@
 //! Separated from the group.rs root under #662. Behaviour is preserved.
 
 use super::*;
+pub(crate) use wow_world_lifecycle::group_persistence_command_like_cpp;
 
 pub(super) const PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP: Duration = Duration::from_millis(250);
 
@@ -619,112 +620,5 @@ pub(super) async fn queue_visible_gameobjects_or_spellclicks_refresh_like_cpp(
                 "failed to queue visible gameobject refresh command"
             ),
         }
-    }
-}
-
-/// Application mapping from the database-neutral commands emitted by
-/// `GroupRegistry` to the SQLx-free persistence vocabulary. The vector order
-/// remains the order selected by the aggregate and no registry guard survives
-/// into adapter execution.
-pub(crate) fn group_persistence_command_like_cpp(
-    intent: GroupPersistenceIntentLikeCpp,
-) -> RepresentedGroupPersistenceCommandLikeCpp {
-    match intent {
-        GroupPersistenceIntentLikeCpp::InsertGroup {
-            db_store_id,
-            leader_guid,
-            loot_method,
-            looter_guid,
-            loot_threshold,
-            group_flags,
-            dungeon_difficulty_id,
-            raid_difficulty_id,
-            legacy_raid_difficulty_id,
-            master_looter_guid,
-        } => RepresentedGroupPersistenceCommandLikeCpp::InsertGroup {
-            db_store_id,
-            leader_guid: leader_guid.counter() as u64,
-            loot_method,
-            looter_guid: looter_guid.counter() as u64,
-            loot_threshold,
-            group_flags,
-            dungeon_difficulty_id,
-            raid_difficulty_id,
-            legacy_raid_difficulty_id,
-            master_looter_guid: master_looter_guid.counter() as u64,
-        },
-        GroupPersistenceIntentLikeCpp::InsertMember {
-            db_store_id,
-            member_guid,
-            member_flags,
-            subgroup,
-            roles,
-        } => RepresentedGroupPersistenceCommandLikeCpp::InsertMember {
-            db_store_id,
-            member_guid: member_guid.counter() as u64,
-            member_flags,
-            subgroup,
-            roles,
-        },
-        GroupPersistenceIntentLikeCpp::DeleteGroup { db_store_id } => {
-            RepresentedGroupPersistenceCommandLikeCpp::DeleteGroup { db_store_id }
-        }
-        GroupPersistenceIntentLikeCpp::DeleteAllMembers { db_store_id } => {
-            RepresentedGroupPersistenceCommandLikeCpp::DeleteAllMembers { db_store_id }
-        }
-        GroupPersistenceIntentLikeCpp::DeleteLfgData { db_store_id } => {
-            RepresentedGroupPersistenceCommandLikeCpp::DeleteLfgData { db_store_id }
-        }
-        GroupPersistenceIntentLikeCpp::DeleteMember { member_guid } => {
-            RepresentedGroupPersistenceCommandLikeCpp::DeleteMember {
-                member_guid: member_guid.counter() as u64,
-            }
-        }
-        GroupPersistenceIntentLikeCpp::UpdateLeader {
-            db_store_id,
-            leader_guid,
-        } => RepresentedGroupPersistenceCommandLikeCpp::UpdateLeader {
-            db_store_id,
-            leader_guid: leader_guid.counter() as u64,
-        },
-        GroupPersistenceIntentLikeCpp::UpdateGroupType {
-            db_store_id,
-            group_flags,
-        } => RepresentedGroupPersistenceCommandLikeCpp::UpdateGroupType {
-            db_store_id,
-            group_flags,
-        },
-        GroupPersistenceIntentLikeCpp::UpdateMemberSubgroup {
-            member_guid,
-            subgroup,
-        } => RepresentedGroupPersistenceCommandLikeCpp::UpdateMemberSubgroup {
-            member_guid: member_guid.counter() as u64,
-            subgroup,
-        },
-        GroupPersistenceIntentLikeCpp::UpdateMemberFlags { member_guid, flags } => {
-            RepresentedGroupPersistenceCommandLikeCpp::UpdateMemberFlags {
-                member_guid: member_guid.counter() as u64,
-                flags,
-            }
-        }
-        GroupPersistenceIntentLikeCpp::UpdateDifficulty {
-            db_store_id,
-            kind,
-            difficulty_id,
-        } => RepresentedGroupPersistenceCommandLikeCpp::UpdateDifficulty {
-            db_store_id,
-            kind: match kind {
-                wow_social::group::GroupDifficultyKindLikeCpp::Dungeon => {
-                    RepresentedGroupDifficultyKindLikeCpp::Dungeon
-                }
-                wow_social::group::GroupDifficultyKindLikeCpp::Raid => {
-                    RepresentedGroupDifficultyKindLikeCpp::Raid
-                }
-                wow_social::group::GroupDifficultyKindLikeCpp::LegacyRaid => {
-                    RepresentedGroupDifficultyKindLikeCpp::LegacyRaid
-                }
-            },
-            difficulty_id,
-        },
     }
 }

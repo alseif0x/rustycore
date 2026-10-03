@@ -18,6 +18,49 @@ use crate::{
 use crate::RepresentedAtLoginFlagRemovalLikeCpp;
 
 impl SessionLifecycleState {
+    pub fn tutorial_values_like_cpp(&self) -> &[u32; 8] {
+        &self.tutorials_like_cpp
+    }
+
+    pub fn tutorials_changed_like_cpp(&self) -> bool {
+        self.tutorials_changed_like_cpp
+    }
+
+    pub fn tutorials_loaded_coherently_like_cpp(&self) -> bool {
+        self.tutorials_loaded_coherently_like_cpp
+    }
+
+    pub fn tutorials_loaded_from_db_like_cpp(&self) -> bool {
+        self.tutorials_loaded_from_db_like_cpp
+    }
+
+    pub fn set_tutorials_changed_like_cpp(&mut self, changed: bool) {
+        self.tutorials_changed_like_cpp = changed;
+    }
+
+    pub fn set_tutorials_loaded_from_db_like_cpp(&mut self, loaded: bool) {
+        self.tutorials_loaded_from_db_like_cpp = loaded;
+    }
+
+    pub fn begin_tutorials_load_like_cpp(&mut self) {
+        self.tutorials_like_cpp = [0; 8];
+        self.tutorials_loaded_from_db_like_cpp = false;
+        self.tutorials_loaded_coherently_like_cpp = false;
+        self.tutorials_changed_like_cpp = false;
+    }
+
+    pub fn set_tutorial_int_like_cpp(&mut self, index: usize, value: u32) -> bool {
+        let Some(current) = self.tutorials_like_cpp.get_mut(index) else {
+            return false;
+        };
+
+        if *current != value {
+            *current = value;
+            self.tutorials_changed_like_cpp = true;
+        }
+        true
+    }
+
     /// Mark the current character as offline (#200: through the lifecycle port).
     pub async fn mark_character_offline(
         &mut self,

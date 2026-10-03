@@ -9,8 +9,8 @@
 
 use super::{
     PARTY_REALM_COMMAND_TIMEOUT_LIKE_CPP, current_group_guid_like_cpp,
-    first_connected_group_member_like_cpp, group_persistence_command_like_cpp,
-    party_player_info_like_cpp, send_group_new_leader_like_cpp, send_party_update,
+    first_connected_group_member_like_cpp, party_player_info_like_cpp,
+    send_group_new_leader_like_cpp, send_party_update,
     send_ready_check_events_like_cpp, sender_can_start_ready_check_like_cpp,
 };
 use crate::session::directory::{

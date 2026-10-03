@@ -5,7 +5,7 @@
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
 use super::WorldSession;
-use super::{Arc, DurableLootMoneyPersistenceTrackerLikeCpp, ObjectGuid};
+use super::ObjectGuid;
 pub(in crate::session) use wow_world_core::session::PlayerIdentityBootstrapLikeCpp;
 
 #[derive(Debug, Clone)]
@@ -118,14 +118,7 @@ impl WorldSession {
                     .represented_rewarded_quest_rows_like_cpp
                     .clear();
                 self.lifecycle
-                    .player_flags_test_fixture_like_cpp
-                    .represented_loaded_player_flags_like_cpp = None;
-                self.lifecycle
-                    .player_flags_test_fixture_like_cpp
-                    .represented_loaded_player_flags_ex_like_cpp = None;
-                self.lifecycle
-                    .player_flags_test_fixture_like_cpp
-                    .represented_loaded_player_flags_applied_like_cpp = false;
+                    .reset_loaded_player_flags_fixture_for_test_like_cpp();
             }
             #[cfg(test)]
             self.social.clear_represented_guild_identity_for_test_like_cpp();
@@ -177,8 +170,8 @@ impl WorldSession {
             self.visibility.clear_observed_farsight_object_like_cpp();
             // Old registry clones remain permanently closed; a later character
             // selected on this authenticated session receives a fresh fence.
-            self.lifecycle.durable_loot_money_persistence_like_cpp =
-                Arc::new(DurableLootMoneyPersistenceTrackerLikeCpp::default());
+            self.lifecycle
+                .reset_durable_loot_money_persistence_tracker_like_cpp();
         }
     }
 

@@ -13,7 +13,7 @@ impl crate::session::PetsCx<'_> {
         pet_guid: ObjectGuid,
         slot: u8,
     ) -> bool {
-        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
+        let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() else {
             #[cfg(test)]
             return self.hub.battle_pet_set_battle_slot_like_cpp(pet_guid, slot);
             #[cfg(not(test))]

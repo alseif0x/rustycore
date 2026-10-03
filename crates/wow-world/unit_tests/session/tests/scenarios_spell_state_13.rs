@@ -593,9 +593,7 @@ fn login_pet_talent_reset_clears_pet_spells_and_specs_without_clearing_flag_like
     assert!(
         session
             .lifecycle
-            .pet_load_query_holder_rows_like_cpp
-            .spells
-            .is_empty(),
+            .pet_load_spells_are_empty_for_test_like_cpp(),
         "C++ deletes pet_spell rows for all pets owned by the player"
     );
     assert_eq!(
@@ -630,17 +628,13 @@ fn login_pet_talent_reset_clears_pet_spells_and_specs_without_clearing_flag_like
     assert!(
         !session
             .lifecycle
-            .pet_load_query_holder_rows_like_cpp
-            .spell_cooldowns
-            .is_empty(),
+            .pet_load_spell_cooldowns_are_empty_for_test_like_cpp(),
         "C++ AT_LOGIN_RESET_PET_TALENTS does not delete pet_spell_cooldown rows in this block"
     );
     assert!(
         !session
             .lifecycle
-            .pet_load_query_holder_rows_like_cpp
-            .spell_charges
-            .is_empty(),
+            .pet_load_spell_charges_are_empty_for_test_like_cpp(),
         "C++ AT_LOGIN_RESET_PET_TALENTS does not delete pet_spell_charges rows in this block"
     );
     assert_eq!(
@@ -797,9 +791,7 @@ fn load_represented_pet_spell_rows_filters_zero_spell_like_cpp() {
     assert_eq!(
         session
             .lifecycle
-            .pet_load_query_holder_rows_like_cpp
-            .spells
-            .get(&42)
+            .pet_load_spells_for_pet_number_like_cpp(42)
             .and_then(|spells| spells.first())
             .map(|spell| spell.spell_id),
         Some(123)
@@ -843,9 +835,7 @@ fn load_represented_pet_spell_cooldown_rows_filters_unknown_spell_like_cpp() {
     assert_eq!(
         session
             .lifecycle
-            .pet_load_query_holder_rows_like_cpp
-            .spell_cooldowns
-            .get(&42)
+            .pet_load_spell_cooldowns_for_pet_number_like_cpp(42)
             .and_then(|cooldowns| cooldowns.first())
             .map(|cooldown| cooldown.spell_id),
         Some(1_234)
@@ -895,9 +885,7 @@ fn load_represented_pet_spell_charge_rows_preserves_db_order_like_cpp() {
     assert_eq!(loaded, 2);
     let rows = session
         .lifecycle
-        .pet_load_query_holder_rows_like_cpp
-        .spell_charges
-        .get(&42)
+        .pet_load_spell_charges_for_pet_number_like_cpp(42)
         .expect("represented pet charge rows");
     assert_eq!(rows[0].recharge_end_unix_secs, 4);
     assert_eq!(rows[1].recharge_end_unix_secs, 6);

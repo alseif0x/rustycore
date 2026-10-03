@@ -571,7 +571,7 @@ fn player_currency_helpers_match_cpp_storage_lookup() {
     assert_eq!(session.player_currency_quantity(395), Some(0));
     assert!(!session.has_currency(395, 1));
 
-    session.inventory.player_currencies.insert(
+    session.inventory.insert_player_currency_for_test_like_cpp(
         395,
         PlayerCurrency {
             state: PlayerCurrencyState::Unchanged,
@@ -594,7 +594,7 @@ fn set_currency_flags_preserves_new_state_like_cpp() {
     session.set_currency_types_store(Arc::new(wow_data::CurrencyTypesStore::from_entries([
         currency_entry(395),
     ])));
-    session.inventory.player_currencies.insert(
+    session.inventory.insert_player_currency_for_test_like_cpp(
         395,
         PlayerCurrency {
             state: PlayerCurrencyState::New,
@@ -609,7 +609,7 @@ fn set_currency_flags_preserves_new_state_like_cpp() {
 
     assert!(session.represented_set_currency_flags_like_cpp(395, 0x04));
 
-    let currency = session.inventory.player_currencies.get(&395).unwrap();
+    let currency = session.inventory.player_currency_for_test_like_cpp(&395).unwrap();
     assert_eq!(currency.flags, 0x04);
     assert_eq!(currency.state, PlayerCurrencyState::New);
     assert_eq!(
@@ -631,7 +631,7 @@ fn player_currency_vendor_add_caps_and_marks_state_like_cpp() {
         },
         currency_entry(396),
     ])));
-    session.inventory.player_currencies.insert(
+    session.inventory.insert_player_currency_for_test_like_cpp(
         395,
         PlayerCurrency {
             state: PlayerCurrencyState::Unchanged,
@@ -655,8 +655,7 @@ fn player_currency_vendor_add_caps_and_marks_state_like_cpp() {
     assert_eq!(
         session
             .inventory
-            .player_currencies
-            .get(&395)
+            .player_currency_for_test_like_cpp(&395)
             .map(|currency| currency.state),
         Some(PlayerCurrencyState::Changed)
     );
@@ -666,8 +665,7 @@ fn player_currency_vendor_add_caps_and_marks_state_like_cpp() {
     assert_eq!(
         session
             .inventory
-            .player_currencies
-            .get(&396)
+            .player_currency_for_test_like_cpp(&396)
             .map(|currency| currency.state),
         Some(PlayerCurrencyState::New)
     );
@@ -680,7 +678,7 @@ async fn loot_money_consumes_only_current_active_loot_like_cpp() {
     let active_guid = test_creature_guid(19_001);
     let inactive_guid = test_creature_guid(19_002);
     session.set_player_guid(Some(player_guid));
-    session.inventory.player_gold = 100;
+    session.inventory.set_player_gold_for_test_like_cpp(100);
     session.loot.insert_cached_loot_for_owner_like_cpp(
         active_guid,
         CreatureLoot {
@@ -737,7 +735,7 @@ async fn loot_money_consumes_only_current_active_loot_like_cpp() {
     pkt.reset_read();
     session.handle_loot_money(pkt).await;
 
-    assert_eq!(session.inventory.player_gold, 137);
+    assert_eq!(session.inventory.player_gold_for_test_like_cpp(), 137);
     assert_eq!(session.loot.cached_loot_for_owner_like_cpp(active_guid).unwrap().coins, 0);
     assert_eq!(
         session.loot.cached_loot_for_owner_like_cpp(inactive_guid).unwrap().coins,

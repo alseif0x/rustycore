@@ -20,7 +20,7 @@ fn apply_player_session_visibility_detection_like_cpp(
 
 impl WorldSession {
     fn player_session_never_visible_for_seer_like_cpp(&self, guid: ObjectGuid) -> bool {
-        self.lifecycle.player_logout_like_cpp || self.lifecycle.player_loading == Some(guid)
+        self.lifecycle.player_logout_like_cpp() || self.lifecycle.player_loading() == Some(guid)
     }
     pub(crate) fn sync_current_player_session_visibility_detection_like_cpp(&mut self) {
         let Some(guid) = self.player_guid() else {
@@ -173,8 +173,7 @@ impl WorldSession {
             }
             return Some(
                 self.lifecycle
-                    .player_flags_test_fixture_like_cpp
-                    .represented_loaded_player_flags_like_cpp
+                    .represented_loaded_player_flags_for_test_like_cpp()
                     .map(|flags| (flags & PLAYER_FLAGS_RESTING_LIKE_CPP) != 0)
                     .unwrap_or(rest.is_resting_by_flag_like_cpp()),
             );

@@ -64,7 +64,9 @@ impl WorldSession {
         // exercising the transaction itself and must reach it.
         #[cfg(test)]
         if port.is_none()
-            && let Some(success) = self.lifecycle.loot_money_persistence_test_result_like_cpp
+            && let Some(success) = self
+                .lifecycle
+                .loot_money_persistence_test_result_like_cpp()
         {
             if !success {
                 return None;

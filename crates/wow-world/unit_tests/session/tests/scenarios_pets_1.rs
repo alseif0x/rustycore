@@ -279,18 +279,15 @@ fn load_represented_pet_declined_names_replaces_and_clears_row_like_cpp() {
     assert_eq!(
         session
             .lifecycle
-            .pet_load_query_holder_rows_like_cpp
-            .declined_names
-            .get(&42),
+            .pet_load_declined_names_for_pet_number_like_cpp(42),
         Some(&row)
     );
     assert!(session.load_represented_pet_declined_names_like_cpp(42, None));
     assert!(
         !session
             .lifecycle
-            .pet_load_query_holder_rows_like_cpp
-            .declined_names
-            .contains_key(&42)
+            .pet_load_declined_names_for_pet_number_like_cpp(42)
+            .is_some()
     );
 }
 #[test]
@@ -355,20 +352,33 @@ fn beginning_character_pet_load_replaces_pet_query_holder_rows_like_cpp() {
     assert!(
         !session
             .lifecycle
-            .pet_load_query_holder_rows_like_cpp
-            .spells
-            .is_empty()
+            .pet_load_spells_are_empty_for_test_like_cpp()
     );
 
     crate::session::cx_pets(&mut session).begin_represented_character_pet_authority_load_like_cpp();
 
-    let holder = &session.lifecycle.pet_load_query_holder_rows_like_cpp;
-    assert!(holder.spells.is_empty());
-    assert!(holder.spell_cooldowns.is_empty());
-    assert!(holder.spell_charges.is_empty());
-    assert!(holder.auras.is_empty());
-    assert!(holder.aura_effects.is_empty());
-    assert!(holder.declined_names.is_empty());
+    assert!(session.lifecycle.pet_load_spells_are_empty_for_test_like_cpp());
+    assert!(
+        session
+            .lifecycle
+            .pet_load_spell_cooldowns_are_empty_for_test_like_cpp()
+    );
+    assert!(
+        session
+            .lifecycle
+            .pet_load_spell_charges_are_empty_for_test_like_cpp()
+    );
+    assert!(session.lifecycle.pet_load_auras_are_empty_for_test_like_cpp());
+    assert!(
+        session
+            .lifecycle
+            .pet_load_aura_effects_are_empty_for_test_like_cpp()
+    );
+    assert!(
+        session
+            .lifecycle
+            .pet_load_declined_names_are_empty_for_test_like_cpp()
+    );
 }
 #[test]
 fn resummon_pet_temporary_unsummoned_loads_represented_stable_pet_like_cpp() {

@@ -5,7 +5,7 @@ use std::time::Instant;
 use rand::{Rng, SeedableRng, rngs::StdRng};
 
 use wow_constants::{
-    BagFamilyMask, DeathState, ItemContext, ItemFieldFlags, ItemFlags, ItemUpdateState, PowerType,
+    DeathState, ItemContext, ItemFieldFlags, ItemFlags, ItemUpdateState, PowerType,
     ServerOpcodes, SpellCastResult,
 };
 use wow_core::{ObjectGuid, Position, guid::HighGuid};
@@ -37,8 +37,7 @@ use super::{
     normalize_item_money_loot_bounds_like_cpp, player_class_mask_like_cpp,
     player_quest_status_mask_like_cpp, player_race_mask_like_cpp,
     referenced_loot_max_count_like_cpp, roll_chance_with_rate_like_cpp,
-    roll_group_loot_row_like_cpp, stored_item_row_can_load_like_cpp_representable,
-    stored_loot_item_should_persist_like_cpp,
+    roll_group_loot_row_like_cpp,
 };
 use crate::session::{
     AuraApplication, RepresentedAuraEffectLikeCpp, RepresentedPendingSpellCastRequestLikeCpp,

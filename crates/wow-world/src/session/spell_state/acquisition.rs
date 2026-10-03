@@ -11,9 +11,7 @@ impl WorldSession {
         port: Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>,
     ) {
         self.lifecycle
-            .persistence_ports_like_cpp
-            .player
-            .player_spell_acquisition = Some(port);
+            .set_player_spell_acquisition_persistence_port_like_cpp(port);
     }
     /// Install the process-wide audited static authority consumed by the
     /// immutable acquisition planner. Absence remains fail-closed.
@@ -47,20 +45,22 @@ impl WorldSession {
         money_after: u64,
     ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
         #[cfg(test)]
-        if let Some(success) = self.lifecycle.loot_money_persistence_test_result_like_cpp {
+        if let Some(success) = self
+            .lifecycle
+            .loot_money_persistence_test_result_like_cpp()
+        {
             return success.then_some(money_persistence);
         }
 
         let port = self
             .lifecycle
-            .persistence_ports_like_cpp
-            .player
-            .player_spell_acquisition
-            .clone()?;
+            .player_spell_acquisition_persistence_port_like_cpp()
+            .cloned()?;
         let player_guid = self.player_guid()?;
         let guid_counter = player_guid.counter() as u64;
         let mut cancellation_fence = PlayerMoneyCommitCancellationFenceLikeCpp::new(Arc::clone(
-            &self.lifecycle.durable_loot_money_persistence_like_cpp,
+            self.lifecycle
+                .durable_loot_money_persistence_tracker_like_cpp(),
         ));
         let mut operation_token = [0u8; 16];
         rand::thread_rng().fill_bytes(&mut operation_token);
@@ -101,7 +101,7 @@ impl WorldSession {
             }
             Outcome::Indeterminate(reason) => {
                 self.lifecycle
-                    .durable_loot_money_persistence_like_cpp
+                    .durable_loot_money_persistence_tracker_like_cpp()
                     .mark_indeterminate_like_cpp();
                 cancellation_fence.disarm_like_cpp();
                 self.kick("trainer purchase COMMIT outcome is unknown; relog required");

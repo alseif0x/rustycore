@@ -887,36 +887,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::SessionLifecycleState {
-    pub(super) async fn persist_group_intents_like_cpp(
-        &self,
-        group_guid: u64,
-        intents: Vec<GroupPersistenceIntentLikeCpp>,
-    ) {
-        let Some(port) = self.represented_group_persistence_port_like_cpp() else {
-            return;
-        };
-        let request = RepresentedGroupPersistenceRequestLikeCpp {
-            commands: intents
-                .into_iter()
-                .map(group_persistence_command_like_cpp)
-                .collect(),
-            mode: RepresentedGroupPersistenceModeLikeCpp::Sequential,
-        };
-        let outcome = port.persist_group_commands_like_cpp(request).await;
-        if !matches!(
-            outcome,
-            RepresentedGroupPersistenceOutcomeLikeCpp::Applied { .. }
-        ) {
-            warn!(
-                group_guid,
-                ?outcome,
-                "failed to persist represented group transition"
-            );
-        }
-    }
-}
-
 #[cfg(test)]
 #[path = "../../../unit_tests/handlers/group/ops_1/f3_shims.rs"]
 mod f3_shims;

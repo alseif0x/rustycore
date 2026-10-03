@@ -99,7 +99,7 @@ impl WorldSession {
                 .await;
             }
             InstanceLinkPollOutcome::Failed => {
-                self.lifecycle.player_loading = None;
+                self.lifecycle.set_player_loading(None);
                 self.lifecycle.release_character_login_claim_like_cpp();
             }
         }
@@ -138,18 +138,6 @@ impl WorldSession {
     pub(crate) fn restore_realm_channels(&mut self) {
         let (state, mut hub) = crate::session::split_lifecycle_mut(self);
         state.restore_realm_channels(&mut hub)
-    }
-}
-
-impl crate::session::state::SessionLifecycleState {
-    /// Restore the realm socket as primary, and clear the login-loading state
-    /// the kernel does not own.
-    pub(crate) fn restore_realm_channels(&mut self, hub: &mut crate::session::HubMut<'_>) {
-        hub.core
-            .transport
-            .connection
-            .restore_realm_channels(hub.core.account_id);
-        self.player_loading = None;
     }
 }
 

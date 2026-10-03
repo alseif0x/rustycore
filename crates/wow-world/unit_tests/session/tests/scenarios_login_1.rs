@@ -73,7 +73,7 @@ fn represented_player_condition_context_uses_live_session_state_like_cpp() {
     session.set_known_spells_like_cpp(vec![635, -1, 19740]);
     session
         .set_player_skill_values_like_cpp(HashMap::from([(SKILL_RIDING_LIKE_CPP, 75), (333, 125)]));
-    session.inventory.player_currencies.insert(
+    session.inventory.insert_player_currency_for_test_like_cpp(
         81,
         PlayerCurrency {
             state: PlayerCurrencyState::Unchanged,

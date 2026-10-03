@@ -4,8 +4,6 @@
 //! Quest dialog: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-#[cfg(test)]
-use super::PowerType;
 use super::{ActiveState, Arc, InventoryResult, ObjectGuid};
 use super::{QUEST_MENU_ICON_AVAILABLE_LIKE_CPP, QUEST_MENU_ICON_COMPLETE_LIKE_CPP};
 use super::{QUEST_MENU_ICON_TURN_IN_LIKE_CPP, QUEST_OBJECTIVE_ITEM_LIKE_CPP, QuestListEntry};
@@ -72,18 +70,6 @@ pub(in crate::session) const fn active_state_from_db_like_cpp(value: u8) -> Acti
 }
 
 pub(in crate::session) use wow_world_core::session::power_type_from_u8_like_cpp;
-
-#[cfg(test)]
-pub(in crate::session) const fn primary_power_type_for_player_class_like_cpp(
-    class_id: u8,
-) -> PowerType {
-    match class_id {
-        1 => PowerType::Rage,
-        4 => PowerType::Energy,
-        6 => PowerType::RunicPower,
-        _ => PowerType::Mana,
-    }
-}
 
 pub(in crate::session) use wow_world_entities::{
     sheath_state_from_u8_like_cpp, unit_stand_state_from_u8_like_cpp,

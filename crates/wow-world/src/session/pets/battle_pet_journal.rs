@@ -72,7 +72,7 @@ impl WorldSession {
         pet_guid: ObjectGuid,
         quality: u8,
     ) -> RepresentedBattlePetQualityOutcomeLikeCpp {
-        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
+        let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() else {
             #[cfg(test)]
             return self
                 .battle_pet_change_battle_pet_quality_represented_like_cpp(pet_guid, quality);
@@ -214,7 +214,7 @@ impl WorldSession {
         pet_guid: ObjectGuid,
         granted_levels: u16,
     ) -> RepresentedBattlePetGrantLevelOutcomeLikeCpp {
-        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
+        let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() else {
             #[cfg(test)]
             return self
                 .battle_pet_grant_battle_pet_level_represented_like_cpp(pet_guid, granted_levels);
@@ -300,7 +300,7 @@ impl crate::session::PetsCx<'_> {
     /// C++ `BattlePetMgr::SendJournalLockStatus`, represented as the successful
     /// local acquisition path until the global world journal-lock owner exists.
     pub(crate) async fn send_battle_pet_journal_lock_status_like_cpp(&mut self) {
-        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
+        if let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() {
             let acquired = attachment.try_acquire_lease_like_cpp().await;
             if acquired {
                 self.hub
@@ -374,7 +374,7 @@ impl crate::session::PetsCx<'_> {
         declined_names: Option<wow_packet::packets::misc::DeclinedNamesLikeCpp>,
         timestamp: i64,
     ) -> bool {
-        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
+        let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() else {
             #[cfg(test)]
             return self.battle_pet_modify_name_like_cpp(pet_guid, name, declined_names, timestamp);
             #[cfg(not(test))]
@@ -407,7 +407,7 @@ impl crate::session::PetsCxRef<'_> {
     /// Acquire this session's journal lease through the #160 attachment
     /// (issue #161 admission/recovery).
     pub(crate) async fn battle_pet_try_acquire_journal_lease_like_cpp(&self) -> bool {
-        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
+        let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() else {
             return false;
         };
         attachment.try_acquire_lease_like_cpp().await
@@ -418,7 +418,7 @@ impl crate::session::PetsCxRef<'_> {
         &self,
         species: u32,
     ) -> Option<wow_data::BattlePetSpeciesEntry> {
-        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
+        if let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() {
             return attachment.owner_like_cpp().species_entry_like_cpp(species);
         }
         #[cfg(test)]
@@ -438,8 +438,7 @@ impl crate::session::PetsCxRef<'_> {
     pub(in crate::session) fn battle_pet_xp_per_level_like_cpp(&self, level: u16) -> Option<u16> {
         let canonical = self
             .lifecycle
-            .battle_pet_account_attachment_like_cpp
-            .as_ref()
+            .battle_pet_account_attachment_like_cpp()
             .and_then(|attachment| attachment.owner_like_cpp().xp_per_level_like_cpp(level));
         #[cfg(test)]
         return canonical.or_else(|| {
@@ -466,7 +465,7 @@ impl crate::session::PetsCxRef<'_> {
 
     /// C++ `BattlePetMgr::HasJournalLock`.
     pub(crate) fn has_represented_battle_pet_journal_lock_like_cpp(&self) -> bool {
-        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
+        if let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() {
             return attachment.has_lease_like_cpp();
         }
         #[cfg(test)]
@@ -482,7 +481,7 @@ impl crate::session::PetsCxRef<'_> {
 
     /// C++ `BattlePetMgr::GetMaxPetLevel`.
     pub(crate) fn battle_pet_max_pet_level_like_cpp(&self) -> Option<u16> {
-        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
+        if let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() {
             return Some(attachment.owner_like_cpp().max_pet_level_like_cpp());
         }
         #[cfg(test)]
@@ -506,7 +505,7 @@ impl crate::session::PetsCxRef<'_> {
     pub(crate) fn represented_battle_pet_journal_like_cpp(
         &self,
     ) -> Option<wow_packet::packets::misc::BattlePetJournal> {
-        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
+        if let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() {
             return Some(
                 attachment
                     .owner_like_cpp()

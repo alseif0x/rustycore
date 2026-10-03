@@ -427,8 +427,9 @@ fn rest_queries_reject_stale_and_missing_owner_even_with_populated_fixtures() {
         .unwrap();
     session
         .lifecycle
-        .player_flags_test_fixture_like_cpp
-        .represented_loaded_player_flags_like_cpp = Some(PLAYER_FLAGS_RESTING_LIKE_CPP);
+        .set_represented_loaded_player_flags_for_test_like_cpp(Some(
+            PLAYER_FLAGS_RESTING_LIKE_CPP,
+        ));
     session
         .fixtures
         .progression

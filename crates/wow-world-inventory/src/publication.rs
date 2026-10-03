@@ -16,6 +16,38 @@ use wow_world_core::{
     session::{HubRef, PLAYER_FLAGS_RESTING_LIKE_CPP},
 };
 
+pub fn item_storage_fields_values_update_like_cpp(
+    item: &wow_entities::Item,
+    contained_in_changed: bool,
+    dynamic_flags2_changed: bool,
+    changed_enchantments: &[wow_constants::item::EnchantmentSlot],
+) -> wow_entities::ItemValuesUpdate {
+    let mut item_data_mask = wow_entities::UpdateMask::new(wow_entities::ITEM_DATA_BITS);
+    if contained_in_changed || dynamic_flags2_changed {
+        item_data_mask.set(wow_entities::ITEM_DATA_PARENT_BIT);
+    }
+    if contained_in_changed {
+        item_data_mask.set(wow_entities::ITEM_DATA_CONTAINED_IN_BIT);
+    }
+    if dynamic_flags2_changed {
+        item_data_mask.set(wow_entities::ITEM_DATA_DYNAMIC_FLAGS2_BIT);
+    }
+    if !changed_enchantments.is_empty() {
+        item_data_mask.set(wow_entities::ITEM_DATA_ENCHANTMENT_PARENT_BIT);
+        for slot in changed_enchantments {
+            item_data_mask.set(wow_entities::ITEM_DATA_ENCHANTMENT_FIRST_BIT + *slot as usize);
+        }
+    }
+    wow_entities::ItemValuesUpdate {
+        changed_object_type_mask: 1 << wow_entities::TYPEID_ITEM,
+        object_data: None,
+        item_data: Some(wow_entities::ItemDataUpdate {
+            mask: item_data_mask,
+            values: item.data().clone(),
+        }),
+    }
+}
+
 impl crate::InventoryState {
     pub fn send_item_contained_in_values_update_like_cpp(
         &self,

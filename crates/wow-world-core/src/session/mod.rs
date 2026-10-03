@@ -57,6 +57,8 @@ mod spell_pet_catalogs;
 pub use quest_dialog::{
     pet_type_from_db_like_cpp, power_type_from_u8_like_cpp, react_state_from_db_like_cpp,
 };
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use quest_dialog::primary_power_type_for_player_class_like_cpp;
 mod item_modifiers;
 mod player_items;
 mod quest_catalog_queries;
@@ -223,6 +225,7 @@ pub mod state;
 pub use state::SessionWorldConfig;
 pub use state::{HubMut, HubRef};
 pub use state::{SessionCatalogs, SessionCore, SessionDriverPhaseLikeCpp};
+pub use state::hub_support::default_display_id;
 
 pub mod map_admission;
 pub use map_admission::{MMapRuntimeConfigLikeCpp, WaypointPathResolverLikeCpp};

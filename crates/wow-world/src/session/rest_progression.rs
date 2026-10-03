@@ -168,8 +168,7 @@ impl WorldSession {
         if self.core.player_handle_like_cpp.is_none() {
             return self
                 .lifecycle
-                .player_flags_test_fixture_like_cpp
-                .represented_loaded_player_flags_like_cpp
+                .represented_loaded_player_flags_for_test_like_cpp()
                 .is_some_and(|flags| (flags & flag) != 0);
         }
         false
@@ -183,8 +182,7 @@ impl WorldSession {
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return self
                 .lifecycle
-                .player_flags_test_fixture_like_cpp
-                .represented_loaded_player_flags_like_cpp;
+                .represented_loaded_player_flags_for_test_like_cpp();
         }
         canonical
     }
@@ -262,8 +260,7 @@ impl WorldSession {
         let canonical_flags_ex =
             if canonical_flags_ex.is_none() && self.core.player_handle_like_cpp.is_none() {
                 self.lifecycle
-                    .player_flags_test_fixture_like_cpp
-                    .represented_loaded_player_flags_ex_like_cpp
+                    .represented_loaded_player_flags_ex_for_test_like_cpp()
                     .or(Some(0))
             } else {
                 canonical_flags_ex
@@ -278,12 +275,10 @@ impl WorldSession {
             .unwrap_or_else(|| {
                 (
                     self.lifecycle
-                        .player_flags_test_fixture_like_cpp
-                        .represented_loaded_player_flags_like_cpp
+                        .represented_loaded_player_flags_for_test_like_cpp()
                         .unwrap_or(0),
                     self.lifecycle
-                        .player_flags_test_fixture_like_cpp
-                        .represented_loaded_player_flags_ex_like_cpp
+                        .represented_loaded_player_flags_ex_for_test_like_cpp()
                         .unwrap_or(0),
                 )
             })

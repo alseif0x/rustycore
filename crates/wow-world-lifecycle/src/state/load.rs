@@ -167,6 +167,10 @@ impl SessionLifecycleState {
         self.player_loading
     }
 
+    pub fn set_player_loading(&mut self, guid: Option<ObjectGuid>) {
+        self.player_loading = guid;
+    }
+
     pub fn load_tutorials_data_values_like_cpp(&mut self, values: Option<[u32; 8]>) {
         self.tutorials_like_cpp = values.unwrap_or([0; 8]);
         self.tutorials_loaded_from_db_like_cpp = values.is_some();

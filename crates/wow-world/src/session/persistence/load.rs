@@ -43,18 +43,8 @@ impl WorldSession {
                 #[cfg(test)]
                 {
                     if self.core.player_handle_like_cpp.is_none() {
-                        let items = &mut self.inventory.represented_void_storage_items_like_cpp;
-                        if items[slot_index].is_none()
-                            && !items
-                                .iter()
-                                .flatten()
-                                .any(|loaded| loaded.item_id == item.item_id)
-                        {
-                            items[slot_index] = Some(item.clone());
-                            true
-                        } else {
-                            false
-                        }
+                        self.inventory
+                            .insert_loaded_void_storage_item_for_test_like_cpp(slot_index, &item)
                     } else {
                         false
                     }
@@ -289,24 +279,19 @@ impl WorldSession {
     }
     /// Set the player loading GUID (ConnectTo flow).
     pub fn set_player_loading(&mut self, guid: Option<ObjectGuid>) {
-        self.lifecycle.player_loading = guid;
+        self.lifecycle.set_player_loading(guid);
         self.sync_current_player_session_visibility_detection_like_cpp();
     }
     pub fn player_loading(&self) -> Option<ObjectGuid> {
         self.lifecycle.player_loading()
     }
     pub async fn load_tutorials_data_like_cpp(&mut self) {
-        self.lifecycle.tutorials_like_cpp = [0; 8];
-        self.lifecycle.tutorials_loaded_from_db_like_cpp = false;
-        self.lifecycle.tutorials_loaded_coherently_like_cpp = false;
-        self.lifecycle.tutorials_changed_like_cpp = false;
+        self.lifecycle.begin_tutorials_load_like_cpp();
 
         let Some(port) = self
             .lifecycle
-            .persistence_ports_like_cpp
-            .admission
-            .session_account_state
-            .clone()
+            .session_account_state_port_like_cpp()
+            .map(std::sync::Arc::clone)
         else {
             warn!(
                 account = self.core.account_id,

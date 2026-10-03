@@ -457,8 +457,6 @@ pub(crate) use quest_dialog::ResetSeasonalQuestStatusOutcomeLikeCpp;
 pub(crate) use quest_dialog::ResetSeasonalQuestStatusReasonLikeCpp;
 pub(crate) use quest_dialog::SeasonalQuestStatusDbRowLikeCpp;
 use quest_dialog::active_state_from_db_like_cpp;
-#[cfg(test)]
-use quest_dialog::primary_power_type_for_player_class_like_cpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use quest_dialog::{
     RepresentedForceDeselectLikeCpp, RepresentedQuestRewardTitleLikeCpp,
@@ -924,7 +922,9 @@ const QUEST_MENU_ICON_TURN_IN_LIKE_CPP: u8 = 0;
 const QUEST_MENU_ICON_AVAILABLE_LIKE_CPP: u8 = 2;
 const QUEST_MENU_ICON_COMPLETE_LIKE_CPP: u8 = 4;
 
+#[cfg(test)]
 const PACKET_SPOOF_BAN_REASON_LIKE_CPP: &str = "DOS (Packet Flooding/Spoofing";
+#[cfg(test)]
 const PACKET_SPOOF_BAN_AUTHOR_LIKE_CPP: &str = "Server: AutoDOS";
 
 use wow_packet::WorldPacket;

@@ -75,7 +75,10 @@ impl WorldSession {
             return outcome;
         }
 
-        let money_tracker = Arc::clone(&self.lifecycle.durable_loot_money_persistence_like_cpp);
+        let money_tracker = Arc::clone(
+            self.lifecycle
+                .durable_loot_money_persistence_tracker_like_cpp(),
+        );
         let money_save_fence = money_tracker.close_admission_for_save_like_cpp();
         trace!(fence = "player.save.mutations_closed", "persistence fence");
         crate::session::cx_inventory_ref(self)

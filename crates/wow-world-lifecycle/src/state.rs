@@ -21,14 +21,31 @@ mod login_claims;
 mod finalization;
 mod cleanup;
 mod logout;
+mod corpses;
 mod save;
 mod money_plans;
 mod account;
+mod group;
+mod pet_load;
+mod bootstrap;
+mod rename_callbacks;
+mod stored_item_loot;
+mod stored_item_loot_contracts;
+mod item_loot;
+mod homebind;
+#[cfg(any(test, feature = "test-fixtures"))]
+mod fixtures;
 mod transfer;
 mod load;
 mod playtime;
+mod runtime;
+mod login_load;
 
 pub use money_plans::{LootMoneyPersistenceErrorLikeCpp, RepresentedTalentResetStatePlanLikeCpp};
+pub use group::group_persistence_command_like_cpp;
+pub use stored_item_loot_contracts::{
+    LootTemplateRow, LootTemplateTable, WrappedGiftLoad, WrappedGiftRow,
+};
 
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::{LoadedPlayerFlagsTestFixtureLikeCpp, RepresentedAtLoginFlagRemovalLikeCpp};

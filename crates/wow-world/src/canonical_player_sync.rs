@@ -10,7 +10,7 @@ pub(crate) fn hydrate_player_presentation_like_cpp(
     {
         player.gameplay_state_mut().customizations = session
             .lifecycle
-            .loaded_player_customizations_like_cpp
+            .loaded_player_customizations_for_test_like_cpp()
             .iter()
             .map(|choice| wow_entities::PlayerCustomizationChoice {
                 option_id: choice.option_id,

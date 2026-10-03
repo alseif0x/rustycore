@@ -25,8 +25,6 @@ use wow_handler::{PacketProcessing, SessionStatus};
 use crate::session::registry::PacketHandlerEntry;
 use wow_loot::{
     LootConditionRowLikeCpp, condition_compare_values_like_cpp,
-    loot_condition_reference_ids_like_cpp, loot_condition_reference_self_references_like_cpp,
-    loot_condition_row_normalize_without_external_stores_like_cpp,
     loot_conditions_allow_player_with_references_like_cpp_representable,
 };
 use wow_packet::ClientPacket;

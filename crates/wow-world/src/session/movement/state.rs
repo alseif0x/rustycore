@@ -281,13 +281,13 @@ impl WorldSession {
         }
         if persist {
             #[cfg(test)]
-            self.lifecycle
-                .represented_at_login_flag_removals_like_cpp
-                .push(RepresentedAtLoginFlagRemovalLikeCpp {
+            self.lifecycle.record_at_login_flag_removal_for_test_like_cpp(
+                RepresentedAtLoginFlagRemovalLikeCpp {
                     flags,
                     persist,
                     db_statement_unrepresented: true,
-                });
+                },
+            );
         }
         true
     }

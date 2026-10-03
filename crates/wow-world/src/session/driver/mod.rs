@@ -228,7 +228,7 @@ impl WorldSession {
 
         // ── Logout timer ────────────────────────────────────────────
         // C++ decides this **after** the packet loop and the query callbacks,
-        // on the `ProcessUnsafe()` branch (`WorldSession.cpp:498-503`), so a
+        // on the `ProcessUnsafe()` branch (`WorldSession.cpp:505-511`), so a
         // `LogoutCancel` already queued is processed before the decision. A
         // coordinated session therefore runs it at the end of its world pass,
         // not here, where its own packets have not been dispatched yet.

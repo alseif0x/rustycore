@@ -24,6 +24,33 @@ pub fn player_team_for_race_cpp(race: u8) -> Team {
     }
 }
 
+/// Default display ID for a race/sex combination.
+pub fn default_display_id(race: u8, sex: u8) -> u32 {
+    match (race, sex) {
+        (1, 0) => 49,
+        (1, 1) => 50, // Human M/F
+        (2, 0) => 51,
+        (2, 1) => 52, // Orc
+        (3, 0) => 53,
+        (3, 1) => 54, // Dwarf
+        (4, 0) => 55,
+        (4, 1) => 56, // NightElf
+        (5, 0) => 57,
+        (5, 1) => 58, // Undead
+        (6, 0) => 59,
+        (6, 1) => 60, // Tauren
+        (7, 0) => 1563,
+        (7, 1) => 1564, // Gnome
+        (8, 0) => 1478,
+        (8, 1) => 1479, // Troll
+        (10, 0) => 15476,
+        (10, 1) => 15475, // BloodElf
+        (11, 0) => 16125,
+        (11, 1) => 16126, // Draenei
+        _ => 49,          // Default: Human Male
+    }
+}
+
 /// C++ `SPELL_SCHOOL_MASK_NORMAL` (`SharedDefines.h:329`).
 pub const SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP: i32 = 1;
 /// C++ `SPELL_SCHOOL_MASK_ALL` (`SharedDefines.h:335`): the seven school bits

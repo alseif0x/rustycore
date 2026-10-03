@@ -37,6 +37,16 @@ pub const fn power_type_from_u8_like_cpp(power: u8) -> PowerType {
     }
 }
 
+#[cfg(any(test, feature = "test-fixtures"))]
+pub const fn primary_power_type_for_player_class_like_cpp(class_id: u8) -> PowerType {
+    match class_id {
+        1 => PowerType::Rage,
+        4 => PowerType::Energy,
+        6 => PowerType::RunicPower,
+        _ => PowerType::Mana,
+    }
+}
+
 pub const fn react_state_from_db_like_cpp(value: u8) -> ReactState {
     match value {
         0 => ReactState::Passive,

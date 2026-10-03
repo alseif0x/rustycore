@@ -58,9 +58,7 @@ fn load_represented_pet_aura_rows_filters_unknown_spell_like_cpp() {
     assert_eq!(
         session
             .lifecycle
-            .pet_load_query_holder_rows_like_cpp
-            .auras
-            .get(&42)
+            .pet_load_auras_for_pet_number_like_cpp(42)
             .and_then(|auras| auras.first())
             .map(|aura| aura.spell_id),
         Some(7_777)
@@ -186,9 +184,7 @@ fn load_represented_pet_aura_rows_ticks_attr4_offline_auras_like_cpp() {
     assert_eq!(loaded, 2);
     let auras = session
         .lifecycle
-        .pet_load_query_holder_rows_like_cpp
-        .auras
-        .get(&42)
+        .pet_load_auras_for_pet_number_like_cpp(42)
         .expect("represented pet auras");
     assert_eq!(auras[0].spell_id, 7_701);
     assert_eq!(auras[0].remain_time_ms, 2_000);
@@ -278,9 +274,7 @@ fn load_represented_pet_aura_rows_normalizes_proc_charges_like_cpp() {
     assert_eq!(loaded, 3);
     let auras = session
         .lifecycle
-        .pet_load_query_holder_rows_like_cpp
-        .auras
-        .get(&42)
+        .pet_load_auras_for_pet_number_like_cpp(42)
         .expect("represented pet auras");
     assert_eq!(
         auras[0].remain_charges, 3,
@@ -350,9 +344,7 @@ fn load_represented_pet_aura_rows_filters_unknown_difficulty_like_cpp() {
     assert_eq!(loaded, 2);
     let loaded_spell_ids: Vec<_> = session
         .lifecycle
-        .pet_load_query_holder_rows_like_cpp
-        .auras
-        .get(&42)
+        .pet_load_auras_for_pet_number_like_cpp(42)
         .expect("represented pet auras")
         .iter()
         .map(|aura| aura.spell_id)
@@ -393,9 +385,7 @@ fn load_represented_pet_aura_effect_rows_filters_bad_effect_index_like_cpp() {
     assert_eq!(
         session
             .lifecycle
-            .pet_load_query_holder_rows_like_cpp
-            .aura_effects
-            .get(&42)
+            .pet_load_aura_effects_for_pet_number_like_cpp(42)
             .and_then(|effects| effects.first())
             .map(|effect| effect.effect_index),
         Some(31)

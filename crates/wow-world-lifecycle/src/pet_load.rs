@@ -68,6 +68,36 @@ pub struct PetLoadQueryHolderRowsLikeCpp {
 }
 
 impl PetLoadQueryHolderRowsLikeCpp {
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub(crate) fn spells_are_empty_like_cpp(&self) -> bool {
+        self.spells.is_empty()
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub(crate) fn spell_cooldowns_are_empty_like_cpp(&self) -> bool {
+        self.spell_cooldowns.is_empty()
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub(crate) fn spell_charges_are_empty_like_cpp(&self) -> bool {
+        self.spell_charges.is_empty()
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub(crate) fn auras_are_empty_like_cpp(&self) -> bool {
+        self.auras.is_empty()
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub(crate) fn aura_effects_are_empty_like_cpp(&self) -> bool {
+        self.aura_effects.is_empty()
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub(crate) fn declined_names_are_empty_like_cpp(&self) -> bool {
+        self.declined_names.is_empty()
+    }
+
     pub fn reset(&mut self) {
         *self = Self::default();
     }

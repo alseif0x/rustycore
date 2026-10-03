@@ -22,8 +22,10 @@ fn populate(session: &mut WorldSession, counter: i64) {
         },
     );
     session.mark_represented_glyphs_loaded_like_cpp();
-    session.lifecycle.tutorials_changed_like_cpp = true;
-    session.lifecycle.tutorials_loaded_coherently_like_cpp = true;
+    session.lifecycle.set_tutorials_changed_like_cpp(true);
+    session
+        .lifecycle
+        .set_tutorials_loaded_coherently_for_test_like_cpp(true);
 }
 
 fn request(session: &mut WorldSession) -> wow_persistence::PlayerCharacterSaveRequestLikeCpp {

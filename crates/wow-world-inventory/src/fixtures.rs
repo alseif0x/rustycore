@@ -12,8 +12,9 @@ use crate::{
     RepresentedItemSetAuraRefreshEventLikeCpp, RepresentedItemSetSpellEventLikeCpp,
 };
 use std::collections::HashMap;
+use wow_core::ObjectGuid;
 use wow_entities::{
-    BUYBACK_SLOT_COUNT, BUYBACK_SLOT_START, INVENTORY_DEFAULT_SIZE,
+    BUYBACK_SLOT_COUNT, BUYBACK_SLOT_START, INVENTORY_DEFAULT_SIZE, Item, PlayerCurrency,
     PlayerInventoryItem as InventoryItem, PlayerItemModifierRuntimeStateLikeCpp,
     TitanGripPenaltyAction,
 };
@@ -86,6 +87,126 @@ impl crate::InventoryState {
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn player_gold_for_test_like_cpp(&self) -> u64 {
         self.player_gold
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn set_player_gold_for_test_like_cpp(&mut self, gold: u64) {
+        self.player_gold = gold;
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn insert_player_currency_for_test_like_cpp(
+        &mut self,
+        currency_id: u32,
+        currency: PlayerCurrency,
+    ) -> Option<PlayerCurrency> {
+        self.player_currencies.insert(currency_id, currency)
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn player_currency_for_test_like_cpp(
+        &self,
+        currency_id: &u32,
+    ) -> Option<&PlayerCurrency> {
+        self.player_currencies.get(currency_id)
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn insert_inventory_item_object_for_test_like_cpp(
+        &mut self,
+        item_guid: ObjectGuid,
+        item: Item,
+    ) -> Option<Item> {
+        self.inventory_item_objects.insert(item_guid, item)
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn inventory_item_object_for_test_like_cpp(
+        &self,
+        item_guid: &ObjectGuid,
+    ) -> Option<&Item> {
+        self.inventory_item_objects.get(item_guid)
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn inventory_item_object_mut_for_test_like_cpp(
+        &mut self,
+        item_guid: &ObjectGuid,
+    ) -> Option<&mut Item> {
+        self.inventory_item_objects.get_mut(item_guid)
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn inventory_item_object_contains_for_test_like_cpp(
+        &self,
+        item_guid: &ObjectGuid,
+    ) -> bool {
+        self.inventory_item_objects.contains_key(item_guid)
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn inventory_item_objects_empty_for_test_like_cpp(&self) -> bool {
+        self.inventory_item_objects.is_empty()
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn insert_inventory_item_for_test_like_cpp(
+        &mut self,
+        slot: u8,
+        item: InventoryItem,
+    ) -> Option<InventoryItem> {
+        self.player_item_test_fixture_like_cpp
+            .inventory_items
+            .insert(slot, item)
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn inventory_item_for_test_like_cpp(&self, slot: &u8) -> Option<&InventoryItem> {
+        self.player_item_test_fixture_like_cpp
+            .inventory_items
+            .get(slot)
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn inventory_item_at_slot_for_test_like_cpp(&self, slot: &u8) -> &InventoryItem {
+        &self.player_item_test_fixture_like_cpp.inventory_items[slot]
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn inventory_item_slot_contains_for_test_like_cpp(&self, slot: &u8) -> bool {
+        self.player_item_test_fixture_like_cpp
+            .inventory_items
+            .contains_key(slot)
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn inventory_items_empty_for_test_like_cpp(&self) -> bool {
+        self.player_item_test_fixture_like_cpp
+            .inventory_items
+            .is_empty()
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn insert_buyback_item_for_test_like_cpp(
+        &mut self,
+        slot: u8,
+        item: InventoryItem,
+    ) -> Option<InventoryItem> {
+        self.player_item_test_fixture_like_cpp
+            .buyback_items
+            .insert(slot, item)
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn represented_transmog_criteria_events_for_test_like_cpp(
+        &self,
+    ) -> &[RepresentedTransmogCriteriaEvent] {
+        &self.represented_transmog_criteria_events
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn clear_represented_transmog_criteria_events_for_test_like_cpp(&mut self) {
+        self.represented_transmog_criteria_events.clear();
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -246,5 +367,25 @@ impl crate::InventoryState {
         &self
             .player_item_test_fixture_like_cpp
             .represented_combat_stat_recalculations_like_cpp
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn insert_loaded_void_storage_item_for_test_like_cpp(
+        &mut self,
+        slot_index: usize,
+        item: &wow_entities::PlayerVoidStorageItemLikeCpp,
+    ) -> bool {
+        let items = &mut self.represented_void_storage_items_like_cpp;
+        if items[slot_index].is_none()
+            && !items
+                .iter()
+                .flatten()
+                .any(|loaded| loaded.item_id == item.item_id)
+        {
+            items[slot_index] = Some(item.clone());
+            true
+        } else {
+            false
+        }
     }
 }

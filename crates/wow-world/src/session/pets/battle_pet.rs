@@ -15,7 +15,8 @@ impl WorldSession {
     ) {
         self.core
             .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.lifecycle.battle_pet_account_attachment_like_cpp = Some(attachment);
+        self.lifecycle
+            .set_battle_pet_account_attachment_like_cpp(attachment);
     }
     /// Set the world-DB battle-pet breed/quality selection store (#161).
     #[cfg(test)]
@@ -35,7 +36,7 @@ impl WorldSession {
         quality: u8,
         level: u16,
     ) -> Option<RepresentedBattlePetCalculatedStatsLikeCpp> {
-        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
+        if let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() {
             return attachment
                 .owner_like_cpp()
                 .calculate_stats_like_cpp(breed, species, quality, level);
@@ -78,7 +79,7 @@ impl WorldSession {
         species: u32,
         flag: i32,
     ) -> bool {
-        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
+        if let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() {
             return attachment
                 .owner_like_cpp()
                 .species_has_flag_like_cpp(species, flag);
@@ -288,7 +289,7 @@ impl WorldSession {
         quality: u8,
         level: u16,
     ) -> Result<ObjectGuid, BattlePetAddFailureLikeCpp> {
-        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
+        let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() else {
             #[cfg(test)]
             return self
                 .battle_pet_add_pet_represented_like_cpp(species, display_id, breed, quality, level)
@@ -458,7 +459,7 @@ impl WorldSession {
         xp_source: RepresentedBattlePetXpSourceLikeCpp,
         pet_battle_xp_multiplier: f32,
     ) -> RepresentedBattlePetGrantExperienceOutcomeLikeCpp {
-        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
+        let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() else {
             #[cfg(test)]
             return self.battle_pet_grant_battle_pet_experience_represented_like_cpp(
                 pet_guid,
@@ -579,7 +580,7 @@ impl crate::session::PetsCx<'_> {
         &mut self,
         pet_guid: ObjectGuid,
     ) -> bool {
-        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
+        let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() else {
             #[cfg(test)]
             return self
                 .hub
@@ -637,7 +638,7 @@ impl crate::session::PetsCx<'_> {
         &mut self,
         pet_guid: ObjectGuid,
     ) -> bool {
-        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
+        let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() else {
             #[cfg(test)]
             return self.battle_pet_remove_pet_like_cpp(pet_guid);
             #[cfg(not(test))]
@@ -662,7 +663,7 @@ impl crate::session::PetsCx<'_> {
         flags: u16,
         control_type: u8,
     ) -> bool {
-        let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp else {
+        let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() else {
             #[cfg(test)]
             return self.hub.fixtures.pets.battle_pet_set_flags_like_cpp(
                 pet_guid,
@@ -711,8 +712,7 @@ impl crate::session::PetsCx<'_> {
                 .battle_pet_test_fixture_like_cpp
                 .represented_battle_pet_unique_owned_criteria_like_cpp = self
                 .lifecycle
-                .battle_pet_account_attachment_like_cpp
-                .as_ref()
+                .battle_pet_account_attachment_like_cpp()
                 .map(|attachment| attachment.owner_like_cpp().unique_species_count_like_cpp())
                 .unwrap_or_else(|| {
                     u32::try_from(
@@ -785,8 +785,7 @@ impl crate::session::PetsCxRef<'_> {
         crate::battle_pet_account::BattlePetLeaseIdLikeCpp,
     )> {
         self.lifecycle
-            .battle_pet_account_attachment_like_cpp
-            .as_ref()
+            .battle_pet_account_attachment_like_cpp()
             .map(|attachment| {
                 (
                     Arc::clone(attachment.owner_like_cpp()),
@@ -799,10 +798,7 @@ impl crate::session::PetsCxRef<'_> {
         &self,
     ) -> Option<Arc<dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp>> {
         self.lifecycle
-            .persistence_ports_like_cpp
-            .player
-            .battle_pet_purchase
-            .as_ref()
+            .battle_pet_purchase_persistence_port_like_cpp()
             .map(Arc::clone)
     }
 
@@ -813,7 +809,7 @@ impl crate::session::PetsCxRef<'_> {
         species: u32,
         owner_guid: Option<ObjectGuid>,
     ) -> u8 {
-        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
+        if let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() {
             return attachment
                 .owner_like_cpp()
                 .pet_count_like_cpp(species, owner_guid);
@@ -859,7 +855,7 @@ impl crate::session::PetsCxRef<'_> {
         species: u32,
         owner_guid: Option<ObjectGuid>,
     ) -> Option<bool> {
-        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
+        if let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() {
             return Some(
                 attachment
                     .owner_like_cpp()
@@ -900,7 +896,7 @@ impl crate::session::PetsCxRef<'_> {
         &self,
         pet_guid: ObjectGuid,
     ) -> Option<RepresentedBattlePetDataLikeCpp> {
-        if let Some(attachment) = &self.lifecycle.battle_pet_account_attachment_like_cpp {
+        if let Some(attachment) = self.lifecycle.battle_pet_account_attachment_like_cpp() {
             return attachment.owner_like_cpp().pet_snapshot_like_cpp(pet_guid);
         }
         #[cfg(test)]

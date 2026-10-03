@@ -214,16 +214,19 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn set_loot_money_persistence_test_result_like_cpp(&mut self, success: bool) {
-        self.lifecycle.loot_money_persistence_test_result_like_cpp = Some(success);
+        self.lifecycle
+            .set_loot_money_persistence_test_result_like_cpp(Some(success));
     }
     #[cfg(test)]
     pub(crate) fn clear_loot_money_persistence_test_result_like_cpp(&mut self) {
-        self.lifecycle.loot_money_persistence_test_result_like_cpp = None;
+        self.lifecycle
+            .set_loot_money_persistence_test_result_like_cpp(None);
     }
     pub(crate) fn loot_money_persistence_test_result_for_worker_like_cpp(&self) -> Option<bool> {
         #[cfg(test)]
         {
-            self.lifecycle.loot_money_persistence_test_result_like_cpp
+            self.lifecycle
+                .loot_money_persistence_test_result_like_cpp()
         }
         #[cfg(not(test))]
         {

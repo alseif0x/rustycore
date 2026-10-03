@@ -81,9 +81,7 @@ async fn repair_inventory_item_durability_spends_money_and_restores_like_cpp() {
     ])));
     session
         .inventory
-        .player_item_test_fixture_like_cpp
-        .inventory_items
-        .insert(
+        .insert_inventory_item_for_test_like_cpp(
             EQUIPMENT_SLOT_MAINHAND,
             InventoryItem {
                 guid: item_guid,
@@ -132,8 +130,7 @@ async fn repair_inventory_item_durability_spends_money_and_restores_like_cpp() {
     session.set_player_gold_like_cpp(10);
     let item = session
         .inventory
-        .inventory_item_objects
-        .get_mut(&item_guid)
+        .inventory_item_object_mut_for_test_like_cpp(&item_guid)
         .unwrap();
     item.set_durability(40);
     assert!(
@@ -180,9 +177,7 @@ fn represented_item_mods_records_weapon_damage_without_stat_entry_like_cpp() {
     )])));
     session
         .inventory
-        .player_item_test_fixture_like_cpp
-        .inventory_items
-        .insert(
+        .insert_inventory_item_for_test_like_cpp(
             EQUIPMENT_SLOT_MAINHAND,
             InventoryItem {
                 guid: item_guid,
@@ -313,9 +308,7 @@ fn represented_item_mods_apply_scaling_weapon_dps_like_cpp() {
     ])));
     session
         .inventory
-        .player_item_test_fixture_like_cpp
-        .inventory_items
-        .insert(
+        .insert_inventory_item_for_test_like_cpp(
             EQUIPMENT_SLOT_MAINHAND,
             InventoryItem {
                 guid: item_guid,
@@ -434,9 +427,7 @@ fn destroyed_inventory_item_mod_remove_matches_cpp_destroy_item_equipment_branch
     )));
     session
         .inventory
-        .player_item_test_fixture_like_cpp
-        .inventory_items
-        .insert(
+        .insert_inventory_item_for_test_like_cpp(
             EQUIPMENT_SLOT_CHEST,
             InventoryItem {
                 guid: item_guid,
