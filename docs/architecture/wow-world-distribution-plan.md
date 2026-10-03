@@ -2276,6 +2276,18 @@ lectura de GUID, modo y lifecycle, mutación antes de PetMode y limpieza final d
 temporary-react incluso sin mascota. Esto no cierra la recursión del remover entero:
 velocidades, publicación de aura, stats, shapeshift y display siguen pendientes de
 integración completa y aceptación. Las pruebas negativas solicitadas no se han ejecutado.
+El montaje Core y los dos casos escritos en World/scenarios_pets_1 se revisaron:
+ausencia de mascota conserva lifecycle salvo temporary-react y no publica PetMode;
+handle obsoleto rechaza presentación sin consumir el contador fixture. Falta el
+caso de consumo del contador antes de scale-duration ausente, según el implementador.
+Contrato de velocidad contrastado con C++ SpellAuraEffects.cpp:3159–3257, SHA
+a5f8da2ebf5424bf0450ca4e08843ecbf72577bd: DecreaseSpeed actualiza run, swim,
+flight y las tres velocidades backward en ese orden. IncreaseFlightSpeed calcula
+la velocidad antes de la rama de flags y exige !IsGravityDisabled para MoveFall;
+el cuerpo Rust World actual hace flags antes del recálculo y carece de ese gate.
+El modo de manejo y la inmunidad polymorph/Dragonmaw de la rama mounted-flight
+requieren contraste completo en F6; la extracción F5 conserva el cuerpo Rust,
+sin introducir esas reparaciones dentro del traslado.
 
 ItemSet, continuación 18:41 UTC (NO VALIDADO): están escritos el acceso Core
 `canonical_access/item_sets.rs` y el proveedor Inventory `item_sets.rs`, con
