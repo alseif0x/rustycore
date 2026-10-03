@@ -603,8 +603,65 @@ todavía propios de World. No se debilita la resolución canónica ni las prueba
 El contrato de orden se contrasta con `CharacterHandler.cpp:1061–1077` y
 `Player.cpp:17759,18560` de `a5f8da2eb`. La secuencia está en
 `affected-and-extras-695c27aba/sequence.json`; doctest, herramientas e inventario
-no llegaron a ejecutarse. Esta regresión mantiene bloqueado el siguiente traslado
-local hasta reparar y acreditar la integración; no hay publicación ni QA live.
+no llegaron a ejecutarse. Esa regresión bloqueó el siguiente traslado local
+hasta reparar y acreditar la integración; no hubo publicación ni QA live.
+
+**Evidencia afectada, candidato limpio `3ea514530` — 2026-10-03:** los cinco
+escritores conservan sus cuerpos y usan el cfg de los campos Core. Las 47
+integraciones pasan en 27,481 s: renombrado 12, registro 1 y login/owner 34,
+incluido el rechazo sin PlayerManager. World/Core lib pasa en 37,976 s
+(3.681/220 PASS y un ignorado); world-server lib pasa sus 597 casos en
+32,948 s. Producción pasa en 15,835 s, con features vacías en
+World/Core/Session, y el doctest Core pasa su caso en 20,177 s. Los avisos
+de producción conservan las mismas identidades que `695c27aba`; dos JSON
+World cambian únicamente offsets de bytes tras alargar atributos cfg.
+La unión World/Core/integraciones conserva sus 3.949 identidades y el
+mismo ignorado: los 33 traslados de tests World → Core siguen exactos.
+Estas bibliotecas/integraciones activan `test-fixtures`; esa comparación
+no sustituye el check separado de composición de producción. La asociación
+histórica de artefactos a SHA sigue siendo inferida, no atestada.
+
+Composición de módulos, sus 12 fixtures, los 87 casos iniciales de codemods y los
+self-tests directory/mailbox pasan. Los planes Core, battle-pet visibility,
+directory, mailbox y hub pasan. Tres planes detectan consumidores de QA
+desactualizados: canonical espera el lector privado fuera de `cfg(test)`,
+battle-pet espera los cfg anteriores de cuatro reexports DTO y phasing espera el contenido
+Core exclusivo de P4a. Sus reparaciones deben conservar el reconocimiento
+exacto y los rechazos de estados inesperados; no revertir los traslados ni
+aceptar cualquier contenido residual. Los registros están en
+`affected-and-extras-3ea514530/` y `remaining-plans-3ea514530-20261003/`, bajo
+`target/validation-v2/evidence/p4b-acceptance-20261002/`.
+El inventario exhaustivo comenzó a las 00:07:42 UTC sobre `3ea514530`, con
+Rust, manifiestos y políticas congelados; las únicas ediciones permitidas
+son la reparación Python canonical y este checkpoint, fuera de sus entradas.
+El check completo termina **PASS** a las 00:20:32 UTC en 770,160 s, coste
+exhaustivo separado: 7.718 filas de producción + 2.221 de fixtures,
+1.034 grupos semánticos, 84 filas bridge, 648 filas de registro y 58 inputs
+generados exactos. Compara también el snapshot de persistencia y su política
+semántica; no se regeneró ninguno para aceptar el traslado. La huella de
+Rust/manifiestos/políticas conserva cero cambios y HEAD sigue en `3ea514530`.
+El registro está en `exhaustive-3ea514530-20261003/record.json`.
+La reparación canonical pasa después sus 88 casos de codemods en 1,419 s y
+el plan en 0,114 s, con las dos fuentes Python y este documento sucios sobre
+`3ea514530`; se guardan sus hashes en `canonical-repair-3ea514530-20261003/`.
+No se atribuye esa delta sin commit al candidato limpio de las suites Rust.
+Las reparaciones Python completas pasan sus **91 tests** en 1,768 s y los
+ocho planes Core/canonical/battle-pet/visibility/phasing/directory/mailbox/hub,
+además de whitespace. El recognizer battle-pet conserva P4a y exige los cuatro
+reexports P4b bajo `cfg(test)`, incluido Cage; phasing empareja cada fachada
+con su residual Core completo y rechaza cuerpos/imports/constantes adicionales
+o alterados. Los hashes y estado sucio de las seis fuentes Python sobre
+`3ea514530` están en `tool-repairs-3ea514530-20261003/sequence.json`; Rust,
+manifiestos y políticas son el mismo candidato acreditado por las suites y
+el inventario. Esa evidencia satisface la dependencia técnica local de Core
+para continuar F4b, conservando los gates de publicación.
+
+El diagnóstico R1 posterior a las reparaciones Rust conserva base
+`24a513855`, ratio 5% y slack 300: **S=20.883, G=24.212, allowance=22.227,15,
+exceso=1.984,85, exit 1**. Se registra en
+`tool-repairs-3ea514530-20261003/net-move.record.json` y su salida JSON.
+La campaña ordinaria conserva el incumplimiento de 600 s ya registrado;
+R1 sigue siendo un gate de publicación pendiente, sin cierre de P4b/#1263.
 
 La construcción debe conservar el orden exacto de expresiones, RNG, relojes, canales
 y campos. Extraer primero el literal de `SessionCore` a una inicialización propia;
@@ -617,8 +674,9 @@ Para ese préstamo, P4b añade una dev-dependency de World sobre sí mismo con
 `test-fixtures`, conservando la propagación a Core/Session. No importar el self-crate
 en los unitarios ni mezclar sus identidades con las del crate compilado para tests.
 La decisión se limita a la composición de pruebas; comprobar durante la aceptación
-los targets unitarios/integración y el grafo de producción sin fixtures. Está todavía
-sin validar. La solución de P4a mediante dev-dependency de Core no probaba este nuevo
+los targets unitarios/integración y el grafo de producción sin fixtures. Esa
+composición pasa en `3ea514530`; no acredita los gates restantes de P4b.
+La solución de P4a mediante dev-dependency de Core no probaba este nuevo
 caso de P4b, por lo que su resultado sin self-dependency no se extrapola a las vistas.
 
 El checkpoint local `e047d2336` incorpora el scanner y los codemods de preparación,
@@ -661,10 +719,16 @@ lista sin alterar el flag. No hay todavía implementación ni aceptación F4b.
 El contraste de proveedores en `99d86c533` confirma que `HubRef`/`HubMut` y
 `SessionCommand`/payloads de duelo pertenecen ya a Core; no bloquean el traslado
 de los nueve impls sociales. El cierre World real incluye las DTO de
-calendar/petitions/duel, el evento de force-deselect, el enum de reconciliación,
-la distancia de XP de grupo y las constantes de duelo/guild que comparten los
+calendar/petitions/duel, el evento de force-deselect, la distancia de XP de
+grupo y las constantes de duelo/guild que comparten los
 wrappers. Conservar sus fachadas necesarias, el cuerpo de flood con su `HubMut`
 Core y el puente `test-fixtures` aprobado; los shells/builders siguen en World.
+La revisión sobre `3ea514530` mantiene `GroupReconciliationOutcomeLikeCpp`
+en World: solo lo consume su reconciliador `WorldSession`, no los impls del
+estado social. El noveno impl sí está en `handlers/social.rs:751`, bajo el
+alias `crate::session::SessionSocialLimits`; el `WorldSession` de contacts
+permanece y adapta sus accesos RaF a la API del estado. No sustituir ese
+impl de handlers por el shell de contacts en el censo de extracción.
 
 ### F5 — handlers y orquestación
 
