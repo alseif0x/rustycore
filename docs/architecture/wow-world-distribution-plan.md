@@ -2744,6 +2744,12 @@ self-GUID con enable/disable, y rechazo de owner obsoleto tras reemplazo del mis
 GUID. No se ejecutaron. La revisión de consumidores requiere también compositor
 normal world-server, compositor de fixtures y contrato finito del scanner para
 el nuevo registrar Bank; añadir el cuerpo no sustituye esas conexiones.
+Las conexiones ya están escritas: root App, compositor normal world-server,
+compositor de fixtures y retirada de la entrada World anterior. El scanner
+declara Bank como contrato finito de package/module/host/facade; sus fixtures
+incluyen el nuevo módulo y negativos de owner/host/alias. La integración normal
+añade una aserción de entrada única y metadata sin regenerar el TSV. Revisión
+por fuente positiva; handoff y aceptación ejecutada siguen pendientes.
 
 Quest eligibility de visibilidad también está escrito como módulo privado: nivel,
 race/class y CanSeeStart conservan disable, status, recurrence, seasonal, prev-quest
