@@ -21,44 +21,20 @@ use super::NUM_ACCOUNT_DATA_TYPES;
 use super::ObjectGuid;
 use super::OwnedLootAuthority;
 use super::PacketHandlerEntry;
-use super::PhaseShift;
-use super::PlayerCurrency;
 use super::RepresentedAdventureMapStartQuestLikeCpp;
-use super::RepresentedAuctionPlaceBidLikeCpp;
-use super::RepresentedBankItemMoveLikeCpp;
-#[cfg(test)]
-use super::RepresentedCreatureKillEventLikeCpp;
-#[cfg(test)]
-use super::RepresentedGameObjectCriteriaEvent;
-#[cfg(test)]
-use super::RepresentedGuildRepairBankWithdrawLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::RepresentedLootRollCriteriaEvent;
 use super::RepresentedQuestCompleteStatusUpdateLikeCpp;
 use super::RepresentedQuestObjectiveProgressEventLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
-use super::RepresentedTransmogCriteriaEvent;
-use super::RepresentedVoidStorageItemLikeCpp;
 use super::SessionPersistencePortsLikeCpp;
 use super::VecDeque;
 #[cfg(test)]
 use super::persistence::test_fixtures::LoadedPlayerFlagsTestFixtureLikeCpp;
 #[cfg(test)]
-use super::player_items::test_fixtures::PlayerItemTestFixtureLikeCpp;
-#[cfg(test)]
 use super::quest::test_fixtures::QuestTestFixtureLikeCpp;
 use super::{HomebindPersistenceJobLikeCpp, Instant, Item};
-use super::{PendingCreatureKillRewardLikeCpp, PendingCreatureSpawn};
 #[cfg(test)]
 use super::{RepresentedAreaZoneCriteriaLikeCpp, RepresentedAtLoginFlagRemovalLikeCpp};
-use super::{RepresentedAuctionRemoveItemLikeCpp, RepresentedAuctionReplicateRequestLikeCpp};
-use super::{RepresentedAuctionSellItemLikeCpp, RepresentedAutoUnequipOffhandLikeCpp};
-use super::RepresentedGameObjectUseEffect;
-use super::{RepresentedGameObjectUseState, RepresentedGuildRepairBankStateLikeCpp};
-#[cfg(test)]
-use super::{RepresentedGuildBankInventoryMoveLikeCpp, RepresentedGuildBankListRequestLikeCpp};
-#[cfg(test)]
-use super::{RepresentedGuildBankMoneyMoveLikeCpp, RepresentedGuildBankTabActionLikeCpp};
 use super::{RepresentedLootRollState, RepresentedPendingBind};
 use super::{driver, lifecycle};
 

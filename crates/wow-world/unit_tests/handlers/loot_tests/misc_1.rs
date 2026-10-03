@@ -865,22 +865,3 @@ async fn failed_existing_stack_store_publishes_neither_count_nor_binding() {
     assert!(request.new_stacks.is_empty());
     assert_eq!(request.stored_item_source, None);
 }
-#[test]
-fn random_enchantment_selection_uses_cpp_weighted_chances() {
-    let group = [
-        ItemRandomEnchantmentTemplateEntry {
-            group_id: 1,
-            enchantment_id: 10,
-            chance: 0.0,
-        },
-        ItemRandomEnchantmentTemplateEntry {
-            group_id: 1,
-            enchantment_id: 11,
-            chance: 100.0,
-        },
-    ];
-    assert_eq!(
-        select_weighted_random_enchantment_like_cpp(&group, &mut StdRng::seed_from_u64(5)),
-        Some(11)
-    );
-}

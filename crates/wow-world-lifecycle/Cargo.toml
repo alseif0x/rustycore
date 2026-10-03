@@ -1,0 +1,27 @@
+[package]
+name = "wow-world-lifecycle"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+test-fixtures = []
+
+[dependencies]
+flume = { workspace = true }
+tokio = { workspace = true }
+tracing = { workspace = true }
+wow-core = { workspace = true }
+wow-loot = { workspace = true }
+wow-map = { workspace = true }
+wow-persistence = { workspace = true }
+wow-packet = { workspace = true }
+wow-world-core = { workspace = true }
+
+[dev-dependencies]
+tokio = { workspace = true }
+
+[lints]
+workspace = true

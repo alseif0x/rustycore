@@ -124,24 +124,7 @@ pub(in crate::session) enum RepresentedSpellClickClickeeCasterOutcomeLikeCpp {
     Failed,
 }
 
-#[derive(Debug, Clone, PartialEq)]
-pub(in crate::session) struct RepresentedSpellClickCreatureSnapshotLikeCpp {
-    pub(in crate::session) guid: ObjectGuid,
-    pub(in crate::session) entry: u32,
-    pub(in crate::session) map_id: u32,
-    pub(in crate::session) instance_id: u32,
-    pub(in crate::session) position: Position,
-    pub(in crate::session) phase_shift: PhaseShift,
-    pub(in crate::session) npc_flags: u32,
-    pub(in crate::session) faction_template_id: u32,
-    pub(in crate::session) level: u32,
-    pub(in crate::session) health: u64,
-    pub(in crate::session) max_health: u64,
-    pub(in crate::session) is_alive: bool,
-    pub(in crate::session) is_in_world: bool,
-    pub(in crate::session) is_summon: bool,
-    pub(in crate::session) owner_guid: Option<ObjectGuid>,
-}
+pub(in crate::session) use wow_world_entities::RepresentedSpellClickCreatureSnapshotLikeCpp;
 
 pub(in crate::session) fn represented_spell_click_school_damage_amount_like_cpp(
     spell_info: &wow_data::SpellInfo,

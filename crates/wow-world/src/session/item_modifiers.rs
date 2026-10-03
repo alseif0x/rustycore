@@ -6,53 +6,26 @@
 
 #[cfg(test)]
 use super::TitanGripPenaltyAction;
-use super::{ApplyEnchantmentEffectAction, ApplyEnchantmentPlan, Arc, BANK_SLOT_BAG_START};
+use super::{Arc, BANK_SLOT_BAG_START};
 use super::{BANK_SLOT_BAG_END, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START};
 #[cfg(test)]
 use super::{EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND};
-use super::{INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START, ItemSubClassArmor, ObjectGuid};
-use super::{
-    PlayerEnchantTimeUpdate, PlayerStatsStore, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START,
-};
-use super::{ScalingStatDistributionEntry, ShieldBlockRegularGameTableLikeCpp, WeaponAttackType};
+use super::{INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START, ItemSubClassArmor};
+use super::{PlayerStatsStore, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START};
+use super::{ScalingStatDistributionEntry, ShieldBlockRegularGameTableLikeCpp};
 use super::{WorldSession, two_handed_in_one_hand_like_cpp};
-
+pub(crate) use wow_world_inventory::{
+    RepresentedItemBonusActionLikeCpp, RepresentedItemSetAuraRefreshEventLikeCpp,
+    RepresentedItemSetSpellEventLikeCpp,
+};
 #[cfg(test)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedItemModsReapplyEventLikeCpp {
-    pub item_guid: ObjectGuid,
-    pub slot: u8,
-    pub apply: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RepresentedItemBonusActionLikeCpp {
-    pub item_guid: ObjectGuid,
-    pub slot: u8,
-    pub action: ApplyEnchantmentEffectAction,
-}
+pub(crate) use wow_world_inventory::{
+    RepresentedCombatStatRecalculationLikeCpp, RepresentedItemModsReapplyEventLikeCpp,
+};
 
 pub(in crate::session) const ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP: u32 = 0x01;
 
 pub(crate) type RepresentedItemSetEffectLikeCpp = wow_entities::PlayerItemSetEffectLikeCpp;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedItemSetSpellEventLikeCpp {
-    pub item_set_id: u32,
-    pub spell_entry_id: u32,
-    pub spell_id: u32,
-    pub threshold: u8,
-    pub apply: bool,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RepresentedItemSetAuraRefreshEventLikeCpp {
-    pub item_set_id: u32,
-    pub spell_entry_id: u32,
-    pub spell_id: u32,
-    pub apply: bool,
-    pub form_change: bool,
-}
 
 pub(crate) type RepresentedItemBonusStateLikeCpp = wow_entities::PlayerItemBonusStateLikeCpp;
 
@@ -100,108 +73,12 @@ pub(crate) fn void_withdrawal_post_store_item_values_update_like_cpp(
     })
 }
 
-pub(crate) fn item_storage_fields_values_update_like_cpp(
-    item: &wow_entities::Item,
-    contained_in_changed: bool,
-    dynamic_flags2_changed: bool,
-    changed_enchantments: &[wow_constants::item::EnchantmentSlot],
-) -> wow_entities::ItemValuesUpdate {
-    let mut item_data_mask = wow_entities::UpdateMask::new(wow_entities::ITEM_DATA_BITS);
-    if contained_in_changed || dynamic_flags2_changed {
-        item_data_mask.set(wow_entities::ITEM_DATA_PARENT_BIT);
-    }
-    if contained_in_changed {
-        item_data_mask.set(wow_entities::ITEM_DATA_CONTAINED_IN_BIT);
-    }
-    if dynamic_flags2_changed {
-        item_data_mask.set(wow_entities::ITEM_DATA_DYNAMIC_FLAGS2_BIT);
-    }
-    if !changed_enchantments.is_empty() {
-        item_data_mask.set(wow_entities::ITEM_DATA_ENCHANTMENT_PARENT_BIT);
-        for slot in changed_enchantments {
-            item_data_mask.set(wow_entities::ITEM_DATA_ENCHANTMENT_FIRST_BIT + *slot as usize);
-        }
-    }
-    wow_entities::ItemValuesUpdate {
-        changed_object_type_mask: 1 << wow_entities::TYPEID_ITEM,
-        object_data: None,
-        item_data: Some(wow_entities::ItemDataUpdate {
-            mask: item_data_mask,
-            values: item.data().clone(),
-        }),
-    }
-}
-
-pub(in crate::session) fn represented_player_stat_changes_like_cpp(
-    state: &RepresentedItemBonusStateLikeCpp,
-) -> wow_packet::packets::update::PlayerStatChanges {
-    let mut changes = wow_packet::packets::update::PlayerStatChanges {
-        base_mana: state.mana_base,
-        base_health: state.health_base,
-        attack_power: state.attack_power_total,
-        ranged_attack_power: state.ranged_attack_power_total,
-        stats: state.stats_base,
-        stat_pos_buff: state.stats_base,
-        armor: state.armor_base + state.armor_total + state.resistances_base[0],
-        combat_ratings: state.combat_ratings,
-        // This fixture has no aura/stat producers, so the item accumulator is
-        // the whole represented `SpellBaseDamageBonusDone`/`HealingBonusDone`.
-        mod_damage_done_pos: std::array::from_fn(|school| {
-            if school == 0 {
-                0
-            } else {
-                state.spell_power_bonus
-            }
-        }),
-        mod_damage_done_neg: [0; 7],
-        mod_healing_done_pos: state.spell_power_bonus,
-        mod_damage_done_percent: [1.0; 7],
-        shield_block: i32::try_from(state.shield_block_value).unwrap_or(i32::MAX),
-        ..Default::default()
-    };
-
-    changes.min_damage =
-        state.weapon_damage[wow_constants::WeaponAttackType::BaseAttack as usize][0];
-    changes.max_damage =
-        state.weapon_damage[wow_constants::WeaponAttackType::BaseAttack as usize][1];
-    changes.min_ranged_damage =
-        state.weapon_damage[wow_constants::WeaponAttackType::RangedAttack as usize][0];
-    changes.max_ranged_damage =
-        state.weapon_damage[wow_constants::WeaponAttackType::RangedAttack as usize][1];
-    changes
-}
+pub(crate) use wow_world_inventory::item_storage_fields_values_update_like_cpp;
+pub(in crate::session) use wow_world_inventory::represented_player_stat_changes_like_cpp;
 
 pub(in crate::session) use wow_world_core::session::RepresentedScalingStatContextLikeCpp;
 
-#[cfg(test)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedCombatStatRecalculationLikeCpp {
-    Expertise { attack: WeaponAttackType },
-    Rating { combat_rating: u8 },
-}
-
-#[derive(Debug, Clone, Default)]
-pub(crate) struct LoadedEquippedItemEnchantmentsOutcomeLikeCpp {
-    pub plans: Vec<ApplyEnchantmentPlan>,
-    pub duration_updates: Vec<PlayerEnchantTimeUpdate>,
-    pub send_stat_update: bool,
-    pub visible_item_changes: Vec<(u8, i32, u16, u16)>,
-    pub effect_actions: Vec<RepresentedItemBonusActionLikeCpp>,
-    pub unrepresented_effect_actions: Vec<RepresentedItemBonusActionLikeCpp>,
-}
-
-impl LoadedEquippedItemEnchantmentsOutcomeLikeCpp {
-    pub(crate) fn append(&mut self, mut other: Self) {
-        self.plans.append(&mut other.plans);
-        self.duration_updates.append(&mut other.duration_updates);
-        self.send_stat_update |= other.send_stat_update;
-        self.visible_item_changes
-            .append(&mut other.visible_item_changes);
-        self.effect_actions.append(&mut other.effect_actions);
-        self.unrepresented_effect_actions
-            .append(&mut other.unrepresented_effect_actions);
-    }
-}
+pub(crate) use wow_world_inventory::LoadedEquippedItemEnchantmentsOutcomeLikeCpp;
 
 #[derive(Debug, Clone, Default)]
 pub(crate) struct InitialLoadedItemModsOutcomeLikeCpp {
@@ -210,11 +87,7 @@ pub(crate) struct InitialLoadedItemModsOutcomeLikeCpp {
     pub enchantments: LoadedEquippedItemEnchantmentsOutcomeLikeCpp,
 }
 
-pub(in crate::session) fn is_represented_bag_slot(slot: u8) -> bool {
-    (INVENTORY_SLOT_BAG_START..INVENTORY_SLOT_BAG_END).contains(&slot)
-        || (BANK_SLOT_BAG_START..BANK_SLOT_BAG_END).contains(&slot)
-        || (REAGENT_BAG_SLOT_START..REAGENT_BAG_SLOT_END).contains(&slot)
-}
+pub(in crate::session) use wow_world_inventory::is_represented_bag_slot;
 
 pub(crate) use wow_world_core::session::player_class_mask_for_transmog_like_cpp;
 

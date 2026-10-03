@@ -31,13 +31,10 @@ use super::StdRng;
 #[cfg(test)]
 use super::persistence::test_fixtures::LoadedPlayerFlagsTestFixtureLikeCpp;
 #[cfg(test)]
-use super::player_items::test_fixtures::PlayerItemTestFixtureLikeCpp;
-#[cfg(test)]
 use super::quest::test_fixtures::QuestTestFixtureLikeCpp;
-use super::{Arc, BTreeSet};
+use super::Arc;
 use super::{DurableItemLootPersistenceTrackerLikeCpp, DurableLootMoneyPersistenceTrackerLikeCpp};
 use super::{HashMap, Instant};
-use super::{PhaseShift, RepresentedBattlePetSlotLikeCpp};
 use super::{VecDeque, WorldPacket, WorldSession, build_dispatch_table, connection};
 use super::{default_account_data_like_cpp, lifecycle};
 
@@ -126,106 +123,16 @@ impl WorldSession {
                 tx: session_phase_tx,
                 rx: session_phase_rx,
             },
-            loot: LootState {
-                #[cfg(test)]
-                pass_on_group_loot: false,
-                #[cfg(test)]
-                loot_specialization_id: 0,
-                loot_table: std::collections::HashMap::new(),
-                represented_loot_cache_generations_like_cpp: std::collections::HashMap::new(),
-                active_loot_guid: ObjectGuid::EMPTY,
-                active_loot_view_owners: std::collections::HashSet::new(),
-                active_loot_view_generations_like_cpp: std::collections::HashMap::new(),
-                active_loot_view_authorities_like_cpp: std::collections::HashMap::new(),
-                represented_loot_rolls: std::collections::HashMap::new(),
-                #[cfg(test)]
-                loot_item_store_test_grants_like_cpp: None,
-                #[cfg(test)]
-                loot_item_store_test_success_like_cpp: true,
-                #[cfg(test)]
-                loot_item_store_test_commit_gate_like_cpp: None,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                represented_loot_roll_criteria_events: Vec::new(),
-                represented_unique_gameobject_uses: std::collections::HashSet::new(),
-                represented_gameobject_tap_lists: std::collections::HashMap::new(),
-                #[cfg(test)]
-                represented_locked_dungeon_encounters: std::collections::HashSet::new(),
-                represented_personal_loot_money: std::collections::HashMap::new(),
-                represented_personal_loot_owners: std::collections::HashSet::new(),
-            },
+            loot: LootState::new_like_cpp(),
             catalogs: SessionCatalogs::default(),
             config: SessionWorldConfig::default(),
             #[cfg(any(test, feature = "test-fixtures"))]
             fixtures: SessionFixtures::default(),
-            inventory: InventoryState {
-                #[cfg(test)]
-                #[cfg(test)]
-                represented_using_pvp_item_levels_like_cpp: false,
-                #[cfg(test)]
-                player_gold: 0,
-                #[cfg(test)]
-                player_item_test_fixture_like_cpp: PlayerItemTestFixtureLikeCpp::default(),
-                #[cfg(test)]
-                represented_bank_bag_slot_flags_like_cpp: [0; 7],
-                #[cfg(test)]
-                represented_bank_item_moves_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_guild_bank_inventory_moves_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_guild_bank_list_requests_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_guild_bank_money_moves_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_guild_bank_tab_actions_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_auction_replicate_requests_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_auction_place_bids_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_auction_remove_items_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_auction_sell_items_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_auto_unequip_offhand_requests_like_cpp: Vec::new(),
-                represented_guild_repair_bank_state_like_cpp: None,
-                #[cfg(test)]
-                represented_guild_repair_bank_withdraws_like_cpp: Vec::new(),
-                #[cfg(test)]
-                player_currencies: HashMap::new(),
-
-                #[cfg(test)]
-                inventory_item_objects: HashMap::new(),
-                #[cfg(test)]
-                represented_equipment_sets_like_cpp:
-                    wow_entities::PlayerEquipmentSetsLikeCpp::default(),
-                #[cfg(test)]
-                represented_void_storage_items_like_cpp: std::array::from_fn(|_| None),
-                #[cfg(test)]
-                represented_void_storage_loaded_like_cpp: false,
-                #[cfg(test)]
-                player_equipment_inventory_authority_complete_like_cpp: false,
-                #[cfg(any(test, feature = "test-fixtures"))]
-                represented_transmog_criteria_events: Vec::new(),
-            },
+            inventory: InventoryState::new_like_cpp(),
             spell_state: SessionSpellState::new_like_cpp(),
             social: SessionSocialLimits::with_recruit_a_friend_limits_like_cpp(85, 4),
             instances: InstanceState::new_like_cpp(),
-            world_entities: WorldEntitiesState {
-                represented_creature_auras_like_cpp: Vec::new(),
-
-                pending_creature_spawn: None,
-                pending_creature_kill_loot_like_cpp: Vec::new(),
-                pending_creature_kill_rewards_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_creature_kill_events_like_cpp: Vec::new(),
-                creature_tick: 0,
-                #[cfg(test)]
-                represented_gameobject_criteria_events: Vec::new(),
-                represented_gameobject_use_effects: Vec::new(),
-                represented_gameobject_use_states: std::collections::BTreeMap::new(),
-                suppress_creature_movement_queued_at_or_before_like_cpp: None,
-                represented_gameobject_phase_shifts: std::collections::HashMap::new(),
-            },
+            world_entities: WorldEntitiesState::new_like_cpp(),
             visibility: VisibilityState::new_like_cpp(),
             interaction: InteractionState::new_like_cpp(),
             quest_state: SessionQuestState {

@@ -782,23 +782,3 @@ impl WorldSession {
     }
 }
 
-impl crate::session::WorldEntitiesState {
-    /// Shared C++ area-spirit-healer checks: creature exists, has the area
-    /// spirit-healer flag, and is within MAX_AREA_SPIRIT_HEALER_RANGE.
-    pub(super) fn represented_area_spirit_healer_access_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        healer_guid: ObjectGuid,
-    ) -> Option<crate::session::RepresentedCreatureAccessLikeCpp> {
-        let access = self.canonical_creature_access_like_cpp(hub, healer_guid)?;
-        if (access.npc_flags & NPCFlags1::AREA_SPIRIT_HEALER.bits()) == 0 {
-            return None;
-        }
-
-        let player_position = hub.player_position_like_cpp()?;
-        access
-            .position
-            .is_within_dist(&player_position, MAX_AREA_SPIRIT_HEALER_RANGE_LIKE_CPP)
-            .then_some(access)
-    }
-}

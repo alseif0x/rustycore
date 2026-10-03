@@ -9,14 +9,14 @@ impl WorldSession {
         let Some(authority) = self.represented_owned_loot_authority_like_cpp(gameobject_guid)
         else {
             return (represented_local_loot_fixture_allowed_like_cpp()
-                && self.loot.loot_table.contains_key(&gameobject_guid))
+                && self.loot.cached_loot_contains_owner_like_cpp(gameobject_guid))
             .then_some(());
         };
-        let loot = self.loot.loot_table.get(&gameobject_guid)?.clone();
-        let is_personal = self
+        let loot = self
             .loot
-            .represented_personal_loot_owners
-            .contains(&gameobject_guid);
+            .cached_loot_for_owner_like_cpp(gameobject_guid)?
+            .clone();
+        let is_personal = self.loot.is_personal_loot_owner_like_cpp(gameobject_guid);
         let (shared, personal) = self.represented_loot_authority_pools_like_cpp(
             gameobject_guid,
             player_guid,
@@ -31,10 +31,9 @@ impl WorldSession {
                 .snapshot_for_player_like_cpp(player_guid)
                 .is_none()
         {
-            self.loot.loot_table.remove(&gameobject_guid);
+            self.loot.remove_cached_loot_for_owner_like_cpp(gameobject_guid);
             self.loot
-                .represented_loot_cache_generations_like_cpp
-                .remove(&gameobject_guid);
+                .remove_cached_loot_generation_like_cpp(gameobject_guid);
             return None;
         }
         self.refresh_owned_loot_summary_like_cpp(gameobject_guid);
@@ -338,24 +337,6 @@ impl crate::session::LootCx<'_> {
     }
 }
 
-impl crate::session::LootState {
-    fn canonical_gameobject_owner_for_loot_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        guid: ObjectGuid,
-    ) -> Option<ObjectGuid> {
-        let map_key = hub
-            .core
-            .canonical_object_lookup_map_key_like_cpp(u32::from(
-                hub.core.player_map_id_like_cpp(),
-            ))?;
-        let manager = hub.core.canonical_map_manager.as_ref()?;
-        let manager = manager.lock().ok()?;
-        let map = manager.find_map(map_key.map_id, map_key.instance_id)?.map();
-        let owner_guid = map.get_typed_game_object(guid)?.owner_guid();
-        (!owner_guid.is_empty()).then_some(owner_guid)
-    }
-}
 
 #[cfg(test)]
 #[path = "../../../../unit_tests/handlers/loot/sources/gameobject_authority/f3_shims.rs"]

@@ -7,7 +7,7 @@
 #[cfg(test)]
 use super::ObjectGuidGenerator;
 use super::WorldSession;
-use super::{Arc, NUM_ACCOUNT_DATA_TYPES, ObjectGuid, SessionManager};
+use super::{Arc, ObjectGuid, SessionManager};
 #[cfg(test)]
 pub(in crate::session) use wow_world_core::session::PacketSpoofPendingBanLikeCpp;
 pub(in crate::session) use wow_world_core::session::PacketSpoofPendingBanTargetLikeCpp;
@@ -15,21 +15,11 @@ pub use wow_world_core::session::SessionState;
 
 pub(crate) use wow_world_social::{ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp};
 
-/// C++ `WorldSession::_accountData[NUM_ACCOUNT_DATA_TYPES]` entry.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
-pub(crate) struct AccountDataLikeCpp {
-    pub time: i64,
-    pub data: String,
-}
-
-pub(crate) const ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP: u32 = 0x7FFF;
-pub(crate) const GLOBAL_CACHE_MASK_LIKE_CPP: u32 = 0x2515;
-pub(crate) const PER_CHARACTER_CACHE_MASK_LIKE_CPP: u32 = 0x5AEA;
-
-pub(in crate::session) fn default_account_data_like_cpp()
--> [AccountDataLikeCpp; NUM_ACCOUNT_DATA_TYPES] {
-    std::array::from_fn(|_| AccountDataLikeCpp::default())
-}
+pub(crate) use wow_world_lifecycle::{
+    AccountDataLikeCpp, ALL_ACCOUNT_DATA_CACHE_MASK_LIKE_CPP, GLOBAL_CACHE_MASK_LIKE_CPP,
+    PER_CHARACTER_CACHE_MASK_LIKE_CPP,
+};
+pub(in crate::session) use wow_world_lifecycle::default_account_data_like_cpp;
 
 pub(in crate::session) fn trinity_sprintf_like_cpp(format: &str, args: &[&str]) -> String {
     let mut output = String::with_capacity(format.len());

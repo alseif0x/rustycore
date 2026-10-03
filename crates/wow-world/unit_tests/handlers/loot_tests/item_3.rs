@@ -7,57 +7,7 @@ use super::*;
 use wow_loot::{LOOT_METHOD_GROUP_LIKE_CPP, LOOT_METHOD_MASTER_LIKE_CPP};
 use wow_social::group::{GroupInfo, GroupRegistry, PendingInvites};
 
-#[test]
-fn loot_item_random_context_stack_compatibility_uses_cpp_store_metadata() {
-    let item_guid = ObjectGuid::create_item(1, 901);
-    let owner_guid = ObjectGuid::create_player(1, 42);
-    let mut item = Item::new(0);
-    item.initialize_created_state(ItemCreateInfo {
-        guid: item_guid,
-        item_id: 25,
-        context: ItemContext::DungeonHeroic,
-        owner: Some(owner_guid),
-        max_durability: 0,
-        expiration: 0,
-        spell_charges: [0; MAX_ITEM_SPELLS],
-    });
-    item.set_random_properties_id(-77);
-    item.set_property_seed(456);
 
-    let matching = LootEntry {
-        loot_list_id: 0,
-        item_id: 25,
-        quantity: 1,
-        random_properties_id: -77,
-        random_properties_seed: 456,
-        item_context: 2,
-        flags: LootEntryFlags::default(),
-        allowed_looters: Vec::new(),
-        roll_winner: ObjectGuid::EMPTY,
-        ffa_looted_by: Vec::new(),
-        taken: false,
-    };
-    assert!(loot_store_data_can_stack_with_item(
-        &matching,
-        LootStoreRandomProperties { id: -77, seed: 456 },
-        &item
-    ));
-
-    let different_random = LootEntry {
-        random_properties_id: -78,
-        ..matching.clone()
-    };
-    assert!(loot_store_data_can_stack_with_item(
-        &different_random,
-        LootStoreRandomProperties { id: -77, seed: 456 },
-        &item
-    ));
-    assert!(!loot_store_data_can_stack_with_item(
-        &matching,
-        LootStoreRandomProperties { id: 0, seed: 0 },
-        &item
-    ));
-}
 #[test]
 fn loot_item_store_random_properties_are_generated_from_cpp_random_select() {
     let entry = LootEntry {

@@ -572,6 +572,10 @@ fn world_spell_and_interaction_roles_do_not_take_session_contract_ownership() {
         (PackageRole::WorldInteraction, "wow-world-interaction"),
         (PackageRole::WorldInstances, "wow-world-instances"),
         (PackageRole::WorldVisibility, "wow-world-visibility"),
+        (PackageRole::WorldLoot, "wow-world-loot"),
+        (PackageRole::WorldEntities, "wow-world-entities"),
+        (PackageRole::WorldInventory, "wow-world-inventory"),
+        (PackageRole::WorldLifecycle, "wow-world-lifecycle"),
     ] {
         let baseline = baseline_with_world_domain(
             role,
@@ -606,6 +610,10 @@ fn world_spell_and_interaction_cannot_define_or_impl_the_core_owner() {
         PackageRole::WorldInteraction,
         PackageRole::WorldInstances,
         PackageRole::WorldVisibility,
+        PackageRole::WorldLoot,
+        PackageRole::WorldEntities,
+        PackageRole::WorldInventory,
+        PackageRole::WorldLifecycle,
     ] {
         let error = baseline_with_world_domain(role, "pub struct SessionCore;")
             .expect_err("domain packages cannot define SessionCore");
@@ -630,6 +638,10 @@ fn world_session_remains_owned_by_world_across_all_extracted_packages() {
         PackageRole::WorldInteraction,
         PackageRole::WorldInstances,
         PackageRole::WorldVisibility,
+        PackageRole::WorldLoot,
+        PackageRole::WorldEntities,
+        PackageRole::WorldInventory,
+        PackageRole::WorldLifecycle,
     ] {
         let error = baseline_with_world_domain(role, "pub struct WorldSession;")
             .expect_err("an extracted package cannot define WorldSession");
@@ -690,6 +702,34 @@ fn world_spell_and_interaction_source_units_follow_their_real_root_mounts() {
         WORLD_VISIBILITY_CRATE_ROOT,
     )
     .expect("the actual WorldVisibility root and its declared modules are loadable");
+    let loot = repository_units(
+        &repository_root,
+        PackageRole::WorldLoot,
+        WORLD_LOOT_PACKAGE_ROOT,
+        WORLD_LOOT_CRATE_ROOT,
+    )
+    .expect("the actual WorldLoot root and its declared modules are loadable");
+    let entities = repository_units(
+        &repository_root,
+        PackageRole::WorldEntities,
+        WORLD_ENTITIES_PACKAGE_ROOT,
+        WORLD_ENTITIES_CRATE_ROOT,
+    )
+    .expect("the actual WorldEntities root and its declared modules are loadable");
+    let inventory = repository_units(
+        &repository_root,
+        PackageRole::WorldInventory,
+        WORLD_INVENTORY_PACKAGE_ROOT,
+        WORLD_INVENTORY_CRATE_ROOT,
+    )
+    .expect("the actual WorldInventory root and its declared modules are loadable");
+    let lifecycle = repository_units(
+        &repository_root,
+        PackageRole::WorldLifecycle,
+        WORLD_LIFECYCLE_PACKAGE_ROOT,
+        WORLD_LIFECYCLE_CRATE_ROOT,
+    )
+    .expect("the actual WorldLifecycle root and its declared modules are loadable");
 
     assert!(spell.iter().all(|unit| unit.role == PackageRole::WorldSpell));
     assert!(spell.iter().any(|unit| unit.logical_module_path == "crate"));
@@ -730,4 +770,34 @@ fn world_spell_and_interaction_source_units_follow_their_real_root_mounts() {
     assert!(visibility
         .iter()
         .any(|unit| unit.logical_module_path == "crate::state"));
+    assert!(loot.iter().all(|unit| unit.role == PackageRole::WorldLoot));
+    assert!(loot.iter().any(|unit| unit.logical_module_path == "crate"));
+    assert!(loot
+        .iter()
+        .any(|unit| unit.logical_module_path == "crate::state"));
+    assert!(entities
+        .iter()
+        .all(|unit| unit.role == PackageRole::WorldEntities));
+    assert!(entities
+        .iter()
+        .any(|unit| unit.logical_module_path == "crate::creature_publication"));
+    assert!(entities
+        .iter()
+        .any(|unit| unit.logical_module_path == "crate::state"));
+    assert!(inventory
+        .iter()
+        .all(|unit| unit.role == PackageRole::WorldInventory));
+    assert!(inventory
+        .iter()
+        .any(|unit| unit.logical_module_path == "crate::inventory_request_contracts"));
+    assert!(inventory
+        .iter()
+        .any(|unit| unit.logical_module_path == "crate::state"));
+    assert!(lifecycle
+        .iter()
+        .all(|unit| unit.role == PackageRole::WorldLifecycle));
+    assert!(lifecycle.iter().any(|unit| unit.logical_module_path == "crate"));
+    assert!(lifecycle
+        .iter()
+        .any(|unit| unit.logical_module_path == "crate::finalization"));
 }

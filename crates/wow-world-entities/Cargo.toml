@@ -1,0 +1,29 @@
+[package]
+name = "wow-world-entities"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+license.workspace = true
+publish = false
+
+[features]
+test-fixtures = ["wow-world-core/test-fixtures"]
+
+[dependencies]
+wow-conditions = { workspace = true }
+wow-constants = { workspace = true }
+wow-core = { workspace = true }
+wow-data = { workspace = true }
+wow-entities = { workspace = true }
+wow-loot = { workspace = true }
+wow-map = { workspace = true }
+wow-movement = { workspace = true }
+wow-packet = { workspace = true }
+wow-progression = { workspace = true }
+wow-world-core = { workspace = true }
+
+[dev-dependencies]
+wow-world-core = { workspace = true, features = ["test-fixtures"] }
+
+[lints]
+workspace = true

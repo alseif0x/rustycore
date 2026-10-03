@@ -57,7 +57,6 @@ use std::sync::{
 use std::time::{Duration, Instant};
 
 use rand::Rng;
-use tokio::time::timeout;
 use tracing::{debug, info, warn};
 
 use crate::session::directory::{PlayerRegistry, PrepareLootMoneyApplicationLikeCpp};
@@ -148,10 +147,7 @@ use crate::session::{
     RepresentedQuestObjectiveProgressEventLikeCpp, SessionState, WorldSession,
     loot_money_durable_outcome_like_cpp,
 };
-use random_properties::{
-    LootStoreRandomProperties, loot_store_data_can_stack_with_item,
-    select_weighted_random_enchantment_like_cpp,
-};
+use random_properties::{LootStoreRandomProperties, loot_store_data_can_stack_with_item};
 use storage_plans::{
     LootItemClaimCommitContextLikeCpp, PlannedDirectLootExistingStack,
     PlannedDisenchantExistingPush, PlannedDisenchantExistingStack, PlannedDisenchantGrant,
@@ -165,10 +161,6 @@ const MAX_NR_LOOT_ITEMS_LIKE_CPP: usize = 18;
 const LOOT_ROLL_TIMEOUT_MS_LIKE_CPP: u32 = 60_000;
 #[cfg(test)]
 const ROLL_ALL_TYPE_NO_DISENCHANT_LIKE_CPP: u8 = 0x07;
-const LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP: u8 = 0;
-const LOOT_SLOT_TYPE_ROLL_ONGOING_LIKE_CPP: u8 = 1;
-const LOOT_SLOT_TYPE_LOCKED_LIKE_CPP: u8 = 2;
-const DISENCHANT_LOOT_ROLL_CRITERIA_SPELL_LIKE_CPP: u32 = 13_262;
 const LOOT_MODE_DEFAULT_LIKE_CPP: u16 = 0x01;
 const LOOT_MODE_JUNK_FISH_LIKE_CPP: u16 = 0x8000;
 const ITEM_FLAGS_CU_FOLLOW_LOOT_RULES_LIKE_CPP: u32 = 0x0004;
@@ -181,7 +173,6 @@ const PLAYER_TYPE_MASK_LIKE_CPP: u32 = 0x0001 | 0x0020 | 0x0040;
 const LOCK_KEY_SKILL_LIKE_CPP: u8 = 2;
 const LOCK_KEY_SPELL_LIKE_CPP: u8 = 3;
 const SPELL_EFFECT_OPEN_LOCK_LIKE_CPP: u32 = 33;
-const REMOTE_MASTER_LOOT_COMMAND_TIMEOUT: Duration = Duration::from_millis(250);
 
 #[derive(Clone)]
 struct AuthoritativeLootReleaseLikeCpp {
@@ -337,19 +328,7 @@ where
     entry
 }
 
-#[derive(Debug, Clone)]
-struct RepresentedCreatureLootStateLikeCpp {
-    is_alive: bool,
-    position: wow_core::Position,
-    level: u8,
-    entry: u32,
-    loot_id: u32,
-    gold_min: u32,
-    gold_max: u32,
-    dungeon_encounter_id: u32,
-    tappers: Vec<ObjectGuid>,
-    loot_lifecycle_revision: u64,
-}
+use wow_world_loot::RepresentedCreatureLootStateLikeCpp;
 
 #[derive(Debug, Clone)]
 struct RepresentedGameObjectLootInstallObservationLikeCpp {
@@ -687,22 +666,10 @@ fn start_loot_roll_packet_like_cpp(
     }
 }
 
-fn loot_roll_broadcast_item_like_cpp(entry: &LootEntry, ui_type: u8) -> LootItemData {
-    LootItemData {
-        item_type: 0,
-        ui_type,
-        can_trade_to_tap_list: entry.allowed_looters.len() > 1,
-        loot: ItemInstance {
-            item_id: entry.item_id as i32,
-            random_properties_id: entry.random_properties_id,
-            random_properties_seed: entry.random_properties_seed,
-            ..ItemInstance::default()
-        },
-        loot_list_id: entry.loot_list_id,
-        quantity: entry.quantity,
-        loot_item_type: 0,
-    }
-}
+use wow_world_loot::{
+    LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP, LOOT_SLOT_TYPE_LOCKED_LIKE_CPP,
+    LOOT_SLOT_TYPE_ROLL_ONGOING_LIKE_CPP, loot_roll_broadcast_item_like_cpp,
+};
 
 fn roll_chance_with_rate_like_cpp<R: Rng + ?Sized>(chance: f32, rate: f32, rng: &mut R) -> bool {
     if chance >= 100.0 {

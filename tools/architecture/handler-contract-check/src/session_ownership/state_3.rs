@@ -34,6 +34,10 @@ pub(super) fn collect_units(
                         | PackageRole::WorldInteraction
                         | PackageRole::WorldInstances
                         | PackageRole::WorldVisibility
+                        | PackageRole::WorldLoot
+                        | PackageRole::WorldEntities
+                        | PackageRole::WorldInventory
+                        | PackageRole::WorldLifecycle
                         | PackageRole::Server
                 )
         })
@@ -260,6 +264,30 @@ pub(super) fn collect_repository_baseline_with_persistence(
         PackageRole::WorldVisibility,
         WORLD_VISIBILITY_PACKAGE_ROOT,
         WORLD_VISIBILITY_CRATE_ROOT,
+    )?);
+    units.extend(repository_units(
+        repository_root,
+        PackageRole::WorldLoot,
+        WORLD_LOOT_PACKAGE_ROOT,
+        WORLD_LOOT_CRATE_ROOT,
+    )?);
+    units.extend(repository_units(
+        repository_root,
+        PackageRole::WorldEntities,
+        WORLD_ENTITIES_PACKAGE_ROOT,
+        WORLD_ENTITIES_CRATE_ROOT,
+    )?);
+    units.extend(repository_units(
+        repository_root,
+        PackageRole::WorldInventory,
+        WORLD_INVENTORY_PACKAGE_ROOT,
+        WORLD_INVENTORY_CRATE_ROOT,
+    )?);
+    units.extend(repository_units(
+        repository_root,
+        PackageRole::WorldLifecycle,
+        WORLD_LIFECYCLE_PACKAGE_ROOT,
+        WORLD_LIFECYCLE_CRATE_ROOT,
     )?);
     units.extend(repository_units(
         repository_root,

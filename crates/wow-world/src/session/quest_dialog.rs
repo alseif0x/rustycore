@@ -9,8 +9,8 @@ use super::PowerType;
 use super::{ActiveState, Arc, InventoryResult, ObjectGuid};
 use super::{QUEST_MENU_ICON_AVAILABLE_LIKE_CPP, QUEST_MENU_ICON_COMPLETE_LIKE_CPP};
 use super::{QUEST_MENU_ICON_TURN_IN_LIKE_CPP, QUEST_OBJECTIVE_ITEM_LIKE_CPP, QuestListEntry};
-use super::{QuestRewardsBlock, RepresentedGameObjectUseEffect, SheathState};
-use super::{UnitStandStateType, WorldSession, info, quest};
+use super::{QuestRewardsBlock, RepresentedGameObjectUseEffect};
+use super::{WorldSession, info, quest};
 
 pub(in crate::session) fn quest_has_represented_item_objective_like_cpp(
     quest: &wow_data::quest::QuestTemplate,
@@ -85,29 +85,9 @@ pub(in crate::session) const fn primary_power_type_for_player_class_like_cpp(
     }
 }
 
-pub(in crate::session) const fn unit_stand_state_from_u8_like_cpp(value: u8) -> UnitStandStateType {
-    match value {
-        1 => UnitStandStateType::Sit,
-        2 => UnitStandStateType::SitChair,
-        3 => UnitStandStateType::Sleep,
-        4 => UnitStandStateType::SitLowChair,
-        5 => UnitStandStateType::SitMediumChair,
-        6 => UnitStandStateType::SitHighChair,
-        7 => UnitStandStateType::Dead,
-        8 => UnitStandStateType::Kneel,
-        9 => UnitStandStateType::Submerged,
-        10 => UnitStandStateType::Max,
-        _ => UnitStandStateType::Stand,
-    }
-}
-
-pub(in crate::session) const fn sheath_state_from_u8_like_cpp(value: u8) -> SheathState {
-    match value {
-        1 => SheathState::Melee,
-        2 => SheathState::Ranged,
-        _ => SheathState::Unarmed,
-    }
-}
+pub(in crate::session) use wow_world_entities::{
+    sheath_state_from_u8_like_cpp, unit_stand_state_from_u8_like_cpp,
+};
 
 #[derive(Debug, Clone)]
 pub(in crate::session) struct RepresentedPreparedQuestMenuItemLikeCpp {

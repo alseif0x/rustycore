@@ -225,12 +225,10 @@ impl WorldSession {
 
         let is_first_represented_unique_use = !self
             .loot
-            .represented_unique_gameobject_uses
-            .contains(&gameobject_guid);
+            .represented_unique_gameobject_use_contains_like_cpp(gameobject_guid);
         if source.loot_id == 0 && is_first_represented_unique_use {
             self.loot
-                .represented_unique_gameobject_uses
-                .insert(gameobject_guid);
+                .insert_represented_unique_gameobject_use_like_cpp(gameobject_guid);
             self.mutate_canonical_gameobject_by_guid_like_cpp(gameobject_guid, |gameobject| {
                 gameobject.add_unique_use_like_cpp(player_guid);
             });
@@ -260,7 +258,8 @@ impl WorldSession {
         }
 
         let should_record_generation_effects =
-            source.loot_id != 0 && !self.loot.loot_table.contains_key(&gameobject_guid);
+            source.loot_id != 0
+                && !self.loot.cached_loot_contains_owner_like_cpp(gameobject_guid);
         let allowed_looters = if source.is_personal_encounter_loot_like_cpp() {
             Vec::new()
         } else if source.uses_personal_loot_like_cpp() {
@@ -280,7 +279,9 @@ impl WorldSession {
             template_money,
         )
         .await;
-        if should_record_generation_effects && self.loot.loot_table.contains_key(&gameobject_guid) {
+        if should_record_generation_effects
+            && self.loot.cached_loot_contains_owner_like_cpp(gameobject_guid)
+        {
             crate::session::cx_loot(self).record_represented_gameobject_use_effects_like_cpp(
                 gameobject_guid,
                 player_guid,
@@ -293,11 +294,11 @@ impl WorldSession {
             .sync_represented_gameobject_loot_to_canonical_like_cpp(gameobject_guid, player_guid)
             .is_none()
         {
-            self.loot.loot_table.remove(&gameobject_guid);
+            self.loot.remove_cached_loot_for_owner_like_cpp(gameobject_guid);
             return;
         }
 
-        let Some(loot) = self.loot.loot_table.get(&gameobject_guid) else {
+        let Some(loot) = self.loot.cached_loot_for_owner_like_cpp(gameobject_guid) else {
             return;
         };
         // C++ keeps and sends an empty non-encounter
@@ -448,7 +449,7 @@ impl WorldSession {
         else {
             return;
         };
-        self.loot.loot_table.insert(
+        self.loot.insert_cached_loot_for_owner_like_cpp(
             gameobject_guid,
             CreatureLoot {
                 loot_guid,
@@ -467,13 +468,12 @@ impl WorldSession {
             },
         );
 
-        if let Some(loot) = self.loot.loot_table.get_mut(&gameobject_guid) {
+        if let Some(loot) = self.loot.cached_loot_for_owner_mut_like_cpp(gameobject_guid) {
             mark_loot_allowed_for_player_like_cpp(loot, player_guid);
         }
         let upserted = self
             .loot
-            .loot_table
-            .get(&gameobject_guid)
+            .cached_loot_for_owner_like_cpp(gameobject_guid)
             .cloned()
             .and_then(|loot| {
                 install_observation.as_ref().and_then(|observation| {
@@ -487,11 +487,11 @@ impl WorldSession {
                 })
             });
         if upserted.is_none() && !represented_local_loot_fixture_allowed_like_cpp() {
-            self.loot.loot_table.remove(&gameobject_guid);
+            self.loot.remove_cached_loot_for_owner_like_cpp(gameobject_guid);
             return;
         }
 
-        let Some(loot) = self.loot.loot_table.get(&gameobject_guid) else {
+        let Some(loot) = self.loot.cached_loot_for_owner_like_cpp(gameobject_guid) else {
             return;
         };
         if !self.loot.represented_loot_can_be_opened_by_player_like_cpp(
@@ -566,12 +566,10 @@ impl WorldSession {
 
         let is_first_represented_use = !self
             .loot
-            .represented_unique_gameobject_uses
-            .contains(&gameobject_guid);
+            .represented_unique_gameobject_use_contains_like_cpp(gameobject_guid);
         if is_first_represented_use {
             self.loot
-                .represented_unique_gameobject_uses
-                .insert(gameobject_guid);
+                .insert_represented_unique_gameobject_use_like_cpp(gameobject_guid);
             self.mutate_canonical_gameobject_by_guid_like_cpp(gameobject_guid, |gameobject| {
                 gameobject.add_unique_use_like_cpp(player_guid);
             });
@@ -945,104 +943,5 @@ impl crate::session::LootCxRef<'_> {
         }
 
         queued
-    }
-}
-
-impl crate::session::LootState {
-    pub(crate) fn queue_visible_gameobject_packet_for_same_map_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        gameobject_guid: ObjectGuid,
-        packet_bytes: Vec<u8>,
-    ) -> usize {
-        let Some(player_guid) = hub.core.player_guid() else {
-            return 0;
-        };
-        let Some(registry) = hub.core.player_registry() else {
-            return 0;
-        };
-        let current_map_id = hub.core.player_map_id_like_cpp();
-        let current_instance_id = hub
-            .core
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        let mut queued = 0;
-
-        for registration in
-            registry.same_map_loot_recipients(player_guid, current_map_id, current_instance_id)
-        {
-            if registry
-                .try_send_current_command(
-                    registration,
-                    SessionCommand::SendIfVisibleLikeCpp(SendIfVisibleLikeCppCommand {
-                        queued_at: Instant::now(),
-                        source_guid: gameobject_guid,
-                        map_id: current_map_id,
-                        instance_id: current_instance_id,
-                        packet_bytes: packet_bytes.clone(),
-                    }),
-                )
-                .is_ok()
-            {
-                queued += 1;
-            }
-        }
-
-        queued
-    }
-
-    pub(crate) fn represented_creature_is_dead_for_loot_visibility_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        creature_guid: ObjectGuid,
-    ) -> bool {
-        let (map_id, instance_id) = hub.core.current_legacy_runtime_map_key_like_cpp();
-        if let Some(manager) = hub.core.map_manager.as_ref()
-            && let Some(creature) = manager
-                .read()
-                .unwrap_or_else(|poisoned| poisoned.into_inner())
-                .find_creature(map_id, instance_id, creature_guid)
-        {
-            return !creature.is_alive();
-        }
-
-        let Some(map_key) = hub
-            .core
-            .canonical_object_lookup_map_key_like_cpp(u32::from(hub.core.player_map_id_like_cpp()))
-        else {
-            return false;
-        };
-        let Some(manager) = hub.core.canonical_map_manager.as_ref() else {
-            return false;
-        };
-        let Ok(manager) = manager.lock() else {
-            return false;
-        };
-        manager
-            .find_map(map_key.map_id, map_key.instance_id)
-            .and_then(|map| {
-                map.map()
-                    .creature_transform_vitals_snapshot_like_cpp(creature_guid)
-            })
-            .is_some_and(|creature| !creature.is_alive)
-    }
-
-    fn represented_gathering_node_xp_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        xp_difficulty: u32,
-    ) -> u32 {
-        if xp_difficulty == 0 || xp_difficulty >= 10 {
-            return 0;
-        }
-
-        let xp_store = hub.catalogs.quests.xp_store.as_ref();
-        xp_store
-            .map(|store| {
-                store
-                    .player_level_difficulty_xp_like_cpp(hub.player_level_like_cpp(), xp_difficulty)
-            })
-            .unwrap_or_default()
     }
 }

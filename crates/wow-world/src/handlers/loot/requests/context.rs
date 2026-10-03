@@ -357,15 +357,3 @@ impl crate::session::LootCxRef<'_> {
     }
 }
 
-impl crate::session::LootState {
-    pub(in crate::handlers::loot) fn item_template_flags2_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        item_id: u32,
-    ) -> Option<u32> {
-        hub.catalogs
-            .item_stats_store()
-            .and_then(|store| store.sparse_template(item_id))
-            .map(|template| template.flags[1])
-    }
-}

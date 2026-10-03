@@ -855,7 +855,8 @@ test del token, que usa Session y los stores de admisión.
 La revisión por fuente compara los cuerpos trasladados y los helpers, y conserva
 el clear/first-entry-wins de reset times, el take de pending bind antes del await
 y las fences de generación/incarnation. En los 35 archivos de tests World
-modificados se conservan los nombres y orden de sus 486 funciones y las 2.008
+modificados se conservan los nombres y orden de sus 488 funciones (incluidas
+las dos genéricas) y las 2.008
 invocaciones de aserción; ese recuento léxico no ejecuta los casos ni prueba sus
 resultados. Instances usa nueve dependencias internas y ninguna externa;
 Visibility usa cuatro internas y tracing. El scanner reconoce las dos raíces,
@@ -864,6 +865,8 @@ las 424 regresiones anteriores ni regenerar baselines.
 **NO VALIDADO:** no se ejecutó Cargo, formato, suites o inventarios para este
 conjunto. No hay nueva evidencia de producción, paridad de respec, publicación
 ni inicio de F5; queda pendiente la aceptación del macro completo.
+El checkpoint local `c4febe9b2` guarda ambos dominios, sus consumidores y el
+scanner en ese estado **NO VALIDADO**.
 
 Preparación Loot sobre `24c42d87d`: el corte contiene 17 impls del estado y
 76 métodos, incluidos los 26 de `session/loot/operations.rs`, con 18 campos
@@ -887,10 +890,79 @@ quarantine, fanout ni orden de publicación. Anclas `a5f8da2eb`:
 `ItemEnchantmentMgr.cpp:153–212`. C++ sitúa Loot/Roll en sus objetos/Map/Player;
 el cache y los rolls Rust en Session y sus rails async siguen siendo límites
 heredados para F6, no nueva paridad demostrada. Esta preparación no implementa
-Loot ni ejecuta aceptación; aún debe cerrarse su grafo completo de consumidores.
+Loot ni ejecuta aceptación. La preparación posterior confirma los 17 bloques y
+76 métodos, contando también los siete genéricos: 26 en operations, tres en
+random properties y diez en roll publication. El recuento de 73 del handoff se
+corrige por lectura de las declaraciones; no se retira ningún método. Los tres
+helpers adicionales no forman parte de esos 76. Los snapshots de GameObject,
+su observación de instalación y `AuthoritativeLootReleaseLikeCpp` pertenecen a
+los consumidores World/Cx que permanecen allí; no son tipos del impl trasladado.
+Las dependencias directas preparadas son ocho internas
+(constants/core/data/entities/loot/map/packet/world-core) y
+flume/num-traits/rand/tokio; persistence y tracing quedan en los shells World.
+Comienza el primer corte local de estado, proveedores compartidos y random,
+con los dos tests independientes originales. Los demás impls y los accesos
+directos de los consumidores se cerrarán en la misma entrega de Loot; ese primer
+corte no acredita por sí solo la integración del dominio ni aceptación.
+La fundación local de Loot está escrita: los 18 campos y su constructor
+explícito conservan sus valores y orden; los campos son internos al crate y
+los cuatro DTOs compartidos tienen un proveedor único. El bloque random
+traslada sus tres métodos (dos genéricos), la selección ponderada privada y
+el predicado de stacking con su fachada World. El builder de roll también
+conserva una única definición y fachada para sus consumidores. La comparación
+por fuente de los seis cuerpos y de los dos tests originales no encuentra
+cambios de cuerpo tras normalizar namespaces/gates/espaciado; no ejecuta esos
+tests. El siguiente corte está escrito: los seis bloques de authority, claims,
+fanout, request-cache, rolls y publicación trasladan 25 métodos, incluidos tres
+genéricos de publicación. La comparación con los cuerpos de `c4febe9b2` conserva
+la operación; las diferencias revisadas son aliases de OwnedLootSnapshot/Scope
+y del evento de criterios, formato de llamadas y gates de fixture emparejados.
+Los wrappers World permanecen; el módulo de publicación de rolls solo contenía
+el estado y queda retirado de World. Timeout 250 ms y criterio disenchant son
+constantes privadas del dominio; los tres códigos de slot tienen proveedor único
+y fachada World por sus consumidores reales. Se conservan las mismas dependencias.
+El corte restante está escrito: diez bloques y 48 métodos, incluyendo money por
+jugador, creature-dead y pass-on-group-loot. `session/loot/operations.rs` se
+distribuye en hojas privadas de settings, views, autoridad, reconciliación y
+transiciones de objeto. La comparación de los 76 cuerpos de Loot contra
+`c4febe9b2` conserva la lógica tras los deltas revisados de rutas/gates/formato;
+incluye los 26 cuerpos de operations, reconstruidos durante el movimiento, y
+el alias Player del mismo `wow-entities`. Las 76 firmas conservan parámetros,
+retornos, async y bounds genéricos; los aliases de Hub, MapKey, WorldCreature y
+UnitDataValuesDeltaUpdate resuelven a los mismos proveedores inferiores. El
+cambio de visibilidad permite los consumidores World del nuevo crate.
+No se añaden dependencias ni se mueven
+tests adicionales. Ya no quedan impls de LootState en World: permanecen los
+accesos directos de consumidores y el scanner por cerrar. No se trasladan los coordinadores
+durables ni los tipos de autoridad GO que pertenecen al shell.
+El primer cierre de consumidores añade cinco APIs acotadas para el cache por
+owner, el registro de una ventana aceptada y su first-open. `requests.rs` y
+`request_cache.rs` usan esas APIs: se conservan lecturas por referencia, retiro
+solo de loot_table, cuatro inserciones en el orden original y el clone de
+authority en la cuarta. El try_send_packet sigue antes de los mirrors dentro
+del callback de authority; ResponseEnqueueFailed conserva su descarte y cierre.
+Los otros consumidores y fixtures todavía necesitan cerrar sus accesos.
+Los Sources de Creature y autoridad GO también usan APIs por owner para
+lectura/mutación de una entrada, insert/remove, generación y owner personal.
+Sus 13 y siete cuerpos WorldSession conservan la fuente de `c4febe9b2` tras
+expandir esas llamadas a los accesos originales. No se añaden clones ni se
+exponen mapas mutables; los Cx y los accesos de Entities quedan pendientes de su
+propio cierre.
+Sources raíz y GO también cierran su cache, dinero personal y unique uses con
+ocho APIs ganadas de Map/Set y retain por owner. La revisión de sus 14 y once
+cuerpos WorldSession conserva lógica, clones, gates, retiros e inserciones; el
+retain por pools mantiene el mismo short-circuit y las claves owner/player.
+No se agrega un retiro por jugador sin consumidor ni se exponen maps mutables.
+Release también cierra sus accesos con cinco consultas de vistas y las APIs de
+cache existentes. Los cinco cuerpos World conservan su fuente tras expandir
+esas llamadas: snapshot sin sort/fallback dentro del dominio, ordenado y
+fallback en release-all, shares_storage/generación antes del claim y mismas
+ramas de retiro/publicación. Los consumidores restantes siguen pendientes.
+**NO VALIDADO:** estos cortes parciales no son un candidato compilado,
+no acreditan integración del dominio ni sustituyen la aceptación del macro.
 
 El censo léxico acotado de los impls restantes, sobre el mismo `24c42d87d`,
-encuentra WorldEntities 19 bloques/70 métodos, Inventory 48/232 y Lifecycle
+encuentra WorldEntities 19 bloques/70 métodos, Inventory 48/231 y Lifecycle
 33/145. Son entradas de preparación, no una prueba de cierre de dependencias
 ni de producción compilada. El único texto `WorldSession` en los bloques de
 Inventory es una atribución C++ en un comentario de modifiers; no un parámetro
@@ -905,6 +977,289 @@ Las anclas iniciales localizadas en `a5f8da2eb` son
 `WorldSession.cpp:162–188,544–709,908–949` y
 `CharacterHandler.cpp:1520–1614`. No extender esa lectura a una afirmación
 de paridad de los dominios completos ni modificar sus contratos por el censo.
+
+El cierre preparado de WorldEntities confirma los 19 bloques/70 métodos y los
+11 campos, nueve de producción y dos de fixture. Incluye los DTOs de spawn,
+stats, kill, auras y uso/estado de GameObject con sus nominales inferiores
+existentes, y los helpers de publicación de aura, filtro de candidatos e
+inserción de criatura canónica. El tick legado y los flujos de loot/rewards
+permanecen en World. `CreatureSpawnCatalogsLikeCpp` acompaña a la operación de
+materialización: conserva los seis handles/rates, su Default fixture y una
+fachada World para sus consumidores actuales; no se mueve el resto de las
+capacidades de catálogo ni se crea una arista del dominio hacia World.
+Los campos agregados del estado permanecen internos; los escritores World
+existentes se cerrarán mediante accesos acotados, incluyendo el estado GO por
+objeto. La fundación y el bloque de publicación de criatura están escritos:
+cuatro métodos, el helper de aura y los dos tests puros originales tienen un
+único proveedor en `wow-world-entities`, con fachadas World para los consumidores
+reales. La comparación de fuente de los cuatro cuerpos conserva la lógica;
+solo cambia la ruta de `VISIBILITY_RADIUS`, importada del mismo Core. Los
+dos cuerpos de test y el helper conservan su fuente. El constructor mantiene
+los once campos, expresiones y orden, usando imports de los mismos BTreeMap y
+HashMap. `RepresentedGameObjectSpellCaster` tiene una sola definición en el
+dominio y una fachada desde `instance_bind_contracts.rs`. Quedan 18 bloques y
+66 métodos del estado, los otros helpers y los consumidores. Esta revisión de
+fuente no ejecuta tests ni acredita aceptación. Las dependencias son diez
+internas (constants/core/data/entities/map/packet/conditions/progression/loot/
+world-core), sin nuevas externas ni dependencias de otros dominios World.
+El resto de bloques, helpers y consumidores pertenece a la misma entrega,
+todavía sin aceptación ejecutada. `Creature.cpp:688` es el comienzo de
+`ApplyAllStaticFlags` y :696 el de `Creature::Update`. Se conservan también `GameObject.cpp:899,926` y
+`Unit.cpp:10457` para los hooks de alta/baja y kill de esta preparación.
+
+El siguiente corte Creature añade 26 métodos a los cuatro de publicación ya
+trasladados. Los 30 cuerpos conservan la lógica de `c4febe9b2`, con imports del
+mismo Core para WorldCreature, world_to_grid_coords y VISIBILITY_RADIUS. Los
+DTOs de spawn materializado y snapshot de spell-click también tienen proveedor
+en Entities y fachada World. Se corrigieron los tres exports cuyo proveedor
+faltaba (filtro de candidatos, inserción canónica y su resultado), y el método
+de fixture de despawn de vehículo también queda en Entities: catálogo y
+snapshot ya son capacidades Core. Los helpers de amenaza, inserción, filtro y
+conversión conservan sus cuerpos; los DTOs conservan campos y orden, con la
+ruta explícita del mismo CreatureCreateData. Quedan los 40 métodos GO, los
+consumidores directos y su aceptación; este corte no se declara integrado ni
+validado.
+El corte siguiente traslada nueve métodos de overrides GO y dos de query a
+hojas privadas de Entities. Los once cuerpos conservan la fuente original,
+incluidos los guards de owner, Some/zero, cambios canónicos y phase shift. El
+método fixture de faction mantiene gate test/test-fixtures. Su llamada a
+set_canonical_gameobject_spell_id queda cerrada por el corte canónico GO:
+nueve métodos, incluido el mutador genérico, tienen cuerpos iguales a la fuente
+original tras las rutas Core. Los coordinadores de tick/Update siguen World;
+GameObject.h:227,239, GameObject.cpp:3683 y Object.cpp:2867 son las anclas
+contrastadas de setters y amistad, sin nueva afirmación de paridad. Quedan 20
+métodos GO y los consumidores.
+Se trasladan otros once métodos de state/publicación y door/trap a dos hojas:
+los cinco y seis cuerpos son iguales a la fuente original tras rutas/gates.
+SetLootState, cooldowns, visibilidad y orden de transición se conservan; los
+coordinadores World siguen allí. Las anclas exactas son UseDoorOrButton:2308,
+ResetDoorOrButton:2296 y SetLootState:3683 de GameObject.cpp; destrucción usa
+WorldObject::DestroyForNearbyPlayers en Object.cpp:3617, DestroyForPlayer:226 y
+Player::HaveAtClient:23029. Quedan nueve métodos y el cierre de consumidores.
+El último corte traslada esos nueve métodos: cuatro de fishing-hole en
+gameobject_interaction y cinco de interacción/use en gameobject_use. Los nueve
+cuerpos conservan la fuente de `c4febe9b2`; el tiempo de release se consulta
+antes del lock, y AddUse, MaxOpens y SetLootState permanecen bajo el mismo lock.
+Los 70 métodos originales del estado ya tienen proveedor Entities; no quedan
+impls de ese estado en World, pero sus consumidores privados siguen pendientes.
+La búsqueda usa el mismo CONTACT_DISTANCE de wow-movement, dependencia directa
+ganada que eleva a once los edges internos; no se copia la constante. Las
+anclas del último corte son LootHandler.cpp:270–312, GameObject.cpp:2501,3683.
+Esta revisión de fuente no acredita compilación ni paridad ejecutada.
+
+La revisión del helper de aura usa `AuraApplication::BuildUpdatePacket`
+(`SpellAuras.cpp:229–289`) y `ClientUpdate` (:291–304), mismo `a5f8da2eb`;
+la atribución heredada a `BuildUpdateData` no corresponde a una función de
+ese target. El helper Rust conserva sus valores representados de aplicaciones,
+duración y nivel, y recopila los puntos de efectos consecutivamente. C++ toma
+stacks/charges y duración del Aura, distingue caster/item level y escribe los
+puntos por índice de efecto, con estimated points cuando corresponda. Estas
+diferencias preexistentes requieren el contrato y capturas de F6; no se corrigen
+silenciosamente al trasladar el helper. La lectura de fanout identifica también
+los gates efectivos C++ de `MessageDistDeliverer::Visit` y `SendPacket`
+(`GridNotifiersImpl.h:38–105`, `GridNotifiers.h:182–191`); mover la selección
+representada no acredita cobertura de shared vision, vehicle ni dynamic object.
+
+El cierre preparado de Inventory conserva los 48 bloques/231 métodos. El
+recuento anterior de 232 funciones incluía `visit`, helper anidado dentro de
+`represented_inventory_descendants_postorder_like_cpp`; se conserva dentro
+de esa operación, sin contarlo como otro método del estado. Sus
+23 campos son uno de producción y 22 de fixture; el censo de 15 pertenece
+al fixture anidado de PlayerItem, no a todo el estado. Los envíos que ya son
+métodos del estado mediante Core forman parte de F4, conservando el mismo
+publicador; el hecho de enviar un paquete no los convierte en un bloque
+WorldSession/Cx de F5. El primer corte local cierra el estado, el fixture y
+los DTOs de banco/gremio, auction, offhand y eventos de objetos mediante un
+único proveedor y fachadas para sus consumidores actuales. Ese primer corte
+está escrito, sin impls de operaciones trasladados: la comparación de fuente
+conserva las 23 expresiones del constructor y su orden, y los 15 defaults del
+fixture. El dominio empareja los gates de fixture con `test-fixtures` y propaga
+la feature a Core; las fachadas World conservan sus gates originales. El
+registro de raíces y la construcción mantienen el orden original de composición.
+El siguiente corte está escrito: once bloques y 70 métodos de items, catálogo,
+storage, storage-bags, storage-slots y persistence-load tienen módulos privados
+en Inventory y sus bloques salen de World. La comparación de fuente con
+`c4febe9b2` conserva los 70 cuerpos tras las adaptaciones revisadas de namespaces,
+gates y formato; el `visit` anidado también permanece en su cuerpo. No se mueven
+coordinadores, shims ni tests en este corte. Se añaden las dependencias reales
+wow-data y num-traits; su registro global ya acompaña el corte.
+La constante de armor penetration conserva 24 y corrige el ancla a `Unit.h:329`.
+La revisión posterior encontró el consumidor productivo de
+`handlers/character/stats.rs:446`, además del test World: el proveedor y export
+Inventory quedan sin gate, y `session/combat/mod.rs` conserva solo la fachada
+ungated. No quedan dos definiciones ni se modifica el cálculo. Siete métodos
+llamados por estas operaciones aún
+residen en otros archivos World; no se añaden stubs ni copias. Continúa su
+cierre con equipamiento, modificadores y publicación. Quedan 37 bloques y 161
+métodos del estado, los consumidores y el scanner en la misma entrega.
+Todo este corte permanece **NO VALIDADO**. No trasladar los
+coordinadores async de banco, carga o persistencia por compartir el archivo.
+
+El siguiente corte Inventory añade dos bloques y diez métodos de enchantment,
+con cuerpos iguales a `c4febe9b2` tras namespaces y gates de fixture. Los
+wrappers, shims y aplicación coordinada de efectos permanecen en World. Los
+helpers de stat changes, fields update y conversión de equipment set, junto a
+LoadedEquippedItemEnchantmentsOutcome y append, tienen proveedor único del
+dominio y fachadas World; sus nominales inferiores se conservan. Los mounts
+solo declaran hojas existentes, sin stubs para las ocho futuras. El total
+trasladado del estado es 13 bloques/80 métodos; quedan 35/151, con 18 bloques
+en player_items y 17 fuera de esa carpeta, además del cierre de consumidores.
+Equipamiento por slot y offhand añaden tres bloques/12 métodos con cuerpos
+iguales a la fuente original. Los comentarios F6 se corrigen a las funciones
+exactas, distinguiendo el caller de HasItemFitToSpellRequirements del helper
+privado de slots. El escritor fixture World usa la operación de registro del
+dominio. El corte posterior añade tres bloques/ocho métodos de equipment y
+publication: CanUnequip, shapeshift, capabilities, getter fixture y los updates
+de items conservan sus cuerpos; el builder usa la misma fachada del proveedor
+Inventory. El total escrito del estado es 19 bloques/100 métodos; quedan 29/131
+(12 en player_items y 17 fuera), los consumidores y la aceptación.
+
+La lectura de `equipment_slots.rs` detecta un comentario heredado que excluye
+ranged, aunque los métodos Rust resuelven `EQUIPMENT_SLOT_RANGED`. El target
+`Player::GetWeaponForAttack` (`Player.cpp:9243–9273`) selecciona MAINHAND para
+RANGED y además exige clase weapon y coincidencia de IsRangedWeapon. También
+`Unit::UpdateDamagePctDoneMods` (`Unit.cpp:9033–9072`) multiplica offhand por
+`GetTotalAuraModifier` (:4818–4844), que devuelve cero sin efectos; Rust
+conserva la base 0,5 sin ese término. Son diferencias actuales a resolver con
+el contrato de versión y la evidencia de F6. Corregir la atribución/comentario
+al trasladar ese bloque, sin reparar silenciosamente slots, daño ni los tests
+durante el refactor F4. Esta preparación no es aceptación ejecutada.
+
+El contraste de `represented_has_item_fit_to_spell_requirements_like_cpp` usa
+`Player::HasItemFitToSpellRequirements` (`Player.cpp:24641–24708`) y
+`GetUseableItemByPos` (:9199–9209), mismo target. El selector de slot Rust consulta
+objetos y requisitos sin el `CanUseAttackType` de C++. El contrato completo C++
+tiene ignoreItem y la excepción de aura de shield no pasiva; el único consumidor
+Rust localizado aplica pasivas cargadas durante login, de modo que esas dos
+ausencias no demuestran por sí solas un fallo de ese consumidor. Se conserva la
+operación actual en F4; su traslado no prueba la equivalencia completa del helper
+ni autoriza ampliar callers o corregir gameplay sin el contrato de F6.
+
+La preparación Lifecycle confirma 28 campos y las 28 expresiones originales
+de construcción, incluidos cinco campos de fixture. El orden de declaración
+conserva las obligaciones de drop registradas en `session/state.rs`: attachment
+de battle pet, callbacks de rename, trackers durables, finalización, sender de
+homebind y claim vivo. `src/finalization.rs` es el ledger de 15 pasos sin Session
+ni SQL; su retención, resultado desconocido y prohibición de replay forman parte
+del cierre del estado. `character_administration.rs` conserva la preparación de
+rename sin escritura y la continuación de commit de un único uso; los callbacks
+abortan reads al retirarse y retienen commits ya admitidos. El driver, la creación
+de paquetes y su entrega siguen en World. Las cuatro familias de puertos en
+`persistence_capabilities.rs` son capacidades tipadas, no autorización para
+introducir un contexto universal ni campos públicos de traslado.
+
+El tracker de money durable ya es de Core y debe reutilizarse. El tracker de
+item durable, su guard, completion y fanout conservan el registro al drop, la
+espera de idle y las gates de aplicación/publicación; moverlos requiere cerrar
+todos los consumidores World sin duplicar estado. El holder de pet load mantiene
+sus seis grupos de resultados tipados y el reset por personaje; no equivale al
+Pet vivo. Las lecturas completas de `WorldSession::~WorldSession`, `LogoutPlayer`,
+`LoadTutorialsData`/`SaveTutorialsData`, `HandleCharRenameOpcode`/`CallBack` y
+`PetLoadQueryHolder`/su callback (`Pet.cpp:157–203,386–449`, mismo `a5f8da2eb`)
+fijan los responsables C++ y el orden que debe contrastarse; no acreditan por sí
+solas las rails async Rust ni paridad global. Esta preparación permanece en
+lectura, sin implementación Lifecycle ni aceptación ejecutada.
+Los seis tests del ledger de finalización y los tres de preparación/consumo de
+rename son independientes de Session. El cuarto test de rename,
+`production_session_driver_executes_ready_rename_callbacks`, usa el driver real
+y permanece en World; comparte el port de fixture con los tres anteriores.
+Cerrar ese fixture al trasladar los tests, sin borrar el caso integrado ni
+duplicar los proveedores de la operación.
+El censo 33/145 incluye los catorce métodos de puertos definidos fuera del
+subárbol Session, en `src/session_persistence_capabilities.rs`. Sus cinco
+constructores de capacidades (`required_like_cpp`) también acompañan a los
+tipos para evitar impls de tipos externos en World; la composición World y
+sus setters que delegan permanecen allí. Mantener los setters/getters tipados
+existentes y cerrar sus consumidores sin publicar los campos del agregado.
+El tracker de item tiene además un test puro de la transición watch entre
+la observación busy y el primer poll: conserva ese test y su fuente al mover
+el tracker, sin atribuirle evidencia SQL ni validación ejecutada.
+Los loaders del estado en `handlers/spell/ops_1.rs` y `ops_2.rs` usan además
+`WrappedGiftRow`/`WrappedGiftLoad` y el contrato representado
+`LootTemplateRow`/`LootTemplateTable` de `handlers/spell/state.rs`. Deben cerrar
+esos DTOs y los dos métodos de Table con el proveedor de la operación cargadora,
+manteniendo fachadas para los handlers World. El `LootTemplateRow` inferior de
+`wow-loot` tiene otra estructura (entry más LootStoreItem); no es un alias
+intercambiable con esta fila cargada de nueve campos. Los helpers y condiciones
+que ya pertenecen a `wow-loot` se reutilizan. No crear una copia, convertir el
+loader en otro owner ni alterar el orden de sus awaits para resolver el import.
+
+El primer corte Lifecycle está escrito: el ledger completo y sus seis tests
+originales viven en `wow-world-lifecycle`, con fachada desde `src/finalization.rs`.
+La comparación completa de fuente contra `c4febe9b2` solo cambia pub(crate) a pub
+para las llamadas entre crates y la ruta/import de tests. Mantiene los campos
+privados, orden de steps, máscaras, InFlight antes del poll, retención y ausencia
+de replay/reset. Ese corte gana wow-map y wow-persistence, publish=false y
+registro global, sin ejecutar los seis tests. La preparación/commit de rename
+también está escrita, con sus tres tests puros y un fixture compartido de campos
+privados. La comparación de la operación contra `c4febe9b2` conserva su fuente
+salvo visibilidad; los cuatro cuerpos de test conservan lógica y aserciones tras
+cambiar el acceso al fixture por commit_snapshot/commit_count. El caso del driver
+real permanece World. Tokio se habilita solo para tests y test-fixtures en este
+corte; su delta de lock/política aún debe cerrarse. Los 28 campos
+y los 33 bloques/145 métodos de Lifecycle aún no se trasladan en este corte.
+**NO VALIDADO:** no hay aceptación, paridad de logout ni evidencia DB/live nueva.
+
+Los callbacks de rename también tienen proveedor Lifecycle: Read/Drop, Commit,
+Delivery, ready y RenameCallbacks. Ocho cuerpos y el orden/tipos de campos
+conservan exactamente la fuente de `c4febe9b2`. Sus colas y handles permanecen
+privados; World usa conteos, un resultado por índice, registro de entrega y
+polling de la tanda. La revisión del coordinador conserva el procesamiento de
+commits anteriores, ausencia de publicación de commits nuevos en la misma
+pasada, registro de toda la tanda en FIFO, limpieza antes de kick y retención
+de handles durante cancelación de finish. Paquetes, logging, fase del driver y
+admisión siguen en World. Se ganan wow-core, flume, Tokio normal y tracing por
+los usos trasladados; lock/política están pendientes. Los otros tipos necesarios
+para mover SessionLifecycleState todavía pertenecen a World.
+
+El tracker de item loot y su cierre de tipos también tienen proveedor
+Lifecycle: fanout retenido, completion, estado privado, tracker, guard y Drop.
+La revisión completa de fuente conserva tipos/orden de campos, subscribe antes
+del busy check, registro de completion antes del decremento, unlock antes de
+wake, wrapping/saturating y el único test de la carrera de watch. El delta
+revisado es visibilidad, import del mismo OnceLock y nombre del módulo de
+tests. World conserva las fachadas y la publicación/SQL; el estado interno no
+se exporta. Se reutilizan PlayerRegistry de Core y authority/snapshot de
+wow-loot; esos dos edges ganados aún requieren cerrar lock/política. El test no
+se ejecutó y no hay evidencia de durabilidad nueva.
+
+Tres contratos de valor adicionales viven en Lifecycle: AccountData, el job
+Homebind y el evento fixture de RemoveAtLoginFlag. Mantienen campos/orden y
+derives; el job no gana Clone. Las tres máscaras y default_account_data también
+tienen proveedor único, usando NUM_ACCOUNT_DATA_TYPES de wow-packet sin copiar
+15. World conserva fachadas/gates y sus funciones de sesión. La revisión usa
+WorldSession.h:826–857 y WorldSession.cpp:834 para enum, masks, default y load;
+no acredita DB/publicación. El nuevo edge normal wow-packet acompaña el contrato.
+El lock y la política ya reflejan los seis edges internos de Lifecycle
+(core/loot/map/packet/persistence/world-core) y flume/Tokio/tracing normales,
+sin edges build. Su test-fixtures permanece vacío. Es integración de fuente,
+sin ejecución de Cargo ni checker.
+
+El holder de pet load y sus seis tipos CharacterPet*RowLikeCpp tienen proveedor
+único Lifecycle. Conservan derives, campos, orden y ObjectGuid; no se sustituyen
+por filas binarias del port de persistencia. Sus seis mapas son privados y la
+API acotada conserva get por referencia, insert/remove y sus resultados, clear
+de spells y reset por personaje. Los cuatro consumidores World conservan los
+filtros, conteos, clones y orden de invalidación/materialización originales tras
+expandir esas llamadas. El Pet vivo y los loaders/SQL siguen en World, con las
+fachadas nominales originales; no se añaden dependencias ni evidencia DB/live.
+
+**Checkpoint local F4b — 2026-10-03, NO VALIDADO:** este lote guarda los nuevos
+roots Loot, Entities, Inventory y Lifecycle y sus cierres de fuente revisados
+sobre `c4febe9b2`. Loot conserva los 76 métodos originales y Entities los 70;
+Inventory lleva 100 de 231. Lifecycle aún conserva sus 28 campos y 145 métodos
+en World, con los contratos auxiliares trasladados descritos arriba. Faltan los
+consumidores/fixtures privados, el resto de Inventory, la extracción del estado
+Lifecycle y F5–F6. No se ejecutó Cargo, formato, pruebas ni aceptación para este
+lote; no es un candidato compilado y no cambia el gate rojo R1/publicación de
+P4b ni su evidencia histórica. El trabajo autorizado continúa en la misma rama.
+
+El scanner ya incorpora los roots y roles de Loot, Entities, Inventory y
+Lifecycle. Se extienden las pruebas existentes de montaje y de rechazo de
+SessionCore/WorldSession en dominios; no se añaden ni renombran tests, ni se
+regenera el baseline. El examen del diff conserva los gates de autoridad
+anteriores. Esta adaptación no se ha ejecutado y no acredita inventario ni
+aceptación de los nuevos roots.
 
 ### F5 — handlers y orquestación
 

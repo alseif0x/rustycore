@@ -30,8 +30,12 @@
       "wow-spell-acquisition",
       "wow-world",
       "wow-world-core",
+      "wow-world-entities",
       "wow-world-interaction",
       "wow-world-instances",
+      "wow-world-inventory",
+      "wow-world-lifecycle",
+      "wow-world-loot",
       "wow-world-social",
       "wow-world-spell",
       "wow-world-visibility"
@@ -123,6 +127,19 @@
       "wow-packet",
       "wow-world-core"
     ],
+    "wow-world-entities": [
+      "wow-conditions",
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-loot",
+      "wow-map",
+      "wow-movement",
+      "wow-packet",
+      "wow-progression",
+      "wow-world-core"
+    ],
     "wow-world-instances": [
       "wow-constants",
       "wow-core",
@@ -132,6 +149,32 @@
       "wow-map",
       "wow-packet",
       "wow-social",
+      "wow-world-core"
+    ],
+    "wow-world-inventory": [
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-packet",
+      "wow-world-core"
+    ],
+    "wow-world-lifecycle": [
+      "wow-core",
+      "wow-loot",
+      "wow-map",
+      "wow-packet",
+      "wow-persistence",
+      "wow-world-core"
+    ],
+    "wow-world-loot": [
+      "wow-constants",
+      "wow-core",
+      "wow-data",
+      "wow-entities",
+      "wow-loot",
+      "wow-map",
+      "wow-packet",
       "wow-world-core"
     ],
     "wow-world-social": [
@@ -462,6 +505,33 @@
           "num-traits",
           "rand",
           "tracing"
+        ],
+        "build": []
+      },
+      "wow-world-entities": {
+        "normal": [],
+        "build": []
+      },
+      "wow-world-inventory": {
+        "normal": [
+          "num-traits"
+        ],
+        "build": []
+      },
+      "wow-world-lifecycle": {
+        "normal": [
+          "flume",
+          "tokio",
+          "tracing"
+        ],
+        "build": []
+      },
+      "wow-world-loot": {
+        "normal": [
+          "flume",
+          "num-traits",
+          "rand",
+          "tokio"
         ],
         "build": []
       },

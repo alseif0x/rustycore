@@ -6,51 +6,13 @@
 
 use super::{Item, ObjectGuid, UnitMoveTypeLikeCpp, WorldSession, react_state_from_db_like_cpp};
 
+pub(crate) use wow_world_lifecycle::{
+    CharacterPetAuraEffectRowLikeCpp, CharacterPetAuraRowLikeCpp,
+    CharacterPetDeclinedNamesRowLikeCpp, CharacterPetSpellChargeRowLikeCpp,
+    CharacterPetSpellCooldownRowLikeCpp, CharacterPetSpellRowLikeCpp,
+};
+
 pub(crate) use wow_world_core::session::CharacterPetStableRowLikeCpp;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct CharacterPetSpellRowLikeCpp {
-    pub spell_id: u32,
-    pub active: u8,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct CharacterPetSpellCooldownRowLikeCpp {
-    pub spell_id: u32,
-    pub cooldown_end_unix_secs: i64,
-    pub category_id: u32,
-    pub category_end_unix_secs: i64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct CharacterPetSpellChargeRowLikeCpp {
-    pub category_id: u32,
-    pub recharge_start_unix_secs: i64,
-    pub recharge_end_unix_secs: i64,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct CharacterPetAuraRowLikeCpp {
-    pub caster_guid: ObjectGuid,
-    pub spell_id: u32,
-    pub effect_mask: u32,
-    pub recalculate_mask: u32,
-    pub difficulty: u8,
-    pub stack_count: u8,
-    pub max_duration_ms: i32,
-    pub remain_time_ms: i32,
-    pub remain_charges: u8,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct CharacterPetAuraEffectRowLikeCpp {
-    pub caster_guid: ObjectGuid,
-    pub spell_id: u32,
-    pub effect_mask: u32,
-    pub effect_index: u8,
-    pub amount: i32,
-    pub base_amount: i32,
-}
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct CharacterAuraRowLikeCpp {
@@ -91,11 +53,6 @@ pub(crate) fn adjusted_represented_pet_aura_remain_time_like_cpp(
     }
 
     Some(remain_time_ms)
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct CharacterPetDeclinedNamesRowLikeCpp {
-    pub names: [String; 5],
 }
 
 impl WorldSession {
@@ -163,18 +120,19 @@ impl crate::session::PetsCx<'_> {
     ) -> usize {
         self.hub
             .invalidate_represented_character_pet_empty_authority_like_cpp();
-        let spells: Vec<_> = rows.into_iter().filter(|row| row.spell_id != 0).collect();
+        let spells: Vec<_> = rows
+            .into_iter()
+            .filter(|row| row.spell_id != 0)
+            .collect();
         let loaded = spells.len();
         if loaded == 0 {
             self.lifecycle
                 .pet_load_query_holder_rows_like_cpp
-                .spells
-                .remove(&pet_number);
+                .remove_spells_for_pet_number(pet_number);
         } else {
             self.lifecycle
                 .pet_load_query_holder_rows_like_cpp
-                .spells
-                .insert(pet_number, spells);
+                .insert_spells_for_pet_number(pet_number, spells);
         }
         loaded
     }
@@ -200,13 +158,11 @@ impl crate::session::PetsCx<'_> {
         if loaded == 0 {
             self.lifecycle
                 .pet_load_query_holder_rows_like_cpp
-                .spell_cooldowns
-                .remove(&pet_number);
+                .remove_spell_cooldowns_for_pet_number(pet_number);
         } else {
             self.lifecycle
                 .pet_load_query_holder_rows_like_cpp
-                .spell_cooldowns
-                .insert(pet_number, cooldowns);
+                .insert_spell_cooldowns_for_pet_number(pet_number, cooldowns);
         }
         loaded
     }
@@ -237,13 +193,11 @@ impl crate::session::PetsCx<'_> {
         if loaded == 0 {
             self.lifecycle
                 .pet_load_query_holder_rows_like_cpp
-                .spell_charges
-                .remove(&pet_number);
+                .remove_spell_charges_for_pet_number(pet_number);
         } else {
             self.lifecycle
                 .pet_load_query_holder_rows_like_cpp
-                .spell_charges
-                .insert(pet_number, charges);
+                .insert_spell_charges_for_pet_number(pet_number, charges);
         }
         loaded
     }
@@ -322,13 +276,11 @@ impl crate::session::PetsCx<'_> {
         if loaded == 0 {
             self.lifecycle
                 .pet_load_query_holder_rows_like_cpp
-                .auras
-                .remove(&pet_number);
+                .remove_auras_for_pet_number(pet_number);
         } else {
             self.lifecycle
                 .pet_load_query_holder_rows_like_cpp
-                .auras
-                .insert(pet_number, auras);
+                .insert_auras_for_pet_number(pet_number, auras);
         }
         loaded
     }
@@ -352,13 +304,11 @@ impl crate::session::PetsCx<'_> {
         if loaded == 0 {
             self.lifecycle
                 .pet_load_query_holder_rows_like_cpp
-                .aura_effects
-                .remove(&pet_number);
+                .remove_aura_effects_for_pet_number(pet_number);
         } else {
             self.lifecycle
                 .pet_load_query_holder_rows_like_cpp
-                .aura_effects
-                .insert(pet_number, effects);
+                .insert_aura_effects_for_pet_number(pet_number, effects);
         }
         loaded
     }

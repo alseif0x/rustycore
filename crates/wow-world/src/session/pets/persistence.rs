@@ -31,14 +31,12 @@ impl crate::session::PetsCx<'_> {
         if let Some(row) = row {
             self.lifecycle
                 .pet_load_query_holder_rows_like_cpp
-                .declined_names
-                .insert(pet_number, row);
+                .insert_declined_names_for_pet_number(pet_number, row);
             true
         } else {
             self.lifecycle
                 .pet_load_query_holder_rows_like_cpp
-                .declined_names
-                .remove(&pet_number)
+                .remove_declined_names_for_pet_number(pet_number)
                 .is_some()
         }
     }

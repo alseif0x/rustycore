@@ -12,14 +12,12 @@ use super::VoidStorageItemIdGeneratorLikeCpp;
 use super::{AdventureMapPoiStore, Arc, AreaTriggerDb2Store, AreaTriggerScriptDispatcherLikeCpp};
 use super::{AreaTriggerScriptStoreLikeCpp, AreaTriggerStore, BankBagSlotPricesStore};
 use super::{BattlemasterListStore, ChatFloodConfigLikeCpp, ChatLevelRequirementsLikeCpp};
-use super::{ChatListenRangesLikeCpp, CreatureAddonStoreLikeCpp, CreatureBaseStatsStoreLikeCpp};
-use super::{CreatureClassificationHealthRatesLikeCpp, CreatureDifficultyStoreLikeCpp};
-use super::{CreatureEquipmentStoreLikeCpp, EmotesStore, EmotesTextStore};
+use super::{ChatListenRangesLikeCpp, EmotesStore, EmotesTextStore};
 use super::{GraveyardStore, HighGuid};
 
 use super::TavernAreaTriggerStoreLikeCpp;
 use super::{PlayerGridLoadOutcomeLikeCpp, PlayerGridLoadResolverLikeCpp};
-use super::{PlayerRegenerationRatesLikeCpp, PowerTypeStore, QuestInfoStore, TactKeyStore};
+use super::{PlayerRegenerationRatesLikeCpp, QuestInfoStore, TactKeyStore};
 use wow_world_core::session::SupportFeaturePolicyLikeCpp;
 
 pub use wow_world_core::session::GroupInvitePolicyLikeCpp;
@@ -39,37 +37,9 @@ pub struct PlayerRestRatePolicyLikeCpp {
     pub ingame: f32,
 }
 
-/// Process-owned C++ `ObjectMgr` creature materialization catalogs and
-/// `World` creature-health policy.
-///
-/// C++ resolves these through `sObjectMgr`/`sWorld` while `Creature::InitEntry`,
-/// `UpdateLevelDependantStats`, `LoadEquipment`, and `GetCreatureAddon` build a
-/// creature (`Creature.cpp:491-615,1550-1615,1931-1965,2722-2755`). A
-/// `WorldSession` borrows them only while adapting visibility; it owns none of
-/// the stores or rates.
-pub struct CreatureSpawnCatalogsLikeCpp {
-    pub difficulty: Arc<CreatureDifficultyStoreLikeCpp>,
-    pub base_stats: Arc<CreatureBaseStatsStoreLikeCpp>,
-    pub health_rates: CreatureClassificationHealthRatesLikeCpp,
-    pub addons: Arc<CreatureAddonStoreLikeCpp>,
-    pub equipment: Arc<CreatureEquipmentStoreLikeCpp>,
-    pub power_types: Arc<PowerTypeStore>,
-}
+pub use wow_world_entities::CreatureSpawnCatalogsLikeCpp;
 
 pub use wow_world_core::session::ProgressionCatalogsLikeCpp;
-#[cfg(any(test, feature = "test-fixtures"))]
-impl Default for CreatureSpawnCatalogsLikeCpp {
-    fn default() -> Self {
-        Self {
-            difficulty: Arc::new(CreatureDifficultyStoreLikeCpp::default()),
-            base_stats: Arc::new(CreatureBaseStatsStoreLikeCpp::default()),
-            health_rates: CreatureClassificationHealthRatesLikeCpp::default(),
-            addons: Arc::new(CreatureAddonStoreLikeCpp::default()),
-            equipment: Arc::new(CreatureEquipmentStoreLikeCpp::default()),
-            power_types: Arc::new(PowerTypeStore::from_entries([])),
-        }
-    }
-}
 
 impl Default for PlayerRestRatePolicyLikeCpp {
     fn default() -> Self {

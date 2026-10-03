@@ -547,7 +547,6 @@ type ItemStorageMutablePersistenceLikeCpp = wow_persistence::InventoryItemMutabl
 const WAYPOINT_MOTION_TYPE_LIKE_CPP: u8 = 2;
 const TACT_KEY_TABLE_HASH_LIKE_CPP: u32 = 0xDF2F_53CF;
 const QUEST_GIVER_STATUS_TRACKED_QUERY_MAX_GUIDS_LIKE_CPP: u32 = 1000;
-const MAX_AREA_SPIRIT_HEALER_RANGE_LIKE_CPP: f32 = 20.0;
 // C++ ObjectDefines.h: DEFAULT_VISIBILITY_DISTANCE = VISIBILITY_DISTANCE_NORMAL = 100 yards.
 // Wider values here make the SQL fallback load whole areas and can crash the 3.4.3 client.
 const DEFAULT_VISIBILITY_DISTANCE_LIKE_CPP: f32 = crate::map_manager::VISIBILITY_RADIUS;
@@ -812,40 +811,7 @@ struct CreatureEquipmentCreateFieldsLikeCpp {
     virtual_items: [(i32, u16, u16); 3],
 }
 
-#[derive(Debug, Clone)]
-struct MaterializedCreatureSpawnLikeCpp {
-    guid: ObjectGuid,
-    position: Position,
-    create_data: CreatureCreateData,
-    min_damage: u32,
-    max_damage: u32,
-    aggro_radius: f32,
-    loot_id: u32,
-    skin_loot_id: u32,
-    gold_min: u32,
-    gold_max: u32,
-    respawn_delay_secs: u32,
-    selected_equipment_id: u8,
-    original_equipment_id: i8,
-    script_name: String,
-    string_id: Option<String>,
-    addon: Option<CreatureAddonLifecycleRecordLikeCpp>,
-    phase_use_flags: u8,
-    phase_id: u16,
-    phase_group_id: u32,
-    terrain_swap_map: i32,
-    flags_extra: u32,
-    ground_movement_type: u8,
-    swim_allowed: bool,
-    flight_movement_type: u8,
-    rooted: bool,
-    chase_movement_type: u8,
-    random_movement_type: u8,
-    interaction_pause_timer_ms: u32,
-    wander_distance: f32,
-    default_movement_type: MovementGeneratorType,
-    waypoint_path_id: u32,
-}
+pub(crate) use wow_world_entities::MaterializedCreatureSpawnLikeCpp;
 
 fn creature_create_movement_flags_like_cpp(ground_movement_type: u8, rooted: bool) -> u32 {
     let mut flags = MovementFlag::empty();

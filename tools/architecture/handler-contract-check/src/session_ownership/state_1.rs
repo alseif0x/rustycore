@@ -46,6 +46,22 @@ pub(super) const WORLD_VISIBILITY_PACKAGE_ROOT: &str = "crates/wow-world-visibil
 
 pub(super) const WORLD_VISIBILITY_CRATE_ROOT: &str = "crates/wow-world-visibility/src/lib.rs";
 
+pub(super) const WORLD_LOOT_PACKAGE_ROOT: &str = "crates/wow-world-loot";
+
+pub(super) const WORLD_LOOT_CRATE_ROOT: &str = "crates/wow-world-loot/src/lib.rs";
+
+pub(super) const WORLD_ENTITIES_PACKAGE_ROOT: &str = "crates/wow-world-entities";
+
+pub(super) const WORLD_ENTITIES_CRATE_ROOT: &str = "crates/wow-world-entities/src/lib.rs";
+
+pub(super) const WORLD_INVENTORY_PACKAGE_ROOT: &str = "crates/wow-world-inventory";
+
+pub(super) const WORLD_INVENTORY_CRATE_ROOT: &str = "crates/wow-world-inventory/src/lib.rs";
+
+pub(super) const WORLD_LIFECYCLE_PACKAGE_ROOT: &str = "crates/wow-world-lifecycle";
+
+pub(super) const WORLD_LIFECYCLE_CRATE_ROOT: &str = "crates/wow-world-lifecycle/src/lib.rs";
+
 pub(super) const SERVER_PACKAGE_ROOT: &str = "crates/world-server";
 
 pub(super) const SERVER_CRATE_ROOT: &str = "crates/world-server/src/lib.rs";
@@ -291,6 +307,10 @@ pub(super) enum PackageRole {
     WorldInteraction,
     WorldInstances,
     WorldVisibility,
+    WorldLoot,
+    WorldEntities,
+    WorldInventory,
+    WorldLifecycle,
     Server,
     Network,
     Social,
@@ -316,6 +336,10 @@ impl PackageRole {
             Self::WorldInteraction => "wow-world-interaction",
             Self::WorldInstances => "wow-world-instances",
             Self::WorldVisibility => "wow-world-visibility",
+            Self::WorldLoot => "wow-world-loot",
+            Self::WorldEntities => "wow-world-entities",
+            Self::WorldInventory => "wow-world-inventory",
+            Self::WorldLifecycle => "wow-world-lifecycle",
             Self::Server => "world-server",
             Self::Network => "wow-network",
             Self::Social => "wow-social",

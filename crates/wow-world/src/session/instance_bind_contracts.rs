@@ -4,20 +4,10 @@
 //! Instance bind contracts: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{Arc, GameObject};
+pub(in crate::session) use wow_world_lifecycle::HomebindPersistenceJobLikeCpp;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedGameObjectSpellCaster {
-    User,
-    GameObject,
-}
+pub(crate) use wow_world_entities::RepresentedGameObjectSpellCaster;
 
 pub(crate) use wow_world_instances::RepresentedPendingBind;
 
 pub(crate) type RepresentedHomebindLikeCpp = wow_entities::PlayerHomebindLikeCpp;
-
-pub(in crate::session) struct HomebindPersistenceJobLikeCpp {
-    pub(in crate::session) port: Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>,
-    pub(in crate::session) request: wow_persistence::PlayerHomebindPersistenceRequestLikeCpp,
-    pub(in crate::session) guid_counter: u64,
-}

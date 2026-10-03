@@ -92,37 +92,7 @@ impl WorldSession {
                 .sync_represented_creature_loot_to_canonical_like_cpp(owner_guid, player_guid)
                 .is_none()
         {
-            self.loot.loot_table.remove(&owner_guid);
+            self.loot.remove_cached_loot_for_owner_like_cpp(owner_guid);
         }
-    }
-}
-
-impl crate::session::LootState {
-    /// Drops only this session/player's packet-building mirror.
-    pub(super) fn discard_represented_personal_loot_cache_for_player_like_cpp(
-        &mut self,
-        owner_guid: ObjectGuid,
-        _player_guid: ObjectGuid,
-    ) {
-        self.loot_table.remove(&owner_guid);
-        self.represented_loot_cache_generations_like_cpp
-            .remove(&owner_guid);
-        self.represented_personal_loot_money
-            .retain(|(owner, _), _| *owner != owner_guid);
-        self.represented_personal_loot_owners.remove(&owner_guid);
-    }
-
-    pub(super) fn record_represented_disenchant_criteria_like_cpp(
-        &mut self,
-        _player_guid: ObjectGuid,
-        _spell_id: u32,
-    ) {
-        #[cfg(test)]
-        self.represented_loot_roll_criteria_events.push(
-            crate::session::RepresentedLootRollCriteriaEvent::Disenchant {
-                player_guid: _player_guid,
-                spell_id: _spell_id,
-            },
-        );
     }
 }

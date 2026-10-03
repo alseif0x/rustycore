@@ -322,15 +322,15 @@ pub(crate) use player_items::item_push_result_from_send_new_item_plan;
 mod loot_delivery_contracts;
 pub(crate) use loot_delivery_contracts::DurableItemLootCompletionLikeCpp;
 pub(crate) use loot_delivery_contracts::DurableItemLootPersistenceGuardLikeCpp;
-use loot_delivery_contracts::DurableItemLootPersistenceStateLikeCpp;
 pub(crate) use loot_delivery_contracts::DurableItemLootPersistenceTrackerLikeCpp;
 pub(crate) use loot_delivery_contracts::DurableLootItemFanoutLikeCpp;
 pub(crate) use loot_delivery_contracts::LootMoneyDeliveryAddressLikeCpp;
 pub(crate) use loot_delivery_contracts::LootMoneyViewerFanoutLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
-pub(crate) use loot_delivery_contracts::RepresentedLootRollCriteriaEvent;
+pub(crate) use wow_world_loot::RepresentedLootRollCriteriaEvent;
 pub(crate) use loot_delivery_contracts::loot_money_durable_outcome_like_cpp;
-pub(crate) use loot_delivery_contracts::{RepresentedLootRollState, RepresentedLootRollVote};
+pub(crate) use loot_delivery_contracts::RepresentedLootRollVote;
+pub(crate) use wow_world_loot::RepresentedLootRollState;
 mod map_admission;
 pub(crate) use map_admission::CreateMapSideEffectApplySummaryLikeCpp;
 use wow_world_instances::create_map_instance_lock_token_like_cpp;

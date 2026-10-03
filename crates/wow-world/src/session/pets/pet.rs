@@ -48,8 +48,7 @@ impl WorldSession {
         }
         self.lifecycle
             .pet_load_query_holder_rows_like_cpp
-            .spells
-            .clear();
+            .clear_spells();
         true
     }
     #[cfg(test)]

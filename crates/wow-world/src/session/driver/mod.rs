@@ -24,7 +24,7 @@ mod callbacks;
 pub(crate) mod phases;
 
 pub(crate) use budget::MAX_PACKETS_PER_UPDATE;
-pub(super) use callbacks::RenameCallbacks;
+pub(in crate::session) use wow_world_lifecycle::RenameCallbacks;
 mod phase_consumer;
 mod phase_pass;
 

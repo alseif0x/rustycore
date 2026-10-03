@@ -151,8 +151,7 @@ impl crate::session::PetsCx<'_> {
             if let Some(spells) = self
                 .lifecycle
                 .pet_load_query_holder_rows_like_cpp
-                .spells
-                .get(&pet_number)
+                .spells_for_pet_number(pet_number)
             {
                 for spell in spells {
                     pet.add_spell(
@@ -172,8 +171,7 @@ impl crate::session::PetsCx<'_> {
             if let Some(cooldowns) = self
                 .lifecycle
                 .pet_load_query_holder_rows_like_cpp
-                .spell_cooldowns
-                .get(&pet_number)
+                .spell_cooldowns_for_pet_number(pet_number)
             {
                 for cooldown in cooldowns {
                     spell_history.add_cooldown(
@@ -189,8 +187,7 @@ impl crate::session::PetsCx<'_> {
             if let Some(charges) = self
                 .lifecycle
                 .pet_load_query_holder_rows_like_cpp
-                .spell_charges
-                .get(&pet_number)
+                .spell_charges_for_pet_number(pet_number)
             {
                 for charge in charges {
                     spell_history.add_charge_state_like_cpp(
@@ -203,15 +200,13 @@ impl crate::session::PetsCx<'_> {
             let pet_aura_effects = self
                 .lifecycle
                 .pet_load_query_holder_rows_like_cpp
-                .aura_effects
-                .get(&pet_number)
+                .aura_effects_for_pet_number(pet_number)
                 .cloned()
                 .unwrap_or_default();
             if let Some(auras) = self
                 .lifecycle
                 .pet_load_query_holder_rows_like_cpp
-                .auras
-                .get(&pet_number)
+                .auras_for_pet_number(pet_number)
             {
                 let aura_subsystem = &mut pet.creature_mut().unit_mut().subsystems_mut().auras;
                 for (index, aura) in auras.iter().enumerate() {
@@ -289,8 +284,7 @@ impl crate::session::PetsCx<'_> {
                 && let Some(declined_names) = self
                     .lifecycle
                     .pet_load_query_holder_rows_like_cpp
-                    .declined_names
-                    .get(&pet_number)
+                    .declined_names_for_pet_number(pet_number)
             {
                 pet.set_declined_names(Some(PetDeclinedNamesLikeCpp {
                     names: declined_names.names.clone(),

@@ -1,16 +1,23 @@
-// Copyright (c) 2026 alseif0x
-// RustyCore — WoW WotLK 3.4.3 server in Rust
-// Based on TrinityCore protocol research (https://github.com/TrinityCore/TrinityCore)
-// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
+use super::LootState;
+use super::DISENCHANT_LOOT_ROLL_CRITERIA_SPELL_LIKE_CPP;
+use crate::{
+    LOOT_SLOT_TYPE_ALLOW_LOOT_LIKE_CPP, LOOT_SLOT_TYPE_ROLL_ONGOING_LIKE_CPP,
+    RepresentedLootRollState, loot_roll_broadcast_item_like_cpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+use crate::RepresentedLootRollCriteriaEvent;
+use wow_core::ObjectGuid;
+use wow_loot::{
+    ROLL_VOTE_DISENCHANT_LIKE_CPP, ROLL_VOTE_GREED_LIKE_CPP, ROLL_VOTE_NEED_LIKE_CPP,
+    ROLL_VOTE_NOT_EMITTED_YET_LIKE_CPP, ROLL_VOTE_NOT_VALID_LIKE_CPP, ROLL_VOTE_PASS_LIKE_CPP,
+    RepresentedLootRollVote,
+};
+use wow_packet::ServerPacket;
+use wow_packet::packets::loot::{LootEntry, LootRollBroadcast};
+use wow_world_core::session::HubRef;
 
-//! Loot-roll criterion updates and packet publication.
-
-use super::*;
-
-impl WorldSession {}
-
-impl crate::session::LootState {
-    pub(super) fn update_represented_loot_roll_vote_criteria_like_cpp(
+impl LootState {
+    pub fn update_represented_loot_roll_vote_criteria_like_cpp(
         &mut self,
         player_guid: ObjectGuid,
         roll_type: u8,
@@ -26,7 +33,7 @@ impl crate::session::LootState {
         }
     }
 
-    pub(super) fn update_represented_loot_roll_winner_criteria_like_cpp(
+    pub fn update_represented_loot_roll_winner_criteria_like_cpp(
         &mut self,
         player_guid: ObjectGuid,
         item_id: u32,
@@ -51,69 +58,65 @@ impl crate::session::LootState {
         }
     }
 
-    pub(super) fn record_represented_roll_any_need_criteria_like_cpp(
+    pub(crate) fn record_represented_roll_any_need_criteria_like_cpp(
         &mut self,
         _player_guid: ObjectGuid,
         _quantity: u32,
     ) {
-        #[cfg(test)]
-        self.represented_loot_roll_criteria_events.push(
-            crate::session::RepresentedLootRollCriteriaEvent::RollAnyNeed {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        self.represented_loot_roll_criteria_events
+            .push(RepresentedLootRollCriteriaEvent::RollAnyNeed {
                 player_guid: _player_guid,
                 quantity: _quantity,
-            },
-        );
+            });
     }
 
-    pub(super) fn record_represented_roll_any_greed_criteria_like_cpp(
+    pub(crate) fn record_represented_roll_any_greed_criteria_like_cpp(
         &mut self,
         _player_guid: ObjectGuid,
         _quantity: u32,
     ) {
-        #[cfg(test)]
-        self.represented_loot_roll_criteria_events.push(
-            crate::session::RepresentedLootRollCriteriaEvent::RollAnyGreed {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        self.represented_loot_roll_criteria_events
+            .push(RepresentedLootRollCriteriaEvent::RollAnyGreed {
                 player_guid: _player_guid,
                 quantity: _quantity,
-            },
-        );
+            });
     }
 
-    pub(super) fn record_represented_roll_need_criteria_like_cpp(
+    pub(crate) fn record_represented_roll_need_criteria_like_cpp(
         &mut self,
         _player_guid: ObjectGuid,
         _item_id: u32,
         _roll_number: u8,
     ) {
-        #[cfg(test)]
-        self.represented_loot_roll_criteria_events.push(
-            crate::session::RepresentedLootRollCriteriaEvent::RollNeed {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        self.represented_loot_roll_criteria_events
+            .push(RepresentedLootRollCriteriaEvent::RollNeed {
                 player_guid: _player_guid,
                 item_id: _item_id,
                 roll_number: _roll_number,
-            },
-        );
+            });
     }
 
-    pub(super) fn record_represented_roll_greed_criteria_like_cpp(
+    pub(crate) fn record_represented_roll_greed_criteria_like_cpp(
         &mut self,
         _player_guid: ObjectGuid,
         _item_id: u32,
         _roll_number: u8,
     ) {
-        #[cfg(test)]
-        self.represented_loot_roll_criteria_events.push(
-            crate::session::RepresentedLootRollCriteriaEvent::RollGreed {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        self.represented_loot_roll_criteria_events
+            .push(RepresentedLootRollCriteriaEvent::RollGreed {
                 player_guid: _player_guid,
                 item_id: _item_id,
                 roll_number: _roll_number,
-            },
-        );
+            });
     }
 
-    pub(super) fn send_represented_loot_roll_final_values_like_cpp(
+    pub fn send_represented_loot_roll_final_values_like_cpp(
         &self,
-        hub: crate::session::HubRef<'_>,
+        hub: HubRef<'_>,
         loot_obj: ObjectGuid,
         entry: &LootEntry,
         winner_guid: ObjectGuid,
@@ -161,9 +164,9 @@ impl crate::session::LootState {
         }
     }
 
-    pub(super) fn send_represented_loot_roll_packet_to_player_like_cpp<P: ServerPacket>(
+    pub fn send_represented_loot_roll_packet_to_player_like_cpp<P: ServerPacket>(
         &self,
-        hub: crate::session::HubRef<'_>,
+        hub: HubRef<'_>,
         packet: &P,
         target: ObjectGuid,
     ) {
@@ -191,9 +194,9 @@ impl crate::session::LootState {
         let _ = registry.send_current_packet(registration, packet.to_bytes());
     }
 
-    pub(super) fn broadcast_represented_loot_roll_packet_like_cpp<P: ServerPacket>(
+    pub fn broadcast_represented_loot_roll_packet_like_cpp<P: ServerPacket>(
         &self,
-        hub: crate::session::HubRef<'_>,
+        hub: HubRef<'_>,
         packet: &P,
         entry: &LootEntry,
         except: Option<ObjectGuid>,
@@ -233,9 +236,9 @@ impl crate::session::LootState {
         }
     }
 
-    pub(super) fn broadcast_represented_loot_roll_packet_to_voters_like_cpp<P: ServerPacket>(
+    pub fn broadcast_represented_loot_roll_packet_to_voters_like_cpp<P: ServerPacket>(
         &self,
-        hub: crate::session::HubRef<'_>,
+        hub: HubRef<'_>,
         packet: &P,
         state: &RepresentedLootRollState,
         except: Option<ObjectGuid>,

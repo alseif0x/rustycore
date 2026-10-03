@@ -24,17 +24,3 @@ impl WorldSession {
         }
     }
 }
-
-impl crate::session::state::WorldEntitiesState {
-    pub(crate) fn pause_interacted_creature_movement_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        guid: ObjectGuid,
-    ) -> bool {
-        hub.core
-            .mutate_world_creature(guid, |creature| {
-                creature.pause_interaction_movement_like_cpp()
-            })
-            .unwrap_or(false)
-    }
-}

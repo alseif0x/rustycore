@@ -6,6 +6,9 @@
 
 use super::WorldSession;
 
+#[cfg(test)]
+pub(crate) use wow_world_lifecycle::RepresentedAtLoginFlagRemovalLikeCpp;
+
 pub(crate) use wow_world_core::session::{
     RepresentedAlterAppearanceLikeCpp, RepresentedConfirmBarbersChoiceLikeCpp,
     RepresentedConfirmRespecWipeLikeCpp, RepresentedTalentRespecVisualSpellCastLikeCpp,
@@ -14,18 +17,6 @@ pub(crate) use wow_world_core::session::{
 pub(crate) use wow_world_core::session::{
     RepresentedTalentResetScriptHookLikeCpp, RepresentedTalentRespecCriteriaEventLikeCpp,
 };
-
-/// Evidence for C++ `RemoveAtLoginFlag(flags, persist=true)`.
-///
-/// Non-persistent at-login removals intentionally mutate only the represented
-/// in-memory flag field and do not push this boundary record.
-#[cfg(test)]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct RepresentedAtLoginFlagRemovalLikeCpp {
-    pub flags: u16,
-    pub persist: bool,
-    pub db_statement_unrepresented: bool,
-}
 
 impl WorldSession {
     #[cfg_attr(not(test), allow(unused_variables))]

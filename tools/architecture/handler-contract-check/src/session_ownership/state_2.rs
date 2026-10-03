@@ -367,7 +367,11 @@ fn collects_session_contract_types(role: PackageRole, module: &str) -> bool {
         | PackageRole::WorldSpell
         | PackageRole::WorldInteraction
         | PackageRole::WorldInstances
-        | PackageRole::WorldVisibility => false,
+        | PackageRole::WorldVisibility
+        | PackageRole::WorldLoot
+        | PackageRole::WorldEntities
+        | PackageRole::WorldInventory
+        | PackageRole::WorldLifecycle => false,
         PackageRole::Server => false,
     }
 }
@@ -478,6 +482,10 @@ pub(super) fn collect_items(
                 | PackageRole::WorldInteraction
                 | PackageRole::WorldInstances
                 | PackageRole::WorldVisibility
+                | PackageRole::WorldLoot
+                | PackageRole::WorldEntities
+                | PackageRole::WorldInventory
+                | PackageRole::WorldLifecycle
         ) {
             match item {
                 Item::Struct(item_struct) if item_struct.ident == WORLD_SESSION_NAME => {
