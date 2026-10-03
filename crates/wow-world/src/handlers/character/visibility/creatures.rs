@@ -410,8 +410,7 @@ impl WorldSession {
                     .collect();
                 for guid in &removed_gos {
                     self.world_entities
-                        .represented_gameobject_phase_shifts
-                        .remove(guid);
+                        .remove_represented_gameobject_phase_shift_like_cpp(*guid);
                 }
 
                 if !removed_gos.is_empty() {
@@ -953,8 +952,7 @@ impl WorldSession {
             .collect();
         for guid in &removed_gos {
             self.world_entities
-                .represented_gameobject_phase_shifts
-                .remove(guid);
+                .remove_represented_gameobject_phase_shift_like_cpp(*guid);
         }
 
         if !removed_gos.is_empty() {

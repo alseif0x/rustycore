@@ -342,7 +342,7 @@ impl WorldSession {
         };
 
         self.world_entities
-            .represented_gameobject_use_effects
+            .represented_gameobject_use_effects_since_like_cpp(0)
             .iter()
             .rev()
             .any(|effect| {
@@ -361,10 +361,8 @@ impl WorldSession {
     pub(crate) fn represented_titan_grip_penalty_actions_like_cpp(
         &self,
     ) -> &[TitanGripPenaltyAction] {
-        &self
-            .inventory
-            .player_item_test_fixture_like_cpp
-            .represented_titan_grip_penalty_actions_like_cpp
+        self.inventory
+            .represented_titan_grip_penalty_actions_for_test_like_cpp()
     }
 }
 

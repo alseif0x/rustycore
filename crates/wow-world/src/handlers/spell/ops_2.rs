@@ -680,25 +680,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::InventoryState {
-    pub(super) fn direct_inventory_item_count_like_cpp_representable(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        item_id: u32,
-    ) -> Option<u32> {
-        Some(
-            self.resolved_inventory_items_like_cpp(hub)?
-                .values()
-                .filter(|inventory_item| inventory_item.entry_id == item_id)
-                .filter_map(|inventory_item| {
-                    self.resolved_inventory_item_object_like_cpp(hub, inventory_item.guid)
-                })
-                .filter(|item| !item.is_in_trade())
-                .fold(0_u32, |total, item| total.saturating_add(item.count())),
-        )
-    }
-}
-
 impl crate::session::SessionLifecycleState {
     pub(super) async fn load_loot_template_condition_rows_like_cpp(
         &self,

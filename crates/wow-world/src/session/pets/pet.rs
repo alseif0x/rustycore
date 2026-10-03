@@ -89,13 +89,13 @@ impl WorldSession {
         if !tapper_has_current_player {
             return;
         }
-        self.world_entities
-            .represented_creature_kill_events_like_cpp
-            .push(RepresentedCreatureKillEventLikeCpp::TapperPetKilledUnitAi {
+        self.world_entities.record_represented_creature_kill_event_like_cpp(
+            RepresentedCreatureKillEventLikeCpp::TapperPetKilledUnitAi {
                 tapper_guid: player_guid,
                 pet_guid,
                 victim_guid: creature_guid,
-            });
+            },
+        );
     }
 }
 

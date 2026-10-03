@@ -30,7 +30,7 @@ async fn loot_roll_all_voted_finishes_need_winner_like_cpp() {
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         owner_guid,
         CreatureLoot {
             loot_guid: loot_object,
@@ -147,30 +147,29 @@ async fn loot_roll_all_voted_finishes_need_winner_like_cpp() {
     assert_eq!(original_won_allow.read_bits(2).unwrap(), 0);
     assert_eq!(original_won_allow.read_bits(3).unwrap(), 0);
 
-    let entry = &session.loot.loot_table.get(&owner_guid).unwrap().items[0];
+    let entry = &session.loot.cached_loot_for_owner_like_cpp(owner_guid).unwrap().items[0];
     assert!(!entry.flags.blocked);
     assert_eq!(entry.roll_winner, player_guid);
     assert!(
         !session
             .loot
-            .represented_loot_rolls
-            .contains_key(&(loot_object, 0))
+            .represented_loot_roll_like_cpp(loot_object, 0).is_some()
     );
     assert_eq!(
-        session.loot.represented_loot_roll_criteria_events[0],
+        session.loot.represented_loot_roll_criteria_events_for_test_like_cpp()[0],
         RepresentedLootRollCriteriaEvent::RollAnyNeed {
             player_guid,
             quantity: 1
         }
     );
     assert_eq!(
-        session.loot.represented_loot_roll_criteria_events[1],
+        session.loot.represented_loot_roll_criteria_events_for_test_like_cpp()[1],
         RepresentedLootRollCriteriaEvent::RollAnyGreed {
             player_guid: candidate_guid,
             quantity: 1
         }
     );
-    match session.loot.represented_loot_roll_criteria_events[2] {
+    match session.loot.represented_loot_roll_criteria_events_for_test_like_cpp()[2] {
         RepresentedLootRollCriteriaEvent::RollNeed {
             player_guid: criteria_player,
             item_id,
@@ -201,7 +200,7 @@ async fn loot_roll_timer_expiry_finishes_current_winner_like_cpp() {
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         owner_guid,
         CreatureLoot {
             loot_guid: loot_object,
@@ -256,8 +255,7 @@ async fn loot_roll_timer_expiry_finishes_current_winner_like_cpp() {
 
     session
         .loot
-        .represented_loot_rolls
-        .get_mut(&(loot_object, 0))
+        .represented_loot_roll_mut_like_cpp(loot_object, 0)
         .unwrap()
         .end_time = Instant::now() - Duration::from_millis(1);
     session.tick_represented_loot_rolls_like_cpp().await;
@@ -292,23 +290,22 @@ async fn loot_roll_timer_expiry_finishes_current_winner_like_cpp() {
         ROLL_VOTE_GREED_LIKE_CPP
     );
 
-    let entry = &session.loot.loot_table.get(&owner_guid).unwrap().items[0];
+    let entry = &session.loot.cached_loot_for_owner_like_cpp(owner_guid).unwrap().items[0];
     assert!(!entry.flags.blocked);
     assert_eq!(entry.roll_winner, player_guid);
     assert!(
         !session
             .loot
-            .represented_loot_rolls
-            .contains_key(&(loot_object, 0))
+            .represented_loot_roll_like_cpp(loot_object, 0).is_some()
     );
     assert_eq!(
-        session.loot.represented_loot_roll_criteria_events[0],
+        session.loot.represented_loot_roll_criteria_events_for_test_like_cpp()[0],
         RepresentedLootRollCriteriaEvent::RollAnyGreed {
             player_guid,
             quantity: 1
         }
     );
-    match session.loot.represented_loot_roll_criteria_events[1] {
+    match session.loot.represented_loot_roll_criteria_events_for_test_like_cpp()[1] {
         RepresentedLootRollCriteriaEvent::RollGreed {
             player_guid: criteria_player,
             item_id,
@@ -328,8 +325,7 @@ async fn stale_loot_roll_vote_does_not_mutate_replacement_generation_like_cpp() 
     let loot_object = represented_loot_object_guid_like_cpp(owner_guid);
     let old_generation = session
         .loot
-        .represented_loot_rolls
-        .get(&(loot_object, 0))
+        .represented_loot_roll_like_cpp(loot_object, 0)
         .unwrap()
         .authority_generation;
     let replacement_generation = replace_generation_guarded_group_loot_like_cpp(
@@ -351,8 +347,7 @@ async fn stale_loot_roll_vote_does_not_mutate_replacement_generation_like_cpp() 
     assert!(
         !session
             .loot
-            .represented_loot_rolls
-            .contains_key(&(loot_object, 0)),
+            .represented_loot_roll_like_cpp(loot_object, 0).is_some(),
         "the stale roll must be cancelled instead of routed or voted"
     );
     assert!(send_rx.try_recv().is_err());
@@ -360,7 +355,7 @@ async fn stale_loot_roll_vote_does_not_mutate_replacement_generation_like_cpp() 
     assert!(
         session
             .loot
-            .represented_loot_roll_criteria_events
+            .represented_loot_roll_criteria_events_for_test_like_cpp()
             .is_empty()
     );
 
@@ -382,8 +377,7 @@ async fn stale_loot_roll_expiry_does_not_mutate_replacement_generation_like_cpp(
     let loot_object = represented_loot_object_guid_like_cpp(owner_guid);
     let old_generation = session
         .loot
-        .represented_loot_rolls
-        .get(&(loot_object, 0))
+        .represented_loot_roll_like_cpp(loot_object, 0)
         .unwrap()
         .authority_generation;
     let replacement_generation = replace_generation_guarded_group_loot_like_cpp(
@@ -395,8 +389,7 @@ async fn stale_loot_roll_expiry_does_not_mutate_replacement_generation_like_cpp(
     assert_ne!(old_generation, replacement_generation);
     session
         .loot
-        .represented_loot_rolls
-        .get_mut(&(loot_object, 0))
+        .represented_loot_roll_mut_like_cpp(loot_object, 0)
         .unwrap()
         .end_time = Instant::now() - Duration::from_millis(1);
 
@@ -405,8 +398,7 @@ async fn stale_loot_roll_expiry_does_not_mutate_replacement_generation_like_cpp(
     assert!(
         !session
             .loot
-            .represented_loot_rolls
-            .contains_key(&(loot_object, 0)),
+            .represented_loot_roll_like_cpp(loot_object, 0).is_some(),
         "the stale timer must be cancelled without finishing against replacement loot"
     );
     assert!(send_rx.try_recv().is_err());
@@ -414,7 +406,7 @@ async fn stale_loot_roll_expiry_does_not_mutate_replacement_generation_like_cpp(
     assert!(
         session
             .loot
-            .represented_loot_roll_criteria_events
+            .represented_loot_roll_criteria_events_for_test_like_cpp()
             .is_empty()
     );
 
@@ -453,7 +445,7 @@ async fn loot_roll_all_passed_unblocks_without_all_passed_to_valid_voters_like_c
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         owner_guid,
         CreatureLoot {
             loot_guid: loot_object,
@@ -507,8 +499,7 @@ async fn loot_roll_all_passed_unblocks_without_all_passed_to_valid_voters_like_c
     let _remote_pass_roll = candidate_rx.try_recv().unwrap();
     let pass_state = session
         .loot
-        .represented_loot_rolls
-        .get(&(loot_object, 0))
+        .represented_loot_roll_like_cpp(loot_object, 0)
         .expect("roll state should stay open until every voter passes");
     assert_eq!(
         pass_state.voters.get(&player_guid).unwrap().roll_number,
@@ -552,14 +543,13 @@ async fn loot_roll_all_passed_unblocks_without_all_passed_to_valid_voters_like_c
     assert!(player_rx.try_recv().is_err());
     assert!(candidate_rx.try_recv().is_err());
 
-    let entry = &session.loot.loot_table.get(&owner_guid).unwrap().items[0];
+    let entry = &session.loot.cached_loot_for_owner_like_cpp(owner_guid).unwrap().items[0];
     assert!(!entry.flags.blocked);
     assert!(entry.roll_winner.is_empty());
     assert!(
         !session
             .loot
-            .represented_loot_rolls
-            .contains_key(&(loot_object, 0))
+            .represented_loot_roll_like_cpp(loot_object, 0).is_some()
     );
 }
 #[tokio::test]
@@ -580,7 +570,7 @@ async fn loot_roll_vote_command_updates_owner_session_roll_state_like_cpp() {
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         owner_guid,
         CreatureLoot {
             loot_guid: loot_object,
@@ -624,8 +614,7 @@ async fn loot_roll_vote_command_updates_owner_session_roll_state_like_cpp() {
     let _remote_start_roll = candidate_rx.try_recv().unwrap();
     let roll_identity = session
         .loot
-        .represented_loot_rolls
-        .get(&(loot_object, 0))
+        .represented_loot_roll_like_cpp(loot_object, 0)
         .unwrap()
         .command_identity
         .clone();
@@ -667,8 +656,7 @@ async fn loot_roll_vote_command_updates_owner_session_roll_state_like_cpp() {
 
     let state = session
         .loot
-        .represented_loot_rolls
-        .get(&(loot_object, 0))
+        .represented_loot_roll_like_cpp(loot_object, 0)
         .unwrap();
     assert_eq!(
         state.voters.get(&candidate_guid).unwrap().vote,
@@ -810,7 +798,7 @@ async fn loot_roll_remote_session_routes_vote_to_owner_session_like_cpp() {
     register_test_creature_like_cpp(&mut owner_session, test_creature(owner_guid, false));
     let mut loot = generation_guarded_group_loot_like_cpp(owner_guid, player_guid, candidate_guid);
     loot.loot_guid = loot_object;
-    owner_session.loot.loot_table.insert(owner_guid, loot);
+    owner_session.loot.insert_cached_loot_for_owner_like_cpp(owner_guid, loot);
     owner_session
         .sync_represented_creature_loot_to_canonical_like_cpp(owner_guid, player_guid)
         .expect("the fixture loot must be installed into the object-owned authority");

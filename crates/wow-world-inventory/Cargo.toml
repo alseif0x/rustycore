@@ -18,6 +18,7 @@ wow-data = { workspace = true }
 wow-entities = { workspace = true }
 wow-packet = { workspace = true }
 wow-progression = { workspace = true }
+wow-persistence = { workspace = true }
 wow-world-core = { workspace = true }
 
 [dev-dependencies]

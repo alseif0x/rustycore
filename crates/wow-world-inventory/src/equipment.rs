@@ -115,4 +115,5 @@ impl crate::InventoryState {
             .player_item_test_fixture_like_cpp
             .represented_avg_equipped_item_level_updates_like_cpp
     }
+
 }

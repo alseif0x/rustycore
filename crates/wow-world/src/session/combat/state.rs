@@ -334,10 +334,8 @@ impl WorldSession {
     pub(crate) fn represented_combat_stat_recalculations_like_cpp(
         &self,
     ) -> &[RepresentedCombatStatRecalculationLikeCpp] {
-        &self
-            .inventory
-            .player_item_test_fixture_like_cpp
-            .represented_combat_stat_recalculations_like_cpp
+        self.inventory
+            .represented_combat_stat_recalculations_for_test_like_cpp()
     }
 }
 

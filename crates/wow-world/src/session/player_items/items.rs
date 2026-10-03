@@ -164,9 +164,7 @@ impl WorldSession {
         };
         #[cfg(test)]
         self.inventory
-            .player_item_test_fixture_like_cpp
-            .represented_item_set_spell_events_like_cpp
-            .extend(events.iter().copied());
+            .record_represented_item_set_spell_events_for_test_like_cpp(&events);
         events
     }
     fn record_represented_add_items_set_item_like_cpp(
@@ -365,7 +363,7 @@ impl WorldSession {
         player_guid: ObjectGuid,
         source: wow_entities::ItemForgeUseSource,
     ) -> bool {
-        self.world_entities.represented_gameobject_use_effects.push(
+        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
             RepresentedGameObjectUseEffect::ItemForgeUsed {
                 gameobject_guid,
                 player_guid,

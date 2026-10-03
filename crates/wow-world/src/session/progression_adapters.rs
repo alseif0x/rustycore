@@ -99,7 +99,7 @@ impl WorldSession {
                 self.core
                     .player_handle_like_cpp
                     .is_none()
-                    .then_some(self.inventory.player_gold)
+                    .then_some(self.inventory.player_gold_for_test_like_cpp())
             })
             .expect("test Player money owner must resolve")
     }

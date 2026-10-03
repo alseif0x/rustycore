@@ -375,7 +375,7 @@ fn install_active_item_loot_completion_fixture_like_cpp(
     assert!(owner_guid.is_item());
     session.set_player_guid(Some(player_guid));
     session.loot.set_active_loot_guid(owner_guid);
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         owner_guid,
         CreatureLoot {
             loot_guid: owner_guid,
@@ -824,8 +824,7 @@ async fn open_test_ae_pair_like_cpp(
     assert!(
         session
             .loot
-            .active_loot_view_owners
-            .contains(&secondary_guid)
+            .has_active_loot_view_owner_like_cpp(secondary_guid)
     );
     let authority = session
         .represented_owned_loot_authority_like_cpp(secondary_guid)

@@ -3,7 +3,7 @@
 //! Retain only remaining native phases on the canonical Player; never replay the ACK.
 use crate::session::WorldSession;
 use wow_core::Position;
-use wow_entities::{PlayerWorldportPostAddLikeCpp, PlayerWorldportPostAddPhaseLikeCpp as Phase};
+use wow_entities::PlayerWorldportPostAddPhaseLikeCpp as Phase;
 
 impl WorldSession {
     pub(crate) fn begin_worldport_post_add_like_cpp(
@@ -139,69 +139,6 @@ impl WorldSession {
         crate::session::hub_mut(self).reset_movement_counter_like_cpp();
         crate::session::hub_ref(self).update_registry_position();
         self.begin_worldport_post_add_like_cpp(destination.0, destination.1)
-    }
-}
-
-impl crate::session::state::SessionLifecycleState {
-    pub(crate) fn begin_worldport_post_add_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        map_id: u32,
-        position: Position,
-    ) -> bool {
-        let begun = hub
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                if player.unit().world().map_id() != map_id
-                    || player.unit().world().position() != position
-                {
-                    return false;
-                }
-                let state = player.teleport_state_mut_like_cpp();
-                if state.post_add.is_some() {
-                    return false;
-                }
-                state.post_add = Some(PlayerWorldportPostAddLikeCpp {
-                    map_id,
-                    position,
-                    phase: Phase::BeforeZone,
-                });
-                true
-            })
-            .unwrap_or(false);
-        if begun && self.pending_periodic_player_save_like_cpp() {
-            // The timer can expire before Transfer stops ordinary Session autosaves.
-            // Give that due request the same native delayed-operation phase as a
-            // direct SaveToDB call, before any following queued packet is admitted.
-            if self.defer_player_save_for_transfer_like_cpp(hub)
-                != Some(crate::session::PlayerSaveOutcomeLikeCpp::Deferred)
-            {
-                return false;
-            }
-            self.reset_player_save_timer_like_cpp();
-        }
-        begun
-    }
-
-    pub(crate) fn advance_worldport_post_add_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        phase: Phase,
-    ) -> bool {
-        hub.core
-            .with_owned_player_mut_like_cpp(|player| {
-                if let Some(progress) = player.teleport_state_like_cpp().post_add
-                    && (player.unit().world().map_id() != progress.map_id
-                        || player.unit().world().position() != progress.position)
-                {
-                    return false;
-                }
-                if let Some(progress) = &mut player.teleport_state_mut_like_cpp().post_add {
-                    progress.phase = progress.phase.max(phase);
-                }
-                true
-            })
-            .unwrap_or(false)
     }
 }
 

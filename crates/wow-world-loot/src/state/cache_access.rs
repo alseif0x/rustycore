@@ -1,6 +1,10 @@
 use super::*;
 
 impl LootState {
+    pub fn clear_cached_loot_like_cpp(&mut self) {
+        self.loot_table.clear();
+    }
+
     pub fn cached_loot_for_owner_like_cpp(&self, owner: ObjectGuid) -> Option<&CreatureLoot> {
         self.loot_table.get(&owner)
     }
@@ -14,6 +18,10 @@ impl LootState {
 
     pub fn cached_loot_contains_owner_like_cpp(&self, owner: ObjectGuid) -> bool {
         self.loot_table.contains_key(&owner)
+    }
+
+    pub fn cached_loot_values_like_cpp(&self) -> impl Iterator<Item = &CreatureLoot> {
+        self.loot_table.values()
     }
 
     pub fn insert_cached_loot_for_owner_like_cpp(

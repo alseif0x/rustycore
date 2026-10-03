@@ -273,8 +273,7 @@ impl WorldSession {
     ) -> bool {
         let gameobject_faction = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)
+            .represented_gameobject_use_state_like_cpp(gameobject_guid)
             .and_then(|state| state.faction_template);
         if let (Some(player_faction), Some(gameobject_faction), Some(store)) = (
             crate::session::hub_ref(self).player_faction_template_id_like_cpp(),
@@ -284,7 +283,7 @@ impl WorldSession {
             (store.get(player_faction), store.get(gameobject_faction))
             && !player_entry.is_friendly_to_like_cpp(gameobject_entry)
         {
-            self.world_entities.represented_gameobject_use_effects.push(
+            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
                 RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                     gameobject_guid,
                     player_guid,
@@ -300,7 +299,7 @@ impl WorldSession {
             return false;
         };
         if player_unit_flags.contains(UnitFlags::IMMUNE) {
-            self.world_entities.represented_gameobject_use_effects.push(
+            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
                 RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                     gameobject_guid,
                     player_guid,
@@ -316,7 +315,7 @@ impl WorldSession {
             return false;
         };
         if has_recently_dropped_flag_debuff {
-            self.world_entities.represented_gameobject_use_effects.push(
+            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
                 RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                     gameobject_guid,
                     player_guid,
@@ -332,7 +331,7 @@ impl WorldSession {
             return false;
         };
         if !player_is_alive {
-            self.world_entities.represented_gameobject_use_effects.push(
+            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
                 RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                     gameobject_guid,
                     player_guid,
@@ -355,7 +354,7 @@ impl WorldSession {
             return Some(bg_type_id);
         }
 
-        self.world_entities.represented_gameobject_use_effects.push(
+        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
             RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                 gameobject_guid,
                 player_guid,
@@ -377,8 +376,7 @@ impl WorldSession {
         let (custom_anim, spell_visual_id) = state.custom_anim_and_spell_visual_like_cpp(source);
         if let Some(position) = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)
+            .represented_gameobject_use_state_like_cpp(gameobject_guid)
             .and_then(|state| state.position)
         {
             self.send_packet(&wow_packet::packets::misc::UpdateCapturePoint {
@@ -389,7 +387,7 @@ impl WorldSession {
                 capture_total_duration_ms: source.capture_time_ms,
             });
         }
-        self.world_entities.represented_gameobject_use_effects.push(
+        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
             RepresentedGameObjectUseEffect::CapturePointUpdated {
                 gameobject_guid,
                 state,
@@ -412,9 +410,7 @@ impl WorldSession {
     ) -> bool {
         let state = self
             .world_entities
-            .represented_gameobject_use_states
-            .entry(gameobject_guid)
-            .or_default();
+            .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
         let old_state = state
             .new_flag_state
             .unwrap_or(RepresentedNewFlagStateRequest::InBase);
@@ -444,7 +440,7 @@ impl WorldSession {
         state.new_flag_respawn_until = (new_state == RepresentedNewFlagStateRequest::Respawning)
             .then(|| Instant::now() + Duration::from_millis(u64::from(respawn_time_ms)));
 
-        self.world_entities.represented_gameobject_use_effects.push(
+        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
             RepresentedGameObjectUseEffect::NewFlagOwnerStateRequested {
                 gameobject_guid,
                 player_guid: player_guid.unwrap_or(ObjectGuid::EMPTY),

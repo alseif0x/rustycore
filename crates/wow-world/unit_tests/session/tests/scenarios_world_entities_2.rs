@@ -70,9 +70,7 @@ fn update_visible_gameobjects_sends_dynamic_flags_for_active_objective_like_cpp(
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
     session
-        .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .world_entities.insert_represented_gameobject_use_state_for_test_like_cpp(
             gameobject_guid,
             RepresentedGameObjectUseState {
                 go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
@@ -134,9 +132,7 @@ fn update_visible_gameobjects_questgiver_future_status_does_not_activate_like_cp
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
     session
-        .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .world_entities.insert_represented_gameobject_use_state_for_test_like_cpp(
             gameobject_guid,
             RepresentedGameObjectUseState {
                 go_type: Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8),
@@ -263,9 +259,7 @@ fn update_visible_gameobjects_sends_dynamic_flags_for_chest_quest_loot_reference
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
     session
-        .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .world_entities.insert_represented_gameobject_use_state_for_test_like_cpp(
             gameobject_guid,
             RepresentedGameObjectUseState {
                 go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
@@ -327,9 +321,7 @@ fn update_visible_gameobjects_gm_chest_without_activation_gets_activate_like_cpp
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
     session
-        .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .world_entities.insert_represented_gameobject_use_state_for_test_like_cpp(
             gameobject_guid,
             RepresentedGameObjectUseState {
                 go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
@@ -387,9 +379,7 @@ fn update_visible_gameobjects_gm_goober_without_activation_gets_activate_like_cp
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
     session
-        .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .world_entities.insert_represented_gameobject_use_state_for_test_like_cpp(
             gameobject_guid,
             RepresentedGameObjectUseState {
                 go_type: Some(wow_entities::GAMEOBJECT_TYPE_GOOBER as u8),
@@ -501,9 +491,7 @@ fn update_visible_gameobjects_sends_dynamic_flags_for_gathering_node_quest_loot_
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
     session
-        .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .world_entities.insert_represented_gameobject_use_state_for_test_like_cpp(
             gameobject_guid,
             RepresentedGameObjectUseState {
                 go_type: Some(wow_entities::GAMEOBJECT_TYPE_GATHERING_NODE as u8),
@@ -602,9 +590,7 @@ fn update_visible_gameobjects_adds_no_interact_for_failed_player_condition_like_
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
     session
-        .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .world_entities.insert_represented_gameobject_use_state_for_test_like_cpp(
             gameobject_guid,
             RepresentedGameObjectUseState {
                 go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
@@ -660,9 +646,7 @@ fn update_visible_gameobjects_skips_unknown_quest_gameobject_like_cpp() {
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
     session
-        .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .world_entities.insert_represented_gameobject_use_state_for_test_like_cpp(
             gameobject_guid,
             RepresentedGameObjectUseState {
                 go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),
@@ -771,9 +755,7 @@ async fn accept_invite_to_raid_group_triggers_visible_gameobject_refresh_like_cp
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
     session
-        .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .world_entities.insert_represented_gameobject_use_state_for_test_like_cpp(
             gameobject_guid,
             RepresentedGameObjectUseState {
                 go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),

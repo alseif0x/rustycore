@@ -5,7 +5,7 @@
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
 use super::{Arc, HashSet};
-use super::{LootMoneyPersistenceErrorLikeCpp, MAX_MONEY_AMOUNT};
+use super::MAX_MONEY_AMOUNT;
 use super::{ObjectGuid, OwnedLootAuthority, OwnedLootSnapshot};
 use super::{PlayerRegistry, SessionCommand, registry};
 
@@ -62,38 +62,6 @@ impl LootMoneyDeliveryAddressLikeCpp {
             } => {
                 let _ = registry.queue_current_command_reliably(registration, command);
             }
-        }
-    }
-}
-
-impl std::fmt::Display for LootMoneyPersistenceErrorLikeCpp {
-    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            Self::MissingPlayer => formatter.write_str("loot-money player is missing"),
-            Self::MissingCharacterDatabase => {
-                formatter.write_str("loot-money character database is missing")
-            }
-            Self::WorkerTerminated => formatter.write_str("loot-money persistence worker stopped"),
-            Self::Claim(error) => write!(formatter, "loot-money claim failure: {error:?}"),
-            Self::Persistence(reason) => {
-                write!(formatter, "loot-money persistence failure: {reason}")
-            }
-            Self::CommitOutcomeUnknownPersistence(reason) => {
-                write!(formatter, "loot-money COMMIT outcome is unknown: {reason}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for LootMoneyPersistenceErrorLikeCpp {
-    fn source(&self) -> Option<&(dyn std::error::Error + 'static)> {
-        match self {
-            Self::MissingPlayer
-            | Self::MissingCharacterDatabase
-            | Self::WorkerTerminated
-            | Self::Claim(_)
-            | Self::Persistence(_)
-            | Self::CommitOutcomeUnknownPersistence(_) => None,
         }
     }
 }

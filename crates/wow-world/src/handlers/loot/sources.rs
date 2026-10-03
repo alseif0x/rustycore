@@ -556,8 +556,7 @@ impl WorldSession {
     ) -> Vec<ObjectGuid> {
         let Some(tappers) = self
             .loot
-            .represented_gameobject_tap_lists
-            .get(&gameobject_guid)
+            .represented_gameobject_tappers_like_cpp(gameobject_guid)
         else {
             return self
                 .represented_player_unlocked_for_dungeon_encounter_like_cpp(

@@ -272,8 +272,7 @@ impl crate::session::LootCxRef<'_> {
             .canonical_gameobject_owner_for_loot_like_cpp(self.hub, guid);
         let represented_state = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&guid);
+            .represented_gameobject_use_state_like_cpp(guid);
         if canonical_position.is_none()
             && represented_state.and_then(|state| state.position).is_none()
             && !self.hub.core.client_visible_guids_like_cpp.contains(&guid)

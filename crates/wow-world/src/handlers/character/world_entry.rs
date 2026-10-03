@@ -127,7 +127,7 @@ impl WorldSession {
             req.idle_logout, self.core.account_id
         );
 
-        if !self.loot.active_loot_guid.is_empty() {
+        if !self.loot.active_loot_guid_like_cpp().is_empty() {
             self.send_packet(&LootReleaseAll);
         }
 

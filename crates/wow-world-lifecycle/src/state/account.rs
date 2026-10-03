@@ -6,12 +6,16 @@ use wow_persistence::{
     AccountToyRowLikeCpp, PersistenceOutcomeLikeCpp, PlayerOfflineMarkLikeCpp,
 };
 use wow_world_core::session::HubMut;
+use wow_core::ObjectGuid;
+use wow_packet::packets::misc::NUM_ACCOUNT_DATA_TYPES;
 
 use super::SessionLifecycleState;
 use crate::{
     AccountHeirloomSaveRowLikeCpp, AccountMountSaveRowLikeCpp, AccountToySaveRowLikeCpp,
-    FinalizationOutcome,
+    AccountDataLikeCpp, FinalizationOutcome, GLOBAL_CACHE_MASK_LIKE_CPP,
 };
+#[cfg(any(test, feature = "test-fixtures"))]
+use crate::RepresentedAtLoginFlagRemovalLikeCpp;
 
 impl SessionLifecycleState {
     /// Mark the current character as offline (#200: through the lifecycle port).
@@ -291,5 +295,105 @@ impl SessionLifecycleState {
             ),
         }
         outcome.into()
+    }
+}
+
+impl SessionLifecycleState {
+    pub fn account_data_like_cpp(&self, data_type: u8) -> Option<&AccountDataLikeCpp> {
+        self.account_data_like_cpp.get(usize::from(data_type))
+    }
+
+    pub fn account_data_times_like_cpp(
+        &self,
+        player_guid: ObjectGuid,
+        mask: u32,
+    ) -> wow_packet::packets::misc::AccountDataTimes {
+        let mut times = [0i64; NUM_ACCOUNT_DATA_TYPES];
+        for (index, account_data) in self.account_data_like_cpp.iter().enumerate() {
+            if mask & (1u32 << index) != 0 {
+                times[index] = account_data.time;
+            }
+        }
+
+        wow_packet::packets::misc::AccountDataTimes::for_times(player_guid, times)
+    }
+
+    pub fn set_account_data_like_cpp(&mut self, data_type: u8, time: i64, data: String) -> bool {
+        let Some(account_data) = self.account_data_like_cpp.get_mut(usize::from(data_type)) else {
+            return false;
+        };
+
+        account_data.time = time;
+        account_data.data = data;
+        true
+    }
+
+    pub async fn set_account_data_persisted_like_cpp(
+        &mut self,
+        hub: &mut HubMut<'_>,
+        data_type: u8,
+        time: i64,
+        data: String,
+    ) -> bool {
+        if usize::from(data_type) >= NUM_ACCOUNT_DATA_TYPES {
+            return false;
+        }
+
+        let is_global = (1u32 << data_type) & GLOBAL_CACHE_MASK_LIKE_CPP != 0;
+        let player_guid_low = hub.core.account_state.recent_player_guid_low_like_cpp;
+
+        if !is_global && player_guid_low == 0 {
+            return false;
+        }
+
+        let scope = if is_global {
+            wow_persistence::SessionAccountDataScopeLikeCpp::Global {
+                account_id: hub.core.account_id,
+            }
+        } else {
+            wow_persistence::SessionAccountDataScopeLikeCpp::Character {
+                guid_low: player_guid_low,
+            }
+        };
+
+        let Some(port) = self
+            .persistence_ports_like_cpp
+            .admission
+            .session_account_state
+            .clone()
+        else {
+            warn!(
+                account = hub.core.account_id,
+                data_type, "SetAccountData persisted fallback: account-state port unavailable"
+            );
+            return self.set_account_data_like_cpp(data_type, time, data);
+        };
+
+        let save = wow_persistence::SessionAccountDataSaveLikeCpp {
+            scope,
+            data_type,
+            time,
+            data: data.clone(),
+        };
+        match port.save_account_data_like_cpp(save).await {
+            wow_persistence::PersistenceOutcomeLikeCpp::Applied { .. } => {}
+            wow_persistence::PersistenceOutcomeLikeCpp::Failed { reason }
+            | wow_persistence::PersistenceOutcomeLikeCpp::Unknown { reason } => {
+                warn!(
+                    account = hub.core.account_id,
+                    data_type, "SetAccountData persistence failed: {reason}"
+                );
+                return false;
+            }
+        }
+
+        self.set_account_data_like_cpp(data_type, time, data)
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn represented_at_login_flag_removals_like_cpp(
+        &self,
+    ) -> &[RepresentedAtLoginFlagRemovalLikeCpp] {
+        &self.represented_at_login_flag_removals_like_cpp
     }
 }

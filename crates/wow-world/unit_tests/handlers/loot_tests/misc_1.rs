@@ -32,7 +32,7 @@ async fn stale_release_keeps_replacement_viewer_and_pool_like_cpp() {
     assert_eq!(snapshot.loot.coins, 13);
     assert!(!snapshot.loot.items[0].taken);
     assert!(snapshot.loot.players_looting.contains(&first_guid));
-    assert!(!first.loot.active_loot_view_owners.contains(&owner));
+    assert!(!first.loot.has_active_loot_view_owner_like_cpp(owner));
 }
 #[tokio::test]
 async fn remote_master_timeout_then_release_still_fans_out_and_finalizes_corpse_like_cpp() {
@@ -413,8 +413,7 @@ async fn dungeon_encounter_builds_independent_unlocked_personal_pools_like_cpp()
     fixture
         .session
         .loot
-        .represented_locked_dungeon_encounters
-        .insert((fixture.second_tapper, encounter_id));
+        .insert_locked_dungeon_encounter_for_test_like_cpp(fixture.second_tapper, encounter_id);
 
     fixture
         .session
@@ -490,8 +489,7 @@ async fn represented_personal_encounter_locked_or_empty_late_player_does_not_ins
     locked.set_loot_stores(stores);
     locked
         .loot
-        .represented_locked_dungeon_encounters
-        .insert((locked_player, encounter_id));
+        .insert_locked_dungeon_encounter_for_test_like_cpp(locked_player, encounter_id);
 
     let source = GameObjectLootSource {
         loot_id: 0,
@@ -568,7 +566,7 @@ async fn represented_gathering_node_first_use_records_effects_like_cpp() {
         .await;
 
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::TriggerGameEvent {
                 gameobject_guid,
@@ -599,7 +597,7 @@ async fn represented_fishing_hole_updates_catch_criteria_like_cpp() {
         .await;
 
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::FishingHoleCatchCriteriaUpdated {
                 gameobject_guid,
@@ -638,9 +636,7 @@ async fn represented_gathering_node_runtime_state_matches_cpp_side_effects() {
         .await;
 
     let state = session
-        .world_entities
-        .represented_gameobject_use_states
-        .get(&gameobject_guid)
+        .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
         .expect("represented gathering use records GO state");
     assert_eq!(state.personal_loot_uses, 1);
     assert_eq!(state.go_state, Some(GoState::Active));
@@ -653,7 +649,7 @@ async fn represented_gathering_node_runtime_state_matches_cpp_side_effects() {
     assert_eq!(state.despawn_delay_secs, Some(15));
     assert!(state.despawn_delay_until.is_some());
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::OutdoorPvpCustomSpellRequested {
                 gameobject_guid,
@@ -712,9 +708,7 @@ async fn gathering_node_state_sync_command_updates_receiver_before_refresh_like_
         .await;
 
     let state = session
-        .world_entities
-        .represented_gameobject_use_states
-        .get(&gameobject_guid)
+        .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
         .expect("synced gathering node state");
     assert_eq!(
         state.go_type,

@@ -1,7 +1,6 @@
 //! One coherent owner capture and an incarnation-bound, single-use acknowledgement.
 //! The manager guard never reaches persistence, packet delivery or a callback.
 use super::*;
-use crate::session::loaded_character_power_snapshot_like_cpp;
 
 pub(in crate::session) struct PreparedPlayerSave {
     pub request: PlayerCharacterSaveRequestLikeCpp,
@@ -84,67 +83,6 @@ impl WorldSession {
                 header,
             })
         })?
-    }
-}
-
-impl crate::session::state::SessionLifecycleState {
-    pub(in crate::session) fn player_save_header_from_owner_like_cpp(
-        &self,
-        player: &wow_entities::Player,
-        residence: wow_map::PlayerResidenceLikeCpp,
-    ) -> PlayerSaveToDbSnapshotLikeCpp {
-        let teleport = &player.gameplay_state().teleport;
-        let destination = (teleport.recovery != wow_entities::PlayerTransferRecovery::Terminal)
-            .then(|| {
-                teleport
-                    .far_destination
-                    .map(|(map, position)| (u16::try_from(map).unwrap_or(u16::MAX), position))
-                    .or_else(|| {
-                        teleport
-                            .near_pending
-                            .then_some(teleport.near_destination)
-                            .flatten()
-                    })
-            })
-            .flatten();
-        let (map_id, instance_id, position) = if let Some((map_id, position)) = destination {
-            (map_id, 0, position)
-        } else {
-            // Player.cpp:19480-19514 reads the Player's location. ResetMap
-            // (Object.cpp:1814) retains map/instance even while detached.
-            (
-                player.unit().world().map_id() as u16,
-                player.unit().world().instance_id(),
-                player.unit().world().position(),
-            )
-        };
-        let unit = player.unit();
-        let max_health = unit.data().max_health.clamp(1, u64::from(u32::MAX)) as u32;
-        let health = match residence {
-            wow_map::PlayerResidenceLikeCpp::Active(_) => {
-                let health = unit.data().health.min(u64::from(u32::MAX)) as u32;
-                if unit.is_alive() && health > 0 {
-                    health
-                } else {
-                    0
-                }
-            }
-            wow_map::PlayerResidenceLikeCpp::Detached => {
-                unit.data().health.min(u64::from(max_health)) as u32
-            }
-        };
-        PlayerSaveToDbSnapshotLikeCpp {
-            guid: player.guid(),
-            map_id,
-            instance_id,
-            position,
-            level: unit.data().level as u8, // C++ Unit::GetLevel (Unit.h:733).
-            xp: player.active_data().xp.max(0) as u32,
-            money: player.money(),
-            health,
-            max_health,
-            powers: loaded_character_power_snapshot_like_cpp(unit.data().power),
-        }
     }
 }
 

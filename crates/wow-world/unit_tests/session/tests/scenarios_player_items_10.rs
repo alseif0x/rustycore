@@ -131,7 +131,7 @@ async fn open_item_wrapped_locked_template_returns_item_locked_like_cpp() {
         InventoryChangeFailure::new(InventoryResult::ItemLocked, item_guid, ObjectGuid::EMPTY)
             .to_bytes()
     );
-    assert!(!session.loot.loot_table.contains_key(&item_guid));
+    assert!(!session.loot.cached_loot_contains_owner_like_cpp(item_guid));
     let item = session
         .inventory
         .inventory_item_objects
@@ -162,7 +162,7 @@ async fn open_item_locked_container_returns_item_locked_like_cpp() {
         InventoryChangeFailure::new(InventoryResult::ItemLocked, item_guid, ObjectGuid::EMPTY)
             .to_bytes()
     );
-    assert!(!session.loot.loot_table.contains_key(&item_guid));
+    assert!(!session.loot.cached_loot_contains_owner_like_cpp(item_guid));
     assert!(
         session
             .inventory
@@ -188,7 +188,7 @@ async fn open_item_unlocked_locked_template_continues_like_cpp() {
     let sent = send_rx.try_recv().unwrap();
     let opcode = u16::from_le_bytes([sent[0], sent[1]]);
     assert_eq!(opcode, ServerOpcodes::LootResponse as u16);
-    assert!(session.loot.loot_table.contains_key(&item_guid));
+    assert!(session.loot.cached_loot_contains_owner_like_cpp(item_guid));
     assert!(
         session
             .inventory
@@ -217,7 +217,7 @@ async fn open_item_unknown_lock_id_returns_item_locked_like_cpp() {
         InventoryChangeFailure::new(InventoryResult::ItemLocked, item_guid, ObjectGuid::EMPTY)
             .to_bytes()
     );
-    assert!(!session.loot.loot_table.contains_key(&item_guid));
+    assert!(!session.loot.cached_loot_contains_owner_like_cpp(item_guid));
 }
 #[tokio::test]
 async fn open_item_missing_runtime_object_fails_closed_like_cpp() {
@@ -256,7 +256,7 @@ async fn open_item_missing_runtime_object_fails_closed_like_cpp() {
         InventoryChangeFailure::new(InventoryResult::ItemLocked, item_guid, ObjectGuid::EMPTY)
             .to_bytes()
     );
-    assert!(!session.loot.loot_table.contains_key(&item_guid));
+    assert!(!session.loot.cached_loot_contains_owner_like_cpp(item_guid));
 }
 #[test]
 fn open_item_release_destroy_nested_item_leaves_container_in_place() {
@@ -487,7 +487,7 @@ fn moved_bag_detects_active_child_item_loot_like_cpp_swap_item() {
     session.loot.set_active_loot_guid(child_guid);
     assert!(!session.represented_bag_contains_active_item_loot_like_cpp(bag_guid));
 
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         child_guid,
         CreatureLoot {
             loot_guid: child_guid,

@@ -143,13 +143,11 @@ impl WorldSession {
         {
             player.set_inventory_slot_count(
                 self.inventory
-                    .player_item_test_fixture_like_cpp
-                    .player_inventory_slot_count_like_cpp,
+                    .player_inventory_slot_count_for_test_like_cpp(),
             );
             player.set_bank_bag_slot_count(
                 self.inventory
-                    .player_item_test_fixture_like_cpp
-                    .player_bank_bag_slot_count_like_cpp,
+                    .player_bank_bag_slot_count_for_test_like_cpp(),
             );
         }
         for (category, party_type) in self
@@ -163,7 +161,7 @@ impl WorldSession {
         #[cfg(test)]
         for (index, value) in self
             .inventory
-            .represented_bank_bag_slot_flags_like_cpp
+            .represented_bank_bag_slot_flags_for_test_like_cpp()
             .iter()
             .copied()
             .enumerate()
@@ -328,7 +326,9 @@ impl WorldSession {
             player.set_shapeshift_form_id_like_cpp(
                 self.fixtures.auras.represented_shapeshift_form_like_cpp,
             );
-            player.set_loot_specialization_id_like_cpp(self.loot.loot_specialization_id);
+            player.set_loot_specialization_id_like_cpp(
+                self.loot.loot_specialization_id_for_test_like_cpp(),
+            );
             player.set_primary_specialization(
                 self.fixtures
                     .progression
@@ -386,13 +386,16 @@ impl WorldSession {
             player.gameplay_state_mut().cuf_profiles_loaded =
                 self.fixtures.presentation.cuf_profiles_loaded_like_cpp;
             player.gameplay_state_mut().equipment_sets =
-                self.inventory.represented_equipment_sets_like_cpp.clone();
+                self.inventory
+                    .represented_equipment_sets_for_test_like_cpp()
+                    .clone();
             player.gameplay_state_mut().void_storage_items = self
                 .inventory
-                .represented_void_storage_items_like_cpp
+                .represented_void_storage_items_for_test_like_cpp()
                 .to_vec();
             player.gameplay_state_mut().void_storage_loaded =
-                self.inventory.represented_void_storage_loaded_like_cpp;
+                self.inventory
+                    .represented_void_storage_loaded_for_test_like_cpp();
             player.gameplay_state_mut().collections =
                 self.represented_player_collection_state_like_cpp();
         }

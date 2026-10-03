@@ -92,8 +92,7 @@ impl WorldSession {
     ) -> Option<i32> {
         let area_id = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)
+            .represented_gameobject_use_state_like_cpp(gameobject_guid)
             .and_then(|state| state.area_id)?;
         let area_store = self.catalogs.area_table_store()?;
         let fishing_store = self.catalogs.fishing_base_skill_store()?;

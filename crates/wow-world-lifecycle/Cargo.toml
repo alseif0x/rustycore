@@ -15,10 +15,15 @@ flume = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
 wow-core = { workspace = true }
+wow-constants = { workspace = true }
+wow-data = { workspace = true }
+wow-entities = { workspace = true }
 wow-loot = { workspace = true }
 wow-map = { workspace = true }
+wow-module-api = { workspace = true }
 wow-persistence = { workspace = true }
 wow-packet = { workspace = true }
+wow-progression = { workspace = true }
 wow-world-core = { workspace = true }
 
 [dev-dependencies]

@@ -357,9 +357,7 @@ fn canonical_visibility_uses_player_instance_cross_map_blocks_instance_zero_fall
         0,
     );
     session
-        .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .world_entities.insert_represented_gameobject_use_state_for_test_like_cpp(
             default_instance_guid,
             RepresentedGameObjectUseState {
                 display_id: Some(7_620),

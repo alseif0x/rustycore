@@ -143,8 +143,6 @@ impl WorldSession {
             let player_position = player.unit().world().position();
             let player_phase_shift = player.unit().world().phase_shift().clone();
             let visibility_range = map.visibility_range();
-            let represented_gameobject_phase_shifts =
-                &self.world_entities.represented_gameobject_phase_shifts;
             let mut shared_vision_target_guids = map
                 .typed_combat_unit_guids_like_cpp()
                 .into_iter()
@@ -205,8 +203,9 @@ impl WorldSession {
                     if !gameobject.world().object().is_in_world() {
                         return false;
                     }
-                    let gameobject_phase_shift = represented_gameobject_phase_shifts
-                        .get(guid)
+                    let gameobject_phase_shift = self
+                        .world_entities
+                        .represented_gameobject_phase_shift_like_cpp(*guid)
                         .unwrap_or_else(|| gameobject.world().phase_shift());
                     let gameobject_position = gameobject.world().position();
                     let direct_target_allows = direct_target_seer_gate_allows_send

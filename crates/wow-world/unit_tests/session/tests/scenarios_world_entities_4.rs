@@ -559,9 +559,7 @@ async fn gameobject_visual_despawn_incompatible_phase_keeps_client_visible_guid_
         &[gameobject_guid]
     );
     session
-        .world_entities
-        .represented_gameobject_phase_shifts
-        .insert(gameobject_guid, PhaseShift::from_phases([20]));
+        .world_entities.insert_represented_gameobject_phase_shift_for_test_like_cpp(gameobject_guid, PhaseShift::from_phases([20]));
     session
         .core
         .client_visible_guids_like_cpp
@@ -578,9 +576,7 @@ async fn gameobject_visual_despawn_incompatible_phase_keeps_client_visible_guid_
     );
 
     session
-        .world_entities
-        .represented_gameobject_phase_shifts
-        .insert(gameobject_guid, PhaseShift::from_phases([10]));
+        .world_entities.insert_represented_gameobject_phase_shift_for_test_like_cpp(gameobject_guid, PhaseShift::from_phases([10]));
     assert_eq!(
         session.send_represented_gameobject_visual_despawn_from_last_update_like_cpp(),
         1

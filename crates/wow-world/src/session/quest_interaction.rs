@@ -152,9 +152,7 @@ impl crate::session::QuestStateCx<'_> {
     ) {
         let state = self
             .world_entities
-            .represented_gameobject_use_states
-            .entry(guid)
-            .or_default();
+            .ensure_represented_gameobject_use_state_like_cpp(guid);
         if let Some(source) = template.chest_loot_source_like_cpp() {
             state.chest_loot_source = Some(source);
         }
@@ -181,8 +179,7 @@ impl crate::session::QuestStateCxRef<'_> {
         let access = self.hub.core.canonical_gameobject_access_like_cpp(guid)?;
         let state = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&guid)?;
+            .represented_gameobject_use_state_like_cpp(guid)?;
         if state.go_type.map(u32::from) != Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER) {
             return None;
         }

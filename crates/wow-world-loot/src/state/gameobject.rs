@@ -5,6 +5,23 @@ use wow_world_core::session::HubRef;
 use wow_world_core::session::mailbox::{SendIfVisibleLikeCppCommand, SessionCommand};
 
 impl LootState {
+    pub fn represented_gameobject_tappers_like_cpp(
+        &self,
+        gameobject_guid: ObjectGuid,
+    ) -> Option<&Vec<ObjectGuid>> {
+        self.represented_gameobject_tap_lists.get(&gameobject_guid)
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn fixture_player_is_locked_to_dungeon_encounter_like_cpp(
+        &self,
+        player_guid: ObjectGuid,
+        dungeon_encounter_id: u32,
+    ) -> bool {
+        self.represented_locked_dungeon_encounters
+            .contains(&(player_guid, dungeon_encounter_id))
+    }
+
     pub fn queue_visible_gameobject_packet_for_same_map_like_cpp(
         &self,
         hub: HubRef<'_>,

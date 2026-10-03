@@ -4,9 +4,7 @@
 
 use super::*;
 
-pub(crate) use wow_world_inventory::CR_ARMOR_PENETRATION_LIKE_CPP;
-/// C++ `CombatRating::CR_HIT_MELEE` (`Unit.h:310`).
-pub(crate) const CR_HIT_MELEE_LIKE_CPP: u8 = 5;
+pub(crate) use wow_world_inventory::{CR_ARMOR_PENETRATION_LIKE_CPP, CR_HIT_MELEE_LIKE_CPP};
 
 mod damage;
 mod death;

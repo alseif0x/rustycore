@@ -4,9 +4,12 @@
 //! Handle-less Player item state and effect evidence used by Session tests.
 
 use crate::{
-    RepresentedCombatStatRecalculationLikeCpp, RepresentedItemBonusActionLikeCpp,
-    RepresentedItemModsReapplyEventLikeCpp, RepresentedItemSetAuraRefreshEventLikeCpp,
-    RepresentedItemSetSpellEventLikeCpp,
+    RepresentedAuctionPlaceBidLikeCpp, RepresentedAuctionReplicateRequestLikeCpp,
+    RepresentedCombatStatRecalculationLikeCpp, RepresentedGuildBankInventoryMoveLikeCpp,
+    RepresentedGuildBankListRequestLikeCpp, RepresentedGuildBankMoneyMoveLikeCpp,
+    RepresentedGuildBankTabActionLikeCpp, RepresentedGuildRepairBankWithdrawLikeCpp,
+    RepresentedItemBonusActionLikeCpp, RepresentedItemModsReapplyEventLikeCpp,
+    RepresentedItemSetAuraRefreshEventLikeCpp, RepresentedItemSetSpellEventLikeCpp,
 };
 use std::collections::HashMap;
 use wow_entities::{
@@ -61,5 +64,187 @@ impl Default for PlayerItemTestFixtureLikeCpp {
             represented_titan_grip_penalty_actions_like_cpp: Vec::new(),
             represented_avg_equipped_item_level_updates_like_cpp: Vec::new(),
         }
+    }
+}
+
+impl crate::InventoryState {
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn buyback_price_for_test_like_cpp(&self) -> &[u32; BUYBACK_SLOT_COUNT] {
+        &self.player_item_test_fixture_like_cpp.buyback_price
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn buyback_timestamp_for_test_like_cpp(&self) -> &[i64; BUYBACK_SLOT_COUNT] {
+        &self.player_item_test_fixture_like_cpp.buyback_timestamp
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn current_buyback_slot_for_test_like_cpp(&self) -> u8 {
+        self.player_item_test_fixture_like_cpp.current_buyback_slot
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn player_gold_for_test_like_cpp(&self) -> u64 {
+        self.player_gold
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn record_represented_auction_place_bid_like_cpp(
+        &mut self,
+        bid: RepresentedAuctionPlaceBidLikeCpp,
+    ) {
+        self.represented_auction_place_bids_like_cpp.push(bid);
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn record_represented_auction_replicate_request_like_cpp(
+        &mut self,
+        request: RepresentedAuctionReplicateRequestLikeCpp,
+    ) {
+        self.represented_auction_replicate_requests_like_cpp
+            .push(request);
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn represented_auction_place_bids_like_cpp(
+        &self,
+    ) -> &[RepresentedAuctionPlaceBidLikeCpp] {
+        &self.represented_auction_place_bids_like_cpp
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn represented_auction_replicate_requests_like_cpp(
+        &self,
+    ) -> &[RepresentedAuctionReplicateRequestLikeCpp] {
+        &self.represented_auction_replicate_requests_like_cpp
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn record_represented_avg_equipped_item_level_update_for_test_like_cpp(
+        &mut self,
+        item_level: f32,
+    ) {
+        self.player_item_test_fixture_like_cpp
+            .represented_avg_equipped_item_level_updates_like_cpp
+            .push(item_level);
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn record_represented_titan_grip_penalty_action_for_test_like_cpp(
+        &mut self,
+        action: TitanGripPenaltyAction,
+    ) {
+        self.player_item_test_fixture_like_cpp
+            .represented_titan_grip_penalty_actions_like_cpp
+            .push(action);
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn represented_titan_grip_penalty_actions_for_test_like_cpp(
+        &self,
+    ) -> &[TitanGripPenaltyAction] {
+        &self
+            .player_item_test_fixture_like_cpp
+            .represented_titan_grip_penalty_actions_like_cpp
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn record_represented_item_set_spell_events_for_test_like_cpp(
+        &mut self,
+        events: &[RepresentedItemSetSpellEventLikeCpp],
+    ) {
+        self.player_item_test_fixture_like_cpp
+            .represented_item_set_spell_events_like_cpp
+            .extend(events.iter().copied());
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn record_represented_guild_bank_inventory_move_like_cpp(
+        &mut self,
+        movement: RepresentedGuildBankInventoryMoveLikeCpp,
+    ) {
+        self.represented_guild_bank_inventory_moves_like_cpp
+            .push(movement);
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn record_represented_guild_bank_list_request_like_cpp(
+        &mut self,
+        request: RepresentedGuildBankListRequestLikeCpp,
+    ) {
+        self.represented_guild_bank_list_requests_like_cpp
+            .push(request);
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn record_represented_guild_bank_money_move_like_cpp(
+        &mut self,
+        movement: RepresentedGuildBankMoneyMoveLikeCpp,
+    ) {
+        self.represented_guild_bank_money_moves_like_cpp
+            .push(movement);
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn record_represented_guild_bank_tab_action_like_cpp(
+        &mut self,
+        action: RepresentedGuildBankTabActionLikeCpp,
+    ) {
+        self.represented_guild_bank_tab_actions_like_cpp
+            .push(action);
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn record_represented_guild_repair_bank_withdraw_like_cpp(
+        &mut self,
+        withdraw: RepresentedGuildRepairBankWithdrawLikeCpp,
+    ) {
+        self.represented_guild_repair_bank_withdraws_like_cpp
+            .push(withdraw);
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn player_inventory_slot_count_for_test_like_cpp(&self) -> u8 {
+        self.player_item_test_fixture_like_cpp
+            .player_inventory_slot_count_like_cpp
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn player_bank_bag_slot_count_for_test_like_cpp(&self) -> u8 {
+        self.player_item_test_fixture_like_cpp
+            .player_bank_bag_slot_count_like_cpp
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn represented_bank_bag_slot_flags_for_test_like_cpp(&self) -> &[u32; 7] {
+        &self.represented_bank_bag_slot_flags_like_cpp
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn represented_equipment_sets_for_test_like_cpp(
+        &self,
+    ) -> &wow_entities::PlayerEquipmentSetsLikeCpp {
+        &self.represented_equipment_sets_like_cpp
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn represented_void_storage_items_for_test_like_cpp(
+        &self,
+    ) -> &[Option<wow_entities::PlayerVoidStorageItemLikeCpp>] {
+        &self.represented_void_storage_items_like_cpp
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn represented_void_storage_loaded_for_test_like_cpp(&self) -> bool {
+        self.represented_void_storage_loaded_like_cpp
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn represented_combat_stat_recalculations_for_test_like_cpp(
+        &self,
+    ) -> &[RepresentedCombatStatRecalculationLikeCpp] {
+        &self
+            .player_item_test_fixture_like_cpp
+            .represented_combat_stat_recalculations_like_cpp
     }
 }

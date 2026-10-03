@@ -117,8 +117,7 @@ async fn send_if_visible_monster_move_rejects_commands_queued_before_enter_world
         .insert(source_guid);
     let enter_world_cutoff = Instant::now();
     session
-        .world_entities
-        .suppress_creature_movement_queued_at_or_before_like_cpp = Some(enter_world_cutoff);
+        .world_entities.set_suppress_creature_movement_queued_at_or_before_like_cpp(Some(enter_world_cutoff));
 
     session
         .session_command_tx()
@@ -163,8 +162,7 @@ async fn send_if_visible_monster_move_rejects_commands_queued_before_enter_world
     );
     assert_eq!(
         session
-            .world_entities
-            .suppress_creature_movement_queued_at_or_before_like_cpp,
+            .world_entities.suppress_creature_movement_queued_at_or_before_like_cpp(),
         Some(enter_world_cutoff)
     );
     assert!(send_rx.try_recv().is_err(), "no extra packets");

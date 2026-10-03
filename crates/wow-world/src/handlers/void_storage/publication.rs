@@ -157,32 +157,4 @@ impl WorldSession {
     }
 }
 
-impl crate::session::InventoryState {
-    pub(super) fn void_storage_withdrawal_container_db_guid_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        bag: u8,
-        planned_container_db_guids: &HashMap<u8, u64>,
-    ) -> Option<u64> {
-        planned_container_db_guids
-            .get(&bag)
-            .copied()
-            .or_else(|| self.inventory_container_db_guid_like_cpp(hub, bag))
-    }
 
-    pub(super) fn void_storage_withdrawal_container_item_guid_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        bag: u8,
-        planned_container_item_guids: &HashMap<u8, wow_core::ObjectGuid>,
-    ) -> Option<wow_core::ObjectGuid> {
-        if bag == INVENTORY_SLOT_BAG_0 {
-            return hub.core.player_guid();
-        }
-
-        planned_container_item_guids.get(&bag).copied().or_else(|| {
-            self.resolved_inventory_item_like_cpp(hub, bag)
-                .map(|item| item.guid)
-        })
-    }
-}

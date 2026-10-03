@@ -6,6 +6,8 @@ mod aggro;
 mod catalogs;
 mod creature;
 mod creature_aura_tracking;
+#[cfg(any(test, feature = "test-fixtures"))]
+mod fixtures;
 mod creature_interaction;
 mod creature_kill;
 mod creature_query;

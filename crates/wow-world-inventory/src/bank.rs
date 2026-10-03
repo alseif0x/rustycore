@@ -111,6 +111,12 @@ impl crate::InventoryState {
         canonical
     }
 
+    pub fn represented_guild_repair_bank_state_like_cpp(
+        &self,
+    ) -> Option<RepresentedGuildRepairBankStateLikeCpp> {
+        self.represented_guild_repair_bank_state_like_cpp
+    }
+
     pub fn resolved_player_bank_bag_slot_count_like_cpp(
         &self,
         hub: HubRef<'_>,

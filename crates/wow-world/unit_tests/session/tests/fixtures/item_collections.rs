@@ -441,7 +441,7 @@ pub(in crate::session::tests) async fn assert_open_item_nested_has_loot_opens_wi
     let opcode = u16::from_le_bytes([sent[0], sent[1]]);
     assert_eq!(opcode, ServerOpcodes::LootResponse as u16);
     assert_ne!(opcode, ServerOpcodes::InventoryChangeFailure as u16);
-    assert!(session.loot.loot_table.contains_key(&child_guid));
+    assert!(session.loot.cached_loot_contains_owner_like_cpp(child_guid));
     assert!(
         session
             .inventory

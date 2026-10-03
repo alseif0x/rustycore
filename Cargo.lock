@@ -3562,6 +3562,7 @@ dependencies = [
  "wow-data",
  "wow-entities",
  "wow-packet",
+ "wow-persistence",
  "wow-progression",
  "wow-world-core",
 ]
@@ -3574,11 +3575,16 @@ dependencies = [
  "flume",
  "tokio",
  "tracing",
+ "wow-constants",
  "wow-core",
+ "wow-data",
+ "wow-entities",
  "wow-loot",
  "wow-map",
+ "wow-module-api",
  "wow-packet",
  "wow-persistence",
+ "wow-progression",
  "wow-world-core",
 ]
 

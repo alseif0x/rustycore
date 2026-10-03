@@ -45,14 +45,13 @@ impl WorldSession {
     ) {
         #[cfg(test)]
         self.inventory
-            .represented_auction_place_bids_like_cpp
-            .push(bid);
+            .record_represented_auction_place_bid_like_cpp(bid);
     }
     #[cfg(test)]
     pub(crate) fn represented_auction_place_bids_like_cpp(
         &self,
     ) -> &[RepresentedAuctionPlaceBidLikeCpp] {
-        &self.inventory.represented_auction_place_bids_like_cpp
+        self.inventory.represented_auction_place_bids_like_cpp()
     }
 }
 

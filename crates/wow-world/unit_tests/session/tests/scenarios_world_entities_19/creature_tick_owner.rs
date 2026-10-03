@@ -122,16 +122,16 @@ fn global_legacy_owner_skips_creature_tick_but_keeps_player_combat_tick_like_cpp
         .unwrap();
 
     // Drive creature_tick to a value where both %4 and %2 would fire.
-    session.world_entities.creature_tick = 3; // next wrapping_add → 4, divisible by both 4 and 2.
+    session.world_entities.set_creature_tick_for_test_like_cpp(3); // next wrapping_add → 4, divisible by both 4 and 2.
     session.core.state = crate::session::SessionState::LoggedIn;
 
     // Simulate the guard logic in update() for the tick path only.
     let owner = session.runtime_tick_owner_like_cpp();
-    session.world_entities.creature_tick = session.world_entities.creature_tick.wrapping_add(1);
-    if session.world_entities.creature_tick % 4 == 0 && owner == RuntimeTickOwner::Session {
+    session.world_entities.set_creature_tick_for_test_like_cpp(session.world_entities.creature_tick_like_cpp().wrapping_add(1));
+    if session.world_entities.creature_tick_like_cpp() % 4 == 0 && owner == RuntimeTickOwner::Session {
         session.tick_creatures_sync();
     }
-    if session.world_entities.creature_tick % 2 == 0 {
+    if session.world_entities.creature_tick_like_cpp() % 2 == 0 {
         session.tick_combat_sync();
     }
 
@@ -151,7 +151,7 @@ fn global_legacy_owner_skips_creature_tick_but_keeps_player_combat_tick_like_cpp
         "player combat must still damage the target under GlobalLegacy"
     );
     // creature_tick was still incremented (guard only wraps the tick calls).
-    assert_eq!(session.world_entities.creature_tick, 4);
+    assert_eq!(session.world_entities.creature_tick_like_cpp(), 4);
 }
 #[tokio::test]
 async fn update_global_legacy_owner_skips_real_session_creature_tick_path() {
@@ -191,7 +191,7 @@ async fn update_global_legacy_owner_skips_real_session_creature_tick_path() {
     };
 
     session.core.state = crate::session::SessionState::LoggedIn;
-    session.world_entities.creature_tick = 3; // update() increments to 4, so creature tick would fire.
+    session.world_entities.set_creature_tick_for_test_like_cpp(3); // update() increments to 4, so creature tick would fire.
     session.core.driver.time_synchronization.timer_ms = 0;
 
     assert_eq!(session.update(50).await, 0);

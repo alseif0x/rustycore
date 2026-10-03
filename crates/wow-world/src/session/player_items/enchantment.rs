@@ -296,9 +296,9 @@ impl WorldSession {
             };
             #[cfg(test)]
             self.inventory
-                .player_item_test_fixture_like_cpp
-                .represented_item_bonus_actions_like_cpp
-                .push(represented_action.clone());
+                .record_represented_item_bonus_actions_for_test_like_cpp(
+                    std::slice::from_ref(&represented_action),
+                );
             let spell_action_applied = self.apply_loaded_enchantment_spell_action_like_cpp(action);
             if !spell_action_applied
                 && wow_entities::loaded_enchantment_effect_action_is_unrepresented_like_cpp(action)

@@ -88,18 +88,18 @@ impl WorldSession {
         // Session time elapsed since login (seconds).
         let session_secs: u32 = self
             .lifecycle
-            .login_time
+            .login_time_like_cpp()
             .map(|t| t.elapsed().as_secs() as u32)
             .unwrap_or(0);
 
         // Add session time on top of DB-loaded base values.
         let total_time = self
             .lifecycle
-            .total_played_time
+            .total_played_time_like_cpp()
             .saturating_add(session_secs);
         let level_time = self
             .lifecycle
-            .level_played_time
+            .level_played_time_like_cpp()
             .saturating_add(session_secs);
 
         self.send_packet(&PlayedTime {

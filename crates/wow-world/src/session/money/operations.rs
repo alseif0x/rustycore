@@ -534,20 +534,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::state::InventoryState {
-    pub(crate) fn resolved_player_money_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-    ) -> Option<u64> {
-        let canonical = hub.core.with_owned_player_like_cpp(Player::money);
-        #[cfg(test)]
-        if canonical.is_none() && hub.core.player_handle_like_cpp.is_none() {
-            return Some(self.player_gold);
-        }
-        canonical
-    }
-}
-
 #[cfg(test)]
 #[path = "../../../unit_tests/session/money/operations/f3_shims.rs"]
 mod f3_shims;

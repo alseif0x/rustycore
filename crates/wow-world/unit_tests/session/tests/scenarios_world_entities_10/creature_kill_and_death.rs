@@ -70,8 +70,7 @@ async fn creature_kill_target_dies_proc_filters_group_reward_distance_like_cpp()
     );
     let selected_loot = session
         .loot
-        .loot_table
-        .get(&guid)
+        .cached_loot_for_owner_like_cpp(guid)
         .expect("the handling session retains only its personal loot view");
     assert_eq!(selected_loot.allowed_looters, vec![player]);
 }

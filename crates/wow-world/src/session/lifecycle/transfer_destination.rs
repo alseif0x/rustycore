@@ -18,30 +18,3 @@ impl WorldSession {
         state.set_pending_teleport_like_cpp(&mut hub, destination)
     }
 }
-
-impl crate::session::state::SessionLifecycleState {
-    pub(crate) fn pending_teleport_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-    ) -> Option<(u32, Position)> {
-        hub.player_teleport_state_snapshot_like_cpp()
-            .and_then(|state| state.far_destination)
-    }
-
-    pub(crate) fn set_pending_teleport_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        destination: Option<(u32, Position)>,
-    ) -> bool {
-        // C++ Player.cpp:1456 constructs WorldLocation; Position.h:29 normalizes
-        // orientation there, before the same destination is used for attachment.
-        // Retaining raw orientation would disagree with canonical WorldObject
-        // after relocation and falsely block native post-add/finalization.
-        let destination = destination.map(|(map, pos)| {
-            let location =
-                wow_entities::WorldLocation::new(map, pos.x, pos.y, pos.z, pos.orientation);
-            (map, location.position())
-        });
-        hub.update_player_teleport_state_like_cpp(|state| state.far_destination = destination)
-    }
-}

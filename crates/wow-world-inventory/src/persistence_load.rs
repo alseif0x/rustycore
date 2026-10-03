@@ -67,6 +67,22 @@ impl crate::InventoryState {
 }
 
 impl crate::InventoryState {
+    pub fn mark_represented_void_storage_loaded_like_cpp(&mut self, hub: &mut HubMut<'_>) {
+        if hub
+            .core
+            .with_owned_player_mut_like_cpp(|player| player.mark_void_storage_loaded_like_cpp())
+            .is_some()
+        {
+            return;
+        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if hub.core.player_handle_like_cpp.is_none() {
+            self.represented_void_storage_loaded_like_cpp = true;
+        }
+    }
+}
+
+impl crate::InventoryState {
     pub fn loaded_inventory_item_visible_fields_like_cpp(
         &self,
         hub: HubRef<'_>,

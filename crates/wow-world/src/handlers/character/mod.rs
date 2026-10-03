@@ -40,6 +40,7 @@ use std::sync::Arc;
 
 use rand::Rng;
 pub(crate) use stats::RepresentedPlayerGearStatsLikeCpp;
+pub(crate) use wow_world_inventory::ExtendedCostItemTurninChange;
 use tracing::{debug, info, trace, warn};
 use wow_constants::movement::MovementFlag;
 use wow_constants::unit::{
@@ -841,21 +842,6 @@ fn creature_create_position_after_hover_offset_like_cpp(
         position.z += hover_height;
     }
     position
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum ExtendedCostItemTurninChange {
-    Update {
-        slot: u8,
-        item_guid: ObjectGuid,
-        db_guid: u64,
-        new_count: u32,
-    },
-    Delete {
-        slot: u8,
-        item_guid: ObjectGuid,
-        db_guid: u64,
-    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

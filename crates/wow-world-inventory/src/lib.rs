@@ -5,11 +5,13 @@
 
 mod auction_contracts;
 mod bank;
+mod buyback;
 mod appearance;
 mod guild_inventory_contracts;
 mod inventory_request_contracts;
 mod item_modifiers;
 mod contracts;
+mod currency;
 mod enchantment;
 mod equipment;
 mod equipment_slots;
@@ -17,13 +19,21 @@ mod equipment_sets;
 mod durability;
 mod modifiers;
 mod offhand;
+mod money;
+mod persistence;
 mod publication;
 mod items;
 mod catalog;
 mod storage;
 mod storage_bags;
 mod storage_slots;
+mod scaling;
 mod valuation;
+mod void_storage;
+mod void_transfer;
+mod void_transfer_contracts;
+mod turnins;
+mod stats;
 mod persistence_load;
 mod state;
 
@@ -70,6 +80,11 @@ pub use item_modifiers::{
 pub use state::InventoryState;
 
 pub use storage::CR_ARMOR_PENETRATION_LIKE_CPP;
+pub use stats::CR_HIT_MELEE_LIKE_CPP;
+pub use turnins::ExtendedCostItemTurninChange;
+pub use void_transfer_contracts::{
+    EffectiveVoidStorageRandomPropertiesLikeCpp, PlannedVoidDestroyedInventoryItemLikeCpp,
+};
 
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use collection_adapter::RepresentedTransmogCriteriaEvent;

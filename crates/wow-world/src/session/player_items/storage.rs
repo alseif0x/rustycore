@@ -430,7 +430,7 @@ impl crate::session::InventoryCxRef<'_> {
             .catalogs
             .item_template_max_durability(entry_id)
             .max(durability);
-        let mut item = Item::new(i64::from(self.lifecycle.total_played_time));
+        let mut item = Item::new(i64::from(self.lifecycle.total_played_time_like_cpp()));
         item.initialize_created_state(ItemCreateInfo {
             guid: item_guid,
             item_id: entry_id,

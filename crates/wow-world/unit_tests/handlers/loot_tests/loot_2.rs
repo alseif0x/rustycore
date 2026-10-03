@@ -23,7 +23,7 @@ fn corpse_money_reward_distance_ignores_range_only_in_same_dungeon_instance_like
     session.set_player_registry(Arc::clone(&registry));
     let mut loot = authoritative_test_loot_like_cpp(8, false);
     loot.allowed_looters = vec![player_guid, member_guid];
-    session.loot.loot_table.insert(owner, loot);
+    session.loot.insert_cached_loot_for_owner_like_cpp(owner, loot);
 
     session.set_map_store(Arc::new(wow_data::MapStore::from_entries([
         wow_data::MapEntry {
@@ -668,7 +668,7 @@ async fn loot_response_success_keeps_cpp_failure_and_threshold_defaults() {
     session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         creature_guid,
         CreatureLoot {
             loot_guid: represented_loot_object_guid_like_cpp(creature_guid),
@@ -814,12 +814,10 @@ fn personal_encounter_late_upsert_cannot_cross_clear_loot_like_cpp() {
     stale_late_pool.items[0].allowed_looters = vec![late_player];
     session
         .loot
-        .represented_personal_loot_owners
-        .insert(gameobject_guid);
+        .insert_personal_loot_owner_like_cpp(gameobject_guid);
     session
         .loot
-        .represented_personal_loot_money
-        .insert((gameobject_guid, late_player), 0);
+        .insert_personal_loot_money_like_cpp(gameobject_guid, late_player, 0);
 
     session.mutate_canonical_gameobject_by_guid_like_cpp(gameobject_guid, |gameobject| {
         gameobject.clear_loot_like_cpp();
@@ -842,8 +840,7 @@ fn personal_encounter_late_upsert_cannot_cross_clear_loot_like_cpp() {
     assert!(
         !session
             .loot
-            .represented_personal_loot_money
-            .contains_key(&(gameobject_guid, late_player))
+            .personal_loot_money_for_owner_and_player_like_cpp(gameobject_guid, late_player).is_some()
     );
-    assert!(!session.loot.loot_table.contains_key(&gameobject_guid));
+    assert!(!session.loot.cached_loot_contains_owner_like_cpp(gameobject_guid));
 }

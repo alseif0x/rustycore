@@ -19,6 +19,8 @@ mod claims;
 mod corpse;
 mod creature;
 mod fanout;
+#[cfg(any(test, feature = "test-fixtures"))]
+mod fixtures;
 mod gameobject;
 mod item_retirement;
 mod item_storage;

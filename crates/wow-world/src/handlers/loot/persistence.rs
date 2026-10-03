@@ -211,8 +211,7 @@ impl WorldSession {
                 );
             if self
                 .world_entities
-                .represented_gameobject_use_states
-                .get(&route.owner_guid)
+                .represented_gameobject_use_state_like_cpp(route.owner_guid)
                 .and_then(|state| state.go_type)
                 .map(u32::from)
                 == Some(GAMEOBJECT_TYPE_GATHERING_NODE)

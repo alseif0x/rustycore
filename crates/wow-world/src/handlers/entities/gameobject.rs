@@ -116,8 +116,7 @@ impl crate::session::WorldSession {
                 entry: gameobject_guid.entry(),
                 position: self
                     .world_entities
-                    .represented_gameobject_use_states
-                    .get(&gameobject_guid)
+                    .represented_gameobject_use_state_like_cpp(gameobject_guid)
                     .and_then(|state| state.position)
                     .unwrap_or_default(),
             }
@@ -242,7 +241,9 @@ impl crate::session::WorldSession {
                 return;
             }
             GAMEOBJECT_TYPE_FISHING_NODE => {
-                let effect_start = self.world_entities.represented_gameobject_use_effects.len();
+                let effect_start = self
+                    .world_entities
+                    .represented_gameobject_use_effects_len_like_cpp();
                 self.use_represented_gameobject_fishing_node_like_cpp(gameobject_guid, player_guid);
                 let Some(area_id) = ({
                     let (s, h) = crate::session::split_world_entities_ref(self);
@@ -252,9 +253,7 @@ impl crate::session::WorldSession {
                 };
                 let loot_request = self
                     .world_entities
-                    .represented_gameobject_use_effects
-                    .get(effect_start..)
-                    .unwrap_or(&[])
+                    .represented_gameobject_use_effects_since_like_cpp(effect_start)
                     .iter()
                     .rev()
                     .find_map(|effect| match effect {
@@ -556,8 +555,7 @@ impl crate::session::WorldSession {
 
         let state = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid);
+            .represented_gameobject_use_state_like_cpp(gameobject_guid);
         let interaction_distance = represented_gameobject_interaction_distance_like_cpp(
             state.and_then(|state| state.go_type),
             state.and_then(|state| state.interact_radius_override),
@@ -607,8 +605,7 @@ impl crate::session::WorldSession {
         #[cfg(test)]
         {
             self.world_entities
-                .represented_gameobject_criteria_events
-                .push(
+                .record_represented_gameobject_criteria_event_like_cpp(
                     crate::session::RepresentedGameObjectCriteriaEvent::UseGameobject {
                         player_guid,
                         gameobject_entry: gameobject_access.entry,
@@ -634,8 +631,7 @@ impl crate::session::WorldSession {
 
         let state = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)?;
+            .represented_gameobject_use_state_like_cpp(gameobject_guid)?;
         let go_type = state.go_type?;
 
         // C++ checks the immutable template icon on every lookup. Rust records
@@ -656,8 +652,7 @@ impl crate::session::WorldSession {
             }
             let gameobject_phase_shift = self
                 .world_entities
-                .represented_gameobject_phase_shifts
-                .get(&gameobject_guid)
+                .represented_gameobject_phase_shift_like_cpp(gameobject_guid)
                 .unwrap_or_else(|| gameobject.world().phase_shift());
             if !self.can_see_phase_shift_like_cpp(gameobject_phase_shift) {
                 return None;

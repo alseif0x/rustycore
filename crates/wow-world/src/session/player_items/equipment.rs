@@ -206,9 +206,9 @@ impl WorldSession {
                 return;
             };
             self.inventory
-                .player_item_test_fixture_like_cpp
-                .represented_avg_equipped_item_level_updates_like_cpp
-                .push(avg_equipped_item_level);
+                .record_represented_avg_equipped_item_level_update_for_test_like_cpp(
+                    avg_equipped_item_level,
+                );
         }
     }
     pub(in crate::session) fn represented_can_equip_unique_item_like_cpp(

@@ -5,8 +5,8 @@ pub use crate::player_directory as directory;
 mod prelude;
 pub use prelude::{
     AFLAG_SCALABLE_LIKE_CPP, PLAYER_FLAGS_AFK_LIKE_CPP, PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP,
-    PLAYER_FLAGS_DND_LIKE_CPP, PLAYER_FLAGS_GHOST_LIKE_CPP, SKILL_ENCHANTING_LIKE_CPP,
-    SharedCanonicalMapManager,
+    PLAYER_FLAGS_DND_LIKE_CPP, PLAYER_FLAGS_GHOST_LIKE_CPP,
+    PLAYER_FLAGS_RESTING_LIKE_CPP, SKILL_ENCHANTING_LIKE_CPP, SharedCanonicalMapManager,
 };
 
 pub mod battle_pet_adapter;
@@ -32,6 +32,7 @@ mod connection;
 mod construction;
 mod instances;
 mod money;
+pub use money::{currency_max_quantity_cpp, PlayerCurrencyDelta};
 mod movement;
 mod runtime_policy_access;
 mod world_state;

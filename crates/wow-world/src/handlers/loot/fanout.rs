@@ -46,7 +46,7 @@ impl WorldSession {
         if is_monster_move {
             if let Some(cutoff) = self
                 .world_entities
-                .suppress_creature_movement_queued_at_or_before_like_cpp
+                .suppress_creature_movement_queued_at_or_before_like_cpp()
             {
                 if queued_at <= cutoff {
                     tracing::info!(

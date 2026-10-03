@@ -204,7 +204,7 @@ impl WorldSession {
             return false;
         }
 
-        self.world_entities.represented_gameobject_use_effects.push(
+        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
             RepresentedGameObjectUseEffect::BattlegroundObjectUseRejected {
                 gameobject_guid,
                 player_guid,

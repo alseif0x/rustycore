@@ -314,18 +314,17 @@ async fn combat_tick_kill_keeps_empty_creature_loot_non_lootable_after_pending_d
 
     session.tick_combat_sync();
 
-    assert!(session.loot.loot_table.get(&guid).is_none());
+    assert!(session.loot.cached_loot_for_owner_like_cpp(guid).is_none());
     assert_eq!(
-        session.world_entities.pending_creature_kill_loot_like_cpp,
-        vec![guid]
+        session.world_entities.pending_creature_kill_loot_for_test_like_cpp(),
+        &[guid]
     );
 
     session.process_pending().await;
 
     let loot = session
         .loot
-        .loot_table
-        .get(&guid)
+        .cached_loot_for_owner_like_cpp(guid)
         .expect("melee kill loot is generated from pending bridge");
     assert!(loot.allowed_looters.contains(&player));
     assert_eq!(loot.loot_type, LOOT_TYPE_CORPSE_LIKE_CPP);

@@ -681,7 +681,7 @@ async fn loot_money_consumes_only_current_active_loot_like_cpp() {
     let inactive_guid = test_creature_guid(19_002);
     session.set_player_guid(Some(player_guid));
     session.inventory.player_gold = 100;
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         active_guid,
         CreatureLoot {
             loot_guid: active_guid,
@@ -699,7 +699,7 @@ async fn loot_money_consumes_only_current_active_loot_like_cpp() {
             looted_by_player: false,
         },
     );
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         inactive_guid,
         CreatureLoot {
             loot_guid: inactive_guid,
@@ -738,9 +738,9 @@ async fn loot_money_consumes_only_current_active_loot_like_cpp() {
     session.handle_loot_money(pkt).await;
 
     assert_eq!(session.inventory.player_gold, 137);
-    assert_eq!(session.loot.loot_table.get(&active_guid).unwrap().coins, 0);
+    assert_eq!(session.loot.cached_loot_for_owner_like_cpp(active_guid).unwrap().coins, 0);
     assert_eq!(
-        session.loot.loot_table.get(&inactive_guid).unwrap().coins,
+        session.loot.cached_loot_for_owner_like_cpp(inactive_guid).unwrap().coins,
         91
     );
 

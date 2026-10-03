@@ -144,20 +144,20 @@ async fn set_loot_method_is_represented_noop_like_this_cpp_branch() {
 async fn opt_out_of_loot_sets_pass_on_group_loot_like_cpp() {
     let (mut session, send_rx) = make_session_with_send();
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
-    assert!(!session.loot.pass_on_group_loot);
+    assert!(!session.loot.pass_on_group_loot_for_test_like_cpp());
 
     session
         .handle_opt_out_of_loot(opt_out_of_loot_packet(true))
         .await;
 
-    assert!(session.loot.pass_on_group_loot);
+    assert!(session.loot.pass_on_group_loot_for_test_like_cpp());
     assert!(send_rx.try_recv().is_err());
 
     session
         .handle_opt_out_of_loot(opt_out_of_loot_packet(false))
         .await;
 
-    assert!(!session.loot.pass_on_group_loot);
+    assert!(!session.loot.pass_on_group_loot_for_test_like_cpp());
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]
@@ -168,7 +168,7 @@ async fn opt_out_of_loot_without_loaded_player_is_ignored_like_cpp() {
         .handle_opt_out_of_loot(opt_out_of_loot_packet(true))
         .await;
 
-    assert!(!session.loot.pass_on_group_loot);
+    assert!(!session.loot.pass_on_group_loot_for_test_like_cpp());
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]

@@ -176,9 +176,7 @@ async fn refresh_visible_gameobjects_or_spellclicks_command_sends_gameobject_del
         .client_visible_guids_like_cpp
         .insert(gameobject_guid);
     session
-        .world_entities
-        .represented_gameobject_use_states
-        .insert(
+        .world_entities.insert_represented_gameobject_use_state_for_test_like_cpp(
             gameobject_guid,
             RepresentedGameObjectUseState {
                 go_type: Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8),

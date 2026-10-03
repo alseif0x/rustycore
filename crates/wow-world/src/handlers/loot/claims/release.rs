@@ -20,8 +20,7 @@ impl WorldSession {
         };
         let Some(state) = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&guid)
+            .represented_gameobject_use_state_like_cpp(guid)
         else {
             return;
         };
@@ -207,8 +206,7 @@ impl WorldSession {
                 .queue_chest_gameobject_state_refresh_for_same_map_like_cpp(owner_guid);
             let go_type = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get(&owner_guid)
+                .represented_gameobject_use_state_like_cpp(owner_guid)
                 .and_then(|state| state.go_type)
                 .map(u32::from);
             let selected_release_branch = selected_pool_looted
@@ -465,20 +463,17 @@ impl crate::session::LootCx<'_> {
     ) {
         let go_type = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&guid)
+            .represented_gameobject_use_state_like_cpp(guid)
             .and_then(|state| state.go_type)
             .map(u32::from);
         let represented_chest_restock_time_secs = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&guid)
+            .represented_gameobject_use_state_like_cpp(guid)
             .and_then(|state| state.chest_restock_time_secs)
             .unwrap_or_default();
         let represented_personal_loot_uses_after_release = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&guid)
+            .represented_gameobject_use_state_like_cpp(guid)
             .map(|state| state.personal_loot_uses.saturating_add(1))
             .unwrap_or(1);
         // C++ `FishingHole.MaxOpens` is still template evidence from the represented
@@ -486,8 +481,7 @@ impl crate::session::LootCx<'_> {
         // when the canonical GameObject can be mutated.
         let represented_fishing_hole_max_opens = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&guid)
+            .represented_gameobject_use_state_like_cpp(guid)
             .and_then(|state| state.fishing_hole_max_opens);
         let canonical_fishing_hole_release = (go_type == Some(GAMEOBJECT_TYPE_FISHING_HOLE))
             .then(|| {
@@ -600,9 +594,7 @@ impl crate::session::LootCx<'_> {
 
         let state = self
             .world_entities
-            .represented_gameobject_use_states
-            .entry(guid)
-            .or_default();
+            .ensure_represented_gameobject_use_state_like_cpp(guid);
         if canonical_loot_state_updated {
             if let Some((loot_state, unit_guid)) = canonical_applied_loot_state {
                 state.loot_state = Some(loot_state);
@@ -709,8 +701,7 @@ impl crate::session::LootCx<'_> {
     ) {
         let Some(map_id) = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&guid)
+            .represented_gameobject_use_state_like_cpp(guid)
             .and_then(|state| state.per_player_despawn_until.map(|_| state.map_id))
             .flatten()
         else {

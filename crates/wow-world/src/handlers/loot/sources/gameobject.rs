@@ -53,9 +53,7 @@ impl WorldSession {
         {
             let state = self
                 .world_entities
-                .represented_gameobject_use_states
-                .entry(command.gameobject_guid)
-                .or_default();
+                .ensure_represented_gameobject_use_state_like_cpp(command.gameobject_guid);
             state.map_id = Some(command.map_id);
             state.go_type = Some(command.go_type);
             state.loot_state = loot_state;
@@ -107,9 +105,7 @@ impl WorldSession {
         {
             let state = self
                 .world_entities
-                .represented_gameobject_use_states
-                .entry(command.gameobject_guid)
-                .or_default();
+                .ensure_represented_gameobject_use_state_like_cpp(command.gameobject_guid);
             state.map_id = Some(command.map_id);
             state.go_type = Some(command.go_type);
             state.loot_state = loot_state;
@@ -183,9 +179,7 @@ impl WorldSession {
         {
             let state = self
                 .world_entities
-                .represented_gameobject_use_states
-                .entry(command.gameobject_guid)
-                .or_default();
+                .ensure_represented_gameobject_use_state_like_cpp(command.gameobject_guid);
             state.map_id = Some(command.map_id);
             state.go_type = Some(command.go_type);
             state.gameobject_flags = command.gameobject_flags;
@@ -371,7 +365,7 @@ impl WorldSession {
         .await;
         if should_update_criteria {
             let player_guid = player_guid.expect("checked above");
-            self.world_entities.represented_gameobject_use_effects.push(
+            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
                 RepresentedGameObjectUseEffect::FishingHoleCatchCriteriaUpdated {
                     gameobject_guid,
                     player_guid,
@@ -621,9 +615,7 @@ impl WorldSession {
         {
             let state = self
                 .world_entities
-                .represented_gameobject_use_states
-                .entry(gameobject_guid)
-                .or_default();
+                .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
             if is_first_represented_use {
                 state.personal_loot_uses = state.personal_loot_uses.saturating_add(1);
             }
@@ -642,8 +634,7 @@ impl WorldSession {
         if activated_now && source.despawn_delay_secs != 0 {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&gameobject_guid)
+                .represented_gameobject_use_state_mut_like_cpp(gameobject_guid)
             {
                 state.despawn_delay_secs = Some(source.despawn_delay_secs);
                 state.despawn_delay_until = Some(
@@ -692,9 +683,7 @@ impl crate::session::LootCx<'_> {
     ) -> bool {
         let state = self
             .world_entities
-            .represented_gameobject_use_states
-            .entry(gameobject_guid)
-            .or_default();
+            .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
         if state.loot_state == Some(LootState::Activated) {
             return false;
         }
@@ -712,7 +701,7 @@ impl crate::session::LootCx<'_> {
         linked_trap_entry: u32,
     ) {
         if triggered_event_id != 0 {
-            self.world_entities.represented_gameobject_use_effects.push(
+            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
                 RepresentedGameObjectUseEffect::TriggerGameEvent {
                     gameobject_guid,
                     player_guid,
@@ -721,7 +710,7 @@ impl crate::session::LootCx<'_> {
             );
         }
         if linked_trap_entry != 0 {
-            self.world_entities.represented_gameobject_use_effects.push(
+            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
                 RepresentedGameObjectUseEffect::TriggerLinkedTrap {
                     gameobject_guid,
                     player_guid,
@@ -739,8 +728,7 @@ impl crate::session::LootCxRef<'_> {
     ) -> Option<SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand> {
         let state = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)?;
+            .represented_gameobject_use_state_like_cpp(gameobject_guid)?;
         Some(SyncGatheringNodeGameobjectStateAndRefreshLikeCppCommand {
             gameobject_guid,
             map_id: self.hub.core.player_map_id_like_cpp(),
@@ -768,8 +756,7 @@ impl crate::session::LootCxRef<'_> {
     ) -> Option<SyncChestGameobjectStateAndRefreshLikeCppCommand> {
         let state = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)?;
+            .represented_gameobject_use_state_like_cpp(gameobject_guid)?;
         let source = state.chest_loot_source?;
         Some(SyncChestGameobjectStateAndRefreshLikeCppCommand {
             gameobject_guid,
@@ -800,8 +787,7 @@ impl crate::session::LootCxRef<'_> {
     ) -> Option<SyncGooberGameobjectStateAndRefreshLikeCppCommand> {
         let state = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)?;
+            .represented_gameobject_use_state_like_cpp(gameobject_guid)?;
         Some(SyncGooberGameobjectStateAndRefreshLikeCppCommand {
             gameobject_guid,
             map_id: self.hub.core.player_map_id_like_cpp(),

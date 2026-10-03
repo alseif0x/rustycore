@@ -432,7 +432,7 @@ impl WorldSession {
         gameobject_entry: u32,
         source: wow_entities::QuestgiverUseSource,
     ) -> bool {
-        self.world_entities.represented_gameobject_use_effects.push(
+        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
             RepresentedGameObjectUseEffect::SendGossip {
                 gameobject_guid,
                 player_guid,

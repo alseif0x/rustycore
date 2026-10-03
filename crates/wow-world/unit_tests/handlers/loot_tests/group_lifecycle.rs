@@ -113,7 +113,7 @@ pub(super) async fn open_generation_guarded_group_roll_like_cpp(
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         owner_guid,
         generation_guarded_group_loot_like_cpp(owner_guid, player_guid, candidate_guid),
     );
@@ -125,16 +125,14 @@ pub(super) async fn open_generation_guarded_group_roll_like_cpp(
 
     let state = session
         .loot
-        .represented_loot_rolls
-        .get(&(loot_object, 0))
+        .represented_loot_roll_like_cpp(loot_object, 0)
         .expect("first loot generation should start the group roll");
     assert_eq!(state.owner_guid, owner_guid);
     assert_eq!(
         state.authority_generation,
         session
             .loot
-            .represented_loot_cache_generations_like_cpp
-            .get(&owner_guid)
+            .represented_loot_cache_generation_for_test_like_cpp(owner_guid)
             .copied()
             .expect("opened loot cache should be generation-tagged")
     );

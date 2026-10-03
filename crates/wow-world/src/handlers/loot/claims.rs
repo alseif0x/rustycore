@@ -488,9 +488,7 @@ impl crate::session::LootCx<'_> {
     ) {
         let state = self
             .world_entities
-            .represented_gameobject_use_states
-            .entry(gameobject_guid)
-            .or_default();
+            .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
         state.go_type = Some(GAMEOBJECT_TYPE_CHEST as u8);
         state.chest_restock_time_secs = Some(source.chest_restock_time_secs);
         state.chest_consumable = Some(source.chest_consumable);

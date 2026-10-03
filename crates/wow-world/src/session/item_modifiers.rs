@@ -10,9 +10,9 @@ use super::{Arc, BANK_SLOT_BAG_START};
 use super::{BANK_SLOT_BAG_END, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START};
 #[cfg(test)]
 use super::{EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND};
-use super::{INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START, ItemSubClassArmor};
+use super::ItemSubClassArmor;
 use super::{PlayerStatsStore, REAGENT_BAG_SLOT_END, REAGENT_BAG_SLOT_START};
-use super::{ScalingStatDistributionEntry, ShieldBlockRegularGameTableLikeCpp};
+use super::ShieldBlockRegularGameTableLikeCpp;
 use super::{WorldSession, two_handed_in_one_hand_like_cpp};
 pub(crate) use wow_world_inventory::{
     RepresentedItemBonusActionLikeCpp, RepresentedItemSetAuraRefreshEventLikeCpp,
@@ -178,88 +178,9 @@ impl WorldSession {
 
             if action != TitanGripPenaltyAction::None {
                 self.inventory
-                    .player_item_test_fixture_like_cpp
-                    .represented_titan_grip_penalty_actions_like_cpp
-                    .push(action);
+                    .record_represented_titan_grip_penalty_action_for_test_like_cpp(action);
             }
         }
-    }
-}
-
-impl crate::session::state::InventoryState {
-    pub(in crate::session) fn find_free_backpack_slot_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-    ) -> Option<u8> {
-        let inventory_end = INVENTORY_SLOT_ITEM_START
-            .saturating_add(self.resolved_player_inventory_slot_count_like_cpp(hub)?)
-            .min(INVENTORY_SLOT_ITEM_END);
-        let inventory_items = self.resolved_inventory_items_like_cpp(hub)?;
-        (INVENTORY_SLOT_ITEM_START..inventory_end).find(|slot| !inventory_items.contains_key(slot))
-    }
-}
-
-impl crate::session::state::InventoryState {
-    pub(in crate::session) fn represented_scaling_stat_context_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        item_entry: u32,
-    ) -> Option<RepresentedScalingStatContextLikeCpp> {
-        let item_store = hub.catalogs.items.store.as_ref()?;
-        let scaling_stat_distribution_id = item_store.scaling_stat_distribution_id(item_entry);
-        let scaling_stat_value = item_store.scaling_stat_value(item_entry);
-        if scaling_stat_distribution_id == 0 || scaling_stat_value == 0 {
-            return None;
-        }
-        let distribution_store = hub.catalogs.scaling_stat_distribution_store.as_ref()?;
-        let values_store = hub.catalogs.scaling_stat_values_store.as_ref()?;
-        let distribution = distribution_store.get(u32::from(scaling_stat_distribution_id))?;
-        let character_level =
-            self.represented_scaling_stat_character_level_like_cpp(hub, distribution);
-        let values = values_store.get_for_character_level_like_cpp(character_level)?;
-        let mask = scaling_stat_value as u32;
-        Some(RepresentedScalingStatContextLikeCpp {
-            stat_id: distribution.stat_id,
-            bonus: distribution.bonus,
-            ssd_multiplier: values.ssd_multiplier_like_cpp(mask),
-            spell_bonus: values.spell_bonus_like_cpp(mask),
-            armor_mod: values.armor_mod_like_cpp(mask),
-            dps_mod: values.dps_mod_like_cpp(mask),
-            is_two_hand: values.is_two_hand_like_cpp(mask),
-        })
-    }
-
-    pub(in crate::session) fn represented_scaling_stat_character_level_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        distribution: &ScalingStatDistributionEntry,
-    ) -> u32 {
-        let min_level = u32::try_from(distribution.min_level).unwrap_or(0);
-        let max_level = u32::try_from(distribution.max_level).unwrap_or(min_level);
-        let (min_level, max_level) = if min_level <= max_level {
-            (min_level, max_level)
-        } else {
-            (max_level, min_level)
-        };
-        u32::from(hub.player_level_like_cpp()).clamp(min_level, max_level)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_total_stat_multipliers_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-    ) -> [f32; 5] {
-        hub.resolved_represented_total_stat_multipliers_like_cpp()
-            .expect("test Player aura owner must resolve")
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_total_stat_buff_multipliers_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-    ) -> [f32; 5] {
-        hub.resolved_represented_total_stat_buff_multipliers_like_cpp()
-            .expect("test Player aura owner must resolve")
     }
 }
 

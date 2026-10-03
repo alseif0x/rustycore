@@ -65,7 +65,7 @@ async fn represented_fishing_node_loot_walks_parent_area_like_cpp() {
         .open_represented_fishing_node_loot_like_cpp(gameobject_guid, 77, false)
         .await;
 
-    let loot = session.loot.loot_table.get(&gameobject_guid).unwrap();
+    let loot = session.loot.cached_loot_for_owner_like_cpp(gameobject_guid).unwrap();
     assert_eq!(loot.loot_type, LOOT_TYPE_FISHING_LIKE_CPP);
     assert_eq!(loot.items.len(), 1);
     assert_eq!(loot.items[0].item_id, item_id);
@@ -110,7 +110,7 @@ async fn represented_fishing_node_junk_loot_uses_default_zone_like_cpp() {
         .open_represented_fishing_node_loot_like_cpp(gameobject_guid, 77, true)
         .await;
 
-    let loot = session.loot.loot_table.get(&gameobject_guid).unwrap();
+    let loot = session.loot.cached_loot_for_owner_like_cpp(gameobject_guid).unwrap();
     assert_eq!(loot.loot_type, LOOT_TYPE_FISHING_JUNK_LIKE_CPP);
     assert_eq!(loot.items.len(), 1);
     assert_eq!(loot.items[0].item_id, item_id);
@@ -137,7 +137,7 @@ async fn loot_unit_dead_player_returns_silently_like_cpp() {
 
     assert!(send_rx.try_recv().is_err());
     assert!(!session.loot.is_active_loot_guid(loot_guid));
-    assert!(!session.loot.loot_table.contains_key(&loot_guid));
+    assert!(!session.loot.cached_loot_contains_owner_like_cpp(loot_guid));
     assert!(session.active_spell_cast_snapshot_like_cpp().is_some());
     assert!(session.fixtures.auras.visible_auras.contains_key(&3));
 }
@@ -151,7 +151,7 @@ async fn loot_unit_master_looter_first_open_sends_candidate_list_like_cpp() {
     session.set_player_guid(Some(master_guid));
     install_master_loot_group(&mut session, master_guid, candidate_guid);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         owner_guid,
         CreatureLoot {
             loot_guid: loot_object,
@@ -205,8 +205,7 @@ async fn loot_unit_master_looter_first_open_sends_candidate_list_like_cpp() {
     assert!(
         session
             .loot
-            .loot_table
-            .get(&owner_guid)
+            .cached_loot_for_owner_like_cpp(owner_guid)
             .is_some_and(|loot| loot.looted_by_player)
     );
 }
@@ -219,7 +218,7 @@ async fn loot_unit_master_looter_candidate_list_is_first_open_only_like_cpp() {
     session.set_player_guid(Some(master_guid));
     install_master_loot_group(&mut session, master_guid, candidate_guid);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         owner_guid,
         CreatureLoot {
             loot_guid: represented_loot_object_guid_like_cpp(owner_guid),
@@ -272,7 +271,7 @@ async fn loot_unit_master_loot_notify_list_fans_out_to_allowed_looters_like_cpp(
     session.set_player_guid(Some(master_guid));
     install_master_loot_group(&mut session, master_guid, candidate_guid);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         owner_guid,
         CreatureLoot {
             loot_guid: loot_object,
@@ -360,7 +359,7 @@ async fn loot_unit_group_loot_can_only_roll_greed_removes_need_from_start_mask_l
         ItemFlags2::CanOnlyRollGreed as u32,
     );
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         owner_guid,
         CreatureLoot {
             loot_guid: loot_object,
@@ -458,7 +457,7 @@ async fn loot_unit_group_loot_disenchant_mask_uses_cpp_skill_required_gate() {
     install_group_loot_group(&mut session, player_guid, candidate_guid);
     install_disenchantable_test_item_template(&mut session, 25);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         owner_guid,
         CreatureLoot {
             loot_guid: loot_object,
@@ -632,7 +631,7 @@ async fn loot_unit_group_loot_single_candidate_unblocks_under_threshold_like_cpp
     session.set_player_guid(Some(player_guid));
     install_group_loot_group(&mut session, player_guid, candidate_guid);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         owner_guid,
         CreatureLoot {
             loot_guid: loot_object,
@@ -674,7 +673,7 @@ async fn loot_unit_group_loot_single_candidate_unblocks_under_threshold_like_cpp
     let _loot_list = send_rx.try_recv().unwrap();
     assert!(send_rx.try_recv().is_err());
 
-    let entry = &session.loot.loot_table.get(&owner_guid).unwrap().items[0];
+    let entry = &session.loot.cached_loot_for_owner_like_cpp(owner_guid).unwrap().items[0];
     assert!(!entry.flags.blocked);
     assert!(entry.flags.under_threshold);
 }
@@ -694,10 +693,10 @@ async fn loot_unit_group_loot_pass_on_loot_suppresses_current_prompt_like_cpp() 
     );
     session.set_player_registry(player_registry);
     session.set_player_guid(Some(player_guid));
-    session.loot.pass_on_group_loot = true;
+    session.loot.set_pass_on_group_loot_for_test_like_cpp(true);
     install_group_loot_group(&mut session, player_guid, candidate_guid);
     register_test_creature_like_cpp(&mut session, test_creature(owner_guid, false));
-    session.loot.loot_table.insert(
+    session.loot.insert_cached_loot_for_owner_like_cpp(
         owner_guid,
         CreatureLoot {
             loot_guid: loot_object,
@@ -773,7 +772,7 @@ async fn loot_unit_group_loot_pass_on_loot_suppresses_current_prompt_like_cpp() 
         ROLL_VOTE_PASS_LIKE_CPP
     );
 
-    let entry = &session.loot.loot_table.get(&owner_guid).unwrap().items[0];
+    let entry = &session.loot.cached_loot_for_owner_like_cpp(owner_guid).unwrap().items[0];
     assert!(entry.flags.blocked);
     assert!(!entry.flags.under_threshold);
 }

@@ -118,8 +118,7 @@ impl WorldSession {
                 };
                 let Some(state) = self
                     .world_entities
-                    .represented_gameobject_use_states
-                    .get(&guid)
+                    .represented_gameobject_use_state_like_cpp(guid)
                 else {
                     continue;
                 };
@@ -781,4 +780,3 @@ impl WorldSession {
         self.send_packet(&QuestGiverStatusMultiple { statuses });
     }
 }
-

@@ -1,10 +1,22 @@
 use std::mem;
+use std::time::Instant;
 
 use wow_core::ObjectGuid;
 
 use crate::{PendingCreatureKillRewardLikeCpp, PendingCreatureSpawn, WorldEntitiesState};
 
 impl WorldEntitiesState {
+    pub fn suppress_creature_movement_queued_at_or_before_like_cpp(&self) -> Option<Instant> {
+        self.suppress_creature_movement_queued_at_or_before_like_cpp
+    }
+
+    pub fn set_suppress_creature_movement_queued_at_or_before_like_cpp(
+        &mut self,
+        cutoff: Option<Instant>,
+    ) {
+        self.suppress_creature_movement_queued_at_or_before_like_cpp = cutoff;
+    }
+
     pub fn advance_creature_tick_like_cpp(&mut self) {
         self.creature_tick = self.creature_tick.wrapping_add(1);
     }

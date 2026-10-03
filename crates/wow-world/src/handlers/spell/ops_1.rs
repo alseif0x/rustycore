@@ -203,7 +203,7 @@ impl WorldSession {
             return;
         };
 
-        if !self.loot.loot_table.contains_key(&item.guid) {
+        if !self.loot.cached_loot_contains_owner_like_cpp(item.guid) {
             let stored_money = self
                 .lifecycle
                 .load_stored_item_money_like_cpp(item.guid)
@@ -239,7 +239,7 @@ impl WorldSession {
                     .await;
             }
 
-            self.loot.loot_table.insert(
+            self.loot.insert_cached_loot_for_owner_like_cpp(
                 item.guid,
                 CreatureLoot {
                     loot_guid: item.guid,
@@ -270,7 +270,7 @@ impl WorldSession {
             )],
         );
 
-        let Some(loot) = self.loot.loot_table.get(&item.guid) else {
+        let Some(loot) = self.loot.cached_loot_for_owner_like_cpp(item.guid) else {
             self.send_equip_error(
                 InventoryResult::ClientLockedOut,
                 Some(item.guid),
@@ -762,45 +762,6 @@ impl crate::session::InventoryCxRef<'_> {
         }
 
         metadata
-    }
-}
-
-impl crate::session::InventoryState {
-    pub(crate) fn apply_wrapped_gift_row_to_runtime_item_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        bag: u8,
-        item_guid: ObjectGuid,
-        slot: u8,
-        entry: u32,
-        flags: u32,
-    ) -> Option<u32> {
-        let current_item = self.get_inventory_item_by_pos(hub.shared(), bag, slot)?;
-        if current_item.guid != item_guid {
-            return None;
-        }
-
-        let max_durability = hub.catalogs.item_template_max_durability(entry);
-        let inventory_type = hub.shared().item_template_inventory_type(entry);
-        let durability = self.transform_inventory_wrapped_gift_item_like_cpp(
-            hub,
-            item_guid,
-            entry,
-            flags,
-            max_durability,
-        )?;
-
-        if bag == INVENTORY_SLOT_BAG_0 {
-            self.update_inventory_item_metadata_like_cpp(
-                hub,
-                slot,
-                item_guid,
-                entry,
-                inventory_type,
-            );
-        }
-
-        Some(durability)
     }
 }
 

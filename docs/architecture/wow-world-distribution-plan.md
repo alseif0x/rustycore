@@ -1337,6 +1337,127 @@ no ejecuta compilación, formato, tests, scanners ni aceptación, no acredita pa
 nueva y no habilita publicación. Continúan los métodos restantes, consumidores,
 fixtures y F5–F6 dentro de la misma entrega autorizada.
 
+El checkpoint de continuación guardado es `d7b0d72191494e063d9ffe7b967c3682b4a84e42`
+(81 archivos, árbol limpio al commit). La unidad posterior de Inventory mueve
+dos bloques/cuatro métodos de publicación de nuevos items, preflight de swap y
+duración: 31/183 originales trasladados y 17/48 pendientes. La comparación de
+fuente conserva los cuatro cuerpos, sus providers y el orden de almacenamiento
+canónico y publicación. Los wrappers y las transacciones permanecen en World.
+Esta unidad continúa **NO VALIDADA** y no modifica la evidencia del checkpoint.
+
+Lifecycle añade el método genérico de resultado de transacción de dinero:
+9/37 originales trasladados y 24/108 pendientes. Los contratos de exclusión,
+cancelación y reconciliación tienen proveedor Lifecycle y fachadas World;
+la comparación conserva los cuerpos, la clasificación de COMMIT desconocido,
+el armado antes del await y el orden de campos save-fence/mutex. El constructor
+reemplaza el único literal World en el mismo punto y sin nuevas adquisiciones.
+Las consultas Loot de items, tappers y encounter, la limpieza de cache y la
+consulta del GUID activo conservan operación, préstamo y gates; gameobjects
+consulta fases por GUID y el mismo sufijo de efectos de pesca, sin nuevo snapshot.
+Estos cambios son inspección de fuente **NO VALIDADA**, sin evidencia nueva de
+durabilidad, protocolo, aceptación ni publicación.
+
+Inventory añade buyback y void storage (dos bloques/20 métodos): 33/203
+originales trasladados y 15/28 pendientes. La comparación conserva todos los
+cuerpos tras gates, incluidos canónico primero, selección de buyback y snapshots
+de void storage; los wrappers y tests World siguen en su dueño. Lifecycle mueve
+otros 19 métodos de puertos del bloque de planes: 56/145 métodos originales
+escritos y 89 pendientes; el bloque World conserva sus seis métodos restantes.
+Se mantiene la distinción entre préstamos y clones de Arc. Este avance continúa
+**NO VALIDADO**, sin ejecutar compilación, suites, formato ni aceptación.
+
+La continuación de dinero, monedas y escalado de Inventory mueve cinco
+bloques/nueve métodos: 38/212 originales trasladados y 10/19 pendientes. Los
+nueve cuerpos conservan la fuente tras los gates de fixtures, incluidos el
+retorno de autoridad canónica, el fallback sin handle y los límites de nivel.
+La lectura de fase, sus dos retiradas y el cutoff de movimiento de login usan
+operaciones acotadas de Entities en los mismos puntos; el setter recibe el
+instante calculado por el caller. Continúan los consumidores y fixtures; este
+avance sigue **NO VALIDADO** y no reemplaza la campaña final.
+
+Lifecycle añade los 24 métodos de cuentas, colecciones, battle-pet/login y
+despacho de módulos: 80/145 originales trasladados y 65 pendientes. La comparación
+conserva los cuerpos tras aliases y gates, incluido el retorno de autoridad de
+slots completa y el descarte de un lote de efectos inválido. Las dependencias
+directas de constantes, Entities y Module API se ganan por sus consumidores
+existentes; no activan una integración nueva. Se conserva la limitación previa
+del update de heirlooms con opcode pendiente, sin reparación de protocolo.
+El contrato de delta de moneda (siete campos/derives) y su helper de máximo tienen
+un proveedor Core; la fachada World reutiliza además la tabla de equipos por
+raza ya existente en Core, con los mismos valores y fallback.
+Las fixtures de cache Loot adaptan 213 accesos en 34 archivos mediante consultas
+por clave y un iterador prestado. La comparación de fuente conserva el orden de
+409 nombres de función y 1.802 macros de aserción; no se ejecutaron esos tests.
+Continúan los demás campos de fixture y los consumidores privados. Este corte
+permanece **NO VALIDADO** y no acredita paridad ni durabilidad nueva.
+
+El corte de transferencia y preparación mueve cinco bloques/nueve métodos de
+Lifecycle: 89/145 originales trasladados y 56 pendientes. Conserva destinos,
+normalización de orientación, fases post-add, recuperación terminal, fences de
+save diferido y selección de residencia; el enum de save conserva sus cinco
+variantes y deriva con proveedor único Lifecycle. World conserva coordinadores,
+ACK de proyección y tests. Inventory mueve cuatro bloques/seis métodos de
+publicación, carga y consulta: 42/218 originales trasladados y 6/13 pendientes.
+Los cuerpos y el retorno de envío se conservan; el flag resting conserva `0x20`
+con proveedor Core junto a los demás flags del Player y fachada World.
+Entities cierra 43 accesos privados de producción en 15 archivos con las APIs
+existentes; mantiene consulta, modificación condicional, inserción si falta y
+append/lectura de eventos en sus puntos. Continúan las fixtures. Es revisión de
+fuente **NO VALIDADA**, sin atribuir al traslado aceptación ni paridad nueva.
+
+Inventory completa la escritura de sus 48 bloques/231 métodos originales con
+los 13 de void storage, turn-ins y estadísticas. Los cuerpos conservan valores,
+orden y providers tras aliases; los dos DTO de void storage, su Default y el enum
+de turn-in tienen proveedor único Inventory y fachadas World. La dependencia
+normal de Persistence se gana por el tipo SQLx-free de merged item write. La
+constante de hit melee conserva `5`, con proveedor Inventory y fachada de combat.
+Esto completa la escritura de esos métodos, no los consumidores ni su aceptación.
+Lifecycle alcanza 95/145 métodos escritos y 50 pendientes tras seis de planes;
+el error de dinero conserva seis variantes y sus cuerpos Display/Error, y el plan
+de talento conserva tres campos/derives. Sus consumidores determinan la visibilidad
+de quarantine y persist gold. Loot adapta otros 97 accesos en 20 archivos de
+fixtures de handlers y el lector bootstrap; sus setters de fixture conservan
+operaciones literales y reutilizan las inserciones de propietario/dinero existentes.
+Las fixtures de sesión de Entities adaptan 295 accesos en 21 archivos mediante
+seis operaciones de fixture; el loop de aura evalúa el reloj por cada elemento.
+El conjunto modificado de 27 fixtures de sesión, que incluye el cierre de cache
+Loot anterior, conserva 315 nombres de función y 1.330 macros de aserción en la
+comparación de fuente. Todo continúa **NO VALIDADO**, sin ejecutar esas suites,
+compilación, formato, scanners o aceptación; consumidores, fixtures y F5–F6 siguen
+dentro de la entrega autorizada.
+
+El siguiente corte de carga traslada los dos bloques/24 métodos de Lifecycle a
+`state/load.rs`: 119/145 originales escritos y 26 pendientes. La comparación de
+fuente conserva los 24 cuerpos tras el gate de fixtures y la ruta del único helper
+de bonus de heirloom, trasladado desde `collection_adapter`. World conserva sus
+coordinadores y fachadas; Data y Progression son dependencias directas por el
+catálogo y la fila de reputación actuales. El import del snapshot de powers queda
+bajo el gate de su uso. Las anclas contrastadas de `a5f8da2eb` son
+`CollectionMgr.cpp:113,174,222` y `WorldSession.cpp:834,908`; no prueban paridad
+de todos los loaders. Se conservan para F6 los contratos previos de catálogo
+ausente y repetición de toys: el C++ usa `emplace`, mientras la carga Rust existente
+usa `insert` sobre el mapa nuevo; no se repara dentro del traslado.
+Los consumidores de playtime adaptan 13 accesos en siete archivos mediante seis
+consultas/asignaciones escalares. El reloj, elapsed y las sumas saturadas conservan
+sus puntos World. Entities adapta otros 51 accesos en 12 fixtures de handlers con
+las APIs por GUID y slices prestados; la comparación de fuente conserva 201 nombres
+de función y 571 macros de aserción en esos archivos. Estas comparaciones son
+inspección de fuente, **NO VALIDADA**, sin ejecutar compilación ni tests.
+El cierre acotado de consumidores Inventory adapta otros 28 accesos en 12 archivos
+de producción, incluidos accesos gated de fixtures. Conserva arrays/slices prestados,
+el clon único de equipment sets y el append de eventos; la llamada de enchantment
+reutiliza el append de una sola acción con un clon, como el push anterior. Queda el
+acceso de carga de void storage, reservado por solapamiento, y 78 accesos cualificados
+en 16 archivos unitarios de sesión, según la lectura actual de campos declarados.
+Es un censo léxico acotado, no prueba de compilación ni cierre de aliases.
+Lock y política reflejan las seis aristas normales ganadas: Inventory → Persistence;
+Lifecycle → Constants, Data, Entities, Module API y Progression. No se modifican
+ceilings, baseline ni gates de aceptación/publicación.
+La revisión detectó 17 APIs fixture todavía ausentes tras adaptar esos consumidores;
+se completan en el módulo privado gated `fixtures.rs`. La lectura posterior encuentra
+un proveedor único para cada nueva llamada, con los mismos push/extend y préstamos.
+Esto cierra ese hallazgo de fuente, sin sustituir compilación ni aceptación.
+
 El scanner ya incorpora los roots y roles de Loot, Entities, Inventory y
 Lifecycle. Se extienden las pruebas existentes de montaje y de rechazo de
 SessionCore/WorldSession en dominios; no se añaden ni renombran tests, ni se

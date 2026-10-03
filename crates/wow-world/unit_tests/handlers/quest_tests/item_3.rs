@@ -892,9 +892,7 @@ async fn quest_giver_status_multiple_skips_missing_player_item_and_non_questgive
     let mut state = crate::session::RepresentedGameObjectUseState::default();
     state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_CHEST as u8);
     session
-        .world_entities
-        .represented_gameobject_use_states
-        .insert(non_questgiver_go, state);
+        .world_entities.insert_represented_gameobject_use_state_for_test_like_cpp(non_questgiver_go, state);
 
     session.handle_quest_giver_status_multiple_query().await;
 

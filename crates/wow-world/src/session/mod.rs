@@ -150,7 +150,7 @@ pub(crate) use collection_adapter::AccountTransmogIllusionSavePlanLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) use collection_adapter::RepresentedTransmogCriteriaEvent;
 pub(crate) use collection_adapter::{AccountMountSaveRowLikeCpp, AccountToySaveRowLikeCpp};
-use collection_adapter::{DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP, heirloom_bonus_for_flags_like_cpp};
+use collection_adapter::DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP;
 mod connection_identity;
 pub(crate) use connection_identity::GLOBAL_CACHE_MASK_LIKE_CPP;
 pub(crate) use connection_identity::PER_CHARACTER_CACHE_MASK_LIKE_CPP;
@@ -852,7 +852,7 @@ pub(crate) use wow_world_core::session::{
     PLAYER_FLAGS_AFK_LIKE_CPP, PLAYER_FLAGS_DND_LIKE_CPP,
     battle_pet_adapter::DEFAULT_MAX_BATTLE_PETS_PER_SPECIES_LIKE_CPP,
 };
-const PLAYER_FLAGS_RESTING_LIKE_CPP: u32 = 0x0000_0020;
+pub(crate) use wow_world_core::session::PLAYER_FLAGS_RESTING_LIKE_CPP;
 const PLAYER_FLAGS_WAR_MODE_DESIRED_LIKE_CPP: u32 = 0x0000_0800;
 const PLAYER_FLAGS_NO_XP_GAIN_LIKE_CPP: u32 = 0x0200_0000;
 pub(crate) const PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP: u32 = 0x2000_0000;

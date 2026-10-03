@@ -472,12 +472,13 @@ impl WorldSession {
                 "RUST_LOGIN_POWER_SYNC"
             );
         }
-        self.lifecycle.login_time = Some(std::time::Instant::now());
+        self.lifecycle
+            .set_login_time_like_cpp(Some(std::time::Instant::now()));
         self.world_entities
-            .suppress_creature_movement_queued_at_or_before_like_cpp = None;
+            .set_suppress_creature_movement_queued_at_or_before_like_cpp(None);
         // Clear per-session loot/combat state as part of the Rust AddToWorld
         // equivalent, before C++ would build `Map::SendInitSelf`.
-        self.loot.loot_table.clear();
+        self.loot.clear_cached_loot_like_cpp();
         self.loot.set_active_loot_guid(ObjectGuid::EMPTY);
         crate::session::hub_mut(self).set_combat_target_like_cpp(None);
         crate::session::hub_mut(self).set_in_combat_like_cpp(false);
@@ -717,8 +718,9 @@ impl WorldSession {
         // sessionless world tick, so remember the burst boundary and drop only
         // movement commands that were queued at or before it.
         self.world_entities
-            .suppress_creature_movement_queued_at_or_before_like_cpp =
-            Some(std::time::Instant::now());
+            .set_suppress_creature_movement_queued_at_or_before_like_cpp(Some(
+                std::time::Instant::now(),
+            ));
 
         // Rust keeps the session status flip after the initial after-add packet
         // subset so the network loop cannot process normal movement/gameplay

@@ -4,6 +4,15 @@ use super::SessionLifecycleState;
 use crate::SessionPersistencePortsLikeCpp;
 
 impl SessionLifecycleState {
+    pub fn set_session_account_state_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp
+            .admission
+            .session_account_state = Some(port);
+    }
+
     pub fn set_required_persistence_capabilities_like_cpp(
         &mut self,
         capabilities: SessionPersistencePortsLikeCpp,
@@ -166,5 +175,146 @@ impl SessionLifecycleState {
             .player
             .player_lifecycle
             .as_ref()
+    }
+
+    pub fn set_character_enumeration_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::CharacterEnumerationPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp
+            .admission
+            .character_enumeration = Some(port);
+    }
+
+    pub fn character_enumeration_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::CharacterEnumerationPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp
+            .admission
+            .character_enumeration
+            .clone()
+    }
+
+    pub fn set_packet_spoof_ban_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::PacketSpoofBanPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.admission.packet_spoof_ban = Some(port);
+    }
+
+    pub fn set_void_storage_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::VoidStoragePersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.player.void_storage = Some(port);
+    }
+
+    pub fn void_storage_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::VoidStoragePersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.player.void_storage.clone()
+    }
+
+    pub fn set_social_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::SocialPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.player.social = Some(port);
+    }
+
+    pub fn social_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::SocialPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.player.social.clone()
+    }
+
+    pub fn set_map_corpse_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.world.map_corpse = Some(port);
+    }
+
+    pub fn map_corpse_persistence_port_like_cpp(
+        &self,
+    ) -> Option<&Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.world.map_corpse.as_ref()
+    }
+
+    pub fn set_represented_group_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::RepresentedGroupPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.world.represented_group = Some(port);
+    }
+
+    pub fn represented_group_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::RepresentedGroupPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp
+            .world
+            .represented_group
+            .clone()
+    }
+
+    pub fn set_support_bug_report_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::SupportBugReportPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.admission.support_bug_report = Some(port);
+    }
+
+    pub fn support_bug_report_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::SupportBugReportPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp
+            .admission
+            .support_bug_report
+            .clone()
+    }
+
+    pub fn set_gossip_catalog_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::GossipCatalogPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.catalogs.gossip_catalog = Some(port);
+    }
+
+    pub fn gossip_catalog_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::GossipCatalogPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp
+            .catalogs
+            .gossip_catalog
+            .clone()
+    }
+
+    pub fn set_player_name_query_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::PlayerNameQueryPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.admission.player_name_query = Some(port);
+    }
+
+    pub fn player_name_query_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::PlayerNameQueryPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp
+            .admission
+            .player_name_query
+            .clone()
+    }
+
+    pub fn set_instance_lock_persistence_port_like_cpp(
+        &mut self,
+        port: Arc<dyn wow_persistence::InstanceLockPersistencePortLikeCpp>,
+    ) {
+        self.persistence_ports_like_cpp.player.instance_lock = Some(port);
+    }
+
+    pub fn instance_lock_persistence_port_like_cpp(
+        &self,
+    ) -> Option<Arc<dyn wow_persistence::InstanceLockPersistencePortLikeCpp>> {
+        self.persistence_ports_like_cpp.player.instance_lock.clone()
     }
 }

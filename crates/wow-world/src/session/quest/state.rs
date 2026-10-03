@@ -442,9 +442,8 @@ impl WorldSession {
     pub(crate) fn represented_auction_replicate_requests_like_cpp(
         &self,
     ) -> &[RepresentedAuctionReplicateRequestLikeCpp] {
-        &self
-            .inventory
-            .represented_auction_replicate_requests_like_cpp
+        self.inventory
+            .represented_auction_replicate_requests_like_cpp()
     }
     pub(crate) fn request_represented_battleground_leave_like_cpp(&mut self) {
         #[cfg(test)]
@@ -736,8 +735,7 @@ impl crate::session::QuestStateCx<'_> {
     ) {
         #[cfg(test)]
         self.inventory
-            .represented_auction_replicate_requests_like_cpp
-            .push(request);
+            .record_represented_auction_replicate_request_like_cpp(request);
     }
 }
 

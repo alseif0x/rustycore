@@ -214,8 +214,10 @@ impl WorldSession {
         {
             return !self
                 .loot
-                .represented_locked_dungeon_encounters
-                .contains(&(player_guid, dungeon_encounter_id));
+                .fixture_player_is_locked_to_dungeon_encounter_like_cpp(
+                    player_guid,
+                    dungeon_encounter_id,
+                );
         }
         #[cfg(not(test))]
         {

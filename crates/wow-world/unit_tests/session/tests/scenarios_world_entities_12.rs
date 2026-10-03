@@ -641,7 +641,7 @@ fn gameobject_use_preamble_matches_cpp_player_branch() {
             .contains(UnitFlags::MOUNT)
     );
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::RemoveMountedAuras {
                 gameobject_guid,
@@ -660,14 +660,9 @@ fn gameobject_use_preamble_matches_cpp_player_branch() {
     );
 
     session
-        .world_entities
-        .represented_gameobject_use_effects
-        .clear();
+        .world_entities.clear_represented_gameobject_use_effects_for_test_like_cpp();
     session
-        .world_entities
-        .represented_gameobject_use_states
-        .entry(gameobject_guid)
-        .or_default()
+        .world_entities.ensure_represented_gameobject_use_state_like_cpp(gameobject_guid)
         .gossip_hello_ai_returns_true = true;
     assert!(
         !session.apply_represented_gameobject_player_use_preamble_like_cpp(
@@ -678,7 +673,7 @@ fn gameobject_use_preamble_matches_cpp_player_branch() {
         )
     );
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::ClearPlayerTalkMenus {
                 gameobject_guid,
@@ -714,7 +709,7 @@ fn gameobject_use_preamble_rejects_damage_immune_player_like_cpp() {
         )
     );
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
         vec![RepresentedGameObjectUseEffect::UseRejectedNoDamageImmune {
             gameobject_guid,
             player_guid,
@@ -730,15 +725,14 @@ fn gameobject_use_cooldown_matches_cpp_template_gate() {
     assert!(session.apply_represented_gameobject_cooldown_like_cpp(gameobject_guid, 0));
     assert!(
         session
-            .world_entities
-            .represented_gameobject_use_effects
+            .world_entities.represented_gameobject_use_effects_since_like_cpp(0)
             .is_empty()
     );
 
     assert!(session.apply_represented_gameobject_cooldown_like_cpp(gameobject_guid, 5));
     assert!(!session.apply_represented_gameobject_cooldown_like_cpp(gameobject_guid, 5));
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::CooldownStarted {
                 gameobject_guid,
@@ -749,9 +743,7 @@ fn gameobject_use_cooldown_matches_cpp_template_gate() {
     );
 
     session
-        .world_entities
-        .represented_gameobject_use_states
-        .get_mut(&gameobject_guid)
+        .world_entities.represented_gameobject_use_state_mut_like_cpp(gameobject_guid)
         .unwrap()
         .cooldown_until = Some(Instant::now() - Duration::from_secs(1));
     assert!(session.apply_represented_gameobject_cooldown_like_cpp(gameobject_guid, 5));
@@ -769,9 +761,7 @@ fn gameobject_use_door_or_button_matches_cpp_ready_gate_and_state_switch() {
         3000,
     ));
     let state = session
-        .world_entities
-        .represented_gameobject_use_states
-        .get(&gameobject_guid)
+        .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
         .unwrap();
     assert_eq!(state.go_state, Some(wow_entities::GoState::Active));
     assert_eq!(state.prev_go_state, Some(wow_entities::GoState::Ready));
@@ -783,7 +773,7 @@ fn gameobject_use_door_or_button_matches_cpp_ready_gate_and_state_switch() {
     );
     assert!(state.cooldown_until.is_some());
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
         vec![RepresentedGameObjectUseEffect::DoorOrButtonUsed {
             gameobject_guid,
             user_guid: player_guid,
@@ -799,8 +789,7 @@ fn gameobject_use_door_or_button_matches_cpp_ready_gate_and_state_switch() {
     ));
     assert_eq!(
         session
-            .world_entities
-            .represented_gameobject_use_effects
+            .world_entities.represented_gameobject_use_effects_since_like_cpp(0)
             .last(),
         Some(&RepresentedGameObjectUseEffect::DoorOrButtonRejectedNotReady { gameobject_guid })
     );
@@ -819,17 +808,13 @@ fn gameobject_door_or_button_tick_resets_after_cooldown_like_cpp() {
     ));
     assert!(!session.tick_represented_gameobject_door_or_button_like_cpp(gameobject_guid));
     session
-        .world_entities
-        .represented_gameobject_use_states
-        .get_mut(&gameobject_guid)
+        .world_entities.represented_gameobject_use_state_mut_like_cpp(gameobject_guid)
         .unwrap()
         .cooldown_until = Some(Instant::now() - Duration::from_millis(1));
 
     assert!(session.tick_represented_gameobject_door_or_button_like_cpp(gameobject_guid));
     let state = session
-        .world_entities
-        .represented_gameobject_use_states
-        .get(&gameobject_guid)
+        .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
         .unwrap();
     assert_eq!(state.go_state, Some(wow_entities::GoState::Ready));
     assert_eq!(
@@ -840,8 +825,7 @@ fn gameobject_door_or_button_tick_resets_after_cooldown_like_cpp() {
     assert!(state.cooldown_until.is_none());
     assert_eq!(
         session
-            .world_entities
-            .represented_gameobject_use_effects
+            .world_entities.represented_gameobject_use_effects_since_like_cpp(0)
             .last(),
         Some(&RepresentedGameObjectUseEffect::DoorOrButtonReset {
             gameobject_guid,
@@ -867,9 +851,7 @@ fn gameobject_use_trap_matches_cpp_spell_cooldown_and_charges() {
         },
     ));
     let state = session
-        .world_entities
-        .represented_gameobject_use_states
-        .get(&gameobject_guid)
+        .world_entities.represented_gameobject_use_state_like_cpp(gameobject_guid)
         .unwrap();
     assert_eq!(
         state.loot_state,
@@ -877,7 +859,7 @@ fn gameobject_use_trap_matches_cpp_spell_cooldown_and_charges() {
     );
     assert!(state.cooldown_until.is_some());
     assert_eq!(
-        session.world_entities.represented_gameobject_use_effects,
+        session.world_entities.represented_gameobject_use_effects_since_like_cpp(0),
         vec![
             RepresentedGameObjectUseEffect::CastSpell {
                 gameobject_guid,
@@ -903,8 +885,7 @@ fn gameobject_use_trap_matches_cpp_spell_cooldown_and_charges() {
     ));
     assert_eq!(
         session
-            .world_entities
-            .represented_gameobject_use_effects
+            .world_entities.represented_gameobject_use_effects_since_like_cpp(0)
             .last(),
         Some(&RepresentedGameObjectUseEffect::CooldownRejected { gameobject_guid })
     );

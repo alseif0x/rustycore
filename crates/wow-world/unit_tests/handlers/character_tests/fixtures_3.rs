@@ -711,9 +711,7 @@ pub(super) fn mark_gameobject_questgiver(session: &mut WorldSession, guid: Objec
     let mut state = crate::session::RepresentedGameObjectUseState::default();
     state.go_type = Some(wow_entities::GAMEOBJECT_TYPE_QUESTGIVER as u8);
     session
-        .world_entities
-        .represented_gameobject_use_states
-        .insert(guid, state);
+        .world_entities.insert_represented_gameobject_use_state_for_test_like_cpp(guid, state);
 }
 
 pub(super) fn tracked_query_packet(guids: &[ObjectGuid]) -> WorldPacket {

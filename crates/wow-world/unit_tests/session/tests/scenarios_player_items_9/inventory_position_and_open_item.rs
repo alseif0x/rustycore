@@ -180,7 +180,7 @@ async fn open_item_wrapped_without_has_loot_does_not_generate_loot_like_cpp() {
         .handle_open_item(WorldPacket::from_bytes(&[INVENTORY_SLOT_BAG_0, 23]))
         .await;
 
-    assert!(!session.loot.loot_table.contains_key(&item_guid));
+    assert!(!session.loot.cached_loot_contains_owner_like_cpp(item_guid));
     assert!(send_rx.try_recv().is_err());
     assert!(
         session

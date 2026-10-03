@@ -213,6 +213,62 @@ impl crate::InventoryState {
 }
 
 impl crate::InventoryState {
+    pub fn apply_wrapped_gift_row_to_runtime_item_like_cpp(
+        &mut self,
+        hub: &mut HubMut<'_>,
+        bag: u8,
+        item_guid: ObjectGuid,
+        slot: u8,
+        entry: u32,
+        flags: u32,
+    ) -> Option<u32> {
+        let current_item = self.get_inventory_item_by_pos(hub.shared(), bag, slot)?;
+        if current_item.guid != item_guid {
+            return None;
+        }
+
+        let max_durability = hub.catalogs.item_template_max_durability(entry);
+        let inventory_type = hub.shared().item_template_inventory_type(entry);
+        let durability = self.transform_inventory_wrapped_gift_item_like_cpp(
+            hub,
+            item_guid,
+            entry,
+            flags,
+            max_durability,
+        )?;
+
+        if bag == INVENTORY_SLOT_BAG_0 {
+            self.update_inventory_item_metadata_like_cpp(
+                hub,
+                slot,
+                item_guid,
+                entry,
+                inventory_type,
+            );
+        }
+
+        Some(durability)
+    }
+
+    pub fn direct_inventory_item_count_like_cpp_representable(
+        &self,
+        hub: HubRef<'_>,
+        item_id: u32,
+    ) -> Option<u32> {
+        Some(
+            self.resolved_inventory_items_like_cpp(hub)?
+                .values()
+                .filter(|inventory_item| inventory_item.entry_id == item_id)
+                .filter_map(|inventory_item| {
+                    self.resolved_inventory_item_object_like_cpp(hub, inventory_item.guid)
+                })
+                .filter(|item| !item.is_in_trade())
+                .fold(0_u32, |total, item| total.saturating_add(item.count())),
+        )
+    }
+}
+
+impl crate::InventoryState {
     /// Install the process-wide C++
     /// `sObjectMgr->GetGenerator<HighGuid::Item>()` mirror.
     #[cfg(any(test, feature = "test-fixtures"))]

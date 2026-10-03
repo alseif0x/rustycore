@@ -529,13 +529,13 @@ async fn low_level_raid1_is_noop_preserves_state_like_cpp() {
     let (mut session, send_rx) = make_session_with_send();
     let guid = ObjectGuid::create_player(1, 42);
     session.set_player_guid(Some(guid));
-    session.loot.pass_on_group_loot = false;
+    session.loot.set_pass_on_group_loot_for_test_like_cpp(false);
 
     session
         .handle_low_level_raid1(low_level_raid_packet())
         .await;
 
-    assert!(!session.loot.pass_on_group_loot);
+    assert!(!session.loot.pass_on_group_loot_for_test_like_cpp());
     assert!(session.social.group_guid_for_test_like_cpp().is_none());
     assert!(send_rx.try_recv().is_err());
 }
@@ -544,13 +544,13 @@ async fn low_level_raid2_is_noop_preserves_state_like_cpp() {
     let (mut session, send_rx) = make_session_with_send();
     let guid = ObjectGuid::create_player(1, 42);
     session.set_player_guid(Some(guid));
-    session.loot.pass_on_group_loot = false;
+    session.loot.set_pass_on_group_loot_for_test_like_cpp(false);
 
     session
         .handle_low_level_raid2(low_level_raid_packet())
         .await;
 
-    assert!(!session.loot.pass_on_group_loot);
+    assert!(!session.loot.pass_on_group_loot_for_test_like_cpp());
     assert!(session.social.group_guid_for_test_like_cpp().is_none());
     assert!(send_rx.try_recv().is_err());
 }
