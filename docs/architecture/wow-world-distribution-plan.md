@@ -2803,9 +2803,14 @@ App de planificación de solo lectura sobre PlayerCondition, con Bank completo
 en hoja privada y una definición única de target. World ya tiene las cuatro
 fachadas thin. La revisión conserva rereads completos, count/destino exactos,
 capabilities/in-combat actuales, cache y listas nativas y contains-items tardío.
-Anchors de kernel: Player.cpp:9615/9882, :10584 y :10820. Root/export y casos de
-aceptación escritos siguen en cierre; no se ejecutó validación ni se trasladó
-todavía la ejecución completa swap/equip por haber cerrado solo planificación.
+Anchors de kernel: Player.cpp:9615/9882, :10584 y :10820. Root/export están
+conectados y se revisaron cuatro casos escritos: planes positivos sin mutación,
+split/exactitud, fuente ausente/NotEquippable y reemplazo de owner con igual GUID.
+Este último demuestra primero Store/Bank válidos con fuente fixture sin handle,
+antes de exigir que el handle retirado rechace las cuatro operaciones sin fallback
+ni publicación. No se ejecutó validación. Sigue pendiente la ejecución completa
+swap/equip; el siguiente mapa asignado cubre real-swap, sus callers y todos los
+efectos anteriores y posteriores al await, no solo la planificación.
 
 Quest eligibility de visibilidad también está escrito como módulo privado: nivel,
 race/class y CanSeeStart conservan disable, status, recurrence, seasonal, prev-quest
