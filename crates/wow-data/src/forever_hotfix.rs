@@ -6,9 +6,16 @@
 use crate::{HotfixBlobCache, hotfix_cache::HotfixRecordStatus, wdc4::Wdc4Reader};
 use anyhow::{Result, ensure};
 use std::{
+    borrow::Cow,
     collections::{BTreeMap, BTreeSet},
     path::Path,
+    sync::Arc,
 };
+mod items;
+mod spells;
+use crate::forever_birth::{item_records::ItemCatalog, item_specs::ItemSpecCatalog};
+use crate::forever_spells::{SPELL_TABLE_HASHES, SpellCatalog};
+pub use items::ITEM_TABLE_HASHES;
 
 pub const TACT_KEY_TABLE_HASH: u32 = 0xDF2F53CF;
 pub const TACT_KEY_LAYOUT_HASH: u32 = 0xCBA490FC;
@@ -90,11 +97,14 @@ impl ForeverTactKeys {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RecordError {
     UnportedStore,
+    InvalidLocale,
 }
 
 pub struct ForeverHotfixCatalog {
     metadata: HotfixBlobCache,
     tact_keys: ForeverTactKeys,
+    item_stores: Option<items::ItemHotfixStores>,
+    spell_stores: Option<spells::SpellHotfixStores>,
 }
 
 impl ForeverHotfixCatalog {
@@ -125,7 +135,64 @@ impl ForeverHotfixCatalog {
         Ok(Self {
             metadata,
             tact_keys,
+            item_stores: None,
+            spell_stores: None,
         })
+    }
+
+    /// Immutable shared records, already composed/removal-filtered by startup.
+    /// The same allocation feeds template rules: no cloned raw catalog.
+    pub fn with_item_stores(
+        mut self,
+        data: Arc<ItemCatalog>,
+        specs: Arc<ItemSpecCatalog>,
+    ) -> Result<Self> {
+        ensure!(
+            ITEM_TABLE_HASHES.iter().all(|&hash| self.has_store(hash)),
+            "All seven item stores must be registered before hotfix metadata loading"
+        );
+        self.item_stores = Some(items::ItemHotfixStores { data, specs });
+        Ok(self)
+    }
+
+    pub fn has_serializer(&self, hash: u32) -> bool {
+        hash == TACT_KEY_TABLE_HASH
+            || (self.item_stores.is_some() && ITEM_TABLE_HASHES.contains(&hash))
+            || (self.spell_stores.is_some() && SPELL_TABLE_HASHES.contains(&hash))
+    }
+
+    /// Shared source inputs, already fully composed and removal-filtered.
+    /// Gameplay assembly and hotfix delivery borrow the same allocation.
+    pub fn with_spell_stores(mut self, data: Arc<SpellCatalog>) -> Result<Self> {
+        ensure!(
+            SPELL_TABLE_HASHES.iter().all(|&hash| self.has_store(hash)),
+            "All 36 spell stores must be registered before hotfix metadata loading"
+        );
+        self.spell_stores = Some(spells::SpellHotfixStores { data });
+        Ok(self)
+    }
+
+    pub fn write_record(
+        &self,
+        hash: u32,
+        id: u32,
+        locale: u8,
+    ) -> Result<Option<Cow<'_, [u8]>>, RecordError> {
+        if locale >= 12 || locale == 9 {
+            return Err(RecordError::InvalidLocale);
+        }
+        if ITEM_TABLE_HASHES.contains(&hash) {
+            if let Some(stores) = &self.item_stores {
+                return Ok(stores.record(hash, id, locale).map(Cow::Owned));
+            }
+        }
+        if SPELL_TABLE_HASHES.contains(&hash) {
+            if let Some(stores) = &self.spell_stores {
+                return Ok(stores.record(hash, id, locale).map(Cow::Owned));
+            }
+        }
+        self.record(hash, id)
+            .map(|record| record.map(Cow::Borrowed))
     }
 
     pub fn metadata(&self) -> &HotfixBlobCache {
@@ -138,11 +205,11 @@ impl ForeverHotfixCatalog {
         self.metadata.has_table(hash)
     }
 
-    /// Typed WriteRecord equivalent. Unknown stores/missing typed records are
-    /// genuinely absent; unported known stores are explicit integration errors.
+    /// Borrowed Tact fast path; other serializers use write_record. Unknown
+    /// stores/missing typed records are absent; known unported stores are errors.
     /// TactKey permits no optional data in this source (the allowed TactKey key
     /// belongs to BroadcastText, not to TactKey itself).
-    pub fn record(&self, hash: u32, id: u32) -> Result<Option<&[u8]>, RecordError> {
+    fn record(&self, hash: u32, id: u32) -> Result<Option<&[u8]>, RecordError> {
         if hash == TACT_KEY_TABLE_HASH {
             return Ok(self.tact_keys.records.get(&id).map(|key| key.as_slice()));
         }

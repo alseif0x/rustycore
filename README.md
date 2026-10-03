@@ -61,6 +61,12 @@ No password bypass or synthetic login success.
 > creation screen is not persistence. The normal fixture stays offline.
 > The diagnostic launcher setup is not a turnkey client installer.
 
+Character/world integration is **paused pending the `3.4.3` architecture refactor**.
+The current source checkpoint preserves unfinished readers, initialization,
+spell/skill operations and authored tests; it is not a compiled, installed or
+playable milestone. Independent extractor work continues in
+[rustycore-extractors](https://github.com/alseif0x/rustycore-extractors/tree/forever).
+
 ## What works today
 
 Evidence recorded on **2026-10-02–03**, with the real Windows x64 client running in
@@ -79,6 +85,12 @@ an isolated Wine environment on a Linux x86_64 host:
 | World TCP, V2 preamble and AuthSession proof | Verified in isolated probe | Native 70170 digest verified; 40-byte session key persisted; build key kept private |
 | Signed encryption / AES-256-GCM traffic | Verified in isolated probe | Native ACK, encrypted requests and server replies; no signature bypass |
 | Target character-data acquisition | Verified locally | Actual classes/races, six model/customization tables and 434 readable Achievement rows; nine Achievement rows remain unavailable |
+| Birth skill/loadout data | Effective composition implemented; Rust acceptance pending | Five real baselines + ten official/custom reads + final removals; 7833 readable baseline abilities with five unavailable encrypted rows, explicit source Skip; not learned skills or instantiated inventory |
+| Initial skill fields / learning | Canonical fields and learning coordinators authored; unvalidated | Source-ordered indices, first-match lookup, 300-slot preallocation and ordered SetSkill states/profession-child synchronization. Default learning checks live skill/level after each preceding effect; reward learning preserves condition/mask/level order and exact-spell removal. Actual condition/spell/aura/enchant/inventory executors and native acceptance remain pending |
+| Target spell inputs / hotfix delivery | 49-table and three spell-value GameTable acquisitions verified; working Rust composition remains unvalidated | 49 client stores and 668 hotfix SQL columns, including UnitCondition, talents, enchantments, visuals, liquids and expected-stat/item-value inputs; eight enUS/esES text families and difficulty fallback. Complete SpellScaling and item-level rating/stamina inputs have native numeric fingerprints; Rust differential remains pending. Source-contrasted expected-stat and random-property calculations are implemented but unexecuted. Independent 117-column server spells, 191 ID-correction groups, 153 implicit targets and all 361 effect-target metadata rows. Pinned Linux C++ replay supplies IDs only; one shared catalog owns full raw/hotfix records. Definitions retain 17 attribute words and 32/5 effect/cost slots. Full executable SpellInfo, learning and Player/save remain pending; no 3.4.3 fallback |
+| Initial item data / quantities / source list | Numeric producer integrated in working code; acceptance pending | Four target baseline readers + eight official/custom SQL reads + final removals; source food/drink/DK counts, effect order, contexts, race masks and signed overrides. Rust/actual-file acceptance, full templates, equip and save still pending |
+| Numeric item-template rules | Implemented in working startup; acceptance pending | Three complete spec/relic baselines + six hotfix reads + addons; source durability, five specialization slots/class and effect order. Bonuses/scripts, equip and Rust/native acceptance still pending |
+| Item hotfix delivery / localized texts | Integrated in working code; unvalidated | Seven source-ordered serializers, separate enUS/esES text overlays and shared immutable item records; no external IDs/compressed DB2 bytes in payloads. Rust/actual-file/native acceptance pending |
 | Target Session / initial server packet sequence | Verified in isolated probe | Real Character/Auth query holders, ordered success initialization and native enum request |
 | TactKey DBQueryBulk / DBReply | Implemented; native batch observed | Real baseline + official/custom SQL overlays; missing requested records get Invalid, never fabricated keys |
 | Empty character selection | Verified with real client | Database-backed empty list and «Crear personaje» button |
@@ -86,8 +98,50 @@ an isolated Wine environment on a Linux x86_64 host:
 | Target appearance validation | Implemented; native QA passed | Seven real DB2 baselines + SQL overlays/removals; nine native human-warrior choices validate, without a save/success response |
 | Name availability | Native 70170 verified | Valid name shows green; server-configured rejection shows red and disables Finish. Exact sequence/result response; not a reservation or Create success |
 | Target name rules | Local acceptance passing | Real WDC5/SQL catalog, finite UTF-16 casing, pinned Boost Perl/icase engine, reserved-name ordering and scoped default RBAC |
-| Character creation / nonempty enumeration | Pending | Name/admission, starting Player state and durable persistence still required; no character saved |
+| Creation inputs / populated-list codecs | Implementation in progress | Target SQL including all 16 skill-tier values, seven effective initialization stores, signed stats/vitals, source start-level/money and template preparation; new Rust acceptance pending, no admitted Player/save |
+| Local nonempty character selection | Implementation in progress | Target two-query holder, all 19 equipment slots, appearance/flags and one Session authorization set; new Rust/native acceptance pending, visible-pet integration still open |
+| Character creation | Pending | Name/admission, starting Player state and durable persistence still required; no character saved |
 | Initial world load | Pending | Requires target-build packets and appropriate world/client data |
+
+Working spell initialization now connects the complete ordered custom-attribute
+and positivity pass, including null-caster values and the pinned SFMT/frand
+adapter, consulting the same shared catalogs. Rust compilation and the new
+comparisons remain pending; this is not a verified playable milestone.
+Remaining derived spell semantics, character save and world entry are unfinished.
+Diminishing/visual selection now uses complete effective `UnitCondition` inputs.
+Source immunity metadata, its separate World SQL catalog and all 25 target-cap
+rules are connected after that phase. The working startup now also connects
+source-ordered ranks, required-spell relationships, learned-skill metadata,
+spell-specific/aura-state classification and SQL/effect/DB2 learning relationships.
+These are spell metadata, not an executed Player spellbook or learned skills.
+Source `IsSpellValid` now queries the same numeric item-template authority,
+preserving physical effects, recursive regular-difficulty learning and reagent
+order. Player-owned skill fields and actual temporary/permanent bonus propagation
+are authored; full `SetSkill` and spell/aura execution remain unfinished.
+The `SetSkill` field/state coordinator now preserves ordered mandatory effects,
+profession inventory early returns and final child synchronization. Its recording
+tests are not an actual Player effect executor; creation remains disabled.
+Default skills now run through that coordinator with live admission checks.
+Reward learning itself is integrated, replacing its generic callback with
+source-ordered condition and spellbook commands. Concrete conditions/AddSpell/
+LearnSpell effects remain required; no empty executor enables creation.
+The Player spellbook now owns source states, temporary spells, favorites and
+known/active queries in working code. Its numeric-only native traversal replays
+membership history and borrows canonical entries; actual PlayerSpellMap oracle
+and domain/ABI cases are authored, unexecuted. AddSpell/LearnSpell now coordinate
+real book transitions, recursive rank/dependent learning, passive/cast decisions,
+skill commands, criteria and mount ordering in working code, with 31 unexecuted
+domain cases. RemoveSpell is also authored, with 29 further unexecuted cases for
+dependency removal, lower-rank restoration, aura/profession/weapon commands and
+failure/reentry ordering. Mandatory Unit/pet/SetSkill/inventory-mail/collection/
+publication executors and durable persistence remain required; creation is still disabled.
+Cast-definition resolution now follows canonical override groups and applied-aura
+inputs, preserving source unordered-set order and the shared five-slot context.
+Nineteen domain/four ABI cases, 420 independent set histories and 22 extracted
+C++ resolver cases are authored, unexecuted. This selects a definition; it is not
+an actual Unit cast/aura executor or a completed Player/creation milestone.
+All working Rust remains uncompiled/unexecuted; actual Player initialization,
+live immunity/skill/spell effects, durable save and world entry remain required.
 
 The current evidence includes **133 BNet tests**, **364 database tests** (2
 additional integration tests ignored), **40 Python tests**, **59 crypto tests**,

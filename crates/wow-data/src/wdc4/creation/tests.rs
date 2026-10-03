@@ -4,6 +4,176 @@ use std::collections::HashMap;
 
 const FIELDS: usize = 9;
 
+#[test]
+fn birth_masks_keep_both_words_and_signed_skill_metadata_keeps_unsigned_ids() {
+    let table = CreationTable::SkillRaceClass;
+    let fields = 7;
+    let mut info = vec![field(CompressionType::None, 0, 0, 0, 0); fields];
+    info[4].field_offset_bits = 16;
+    info[5].field_offset_bits = 24;
+    info[6].field_offset_bits = 40;
+    let data = vec![0xff, 0xff, 0x80, 0, 0x80, 1, 0, 0, 0x80, 2, 0, 0, 0x80];
+    let make = |parent| {
+        reader(
+            table,
+            &[7],
+            data.len(),
+            data.clone(),
+            info.clone(),
+            vec![vec![]; fields],
+            vec![HashMap::new(); fields],
+            vec![],
+            vec![parent],
+            0,
+            0,
+            0,
+        )
+    };
+    let value = CreationDb2::checked(make(None), table).unwrap();
+    assert_eq!(value.bits(7, 0, 0).unwrap() as u16, u16::MAX);
+    assert_eq!(value.bits(7, 4, 0).unwrap() as i8, i8::MIN);
+    assert_eq!(value.bits(7, 5, 0).unwrap() as i16, i16::MIN);
+    assert_eq!(value.bits(7, 6, 0).unwrap(), 0x8000_0001);
+    assert_eq!(value.bits(7, 6, 1).unwrap(), 0x8000_0002);
+    assert!(value.bits(7, 6, 2).is_err());
+    let value = CreationDb2::checked(make(Some(65535)), table).unwrap();
+    assert_eq!(value.bits(7, 0, 0).unwrap(), 65535);
+    let value = CreationDb2::checked(make(Some(65536)), table).unwrap();
+    assert!(value.bits(7, 0, 0).is_err());
+}
+
+#[test]
+fn birth_schema_hash_and_layout_gates_apply_to_every_numeric_table() {
+    for table in [
+        CreationTable::SkillLine,
+        CreationTable::SkillRaceClass,
+        CreationTable::SkillAbility,
+        CreationTable::Loadout,
+        CreationTable::LoadoutItem,
+    ] {
+        let fields = table.schema().fields;
+        let make = || {
+            reader(
+                table,
+                &[7],
+                12,
+                [7u32, 0x8000_0001, 0x8000_0002]
+                    .into_iter()
+                    .flat_map(u32::to_le_bytes)
+                    .collect(),
+                vec![field(CompressionType::None, 0, 0, 0, 0); fields],
+                vec![vec![]; fields],
+                vec![HashMap::new(); fields],
+                vec![],
+                vec![None],
+                0,
+                0,
+                0,
+            )
+        };
+        assert!(CreationDb2::checked(make(), table).is_ok());
+        let mut invalid = make();
+        invalid.header.table_hash ^= 1;
+        assert!(CreationDb2::checked(invalid, table).is_err());
+        let mut invalid = make();
+        invalid.header._layout_hash ^= 1;
+        assert!(CreationDb2::checked(invalid, table).is_err());
+        let mut invalid = make();
+        invalid.header._parent_lookup_count ^= 1;
+        assert!(CreationDb2::checked(invalid, table).is_err());
+    }
+}
+
+#[test]
+fn class_inline_id_is_a_byte_not_a_four_byte_record_read() {
+    let make = |ids: &[u32], copies| {
+        reader(
+            CreationTable::Class,
+            ids,
+            1,
+            vec![7],
+            vec![field(CompressionType::None, 0, 0, 0, 0); 43],
+            vec![vec![]; 43],
+            vec![HashMap::new(); 43],
+            copies,
+            vec![None],
+            0,
+            0,
+            0,
+        )
+    };
+    let table = CreationDb2::checked(make(&[7], vec![(255, 7)]), CreationTable::Class).unwrap();
+    assert_eq!(table.bits(7, 29, 0).unwrap(), 7);
+    assert_eq!(table.bits(255, 29, 0).unwrap(), 255);
+    assert_eq!(table.bits(7, 32, 0).unwrap(), 7);
+    assert!(CreationDb2::checked(make(&[8], vec![]), CreationTable::Class).is_err());
+    assert!(CreationDb2::checked(make(&[7], vec![(256, 7)]), CreationTable::Class).is_err());
+}
+
+#[test]
+fn class_power_class_comes_from_byte_parent_not_a_fabricated_in_record_column() {
+    let make = |parent| {
+        reader(
+            CreationTable::ClassPower,
+            &[7],
+            1,
+            vec![255],
+            vec![field(CompressionType::None, 0, 0, 0, 0)],
+            vec![vec![]],
+            vec![HashMap::new()],
+            vec![],
+            vec![parent],
+            0,
+            0,
+            0,
+        )
+    };
+    let table = CreationDb2::checked(make(Some(9)), CreationTable::ClassPower).unwrap();
+    assert_eq!(table.bits(7, 0, 0).unwrap() as i8, -1);
+    assert_eq!(table.bits(7, 1, 0).unwrap(), 9);
+    // Missing relationship leaves the source-initialized extra parent zero.
+    let table = CreationDb2::checked(make(None), CreationTable::ClassPower).unwrap();
+    assert_eq!(table.bits(7, 1, 0).unwrap(), 0);
+    let table = CreationDb2::checked(make(Some(256)), CreationTable::ClassPower).unwrap();
+    assert!(table.bits(7, 1, 0).is_err());
+}
+
+#[test]
+fn specialization_in_record_parent_does_not_invent_a_relationship_lookup() {
+    let make = || {
+        let fields = 13;
+        let mut value = reader(
+            CreationTable::Specialization,
+            &[7],
+            4,
+            7u32.to_le_bytes().to_vec(),
+            vec![field(CompressionType::None, 0, 0, 0, 0); fields],
+            vec![vec![]; fields],
+            vec![HashMap::new(); fields],
+            vec![],
+            vec![None],
+            0,
+            0,
+            0,
+        );
+        value.header._parent_lookup_count = 0;
+        value
+    };
+    let store = CreationDb2::checked(make(), CreationTable::Specialization).unwrap();
+    assert_eq!(store.bits(7, 4, 0).unwrap(), 7);
+    let mut invalid = make();
+    invalid.header._parent_lookup_count = 1;
+    assert!(CreationDb2::checked(invalid, CreationTable::Specialization).is_err());
+    // A no-parent schema still forbids relationship data.
+    let mut invalid = make();
+    let schema = CreationTable::PowerType.schema();
+    invalid.header.table_hash = schema.hash;
+    invalid.header._layout_hash = schema.layout;
+    invalid.header.id_index = 2;
+    invalid.header._parent_lookup_count = 1;
+    assert!(CreationDb2::checked(invalid, CreationTable::PowerType).is_err());
+}
+
 fn field(
     compression: CompressionType,
     additional_data_size: u32,

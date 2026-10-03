@@ -5,14 +5,22 @@
 
 pub mod appearance;
 mod catalog;
+pub mod creation;
 mod handlers;
 pub mod name_rules;
+pub mod permissions;
+pub mod player;
 mod presentation;
+pub mod selection;
+pub mod spells;
 #[cfg(test)]
 mod tests;
 
 use crate::session::registry::PacketHandlerEntryFor;
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+};
 use wow_data::forever_hotfix::ForeverHotfixCatalog;
 use wow_handler::PacketProcessing;
 use wow_persistence::forever::{AccountSnapshot, LoadError, SessionRepository};
@@ -31,6 +39,7 @@ enum Phase {
     Encrypted,
     Initializing,
     Authenticated,
+    Selecting,
     Closed,
 }
 
@@ -51,8 +60,9 @@ pub struct Identity {
     pub realm_address: u32,
     pub account_expansion: u8,
     pub dbc_locale: u8,
-    /// Effective RBAC permission 17. It bypasses SQL names only, not DB2 rules.
-    pub skip_sql_reserved_names: bool,
+    /// Canonical immutable default-RBAC projection. Composition admits only
+    /// security zero and no explicit grants/denials before supplying it.
+    pub permissions: Arc<permissions::DefaultAccountPermissions>,
 }
 
 pub struct InitializationPolicy {
@@ -62,6 +72,7 @@ pub struct InitializationPolicy {
     pub cache_version: u32,
     pub content_set: i32,
     pub max_characters: i32,
+    pub character_templates: Arc<creation::CharacterTemplates>,
 }
 
 /// Payload is deliberately not Debug. Metadata can be recorded without rows.
@@ -100,6 +111,8 @@ pub struct Session {
     hotfixes: Arc<ForeverHotfixCatalog>,
     name_rules: Arc<name_rules::NameRules>,
     name_policy: name_rules::NamePolicy,
+    selection_policy: selection::SelectionPolicy,
+    legitimate_characters: HashSet<wow_core::ObjectGuid>,
     registry: HashMap<u32, &'static Entry>,
     latency: u32,
     enumerated: bool,
@@ -113,6 +126,7 @@ impl Session {
         hotfixes: Arc<ForeverHotfixCatalog>,
         name_rules: Arc<name_rules::NameRules>,
         name_policy: name_rules::NamePolicy,
+        selection_policy: selection::SelectionPolicy,
     ) -> Result<Self, SessionError> {
         let mut registry = HashMap::new();
         for entry in inventory::iter::<Entry> {
@@ -136,6 +150,8 @@ impl Session {
             hotfixes,
             name_rules,
             name_policy,
+            selection_policy,
+            legitimate_characters: HashSet::new(),
             registry,
             latency: 0,
             enumerated: false,
@@ -211,7 +227,7 @@ impl Session {
         }
         let result = (entry.handler)(self, catalog, request).await;
         if result.is_err() {
-            self.phase = Phase::Closed;
+            self.close();
         }
         result.map(Some)
     }
@@ -219,6 +235,8 @@ impl Session {
     /// Transport publication failure/cancellation closes this incarnation.
     pub fn close(&mut self) {
         self.phase = Phase::Closed;
+        self.legitimate_characters.clear();
+        self.enumerated = false;
     }
     pub fn is_closed(&self) -> bool {
         self.phase == Phase::Closed

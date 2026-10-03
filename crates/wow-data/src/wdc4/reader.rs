@@ -4,6 +4,15 @@
 
 use super::*;
 
+#[derive(Clone, Copy)]
+enum AvailablePrefix {
+    Achievement,
+    InitialMap,
+    BirthAbilities,
+    Item(super::available::items::ItemPrefix),
+    Spell(super::creation::SpellTable),
+}
+
 // ── Reader ───────────────────────────────────────────────────────────
 
 /// Parsed WDC4 or bounded regular WDC5 file ready for field access.
@@ -39,19 +48,72 @@ impl Wdc4Reader {
     /// Open WDC4 or bounded regular WDC5. Full target-schema checks belong to
     /// the typed table consumer, not a generic header's declared hash alone.
     pub fn open(path: &Path) -> Result<Self> {
-        Self::open_inner(path, false)
+        Self::open_inner(path, None)
     }
 
     /// Pinned build-70170 Achievement acquisition: retain only its readable
     /// prefix. C++ DB2FileLoader::LoadTableData skips unknown TACT sections;
     /// no inaccessible bytes/IDs are replaced with zeros or declared present.
     pub(crate) fn open_available_achievement(path: &Path) -> Result<Self> {
-        Self::open_inner(path, true)
+        Self::open_inner(path, Some(AvailablePrefix::Achievement))
     }
 
-    fn open_inner(path: &Path, available_achievement: bool) -> Result<Self> {
-        let data =
-            std::fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
+    pub(crate) fn open_available_initial_map(path: &Path) -> Result<Self> {
+        Self::open_inner(path, Some(AvailablePrefix::InitialMap))
+    }
+
+    pub(crate) fn open_available_birth_abilities(path: &Path) -> Result<Self> {
+        Self::open_inner(path, Some(AvailablePrefix::BirthAbilities))
+    }
+
+    pub(in crate::wdc4) fn open_available_item(
+        path: &Path,
+        table: super::available::items::ItemPrefix,
+    ) -> Result<Self> {
+        Self::open_inner(path, Some(AvailablePrefix::Item(table)))
+    }
+
+    fn open_inner(path: &Path, available: Option<AvailablePrefix>) -> Result<Self> {
+        Self::open_bounded_inner(path, available, None)
+    }
+
+    pub(in crate::wdc4) fn open_spell_table(path: &Path) -> Result<Self> {
+        Self::open_bounded_inner(path, None, Some(4 * 1024 * 1024))
+    }
+
+    pub(in crate::wdc4) fn open_available_spell(
+        path: &Path,
+        table: super::creation::SpellTable,
+    ) -> Result<Self> {
+        Self::open_bounded_inner(
+            path,
+            Some(AvailablePrefix::Spell(table)),
+            Some(4 * 1024 * 1024),
+        )
+    }
+
+    fn open_bounded_inner(
+        path: &Path,
+        available: Option<AvailablePrefix>,
+        byte_limit: Option<usize>,
+    ) -> Result<Self> {
+        let byte_limit = match available {
+            Some(AvailablePrefix::Item(table)) => Some(table.byte_limit()),
+            _ => byte_limit,
+        };
+        let data = if let Some(limit) = byte_limit {
+            use std::io::Read;
+            let file =
+                std::fs::File::open(path).context("Cannot open private target item prefix")?;
+            let mut bytes = Vec::new();
+            file.take(limit as u64 + 1)
+                .read_to_end(&mut bytes)
+                .context("Cannot read bounded target item prefix")?;
+            ensure!(bytes.len() <= limit, "Target DB2 read exceeds bound");
+            bytes
+        } else {
+            std::fs::read(path).with_context(|| format!("failed to read {}", path.display()))?
+        };
 
         ensure!(
             data.len() >= WDC4_HEADER_SIZE,
@@ -103,8 +165,26 @@ impl Wdc4Reader {
         }
 
         if header.format_version == 5 {
-            if available_achievement {
-                super::available::validate_prefix(&header, &sections, data.len())?;
+            if let Some(prefix) = available {
+                match prefix {
+                    AvailablePrefix::Achievement => {
+                        super::available::validate_prefix(&header, &sections, data.len())?
+                    }
+                    AvailablePrefix::InitialMap => {
+                        super::available::validate_initial_map(&header, &sections, data.len())?
+                    }
+                    AvailablePrefix::BirthAbilities => {
+                        super::available::validate_birth_abilities(&header, &sections, data.len())?
+                    }
+                    AvailablePrefix::Item(table) => {
+                        table.validate(&header, &sections, data.len())?
+                    }
+                    AvailablePrefix::Spell(table) => {
+                        super::available::spells::contract(table)
+                            .context("Not an admitted spell prefix")?
+                            .validate(table, &header, &sections, data.len())?;
+                    }
+                }
             } else {
                 ensure!(
                     sections.iter().all(|section| section._tact_key_hash == 0),
@@ -121,8 +201,8 @@ impl Wdc4Reader {
             );
         }
         ensure!(
-            !available_achievement || header.format_version == 5,
-            "Available Achievement requires WDC5"
+            available.is_none() || header.format_version == 5,
+            "Available target prefix requires WDC5"
         );
 
         let has_no_records = header.record_count == 0
@@ -229,7 +309,7 @@ impl Wdc4Reader {
         }
 
         for (si, sec) in sections.iter().enumerate() {
-            if available_achievement && sec._tact_key_hash != 0 {
+            if available.is_some() && sec._tact_key_hash != 0 {
                 continue;
             }
             if sec.record_count == 0 && sec.copy_table_count == 0 {

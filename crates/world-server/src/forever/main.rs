@@ -1,11 +1,22 @@
 //! Build-70170 account-phase server, explicitly restricted to the disposable
 //! local target while character/world operations are being ported.
 mod appearance;
+mod birth;
+mod birth_skill_lookup;
 mod bootstrap;
 mod character_capture;
 mod connection;
+mod initialization;
+mod item_specs;
+mod items;
 mod name_regex;
 mod names;
+mod ruleset;
+mod spell_book_order;
+mod spell_random;
+mod spell_traversal;
+mod spells;
+mod start_config;
 
 use anyhow::Result;
 
@@ -26,7 +37,10 @@ async fn main() {
 async fn run() -> Result<()> {
     let runtime = bootstrap::load().await?;
     let listener = tokio::net::TcpListener::bind("127.0.0.1:18085").await?;
-    println!("Forever build-70170 isolated account-phase server ready on 127.0.0.1:18085.");
+    println!(
+        "Forever build-70170 isolated account-phase server ready on 127.0.0.1:18085; effective birth counts={:?}; no Player skills/spells/items or creation admitted.",
+        runtime.birth.counts()
+    );
     // One sequential owner, no detached sessions, mirror or background writer.
     loop {
         let (stream, peer) = tokio::select! {

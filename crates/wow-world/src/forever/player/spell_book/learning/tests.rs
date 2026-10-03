@@ -1,0 +1,11 @@
+mod admission;
+mod existing;
+mod fixtures;
+mod learning;
+mod passive;
+mod removal;
+mod removal_skills;
+mod skills;
+use super::super::{PlayerSpellEntry, PlayerSpellState};
+use super::*;
+use fixtures::*;

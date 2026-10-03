@@ -3,8 +3,10 @@
 //! 02245dcd DB2FileLoader.cpp:635-696,807-922: packed offset + compression,
 //! typed array stride and parent override; copies consume materialized sources.
 mod schema;
+mod spells;
 mod strings;
 pub(crate) use schema::CreationTable;
+pub(crate) use spells::SpellTable;
 
 use super::{CompressionType, Wdc4Reader};
 use anyhow::{Context, Result, ensure};
@@ -19,20 +21,65 @@ pub(crate) struct CreationDb2 {
 impl CreationDb2 {
     pub(crate) fn open(directory: &Path, table: CreationTable) -> Result<Self> {
         let schema = table.schema();
-        let reader = Wdc4Reader::open(&directory.join(format!("{}.db2", schema.name)))?;
+        let path = directory.join(format!("{}.db2", schema.name));
+        let reader = if matches!(table, CreationTable::Spell(_)) {
+            Wdc4Reader::open_spell_table(&path)?
+        } else {
+            Wdc4Reader::open(&path)?
+        };
+        if empty_item_template(&reader, table) || spells::empty(&reader, table) {
+            // Source LoadHeaders reads the primitive metadata even when
+            // ColumnMetaSize=0. Require the complete file, not header-only
+            // false absence through the older regular reader's empty shortcut.
+            ensure!(
+                std::fs::metadata(&path)?.len() == 204 + schema.fields as u64 * 4,
+                "Incomplete empty item template table metadata"
+            );
+        }
         Self::checked(reader, table)
+    }
+
+    pub(crate) fn open_initial_map_prefix(directory: &Path) -> Result<Self> {
+        let reader = Wdc4Reader::open_available_initial_map(&directory.join("Map.available.db2"))?;
+        Self::checked(reader, CreationTable::Map)
+    }
+
+    pub(crate) fn open_birth_ability_prefix(directory: &Path) -> Result<Self> {
+        let reader = Wdc4Reader::open_available_birth_abilities(
+            &directory.join("SkillLineAbility.available.db2"),
+        )?;
+        Self::checked(reader, CreationTable::SkillAbility)
+    }
+
+    pub(crate) fn open_item_prefix(directory: &Path, table: CreationTable) -> Result<Self> {
+        use super::available::items::ItemPrefix;
+        let prefix = match table {
+            CreationTable::Item => ItemPrefix::Basic,
+            CreationTable::ItemEffect => ItemPrefix::Effect,
+            CreationTable::ItemEffectRelation => ItemPrefix::Relation,
+            _ => anyhow::bail!("Not a target item prefix table"),
+        };
+        let path = directory.join(format!("{}.available.db2", table.schema().name));
+        Self::checked(Wdc4Reader::open_available_item(&path, prefix)?, table)
     }
 
     fn checked(reader: Wdc4Reader, table: CreationTable) -> Result<Self> {
         let schema = table.schema();
+        if let CreationTable::Spell(spell) = table {
+            spells::check_header(&reader, spell)?;
+        }
         ensure!(
             reader.format_version() == 5
                 && reader.table_hash() == schema.hash
                 && reader.layout_hash() == schema.layout
-                && reader.field_count() == schema.fields
+                && (reader.field_count() == schema.fields
+                    || empty_item_template(&reader, table)
+                    || spells::empty(&reader, table))
                 && reader.declared_field_count() as usize == schema.fields
                 && reader.inline_id_field() == schema.id
-                && reader.parent_lookup_count() == u32::from(schema.parent.is_some()),
+                && (reader.parent_lookup_count() == table.parent_lookup_count()
+                    || empty_item_template(&reader, table)
+                    || spells::empty(&reader, table)),
             "Wrong creation DB2 schema"
         );
         validate_blobs(&reader)?;
@@ -47,8 +94,10 @@ impl CreationDb2 {
                 "Duplicate creation DB2 ID"
             );
             if let Some(field) = schema.id {
+                let (bits, count) = table.numeric(field).context("Unported creation ID type")?;
+                ensure!(count == 1, "Creation ID cannot be an array");
                 ensure!(
-                    numeric(&reader, index, field, 0, 32, 1)? == id,
+                    numeric(&reader, index, field, 0, bits, 1)? == id,
                     "Creation inline ID reader mismatch"
                 );
             }
@@ -56,11 +105,42 @@ impl CreationDb2 {
         // C++ AutoProduceRecordCopies walks file order. A prior copy can be
         // a source; a missing/forward/cyclic source is not manufactured here.
         for &(new, source) in &reader.copy_table {
+            // Target regular loader 02245dcd:613-632 skips unresolved/zero
+            // sources and overwrites targets in file order. Preserve existing
+            // non-item admission; never globally relax the older readers.
+            if matches!(
+                table,
+                CreationTable::Item
+                    | CreationTable::ItemEffect
+                    | CreationTable::ItemEffectRelation
+                    | CreationTable::ItemSpec
+                    | CreationTable::ItemSpecOverride
+                    | CreationTable::GemProperties
+                    | CreationTable::Spell(_)
+            ) {
+                ensure!(
+                    new <= reader.header.max_id,
+                    "Item copy ID exceeds declared maximum"
+                );
+                if source != 0 {
+                    if let Some(&index) = records.get(&source) {
+                        records.insert(new, index);
+                    }
+                }
+                continue;
+            }
             ensure!(source != 0, "Unsupported zero copy source");
             let index = *records.get(&source).context("Unresolved creation copy")?;
             ensure!(
                 records.insert(new, index).is_none(),
                 "Duplicate creation copy ID"
+            );
+        }
+        if let Some(field) = schema.id {
+            let (bits, _) = table.numeric(field).context("Unported creation ID type")?;
+            ensure!(
+                bits == 32 || records.keys().all(|id| *id < (1 << bits)),
+                "Creation copy ID exceeds its source type"
             );
         }
         // GetMaxId (02245dcd DB2FileLoader.cpp:955-977) includes copy IDs
@@ -73,7 +153,16 @@ impl CreationDb2 {
             "Creation IDs exceed declared maximum"
         );
         ensure!(
-            records.len() == reader.total_count(),
+            matches!(
+                table,
+                CreationTable::Item
+                    | CreationTable::ItemEffect
+                    | CreationTable::ItemEffectRelation
+                    | CreationTable::ItemSpec
+                    | CreationTable::ItemSpecOverride
+                    | CreationTable::GemProperties
+                    | CreationTable::Spell(_)
+            ) || records.len() == reader.total_count(),
             "Incomplete creation IDs"
         );
         Ok(Self {
@@ -85,6 +174,20 @@ impl CreationDb2 {
 
     pub(crate) fn ids(&self) -> impl Iterator<Item = u32> + '_ {
         self.records.keys().copied()
+    }
+
+    /// Regular DB2FileLoader::GetMaxId (02245dcd:955-978), before copies
+    /// materialize. An unresolved copy still reserves an index; an empty
+    /// regular store reserves index zero. Do not use the header MaxId or
+    /// infer this bound from only the materialized records.
+    pub(crate) fn storage_last_index(&self) -> u32 {
+        self.reader
+            .record_ids
+            .iter()
+            .copied()
+            .chain(self.reader.copy_table.iter().map(|&(new, _)| new))
+            .max()
+            .unwrap_or(0)
     }
 
     pub(crate) fn bits(&self, id: u32, field: usize, array_index: usize) -> Result<u32> {
@@ -113,6 +216,24 @@ impl CreationDb2 {
         }
         numeric(&self.reader, index, field, array_index, bits, count)
     }
+}
+
+fn empty_item_template(reader: &Wdc4Reader, table: CreationTable) -> bool {
+    matches!(
+        table,
+        CreationTable::ItemSpec | CreationTable::ItemSpecOverride | CreationTable::GemProperties
+    ) && reader.header.record_count == 0
+        && reader.header.section_count == 0
+        && reader.header.record_size == 0
+        && reader.header.string_table_size == 0
+        && reader.header.field_storage_info_size == 0
+        && reader.header.common_data_size == 0
+        && reader.header.pallet_data_size == 0
+        && reader.header.flags == 4
+        && reader.header.total_field_count == reader.header.field_count
+        && reader.header._parent_lookup_count <= 1
+        && reader.field_info.is_empty()
+        && (table.schema().parent.is_some() || reader.header._parent_lookup_count == 0)
 }
 
 fn validate_blobs(reader: &Wdc4Reader) -> Result<()> {

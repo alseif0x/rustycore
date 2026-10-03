@@ -3,6 +3,16 @@ use super::*;
 use name_rules::{NameRuleError, NameRules, Pattern, Patterns};
 use std::future::Future;
 
+fn reserved_name_permissions() -> Arc<permissions::DefaultAccountPermissions> {
+    Arc::new(permissions::DefaultAccountPermissions::load(
+        wow_persistence::forever::permissions::DefaultPermissionRows {
+            known: vec![17, 195],
+            links: vec![(195, 17)],
+            roots: vec![195],
+        },
+    ))
+}
+
 fn request(name: &str) -> Request {
     let mut packet = wow_packet::WorldPacket::new_empty();
     packet.write_uint32(0x12345678);
@@ -123,7 +133,7 @@ async fn sql_permission_does_not_bypass_db2_rules_or_engine_failures() {
             ["Elune".into()],
             [],
         ));
-        session.identity.skip_sql_reserved_names = true;
+        session.identity.permissions = reserved_name_permissions();
         session.initialize(&catalog, &policy(), 17).await.unwrap();
         match (session.dispatch(&catalog, request("Elune")).await, expected) {
             (Ok(Some(output)), Ok(code)) => result(output, code),
@@ -137,7 +147,7 @@ async fn sql_permission_does_not_bypass_db2_rules_or_engine_failures() {
     }
     let repository = Arc::new(Repository::good());
     let mut session = session(repository.clone());
-    session.identity.skip_sql_reserved_names = true;
+    session.identity.permissions = reserved_name_permissions();
     session.name_rules = Arc::new(NameRules::new(
         std::array::from_fn(|_| vec![]),
         vec![],
@@ -185,11 +195,22 @@ async fn cancelled_read_produces_no_result_and_transport_can_close_the_incarnati
         ) -> PersistenceFutureLikeCpp<'_, Result<AccountSnapshot, LoadError>> {
             self.0.load_account(account, bnet, realm)
         }
-        fn enumerate_empty(
+        fn load_character_selection(
             &self,
             account: u32,
+            declined: bool,
+        ) -> PersistenceFutureLikeCpp<
+            '_,
+            Result<wow_persistence::forever::selection::SelectionRows, LoadError>,
+        > {
+            self.0.load_character_selection(account, declined)
+        }
+        fn require_recustomization(
+            &self,
+            account: u32,
+            guid: u64,
         ) -> PersistenceFutureLikeCpp<'_, Result<(), LoadError>> {
-            self.0.enumerate_empty(account)
+            self.0.require_recustomization(account, guid)
         }
         fn name_in_use<'a>(
             &'a self,

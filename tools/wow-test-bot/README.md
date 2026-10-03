@@ -22,6 +22,28 @@ ordinary CI step or a turnkey client patcher. Its ignored private outputs and
 public certificate input must not be committed. None of these tools establishes
 playable characters or world loading without the corresponding native scenario.
 
+`test_forever_spell_traversal_oracle.py` is a separate **non-live** native
+source-container comparison for the current Forever creation candidate.
+It uses pinned Boost headers and target Git objects, builds in a temporary
+directory, and compares only synthetic identifier traversals. It does not
+authenticate, open the game, read client assets or write a database. The parent
+runs it exclusively at completed-delivery acceptance, following the
+[current build prerequisites](../../docs/operations/forever-login.md#working-spell-container-build-prerequisite),
+not as a per-helper test or proof of character creation/world entry.
+Its authored birth-skill extension also obtains the exact target
+`SkillRaceClassInfoContainer` typedef from Git objects and compares 84 synthetic
+pointer-payload equal-range cases with the IDs-only producer. The new extension
+and Rust lookup suites remain unexecuted; grouping/set/determinism tests alone
+are not proof of reference ordering or successful Player skill learning.
+
+`test_forever_spell_random_oracle.py` is the companion **non-live** source
+numerical comparison. It obtains pristine SFMT/seeding headers and exact
+RandomEngine/frand text from the pinned target Git objects, then compares
+synthetic seeded float bits and checks the production ABI. It never reseeds
+production TLS or accesses a DB, client assets or network. Both this driver
+and the new Rust candidate remain unexecuted; run them only in the parent's
+completed-delivery acceptance campaign, not as creation/world proof.
+
 Examples beginning `tools/` run from the repository root; examples beginning
 `./run_rustycore_login_smoke.sh` run from `tools/wow-test-bot`.
 
