@@ -2280,6 +2280,46 @@ los inputs representados, owners, flags o fallback legado. Compilación, pruebas
 capturas y aceptación no se ejecutaron. Trainer List/Buy completos siguen
 pendientes de aura, controller y preflush.
 
+**Integración en curso — 2026-10-03, 19:19 UTC (NO VALIDADO):**
+La revisión de fuentes detectó y confirmó corregidos el movimiento de una
+referencia mutable antes de registrar la finalización de una misión
+(`quest/completion.rs`), la importación de fixtures XP sin su cfg, y las
+referencias duplicadas de nivel/vitales en el contexto XP. La finalización
+conserva `Option<Option<u8>>`: la existencia del propietario y el resultado
+de la transición siguen siendo hechos distintos; la compatibilidad de tests
+se actualiza antes de aplanar el resultado. Esto todavía no demuestra el
+flujo completo de completion, visibilidad, recompensa automática y drain.
+
+El nuevo `equipment_set_use.rs` contiene decode, bucle de selección, movimientos,
+sincronización Registry, actualización Stats/fallback y respuesta. La fachada
+World ya delega el handler; el constructor de combate usa directamente Core
+para no devolver un préstamo de un propietario local. Los préstamos Stats
+se construyen desde campos disjuntos con vidas explícitas. Faltan la revisión
+completa de consumidores, registros y pruebas de esta unidad; no se declara
+aceptada por la presencia del cuerpo o de la fachada.
+
+Se contrastó `xp_gain.rs` con el código anterior de `progression_adapters.rs`
+y `Player.cpp:2176–2246` (`SetXP`/`GiveXP`) del SHA C++ ya registrado. Se
+preservan clamping, dirty/scaling y el fallback de tabla existente; el nuevo
+acceso no demuestra por sí solo paridad del GiveLevel completo. El proveedor
+de condiciones todavía necesita terminar su proyección y consumidores y
+retirar los cuerpos duplicados de género/objetos de condición. Ninguna de
+estas revisiones ejecutó Cargo, tests, validadores ni QA runtime; F5/F6 y
+la aceptación del macro siguen pendientes.
+
+La inspección posterior de visibilidad encontró un paso que no puede sustituirse
+por la conversión directa de bytes: `session/publication/operations.rs` filtra
+los flags NPC mediante `represented_viewer_dependent_creature_npc_flags_like_cpp`,
+que llama a `represented_can_see_spell_click_on_creature_like_cpp`. Aunque el
+primer gate de refresh solo comprueba la existencia de condiciones, este paso
+posterior construye objetos y snapshots, aplica reglas de usuario/reacción y
+evalúa condiciones con contexto vivo. `Hidden` retira SPELLCLICK; `Visible` y
+`ExactContextUnrepresented` conservan el flag. F5 debe mantener ese contrato
+completo, los clones y el orden; no sustituirlo por un filtro fail-closed nuevo.
+El borrador de envío directo fue retirado y el traslado completo sigue pendiente.
+La dependencia normal/fixtures App → `wow-world-entities` queda declarada en
+manifest, lock y policy por los imports reales del nuevo módulo de visibilidad.
+
 ### F6 — retirada de duplicados, pista de comportamiento
 
 Contraste ItemSet de continuación (2026-10-03, 18:38 UTC, inspección sin
