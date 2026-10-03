@@ -80,6 +80,7 @@ wow-world-spell = { workspace = true }
 wow-world-visibility = { workspace = true }
 
 [dev-dependencies]
+wow-data = { workspace = true, features = ["test-fixtures"] }
 wow-progression = { workspace = true, features = ["test-fixtures"] }
 wow-spell-acquisition = { workspace = true, features = ["test-fixtures"] }
 wow-world-core = { workspace = true, features = ["test-fixtures"] }

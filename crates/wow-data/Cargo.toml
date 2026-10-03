@@ -5,6 +5,10 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+# Narrow synthetic constructors for cross-crate tests; opt-in, not runtime data.
+test-fixtures = []
+
 [dependencies]
 wow-core = { workspace = true }
 wow-constants = { workspace = true }

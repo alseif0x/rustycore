@@ -5,7 +5,7 @@ use anyhow::Result;
 use std::path::Path;
 mod core;
 mod costs;
-#[cfg(test)]
+#[cfg(any(test, feature = "test-fixtures"))]
 pub(crate) mod custom_source_fixtures;
 mod custom_sources;
 mod dependencies;
@@ -26,6 +26,16 @@ pub use effective::{
 pub use locales::*;
 pub use text::SpellText;
 pub use value_inputs::*;
+
+/// Synthetic dependency rows shared by cross-crate tests, never client assets.
+#[cfg(feature = "test-fixtures")]
+#[doc(hidden)]
+pub mod test_fixtures {
+    pub use super::custom_source_fixtures::{
+        liquid_type, spell_item_enchantment, spell_visual, spell_visual_effect_name,
+        spell_visual_missile, talent,
+    };
+}
 
 #[derive(Clone, Copy)]
 pub enum SpellBaseline {
