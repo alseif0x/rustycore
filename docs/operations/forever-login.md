@@ -1452,6 +1452,23 @@ reliably separable. The **600-second target remains exceeded**. Committed final
 publication acceptance for this slice is recorded below, separately from these
 scoped/native passes.
 
+Publication final on clean committed **`46eb14157d5de2a73edd19fb73ffb47f09321e9d`**:
+`./tools/validation-v2 final --base origin/forever --architecture --timings`
+returns **1**, not green. Manifest
+`20261003T022215.237024Z-1793592-final.json` records
+02:22:15.236–02:23:04.477 UTC / **49.24s**, dirty=false. Physical files pass
+(2328 files). Policy (21.646s) and syntax ownership (27.304s) fail the same
+inherited hotspot totals and obsolete taunt/creature-insertion/bridge baselines
+as the prior appearance final. All three implicated legacy source files are
+byte-identical to published `11da286c`; this slice adds no growth to those owners
+and changes no ceilings/baselines. Cargo stages are not reached, so the separate
+scoped/native acceptance above is not labelled a green whole-final result.
+Publication uses the user's existing **unchanged inherited-debt experimental
+exception**, not an exemption for new failures. The complete campaign at this
+checkpoint is **8886.477 seconds** from 23:54:58; its 600-second target fails.
+The following closeout changes only README/runbook/state prose; reused code
+evidence retains the exact code-candidate identity above.
+
 ##### Checked target appearance implementation — 2026-10-03 (local/native validated)
 
 The next delivery uses a private `wdc4::creation` numeric view, leaving legacy

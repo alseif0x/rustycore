@@ -19,6 +19,10 @@ realm offline/normal, World stopped and restored BNet V1/V2 smoke pass. This is
 wire evidence, not a completed availability/creation operation. Source/data
 uncertainties and publication validation are recorded in the
 [owning runbook](../operations/forever-login.md#native-name-availability-wire--2026-10-03).
+Committed final on `46eb1415` passes physical limits and fails unchanged inherited
+hotspot/ownership debt, without ceiling changes. Publication retains the existing
+experimental inherited-debt exception; full-final is not green and the complete
+campaign's 600-second target is exceeded.
 
 ## Latest Forever appearance boundary — 2026-10-03 02:04 UTC
 
