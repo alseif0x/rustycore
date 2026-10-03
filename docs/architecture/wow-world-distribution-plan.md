@@ -2648,6 +2648,21 @@ reutilizando Stats y los roles seleccionados. C++ Player.cpp:28715–28729,
 SHA a5f8da2ebf5424bf0450ca4e08843ecbf72577bd, confirma remove, activate, apply
 y restore; la fórmula entera/max(1) Rust se conserva en F5, sin afirmar equivalencia
 de redondeo con el porcentaje float C++. No se ejecutaron pruebas ni metadata.
+InventoryScalingApplicationCx y el constructor World ya están escritos. La revisión
+de fuente conserva map/PvP antes de using-flag, vitals y targets actuales antes de
+remove/set/apply, restauración seguida de Registry y publicación solo cuando publish
+y targets no vacíos. Se corrigió el fallback que invocaba un método ausente tras
+mover el contexto Stats: ahora usa el rol de publicación disjunto, con GUID, snapshot
+completo de bonuses y map actuales después del fallo de la proyección Stats.
+El montaje/reexport App y los casos de fallo siguen pendientes de cierre de la unidad.
+
+Quest eligibility de visibilidad también está escrito como módulo privado: nivel,
+race/class y CanSeeStart conservan disable, status, recurrence, seasonal, prev-quest
+y consultas tardías de level/hide-diff del cuerpo Rust. C++ Player.cpp:14073 y :15033,
+SHA a5f8da2ebf5424bf0450ca4e08843ecbf72577bd, no demuestran paridad de ese helper
+bounded: CanSeeStart aplica además skill, exclusive, reputation, day/week/month y
+expansion. F5 mantiene la representación Rust; diálogo, condiciones y completions
+enteros siguen abiertos, sin callbacks World ni prueba ejecutada.
 
 Consulta compartida de slot (2026-10-03, NO VALIDADO): el ancla original es
 `handlers/quest/state.rs:327`; toma un snapshot actual, exige slot menor que
