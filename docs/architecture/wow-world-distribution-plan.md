@@ -2661,12 +2661,21 @@ remove/set/apply, restauración seguida de Registry y publicación solo cuando p
 y targets no vacíos. Se corrigió el fallback que invocaba un método ausente tras
 mover el contexto Stats: ahora usa el rol de publicación disjunto, con GUID, snapshot
 completo de bonuses y map actuales después del fallo de la proyección Stats.
-El montaje/reexport App sigue pendiente de cierre de la unidad. Ya se escribieron
+El montaje/reexport App ya está conectado. Ya se escribieron
 en World/scenarios_player_items_2 dos casos reales de la operación: rechazo del
 owner obsoleto con reemplazo de igual GUID sin mutación/paquetes, y cambio con
 publish=false que exige remove/apply en orden, health restaurada y retry sin
-nuevos eventos. No se ejecutaron; el segundo no instala/verifica Registry, por
-lo que no acredita su publicación.
+nuevos eventos. El segundo caso se amplió con Registry real del fixture y un cambio
+vehicle-kit que debe publicarse incluso con publish=false. También se escribió
+fallback crudo condicionado por publish y targets no vacíos. El implementador
+entrega la unidad conectada por fuente, NO VALIDADA; ninguna prueba fue ejecutada.
+La próxima operación Inventory asignada es CancelTempEnchantment completa, incluida
+la aplicación de plan con condiciones/socket-context y registro tipado LoggedIn/Inplace.
+C++ ItemHandler.cpp:1100–1116, SHA a5f8da2ebf5424bf0450ca4e08843ecbf72577bd,
+confirma equipped-slot, item/enchantment, ApplyEnchantment(remove) y ClearEnchantment.
+La dependencia Rust Inventory/enchantment.rs:205–260 retira el objeto antes de leer
+required-skill; su retorno si falta esa lectura debe conservarse en F5 y revisarse
+como diferencia F6, sin ocultar una reparación dentro del traslado.
 
 Quest eligibility de visibilidad también está escrito como módulo privado: nivel,
 race/class y CanSeeStart conservan disable, status, recurrence, seasonal, prev-quest
