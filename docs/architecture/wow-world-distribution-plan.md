@@ -2257,6 +2257,10 @@ fixture seleccionadas y consulta canónica antes del fallback NoHandle; Spell y
 las fachadas existentes delegan esos providers. El cuerpo App sigue privado y
 no sustituye la operación World completa: faltan threat, mount/control, velocidades,
 publicación, stats, shapeshift y display. No se ejecutaron checks.
+La fase threat también está escrita: conversión de spell a u32 antes de mutar,
+retirada canónica única y fallback NoHandle limitado al consumer World cfg(test),
+con recorrido de los 32 bits del effect-mask. World/aggro delega solo su rama
+apply=false al mismo provider; el cuerpo Aura completo continúa pendiente.
 
 ItemSet, continuación 18:41 UTC (NO VALIDADO): están escritos el acceso Core
 `canonical_access/item_sets.rs` y el proveedor Inventory `item_sets.rs`, con
@@ -2852,7 +2856,12 @@ mediante un composer privado de QuestRewardCx, con referencias obligatorias
 prestadas para las condiciones de almacenamiento y vitals. La planificación usa
 NULL_BAG/NULL_SLOT, source None, swap false y overlays/vacated vacíos como antes.
 Los exports App de esas referencias fixture ya están conectados. El coordinador
-Reward World completo permanece pendiente; estos consumidores no prueban aceptación.
+World/rewards/controller ya construye los participantes y delega al coordinador
+App completo. La revisión confirma préstamos disjuntos de XP/vitals y referencias
+inertes de planificación, con una única referencia mutable de reputación. La
+publicación del quest-log ya está conectada al cuerpo completo descrito abajo;
+se revisa el cierre de los consumidores restantes. Esta conexión no acredita
+aceptación del macro Reward.
 
 Contraste de reputación Reward (2026-10-03, NO VALIDADO): el cuerpo World/
 rewards.rs::record_represented_quest_reward_reputation_like_cpp también modifica
@@ -2906,6 +2915,14 @@ fixture de Registry ya está conectado en App/lib.rs. El sufijo Reward de
 quest-log requiere trasladar también quest_log_create_entries: debe leer entradas
 actuales después de COMMIT/settle, conservar el límite 25 y los masks de todos los
 campos del slot antes del UpdateObject; no basta una entrada vacía o precapturada.
+App/quest_log ya contiene ese cuerpo completo: snapshot inicial, consulta fresca
+por slot, rechazo de duplicados, 24 contadores/flags y publicación con GUID/map ID
+en la misma fase. Mantiene el cast del contador negativo del baseline Rust. El
+sufijo Reward ya lo invoca; las tres fachadas World compartidas y sus exports
+App también están conectados, conservando cfg!(test) del consumidor.
+C++ Player.cpp:15963–16002::SetQuestSlot/Counter/State/EndTime, SHA
+a5f8da2ebf5424bf0450ca4e08843ecbf72577bd, confirma los campos del slot; no prueba
+los bytes ni el cast negativo Rust sin aceptación específica.
 
 Dependencias del refresh contrastadas (2026-10-03, NO VALIDADO): World/gameobject_query
 consulta GUIDs visibles, entrada canónica y una copia del use-state por objeto;
@@ -2918,6 +2935,14 @@ ActivateToQuest incluye el diálogo de questgiver (handlers/quest/eligibility) y
 loot de misión específico del jugador (session/loot/operations), no únicamente
 loot genérico del catálogo. Ese cierre está asignado como módulos privados de
 aplicación; no autoriza callbacks World ni precalcular resultados de esos gates.
+El contrato asignado de loot de misión conserva el OR de objetivo directo, addon QuestLogItemID
+y item-drop, con snapshots separados por rama y counts actuales solo para cada
+drop coincidente. C++ Player.cpp:16343::HasQuestForItem y :16386::GetQuestObjectiveForItem,
+SHA a5f8da2ebf5424bf0450ca4e08843ecbf72577bd, aplican además el gate raid/dificultad
+con excepción de battleground, ausente del cuerpo Rust World actual. Es una
+diferencia F6; el traslado no debe añadirla silenciosamente. GetItemCount(item,true)
+también exige contrastar el alcance de banco/trade antes de acreditar paridad.
+LootMgr.cpp:208::HaveQuestLootForPlayer delega al template específico del jugador.
 
 Proyección completa de ofertas escrita (2026-10-03, NO VALIDADO): App/trainer_purchase/
 projection contiene finish, wrapper resolution, snapshot fresco, metadata y el
