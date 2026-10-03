@@ -144,8 +144,10 @@ At **03:24 UTC**, SIGINT exits zero, the temporary private MinPlayerName line is
 removed and config remains mode 600. Guarded realm restoration affects exactly
 one fixture row (offline/normal 2/0); account online=0, persisted world key length
 40, Character count=0 and port18085 closed. BNet was not restarted or modified;
-restored positive/negative REST and V1/V2/offline-join smoke passes. Its new
-auth session key is 64 bytes, not a character-save claim. The original official
+restored positive/negative REST and V1/V2/offline-join smoke passes. Its RPC
+logon record reports a 64-byte auth key; that is protocol metadata, not a
+claim that the stored world key changed. The final database read still shows
+online=0/key length40, Character count=0 and realm 2/0. The original official
 client/account are untouched.
 
 Committed publication command:
@@ -171,6 +173,14 @@ it totals **12609 seconds**, exceeding the 600-second target. Coding/error-repai
 time is not separately measured reliably; these runs are not a new ten-minute
 campaign. Restored BNet smoke and documentation-delta checks occur after that
 final and remain additional campaign costs.
+
+Documentation-only `9cd5a501fc83d9ae5e7464fbe4b7845bca15739d` is checked by
+`quick --base 4ff81a1c399e8f76f296bef25f3bda2087dda103`: **PASS**, dirty=false,
+manifest `target/validation-v2/manifests/20261003T032634.368688Z-1818137-quick.json`,
+03:26:34.368–03:26:34.433 UTC, 0.065s. Only README, STATE and this runbook differ;
+the actual built/live-tested code SHA remains `4ff81a1c`, not relabeled as the
+documentation SHA. Campaign elapsed at that check's end is **12696.433s**.
+The subsequent metadata clarification here does not change executable inputs.
 
 ## Fixed fixture and evidence
 
