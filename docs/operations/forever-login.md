@@ -1371,6 +1371,27 @@ main Character insert: effective starting position/stats/models/skills/spells/
 items and all creation-linked saves. Source homebind INSERT is deferred to
 first login; a SQL-only row or artificial successful GUID is not acceptance.
 
+Publication validation on clean code candidate
+**`3c56508ebe3b1a3031112b744a98ae2f5666f49b`** ran
+`validation-v2 final --base origin/forever --architecture --timings`:
+manifest **`20261003T012648.324135Z-1762789-final.json`**, **51.206s**, exit 1.
+Physical source ratchet passes **2313 files**; no newly introduced file/size
+failure. The same inherited Session/Map/Character/WorldServer/Quest/Player
+hotspot limits remain red (22.547s), followed by the same obsolete taunt and
+creature-insertion signatures and two legacy bridge baselines (27.705s).
+All three affected legacy source files are byte-identical to `d0bb654c`;
+the Session LOC values remain 95306 production / 128635 test / 223941 total,
+unchanged from that preceding publication. No ceiling/baseline was relaxed.
+The runner stops before downstream Cargo/hygiene; the separately executed
+scoped suites, installed normal binary/native actions, fmt and diff checks
+above are not a green final. The existing operator waiver is for experimental
+Forever publication of inherited debt only, not parity or merge/deployment.
+The full account/character campaign already reaches **5561 seconds** at this
+final's 01:27:39Z checkpoint; closeout/publication extends it. The 600-second
+performance target remains unmet. Subsequent documentation-only closeout has
+unchanged executable inputs and is validated separately, not relabelled as
+having been tested by this earlier final.
+
 At **2026-10-02 22:51:27 UTC**, the operator-only
 [`client-data-probe`](../../tools/wow-test-bot/client-data-probe/README.md)
 read two actual files from the installed `wow_classic_beta` build **70170**, using
