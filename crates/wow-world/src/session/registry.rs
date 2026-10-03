@@ -9,53 +9,20 @@
 //! silently drops the packet. The registration now carries the call as well, so
 //! there is one declaration per opcode and no second side to drift from.
 //!
-//! The entry lives here rather than in `wow-handler` because it names
-//! [`WorldSession`]: its default thunk takes the session, handler catalogs and
-//! `WorldPacket`. Forever uses the same entry with its own session, admission
-//! and 32-bit request types; a concrete alias retains legacy literal inference.
-//! and `wow-handler` is the crate `wow-world` depends on, not the reverse.
-//! `wow-handler` keeps the vocabulary both sides share — [`SessionStatus`],
-//! [`PacketProcessing`] and [`HandlerFuture`].
+//! The shared generic entry vocabulary lives in the private crate-root
+//! `packet_registry` module. This module re-exports its public types to keep
+//! the established path, and retains the concrete legacy alias, inventory,
+//! and dispatch-table construction.
 
 use std::collections::HashMap;
 
 use wow_constants::ClientOpcodes;
-use wow_handler::{HandlerFuture, PacketProcessing, SessionStatus};
+use wow_handler::{PacketProcessing, SessionStatus};
 use wow_packet::WorldPacket;
 
 use super::{SessionHandlerCatalogsLikeCpp, WorldSession};
 
-/// The call a registered opcode performs.
-///
-/// Handlers are `async` methods on [`WorldSession`], so a registration boxes
-/// the future rather than storing an `async fn` pointer. A non-capturing
-/// closure coerces to this type, which keeps a registration one literal.
-pub type PacketHandlerFn<
-    S = WorldSession,
-    C = SessionHandlerCatalogsLikeCpp,
-    P = WorldPacket,
-    R = (),
-> = for<'a> fn(&'a mut S, &'a C, P) -> HandlerFuture<'a, R>;
-
-/// A registered packet handler: its admission rules and the call itself.
-///
-/// Collected at startup via the `inventory` crate to build the dispatch table.
-pub struct PacketHandlerEntryFor<
-    S = WorldSession,
-    C = SessionHandlerCatalogsLikeCpp,
-    O = ClientOpcodes,
-    P = WorldPacket,
-    R = (),
-    A = SessionStatus,
-> {
-    pub opcode: O,
-    pub status: A,
-    pub processing: PacketProcessing,
-    pub handler_name: &'static str,
-    /// The handler this opcode runs. The dispatcher calls this and nothing
-    /// else; it does not know which method it reaches (#359).
-    pub handler: PacketHandlerFn<S, C, P, R>,
-}
+pub use crate::packet_registry::{PacketHandlerEntryFor, PacketHandlerFn};
 
 /// Concrete legacy alias: Rust does not apply generic defaults while inferring
 /// a struct literal's closure arguments. Keep every existing literal fully typed

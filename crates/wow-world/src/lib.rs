@@ -21,6 +21,7 @@ pub mod forever;
 pub mod handlers;
 pub mod loot_persistence;
 pub mod map_manager;
+mod packet_registry;
 pub mod phasing;
 mod player;
 mod player_cast;
