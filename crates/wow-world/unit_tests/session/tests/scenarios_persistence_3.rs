@@ -142,9 +142,7 @@ fn player_save_transaction_plan_orders_represented_statements_like_cpp() {
     ));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             8_888,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id: 8_888,

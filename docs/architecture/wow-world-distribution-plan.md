@@ -1951,6 +1951,24 @@ disponible bajo Core test-fixtures para consumidores normales de Inventory.
 revisadas; no prueban bytes nuevos ni la ordenación representada del bridge.
 Los callers y escenarios World se conservan sin ejecución nueva.
 
+**Proyección de misiones en aplicación — 2026-10-03, 12:55 UTC
+(NO VALIDADO):** SessionQuestState contiene los siete campos normales privados
+y sus fixtures en módulos privados de estado, rewards y sharing. Los lectores,
+escritores, inicializadores y consumidores World pasan por sus operaciones;
+World conserva las lecturas canónicas y los gates cfg(test) originales. Los
+cuatro registros de evidencia reciben el gate del consumidor explícitamente,
+sin confundir test-fixtures del crate destino con tests del origen. El drenado
+mantiene su latch, el orden pop/await y el estado tras cancelación; el dinero
+solo encola un cambio tras una mutación aceptada. La hidratación de completed
+bits itera por préstamo, sin un clon nuevo del conjunto.
+Se migraron los consumidores de los 43 archivos de pruebas World afectados.
+La comparación textual de declaraciones de funciones de esos archivos no
+encontró cambios de identidad; no fue un listado compilado ni una ejecución.
+Se conservan los anclajes de QuestHandler.cpp:396–403 y
+Player.cpp:14625::RewardQuest en a5f8da2eb y el límite XP de F6. El coordinador
+completo de recompensa, sus participantes concretos y su aceptación siguen
+pendientes. No se ejecutaron Cargo, suites, formato ni QA live.
+
 **QA del registro genérico — 2026-10-03, 11:51 UTC (NO VALIDADO):**
 La política de handlers usa schema 2: varias rutas explícitas de registro y un
 único dispatcher; solo se añade Inventory como owner ya implementado. El

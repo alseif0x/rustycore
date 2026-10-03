@@ -206,8 +206,7 @@ fn reset_seasonal_keeps_equal_and_newer_completions_like_cpp() {
     assert_eq!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_quest_completed_bits_like_cpp,
+            .fixture_represented_quest_completed_bits_snapshot_like_cpp(),
         BTreeSet::from([65, 66])
     );
     assert!(!session.seasonal_quest_changed_like_cpp());
@@ -230,9 +229,7 @@ fn reset_seasonal_zero_or_missing_unique_bit_removes_without_inventing_bit_like_
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_quest_completed_bits_like_cpp
-            .is_empty()
+            .fixture_represented_quest_completed_bits_are_empty_like_cpp()
     );
 }
 #[test]
@@ -319,9 +316,7 @@ async fn criteria_tree_tracking_event_objective_auto_rewards_like_cpp() {
     )));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,

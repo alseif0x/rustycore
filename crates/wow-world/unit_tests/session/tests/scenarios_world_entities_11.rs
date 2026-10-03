@@ -289,9 +289,7 @@ async fn combat_tick_kill_keeps_empty_creature_loot_non_lootable_after_pending_d
     session.set_quest_store(Arc::new(quest_store));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             9_001,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id: 9_001,
@@ -332,9 +330,7 @@ async fn combat_tick_kill_keeps_empty_creature_loot_non_lootable_after_pending_d
     assert!(session.player_xp_like_cpp() > 0);
     let quest = session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get(&9_001)
+        .fixture_player_quest_status_like_cpp(9_001)
         .unwrap();
     assert_eq!(
         quest.status,

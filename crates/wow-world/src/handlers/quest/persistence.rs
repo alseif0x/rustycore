@@ -96,7 +96,7 @@ impl WorldSession {
     ) {
         let completed_quest_ids: Vec<_> = self
             .quest_state
-            .represented_quest_complete_status_updates_like_cpp[completion_evidence_start..]
+            .represented_quest_complete_status_updates_from_like_cpp(completion_evidence_start)
             .iter()
             .filter_map(|evidence| {
                 (evidence.new_status == QUEST_STATUS_COMPLETE_LIKE_CPP).then_some(evidence.quest_id)

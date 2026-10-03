@@ -27,7 +27,9 @@ impl WorldSession {
 
         info!(
             ?source_guid,
-            quests = ?self.quest_state.represented_quest_menu_item_log_rows_like_cpp(&menu_items),
+            quests = ?crate::session::quest_dialog::represented_quest_menu_item_log_rows_like_cpp(
+                &menu_items,
+            ),
             "Sending represented QuestGiverQuestList like C++"
         );
         self.send_packet(&QuestGiverQuestList {
@@ -123,35 +125,11 @@ impl WorldSession {
                 title = quest.log_title.as_str(),
                 "Sending represented QuestGiverQuestDetails like C++"
             );
-            {
-                let (s, mut h) = crate::session::split_quest_state_mut(self);
-                s.send_represented_quest_giver_quest_details_like_cpp(
-                    &mut h,
-                    source_guid,
-                    quest,
-                    auto_launched,
-                )
-            };
+            self.send_represented_quest_giver_quest_details_like_cpp(
+                source_guid,
+                quest,
+                auto_launched,
+            );
         }
-    }
-}
-
-impl crate::session::state::SessionQuestState {
-    pub(in crate::session) fn send_represented_duel_requested_to_opponent_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        opponent_guid: ObjectGuid,
-        arbiter_guid: ObjectGuid,
-        packet_bytes: Vec<u8>,
-    ) {
-        hub.core.try_send_connected_player_command_like_cpp(
-            opponent_guid,
-            SessionCommand::SendRepresentedDuelRequestedLikeCpp(
-                crate::session::mailbox::SendRepresentedDuelRequestedLikeCppCommand {
-                    arbiter_guid,
-                    packet_bytes,
-                },
-            ),
-        );
     }
 }

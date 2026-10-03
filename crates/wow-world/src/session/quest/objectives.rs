@@ -663,19 +663,15 @@ impl WorldSession {
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
     ) {
-        if self
+        if !self
             .quest_state
-            .represented_quest_objective_progress_draining_like_cpp
+            .begin_represented_quest_objective_progress_drain_like_cpp()
         {
             return;
         }
-
-        self.quest_state
-            .represented_quest_objective_progress_draining_like_cpp = true;
         while let Some(event) = self
             .quest_state
-            .represented_quest_objective_progress_events_like_cpp
-            .pop_front()
+            .pop_represented_quest_objective_progress_like_cpp()
         {
             match event {
                 RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
@@ -748,7 +744,7 @@ impl WorldSession {
             }
         }
         self.quest_state
-            .represented_quest_objective_progress_draining_like_cpp = false;
+            .finish_represented_quest_objective_progress_drain_like_cpp();
     }
     #[cfg(test)]
     pub(crate) async fn drain_represented_quest_objective_progress_like_cpp(&mut self) {
@@ -757,22 +753,6 @@ impl WorldSession {
         };
         self.drain_represented_quest_objective_progress_with_generator_like_cpp(generator.as_ref())
             .await;
-    }
-}
-
-impl crate::session::state::SessionQuestState {
-    pub(crate) fn enqueue_represented_quest_objective_progress_like_cpp(
-        &mut self,
-        event: RepresentedQuestObjectiveProgressEventLikeCpp,
-    ) {
-        self.represented_quest_objective_progress_events_like_cpp
-            .push_back(event);
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_quest_push_result_sender_mismatch_count_like_cpp(&self) -> u32 {
-        self.quest_test_fixture_like_cpp
-            .represented_quest_push_result_sender_mismatch_count_like_cpp
     }
 }
 

@@ -111,12 +111,8 @@ impl WorldSession {
             #[cfg(test)]
             {
                 self.quest_state
-                    .quest_test_fixture_like_cpp
-                    .player_quest_status_authority_complete_like_cpp = false;
-                self.quest_state
-                    .quest_test_fixture_like_cpp
-                    .represented_rewarded_quest_rows_like_cpp
-                    .clear();
+                    .fixture_set_player_quest_status_authority_complete_like_cpp(false);
+                self.quest_state.fixture_clear_represented_rewarded_quest_rows_like_cpp();
                 self.lifecycle
                     .reset_loaded_player_flags_fixture_for_test_like_cpp();
             }

@@ -280,9 +280,7 @@ async fn spell_quest_complete_effect_marks_active_event_quest_complete_like_cpp(
     )));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,
@@ -327,9 +325,7 @@ async fn spell_quest_complete_effect_marks_active_event_quest_complete_like_cpp(
 
     let status = session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get(&quest_id)
+        .fixture_player_quest_status_like_cpp(quest_id)
         .expect("non-tracking quest remains in log");
     assert!(status.explored);
     assert_eq!(
@@ -337,11 +333,7 @@ async fn spell_quest_complete_effect_marks_active_event_quest_complete_like_cpp(
         crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP
     );
     assert!(
-        !session
-            .quest_state
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+        !session.quest_state.fixture_has_rewarded_quest_like_cpp(quest_id)
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
@@ -367,9 +359,7 @@ async fn spell_quest_complete_effect_auto_rewards_active_tracking_event_like_cpp
     )));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,
@@ -415,16 +405,10 @@ async fn spell_quest_complete_effect_auto_rewards_active_tracking_event_like_cpp
     assert!(
         !session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+            .fixture_contains_player_quest_status_like_cpp(quest_id)
     );
     assert!(
-        session
-            .quest_state
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+        session.quest_state.fixture_has_rewarded_quest_like_cpp(quest_id)
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
@@ -488,18 +472,12 @@ async fn spell_quest_complete_effect_rewards_unlogged_tracking_event_like_cpp() 
         .expect("represented unlogged tracking quest-complete spell row should execute");
 
     assert!(
-        session
-            .quest_state
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+        session.quest_state.fixture_has_rewarded_quest_like_cpp(quest_id)
     );
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_quest_completed_bits_like_cpp
-            .contains(&65)
+            .fixture_has_represented_quest_completed_bit_like_cpp(65)
     );
     assert_eq!(
         drain_server_opcodes(&send_rx),
@@ -520,9 +498,7 @@ async fn spell_quest_complete_effect_keeps_failed_active_quest_unchanged_like_cp
     )));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,
@@ -567,9 +543,7 @@ async fn spell_quest_complete_effect_keeps_failed_active_quest_unchanged_like_cp
 
     let status = session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get(&quest_id)
+        .fixture_player_quest_status_like_cpp(quest_id)
         .expect("quest remains");
     assert!(!status.explored);
     assert_eq!(

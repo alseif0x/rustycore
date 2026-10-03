@@ -6,5 +6,20 @@
 //! Pure quest operation planning shared by World adapters.
 
 mod reward_plan;
+mod session_state;
 
 pub use self::reward_plan::QuestRewardDurablePlanLikeCpp;
+pub use self::session_state::SessionQuestState;
+pub use self::session_state::contracts::{
+    RepresentedQuestCompleteStatusUpdateLikeCpp, RepresentedQuestObjectiveProgressEventLikeCpp,
+    RepresentedQuestPushResultResponseLikeCpp, RepresentedPushQuestToPartyOutcomeLikeCpp,
+    RepresentedPushQuestToPartyOutcomeReasonLikeCpp, RepresentedPendingQuestSharingLikeCpp,
+    RepresentedQuestConfirmAcceptLikeCpp, RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp,
+    RepresentedQuestRewardReputationSourceLikeCpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use self::session_state::contracts::{
+    RepresentedQuestRewardMailLikeCpp, RepresentedQuestRewardReputationLikeCpp,
+    RepresentedQuestRewardSpellCastLikeCpp, RepresentedQuestRewardSpellKindLikeCpp,
+    RepresentedQuestRewardTalentPointsLikeCpp, RepresentedQuestRewardTitleLikeCpp,
+};

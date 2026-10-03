@@ -24,15 +24,11 @@ impl WorldSession {
         };
 
         self.set_represented_pending_quest_sharing_like_cpp(command.sender_guid, command.quest.id);
-        {
-            let (s, mut h) = crate::session::split_quest_state_mut(self);
-            s.send_represented_quest_giver_quest_details_like_cpp(
-                &mut h,
-                receiver_guid,
-                &command.quest,
-                false,
-            )
-        };
+        self.send_represented_quest_giver_quest_details_like_cpp(
+            receiver_guid,
+            &command.quest,
+            false,
+        );
     }
 
     /// CMSG_PUSH_QUEST_TO_PARTY — sender-side bounded quest share preflight.
@@ -86,6 +82,7 @@ impl WorldSession {
             );
             self.quest_state
                 .record_represented_push_quest_to_party_outcome_like_cpp(
+                    cfg!(test),
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -102,6 +99,7 @@ impl WorldSession {
         let Some(quest_pool_store) = self.catalogs.quests.pool_store.as_ref().map(Arc::clone)
         else {
             self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
+                cfg!(test),
                 RepresentedPushQuestToPartyOutcomeLikeCpp {
                     sender_guid,
                     quest_id: packet.quest_id,
@@ -122,6 +120,7 @@ impl WorldSession {
             );
             self.quest_state
                 .record_represented_push_quest_to_party_outcome_like_cpp(
+                    cfg!(test),
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -142,6 +141,7 @@ impl WorldSession {
             );
             self.quest_state
                 .record_represented_push_quest_to_party_outcome_like_cpp(
+                    cfg!(test),
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -162,6 +162,7 @@ impl WorldSession {
         let Some(group_registry) = self.group_registry().map(Arc::clone) else {
             self.quest_state
                 .record_represented_push_quest_to_party_outcome_like_cpp(
+                cfg!(test),
                 RepresentedPushQuestToPartyOutcomeLikeCpp {
                     sender_guid,
                     quest_id: packet.quest_id,
@@ -179,6 +180,7 @@ impl WorldSession {
         let Some(player_registry) = self.player_registry().map(Arc::clone) else {
             self.quest_state
                 .record_represented_push_quest_to_party_outcome_like_cpp(
+                cfg!(test),
                 RepresentedPushQuestToPartyOutcomeLikeCpp {
                     sender_guid,
                     quest_id: packet.quest_id,
@@ -196,6 +198,7 @@ impl WorldSession {
         let Some(group_info) = group_registry.get(&group_guid).map(|entry| entry.clone()) else {
             self.quest_state
                 .record_represented_push_quest_to_party_outcome_like_cpp(
+                cfg!(test),
                 RepresentedPushQuestToPartyOutcomeLikeCpp {
                     sender_guid,
                     quest_id: packet.quest_id,
@@ -225,6 +228,7 @@ impl WorldSession {
 
         if receiver_snapshots.is_empty() {
             self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
+                cfg!(test),
                 RepresentedPushQuestToPartyOutcomeLikeCpp {
                     sender_guid,
                     quest_id: packet.quest_id,
@@ -248,6 +252,7 @@ impl WorldSession {
                 );
                 self.quest_state
                     .record_represented_push_quest_to_party_outcome_like_cpp(
+                        cfg!(test),
                         RepresentedPushQuestToPartyOutcomeLikeCpp {
                             sender_guid,
                             quest_id: packet.quest_id,
@@ -280,6 +285,7 @@ impl WorldSession {
                 }
                 self.quest_state
                     .record_represented_push_quest_to_party_outcome_like_cpp(
+                        cfg!(test),
                         RepresentedPushQuestToPartyOutcomeLikeCpp {
                             sender_guid,
                             quest_id: packet.quest_id,
@@ -314,6 +320,7 @@ impl WorldSession {
                     .to_bytes(),
                 );
                 self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
+                    cfg!(test),
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -356,6 +363,7 @@ impl WorldSession {
                         .to_bytes(),
                     );
                     self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
+                        cfg!(test),
                         RepresentedPushQuestToPartyOutcomeLikeCpp {
                             sender_guid,
                             quest_id: packet.quest_id,
@@ -397,6 +405,7 @@ impl WorldSession {
                 );
                 self.quest_state
                     .record_represented_push_quest_to_party_outcome_like_cpp(
+                        cfg!(test),
                         RepresentedPushQuestToPartyOutcomeLikeCpp {
                             sender_guid,
                             quest_id: packet.quest_id,
@@ -445,6 +454,7 @@ impl WorldSession {
                     .to_bytes(),
                 );
                 self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
+                    cfg!(test),
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -483,6 +493,7 @@ impl WorldSession {
                     .to_bytes(),
                 );
                 self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
+                    cfg!(test),
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -517,6 +528,7 @@ impl WorldSession {
                     .to_bytes(),
                 );
                 self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
+                    cfg!(test),
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -557,6 +569,7 @@ impl WorldSession {
                     .to_bytes(),
                 );
                 self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
+                    cfg!(test),
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -592,6 +605,7 @@ impl WorldSession {
                     .to_bytes(),
                 );
                 self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
+                    cfg!(test),
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -613,6 +627,7 @@ impl WorldSession {
             // the eligibility as unrepresented instead.
             let Some(receiver_reputation_standings) = receiver.reputation_standings.as_ref() else {
                 self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
+                    cfg!(test),
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -671,6 +686,7 @@ impl WorldSession {
                 );
                 self.quest_state
                     .record_represented_push_quest_to_party_outcome_like_cpp(
+                        cfg!(test),
                         RepresentedPushQuestToPartyOutcomeLikeCpp {
                             sender_guid,
                             quest_id: packet.quest_id,
@@ -726,6 +742,7 @@ impl WorldSession {
                 // success path blocked until real/represented CanTakeQuest is available.
                 blocked_by_unsupported_success_path = true;
                 self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
+                    cfg!(test),
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -772,6 +789,7 @@ impl WorldSession {
                 );
                 self.quest_state
                     .record_represented_push_quest_to_party_outcome_like_cpp(
+                        cfg!(test),
                         RepresentedPushQuestToPartyOutcomeLikeCpp {
                             sender_guid,
                             quest_id: packet.quest_id,
@@ -806,6 +824,7 @@ impl WorldSession {
                     .to_bytes(),
                 );
                 self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
+                    cfg!(test),
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -841,6 +860,7 @@ impl WorldSession {
                     .to_bytes(),
                 );
                 self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
+                    cfg!(test),
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -861,6 +881,7 @@ impl WorldSession {
                 let Some(sender_guid_for_receiver_command) = sender_guid else {
                     blocked_by_unsupported_success_path = true;
                     self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
+                        cfg!(test),
                         RepresentedPushQuestToPartyOutcomeLikeCpp {
                             sender_guid,
                             quest_id: packet.quest_id,
@@ -887,6 +908,7 @@ impl WorldSession {
                 {
                     blocked_by_unsupported_success_path = true;
                     self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
+                        cfg!(test),
                         RepresentedPushQuestToPartyOutcomeLikeCpp {
                             sender_guid,
                             quest_id: packet.quest_id,
@@ -911,6 +933,7 @@ impl WorldSession {
                 );
 
                 self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
+                    cfg!(test),
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -927,6 +950,7 @@ impl WorldSession {
             let Some(sender_guid_for_receiver_command) = sender_guid else {
                 blocked_by_unsupported_success_path = true;
                 self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
+                    cfg!(test),
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -953,6 +977,7 @@ impl WorldSession {
             {
                 blocked_by_unsupported_success_path = true;
                 self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
+                    cfg!(test),
                     RepresentedPushQuestToPartyOutcomeLikeCpp {
                         sender_guid,
                         quest_id: packet.quest_id,
@@ -972,6 +997,7 @@ impl WorldSession {
                 String::new(),
             );
             self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
+                cfg!(test),
                 RepresentedPushQuestToPartyOutcomeLikeCpp {
                     sender_guid,
                     quest_id: packet.quest_id,
@@ -986,6 +1012,7 @@ impl WorldSession {
 
         if blocked_by_unsupported_success_path {
             self.quest_state.record_represented_push_quest_to_party_outcome_like_cpp(
+                cfg!(test),
                 RepresentedPushQuestToPartyOutcomeLikeCpp {
                     sender_guid,
                     quest_id: packet.quest_id,

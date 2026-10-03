@@ -12,4 +12,3 @@ mod reset;
 mod rewards;
 pub(in crate::session) mod state;
 #[cfg(test)]
-pub(crate) mod test_fixtures;

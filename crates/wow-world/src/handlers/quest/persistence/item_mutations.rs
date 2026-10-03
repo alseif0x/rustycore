@@ -295,8 +295,19 @@ impl WorldSession {
                 count,
             );
         }
-        self.quest_state
-            .finish_item_transfer_quest_persistence_like_cpp(plan)
+        self.finish_item_transfer_quest_persistence_like_cpp(plan)
+    }
+
+    pub(crate) fn finish_item_transfer_quest_persistence_like_cpp(
+        &self,
+        mut plan: ItemTransferQuestPersistencePlanLikeCpp,
+    ) -> Vec<PlayerQuestStatus> {
+        plan.changed_quest_ids.sort_unstable();
+        plan.changed_quest_ids.dedup();
+        plan.changed_quest_ids
+            .into_iter()
+            .filter_map(|quest_id| plan.statuses.remove(&quest_id))
+            .collect()
     }
 
     /// Pure form of the first C++ `Player::StoreNewItem` quest pass:
@@ -390,19 +401,5 @@ impl WorldSession {
         }
 
         None
-    }
-}
-
-impl crate::session::SessionQuestState {
-    pub(crate) fn finish_item_transfer_quest_persistence_like_cpp(
-        &self,
-        mut plan: ItemTransferQuestPersistencePlanLikeCpp,
-    ) -> Vec<PlayerQuestStatus> {
-        plan.changed_quest_ids.sort_unstable();
-        plan.changed_quest_ids.dedup();
-        plan.changed_quest_ids
-            .into_iter()
-            .filter_map(|quest_id| plan.statuses.remove(&quest_id))
-            .collect()
     }
 }

@@ -129,15 +129,8 @@ impl WorldSession {
                 )
                 .await;
             if rewarded {
-                if let Some(evidence) = self
-                    .quest_state
-                    .represented_quest_complete_status_updates_like_cpp
-                    .iter_mut()
-                    .rev()
-                    .find(|evidence| evidence.quest_id == quest.id)
-                {
-                    evidence.tracking_event_auto_reward_unrepresented = false;
-                }
+                self.quest_state
+                    .mark_latest_tracking_event_auto_reward_like_cpp(quest.id);
                 Box::pin(
                     self.drain_represented_quest_objective_progress_with_generator_like_cpp(
                         item_guid_generator,
@@ -226,9 +219,7 @@ impl WorldSession {
 
         #[cfg(test)]
         self.quest_state
-            .quest_test_fixture_like_cpp
-            .represented_auto_accept_acknowledged_quests_like_cpp
-            .push(quest_id);
+            .fixture_record_auto_accept_acknowledged_quest_like_cpp(quest_id);
         true
     }
 
@@ -273,9 +264,7 @@ impl WorldSession {
             #[cfg(test)]
             {
                 self.quest_state
-                    .quest_test_fixture_like_cpp
-                    .represented_timed_quest_removals_like_cpp
-                    .push(quest_id);
+                    .fixture_record_timed_quest_removal_like_cpp(quest_id);
             }
         }
     }

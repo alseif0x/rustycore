@@ -306,11 +306,7 @@ async fn login_spell_reset_relearns_quest_rewarded_spells_like_cpp() {
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session
-        .quest_state
-        .quest_test_fixture_like_cpp
-        .rewarded_quests
-        .insert(quest_id);
+    session.quest_state.fixture_set_rewarded_quest_like_cpp(quest_id, true);
     session.set_known_spells_like_cpp(vec![118, learned_spell_id]);
     session.set_represented_at_login_flags_like_cpp(AT_LOGIN_RESET_SPELLS_LIKE_CPP);
 
@@ -353,11 +349,7 @@ async fn login_spell_reset_skips_quest_reward_spell_without_rewarded_skill_abili
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session
-        .quest_state
-        .quest_test_fixture_like_cpp
-        .rewarded_quests
-        .insert(quest_id);
+    session.quest_state.fixture_set_rewarded_quest_like_cpp(quest_id, true);
     session.set_known_spells_like_cpp(vec![learned_spell_id]);
     session.set_represented_at_login_flags_like_cpp(AT_LOGIN_RESET_SPELLS_LIKE_CPP);
 
@@ -387,11 +379,7 @@ async fn login_spell_reset_reward_spell_minus_one_removes_source_spell_auras_lik
     session.set_quest_store(Arc::new(wow_data::quest::QuestStore::from_quests_like_cpp(
         [quest],
     )));
-    session
-        .quest_state
-        .quest_test_fixture_like_cpp
-        .rewarded_quests
-        .insert(quest_id);
+    session.quest_state.fixture_set_rewarded_quest_like_cpp(quest_id, true);
     session
         .fixtures
         .auras

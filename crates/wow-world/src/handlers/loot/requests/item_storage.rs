@@ -186,9 +186,7 @@ impl WorldSession {
                 debug_assert!(applied.as_ref().is_some_and(|result| result.no_grant));
                 debug_assert!(plan.statuses.iter().all(|planned| {
                     self.quest_state
-                        .quest_test_fixture_like_cpp
-                        .player_quests
-                        .get(&planned.quest_id)
+                        .fixture_player_quest_status_like_cpp(planned.quest_id)
                         .is_some_and(|actual| {
                             actual.status == planned.status
                                 && actual.objective_counts == planned.objective_counts

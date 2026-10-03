@@ -108,15 +108,7 @@ impl WorldSession {
     ) {
         let can_complete = self.can_complete_repeatable_quest_represented_bounded_like_cpp(quest);
         if can_complete && !quest_has_represented_item_objective_like_cpp(quest) {
-            {
-                let (s, mut h) = crate::session::split_quest_state_mut(self);
-                s.send_represented_quest_giver_offer_reward_like_cpp(
-                    &mut h,
-                    sender_guid,
-                    quest,
-                    true,
-                )
-            };
+            self.send_represented_quest_giver_offer_reward_like_cpp(sender_guid, quest, true);
             return;
         }
 

@@ -364,14 +364,79 @@ impl WorldSession {
         can_complete: bool,
         auto_launched: bool,
     ) {
-        let (state, mut hub) = crate::session::split_quest_state_mut(self);
-        state.send_represented_quest_giver_request_items_with_completion_like_cpp(
-            &mut hub,
-            source_guid,
-            quest,
-            can_complete,
+        let collect = quest
+            .objectives
+            .iter()
+            .filter(|objective| objective.obj_type == QUEST_OBJECTIVE_ITEM_LIKE_CPP)
+            .map(|objective| QuestGiverRequestItemsCollect {
+                object_id: objective.object_id,
+                amount: objective.amount,
+                flags: objective.flags,
+            })
+            .collect::<Vec<_>>();
+        let currency = quest
+            .objectives
+            .iter()
+            .filter(|objective| objective.obj_type == QUEST_OBJECTIVE_CURRENCY_LIKE_CPP)
+            .map(|objective| QuestGiverRequestItemsCurrency {
+                currency_id: objective.object_id,
+                amount: objective.amount,
+            })
+            .collect::<Vec<_>>();
+        let money_to_get = quest
+            .objectives
+            .iter()
+            .filter(|objective| objective.obj_type == QUEST_OBJECTIVE_MONEY_LIKE_CPP)
+            .map(|objective| objective.amount)
+            .sum::<i32>();
+        self.send_packet(&QuestGiverRequestItems {
+            giver_guid: source_guid,
+            giver_creature_id: quest_giver_creature_id_from_source_like_cpp(source_guid),
+            quest_id: quest.id,
+            comp_emote_delay: 0,
+            comp_emote_type: 0,
+            quest_flags: [quest.flags, quest.flags_ex, quest.flags_ex2],
+            suggested_party_members: quest.suggested_group_num,
+            money_to_get,
+            collect,
+            currency,
+            status_flags: if can_complete { 0xFF } else { 0xFD },
+            title: quest.log_title.clone(),
+            completion_text: quest.area_description.clone(),
             auto_launched,
-        )
+        });
+    }
+
+    pub(crate) fn send_represented_quest_giver_quest_details_like_cpp(
+        &mut self,
+        source_guid: ObjectGuid,
+        quest: &wow_data::quest::QuestTemplate,
+        auto_launched: bool,
+    ) {
+        let objectives: Vec<QuestObjectiveSimple> = quest
+            .objectives
+            .iter()
+            .map(|obj| QuestObjectiveSimple {
+                id: obj.id,
+                object_id: obj.object_id,
+                amount: obj.amount,
+                obj_type: obj.obj_type,
+            })
+            .collect();
+
+        self.send_packet(&QuestGiverQuestDetails {
+            giver_guid: source_guid,
+            giver_creature_id: quest_giver_creature_id_from_source_like_cpp(source_guid),
+            quest_id: quest.id,
+            quest_flags: [quest.flags, quest.flags_ex, quest.flags_ex2],
+            suggested_party_members: quest.suggested_group_num,
+            objectives,
+            rewards: quest_rewards_block_like_cpp(quest),
+            title: quest.log_title.clone(),
+            description: quest.quest_description.clone(),
+            log_description: quest.log_description.clone(),
+            auto_launched,
+        });
     }
 }
 
@@ -479,91 +544,6 @@ impl crate::session::QuestStateCxRef<'_> {
     }
 }
 
-impl crate::session::state::SessionQuestState {
-    pub(crate) fn send_represented_quest_giver_request_items_with_completion_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        source_guid: ObjectGuid,
-        quest: &wow_data::quest::QuestTemplate,
-        can_complete: bool,
-        auto_launched: bool,
-    ) {
-        let collect = quest
-            .objectives
-            .iter()
-            .filter(|objective| objective.obj_type == QUEST_OBJECTIVE_ITEM_LIKE_CPP)
-            .map(|objective| QuestGiverRequestItemsCollect {
-                object_id: objective.object_id,
-                amount: objective.amount,
-                flags: objective.flags,
-            })
-            .collect::<Vec<_>>();
-        let currency = quest
-            .objectives
-            .iter()
-            .filter(|objective| objective.obj_type == QUEST_OBJECTIVE_CURRENCY_LIKE_CPP)
-            .map(|objective| QuestGiverRequestItemsCurrency {
-                currency_id: objective.object_id,
-                amount: objective.amount,
-            })
-            .collect::<Vec<_>>();
-        let money_to_get = quest
-            .objectives
-            .iter()
-            .filter(|objective| objective.obj_type == QUEST_OBJECTIVE_MONEY_LIKE_CPP)
-            .map(|objective| objective.amount)
-            .sum::<i32>();
-        hub.core.send_packet(&QuestGiverRequestItems {
-            giver_guid: source_guid,
-            giver_creature_id: quest_giver_creature_id_from_source_like_cpp(source_guid),
-            quest_id: quest.id,
-            comp_emote_delay: 0,
-            comp_emote_type: 0,
-            quest_flags: [quest.flags, quest.flags_ex, quest.flags_ex2],
-            suggested_party_members: quest.suggested_group_num,
-            money_to_get,
-            collect,
-            currency,
-            status_flags: if can_complete { 0xFF } else { 0xFD },
-            title: quest.log_title.clone(),
-            completion_text: quest.area_description.clone(),
-            auto_launched,
-        });
-    }
-
-    pub(crate) fn send_represented_quest_giver_quest_details_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        source_guid: ObjectGuid,
-        quest: &wow_data::quest::QuestTemplate,
-        auto_launched: bool,
-    ) {
-        let objectives: Vec<QuestObjectiveSimple> = quest
-            .objectives
-            .iter()
-            .map(|obj| QuestObjectiveSimple {
-                id: obj.id,
-                object_id: obj.object_id,
-                amount: obj.amount,
-                obj_type: obj.obj_type,
-            })
-            .collect();
-
-        hub.core.send_packet(&QuestGiverQuestDetails {
-            giver_guid: source_guid,
-            giver_creature_id: quest_giver_creature_id_from_source_like_cpp(source_guid),
-            quest_id: quest.id,
-            quest_flags: [quest.flags, quest.flags_ex, quest.flags_ex2],
-            suggested_party_members: quest.suggested_group_num,
-            objectives,
-            rewards: quest_rewards_block_like_cpp(quest),
-            title: quest.log_title.clone(),
-            description: quest.quest_description.clone(),
-            log_description: quest.log_description.clone(),
-            auto_launched,
-        });
-    }
-}
 
 #[cfg(test)]
 #[path = "../../../unit_tests/session/quest/giver/f3_shims.rs"]

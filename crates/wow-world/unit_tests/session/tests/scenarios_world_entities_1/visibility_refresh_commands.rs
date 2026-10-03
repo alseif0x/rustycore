@@ -140,9 +140,7 @@ async fn refresh_visible_gameobjects_or_spellclicks_command_sends_gameobject_del
     )));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,

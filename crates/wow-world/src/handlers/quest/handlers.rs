@@ -382,7 +382,7 @@ impl WorldSession {
 
         if pending.sender_guid != packet.sender_guid {
             self.quest_state
-                .record_represented_quest_push_result_sender_mismatch_like_cpp();
+                .record_represented_quest_push_result_sender_mismatch_like_cpp(cfg!(test));
             debug!(
                 account = self.core.account_id,
                 pending_sender_guid = ?pending.sender_guid,
@@ -403,6 +403,7 @@ impl WorldSession {
 
         self.quest_state
             .record_represented_quest_push_result_response_like_cpp(
+                cfg!(test),
                 RepresentedQuestPushResultResponseLikeCpp {
                     receiver_guid,
                     sender_guid: packet.sender_guid,

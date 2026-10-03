@@ -516,9 +516,8 @@ impl WorldSession {
             });
         }
 
-        let planned_quest_statuses = self
-            .quest_state
-            .finish_item_transfer_quest_persistence_like_cpp(quest_persistence_plan);
+        let planned_quest_statuses =
+            self.finish_item_transfer_quest_persistence_like_cpp(quest_persistence_plan);
 
         let Some(money_persistence) = self
             .begin_exclusive_player_money_persistence_like_cpp()

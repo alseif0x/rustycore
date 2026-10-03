@@ -593,9 +593,7 @@ async fn loot_money_gain_completes_money_tracking_event_objective_like_cpp() {
     )));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,
@@ -615,16 +613,12 @@ async fn loot_money_gain_completes_money_tracking_event_objective_like_cpp() {
     assert!(
         !session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+            .fixture_contains_player_quest_status_like_cpp(quest_id)
     );
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+            .fixture_has_rewarded_quest_like_cpp(quest_id)
     );
 
     let sent = send_rx.try_recv().unwrap();

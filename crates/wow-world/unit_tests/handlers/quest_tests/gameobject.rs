@@ -28,9 +28,7 @@ async fn quest_giver_status_query_canonical_gameobject_completed_ender_uses_go_r
     session.set_quest_store(Arc::new(store));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             1004,
             PlayerQuestStatus {
                 quest_id: 1004,

@@ -50,27 +50,28 @@ impl crate::session::WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn represented_timed_quest_removals_like_cpp(&self) -> &[u32] {
-        self.quest_state.represented_timed_quest_removals_like_cpp()
+        self.quest_state
+            .fixture_represented_timed_quest_removals_like_cpp()
     }
     #[cfg(test)]
     pub(crate) fn represented_quest_push_result_responses_like_cpp(
         &self,
     ) -> &[RepresentedQuestPushResultResponseLikeCpp] {
         self.quest_state
-            .represented_quest_push_result_responses_like_cpp()
+            .fixture_represented_quest_push_result_responses_like_cpp()
     }
     #[cfg(test)]
     pub(crate) fn represented_quest_confirm_accepts_like_cpp(
         &self,
     ) -> &[RepresentedQuestConfirmAcceptLikeCpp] {
         self.quest_state
-            .represented_quest_confirm_accepts_like_cpp()
+            .fixture_represented_quest_confirm_accepts_like_cpp()
     }
     #[cfg(test)]
     pub(crate) fn represented_push_quest_to_party_outcomes_like_cpp(
         &self,
     ) -> &[RepresentedPushQuestToPartyOutcomeLikeCpp] {
         self.quest_state
-            .represented_push_quest_to_party_outcomes_like_cpp()
+            .fixture_represented_push_quest_to_party_outcomes_like_cpp()
     }
 }

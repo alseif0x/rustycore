@@ -18,11 +18,6 @@ use super::OwnedLootAuthority;
 use super::RepresentedAdventureMapStartQuestLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::RepresentedLootRollCriteriaEvent;
-use super::RepresentedQuestCompleteStatusUpdateLikeCpp;
-use super::RepresentedQuestObjectiveProgressEventLikeCpp;
-use super::VecDeque;
-#[cfg(test)]
-use super::quest::test_fixtures::QuestTestFixtureLikeCpp;
 use super::Instant;
 #[cfg(test)]
 use super::RepresentedAreaZoneCriteriaLikeCpp;
@@ -69,6 +64,11 @@ mod interaction;
 pub(crate) use interaction::InteractionState;
 
 pub(crate) use wow_world_social::SessionSocialLimits;
+pub(crate) use wow_world_application::SessionQuestState;
+pub(crate) use wow_world_application::{
+    RepresentedQuestCompleteStatusUpdateLikeCpp,
+    RepresentedQuestObjectiveProgressEventLikeCpp,
+};
 
 /// The session's view of the world it is in: the active area trigger, the taxi
 /// travel map lookup, the combat-tick bookkeeping and the realm PvP flags.
@@ -97,26 +97,6 @@ pub(in crate::session) struct SessionWorldView {
 pub(in crate::session) struct SessionPhaseRail {
     pub(in crate::session) tx: flume::Sender<crate::session::mailbox::SessionPhaseRequestLikeCpp>,
     pub(in crate::session) rx: flume::Receiver<crate::session::mailbox::SessionPhaseRequestLikeCpp>,
-}
-
-/// The session's quest-side represented state: the level-gap thresholds that
-/// decide quest visibility, the completed-quest status updates and objective
-/// progress the player owner drains, and the visibility refreshes those
-/// transitions request.
-pub(crate) struct SessionQuestState {
-    pub(crate) min_quest_scaled_xp_ratio_like_cpp: u32,
-    pub(crate) quest_high_level_hide_diff_like_cpp: u32,
-    pub(crate) quest_low_level_hide_diff_like_cpp: u32,
-    /// Evidence for represented `Player::CompleteQuest` status-update side effects.
-    pub(crate) represented_quest_complete_status_updates_like_cpp:
-        Vec<RepresentedQuestCompleteStatusUpdateLikeCpp>,
-    pub(in crate::session) represented_quest_objective_progress_draining_like_cpp: bool,
-    pub(in crate::session) represented_quest_objective_progress_events_like_cpp:
-        VecDeque<RepresentedQuestObjectiveProgressEventLikeCpp>,
-    /// Count of visibility refreshes requested by movement initialization.
-    pub(in crate::session) movement_visibility_refresh_requests_like_cpp: u32,
-    #[cfg(test)]
-    pub(crate) quest_test_fixture_like_cpp: QuestTestFixtureLikeCpp,
 }
 
 /// The session's persistence and lifecycle timeline: the login/logout instants

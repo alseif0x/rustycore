@@ -172,12 +172,11 @@ impl WorldSession {
             self.fixtures.progression.watched_faction_index_like_cpp,
         );
         #[cfg(test)]
-        for quest_bit in &self
+        for quest_bit in self
             .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_quest_completed_bits_like_cpp
+            .fixture_represented_quest_completed_bits_like_cpp()
         {
-            player.set_quest_completed_bit_like_cpp(*quest_bit, true);
+            player.set_quest_completed_bit_like_cpp(quest_bit, true);
         }
         #[cfg(test)]
         player.set_explored_zones_blocks_like_cpp(

@@ -28,10 +28,8 @@ use crate::session::state::WorldEntitiesState;
 use super::SeedableRng;
 #[cfg(test)]
 use super::StdRng;
-#[cfg(test)]
-use super::quest::test_fixtures::QuestTestFixtureLikeCpp;
 use super::{HashMap, Instant};
-use super::{VecDeque, WorldPacket, WorldSession, connection};
+use super::{WorldPacket, WorldSession, connection};
 
 impl WorldSession {
     pub(in crate::session) const MIN_ITEM_LEVEL_LIKE_CPP: u32 = 1;
@@ -93,17 +91,7 @@ impl WorldSession {
             world_entities: WorldEntitiesState::new_like_cpp(),
             visibility: VisibilityState::new_like_cpp(),
             interaction: InteractionState::new_like_cpp(),
-            quest_state: SessionQuestState {
-                min_quest_scaled_xp_ratio_like_cpp: 0,
-                quest_high_level_hide_diff_like_cpp: 7,
-                quest_low_level_hide_diff_like_cpp: 4,
-                represented_quest_complete_status_updates_like_cpp: Vec::new(),
-                represented_quest_objective_progress_draining_like_cpp: false,
-                represented_quest_objective_progress_events_like_cpp: VecDeque::new(),
-                movement_visibility_refresh_requests_like_cpp: 0,
-                #[cfg(test)]
-                quest_test_fixture_like_cpp: QuestTestFixtureLikeCpp::default(),
-            },
+            quest_state: SessionQuestState::new(),
             view: SessionWorldView {
                 is_pvp_realm_like_cpp: false,
                 is_ffa_pvp_realm_like_cpp: false,

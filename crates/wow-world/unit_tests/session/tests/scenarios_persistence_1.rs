@@ -33,8 +33,7 @@ async fn save_first_durable_money_completion_preserves_and_drains_money_event() 
     assert_eq!(
         session
             .quest_state
-            .represented_quest_objective_progress_events_like_cpp
-            .len(),
+            .represented_quest_objective_progress_event_count_like_cpp(),
         1,
         "save reconciliation must retain the exact MoneyChanged transition"
     );
@@ -66,8 +65,7 @@ async fn save_first_durable_money_completion_preserves_and_drains_money_event() 
     assert!(
         session
             .quest_state
-            .represented_quest_objective_progress_events_like_cpp
-            .is_empty(),
+            .represented_quest_objective_progress_events_are_empty_like_cpp(),
         "packet publication must drain the save-first MoneyChanged event"
     );
 }
@@ -341,26 +339,16 @@ fn load_character_reputation_rows_like_cpp_merges_rows_after_identity_and_store(
 fn load_seasonal_quest_status_clears_stale_state_and_resets_changed_on_empty_like_cpp() {
     let (mut session, _, _) = make_session();
     session.seed_seasonal_quest_status_like_cpp(9, 12_345, 100);
-    session
-        .quest_state
-        .quest_test_fixture_like_cpp
-        .seasonal_quest_changed_like_cpp = true;
+    session.quest_state.fixture_set_seasonal_quest_changed_like_cpp(true);
     let quest_store = seasonal_quest_store_like_cpp([12_345]);
 
     let outcome = session.load_seasonal_quest_status_like_cpp([], Some(&quest_store), None);
 
     assert!(
-        session
-            .quest_state
-            .quest_test_fixture_like_cpp
-            .seasonal_quests_like_cpp
-            .is_empty()
+        session.quest_state.fixture_seasonal_quests_are_empty_like_cpp()
     );
     assert!(
-        !session
-            .quest_state
-            .quest_test_fixture_like_cpp
-            .seasonal_quest_changed_like_cpp
+        !session.quest_state.fixture_seasonal_quest_changed_like_cpp()
     );
     assert_eq!(outcome.rows_seen, 0);
     assert_eq!(outcome.seasonal_quest_changed, false);
@@ -387,18 +375,14 @@ fn load_seasonal_quest_status_valid_row_populates_and_blocks_can_take_like_cpp()
     assert_eq!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_quest_completed_bits_like_cpp,
+            .fixture_represented_quest_completed_bits_snapshot_like_cpp(),
         BTreeSet::from([65])
     );
     assert_eq!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .seasonal_quests_like_cpp
-            .get(&9)
-            .and_then(|bucket| bucket.get(&12_345)),
-        Some(&100)
+            .fixture_seasonal_quest_time_like_cpp(9, 12_345),
+        Some(100)
     );
     assert!(!session.can_take_quest(&quest));
 }
@@ -422,9 +406,7 @@ fn load_seasonal_quest_status_missing_quest_v2_store_inserts_but_skips_bit_like_
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_quest_completed_bits_like_cpp
-            .is_empty()
+            .fixture_represented_quest_completed_bits_are_empty_like_cpp()
     );
 }
 #[test]
@@ -448,9 +430,7 @@ fn load_seasonal_quest_status_zero_unique_bit_inserts_but_skips_bit_like_cpp() {
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .represented_quest_completed_bits_like_cpp
-            .is_empty()
+            .fixture_represented_quest_completed_bits_are_empty_like_cpp()
     );
 }
 #[test]
@@ -522,17 +502,10 @@ fn load_seasonal_quest_status_skips_missing_quest_like_cpp() {
     assert_eq!(outcome.rows_seen, 1);
     assert_eq!(outcome.skipped_missing_quest, 1);
     assert!(
-        session
-            .quest_state
-            .quest_test_fixture_like_cpp
-            .seasonal_quests_like_cpp
-            .is_empty()
+        session.quest_state.fixture_seasonal_quests_are_empty_like_cpp()
     );
     assert!(
-        !session
-            .quest_state
-            .quest_test_fixture_like_cpp
-            .seasonal_quest_changed_like_cpp
+        !session.quest_state.fixture_seasonal_quest_changed_like_cpp()
     );
 }
 #[test]
@@ -562,11 +535,8 @@ fn load_seasonal_quest_status_duplicate_event_quest_last_row_wins_like_cpp() {
     assert_eq!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .seasonal_quests_like_cpp
-            .get(&9)
-            .and_then(|bucket| bucket.get(&12_345)),
-        Some(&200)
+            .fixture_seasonal_quest_time_like_cpp(9, 12_345),
+        Some(200)
     );
 }
 #[test]
@@ -586,11 +556,7 @@ fn load_seasonal_quest_status_event_out_of_range_is_skipped_not_truncated_like_c
 
     assert_eq!(outcome.skipped_event_out_of_range, 1);
     assert!(
-        session
-            .quest_state
-            .quest_test_fixture_like_cpp
-            .seasonal_quests_like_cpp
-            .is_empty()
+        session.quest_state.fixture_seasonal_quests_are_empty_like_cpp()
     );
 }
 #[test]
@@ -610,11 +576,7 @@ fn load_seasonal_quest_status_negative_completed_time_is_skipped_like_cpp() {
 
     assert_eq!(outcome.skipped_negative_completed_time, 1);
     assert!(
-        session
-            .quest_state
-            .quest_test_fixture_like_cpp
-            .seasonal_quests_like_cpp
-            .is_empty()
+        session.quest_state.fixture_seasonal_quests_are_empty_like_cpp()
     );
 }
 #[test]
@@ -633,17 +595,10 @@ fn load_seasonal_quest_status_without_quest_store_skips_rows_like_cpp() {
 
     assert_eq!(outcome.skipped_no_quest_store, 1);
     assert!(
-        session
-            .quest_state
-            .quest_test_fixture_like_cpp
-            .seasonal_quests_like_cpp
-            .is_empty()
+        session.quest_state.fixture_seasonal_quests_are_empty_like_cpp()
     );
     assert!(
-        !session
-            .quest_state
-            .quest_test_fixture_like_cpp
-            .seasonal_quest_changed_like_cpp
+        !session.quest_state.fixture_seasonal_quest_changed_like_cpp()
     );
 }
 #[test]

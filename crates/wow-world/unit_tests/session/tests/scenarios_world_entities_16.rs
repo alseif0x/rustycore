@@ -16,9 +16,7 @@ fn creature_questgiver_single_complete_ender_auto_opens_request_items_can_comple
     session.catalogs.quests.store = Some(Arc::new(quest_store));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             9_103,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id: 9_103,
@@ -64,9 +62,7 @@ fn creature_questgiver_ender_relation_precedes_starter_like_cpp() {
     session.catalogs.quests.store = Some(Arc::new(quest_store));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             9_101,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id: 9_101,
@@ -231,9 +227,7 @@ fn quest_giver_accept_creature_ender_only_relation_rejects_like_cpp() {
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .is_empty()
+            .fixture_player_quest_statuses_are_empty_like_cpp()
     );
     assert!(send_rx.try_recv().is_err());
 }
@@ -290,9 +284,7 @@ fn quest_giver_accept_gameobject_starter_relation_without_interaction_rejects_li
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .is_empty()
+            .fixture_player_quest_statuses_are_empty_like_cpp()
     );
     assert!(send_rx.try_recv().is_err());
 }
@@ -335,9 +327,7 @@ fn quest_giver_accept_gameobject_ender_only_or_unrelated_rejects_like_cpp() {
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .is_empty()
+            .fixture_player_quest_statuses_are_empty_like_cpp()
     );
     assert!(send_rx.try_recv().is_err());
 }
@@ -465,9 +455,7 @@ fn quest_giver_reward_gameobject_ender_relation_out_of_range_rejects_like_cpp() 
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .is_empty()
+            .fixture_player_quest_statuses_are_empty_like_cpp()
     );
 }
 #[test]
@@ -501,9 +489,7 @@ fn quest_giver_reward_gameobject_ender_relation_wrong_type_rejects_like_cpp() {
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .is_empty()
+            .fixture_player_quest_statuses_are_empty_like_cpp()
     );
 }
 #[tokio::test]
@@ -604,9 +590,7 @@ async fn quest_giver_choose_reward_gameobject_no_relation_rejects_like_cpp() {
     ));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             9_225,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id: 9_225,
@@ -631,18 +615,12 @@ async fn quest_giver_choose_reward_gameobject_no_relation_rejects_like_cpp() {
     assert_eq!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .get(&9_225)
+            .fixture_player_quest_status_like_cpp(9_225)
             .map(|quest| quest.status),
         Some(crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP)
     );
     assert!(
-        !session
-            .quest_state
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&9_225)
+        !session.quest_state.fixture_has_rewarded_quest_like_cpp(9_225)
     );
     assert_eq!(session.player_gold_like_cpp(), 5);
     assert!(send_rx.try_recv().is_err());
@@ -825,9 +803,7 @@ fn quest_giver_query_gameobject_ender_relation_allows_request_items_like_cpp() {
     session.catalogs.quests.store = Some(Arc::new(quest_store));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             9_206,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id: 9_206,

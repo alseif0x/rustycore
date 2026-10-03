@@ -108,15 +108,15 @@ impl WorldSession {
         };
         let packet_bytes = packet.to_bytes();
         self.send_raw_packet(&packet_bytes);
-        {
-            let (s, h) = crate::session::split_quest_state_ref(self);
-            s.send_represented_duel_requested_to_opponent_like_cpp(
-                h,
-                target_guid,
-                arbiter_guid,
-                packet_bytes,
-            )
-        };
+        self.core.try_send_connected_player_command_like_cpp(
+            target_guid,
+            SessionCommand::SendRepresentedDuelRequestedLikeCpp(
+                crate::session::mailbox::SendRepresentedDuelRequestedLikeCppCommand {
+                    arbiter_guid,
+                    packet_bytes,
+                },
+            ),
+        );
 
         #[cfg(test)]
         self.social

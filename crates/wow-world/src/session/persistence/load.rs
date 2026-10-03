@@ -488,11 +488,9 @@ impl WorldSession {
         #[cfg(test)]
         if !_canonical && self.core.player_handle_like_cpp.is_none() {
             self.quest_state
-                .quest_test_fixture_like_cpp
-                .represented_known_titles_like_cpp = known_title_ids.into_iter().collect();
+                .fixture_replace_represented_known_titles_like_cpp(known_title_ids);
             self.quest_state
-                .quest_test_fixture_like_cpp
-                .represented_chosen_title_like_cpp = chosen_title;
+                .fixture_set_represented_chosen_title_like_cpp(chosen_title);
         }
     }
 }

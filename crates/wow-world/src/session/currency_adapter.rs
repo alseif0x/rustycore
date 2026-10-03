@@ -9,23 +9,7 @@ use super::{HashMap, PlayerCurrency, WorldSession};
 pub(crate) use wow_world_core::session::PlayerCurrencyDelta;
 pub(in crate::session) use wow_world_core::session::currency_max_quantity_cpp;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum RepresentedQuestObjectiveProgressEventLikeCpp {
-    MoneyChanged {
-        old_money: u64,
-        new_money: u64,
-    },
-    #[allow(dead_code)]
-    CurrencyChanged {
-        currency_id: u32,
-        change: i32,
-    },
-    #[allow(dead_code)]
-    ReputationChanged {
-        faction_id: u32,
-        change: i32,
-    },
-}
+pub(crate) use wow_world_application::RepresentedQuestObjectiveProgressEventLikeCpp;
 
 pub(crate) use wow_constants::currency::CurrencyGainSourceLikeCpp;
 

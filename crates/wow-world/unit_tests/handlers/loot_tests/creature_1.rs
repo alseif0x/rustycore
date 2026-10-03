@@ -368,9 +368,7 @@ async fn quest_required_creature_loot_is_not_generated_after_completion_like_cpp
     install_quest_bound_loot_objective_like_cpp(&mut session, quest_id, item_id, 6, 6);
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get_mut(&quest_id)
+        .fixture_player_quest_status_mut_like_cpp(quest_id)
         .unwrap()
         .status = crate::conditions::QUEST_STATUS_COMPLETE_LIKE_CPP;
 
@@ -408,9 +406,7 @@ async fn quest_required_creature_loot_is_not_generated_after_completion_like_cpp
 
     let status = session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get_mut(&quest_id)
+        .fixture_player_quest_status_mut_like_cpp(quest_id)
         .unwrap();
     status.status = crate::conditions::QUEST_STATUS_INCOMPLETE_LIKE_CPP;
     status.objective_counts[0] = 5;

@@ -257,13 +257,74 @@ impl WorldSession {
     }
 
     fn satisfy_quest_skill_like_cpp(&self, quest: &wow_data::quest::QuestTemplate) -> bool {
-        let (state, hub) = crate::session::split_quest_state_ref(self);
-        state.satisfy_quest_skill_like_cpp(hub, quest)
+        if quest.required_skill_id == 0 {
+            return true;
+        }
+        let Ok(skill_u16) = u16::try_from(quest.required_skill_id) else {
+            return true;
+        };
+        crate::session::hub_ref(self)
+            .resolved_player_skill_value_like_cpp(skill_u16)
+            .is_some_and(|value| u32::from(value) >= quest.required_skill_points)
     }
 
     fn satisfy_quest_reputation_like_cpp(&self, quest: &wow_data::quest::QuestTemplate) -> bool {
-        let (state, hub) = crate::session::split_quest_state_ref(self);
-        state.satisfy_quest_reputation_like_cpp(hub, quest)
+        let hub = crate::session::hub_ref(self);
+        if quest.required_min_rep_faction != 0 {
+            let rep = match hub
+                .catalogs
+                .faction_store()
+                .and_then(|store| store.get(quest.required_min_rep_faction))
+            {
+                Some(faction_entry) => {
+                    let player_race = hub.player_race_like_cpp();
+                    let player_class = hub.player_class_like_cpp();
+                    let Some(rep) = hub.with_reputation_mgr_like_cpp(|mgr| {
+                        mgr.reputation_for_faction_like_cpp(
+                            faction_entry,
+                            player_race,
+                            player_class,
+                        )
+                    }) else {
+                        return false;
+                    };
+                    rep
+                }
+                None => 0,
+            };
+            if rep < quest.required_min_rep_value {
+                return false;
+            }
+        }
+
+        if quest.required_max_rep_faction != 0 {
+            let rep = match hub
+                .catalogs
+                .faction_store()
+                .and_then(|store| store.get(quest.required_max_rep_faction))
+            {
+                Some(faction_entry) => {
+                    let player_race = hub.player_race_like_cpp();
+                    let player_class = hub.player_class_like_cpp();
+                    let Some(rep) = hub.with_reputation_mgr_like_cpp(|mgr| {
+                        mgr.reputation_for_faction_like_cpp(
+                            faction_entry,
+                            player_race,
+                            player_class,
+                        )
+                    }) else {
+                        return false;
+                    };
+                    rep
+                }
+                None => 0,
+            };
+            if rep >= quest.required_max_rep_value {
+                return false;
+            }
+        }
+
+        true
     }
 
     // SatisfyQuestExclusiveGroup — Player.cpp:15348-15391
@@ -369,24 +430,40 @@ impl WorldSession {
         &self,
         quest: &wow_data::quest::QuestTemplate,
     ) -> bool {
-        let (state, hub) = crate::session::split_quest_state_ref(self);
-        state.represented_quest_is_trivial_like_cpp(hub, quest)
+        let hub = crate::session::hub_ref(self);
+        hub.player_level_like_cpp() as i32
+            > quest
+                .quest_level
+                .saturating_add(self.quest_state.quest_low_level_hide_diff_like_cpp() as i32)
     }
 
     fn satisfy_quest_level_represented_like_cpp(
         &self,
         quest: &wow_data::quest::QuestTemplate,
     ) -> bool {
-        let (state, hub) = crate::session::split_quest_state_ref(self);
-        state.satisfy_quest_level_represented_like_cpp(hub, quest)
+        let level = crate::session::hub_ref(self).player_level_like_cpp();
+        if quest.min_level > 0 && i32::from(level) < quest.min_level {
+            return false;
+        }
+
+        if quest.max_level > 0 && level > quest.max_level {
+            return false;
+        }
+
+        true
     }
 
     fn satisfy_quest_race_class_represented_like_cpp(
         &self,
         quest: &wow_data::quest::QuestTemplate,
     ) -> bool {
-        let (state, hub) = crate::session::split_quest_state_ref(self);
-        state.satisfy_quest_race_class_represented_like_cpp(hub, quest)
+        let hub = crate::session::hub_ref(self);
+        quest.is_available_for(
+            hub.player_race_like_cpp(),
+            hub.player_class_like_cpp(),
+            hub.player_level_like_cpp()
+                .max(quest.min_level.max(1).min(i32::from(u8::MAX)) as u8),
+        )
     }
 
     fn can_see_start_quest_represented_bounded_like_cpp(
@@ -432,7 +509,7 @@ impl WorldSession {
 
         self.satisfy_quest_race_class_represented_like_cpp(quest)
             && i32::from(crate::session::hub_ref(self).player_level_like_cpp())
-                .saturating_add(self.quest_state.quest_high_level_hide_diff_like_cpp as i32)
+                .saturating_add(self.quest_state.quest_high_level_hide_diff_like_cpp() as i32)
                 >= quest.min_level
     }
 
@@ -690,8 +767,18 @@ impl WorldSession {
     }
 
     pub(crate) fn is_quest_disabled_like_cpp(&self, quest_id: u32) -> bool {
-        let (state, hub) = crate::session::split_quest_state_ref(self);
-        state.is_quest_disabled_like_cpp(hub, quest_id)
+        crate::session::hub_ref(self)
+            .catalogs
+            .disable_mgr()
+            .is_some_and(|disable_mgr| {
+                disable_mgr.is_disabled_for_like_cpp(
+                    DISABLE_TYPE_QUEST,
+                    quest_id,
+                    None,
+                    0,
+                    None,
+                )
+            })
     }
 }
 
@@ -724,141 +811,5 @@ impl crate::session::QuestStateCxRef<'_> {
         }
 
         None
-    }
-}
-
-impl crate::session::SessionQuestState {
-    // SatisfyQuestSkill — Player.cpp:14098, 15015-15037
-    fn satisfy_quest_skill_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        quest: &wow_data::quest::QuestTemplate,
-    ) -> bool {
-        if quest.required_skill_id == 0 {
-            return true;
-        }
-        let Ok(skill_u16) = u16::try_from(quest.required_skill_id) else {
-            return true;
-        };
-        hub.resolved_player_skill_value_like_cpp(skill_u16)
-            .is_some_and(|value| u32::from(value) >= quest.required_skill_points)
-    }
-
-    // SatisfyQuestReputation — Player.cpp:14098, 15262-15289
-    //
-    // Mirrors C++ GetReputation(fId) = base + standing.
-    // faction_store None or faction not found → treat reputation as 0 (C++ GetReputation returns 0
-    // for unknown faction id, Player.cpp:15265 / ReputationMgr.cpp:118-124).
-    fn satisfy_quest_reputation_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        quest: &wow_data::quest::QuestTemplate,
-    ) -> bool {
-        if quest.required_min_rep_faction != 0 {
-            let rep = match hub
-                .catalogs
-                .faction_store()
-                .and_then(|store| store.get(quest.required_min_rep_faction))
-            {
-                Some(faction_entry) => {
-                    let player_race = hub.player_race_like_cpp();
-                    let player_class = hub.player_class_like_cpp();
-                    let Some(rep) = hub.with_reputation_mgr_like_cpp(|mgr| {
-                        mgr.reputation_for_faction_like_cpp(
-                            faction_entry,
-                            player_race,
-                            player_class,
-                        )
-                    }) else {
-                        return false;
-                    };
-                    rep
-                }
-                None => 0,
-            };
-            if rep < quest.required_min_rep_value {
-                return false;
-            }
-        }
-
-        if quest.required_max_rep_faction != 0 {
-            let rep = match hub
-                .catalogs
-                .faction_store()
-                .and_then(|store| store.get(quest.required_max_rep_faction))
-            {
-                Some(faction_entry) => {
-                    let player_race = hub.player_race_like_cpp();
-                    let player_class = hub.player_class_like_cpp();
-                    let Some(rep) = hub.with_reputation_mgr_like_cpp(|mgr| {
-                        mgr.reputation_for_faction_like_cpp(
-                            faction_entry,
-                            player_race,
-                            player_class,
-                        )
-                    }) else {
-                        return false;
-                    };
-                    rep
-                }
-                None => 0,
-            };
-            if rep >= quest.required_max_rep_value {
-                return false;
-            }
-        }
-
-        true
-    }
-
-    fn represented_quest_is_trivial_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        quest: &wow_data::quest::QuestTemplate,
-    ) -> bool {
-        hub.player_level_like_cpp() as i32
-            > quest
-                .quest_level
-                .saturating_add(self.quest_low_level_hide_diff_like_cpp as i32)
-    }
-
-    fn satisfy_quest_level_represented_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        quest: &wow_data::quest::QuestTemplate,
-    ) -> bool {
-        let level = hub.player_level_like_cpp();
-        if quest.min_level > 0 && i32::from(level) < quest.min_level {
-            return false;
-        }
-
-        if quest.max_level > 0 && level > quest.max_level {
-            return false;
-        }
-
-        true
-    }
-
-    fn satisfy_quest_race_class_represented_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        quest: &wow_data::quest::QuestTemplate,
-    ) -> bool {
-        quest.is_available_for(
-            hub.player_race_like_cpp(),
-            hub.player_class_like_cpp(),
-            hub.player_level_like_cpp()
-                .max(quest.min_level.max(1).min(i32::from(u8::MAX)) as u8),
-        )
-    }
-
-    pub(crate) fn is_quest_disabled_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        quest_id: u32,
-    ) -> bool {
-        hub.catalogs.disable_mgr().is_some_and(|disable_mgr| {
-            disable_mgr.is_disabled_for_like_cpp(DISABLE_TYPE_QUEST, quest_id, None, 0, None)
-        })
     }
 }

@@ -152,9 +152,7 @@ fn recursive_destroy_plans_child_and_parent_quest_removal_like_cpp() {
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             crate::handlers::quest::PlayerQuestStatus {
                 quest_id,
@@ -502,11 +500,7 @@ fn gossip_quest_text_offers_sallina_followup_after_hunter_training_rewarded_like
         .or_default()
         .push(10_070);
     session.set_quest_store(Arc::new(store));
-    session
-        .quest_state
-        .quest_test_fixture_like_cpp
-        .rewarded_quests
-        .insert(9_393);
+    session.quest_state.fixture_set_rewarded_quest_like_cpp(9_393, true);
 
     let quest_text = session.represented_creature_gossip_text_like_cpp(sallina_entry);
 

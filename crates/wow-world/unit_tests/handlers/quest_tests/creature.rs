@@ -113,9 +113,7 @@ async fn quest_giver_status_query_canonical_creature_completed_ender_sends_can_r
     session.set_quest_store(Arc::new(store));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             1002,
             PlayerQuestStatus {
                 quest_id: 1002,
@@ -148,9 +146,7 @@ async fn quest_giver_status_query_gameobject_ignores_creature_relation_for_same_
     session.set_quest_store(Arc::new(store));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             1005,
             PlayerQuestStatus {
                 quest_id: 1005,

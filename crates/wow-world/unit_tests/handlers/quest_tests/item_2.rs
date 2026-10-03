@@ -39,9 +39,7 @@ async fn quest_giver_choose_reward_package_primary_inventory_failure_sends_equip
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             PlayerQuestStatus {
                 quest_id,
@@ -66,18 +64,14 @@ async fn quest_giver_choose_reward_package_primary_inventory_failure_sends_equip
     assert_eq!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .get(&quest_id)
+            .fixture_player_quest_status_like_cpp(quest_id)
             .map(|status| status.status),
         Some(QUEST_STATUS_COMPLETE_LIKE_CPP)
     );
     assert!(
         !session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+            .fixture_has_rewarded_quest_like_cpp(quest_id)
     );
     assert_eq!(session.player_gold_like_cpp(), 5);
     assert_eq!(
@@ -122,9 +116,7 @@ async fn quest_giver_choose_reward_package_fallback_inventory_failure_sends_equi
     session.set_quest_store(Arc::new(QuestStore::from_quests_like_cpp([quest])));
     session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .insert(
+        .fixture_insert_player_quest_status_like_cpp(
             quest_id,
             PlayerQuestStatus {
                 quest_id,
@@ -149,18 +141,14 @@ async fn quest_giver_choose_reward_package_fallback_inventory_failure_sends_equi
     assert_eq!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .get(&quest_id)
+            .fixture_player_quest_status_like_cpp(quest_id)
             .map(|status| status.status),
         Some(QUEST_STATUS_COMPLETE_LIKE_CPP)
     );
     assert!(
         !session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+            .fixture_has_rewarded_quest_like_cpp(quest_id)
     );
     assert_eq!(session.player_gold_like_cpp(), 5);
     assert_eq!(
@@ -207,9 +195,7 @@ async fn quest_confirm_accept_source_item_start_quest_no_grant_adds_local_state_
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+            .fixture_contains_player_quest_status_like_cpp(quest_id)
     );
     assert_eq!(
         session
@@ -282,9 +268,7 @@ async fn quest_confirm_accept_source_item_with_space_stores_and_pushes_item_like
     assert_eq!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .get(&quest_id)
+            .fixture_player_quest_status_like_cpp(quest_id)
             .expect("source-item quest should still add local quest state")
             .status,
         QUEST_STATUS_COMPLETE_LIKE_CPP
@@ -292,9 +276,7 @@ async fn quest_confirm_accept_source_item_with_space_stores_and_pushes_item_like
     assert_eq!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .get(&quest_id)
+            .fixture_player_quest_status_like_cpp(quest_id)
             .expect("source-item quest should still add local quest state")
             .objective_counts,
         vec![2]
@@ -499,9 +481,7 @@ async fn quest_confirm_accept_source_item_full_backpack_stores_in_represented_ba
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+            .fixture_contains_player_quest_status_like_cpp(quest_id)
     );
     assert!(
         session
@@ -811,9 +791,7 @@ async fn quest_confirm_accept_source_item_bound_objective_updates_quest_without_
     assert_eq!(session.represented_pending_quest_sharing_like_cpp(), None);
     let status = session
         .quest_state
-        .quest_test_fixture_like_cpp
-        .player_quests
-        .get(&quest_id)
+        .fixture_player_quest_status_like_cpp(quest_id)
         .expect("bound source-item quest should still add local quest state");
     assert_eq!(status.status, QUEST_STATUS_COMPLETE_LIKE_CPP);
     assert_eq!(status.objective_counts, vec![2]);
@@ -909,16 +887,12 @@ async fn quest_confirm_accept_tracking_event_source_item_objective_auto_rewards_
     assert!(
         !session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .player_quests
-            .contains_key(&quest_id)
+            .fixture_contains_player_quest_status_like_cpp(quest_id)
     );
     assert!(
         session
             .quest_state
-            .quest_test_fixture_like_cpp
-            .rewarded_quests
-            .contains(&quest_id)
+            .fixture_has_rewarded_quest_like_cpp(quest_id)
     );
     assert_complete_status_update_like_cpp(&session, quest_id, false);
 
