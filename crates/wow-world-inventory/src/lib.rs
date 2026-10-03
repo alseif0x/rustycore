@@ -76,7 +76,7 @@ pub use handlers::{
     EquipmentSetsSaveCxLikeCpp,
     register_inventory_handlers_like_cpp,
 };
-pub use modifiers::represented_player_stat_changes_like_cpp;
+pub use modifiers::{ItemModsCatalogsViewLikeCpp, represented_player_stat_changes_like_cpp};
 pub use publication::item_storage_fields_values_update_like_cpp;
 pub use storage_slots::is_represented_bag_slot;
 #[cfg(any(test, feature = "test-fixtures"))]

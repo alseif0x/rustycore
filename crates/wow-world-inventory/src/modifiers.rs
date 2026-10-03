@@ -7,16 +7,17 @@ use crate::{
     RepresentedItemBonusActionLikeCpp, RepresentedItemSetAuraRefreshEventLikeCpp,
     RepresentedItemSetSpellEventLikeCpp,
 };
-use wow_constants::{
-    InventoryType, UnitFlags, UnitFlags2, WeaponAttackType,
-};
+use wow_constants::InventoryType;
 use wow_core::ObjectGuid;
 use wow_entities::{
-    ApplyEnchantmentEffectAction, EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND,
-    PlayerItemBonusStateLikeCpp, PlayerItemLevelCapsLikeCpp, PlayerItemSetEffectLikeCpp,
+    ApplyEnchantmentEffectAction, PlayerItemBonusStateLikeCpp, PlayerItemLevelCapsLikeCpp,
+    PlayerItemSetEffectLikeCpp,
 };
 use wow_progression::reputation_to_rank_like_cpp;
 use wow_world_core::session::{HubMut, HubRef};
+
+mod item_mods;
+pub use item_mods::ItemModsCatalogsViewLikeCpp;
 
 pub fn represented_player_stat_changes_like_cpp(
     state: &wow_entities::PlayerItemBonusStateLikeCpp,
@@ -415,42 +416,10 @@ impl crate::InventoryState {
         slot: u8,
         inventory_type: Option<InventoryType>,
     ) -> Option<bool> {
-        let attack_type = match slot {
-            EQUIPMENT_SLOT_MAINHAND
-                if matches!(
-                    inventory_type,
-                    Some(InventoryType::Ranged | InventoryType::RangedRight)
-                ) =>
-            {
-                WeaponAttackType::RangedAttack
-            }
-            EQUIPMENT_SLOT_MAINHAND => WeaponAttackType::BaseAttack,
-            EQUIPMENT_SLOT_OFFHAND => WeaponAttackType::OffAttack,
-            _ => WeaponAttackType::Max,
-        };
-        match attack_type {
-            WeaponAttackType::BaseAttack => hub.core.canonical_player_snapshot_like_cpp(|player| {
-                !player
-                    .unit()
-                    .unit_flags_like_cpp()
-                    .contains(UnitFlags::DISARMED)
-            }),
-            WeaponAttackType::OffAttack => hub.core.canonical_player_snapshot_like_cpp(|player| {
-                !player
-                    .unit()
-                    .unit_flags2_like_cpp()
-                    .contains(UnitFlags2::DISARM_OFFHAND)
-            }),
-            WeaponAttackType::RangedAttack => {
-                hub.core.canonical_player_snapshot_like_cpp(|player| {
-                    !player
-                        .unit()
-                        .unit_flags2_like_cpp()
-                        .contains(UnitFlags2::DISARM_RANGED)
-                })
-            }
-            WeaponAttackType::Max => Some(true),
-        }
+        let attack_type = item_mods::attack_type_for_slot_like_cpp(slot, inventory_type);
+        hub.core
+            .owned_item_modifiers_access_like_cpp()
+            .can_use_weapon_attack_type_like_cpp(attack_type)
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]

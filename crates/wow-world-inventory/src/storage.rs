@@ -2,12 +2,14 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use wow_constants::InventoryType;
 use wow_constants::item::EnchantmentSlot;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_constants::unit::WeaponAttackType;
 use wow_core::ObjectGuid;
+use wow_data::ItemStore;
 use wow_entities::{
     Item, ItemObjectUpdateLikeCpp, Player, PlayerEnchantDuration, PlayerEnchantTimeUpdate,
     PlayerInventoryItem as InventoryItem, PlayerInventoryRuntime, PlayerItemTimeUpdate,
@@ -27,16 +29,33 @@ impl crate::InventoryState {
         item_entry: u32,
         item_guid: ObjectGuid,
     ) -> Option<InventoryType> {
-        self.resolved_inventory_items_like_cpp(hub)?
+        let access = hub.core.owned_inventory_access_like_cpp();
+        self.represented_item_inventory_type_with_access_like_cpp(
+            &access,
+            hub.catalogs.items.store.as_ref(),
+            item_entry,
+            item_guid,
+        )
+    }
+
+    pub(crate) fn represented_item_inventory_type_with_access_like_cpp(
+        &self,
+        access: &wow_world_core::session::OwnedInventoryAccessLikeCpp<'_>,
+        item_store: Option<&Arc<ItemStore>>,
+        item_entry: u32,
+        item_guid: ObjectGuid,
+    ) -> Option<InventoryType> {
+        let inventory_items = self
+            .resolved_player_inventory_runtime_with_access_like_cpp(access)?
+            .inventory_items()
+            .clone();
+        inventory_items
             .values()
             .find(|item| item.guid == item_guid)
             .and_then(|item| item.inventory_type)
             .and_then(<InventoryType as num_traits::FromPrimitive>::from_u8)
             .or_else(|| {
-                hub.catalogs
-                    .items
-                    .store
-                    .as_ref()
+                item_store
                     .and_then(|store| store.get(item_entry))
                     .and_then(|record| {
                         <InventoryType as num_traits::FromPrimitive>::from_i8(record.inventory_type)

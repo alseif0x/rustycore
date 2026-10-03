@@ -85,18 +85,33 @@ impl crate::session::state::SessionCatalogs {
     }
 
     pub fn item_shield_block_value_like_cpp(&self, item_id: u32) -> Option<i16> {
-        let basic = self.items.store.as_ref()?.get(item_id)?;
+        crate::session::OwnedItemModifiersAccessLikeCpp::item_shield_block_value_from_selected_inputs_like_cpp(
+            self.items.store.as_ref(),
+            self.items.stats_store.as_ref(),
+            self.shield_block_regular_game_table.as_ref(),
+            item_id,
+        )
+    }
+}
+
+impl crate::session::OwnedItemModifiersAccessLikeCpp<'_> {
+    pub fn item_shield_block_value_from_selected_inputs_like_cpp(
+        item_store: Option<&Arc<wow_data::ItemStore>>,
+        stats_store: Option<&Arc<wow_data::ItemStatsStore>>,
+        shield_block_regular_game_table: Option<&Arc<ShieldBlockRegularGameTableLikeCpp>>,
+        item_id: u32,
+    ) -> Option<i16> {
+        let basic = item_store?.get(item_id)?;
         if basic.class_id != ItemClass::Armor as u8
             || basic.subclass_id != ItemSubClassArmor::Shield as u8
         {
             return None;
         }
 
-        let template = self.item_random_property_template(item_id)?;
+        let template = stats_store?.random_property_template(item_id)?;
         let item_level = u32::from(template.item_level);
         let quality = u32::try_from(template.quality).ok()?;
-        self.shield_block_regular_game_table
-            .as_ref()?
+        shield_block_regular_game_table?
             .shield_block_for_quality_like_cpp(item_level, quality)
             .filter(|value| *value != 0)
     }

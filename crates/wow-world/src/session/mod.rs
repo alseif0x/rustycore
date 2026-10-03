@@ -761,10 +761,7 @@ use wow_entities::{
     SwapItemPreflightPlan, TYPEID_CONTAINER, TYPEID_ITEM, Unit,
     UnitVisibilityDetectionStateLikeCpp, UpdateMask, Vehicle, VisibleItemValues, WorldObject,
     explored_zones_db_string_from_blocks_like_cpp, is_bag_pos, is_equipment_packed_pos,
-    is_inventory_pos, item_resistance_bonus_actions_like_cpp,
-    item_scaling_stat_bonus_actions_like_cpp, item_shield_block_bonus_action_like_cpp,
-    item_stat_bonus_actions_like_cpp, item_weapon_damage_actions_like_cpp, make_item_pos,
-    parse_explored_zones_db_string_like_cpp,
+    is_inventory_pos, make_item_pos, parse_explored_zones_db_string_like_cpp,
 };
 use wow_entities::{
     BagValuesUpdate, CONTAINER_DATA_BITS, CONTAINER_DATA_SLOTS_FIRST_BIT,

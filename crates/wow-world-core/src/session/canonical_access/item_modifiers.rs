@@ -1,6 +1,7 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
+use wow_constants::{UnitFlags, UnitFlags2, WeaponAttackType};
 use wow_core::ObjectGuid;
 use wow_entities::{ApplyEnchantmentEffectAction, PlayerItemModifierRuntimeStateLikeCpp};
 
@@ -104,7 +105,66 @@ impl OwnedItemModifiersAccessLikeCpp<'_> {
         })
     }
 
-    /// Whether a test fixture session has no canonical Player handle installed.
+    /// Read a strict snapshot through this session's generation-checked Player handle.
+    pub fn player_level_snapshot_like_cpp(&self) -> Option<u8> {
+        self.core
+            .with_owned_player_like_cpp(|player| player.level_like_cpp())
+    }
+
+    /// Apply the normal missing-owner fallback used by scaling queries.
+    pub fn normal_player_level_fallback_like_cpp(&self) -> u8 {
+        self.core.player_level_without_owned_player_like_cpp()
+    }
+
+    /// Read the canonical Unit form, falling back to the Player projection only when it is zero.
+    pub fn shapeshift_form_snapshot_like_cpp(&self) -> Option<u32> {
+        self.core.with_owned_player_like_cpp(|player| {
+            let unit_form = u32::from(player.unit().shapeshift_form_id_like_cpp());
+            if unit_form != 0 {
+                unit_form
+            } else {
+                player.shapeshift_form_id_like_cpp()
+            }
+        })
+    }
+
+    /// Snapshot feral-form state through the canonical Player GUID lookup.
+    pub fn is_in_feral_form_like_cpp(&self) -> Option<bool> {
+        self.core
+            .canonical_player_snapshot_like_cpp(|player| player.is_in_feral_form_like_cpp())
+    }
+
+    /// Snapshot the disarm flag for the requested attack type through the canonical Player GUID.
+    pub fn can_use_weapon_attack_type_like_cpp(
+        &self,
+        attack_type: WeaponAttackType,
+    ) -> Option<bool> {
+        match attack_type {
+            WeaponAttackType::BaseAttack => self.core.canonical_player_snapshot_like_cpp(|player| {
+                !player
+                    .unit()
+                    .unit_flags_like_cpp()
+                    .contains(UnitFlags::DISARMED)
+            }),
+            WeaponAttackType::OffAttack => self.core.canonical_player_snapshot_like_cpp(|player| {
+                !player
+                    .unit()
+                    .unit_flags2_like_cpp()
+                    .contains(UnitFlags2::DISARM_OFFHAND)
+            }),
+            WeaponAttackType::RangedAttack => {
+                self.core.canonical_player_snapshot_like_cpp(|player| {
+                    !player
+                        .unit()
+                        .unit_flags2_like_cpp()
+                        .contains(UnitFlags2::DISARM_RANGED)
+                })
+            }
+            WeaponAttackType::Max => Some(true),
+        }
+    }
+
+    /// Whether a test-fixture session has no canonical Player handle installed.
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn owner_handle_absent_like_cpp(&self) -> bool {
         self.core.player_handle_like_cpp.is_none()

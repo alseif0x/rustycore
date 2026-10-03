@@ -1951,6 +1951,25 @@ disponible bajo Core test-fixtures para consumidores normales de Inventory.
 revisadas; no prueban bytes nuevos ni la ordenación representada del bridge.
 Los callers y escenarios World se conservan sin ejecución nueva.
 
+**Planificación y aplicación de modificadores de objetos — 2026-10-03,
+12:59 UTC (NO VALIDADO):** Inventory contiene la operación completa con un
+contexto privado, dos capacidades canónicas y seis referencias de catálogo.
+World conserva sus fachadas; los providers compartidos de scaling, tipo de
+inventario, resistencia, shield block y límites de daño tienen una sola
+implementación. Se mantienen el clon del runtime/item, el único clon del Arc
+de stats, las lecturas repetidas en sus puntos originales, la salida temprana
+sin runtime y el orden feral/ataque/forma antes de aplicar las acciones.
+Los fixtures de nivel/forma se prestan; evidencia solo se registra cuando el
+consumidor World está bajo cfg(test). Los ocho providers canónicos existentes
+conservan sus cuerpos. Player.cpp:7654::_ApplyItemMods,
+:7688::_ApplyItemBonuses y :7975::_ApplyWeaponDamage en a5f8da2eb son las
+anclas contrastadas, no prueba de paridad de toda esa cadena. El bridge Rust
+mantiene sus lecturas de bounds antes de feral/desarme; C++ aplica primero
+la compuerta feral/apply/desarme. No se repara esa diferencia en F5 ni se
+atribuyen a C++ los fallbacks Rust de propietario ausente. Los consumidores
+y escenarios existentes se conservan, sin ejecutar compilación, formato ni
+pruebas.
+
 **Proyección de misiones en aplicación — 2026-10-03, 12:55 UTC
 (NO VALIDADO):** SessionQuestState contiene los siete campos normales privados
 y sus fixtures en módulos privados de estado, rewards y sharing. Los lectores,

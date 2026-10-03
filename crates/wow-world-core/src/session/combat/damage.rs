@@ -79,6 +79,18 @@ impl crate::session::HubRef<'_> {
         resistances: &[i16; 7],
         scaling_context: Option<RepresentedScalingStatContextLikeCpp>,
     ) -> [i16; 7] {
+        crate::session::OwnedItemModifiersAccessLikeCpp::represented_resistances_with_scaling_armor_like_cpp(
+            resistances,
+            scaling_context,
+        )
+    }
+}
+
+impl crate::session::OwnedItemModifiersAccessLikeCpp<'_> {
+    pub fn represented_resistances_with_scaling_armor_like_cpp(
+        resistances: &[i16; 7],
+        scaling_context: Option<RepresentedScalingStatContextLikeCpp>,
+    ) -> [i16; 7] {
         let mut adjusted = *resistances;
         if let Some(context) = scaling_context {
             if context.armor_mod > 0 {

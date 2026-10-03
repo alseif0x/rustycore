@@ -49,23 +49,24 @@ impl WorldSession {
         item_entry: u32,
         weapon: &wow_data::ItemWeaponTemplateEntry,
     ) -> (f32, f32) {
-        let mut min_damage = f32::from(weapon.min_damage[0]);
-        let mut max_damage = f32::from(weapon.max_damage[0]);
-        let Some(context) = ({
-            let (s, h) = crate::session::split_inventory_ref(self);
-            s.represented_scaling_stat_context_like_cpp(h, item_entry)
-        }) else {
-            return (min_damage, max_damage);
-        };
-
-        if context.dps_mod != 0 {
-            let average = context.dps_mod as f32 * f32::from(weapon.item_delay) / 1000.0;
-            let modifier = if context.is_two_hand { 0.2 } else { 0.3 };
-            min_damage = (1.0 - modifier) * average;
-            max_damage = (1.0 + modifier) * average;
-        }
-
-        (min_damage, max_damage)
+        let access = self.core.owned_item_modifiers_access_like_cpp();
+        let catalogs = wow_world_inventory::ItemModsCatalogsViewLikeCpp::new(
+            self.catalogs.items.store.as_ref(),
+            self.catalogs.items.stats_store.as_ref(),
+            self.catalogs.scaling_stat_distribution_store.as_ref(),
+            self.catalogs.scaling_stat_values_store.as_ref(),
+            self.catalogs.shield_block_regular_game_table.as_ref(),
+            self.catalogs.spell_catalogs.spell_shapeshift_form_store(),
+        );
+        self.inventory
+            .represented_weapon_damage_bounds_with_access_like_cpp(
+                &access,
+                &catalogs,
+                item_entry,
+                weapon,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &self.fixtures.identity.player_level,
+            )
     }
     /// C++ `Unit::CalcAbsorbResist`'s absorb publication for one melee hit
     /// (`Unit.cpp:1876-1889`): per shield that consumed part of the hit, send the
