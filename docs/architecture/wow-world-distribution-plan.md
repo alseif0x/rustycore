@@ -2261,7 +2261,11 @@ La fase threat también está escrita: conversión de spell a u32 antes de mutar
 retirada canónica única y fallback NoHandle limitado al consumer World cfg(test),
 con recorrido de los 32 bits del effect-mask. World/aggro delega solo su rama
 apply=false al mismo provider; el cuerpo Aura completo continúa pendiente.
-Mount/control está escrito y su provider seleccionado ya existe. La comparación
+Mount/control está escrito y su provider seleccionado ya existe como archivo.
+La revisión de integración detecta todavía la ausencia de mod/reexports de
+aura_removal en Core/canonical_access y Core/session; se asignó su conexión al
+implementador. Las fachadas que ya invocan el provider no son cierre compilable
+hasta resolver esa conexión y completar el remover. La comparación
 por fuente con HEAD de World/player_presentation, Core/movement/movement_publication,
 Core/movement/state y Core/spell_state/cast conserva presentación antes del cálculo,
 mutación canónica de altura, mirror limitado al consumidor World cfg(test), consumo
@@ -2709,6 +2713,10 @@ se limpia. La segunda usa captura y receipt canónicos, persistencia App y ACK
 con un tutorial modificado después de la captura; exige conservar valor y dirty.
 RecordingPort registra la request antes del hook y devuelve sus committed groups.
 Los casos cubren riesgos distintos; su existencia no acredita PASS ni DB real.
+La revisión solicita además reemplazo del owner con el mismo GUID y otra
+incarnación/generación: retirar y observar el Player viejo no demuestra por sí
+solo que un receipt antiguo deje intactas las filas del nuevo owner. Queda
+pendiente escribir ese caso y el contraste de expected con committed groups.
 
 Primer cuerpo CanEquip completo (2026-10-03, NO VALIDADO): el placeholder ya
 está reemplazado por la operación App. La revisión detectó que omitía CanUnequip
