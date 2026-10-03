@@ -1469,7 +1469,7 @@ checkpoint is **8886.477 seconds** from 23:54:58; its 600-second target fails.
 The following closeout changes only README/runbook/state prose; reused code
 evidence retains the exact code-candidate identity above.
 
-##### Checked target name data — 2026-10-03 (acceptance in progress)
+##### Checked target name data — 2026-10-03 (local prerequisites validated)
 
 The independent Forever target uses the four complete 70170 WDC5 baselines,
 not empty SQL tables as a substitute and not inherited permissive string
@@ -1537,8 +1537,36 @@ passes five tests, compile 3m00s, timing `20261003T024233698Z`. Both commands us
 one job and this checkout's absolute target; libraries requiring the inherited
 C++ fixture use `/tmp/rustycore-forever-cpp`, not as 70170 behavior authority.
 These runs are at HEAD `edce7c7d` with the implementation dirty; a later commit
-must not relabel their tested SHA. Actual-file/SQL startup and committed
-publication acceptance are still in progress.
+must not relabel their tested SHA. Code candidate
+`03e1ef425eb0df56f46356b25ebc94eb81c9cd5f` contains that unchanged source snapshot.
+Normal `cargo build --locked -p world-server --bin forever-world-server --timings`
+at this clean commit passes (3m01s, `20261003T024553081Z`). At 02:49 UTC its
+normal artifact starts with private `client-data-name-rules-70170-20261003T0227Z`
+and actual disposable SQL. All eight name projection queries succeed (the four
+SQL tables are actually empty); startup loads 1057 profanity patterns and two
+locale-reserved patterns for esES, plus 2559 global-reserved patterns. Existing
+appearance/race/achievement/hotfix prerequisites still load. No native session,
+name result or save is attempted; realm stays offline/normal. SIGINT exits 0;
+read-only restoration checks show online=0/key length40/Character count=0 and
+port18085 closed. BNet was not modified or restarted by this startup check.
+
+Publication final on that clean committed candidate:
+`./tools/validation-v2 final --base origin/forever --architecture --timings`
+returns **1**, not green. Manifest
+`20261003T024921.399740Z-1805296-final.json` records
+02:49:21.399–02:50:10.924 UTC, **49.524s**, dirty=false. Physical limits pass
+(2337 files); policy (21.797s) and syntax ownership (27.405s) fail the same
+inherited Session/Map/Character/WorldServer/Quest/Player totals, obsolete taunt/
+creature-insertion signatures and two legacy bridges as published `edce7c7d`.
+The three implicated legacy files are byte-identical to that base. No related
+owner grows and no ceilings/baselines/dependency policy change. Cargo stages
+are not reached; the separate library/binary/startup acceptance above is not
+labelled a whole-final pass. Publication retains the explicitly authorized
+unchanged inherited-debt experimental exception, not an exemption for new errors.
+The full campaign at this final end is **10512.924 seconds**; subsequent
+documentation-only closeout/hygiene checks are additional time, not a new budget.
+This closeout changes only README/state/runbook prose; code evidence retains
+its actual precommit or committed identity, rather than being relabelled later.
 The campaign still starts 2026-10-02 23:54:58 UTC; its 600-second target remains
 exceeded, and coding/error-repair time is not reliably separable.
 

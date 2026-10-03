@@ -5,6 +5,30 @@ Branch naming, 2026-10-02: the experimental target branch is now **`forever`**
 remains `1.60.1.70170`; `3.4.3` is a separate development line, not the merge
 destination of this port. Older evidence below retains its original branch name.
 
+## Latest Forever name-data boundary — 2026-10-03 02:49 UTC
+
+Four complete 70170 client tables now load through the checked target string/
+numeric reader, official/custom SQL and final removals. The immutable catalog
+preserves twelve locale slots, signed Language, independent locale-reserved
+rules and realm charset fallback. Forever intentionally uses the locale-reserved
+table's own declared SQL columns rather than copying the reference's inconsistent
+global-reserved binding. Structural name rules preserve finite casing and UTF-16
+units; Boost regex, SQL reserved/collision lookup, registered availability and
+response delivery remain open. This is not successful character creation.
+
+Scoped acceptance passes 795 data, 365 database (two ignored), 35 persistence,
+4062 world (one ignored), five target-binary tests and the acquisition-tool checks.
+Normal committed `03e1ef42` build starts with all actual files/SQL: esES catalogs
+1057/2, global reserved 2559. No native login/save is attempted in this startup
+check; orderly stop leaves online=0, Character count=0, realm offline/normal and
+World port closed. Committed final passes physical limits and fails the same
+unchanged inherited hotspot/ownership debt. No policy limits/baselines change;
+full-final is not green. The existing experimental publication exception is
+limited to that inherited debt, not new failures. Full campaign duration at
+final end is 10512.924 seconds, exceeding 600 seconds. Commands, source anchors,
+intentional contract and evidence are in the
+[owning runbook](../operations/forever-login.md#checked-target-name-data--2026-10-03-local-prerequisites-validated).
+
 ## Latest Forever name wire boundary — 2026-10-03 02:21 UTC
 
 A separate explicit private observation of authenticated `440071` matches the
