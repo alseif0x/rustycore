@@ -71,7 +71,7 @@ async fn quest_confirm_accept_source_item_bound_objective_dont_report_flag_sends
     group.add_member(other_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     run_quest_confirm_accept(&mut session, quest_id as i32).await;

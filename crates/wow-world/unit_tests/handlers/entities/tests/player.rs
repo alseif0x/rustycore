@@ -387,7 +387,7 @@ async fn set_difficulty_id_group_leader_updates_group_dungeon_difficulty_like_cp
     );
 
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
     session.set_player_registry(player_registry);
     session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
@@ -440,7 +440,7 @@ async fn set_difficulty_id_group_non_leader_is_silent_like_cpp() {
     group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(member));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
     session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
         2,
@@ -474,7 +474,7 @@ async fn set_difficulty_id_group_non_leader_is_silent_like_cpp() {
 async fn group_difficulty_command_updates_remote_member_like_cpp() {
     let (mut session, send_rx) = make_session();
     let group_guid = 7001;
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_state(crate::session::SessionState::LoggedIn);
     session
         .session_command_tx()

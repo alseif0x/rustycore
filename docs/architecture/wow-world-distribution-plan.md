@@ -715,7 +715,7 @@ en C++ Player (`Player.h:2397–2410,2928`, `Player.cpp:20556–20598`), mientra
 lo guarda en sesión. El movimiento conserva ese comportamiento y no acredita
 paridad de owner; la diferencia de lifetime permanece para la pista F6. Addon
 registro/unregister conserva `WorldSession.cpp:948–976`, incluido limpiar la
-lista sin alterar el flag. No hay todavía implementación ni aceptación F4b.
+lista sin alterar el flag. Ese checkpoint de preparación aún no implementaba F4b.
 El contraste de proveedores en `99d86c533` confirma que `HubRef`/`HubMut` y
 `SessionCommand`/payloads de duelo pertenecen ya a Core; no bloquean el traslado
 de los nueve impls sociales. El cierre World real incluye las DTO de
@@ -729,6 +729,36 @@ estado social. El noveno impl sí está en `handlers/social.rs:751`, bajo el
 alias `crate::session::SessionSocialLimits`; el `WorldSession` de contacts
 permanece y adapta sus accesos RaF a la API del estado. No sustituir ese
 impl de handlers por el shell de contacts en el censo de extracción.
+
+**Implementación Social iniciada — 2026-10-03, checkpoint `d4899af77`:**
+la dependencia técnica local de Core está acreditada en P4b; el corte Social
+continúa en la misma rama, con R1/publicación pendientes. Se trasladan estado,
+cuatro fixtures, DTOs y los nueve impls a `wow-world-social`; constructor,
+lecturas/escrituras de límites, addons y consumidores de fixtures adaptan sus
+accesos mediante una API acotada. Los campos de producción no se abren a World.
+El bloque `chat/operations.rs:160` contiene away/emote; el antispam está en
+`catalogs/operations.rs:482`, usando el `unix_now` de Core. Su GM seam y
+aritmética saturating se conservan respecto del Rust actual, con la diferencia
+frente a `Player::UpdateSpeakTime` explícitamente pendiente de F6.
+Esta implementación sigue en nivel 1: cambios y pruebas escritos se distinguen
+de la aceptación; todavía no hay evidencia aceptada del nuevo crate Social.
+La revisión del corte conserva el constructor explícito 85/4 y el `Default`
+0/0, el orden de campos/fixtures y sus defaults. Registro de addons mantiene
+`extend(packet.prefixes)`, el límite y el logging del shell; unregister limpia
+solo la lista. El fixture de comercio mantiene la constante original de
+`wow_packet::packets::misc`, con su cast a `usize`. Los consumidores World de
+calendario, comercio, hermandad, duelo y force-deselect se cierran mediante
+operaciones acotadas; no se exponen los campos de producción ni los fixtures.
+El scanner incorpora el rol separado `WorldSocial`, su raíz real y la resolución
+nominal de aliases/reexports con prioridad del shadowing local. Diez regresiones
+nuevas quedan escritas, conservando las 406 anteriores; no se regeneran baselines.
+Anclas contrastadas en `a5f8da2eb`: `Player.cpp:23440,24870,25235`,
+`DuelHandler.cpp:29,58,86`, `GuildHandler.cpp:63,70` y
+`TradeHandler.cpp:575`, además de las anclas de chat/addons anteriores.
+El traslado conserva las operaciones Rust y sus límites ya existentes, incluidos
+los fallbacks de fixtures; no acredita nueva paridad de guild/duel ni ejecución
+de suites, composición de producción, captures o QA live. Ese trabajo continúa
+pendiente de la aceptación del macro y de la pista F6.
 
 ### F5 — handlers y orquestación
 

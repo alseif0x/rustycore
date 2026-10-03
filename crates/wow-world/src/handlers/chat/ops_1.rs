@@ -817,17 +817,14 @@ impl WorldSession {
             }
         };
 
-        self.social
-            .addon_filter
-            .registered_addon_prefixes
-            .extend(packet.prefixes);
-        self.social.addon_filter.filter_addon_messages =
-            self.social.addon_filter.registered_addon_prefixes.len()
-                <= ChatRegisterAddonPrefixes::MAX_PREFIXES;
+        let (prefixes, filter) = self.social.register_addon_prefixes_like_cpp(
+            packet.prefixes,
+            ChatRegisterAddonPrefixes::MAX_PREFIXES,
+        );
         debug!(
             account = self.core.account_id,
-            prefixes = self.social.addon_filter.registered_addon_prefixes.len(),
-            filter = self.social.addon_filter.filter_addon_messages,
+            prefixes,
+            filter,
             "Registered addon prefixes"
         );
     }

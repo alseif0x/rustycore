@@ -650,7 +650,7 @@ async fn master_loot_item_uses_group_master_looter_guid_like_cpp() {
         broadcast_info(leader_guid, leader_tx),
         Default::default(),
     );
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(leader_guid));
@@ -696,7 +696,7 @@ async fn master_loot_item_missing_target_sends_player_not_found_like_cpp() {
     group.master_looter_guid = master_guid;
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));
 
@@ -733,7 +733,7 @@ async fn master_loot_item_non_master_loot_view_returns_silently_like_cpp() {
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
 
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));
     session.loot.set_active_loot_guid(loot_owner);
@@ -800,7 +800,7 @@ async fn master_loot_item_ineligible_target_sends_master_other_like_cpp() {
         broadcast_info(target_guid, target_tx),
         Default::default(),
     );
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));

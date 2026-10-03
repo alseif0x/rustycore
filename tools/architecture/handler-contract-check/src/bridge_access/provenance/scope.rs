@@ -15,6 +15,17 @@ use crate::ownership::{
     cfg_context_allows_production, cfg_context_allows_test, extend_cfg_context,
 };
 
+/// Exact source-package roots accepted for nominal identity queries. Callers
+/// still resolve local bindings first, so a module or import shadow keeps Rust
+/// lexical precedence over these external crate roots.
+pub(super) fn type_identity_package_for_external_root(root: &str) -> Option<&'static str> {
+    match root {
+        "wow_world_core" => Some("wow-world-core"),
+        "wow_world_social" => Some("wow-world-social"),
+        _ => None,
+    }
+}
+
 #[derive(Clone)]
 pub(super) enum LocalBinding {
     NonAuthority,

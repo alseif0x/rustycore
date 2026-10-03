@@ -25,7 +25,7 @@ impl WorldSession {
             return false;
         }
         let player_level = u32::from(crate::session::hub_ref(self).player_level_like_cpp());
-        if for_xp && player_level > self.social.max_recruit_a_friend_bonus_player_level_like_cpp {
+        if for_xp && player_level > self.social.recruit_a_friend_xp_limits_like_cpp().0 {
             return false;
         }
         let (Some(player_guid), Some(group_guid), Some(group_registry), Some(player_registry)) = (
@@ -86,14 +86,13 @@ impl WorldSession {
             }
             if for_xp {
                 let member_level = u32::from(member.level);
-                if member_level > self.social.max_recruit_a_friend_bonus_player_level_like_cpp {
+                let (max_player_level, max_level_difference) =
+                    self.social.recruit_a_friend_xp_limits_like_cpp();
+                if member_level > max_player_level {
                     continue;
                 }
                 if member_level < player_level
-                    && player_level - member_level
-                        > self
-                            .social
-                            .max_recruit_a_friend_bonus_player_level_difference_like_cpp
+                    && player_level - member_level > max_level_difference
                 {
                     continue;
                 }
@@ -113,8 +112,6 @@ impl WorldSession {
         max_bonus_level: u32,
         max_level_difference: u32,
     ) {
-        self.social.max_recruit_a_friend_bonus_player_level_like_cpp = max_bonus_level;
-        self.social
-            .max_recruit_a_friend_bonus_player_level_difference_like_cpp = max_level_difference;
+        self.social.set_recruit_a_friend_xp_limits_like_cpp(max_bonus_level, max_level_difference);
     }
 }

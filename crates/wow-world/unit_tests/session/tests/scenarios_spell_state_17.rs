@@ -101,7 +101,7 @@ async fn spell_change_raid_marker_effect_row_stores_marker_and_fanouts_like_cpp(
     );
     session.set_player_guid(Some(leader_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(
         Arc::clone(&group_registry),
         Arc::new(PendingInvites::default()),
@@ -207,7 +207,7 @@ async fn spell_change_raid_marker_raid_requires_leader_or_assistant_like_cpp() {
     );
     session.set_player_guid(Some(member_guid));
     session.set_player_map_position_like_cpp(571, Position::ZERO);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(
         Arc::clone(&group_registry),
         Arc::new(PendingInvites::default()),

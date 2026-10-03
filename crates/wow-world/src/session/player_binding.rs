@@ -128,14 +128,7 @@ impl WorldSession {
                     .represented_loaded_player_flags_applied_like_cpp = false;
             }
             #[cfg(test)]
-            {
-                self.social
-                    .guild_test_fixture_like_cpp
-                    .represented_guild_id_like_cpp = 0;
-                self.social
-                    .guild_test_fixture_like_cpp
-                    .represented_guild_id_authority_complete_like_cpp = false;
-            }
+            self.social.clear_represented_guild_identity_for_test_like_cpp();
             let _ = self.clear_represented_trait_config_rows_like_cpp();
             let _ =
                 crate::session::hub_mut(self).update_player_pet_lifecycle_state_like_cpp(|state| {

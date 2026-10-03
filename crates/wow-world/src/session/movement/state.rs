@@ -139,19 +139,14 @@ impl WorldSession {
     pub(crate) fn calendar_remove_event_like_cpp(&mut self, event_id: u64) {
         #[cfg(test)]
         self.social
-            .calendar_test_fixture_like_cpp
-            .represented_calendar_remove_events_like_cpp
-            .push(RepresentedCalendarRemoveEventLikeCpp { event_id });
+            .record_calendar_remove_event_for_test_like_cpp(event_id);
     }
 
     #[cfg(test)]
     pub(crate) fn represented_calendar_remove_events_like_cpp(
         &self,
     ) -> &[RepresentedCalendarRemoveEventLikeCpp] {
-        &self
-            .social
-            .calendar_test_fixture_like_cpp
-            .represented_calendar_remove_events_like_cpp
+        self.social.represented_calendar_remove_events_for_test_like_cpp()
     }
 
     pub fn set_player_moved_unit_guid_like_cpp(&mut self, guid: ObjectGuid) {

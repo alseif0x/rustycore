@@ -16,6 +16,7 @@ members = [
     # ECS + Game Core
     "crates/wow-world",
     "crates/wow-world-core",
+    "crates/wow-world-social",
     "crates/wow-conditions",
     "crates/wow-progression",
     "crates/wow-spell-acquisition",
@@ -175,6 +176,7 @@ wow-chat = { path = "crates/wow-chat" }
 world-server = { path = "crates/world-server" }
 wow-module-api = { path = "crates/wow-module-api" }
 wow-social = { path = "crates/wow-social" }
+wow-world-social = { path = "crates/wow-world-social" }
 wow-loot = { path = "crates/wow-loot" }
 wow-instances = { path = "crates/wow-instances" }
 wow-anticheat = { path = "crates/wow-anticheat" }

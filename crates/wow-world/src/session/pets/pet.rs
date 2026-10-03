@@ -54,19 +54,19 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn represented_sign_petitions_like_cpp(&self) -> &[RepresentedSignPetitionLikeCpp] {
-        &self.social.represented_sign_petitions_like_cpp
+        self.social.represented_sign_petitions_for_test_like_cpp()
     }
     #[cfg(test)]
     pub(crate) fn represented_decline_petitions_like_cpp(
         &self,
     ) -> &[RepresentedDeclinePetitionLikeCpp] {
-        &self.social.represented_decline_petitions_like_cpp
+        self.social.represented_decline_petitions_for_test_like_cpp()
     }
     #[cfg(test)]
     pub(crate) fn represented_query_petitions_like_cpp(
         &self,
     ) -> &[RepresentedQueryPetitionLikeCpp] {
-        &self.social.represented_query_petitions_like_cpp
+        self.social.represented_query_petitions_for_test_like_cpp()
     }
     #[cfg(test)]
     pub(in crate::session) fn record_represented_tapper_pet_killed_unit_hooks_like_cpp(
@@ -108,12 +108,12 @@ impl crate::session::PetsCx<'_> {
         choice: u8,
     ) {
         #[cfg(test)]
-        self.social
-            .represented_sign_petitions_like_cpp
-            .push(RepresentedSignPetitionLikeCpp {
+        self.social.record_represented_sign_petition_for_test_like_cpp(
+            RepresentedSignPetitionLikeCpp {
                 petition_guid,
                 choice,
-            });
+            },
+        );
     }
 
     #[cfg_attr(not(test), allow(unused_variables))]
@@ -122,9 +122,9 @@ impl crate::session::PetsCx<'_> {
         petition_guid: ObjectGuid,
     ) {
         #[cfg(test)]
-        self.social
-            .represented_decline_petitions_like_cpp
-            .push(RepresentedDeclinePetitionLikeCpp { petition_guid });
+        self.social.record_represented_decline_petition_for_test_like_cpp(
+            RepresentedDeclinePetitionLikeCpp { petition_guid },
+        );
     }
 
     #[cfg_attr(not(test), allow(unused_variables))]
@@ -134,12 +134,12 @@ impl crate::session::PetsCx<'_> {
         item_guid: ObjectGuid,
     ) {
         #[cfg(test)]
-        self.social
-            .represented_query_petitions_like_cpp
-            .push(RepresentedQueryPetitionLikeCpp {
+        self.social.record_represented_query_petition_for_test_like_cpp(
+            RepresentedQueryPetitionLikeCpp {
                 petition_id,
                 item_guid,
-            });
+            },
+        );
     }
 }
 

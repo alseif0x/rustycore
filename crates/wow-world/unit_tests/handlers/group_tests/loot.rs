@@ -128,7 +128,7 @@ async fn set_loot_method_is_represented_noop_like_this_cpp_branch() {
     group.master_looter_guid = original_master;
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
     session
@@ -208,7 +208,7 @@ async fn random_roll_ignores_party_index_for_home_group_lookup_like_cpp() {
     player_registry.register_or_replace(other, broadcast_info(other, other_tx), Default::default());
 
     session.set_player_guid(Some(sender));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 

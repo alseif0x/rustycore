@@ -292,15 +292,7 @@ pub(crate) struct RepresentedQuestRewardSpellCastLikeCpp {
 }
 
 #[cfg(any(test, feature = "test-fixtures"))]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct RepresentedForceDeselectLikeCpp {
-    pub caster_guid: ObjectGuid,
-    pub visibility_range_yards: u32,
-    pub break_target_packet_bytes: Vec<u8>,
-    pub clear_target_packet_bytes: Vec<u8>,
-    pub hostile_visible_fanout_unrepresented: bool,
-    pub attacker_pet_attack_stop_unrepresented: bool,
-}
+pub(crate) use wow_world_social::RepresentedForceDeselectLikeCpp;
 
 #[cfg(any(test, feature = "test-fixtures"))]
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

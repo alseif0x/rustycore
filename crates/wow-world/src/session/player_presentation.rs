@@ -249,10 +249,7 @@ impl WorldSession {
     pub(crate) fn represented_force_deselects_like_cpp(
         &self,
     ) -> &[RepresentedForceDeselectLikeCpp] {
-        &self
-            .social
-            .duel_test_fixture_like_cpp
-            .represented_force_deselects_like_cpp
+        self.social.represented_force_deselects_for_test_like_cpp()
     }
 
     pub(crate) fn apply_far_sight_like_cpp(&mut self, enable: bool) {

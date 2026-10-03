@@ -170,7 +170,7 @@ fn create_map_player_context_uses_group_recent_instance_like_cpp() {
     let map_entry =
         represented_map_entry_for_create_map_context_like_cpp(631, wow_data::map::MAP_INSTANCE);
 
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     let context = session
@@ -385,7 +385,7 @@ fn create_map_active_instance_lock_context_uses_group_recent_owner_like_cpp() {
     group_registry.register_group_like_cpp(group_guid, group);
 
     session.core.player_guid = Some(member);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     install_create_map_active_lock_stores_like_cpp(&mut session, 631, 3, 77, 2);
     let expected_token =
@@ -484,7 +484,7 @@ fn create_map_side_effects_set_group_recent_instance_like_cpp() {
     let group = GroupInfo::new(leader);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
     let decision = wow_map::CreateMapDecision::Create {
         key: wow_map::MapKey::new(631, 9001),

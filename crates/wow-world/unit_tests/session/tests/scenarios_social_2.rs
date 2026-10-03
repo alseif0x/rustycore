@@ -41,7 +41,7 @@ fn canonical_current_expansion_raid_group_allows_entry_like_cpp() {
     group.raid_difficulty_id = 3;
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     assert!(matches!(
@@ -184,7 +184,7 @@ fn player_registry_publishes_home_group_party_type_like_cpp() {
     session.set_player_guid(Some(guid));
     session.set_player_map_position_like_cpp(571, position);
     session.fixtures.identity.player_name = Some("PartyTypeTester".to_string());
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(Arc::clone(&registry));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 

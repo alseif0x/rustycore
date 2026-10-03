@@ -8,7 +8,6 @@ use crate::session::state::InstanceState;
 use crate::session::state::InteractionState;
 use crate::session::state::InventoryState;
 use crate::session::state::LootState;
-use crate::session::state::SessionAddonFilter;
 use crate::session::state::SessionCatalogs;
 use crate::session::state::SessionCore;
 #[cfg(any(test, feature = "test-fixtures"))]
@@ -25,7 +24,6 @@ use crate::session::state::WorldEntitiesState;
 
 #[cfg(test)]
 use super::BTreeMap;
-use super::ChatFloodThrottleDataLikeCpp;
 use super::DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP;
 use super::ObjectGuid;
 use super::PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP;
@@ -42,14 +40,6 @@ use super::persistence::test_fixtures::LoadedPlayerFlagsTestFixtureLikeCpp;
 use super::player_items::test_fixtures::PlayerItemTestFixtureLikeCpp;
 #[cfg(test)]
 use super::quest::test_fixtures::QuestTestFixtureLikeCpp;
-#[cfg(test)]
-use super::social::test_fixtures::CalendarTestFixtureLikeCpp;
-#[cfg(test)]
-use super::social::test_fixtures::DuelTestFixtureLikeCpp;
-#[cfg(test)]
-use super::social::test_fixtures::GuildTestFixtureLikeCpp;
-#[cfg(test)]
-use super::social::test_fixtures::TradeTestFixtureLikeCpp;
 #[cfg(test)]
 use super::spell_state::PlayerSpellAndTraitTestFixtureLikeCpp;
 #[cfg(test)]
@@ -268,36 +258,7 @@ impl WorldSession {
                 #[cfg(test)]
                 represented_character_spell_charges_loaded_like_cpp: false,
             },
-            social: SessionSocialLimits {
-                max_recruit_a_friend_bonus_player_level_like_cpp: 85,
-                max_recruit_a_friend_bonus_player_level_difference_like_cpp: 4,
-                chat_flood_data_like_cpp: [ChatFloodThrottleDataLikeCpp::default(); 2],
-                addon_filter: SessionAddonFilter::default(),
-                #[cfg(test)]
-                group_guid: None,
-                #[cfg(test)]
-                represented_subgroup_like_cpp: None,
-                #[cfg(test)]
-                represented_group_update_sequences_like_cpp: std::array::from_fn(|_| {
-                    Default::default()
-                }),
-                #[cfg(test)]
-                guild_test_fixture_like_cpp: GuildTestFixtureLikeCpp::default(),
-                #[cfg(test)]
-                calendar_test_fixture_like_cpp: CalendarTestFixtureLikeCpp::default(),
-                #[cfg(test)]
-                trade_test_fixture_like_cpp: TradeTestFixtureLikeCpp::default(),
-                #[cfg(test)]
-                represented_sign_petitions_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_decline_petitions_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_query_petitions_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_silence_party_talker_like_cpp: Vec::new(),
-                #[cfg(test)]
-                duel_test_fixture_like_cpp: DuelTestFixtureLikeCpp::default(),
-            },
+            social: SessionSocialLimits::with_recruit_a_friend_limits_like_cpp(85, 4),
             instances: InstanceState {
                 #[cfg(test)]
                 instance_test_fixture_like_cpp: InstanceTestFixtureLikeCpp::default(),

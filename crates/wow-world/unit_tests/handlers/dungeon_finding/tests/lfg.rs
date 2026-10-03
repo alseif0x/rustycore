@@ -21,7 +21,7 @@ async fn set_difficulty_id_group_lfg_is_silent_like_cpp() {
     group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
     session.set_difficulty_store(Arc::new(DifficultyStore::from_entries([difficulty_entry(
         2,
@@ -372,7 +372,7 @@ async fn reset_instances_lfg_group_is_silent_like_cpp() {
     );
 
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_map_position_like_cpp(0, Position::ZERO);
     session.set_map_store(Arc::new(MapStore::from_entries([

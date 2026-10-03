@@ -9,7 +9,7 @@ use syn::{PathArguments, Type};
 use crate::bridge_access::BridgeSource;
 use crate::ownership::{cfg_context_allows_production, cfg_context_allows_test};
 
-use super::scope::collect_scope;
+use super::scope::{collect_scope, type_identity_package_for_external_root};
 use super::source_graph::ModuleIndex;
 use super::{
     ModuleIdentity, Provenance, Resolution, Resolver, ResolverMode, build_module_index,
@@ -166,12 +166,10 @@ impl<'a> Resolver<'a> {
             return None;
         }
         let first = segments.first()?;
-        if first != "wow_world_core" {
-            return None;
-        }
+        let package = type_identity_package_for_external_root(first)?;
         Some(self.resolve_from_module(
             node,
-            &ModuleIdentity::new("wow-world-core", "crate"),
+            &ModuleIdentity::new(package, "crate"),
             &segments[1..],
             cfg,
         ))

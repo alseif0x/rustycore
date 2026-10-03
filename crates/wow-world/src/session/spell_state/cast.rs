@@ -283,10 +283,7 @@ impl WorldSession {
     pub(crate) fn represented_can_duel_spell_casts_like_cpp(
         &self,
     ) -> &[RepresentedCanDuelSpellCastLikeCpp] {
-        &self
-            .social
-            .duel_test_fixture_like_cpp
-            .represented_can_duel_spell_casts_like_cpp
+        self.social.represented_can_duel_spell_casts_for_test_like_cpp()
     }
     #[cfg(test)]
     pub(crate) fn represented_talent_respec_visual_spell_casts_like_cpp(

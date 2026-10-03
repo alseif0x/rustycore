@@ -665,17 +665,16 @@ impl WorldSession {
             let clear_target_packet_bytes =
                 wow_packet::packets::spell::ClearTarget { guid: caster_guid }.to_bytes();
 
-            self.social
-                .duel_test_fixture_like_cpp
-                .represented_force_deselects_like_cpp
-                .push(RepresentedForceDeselectLikeCpp {
+            self.social.record_represented_force_deselect_for_test_like_cpp(
+                RepresentedForceDeselectLikeCpp {
                     caster_guid,
                     visibility_range_yards: DEFAULT_VISIBILITY_DISTANCE_YARDS_LIKE_CPP,
                     break_target_packet_bytes,
                     clear_target_packet_bytes,
                     hostile_visible_fanout_unrepresented: true,
                     attacker_pet_attack_stop_unrepresented: true,
-                });
+                },
+            );
         }
         #[cfg(not(test))]
         let _ = caster_guid;

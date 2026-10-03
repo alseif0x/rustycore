@@ -665,7 +665,7 @@ async fn loot_response_success_keeps_cpp_failure_and_threshold_defaults() {
     group.loot_threshold = 4;
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     session.loot.loot_table.insert(
@@ -740,7 +740,7 @@ async fn dungeon_trash_builds_one_personal_pool_for_selected_group_looter_like_c
     group.looter_guid = fixture.second_tapper;
     let group_guid = group.group_guid;
     groups.register_group_like_cpp(group_guid, group);
-    fixture.session.social.group_guid = Some(group_guid);
+    fixture.session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     fixture
         .session
         .set_group_registry(Arc::clone(&groups), Arc::new(PendingInvites::default()));

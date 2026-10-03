@@ -400,7 +400,7 @@ fn gameobject_use_ritual_validates_summoned_owner_like_cpp() {
     group.add_member(player_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session
         .world_entities
@@ -468,7 +468,7 @@ fn gameobject_use_ritual_completes_and_deactivates_like_cpp() {
     group.add_member(player_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     assert!(session.use_represented_gameobject_ritual_like_cpp(
@@ -551,7 +551,7 @@ fn gameobject_use_ritual_casts_caster_target_spell_at_random_unique_users_like_c
     group.add_member(player_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
@@ -667,7 +667,7 @@ fn gameobject_use_persistent_summoned_ritual_keeps_gameobject_owner_like_cpp() {
     group.add_member(player_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     assert!(session.use_represented_gameobject_ritual_like_cpp(
@@ -741,7 +741,7 @@ fn gameobject_use_meeting_stone_maps_spell_by_entry_like_cpp() {
     group.add_member(target_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     let (target_tx, _target_rx) = flume::bounded(1);
@@ -887,7 +887,7 @@ fn gameobject_use_meeting_stone_checks_content_tuning_levels_like_cpp() {
     group.add_member(target_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());

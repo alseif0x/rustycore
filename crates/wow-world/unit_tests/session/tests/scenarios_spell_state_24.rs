@@ -327,7 +327,7 @@ fn send_new_item_plan_group_broadcasts_to_group_members_including_self() {
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
     session.core.player_guid = Some(self_guid);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     let plan = send_new_item_plan(SendNewItemDelivery::GroupBroadcast);

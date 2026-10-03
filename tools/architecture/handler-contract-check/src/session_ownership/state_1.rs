@@ -26,6 +26,10 @@ pub(super) const WORLD_CORE_PACKAGE_ROOT: &str = "crates/wow-world-core";
 
 pub(super) const WORLD_CORE_CRATE_ROOT: &str = "crates/wow-world-core/src/lib.rs";
 
+pub(super) const WORLD_SOCIAL_PACKAGE_ROOT: &str = "crates/wow-world-social";
+
+pub(super) const WORLD_SOCIAL_CRATE_ROOT: &str = "crates/wow-world-social/src/lib.rs";
+
 pub(super) const SERVER_PACKAGE_ROOT: &str = "crates/world-server";
 
 pub(super) const SERVER_CRATE_ROOT: &str = "crates/world-server/src/lib.rs";
@@ -266,6 +270,7 @@ pub(super) struct BaselineEnvelope<'a> {
 pub(super) enum PackageRole {
     World,
     WorldCore,
+    WorldSocial,
     Server,
     Network,
     Social,
@@ -286,6 +291,7 @@ impl PackageRole {
         match self {
             Self::World => "wow-world",
             Self::WorldCore => "wow-world-core",
+            Self::WorldSocial => "wow-world-social",
             Self::Server => "world-server",
             Self::Network => "wow-network",
             Self::Social => "wow-social",

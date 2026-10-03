@@ -13,23 +13,7 @@ pub(in crate::session) use wow_world_core::session::PacketSpoofPendingBanLikeCpp
 pub(in crate::session) use wow_world_core::session::PacketSpoofPendingBanTargetLikeCpp;
 pub use wow_world_core::session::SessionState;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum PlayerAwayModeLikeCpp {
-    Afk,
-    Dnd,
-}
-
-#[derive(Debug, Clone, Copy, Default)]
-pub(in crate::session) struct ChatFloodThrottleDataLikeCpp {
-    pub(in crate::session) time: i64,
-    pub(in crate::session) count: u32,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub(crate) enum ChatFloodThrottleIndexLikeCpp {
-    Regular = 0,
-    Addon = 1,
-}
+pub(crate) use wow_world_social::{ChatFloodThrottleIndexLikeCpp, PlayerAwayModeLikeCpp};
 
 /// C++ `WorldSession::_accountData[NUM_ACCOUNT_DATA_TYPES]` entry.
 #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -194,23 +178,6 @@ impl crate::session::state::SessionLifecycleState {
             .player
             .player_lifecycle
             .as_ref()
-    }
-}
-
-impl crate::session::state::SessionSocialLimits {
-    pub(crate) fn is_addon_registered_like_cpp(&self, prefix: &str) -> bool {
-        // C++ WorldSession::IsAddonRegistered: if the registration filter is
-        // disabled (initial state or softcap exceeded), all prefixes pass.
-        if !self.addon_filter.filter_addon_messages {
-            return true;
-        }
-
-        !self.addon_filter.registered_addon_prefixes.is_empty()
-            && self
-                .addon_filter
-                .registered_addon_prefixes
-                .iter()
-                .any(|registered| registered == prefix)
     }
 }
 

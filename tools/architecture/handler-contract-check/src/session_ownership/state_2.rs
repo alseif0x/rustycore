@@ -363,6 +363,7 @@ fn collects_session_contract_types(role: PackageRole, module: &str) -> bool {
         .into_iter()
         .any(|root| module_is_or_below(module, root)),
         PackageRole::Social => module_is_or_below(module, SOCIAL_GROUP_MODULE),
+        PackageRole::WorldSocial => false,
         PackageRole::Server => false,
     }
 }
@@ -465,7 +466,7 @@ pub(super) fn collect_items(
             ));
         }
 
-        if role == PackageRole::WorldCore {
+        if matches!(role, PackageRole::WorldCore | PackageRole::WorldSocial) {
             match item {
                 Item::Struct(item_struct) if item_struct.ident == WORLD_SESSION_NAME => {
                     builder.errors.push(format!(

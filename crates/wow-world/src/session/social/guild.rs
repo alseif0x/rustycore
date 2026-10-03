@@ -12,33 +12,7 @@ impl WorldSession {
             .with_owned_player_like_cpp(|player| player.guild_state_like_cpp());
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(wow_entities::PlayerGuildState {
-                guild_id: (self
-                    .social
-                    .guild_test_fixture_like_cpp
-                    .represented_guild_id_like_cpp
-                    != 0)
-                    .then_some(
-                        self.social
-                            .guild_test_fixture_like_cpp
-                            .represented_guild_id_like_cpp,
-                    ),
-                invited_guild_id: (self
-                    .social
-                    .guild_test_fixture_like_cpp
-                    .represented_guild_id_invited_like_cpp
-                    != 0)
-                    .then_some(
-                        self.social
-                            .guild_test_fixture_like_cpp
-                            .represented_guild_id_invited_like_cpp,
-                    ),
-                rank_id: None,
-                authority_complete: self
-                    .social
-                    .guild_test_fixture_like_cpp
-                    .represented_guild_id_authority_complete_like_cpp,
-            });
+            return Some(self.social.represented_guild_state_for_test_like_cpp());
         }
         canonical
     }
@@ -47,18 +21,11 @@ impl WorldSession {
         &mut self,
         f: impl FnOnce(&mut wow_entities::PlayerGuildState) -> R,
     ) -> Option<R> {
-        let mut state = self.player_guild_state_snapshot_like_cpp()?;
-        let result = f(&mut state);
-        self.social
-            .guild_test_fixture_like_cpp
-            .represented_guild_id_like_cpp = state.guild_id.unwrap_or(0);
-        self.social
-            .guild_test_fixture_like_cpp
-            .represented_guild_id_invited_like_cpp = state.invited_guild_id.unwrap_or(0);
-        self.social
-            .guild_test_fixture_like_cpp
-            .represented_guild_id_authority_complete_like_cpp = state.authority_complete;
-        Some(result)
+        let state = self.player_guild_state_snapshot_like_cpp()?;
+        Some(
+            self.social
+                .mutate_represented_guild_state_for_test_like_cpp(state, f),
+        )
     }
     pub(crate) fn set_represented_guild_id_like_cpp(&mut self, guild_id: u64) -> bool {
         self.core
@@ -126,9 +93,7 @@ impl WorldSession {
 
         #[cfg(test)]
         self.social
-            .guild_test_fixture_like_cpp
-            .represented_guild_accept_invites_like_cpp
-            .push(guild_id);
+            .record_represented_guild_accept_invite_for_test_like_cpp(guild_id);
         true
     }
     pub(crate) fn decline_guild_invitation_like_cpp(&mut self) -> bool {
@@ -181,32 +146,6 @@ impl WorldSession {
             )
             .unwrap_or(false)
             == allow
-    }
-}
-
-impl crate::session::state::SessionSocialLimits {
-    #[cfg(test)]
-    pub(crate) fn represented_guild_accept_invites_like_cpp(&self) -> &[u64] {
-        &self
-            .guild_test_fixture_like_cpp
-            .represented_guild_accept_invites_like_cpp
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_auto_decline_guild_invites_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-    ) -> bool {
-        let Some(guid) = hub.core.player_guid() else {
-            return false;
-        };
-
-        hub.core
-            .canonical_player_has_player_flag_like_cpp(
-                guid,
-                PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP,
-            )
-            .unwrap_or(false)
     }
 }
 

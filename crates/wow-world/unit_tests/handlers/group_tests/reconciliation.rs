@@ -97,7 +97,7 @@ fn group_reconciliation_fixture_like_cpp(
 
     let (mut leader_session, _leader_send_rx) = make_session_with_send();
     leader_session.set_player_guid(Some(leader));
-    leader_session.social.group_guid = Some(group_guid);
+    leader_session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     leader_session.set_player_registry(Arc::clone(&player_registry));
     leader_session.set_group_registry(
         Arc::clone(&group_registry),

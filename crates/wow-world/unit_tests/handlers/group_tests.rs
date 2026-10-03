@@ -692,7 +692,7 @@ fn lfg_uninvite_session_like_cpp(
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
     session.set_player_guid(Some(sender_guid));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(Arc::new(
         PlayerRegistry::with_canonical_player_fixtures_like_cpp(),
     ));

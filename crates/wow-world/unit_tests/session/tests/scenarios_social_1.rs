@@ -9,7 +9,7 @@ use super::*;
 async fn apply_group_subgroup_command_updates_current_group_reference_like_cpp() {
     let (mut session, _, _) = make_session();
     let group_guid = 0xABCDEF;
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.core.state = SessionState::LoggedIn;
 
     session
@@ -46,7 +46,7 @@ async fn apply_group_subgroup_command_updates_current_group_reference_like_cpp()
 async fn apply_group_subgroup_command_ignores_non_logged_in_session_like_cpp() {
     let (mut session, _, _) = make_session();
     let group_guid = 0xABCDEF;
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
 
     session
         .session_command_tx()
@@ -110,7 +110,7 @@ fn reset_group_update_sequence_resets_when_group_changes_like_cpp() {
     group_registry.register_group_like_cpp(second_group_guid, second_group);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
-    session.social.group_guid = Some(first_group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(first_group_guid));
     assert!(session.reset_group_update_sequence_if_needed_like_cpp());
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
@@ -125,7 +125,7 @@ fn reset_group_update_sequence_resets_when_group_changes_like_cpp() {
         Some(2)
     );
 
-    session.social.group_guid = Some(second_group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(second_group_guid));
     assert!(session.reset_group_update_sequence_if_needed_like_cpp());
     assert_eq!(
         session.next_group_update_sequence_number_like_cpp(
@@ -215,7 +215,7 @@ async fn group_removal_command_clears_remote_party_type_like_cpp() {
     group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(player_guid));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.core.state = SessionState::LoggedIn;
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -263,7 +263,7 @@ async fn group_removal_command_clears_remote_party_type_like_cpp() {
         .process_represented_session_commands_like_cpp()
         .await;
 
-    assert_eq!(session.social.group_guid, None);
+    assert_eq!(session.social.group_guid_for_test_like_cpp(), None);
     let after = canonical_party_type_for_test(&canonical, player_guid);
     assert_eq!(
         after[usize::from(wow_social::group::GROUP_CATEGORY_HOME_LIKE_CPP)],
@@ -304,7 +304,7 @@ async fn group_removal_command_can_send_group_uninvite_like_cpp() {
     group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(player_guid));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.core.state = SessionState::LoggedIn;
     session.attach_player_controller_like_cpp(SessionPlayerController::new(
         player_guid,
@@ -383,7 +383,7 @@ fn represented_group_leader_flag_is_removed_for_non_leader_like_cpp() {
     group.add_member(player_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     assert!(session.apply_represented_group_leader_flag_like_cpp());
@@ -752,7 +752,7 @@ fn canonical_access_requirement_connected_group_leader_achievement_matches_cpp()
         80,
         0,
     ));
-    member_session.social.group_guid = Some(group_guid);
+    member_session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     member_session
         .instances
         .instance_test_fixture_like_cpp

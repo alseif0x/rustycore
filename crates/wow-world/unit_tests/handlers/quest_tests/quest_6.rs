@@ -243,7 +243,7 @@ async fn push_quest_to_party_missing_group_registry_keeps_explicit_blocker_like_
     session.set_quest_store(Arc::new(quest_store));
     session.set_quest_pool_store(Arc::new(quest_pool_store));
     add_active_quest(&mut session, 7115);
-    session.social.group_guid = Some(1234);
+    session.social.set_group_guid_for_test_like_cpp(Some(1234));
 
     run_push_quest_to_party(&mut session, 7115).await;
 

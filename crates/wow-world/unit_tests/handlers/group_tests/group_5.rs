@@ -27,7 +27,7 @@ async fn minimap_ping_party_index_instance_does_not_fanout_home_like_cpp() {
     player_registry.register_or_replace(other, broadcast_info(other, other_tx), Default::default());
 
     session.set_player_guid(Some(sender));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -71,7 +71,7 @@ async fn initiate_role_poll_uses_resolved_group_category_like_cpp() {
     );
 
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 

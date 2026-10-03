@@ -269,6 +269,6 @@ impl crate::session::WorldSession {
         &mut self,
         _pkt: wow_packet::WorldPacket,
     ) {
-        self.social.addon_filter.registered_addon_prefixes.clear();
+        self.social.clear_registered_addon_prefixes_like_cpp();
     }
 }

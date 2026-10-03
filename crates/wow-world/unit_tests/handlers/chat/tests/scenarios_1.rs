@@ -51,20 +51,27 @@ async fn chat_register_addon_prefixes_accumulates_and_updates_filter_like_cpp() 
         .handle_chat_register_addon_prefixes(chat_register_addon_prefixes_packet(&["ABC", "DEF"]))
         .await;
     assert_eq!(
-        session.social.addon_filter.registered_addon_prefixes,
+        session.social.registered_addon_prefixes_for_test_like_cpp(),
         vec!["ABC", "DEF"]
     );
-    assert!(session.social.addon_filter.filter_addon_messages);
+    assert!(session
+        .social
+        .addon_message_filter_enabled_for_test_like_cpp());
 
     let too_many = vec!["X"; ChatRegisterAddonPrefixes::MAX_PREFIXES - 1];
     session
         .handle_chat_register_addon_prefixes(chat_register_addon_prefixes_packet(&too_many))
         .await;
     assert_eq!(
-        session.social.addon_filter.registered_addon_prefixes.len(),
+        session
+            .social
+            .registered_addon_prefixes_for_test_like_cpp()
+            .len(),
         ChatRegisterAddonPrefixes::MAX_PREFIXES + 1
     );
-    assert!(!session.social.addon_filter.filter_addon_messages);
+    assert!(!session
+        .social
+        .addon_message_filter_enabled_for_test_like_cpp());
     assert!(send_rx.try_recv().is_err());
 }
 
@@ -95,7 +102,7 @@ async fn party_chat_routes_only_to_sender_subgroup_like_cpp() {
     let group_guid = group.group_guid;
     let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     session
@@ -134,7 +141,7 @@ async fn raid_chat_routes_to_all_raid_members_like_cpp() {
     let group_guid = group.group_guid;
     let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     session
@@ -171,7 +178,7 @@ async fn raid_warning_in_party_requires_party_raid_warnings_config_like_cpp() {
     let group_guid = group.group_guid;
     let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     session
@@ -202,7 +209,7 @@ async fn party_raid_warnings_config_allows_party_raid_warning_like_cpp() {
     let group_guid = group.group_guid;
     let group_registry = Arc::new(wow_social::group::GroupRegistry::default());
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_party_raid_warnings_like_cpp(true);
 

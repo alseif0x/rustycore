@@ -177,7 +177,7 @@ fn gameobject_use_spellcaster_party_only_requires_owner_raid_like_cpp() {
     group.add_member(player_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     assert!(session.use_represented_gameobject_spellcaster_like_cpp(
@@ -252,7 +252,7 @@ fn gameobject_use_spellcaster_party_only_accepts_canonical_created_by_like_cpp()
     group.add_member(player_guid);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     assert!(session.use_represented_gameobject_spellcaster_like_cpp(
@@ -709,7 +709,7 @@ async fn gameobject_use_goober_kill_credit_filters_group_reward_distance_like_cp
     group.add_member(far_member);
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 

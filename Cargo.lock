@@ -3465,6 +3465,7 @@ dependencies = [
  "wow-spell-acquisition",
  "wow-world",
  "wow-world-core",
+ "wow-world-social",
 ]
 
 [[package]]
@@ -3498,6 +3499,17 @@ dependencies = [
  "wow-script",
  "wow-session",
  "wow-social",
+]
+
+[[package]]
+name = "wow-world-social"
+version = "0.1.0"
+dependencies = [
+ "wow-core",
+ "wow-entities",
+ "wow-packet",
+ "wow-social",
+ "wow-world-core",
 ]
 
 [[package]]

@@ -13,7 +13,6 @@ use super::AtomicUsize;
 use super::BTreeMap;
 use super::BTreeSet;
 use super::BattlePetAccountAttachmentLikeCpp;
-use super::ChatFloodThrottleDataLikeCpp;
 use super::ClientOpcodes;
 use super::DurableItemLootPersistenceTrackerLikeCpp;
 use super::DurableLootMoneyPersistenceTrackerLikeCpp;
@@ -39,12 +38,8 @@ use super::RepresentedGuildRepairBankWithdrawLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::RepresentedLootRollCriteriaEvent;
 use super::RepresentedPendingSpellCastRequestLikeCpp;
-use super::RepresentedQueryPetitionLikeCpp;
 use super::RepresentedQuestCompleteStatusUpdateLikeCpp;
 use super::RepresentedQuestObjectiveProgressEventLikeCpp;
-use super::RepresentedSignPetitionLikeCpp;
-#[cfg(test)]
-use super::RepresentedSilencePartyTalkerLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::RepresentedTransmogCriteriaEvent;
 use super::RepresentedVoidStorageItemLikeCpp;
@@ -63,14 +58,6 @@ use super::player_items::test_fixtures::PlayerItemTestFixtureLikeCpp;
 #[cfg(test)]
 use super::quest::test_fixtures::QuestTestFixtureLikeCpp;
 #[cfg(test)]
-use super::social::test_fixtures::CalendarTestFixtureLikeCpp;
-#[cfg(test)]
-use super::social::test_fixtures::DuelTestFixtureLikeCpp;
-#[cfg(test)]
-use super::social::test_fixtures::GuildTestFixtureLikeCpp;
-#[cfg(test)]
-use super::social::test_fixtures::TradeTestFixtureLikeCpp;
-#[cfg(test)]
 use super::spell_state::PlayerSpellAndTraitTestFixtureLikeCpp;
 #[cfg(test)]
 use super::support_features::test_fixtures::SupportFeatureTestFixtureLikeCpp;
@@ -83,7 +70,7 @@ use super::{RepresentedAreaZoneCriteriaLikeCpp, RepresentedAtLoginFlagRemovalLik
 use super::{RepresentedAuctionRemoveItemLikeCpp, RepresentedAuctionReplicateRequestLikeCpp};
 use super::{RepresentedAuctionSellItemLikeCpp, RepresentedAutoUnequipOffhandLikeCpp};
 use super::{RepresentedCharacterSpellChargeLikeCpp, RepresentedCharacterSpellCooldownLikeCpp};
-use super::{RepresentedDeclinePetitionLikeCpp, RepresentedGameObjectUseEffect};
+use super::RepresentedGameObjectUseEffect;
 use super::{RepresentedGameObjectUseState, RepresentedGuildRepairBankStateLikeCpp};
 #[cfg(test)]
 use super::{RepresentedGuildBankInventoryMoveLikeCpp, RepresentedGuildBankListRequestLikeCpp};
@@ -131,53 +118,7 @@ pub(crate) use visibility::VisibilityState;
 mod interaction;
 pub(crate) use interaction::InteractionState;
 
-/// Social admission limits the session applies: the C++ Recruit-A-Friend XP
-/// level gates and the chat anti-flood throttle state charged per message.
-#[derive(Default)]
-pub(crate) struct SessionSocialLimits {
-    /// C++ Recruit-A-Friend XP level gates used by `Player::GetsRecruitAFriendBonus(true)`.
-    pub(in crate::session) max_recruit_a_friend_bonus_player_level_like_cpp: u32,
-    pub(in crate::session) max_recruit_a_friend_bonus_player_level_difference_like_cpp: u32,
-    /// C++ `WorldSession::m_chatFloodData` accumulators.
-    pub(in crate::session) chat_flood_data_like_cpp: [ChatFloodThrottleDataLikeCpp; 2],
-    /// Addon chat filtering state shared with the chat handlers.
-    pub(crate) addon_filter: SessionAddonFilter,
-
-    // Test-only compatibility for pre-#578 fixtures. Production group
-    // membership and Player-owned update sequences live on canonical Player.
-    #[cfg(test)]
-    pub(crate) group_guid: Option<u64>,
-    #[cfg(test)]
-    pub(in crate::session) represented_subgroup_like_cpp: Option<u8>,
-    #[cfg(test)]
-    pub(in crate::session) represented_group_update_sequences_like_cpp:
-        [wow_entities::PlayerGroupUpdateSequenceLikeCpp;
-            wow_social::group::MAX_GROUP_CATEGORY_LIKE_CPP as usize],
-
-    /// Detached guild membership and invitation state used only by tests.
-    #[cfg(test)]
-    pub(in crate::session) guild_test_fixture_like_cpp: GuildTestFixtureLikeCpp,
-    /// Calendar request evidence used only by detached Session tests.
-    #[cfg(test)]
-    pub(in crate::session) calendar_test_fixture_like_cpp: CalendarTestFixtureLikeCpp,
-    /// Detached trade inputs used only by Session tests.
-    #[cfg(test)]
-    pub(in crate::session) trade_test_fixture_like_cpp: TradeTestFixtureLikeCpp,
-    #[cfg(test)]
-    pub(in crate::session) represented_sign_petitions_like_cpp: Vec<RepresentedSignPetitionLikeCpp>,
-    #[cfg(test)]
-    pub(in crate::session) represented_decline_petitions_like_cpp:
-        Vec<RepresentedDeclinePetitionLikeCpp>,
-    #[cfg(test)]
-    pub(in crate::session) represented_query_petitions_like_cpp:
-        Vec<RepresentedQueryPetitionLikeCpp>,
-    #[cfg(test)]
-    pub(in crate::session) represented_silence_party_talker_like_cpp:
-        Vec<RepresentedSilencePartyTalkerLikeCpp>,
-    /// Detached duel state and evidence used only by tests.
-    #[cfg(test)]
-    pub(in crate::session) duel_test_fixture_like_cpp: DuelTestFixtureLikeCpp,
-}
+pub(crate) use wow_world_social::SessionSocialLimits;
 
 /// The session's view of the world it is in: the active area trigger, the taxi
 /// travel map lookup, the combat-tick bookkeeping and the realm PvP flags.
@@ -199,15 +140,6 @@ pub(in crate::session) struct SessionWorldView {
     #[cfg(test)]
     pub(in crate::session) area_trigger_script_dispatcher_like_cpp:
         Option<AreaTriggerScriptDispatcherLikeCpp>,
-}
-
-/// Addon chat filtering: C++ `WorldSession::_registeredAddonPrefixes` and
-/// `_filterAddonMessages`. Read by the chat handlers, which is why the filter
-/// keeps crate visibility instead of narrowing to the session tree.
-#[derive(Default)]
-pub(crate) struct SessionAddonFilter {
-    pub(crate) registered_addon_prefixes: Vec<String>,
-    pub(crate) filter_addon_messages: bool,
 }
 
 /// The canonical producer's phase rail for this session (#787), separate from

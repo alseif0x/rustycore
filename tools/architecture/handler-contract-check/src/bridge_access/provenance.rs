@@ -920,10 +920,13 @@ fn extracted_application_name(name: &str) -> bool {
 
 fn recognized_absolute_provenance(segments: &[String]) -> Option<Provenance> {
     let first = segments.first()?.as_str();
-    // Extracted application crates provide rule/value vocabulary, not a
-    // canonical or legacy runtime owner. Treat their absolute imports as
-    // non-authority so relative test globs do not manufacture bridge debt.
-    if matches!(first, "wow_conditions" | "wow_spell_acquisition")
+    // Application/domain crates provide rule/value or domain vocabulary, not
+    // a canonical or legacy runtime owner. Treat those imports as non-authority
+    // so aliases do not manufacture bridge debt or masquerade as Core.
+    if matches!(
+        first,
+        "wow_conditions" | "wow_spell_acquisition" | "wow_world_social"
+    )
         || (first == "crate" && segments.get(1).is_some_and(|s| s == "spell_acquisition"))
     {
         return Some(Provenance::NonAuthority);

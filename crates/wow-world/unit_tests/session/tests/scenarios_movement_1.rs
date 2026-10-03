@@ -45,7 +45,7 @@ fn create_map_player_context_group_owner_falls_back_to_leader_like_cpp() {
     let map_entry =
         represented_map_entry_for_create_map_context_like_cpp(631, wow_data::map::MAP_RAID);
 
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     install_create_map_difficulty_stores_like_cpp(
         &mut session,

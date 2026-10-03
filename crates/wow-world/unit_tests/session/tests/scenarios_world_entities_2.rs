@@ -790,7 +790,7 @@ async fn accept_invite_to_raid_group_triggers_visible_gameobject_refresh_like_cp
     pkt.reset_read();
     session.handle_party_invite_response(pkt).await;
 
-    assert_eq!(session.social.group_guid, Some(group_guid));
+    assert_eq!(session.social.group_guid_for_test_like_cpp(), Some(group_guid));
     assert!(
         group_registry
             .get(&group_guid)

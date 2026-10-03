@@ -152,7 +152,6 @@ pub(crate) use collection_adapter::RepresentedTransmogCriteriaEvent;
 pub(crate) use collection_adapter::{AccountMountSaveRowLikeCpp, AccountToySaveRowLikeCpp};
 use collection_adapter::{DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP, heirloom_bonus_for_flags_like_cpp};
 mod connection_identity;
-use connection_identity::ChatFloodThrottleDataLikeCpp;
 pub(crate) use connection_identity::GLOBAL_CACHE_MASK_LIKE_CPP;
 pub(crate) use connection_identity::PER_CHARACTER_CACHE_MASK_LIKE_CPP;
 #[cfg(test)]
@@ -893,7 +892,7 @@ const MAP_RAID_LIKE_CPP: u8 = 2;
 use wow_world_core::session::PLAYER_FLAGS_IN_PVP_LIKE_CPP;
 pub(crate) use wow_world_core::session::PLAYER_FLAGS_TAXI_BENCHMARK_LIKE_CPP;
 const PLAYER_FLAGS_PVP_TIMER_LIKE_CPP: u32 = 0x0004_0000;
-const PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP: u32 = 0x0800_0000;
+pub(crate) use wow_world_social::PLAYER_FLAGS_AUTO_DECLINE_GUILD_LIKE_CPP;
 use wow_world_core::session::SPELL_PVP_RULES_ENABLED_LIKE_CPP;
 const LANG_RESET_SPELLS_LIKE_CPP: u32 = 215;
 const LANG_RESET_TALENTS_LIKE_CPP: u32 = 216;
@@ -952,7 +951,7 @@ const DEATH_KNIGHT_ESCAPE_SPELL_LIKE_CPP: i32 = 50977;
 const HOUR_SECS_LIKE_CPP: u64 = 60 * 60;
 const MAP_BATTLEGROUND_LIKE_CPP: i8 = 3;
 const MAP_ARENA_LIKE_CPP: i8 = 4;
-const GROUP_XP_DISTANCE_LIKE_CPP: f32 = 74.0;
+pub(crate) use wow_world_social::GROUP_XP_DISTANCE_LIKE_CPP;
 const BATTLEGROUND_WS_LIKE_CPP: u32 = 2;
 // C++ `SpellCastSource::Normal` is encoded in the six-bit Cast GUID subtype.
 // The capture contract validates this field rather than treating it as a
@@ -986,10 +985,9 @@ use wow_world_core::session::{DAMAGE_FALL_LIKE_CPP, DAMAGE_FALL_TO_VOID_LIKE_CPP
 const SPELL_SHAPESHIFT_FORM_FLAG_STANCE_LIKE_CPP: i32 = 0x0000_0001;
 const CREATURE_MODEL_DATA_FLAG_CAN_MOUNT_WHILE_TRANSFORMED_AS_THIS_LIKE_CPP: u32 = 0x0000_0080;
 const CHR_RACES_FLAG_CAN_MOUNT_LIKE_CPP: i32 = 0x0000_0004;
-pub(crate) const SPELL_DUEL_LIKE_CPP: u32 = 7266;
-pub(crate) const SPELL_MOUNTED_DUEL_LIKE_CPP: u32 = 62875;
+pub(crate) use wow_world_social::{SPELL_DUEL_LIKE_CPP, SPELL_MOUNTED_DUEL_LIKE_CPP};
 #[cfg(test)]
-pub(crate) const SPELL_DUEL_BEG_LIKE_CPP: u32 = 7267;
+pub(crate) use wow_world_social::SPELL_DUEL_BEG_LIKE_CPP;
 pub(crate) const DUEL_COUNTDOWN_MS_LIKE_CPP: u32 = 3000;
 pub use wow_world_core::session::SharedCanonicalMapManager;
 

@@ -528,10 +528,7 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn represented_duel_requests_like_cpp(&self) -> &[RepresentedDuelRequestedLikeCpp] {
-        &self
-            .social
-            .duel_test_fixture_like_cpp
-            .represented_duel_requests_like_cpp
+        self.social.represented_duel_requests_for_test_like_cpp()
     }
     pub(crate) fn represented_request_vehicle_exit_like_cpp(&mut self) -> bool {
         let Some(seat_flags) = crate::session::hub_ref(self)

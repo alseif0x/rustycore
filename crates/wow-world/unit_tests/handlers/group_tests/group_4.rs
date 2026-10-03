@@ -24,7 +24,7 @@ async fn silence_party_talker_assistant_allowed_but_regular_member_rejected_like
 
     let (mut assistant_session, _assistant_send_rx) = make_session_with_send();
     assistant_session.set_player_guid(Some(assistant));
-    assistant_session.social.group_guid = Some(group_guid);
+    assistant_session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     assistant_session
         .set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -41,7 +41,7 @@ async fn silence_party_talker_assistant_allowed_but_regular_member_rejected_like
 
     let (mut regular_session, _regular_send_rx) = make_session_with_send();
     regular_session.set_player_guid(Some(regular));
-    regular_session.social.group_guid = Some(group_guid);
+    regular_session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     regular_session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     regular_session
@@ -102,7 +102,7 @@ async fn set_assistant_leader_leader_marks_and_unmarks_member_with_party_update_
     );
 
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -177,7 +177,7 @@ async fn set_party_leader_leader_changes_to_connected_member_like_cpp() {
     );
 
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -244,7 +244,7 @@ async fn set_party_leader_rejects_non_leader_and_disconnected_target_like_cpp() 
     );
 
     session.set_player_guid(Some(member));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -284,7 +284,7 @@ async fn set_assistant_leader_non_raid_or_missing_target_noops_like_cpp() {
     );
 
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -350,7 +350,7 @@ async fn swap_sub_groups_leader_swaps_members_and_fans_out_update_like_cpp() {
     );
 
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -418,7 +418,7 @@ async fn swap_sub_groups_assistant_allowed_but_regular_member_rejected_like_cpp(
     );
 
     session.set_player_guid(Some(assistant));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -507,7 +507,7 @@ async fn swap_sub_groups_missing_or_same_subgroup_does_not_fanout_like_cpp() {
     );
 
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -536,7 +536,7 @@ async fn low_level_raid1_is_noop_preserves_state_like_cpp() {
         .await;
 
     assert!(!session.loot.pass_on_group_loot);
-    assert!(session.social.group_guid.is_none());
+    assert!(session.social.group_guid_for_test_like_cpp().is_none());
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]
@@ -551,7 +551,7 @@ async fn low_level_raid2_is_noop_preserves_state_like_cpp() {
         .await;
 
     assert!(!session.loot.pass_on_group_loot);
-    assert!(session.social.group_guid.is_none());
+    assert!(session.social.group_guid_for_test_like_cpp().is_none());
     assert!(send_rx.try_recv().is_err());
 }
 #[tokio::test]
@@ -588,7 +588,7 @@ async fn minimap_ping_party_index_none_keeps_home_fanout_like_cpp() {
     player_registry.register_or_replace(other, broadcast_info(other, other_tx), Default::default());
 
     session.set_player_guid(Some(sender));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -704,7 +704,7 @@ async fn minimap_ping_stale_cache_does_not_fanout_to_other_group() {
 
     session.set_player_guid(Some(sender));
     // Cache points to stale group.
-    session.social.group_guid = Some(stale_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(stale_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
@@ -769,7 +769,7 @@ async fn ready_check_stale_cache_uses_real_group_for_mutation_and_fanout() {
     );
 
     session.set_player_guid(Some(sender));
-    session.social.group_guid = Some(stale_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(stale_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 

@@ -29,7 +29,8 @@
       "wow-conditions",
       "wow-spell-acquisition",
       "wow-world",
-      "wow-world-core"
+      "wow-world-core",
+      "wow-world-social"
     ],
     "adapter-platform": [
       "wow-config",
@@ -111,6 +112,13 @@
       "wow-script",
       "wow-session",
       "wow-social"
+    ],
+    "wow-world-social": [
+      "wow-core",
+      "wow-entities",
+      "wow-packet",
+      "wow-social",
+      "wow-world-core"
     ],
     "wow-conditions": [
       "wow-constants",
@@ -418,6 +426,10 @@
           "rand",
           "tracing"
         ],
+        "build": []
+      },
+      "wow-world-social": {
+        "normal": [],
         "build": []
       },
       "wow-util-collections": {

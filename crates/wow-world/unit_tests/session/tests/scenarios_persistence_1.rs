@@ -166,7 +166,7 @@ fn load_represented_group_difficulties_overrides_player_values_like_cpp() {
         ),
     ])));
     session.load_represented_player_difficulties_like_cpp(1, 14, 3);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     assert!(session.load_represented_group_difficulties_like_cpp());
@@ -208,7 +208,7 @@ fn load_represented_group_difficulties_missing_registry_entry_preserves_values_l
         ),
     ])));
     session.load_represented_player_difficulties_like_cpp(2, 15, 4);
-    session.social.group_guid = Some(77);
+    session.social.set_group_guid_for_test_like_cpp(Some(77));
     session.set_group_registry(
         Arc::new(GroupRegistry::default()),
         Arc::new(PendingInvites::default()),
@@ -250,7 +250,7 @@ fn load_represented_group_by_db_store_id_sets_group_and_difficulties_like_cpp() 
 
     assert!(session.load_represented_group_by_db_store_id_like_cpp(80_928));
 
-    assert_eq!(session.social.group_guid, Some(group_guid));
+    assert_eq!(session.social.group_guid_for_test_like_cpp(), Some(group_guid));
     assert_eq!(session.represented_subgroup_like_cpp(), Some(3));
     assert_eq!(session.represented_dungeon_difficulty_id_like_cpp(), 2);
     assert_eq!(session.represented_raid_difficulty_id_like_cpp(), 15);
@@ -259,14 +259,14 @@ fn load_represented_group_by_db_store_id_sets_group_and_difficulties_like_cpp() 
 #[test]
 fn load_represented_group_by_db_store_id_clears_missing_group_like_cpp() {
     let (mut session, _, _) = make_session();
-    session.social.group_guid = Some(123);
+    session.social.set_group_guid_for_test_like_cpp(Some(123));
     session.set_group_registry(
         Arc::new(GroupRegistry::default()),
         Arc::new(PendingInvites::default()),
     );
 
     assert!(!session.load_represented_group_by_db_store_id_like_cpp(80_929));
-    assert_eq!(session.social.group_guid, None);
+    assert_eq!(session.social.group_guid_for_test_like_cpp(), None);
     assert_eq!(session.represented_subgroup_like_cpp(), None);
 }
 #[test]

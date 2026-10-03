@@ -29,7 +29,7 @@ async fn raid_target_party_index_instance_does_not_fall_back_to_home_like_cpp() 
     );
 
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -57,7 +57,7 @@ async fn party_join_updates_sends_target_list_and_raid_markers_like_cpp() {
     group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
 
     session
@@ -111,7 +111,7 @@ async fn clear_raid_marker_removes_one_slot_and_fanouts_like_cpp() {
     );
 
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(
         Arc::clone(&group_registry),
         Arc::new(PendingInvites::default()),
@@ -153,7 +153,7 @@ async fn clear_raid_marker_id_eight_removes_all_like_cpp() {
     );
 
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(
         Arc::clone(&group_registry),
         Arc::new(PendingInvites::default()),
@@ -195,7 +195,7 @@ async fn clear_raid_marker_raid_requires_leader_or_assistant_like_cpp() {
     );
 
     session.set_player_guid(Some(member));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(
         Arc::clone(&group_registry),
         Arc::new(PendingInvites::default()),
@@ -264,7 +264,7 @@ async fn set_role_group_old_equal_returns_without_packet_or_mutation_like_cpp() 
     );
 
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -309,7 +309,7 @@ async fn convert_raid_sets_flag_and_queues_member_refresh_like_cpp() {
     );
 
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -372,7 +372,7 @@ async fn convert_raid_releases_group_guard_before_refresh_backpressure_like_cpp(
     );
 
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(
         Arc::clone(&group_registry),
@@ -419,7 +419,7 @@ async fn convert_raid_to_group_rejects_over_five_members_like_cpp() {
 
     let player_registry = Arc::new(PlayerRegistry::with_canonical_player_fixtures_like_cpp());
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -460,7 +460,7 @@ async fn change_sub_group_leader_moves_member_and_fans_out_update_like_cpp() {
     );
 
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -518,7 +518,7 @@ async fn change_sub_group_assistant_allowed_but_regular_member_rejected_like_cpp
     );
 
     session.set_player_guid(Some(assistant));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -582,7 +582,7 @@ async fn set_party_assignment_leader_sets_main_tank_and_fans_out_like_cpp() {
     );
 
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -659,7 +659,7 @@ async fn set_party_assignment_assistant_sets_main_assist_like_cpp() {
     );
 
     session.set_player_guid(Some(assistant));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -719,7 +719,7 @@ async fn set_party_assignment_rejects_regular_member_without_mutation_or_fanout_
     );
 
     session.set_player_guid(Some(member));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -773,7 +773,7 @@ async fn set_party_assignment_non_raid_or_missing_target_fans_out_and_missing_cl
     );
 
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 
@@ -858,7 +858,7 @@ async fn set_party_assignment_unknown_assignment_fans_out_without_mutation_like_
     );
 
     session.set_player_guid(Some(leader));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry.clone(), Arc::new(PendingInvites::default()));
 

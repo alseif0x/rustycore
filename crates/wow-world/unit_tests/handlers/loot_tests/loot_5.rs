@@ -690,7 +690,7 @@ async fn loot_money_splits_corpse_gold_to_near_group_members_like_cpp() {
 
     session.set_player_guid(Some(player_guid));
     session.set_player_position_like_cpp(Position::ZERO);
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(player_registry);
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.loot.set_active_loot_guid(loot_guid);

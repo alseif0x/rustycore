@@ -329,7 +329,7 @@ async fn leave_group_triggers_visible_spellclick_refresh_like_cpp() {
     group_registry.register_group_like_cpp(group_guid, group);
 
     session.set_player_guid(Some(player_guid));
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_player_registry(Arc::clone(&player_registry));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_canonical_map_manager(Arc::clone(&canonical));
@@ -382,7 +382,7 @@ async fn leave_group_triggers_visible_spellclick_refresh_like_cpp() {
     pkt.reset_read();
     session.handle_leave_group(pkt).await;
 
-    assert_eq!(session.social.group_guid, None);
+    assert_eq!(session.social.group_guid_for_test_like_cpp(), None);
     let packets = drain_server_packet_bytes(&send_rx);
     assert!(packets.iter().any(|bytes| {
         wow_packet::WorldPacket::from_bytes(bytes).server_opcode()

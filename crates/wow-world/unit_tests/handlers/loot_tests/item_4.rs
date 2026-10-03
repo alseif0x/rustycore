@@ -20,7 +20,7 @@ async fn master_loot_item_target_not_allowed_for_loot_sends_master_other_like_cp
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
 
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));
     session.loot.set_active_loot_guid(loot_owner);
@@ -112,7 +112,7 @@ async fn master_loot_item_self_target_can_store_maps_unique_error_like_cpp() {
     let group_guid = group.group_guid;
     group_registry.register_group_like_cpp(group_guid, group);
 
-    session.social.group_guid = Some(group_guid);
+    session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     session.set_player_guid(Some(master_guid));
     session.loot.set_active_loot_guid(loot_owner);
@@ -274,7 +274,7 @@ async fn master_loot_item_remote_target_can_store_error_is_reported_by_target_se
     target_info.command_tx = target_session.session_command_tx();
     player_registry.register_or_replace(target_guid, target_info, Default::default());
 
-    master_session.social.group_guid = Some(group_guid);
+    master_session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     master_session.set_group_registry(
         Arc::clone(&group_registry),
         Arc::new(PendingInvites::default()),
@@ -395,7 +395,7 @@ async fn master_loot_item_remote_target_unavailable_command_reports_player_not_f
     target_info.command_tx = command_tx;
     player_registry.register_or_replace(target_guid, target_info, Default::default());
 
-    master_session.social.group_guid = Some(group_guid);
+    master_session.social.set_group_guid_for_test_like_cpp(Some(group_guid));
     master_session.set_group_registry(group_registry, Arc::new(PendingInvites::default()));
     master_session.set_player_registry(player_registry);
     master_session.set_player_guid(Some(master_guid));

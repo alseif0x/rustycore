@@ -14,46 +14,7 @@ impl WorldSession {
             .with_owned_player_like_cpp(|player| player.trade_state_snapshot_like_cpp());
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_active_trade_partner_like_cpp
-                    .map(|partner_guid| wow_entities::PlayerTradeStateLikeCpp {
-                        partner_guid,
-                        accepted: self
-                            .social
-                            .trade_test_fixture_like_cpp
-                            .represented_trade_accepted_like_cpp,
-                        partner_server_state_index: self
-                            .social
-                            .trade_test_fixture_like_cpp
-                            .represented_partner_trade_server_state_index_like_cpp,
-                        client_state_index: self
-                            .social
-                            .trade_test_fixture_like_cpp
-                            .represented_trade_client_state_index_like_cpp,
-                        server_state_index: self
-                            .social
-                            .trade_test_fixture_like_cpp
-                            .represented_trade_server_state_index_like_cpp,
-                        items: self
-                            .social
-                            .trade_test_fixture_like_cpp
-                            .represented_trade_items_like_cpp,
-                        money: self
-                            .social
-                            .trade_test_fixture_like_cpp
-                            .represented_trade_money_like_cpp,
-                        spell_id: self
-                            .social
-                            .trade_test_fixture_like_cpp
-                            .represented_trade_spell_like_cpp,
-                        spell_cast_item_guid: self
-                            .social
-                            .trade_test_fixture_like_cpp
-                            .represented_trade_spell_cast_item_like_cpp,
-                    }),
-            );
+            return Some(self.social.represented_trade_state_for_test_like_cpp());
         }
         canonical
     }
@@ -72,64 +33,8 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if self.core.player_handle_like_cpp.is_none() {
-            if let Some(state) = state {
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_active_trade_partner_like_cpp = Some(state.partner_guid);
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_accepted_like_cpp = state.accepted;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_partner_trade_server_state_index_like_cpp =
-                    state.partner_server_state_index;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_client_state_index_like_cpp = state.client_state_index;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_server_state_index_like_cpp = state.server_state_index;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_items_like_cpp = state.items;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_money_like_cpp = state.money;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_spell_like_cpp = state.spell_id;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_spell_cast_item_like_cpp = state.spell_cast_item_guid;
-            } else {
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_active_trade_partner_like_cpp = None;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_accepted_like_cpp = false;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_partner_trade_server_state_index_like_cpp = 0;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_client_state_index_like_cpp = 1;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_server_state_index_like_cpp = 1;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_items_like_cpp = [None; TRADE_SLOT_COUNT_LIKE_CPP as usize];
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_money_like_cpp = 0;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_spell_like_cpp = 0;
-                self.social
-                    .trade_test_fixture_like_cpp
-                    .represented_trade_spell_cast_item_like_cpp = None;
-            }
+            self.social
+                .set_represented_trade_state_for_test_like_cpp(state);
             return Some(result);
         }
         canonical.then_some(result)
@@ -406,24 +311,6 @@ impl WorldSession {
                 crate::session::mailbox::SendRepresentedTradeStatusLikeCppCommand { packet_bytes },
             ),
         );
-    }
-}
-
-impl crate::session::state::SessionSocialLimits {
-    pub(crate) fn record_represented_trade_cancel_like_cpp(&mut self, status: u8) {
-        #[cfg(test)]
-        self.trade_test_fixture_like_cpp
-            .represented_trade_cancel_statuses_like_cpp
-            .push(status);
-        #[cfg(not(test))]
-        let _ = status;
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_trade_cancel_statuses_like_cpp(&self) -> &[u8] {
-        &self
-            .trade_test_fixture_like_cpp
-            .represented_trade_cancel_statuses_like_cpp
     }
 }
 

@@ -50,6 +50,131 @@ fn baseline(world: &str, core: &str) -> Result<SessionSyntaxBaseline, String> {
     synthetic_baseline_with_core(world, &server_source("", ""), NETWORK, core)
 }
 
+fn baseline_with_world_social(
+    world: &str,
+    core: &str,
+    social: &str,
+) -> Result<SessionSyntaxBaseline, String> {
+    let unit = |role, path: &str, source: &str| SourceUnit {
+        role,
+        source_path: PathBuf::from(path),
+        repository_relative_path: path.to_owned(),
+        logical_module_path: "crate".to_owned(),
+        cfg: Vec::new(),
+        availability: Availability {
+            production: true,
+            test: true,
+        },
+        source: source.to_owned(),
+    };
+    collect_units(
+        vec![
+            unit(PackageRole::World, "wow-world/src/lib.rs", world),
+            unit(PackageRole::WorldCore, WORLD_CORE_CRATE_ROOT, core),
+            unit(
+                PackageRole::WorldSocial,
+                WORLD_SOCIAL_CRATE_ROOT,
+                social,
+            ),
+            unit(
+                PackageRole::Server,
+                "world-server/src/main.rs",
+                &server_source("", ""),
+            ),
+            unit(PackageRole::Network, "wow-network/src/lib.rs", NETWORK),
+        ],
+        PersistenceAccessBaseline {
+            schema_version: 3,
+            accesses: Vec::new(),
+        },
+    )
+}
+
+#[test]
+fn world_social_is_a_distinct_package_role_without_contract_ownership() {
+    let social = r#"
+        pub mod state { pub struct SessionSocialLimits; }
+        pub use self::state::SessionSocialLimits;
+        pub mod group {
+            pub enum SessionCommand { SocialOnly }
+            pub struct KickCommand;
+        }
+    "#;
+    let baseline = baseline_with_world_social(
+        &world_with_core_facade(),
+        &core_source(""),
+        social,
+    )
+    .expect("the Social domain source is inventoried without taking network contracts");
+
+    assert_eq!(PackageRole::WorldSocial.package_name(), "wow-world-social");
+    assert_eq!(PackageRole::Social.package_name(), "wow-social");
+    assert_eq!(
+        baseline
+            .session_core_owner
+            .definition
+            .as_ref()
+            .expect("the Core owner remains present")
+            .package,
+        "wow-world-core"
+    );
+}
+
+#[test]
+fn world_social_rejects_a_foreign_session_core_definition() {
+    let error = baseline_with_world_social(
+        &world_with_core_facade(),
+        &core_source(""),
+        "pub struct SessionCore;",
+    )
+    .expect_err("a same-named Social definition cannot replace Core");
+    assert!(error.contains("wow-world-social"), "{error}");
+    assert!(error.contains("defines SessionCore"), "{error}");
+}
+
+#[test]
+fn world_social_core_borrow_alias_impl_is_rejected_as_foreign() {
+    let social = "use wow_world_core::session::SessionCore as CoreBorrow; impl CoreBorrow {}";
+    let error = baseline_with_world_social(
+        &world_with_core_facade(),
+        &core_source(""),
+        social,
+    )
+    .expect_err("a Core borrow alias does not authorize a Social impl");
+    assert!(error.contains("wow-world-social"), "{error}");
+    assert!(error.contains("implements SessionCore"), "{error}");
+}
+
+#[test]
+fn world_social_core_borrow_alias_with_ambiguous_provider_fails_closed() {
+    let social = r#"
+        pub mod local { pub struct OtherCore; }
+        use wow_world_core::session::SessionCore as CoreBorrow;
+        use self::local::OtherCore as CoreBorrow;
+        impl CoreBorrow {}
+    "#;
+    let error = baseline_with_world_social(
+        &world_with_core_facade(),
+        &core_source(""),
+        social,
+    )
+    .expect_err("ambiguous nominal providers must remain a hard error in Social");
+    assert!(error.contains("candidate CoreBorrow"), "{error}");
+    assert!(error.contains("ambiguous"), "{error}");
+}
+
+#[test]
+fn world_social_rejects_a_world_session_definition() {
+    let error = baseline_with_world_social(
+        &world_with_core_facade(),
+        &core_source(""),
+        "pub struct WorldSession;",
+    )
+    .expect_err("WorldSession remains owned by wow-world");
+    assert!(error.contains("wow-world-social"), "{error}");
+    assert!(error.contains("WorldSession struct"), "{error}");
+}
+
 #[test]
 fn world_core_session_core_definition_fields_and_impls_are_pinned() {
     let baseline = baseline(
