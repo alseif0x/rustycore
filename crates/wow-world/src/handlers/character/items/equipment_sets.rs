@@ -52,10 +52,10 @@ impl WorldSession {
 
     /// Handle CMSG_ASSIGN_EQUIPMENT_SET_SPEC.
     ///
-    /// C++ `Player::AssignEquipmentSetToSpec` only mutates the first equipment
-    /// set whose client SetID matches and does not send an immediate response.
-    /// The represented container keeps the same in-memory assignment/state
-    /// semantics before the next full player-save transaction persists them.
+    /// C++ `Opcodes.cpp:170` marks this opcode `STATUS_UNHANDLED` and dispatches
+    /// `Handle_NULL`. This Rust handler currently assigns the first matching
+    /// equipment-set ID without a response; the next full player save persists it.
+    /// This version difference requires F6 evidence before claiming parity.
     pub async fn handle_assign_equipment_set_spec(&mut self, mut pkt: WorldPacket) {
         let request = match AssignEquipmentSetSpec::read(&mut pkt) {
             Ok(request) => request,

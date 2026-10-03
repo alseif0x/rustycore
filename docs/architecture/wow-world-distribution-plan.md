@@ -1582,6 +1582,15 @@ aceptación de los nuevos roots.
 
 ### F5 — handlers y orquestación
 
+**Checkpoint de fuente anterior al diseño — 2026-10-03:**
+`062fc7803e0fb2932d2ea02623933096d669147c`, árbol limpio al guardarlo
+a las 06:20 UTC; 124 archivos, 3.030 líneas añadidas y 2.141 retiradas,
+incluido el rename de la prueba de corpse. Guarda el resto de los métodos
+originales de Lifecycle y sus consumidores/fixtures, los cinco tests puros
+trasladados y el provider Inventory recuperado. **NO VALIDADO**: no se ha
+ejecutado Cargo, formato, suites, scanners ni aceptación para este lote.
+No acredita F4 terminado, paridad, publicación ni cumplimiento de R1/600 s.
+
 Diseñar con el censo actualizado después de F4:
 
 - Fijar el contrato de registro sin ciclos, el lugar de definición de los contextos y sus
@@ -1601,6 +1610,145 @@ Diseñar con el censo actualizado después de F4:
 Objetivo físico: `wow-world` con 20k–40k líneas de producción. Es un criterio junto con los
 dueños semánticos y la migración completa de consumidores; el número por sí solo no demuestra
 modularidad ni paridad.
+
+#### Propuesta concreta F5 para revisión — 2026-10-03
+
+Base de diseño: `062fc7803`, extracción F4b escrita pero no aceptada. La lectura
+actual de `handlers` encuentra 397 literales `PacketHandlerEntry` y 397
+`inventory::submit!` en 38 archivos. Seis son templates de macros: las 87
+invocaciones en client_state, movement y chat/channels dan
+`397 - 6 + 87 = 478` entradas por fuente, coherentes con las 478 filas de
+ambos snapshots actuales. Son 19 null handlers, 28 movement, 16 movement ACK,
+10 speed ACK, cinco channel commands y nueve channel-player commands.
+El conteo literal de submits es también 397 en el SHA aceptado `3ea514530`;
+no demuestra por sí solo el conjunto enlazado ni reemplaza su test exacto.
+El conteo físico acotado de `wow-world/src`
+da 509 archivos Rust / 141.635 líneas, incluidos comentarios, blancos y ramas
+cfg; **no es R5 ni LOC de producción compilada**. Los antiguos 2.598 métodos,
+443 thunks y 202/61 cortes no son un censo vigente: deben reconciliarse con
+los owners y consumers actuales durante F5 y con los instrumentos existentes
+en la aceptación final. Ninguna de estas lecturas ejecuta una validación.
+
+Se propone separar el tipo del registro de su receiver concreto, conservar
+thunks monomórficos y construir los contextos mediante préstamos disjuntos.
+La alternativa de mover la entrada actual sin cambiar su tipo crea el ciclo
+`wow-handler -> wow-world -> wow-handler`. Mantener todos los registros y
+adaptadores en World conserva el acoplamiento que F5 debe retirar. Un registro
+de closures capturadas añade asignaciones e indirección sin una necesidad
+demostrada. La propuesta usa el puntero de función y el futuro boxed ya
+existentes; su factibilidad de tipos y rendimiento todavía requieren evidencia.
+
+Para aplicación se comparan los módulos privados actuales de World con una
+frontera de crate: reward_commit todavía implementa WorldSession y el runtime
+de trainer se adapta sobre WorldSession, aunque sus planes y puertos ya están
+separados. Mantenerlos privados allí permite cortes físicos, pero no permite
+ejercitar la operación completa sin importar el shell. El crate propuesto se
+gana por esos coordinadores completos, sus consumidores World y los contextos
+prestados/tests independientes; no por un número de líneas. No crea crates
+por helper ni absorbe el driver, SQL adapters o almacenamiento canónico.
+
+| Responsabilidad | Contrato propuesto y consumidores |
+| --- | --- |
+| Registro bajo, `wow-handler` | `PacketHandlerFn<S, C>` y `PacketHandlerEntry<S, C>` genéricos en receiver y catálogos; conservan opcode, status, processing, handler_name y una función registrada. El crate puede depender de `wow-constants`/`wow-packet`, sin World, Core ni dominios. |
+| Handlers de dominio | Cada crate aporta `register<S, C>` con metadata y thunk en una sola declaración. Define sus contextos concretos por familia junto al handler; no recibe ni conserva WorldSession. |
+| Construcción de contextos | Un contrato de host por dominio ofrece solo constructores de sus contextos ganados, parametrizado por los catálogos prestados. World implementa esos constructores mediante sus campos disjuntos; no son callbacks de gameplay ni un trait por helper. Ningún constructor devuelve el estado entero de la sesión, un mapa mutable o un guard síncrono que sobreviva a await. |
+| Operaciones multidominio | Crear `wow-world-application` como frontera real de aplicación sobre Core y los dominios, con módulos privados por operación: login, loot, quest reward y trainer como primeras familias. Sus coordinadores y contextos no dependen de World. No contiene un estado universal ni otro servicio que replique los nueve estados. |
+| Shell World | Driver, admisión, conexión y composición de préstamos. Mantiene los campos y su orden de Drop; los cambios de tipo/proveedor no adelantan destrucción ni mueven clocks. Sus adaptadores finales construyen contextos e invocan; no alojan el cuerpo de gameplay que supuestamente se retiró. |
+| Composición de producción | world-server invoca los registrars y publica una tabla inmutable en SessionResources para las sesiones. world-modules conserva el compositor generado y llama a la misma composición mediante run_with_modules; no se edita su salida a mano. |
+
+La firma baja propuesta conserva el lifetime compartido actual:
+
+```rust
+pub type PacketHandlerFn<S, C> = for<'a> fn(
+    &'a mut S,
+    &'a C,
+    WorldPacket,
+) -> HandlerFuture<'a, ()>;
+```
+
+Los thunks se monomorfizan para WorldSession y sus catálogos en la composición,
+sin nombrarlos desde el dominio. El futuro sigue siendo Send y queda limitado
+al préstamo de sesión/catálogos; no se hace static ni se crea otra tarea.
+El dispatcher copia la entrada o sus valores antes de tomar el préstamo mutable
+del receiver y espera su única función. No añade un clone de Arc por paquete.
+Si la entrada implementa Copy/Clone, sus impls no exigen que S/C sean Copy/Clone.
+La tabla se comparte al construir sesiones; no almacena S, C ni el agregado de
+catálogos en el dominio. El builder no añade un segundo listado de opcode/call.
+Los duplicados y las ausencias se rechazan en la composición y sus tests; el
+conjunto válido mantiene exactamente el contrato anterior.
+
+La composición sustituye también `construction.rs:114`, donde hoy cada sesión
+vuelve a construir una tabla de referencias estáticas. Deben migrar juntos
+`build_dispatch_table`, `get_handler`, `contains_handler`, la residencia del
+driver, el dispatcher, SessionResources/session_factory y todos los tests que
+leen `inventory::iter`. No queda un fallback de producción a un registro viejo.
+Durante cortes internos, cada opcode tiene una única declaración y ruta activa;
+la mezcla transitoria se retira antes del cierre. PacketHandlerEntry sigue
+siendo la única fuente de metadata, admisión y llamada.
+world-server añade dependencias normales directas de los crates cuyos registrars
+invoca; no obtiene su metadata mediante un segundo agregador World.
+Los dominios añaden la arista normal a wow-handler cuando contribuyen handlers;
+application añade solo las aristas de sus operaciones reales, sin precargar
+todos los dominios. World depende de application y construye sus contextos,
+nunca al revés. Los gates de test-fixtures siguen separados de producción.
+El handle de tabla compartida evita añadir un lifetime a WorldSession; se
+obtiene una vez al construir la sesión, sin clone adicional por invocación.
+Los tests de probe crean su tabla específica con el builder, sin mutar el
+registro de producción compartido. El test de duplicados, el golden de metadata
+y el snapshot de contratos se alimentan del mismo conjunto compuesto; no se
+regenera su expectativa para esconder cambios. Los contextos tienen campos
+privados y constructores ganados para el builder; no hacen públicos los states.
+
+Primeras unidades completas y límites comprobados por fuente:
+
+| Familia | Contexto y owner | Contrato que conserva el traslado |
+| --- | --- | --- |
+| Equipment-set assign/delete | InventoryState y acceso síncrono al Player canónico, con fallback fixture bajo su gate actual. No requiere el agregado de catálogos del driver. Los constructores deben estrechar el Hub actual a esa operación; save/use se analizan aparte porque consumen otros catálogos y publican. | Assign: LoggedIn/Inplace; delete: LoggedIn/ThreadUnsafe. Decode y errores actuales, sin respuesta inmediata ni await interno; dirty/tombstone se guarda después. Se preservan los seis escenarios de item_1 y se migran sus consumers; si siguen usando WorldSession permanecen como integración World. |
+| Trainer buy | Decode/admisión NPC y planificación Spell; el coordinador de aplicación reúne Interaction, Spell, Lifecycle, dinero y publicación. Reutiliza el planificador wow-spell-acquisition y el contrato TrainerAcquisitionRuntimeLikeCpp existente; no crea un trait por fase. | LoggedIn/Inplace. Mantiene retiro de feign death, validación de procedencia, flush pendiente, exclusión de dinero y revalidación tras await. COMMIT/reconciliación antes de instalar el snapshot y publicar dinero; fence instancia→realm, visuales, fence realm→instancia, skills/acciones. La completion retiene la exclusión hasta tratar el resultado. |
+| Quest choose reward | Un coordinador de aplicación conserva la operación normal completa, el plan durable, los estados participantes y el puerto PlayerQuestRewardPersistencePortLikeCpp. La proyección de quest pasa con sus lectores/escritores al módulo de quests de aplicación, sin duplicar el Player canónico. | Mantiene validación de choice/giver/inventario, mutaciones previas al COMMIT que ya existen, batch ordenado y aplicación/publicación posterior. Conserva cuarentena tras rollback/indeterminado y el money fence/cancellation fence; no impone commit-before-mutation a todo el inventario durante un refactor. |
+
+Anclas de estas unidades en `a5f8da2eb`: delete está registrado en
+`Server/Protocol/Opcodes.cpp:416`, llega a `CharacterHandler.cpp:1948` y
+`Player.cpp:26524`. **Assign está STATUS_UNHANDLED/Handle_NULL en
+Opcodes.cpp:170**, sin un método activo Player::AssignEquipmentSetToSpec en
+ese checkout: se corrige la atribución Rust, se conserva su comportamiento
+existente durante F5 y se registra la diferencia para el contrato/evidencia F6.
+No se inventa paridad del opcode ni se declara una divergencia intencional aprobada.
+Trainer está en `NPCHandler.cpp:132–202` y `Trainer.cpp:79–145`; quest reward
+en `QuestHandler.cpp:396–403`, `Player::RewardQuest:14625` y su SaveToDB:14867.
+El money fence Rust y el batch asíncrono no se prueban por la llamada síncrona C++.
+La rama de quest reward sin dinero usa el testigo de quest para unknown-COMMIT;
+la cancelación del futuro MariaDB en esa rama sigue sin evidencia específica.
+Se preserva el código al moverlo y se retiene esa incertidumbre para F6/aceptación.
+
+Secuencia dentro del mismo macro, sin nuevas micro-issues/PRs: fijar el registro
+bajo y los consumers de composición; completar equipment-set como primera
+familia de contexto/registro; trasladar trainer y quest reward con sus adapters
+y pruebas; continuar las restantes familias mediante mapas de operación completos;
+retirar los builders/thunks/bridges de origen y reconciliar los cortes diferidos.
+Cada traslado consume el owner real y evita aristas dominio→aplicación/World.
+Si una familia necesita varios dominios, se coordina arriba en aplicación;
+no se añaden dependencias recíprocas para que compile. Los módulos nuevos
+nombran responsabilidades; producción, fixtures y tests cumplen los presupuestos
+físicos y cualquier excepción concreta conserva su salida acotada.
+
+Aceptación de F5 dentro de la campaña de entrega de §10: conjunto exacto de
+opcodes/metadata/handler_names/conexiones y llamadas antes/después, residencia
+y fases, composición world-server y world-modules sin fixtures, módulos/hooks,
+unión de identidades de pruebas sin pérdidas y configuraciones de cada crate.
+Casos nuevos del registro prueban hosts no Copy, préstamos/cancelación, ausencia
+y duplicidad, sin replicar gameplay. Se conservan los escenarios de trainer de
+orden/writer detenido/fallo y los de recompensa de commit/rollback/indeterminado.
+La evidencia exigida de persistencia, capturas y runtime sigue siendo necesaria;
+las fixtures no demuestran el adaptador MariaDB ni durabilidad real. R1 conserva
+5% + 300 y su estado rojo histórico; el objetivo R5 sigue siendo 20k–40k
+producción, sin ocultar código en otro lenguaje, cfg o fixture. No se ejecutan
+checks por estos cortes internos: se completan implementación/tests/consumers
+y se conserva la campaña final y su presupuesto íntegro de 600 s.
+
+**Estado: propuesta de diseño, sin implementación ni aceptación de F5.**
+Conserva la revisión explícita de diseño indicada en §6 antes de cambiar
+el contrato de registro/composición. F4b tampoco se declara aceptado por fuente.
 
 ### F6 — retirada de duplicados, pista de comportamiento
 
@@ -1675,7 +1823,7 @@ integración posterior; los SHAs de aceptación y de squash no se confunden.
 | F4a P4a | aceptación completada; publicación/integración en #1263 | candidato `d9c9e3637`, evidencia abajo |
 | F4a P4b | pendiente | §6 |
 | F4b | pendiente | §6 |
-| F5 | diseño detallado e implementación pendientes | §6 |
+| F5 | propuesta detallada escrita; revisión e implementación pendientes | §6 |
 | F6 | pendiente | pista de comportamiento |
 
 R5 leído con `python3 -B tools/architecture/wow_world_coupling.py report --json` en P3:
