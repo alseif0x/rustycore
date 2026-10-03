@@ -2702,8 +2702,15 @@ entrada conserva opcode, LoggedIn, Inplace, nombre y warning de lectura; se reti
 la entrada del collector World y la composición server usa el registro Inventory.
 La revisión del cuerpo conserva conversión/slot, GetPos y runtime actuales,
 enchantment no nulo y ambas mutaciones con sus resultados ignorados. Se preservan
-los casos World existentes; quedan los casos de registro/fallo solicitados y la
-aceptación completa. No se ejecutaron checks ni pruebas.
+los casos World existentes. El implementador entregó además tres casos nuevos:
+registro Inventory exacto y entrada única en la composición, lectura inválida y
+slots fuera de rango frente al slot válido, y owner obsoleto tras reemplazo de
+igual GUID. Se revisaron por fuente; ninguno se ejecutó. La unidad queda cerrada
+por implementación, NO VALIDADA, y conserva pendiente la aceptación completa.
+La siguiente operación asignada es ChangeBankBagSlotFlag, con admisión bancaria
+y publicación VALUES completas. El target C++ Opcode.cpp:289 registra ese opcode
+STATUS_UNHANDLED/Handle_NULL; F5 conservará el comportamiento Rust y deja esa
+diferencia para F6, sin atribuirle un handler C++ inexistente.
 
 Quest eligibility de visibilidad también está escrito como módulo privado: nivel,
 race/class y CanSeeStart conservan disable, status, recurrence, seasonal, prev-quest
@@ -2712,6 +2719,12 @@ SHA a5f8da2ebf5424bf0450ca4e08843ecbf72577bd, no demuestran paridad de ese helpe
 bounded: CanSeeStart aplica además skill, exclusive, reputation, day/week/month y
 expansion. F5 mantiene la representación Rust; diálogo, condiciones y completions
 enteros siguen abiertos, sin callbacks World ni prueba ejecutada.
+También se escribieron los gates completos de skill y reputation: skill mantiene
+conversión y proyección de records actuales; reputation consulta min/max por
+separado mediante un lector Core de faction/manager, con race/class tardíos,
+catálogo ausente como standing cero y fallback original solo sin handle. La
+revisión por fuente no sustituye su aceptación ni el CanTakeQuest completo,
+todavía pendiente junto con sus condiciones y consumidores de diálogo.
 
 Consulta compartida de slot (2026-10-03, NO VALIDADO): el ancla original es
 `handlers/quest/state.rs:327`; toma un snapshot actual, exige slot menor que
