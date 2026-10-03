@@ -60,12 +60,12 @@ pub fn check_repository() -> Result<String, String> {
     let snapshot = parse_snapshot_contract(&snapshot_source)
         .map_err(|error| format!("invalid handler contract snapshot: {error}"))?;
     let module_policy = load_handler_module_policy(&module_policy_path)?;
-    let registration_owner = module_policy.owner("handler_registration");
+    let registration_owners = module_policy.owners("handler_registration");
     let dispatcher_owner = module_policy.owner("packet_dispatcher");
 
     // Run the complete source/module ownership audit before the focused
     // parsers so unsupported include/macro/path shapes cannot hide source.
-    let ownership = audit_registration_ownership(&repository_root, registration_owner)
+    let ownership = audit_registration_ownership(&repository_root, registration_owners)
         .map_err(|error| format!("invalid handler registration ownership:\n{error}"))?;
     let mounts = workspace_source_mounts(&repository_root)
         .map_err(|error| format!("invalid workspace module graph: {error}"))?;
@@ -74,7 +74,7 @@ pub fn check_repository() -> Result<String, String> {
     assert_single_dispatch_mechanism(&dispatcher)
         .map_err(|error| format!("world handler dispatch mechanism:\n{error}"))?;
 
-    let source_report = analyze_handler_mounts(&mounts, registration_owner)
+    let source_report = analyze_handler_mounts(&mounts, registration_owners)
         .map_err(|error| format!("invalid handler registration source contract:\n{error}"))?;
     if source_report.represented_entries() != snapshot.row_count {
         return Err(format!(

@@ -32,12 +32,12 @@ use crate::registrations::{
 };
 
 const HANDLER_PACKAGE_NAME: &str = "wow-handler";
-/// Where the one `inventory::collect!(PacketHandlerEntry)` lives.
+/// Where the one legacy-wrapper inventory collector lives.
 ///
 /// #359 moved the registry beside the session it dispatches to: an entry now
-/// carries a `fn(&mut WorldSession, WorldPacket)` thunk, and `wow-handler` is
-/// the crate `wow-world` depends on, so it cannot name that type. `wow-handler`
-/// keeps the vocabulary; the collector belongs to the dispatcher owner.
+/// carries a `fn(&mut WorldSession, WorldPacket)` thunk. `PacketHandlerEntry`
+/// remains the generic type from `wow-handler`; this crate-local wrapper lets
+/// `wow-world` collect that specialized entry for its dispatcher.
 const REGISTRY_PACKAGE_NAME: &str = "wow-world";
 const REGISTRY_MODULE_PATH: &str = "crate::session::registry";
 const WOW_PROTO_PACKAGE_NAME: &str = "wow-proto";
@@ -1752,13 +1752,15 @@ pub(crate) fn workspace_source_mounts(
 fn is_owned_handler_mount(
     package_name: &str,
     logical_paths: &BTreeSet<String>,
-    owner: &CapabilityOwner,
+    owners: &[CapabilityOwner],
 ) -> bool {
-    package_name == owner.package
+    owners.iter().any(|owner| package_name == owner.package)
         && logical_paths.len() == 1
-        && logical_paths
-            .iter()
-            .all(|path| owner.owns_module(package_name, path))
+        && logical_paths.iter().any(|path| {
+            owners
+                .iter()
+                .any(|owner| owner.owns_module(package_name, path))
+        })
 }
 
 #[cfg(test)]
@@ -1774,39 +1776,42 @@ pub(crate) fn audit_package_registration_sources(
         allow_descendants: true,
         tracking_issue: 153,
     };
-    audit_package_registration_sources_with_owner(package_name, sources, unconditional, &test_owner)
+    audit_package_registration_sources_with_owners(
+        package_name,
+        sources,
+        unconditional,
+        std::slice::from_ref(&test_owner),
+    )
 }
 
-pub(crate) fn audit_package_registration_sources_with_owner(
+pub(crate) fn audit_package_registration_sources_with_owners(
     package_name: &str,
     sources: &BTreeMap<PathBuf, BTreeSet<String>>,
     unconditional: &BTreeSet<PathBuf>,
-    owner: &CapabilityOwner,
+    owners: &[CapabilityOwner],
 ) -> Result<(), String> {
     let mut errors = Vec::new();
     let mut exact_collectors = 0usize;
     for (source_path, logical_paths) in sources {
-        if is_owned_handler_mount(package_name, logical_paths, owner) {
+        if is_owned_handler_mount(package_name, logical_paths, owners) {
             continue;
         }
         let source = fs::read_to_string(source_path)
             .map_err(|error| format!("cannot read {}: {error}", source_path.display()))?;
-        // The collector is no longer a crate root, so it is identified by its
-        // logical module rather than by being lib.rs (#359) — and, because that
-        // no longer rules out a conditional parent by construction, by having an
-        // unconditional production mount (#363).
+        // The legacy adapter collector belongs only to the unconditional World
+        // registry module; package and logical-module identity both matter.
         let collector_owner = package_name == REGISTRY_PACKAGE_NAME
             && logical_paths == &BTreeSet::from([REGISTRY_MODULE_PATH.to_owned()])
             && unconditional.contains(source_path);
         match analyze_registration_syntax_outside_handlers(source_path, &source, collector_owner) {
-            Ok(report) => exact_collectors += report.exact_packet_handler_collectors,
+            Ok(report) => exact_collectors += report.exact_legacy_wrapper_collectors,
             Err(error) => errors.push(format!("package {package_name}: {error}")),
         }
     }
     if package_name == REGISTRY_PACKAGE_NAME && exact_collectors != 1 {
         errors.push(format!(
             "{REGISTRY_MODULE_PATH} must define exactly one unconditional module-level \
-             inventory::collect!(PacketHandlerEntry), found {exact_collectors}"
+             inventory::collect!(LegacyPacketHandlerRegistrationLikeCpp), found {exact_collectors}"
         ));
     }
     if errors.is_empty() {
@@ -1818,7 +1823,7 @@ pub(crate) fn audit_package_registration_sources_with_owner(
 
 pub(crate) fn audit_registration_ownership(
     repository_root: &Path,
-    owner: &CapabilityOwner,
+    owners: &[CapabilityOwner],
 ) -> Result<RegistrationOwnershipReport, String> {
     let metadata = workspace_metadata(repository_root)?;
     let registry_capable = registry_capable_package_ids(&metadata)?;
@@ -1949,11 +1954,11 @@ pub(crate) fn audit_registration_ownership(
             for source_path in sources.keys() {
                 scanned_files.insert((scope.name.clone(), source_path.clone()));
             }
-            if let Err(error) = audit_package_registration_sources_with_owner(
+            if let Err(error) = audit_package_registration_sources_with_owners(
                 &scope.name,
                 &sources,
                 &unconditional,
-                owner,
+                owners,
             ) {
                 errors.push(error);
             }

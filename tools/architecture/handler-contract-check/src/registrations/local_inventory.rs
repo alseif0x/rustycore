@@ -8,6 +8,7 @@ use syn::{Item, UseTree, visit::Visit};
 use super::{
     ident_is, use_tree_can_alias_expected_registration_macro, use_tree_can_alias_inventory_submit,
 };
+use super::legacy_registry::is_exact_wrapper_reexport;
 
 /// Production reverse dependency closure of every resolved `inventory` crate.
 /// Package identity, rather than the dependency's local alias, controls capability.
@@ -88,6 +89,7 @@ pub(crate) fn inventory_dependency_packages(
 struct InventoryAliasCollector {
     violations: Vec<String>,
     allow_local_data_module: bool,
+    allow_legacy_wrapper_reexport: bool,
     local_inventory: Vec<bool>,
 }
 
@@ -112,7 +114,21 @@ impl InventoryAliasCollector {
 impl<'ast> Visit<'ast> for InventoryAliasCollector {
     fn visit_file(&mut self, file: &'ast syn::File) {
         self.enter_scope(&file.items);
-        syn::visit::visit_file(self, file);
+        let exact_wrapper_reexports = file
+            .items
+            .iter()
+            .filter(|item| matches!(item, Item::Use(item) if is_exact_wrapper_reexport(item)))
+            .count();
+        let allow_exact_wrapper_reexport =
+            self.allow_legacy_wrapper_reexport && exact_wrapper_reexports == 1;
+        for item in &file.items {
+            if allow_exact_wrapper_reexport
+                && matches!(item, Item::Use(item) if is_exact_wrapper_reexport(item))
+            {
+                continue;
+            }
+            self.visit_item(item);
+        }
         self.local_inventory.pop();
     }
 
@@ -166,21 +182,33 @@ impl<'ast> Visit<'ast> for InventoryAliasCollector {
 }
 
 pub(crate) fn registration_alias_violations(source: &str) -> Result<Vec<String>, String> {
-    collect(source, false)
+    collect(source, false, false)
+}
+
+pub(crate) fn registration_alias_violations_with_legacy_wrapper_reexport(
+    source: &str,
+    allow_exact_wrapper_reexport: bool,
+) -> Result<Vec<String>, String> {
+    collect(source, false, allow_exact_wrapper_reexport)
 }
 
 /// Only for packages outside the handler registry closure and without any normal
 /// dependency path to inventory. The caller still audits every source's macros,
 /// includes, exports and registration invocations; this is no package exemption.
 pub(crate) fn data_module_alias_violations(source: &str) -> Result<Vec<String>, String> {
-    collect(source, true)
+    collect(source, true, false)
 }
 
-fn collect(source: &str, allow_local_data_module: bool) -> Result<Vec<String>, String> {
+fn collect(
+    source: &str,
+    allow_local_data_module: bool,
+    allow_legacy_wrapper_reexport: bool,
+) -> Result<Vec<String>, String> {
     let syntax =
         syn::parse_file(source).map_err(|error| format!("cannot parse Rust source: {error}"))?;
     let mut collector = InventoryAliasCollector {
         allow_local_data_module,
+        allow_legacy_wrapper_reexport,
         ..Default::default()
     };
     collector.visit_file(&syntax);

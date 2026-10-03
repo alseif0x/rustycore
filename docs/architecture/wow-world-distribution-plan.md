@@ -1884,6 +1884,18 @@ cambian las firmas, no los cuerpos, llamadas, locks ni fallas. Esto permite
 componer lectores, pero la cuarentena aún escribe el estado de sesión y
 necesita un límite concreto antes de cerrar el contexto completo de trainer.
 
+**QA del registro genérico — 2026-10-03, 11:51 UTC (NO VALIDADO):**
+La política de handlers usa schema 2: varias rutas explícitas de registro y un
+único dispatcher; solo se añade Inventory como owner ya implementado. El
+scanner reconoce el puente legacy completo de World (wrapper local, collector,
+macro y reexport exactos), conserva el rechazo de aliases, cfg, collectors
+ajenos y montajes ambiguos, y distingue los seis templates existentes de las
+invocaciones directas cualificadas. El positivo de `register_move` conserva el
+cuerpo real con `$opcode`; las repeticiones y entradas reenviadas se rechazan.
+No se ejecutó el checker ni se cambió el snapshot. La gramática del builder
+directo de Inventory y de su composición sigue pendiente; este checkpoint no
+acredita el conjunto compilado ni aceptación.
+
 ### F6 — retirada de duplicados, pista de comportamiento
 
 La revisión F5 conserva dos diferencias que no puede resolver mediante un

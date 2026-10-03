@@ -10,7 +10,7 @@ use std::path::Path;
 
 use serde::Deserialize;
 
-const POLICY_SCHEMA_VERSION: u32 = 1;
+const POLICY_SCHEMA_VERSION: u32 = 2;
 const REQUIRED_CAPABILITIES: &[&str] = &["handler_registration", "packet_dispatcher"];
 
 #[derive(Debug, Deserialize)]
@@ -44,13 +44,21 @@ impl CapabilityOwner {
 
 #[derive(Debug)]
 pub(crate) struct HandlerModulePolicy {
-    owners: BTreeMap<String, CapabilityOwner>,
+    owners_by_capability: BTreeMap<String, Vec<CapabilityOwner>>,
 }
 
 impl HandlerModulePolicy {
     pub(crate) fn owner(&self, capability: &str) -> &CapabilityOwner {
-        self.owners
+        let [owner] = self.owners(capability) else {
+            panic!("validated capability {capability} must have exactly one owner");
+        };
+        owner
+    }
+
+    pub(crate) fn owners(&self, capability: &str) -> &[CapabilityOwner] {
+        self.owners_by_capability
             .get(capability)
+            .map(Vec::as_slice)
             .expect("validated policy contains every required capability")
     }
 }
@@ -80,7 +88,7 @@ pub(crate) fn parse_handler_module_policy(source: &str) -> Result<HandlerModuleP
         return Err("handler module policy introduced_by_issue must be positive".to_owned());
     }
 
-    let mut owners = BTreeMap::new();
+    let mut owners: BTreeMap<String, Vec<CapabilityOwner>> = BTreeMap::new();
     for owner in document.capability_owners {
         if !REQUIRED_CAPABILITIES.contains(&owner.capability.as_str()) {
             return Err(format!(
@@ -107,19 +115,27 @@ pub(crate) fn parse_handler_module_policy(source: &str) -> Result<HandlerModuleP
             ));
         }
         let capability = owner.capability.clone();
-        if owners.insert(capability.clone(), owner).is_some() {
+        let capability_owners = owners.entry(capability.clone()).or_default();
+        if capability_owners.contains(&owner) {
             return Err(format!(
-                "handler module policy declares duplicate capability {capability}"
+                "handler module policy declares duplicate owner for capability {capability}"
             ));
         }
+        capability_owners.push(owner);
     }
     let actual: Vec<_> = owners.keys().map(String::as_str).collect();
     if actual != REQUIRED_CAPABILITIES {
         return Err(format!(
-            "handler module policy must declare capabilities {REQUIRED_CAPABILITIES:?} exactly once; found {actual:?}"
+            "handler module policy must declare capabilities {REQUIRED_CAPABILITIES:?}; found {actual:?}"
         ));
     }
-    let owner_values: Vec<_> = owners.values().collect();
+    if owners["packet_dispatcher"].len() != 1 {
+        return Err(format!(
+            "handler module policy capability packet_dispatcher must have exactly one owner; found {}",
+            owners["packet_dispatcher"].len()
+        ));
+    }
+    let owner_values: Vec<_> = owners.values().flatten().collect();
     for (index, left) in owner_values.iter().enumerate() {
         for right in &owner_values[index + 1..] {
             if left.package == right.package
@@ -133,7 +149,9 @@ pub(crate) fn parse_handler_module_policy(source: &str) -> Result<HandlerModuleP
             }
         }
     }
-    Ok(HandlerModulePolicy { owners })
+    Ok(HandlerModulePolicy {
+        owners_by_capability: owners,
+    })
 }
 
 pub(crate) fn load_handler_module_policy(path: &Path) -> Result<HandlerModulePolicy, String> {

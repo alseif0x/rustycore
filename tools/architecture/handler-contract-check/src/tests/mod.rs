@@ -18,7 +18,7 @@ use crate::dispatcher::{
 use crate::module_policy::{CapabilityOwner, parse_handler_module_policy};
 use crate::ownership::{
     WorkspaceSourceMount, audit_package_registration_sources,
-    audit_package_registration_sources_with_owner, audit_package_source_graph,
+    audit_package_registration_sources_with_owners, audit_package_source_graph,
     audit_package_source_mounts, read_spliced_source, registry_capable_package_ids,
     workspace_dependency_aliases_from_metadata,
 };

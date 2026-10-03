@@ -1,5 +1,5 @@
 {
-  "schema_version": 1,
+  "schema_version": 2,
   "introduced_by_issue": 185,
   "capability_owners": [
     {
@@ -8,6 +8,13 @@
       "module": "crate::handlers",
       "allow_descendants": true,
       "tracking_issue": 153
+    },
+    {
+      "capability": "handler_registration",
+      "package": "wow-world-inventory",
+      "module": "crate::handlers",
+      "allow_descendants": true,
+      "tracking_issue": 1263
     },
     {
       "capability": "packet_dispatcher",
