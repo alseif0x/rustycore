@@ -84,7 +84,7 @@ an isolated Wine environment on a Linux x86_64 host:
 | Empty character selection | Verified with real client | Database-backed empty list and «Crear personaje» button |
 | Creation UI / personalization | Observed with real client | Fresh probe reaches human warrior customization and rendered models; no character saved |
 | Target appearance validation | Implemented; native QA passed | Seven real DB2 baselines + SQL overlays/removals; nine native human-warrior choices validate, without a save/success response |
-| Name availability | Implemented; native response validation pending | Canonical authenticated handler, normalized SQL collision read and exact sequence/result response; not a name reservation or Create success |
+| Name availability | Native 70170 verified | Valid name shows green; server-configured rejection shows red and disables Finish. Exact sequence/result response; not a reservation or Create success |
 | Target name rules | Local acceptance passing | Real WDC5/SQL catalog, finite UTF-16 casing, pinned Boost Perl/icase engine, reserved-name ordering and scoped default RBAC |
 | Character creation / nonempty enumeration | Pending | Name/admission, starting Player state and durable persistence still required; no character saved |
 | Initial world load | Pending | Requires target-build packets and appropriate world/client data |
