@@ -6,7 +6,7 @@ use std::collections::HashSet;
 use wow_core::ObjectGuid;
 use wow_entities::{
     INVENTORY_SLOT_BAG_0, INVENTORY_SLOT_BAG_END, INVENTORY_SLOT_BAG_START,
-    INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START, PLAYER_SLOT_END, Player,
+    INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START, PLAYER_SLOT_END,
     PlayerInventoryItem as InventoryItem,
 };
 use wow_world_core::session::{HubMut, HubRef};
@@ -188,11 +188,17 @@ impl crate::InventoryState {
         &self,
         hub: HubRef<'_>,
     ) -> Option<u8> {
-        let canonical = hub
-            .core
-            .with_owned_player_like_cpp(Player::inventory_slot_count);
+        let access = hub.core.owned_inventory_access_like_cpp();
+        self.resolved_player_inventory_slot_count_with_access_like_cpp(&access)
+    }
+
+    pub fn resolved_player_inventory_slot_count_with_access_like_cpp(
+        &self,
+        access: &wow_world_core::session::OwnedInventoryAccessLikeCpp<'_>,
+    ) -> Option<u8> {
+        let canonical = access.player_inventory_slot_count_like_cpp();
         #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && hub.core.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && access.owner_handle_absent_like_cpp() {
             return Some(
                 self.player_item_test_fixture_like_cpp
                     .player_inventory_slot_count_like_cpp,

@@ -18,6 +18,53 @@ impl SessionCore {
 }
 
 impl OwnedInventoryAccessLikeCpp<'_> {
+    /// Read canonical player money without applying an Inventory fixture fallback.
+    pub fn player_money_like_cpp(&self) -> Option<u64> {
+        self.core.with_owned_player_like_cpp(|player| player.money())
+    }
+
+    /// Set canonical player money and report whether the owned player resolved.
+    pub fn set_player_money_like_cpp(&self, gold: u64) -> bool {
+        self.core
+            .with_owned_player_mut_like_cpp(|player| player.set_money(gold))
+            .is_some()
+    }
+
+    /// Read canonical bank-bag slot count without applying an Inventory fixture fallback.
+    pub fn player_bank_bag_slot_count_like_cpp(&self) -> Option<u8> {
+        self.core
+            .with_owned_player_like_cpp(|player| player.bank_bag_slot_count())
+    }
+
+    /// Set canonical bank-bag slot count and report whether the owned player resolved.
+    pub fn set_player_bank_bag_slot_count_like_cpp(&self, count: u8) -> bool {
+        self.core
+            .with_owned_player_mut_like_cpp(|player| player.set_bank_bag_slot_count(count))
+            .is_some()
+    }
+
+    /// Read one canonical bank-bag slot flag; an absent Player or slot is `None`.
+    pub fn player_bank_bag_slot_flag_like_cpp(&self, slot: usize) -> Option<u32> {
+        self.core
+            .with_owned_player_like_cpp(|player| player.bank_bag_slot_flag_value_like_cpp(slot))
+            .flatten()
+    }
+
+    /// Set one canonical bank-bag slot flag and preserve the Player setter's bounds result.
+    pub fn set_player_bank_bag_slot_flag_like_cpp(&self, slot: usize, value: u32) -> bool {
+        self.core
+            .with_owned_player_mut_like_cpp(|player| {
+                player.set_bank_bag_slot_flag_value_like_cpp(slot, value)
+            })
+            .unwrap_or(false)
+    }
+
+    /// Read canonical inventory slot count without applying an Inventory fixture fallback.
+    pub fn player_inventory_slot_count_like_cpp(&self) -> Option<u8> {
+        self.core
+            .with_owned_player_like_cpp(|player| player.inventory_slot_count())
+    }
+
     /// Clone the current canonical inventory runtime while its owner is held.
     pub fn inventory_runtime_snapshot_like_cpp(&self) -> Option<PlayerInventoryRuntime> {
         self.core

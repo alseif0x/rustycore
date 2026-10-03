@@ -10,9 +10,9 @@ use crate::{
     RepresentedGuildBankMoneyMoveLikeCpp, RepresentedGuildBankTabActionLikeCpp,
     RepresentedGuildRepairBankWithdrawLikeCpp,
 };
-use wow_entities::{INVENTORY_SLOT_BAG_0, Player};
+use wow_entities::INVENTORY_SLOT_BAG_0;
 use wow_world_core::entity_update_bridge::player_values_update_to_update_object;
-use wow_world_core::session::{HubMut, HubRef};
+use wow_world_core::session::{HubMut, HubRef, OwnedInventoryAccessLikeCpp};
 
 impl crate::InventoryState {
     /// C++ `GetItemCount(entry, false)`: count carried/equipped items while
@@ -97,12 +97,18 @@ impl crate::InventoryState {
         hub: HubRef<'_>,
         slot: usize,
     ) -> Option<u32> {
-        let canonical = hub
-            .core
-            .with_owned_player_like_cpp(|player| player.bank_bag_slot_flag_value_like_cpp(slot))
-            .flatten();
+        let access = hub.core.owned_inventory_access_like_cpp();
+        self.represented_bank_bag_slot_flag_with_access_like_cpp(&access, slot)
+    }
+
+    pub fn represented_bank_bag_slot_flag_with_access_like_cpp(
+        &self,
+        access: &OwnedInventoryAccessLikeCpp<'_>,
+        slot: usize,
+    ) -> Option<u32> {
+        let canonical = access.player_bank_bag_slot_flag_like_cpp(slot);
         #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && hub.core.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && access.owner_handle_absent_like_cpp() {
             return self
                 .represented_bank_bag_slot_flags_like_cpp
                 .get(slot)
@@ -121,11 +127,17 @@ impl crate::InventoryState {
         &self,
         hub: HubRef<'_>,
     ) -> Option<u8> {
-        let canonical = hub
-            .core
-            .with_owned_player_like_cpp(Player::bank_bag_slot_count);
+        let access = hub.core.owned_inventory_access_like_cpp();
+        self.resolved_player_bank_bag_slot_count_with_access_like_cpp(&access)
+    }
+
+    pub fn resolved_player_bank_bag_slot_count_with_access_like_cpp(
+        &self,
+        access: &OwnedInventoryAccessLikeCpp<'_>,
+    ) -> Option<u8> {
+        let canonical = access.player_bank_bag_slot_count_like_cpp();
         #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && hub.core.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && access.owner_handle_absent_like_cpp() {
             return Some(
                 self.player_item_test_fixture_like_cpp
                     .player_bank_bag_slot_count_like_cpp,
@@ -150,16 +162,29 @@ impl crate::InventoryState {
         hub: &mut HubMut<'_>,
         count: u8,
     ) -> bool {
-        let canonical = hub
-            .core
-            .with_owned_player_mut_like_cpp(|player| player.set_bank_bag_slot_count(count))
-            .is_some();
+        let access = hub.core.owned_inventory_access_like_cpp();
+        self.set_player_bank_bag_slot_count_with_access_like_cpp(&access, count)
+    }
+
+    pub fn set_player_bank_bag_slot_count_with_access_like_cpp(
+        &mut self,
+        access: &OwnedInventoryAccessLikeCpp<'_>,
+        count: u8,
+    ) -> bool {
+        let canonical = access.set_player_bank_bag_slot_count_like_cpp(count);
         #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical || hub.core.player_handle_like_cpp.is_none() {
+        if canonical || access.owner_handle_absent_like_cpp() {
             self.player_item_test_fixture_like_cpp
                 .player_bank_bag_slot_count_like_cpp = count;
         }
-        canonical || cfg!(any(test, feature = "test-fixtures")) && hub.core.player_handle_like_cpp.is_none()
+        #[cfg(any(test, feature = "test-fixtures"))]
+        {
+            canonical || access.owner_handle_absent_like_cpp()
+        }
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        {
+            canonical
+        }
     }
 
     #[cfg_attr(not(any(test, feature = "test-fixtures")), allow(unused_variables))]
@@ -211,20 +236,31 @@ impl crate::InventoryState {
         slot: usize,
         value: u32,
     ) -> bool {
-        let canonical = hub
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.set_bank_bag_slot_flag_value_like_cpp(slot, value)
-            })
-            .unwrap_or(false);
+        let access = hub.core.owned_inventory_access_like_cpp();
+        self.set_represented_bank_bag_slot_flag_with_access_like_cpp(&access, slot, value)
+    }
+
+    pub fn set_represented_bank_bag_slot_flag_with_access_like_cpp(
+        &mut self,
+        access: &OwnedInventoryAccessLikeCpp<'_>,
+        slot: usize,
+        value: u32,
+    ) -> bool {
+        let canonical = access.set_player_bank_bag_slot_flag_like_cpp(slot, value);
         #[cfg(any(test, feature = "test-fixtures"))]
-        if (canonical || hub.core.player_handle_like_cpp.is_none())
-            && let Some(flag) = self.represented_bank_bag_slot_flags_like_cpp.get_mut(slot)
         {
-            *flag = value;
-            return true;
+            if (canonical || access.owner_handle_absent_like_cpp())
+                && let Some(flag) = self.represented_bank_bag_slot_flags_like_cpp.get_mut(slot)
+            {
+                *flag = value;
+                return true;
+            }
+            canonical
         }
-        canonical
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        {
+            canonical
+        }
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]

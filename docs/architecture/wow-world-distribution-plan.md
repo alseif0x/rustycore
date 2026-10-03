@@ -1951,6 +1951,17 @@ disponible bajo Core test-fixtures para consumidores normales de Inventory.
 revisadas; no prueban bytes nuevos ni la ordenación representada del bridge.
 Los callers y escenarios World se conservan sin ejecución nueva.
 
+**Dinero y banco con acceso canónico acotado — 2026-10-03, 13:07 UTC
+(NO VALIDADO):** OwnedInventoryAccess concentra las siete lecturas/mutaciones
+de dinero, cantidad y flags de bolsas bancarias y cantidad de slots de
+inventario. Inventory conserva una implementación por provider, con fachadas
+Hub y consumidores nuevos con capacidad. Getters mantienen el fallback solo
+tras None y sin handle; setters conservan el mirror fixture y sus resultados,
+incluido el índice inválido de flags. Las ramas cfg no llaman a operaciones
+de fixture desde la compilación normal. Anclas: Player.cpp:23376::SetMoney,
+:9424::SetInventorySlotCount y Player.h:1332–1335 en a5f8da2eb. No se cambiaron
+publishers, ejecutaron pruebas ni demostraron nuevas garantías de durabilidad.
+
 **Planificación y aplicación de modificadores de objetos — 2026-10-03,
 12:59 UTC (NO VALIDADO):** Inventory contiene la operación completa con un
 contexto privado, dos capacidades canónicas y seis referencias de catálogo.
