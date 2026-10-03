@@ -187,25 +187,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
-        opcode: ClientOpcodes::SaveEquipmentSet,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_save_equipment_set",
-        handler: |session, catalogs, pkt| {
-            Box::pin(async move {
-                session
-                    .handle_save_equipment_set_with_generator_like_cpp(
-                        catalogs.id_generators.equipment_set.as_ref(),
-                        pkt,
-                    )
-                    .await
-            })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
         opcode: ClientOpcodes::UseEquipmentSet,
         status: SessionStatus::LoggedIn,
         processing: PacketProcessing::Inplace,

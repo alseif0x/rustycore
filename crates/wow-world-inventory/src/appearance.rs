@@ -19,6 +19,7 @@ use wow_entities::{
     PlayerFavoriteAppearanceStateLikeCpp as FavoriteAppearanceStateLikeCpp,
 };
 use wow_world_core::session::{HubMut, HubRef, RepresentedAlterAppearanceLikeCpp};
+use wow_world_core::session::OwnedCollectionsAccessLikeCpp;
 
 fn account_transmog_update_opcode_resolved_like_cpp() -> bool {
     <wow_packet::packets::collection::AccountTransmogUpdate as wow_packet::ServerPacket>::OPCODE
@@ -117,7 +118,25 @@ impl crate::InventoryState {
         hub: HubRef<'_>,
         item_modified_appearance_id: u32,
     ) -> (bool, bool) {
-        let Some(collections) = hub.player_collection_state_snapshot_like_cpp() else {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let access = hub
+            .core
+            .owned_collections_access_like_cpp()
+            .with_fixture_collections(&hub.fixtures.collections);
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let access = hub.core.owned_collections_access_like_cpp();
+        self.has_item_appearance_with_collections_access_like_cpp(
+            &access,
+            item_modified_appearance_id,
+        )
+    }
+
+    pub(crate) fn has_item_appearance_with_collections_access_like_cpp(
+        &self,
+        access: &OwnedCollectionsAccessLikeCpp<'_>,
+        item_modified_appearance_id: u32,
+    ) -> (bool, bool) {
+        let Some(collections) = access.player_collection_state_snapshot_like_cpp() else {
             return (false, false);
         };
         if collections

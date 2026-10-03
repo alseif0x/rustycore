@@ -27,7 +27,10 @@ pub use connection_identity::{
 };
 
 mod canonical_access;
-pub use canonical_access::{OwnedEquipmentSetsAccessLikeCpp, OwnedSpellAcquisitionAccessLikeCpp};
+pub use canonical_access::{
+    OwnedCollectionsAccessLikeCpp, OwnedEquipmentSetsAccessLikeCpp,
+    OwnedInventoryAccessLikeCpp, OwnedSpellAcquisitionAccessLikeCpp,
+};
 mod catalogs;
 mod connection;
 mod construction;
@@ -87,6 +90,7 @@ mod lifecycle_ops;
 mod npc_interaction;
 mod player_registry_binding;
 mod publication;
+pub use publication::PacketPublicationAccessLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use battleground_adapter::RepresentedBattlegroundQueueSlotLikeCpp;
 pub use battleground_adapter::{

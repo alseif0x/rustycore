@@ -49,3 +49,21 @@ pub struct CollectionsState {
     #[cfg(any(test, feature = "test-fixtures"))]
     pub represented_completed_achievements_like_cpp: HashSet<u32>,
 }
+
+#[cfg(any(test, feature = "test-fixtures"))]
+impl CollectionsState {
+    pub(crate) fn represented_player_collection_state_like_cpp(
+        &self,
+    ) -> wow_entities::PlayerCollectionStateLikeCpp {
+        wow_entities::PlayerCollectionStateLikeCpp::from_loaded_account_parts_like_cpp(
+            self.account_mounts_like_cpp.clone(),
+            self.represented_account_heirlooms_like_cpp.clone(),
+            self.represented_account_toys_like_cpp.clone(),
+            self.represented_item_appearances_like_cpp.clone(),
+            self.represented_item_appearance_blocks_like_cpp.clone(),
+            self.represented_temporary_item_appearances_like_cpp.clone(),
+            self.represented_favorite_item_appearances_like_cpp.clone(),
+            self.represented_transmog_illusions_like_cpp.clone(),
+        )
+    }
+}

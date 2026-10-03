@@ -21,6 +21,15 @@ impl SessionCore {
 }
 
 impl OwnedEquipmentSetsAccessLikeCpp<'_> {
+    /// Read the equipment sets on this session's current canonical Player.
+    pub fn with_equipment_sets_like_cpp<R>(
+        &self,
+        f: impl FnOnce(&PlayerEquipmentSetsLikeCpp) -> R,
+    ) -> Option<R> {
+        self.core
+            .with_owned_player_like_cpp(|player| f(&player.gameplay_state().equipment_sets))
+    }
+
     /// Mutate the equipment sets on this session's current canonical Player.
     pub fn with_equipment_sets_mut_like_cpp<R>(
         &self,

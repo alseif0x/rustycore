@@ -1,7 +1,7 @@
 use crate::session::state::SessionCore;
 
 impl SessionCore {
-    pub fn invalidate_canonical_player_spell_hit_aura_authority_like_cpp(&mut self) {
+    pub fn invalidate_canonical_player_spell_hit_aura_authority_like_cpp(&self) {
         let _ = self.mutate_canonical_player_like_cpp(|player| {
             player
                 .unit_mut()

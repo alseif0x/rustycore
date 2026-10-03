@@ -456,14 +456,19 @@ impl crate::InventoryState {
         &self,
         hub: HubRef<'_>,
     ) -> Option<PlayerInventoryRuntime> {
-        if let Some(inventory) = hub
-            .core
-            .with_owned_player_like_cpp(|player| player.inventory_runtime_like_cpp().clone())
-        {
+        let access = hub.core.owned_inventory_access_like_cpp();
+        self.resolved_player_inventory_runtime_with_access_like_cpp(&access)
+    }
+
+    pub(crate) fn resolved_player_inventory_runtime_with_access_like_cpp(
+        &self,
+        access: &wow_world_core::session::OwnedInventoryAccessLikeCpp<'_>,
+    ) -> Option<PlayerInventoryRuntime> {
+        if let Some(inventory) = access.inventory_runtime_snapshot_like_cpp() {
             return Some(inventory);
         }
         #[cfg(any(test, feature = "test-fixtures"))]
-        if hub.core.player_handle_like_cpp.is_none() {
+        if access.owner_handle_absent_like_cpp() {
             let mut inventory = PlayerInventoryRuntime::default();
             inventory.inventory_items_mut().extend(
                 self.player_item_test_fixture_like_cpp

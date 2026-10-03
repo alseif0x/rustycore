@@ -10,13 +10,13 @@ use crate::session::{
 /// Borrowed capability for installing a complete spell-acquisition snapshot
 /// into the session's current canonical Player.
 pub struct OwnedSpellAcquisitionAccessLikeCpp<'a> {
-    core: &'a mut SessionCore,
+    core: &'a SessionCore,
 }
 
 impl SessionCore {
     /// Build a borrowed capability for complete spell-acquisition installs.
     pub fn owned_spell_acquisition_access_like_cpp(
-        &mut self,
+        &self,
     ) -> OwnedSpellAcquisitionAccessLikeCpp<'_> {
         OwnedSpellAcquisitionAccessLikeCpp { core: self }
     }
@@ -26,7 +26,7 @@ impl OwnedSpellAcquisitionAccessLikeCpp<'_> {
     /// Validate a complete acquisition snapshot before invalidating the
     /// existing spell-hit authority or mutating the canonical Player.
     pub fn install_complete_spell_acquisition_like_cpp(
-        &mut self,
+        &self,
         spell_rows: impl IntoIterator<Item = wow_entities::PlayerKnownSpellRecord>,
         traits: impl IntoIterator<Item = (i32, i32)>,
         overrides: impl IntoIterator<Item = (i32, i32)>,

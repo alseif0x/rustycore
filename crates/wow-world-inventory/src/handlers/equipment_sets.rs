@@ -10,7 +10,9 @@ use wow_handler::{
 use wow_packet::{ClientPacket, WorldPacket};
 use wow_world_core::session::OwnedEquipmentSetsAccessLikeCpp;
 
-use crate::{InventoryState, MAX_EQUIPMENT_SET_INDEX_LIKE_CPP};
+use crate::{
+    EquipmentSetsSaveCxLikeCpp, InventoryState, MAX_EQUIPMENT_SET_INDEX_LIKE_CPP,
+};
 
 /// Private-state context for packet handlers that mutate equipment sets.
 pub struct EquipmentSetsHandlerCxLikeCpp<'a> {
@@ -110,6 +112,27 @@ pub trait InventoryHandlerHostLikeCpp<C> {
         &'a mut self,
         catalogs: &'a C,
     ) -> EquipmentSetsHandlerCxLikeCpp<'a>;
+
+    fn equipment_sets_save_handler_cx_like_cpp<'a>(
+        &'a mut self,
+        catalogs: &'a C,
+    ) -> EquipmentSetsSaveCxLikeCpp<'a>;
+}
+
+fn handle_save_equipment_set_thunk<'a, S, C>(
+    session: &'a mut S,
+    catalogs: &'a C,
+    pkt: WorldPacket,
+) -> HandlerFuture<'a, ()>
+where
+    S: InventoryHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    Box::pin(async move {
+        session
+            .equipment_sets_save_handler_cx_like_cpp(catalogs)
+            .handle_save_equipment_set(pkt);
+    })
 }
 
 fn handle_assign_equipment_set_spec_thunk<'a, S, C>(
@@ -151,6 +174,13 @@ where
     S: InventoryHandlerHostLikeCpp<C> + Send,
     C: Sync,
 {
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::SaveEquipmentSet,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::ThreadUnsafe,
+        handler_name: "handle_save_equipment_set",
+        handler: handle_save_equipment_set_thunk::<S, C>,
+    })?;
     builder.register(PacketHandlerEntry {
         opcode: ClientOpcodes::AssignEquipmentSetSpec,
         status: SessionStatus::LoggedIn,

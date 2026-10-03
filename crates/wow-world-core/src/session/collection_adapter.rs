@@ -177,14 +177,14 @@ impl crate::session::HubRef<'_> {
     pub fn player_collection_state_snapshot_like_cpp(
         &self,
     ) -> Option<wow_entities::PlayerCollectionStateLikeCpp> {
-        let canonical = self
-            .core
-            .with_owned_player_like_cpp(|player| player.gameplay_state().collections.clone());
         #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.represented_player_collection_state_like_cpp());
-        }
-        canonical
+        let access = self
+            .core
+            .owned_collections_access_like_cpp()
+            .with_fixture_collections(&self.fixtures.collections);
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let access = self.core.owned_collections_access_like_cpp();
+        access.player_collection_state_snapshot_like_cpp()
     }
 
     /// Collect the session's represented collection fields into the canonical
@@ -193,36 +193,8 @@ impl crate::session::HubRef<'_> {
     pub fn represented_player_collection_state_like_cpp(
         &self,
     ) -> wow_entities::PlayerCollectionStateLikeCpp {
-        wow_entities::PlayerCollectionStateLikeCpp::from_loaded_account_parts_like_cpp(
-            self.fixtures.collections.account_mounts_like_cpp.clone(),
-            self.fixtures
-                .collections
-                .represented_account_heirlooms_like_cpp
-                .clone(),
-            self.fixtures
-                .collections
-                .represented_account_toys_like_cpp
-                .clone(),
-            self.fixtures
-                .collections
-                .represented_item_appearances_like_cpp
-                .clone(),
-            self.fixtures
-                .collections
-                .represented_item_appearance_blocks_like_cpp
-                .clone(),
-            self.fixtures
-                .collections
-                .represented_temporary_item_appearances_like_cpp
-                .clone(),
-            self.fixtures
-                .collections
-                .represented_favorite_item_appearances_like_cpp
-                .clone(),
-            self.fixtures
-                .collections
-                .represented_transmog_illusions_like_cpp
-                .clone(),
-        )
+        self.fixtures
+            .collections
+            .represented_player_collection_state_like_cpp()
     }
 }

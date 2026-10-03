@@ -1865,6 +1865,25 @@ resultado del puerto, junto con su mock y petición fixture; World conserva
 los demás escenarios de sesión. No cambia SQL, la exclusión, el cancellation
 fence ni la cuarentena; esos participantes concretos siguen pendientes de F5.
 
+**SaveEquipmentSet trasladado — 2026-10-03, 11:44 UTC (NO VALIDADO):**
+Inventory contiene el contexto privado completo, decodificación, validación,
+normalización y publicación de EquipmentSetId tras la mutación. World conserva
+la fachada con generador y retira su declaración; el registrar Inventory
+aporta ahora Save/Assign/Delete con sus metadata existentes. Core ofrece
+lectura de conjuntos, snapshot de inventario y colecciones, y publicación por
+el canal existente. Los constructores solo reúnen referencias, preservando
+los clones y lecturas por slot/apariencia; la reconstrucción fixture de cada
+participante conserva un único proveedor. Las fallas con handle presente no
+habilitan fallback y `Some(false)` sigue siendo un resultado canónico.
+Use, sus validaciones pendientes de F6 y sus consumidores continúan en World.
+El conjunto compilado, bytes, estado dirty y save durable siguen sin aceptar.
+
+La capacidad de spell acquisition pasa a préstamo compartido de Core al
+confirmar que su invalidación solo muta Player mediante el guard canónico;
+cambian las firmas, no los cuerpos, llamadas, locks ni fallas. Esto permite
+componer lectores, pero la cuarentena aún escribe el estado de sesión y
+necesita un límite concreto antes de cerrar el contexto completo de trainer.
+
 ### F6 — retirada de duplicados, pista de comportamiento
 
 La revisión F5 conserva dos diferencias que no puede resolver mediante un

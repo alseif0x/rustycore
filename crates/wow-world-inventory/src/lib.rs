@@ -73,6 +73,7 @@ pub use enchantment::LoadedEquippedItemEnchantmentsOutcomeLikeCpp;
 pub use equipment_sets::represented_equipment_set_from_packet_like_cpp;
 pub use handlers::{
     EquipmentSetsHandlerCxLikeCpp, InventoryHandlerHostLikeCpp,
+    EquipmentSetsSaveCxLikeCpp,
     register_inventory_handlers_like_cpp,
 };
 pub use modifiers::represented_player_stat_changes_like_cpp;

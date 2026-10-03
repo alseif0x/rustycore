@@ -15,30 +15,10 @@ impl WorldSession {
     pub async fn handle_save_equipment_set_with_generator_like_cpp(
         &mut self,
         generator: &wow_core::EquipmentSetGuidGeneratorLikeCpp,
-        mut pkt: WorldPacket,
+        pkt: WorldPacket,
     ) {
-        let request = match SaveEquipmentSet::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!("Bad SaveEquipmentSet: {error}");
-                return;
-            }
-        };
-
-        let Some(saved) = ({
-            let (s, mut h) = crate::session::split_inventory_mut(self);
-            s.save_represented_equipment_set_with_generator_like_cpp(&mut h, generator, request.set)
-        }) else {
-            return;
-        };
-
-        if saved.generated_new_guid {
-            self.send_packet(&EquipmentSetId {
-                guid: saved.guid,
-                set_type: saved.raw_set_type,
-                set_id: saved.set_id,
-            });
-        }
+        self.build_equipment_sets_save_handler_cx_like_cpp(generator)
+            .handle_save_equipment_set(pkt);
     }
 
     #[cfg(test)]
