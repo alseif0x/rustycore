@@ -2346,6 +2346,14 @@ de roles, catálogos seleccionados y fixtures disjuntos. Stats se reborrowa
 temporalmente y Registry usa las referencias actuales, sin copiar autoridad.
 Falta conectar constructores World, consumidores públicos y casos completos;
 los cuerpos nuevos siguen NO VALIDADOS y no cierran aún Aura/FeignDeath/Trainer.
+La revisión posterior del cuerpo original Inventory/storage:616–626 detectó
+dos lecturas reducidas en la extracción: initial-item equip y su gate de loaded
+mods usaban el lector directo de Item, mientras el original proyecta runtime
+completo antes de clonar Item. Se asignó conservar ambas lecturas independientes
+mediante el proveedor full-runtime existente; no reutilizar un item precalculado.
+ItemTextQuery ya usa ese proveedor completo y su wire se contrastó con C++
+QueryPackets.cpp:495–519: valid-bit, longitud/texto de 13 bits y GUID, incluido
+texto vacío de respuesta inválida. Ninguno de estos contrastes ejecutó pruebas.
 El modo de manejo y la inmunidad polymorph/Dragonmaw de la rama mounted-flight
 requieren contraste completo en F6; la extracción F5 conserva el cuerpo Rust,
 sin introducir esas reparaciones dentro del traslado.
