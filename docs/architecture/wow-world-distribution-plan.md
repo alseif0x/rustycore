@@ -2236,6 +2236,27 @@ item level, efectos porcentuales de estadísticas, velocidad de ataque,
 shapeshift y display power. La selección FeignDeath no prueba que esas fases
 sean omitibles. El proveedor nuevo debe conservar esas decisiones y su orden;
 la inspección de código no acredita todavía su implementación o aceptación.
+Decisión parental tras el mapa de fases (2026-10-03, NO VALIDADO): conservar una
+única operación App de retirada completa, reutilizable desde Trainer y World,
+con Spell/Inventory y capacidades Core seleccionadas prestadas. Las fases de
+mount/control, speed/presentation y shapeshift/item-stats se organizan en módulos
+privados; Stats se toma prestado temporalmente en su fase. Una especialización
+erase-FeignDeath omite
+efectos por spell y conservar callbacks World impide retirar esa responsabilidad,
+por lo que ninguna satisface F5. La retirada y aplicación recursivas reutilizan
+la misma autoridad, sin nuevo lock, mirror o contexto universal. Primero se
+traslada la selección/removal/rollback y transform; la ruta de producción no
+delega al nuevo cuerpo hasta cerrar todos sus efectos. C++ SpellAuraEffects.cpp:
+2189–2260::HandleFeignDeath, SHA a5f8da2ebf5424bf0450ca4e08843ecbf72577bd, limpia
+flags y DIED en su rama remove; ese anchor no demuestra que los demás efectos
+del coordinador Rust sean omitibles ni acredita sus gaps de paridad.
+Primera fase escrita y revisada por fuente (2026-10-03, NO VALIDADO): App/
+aura_removal/initial conserva consulta mounted, presentación actual, retirada,
+reinserción ante fallo de presentación y transform posterior. Core usa referencias
+fixture seleccionadas y consulta canónica antes del fallback NoHandle; Spell y
+las fachadas existentes delegan esos providers. El cuerpo App sigue privado y
+no sustituye la operación World completa: faltan threat, mount/control, velocidades,
+publicación, stats, shapeshift y display. No se ejecutaron checks.
 
 ItemSet, continuación 18:41 UTC (NO VALIDADO): están escritos el acceso Core
 `canonical_access/item_sets.rs` y el proveedor Inventory `item_sets.rs`, con
@@ -2825,8 +2846,35 @@ Player.cpp:14582–14623::RewardQuestPackage, SHA C++ a5f8da2ebf5424bf0450ca4e08
 continúa el loop ante CanStoreNewItem rechazado y genera random properties; el
 Rust original devuelve false/publica error y representa propiedades cero. Son
 diferencias F6, no reparaciones implícitas de F5. El gate de plantilla elegida
-antes de package queda contrastado con Player.cpp:14713–14731. Los consumidores
-World de grants y el coordinador completo aún requieren cierre y aceptación.
+antes de package queda contrastado con Player.cpp:14713–14731.
+World/rewards/items ya delega fixed/chosen/package
+mediante un composer privado de QuestRewardCx, con referencias obligatorias
+prestadas para las condiciones de almacenamiento y vitals. La planificación usa
+NULL_BAG/NULL_SLOT, source None, swap false y overlays/vacated vacíos como antes.
+Los exports App de esas referencias fixture ya están conectados. El coordinador
+Reward World completo permanece pendiente; estos consumidores no prueban aceptación.
+
+Contraste de reputación Reward (2026-10-03, NO VALIDADO): el cuerpo World/
+rewards.rs::record_represented_quest_reward_reputation_like_cpp también modifica
+ReputationMgr y publica standing; mover solo sus registros fixture dejaría fuera
+el comportamiento normal. Conserva clones de catálogos antes del loop, ganancias,
+RAF, consulta actual del rank y construcción del paquete dentro de la mutación
+del manager, con envío después del guard. Su fachada World ya delega el cuerpo.
+C++ Player.cpp:6450–6500::RewardReputation, SHA
+a5f8da2ebf5424bf0450ca4e08843ecbf72577bd, aplica rank-cap sobre rep base positiva
+antes de CalculateReputationGain (6321); Rust lo consulta después de ganancias y
+RAF, condicionado por la positividad del resultado. Esa diferencia de fase es F6,
+no una reparación oculta en el traslado F5. La representación Rust sin stores
+tampoco prueba los efectos reales de C++ ante esas dependencias ausentes.
+El cuerpo completo de reputación ya está escrito en App/reward/reputation y usa
+el mismo cálculo de quest-level, aura gain, gray y RAF, además de la mutación y
+publicación ordenadas. Su integración requiere resolver el préstamo compartido:
+planning y objetivos no pueden retener un &reputation fixture mientras Reward
+retiene un &mut del mismo estado. Planning ya recibe la lectura temporal por
+argumento y objetivos toma prestado el mismo holder mutable de Reward. El getter
+readonly y el reborrow están limitados a crate::quest para ese consumidor hermano.
+No se añaden clones, mirrors ni RefCell. No se declara cerrado el coordinador
+ni ejecutada su aceptación.
 
 Correcciones posteriores revisadas por fuente (2026-10-03, NO VALIDADO): las
 cuatro constantes de objetivos ya están definidas en wow_constants::quest.
@@ -2851,6 +2899,13 @@ Los registros Rust que declaran efectos unrepresented no prueban paridad F6.
 App/visibility ya contiene los filtros
 HasQuestForGameObject/IsForQuests, pero su presencia no cierra los consumidores
 World/quest_interaction ni el refresh completo.
+La revisión del contexto de objetivos detectó un préstamo fixture de level
+redundante con el mutable retenido por QuestRewardCx; ya se lee el mismo
+player_level en la fase Registry, sin copiarlo ni crear otra autoridad. Su export
+fixture de Registry ya está conectado en App/lib.rs. El sufijo Reward de
+quest-log requiere trasladar también quest_log_create_entries: debe leer entradas
+actuales después de COMMIT/settle, conservar el límite 25 y los masks de todos los
+campos del slot antes del UpdateObject; no basta una entrada vacía o precapturada.
 
 Dependencias del refresh contrastadas (2026-10-03, NO VALIDADO): World/gameobject_query
 consulta GUIDs visibles, entrada canónica y una copia del use-state por objeto;
@@ -2871,8 +2926,10 @@ La comparación con World/spell_acquisition/adapter y World/profession conserva
 wrapper antes del snapshot, metadata después, fallback cast/craft tipado y la
 secuencia skill-lines, loaded, skill-records actuales, análisis y requested-plan.
 Los stores seleccionados son referencias prestadas inertes. El provider Spell
-seleccionado mantiene el cuerpo anterior del wrapper; quedan constructores y
-consumidores de esta unidad, además de Feign/Buy del macro Trainer y aceptación.
+seleccionado mantiene el cuerpo anterior del wrapper; su fachada Hub delega al
+mismo cuerpo. El constructor World ya conecta los stores y refs prestadas y
+offer delega a App. El implementador confirma el cierre por fuente sin ejecutar
+checks. Quedan Feign/Buy del macro Trainer y aceptación; esta unidad no los sustituye.
 
 Revisión del snapshot spell-click (2026-10-03, NO VALIDADO): el cuerpo Domain
 ahora recibe QuestObjectiveAccess. Comparado con el cuerpo Hub de HEAD, conserva
