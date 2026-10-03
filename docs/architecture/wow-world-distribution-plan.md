@@ -2423,6 +2423,21 @@ uso son de producción. El filtro App ya llama `project_like_cpp` entre las
 copias de PlayerConditionStore y AreaTableStore; el método completo todavía
 depende de la valoración pendiente. No se ha iniciado aceptación.
 
+Dependencia completa de AvgTotal/CanEquip (2026-10-03, diseño de cierre F5):
+`World/player_items/equipment.rs::can_equip_inventory_item_like_cpp` consulta
+`modifiers.rs:21–50::item_limit_category_template_like_cpp`, que materializa
+la proyección completa de condiciones cuando existe el store de condiciones,
+incluso sin filas aplicables. Esa proyección consulta AvgTotal al final. Inventory
+no puede llamar Application para resolverlo sin invertir la dependencia.
+El coordinador completo AvgTotal/CanEquip se asigna por ello a una hoja privada
+Application de valoración; Inventory conserva ItemLevel, AvgEquipped y kernels
+de almacenamiento/equipabilidad. Application materializa las condiciones en la
+fase original y pasa el contexto al kernel de cantidad de límite. No se admite
+callback World, una dependencia Inventory → Application ni omitir/cachear el
+promedio para ocultar la reentrada. La posible recursión del código previo se
+conserva como límite de comportamiento pendiente de contraste F6. La proyección
+de condiciones llamará AvgTotal App y después AvgEquipped Inventory por separado.
+
 ### F6 — retirada de duplicados, pista de comportamiento
 
 Contrato de extracción RewardQuest (2026-10-03, fuente Rust NO VALIDADA):
