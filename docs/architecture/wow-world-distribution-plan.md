@@ -2331,6 +2331,11 @@ todas esas auras, items ordenados por slot/GUID, aplicaciones completas y por
 admitido y comprueba auras activas por cast-item durante formChange. La secuencia
 Rust de retirar todas antes de reaplicar todas se conserva en F5 y requiere
 contraste F6; no se presenta ese traslado como paridad nueva.
+El módulo privado item-effects ya contiene refresh, aplicación inicial y replay
+de item-set completos. La revisión conserva snapshots íntegros, ordenaciones,
+clones y gates tardíos, planificación nativa y conteo de eventos separado del
+éxito de Apply/Remove. Sigue pendiente conectarlo al coordinador íntegro de
+auras; esta revisión por fuente no ejecutó pruebas ni acredita esa integración.
 El modo de manejo y la inmunidad polymorph/Dragonmaw de la rama mounted-flight
 requieren contraste completo en F6; la extracción F5 conserva el cuerpo Rust,
 sin introducir esas reparaciones dentro del traslado.
@@ -2726,6 +2731,11 @@ La siguiente operación asignada es ChangeBankBagSlotFlag, con admisión bancari
 y publicación VALUES completas. El target C++ Opcode.cpp:289 registra ese opcode
 STATUS_UNHANDLED/Handle_NULL; F5 conservará el comportamiento Rust y deja esa
 diferencia para F6, sin atribuirle un handler C++ inexistente.
+El cuerpo App/bank y su host/thunk tipado ya están escritos, con constructor
+World de roles seleccionados. La revisión conserva source GUID, GUID actual,
+admisión NPC BANKER y publicación del snapshot completo de Player VALUES.
+Registro/composición únicos, consumidores y casos nuevos siguen en integración;
+el cuerpo escrito no se cuenta como aceptación del handler completo.
 
 Quest eligibility de visibilidad también está escrito como módulo privado: nivel,
 race/class y CanSeeStart conservan disable, status, recurrence, seasonal, prev-quest
@@ -2745,6 +2755,12 @@ snapshot actual, recorrido nativo de peers, cooldowns DF/day/week/seasonal y
 status/rewarded de la pareja repeatable. Se contrastó por fuente con World/
 eligibility:339–414 y C++ Player.cpp:15345–15410; sigue privado, NO VALIDADO,
 sin acreditar el coordinador de admisión completo ni sus consumidores.
+La evaluación QuestAvailable completa ya está escrita sobre la proyección
+seleccionada de PlayerCondition. Conserva el fallback local/global de catálogo,
+gate antes de leer owner, recurrence actual y vectores nativos, proyección
+íntegra, snapshots tardíos y evaluación de área por jerarquía. Se revisó contra
+World/eligibility:117–240, sin reutilizar las reglas distintas de Trainer.
+La conexión a CanTake/diálogo y sus pruebas siguen pendientes, NO VALIDADAS.
 
 Consulta compartida de slot (2026-10-03, NO VALIDADO): el ancla original es
 `handlers/quest/state.rs:327`; toma un snapshot actual, exige slot menor que
