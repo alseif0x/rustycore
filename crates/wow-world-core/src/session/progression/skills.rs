@@ -11,12 +11,15 @@ use std::sync::Arc;
 #[cfg(any(test, feature = "test-fixtures"))]
 use crate::session::SKILL_ENCHANTING_LIKE_CPP;
 use crate::session::{
+    state::SessionCore,
     RepresentedPlayerSkillLikeCpp, RepresentedPlayerSkillStateLikeCpp,
     canonical_player_skill_record_like_cpp, represented_player_skill_record_like_cpp,
     represented_skill_records_from_values_like_cpp, represented_skill_values_from_records_like_cpp,
 };
 use wow_data::{FishingBaseSkillStoreLikeCpp, SkillLineStore, SkillStore, SkillTiersStoreLikeCpp};
 use wow_entities::Player;
+
+mod publication;
 
 impl crate::session::HubMut<'_> {
     #[allow(dead_code)]
@@ -388,84 +391,82 @@ impl crate::session::state::SessionCatalogs {
     }
 }
 
+impl SessionCore {
+    fn resolved_player_skill_records_for_publication_like_cpp(
+        &self,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        fixture_records: &HashMap<u16, RepresentedPlayerSkillLikeCpp>,
+    ) -> Option<HashMap<u16, RepresentedPlayerSkillLikeCpp>> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            player
+                .skill_records_like_cpp()
+                .iter()
+                .filter_map(represented_player_skill_record_like_cpp)
+                .map(|skill| (skill.skill_id, skill))
+                .collect()
+        });
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(fixture_records.clone());
+        }
+        canonical
+    }
+
+    /// Publish the complete canonical `ActivePlayerData::Skill` values image.
+    /// Catalog and fixture inputs stay borrowed for the duration of this call.
+    pub fn send_complete_player_skill_values_update_with_inputs_like_cpp(
+        &self,
+        skill_store: Option<&Arc<SkillStore>>,
+        skill_lines: Option<&Arc<SkillLineStore>>,
+        skill_tiers: Option<&Arc<SkillTiersStoreLikeCpp>>,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        fixture_inputs: (
+            &HashMap<u16, RepresentedPlayerSkillLikeCpp>,
+            &u8,
+            &u8,
+            &u8,
+        ),
+    ) {
+        publication::SkillValuesPublicationCxLikeCpp::new(
+            self,
+            skill_store,
+            skill_lines,
+            skill_tiers,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixture_inputs,
+        )
+        .send_like_cpp();
+    }
+}
+
 impl crate::session::HubRef<'_> {
     /// Publish the canonical `ActivePlayerData::Skill` image after a durable
     /// acquisition commit. The current entity bridge does not yet own these
     /// 256 complex update-field slots, so serialize their complete coherent
     /// image instead of leaving the client on its pre-purchase ranks.
     pub fn send_complete_player_skill_values_update_like_cpp(&self) {
-        use wow_packet::packets::update::{
-            ActivePlayerDataValuesUpdate, SkillInfoValuesUpdate, UpdateObject,
-        };
-
-        let (Some(guid), Some(skill_store), Some(skill_lines), Some(skill_tiers)) = (
-            self.core.player_guid(),
+        #[cfg(any(test, feature = "test-fixtures"))]
+        self.core.send_complete_player_skill_values_update_with_inputs_like_cpp(
             self.catalogs.skill_store(),
             self.catalogs.skill_line_store(),
             self.catalogs.skill_tiers_store(),
-        ) else {
-            return;
-        };
-        let Some(player_skill_records) = self.resolved_player_skill_records_like_cpp() else {
-            return;
-        };
-        let mut records = player_skill_records.values().collect::<Vec<_>>();
-        records.sort_by_key(|record| record.skill_id);
-        if records.len() > 256 {
-            return;
-        }
-
-        let mut skill = SkillInfoValuesUpdate::default();
-        let mut set_skill_bit = |bit: usize| {
-            skill.skill_info_mask[bit / 32] |= 1 << (bit % 32);
-        };
-        set_skill_bit(0);
-        for index in 0..256 {
-            for bit in [
-                1 + index,
-                257 + index,
-                513 + index,
-                769 + index,
-                1025 + index,
-                1281 + index,
-                1537 + index,
-            ] {
-                set_skill_bit(bit);
-            }
-        }
-        for (index, record) in records.into_iter().enumerate() {
-            if let Some(entry) = skill_store.loaded_skill_info_like_cpp(
-                record.skill_id,
-                self.player_race_like_cpp(),
-                self.player_class_like_cpp(),
-                self.player_level_like_cpp(),
-                record.value,
-                record.max,
-                skill_lines,
-                skill_tiers,
-            ) {
-                skill.skill_line_id[index] = entry.skill_id;
-                skill.skill_step[index] = record.step.max(entry.step);
-                skill.skill_rank[index] = entry.rank;
-                skill.skill_starting_rank[index] = entry.starting_rank;
-                skill.skill_max_rank[index] = entry.max_rank;
-                skill.skill_temp_bonus[index] = entry.temp_bonus;
-                skill.skill_perm_bonus[index] = entry.perm_bonus;
-            }
-        }
-
-        let mut data = ActivePlayerDataValuesUpdate {
-            skill,
-            ..Default::default()
-        };
-        data.active_player_data_mask[0] |= 1;
-        data.active_player_data_mask[1] |= 1;
-        self.core
-            .send_packet(&UpdateObject::full_active_player_values_update(
-                guid,
-                self.core.player_map_id_like_cpp(),
-                data,
-            ));
+            (
+                &self
+                    .fixtures
+                    .progression
+                    .player_skill_test_fixture_like_cpp
+                    .player_skill_records_like_cpp,
+                &self.fixtures.identity.player_race,
+                &self.fixtures.identity.player_class,
+                &self.fixtures.identity.player_level,
+            ),
+        );
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        self.core.send_complete_player_skill_values_update_with_inputs_like_cpp(
+            self.catalogs.skill_store(),
+            self.catalogs.skill_line_store(),
+            self.catalogs.skill_tiers_store(),
+        );
     }
 
     pub fn resolved_player_skill_max_value_like_cpp(&self, skill_id: u16) -> Option<u16> {
@@ -574,25 +575,21 @@ impl crate::session::HubRef<'_> {
     pub fn resolved_player_skill_records_like_cpp(
         &self,
     ) -> Option<HashMap<u16, RepresentedPlayerSkillLikeCpp>> {
-        let canonical = self.core.with_owned_player_like_cpp(|player| {
-            player
-                .skill_records_like_cpp()
-                .iter()
-                .filter_map(represented_player_skill_record_like_cpp)
-                .map(|skill| (skill.skill_id, skill))
-                .collect()
-        });
         #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(
-                self.fixtures
+        {
+            self.core.resolved_player_skill_records_for_publication_like_cpp(
+                &self
+                    .fixtures
                     .progression
                     .player_skill_test_fixture_like_cpp
-                    .player_skill_records_like_cpp
-                    .clone(),
-            );
+                    .player_skill_records_like_cpp,
+            )
         }
-        canonical
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        {
+            self.core
+                .resolved_player_skill_records_for_publication_like_cpp()
+        }
     }
 
     pub fn resolved_player_skill_value_like_cpp(&self, skill_id: u16) -> Option<u16> {

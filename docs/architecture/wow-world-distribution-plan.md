@@ -1938,6 +1938,19 @@ en curso; ese corte no queda cerrado por guardar sus dependencias. Persisten
 los escenarios World y los tres tests del executor, todavía sin ejecutarlos.
 El contexto completo de trainer y la evidencia DB/cancelación siguen pendientes.
 
+**Publicación completa de skills sin Hub — 2026-10-03, 12:45 UTC
+(NO VALIDADO):** Core contiene el contexto privado de publicación con los tres
+stores y cuatro referencias fixture seleccionados. El publisher conserva
+GUID y stores, snapshot, sort, límite de 256, máscaras completas, lecturas de
+raza/clase/nivel por fila y map ID al enviar. Hub mantiene su firma y delega.
+Los lectores compartidos de identidad y registros conservan un único provider:
+identidad usa el fallback fixture incluso con handle stale; registros solo lo
+usan sin resultado canónico y sin handle. El fallback normal de nivel sigue
+disponible bajo Core test-fixtures para consumidores normales de Inventory.
+`Player.cpp:5635::SetSkill` y `:25723::_LoadSkills` en `a5f8da2eb` son las anclas
+revisadas; no prueban bytes nuevos ni la ordenación representada del bridge.
+Los callers y escenarios World se conservan sin ejecución nueva.
+
 **QA del registro genérico — 2026-10-03, 11:51 UTC (NO VALIDADO):**
 La política de handlers usa schema 2: varias rutas explícitas de registro y un
 único dispatcher; solo se añade Inventory como owner ya implementado. El

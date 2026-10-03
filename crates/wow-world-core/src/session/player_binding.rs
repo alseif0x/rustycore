@@ -190,6 +190,75 @@ impl crate::session::HubMut<'_> {
     }
 }
 
+impl crate::session::state::SessionCore {
+    pub(crate) fn player_race_with_fixture_like_cpp(
+        &self,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_race: &u8,
+    ) -> u8 {
+        if let Some(race) = self.with_owned_player_like_cpp(|player| player.race_like_cpp()) {
+            return race;
+        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        {
+            return *fixture_race;
+        }
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        if self.player_handle_like_cpp.is_some() {
+            return 0;
+        }
+        self.player_identity_bootstrap_like_cpp
+            .as_ref()
+            .map(|identity| identity.race)
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn player_class_with_fixture_like_cpp(
+        &self,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_class: &u8,
+    ) -> u8 {
+        if let Some(class) = self.with_owned_player_like_cpp(|player| player.class_like_cpp()) {
+            return class;
+        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        {
+            return *fixture_class;
+        }
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        if self.player_handle_like_cpp.is_some() {
+            return 0;
+        }
+        self.player_identity_bootstrap_like_cpp
+            .as_ref()
+            .map(|identity| identity.class)
+            .unwrap_or_default()
+    }
+
+    pub(crate) fn player_level_with_fixture_like_cpp(
+        &self,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_level: &u8,
+    ) -> u8 {
+        if let Some(level) = self.with_owned_player_like_cpp(|player| player.level_like_cpp()) {
+            return level;
+        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        {
+            return *fixture_level;
+        }
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        self.player_level_without_owned_player_like_cpp()
+    }
+
+    pub(crate) fn player_level_without_owned_player_like_cpp(&self) -> u8 {
+        if self.player_handle_like_cpp.is_some() {
+            return 0;
+        }
+        self.player_identity_bootstrap_like_cpp
+            .as_ref()
+            .map(|identity| identity.level)
+            .unwrap_or_default()
+    }
+}
+
 impl crate::session::HubRef<'_> {
     pub fn player_can_never_see_target_like_cpp(&self) -> bool {
         self.active_player_update_state_like_cpp()
@@ -296,47 +365,27 @@ impl crate::session::HubRef<'_> {
     }
 
     pub fn player_race_like_cpp(&self) -> u8 {
-        if let Some(race) = self
-            .core
-            .with_owned_player_like_cpp(|player| player.race_like_cpp())
-        {
-            return race;
-        }
         #[cfg(any(test, feature = "test-fixtures"))]
         {
-            return self.fixtures.identity.player_race;
+            self.core
+                .player_race_with_fixture_like_cpp(&self.fixtures.identity.player_race)
         }
         #[cfg(not(any(test, feature = "test-fixtures")))]
-        if self.core.player_handle_like_cpp.is_some() {
-            return 0;
+        {
+            self.core.player_race_with_fixture_like_cpp()
         }
-        self.core
-            .player_identity_bootstrap_like_cpp
-            .as_ref()
-            .map(|identity| identity.race)
-            .unwrap_or_default()
     }
 
     pub fn player_class_like_cpp(&self) -> u8 {
-        if let Some(class) = self
-            .core
-            .with_owned_player_like_cpp(|player| player.class_like_cpp())
-        {
-            return class;
-        }
         #[cfg(any(test, feature = "test-fixtures"))]
         {
-            return self.fixtures.identity.player_class;
+            self.core
+                .player_class_with_fixture_like_cpp(&self.fixtures.identity.player_class)
         }
         #[cfg(not(any(test, feature = "test-fixtures")))]
-        if self.core.player_handle_like_cpp.is_some() {
-            return 0;
+        {
+            self.core.player_class_with_fixture_like_cpp()
         }
-        self.core
-            .player_identity_bootstrap_like_cpp
-            .as_ref()
-            .map(|identity| identity.class)
-            .unwrap_or_default()
     }
 
     pub fn player_create_mode_like_cpp(&self) -> Option<u8> {
@@ -351,25 +400,15 @@ impl crate::session::HubRef<'_> {
     }
 
     pub fn player_level_like_cpp(&self) -> u8 {
-        if let Some(level) = self
-            .core
-            .with_owned_player_like_cpp(|player| player.level_like_cpp())
-        {
-            return level;
-        }
         #[cfg(any(test, feature = "test-fixtures"))]
         {
-            return self.fixtures.identity.player_level;
+            self.core
+                .player_level_with_fixture_like_cpp(&self.fixtures.identity.player_level)
         }
         #[cfg(not(any(test, feature = "test-fixtures")))]
-        if self.core.player_handle_like_cpp.is_some() {
-            return 0;
+        {
+            self.core.player_level_with_fixture_like_cpp()
         }
-        self.core
-            .player_identity_bootstrap_like_cpp
-            .as_ref()
-            .map(|identity| identity.level)
-            .unwrap_or_default()
     }
 
     pub fn player_gender_like_cpp(&self) -> u8 {
