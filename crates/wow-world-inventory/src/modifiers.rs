@@ -64,68 +64,14 @@ impl crate::InventoryState {
         hub: HubRef<'_>,
         item_guid: ObjectGuid,
     ) -> bool {
-        let Some(item_entry) = self
-            .resolved_inventory_item_object_like_cpp(hub, item_guid)
-            .map(|item| item.object().entry())
-        else {
-            return false;
-        };
-        if !hub
-            .catalogs
-            .heirloom_store
-            .as_ref()
-            .is_some_and(|store| store.get_by_item_id_like_cpp(item_entry).is_some())
-        {
-            return false;
-        }
-
-        let Some(template) = hub
-            .catalogs
-            .items
-            .stats_store
-            .as_ref()
-            .and_then(|store| store.sparse_template(item_entry))
-        else {
-            return false;
-        };
-        let curve_id = template.player_level_to_item_level_curve_id_like_cpp();
-        if curve_id == 0 {
-            return false;
-        }
-
-        let Some((curve_store, curve_point_store)) = hub
-            .catalogs
-            .curve_store
-            .as_ref()
-            .zip(hub.catalogs.curve_point_store.as_ref())
-        else {
-            return false;
-        };
-        let Some((_min_level, max_level)) =
-            curve_store.curve_x_axis_range_like_cpp(curve_point_store, curve_id)
-        else {
-            return false;
-        };
-        if !max_level.is_finite() || max_level < 0.0 {
-            return false;
-        }
-        let mut max_level = max_level as u32;
-
-        if let Some(content_tuning) = hub
-            .catalogs
-            .content_tuning_store
-            .as_ref()
-            .and_then(|store| {
-                store.content_tuning_data_like_cpp(
-                    template.scaling_stat_content_tuning_like_cpp(),
-                    true,
-                )
-            })
-        {
-            max_level = max_level.min(u32::try_from(content_tuning.max_level).unwrap_or(0));
-        }
-
-        u32::from(hub.player_level_like_cpp()) > max_level
+        let inventory_access = hub.core.owned_inventory_access_like_cpp();
+        let shared = hub.shared();
+        let item_sets = shared.owned_item_set_access_like_cpp();
+        self.represented_heirloom_item_set_bonus_over_level_cap_with_access_like_cpp(
+            &inventory_access,
+            &item_sets,
+            item_guid,
+        )
     }
 
     pub fn initial_loaded_item_mods_can_apply_like_cpp(
@@ -183,7 +129,7 @@ impl crate::InventoryState {
         self.add_player_item_set_item_with_access_like_cpp(&access, item_set_id, item_guid)
     }
 
-    fn add_player_item_set_item_with_access_like_cpp(
+    pub(crate) fn add_player_item_set_item_with_access_like_cpp(
         &mut self,
         access: &wow_world_core::session::OwnedItemModifiersAccessLikeCpp<'_>,
         item_set_id: u32,
@@ -214,7 +160,7 @@ impl crate::InventoryState {
         self.add_player_item_set_bonus_with_access_like_cpp(&access, item_set_id, spell_entry_id)
     }
 
-    fn add_player_item_set_bonus_with_access_like_cpp(
+    pub(crate) fn add_player_item_set_bonus_with_access_like_cpp(
         &mut self,
         access: &wow_world_core::session::OwnedItemModifiersAccessLikeCpp<'_>,
         item_set_id: u32,
@@ -245,7 +191,7 @@ impl crate::InventoryState {
         self.remove_player_item_set_item_with_access_like_cpp(&access, item_set_id, item_guid)
     }
 
-    fn remove_player_item_set_item_with_access_like_cpp(
+    pub(crate) fn remove_player_item_set_item_with_access_like_cpp(
         &mut self,
         access: &wow_world_core::session::OwnedItemModifiersAccessLikeCpp<'_>,
         item_set_id: u32,
@@ -276,7 +222,7 @@ impl crate::InventoryState {
         self.remove_player_item_set_bonus_with_access_like_cpp(&access, item_set_id, spell_entry_id)
     }
 
-    fn remove_player_item_set_bonus_with_access_like_cpp(
+    pub(crate) fn remove_player_item_set_bonus_with_access_like_cpp(
         &mut self,
         access: &wow_world_core::session::OwnedItemModifiersAccessLikeCpp<'_>,
         item_set_id: u32,
@@ -306,7 +252,7 @@ impl crate::InventoryState {
         self.drop_player_empty_item_set_effect_with_access_like_cpp(&access, item_set_id)
     }
 
-    fn drop_player_empty_item_set_effect_with_access_like_cpp(
+    pub(crate) fn drop_player_empty_item_set_effect_with_access_like_cpp(
         &mut self,
         access: &wow_world_core::session::OwnedItemModifiersAccessLikeCpp<'_>,
         item_set_id: u32,

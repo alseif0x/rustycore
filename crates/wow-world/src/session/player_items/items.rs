@@ -142,98 +142,19 @@ impl WorldSession {
         item_guid: ObjectGuid,
         apply: bool,
     ) -> Vec<RepresentedItemSetSpellEventLikeCpp> {
-        let Some(item_entry) = self
-            .resolved_inventory_item_object_like_cpp(item_guid)
-            .map(|item| item.object().entry())
-        else {
-            return Vec::new();
-        };
-        let Some(item_set) = self
-            .catalogs
-            .item_set_for_item_id_like_cpp(item_entry)
-            .cloned()
-        else {
-            return Vec::new();
-        };
-
-        let events = if apply {
-            self.record_represented_add_items_set_item_like_cpp(item_guid, &item_set)
-        } else {
-            let (s, mut h) = crate::session::split_inventory_mut(self);
-            s.record_represented_remove_items_set_item_like_cpp(&mut h, item_guid, &item_set)
-        };
-        #[cfg(test)]
-        self.inventory
-            .record_represented_item_set_spell_events_for_test_like_cpp(&events);
-        events
-    }
-    fn record_represented_add_items_set_item_like_cpp(
-        &mut self,
-        item_guid: ObjectGuid,
-        item_set: &wow_data::ItemSetEntry,
-    ) -> Vec<RepresentedItemSetSpellEventLikeCpp> {
-        if item_set.required_skill != 0 {
-            let Some(skill_value) = crate::session::hub_ref(self)
-                .resolved_player_skill_value_like_cpp(item_set.required_skill as u16)
-            else {
-                return Vec::new();
-            };
-            if skill_value < item_set.required_skill_rank {
-                return Vec::new();
-            }
-        }
-        if item_set.set_flags & ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP != 0 {
-            return Vec::new();
-        }
-        if self.represented_heirloom_item_set_bonus_over_level_cap_like_cpp(item_guid) {
-            return Vec::new();
-        }
-
-        let mut events = Vec::new();
-        let Some(equipped_count_after) =
-            self.add_player_item_set_item_like_cpp(item_set.id, item_guid)
-        else {
-            return Vec::new();
-        };
-
-        let primary_spec = self.represented_primary_specialization_id_like_cpp();
-        let spells: Vec<_> = self
-            .catalogs
-            .item_set_spells_like_cpp(item_set.id)
-            .into_iter()
-            .cloned()
-            .collect();
-        for item_set_spell in spells {
-            if usize::from(item_set_spell.threshold) > equipped_count_after {
-                continue;
-            }
-            if !self
-                .catalogs
-                .represented_item_set_spell_exists_like_cpp(item_set_spell.spell_id)
-            {
-                continue;
-            }
-            let inserted = self
-                .add_player_item_set_bonus_like_cpp(item_set.id, item_set_spell.id)
-                .unwrap_or(false);
-            if !inserted {
-                continue;
-            }
-            if item_set_spell.chr_spec_id != 0
-                && Some(u32::from(item_set_spell.chr_spec_id)) != primary_spec
-            {
-                continue;
-            }
-            events.push(RepresentedItemSetSpellEventLikeCpp {
-                item_set_id: item_set.id,
-                spell_entry_id: item_set_spell.id,
-                spell_id: item_set_spell.spell_id,
-                threshold: item_set_spell.threshold,
-                apply: true,
-            });
-        }
-
-        events
+        let (state, hub) = crate::session::split_inventory_mut(self);
+        let inventory_access = hub.core.owned_inventory_access_like_cpp();
+        let item_modifiers = hub.core.owned_item_modifiers_access_like_cpp();
+        let shared = hub.shared();
+        let item_sets = shared.owned_item_set_access_like_cpp();
+        state.record_represented_items_set_item_like_cpp(
+            &inventory_access,
+            &item_modifiers,
+            &item_sets,
+            item_guid,
+            apply,
+            cfg!(test),
+        )
     }
     pub(crate) fn item_drop_rate_like_cpp(&self, item_id: u32) -> f32 {
         let (state, hub) = crate::session::split_inventory_ref(self);

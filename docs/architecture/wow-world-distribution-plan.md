@@ -2212,6 +2212,47 @@ en Application, pero quedan el coordinador entero, las completions de loot y el
 drenaje de objetivos. Sus operaciones completas tienen un único implementador;
 el preflush de Trainer no se sustituye por un callback de World.
 
+Revisión de continuación, 2026-10-03 18:27 UTC, sobre el árbol posterior a
+`bf0b48038` (sin commit ni aceptación de estos cambios): los inputs del save
+son ahora referencias prestadas e inertes. Core materializa tutoriales después
+de void storage y antes de instance lock times, y calcula el tiempo transcurrido
+después de esos locks y antes de reputaciones. El recibo conserva la copia de
+tutoriales del request; la rama fixture pasa `&expected` al cálculo de grupos.
+Estas correcciones se inspeccionaron con `sed`/`rg`; no se ejecutaron checks.
+El coordinador entero y las dos operaciones pendientes siguen sin acreditarse.
+La fase de estadísticas XP exige las referencias seleccionadas y presta el
+owner, pero el bucle `give_xp_runtime_like_cpp` y su wrapper asíncrono permanecen
+en World. Trainer List necesita todavía proveedores reales para admisión NPC
+y retirada/publicación de feign death; publicar la lista construida no cierra
+esa operación. Estos límites no reducen la entrega F5/F6 ni sus gates.
+
+Revisión de la dependencia aura de Trainer, 18:30 UTC: el consumidor
+`session/movement/state.rs::remove_represented_feign_death_if_needed_like_cpp`
+selecciona slots, invoca `remove_aura` y después limpia DIED. No basta con
+eliminar el slot y publicar AuraUpdate. El cuerpo existente
+`session/spell_state/aura_application.rs::remove_aura` también retira transform,
+sincroniza threat y, después del paquete, evalúa por spell/catálogo escalado de
+item level, efectos porcentuales de estadísticas, velocidad de ataque,
+shapeshift y display power. La selección FeignDeath no prueba que esas fases
+sean omitibles. El proveedor nuevo debe conservar esas decisiones y su orden;
+la inspección de código no acredita todavía su implementación o aceptación.
+
+ItemSet, continuación 18:41 UTC (NO VALIDADO): están escritos el acceso Core
+`canonical_access/item_sets.rs` y el proveedor Inventory `item_sets.rs`, con
+montajes privados y constante única exportada por Inventory. El factory Core
+acepta referencias de catálogos y tres inputs fixture seleccionados, sin
+resolver Player en el constructor. La revisión corrigió los cinco helpers
+privados usados desde un módulo hermano, el nombre duplicado del método de
+retirada y dos préstamos de `hub.shared()` temporales. La consulta de límite
+heirloom quedó unificada en el proveedor tipado, con fachada Inventory y sin
+la fachada World sin consumidores. La constante conserva una fachada privada
+para el test `scenarios_player_items_7`, que la consume mediante `super::*`.
+Los cuerpos Add/Remove se contrastaron por inspección; no se ejecutaron
+compilación, formato, pruebas ni aceptación. UseEquipmentSet entero permanece
+pendiente. El stub NPC que retiene HubRef no está aprobado para integración:
+debe sustituirse por referencias seleccionadas y una única implementación de
+las decisiones de admisión, sin duplicar ni reconstruir el Hub.
+
 Contraste acotado con Trinity `a5f8da2eb`: `Entities/Player/Player.cpp:2247`
 (`GiveLevel`), `Entities/Unit/StatSystem.cpp` (`UpdateStats`/`UpdateAllStats`) y
 `Spells/Auras/SpellAuraEffects.cpp:3656` (`HandleModTotalPercentStat`). El delta
@@ -2222,6 +2263,17 @@ demuestra esas fases ni repara las diferencias: quedan en el contrato de F6.
 Todo F5/F6 y su aceptación siguen abiertos.
 
 ### F6 — retirada de duplicados, pista de comportamiento
+
+Contraste ItemSet de continuación (2026-10-03, 18:38 UTC, inspección sin
+aceptación): `Entities/Item/Item.cpp:57–144` (`AddItemsSetItem`) y `:146–196`
+(`RemoveItemsSetItem`), SHA `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`, insertan
+o retiran el item y sus bonuses y llaman a `Player::ApplyEquipSpell`. En la
+retirada, esa llamada precede a borrar el bonus. El proveedor Rust trasladado
+en `wow-world-inventory/src/item_sets.rs` conserva su contrato anterior de
+mutación y devolución de eventos; ese evento no demuestra por sí mismo la
+ejecución de ApplyEquipSpell ni su orden observable. F6 debe contrastar los
+consumidores completos y sus efectos, incluidos los de equipamiento inicial,
+antes de acreditar o reparar esa diferencia. F5 no introduce esa reparación.
 
 La revisión F5 conserva dos diferencias que no puede resolver mediante un
 traslado estructural: assign-equipment-set sigue activo en Rust frente a

@@ -307,42 +307,15 @@ impl crate::InventoryState {
         item_guid: ObjectGuid,
         item_set: &wow_data::ItemSetEntry,
     ) -> Vec<RepresentedItemSetSpellEventLikeCpp> {
-        let Some(equipped_count_after) = self
-            .remove_player_item_set_item_like_cpp(hub, item_set.id, item_guid)
-            .flatten()
-        else {
-            return Vec::new();
-        };
-        let mut events = Vec::new();
-
-        let spells: Vec<_> = hub
-            .catalogs
-            .item_set_spells_like_cpp(item_set.id)
-            .into_iter()
-            .cloned()
-            .collect();
-        for item_set_spell in spells {
-            if usize::from(item_set_spell.threshold) <= equipped_count_after {
-                continue;
-            }
-            let removed = self
-                .remove_player_item_set_bonus_like_cpp(hub, item_set.id, item_set_spell.id)
-                .unwrap_or(false);
-            if !removed {
-                continue;
-            }
-            events.push(RepresentedItemSetSpellEventLikeCpp {
-                item_set_id: item_set.id,
-                spell_entry_id: item_set_spell.id,
-                spell_id: item_set_spell.spell_id,
-                threshold: item_set_spell.threshold,
-                apply: false,
-            });
-        }
-
-        let _ = self.drop_player_empty_item_set_effect_like_cpp(hub, item_set.id);
-
-        events
+        let item_modifiers = hub.core.owned_item_modifiers_access_like_cpp();
+        let shared = hub.shared();
+        let item_sets = shared.owned_item_set_access_like_cpp();
+        self.record_represented_remove_items_set_item_with_access_like_cpp(
+            &item_modifiers,
+            &item_sets,
+            item_guid,
+            item_set,
+        )
     }
 
     pub fn item_drop_rate_like_cpp(

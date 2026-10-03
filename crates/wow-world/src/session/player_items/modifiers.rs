@@ -149,13 +149,6 @@ impl WorldSession {
             cfg!(test),
         )
     }
-    pub(in crate::session) fn represented_heirloom_item_set_bonus_over_level_cap_like_cpp(
-        &self,
-        item_guid: ObjectGuid,
-    ) -> bool {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_heirloom_item_set_bonus_over_level_cap_like_cpp(hub, item_guid)
-    }
     pub(crate) fn record_represented_update_item_set_auras_like_cpp(
         &mut self,
         form_change: bool,

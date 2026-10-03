@@ -24,6 +24,7 @@ mod money;
 mod persistence;
 mod publication;
 mod items;
+mod item_sets;
 mod catalog;
 mod storage;
 mod storage_bags;
@@ -64,6 +65,7 @@ pub use item_modifiers::{
     RepresentedItemBonusActionLikeCpp, RepresentedItemSetAuraRefreshEventLikeCpp,
     RepresentedItemSetSpellEventLikeCpp,
 };
+pub use item_sets::ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP;
 pub use contracts::{
     AccountItemAppearanceSavePlanLikeCpp, AccountTransmogIllusionSavePlanLikeCpp,
     DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP, MAX_EQUIPMENT_SET_INDEX_LIKE_CPP,

@@ -31,6 +31,7 @@ pub use canonical_access::{
     InventoryPlayerProjectionLikeCpp, OwnedCollectionsAccessLikeCpp,
     OwnedEquipmentSetsAccessLikeCpp, OwnedInventoryAccessLikeCpp,
     OwnedItemModifiersAccessLikeCpp, OwnedSpellAcquisitionAccessLikeCpp,
+    OwnedItemSetAccessLikeCpp,
     InstanceLockManagerAccessLikeCpp, PlayerGroupOwnerAccessLikeCpp,
     InstancePlayerAccessLikeCpp, GroupDifficultyAccessLikeCpp,
     OwnedPlayerCurrencyAccessLikeCpp, PlayerAcquisitionOwnerAccessLikeCpp,

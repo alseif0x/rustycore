@@ -23,7 +23,7 @@ pub(crate) use wow_world_inventory::{
     RepresentedCombatStatRecalculationLikeCpp, RepresentedItemModsReapplyEventLikeCpp,
 };
 
-pub(in crate::session) const ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP: u32 = 0x01;
+pub(in crate::session) use wow_world_inventory::ITEM_SET_FLAG_LEGACY_INACTIVE_LIKE_CPP;
 
 pub(crate) type RepresentedItemSetEffectLikeCpp = wow_entities::PlayerItemSetEffectLikeCpp;
 
