@@ -2316,6 +2316,14 @@ comprueba prev-form antes de aplicar boosts y solo limpia la forma si no queda
 MOD_SHAPESHIFT; Player.cpp:22090 conserva display antes de equip-spells y damage.
 Estos anchors no convierten la proyección Rust en paridad demostrada. La extracción
 debe preservar la operación representada completa y separar su revisión F6.
+Las ramas privadas Applied/Removed de boosts y display-power ya están escritas
+y revisadas por fuente. Applied conserva known-spells actuales, clonación del
+vector nativo y atributos por difficulty; Removed conserva slots y recursión.
+Display conserva default de clase, consulta actual de efectos, cálculo canónico
+y publicación solo tras cambio. C++ Unit.cpp:5550–5603 incluye ramas vehicle/pet
+y UpdateDisplayPower llama SetPowerType; su ancla no demuestra paridad completa
+del cálculo Rust representado. FullApply/FullRemove y refresh de item-effects
+siguen pendientes de integración, sin checks ni pruebas ejecutados.
 El modo de manejo y la inmunidad polymorph/Dragonmaw de la rama mounted-flight
 requieren contraste completo en F6; la extracción F5 conserva el cuerpo Rust,
 sin introducir esas reparaciones dentro del traslado.
