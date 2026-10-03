@@ -2336,6 +2336,9 @@ de item-set completos. La revisión conserva snapshots íntegros, ordenaciones,
 clones y gates tardíos, planificación nativa y conteo de eventos separado del
 éxito de Apply/Remove. Sigue pendiente conectarlo al coordinador íntegro de
 auras; esta revisión por fuente no ejecutó pruebas ni acredita esa integración.
+El sync-form privado ya enlaza base attack-time, ambas ramas de boosts,
+display-power, refresh íntegro y reborrow temporal de Stats, con retorno temprano
+original si falla base attack-time. FullApply/FullRemove siguen pendientes.
 El modo de manejo y la inmunidad polymorph/Dragonmaw de la rama mounted-flight
 requieren contraste completo en F6; la extracción F5 conserva el cuerpo Rust,
 sin introducir esas reparaciones dentro del traslado.
@@ -2736,6 +2739,11 @@ World de roles seleccionados. La revisión conserva source GUID, GUID actual,
 admisión NPC BANKER y publicación del snapshot completo de Player VALUES.
 Registro/composición únicos, consumidores y casos nuevos siguen en integración;
 el cuerpo escrito no se cuenta como aceptación del handler completo.
+Se escribieron tres escenarios de registro exacto, payload/límites y admisión
+self-GUID con enable/disable, y rechazo de owner obsoleto tras reemplazo del mismo
+GUID. No se ejecutaron. La revisión de consumidores requiere también compositor
+normal world-server, compositor de fixtures y contrato finito del scanner para
+el nuevo registrar Bank; añadir el cuerpo no sustituye esas conexiones.
 
 Quest eligibility de visibilidad también está escrito como módulo privado: nivel,
 race/class y CanSeeStart conservan disable, status, recurrence, seasonal, prev-quest
