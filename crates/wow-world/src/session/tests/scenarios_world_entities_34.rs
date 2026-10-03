@@ -496,7 +496,7 @@ fn legacy_creature_melee_tick_once_splits_creature_victim_damage_like_cpp() {
     for (spell_id, aura_type, amount, misc_value) in [
         (
             91_373_i32,
-            wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACKER_MELEE_HIT_CHANCE,
+            wow_data::spell::aura_types::SPELL_AURA_MOD_HIT_CHANCE,
             100,
             0,
         ),

@@ -17,6 +17,7 @@ pub use finalization::{
 };
 pub mod conditions;
 pub mod entity_update_bridge;
+pub mod forever;
 pub mod handlers;
 pub mod loot_persistence;
 pub mod map_manager;

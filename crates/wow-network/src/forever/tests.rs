@@ -1,8 +1,14 @@
 use super::{wire, *};
+use aes_gcm::{
+    AesGcm, KeyInit, Nonce,
+    aead::{AeadInPlace, consts::U12},
+    aes::Aes256,
+};
 use sha2::{Digest, Sha512};
 use tokio::{
     io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpListener, TcpStream},
+    time::{Duration, timeout},
 };
 use wow_crypto::forever::{ForeverWorldCrypt, SessionKeys, verify_and_derive};
 
@@ -13,6 +19,20 @@ const AUTH_SEED: [u8; 32] = [
     0xde, 0x3a, 0x2a, 0x8e, 0x6b, 0x89, 0x52, 0x66, 0x88, 0x9d, 0x7e, 0x7a, 0x77, 0x1d, 0x5d, 0x1f,
     0x4e, 0xd9, 0x0c, 0x23, 0x9b, 0xcd, 0x0e, 0xdc, 0xd2, 0xe8, 0x04, 0x3a, 0x68, 0x64, 0xc7, 0xb0,
 ];
+
+type TestAesGcm = AesGcm<Aes256, U12, U12>;
+
+fn encrypt_client_for_test(key: &[u8; 32], counter: u64, plaintext: &[u8]) -> (Vec<u8>, [u8; 12]) {
+    let mut nonce_bytes = [0; 12];
+    nonce_bytes[..8].copy_from_slice(&counter.to_le_bytes());
+    nonce_bytes[8..].copy_from_slice(&0x544E_4C43_u32.to_le_bytes());
+    let cipher = TestAesGcm::new_from_slice(key).unwrap();
+    let mut ciphertext = plaintext.to_vec();
+    let tag = cipher
+        .encrypt_in_place_detached(Nonce::from_slice(&nonce_bytes), &[], &mut ciphertext)
+        .unwrap();
+    (ciphertext, tag.into())
+}
 
 // Independent RFC2104 construction, not the production proof helper.
 fn proof(server: &[u8; 32]) -> [u8; 24] {
@@ -89,6 +109,22 @@ async fn pending() -> (ForeverSocket, TcpStream, SessionKeys) {
     };
     let (started, keys) = tokio::join!(socket.start(), client_side);
     started.unwrap();
+    (socket, peer, keys)
+}
+
+async fn encrypted() -> (ForeverSocket, TcpStream, SessionKeys) {
+    let (mut socket, mut peer, keys) = pending().await;
+    socket.verify_credentials(&JOIN, &BUILD_KEY).unwrap();
+    let client_side = async {
+        let (data, tag) = read_frame(&mut peer).await;
+        assert_eq!(tag, [0; 12]);
+        let frame = Frame::decode(data).unwrap();
+        assert_eq!(frame.opcode(), ENTER_ENCRYPTED_MODE);
+        assert_eq!(frame.payload().len(), 69);
+        write_plain(&mut peer, ENTER_ENCRYPTED_MODE_ACK, &[]).await;
+    };
+    let (completed, ()) = tokio::join!(socket.complete_encryption(1), client_side);
+    completed.unwrap();
     (socket, peer, keys)
 }
 
@@ -214,4 +250,86 @@ async fn nonempty_ack_fails_before_encrypted_traffic() {
         })
     ));
     assert!(socket.send(AUTH_RESPONSE, &[]).await.is_err());
+}
+
+#[tokio::test]
+async fn idle_receive_timeout_is_terminal_without_consuming_bytes() {
+    let (mut socket, _peer, _) = encrypted().await;
+
+    assert!(matches!(
+        socket
+            .receive_with_idle_timeout(Duration::from_millis(5))
+            .await,
+        Err(ForeverSocketError::Timeout)
+    ));
+    assert!(matches!(
+        socket.receive().await,
+        Err(ForeverSocketError::Phase)
+    ));
+}
+
+#[tokio::test]
+async fn idle_receive_rejects_wrong_phase_without_waiting() {
+    let (mut socket, _peer, _) = pending().await;
+
+    let result = timeout(
+        Duration::from_millis(25),
+        socket.receive_with_idle_timeout(Duration::from_secs(60)),
+    )
+    .await
+    .expect("wrong-phase receive must not wait for idle timeout");
+    assert!(matches!(result, Err(ForeverSocketError::Phase)));
+}
+
+#[tokio::test]
+async fn cancelling_idle_receive_leaves_socket_terminal() {
+    let (mut socket, _peer, _) = encrypted().await;
+
+    assert!(
+        timeout(
+            Duration::from_millis(5),
+            socket.receive_with_idle_timeout(Duration::from_secs(60)),
+        )
+        .await
+        .is_err()
+    );
+    assert!(matches!(
+        socket.receive().await,
+        Err(ForeverSocketError::Phase)
+    ));
+}
+
+#[tokio::test]
+async fn partial_frame_is_bounded_by_idle_deadline() {
+    let (mut socket, mut peer, _) = encrypted().await;
+    let header = wire::header(4, [0; 12]).unwrap();
+    peer.write_all(&header[..1]).await.unwrap();
+
+    assert!(matches!(
+        socket
+            .receive_with_idle_timeout(Duration::from_millis(5))
+            .await,
+        Err(ForeverSocketError::Timeout)
+    ));
+    assert!(matches!(
+        socket.receive().await,
+        Err(ForeverSocketError::Phase)
+    ));
+}
+
+#[tokio::test]
+async fn first_encrypted_client_frame_uses_counter_two_with_idle_policy() {
+    let (mut socket, mut peer, keys) = encrypted().await;
+    let plaintext = wire::frame_data(PING, &[1, 2, 3, 4]).unwrap();
+    let (ciphertext, tag) = encrypt_client_for_test(keys.encryption_key(), 2, &plaintext);
+    let header = wire::header(ciphertext.len(), tag).unwrap();
+    peer.write_all(&header).await.unwrap();
+    peer.write_all(&ciphertext).await.unwrap();
+
+    let frame = socket
+        .receive_with_idle_timeout(Duration::from_millis(100))
+        .await
+        .unwrap();
+    assert_eq!(frame.opcode(), PING);
+    assert_eq!(frame.payload(), &[1, 2, 3, 4]);
 }

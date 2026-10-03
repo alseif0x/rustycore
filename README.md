@@ -12,7 +12,7 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg" alt="License: GPL-3.0-or-later"></a>
   <a href="https://www.rust-lang.org/"><img src="https://img.shields.io/badge/Rust-1.98.0-orange.svg" alt="Rust 1.98.0"></a>
   <a href="docs/operations/forever-login.md"><img src="https://img.shields.io/badge/client-Forever%201.60.1%20%2870170%29-6f42c1.svg" alt="WoW Forever 1.60.1 build 70170"></a>
-  <img src="https://img.shields.io/badge/milestone-native%20world%20crypto-2ea44f.svg" alt="Real-client authentication, encryption acknowledgement and encrypted client packet verified">
+  <img src="https://img.shields.io/badge/milestone-native%20character%20screen-2ea44f.svg" alt="Real-client login, empty character selection and creation UI observed">
   <img src="https://img.shields.io/badge/status-experimental-e09f3e.svg" alt="Experimental; not playable yet">
   <a href="https://discord.gg/mH6ACpGPb2"><img src="https://img.shields.io/badge/Discord-join%20the%20community-5865F2.svg" alt="Join the Discord community"></a>
 </p>
@@ -51,17 +51,18 @@ passes strict verification of its **24-byte AuthSession digest**. The derived
 40-byte session key is persisted in the disposable Auth fixture.
 No password bypass or synthetic login success.
 
-> **Research preview — not playable yet.** Modern **BNet realm join works**;
-> the native world-authentication **proof, encryption acknowledgement and an
-> authenticated encrypted client packet are verified**. Admission into a real
-> WorldSession is still pending. This is not a complete world login, and the
-> normal fixture stays offline.
-> Character creation and initial world loading are the next goals, not completed
-> features. The diagnostic launcher setup is not a turnkey client installer.
+> **Research preview — not playable yet.** The real client now logs into the
+> target-specific encrypted Session, shows the empty **character selection**
+> screen and opens **creation UI with a 3D human warrior preview**.
+> Creation UI was observed in the first probe, but a subsequent probe remained
+> loading with the creation button disabled: it is not yet a stable readiness gate.
+> Saving a character and entering the world remain unimplemented; a visible
+> creation screen is not persistence. The normal fixture stays offline.
+> The diagnostic launcher setup is not a turnkey client installer.
 
 ## What works today
 
-Evidence recorded on **2026-10-02**, with the real Windows x64 client running in
+Evidence recorded on **2026-10-02–03**, with the real Windows x64 client running in
 an isolated Wine environment on a Linux x86_64 host:
 
 | Stage | Status | Evidence / boundary |
@@ -75,10 +76,12 @@ an isolated Wine environment on a Linux x86_64 host:
 | Realm discovery after ruleset choice | Verified in isolated probe | Client accepts content 136 / district 1 and requests realm `0x02010001` |
 | Modern BNet realm join | Verified | JSON ticket, build variant and session-key persistence; real client accepts the response |
 | World TCP, V2 preamble and AuthSession proof | Verified in isolated probe | Native 70170 digest verified; 40-byte session key persisted; build key kept private |
-| Signed encryption / AES-256-GCM traffic | Verified in isolated probe | Native ACK, encrypted ping and fresh encrypted-denial UI; no signature bypass or successful WorldSession |
-| Target character-data acquisition | Verified locally | Original client read-only: build-70170 `ChrClasses` / `ChrRaces`, WDC5; not character/gameplay acceptance |
-| WorldSession admission / initial server packet sequence | Current boundary | Requires target-backed successful admission and native packet acceptance |
-| Character selection / creation | Pending | Requires an admitted encrypted WorldSession and target character packets/data |
+| Signed encryption / AES-256-GCM traffic | Verified in isolated probe | Native ACK, encrypted requests and server replies; no signature bypass |
+| Target character-data acquisition | Verified locally | Actual `ChrClasses` / `ChrRaces` and 434 readable Achievement rows; nine unknown-key rows remain unavailable |
+| Target Session / initial server packet sequence | Verified in isolated probe | Real Character/Auth query holders, ordered success initialization and native enum request |
+| Empty character selection | Verified with real client | Database-backed empty list and «Crear personaje» button |
+| Creation UI | Observed, not stable yet | First probe human warrior 3D preview; repeat pending data/loading completion; no character saved |
+| Character creation / nonempty enumeration | Pending | Target validation, transaction, appearance and persistence still required |
 | Initial world load | Pending | Requires target-build packets and appropriate world/client data |
 
 The current evidence includes **133 BNet tests**, **362 database tests** (2
@@ -88,6 +91,13 @@ live V1/V2 positive/negative authentication scenarios. These counts describe the
 recorded scoped checks, not a full-workspace or gameplay-parity certification.
 The [runbook](docs/operations/forever-login.md) records exact revisions, source
 anchors, failures, timings and the observed client trace.
+The account-phase delivery additionally passed **764 data / 362 database / 767
+packet / 35 persistence / 4048 world tests**, with 2 database and 1 world tests
+ignored, plus 1 target-binary ticket test, 48 Python guards and 9 probe CLI guards.
+The authenticated-idle correction passed **42 transport tests** and a fresh
+three-minute native connection; creation is still waiting for target TactKey
+DBQueryBulk delivery. No key material is distributed with this repository.
+These are scoped results; the ordinary 600-second acceptance budget was exceeded.
 The character-data candidate additionally passed **760 data tests**, **4 strict
 fixture tests**, **6 acquisition guards** and **9 negative private-copy cases**;
 the real tables decode through Rust. These are data/admission prerequisites,
@@ -111,11 +121,11 @@ unless explicitly marked otherwise.
 
 ## Roadmap
 
-1. **Admit a real Forever WorldSession.** Native proof, signed encryption ACK
-   and incoming encrypted traffic are verified. Implement and exercise the
-   target's successful admission and initial server-packet sequence.
-2. **Reach character creation.** Validate character enumeration, creation and
-   persistence with the real client.
+1. **Save a real character.** Login, empty selection and creation UI are now
+   observed. Implement target validation, creation transactions and nonempty
+   enumeration, then verify persistence with the real client.
+2. **Complete character admission.** Load the saved target character without
+   legacy protocol or invented player state.
 3. **Load the initial world.** Confirm the required data, initial packet sequence
    and client loading result.
 
@@ -137,8 +147,8 @@ for acquisition, validation and the remaining world/character database boundary.
 | Branch / foundation | `forever`, based on `3.4.3` at `2df57d6f` |
 | Rust | `1.98.0`, pinned in [`rust-toolchain.toml`](rust-toolchain.toml) |
 | Protobuf compiler | `28.3`, pinned in [`.protoc-version`](.protoc-version) |
-| Accepted local fixture | Disposable MariaDB `11.4`, isolated Auth schema |
-| World data | Forever compatibility not established; do not treat 3.4.3 TDB/data as drop-in support |
+| Accepted local fixture | Disposable MariaDB `11.4`, separate Auth / Character / World / Hotfix schemas |
+| World data | Pinned target TDB plus source-ordered updates; gameplay parity not established; no 3.4.3 drop-in data |
 | Manual testing | Your own client installation and the documented diagnostic launcher setup |
 
 You will also need a local configuration and, for Battle.net authentication, TLS certificate

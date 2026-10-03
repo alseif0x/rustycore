@@ -7,6 +7,24 @@ destination of this port. Older evidence below retains its original branch name.
 
 ## Latest Forever data/transport boundary — 2026-10-02 23:14 UTC
 
+At 2026-10-03 00:19 UTC, the real build-70170 client accepted target Session
+initialization, requested encrypted enumeration and displayed the database-backed
+empty character list. Creation UI also opens with a human warrior 3D preview.
+The repeat with corrected defaults remained loading with creation disabled and
+then disconnected; stable creation readiness, persistence and initial world
+loading remain open. The separate Session
+uses real disposable Character/World/Hotfix databases and target codecs.
+The earlier scoped account-phase acceptance passed after correcting two source-backed
+test-fixture aura mistakes. The authenticated-idle repair passes 42 transport and
+4048 world tests; the fresh client remained connected over three minutes with
+encrypted pings. Creation still waits for unported TactKey DBQueryBulk delivery,
+not a stable readiness gate. The
+[owning runbook](../operations/forever-login.md#target-accountcharacter-initialization-implementation-2026-10-03-in-progress)
+records source/schema, bootstrap recovery, tests, native evidence and Achievement's
+unknown-key boundary. Publication/architecture closeout remains separately recorded.
+Previous byte-identical legacy-path evidence below applies only to its dated
+candidate, not this new generic-registry/composition delta.
+
 Candidate `ba74a2ce` acquires the actual build-70170/esES ChrClasses/ChrRaces
 read-only and validates their WDC5/version-5 schemas and IDs through Rust:
 9 classes, 58 race rows, including 95/96. The immutable catalog is presence

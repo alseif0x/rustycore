@@ -229,11 +229,49 @@ impl ForeverSocket {
     }
 
     pub async fn receive(&mut self) -> Result<Frame, ForeverSocketError> {
+        self.receive_bounded(None).await
+    }
+
+    /// Authenticated character-phase idle policy, separate from the bounded
+    /// frame-completion deadline. The caller owns admission and its timeout.
+    /// Cancellation is terminal even while waiting without consuming bytes.
+    pub async fn receive_with_idle_timeout(
+        &mut self,
+        idle: Duration,
+    ) -> Result<Frame, ForeverSocketError> {
+        self.receive_bounded(Some(idle)).await
+    }
+
+    async fn receive_bounded(
+        &mut self,
+        idle: Option<Duration>,
+    ) -> Result<Frame, ForeverSocketError> {
         if self.phase != Phase::Encrypted {
             return Err(ForeverSocketError::Phase);
         }
         self.phase = Phase::Failed;
-        let (data, tag) = self.read_frame().await?;
+        let read = async {
+            if idle.is_some() {
+                let mut byte = [0];
+                let available = self
+                    .stream
+                    .peek(&mut byte)
+                    .await
+                    .map_err(|_| ForeverSocketError::Io)?;
+                if available == 0 {
+                    return Err(ForeverSocketError::Io);
+                }
+            }
+            self.read_frame().await
+        };
+        // The session's remaining deadline also covers a partial frame. First
+        // byte availability never renews that session deadline.
+        let (data, tag) = match idle {
+            Some(idle) => timeout(idle, read)
+                .await
+                .map_err(|_| ForeverSocketError::Timeout)??,
+            None => read.await?,
+        };
         let plaintext = self
             .cipher
             .as_mut()

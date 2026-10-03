@@ -39,6 +39,17 @@ impl Wdc4Reader {
     /// Open WDC4 or bounded regular WDC5. Full target-schema checks belong to
     /// the typed table consumer, not a generic header's declared hash alone.
     pub fn open(path: &Path) -> Result<Self> {
+        Self::open_inner(path, false)
+    }
+
+    /// Pinned build-70170 Achievement acquisition: retain only its readable
+    /// prefix. C++ DB2FileLoader::LoadTableData skips unknown TACT sections;
+    /// no inaccessible bytes/IDs are replaced with zeros or declared present.
+    pub(crate) fn open_available_achievement(path: &Path) -> Result<Self> {
+        Self::open_inner(path, true)
+    }
+
+    fn open_inner(path: &Path, available_achievement: bool) -> Result<Self> {
         let data =
             std::fs::read(path).with_context(|| format!("failed to read {}", path.display()))?;
 
@@ -92,10 +103,14 @@ impl Wdc4Reader {
         }
 
         if header.format_version == 5 {
-            ensure!(
-                sections.iter().all(|section| section._tact_key_hash == 0),
-                "WDC5 TACT/encrypted sections are not supported"
-            );
+            if available_achievement {
+                super::available::validate_prefix(&header, &sections, data.len())?;
+            } else {
+                ensure!(
+                    sections.iter().all(|section| section._tact_key_hash == 0),
+                    "WDC5 TACT/encrypted sections are not supported"
+                );
+            }
             ensure!(
                 sections
                     .iter()
@@ -105,6 +120,10 @@ impl Wdc4Reader {
                 "WDC5 section record counts do not match the header"
             );
         }
+        ensure!(
+            !available_achievement || header.format_version == 5,
+            "Available Achievement requires WDC5"
+        );
 
         let has_no_records = header.record_count == 0
             && sections
@@ -210,6 +229,9 @@ impl Wdc4Reader {
         }
 
         for (si, sec) in sections.iter().enumerate() {
+            if available_achievement && sec._tact_key_hash != 0 {
+                continue;
+            }
             if sec.record_count == 0 && sec.copy_table_count == 0 {
                 continue;
             }

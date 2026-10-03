@@ -12,6 +12,7 @@
 //! - Traits for typed client/server packet definitions
 
 pub mod compression;
+pub mod forever;
 pub mod header;
 pub mod packets;
 pub mod world_packet;

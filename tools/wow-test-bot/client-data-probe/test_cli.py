@@ -57,6 +57,32 @@ class AcquisitionGuards(unittest.TestCase):
                                link / "new-data", "esES"], "Output must remain")
                 self.assertFalse(output.exists())
 
+    def test_optional_modes_are_explicit_and_not_repeatable(self):
+        args = ["--ack-local-client-data", "/does-not-exist", self.root / "unused", "esES"]
+        self.rejected([*args, "--unknown"], "Unknown optional")
+        self.rejected([*args, "--ack-available-achievements", "--ack-available-achievements"], "may appear once")
+        self.rejected([*args, "--ack-public-tact-keys"], "requires one private file")
+
+    def test_key_file_outside_private_root_is_not_imported(self):
+        with tempfile.TemporaryDirectory() as directory:
+            key_file = Path(directory) / "synthetic.txt"
+            key_file.write_text("synthetic, not key material")
+            key_file.chmod(0o600)
+            self.rejected(["--ack-local-client-data", "/does-not-exist", self.root / "unused", "esES",
+                           "--ack-public-tact-keys", key_file], "must remain inside")
+
+    def test_key_file_permissions_size_and_symlink_guards(self):
+        with tempfile.TemporaryDirectory(dir=self.root) as directory:
+            key_file = Path(directory) / "synthetic.txt"
+            args = ["--ack-local-client-data", "/does-not-exist", self.root / "unused", "esES", "--ack-public-tact-keys"]
+            key_file.write_text("synthetic, not key material")
+            key_file.chmod(0o644)
+            self.rejected([*args, key_file], "mode 0600")
+            key_file.write_text(""); key_file.chmod(0o600)
+            self.rejected([*args, key_file], "size is outside")
+            link = Path(directory) / "link.txt"; link.symlink_to(key_file)
+            self.rejected([*args, link], "regular non-symlink")
+
 
 if __name__ == "__main__":
     unittest.main()

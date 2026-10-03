@@ -3116,6 +3116,8 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "flume",
+ "serde",
+ "serde_json",
  "tokio",
  "tracing",
  "tracing-subscriber",
@@ -3357,6 +3359,7 @@ dependencies = [
 name = "wow-network"
 version = "0.1.0"
 dependencies = [
+ "aes-gcm",
  "bytes",
  "dashmap",
  "ed25519-dalek",
