@@ -1914,6 +1914,16 @@ su contexto completo y Use siguen pendientes. Referencia de la operación:
 `Player.cpp:7654::_ApplyItemMods`, `:7688::_ApplyItemBonuses` y
 `:7975::_ApplyWeaponDamage` en `a5f8da2eb`; estas capacidades no acreditan paridad.
 
+**Consultas de adquisición sin Hub — 2026-10-03, 12:19 UTC
+(NO VALIDADO):** la capacidad de spell acquisition añade presencia canónica,
+concesión de dual wield y snapshot de tombstones. Las dos primeras conservan
+el fallback por GUID; tombstones conserva el handle estricto y su único
+fallback fixture cuando falta el handle. Spell y Hub delegan sin cambiar sus
+firmas ni la instalación completa. La comparación de fuente no sustituye
+pruebas ejecutadas. `SpellEffects.cpp:2176::EffectDualWield` en `a5f8da2eb`
+tiene el gate HIT_TARGET y `SetCanDualWield(true)`; no demuestra la admisión
+ni la durabilidad del executor de trainer.
+
 **QA del registro genérico — 2026-10-03, 11:51 UTC (NO VALIDADO):**
 La política de handlers usa schema 2: varias rutas explícitas de registro y un
 único dispatcher; solo se añade Inventory como owner ya implementado. El

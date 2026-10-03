@@ -25,17 +25,15 @@ impl crate::SessionSpellState {
         hub: &mut wow_world_core::session::HubMut<'_>,
     ) -> bool {
         hub.core
-            .mutate_canonical_player_like_cpp(|player| {
-                player.unit_mut().set_can_dual_wield_like_cpp(true);
-            })
-            .is_some()
+            .owned_spell_acquisition_access_like_cpp()
+            .grant_dual_wield_after_acquisition_like_cpp()
     }
     pub fn has_canonical_player_for_spell_acquisition_like_cpp(
         &self,
         hub: wow_world_core::session::HubRef<'_>,
     ) -> bool {
         hub.core
-            .canonical_player_snapshot_like_cpp(|_| ())
-            .is_some()
+            .owned_spell_acquisition_access_like_cpp()
+            .has_canonical_player_like_cpp()
     }
 }

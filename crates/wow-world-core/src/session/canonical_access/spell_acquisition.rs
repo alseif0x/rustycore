@@ -23,6 +23,31 @@ impl SessionCore {
 }
 
 impl OwnedSpellAcquisitionAccessLikeCpp<'_> {
+    /// Resolve whether this session currently has a canonical Player, using
+    /// the same GUID fallback as the existing acquisition mutation path.
+    pub fn has_canonical_player_like_cpp(&self) -> bool {
+        self.core
+            .canonical_player_snapshot_like_cpp(|_| ())
+            .is_some()
+    }
+
+    /// Grant dual wield to the canonical Player through the existing
+    /// GUID-aware mutation path.
+    pub fn grant_dual_wield_after_acquisition_like_cpp(&self) -> bool {
+        self.core
+            .mutate_canonical_player_like_cpp(|player| {
+                player.unit_mut().set_can_dual_wield_like_cpp(true);
+            })
+            .is_some()
+    }
+
+    /// Snapshot skill tombstones only from the strictly owned Player handle.
+    pub fn skill_non_durable_tombstones_snapshot_like_cpp(&self) -> Option<BTreeSet<u16>> {
+        self.core.with_owned_player_like_cpp(|player| {
+            player.non_durable_skill_tombstones_like_cpp().clone()
+        })
+    }
+
     /// Validate a complete acquisition snapshot before invalidating the
     /// existing spell-hit authority or mutating the canonical Player.
     pub fn install_complete_spell_acquisition_like_cpp(
