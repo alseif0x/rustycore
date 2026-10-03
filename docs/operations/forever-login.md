@@ -1173,6 +1173,23 @@ forever-world-server --timings` also passes (2m26s,
 in this move, so the earlier native scenarios retain their actual binary/input
 revision rather than being relabeled as live tests of this relocation.
 
+At clean committed relocation candidate **`1e631b4d1dd1134985f7c3faaa17894ac7531f97`**,
+`final --base origin/forever --architecture --timings` records **failed** in
+manifest `20261003T004856.104854Z-1742493-final.json`, 49.948s (policy 21.596s,
+syntax ownership 27.856s). Physical files pass (2305); inherited hotspot and the
+same taunt/creature ownership mismatches remain. Session production LOC is
+95306, 33 fewer than `06ab5ef9`; no new finding or baseline/ceiling refresh is
+introduced. The runner stops before Cargo/hygiene: the affected World suite,
+normal production build, rustfmt and whitespace evidence above are separate
+scoped checks, not a green final. The operator's experimental-publication waiver
+is retained; this is neither playable acceptance nor merge/deployment authority.
+
+The complete account-phase campaign checkpoint **2026-10-02 23:54:58Z–2026-10-03
+00:49:46Z is 3288 seconds**, including failures/repairs, required checks and three
+native scenarios/restoration. Closing documentation validation/publication extends
+that same envelope; the ordinary **600-second target is not met**. It is not reset
+by the mechanical move. Character persistence and world admission remain open.
+
 At **2026-10-02 22:51:27 UTC**, the operator-only
 [`client-data-probe`](../../tools/wow-test-bot/client-data-probe/README.md)
 read two actual files from the installed `wow_classic_beta` build **70170**, using
