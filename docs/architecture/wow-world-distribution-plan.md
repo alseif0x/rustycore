@@ -2530,6 +2530,98 @@ Ambas correcciones se asignaron antes de retirar el cuerpo original. Los
 valores constantes de otros argumentos ya estaban presentes en ese original;
 conservarlos en F5 no establece su paridad C++.
 
+Dependencia de almacenamiento de Reward (2026-10-03, NO VALIDADO):
+`player_items/persistence.rs:455–652` consulta limit-category después de construir
+overlays, posiciones vacadas, templates y referencias de almacenamiento. Esa
+consulta requiere el proveedor de condiciones App; la coordinación completa se
+asigna a App y los kernels de almacenamiento a Inventory. Se preservarán las
+fachadas y consumidores vendor/void/reagent del plan existente. Reward y CanEquip
+deben compartir ese proveedor, sin copia parcial ni callback de vuelta a World.
+La asignación cubre la operación y sus wrappers, no otras mutaciones del archivo.
+
+Revisión de dependencias de valoración (2026-10-03, NO VALIDADO): el nuevo
+CanUse ya toma primary specialization del snapshot original y el helper de
+spells aplica el bool del consumidor dentro del gate test-fixtures. En el nuevo
+provider de reputación, la conversión de standing a rank aún ocurre dentro del
+guard del Player; el original Inventory/modifiers.rs:426–457 la hace después de
+terminar la consulta de standing. Se asignó restaurar ese alcance y delegar el
+helper antiguo al único proveedor. Su fallback any(test, test-fixtures) sin
+handle coincide con Core/progression/reputation.rs:301–319 y debe conservarse.
+
+Integración en curso (2026-10-03, NO VALIDADO): el módulo App de valoración ya
+está montado y su entrada libre toma prestado el contexto de condiciones. Se
+detectó un nombre de constructor incorrecto y se asignó corregirlo. La revisión
+también detectó ediciones de valoración en archivos de condiciones cuyo dueño
+era trainer: se detuvieron nuevas ediciones de esos archivos por valoración y
+se devolvió su continuidad al dueño, preservando el trabajo ya escrito. El
+helper canónico de Save tiene dos definiciones temporales durante su conexión;
+se asignó consolidarlas y conservar el resultado de snapshot no disponible en
+todos los consumidores. Ninguno de estos borradores demuestra compilación.
+
+Primer coordinador App Reward (2026-10-03, NO VALIDADO): ya existe el cuerpo
+ordenado de la operación en `quest/reward/coordinator.rs`, incluidas retirada,
+grants, commit, settle, GameEvent, paquetes, XP y delay-teleport final. Conserva
+el retorno de cuarentena sin reset de delay cuando settle falla después del
+commit. Los proveedores auxiliares todavía requieren cierre e integración.
+La revisión detectó que el nuevo helper de dinero no propaga el abort original
+si falta el saldo; se asignó conservar esa guarda antes de continuar el plan.
+La búsqueda del slot recompensado también debe enlazarse al proveedor original,
+no suponerse un método del estado fixture. World aún conserva el coordinador;
+no se reclama traslado completo ni evidencia de compilación o paridad.
+
+Consulta compartida de slot (2026-10-03, NO VALIDADO): el ancla original es
+`handlers/quest/state.rs:327`; toma un snapshot actual, exige slot menor que
+MAX_QUEST_LOG_SIZE y status incomplete/complete/failed. Su proveedor App se
+asignó al dueño de objective_progress para reutilizar la consulta existente,
+con fallback World-test/no-handle primero y consulta canónica en los demás
+casos. Reward reborrowará la capacidad de objetivos y hará esa lectura después
+del cálculo de XP, sin adelantar snapshots ni duplicar el filtro en otro estado.
+
+Dependencia FeignDeath de Trainer (2026-10-03, NO VALIDADO): el contrato de
+traslado se fijó contra `movement/state.rs:87`: consulta DIED en el owner,
+snapshot de auras visibles, colección de slots en su orden de iteración,
+RemoveAura completo por slot ignorando su resultado, nueva mutación para limpiar
+DIED y retorno true. Un erase de slots no cubre el contrato. List conserva el
+clone del store después de NPC admission y antes de resolver trainer; ofertas,
+conteo, locale/greeting y reemplazo de interacción permanecen en su fase.
+Se asignó escribir el coordinador con esas dependencias finitas pendientes;
+no se declara cerrado por existir el helper de publicación.
+
+Revisión de Unique/CanEquip (2026-10-03, NO VALIDADO): el nuevo cálculo de
+equipados y gemas conserva las fases de `player_items/equipment.rs:214–328`.
+El DTO de candidato para AvgTotal debe conservar además el filtro NonEquip
+del accessor `Core/player_items/storage.rs:5`, que produce None y no Some(0).
+Ese filtro se asignó; el cuerpo CanEquip completo aún es un placeholder y
+debe reemplazarse antes de conectar/aceptar la operación. La revisión manual
+de manifest, lock y usos nuevos no detectó otra dependencia ausente; no ejecutó
+Cargo metadata ni constituye comprobación del grafo efectivo.
+
+Primer coordinador App TrainerList (2026-10-03, NO VALIDADO): el cuerpo completo
+ya está escrito en `trainer_purchase/controller.rs:140–256`; la inspección frente
+al original confirma admission NPC, clone/resolución del store, feign death,
+ofertas/fallback de precio, conteo, greeting y publicación del rol/paquete en
+su orden. Faltan los proveedores de ofertas y retirada completa de auras,
+constructor externo de stores seleccionados y fachada World. La referencia
+de locale apunta al mismo campo Core sin clone; no es un snapshot propio.
+La publicación debe reutilizar su cuerpo existente antes de declarar cerrada
+la familia. TrainerBuy continúa pendiente de coordinador completo.
+
+Proveedor de precio de trainer (2026-10-03, NO VALIDADO): el nuevo método
+NpcInteractionAccess de faction_reactions.rs conserva los retornos Neutral por
+store/faction ausentes, identidad antes del guard, rank dentro del guard de
+ReputationMgr y fallback Core test-fixtures/no-handle. La fachada Hub anterior
+ya delega a ese único cuerpo. Este alcance difiere del cálculo de rank de
+elegibilidad de inventario, cuyo original libera el guard antes de convertir
+standing; los dos contratos no deben unificarse alterando sus fases.
+
+Cierre de consumidores de condiciones (2026-10-03, NO VALIDADO): el constructor
+compartido World ya suministra reputación, battleground e in-combat requeridos
+por valoración, y spell-click lo reutiliza. Sin embargo el holder, as_context y
+la proyección antiguos siguen completos en World y mantienen consumidores en
+trainer, limit-category y meets-player-condition. Su retiro forma parte del
+mismo traslado; disponer del constructor App no demuestra una autoridad única
+ni autoriza cerrar condiciones. Se notificaron esos consumidores al dueño.
+
 Revisión de condiciones de trainer (2026-10-03, NO VALIDADO): el nuevo cuerpo
 App conserva store, objeto jugador, proyección completa, snapshots Unit/Player
 y evaluación por condición con contexto vivo y bandera Unsupported. Se mantiene
