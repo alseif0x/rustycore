@@ -1,8 +1,6 @@
 #[cfg(any(test, feature = "test-fixtures"))]
 use std::sync::Arc;
-use std::time::Instant;
 
-use crate::session::mailbox::{SendIfVisibleLikeCppCommand, SessionCommand};
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_data::PlayerCreateInfoCastSpellStoreLikeCpp;
 
@@ -35,39 +33,22 @@ impl crate::session::HubRef<'_> {
         range: f32,
         realm_connection: bool,
     ) {
-        let (Some(guid), Some(registry)) = (self.core.player_guid(), self.core.player_registry())
-        else {
-            return;
-        };
-        let Some(source_position) = self.player_position_like_cpp() else {
-            return;
-        };
-        let map_id = self.core.player_map_id_like_cpp();
-        let instance_id = self
-            .core
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        for registration in registry.movement_recipients_within_range(
-            guid,
-            map_id,
-            instance_id,
-            source_position,
-            range,
-        ) {
-            let command = SendIfVisibleLikeCppCommand {
-                queued_at: Instant::now(),
-                source_guid: guid,
-                map_id,
-                instance_id,
-                packet_bytes: bytes.clone(),
-            };
-            let command = if realm_connection {
-                SessionCommand::SendRealmIfVisibleLikeCpp(command)
-            } else {
-                SessionCommand::SendIfVisibleLikeCpp(command)
-            };
-            let _ = registry.try_send_current_command(registration, command);
-        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        self.core
+            .packet_publication_access_like_cpp()
+            .broadcast_to_movement_set_in_range_and_connection_like_cpp(
+                bytes,
+                range,
+                realm_connection,
+                &self.fixtures.movement.player_position,
+            );
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        self.core
+            .packet_publication_access_like_cpp()
+            .broadcast_to_movement_set_in_range_and_connection_like_cpp(
+                bytes,
+                range,
+                realm_connection,
+            );
     }
 }

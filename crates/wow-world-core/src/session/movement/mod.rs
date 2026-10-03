@@ -3,6 +3,8 @@ pub use state::MovementTransportMembershipLikeCpp;
 mod fall;
 mod far_transfer;
 mod movement_publication;
+mod registry_sync;
+pub use registry_sync::PlayerRegistrySyncAccessLikeCpp;
 mod movement_validation;
 mod player_emote;
 mod speed;

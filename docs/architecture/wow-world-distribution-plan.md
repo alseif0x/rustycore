@@ -1958,6 +1958,23 @@ la mutación canónica y el mirror sin handle, incluido loaded && complete.
 Esta continuación revisada en fuente a las 13:20 UTC permanece NO VALIDADA;
 no aporta evidencia nueva de compilación, pruebas ni paridad.
 
+**Sincronización y publicación sin Hub — 2026-10-03, 13:22 UTC
+(NO VALIDADO):** Core contiene la operación completa de publicación de posición
+en el registro, con seis referencias fixture prestadas y lectores compartidos
+de posición, vitales, nivel y transporte. Se conserva el orden de GUID,
+posición, registro, mapa, vitales, instancia y construcción del update; las
+fachadas Hub delegan y mantienen sus fallbacks originales. La capacidad de
+publicación contiene los dos fanouts completos, con las mismas selecciones
+de destinatarios, clones, conexiones y comandos; conserva los fences existentes
+y el resultado del envío de valores, leyendo el mapa en el punto de envío.
+Anclas contrastadas en a5f8da2eb: Player.cpp:6122::UpdatePosition,
+Unit.cpp:12257::UpdatePosition y :11566::SendPlaySpellVisualKit,
+Object.cpp:1746/1752::SendMessageToSet y Player.cpp:6141/6173.
+Estas anclas no prueban la equivalencia del directorio Rust, sus fallbacks
+legacy ni los fences asíncronos. La hidratación de fixtures, loot y party del
+sync completo y el contexto de trainer siguen en curso; no se ejecutaron
+compilación, formato, pruebas, capturas ni QA runtime por este traslado.
+
 **Dinero y banco con acceso canónico acotado — 2026-10-03, 13:07 UTC
 (NO VALIDADO):** OwnedInventoryAccess concentra las siete lecturas/mutaciones
 de dinero, cantidad y flags de bolsas bancarias y cantidad de slots de

@@ -1,8 +1,5 @@
-use std::time::Instant;
-
 use wow_core::{ObjectGuid, Position};
-use wow_world_core::map_manager::{VISIBILITY_RADIUS, WorldCreature};
-use wow_world_core::session::mailbox::{SendIfVisibleLikeCppCommand, SessionCommand};
+use wow_world_core::map_manager::WorldCreature;
 use wow_world_core::session::{AFLAG_SCALABLE_LIKE_CPP, HubRef};
 
 use crate::WorldEntitiesState;
@@ -151,55 +148,15 @@ impl WorldEntitiesState {
         realm_connection: bool,
         allow_legacy_source_fallback: bool,
     ) {
-        let Some(registry) = hub.core.player_registry() else {
-            return;
-        };
-        let player_guid = hub.core.player_guid().unwrap_or(ObjectGuid::EMPTY);
-        let map_id = hub.core.player_map_id_like_cpp();
-        let instance_id = hub
-            .core
-            .current_canonical_player_map_key_like_cpp()
-            .map(|key| key.instance_id)
-            .unwrap_or(0);
-        let range_sq = VISIBILITY_RADIUS * VISIBILITY_RADIUS;
-
-        let candidates: Vec<_> = registry
-            .runtime_recipients()
-            .into_iter()
-            .filter_map(|recipient| {
-                if recipient.guid == player_guid
-                    || !recipient.is_in_world
-                    || recipient.map_id != map_id
-                    || recipient.instance_id != instance_id
-                {
-                    return None;
-                }
-                let dx = recipient.position.x - source_position.x;
-                let dy = recipient.position.y - source_position.y;
-                if dx * dx + dy * dy > range_sq {
-                    return None;
-                }
-                Some(recipient.registration)
-            })
-            .collect();
-
-        for registration in candidates {
-            let command = SendIfVisibleLikeCppCommand {
-                queued_at: Instant::now(),
+        hub.core
+            .packet_publication_access_like_cpp()
+            .broadcast_from_position_to_visible_set_and_connection_like_cpp(
                 source_guid,
-                map_id,
-                instance_id,
-                packet_bytes: bytes.clone(),
-            };
-            let command = if realm_connection && allow_legacy_source_fallback {
-                SessionCommand::SendRealmIfVisibleFromLegacySourceLikeCpp(command)
-            } else if realm_connection {
-                SessionCommand::SendRealmIfVisibleLikeCpp(command)
-            } else {
-                SessionCommand::SendIfVisibleLikeCpp(command)
-            };
-            let _ = registry.try_send_current_command(registration, command);
-        }
+                source_position,
+                bytes,
+                realm_connection,
+                allow_legacy_source_fallback,
+            );
     }
 }
 

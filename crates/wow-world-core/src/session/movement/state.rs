@@ -632,14 +632,10 @@ impl crate::session::HubRef<'_> {
     }
 
     pub fn player_position_like_cpp(&self) -> Option<wow_core::Position> {
-        let canonical = self
-            .core
-            .with_owned_player_like_cpp(|player| player.unit().world().position());
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return self.fixtures.movement.player_position;
-        }
-        canonical
+        self.core.player_position_with_fixture_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.movement.player_position,
+        )
     }
 
     pub fn resolved_player_movement_flags_like_cpp(&self) -> Option<MovementFlag> {

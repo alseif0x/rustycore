@@ -112,6 +112,22 @@ impl crate::session::HubMut<'_> {
         );
     }
 }
+impl crate::session::state::SessionCore {
+    pub(crate) fn player_position_with_fixture_like_cpp(
+        &self,
+        #[cfg(any(test, feature = "test-fixtures"))]
+        fixture_position: &Option<wow_core::Position>,
+    ) -> Option<wow_core::Position> {
+        let canonical =
+            self.with_owned_player_like_cpp(|player| player.unit().world().position());
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return *fixture_position;
+        }
+        canonical
+    }
+}
+
 impl crate::session::HubRef<'_> {
     /// Publish a movement-set packet from the Unit that actually moved.
     /// C++ calls `mover->SendMessageToSet`, so controlled movers must be
@@ -159,36 +175,21 @@ impl crate::session::HubRef<'_> {
     /// Update this session's position (and map) in the player registry.
     /// Called whenever `player_position` changes.
     pub fn update_registry_position(&self) {
-        let (Some(guid), Some(pos), Some(reg)) = (
-            self.core.player_guid(),
-            self.player_position_like_cpp(),
-            &self.core.player_registry,
-        ) else {
-            return;
-        };
-        let map_id = self.core.player_map_id_like_cpp();
-        let Some(is_alive) = self.resolved_player_is_alive_like_cpp() else {
-            return;
-        };
-        // Fallback to 0 (world/default instance) when no canonical map key is
-        // available — mirrors C++ world-map phase where instance_id == 0.
-        let instance_id = self
-            .core
-            .current_canonical_player_map_key_like_cpp()
-            .map(|k| k.instance_id)
-            .unwrap_or(0);
-        let _ = reg.publish_movement_for_control_channel(
-            guid,
-            &self.core.session_command_tx,
-            crate::session::directory::PlayerMovementDirectoryUpdate {
-                position: pos,
-                map_id,
-                instance_id,
-                is_in_world: self.core.player_is_in_world_for_registry_like_cpp(),
-                level: self.player_level_like_cpp(),
-                is_alive,
-                transport: self.player_transport_info_like_cpp(),
-            },
-        );
+        self.core
+            .player_registry_sync_access_like_cpp(
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &self.fixtures.movement.player_position,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &self.fixtures.combat.player_health_like_cpp,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &self.fixtures.combat.player_max_health_like_cpp,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &self.fixtures.combat.player_alive_like_cpp,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &self.fixtures.identity.player_level,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &self.fixtures.vehicles.player_transport_login_state_like_cpp,
+            )
+            .update_registry_position();
     }
 }
