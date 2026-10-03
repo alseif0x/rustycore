@@ -5,9 +5,11 @@
 //! Application-level operations shared by World adapters.
 
 mod profession;
+mod quest;
 mod spell_acquisition;
 mod trainer_purchase;
 
+pub use quest::QuestRewardDurablePlanLikeCpp;
 pub use profession::{
     DEFAULT_MAX_PRIMARY_TRADE_SKILLS_LIKE_CPP, MAX_PRIMARY_TRADE_SKILLS_CONFIG_LIKE_CPP,
     NO_PRIMARY_PROFESSION_EQUIPMENT_SLOT_LIKE_CPP, PrimaryProfessionCapacityAnalysisLikeCpp,

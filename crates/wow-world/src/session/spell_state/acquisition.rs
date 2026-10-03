@@ -221,30 +221,20 @@ impl WorldSession {
                 non_durable_skill_tombstones,
             );
         }
-        let Some(prepared) = wow_entities::PreparedPlayerSpellAcquisitionLikeCpp::try_new(
-            spell_rows
-                .into_iter()
-                .map(canonical_player_spell_record_like_cpp),
-            traits,
-            overrides,
-            skill_records
-                .into_iter()
-                .map(|(key, skill)| (key, canonical_player_skill_record_like_cpp(skill)))
-                .collect(),
-            occupied_skill_slots,
-            non_durable_skill_tombstones,
-        ) else {
-            return false;
-        };
-        self.core
-            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        if self
+        let installed = self
             .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.apply_prepared_spell_acquisition_like_cpp(prepared)
-            })
-            .is_none()
-        {
+            .owned_spell_acquisition_access_like_cpp()
+            .install_complete_spell_acquisition_like_cpp(
+                spell_rows
+                    .into_iter()
+                    .map(canonical_player_spell_record_like_cpp),
+                traits,
+                overrides,
+                skill_records,
+                occupied_skill_slots,
+                non_durable_skill_tombstones,
+            );
+        if !installed {
             return false;
         }
         self.sync_player_registry_state_like_cpp();

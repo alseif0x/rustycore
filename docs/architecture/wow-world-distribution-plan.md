@@ -1831,6 +1831,28 @@ los contextos concretos, exclusión monetaria, ambos fences y publicación.
 Inventory conserva el argumento de estado del constructor para los fixtures;
 el campo de respaldo solo existe con test/test-fixtures.
 
+**Plan durable de quest reward trasladado — 2026-10-03, 11:16 UTC
+(NO VALIDADO):** el módulo privado quests de aplicación contiene
+`QuestRewardDurablePlanLikeCpp`; World conserva una fachada y los consumidores
+reales en rewards, rewards/items y reward_commit. Sus siete campos privados y
+nueve métodos mantienen su implementación al comparar fuente sin comentarios
+ni promoción de visibilidad. El coordinador, commit y proyección de quests
+siguen pendientes. La referencia C++ no significa una única transacción para
+toda la operación: el correo opcional puede confirmar antes de su
+`SaveToDB(false)` final; el comentario del proveedor conserva ese límite.
+
+**Instalación canónica de spell acquisition — 2026-10-03, 11:22 UTC
+(NO VALIDADO):** `OwnedSpellAcquisitionAccessLikeCpp` mantiene privado su
+préstamo mutable a Core. Recibe filas canónicas de spells; su conversor sigue
+en Spell para evitar Core → Spell. Conserva validación del snapshot temporal,
+conversión de skills, invalidación y aplicación generation-checked sin await.
+World conserva la rama fixture exacta y sincroniza el directorio después de
+éxito; ese paso sigue pendiente de sus participantes Loot/Social. Las fuentes
+`Player.cpp::AddSpell:2741–3139` y `SetSkill:5635–5853` delimitan el
+comportamiento base, sin demostrar equivalencia de esta preparación async.
+Los escenarios existentes de skill owner, spell state y effect learning y
+los casos de entidad permanecen escritos; no se han ejecutado en este corte.
+
 ### F6 — retirada de duplicados, pista de comportamiento
 
 La revisión F5 conserva dos diferencias que no puede resolver mediante un
@@ -1841,6 +1863,17 @@ comentarios contra `a5f8da2eb` sin cambiar las reglas ni presentar esas
 diferencias como divergencias aprobadas. El campo C++ compartido CharacterPoints
 se verifica en Player.h:1848–1849/Player.cpp:2359 y los dos slots en
 UpdateFields.h:755; no son evidencia de la preparación/durabilidad asíncrona.
+
+La inspección completa de `CharacterHandler.cpp:1953–2010`
+(`HandleUseEquipmentSet`, mismo SHA) conserva otro límite existente:
+`session/player_items/equipment_sets.rs::use_represented_equipment_set_like_cpp`
+usa inventario directo y backpack libre, sin las decisiones C++ `CanStoreItem`,
+`CanUnequipItem`, `CanEquipItem` ni el error de equipamiento de la rama de
+almacenamiento fallido. El traslado F5 debe conservar esa ruta actual y el
+resultado final; corregir su alcance exige el contrato completo de inventario
+y evidencia F6. Save se contrasta por separado contra
+`CharacterHandler.cpp:1860::HandleEquipmentSetSave` y
+`Player.cpp:26376::SetEquipmentSet` antes de diseñar su contexto acotado.
 
 Por dominio, retirar la duplicidad `represented_*`/canónica y resolver
 `session/legacy_runtime` y el `map_manager` legado. Elegir por la operación completa y
