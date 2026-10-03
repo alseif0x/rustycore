@@ -3,7 +3,7 @@
 
 use wow_entities::PlayerInventoryRuntime;
 
-use crate::session::SessionCore;
+use crate::session::{InventoryPlayerProjectionLikeCpp, SessionCore};
 
 /// Borrowed access to the session's canonical inventory owner.
 pub struct OwnedInventoryAccessLikeCpp<'a> {
@@ -18,6 +18,39 @@ impl SessionCore {
 }
 
 impl OwnedInventoryAccessLikeCpp<'_> {
+    /// Return the current canonical Player as a detached inventory projection.
+    pub fn inventory_player_projection_snapshot_like_cpp(
+        &self,
+    ) -> Option<InventoryPlayerProjectionLikeCpp> {
+        self.core
+            .with_owned_player_like_cpp(Clone::clone)
+            .map(InventoryPlayerProjectionLikeCpp::from_player)
+    }
+
+    /// Read the bound player GUID for fixture reconstruction and publication.
+    pub fn player_guid_like_cpp(&self) -> Option<wow_core::ObjectGuid> {
+        self.core.player_guid()
+    }
+
+    /// Update visible item values through the existing GUID/map mutation path.
+    pub fn set_player_visible_item_values_by_guid_like_cpp(
+        &self,
+        guid: wow_core::ObjectGuid,
+        changes: &[(u8, i32, u16, u16)],
+    ) -> bool {
+        self.core
+            .mutate_canonical_player_by_guid_like_cpp(guid, |player| {
+                for &(slot, item_id, appearance_mod_id, visual) in changes {
+                    crate::canonical_player_access::set_player_visible_item_values_like_cpp(
+                        player,
+                        slot,
+                        (item_id, appearance_mod_id, visual),
+                    );
+                }
+            })
+            .is_some()
+    }
+
     /// Read canonical player money without applying an Inventory fixture fallback.
     pub fn player_money_like_cpp(&self) -> Option<u64> {
         self.core.with_owned_player_like_cpp(|player| player.money())

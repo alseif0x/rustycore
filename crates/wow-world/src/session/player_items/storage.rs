@@ -237,7 +237,9 @@ impl WorldSession {
     ) -> InventoryResult {
         self.can_use_inventory_item_represented_with_loading_like_cpp(item, runtime_item, true)
     }
-    pub(in crate::session) fn direct_inventory_player_snapshot(&self) -> Option<Player> {
+    pub(in crate::session) fn direct_inventory_player_snapshot(
+        &self,
+    ) -> Option<wow_world_core::session::InventoryPlayerProjectionLikeCpp> {
         let (state, hub) = crate::session::split_inventory_ref(self);
         state.direct_inventory_player_snapshot(hub)
     }

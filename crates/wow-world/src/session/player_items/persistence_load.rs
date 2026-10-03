@@ -97,7 +97,7 @@ impl WorldSession {
             .is_some_and(|spell_id| self.known_spells_like_cpp().contains(&spell_id));
         let quality = self.item_template_quality(item.entry_id).unwrap_or(0);
 
-        player.can_use_item(CanUseItemArgs {
+        player.can_use_item_like_cpp(CanUseItemArgs {
             source_item: runtime_item,
             proto: proto.as_ref(),
             not_loading,

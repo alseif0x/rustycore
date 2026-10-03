@@ -470,9 +470,9 @@ impl WorldSession {
         // child-before-parent order.
         for &(vacated_bag, vacated_slot) in vacated_positions {
             if vacated_bag == INVENTORY_SLOT_BAG_0 {
-                let _ = player.remove_top_level_item(vacated_slot);
+                let _ = player.remove_top_level_item_like_cpp(vacated_slot);
             } else {
-                let _ = player.remove_bag_item(vacated_bag, vacated_slot);
+                let _ = player.remove_bag_item_like_cpp(vacated_bag, vacated_slot);
             }
         }
         let proto = self.item_storage_template(entry_id);
@@ -627,7 +627,7 @@ impl WorldSession {
             self.item_limit_category_template_like_cpp(proto.item_limit_category)
         });
         let mut dest = Vec::new();
-        let outcome = player.can_store_item(
+        let outcome = player.can_store_item_like_cpp(
             &mut dest,
             CanStoreItemArgs {
                 bag,

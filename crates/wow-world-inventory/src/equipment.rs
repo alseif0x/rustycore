@@ -47,7 +47,7 @@ impl crate::InventoryState {
             return InventoryResult::CantDoThatRightNow;
         };
 
-        player.can_unequip_item(CanUnequipItemArgs {
+        player.can_unequip_item_like_cpp(CanUnequipItemArgs {
             pos,
             source_item,
             proto,

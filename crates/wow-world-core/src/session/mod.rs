@@ -28,9 +28,9 @@ pub use connection_identity::{
 
 mod canonical_access;
 pub use canonical_access::{
-    OwnedCollectionsAccessLikeCpp, OwnedEquipmentSetsAccessLikeCpp,
-    OwnedInventoryAccessLikeCpp, OwnedItemModifiersAccessLikeCpp,
-    OwnedSpellAcquisitionAccessLikeCpp,
+    InventoryPlayerProjectionLikeCpp, OwnedCollectionsAccessLikeCpp,
+    OwnedEquipmentSetsAccessLikeCpp, OwnedInventoryAccessLikeCpp,
+    OwnedItemModifiersAccessLikeCpp, OwnedSpellAcquisitionAccessLikeCpp,
 };
 mod catalogs;
 mod connection;
@@ -42,6 +42,7 @@ mod movement;
 mod runtime_policy_access;
 mod world_state;
 pub use movement::MovementTransportMembershipLikeCpp;
+pub use movement::PlayerRegistrySyncAccessLikeCpp;
 mod condition_objects;
 mod player_presentation;
 mod player_stat_queries;

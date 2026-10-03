@@ -176,7 +176,7 @@ impl WorldSession {
         let can_use_result =
             self.can_use_inventory_item_represented_like_cpp(&inventory_item, Some(&source_item));
         let mut dest = Vec::new();
-        let result = player.can_bank_item(
+        let result = player.can_bank_item_like_cpp(
             &mut dest,
             CanBankItemArgs {
                 bag: destination_bag,

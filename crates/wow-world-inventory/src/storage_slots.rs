@@ -116,7 +116,7 @@ impl crate::InventoryState {
         explicit_pos: bool,
     ) -> bool {
         self.direct_inventory_player_snapshot(hub)
-            .is_some_and(|player| player.is_valid_pos(bag, slot, explicit_pos))
+            .is_some_and(|player| player.is_valid_pos_like_cpp(bag, slot, explicit_pos))
     }
 
     /// Return every runtime item contained by `container_guid`, deepest first.

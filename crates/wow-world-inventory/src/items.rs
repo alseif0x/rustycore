@@ -25,7 +25,7 @@ use crate::{
     RepresentedItemModsReapplyEventLikeCpp,
 };
 use crate::RepresentedItemSetSpellEventLikeCpp;
-use wow_world_core::session::{HubMut, HubRef};
+use wow_world_core::session::{HubMut, HubRef, OwnedInventoryAccessLikeCpp};
 
 impl crate::InventoryState {
     pub fn represented_top_level_item_mod_targets_like_cpp(
@@ -187,7 +187,15 @@ impl crate::InventoryState {
         &self,
         hub: HubRef<'_>,
     ) -> Option<HashMap<u8, InventoryItem>> {
-        self.resolved_player_inventory_runtime_like_cpp(hub)
+        let access = hub.core.owned_inventory_access_like_cpp();
+        self.resolved_buyback_items_with_access_like_cpp(&access)
+    }
+
+    pub(crate) fn resolved_buyback_items_with_access_like_cpp(
+        &self,
+        access: &OwnedInventoryAccessLikeCpp<'_>,
+    ) -> Option<HashMap<u8, InventoryItem>> {
+        self.resolved_player_inventory_runtime_with_access_like_cpp(access)
             .map(|inventory| inventory.buyback_items().clone())
     }
 

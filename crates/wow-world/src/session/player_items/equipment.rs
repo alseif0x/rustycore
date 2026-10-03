@@ -314,7 +314,7 @@ impl WorldSession {
 
         let unique_equippable = proto.flags.contains(ItemFlags::UNIQUE_EQUIPPABLE);
         let limit_category = self.item_limit_category_template_like_cpp(proto.item_limit_category);
-        player.can_equip_unique_item(CanEquipUniqueItemArgs {
+        player.can_equip_unique_item_like_cpp(CanEquipUniqueItemArgs {
             source_item: Some(runtime_item),
             proto: Some(&proto),
             except_slot,
@@ -403,10 +403,8 @@ impl WorldSession {
             };
         };
 
-        player
-            .unit_mut()
-            .set_can_dual_wield_like_cpp(can_dual_wield);
-        player.set_can_titan_grip(can_titan_grip, 0);
+        player.set_can_dual_wield_like_cpp(can_dual_wield);
+        player.set_can_titan_grip_like_cpp(can_titan_grip, 0);
 
         let Some(item_objects) = self.resolved_inventory_item_objects_like_cpp() else {
             return CanEquipItemOutcome {
@@ -488,7 +486,7 @@ impl WorldSession {
         let mainhand_template = self
             .resolved_inventory_item_like_cpp(EQUIPMENT_SLOT_MAINHAND)
             .and_then(|item| self.item_storage_template(item.entry_id));
-        let is_two_hand_used = player.is_two_hand_used_template(mainhand_template.as_ref());
+        let is_two_hand_used = player.is_two_hand_used_template_like_cpp(mainhand_template.as_ref());
         let can_use_result = self.can_use_inventory_item_represented_with_loading_like_cpp(
             inventory_item,
             Some(runtime_item),
@@ -577,7 +575,7 @@ impl WorldSession {
         // C++ computes the unique-equip ignore slot from the selected equip
         // destination. Run the already-ported selector once with a neutral
         // unique result, then repeat with the exact CanEquipUniqueItem result.
-        let initial = player.can_equip_item(make_args(InventoryResult::Ok));
+        let initial = player.can_equip_item_like_cpp(make_args(InventoryResult::Ok));
         if initial.result != InventoryResult::Ok {
             return initial;
         }
@@ -586,7 +584,7 @@ impl WorldSession {
             runtime_item,
             initial.unique_ignore_slot.unwrap_or(NULL_SLOT),
         );
-        player.can_equip_item(make_args(unique_result))
+        player.can_equip_item_like_cpp(make_args(unique_result))
     }
     pub(crate) fn represented_avg_equipped_item_level_like_cpp(&self) -> Option<f32> {
         let (_, can_titan_grip) = self.inventory_equip_capabilities_like_cpp()?;

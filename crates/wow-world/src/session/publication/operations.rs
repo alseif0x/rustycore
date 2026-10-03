@@ -106,9 +106,17 @@ impl WorldSession {
 
         Some(SetupCurrency::from_records(records))
     }
-    pub(in crate::session) fn player_values_update_snapshot(&self) -> Option<Player> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.player_values_update_snapshot(hub)
+    pub(in crate::session) fn player_values_update_snapshot(
+        &self,
+    ) -> Option<wow_world_core::session::InventoryPlayerProjectionLikeCpp> {
+        let access = self.core.owned_inventory_access_like_cpp();
+        let publication = self.core.packet_publication_access_like_cpp();
+        self.inventory.player_values_update_snapshot_with_access_like_cpp(
+            &access,
+            &publication,
+            self.catalogs.items.store.as_ref(),
+            self.catalogs.items.stats_store.as_ref(),
+        )
     }
     pub(crate) fn send_player_values_update_from_entity_bridge(
         &self,
@@ -118,9 +126,13 @@ impl WorldSession {
         buyback_changes: &[(u8, u32, i64)],
         coinage: Option<u64>,
     ) -> bool {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.send_player_values_update_from_entity_bridge(
-            hub,
+        let access = self.core.owned_inventory_access_like_cpp();
+        let publication = self.core.packet_publication_access_like_cpp();
+        self.inventory.send_player_values_update_from_entity_bridge_with_access_like_cpp(
+            &access,
+            &publication,
+            self.catalogs.items.store.as_ref(),
+            self.catalogs.items.stats_store.as_ref(),
             inv_slot_changes,
             visible_item_changes,
             virtual_item_changes,
@@ -180,4 +192,3 @@ impl WorldSession {
         self.core.send_sell_error(result, creature_guid, item_guid)
     }
 }
-

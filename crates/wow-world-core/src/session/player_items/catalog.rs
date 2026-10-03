@@ -1,8 +1,6 @@
 use std::sync::Arc;
 
-use wow_constants::{
-    BagFamilyMask, InventoryType, ItemBondingType, ItemClass, ItemFlags, ItemFlags2,
-};
+use wow_constants::ItemFlags;
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_data::{ItemClassStore, ItemPriceBaseStore};
 use wow_data::{
@@ -161,27 +159,10 @@ impl crate::session::state::SessionCatalogs {
 
     /// Resolve the C++ `ItemTemplate` subset used by storage validation.
     pub fn item_storage_template(&self, item_id: u32) -> Option<ItemStorageTemplate> {
-        let basic = self.items.store.as_ref()?.get(item_id)?;
-        let sparse = self.items.stats_store.as_ref()?.sparse_template(item_id)?;
-        let class_id = <ItemClass as num_traits::FromPrimitive>::from_u8(basic.class_id)?;
-        let inventory_type =
-            <InventoryType as num_traits::FromPrimitive>::from_i8(sparse.inventory_type)?;
-        let bonding = <ItemBondingType as num_traits::FromPrimitive>::from_u8(sparse.bonding)?;
-
-        Some(ItemStorageTemplate {
-            entry: item_id,
-            class_id,
-            subclass_id: u32::from(basic.subclass_id),
-            inventory_type,
-            bonding,
-            bag_family: BagFamilyMask::from_bits_retain(sparse.bag_family),
-            max_stack_size: sparse.max_stack_size(),
-            max_count: sparse.max_count,
-            item_limit_category: u32::from(sparse.limit_category),
-            container_slots: sparse.container_slots,
-            sell_price: sparse.sell_price,
-            is_crafting_reagent: (sparse.flags[1] & ItemFlags2::UsedInATradeskill as u32) != 0,
-            flags: sparse.item_flags(),
-        })
+        crate::catalogs::item::item_storage_template_like_cpp(
+            self.items.store.as_ref(),
+            self.items.stats_store.as_ref(),
+            item_id,
+        )
     }
 }

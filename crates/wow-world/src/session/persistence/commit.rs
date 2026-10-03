@@ -26,8 +26,8 @@ impl WorldSession {
     /// emit the same PlayerData::Flags values delta that C++ SetPlayerFlag does.
     pub(crate) fn apply_committed_void_storage_unlock_like_cpp(&mut self) {
         let values_update = self.player_values_update_snapshot().and_then(|mut player| {
-            player.set_player_flag(PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP);
-            Some(player.values_update(true))
+            player.set_player_flag_like_cpp(PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP);
+            Some(player.values_update_like_cpp(true))
         });
 
         let Some(_current_flags) = self.represented_player_flags_value_like_cpp() else {

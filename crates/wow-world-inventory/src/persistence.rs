@@ -139,7 +139,7 @@ impl crate::InventoryState {
 
         let player = self.direct_inventory_player_snapshot(hub)?;
         let player_is_alive = hub.resolved_player_is_alive_like_cpp()?;
-        Some(player.swap_item_preflight_plan(
+        Some(player.swap_item_preflight_plan_like_cpp(
             src,
             dst,
             player_is_alive,
@@ -171,4 +171,3 @@ impl crate::InventoryState {
         }
     }
 }
-

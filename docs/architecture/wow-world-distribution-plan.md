@@ -1986,6 +1986,26 @@ de fixture desde la compilación normal. Anclas: Player.cpp:23376::SetMoney,
 :9424::SetInventorySlotCount y Player.h:1332–1335 en a5f8da2eb. No se cambiaron
 publishers, ejecutaron pruebas ni demostraron nuevas garantías de durabilidad.
 
+**Proyección y publicación de inventario completas — 2026-10-03, 13:39 UTC
+(NO VALIDADO):** Core envuelve el clon existente de Player en una proyección
+opaca de planificación, sin exponer Player, Deref ni autoridad canónica nueva.
+Inventory contiene el contexto privado y el cuerpo completo del snapshot y
+su publicación; World construye capacidades y presta los dos stores de objetos.
+Se mantienen el snapshot completo incluso para coinage, la reconstrucción de
+fixtures solo sin handle, las lecturas y clones de runtime, la mutación canónica
+única de visible items antes del snapshot y el resultado real del envío.
+La conversión de ItemStorageTemplate tiene un solo provider con stores elegidos.
+Banco, almacenamiento, equipo, preflight, carga/persistencia y void storage
+consumen la misma proyección; los closures sobre Player canónico conservan sus
+métodos originales. Las fachadas y los escenarios existentes permanecen;
+no se movieron ni retiraron pruebas en este lote. Anclas contrastadas en
+a5f8da2eb: Object.cpp:190::BuildValuesUpdateBlockForPlayer,
+Player.cpp:3634::BuildValuesUpdate, :11502::SetVisibleItemSlot y los métodos
+CanStoreItem/CanBankItem/CanUseItem/CanEquipItem/CanUnequipItem/SwapItem.
+El traslado delega a las operaciones Rust existentes: no prueba su paridad
+ni repara las diferencias retenidas para F6. Compilación, formato, suites,
+capturas y aceptación siguen pendientes junto con el resto de F5.
+
 **Planificación y aplicación de modificadores de objetos — 2026-10-03,
 12:59 UTC (NO VALIDADO):** Inventory contiene la operación completa con un
 contexto privado, dos capacidades canónicas y seis referencias de catálogo.

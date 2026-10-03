@@ -2,7 +2,7 @@
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
 use wow_entities::{BUYBACK_SLOT_COUNT, BUYBACK_SLOT_END, BUYBACK_SLOT_START};
-use wow_world_core::session::{HubMut, HubRef};
+use wow_world_core::session::{HubMut, HubRef, OwnedInventoryAccessLikeCpp};
 
 impl crate::InventoryState {
     pub fn clear_buyback_runtime_like_cpp(&mut self, hub: &mut HubMut<'_>) {
@@ -84,7 +84,15 @@ impl crate::InventoryState {
         &self,
         hub: HubRef<'_>,
     ) -> Option<[u32; BUYBACK_SLOT_COUNT]> {
-        self.resolved_player_inventory_runtime_like_cpp(hub)
+        let access = hub.core.owned_inventory_access_like_cpp();
+        self.resolved_buyback_price_with_access_like_cpp(&access)
+    }
+
+    pub(crate) fn resolved_buyback_price_with_access_like_cpp(
+        &self,
+        access: &OwnedInventoryAccessLikeCpp<'_>,
+    ) -> Option<[u32; BUYBACK_SLOT_COUNT]> {
+        self.resolved_player_inventory_runtime_with_access_like_cpp(access)
             .map(|inventory| *inventory.buyback_price())
     }
 
@@ -92,7 +100,15 @@ impl crate::InventoryState {
         &self,
         hub: HubRef<'_>,
     ) -> Option<[i64; BUYBACK_SLOT_COUNT]> {
-        self.resolved_player_inventory_runtime_like_cpp(hub)
+        let access = hub.core.owned_inventory_access_like_cpp();
+        self.resolved_buyback_timestamp_with_access_like_cpp(&access)
+    }
+
+    pub(crate) fn resolved_buyback_timestamp_with_access_like_cpp(
+        &self,
+        access: &OwnedInventoryAccessLikeCpp<'_>,
+    ) -> Option<[i64; BUYBACK_SLOT_COUNT]> {
+        self.resolved_player_inventory_runtime_with_access_like_cpp(access)
             .map(|inventory| *inventory.buyback_timestamp())
     }
 

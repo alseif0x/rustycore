@@ -57,9 +57,9 @@ impl crate::InventoryState {
             return;
         };
 
-        player.set_bank_bag_slot_count(count);
+        player.set_bank_bag_slot_count_like_cpp(count);
         player.mark_bank_bag_slot_count_changed_like_cpp();
-        let update = player.values_update(true);
+        let update = player.values_update_like_cpp(true);
         if let Some(packet) =
             player_values_update_to_update_object(guid, hub.core.player_map_id_like_cpp(), &update)
         {
@@ -84,7 +84,7 @@ impl crate::InventoryState {
             return;
         }
         player.mark_bank_bag_slot_flag_changed_like_cpp(slot);
-        let update = player.values_update(true);
+        let update = player.values_update_like_cpp(true);
         if let Some(packet) =
             player_values_update_to_update_object(guid, hub.core.player_map_id_like_cpp(), &update)
         {
