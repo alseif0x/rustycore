@@ -8,8 +8,6 @@ use std::collections::BTreeSet;
 use std::collections::HashMap;
 use std::sync::Arc;
 
-#[cfg(any(test, feature = "test-fixtures"))]
-use crate::session::SKILL_ENCHANTING_LIKE_CPP;
 use crate::session::{
     state::SessionCore,
     RepresentedPlayerSkillLikeCpp, RepresentedPlayerSkillStateLikeCpp,
@@ -20,6 +18,8 @@ use wow_data::{FishingBaseSkillStoreLikeCpp, SkillLineStore, SkillStore, SkillTi
 use wow_entities::Player;
 
 mod publication;
+#[cfg(any(test, feature = "test-fixtures"))]
+mod runtime_install;
 
 impl crate::session::HubMut<'_> {
     #[allow(dead_code)]
@@ -169,57 +169,20 @@ impl crate::session::HubMut<'_> {
         occupied_slots: Option<u16>,
         tombstones: BTreeSet<u16>,
     ) -> bool {
-        let canonical_records = skill_records
-            .values()
-            .copied()
-            .map(canonical_player_skill_record_like_cpp)
-            .collect();
-        let canonical = self
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.replace_skill_records_like_cpp(
-                    canonical_records,
-                    loaded,
-                    complete,
-                    occupied_slots,
-                    tombstones.clone(),
-                );
-            })
-            .is_some();
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if self.core.player_handle_like_cpp.is_none() {
-            self.fixtures
-                .progression
-                .player_skill_test_fixture_like_cpp
-                .player_skill_values_like_cpp =
-                represented_skill_values_from_records_like_cpp(&skill_records);
-            self.fixtures.progression.represented_enchanting_skill = skill_records
-                .get(&SKILL_ENCHANTING_LIKE_CPP)
-                .map(|skill| skill.value)
-                .unwrap_or(0);
-            self.fixtures
-                .progression
-                .player_skill_test_fixture_like_cpp
-                .player_skill_records_like_cpp = skill_records;
-            self.fixtures
-                .progression
-                .player_skill_test_fixture_like_cpp
-                .player_skill_non_durable_tombstones_like_cpp = tombstones;
-            self.fixtures
-                .progression
-                .player_skill_test_fixture_like_cpp
-                .player_skill_records_loaded_like_cpp = loaded;
-            self.fixtures
-                .progression
-                .player_skill_test_fixture_like_cpp
-                .player_skill_records_complete_like_cpp = loaded && complete;
-            self.fixtures
-                .progression
-                .player_skill_test_fixture_like_cpp
-                .player_skill_occupied_slots_like_cpp = occupied_slots;
-            return true;
-        }
-        canonical
+        self.core.replace_player_skill_runtime_exact_like_cpp(
+            skill_records,
+            loaded,
+            complete,
+            occupied_slots,
+            tombstones,
+            (
+                &mut self
+                    .fixtures
+                    .progression
+                    .player_skill_test_fixture_like_cpp,
+                &mut self.fixtures.progression.represented_enchanting_skill,
+            ),
+        )
     }
 
     pub fn set_player_skill_occupied_slots_like_cpp(&mut self, occupied_slots: u16) -> bool {

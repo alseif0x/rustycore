@@ -1950,6 +1950,13 @@ disponible bajo Core test-fixtures para consumidores normales de Inventory.
 `Player.cpp:5635::SetSkill` y `:25723::_LoadSkills` en `a5f8da2eb` son las anclas
 revisadas; no prueban bytes nuevos ni la ordenación representada del bridge.
 Los callers y escenarios World se conservan sin ejecución nueva.
+La instalación exacta de skills también tiene un único cuerpo en Core, con
+las dos referencias fixture seleccionadas. Su módulo, método y fachada Hub
+siguen bajo el gate original test/test-fixtures: no se añade una ruta normal.
+Se conservan la conversión previa de filas, el clon de tombstones dentro de
+la mutación canónica y el mirror sin handle, incluido loaded && complete.
+Esta continuación revisada en fuente a las 13:20 UTC permanece NO VALIDADA;
+no aporta evidencia nueva de compilación, pruebas ni paridad.
 
 **Dinero y banco con acceso canónico acotado — 2026-10-03, 13:07 UTC
 (NO VALIDADO):** OwnedInventoryAccess concentra las siete lecturas/mutaciones
