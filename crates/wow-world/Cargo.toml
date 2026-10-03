@@ -21,6 +21,7 @@ test-fixtures = [
     "wow-world-social/test-fixtures",
     "wow-world-spell/test-fixtures",
     "wow-world-visibility/test-fixtures",
+    "wow-world-application/test-fixtures",
 ]
 
 [dependencies]

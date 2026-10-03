@@ -3486,12 +3486,18 @@ dependencies = [
 name = "wow-world-application"
 version = "0.1.0"
 dependencies = [
+ "rand",
  "tokio",
+ "tracing",
  "wow-config",
+ "wow-constants",
  "wow-core",
  "wow-data",
+ "wow-entities",
  "wow-persistence",
  "wow-spell-acquisition",
+ "wow-world-core",
+ "wow-world-lifecycle",
 ]
 
 [[package]]

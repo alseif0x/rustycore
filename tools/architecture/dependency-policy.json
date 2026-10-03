@@ -105,10 +105,14 @@
     ],
     "wow-world-application": [
       "wow-config",
+      "wow-constants",
       "wow-core",
       "wow-data",
+      "wow-entities",
       "wow-persistence",
-      "wow-spell-acquisition"
+      "wow-spell-acquisition",
+      "wow-world-core",
+      "wow-world-lifecycle"
     ],
     "wow-world-core": [
       "wow-ai",

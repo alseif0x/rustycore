@@ -44,71 +44,43 @@ impl WorldSession {
         money_before: u64,
         money_after: u64,
     ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
-        #[cfg(test)]
-        if let Some(success) = self
-            .lifecycle
-            .loot_money_persistence_test_result_like_cpp()
-        {
-            return success.then_some(money_persistence);
-        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let fixture_result = {
+            #[cfg(test)]
+            {
+                self.lifecycle
+                    .loot_money_persistence_test_result_like_cpp()
+            }
+            #[cfg(not(test))]
+            {
+                None
+            }
+        };
 
-        let port = self
-            .lifecycle
-            .player_spell_acquisition_persistence_port_like_cpp()
-            .cloned()?;
-        let player_guid = self.player_guid()?;
-        let guid_counter = player_guid.counter() as u64;
-        let mut cancellation_fence = PlayerMoneyCommitCancellationFenceLikeCpp::new(Arc::clone(
-            self.lifecycle
-                .durable_loot_money_persistence_tracker_like_cpp(),
-        ));
-        let mut operation_token = [0u8; 16];
-        rand::thread_rng().fill_bytes(&mut operation_token);
-        let request =
-            match crate::spell_acquisition::player_spell_acquisition_persistence_request_like_cpp(
-                guid_counter,
+        let core_access = self.core.player_money_transaction_access_like_cpp();
+        #[cfg(any(test, feature = "test-fixtures"))]
+        {
+            return wow_world_application::commit_exclusive_player_money_and_spell_acquisition_like_cpp(
+                &self.lifecycle,
+                core_access,
+                money_persistence,
                 prepared,
                 money_before,
                 money_after,
-                operation_token,
-            ) {
-                Ok(request) => request,
-                Err(error) => {
-                    cancellation_fence.disarm_like_cpp();
-                    warn!(%error, "trainer purchase request was not persistence-safe");
-                    return None;
-                }
-            };
-        use crate::spell_acquisition::PlayerSpellAcquisitionPersistenceOutcomeLikeCpp as Outcome;
-        match crate::spell_acquisition::persist_player_spell_acquisition_through_port_like_cpp(
-            &*port, request,
+                fixture_result,
+            )
+            .await;
+        }
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        wow_world_application::commit_exclusive_player_money_and_spell_acquisition_like_cpp(
+            &self.lifecycle,
+            core_access,
+            money_persistence,
+            prepared,
+            money_before,
+            money_after,
         )
         .await
-        {
-            Outcome::Applied => {
-                cancellation_fence.disarm_like_cpp();
-                Some(money_persistence)
-            }
-            Outcome::DefinitelyRolledBack(reason) => {
-                cancellation_fence.disarm_like_cpp();
-                warn!(error = %reason, "trainer purchase transaction definitely rolled back");
-                None
-            }
-            Outcome::ReconciledCommit(reason) => {
-                cancellation_fence.disarm_like_cpp();
-                warn!(error = %reason, "trainer COMMIT reply was lost but durable rows prove commit");
-                Some(money_persistence)
-            }
-            Outcome::Indeterminate(reason) => {
-                self.lifecycle
-                    .durable_loot_money_persistence_tracker_like_cpp()
-                    .mark_indeterminate_like_cpp();
-                cancellation_fence.disarm_like_cpp();
-                self.kick("trainer purchase COMMIT outcome is unknown; relog required");
-                warn!(error = %reason, "trainer COMMIT outcome remains indeterminate; session quarantined");
-                None
-            }
-        }
     }
     pub(in crate::session) fn invalidate_represented_spell_acquisition_auxiliary_authority_like_cpp(
         &mut self,

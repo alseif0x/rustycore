@@ -1924,6 +1924,20 @@ pruebas ejecutadas. `SpellEffects.cpp:2176::EffectDualWield` en `a5f8da2eb`
 tiene el gate HIT_TARGET y `SetCanDualWield(true)`; no demuestra la admisión
 ni la durabilidad del executor de trainer.
 
+**Commit combinado de trainer en aplicación — 2026-10-03, 12:30 UTC
+(NO VALIDADO):** el contexto privado reúne Lifecycle y el acceso monetario
+acotado de Core; World conserva su fachada. El cuerpo trasladado mantiene
+override de test, clon del puerto, GUID, fence, token, request y await, y los
+cuatro resultados. Indeterminate conserva mark-indeterminate, disarm,
+quarantine, warn y retorno dentro del commit. El override no existe en la
+firma normal; bajo test-fixtures World pasa None salvo su cfg(test) original.
+Application añade únicamente Core/Lifecycle y rand/tracing usados por esta
+operación, sin dependencia hacia World ni una arista inversa de Lifecycle.
+La metadata incluye constants/entities y el gate de fixtures del corte Quest
+en curso; ese corte no queda cerrado por guardar sus dependencias. Persisten
+los escenarios World y los tres tests del executor, todavía sin ejecutarlos.
+El contexto completo de trainer y la evidencia DB/cancelación siguen pendientes.
+
 **QA del registro genérico — 2026-10-03, 11:51 UTC (NO VALIDADO):**
 La política de handlers usa schema 2: varias rutas explícitas de registro y un
 único dispatcher; solo se añade Inventory como owner ya implementado. El

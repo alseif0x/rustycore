@@ -30,6 +30,7 @@ pub use spell_acquisition::{
     apply_prepared_player_spell_acquisition_like_cpp,
     apply_prepared_player_spell_acquisition_with_before_actions_like_cpp,
     apply_prepared_player_spell_acquisition_with_fault_like_cpp,
+    commit_exclusive_player_money_and_spell_acquisition_like_cpp,
     install_prepared_player_spell_acquisition_actions_runtime_like_cpp,
     install_prepared_player_spell_acquisition_runtime_like_cpp,
     persist_player_spell_acquisition_through_port_like_cpp,

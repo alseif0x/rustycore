@@ -112,6 +112,7 @@ pub enum PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp {
 
 mod prepare;
 mod persistence;
+mod commit;
 mod runtime;
 mod translate;
 mod validate_plan;
@@ -130,6 +131,7 @@ pub use persistence::{
     player_spell_acquisition_persistence_request_like_cpp,
     snapshot_has_pending_durable_save_like_cpp,
 };
+pub use commit::commit_exclusive_player_money_and_spell_acquisition_like_cpp;
 pub use runtime::{
     PlayerSpellAcquisitionRuntimeLikeCpp,
     apply_prepared_player_spell_acquisition_actions_like_cpp,

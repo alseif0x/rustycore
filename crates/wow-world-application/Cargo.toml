@@ -6,16 +6,30 @@ rust-version.workspace = true
 license.workspace = true
 publish = false
 
+[features]
+test-fixtures = [
+    "dep:wow-entities",
+    "wow-world-core/test-fixtures",
+    "wow-world-lifecycle/test-fixtures",
+]
+
 [dependencies]
+rand = { workspace = true }
+tracing = { workspace = true }
+wow-constants = { workspace = true }
 wow-core = { workspace = true }
 wow-config = { workspace = true }
 wow-data = { workspace = true }
 wow-persistence = { workspace = true }
 wow-spell-acquisition = { workspace = true }
+wow-entities = { workspace = true, optional = true }
+wow-world-core = { workspace = true }
+wow-world-lifecycle = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }
 wow-spell-acquisition = { workspace = true, features = ["test-fixtures"] }
+wow-entities = { workspace = true }
 
 [lints]
 workspace = true
