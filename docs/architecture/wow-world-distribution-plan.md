@@ -2797,6 +2797,15 @@ item-level/Registry y ejecuta child/offhand. El mapa debe conservar esas fases
 y contrastar el caller entero antes de atribuir fences ausentes. Las diferencias
 se separan de F5. UseEquipmentSet tiene un controlador síncrono distinto:
 reutilizar roles/proveedores no autoriza sustituir esa operación por su handler.
+El mapa acotado de validate-target y sus tres planes confirmó que todas las
+consultas seleccionadas necesarias ya existen. Se escribió un único contexto
+App de planificación de solo lectura sobre PlayerCondition, con Bank completo
+en hoja privada y una definición única de target. World ya tiene las cuatro
+fachadas thin. La revisión conserva rereads completos, count/destino exactos,
+capabilities/in-combat actuales, cache y listas nativas y contains-items tardío.
+Anchors de kernel: Player.cpp:9615/9882, :10584 y :10820. Root/export y casos de
+aceptación escritos siguen en cierre; no se ejecutó validación ni se trasladó
+todavía la ejecución completa swap/equip por haber cerrado solo planificación.
 
 Quest eligibility de visibilidad también está escrito como módulo privado: nivel,
 race/class y CanSeeStart conservan disable, status, recurrence, seasonal, prev-quest
