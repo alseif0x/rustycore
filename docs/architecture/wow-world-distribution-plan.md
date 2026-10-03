@@ -2621,6 +2621,22 @@ La búsqueda del slot recompensado también debe enlazarse al proveedor original
 no suponerse un método del estado fixture. World aún conserva el coordinador;
 no se reclama traslado completo ni evidencia de compilación o paridad.
 
+Handoff posterior de Reward (2026-10-03, NO VALIDADO): el implementador entrega
+los cuerpos completos de requisitos/turnins, grants fixed/chosen/package y
+almacenamiento, reputación, QuestLog y coordinador con sus fachadas World.
+La revisión conjunta detectó un bloqueo de integración de manifest:
+reward/reputation.rs usa wow_progression::mgr::SetReputationOptionsLikeCpp,
+Application/Cargo.toml no declaraba esa dependencia normal. El implementador
+la añadió y se verificó la declaración por fuente, sin ejecutar Cargo ni
+comprobar todavía el grafo efectivo. Las completions anidadas de objetivos
+siguen a cargo de su propietario; la entrega Reward no acredita esos consumidores.
+El siguiente bloque Inventory asignado es la operación completa de area-scaling,
+incluidos remove/apply mods, restauración de health y publicación condicional,
+reutilizando Stats y los roles seleccionados. C++ Player.cpp:28715–28729,
+SHA a5f8da2ebf5424bf0450ca4e08843ecbf72577bd, confirma remove, activate, apply
+y restore; la fórmula entera/max(1) Rust se conserva en F5, sin afirmar equivalencia
+de redondeo con el porcentaje float C++. No se ejecutaron pruebas ni metadata.
+
 Consulta compartida de slot (2026-10-03, NO VALIDADO): el ancla original es
 `handlers/quest/state.rs:327`; toma un snapshot actual, exige slot menor que
 MAX_QUEST_LOG_SIZE y status incomplete/complete/failed. Su proveedor App se
