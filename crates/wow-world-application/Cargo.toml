@@ -22,6 +22,7 @@ wow-constants = { workspace = true }
 wow-core = { workspace = true }
 wow-config = { workspace = true }
 wow-data = { workspace = true }
+wow-packet = { workspace = true }
 wow-persistence = { workspace = true }
 wow-spell-acquisition = { workspace = true }
 wow-entities = { workspace = true }

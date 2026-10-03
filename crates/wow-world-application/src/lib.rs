@@ -60,7 +60,13 @@ pub use spell_acquisition::{
     validate_prepared_player_spell_acquisition_runtime_like_cpp,
 };
 pub use trainer_purchase::{
-    PreparedTrainerOfferLikeCpp, TrainerAcquisitionCompletionLikeCpp,
+    AppTrainerCx, PreparedTrainerOfferLikeCpp, TrainerAcquisitionCatalogsLikeCpp,
+    TrainerAcquisitionCompletionLikeCpp,
     TrainerAcquisitionPublicationLikeCpp, TrainerAcquisitionResultLikeCpp,
     TrainerAcquisitionRuntimeLikeCpp, execute_trainer_acquisition_like_cpp,
+    install_player_spell_acquisition_runtime_snapshot_like_cpp,
+    install_represented_spell_acquisition_runtime_like_cpp,
+    publish_spell_acquisition_action_like_cpp,
 };
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use trainer_purchase::TrainerAcquisitionFixturesLikeCpp;

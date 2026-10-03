@@ -168,11 +168,10 @@ impl WorldSession {
             runtime.mark_override_spells_complete_like_cpp();
         });
     }
-    /// Installs one validated spell-acquisition snapshot without an await or a
-    /// second semantic walk. It accepts both the dirty post-`LearnSpell`
-    /// snapshot and the normalized post-save snapshot. Inputs are validated
-    /// into temporary maps first so a malformed prepared result cannot
-    /// partially mutate the live player authority.
+
+    /// Compatibility facade for callers that already hold represented rows.
+    /// Translation, validation and canonical/fixture installation are shared
+    /// with the application runtime provider.
     pub(crate) fn replace_complete_spell_acquisition_runtime_like_cpp(
         &mut self,
         spell_rows: impl IntoIterator<Item = RepresentedPlayerSpellLikeCpp>,
@@ -182,36 +181,31 @@ impl WorldSession {
         occupied_skill_slots: u16,
         non_durable_skill_tombstones: BTreeSet<u16>,
     ) -> bool {
-        #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
-            return self.fixture_replace_complete_spell_acquisition_runtime_like_cpp(
-                spell_rows,
-                traits,
-                overrides,
-                skill_records,
-                occupied_skill_slots,
-                non_durable_skill_tombstones,
-            );
+        let owner = self.core.player_acquisition_owner_access_like_cpp();
+        let result = wow_world_application::install_represented_spell_acquisition_runtime_like_cpp(
+            &owner,
+            &mut self.spell_state,
+            spell_rows,
+            traits,
+            overrides,
+            skill_records,
+            occupied_skill_slots,
+            non_durable_skill_tombstones,
+            cfg!(test),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            (
+                &mut self.fixtures.progression.player_skill_test_fixture_like_cpp,
+                &mut self.fixtures.progression.represented_enchanting_skill,
+            ),
+        );
+        if result.is_ok() {
+            self.sync_player_registry_state_like_cpp();
+            true
+        } else {
+            false
         }
-        let installed = self
-            .core
-            .owned_spell_acquisition_access_like_cpp()
-            .install_complete_spell_acquisition_like_cpp(
-                spell_rows
-                    .into_iter()
-                    .map(canonical_player_spell_record_like_cpp),
-                traits,
-                overrides,
-                skill_records,
-                occupied_skill_slots,
-                non_durable_skill_tombstones,
-            );
-        if !installed {
-            return false;
-        }
-        self.sync_player_registry_state_like_cpp();
-        true
     }
+
     #[cfg(test)]
     pub(in crate::session) fn fixture_replace_complete_spell_acquisition_runtime_like_cpp(
         &mut self,
@@ -222,123 +216,29 @@ impl WorldSession {
         occupied_skill_slots: u16,
         non_durable_skill_tombstones: BTreeSet<u16>,
     ) -> bool {
-        let mut exact_spells = BTreeMap::new();
-        for spell in spell_rows {
-            if spell.spell_id <= 0 || exact_spells.insert(spell.spell_id, spell).is_some() {
-                return false;
-            }
-        }
-
-        let mut exact_traits = HashMap::new();
-        for (spell_id, trait_definition_id) in traits {
-            if trait_definition_id <= 0
-                || !exact_spells
-                    .get(&spell_id)
-                    .is_some_and(|spell| spell.state != RepresentedPlayerSpellStateLikeCpp::Removed)
-                || exact_traits.insert(spell_id, trait_definition_id).is_some()
-            {
-                return false;
-            }
-        }
-
-        let mut exact_overrides = HashMap::<i32, BTreeSet<i32>>::new();
-        for (overridden_spell_id, overriding_spell_id) in overrides {
-            if overridden_spell_id <= 0 || overriding_spell_id <= 0 {
-                return false;
-            }
-            exact_overrides
-                .entry(overridden_spell_id)
-                .or_default()
-                .insert(overriding_spell_id);
-        }
-
-        if usize::from(occupied_skill_slots) != skill_records.len()
-            || occupied_skill_slots > 256
-            || !skill_records.iter().all(|(skill_id, skill)| {
-                *skill_id != 0
-                    && *skill_id == skill.skill_id
-                    && (skill.state != RepresentedPlayerSkillStateLikeCpp::Deleted
-                        || (skill.step == 0
-                            && skill.value == 0
-                            && skill.max == 0
-                            && skill.profession_slot == -1))
-            })
-            || !non_durable_skill_tombstones.iter().all(|skill_id| {
-                skill_records
-                    .get(skill_id)
-                    .is_some_and(crate::session::is_non_durable_skill_tombstone_like_cpp)
-            })
-        {
-            return false;
-        }
-
-        let mut known_spells = exact_spells
-            .values()
-            .filter(|spell| {
-                spell.state != RepresentedPlayerSpellStateLikeCpp::Removed && !spell.disabled
-            })
-            .map(|spell| spell.spell_id)
-            .collect::<Vec<_>>();
-        known_spells.sort_unstable();
-        let dependent_spells = exact_spells
-            .values()
-            .filter(|spell| {
-                spell.state != RepresentedPlayerSpellStateLikeCpp::Removed && spell.dependent
-            })
-            .map(|spell| spell.spell_id)
-            .collect();
-        let favorite_spells = exact_spells
-            .values()
-            .filter(|spell| {
-                spell.state != RepresentedPlayerSpellStateLikeCpp::Removed && spell.favorite
-            })
-            .map(|spell| spell.spell_id)
-            .collect();
-        let removed_spells = exact_spells
-            .values()
-            .filter(|spell| spell.state == RepresentedPlayerSpellStateLikeCpp::Removed)
-            .map(|spell| spell.spell_id)
-            .collect();
-
-        self.core
-            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        if self
-            .mutate_player_spell_runtime_like_cpp(|runtime| {
-                runtime.install_acquisition_snapshot_like_cpp(
-                    wow_entities::PlayerSpellAcquisitionSnapshotLikeCpp {
-                        known_spells,
-                        rows: exact_spells
-                            .into_iter()
-                            .map(|(id, row)| (id, canonical_player_spell_record_like_cpp(row)))
-                            .collect(),
-                        dependent_known_spells: dependent_spells,
-                        removed_known_spells: removed_spells,
-                        favorite_known_spells: favorite_spells,
-                        trait_definition_ids: exact_traits.into_iter().collect(),
-                        override_spells: exact_overrides.into_iter().collect(),
-                    },
-                );
-                // Fallback grants and trait-config source evidence are not part
-                // of this prepared result; retain the current owner's values.
-            })
-            .is_none()
-        {
-            return false;
-        }
-        if !self.replace_player_skill_runtime_exact_like_cpp(
+        let owner = self.core.player_acquisition_owner_access_like_cpp();
+        let result = wow_world_application::install_represented_spell_acquisition_runtime_like_cpp(
+            &owner,
+            &mut self.spell_state,
+            spell_rows,
+            traits,
+            overrides,
             skill_records,
-            true,
-            true,
-            Some(occupied_skill_slots),
+            occupied_skill_slots,
             non_durable_skill_tombstones,
-        ) {
-            return false;
+            true,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            (
+                &mut self.fixtures.progression.player_skill_test_fixture_like_cpp,
+                &mut self.fixtures.progression.represented_enchanting_skill,
+            ),
+        );
+        if result.is_ok() {
+            self.sync_player_registry_state_like_cpp();
+            true
+        } else {
+            false
         }
-        // Cross-session consumers (notably disenchant roll eligibility) read
-        // known spells and enchanting rank from the player registry. Publish
-        // the committed snapshot there before any acquisition action packet.
-        self.sync_player_registry_state_like_cpp();
-        true
     }
 }
 

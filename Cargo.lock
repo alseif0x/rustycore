@@ -3494,6 +3494,7 @@ dependencies = [
  "wow-core",
  "wow-data",
  "wow-entities",
+ "wow-packet",
  "wow-persistence",
  "wow-spell-acquisition",
  "wow-world-application",

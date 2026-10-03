@@ -524,38 +524,16 @@ impl WorldSession {
     pub(in crate::session) fn player_spell_runtime_snapshot_like_cpp(
         &self,
     ) -> Option<RepresentedPlayerSpellRuntimeLikeCpp> {
-        let canonical = self.core.with_owned_player_like_cpp(|player| {
-            represented_player_spell_runtime_like_cpp(player.spell_runtime_like_cpp())
-        });
+        let canonical = self
+            .core
+            .owned_spell_acquisition_access_like_cpp()
+            .with_player_spell_runtime_like_cpp(represented_player_spell_runtime_like_cpp);
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            let fixture = self.spell_state.player_spell_test_fixture_like_cpp();
-            return Some(RepresentedPlayerSpellRuntimeLikeCpp {
-                known_spells: fixture.known_spells.clone(),
-                rows: fixture.represented_player_spell_rows_like_cpp.clone(),
-                rows_loaded: fixture.represented_player_spell_rows_loaded_like_cpp,
-                rows_complete: fixture.represented_player_spell_rows_complete_like_cpp,
-                fallback_rows: fixture.represented_fallback_player_spell_rows_like_cpp.clone(),
-                dependent_known_spells: fixture.represented_dependent_known_spells_like_cpp.clone(),
-                removed_known_spells: fixture.represented_removed_known_spells_like_cpp.clone(),
-                favorite_known_spells: fixture.represented_favorite_known_spells_like_cpp.clone(),
-                trait_definition_ids: fixture
-                    .represented_spell_trait_definition_ids_like_cpp
-                    .clone(),
-                trait_definition_ids_complete: fixture
-                    .represented_spell_trait_definition_ids_complete_like_cpp,
-                trait_config_rows: fixture.represented_trait_config_rows_like_cpp.clone(),
-                trait_config_rows_complete: fixture.represented_trait_config_rows_complete_like_cpp,
-                trait_entry_rows_complete: fixture.represented_trait_entry_rows_complete_like_cpp,
-                trait_entry_rows_empty: fixture.represented_trait_entry_rows_empty_like_cpp,
-                override_spells: self
-                    .spell_state
-                    .represented_override_spell_fixture_like_cpp()
-                    .clone(),
-                override_spells_complete: self
-                    .spell_state
-                    .represented_override_spell_fixture_complete_like_cpp(),
-            });
+            return Some(
+                self.spell_state
+                    .represented_spell_runtime_fixture_like_cpp(),
+            );
         }
         canonical
     }

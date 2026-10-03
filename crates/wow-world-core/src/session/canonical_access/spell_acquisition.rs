@@ -23,6 +23,23 @@ impl SessionCore {
 }
 
 impl OwnedSpellAcquisitionAccessLikeCpp<'_> {
+    /// Project the current spell runtime from the strict owned Player path.
+    /// The canonical runtime stays borrowed for the projection and is never
+    /// cloned to cross this capability boundary.
+    pub fn with_player_spell_runtime_like_cpp<R>(
+        &self,
+        project: impl FnOnce(&wow_entities::PlayerSpellRuntimeState) -> R,
+    ) -> Option<R> {
+        self.core.with_owned_player_like_cpp(|player| {
+            project(player.spell_runtime_like_cpp())
+        })
+    }
+
+    /// Whether the session has no represented Player handle at this instant.
+    pub fn player_handle_absent_like_cpp(&self) -> bool {
+        self.core.player_handle_like_cpp.is_none()
+    }
+
     /// Resolve whether this session currently has a canonical Player, using
     /// the same GUID fallback as the existing acquisition mutation path.
     pub fn has_canonical_player_like_cpp(&self) -> bool {

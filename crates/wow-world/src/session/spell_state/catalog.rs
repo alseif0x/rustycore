@@ -41,54 +41,7 @@ impl WorldSession {
     ) -> bool {
         if self.core.player_handle_like_cpp.is_none() {
             self.spell_state
-                .player_spell_test_fixture_mut_like_cpp()
-                .known_spells = runtime.known_spells;
-            self.spell_state
-                .player_spell_test_fixture_mut_like_cpp()
-                .represented_player_spell_rows_like_cpp = runtime.rows;
-            self.spell_state
-                .player_spell_test_fixture_mut_like_cpp()
-                .represented_player_spell_rows_loaded_like_cpp = runtime.rows_loaded;
-            self.spell_state
-                .player_spell_test_fixture_mut_like_cpp()
-                .represented_player_spell_rows_complete_like_cpp = runtime.rows_complete;
-            self.spell_state
-                .player_spell_test_fixture_mut_like_cpp()
-                .represented_fallback_player_spell_rows_like_cpp = runtime.fallback_rows;
-            self.spell_state
-                .player_spell_test_fixture_mut_like_cpp()
-                .represented_dependent_known_spells_like_cpp = runtime.dependent_known_spells;
-            self.spell_state
-                .player_spell_test_fixture_mut_like_cpp()
-                .represented_removed_known_spells_like_cpp = runtime.removed_known_spells;
-            self.spell_state
-                .player_spell_test_fixture_mut_like_cpp()
-                .represented_favorite_known_spells_like_cpp = runtime.favorite_known_spells;
-            self.spell_state
-                .player_spell_test_fixture_mut_like_cpp()
-                .represented_spell_trait_definition_ids_like_cpp = runtime.trait_definition_ids;
-            self.spell_state
-                .player_spell_test_fixture_mut_like_cpp()
-                .represented_spell_trait_definition_ids_complete_like_cpp =
-                runtime.trait_definition_ids_complete;
-            self.spell_state
-                .player_spell_test_fixture_mut_like_cpp()
-                .represented_trait_config_rows_like_cpp = runtime.trait_config_rows;
-            self.spell_state
-                .player_spell_test_fixture_mut_like_cpp()
-                .represented_trait_config_rows_complete_like_cpp =
-                runtime.trait_config_rows_complete;
-            self.spell_state
-                .player_spell_test_fixture_mut_like_cpp()
-                .represented_trait_entry_rows_complete_like_cpp = runtime.trait_entry_rows_complete;
-            self.spell_state
-                .player_spell_test_fixture_mut_like_cpp()
-                .represented_trait_entry_rows_empty_like_cpp = runtime.trait_entry_rows_empty;
-            self.spell_state
-                .replace_represented_override_spell_fixture_like_cpp(
-                    runtime.override_spells,
-                    runtime.override_spells_complete,
-                );
+                .store_represented_spell_runtime_fixture_like_cpp(runtime);
             return true;
         }
         false

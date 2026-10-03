@@ -31,7 +31,8 @@ pub use canonical_access::{
     InventoryPlayerProjectionLikeCpp, OwnedCollectionsAccessLikeCpp,
     OwnedEquipmentSetsAccessLikeCpp, OwnedInventoryAccessLikeCpp,
     OwnedItemModifiersAccessLikeCpp, OwnedSpellAcquisitionAccessLikeCpp,
-    OwnedPlayerCurrencyAccessLikeCpp, PlayerRegistryHydrationAccessLikeCpp, QuestRewardPlayerAccessLikeCpp,
+    OwnedPlayerCurrencyAccessLikeCpp, PlayerAcquisitionOwnerAccessLikeCpp,
+    PlayerRegistryHydrationAccessLikeCpp, QuestRewardPlayerAccessLikeCpp,
 };
 mod catalogs;
 mod connection;

@@ -2,96 +2,52 @@
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Session adaptation for the admitted trainer acquisition. Existing money
-//! cancellation/recovery and transport writer ownership stay in Session.
-use super::*;
-use crate::spell_acquisition::{
-    PreparedPlayerSpellAcquisitionLikeCpp, TrainerAcquisitionPublicationLikeCpp,
-    TrainerAcquisitionRuntimeLikeCpp,
-};
-use wow_packet::ServerPacket;
-use wow_packet::packets::spell::PlaySpellVisualKit;
+//! Selected World-session inputs for the admitted trainer application.
 
-impl TrainerAcquisitionRuntimeLikeCpp for WorldSession {
-    type MoneyExclusion = ExclusivePlayerMoneyPersistenceLikeCpp;
+use super::WorldSession;
+use wow_world_application::{AppTrainerCx, TrainerAcquisitionCatalogsLikeCpp};
 
-    async fn commit_acquisition(
-        &mut self,
-        exclusion: Self::MoneyExclusion,
-        prepared: Option<&PreparedPlayerSpellAcquisitionLikeCpp>,
-        before: u64,
-        after: u64,
-    ) -> Option<Self::MoneyExclusion> {
-        match prepared {
-            Some(prepared) => {
-                self.commit_exclusive_player_money_and_spell_acquisition_like_cpp(
-                    exclusion, prepared, before, after,
-                )
-                .await
-            }
-            None => {
-                self.commit_exclusive_trainer_money_only_like_cpp(exclusion, before, after)
-                    .await
-            }
-        }
-    }
+impl WorldSession {
+    /// Borrow the existing disjoint owners and selected catalogs for one
+    /// trainer operation. Fixture mode follows this World consumer's
+    /// `cfg(test)` status, even when the shared fixture feature is enabled.
+    pub(crate) fn trainer_acquisition_context_like_cpp(&mut self) -> AppTrainerCx<'_> {
+        let catalogs = TrainerAcquisitionCatalogsLikeCpp::new(
+            self.catalogs.skill_store(),
+            self.catalogs.skill_line_store(),
+            self.catalogs.skill_tiers_store(),
+            self.catalogs.item_store(),
+            self.catalogs.item_stats_store(),
+        );
+        let owner = self.core.player_acquisition_owner_access_like_cpp();
 
-    fn stage_money(&mut self, before: u64, after: u64) -> bool {
-        self.stage_player_money_change_like_cpp(before, after)
-    }
-
-    fn publish_money(&mut self, after: u64) {
-        self.send_player_values_update_from_entity_bridge(&[], &[], &[], &[], Some(after));
-    }
-
-    async fn fence_instance_before_realm(&self) -> bool {
-        self.core
-            .wait_for_instance_send_before_realm_send_like_cpp()
-            .await
-    }
-
-    fn publish_visuals(&self, publication: &TrainerAcquisitionPublicationLikeCpp) {
-        if publication.suppress_visuals {
-            return;
-        }
-        let trainer_visual = PlaySpellVisualKit {
-            unit: publication.trainer_guid,
-            kit_record_id: 179,
-            kit_type: 0,
-            duration: 0,
-            mounted_visual: false,
-        };
-        let player_visual = PlaySpellVisualKit {
-            unit: publication.player_guid,
-            kit_record_id: 362,
-            kit_type: 1,
-            duration: 0,
-            mounted_visual: false,
-        };
-        self.send_packet_realm(&trainer_visual);
-        {
-            let (s, h) = crate::session::split_world_entities_ref(self);
-            s.broadcast_creature_packet_from_position_to_visible_set_realm_like_cpp(
-                h,
-                publication.trainer_guid,
-                publication.trainer_position,
-                trainer_visual.to_bytes(),
-            )
-        };
-        self.send_packet_realm(&player_visual);
-        {
-            let (s, h) = crate::session::split_spell_state_ref(self);
-            s.broadcast_to_movement_set_realm_like_cpp(h, player_visual.to_bytes(), true)
-        };
-    }
-
-    async fn fence_realm_before_instance(&self) -> bool {
-        self.core
-            .wait_for_realm_send_before_instance_update_like_cpp()
-            .await
-    }
-
-    fn publish_skills(&mut self) {
-        crate::session::hub_ref(self).send_complete_player_skill_values_update_like_cpp();
+        AppTrainerCx::new(
+            owner,
+            &mut self.lifecycle,
+            &mut self.inventory,
+            &mut self.spell_state,
+            &mut self.quest_state,
+            &self.loot,
+            catalogs,
+            cfg!(test),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            wow_world_application::TrainerAcquisitionFixturesLikeCpp::new(
+                &self.fixtures.identity.player_race,
+                &self.fixtures.identity.player_class,
+                &self.fixtures.identity.player_level,
+                &mut self.fixtures.progression.player_skill_test_fixture_like_cpp,
+                &mut self.fixtures.progression.represented_enchanting_skill,
+                &self.fixtures.movement.player_position,
+                &self.fixtures.combat.player_health_like_cpp,
+                &self.fixtures.combat.player_max_health_like_cpp,
+                &self.fixtures.combat.player_alive_like_cpp,
+                &self.fixtures.identity.player_level,
+                &self.fixtures.vehicles.player_transport_login_state_like_cpp,
+                &self.fixtures.vehicles.player_mount_vehicle_kit_like_cpp,
+                &self.fixtures.vehicles.player_vehicle_seat_flags_like_cpp,
+                &self.fixtures.vehicles.player_vehicle_seat_id_like_cpp,
+                &self.fixtures.pets.represented_pet_guid_like_cpp,
+            ),
+        )
     }
 }

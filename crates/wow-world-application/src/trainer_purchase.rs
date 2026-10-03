@@ -23,6 +23,19 @@ use crate::spell_acquisition::{
 use crate::PrimaryProfessionCapacityPlanLikeCpp;
 use wow_spell_acquisition::{SpellAcquisitionPlanLikeCpp, PlayerSpellAcquisitionSnapshotLikeCpp};
 
+mod context;
+mod publication;
+mod runtime_install;
+
+pub use context::{AppTrainerCx, TrainerAcquisitionCatalogsLikeCpp};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use context::TrainerAcquisitionFixturesLikeCpp;
+pub use runtime_install::{
+    install_player_spell_acquisition_runtime_snapshot_like_cpp,
+    install_represented_spell_acquisition_runtime_like_cpp,
+    publish_spell_acquisition_action_like_cpp,
+};
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedTrainerOfferLikeCpp {
     pub source_spell_id: u32,

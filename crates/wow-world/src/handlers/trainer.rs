@@ -742,21 +742,24 @@ impl WorldSession {
             });
             return;
         };
-        let completion = crate::spell_acquisition::execute_trainer_acquisition_like_cpp(
-            self,
-            money_persistence,
-            &offer,
-            &current_snapshot,
-            old_money,
-            new_money,
-            &crate::spell_acquisition::TrainerAcquisitionPublicationLikeCpp {
-                trainer_guid,
-                player_guid,
-                trainer_position: fresh_access.position,
-                suppress_visuals: offer.battle_pet_species_id.is_some(),
-            },
-        )
-        .await;
+        let completion = {
+            let mut runtime = self.trainer_acquisition_context_like_cpp();
+            crate::spell_acquisition::execute_trainer_acquisition_like_cpp(
+                &mut runtime,
+                money_persistence,
+                &offer,
+                &current_snapshot,
+                old_money,
+                new_money,
+                &crate::spell_acquisition::TrainerAcquisitionPublicationLikeCpp {
+                    trainer_guid,
+                    player_guid,
+                    trainer_position: fresh_access.position,
+                    suppress_visuals: offer.battle_pet_species_id.is_some(),
+                },
+            )
+            .await
+        };
         use crate::spell_acquisition::TrainerAcquisitionResultLikeCpp as Result;
         match completion.result {
             Result::Applied => {}

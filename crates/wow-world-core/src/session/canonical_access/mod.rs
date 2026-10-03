@@ -5,10 +5,12 @@ mod item_modifiers;
 mod collections;
 mod spell_acquisition;
 mod inventory_projection;
+mod acquisition_owner;
 mod registry_hydration;
 mod quest_reward_owner;
 
 pub use equipment_sets::OwnedEquipmentSetsAccessLikeCpp;
+pub use acquisition_owner::PlayerAcquisitionOwnerAccessLikeCpp;
 pub use inventory::OwnedInventoryAccessLikeCpp;
 pub use item_modifiers::OwnedItemModifiersAccessLikeCpp;
 pub use collections::OwnedCollectionsAccessLikeCpp;

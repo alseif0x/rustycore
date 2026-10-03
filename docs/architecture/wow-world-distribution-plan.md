@@ -2014,6 +2014,37 @@ asíncronos. El cuerpo de _SaveCurrency está en :6800–6845 y SaveToDB en
 sin dinero y el resto de la operación normal choose-reward permanecen abiertos.
 No se ejecutaron compilación, formato, suites, scanners, capturas ni QA live.
 
+**Contexto del trainer admitido y runtime compartido — 2026-10-03,
+14:15 UTC (NO VALIDADO):** el ejecutor normal ya usa `AppTrainerCx`,
+con campos privados y préstamos disjuntos de Core, Inventory, Lifecycle,
+Spell, Quest y Loot, cinco stores seleccionados y las referencias fixture
+existentes. Sus constructores no resuelven Player ni ejecutan queries.
+`session/trainer_acquisition.rs` construye el contexto; el handler lo usa en
+un bloque y después trata la completion conservando la exclusión monetaria.
+Stage, publicación de dinero, fences de los dos writers, visuales y skills
+usan los providers únicos revisados. El commit sin adquisición conserva el
+gate test-fixtures del Lifecycle anterior; el commit combinado conserva el
+override World cfg(test). No se modifica el archivo Lifecycle en este corte.
+
+La instalación de adquisición y la publicación de sus acciones tienen un
+proveedor compartido por trainer y EffectLearning. Las fachadas World reciben
+los mismos iteradores y delegan sin materializarlos antes, conservando los
+rechazos tempranos. La rama fixture valida todas las filas antes de invalidar,
+consulta primero el runtime canónico estricto y después usa el fallback bajo
+el gate World original; conserva las conversiones, fallback rows y evidencia
+de trait-config. El snapshot representado clona sus campos dentro del mismo
+préstamo canónico, mediante una proyección síncrona tipada, sin clonar Player
+ni exponerlo. Tras instalación correcta se ejecuta el sync completo del
+registro antes de las acciones. El fallback de tombstones conserva por
+separado su gate Core test-fixtures, sin añadirle el gate World de instalación.
+Los escenarios existentes del ejecutor App y de trainer/acquisition World
+permanecen montados; no se ejecutaron pruebas ni se atribuye evidencia nueva.
+Anclas: Trainer.cpp:79–145, NPCHandler.cpp:132–202 y
+Unit.cpp:11566::SendPlaySpellVisualKit en a5f8da2eb. No prueban los fences ni
+durabilidad asíncronos. Admisión NPC, planificación, revalidación y saga de
+battle pets continúan en World; este contexto no termina la familia buy ni F5.
+Compilación, formato, ownership, composición, capturas y aceptación siguen pendientes.
+
 **Dinero y banco con acceso canónico acotado — 2026-10-03, 13:07 UTC
 (NO VALIDADO):** OwnedInventoryAccess concentra las siete lecturas/mutaciones
 de dinero, cantidad y flags de bolsas bancarias y cantidad de slots de
