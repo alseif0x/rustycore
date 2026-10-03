@@ -2784,6 +2784,15 @@ dependencias ni mounts pendientes identificados. La siguiente responsabilidad
 asignada es el mapa acotado de swap/equip completo y sus fences/await/publicación,
 para definir su traslado sin callbacks World ni duplicar la operación existente
 de UseEquipmentSet. Ningún cierre por fuente acredita la aceptación de #1263.
+El contraste inicial ubica Player::SwapItem en Player.cpp:12271 y el handler
+en ItemHandler.cpp:130–173 del SHA target. El handler C++ admite source/destination
+bank por separado; Rust combina ambos con una sola consulta. Real-swap Rust
+espera persistencia y trata Failed/Unknown juntos antes de efectos, publica
+posiciones/items y luego consulta loot actual, libera loot, actualiza TitanGrip/
+item-level/Registry y ejecuta child/offhand. El mapa debe conservar esas fases
+y contrastar el caller entero antes de atribuir fences ausentes. Las diferencias
+se separan de F5. UseEquipmentSet tiene un controlador síncrono distinto:
+reutilizar roles/proveedores no autoriza sustituir esa operación por su handler.
 
 Quest eligibility de visibilidad también está escrito como módulo privado: nivel,
 race/class y CanSeeStart conservan disable, status, recurrence, seasonal, prev-quest
