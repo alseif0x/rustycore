@@ -61,7 +61,7 @@ pub(super) fn default_health_mana(class: u8) -> (u32, u32) {
 }
 
 pub(super) fn max_health_u32_like_cpp(max_health: i64) -> u32 {
-    max_health.max(1).min(i64::from(u32::MAX)) as u32
+    wow_world_application::max_health_u32_like_cpp(max_health)
 }
 
 pub(super) fn restored_saved_health_like_cpp(saved_health: Option<u32>, max_health: i64) -> i64 {

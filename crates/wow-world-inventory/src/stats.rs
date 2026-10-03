@@ -7,7 +7,7 @@ use wow_world_core::session::state::hub_support::{
     RepresentedPlayerGearStatsLikeCpp, SPELL_SCHOOL_MASK_ALL_LIKE_CPP,
     SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP, SPELL_SCHOOL_MASK_SPELL_LIKE_CPP,
 };
-use wow_world_core::session::{HubMut, HubRef};
+use wow_world_core::session::{HubMut, HubRef, PlayerStatsAccessLikeCpp};
 
 /// C++ `CombatRating::CR_HIT_MELEE` (`Unit.h:310`).
 pub const CR_HIT_MELEE_LIKE_CPP: u8 = 5;
@@ -24,12 +24,12 @@ impl crate::InventoryState {
     /// stat system can reproduce C++'s `Pos = bonus - Neg`.
     pub fn represented_spell_bonus_like_cpp(
         &self,
-        hub: HubRef<'_>,
+        access: &PlayerStatsAccessLikeCpp<'_>,
         gear: &RepresentedPlayerGearStatsLikeCpp,
     ) -> PlayerSpellBonusInputLikeCpp {
         let mut damage_done_flat = [0i32; 7];
         let mut damage_done_neg = [0i32; 7];
-        for (misc_value, amount) in hub
+        for (misc_value, amount) in access
             .resolved_aura_effects_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE,
             )
@@ -47,7 +47,7 @@ impl crate::InventoryState {
         }
 
         let mut damage_of_stat_percent = [[0i32; 5]; 7];
-        for (school_mask, stat_index, amount) in hub
+        for (school_mask, stat_index, amount) in access
             .resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_SPELL_DAMAGE_OF_STAT_PERCENT,
             )
@@ -66,7 +66,7 @@ impl crate::InventoryState {
             }
         }
 
-        let healing_done_flat = hub
+        let healing_done_flat = access
             .resolved_aura_effects_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_DONE,
             )
@@ -79,7 +79,7 @@ impl crate::InventoryState {
             .sum::<i32>();
 
         let mut healing_of_stat_percent = [0i32; 5];
-        for (stat_index, _, amount) in hub
+        for (stat_index, _, amount) in access
             .resolved_aura_effects_with_misc_values_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_SPELL_HEALING_OF_STAT_PERCENT,
             )
@@ -97,7 +97,7 @@ impl crate::InventoryState {
         // `GetTotalAuraMultiplierByMiscMask(SPELL_AURA_MOD_DAMAGE_PERCENT_DONE,
         // 1 << i)` for every school the handling effect intersects; a school
         // with no such effect keeps the 1.0 create value.
-        let damage_percent_effects = hub
+        let damage_percent_effects = access
             .resolved_aura_effects_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE,
             )
@@ -123,7 +123,7 @@ impl crate::InventoryState {
         // multiplies `1 + amount/100` over every active
         // `SPELL_AURA_MOD_HEALING_DONE_PERCENT` (136) effect and clamps the
         // published `ModHealingDonePercent` at zero.
-        let healing_done_percent = hub
+        let healing_done_percent = access
             .resolved_aura_effects_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_HEALING_DONE_PERCENT,
             )
@@ -138,7 +138,7 @@ impl crate::InventoryState {
         // (`SpellAuraEffects.cpp:3797-3808`) sums every active
         // `SPELL_AURA_MOD_VERSATILITY` (471) amount into `VersatilityBonus`
         // through `SetUpdateFieldStatValue` (clamped at zero).
-        let versatility_bonus_aura = hub
+        let versatility_bonus_aura = access
             .resolved_aura_effects_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_VERSATILITY,
             )
@@ -155,7 +155,7 @@ impl crate::InventoryState {
         // subtracts the item/enchant `ITEM_MOD_SPELL_PENETRATION` there.
         let mut target_resistance_aura = 0i32;
         let mut target_physical_resistance_aura = 0i32;
-        for (misc_value, amount) in hub
+        for (misc_value, amount) in access
             .resolved_aura_effects_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_TARGET_RESISTANCE,
             )
@@ -170,7 +170,7 @@ impl crate::InventoryState {
             }
         }
 
-        let override_effects = hub
+        let override_effects = access
             .resolved_aura_effects_by_spell_aura_type_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_OVERRIDE_SPELL_POWER_BY_AP_PCT,
             )
@@ -202,8 +202,8 @@ impl crate::InventoryState {
             target_resistance_aura,
             item_spell_penetration: gear.spell_penetration_bonus,
             target_physical_resistance_aura,
-            weapon_damage_pct: self.represented_weapon_damage_pct_like_cpp(hub),
-            weapon_damage_flat: self.represented_weapon_damage_flat_like_cpp(hub),
+            weapon_damage_pct: self.represented_weapon_damage_pct_like_cpp(access),
+            weapon_damage_flat: self.represented_weapon_damage_flat_like_cpp(access),
         }
     }
 
@@ -213,7 +213,7 @@ impl crate::InventoryState {
     /// The snapshot is derived and is intentionally not a persistence record.
     pub fn publish_player_effective_combat_stats_like_cpp(
         &self,
-        hub: HubRef<'_>,
+        access: &PlayerStatsAccessLikeCpp<'_>,
         level: u8,
         projection: PlayerStatSystemProjectionLikeCpp,
         gear: &RepresentedPlayerGearStatsLikeCpp,
@@ -223,7 +223,7 @@ impl crate::InventoryState {
         // armor; the six magic schools come from `Unit::UpdateResistances`
         // (item `BASE_VALUE` plus the resistance aura producers).
         resistances[0] = projection.armor;
-        for (index, value) in hub
+        for (index, value) in access
             .represented_school_resistances_like_cpp(gear)
             .into_iter()
             .enumerate()
@@ -234,7 +234,7 @@ impl crate::InventoryState {
             projection,
             gear.weapon_damage,
             gear.base_attack_time,
-            hub.represented_shapeshift_combat_round_time_like_cpp(),
+            access.represented_shapeshift_combat_round_time_like_cpp(),
         );
         // C++ `Player::UpdateExpertise` (`StatSystem.cpp:759-786`) truncates the
         // combat-rating bonus to `int32`, adds the `SPELL_AURA_MOD_EXPERTISE`
@@ -244,17 +244,17 @@ impl crate::InventoryState {
         // written by C++ (`UpdateExpertise` returns early for `RANGED_ATTACK`)
         // and stay at their zero create value.
         let rating_expertise = (gear.combat_ratings[23] as f32
-            * hub.catalogs.combat_rating_multiplier_like_cpp(level, 23))
+            * access.combat_rating_multiplier_like_cpp(level, 23))
         .trunc();
         let mainhand_expertise = (rating_expertise
             + self.represented_expertise_aura_modifier_like_cpp(
-                hub,
+                access,
                 wow_constants::WeaponAttackType::BaseAttack,
             ) as f32)
             .max(0.0);
         let offhand_expertise = (rating_expertise
             + self.represented_expertise_aura_modifier_like_cpp(
-                hub,
+                access,
                 wow_constants::WeaponAttackType::OffAttack,
             ) as f32)
             .max(0.0);
@@ -263,26 +263,27 @@ impl crate::InventoryState {
         let armor_penetration_rating = crate::CR_ARMOR_PENETRATION_LIKE_CPP;
         let armor_penetration_pct = (gear.combat_ratings[usize::from(armor_penetration_rating)]
             as f32
-            * hub
-                .catalogs
-                .combat_rating_multiplier_like_cpp(level, u32::from(armor_penetration_rating)))
+            * access.combat_rating_multiplier_like_cpp(
+                level,
+                u32::from(armor_penetration_rating),
+            ))
         .clamp(0.0, 100.0);
         // C++ `Player::UpdateMeleeHitChances` (`StatSystem.cpp:743-746`).
         let melee_hit_chance_pct = 7.5
             + gear.combat_ratings[usize::from(crate::CR_HIT_MELEE_LIKE_CPP)] as f32
-                * hub.catalogs.combat_rating_multiplier_like_cpp(
+                * access.combat_rating_multiplier_like_cpp(
                     level,
                     u32::from(crate::CR_HIT_MELEE_LIKE_CPP),
                 );
         let mana_regen_mp5 = gear.mana_regen_bonus as f32 / 5.0
-            + hub.mana_regen_mp5_from_auras_like_cpp(projection.stats);
-        let mana_regen_from_spirit = hub.mana_regen_from_stats_like_cpp(
+            + access.mana_regen_mp5_from_auras_like_cpp(projection.stats);
+        let mana_regen_from_spirit = access.mana_regen_from_stats_like_cpp(
             level,
-            hub.player_class_like_cpp(),
+            access.player_class_like_cpp(),
             projection.stats,
-        ) * hub.mana_regen_aura_multiplier_like_cpp();
+        ) * access.mana_regen_aura_multiplier_like_cpp();
         let mana_regen_combat =
-            mana_regen_mp5 + mana_regen_from_spirit * hub.mana_regen_interrupt_modifier_like_cpp();
+            mana_regen_mp5 + mana_regen_from_spirit * access.mana_regen_interrupt_modifier_like_cpp();
         let stats = PlayerEffectiveCombatStatsLikeCpp {
             stats: projection.stats,
             stat_pos_buff: projection.stat_pos_buff,
@@ -342,14 +343,12 @@ impl crate::InventoryState {
             spell_crit_pct: projection.spell_crit_pct,
             ..PlayerEffectiveCombatStatsLikeCpp::default()
         };
-        let _ = hub.core.mutate_canonical_player_like_cpp(|player| {
-            player.replace_effective_combat_stats_like_cpp(stats);
-        });
+        access.replace_player_effective_combat_stats_like_cpp(stats);
     }
 
     pub fn publish_effective_stats_like_cpp(
         &self,
-        hub: HubRef<'_>,
+        access: &PlayerStatsAccessLikeCpp<'_>,
         level: u8,
         _include_represented_item_bonuses: bool,
         projection: PlayerStatSystemProjectionLikeCpp,
@@ -359,7 +358,7 @@ impl crate::InventoryState {
         // projection. The boolean remains at the adapter boundary for
         // compatibility with callers that already name the C++ option, but a
         // second inventory-derived path is deliberately impossible here.
-        self.publish_player_effective_combat_stats_like_cpp(hub, level, projection, gear);
+        self.publish_player_effective_combat_stats_like_cpp(access, level, projection, gear);
     }
 }
 
@@ -369,7 +368,6 @@ impl crate::InventoryState {
         hub: HubRef<'_>,
         _include_represented_item_bonuses: bool,
     ) -> Option<RepresentedPlayerGearStatsLikeCpp> {
-        let mut gear = RepresentedPlayerGearStatsLikeCpp::default();
         // C++ keeps the result of `_ApplyItemBonuses` on Player and uses that
         // accumulator for every subsequent stat calculation. Reading the
         // inventory here as well would count an item once through its sparse
@@ -377,38 +375,66 @@ impl crate::InventoryState {
         // equip/swap. Login seeds the same accumulator before this projection,
         // so this is the single contribution path for every lifecycle.
         let bonuses = self.resolved_item_bonus_state_like_cpp(hub)?;
-        for (target, amount) in gear.stats.iter_mut().zip(bonuses.stats_base) {
-            *target = target.saturating_add(amount);
-        }
-        gear.attack_power = gear.attack_power.saturating_add(bonuses.attack_power_total);
-        gear.ranged_attack_power = gear
-            .ranged_attack_power
-            .saturating_add(bonuses.ranged_attack_power_total);
-        gear.health = gear.health.saturating_add(bonuses.health_base);
-        gear.mana = gear.mana.saturating_add(bonuses.mana_base);
-        for (target, amount) in gear.combat_ratings.iter_mut().zip(bonuses.combat_ratings) {
-            *target = target.saturating_add(amount);
-        }
-        gear.spell_power = gear.spell_power.saturating_add(bonuses.spell_power_bonus);
-        gear.armor = gear
-            .armor
-            .saturating_add(bonuses.armor_base)
-            .saturating_add(bonuses.armor_total)
-            .saturating_add(bonuses.resistances_base[0]);
-        for (target, amount) in gear.resistances.iter_mut().zip(bonuses.resistances_base) {
-            *target = target.saturating_add(amount);
-        }
-        gear.mana_regen_bonus = bonuses.mana_regen_bonus;
-        gear.health_regen_bonus = bonuses.health_regen_bonus;
-        gear.spell_penetration_bonus = bonuses.spell_penetration_bonus;
-        gear.shield_block_base_mod = bonuses.shield_block_base_mod;
-        gear.shield_block_value = bonuses.shield_block_value;
-        gear.weapon_damage = bonuses.weapon_damage;
-        gear.base_attack_time = bonuses.base_attack_time;
-
-        Some(gear)
+        Some(represented_player_gear_stats_from_bonuses_like_cpp(bonuses))
     }
 
+    pub fn represented_player_gear_stats_with_access_like_cpp(
+        &self,
+        access: &PlayerStatsAccessLikeCpp<'_>,
+    ) -> Option<RepresentedPlayerGearStatsLikeCpp> {
+        let canonical = access.item_modifier_runtime_snapshot_like_cpp();
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let canonical = if canonical.is_none() && access.owner_handle_absent_like_cpp() {
+            Some(
+                self.player_item_test_fixture_like_cpp
+                    .represented_item_modifier_runtime_like_cpp
+                    .clone(),
+            )
+        } else {
+            canonical
+        };
+        let bonuses = canonical?.bonuses_snapshot_like_cpp();
+        Some(represented_player_gear_stats_from_bonuses_like_cpp(bonuses))
+    }
+}
+
+fn represented_player_gear_stats_from_bonuses_like_cpp(
+    bonuses: wow_entities::PlayerItemBonusStateLikeCpp,
+) -> RepresentedPlayerGearStatsLikeCpp {
+    let mut gear = RepresentedPlayerGearStatsLikeCpp::default();
+    for (target, amount) in gear.stats.iter_mut().zip(bonuses.stats_base) {
+        *target = target.saturating_add(amount);
+    }
+    gear.attack_power = gear.attack_power.saturating_add(bonuses.attack_power_total);
+    gear.ranged_attack_power = gear
+        .ranged_attack_power
+        .saturating_add(bonuses.ranged_attack_power_total);
+    gear.health = gear.health.saturating_add(bonuses.health_base);
+    gear.mana = gear.mana.saturating_add(bonuses.mana_base);
+    for (target, amount) in gear.combat_ratings.iter_mut().zip(bonuses.combat_ratings) {
+        *target = target.saturating_add(amount);
+    }
+    gear.spell_power = gear.spell_power.saturating_add(bonuses.spell_power_bonus);
+    gear.armor = gear
+        .armor
+        .saturating_add(bonuses.armor_base)
+        .saturating_add(bonuses.armor_total)
+        .saturating_add(bonuses.resistances_base[0]);
+    for (target, amount) in gear.resistances.iter_mut().zip(bonuses.resistances_base) {
+        *target = target.saturating_add(amount);
+    }
+    gear.mana_regen_bonus = bonuses.mana_regen_bonus;
+    gear.health_regen_bonus = bonuses.health_regen_bonus;
+    gear.spell_penetration_bonus = bonuses.spell_penetration_bonus;
+    gear.shield_block_base_mod = bonuses.shield_block_base_mod;
+    gear.shield_block_value = bonuses.shield_block_value;
+    gear.weapon_damage = bonuses.weapon_damage;
+    gear.base_attack_time = bonuses.base_attack_time;
+
+    gear
+}
+
+impl crate::InventoryState {
     /// C++ `Player::InitDataForForm` (`Player.cpp:22076-22098`) base attack
     /// times: a form with `CombatRoundTime` drives both melee attacks and
     /// leaves the ranged attack at `BASE_ATTACK_TIME`; otherwise the equipped

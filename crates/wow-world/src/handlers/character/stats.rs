@@ -18,123 +18,63 @@ use crate::session::hub_support::{
 };
 
 impl WorldSession {
+    pub(super) fn stats_application_cx_like_cpp(
+        &mut self,
+    ) -> wow_world_application::CharacterStatsApplicationCxLikeCpp<'_> {
+        let (inventory, hub) = crate::session::split_inventory_mut(self);
+        let core = &*hub.core;
+        let publication = core.packet_publication_access_like_cpp();
+        #[cfg(any(test, feature = "test-fixtures"))]
+        let player = core.player_stats_access_with_fixture_refs_like_cpp(
+            hub.catalogs,
+            hub.config,
+            &hub.fixtures.identity.player_race,
+            &hub.fixtures.identity.player_class,
+            &hub.fixtures.identity.player_level,
+            wow_world_core::session::StatsFixtureRefs::new_like_cpp(
+                wow_world_core::session::StatsCombatFixtureRefs::new_like_cpp(
+                    &mut hub.fixtures.combat.player_health_like_cpp,
+                    &mut hub.fixtures.combat.player_max_health_like_cpp,
+                    &mut hub.fixtures.combat.player_alive_like_cpp,
+                    &mut hub.fixtures.combat.represented_player_powers_like_cpp[0],
+                    &mut hub.fixtures.combat.represented_player_max_powers_like_cpp[0],
+                    &mut hub.fixtures.combat.represented_player_base_mana_like_cpp,
+                ),
+                wow_world_core::session::StatsAuraFixtureRefs::new_like_cpp(
+                    &hub.fixtures.auras.represented_shapeshift_form_like_cpp,
+                    &hub.fixtures.auras.player_aura_authority_complete_like_cpp,
+                    &hub.fixtures.auras.player_spell_hit_aura_authority_tombstoned_like_cpp,
+                    &hub.fixtures.auras.visible_auras,
+                    &hub.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
+                ),
+            ),
+        );
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let player = core.player_stats_access_like_cpp(hub.catalogs, hub.config);
+        wow_world_application::CharacterStatsApplicationCxLikeCpp::new(
+            player,
+            inventory,
+            publication,
+        )
+    }
+
     pub(super) fn represented_player_gear_stats_like_cpp(
-        &self,
+        &mut self,
         _include_represented_item_bonuses: bool,
     ) -> Option<RepresentedPlayerGearStatsLikeCpp> {
-        let (state, hub) = crate::session::split_inventory_ref(self);
-        state.represented_player_gear_stats_like_cpp(hub, _include_represented_item_bonuses)
+        self.stats_application_cx_like_cpp()
+            .represented_player_gear_stats_like_cpp()
     }
 
     pub(super) fn player_stat_system_projection_like_cpp(
-        &self,
+        &mut self,
         race: u8,
         class: u8,
         level: u8,
         gear: &RepresentedPlayerGearStatsLikeCpp,
     ) -> Option<PlayerStatSystemProjectionLikeCpp> {
-        let base = *self.player_stats()?.get(race, class, level)?;
-        let (attack_power_per_strength, attack_power_per_agility, ranged_attack_power_per_agility) =
-            self.catalogs
-                .player_class_attack_power_coefficients_like_cpp(class)?;
-        let rating_bonuses = std::array::from_fn(|index| {
-            gear.combat_ratings[index] as f32
-                * self
-                    .catalogs
-                    .combat_rating_multiplier_like_cpp(level, index as u32)
-        });
-        let (can_parry, can_block) = self.core.canonical_player_parry_block_snapshot_like_cpp();
-        let spell_bonus = {
-            let (s, h) = crate::session::split_inventory_ref(self);
-            s.represented_spell_bonus_like_cpp(h, gear)
-        };
-
-        Some(
-            self.apply_stats_limits_like_cpp(calculate_player_stat_system_like_cpp(
-                PlayerStatSystemInputLikeCpp {
-                    base,
-                    class,
-                    level,
-                    attack_power_per_strength,
-                    attack_power_per_agility,
-                    ranged_attack_power_per_agility,
-                    stat_total_multipliers: crate::session::hub_ref(self)
-                        .resolved_represented_total_stat_multipliers_like_cpp()?,
-                    stat_buff_total_multipliers: crate::session::hub_ref(self)
-                        .resolved_represented_total_stat_buff_multipliers_like_cpp()?,
-                    gear_stats: gear.stats,
-                    gear_health: gear.health,
-                    gear_mana: gear.mana,
-                    gear_armor: gear.armor,
-                    armor_base_pct: crate::session::hub_ref(self)
-                        .represented_resistance_aura_multiplier_like_cpp(
-                            wow_data::spell::aura_types::SPELL_AURA_MOD_BASE_RESISTANCE_PCT,
-                            SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP,
-                        ),
-                    armor_flat_aura: crate::session::hub_ref(self)
-                        .represented_resistance_aura_flat_like_cpp(
-                            SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP,
-                        ) as i32,
-                    armor_of_stat_percent: crate::session::hub_ref(self)
-                        .represented_armor_of_stat_percent_like_cpp(),
-                    armor_total_pct: crate::session::hub_ref(self)
-                        .represented_resistance_aura_multiplier_like_cpp(
-                            wow_data::spell::aura_types::SPELL_AURA_MOD_RESISTANCE_PCT,
-                            SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP,
-                        ),
-                    armor_bonus_pct: crate::session::hub_ref(self)
-                        .represented_total_aura_multiplier_like_cpp(
-                            wow_data::spell::aura_types::SPELL_AURA_MOD_BONUS_ARMOR_PCT,
-                        ),
-                    spell_dodge_pct: crate::session::hub_ref(self)
-                        .represented_total_aura_modifier_like_cpp(
-                            wow_data::spell::aura_types::SPELL_AURA_MOD_DODGE_PERCENT,
-                        ),
-                    spell_parry_pct: crate::session::hub_ref(self)
-                        .represented_total_aura_modifier_like_cpp(
-                            wow_data::spell::aura_types::SPELL_AURA_MOD_PARRY_PERCENT,
-                        ),
-                    spell_block_pct: crate::session::hub_ref(self)
-                        .represented_total_aura_modifier_like_cpp(
-                            wow_data::spell::aura_types::SPELL_AURA_MOD_BLOCK_PERCENT,
-                        ),
-                    crit_mainhand_aura_pct: self.represented_weapon_crit_aura_modifier_like_cpp(
-                        wow_constants::WeaponAttackType::BaseAttack,
-                    ),
-                    crit_offhand_aura_pct: self.represented_weapon_crit_aura_modifier_like_cpp(
-                        wow_constants::WeaponAttackType::OffAttack,
-                    ),
-                    crit_ranged_aura_pct: self.represented_weapon_crit_aura_modifier_like_cpp(
-                        wow_constants::WeaponAttackType::RangedAttack,
-                    ),
-                    spell_crit_aura_pct: crate::session::hub_ref(self)
-                        .represented_total_aura_modifier_like_cpp(
-                            wow_data::spell::aura_types::SPELL_AURA_MOD_SPELL_CRIT_CHANCE,
-                        )
-                        + crate::session::hub_ref(self).represented_total_aura_modifier_like_cpp(
-                            wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_PCT,
-                        ),
-                    gear_attack_power: gear.attack_power,
-                    gear_ranged_attack_power: gear.ranged_attack_power,
-                    attack_power_flat_aura: crate::session::hub_ref(self)
-                        .represented_attack_power_flat_aura_like_cpp(),
-                    attack_power_total_pct: crate::session::hub_ref(self)
-                        .represented_total_aura_multiplier_like_cpp(
-                            wow_data::spell::aura_types::SPELL_AURA_MOD_ATTACK_POWER_PCT,
-                        ),
-                    ranged_attack_power_flat_aura: crate::session::hub_ref(self)
-                        .represented_ranged_attack_power_flat_aura_like_cpp(class),
-                    ranged_attack_power_total_pct: crate::session::hub_ref(self)
-                        .represented_ranged_attack_power_total_pct_like_cpp(class),
-                    attack_power_override_by_spell_power_pct: crate::session::hub_ref(self)
-                        .represented_override_attack_power_by_spell_power_pct_like_cpp(),
-                    spell_bonus,
-                    rating_bonuses,
-                    can_parry,
-                    can_block,
-                },
-            )),
-        )
+        self.stats_application_cx_like_cpp()
+            .player_stat_system_projection_like_cpp(race, class, level, gear)
     }
 
     pub(crate) fn apply_represented_shapeshift_base_attack_time_like_cpp(&mut self) -> bool {
@@ -174,27 +114,4 @@ impl WorldSession {
         let _ = self.send_stat_update();
     }
 
-    /// C++ `CONFIG_STATS_LIMITS_*` (`World.cpp:1664-1668`): cap the block,
-    /// dodge, parry and crit percentages at the point
-    /// `Player::UpdateBlockPercentage`/`UpdateDodgePercentage`/
-    /// `UpdateParryPercentage`/`UpdateCritPercentage` publish them. Applying it
-    /// to the single projection producer keeps the login create snapshot and the
-    /// canonical effective-stats snapshot identical.
-    fn apply_stats_limits_like_cpp(
-        &self,
-        mut projection: PlayerStatSystemProjectionLikeCpp,
-    ) -> PlayerStatSystemProjectionLikeCpp {
-        let limits = self.stats_limits_like_cpp();
-        projection.block_pct = limits.clamp_block_like_cpp(projection.block_pct);
-        projection.dodge_pct = limits.clamp_dodge_like_cpp(projection.dodge_pct);
-        projection.parry_pct = limits.clamp_parry_like_cpp(projection.parry_pct);
-        projection.crit_pct = limits.clamp_crit_like_cpp(projection.crit_pct);
-        projection.ranged_crit_pct = limits.clamp_crit_like_cpp(projection.ranged_crit_pct);
-        projection.offhand_crit_pct = limits.clamp_crit_like_cpp(projection.offhand_crit_pct);
-        projection
-    }
 }
-
-
-
-

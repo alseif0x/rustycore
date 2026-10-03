@@ -5,7 +5,7 @@ use std::collections::BTreeMap;
 use wow_constants::WeaponAttackType;
 use wow_data::SpellEquippedItemsEntry;
 use wow_entities::{EQUIPMENT_SLOT_MAINHAND, EQUIPMENT_SLOT_OFFHAND, EQUIPMENT_SLOT_RANGED};
-use wow_world_core::session::HubRef;
+use wow_world_core::session::{HubRef, PlayerStatsAccessLikeCpp};
 
 /// C++ `SPELL_SCHOOL_MASK_NORMAL` (`SharedDefines.h:329`): the physical school
 /// bit `Unit::UpdateDamagePctDoneMods` filters the damage-percent aura by.
@@ -28,18 +28,20 @@ impl crate::InventoryState {
         slot: u8,
         equipped: &SpellEquippedItemsEntry,
     ) -> bool {
-        self.resolved_inventory_item_objects_like_cpp(hub)
-            .is_some_and(|items| {
-                items
-                    .values()
-                    .find(|item| item.container_guid().is_empty() && item.slot() == slot)
-                    .is_some_and(|item| {
-                        hub.catalogs
-                            .represented_item_fits_spell_requirements_like_cpp(
-                                item.object().entry(),
-                                equipped,
-                            )
-                    })
+        let access = hub.core.owned_inventory_access_like_cpp();
+        self.resolved_inventory_item_with_access_like_cpp(&access, slot)
+            .and_then(|item| {
+                self.resolved_inventory_item_object_with_access_like_cpp(&access, item.guid)
+            })
+            .is_some_and(|item| {
+                item.container_guid().is_empty()
+                    && item.slot() == slot
+                    && hub
+                        .catalogs
+                        .represented_item_fits_spell_requirements_like_cpp(
+                            item.object().entry(),
+                            equipped,
+                        )
             })
     }
 
@@ -52,7 +54,7 @@ impl crate::InventoryState {
     /// `CanUseAttackType`, which this helper does not.
     fn represented_usable_weapon_item_id_like_cpp(
         &self,
-        hub: HubRef<'_>,
+        access: &PlayerStatsAccessLikeCpp<'_>,
         attack: WeaponAttackType,
     ) -> Option<u32> {
         let slot = match attack {
@@ -61,8 +63,10 @@ impl crate::InventoryState {
             WeaponAttackType::RangedAttack => EQUIPMENT_SLOT_RANGED,
             WeaponAttackType::Max => return None,
         };
-        let item = self.resolved_inventory_item_like_cpp(hub, slot)?;
-        self.resolved_inventory_item_object_like_cpp(hub, item.guid)
+        let inventory_access = access.owned_inventory_access_like_cpp();
+        let item = self
+            .resolved_inventory_item_with_access_like_cpp(&inventory_access, slot)?;
+        self.resolved_inventory_item_object_with_access_like_cpp(&inventory_access, item.guid)
             .is_some_and(|object| !object.is_broken())
             .then_some(item.entry_id)
     }
@@ -77,9 +81,9 @@ impl crate::InventoryState {
     /// this move does not change its behavior.
     pub fn represented_weapon_damage_pct_like_cpp(
         &self,
-        hub: HubRef<'_>,
+        access: &PlayerStatsAccessLikeCpp<'_>,
     ) -> [f32; 3] {
-        let effects = hub
+        let effects = access
             .resolved_aura_effects_with_spell_and_misc_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_PERCENT_DONE,
             )
@@ -92,14 +96,15 @@ impl crate::InventoryState {
                 wow_constants::WeaponAttackType::OffAttack => 0.5_f32,
                 _ => 1.0_f32,
             };
-            let weapon_item_id = self.represented_usable_weapon_item_id_like_cpp(hub, attack);
+            let weapon_item_id = self.represented_usable_weapon_item_id_like_cpp(access, attack);
             base * effects
                 .iter()
                 .filter(|(spell_id, misc_value, _)| {
                     misc_value & SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP != 0
-                        && hub
-                            .catalogs
-                            .represented_aura_spell_fits_weapon_like_cpp(*spell_id, weapon_item_id)
+                        && access.represented_aura_spell_fits_weapon_like_cpp(
+                            *spell_id,
+                            weapon_item_id,
+                        )
                 })
                 .fold(1.0_f32, |acc, (_, _, amount)| {
                     acc * (1.0 + *amount as f32 / 100.0)
@@ -115,9 +120,9 @@ impl crate::InventoryState {
     /// weapon-enchantment `ITEM_ENCHANTMENT_TYPE_DAMAGE`/`TOTEM` term.
     pub fn represented_weapon_damage_flat_like_cpp(
         &self,
-        hub: HubRef<'_>,
+        access: &PlayerStatsAccessLikeCpp<'_>,
     ) -> [f32; 3] {
-        let effects = hub
+        let effects = access
             .resolved_aura_effects_with_spell_and_misc_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_DAMAGE_DONE,
             )
@@ -126,18 +131,19 @@ impl crate::InventoryState {
             let attack =
                 <wow_constants::WeaponAttackType as num_traits::FromPrimitive>::from_usize(index)
                     .unwrap_or(wow_constants::WeaponAttackType::BaseAttack);
-            let weapon_item_id = self.represented_usable_weapon_item_id_like_cpp(hub, attack);
+            let weapon_item_id = self.represented_usable_weapon_item_id_like_cpp(access, attack);
             let aura_sum = effects
                 .iter()
                 .filter(|(spell_id, misc_value, _)| {
                     misc_value & SPELL_SCHOOL_MASK_NORMAL_LIKE_CPP != 0
-                        && hub
-                            .catalogs
-                            .represented_aura_spell_fits_weapon_like_cpp(*spell_id, weapon_item_id)
+                        && access.represented_aura_spell_fits_weapon_like_cpp(
+                            *spell_id,
+                            weapon_item_id,
+                        )
                 })
                 .map(|(_, _, amount)| *amount)
                 .sum::<i32>();
-            aura_sum as f32 + self.represented_weapon_enchant_damage_like_cpp(hub, attack)
+            aura_sum as f32 + self.represented_weapon_enchant_damage_like_cpp(access, attack)
         })
     }
 
@@ -149,10 +155,10 @@ impl crate::InventoryState {
     /// delay for shamans only.
     fn represented_weapon_enchant_damage_like_cpp(
         &self,
-        hub: HubRef<'_>,
+        access: &PlayerStatsAccessLikeCpp<'_>,
         attack: WeaponAttackType,
     ) -> f32 {
-        let Some(item_id) = self.represented_usable_weapon_item_id_like_cpp(hub, attack) else {
+        let Some(item_id) = self.represented_usable_weapon_item_id_like_cpp(access, attack) else {
             return 0.0;
         };
         let slot = match attack {
@@ -161,25 +167,25 @@ impl crate::InventoryState {
             WeaponAttackType::RangedAttack => EQUIPMENT_SLOT_RANGED,
             WeaponAttackType::Max => return 0.0,
         };
-        let Some(inventory_item) = self.resolved_inventory_item_like_cpp(hub, slot) else {
-            return 0.0;
-        };
-        let Some(item) = self.resolved_inventory_item_object_like_cpp(hub, inventory_item.guid)
+        let inventory_access = access.owned_inventory_access_like_cpp();
+        let Some(inventory_item) = self
+            .resolved_inventory_item_with_access_like_cpp(&inventory_access, slot)
         else {
             return 0.0;
         };
-        let Some(enchantment_store) = hub.catalogs.spell_item_enchantment_store() else {
+        let Some(item) = self
+            .resolved_inventory_item_object_with_access_like_cpp(
+                &inventory_access,
+                inventory_item.guid,
+            )
+        else {
             return 0.0;
         };
-        let delay_seconds = hub
-            .catalogs
-            .items
-            .stats_store
-            .as_ref()
-            .and_then(|store| store.weapon_template(item_id))
-            .map(|weapon| f32::from(weapon.item_delay) / 1000.0)
-            .unwrap_or(0.0);
-        let is_shaman = hub.player_class_like_cpp() == 7;
+        let Some(enchantment_store) = access.spell_item_enchantment_store_like_cpp() else {
+            return 0.0;
+        };
+        let delay_seconds = access.represented_weapon_delay_seconds_like_cpp(item_id);
+        let is_shaman = access.player_class_like_cpp() == 7;
         item.data()
             .enchantments
             .iter()
@@ -208,23 +214,22 @@ impl crate::InventoryState {
     /// stores the result per attack as the `FLAT_MOD` critical base value.
     pub fn represented_weapon_crit_aura_modifier_like_cpp(
         &self,
-        hub: HubRef<'_>,
+        access: &PlayerStatsAccessLikeCpp<'_>,
         attack: WeaponAttackType,
     ) -> f32 {
-        let weapon_item_id = self.represented_usable_weapon_item_id_like_cpp(hub, attack);
-        let weapon_dependent = hub
+        let weapon_item_id = self.represented_usable_weapon_item_id_like_cpp(access, attack);
+        let weapon_dependent = access
             .resolved_aura_effect_amounts_by_spell_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_WEAPON_CRIT_PERCENT,
             )
             .unwrap_or_default()
             .into_iter()
             .filter(|(spell_id, _)| {
-                hub.catalogs
-                    .represented_aura_spell_fits_weapon_like_cpp(*spell_id, weapon_item_id)
+                access.represented_aura_spell_fits_weapon_like_cpp(*spell_id, weapon_item_id)
             })
             .map(|(_, amount)| amount)
             .sum::<i32>();
-        let global = hub
+        let global = access
             .resolved_aura_effect_amounts_by_spell_like_cpp(
                 wow_data::spell::aura_types::SPELL_AURA_MOD_CRIT_PCT,
             )
@@ -245,11 +250,11 @@ impl crate::InventoryState {
     /// mainhand and offhand weapons can select different auras.
     pub fn represented_expertise_aura_modifier_like_cpp(
         &self,
-        hub: HubRef<'_>,
+        access: &PlayerStatsAccessLikeCpp<'_>,
         attack: WeaponAttackType,
     ) -> i32 {
-        let weapon_item_id = self.represented_usable_weapon_item_id_like_cpp(hub, attack);
-        let Some(effects) = hub.resolved_aura_effect_amounts_by_spell_like_cpp(
+        let weapon_item_id = self.represented_usable_weapon_item_id_like_cpp(access, attack);
+        let Some(effects) = access.resolved_aura_effect_amounts_by_spell_like_cpp(
             wow_data::spell::aura_types::SPELL_AURA_MOD_EXPERTISE,
         ) else {
             return 0;
@@ -258,20 +263,16 @@ impl crate::InventoryState {
         let mut same_effect_groups: BTreeMap<u32, i32> = BTreeMap::new();
         let mut modifier = 0;
         for (spell_id, amount) in effects {
-            if !hub
-                .catalogs
-                .represented_aura_spell_fits_weapon_like_cpp(spell_id, weapon_item_id)
-            {
+            if !access.represented_aura_spell_fits_weapon_like_cpp(spell_id, weapon_item_id) {
                 continue;
             }
             // A spell belongs to at most one same-effect group per aura type.
-            let same_effect_group = hub
-                .catalogs
+            let same_effect_group = access
                 .spell_spell_group_map_bounds_like_cpp(spell_id as u32)
                 .iter()
                 .copied()
                 .find(|group_id| {
-                    hub.catalogs
+                    access
                         .same_effect_stack_rule_aura_types_like_cpp(*group_id)
                         .is_some_and(|aura_types| {
                             aura_types

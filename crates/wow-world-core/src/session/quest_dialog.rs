@@ -37,7 +37,6 @@ pub const fn power_type_from_u8_like_cpp(power: u8) -> PowerType {
     }
 }
 
-#[cfg(any(test, feature = "test-fixtures"))]
 pub const fn primary_power_type_for_player_class_like_cpp(class_id: u8) -> PowerType {
     match class_id {
         1 => PowerType::Rage,

@@ -8,25 +8,11 @@
 use super::*;
 
 impl WorldSession {
-    pub(crate) fn level_up_stat_deltas_like_cpp(&self, new_level: u8) -> Option<(i32, [i32; 5])> {
-        let store = self.player_stats()?;
-        let race = crate::session::hub_ref(self).player_race_like_cpp();
-        let class = crate::session::hub_ref(self).player_class_like_cpp();
-        let old = store.get(
-            race,
-            class,
-            crate::session::hub_ref(self).player_level_like_cpp(),
-        )?;
-        let new = store.get(race, class, new_level)?;
-        let old_stats = old.primary_stats_like_cpp();
-        let new_stats = new.primary_stats_like_cpp();
-        Some((
-            i32::try_from(new.base_mana)
-                .unwrap_or(i32::MAX)
-                .saturating_sub(i32::try_from(old.base_mana).unwrap_or(i32::MAX)),
-            std::array::from_fn(|index| {
-                i32::from(new_stats[index]).saturating_sub(i32::from(old_stats[index]))
-            }),
-        ))
+    pub(crate) fn level_up_stat_deltas_like_cpp(
+        &mut self,
+        new_level: u8,
+    ) -> Option<(i32, [i32; 5])> {
+        self.stats_application_cx_like_cpp()
+            .level_up_stat_deltas_like_cpp(new_level)
     }
 }

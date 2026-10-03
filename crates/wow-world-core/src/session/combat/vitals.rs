@@ -1,11 +1,8 @@
 use crate::entity_update_bridge::player_values_update_to_update_object;
-use crate::session::power_type_from_u8_like_cpp;
 use crate::session::state::SessionCore;
 use wow_constants::PowerType;
 use wow_core::ObjectGuid;
 use wow_data::character_progression::PowerTypeStore;
-#[cfg(any(test, feature = "test-fixtures"))]
-use wow_entities::MAX_POWERS_PER_CLASS;
 use wow_entities::{Player, UNIT_DATA_HEALTH_BIT, UnitDataUpdate, UnitDataValues, UpdateMask};
 
 impl SessionCore {
@@ -89,25 +86,8 @@ impl crate::session::HubMut<'_> {
         max: i32,
         base_mana: i32,
     ) -> bool {
-        let synced = self
-            .core
-            .with_owned_player_mut_for_power_like_cpp(|player| {
-                for raw_power in 0..=25 {
-                    player.set_power_index(power_type_from_u8_like_cpp(raw_power), None);
-                }
-                player.set_power_index(power_type, Some(0));
-                player.unit_mut().set_display_power(power_type);
-                player.unit_mut().set_create_mana_like_cpp(base_mana.max(0));
-                player.unit_mut().set_max_power(power_type, max.max(0));
-                player.unit_mut().set_power(power_type, current.max(0));
-            })
-            .is_some();
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if synced || self.core.player_handle_like_cpp.is_none() {
-            self.fixtures.combat.represented_player_base_mana_like_cpp = base_mana.max(0);
-            self.set_represented_player_power_slot_like_cpp(0, current, Some(max));
-        }
-        synced
+        self.player_stats_access_like_cpp()
+            .sync_canonical_player_primary_power_like_cpp(power_type, current, max, base_mana)
     }
 }
 
@@ -117,57 +97,8 @@ impl crate::session::HubMut<'_> {
         health: u32,
         max_health: u32,
     ) -> Option<(u32, u32)> {
-        let max_health = max_health.max(1);
-        let health = health.min(max_health);
-        let canonical = self.core.with_owned_player_mut_like_cpp(|player| {
-            if health == 0 {
-                player
-                    .unit_mut()
-                    .set_death_state(wow_constants::DeathState::Corpse);
-            } else if matches!(
-                player.unit().death_state(),
-                wow_constants::DeathState::JustDied | wow_constants::DeathState::Corpse
-            ) {
-                player
-                    .unit_mut()
-                    .set_death_state(wow_constants::DeathState::Alive);
-            }
-            player.unit_mut().set_max_health(u64::from(max_health));
-            player.unit_mut().set_health(u64::from(health));
-            (
-                player.unit().data().health.min(u64::from(u32::MAX)) as u32,
-                player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
-            )
-        });
-        #[cfg(any(test, feature = "test-fixtures"))]
-        let result = canonical.or_else(|| {
-            if self.core.player_handle_like_cpp.is_some() {
-                return None;
-            }
-            self.core.mutate_canonical_player_like_cpp(|player| {
-                player.unit_mut().set_death_state(if health == 0 {
-                    wow_constants::DeathState::Corpse
-                } else {
-                    wow_constants::DeathState::Alive
-                });
-                player.unit_mut().set_max_health(u64::from(max_health));
-                player.unit_mut().set_health(u64::from(health));
-                (
-                    player.unit().data().health.min(u64::from(u32::MAX)) as u32,
-                    player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
-                )
-            })
-        });
-        #[cfg(not(any(test, feature = "test-fixtures")))]
-        let result = canonical;
-        #[cfg(any(test, feature = "test-fixtures"))]
-        {
-            let (current, max) = result.unwrap_or((health, max_health));
-            self.fixtures.combat.player_health_like_cpp = current;
-            self.fixtures.combat.player_max_health_like_cpp = max;
-            self.fixtures.combat.player_alive_like_cpp = current > 0;
-        }
-        result
+        self.player_stats_access_like_cpp()
+            .sync_canonical_player_health_like_cpp(health, max_health)
     }
 }
 
@@ -178,76 +109,16 @@ impl crate::session::HubMut<'_> {
         max: i32,
         base_mana: i32,
     ) -> Option<(i32, i32)> {
-        let result = self
-            .core
-            .with_owned_player_mut_for_power_like_cpp(|player| {
-                if player.unit().get_power_index(power_type).is_none() {
-                    player.set_power_index(power_type, Some(0));
-                }
-                player.unit_mut().set_display_power(power_type);
-                player.unit_mut().set_create_mana_like_cpp(base_mana.max(0));
-                // C++ `Unit::SetMaxPower` updates max and clamps current if needed.
-                player.unit_mut().set_max_power(power_type, max.max(0));
-                (
-                    player.unit().get_power(power_type),
-                    player.unit().get_max_power(power_type),
-                )
-            });
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if let Some((current, max)) = result.or_else(|| {
-            (self.core.player_handle_like_cpp.is_none()).then_some((
-                self.fixtures.combat.represented_player_powers_like_cpp[0].unwrap_or(0),
-                max.max(0),
-            ))
-        }) {
-            self.fixtures.combat.represented_player_base_mana_like_cpp = base_mana.max(0);
-            self.set_represented_player_power_slot_like_cpp(0, current, Some(max));
-        }
-        result
+        self.player_stats_access_like_cpp()
+            .sync_canonical_player_primary_power_max_like_cpp(power_type, max, base_mana)
     }
 
     pub fn sync_canonical_player_max_health_like_cpp(
         &mut self,
         max_health: u32,
     ) -> Option<(u32, u32)> {
-        let max_health = max_health.max(1);
-        let canonical = self.core.with_owned_player_mut_like_cpp(|player| {
-            // C++ `Unit::SetMaxHealth` updates max and clamps current only if needed.
-            player.unit_mut().set_max_health(u64::from(max_health));
-            (
-                player.unit().data().health.min(u64::from(u32::MAX)) as u32,
-                player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
-            )
-        });
-        #[cfg(any(test, feature = "test-fixtures"))]
-        let result = canonical.or_else(|| {
-            if self.core.player_handle_like_cpp.is_some() {
-                return None;
-            }
-            self.core
-                .mutate_canonical_player_like_cpp(|player| {
-                    player.unit_mut().set_max_health(u64::from(max_health));
-                    (
-                        player.unit().data().health.min(u64::from(u32::MAX)) as u32,
-                        player.unit().data().max_health.min(u64::from(u32::MAX)) as u32,
-                    )
-                })
-                .or_else(|| {
-                    Some((
-                        self.fixtures.combat.player_health_like_cpp.min(max_health),
-                        max_health,
-                    ))
-                })
-        });
-        #[cfg(not(any(test, feature = "test-fixtures")))]
-        let result = canonical;
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if let Some((current, max)) = result {
-            self.fixtures.combat.player_health_like_cpp = current;
-            self.fixtures.combat.player_max_health_like_cpp = max;
-            self.fixtures.combat.player_alive_like_cpp = current > 0;
-        }
-        result
+        self.player_stats_access_like_cpp()
+            .sync_canonical_player_max_health_like_cpp(max_health)
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
@@ -257,7 +128,7 @@ impl crate::session::HubMut<'_> {
         current: i32,
         max: Option<i32>,
     ) {
-        if slot >= MAX_POWERS_PER_CLASS {
+        if slot >= wow_entities::MAX_POWERS_PER_CLASS {
             return;
         }
         self.fixtures.combat.represented_player_powers_like_cpp[slot] = Some(current.max(0));

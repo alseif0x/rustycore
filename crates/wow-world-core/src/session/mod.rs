@@ -35,7 +35,10 @@ pub use canonical_access::{
     InstancePlayerAccessLikeCpp, GroupDifficultyAccessLikeCpp,
     OwnedPlayerCurrencyAccessLikeCpp, PlayerAcquisitionOwnerAccessLikeCpp,
     PlayerRegistryHydrationAccessLikeCpp, QuestRewardPlayerAccessLikeCpp,
+    PlayerStatsAccessLikeCpp,
 };
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use canonical_access::{StatsAuraFixtureRefs, StatsCombatFixtureRefs, StatsFixtureRefs};
 mod catalogs;
 mod connection;
 mod construction;
@@ -49,7 +52,6 @@ pub use movement::MovementTransportMembershipLikeCpp;
 pub use movement::{PlayerRegistryControlBindingLikeCpp, PlayerRegistrySyncAccessLikeCpp};
 mod condition_objects;
 mod player_presentation;
-mod player_stat_queries;
 mod visibility;
 pub use player_presentation::{LIQUID_MAP_IN_WATER_LIKE_CPP, LIQUID_MAP_UNDER_WATER_LIKE_CPP};
 mod pet_dismissal;
@@ -62,13 +64,17 @@ pub use spell_state::{
     player_aura_effects_by_spell_aura_type_like_cpp,
     player_aura_effects_full_by_spell_aura_type_like_cpp,
 };
+pub(crate) use spell_state::{
+    aura_effect_amounts_by_spell_from_snapshot_like_cpp,
+    aura_effects_with_misc_values_from_snapshot_like_cpp,
+    aura_effects_with_spell_and_misc_from_snapshot_like_cpp,
+};
 mod quest_dialog;
 mod spell_pet_catalogs;
 pub use quest_dialog::{
-    pet_type_from_db_like_cpp, power_type_from_u8_like_cpp, react_state_from_db_like_cpp,
+    pet_type_from_db_like_cpp, power_type_from_u8_like_cpp,
+    primary_power_type_for_player_class_like_cpp, react_state_from_db_like_cpp,
 };
-#[cfg(any(test, feature = "test-fixtures"))]
-pub use quest_dialog::primary_power_type_for_player_class_like_cpp;
 mod item_modifiers;
 mod player_items;
 mod quest_catalog_queries;

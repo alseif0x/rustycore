@@ -109,19 +109,10 @@ impl crate::session::HubRef<'_> {
     /// owned by the Unit, with the transitional Player gameplay projection as
     /// the fallback for fixtures that only seed it.
     pub fn represented_shapeshift_form_like_cpp(&self) -> Option<u32> {
-        let canonical = self.core.with_owned_player_like_cpp(|player| {
-            let form_id = u32::from(player.unit().shapeshift_form_id_like_cpp());
-            if form_id != 0 {
-                form_id
-            } else {
-                player.shapeshift_form_id_like_cpp()
-            }
-        });
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.auras.represented_shapeshift_form_like_cpp);
-        }
-        canonical
+        self.core.represented_shapeshift_form_with_fixture_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.auras.represented_shapeshift_form_like_cpp,
+        )
     }
 
     pub fn represented_player_mount_liquid_state_like_cpp(&self) -> Option<(bool, bool)> {
@@ -133,6 +124,41 @@ impl crate::session::HubRef<'_> {
         let is_in_water =
             liquid_status & (LIQUID_MAP_IN_WATER_LIKE_CPP | LIQUID_MAP_UNDER_WATER_LIKE_CPP) != 0;
         Some((is_submerged, is_in_water))
+    }
+}
+
+impl crate::session::state::SessionCore {
+    pub(crate) fn represented_shapeshift_form_with_fixture_like_cpp(
+        &self,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_form: &u32,
+    ) -> Option<u32> {
+        let canonical = self.with_owned_player_like_cpp(|player| {
+            let form_id = u32::from(player.unit().shapeshift_form_id_like_cpp());
+            if form_id != 0 {
+                form_id
+            } else {
+                player.shapeshift_form_id_like_cpp()
+            }
+        });
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(*fixture_form);
+        }
+        canonical
+    }
+
+    pub(crate) fn represented_shapeshift_combat_round_time_with_fixture_refs_like_cpp(
+        &self,
+        catalogs: &crate::session::SessionCatalogs,
+        #[cfg(any(test, feature = "test-fixtures"))] fixture_form: &u32,
+    ) -> Option<f32> {
+        let form_id = self.represented_shapeshift_form_with_fixture_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            fixture_form,
+        )?;
+        let store = catalogs.spell_catalogs.spell_shapeshift_form_store()?;
+        let form = store.get(form_id)?;
+        (form.combat_round_time > 0).then(|| f32::from(form.combat_round_time))
     }
 }
 

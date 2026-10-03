@@ -338,20 +338,11 @@ fn add_represented_trainer_gossip_option_if_missing_like_cpp(
     true
 }
 fn primary_power_type_for_class_like_cpp(class_id: u8) -> PowerType {
-    match class_id {
-        1 => PowerType::Rage,
-        4 => PowerType::Energy,
-        6 => PowerType::RunicPower,
-        _ => PowerType::Mana,
-    }
+    wow_world_core::session::primary_power_type_for_player_class_like_cpp(class_id)
 }
 
 fn primary_max_power_for_class_like_cpp(class_id: u8, max_mana: i64) -> i32 {
-    match class_id {
-        1 | 6 => 1_000,
-        4 => 100,
-        _ => max_mana.max(0).min(i64::from(i32::MAX)) as i32,
-    }
+    wow_world_application::primary_max_power_for_class_like_cpp(class_id, max_mana)
 }
 
 fn loaded_inventory_slot_count_with_legacy_rust_compat(saved_slots: u8) -> u8 {

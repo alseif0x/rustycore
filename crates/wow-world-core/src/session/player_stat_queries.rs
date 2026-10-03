@@ -6,7 +6,7 @@ use crate::session::state::hub_support::{
 };
 use wow_constants::PowerType;
 
-impl crate::session::HubRef<'_> {
+impl super::PlayerStatsAccessLikeCpp<'_> {
     pub fn mana_regen_from_stats_like_cpp(&self, level: u8, class: u8, stats: [i32; 5]) -> f32 {
         // C++ `Player::OCTRegenMPPerSpirit` returns Spirit multiplied by the
         // level/class row from `RegenMPPerSpt.txt`; `UpdateManaRegen` then

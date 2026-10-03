@@ -1,4 +1,96 @@
 use wow_entities::RepresentedAuraEffectLikeCpp;
+use wow_data::SpellStore;
+use wow_entities::AuraApplicationLikeCpp;
+
+pub(crate) fn aura_effect_amounts_by_spell_from_snapshot_like_cpp(
+    visible_auras: &std::collections::HashMap<u8, AuraApplicationLikeCpp>,
+    spell_store: &SpellStore,
+    aura_type: i32,
+) -> Vec<(i32, i32)> {
+    let mut effects = Vec::new();
+    for aura in visible_auras.values() {
+        let Some(spell) = spell_store.get(aura.spell_id) else {
+            continue;
+        };
+        for effect in spell.effects().iter().filter(|effect| {
+            effect.effect_aura == aura_type
+                && 1u32
+                    .checked_shl(effect.effect_index)
+                    .is_some_and(|bit| aura.effect_mask & bit != 0)
+        }) {
+            let amount = aura
+                .represented_effect_amounts
+                .iter()
+                .find(|represented| {
+                    u8::try_from(effect.effect_index).ok() == Some(represented.effect_index)
+                })
+                .map(|represented| represented.amount)
+                .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
+            effects.push((aura.spell_id, amount));
+        }
+    }
+    effects
+}
+
+pub(crate) fn aura_effects_with_spell_and_misc_from_snapshot_like_cpp(
+    visible_auras: &std::collections::HashMap<u8, AuraApplicationLikeCpp>,
+    spell_store: &SpellStore,
+    aura_type: i32,
+) -> Vec<(i32, i32, i32)> {
+    let mut effects = Vec::new();
+    for aura in visible_auras.values() {
+        let Some(spell) = spell_store.get(aura.spell_id) else {
+            continue;
+        };
+        for effect in spell.effects().iter().filter(|effect| {
+            effect.effect_aura == aura_type
+                && 1u32
+                    .checked_shl(effect.effect_index)
+                    .is_some_and(|bit| aura.effect_mask & bit != 0)
+        }) {
+            let amount = aura
+                .represented_effect_amounts
+                .iter()
+                .find(|represented| {
+                    u8::try_from(effect.effect_index).ok() == Some(represented.effect_index)
+                })
+                .map(|represented| represented.amount)
+                .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
+            effects.push((aura.spell_id, effect.effect_misc_value_1, amount));
+        }
+    }
+    effects
+}
+
+pub(crate) fn aura_effects_with_misc_values_from_snapshot_like_cpp(
+    visible_auras: &std::collections::HashMap<u8, AuraApplicationLikeCpp>,
+    spell_store: &SpellStore,
+    aura_type: i32,
+) -> Vec<(i32, i32, i32)> {
+    let mut effects = Vec::new();
+    for aura in visible_auras.values() {
+        let Some(spell) = spell_store.get(aura.spell_id) else {
+            continue;
+        };
+        for effect in spell.effects().iter().filter(|effect| {
+            effect.effect_aura == aura_type
+                && 1u32
+                    .checked_shl(effect.effect_index)
+                    .is_some_and(|bit| aura.effect_mask & bit != 0)
+        }) {
+            let amount = aura
+                .represented_effect_amounts
+                .iter()
+                .find(|represented| {
+                    u8::try_from(effect.effect_index).ok() == Some(represented.effect_index)
+                })
+                .map(|represented| represented.amount)
+                .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
+            effects.push((effect.effect_misc_value_1, effect.effect_misc_value_2, amount));
+        }
+    }
+    effects
+}
 
 impl crate::session::HubRef<'_> {
     pub fn resolved_total_represented_aura_modifier_like_cpp(
@@ -47,29 +139,11 @@ impl crate::session::HubRef<'_> {
     ) -> Option<Vec<(i32, i32)>> {
         let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
         let spell_store = self.catalogs.spell_store()?;
-        let mut effects = Vec::new();
-        for aura in visible_auras.values() {
-            let Some(spell) = spell_store.get(aura.spell_id) else {
-                continue;
-            };
-            for effect in spell.effects().iter().filter(|effect| {
-                effect.effect_aura == aura_type
-                    && 1u32
-                        .checked_shl(effect.effect_index)
-                        .is_some_and(|bit| aura.effect_mask & bit != 0)
-            }) {
-                let amount = aura
-                    .represented_effect_amounts
-                    .iter()
-                    .find(|represented| {
-                        u8::try_from(effect.effect_index).ok() == Some(represented.effect_index)
-                    })
-                    .map(|represented| represented.amount)
-                    .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
-                effects.push((aura.spell_id, amount));
-            }
-        }
-        Some(effects)
+        Some(aura_effect_amounts_by_spell_from_snapshot_like_cpp(
+            &visible_auras,
+            spell_store,
+            aura_type,
+        ))
     }
 
     /// Resolve active aura effects of `aura_type` with the owning spell id, the
@@ -84,29 +158,11 @@ impl crate::session::HubRef<'_> {
     ) -> Option<Vec<(i32, i32, i32)>> {
         let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
         let spell_store = self.catalogs.spell_store()?;
-        let mut effects = Vec::new();
-        for aura in visible_auras.values() {
-            let Some(spell) = spell_store.get(aura.spell_id) else {
-                continue;
-            };
-            for effect in spell.effects().iter().filter(|effect| {
-                effect.effect_aura == aura_type
-                    && 1u32
-                        .checked_shl(effect.effect_index)
-                        .is_some_and(|bit| aura.effect_mask & bit != 0)
-            }) {
-                let amount = aura
-                    .represented_effect_amounts
-                    .iter()
-                    .find(|represented| {
-                        u8::try_from(effect.effect_index).ok() == Some(represented.effect_index)
-                    })
-                    .map(|represented| represented.amount)
-                    .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
-                effects.push((aura.spell_id, effect.effect_misc_value_1, amount));
-            }
-        }
-        Some(effects)
+        Some(aura_effects_with_spell_and_misc_from_snapshot_like_cpp(
+            &visible_auras,
+            spell_store,
+            aura_type,
+        ))
     }
 
     /// Resolve active aura effects of `aura_type` with both C++ misc values and
@@ -119,33 +175,11 @@ impl crate::session::HubRef<'_> {
     ) -> Option<Vec<(i32, i32, i32)>> {
         let visible_auras = self.resolved_player_visible_auras_like_cpp()?;
         let spell_store = self.catalogs.spell_store()?;
-        let mut effects = Vec::new();
-        for aura in visible_auras.values() {
-            let Some(spell) = spell_store.get(aura.spell_id) else {
-                continue;
-            };
-            for effect in spell.effects().iter().filter(|effect| {
-                effect.effect_aura == aura_type
-                    && 1u32
-                        .checked_shl(effect.effect_index)
-                        .is_some_and(|bit| aura.effect_mask & bit != 0)
-            }) {
-                let amount = aura
-                    .represented_effect_amounts
-                    .iter()
-                    .find(|represented| {
-                        u8::try_from(effect.effect_index).ok() == Some(represented.effect_index)
-                    })
-                    .map(|represented| represented.amount)
-                    .unwrap_or_else(|| effect.calc_value_no_caster_like_cpp());
-                effects.push((
-                    effect.effect_misc_value_1,
-                    effect.effect_misc_value_2,
-                    amount,
-                ));
-            }
-        }
-        Some(effects)
+        Some(aura_effects_with_misc_values_from_snapshot_like_cpp(
+            &visible_auras,
+            spell_store,
+            aura_type,
+        ))
     }
 
     /// Resolve a C++ `GetTotalAuraMultiplierByMiscValue` family from the

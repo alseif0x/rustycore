@@ -9,6 +9,7 @@ mod quest;
 mod registry_sync;
 mod spell_acquisition;
 mod instances;
+mod stats;
 mod trainer_purchase;
 
 pub use instances::{
@@ -20,6 +21,10 @@ pub use instances::{
     InstanceDifficultyHandlerCxLikeCpp, InstanceLockOperationsHandlerCxLikeCpp,
     InstanceLockResponseOutcomeLikeCpp, InstanceRaidInfoHandlerCxLikeCpp,
     InstanceResetMethodLikeCpp, InstancesHandlerHostLikeCpp,
+};
+pub use stats::{
+    level_up_stat_deltas_like_cpp, max_health_u32_like_cpp,
+    primary_max_power_for_class_like_cpp, CharacterStatsApplicationCxLikeCpp,
 };
 pub use registry_sync::PlayerRegistrySyncContext;
 #[cfg(any(test, feature = "test-fixtures"))]

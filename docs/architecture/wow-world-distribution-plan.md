@@ -2175,6 +2175,52 @@ Trainer buy todavía depende del traslado del guardado completo previo a la
 compra; quest reward depende también de los providers completos de inventario
 y XP/estadísticas. Las demás familias y la aceptación de F5/F6 siguen abiertas.
 
+**Estadísticas y dependencias de guardado/XP — 2026-10-03, 18:03 UTC
+(implementación y revisión de fuente, NO VALIDADO):** base local `fcaa65781`,
+con cambios todavía en el árbol de trabajo. Application incorpora el módulo
+privado `stats` y `CharacterStatsApplicationCxLikeCpp`: proyección, actualización
+normal, conservación de porcentaje de salud, refill de nivel y snapshot de login.
+World conserva adaptadores y los puntos de llamada de Create/Login/XP/equipo/auras.
+Core aporta `PlayerStatsAccessLikeCpp`, con identidad y once referencias concretas
+de Combat/Aura para fixtures; construirlas no captura el Player ni sus auras.
+Los fallbacks conservan sus gates y la ausencia del handle; las mutaciones y la
+publicación siguen separadas por la liberación del guard canónico.
+
+La revisión encontró y corrigió un método de Inventory fuera de su bloque `impl`.
+También corrigió consultas por ranura/GUID que copiaban mapas completos al
+adaptar `equipment_slots`: ahora usan consultas tipadas de una entrada y los
+mismos mapas fixture bajo ausencia del handle. La fachada de deltas de nivel
+pasa por el contexto de Application, evitando un método privado de Core y un
+préstamo de un Hub temporal. El mapeo puro de tipo de poder por clase pasa a
+definición/exportación normales, conservando su cálculo y los gates de otros
+símbolos. El bloque tiene cierre de revisión de fuente y se conserva en un
+checkpoint local **NO VALIDADO**; no hay candidato aceptado. Las fachadas de
+multiplicadores que consume `scaling.rs` permanecen explícitas. No se modificó
+ningún archivo de pruebas: el consumidor de deltas en
+`wow-world/unit_tests/handlers/character_tests/skill.rs` ya usa sesión mutable.
+Los consumidores se inspeccionan por fuente; no se ejecutaron Cargo, formato,
+suites, scanners, captura ni QA live.
+
+XP completo y RewardQuest siguen en implementación. La transición de nivel y
+talentos requiere un acceso con referencias obligatorias y evaluación de puntos
+de quest en su fase original; la revisión rechaza callbacks a World y campos
+opcionales que omitan efectos. `wow-script` pasa a dependencia normal de
+Application para la llamada existente de GiveXP, con lock/política ajustados;
+la nueva dependencia no demuestra que la ruta completa esté trasladada.
+SaveToDB también sigue parcial: captura/recibo están en Core y la persistencia
+en Application, pero quedan el coordinador entero, las completions de loot y el
+drenaje de objetivos. Sus operaciones completas tienen un único implementador;
+el preflush de Trainer no se sustituye por un callback de World.
+
+Contraste acotado con Trinity `a5f8da2eb`: `Entities/Player/Player.cpp:2247`
+(`GiveLevel`), `Entities/Unit/StatSystem.cpp` (`UpdateStats`/`UpdateAllStats`) y
+`Spells/Auras/SpellAuraEffects.cpp:3656` (`HandleModTotalPercentStat`). El delta
+de nivel Rust compara dos filas de stats y base mana; C++ compara los valores
+nuevos con `GetCreateStat`/`GetCreateMana` y calcula nuevos talentos, además de
+otras fases de GiveLevel. El traslado conserva la implementación Rust y no
+demuestra esas fases ni repara las diferencias: quedan en el contrato de F6.
+Todo F5/F6 y su aceptación siguen abiertos.
+
 ### F6 — retirada de duplicados, pista de comportamiento
 
 La revisión F5 conserva dos diferencias que no puede resolver mediante un

@@ -11,7 +11,6 @@ mod durability;
 mod enchantment;
 mod equipment;
 mod equipment_sets;
-mod equipment_slots;
 mod items;
 mod modifiers;
 mod offhand;

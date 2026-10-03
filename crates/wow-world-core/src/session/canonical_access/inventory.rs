@@ -104,6 +104,38 @@ impl OwnedInventoryAccessLikeCpp<'_> {
             .with_owned_player_like_cpp(|player| player.inventory_runtime_like_cpp().clone())
     }
 
+    /// Clone only the selected canonical inventory slot while its Player owner is held.
+    pub fn inventory_item_snapshot_like_cpp(
+        &self,
+        slot: u8,
+    ) -> Option<wow_entities::PlayerInventoryItem> {
+        self.core
+            .with_owned_player_like_cpp(|player| {
+                player
+                    .inventory_runtime_like_cpp()
+                    .inventory_items()
+                    .get(&slot)
+                    .cloned()
+            })
+            .flatten()
+    }
+
+    /// Clone one live item object while the canonical Player owner is held.
+    pub fn inventory_item_object_snapshot_like_cpp(
+        &self,
+        guid: wow_core::ObjectGuid,
+    ) -> Option<wow_entities::Item> {
+        self.core
+            .with_owned_player_like_cpp(|player| {
+                player
+                    .inventory_runtime_like_cpp()
+                    .item_objects()
+                    .get(&guid)
+                    .cloned()
+            })
+            .flatten()
+    }
+
     /// Invalidate aura authority through the existing GUID/map mutation path.
     /// A missing manager or matching Player is ignored; the manager guard is
     /// released before this call returns.

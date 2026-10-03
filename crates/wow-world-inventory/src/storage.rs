@@ -541,6 +541,19 @@ impl crate::InventoryState {
             .map(|inventory| inventory.inventory_items().clone())
     }
 
+    pub(crate) fn resolved_inventory_item_with_access_like_cpp(
+        &self,
+        access: &OwnedInventoryAccessLikeCpp<'_>,
+        slot: u8,
+    ) -> Option<InventoryItem> {
+        let canonical = access.inventory_item_snapshot_like_cpp(slot);
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && access.owner_handle_absent_like_cpp() {
+            return self.inventory_items_like_cpp().get(&slot).cloned();
+        }
+        canonical
+    }
+
     pub fn resolved_inventory_item_objects_like_cpp(
         &self,
         hub: HubRef<'_>,
@@ -555,6 +568,19 @@ impl crate::InventoryState {
     ) -> Option<HashMap<ObjectGuid, Item>> {
         self.resolved_player_inventory_runtime_with_access_like_cpp(access)
             .map(|inventory| inventory.item_objects().clone())
+    }
+
+    pub(crate) fn resolved_inventory_item_object_with_access_like_cpp(
+        &self,
+        access: &OwnedInventoryAccessLikeCpp<'_>,
+        guid: ObjectGuid,
+    ) -> Option<Item> {
+        let canonical = access.inventory_item_object_snapshot_like_cpp(guid);
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && access.owner_handle_absent_like_cpp() {
+            return self.inventory_item_object_for_test_like_cpp(&guid).cloned();
+        }
+        canonical
     }
 
     pub fn resolved_inventory_item_like_cpp(
