@@ -85,6 +85,7 @@ an isolated Wine environment on a Linux x86_64 host:
 | Creation UI / personalization | Observed with real client | Fresh probe reaches human warrior customization and rendered models; no character saved |
 | Target appearance validation | Implemented; native QA passed | Seven real DB2 baselines + SQL overlays/removals; nine native human-warrior choices validate, without a save/success response |
 | Name-availability request | Codec verified with native 70170 | Private 22-byte request matches target layout; name policy, collision query and response delivery are still pending |
+| Target name-rule data | Implementation under validation | Four complete native WDC5 baselines, checked strings, SQL overlays and final removals; regex matching and availability delivery remain pending |
 | Character creation / nonempty enumeration | Pending | Name/admission, starting Player state and durable persistence still required; no character saved |
 | Initial world load | Pending | Requires target-build packets and appropriate world/client data |
 

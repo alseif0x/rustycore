@@ -426,3 +426,81 @@ fn truncated_or_duplicate_common_blob_ids_are_rejected() {
         .is_err()
     );
 }
+
+fn name_reader() -> Wdc4Reader {
+    let mut input = reader(
+        CreationTable::NameReserved,
+        &[1, 2],
+        4,
+        [8u32.to_le_bytes(), 8u32.to_le_bytes()].concat(),
+        vec![field(CompressionType::None, 0, 0, 0, 0)],
+        vec![Vec::new()],
+        vec![HashMap::new()],
+        vec![(3, 2)],
+        vec![None; 2],
+        0,
+        0,
+        0,
+    );
+    input.header.string_table_size = 9;
+    input.header.section_count = 2;
+    input.string_tables = vec![b"One\0".to_vec(), b"Deux\0".to_vec()];
+    input.record_string_table_indices = vec![Some(0), Some(1)];
+    input
+}
+
+#[test]
+fn checked_strings_use_global_physical_field_displacement_and_copy_source() {
+    let db = CreationDb2::checked(name_reader(), CreationTable::NameReserved).unwrap();
+    assert_eq!(db.string(1, 0).unwrap(), "One");
+    assert_eq!(db.string(2, 0).unwrap(), "Deux");
+    assert_eq!(db.string(3, 0).unwrap(), "Deux");
+    assert!(db.string(1, 1).is_err());
+    assert!(db.string(99, 0).is_err());
+    let mut input = name_reader();
+    input.record_data[..4].copy_from_slice(&12u32.to_le_bytes());
+    let db = CreationDb2::checked(input, CreationTable::NameReserved).unwrap();
+    assert_eq!(db.string(1, 0).unwrap(), "Deux");
+    let mut input = name_reader();
+    input.string_tables[0][3] = b'X';
+    let db = CreationDb2::checked(input, CreationTable::NameReserved).unwrap();
+    assert_eq!(db.string(1, 0).unwrap(), "OneXDeux");
+}
+
+#[test]
+fn checked_strings_preserve_source_null_and_reject_bad_addresses_and_encoding() {
+    for relative in [1u32, 17, u32::MAX] {
+        let mut input = name_reader();
+        input.record_data[..4].copy_from_slice(&relative.to_le_bytes());
+        let db = CreationDb2::checked(input, CreationTable::NameReserved).unwrap();
+        assert!(db.string(1, 0).is_err());
+    }
+    let mut input = name_reader();
+    input.record_data[..4].copy_from_slice(&0u32.to_le_bytes());
+    let db = CreationDb2::checked(input, CreationTable::NameReserved).unwrap();
+    assert_eq!(db.string(1, 0).unwrap(), "");
+    let mut input = name_reader();
+    input.string_tables[0][0] = 0xFF;
+    assert!(
+        CreationDb2::checked(input, CreationTable::NameReserved)
+            .unwrap()
+            .string(1, 0)
+            .is_err()
+    );
+    let mut input = name_reader();
+    input.string_tables[1][4] = b'X';
+    assert!(
+        CreationDb2::checked(input, CreationTable::NameReserved)
+            .unwrap()
+            .string(2, 0)
+            .is_err()
+    );
+    let mut input = name_reader();
+    input.header.string_table_size += 1;
+    assert!(
+        CreationDb2::checked(input, CreationTable::NameReserved)
+            .unwrap()
+            .string(1, 0)
+            .is_err()
+    );
+}

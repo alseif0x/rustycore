@@ -28,6 +28,7 @@ pub mod faction_change;
 pub mod forever_appearance;
 pub mod forever_character_ids;
 pub mod forever_hotfix;
+pub mod forever_names;
 pub mod game_tables;
 pub mod game_tele;
 pub mod gameobject_template;

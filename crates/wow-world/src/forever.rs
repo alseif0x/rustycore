@@ -6,6 +6,7 @@
 pub mod appearance;
 mod catalog;
 mod handlers;
+pub mod name_rules;
 mod presentation;
 #[cfg(test)]
 mod tests;

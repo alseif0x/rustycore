@@ -4,6 +4,7 @@
 use crate::PersistenceFutureLikeCpp;
 use std::collections::BTreeMap;
 pub mod appearance;
+pub mod names;
 
 pub const ACCOUNT_DATA_TYPES: usize = 20;
 pub const GLOBAL_CACHE_MASK: u32 = 0x000B_A515;

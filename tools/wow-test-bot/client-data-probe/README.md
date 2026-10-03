@@ -1,7 +1,7 @@
 # Local Forever client data probe
 
-Operator-only Linux acquisition of `ChrClasses.db2`, `ChrRaces.db2`, and
-`Achievement.db2` from
+Operator-only Linux acquisition of `ChrClasses.db2`, `ChrRaces.db2`,
+`Achievement.db2`, and explicitly opted-in validation catalogs from
 installed `wow_classic_beta` build 70170. It uses the reference's pinned CascLib,
 requires a new output directory inside the ignored `target/forever-login`,
 does not import missing encryption keys by default or substitute zero-filled data, and
@@ -112,6 +112,50 @@ race/model rows link `ChrRaceXChrModel` to `ChrModel`, options link models and
 requirements, choices link options and requirements, and requirement-choice rows
 link choices to requirements. The acquired presence/schema still does not claim
 that Rust can decode every field or that character creation/world loading works.
+
+Name-validation catalogs are a separate, explicit opt-in. They are never read by
+the default command and are not part of the character-customization output
+contract. Add `--ack-name-validation-tables` in any position among the optional
+flags:
+
+```bash
+target/forever-login/client-data-probe-build/forever-client-data-probe \
+  --ack-local-client-data /absolute/path/to/World-of-Warcraft \
+  /absolute/path/to/rustycore/target/forever-login/new-client-data esES \
+  --ack-name-validation-tables
+```
+
+The option acquires all four complete files through ordinary local CascLib reads;
+if any required section is unavailable, the operation aborts before that table is
+saved. Each output is a newly created mode `0600` file under the private fixture
+root. The probe validates each WDC5 header against the pinned `DB2Metadata.h`
+and `DB2LoadInfo.h` contract, rejects sparse data, and requires the external ID
+list implied by each `IndexField=-1` metadata declaration. It reports
+`name_validation_schema:true`, distinct from
+`character_customization_schema:true`; it never prints rows, names, keys or
+decrypted values.
+
+| file | FileDataId | layout hash | DB2Meta fields | IndexField/ParentIndexField |
+| --- | ---: | ---: | ---: | ---: |
+| `NamesProfanity.db2` | 1117086 | `0xF227E638` | 2/2 | -1/-1 |
+| `NamesReserved.db2` | 1117085 | `0x2B2D5D97` | 1/1 | -1/-1 |
+| `NamesReservedLocale.db2` | 1117087 | `0x7B9823D4` | 2/2 | -1/-1 |
+| `Cfg_Categories.db2` | 1068162 | `0x8710BE94` | 6/6 | -1/-1 |
+
+The source names are the three `Names*` tables above; there is no `Name3.db2`
+table in the pinned reference. `Cfg_Categories` supplies realm charset masks.
+The tables support asset acquisition only: Unicode classification, case folding,
+reserved/profanity policy and locale behavior remain the C++ `ObjectMgr`/
+`DB2Manager` contract and are not claimed or implemented by this probe. The
+reference's `NamesReservedLocale` SQL binding is left unchanged; this mode does
+not repair or reinterpret that binding.
+
+The DB2 table hash is read from each acquired WDC header rather than invented
+from source metadata. The source evidence is the pinned `DB2Metadata.h` entries
+`NamesProfanityMeta`, `NamesReservedMeta`, `NamesReservedLocaleMeta` and
+`Cfg_CategoriesMeta`, their `DB2LoadInfo.h` definitions, and the normal loader
+path in `DB2Store.cpp`. `IndexField=-1` is C++ metadata and is deliberately not
+compared with the physical WDC header `id_index` field.
 
 When the full Achievement table is unavailable because its second section has
 no local key, an operator may request the bounded known-section artifact with

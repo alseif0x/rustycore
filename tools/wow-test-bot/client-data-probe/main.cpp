@@ -1,5 +1,6 @@
 // RustyCore operator-only acquisition of base build-70170 DB2 tables,
-// with explicit opt-ins for TactKey.db2 and character-customization data.
+// with explicit opt-ins for TactKey.db2, character-customization data and
+// name-validation data.
 // CascLib comes from the hash-pinned reference. No account or network access.
 #include <CascLib.h>
 #include <array>
@@ -63,6 +64,17 @@ constexpr std::array<Db2Schema, 6> CharacterCustomizationSchemas = {{
     { "ChrCustomizationReq.db2", 3450453, 0xCA154412, 9, 9, -1, -1 },
     { "ChrRaceXChrModel.db2", 3490304, 0xA203BC29, 4, 4, -1, 0 },
     { "ChrCustomizationReqChoice.db2", 3580359, 0xF925BC6F, 2, 1, -1, 1 },
+}};
+
+// DB2Metadata.h / DB2LoadInfo.h at the pinned Forever reference 02245dcd.
+// These are acquired separately from character-customization data because
+// ObjectMgr::isValidString and DB2Manager::ValidateName consume them as the
+// name-validation catalog.  The table hash is read from each WDC header.
+constexpr std::array<Db2Schema, 4> NameValidationSchemas = {{
+    { "NamesProfanity.db2", 1117086, 0xF227E638, 2, 2, -1, -1 },
+    { "NamesReserved.db2", 1117085, 0x2B2D5D97, 1, 1, -1, -1 },
+    { "NamesReservedLocale.db2", 1117087, 0x7B9823D4, 2, 2, -1, -1 },
+    { "Cfg_Categories.db2", 1068162, 0x8710BE94, 6, 6, -1, -1 },
 }};
 struct Storage
 {
@@ -155,7 +167,7 @@ void SetHeaderHalfWord(std::vector<unsigned char>& data, size_t offset, unsigned
     data[offset + 1] = static_cast<unsigned char>(value >> 8);
 }
 
-void ValidateCharacterCustomizationSchema(std::vector<unsigned char> const& data,
+void ValidateDb2Schema(std::vector<unsigned char> const& data,
     Db2Schema const& schema)
 {
     ValidateHeader(data);
@@ -336,23 +348,23 @@ void TestHeader()
     {
         auto invalidSchema = valid;
         mutate(invalidSchema);
-        try { ValidateCharacterCustomizationSchema(invalidSchema, CharacterCustomizationSchemas[0]); }
+        try { ValidateDb2Schema(invalidSchema, CharacterCustomizationSchemas[0]); }
         catch (std::runtime_error const&) { return; }
         throw std::runtime_error(message);
     };
     auto expectCharacterReject = [](char const* message,
         std::vector<unsigned char> const& invalid, Db2Schema const& schema)
     {
-        try { ValidateCharacterCustomizationSchema(invalid, schema); }
+        try { ValidateDb2Schema(invalid, schema); }
         catch (std::runtime_error const&) { return; }
         throw std::runtime_error(message);
     };
     auto inlineSchema = makeCharacterSchema(CharacterCustomizationSchemas[0]);
-    ValidateCharacterCustomizationSchema(inlineSchema, CharacterCustomizationSchemas[0]);
+    ValidateDb2Schema(inlineSchema, CharacterCustomizationSchemas[0]);
     auto externalSchema = makeCharacterSchema(CharacterCustomizationSchemas[3]);
-    ValidateCharacterCustomizationSchema(externalSchema, CharacterCustomizationSchemas[3]);
+    ValidateDb2Schema(externalSchema, CharacterCustomizationSchemas[3]);
     auto parentFieldSchema = makeCharacterSchema(CharacterCustomizationSchemas[5]);
-    ValidateCharacterCustomizationSchema(parentFieldSchema, CharacterCustomizationSchemas[5]);
+    ValidateDb2Schema(parentFieldSchema, CharacterCustomizationSchemas[5]);
     rejectCharacterSchema("Character schema self-test did not reject layout", inlineSchema,
         [](auto& value) { value[156] ^= 1; });
     rejectCharacterSchema("Character schema self-test did not reject file field count", inlineSchema,
@@ -371,7 +383,35 @@ void TestHeader()
     SetHeaderWord(rejectParentLookup, 184, 1);
     expectCharacterReject("Character schema self-test did not reject parent lookup", rejectParentLookup,
         CharacterCustomizationSchemas[3]);
-    std::cout << "WDC5 header self-test passed (positive, truncation, magic, version, parent, endian, TactKey and character schemas).\n";
+
+    auto expectNameValidationReject = [](char const* message,
+        std::vector<unsigned char> const& invalid, Db2Schema const& schema)
+    {
+        try { ValidateDb2Schema(invalid, schema); }
+        catch (std::runtime_error const&) { return; }
+        throw std::runtime_error(message);
+    };
+    for (Db2Schema const& schema : NameValidationSchemas)
+    {
+        auto valid = makeCharacterSchema(schema);
+        ValidateDb2Schema(valid, schema);
+
+        auto invalid = valid;
+        invalid[156] ^= 1;
+        expectNameValidationReject("Name-validation self-test did not reject layout", invalid, schema);
+        invalid = valid;
+        invalid[140] = 0;
+        expectNameValidationReject("Name-validation self-test did not reject field count", invalid, schema);
+        invalid = valid;
+        invalid[Db2HeaderSize + 24] = 0;
+        expectNameValidationReject("Name-validation self-test did not reject external ID table", invalid, schema);
+        invalid = valid;
+        invalid[184] = 1;
+        expectNameValidationReject("Name-validation self-test did not reject parent lookup", invalid, schema);
+        invalid.resize(Db2HeaderSize);
+        expectNameValidationReject("Name-validation self-test did not reject truncation", invalid, schema);
+    }
+    std::cout << "WDC5 header self-test passed (positive, truncation, magic, version, parent, endian, TactKey, character and name-validation schemas).\n";
 }
 
 fs::path ValidatePrivateTactKeyFile(fs::path const& input)
@@ -479,7 +519,8 @@ void ExtractAvailableAchievement(HANDLE storage, fs::path const& output, char co
 }
 
 void Extract(HANDLE storage, DWORD id, char const* name, fs::path const& output,
-    char const* locale, bool validateTactKey = false, Db2Schema const* expectedSchema = nullptr)
+    char const* locale, bool validateTactKey = false, Db2Schema const* expectedSchema = nullptr,
+    bool nameValidationSchema = false)
 {
     File file;
     // No missing-key zero-fill flag or remote storage; optional key import is
@@ -520,8 +561,9 @@ void Extract(HANDLE storage, DWORD id, char const* name, fs::path const& output,
             << ",\"copies\":" << HeaderWord(sectionHeaders, offset + 36)
             << ",\"key_available\":" << (keyAvailable ? "true" : "false") << "}\n";
         if (expectedSchema && !keyAvailable)
-            throw std::runtime_error(std::string("Character customization table ") + name +
-                " has an unavailable encrypted section");
+            throw std::runtime_error(std::string("Required ") +
+                (nameValidationSchema ? "name-validation table " : "character-customization table ") +
+                name + " has an unavailable encrypted section");
     }
     if (!CascSetFilePointer64(file.value, 0, nullptr, FILE_BEGIN)) CascFailure("Seek local DB2");
     std::vector<unsigned char> data(static_cast<size_t>(size));
@@ -530,7 +572,7 @@ void Extract(HANDLE storage, DWORD id, char const* name, fs::path const& output,
         CascFailure("Read complete local DB2");
     ValidateHeader(data);
     if (validateTactKey) ValidateTactKey(data);
-    if (expectedSchema) ValidateCharacterCustomizationSchema(data, *expectedSchema);
+    if (expectedSchema) ValidateDb2Schema(data, *expectedSchema);
     SaveNew(output / name, data);
     std::cout << "{\"build\":" << Build << ",\"file_id\":" << id
         << ",\"locale\":\"" << locale << "\",\"bytes\":" << size << ",\"magic\":\"WDC5\""
@@ -539,7 +581,9 @@ void Extract(HANDLE storage, DWORD id, char const* name, fs::path const& output,
         << ",\"table_hash\":" << HeaderWord(data, 152)
         << ",\"layout_hash\":" << HeaderWord(data, 156)
         << ",\"local_only\":true,\"missing_key_zero_fill\":false";
-    if (expectedSchema) std::cout << ",\"character_customization_schema\":true";
+    if (expectedSchema)
+        std::cout << (nameValidationSchema ? ",\"name_validation_schema\":true" :
+            ",\"character_customization_schema\":true");
     std::cout << "}\n";
 }
 }
@@ -553,13 +597,14 @@ int main(int argc, char** argv)
             TestHeader();
             return 0;
         }
-        if (argc < 5 || argc > 10 || std::string(argv[1]) != "--ack-local-client-data")
-            throw std::runtime_error("Usage: --ack-local-client-data <WoW storage root> <new private output directory> <esES|enUS> [--ack-public-tact-keys <private-file>] [--ack-available-achievements] [--ack-tact-key-table] [--ack-character-customization-tables]");
+        if (argc < 5 || argc > 11 || std::string(argv[1]) != "--ack-local-client-data")
+            throw std::runtime_error("Usage: --ack-local-client-data <WoW storage root> <new private output directory> <esES|enUS> [--ack-public-tact-keys <private-file>] [--ack-available-achievements] [--ack-tact-key-table] [--ack-character-customization-tables] [--ack-name-validation-tables]");
         fs::path tactKeyFile;
         bool tactKeyOptionSeen = false;
         bool availableAchievements = false;
         bool tactKeyTable = false;
         bool characterCustomizationTables = false;
+        bool nameValidationTables = false;
         for (int argument = 5; argument < argc;)
         {
             std::string option = argv[argument];
@@ -590,6 +635,13 @@ int main(int argc, char** argv)
                 if (characterCustomizationTables)
                     throw std::runtime_error("Character customization table option may appear once");
                 characterCustomizationTables = true;
+                ++argument;
+            }
+            else if (option == "--ack-name-validation-tables")
+            {
+                if (nameValidationTables)
+                    throw std::runtime_error("Name-validation table option may appear once");
+                nameValidationTables = true;
                 ++argument;
             }
             else
@@ -639,6 +691,10 @@ int main(int argc, char** argv)
         if (characterCustomizationTables)
             for (Db2Schema const& schema : CharacterCustomizationSchemas)
                 Extract(storage.value, schema.fileDataId, schema.fileName, output, locale.c_str(), false, &schema);
+        if (nameValidationTables)
+            for (Db2Schema const& schema : NameValidationSchemas)
+                Extract(storage.value, schema.fileDataId, schema.fileName, output, locale.c_str(), false,
+                    &schema, true);
         if (tactKeyTable)
             Extract(storage.value, TactKeyFileDataId, "TactKey.db2", output, locale.c_str(), true);
         if (availableAchievements)

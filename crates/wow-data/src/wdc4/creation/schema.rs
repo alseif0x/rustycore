@@ -10,6 +10,10 @@ pub(crate) enum CreationTable {
     RequiredChoice,
     RaceModel,
     Race,
+    NameProfanity,
+    NameReserved,
+    NameReservedLocale,
+    Category,
 }
 
 pub(super) struct Schema {
@@ -52,6 +56,12 @@ impl CreationTable {
             ),
             Self::RaceModel => ("ChrRaceXChrModel", 0xA7E150FE, 0xA203BC29, 4, None, Some(0)),
             Self::Race => ("ChrRaces", 0x53F1783C, 0x4F44C796, 51, None, None),
+            Self::NameProfanity => ("NamesProfanity", 0xDA82D96C, 0xF227E638, 2, None, None),
+            Self::NameReserved => ("NamesReserved", 0x25C1CB13, 0x2B2D5D97, 1, None, None),
+            Self::NameReservedLocale => {
+                ("NamesReservedLocale", 0x3ACAE305, 0x7B9823D4, 2, None, None)
+            }
+            Self::Category => ("Cfg_Categories", 0xC7ED797D, 0x8710BE94, 6, None, None),
         };
         Schema {
             name,
@@ -79,6 +89,10 @@ impl CreationTable {
             (Self::RaceModel, 0 | 2) => Some((8, 1)),
             (Self::Race, 15 | 26 | 28) => Some((32, 1)),
             (Self::Race, 36 | 38) => Some((8, 1)),
+            (Self::NameProfanity | Self::NameReservedLocale, 1) => Some((8, 1)),
+            (Self::Category, 1) => Some((16, 1)),
+            (Self::Category, 2 | 3 | 5) => Some((8, 1)),
+            (Self::Category, 4) => Some((32, 1)),
             _ => None,
         }
     }

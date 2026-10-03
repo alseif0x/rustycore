@@ -65,6 +65,8 @@ class AcquisitionGuards(unittest.TestCase):
         self.rejected([*args, "--ack-tact-key-table", "--ack-tact-key-table"], "may appear once")
         self.rejected([*args, "--ack-character-customization-tables",
                        "--ack-character-customization-tables"], "may appear once")
+        self.rejected([*args, "--ack-name-validation-tables", "--ack-name-validation-tables"],
+                      "may appear once")
         self.rejected([*args, "--ack-tact-key-table", "--ack-public-tact-keys"], "requires one private file")
 
     def test_optional_table_flags_accept_any_option_order(self):
@@ -77,7 +79,7 @@ class AcquisitionGuards(unittest.TestCase):
                 str(self.binary), "--ack-local-client-data", "/does-not-exist",
                 directory / "output", "esES", "--ack-tact-key-table",
                 "--ack-available-achievements", "--ack-character-customization-tables",
-                "--ack-public-tact-keys", key_file,
+                "--ack-name-validation-tables", "--ack-public-tact-keys", key_file,
             ], capture_output=True, text=True, timeout=5)
             self.assertEqual(result.returncode, 1)
             self.assertNotIn("Unknown optional", result.stderr)
