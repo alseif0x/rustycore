@@ -25,9 +25,8 @@ pub(crate) use local_inventory::{
     registration_alias_violations_with_legacy_wrapper_reexport,
 };
 pub(crate) use direct_builder::{
-    DIRECT_REGISTRAR_CONTRACTS, DirectRegistrarContract, INSTANCES_REGISTRAR,
-    INVENTORY_REGISTRAR,
-    RegistrarFacadeContract, RegistrarReport,
+    DIRECT_REGISTRAR_CONTRACTS, DirectRegistrarContract, EQUIPMENT_SET_USE_REGISTRAR,
+    INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, RegistrarFacadeContract, RegistrarReport,
     analyze_contract_source, analyze_owner_source, analyze_owner_source_with_contracts,
     unowned_entry_literal_violation,
 };

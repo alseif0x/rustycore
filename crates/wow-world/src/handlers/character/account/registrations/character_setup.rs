@@ -185,16 +185,4 @@ crate::session::registry::register_packet_handler_like_cpp! {
     }
 }
 
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::UseEquipmentSet,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_use_equipment_set",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_use_equipment_set(pkt).await })
-        },
-    }
-}
-
 // ── Stub registrations for character-select opcodes ──────────────────

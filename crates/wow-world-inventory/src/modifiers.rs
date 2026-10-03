@@ -103,7 +103,7 @@ impl crate::InventoryState {
         self.player_item_modifier_runtime_snapshot_with_access_like_cpp(&access)
     }
 
-    fn player_item_modifier_runtime_snapshot_with_access_like_cpp(
+    pub(crate) fn player_item_modifier_runtime_snapshot_with_access_like_cpp(
         &self,
         access: &wow_world_core::session::OwnedItemModifiersAccessLikeCpp<'_>,
     ) -> Option<wow_entities::PlayerItemModifierRuntimeStateLikeCpp> {
@@ -419,10 +419,8 @@ impl crate::InventoryState {
         &self,
         hub: HubRef<'_>,
     ) -> Option<PlayerItemBonusStateLikeCpp> {
-        Some(
-            self.player_item_modifier_runtime_snapshot_like_cpp(hub)?
-                .bonuses_snapshot_like_cpp(),
-        )
+        let access = hub.core.owned_item_modifiers_access_like_cpp();
+        self.represented_item_bonus_state_for_equipment_set_use_like_cpp(&access)
     }
 
     pub fn represented_item_reputation_rank_like_cpp(

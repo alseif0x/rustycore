@@ -2320,7 +2320,38 @@ El borrador de envío directo fue retirado y el traslado completo sigue pendient
 La dependencia normal/fixtures App → `wow-world-entities` queda declarada en
 manifest, lock y policy por los imports reales del nuevo módulo de visibilidad.
 
+Checkpoint UseEquipmentSet (2026-10-03, implementación NO VALIDADA): App posee
+decode, selección por slot, movimiento completo, Registry, Stats/fallback y
+respuesta; Inventory posee los dos movimientos y reutiliza búsqueda por GUID,
+snapshot de bonuses y búsqueda de backpack. Las fachadas World y la composición
+de `world-server` usan el registrar App con LoggedIn/Inplace y el mismo nombre
+de handler. El checker tiene un descriptor finito propio y casos escritos para
+ausencia, aliases y procedencia/composición incorrectas; no se ejecutaron.
+Los cinco escenarios World existentes de uso de conjuntos conservan identidad.
+Las raíces y archivos compartidos se guardan selectivamente, sin incluir los
+cambios concurrentes de recompensas, condiciones, guardado o XP.
+Se leyó `CharacterHandler.cpp:1953–2011::HandleUseEquipmentSet` y
+`Opcodes.cpp:1005`, SHA `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`.
+F5 conserva el algoritmo Rust representado; el flujo completo C++ de
+CanStoreItem/CanUnequipItem/CanEquipItem, nested inventory y fanout no queda
+acreditado por ese traslado. Compilación, contratos ejecutados, capturas y
+aceptación F5/F6 siguen pendientes.
+
 ### F6 — retirada de duplicados, pista de comportamiento
+
+Contraste de valoración de equipo para la proyección de condiciones (inspección
+2026-10-03, sin aceptación): `Player.cpp:28803–28877`
+(`UpdateAverageItemLevelTotal`/`UpdateAverageItemLevelEquipped`) y
+`Item.cpp:1891–1940::GetItemLevel`, SHA `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`.
+No son el método alternativo `GetAverageItemLevel` de Player.cpp:27909.
+C++ recorre `ForEachItem(Everywhere)` y, para equipo no equipado, comprueba
+CanEquip antes de GetItemLevel; acumula en float. El Rust actual recorre
+snapshots representados directos/anidados, calcula el nivel antes de sus gates
+CanUse/Unique/CanEquip y suma enteros con saturación. Su override de nivel debug
+tampoco constituye prueba del GetItemLevel C++. F5 preserva esos órdenes y
+operaciones; F6 requiere contrastar el consumidor completo antes de acreditar
+o reparar las diferencias. Los promedios no se pueden precapturar en World
+para sustituir la operación App y sus consultas originales.
 
 Contraste ItemSet de continuación (2026-10-03, 18:38 UTC, inspección sin
 aceptación): `Entities/Item/Item.cpp:57–144` (`AddItemsSetItem`) y `:146–196`

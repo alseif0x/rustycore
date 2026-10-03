@@ -12,127 +12,57 @@ impl WorldSession {
         src: u8,
         dst: u8,
     ) -> bool {
-        if src == dst {
-            return true;
-        }
-
-        let src_item = self.resolved_inventory_item_like_cpp(src);
-        let dst_item = self.resolved_inventory_item_like_cpp(dst);
-        let Some(src_item) = src_item else {
-            return false;
-        };
-
-        self.insert_inventory_item_like_cpp(dst, src_item.clone());
-        let player_guid = self.player_guid().unwrap_or(ObjectGuid::EMPTY);
-        let _ = self.apply_inventory_item_object_updates_like_cpp(
-            src_item.guid,
-            &[
-                ItemObjectUpdateLikeCpp::SetContainedIn(player_guid),
-                ItemObjectUpdateLikeCpp::SetSlot(dst),
-            ],
-        );
-
-        if let Some(dst_item) = dst_item {
-            self.insert_inventory_item_like_cpp(src, dst_item.clone());
-            let _ = self.apply_inventory_item_object_updates_like_cpp(
-                dst_item.guid,
-                &[
-                    ItemObjectUpdateLikeCpp::SetContainedIn(player_guid),
-                    ItemObjectUpdateLikeCpp::SetSlot(src),
-                ],
-            );
-        } else {
-            self.remove_inventory_item_like_cpp(src);
-        }
-
-        true
+        let access = self.core.owned_inventory_access_like_cpp();
+        self.inventory
+            .move_direct_inventory_item_with_access_like_cpp(&access, src, dst)
     }
     pub(crate) fn move_represented_direct_inventory_item_with_item_mods_like_cpp(
         &mut self,
         src: u8,
         dst: u8,
     ) -> Option<bool> {
-        if src == dst {
-            return Some(false);
-        }
+        let inventory_access = self.core.owned_inventory_access_like_cpp();
+        let modifier_access = self.core.owned_item_modifiers_access_like_cpp();
+        let item_sets = self.core.owned_item_set_access_like_cpp(
+            self.catalogs.items.set_store.as_deref(),
+            self.catalogs.spell_catalogs.item_set_spell_store.as_deref(),
+            self.catalogs.spell_catalogs.spell_store.as_deref(),
+            self.catalogs.heirloom_store.as_deref(),
+            self.catalogs.items.stats_store.as_deref(),
+            self.catalogs.curve_store.as_deref(),
+            self.catalogs.curve_point_store.as_deref(),
+            self.catalogs.content_tuning_store.as_deref(),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self
+                .fixtures
+                .progression
+                .player_skill_test_fixture_like_cpp
+                .player_skill_records_like_cpp,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_level,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.progression.represented_primary_specialization_id_like_cpp,
+        );
 
-        let src_item = self.resolved_inventory_item_like_cpp(src)?;
-        let dst_item = self.resolved_inventory_item_like_cpp(dst);
-        let mut item_mods_changed = false;
-
-        if src < INVENTORY_SLOT_BAG_END {
-            let _ = self.record_direct_inventory_item_set_remove_like_cpp(
-                INVENTORY_SLOT_BAG_0,
+        self.inventory
+            .move_direct_inventory_item_with_item_mods_for_equipment_set_like_cpp(
+                &inventory_access,
+                &modifier_access,
+                &item_sets,
+                self.catalogs.items.store.as_ref(),
+                self.catalogs.items.stats_store.as_ref(),
+                self.catalogs.scaling_stat_distribution_store.as_ref(),
+                self.catalogs.scaling_stat_values_store.as_ref(),
+                self.catalogs.shield_block_regular_game_table.as_ref(),
+                self.catalogs.spell_catalogs.spell_shapeshift_form_store(),
                 src,
-                src_item.guid,
-            );
-        }
-
-        if src < INVENTORY_SLOT_BAG_END
-            && self
-                .resolved_inventory_item_object_like_cpp(src_item.guid)
-                .is_some_and(|item| !item.is_broken())
-        {
-            self.record_represented_item_mods_like_cpp(src_item.guid, src, false);
-            item_mods_changed = true;
-        }
-
-        if dst < INVENTORY_SLOT_BAG_END
-            && let Some(dst_item) = dst_item.as_ref()
-        {
-            let _ = self.record_direct_inventory_item_set_remove_like_cpp(
-                INVENTORY_SLOT_BAG_0,
                 dst,
-                dst_item.guid,
-            );
-        }
-
-        if dst < INVENTORY_SLOT_BAG_END
-            && dst_item.as_ref().is_some_and(|item| {
-                self.resolved_inventory_item_object_like_cpp(item.guid)
-                    .is_some_and(|item_object| !item_object.is_broken())
-            })
-        {
-            let dst_item = dst_item.as_ref().expect("checked Some above");
-            self.record_represented_item_mods_like_cpp(dst_item.guid, dst, false);
-            item_mods_changed = true;
-        }
-
-        if !self.move_represented_direct_inventory_item_like_cpp(src, dst) {
-            return None;
-        }
-
-        if dst < INVENTORY_SLOT_BAG_END {
-            let _ = self.record_represented_items_set_item_like_cpp(src_item.guid, true);
-        }
-
-        if dst < INVENTORY_SLOT_BAG_END
-            && self
-                .resolved_inventory_item_object_like_cpp(src_item.guid)
-                .is_some_and(|item| !item.is_broken())
-        {
-            self.record_represented_item_mods_like_cpp(src_item.guid, dst, true);
-            item_mods_changed = true;
-        }
-
-        if src < INVENTORY_SLOT_BAG_END
-            && let Some(dst_item) = dst_item.as_ref()
-        {
-            let _ = self.record_represented_items_set_item_like_cpp(dst_item.guid, true);
-        }
-
-        if src < INVENTORY_SLOT_BAG_END
-            && dst_item.as_ref().is_some_and(|item| {
-                self.resolved_inventory_item_object_like_cpp(item.guid)
-                    .is_some_and(|item_object| !item_object.is_broken())
-            })
-        {
-            let dst_item = dst_item.as_ref().expect("checked Some above");
-            self.record_represented_item_mods_like_cpp(dst_item.guid, src, true);
-            item_mods_changed = true;
-        }
-
-        Some(item_mods_changed)
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &self.fixtures.identity.player_level,
+                #[cfg(any(test, feature = "test-fixtures"))]
+                &self.fixtures.auras.represented_shapeshift_form_like_cpp,
+                cfg!(test),
+            )
     }
     pub(crate) fn record_destroyed_inventory_item_mod_remove_like_cpp(
         &mut self,

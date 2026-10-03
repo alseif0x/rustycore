@@ -7,8 +7,8 @@ use std::path::PathBuf;
 
 use crate::ownership::{SourceMountContext, WorkspaceSourceMount};
 use crate::registrations::{
-    DirectRegistrarContract, DIRECT_REGISTRAR_CONTRACTS, INSTANCES_REGISTRAR,
-    INVENTORY_REGISTRAR, RegistrarFacadeContract,
+    DirectRegistrarContract, DIRECT_REGISTRAR_CONTRACTS, EQUIPMENT_SET_USE_REGISTRAR,
+    INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, RegistrarFacadeContract,
     validate_composition_mounts, validate_composition_mounts_with_contracts,
 };
 
@@ -95,6 +95,12 @@ fn actual_mounts() -> Vec<WorkspaceSourceMount> {
             "crate::instances::registration",
             "crates/wow-world-application/src/instances/registration.rs",
             include_str!("../../../../../crates/wow-world-application/src/instances/registration.rs"),
+        ),
+        mount(
+            EQUIPMENT_SET_USE_REGISTRAR.package,
+            EQUIPMENT_SET_USE_REGISTRAR.module,
+            "crates/wow-world-application/src/equipment_set_use.rs",
+            include_str!("../../../../../crates/wow-world-application/src/equipment_set_use.rs"),
         ),
     ]
 }
@@ -241,6 +247,77 @@ fn composition_guard_accepts_a_finite_two_owner_synthetic_fixture() {
 fn composition_guard_accepts_actual_production_fixture_and_both_exact_facades() {
     validate_composition_mounts(&actual_mounts())
     .expect("actual normal composer, fixture dispatch, and all owner facades match");
+}
+
+#[test]
+fn composition_guard_rejects_missing_aliased_and_wrong_equipment_set_use_calls() {
+    let mut missing = actual_mounts();
+    missing[0].source = missing[0].source.replace(
+        "register_equipment_set_use_handler_like_cpp",
+        "unowned_equipment_set_use_handler_like_cpp",
+    );
+    assert_rejected(&missing, "missing production EquipmentSetUse registrar");
+
+    let mut missing_fixture = actual_mounts();
+    missing_fixture[1].source = missing_fixture[1].source.replace(
+        "register_equipment_set_use_handler_like_cpp",
+        "unowned_equipment_set_use_handler_like_cpp",
+    );
+    assert_rejected(&missing_fixture, "missing fixture EquipmentSetUse registrar");
+
+    let mut aliased = actual_mounts();
+    aliased[0].source = aliased[0]
+        .source
+        .replace(
+            "wow_world_application::register_equipment_set_use_handler_like_cpp",
+            "application_alias::register_equipment_set_use_handler_like_cpp",
+        )
+        .replace(
+            "use std::sync::Arc;",
+            "use std::sync::Arc;\nuse wow_world_application as application_alias;",
+        );
+    assert_rejected(&aliased, "aliased Application EquipmentSetUse registrar");
+
+    let mut wrong_owner = actual_mounts();
+    wrong_owner[0].source = wrong_owner[0].source.replace(
+        "wow_world_application::register_equipment_set_use_handler_like_cpp",
+        "wow_world_application::register_instance_handlers_like_cpp",
+    );
+    assert_rejected(&wrong_owner, "EquipmentSetUse call substituted with another registrar");
+
+    let mut missing_facade = actual_mounts();
+    let application_root = missing_facade
+        .iter_mut()
+        .find(|mount| {
+            mount.package == EQUIPMENT_SET_USE_REGISTRAR.package
+                && mount.source_path.ends_with("crates/wow-world-application/src/lib.rs")
+        })
+        .expect("Application root source mount exists");
+    let missing_export = "register_equipment_set_use_handler_like_cpp,";
+    assert_eq!(application_root.source.matches(missing_export).count(), 1);
+    let original_root = application_root.source.clone();
+    application_root.source = application_root.source.replace(
+        missing_export,
+        "",
+    );
+    assert_ne!(application_root.source, original_root);
+    assert_rejected(&missing_facade, "missing EquipmentSetUse root facade export");
+
+    let mut aliased_facade = actual_mounts();
+    let application_root = aliased_facade
+        .iter_mut()
+        .find(|mount| {
+            mount.package == EQUIPMENT_SET_USE_REGISTRAR.package
+                && mount.source_path.ends_with("crates/wow-world-application/src/lib.rs")
+        })
+        .expect("Application root source mount exists");
+    let original_root = application_root.source.clone();
+    application_root.source = application_root.source.replace(
+        "register_equipment_set_use_handler_like_cpp,",
+        "register_equipment_set_use_handler_like_cpp as register_use_handler,",
+    );
+    assert_ne!(application_root.source, original_root);
+    assert_rejected(&aliased_facade, "aliased EquipmentSetUse root facade export");
 }
 
 #[test]

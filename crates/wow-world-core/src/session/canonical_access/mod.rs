@@ -36,3 +36,6 @@ pub use trainer_npc::NpcInteractionAccessLikeCpp;
 pub use player_stats::{StatsAuraFixtureRefs, StatsCombatFixtureRefs, StatsFixtureRefs};
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use trainer_npc::NpcInteractionFixtureRefsLikeCpp;
+
+mod equipment_set_use;
+pub use equipment_set_use::{EquipmentSetCombatAccessLikeCpp, EquipmentSetUseAccessLikeCpp};

@@ -53,28 +53,9 @@ impl WorldSession {
 
     /// Handle CMSG_USE_EQUIPMENT_SET.
     ///
-    /// C++ `HandleUseEquipmentSet` iterates all 19 equipment slots, skips the
-    /// ignored GUID sentinel and non-weapon slots in combat, then uses
-    /// `GetItemByGuid` + `SwapItem` / `CanStoreItem` to move gear. This slice
-    /// mirrors the represented direct-inventory state and the result packet;
-    /// full nested-container validation, `CanEquipItem`, DB writes, and item
-    /// update fanout remain later inventory-runtime work.
-    pub async fn handle_use_equipment_set(&mut self, mut pkt: WorldPacket) {
-        let request = match UseEquipmentSet::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!("Bad UseEquipmentSet: {error}");
-                return;
-            }
-        };
-
-        let represented_item_mods_changed = self.use_represented_equipment_set_like_cpp(&request);
-        if represented_item_mods_changed {
-            self.send_represented_item_bonus_player_stat_update_like_cpp();
-        }
-        self.send_packet(&UseEquipmentSetResult {
-            guid: request.guid,
-            reason: 0,
-        });
+    /// Decode and delegate CMSG_USE_EQUIPMENT_SET to its Application owner.
+    pub async fn handle_use_equipment_set(&mut self, pkt: WorldPacket) {
+        self.build_equipment_set_use_context_like_cpp()
+            .handle_use_equipment_set_like_cpp(pkt);
     }
 }

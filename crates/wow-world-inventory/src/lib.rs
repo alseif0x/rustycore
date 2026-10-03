@@ -15,6 +15,7 @@ mod currency;
 mod enchantment;
 mod equipment;
 mod equipment_slots;
+mod equipment_set_use;
 mod equipment_sets;
 mod handlers;
 mod durability;

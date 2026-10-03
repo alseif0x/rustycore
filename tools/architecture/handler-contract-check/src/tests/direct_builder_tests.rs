@@ -5,8 +5,9 @@
 use std::path::Path;
 
 use crate::registrations::{
-    DirectRegistrarContract, INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, analyze_contract_source,
-    analyze_owner_source, analyze_owner_source_with_contracts, unowned_entry_literal_violation,
+    DirectRegistrarContract, DIRECT_REGISTRAR_CONTRACTS, EQUIPMENT_SET_USE_REGISTRAR,
+    INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, analyze_contract_source, analyze_owner_source,
+    analyze_owner_source_with_contracts, unowned_entry_literal_violation,
 };
 
 const INVENTORY_PACKAGE: &str = "wow-world-inventory";
@@ -78,6 +79,54 @@ fn direct_instances_registrar_accepts_exact_seven_entry_source() {
         &[INVENTORY_REGISTRAR],
     )
     .is_err(), "a direct owner omitted from the finite contract set is rejected");
+}
+
+#[test]
+fn direct_equipment_set_use_registrar_accepts_its_exact_owner_and_rejects_aliases() {
+    const SOURCE: &str = include_str!(
+        "../../../../../crates/wow-world-application/src/equipment_set_use.rs"
+    );
+    let report = analyze_owner_source_with_contracts(
+        EQUIPMENT_SET_USE_REGISTRAR.package,
+        EQUIPMENT_SET_USE_REGISTRAR.module,
+        Path::new("equipment_set_use.rs"),
+        SOURCE,
+        DIRECT_REGISTRAR_CONTRACTS,
+    )
+    .expect("Application EquipmentSetUse has its exact finite direct registrar");
+    assert_eq!(report.entries, 1);
+    assert_eq!(report.registrar_count, 1);
+    assert_eq!(report.contract, Some(EQUIPMENT_SET_USE_REGISTRAR));
+
+    let aliased_entry = SOURCE
+        .replace("PacketHandlerEntry,", "PacketHandlerEntry as Entry,")
+        .replace("builder.register(PacketHandlerEntry", "builder.register(Entry");
+    assert!(analyze_owner_source_with_contracts(
+        EQUIPMENT_SET_USE_REGISTRAR.package,
+        EQUIPMENT_SET_USE_REGISTRAR.module,
+        Path::new("equipment_set_use.rs"),
+        &aliased_entry,
+        DIRECT_REGISTRAR_CONTRACTS,
+    )
+    .is_err(), "a renamed PacketHandlerEntry binding cannot satisfy the owner contract");
+
+    assert!(analyze_owner_source_with_contracts(
+        EQUIPMENT_SET_USE_REGISTRAR.package,
+        "crate::equipment_set_use::other",
+        Path::new("equipment_set_use.rs"),
+        SOURCE,
+        DIRECT_REGISTRAR_CONTRACTS,
+    )
+    .is_err(), "the registrar cannot be moved under a different logical module");
+
+    assert!(analyze_owner_source_with_contracts(
+        EQUIPMENT_SET_USE_REGISTRAR.package,
+        EQUIPMENT_SET_USE_REGISTRAR.module,
+        Path::new("equipment_set_use.rs"),
+        SOURCE,
+        &[INVENTORY_REGISTRAR, INSTANCES_REGISTRAR],
+    )
+    .is_err(), "an owner omitted from the finite contract set is rejected");
 }
 
 #[test]

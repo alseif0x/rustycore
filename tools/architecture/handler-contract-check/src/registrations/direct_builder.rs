@@ -111,9 +111,35 @@ pub(crate) const INSTANCES_REGISTRAR: DirectRegistrarContract = DirectRegistrarC
     facades: INSTANCES_FACADES,
 };
 
+const EQUIPMENT_SET_USE_ROOT_EXPORTS: &[&str] = &[
+    "register_equipment_set_use_handler_like_cpp",
+    "EquipmentSetUseContextLikeCpp",
+    "EquipmentSetUseHandlerHostLikeCpp",
+    "EquipmentSetUseItemModsStoresLikeCpp",
+];
+const EQUIPMENT_SET_USE_FACADES: &[RegistrarFacadeContract] = &[RegistrarFacadeContract {
+    module: "crate",
+    child: "equipment_set_use",
+    exports: EQUIPMENT_SET_USE_ROOT_EXPORTS,
+}];
+
+pub(crate) const EQUIPMENT_SET_USE_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationEquipmentSetUse",
+    package: "wow-world-application",
+    module: "crate::equipment_set_use",
+    registrar: "register_equipment_set_use_handler_like_cpp",
+    host_trait: "EquipmentSetUseHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: EQUIPMENT_SET_USE_FACADES,
+};
+
 /// Exact direct registrars which exist in the current source tree.
 pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] =
-    &[INVENTORY_REGISTRAR, INSTANCES_REGISTRAR];
+    &[
+        INVENTORY_REGISTRAR,
+        INSTANCES_REGISTRAR,
+        EQUIPMENT_SET_USE_REGISTRAR,
+    ];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) struct RegistrarReport {

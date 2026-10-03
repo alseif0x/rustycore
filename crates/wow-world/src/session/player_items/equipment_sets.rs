@@ -5,10 +5,6 @@
 
 use super::*;
 
-fn ignored_equipment_set_item_guid_like_cpp() -> ObjectGuid {
-    ObjectGuid::new(0x0C00_0400_0000_0000_i64, -1_i64)
-}
-
 impl WorldSession {
     pub(crate) fn mark_represented_equipment_sets_loaded_like_cpp(&mut self) {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
@@ -46,66 +42,97 @@ impl WorldSession {
         let (state, mut hub) = crate::session::split_inventory_mut(self);
         state.delete_represented_equipment_set_like_cpp(&mut hub, id)
     }
-    pub(crate) fn use_represented_equipment_set_like_cpp(
+    pub(crate) fn build_equipment_set_use_context_like_cpp(
         &mut self,
-        request: &wow_packet::packets::misc::UseEquipmentSet,
-    ) -> bool {
-        let ignored_guid = ignored_equipment_set_item_guid_like_cpp();
-        let mut changed_equipment = false;
-        let mut represented_item_mods_changed = false;
+    ) -> wow_world_application::EquipmentSetUseContextLikeCpp<'_> {
+        let combat = self.core.equipment_set_combat_access_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.combat.in_combat,
+        );
+        let owner = self.core.equipment_set_use_access_like_cpp();
+        let inventory_access = self.core.owned_inventory_access_like_cpp();
+        let modifier_access = self.core.owned_item_modifiers_access_like_cpp();
+        let item_sets = self.core.owned_item_set_access_like_cpp(
+            self.catalogs.items.set_store.as_deref(),
+            self.catalogs.spell_catalogs.item_set_spell_store.as_deref(),
+            self.catalogs.spell_catalogs.spell_store.as_deref(),
+            self.catalogs.heirloom_store.as_deref(),
+            self.catalogs.items.stats_store.as_deref(),
+            self.catalogs.curve_store.as_deref(),
+            self.catalogs.curve_point_store.as_deref(),
+            self.catalogs.content_tuning_store.as_deref(),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self
+                .fixtures
+                .progression
+                .player_skill_test_fixture_like_cpp
+                .player_skill_records_like_cpp,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_level,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.progression.represented_primary_specialization_id_like_cpp,
+        );
+        let item_mods = wow_world_application::EquipmentSetUseItemModsStoresLikeCpp::new(
+            self.catalogs.items.store.as_ref(),
+            self.catalogs.items.stats_store.as_ref(),
+            self.catalogs.scaling_stat_distribution_store.as_ref(),
+            self.catalogs.scaling_stat_values_store.as_ref(),
+            self.catalogs.shield_block_regular_game_table.as_ref(),
+            self.catalogs.spell_catalogs.spell_shapeshift_form_store(),
+        );
+        #[cfg(test)]
+        let registry_hydration = Some(
+            wow_world_application::PlayerRegistryHydrationContext::new(
+                self.core.player_registry_hydration_access_like_cpp(),
+                &self.spell_state,
+                &self.quest_state,
+                (
+                    &self.fixtures.vehicles.player_mount_vehicle_kit_like_cpp,
+                    &self.fixtures.vehicles.player_vehicle_seat_flags_like_cpp,
+                    &self.fixtures.vehicles.player_vehicle_seat_id_like_cpp,
+                    &self.fixtures.pets.represented_pet_guid_like_cpp,
+                ),
+                true,
+            ),
+        );
+        #[cfg(all(not(test), feature = "test-fixtures"))]
+        let registry_hydration = None;
 
-        for (slot_index, set_item) in request.items.iter().enumerate() {
-            let dst = slot_index as u8;
-            if set_item.item == ignored_guid {
-                continue;
-            }
-
-            if crate::session::hub_ref(self).resolved_in_combat_like_cpp() != Some(false)
-                && dst != EQUIPMENT_SLOT_MAINHAND
-                && dst != EQUIPMENT_SLOT_OFFHAND
-            {
-                continue;
-            }
-
-            if let Some((src, _item)) =
-                self.represented_direct_inventory_slot_by_guid_like_cpp(set_item.item)
-            {
-                if src == dst {
-                    continue;
-                }
-                if let Some(item_mods_changed) =
-                    self.move_represented_direct_inventory_item_with_item_mods_like_cpp(src, dst)
-                {
-                    represented_item_mods_changed |= item_mods_changed;
-                    changed_equipment |= dst < EQUIPMENT_SLOT_END;
-                    changed_equipment |= src < EQUIPMENT_SLOT_END;
-                }
-                continue;
-            }
-
-            let Some(_equipped_item) = self.get_inventory_item_by_pos(INVENTORY_SLOT_BAG_0, dst)
-            else {
-                continue;
-            };
-            let Some(backpack_slot) = ({
-                let (s, h) = crate::session::split_inventory_ref(self);
-                s.find_free_backpack_slot_like_cpp(h)
-            }) else {
-                continue;
-            };
-            if let Some(item_mods_changed) = self
-                .move_represented_direct_inventory_item_with_item_mods_like_cpp(dst, backpack_slot)
-            {
-                represented_item_mods_changed |= item_mods_changed;
-                changed_equipment = true;
-            }
-        }
-
-        if changed_equipment {
-            self.sync_player_registry_state_like_cpp();
-        }
-
-        represented_item_mods_changed
+        wow_world_application::EquipmentSetUseContextLikeCpp::new(
+            &mut self.inventory,
+            owner,
+            inventory_access,
+            modifier_access,
+            item_sets,
+            combat,
+            item_mods,
+            &self.catalogs,
+            &self.config,
+            self.core.packet_publication_access_like_cpp(),
+            &self.loot,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            wow_world_application::EquipmentSetUseFixtureRefsLikeCpp::new(
+                &self.fixtures.movement.player_position,
+                &self.fixtures.identity.player_race,
+                &self.fixtures.identity.player_class,
+                &self.fixtures.identity.player_level,
+                &mut self.fixtures.combat.player_health_like_cpp,
+                &mut self.fixtures.combat.player_max_health_like_cpp,
+                &mut self.fixtures.combat.player_alive_like_cpp,
+                &mut self.fixtures.combat.represented_player_powers_like_cpp[0],
+                &mut self.fixtures.combat.represented_player_max_powers_like_cpp[0],
+                &mut self.fixtures.combat.represented_player_base_mana_like_cpp,
+                &self.fixtures.auras.represented_shapeshift_form_like_cpp,
+                &self.fixtures.auras.player_aura_authority_complete_like_cpp,
+                &self.fixtures.auras.player_spell_hit_aura_authority_tombstoned_like_cpp,
+                &self.fixtures.auras.visible_auras,
+                &self.fixtures.auras.canonical_threat_aura_snapshots_like_cpp,
+                &self.fixtures.vehicles.player_transport_login_state_like_cpp,
+            ),
+            #[cfg(any(test, feature = "test-fixtures"))]
+            registry_hydration,
+            cfg!(test),
+        )
     }
     /// Set `ItemChildEquipment.db2`, used by C++ `CanEquipChildItem` and
     /// `EquipChildItem` to move a linked child into its visible equipment slot.
@@ -136,6 +163,18 @@ impl WorldSession {
     }
     pub fn set_spell_equipped_items_store(&mut self, store: Arc<SpellEquippedItemsStore>) {
         self.catalogs.spell_catalogs.spell_equipped_items_store = Some(store);
+    }
+}
+
+impl wow_world_application::EquipmentSetUseHandlerHostLikeCpp<
+    crate::session::SessionHandlerCatalogsLikeCpp,
+> for WorldSession
+{
+    fn equipment_set_use_handler_cx_like_cpp<'a>(
+        &'a mut self,
+        _catalogs: &'a crate::session::SessionHandlerCatalogsLikeCpp,
+    ) -> wow_world_application::EquipmentSetUseContextLikeCpp<'a> {
+        self.build_equipment_set_use_context_like_cpp()
     }
 }
 

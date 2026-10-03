@@ -265,3 +265,5 @@ pub use catalog_capabilities::{ItemValuationCatalogsLikeCpp, ProgressionCatalogs
 pub mod test_support;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use test_support::test_fixtures::PlayerBootstrapCatalogTestFixtureLikeCpp;
+
+pub use canonical_access::{EquipmentSetCombatAccessLikeCpp, EquipmentSetUseAccessLikeCpp};

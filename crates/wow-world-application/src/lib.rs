@@ -11,6 +11,14 @@ mod spell_acquisition;
 mod instances;
 mod stats;
 mod trainer_purchase;
+mod equipment_set_use;
+
+pub use equipment_set_use::{
+    register_equipment_set_use_handler_like_cpp, EquipmentSetUseContextLikeCpp,
+    EquipmentSetUseHandlerHostLikeCpp, EquipmentSetUseItemModsStoresLikeCpp,
+};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use equipment_set_use::EquipmentSetUseFixtureRefsLikeCpp;
 
 pub use instances::{
     handle_instance_lock_response_like_cpp, handle_request_raid_info_like_cpp,

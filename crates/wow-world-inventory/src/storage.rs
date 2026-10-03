@@ -276,8 +276,30 @@ impl crate::InventoryState {
             return None;
         }
 
+        let access = hub.core.owned_inventory_access_like_cpp();
+        self.get_inventory_item_by_guid_with_access_like_cpp(
+            &access,
+            hub.catalogs.items.store.as_ref(),
+            hub.catalogs.items.stats_store.as_ref(),
+            item_guid,
+        )
+    }
+
+    /// Resolve the same GUID owner when the caller already has the operation's
+    /// selected inventory access and catalog stores.
+    pub(crate) fn get_inventory_item_by_guid_with_access_like_cpp(
+        &self,
+        access: &OwnedInventoryAccessLikeCpp<'_>,
+        item_store: Option<&Arc<ItemStore>>,
+        item_stats_store: Option<&Arc<ItemStatsStore>>,
+        item_guid: ObjectGuid,
+    ) -> Option<(u8, u8, InventoryItem)> {
+        if item_guid.is_empty() {
+            return None;
+        }
+
         if let Some((&slot, item)) = self
-            .resolved_inventory_items_like_cpp(hub)?
+            .resolved_inventory_items_with_access_like_cpp(access)?
             .iter()
             .find(|(_, item)| item.guid == item_guid)
         {
@@ -286,16 +308,23 @@ impl crate::InventoryState {
             }
         }
 
-        let runtime_item = self.resolved_inventory_item_object_like_cpp(hub, item_guid)?;
+        let runtime_item =
+            self.resolved_inventory_item_object_with_access_like_cpp(access, item_guid)?;
         if !runtime_item.is_in_bag() {
             return None;
         }
 
         let bag = runtime_item.bag_slot();
         let slot = runtime_item.slot();
-        self.get_inventory_item_by_pos(hub, bag, slot)
-            .filter(|item| item.guid == item_guid)
-            .map(|item| (bag, slot, item))
+        self.get_inventory_item_by_pos_with_access_like_cpp(
+            access,
+            item_store,
+            item_stats_store,
+            bag,
+            slot,
+        )
+        .filter(|item| item.guid == item_guid)
+        .map(|item| (bag, slot, item))
     }
 
     pub fn direct_inventory_player_snapshot(

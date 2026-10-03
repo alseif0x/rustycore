@@ -7,7 +7,6 @@ use wow_data::{
     ItemStore, ScalingStatDistributionEntry, ScalingStatDistributionStore,
     ScalingStatValuesStore,
 };
-use wow_entities::{INVENTORY_SLOT_ITEM_END, INVENTORY_SLOT_ITEM_START};
 use wow_world_core::session::{HubRef, RepresentedScalingStatContextLikeCpp};
 
 impl crate::InventoryState {
@@ -15,11 +14,8 @@ impl crate::InventoryState {
         &self,
         hub: HubRef<'_>,
     ) -> Option<u8> {
-        let inventory_end = INVENTORY_SLOT_ITEM_START
-            .saturating_add(self.resolved_player_inventory_slot_count_like_cpp(hub)?)
-            .min(INVENTORY_SLOT_ITEM_END);
-        let inventory_items = self.resolved_inventory_items_like_cpp(hub)?;
-        (INVENTORY_SLOT_ITEM_START..inventory_end).find(|slot| !inventory_items.contains_key(slot))
+        let access = hub.core.owned_inventory_access_like_cpp();
+        self.find_free_backpack_slot_for_equipment_set_like_cpp(&access)
     }
 }
 
