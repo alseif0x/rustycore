@@ -2288,6 +2288,14 @@ antes del recálculo. El gate de gravedad no es una carencia: al seguir el calle
 hasta Core/movement/fall.rs::move_represented_player_fall_like_cpp se confirma
 el rechazo DISABLE_GRAVITY antes de FALLING, también conservado en el provider
 nuevo. La ausencia de un gate duplicado en el caller no acredita un defecto.
+La fase App/movement_speeds y el provider Core/mount_control/speed ya están
+escritos. La revisión preserva conjuntos de efectos y ramas independientes,
+dos consultas de auras para Fly y MountedFlightSpeed, y el orden current-rate,
+mutación, propagación a pet, GUID/opcodes, forced-counter, lectura actual de
+velocidad, movement-counter, paquete propio, MovementInfo actual y broadcast.
+Se corrigió por fuente el import ObjectGuid del provider. Estos cuerpos no
+acreditan el remover entero: siguen pendientes publicación, stats, shapeshift,
+display y recursión integrada, además de la aceptación no ejecutada.
 El modo de manejo y la inmunidad polymorph/Dragonmaw de la rama mounted-flight
 requieren contraste completo en F6; la extracción F5 conserva el cuerpo Rust,
 sin introducir esas reparaciones dentro del traslado.
@@ -2630,7 +2638,8 @@ almacenamiento, reputación, QuestLog y coordinador con sus fachadas World.
 La revisión conjunta detectó un bloqueo de integración de manifest:
 reward/reputation.rs usa wow_progression::mgr::SetReputationOptionsLikeCpp,
 Application/Cargo.toml no declaraba esa dependencia normal. El implementador
-la añadió y se verificó la declaración por fuente, sin ejecutar Cargo ni
+la añadió y se verificaron por fuente tanto la declaración normal como la
+entrada wow-world-application del lockfile, sin ejecutar Cargo ni
 comprobar todavía el grafo efectivo. Las completions anidadas de objetivos
 siguen a cargo de su propietario; la entrega Reward no acredita esos consumidores.
 El siguiente bloque Inventory asignado es la operación completa de area-scaling,
