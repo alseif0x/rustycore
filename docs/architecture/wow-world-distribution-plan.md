@@ -2339,6 +2339,13 @@ auras; esta revisión por fuente no ejecutó pruebas ni acredita esa integració
 El sync-form privado ya enlaza base attack-time, ambas ramas de boosts,
 display-power, refresh íntegro y reborrow temporal de Stats, con retorno temprano
 original si falla base attack-time. FullApply/FullRemove siguen pendientes.
+Los cuerpos FullApply/FullRemove ya están escritos y revisados contra World/
+aura_application:146–303 y :500–706, con sus fases y publicación originales.
+También está escrito el enlace al escalado completo y el constructor inerte
+de roles, catálogos seleccionados y fixtures disjuntos. Stats se reborrowa
+temporalmente y Registry usa las referencias actuales, sin copiar autoridad.
+Falta conectar constructores World, consumidores públicos y casos completos;
+los cuerpos nuevos siguen NO VALIDADOS y no cierran aún Aura/FeignDeath/Trainer.
 El modo de manejo y la inmunidad polymorph/Dragonmaw de la rama mounted-flight
 requieren contraste completo en F6; la extracción F5 conserva el cuerpo Rust,
 sin introducir esas reparaciones dentro del traslado.
