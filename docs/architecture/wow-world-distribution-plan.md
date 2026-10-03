@@ -2296,6 +2296,13 @@ velocidad, movement-counter, paquete propio, MovementInfo actual y broadcast.
 Se corrigió por fuente el import ObjectGuid del provider. Estos cuerpos no
 acreditan el remover entero: siguen pendientes publicación, stats, shapeshift,
 display y recursión integrada, además de la aceptación no ejecutada.
+La fase privada publication ya contiene AuraUpdate de retirada, gate LoggedIn
+antes del predicado de total-stat, preservación de health y ataque. La revisión
+de los providers conserva slot/aura_data=None/update_all=false, máscara de efecto,
+predicado de habilidad/stamina y consultas actuales de attack-speed/autoattack
+antes de una mutación canónica. Integrar Stats requiere reborrow temporal de las
+referencias de aura; dos roles simultáneos que muten/lean esos mismos fixtures
+no se consideran una solución. El coordinador entero sigue sin cerrar.
 El modo de manejo y la inmunidad polymorph/Dragonmaw de la rama mounted-flight
 requieren contraste completo en F6; la extracción F5 conserva el cuerpo Rust,
 sin introducir esas reparaciones dentro del traslado.
@@ -2654,7 +2661,12 @@ remove/set/apply, restauración seguida de Registry y publicación solo cuando p
 y targets no vacíos. Se corrigió el fallback que invocaba un método ausente tras
 mover el contexto Stats: ahora usa el rol de publicación disjunto, con GUID, snapshot
 completo de bonuses y map actuales después del fallo de la proyección Stats.
-El montaje/reexport App y los casos de fallo siguen pendientes de cierre de la unidad.
+El montaje/reexport App sigue pendiente de cierre de la unidad. Ya se escribieron
+en World/scenarios_player_items_2 dos casos reales de la operación: rechazo del
+owner obsoleto con reemplazo de igual GUID sin mutación/paquetes, y cambio con
+publish=false que exige remove/apply en orden, health restaurada y retry sin
+nuevos eventos. No se ejecutaron; el segundo no instala/verifica Registry, por
+lo que no acredita su publicación.
 
 Quest eligibility de visibilidad también está escrito como módulo privado: nivel,
 race/class y CanSeeStart conservan disable, status, recurrence, seasonal, prev-quest
