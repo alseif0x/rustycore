@@ -104,7 +104,9 @@ the real tables decode through Rust. These are data/admission prerequisites,
 not playable-race selection or character creation.
 
 The full `validation-v2 final` gate is currently blocked by inherited architecture
-hotspot limits in unchanged 3.4.3 code. The passing scoped checks above are not
+hotspot limits and legacy ownership-baseline mismatches. The shared registry
+relocation adds no legacy Session growth; no limits or baselines were relaxed.
+The passing scoped checks above are not
 a substitute for that gate; see the runbook's publication boundary.
 
 ## Documentation
