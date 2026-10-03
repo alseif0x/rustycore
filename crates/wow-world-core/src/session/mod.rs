@@ -37,9 +37,12 @@ pub use canonical_access::{
     OwnedPlayerCurrencyAccessLikeCpp, PlayerAcquisitionOwnerAccessLikeCpp,
     PlayerRegistryHydrationAccessLikeCpp, QuestRewardPlayerAccessLikeCpp,
     PlayerStatsAccessLikeCpp,
+    NpcInteractionAccessLikeCpp,
 };
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use canonical_access::{StatsAuraFixtureRefs, StatsCombatFixtureRefs, StatsFixtureRefs};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use canonical_access::NpcInteractionFixtureRefsLikeCpp;
 mod catalogs;
 mod connection;
 mod construction;

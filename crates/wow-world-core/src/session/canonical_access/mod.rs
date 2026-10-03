@@ -14,6 +14,7 @@ mod acquisition_owner;
 mod registry_hydration;
 mod quest_reward_owner;
 mod player_stats;
+mod trainer_npc;
 
 pub use equipment_sets::OwnedEquipmentSetsAccessLikeCpp;
 pub use instance_locks::InstanceLockManagerAccessLikeCpp;
@@ -30,5 +31,8 @@ pub use inventory_projection::InventoryPlayerProjectionLikeCpp;
 pub use registry_hydration::PlayerRegistryHydrationAccessLikeCpp;
 pub use quest_reward_owner::{OwnedPlayerCurrencyAccessLikeCpp, QuestRewardPlayerAccessLikeCpp};
 pub use player_stats::PlayerStatsAccessLikeCpp;
+pub use trainer_npc::NpcInteractionAccessLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 pub use player_stats::{StatsAuraFixtureRefs, StatsCombatFixtureRefs, StatsFixtureRefs};
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use trainer_npc::NpcInteractionFixtureRefsLikeCpp;

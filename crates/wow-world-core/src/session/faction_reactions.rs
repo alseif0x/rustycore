@@ -4,6 +4,7 @@
 //! Canonical faction-reaction inputs and Hub adapters shared with World.
 
 use wow_progression::ReputationMgrLikeCpp;
+use crate::session::{HubRef, NpcInteractionAccessLikeCpp};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct RepresentedFactionReactionInputLikeCpp {
@@ -85,9 +86,45 @@ impl crate::session::HubRef<'_> {
         &self,
         input: RepresentedFactionReactionInputLikeCpp,
     ) -> wow_data::reputation::ReputationRankLikeCpp {
+        self.trainer_npc_interaction_access_like_cpp()
+            .represented_faction_reaction_to_like_cpp(input)
+    }
+
+    pub fn represented_get_reaction_to_like_cpp(
+        &self,
+        input: RepresentedGetReactionInputLikeCpp,
+    ) -> wow_data::reputation::ReputationRankLikeCpp {
+        self.trainer_npc_interaction_access_like_cpp()
+            .represented_get_reaction_to_like_cpp(input)
+    }
+}
+
+impl NpcInteractionAccessLikeCpp<'_> {
+    fn cloned_reputation_state_like_cpp(
+        &self,
+    ) -> Option<wow_entities::PlayerReputationStateLikeCpp> {
+        let canonical = self.core.with_owned_player_like_cpp(|player| {
+            let manager = ReputationMgrLikeCpp::borrowing_like_cpp(player.reputation_like_cpp());
+            manager.cloned_state_like_cpp()
+        });
+        if canonical.is_some() {
+            return canonical;
+        }
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if self.core.player_handle_like_cpp.is_none() {
+            let manager = ReputationMgrLikeCpp::borrowing_like_cpp(self.fixtures.reputation_state);
+            return Some(manager.cloned_state_like_cpp());
+        }
+        None
+    }
+
+    pub fn represented_faction_reaction_to_like_cpp(
+        &self,
+        input: RepresentedFactionReactionInputLikeCpp,
+    ) -> wow_data::reputation::ReputationRankLikeCpp {
         use wow_data::reputation::ReputationRankLikeCpp;
 
-        let Some(faction_template_store) = self.catalogs.factions.template_store.as_ref() else {
+        let Some(faction_template_store) = self.faction_template_store else {
             return ReputationRankLikeCpp::Neutral;
         };
         let Some(source_faction_template) =
@@ -118,14 +155,14 @@ impl crate::session::HubRef<'_> {
             }
             if input.target_is_unit
                 && !input.target_ignores_reputation
-                && let Some(faction_store) = self.catalogs.factions.store.as_ref()
+                && let Some(faction_store) = self.faction_store
                 && let Some(source_faction_entry) =
                     faction_store.get(u32::from(source_faction_template.faction))
                 && source_faction_entry.can_have_reputation_like_cpp()
             {
                 let mut rank = reputation_mgr.rank_for_faction_entry_like_cpp(
                     source_faction_entry,
-                    self.catalogs.friendship_rep_reaction_store.as_deref(),
+                    self.friendship_rep_reaction_store,
                     self.player_race_like_cpp(),
                     self.player_class_like_cpp(),
                 );
@@ -174,7 +211,7 @@ impl crate::session::HubRef<'_> {
         let reputation_mgr = ReputationMgrLikeCpp::borrowing_like_cpp(&reputation_state);
 
         if input.self_has_player_owner {
-            if let Some(faction_template_store) = self.catalogs.factions.template_store.as_ref()
+            if let Some(faction_template_store) = self.faction_template_store
                 && let Some(target_faction_template) =
                     faction_template_store.get(input.target_faction_template_id)
                 && let Some(forced_rank) = reputation_mgr
@@ -183,7 +220,7 @@ impl crate::session::HubRef<'_> {
                 return forced_rank;
             }
         } else if input.target_has_player_owner
-            && let Some(faction_template_store) = self.catalogs.factions.template_store.as_ref()
+            && let Some(faction_template_store) = self.faction_template_store
             && faction_template_store
                 .get(input.self_faction_template_id)
                 .is_some()
@@ -210,8 +247,7 @@ impl crate::session::HubRef<'_> {
             }
 
             if input.self_has_player_owner {
-                let Some(faction_template_store) = self.catalogs.factions.template_store.as_ref()
-                else {
+                let Some(faction_template_store) = self.faction_template_store else {
                     return self.represented_faction_reaction_to_like_cpp(
                         RepresentedFactionReactionInputLikeCpp {
                             source_faction_template_id: input.self_faction_template_id,
@@ -234,7 +270,7 @@ impl crate::session::HubRef<'_> {
                         return forced_rank;
                     }
                     if !input.self_ignores_reputation
-                        && let Some(faction_store) = self.catalogs.factions.store.as_ref()
+                        && let Some(faction_store) = self.faction_store
                         && let Some(target_faction_entry) =
                             faction_store.get(u32::from(target_faction_template.faction))
                         && target_faction_entry.can_have_reputation_like_cpp()

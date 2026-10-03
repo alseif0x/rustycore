@@ -4,13 +4,14 @@
 //! Canonical represented NPC interaction checks shared with World.
 
 use crate::session::{
-    PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP, RepresentedCreatureAccessLikeCpp,
+    HubRef, PLAYER_FLAGS_CONTESTED_PVP_LIKE_CPP, RepresentedCreatureAccessLikeCpp,
     RepresentedGetReactionInputLikeCpp,
 };
+use crate::session::NpcInteractionAccessLikeCpp;
 use wow_constants::{CreatureTypeFlags, UnitFlags2};
 use wow_core::{ObjectGuid, Position};
 
-impl crate::session::HubRef<'_> {
+impl NpcInteractionAccessLikeCpp<'_> {
     pub fn represented_npc_can_interact_with_like_cpp(
         &self,
         guid: ObjectGuid,
@@ -67,8 +68,7 @@ impl crate::session::HubRef<'_> {
                 let is_alive = if canonical_player.unit().data().max_health == 0
                     && self.core.player_handle_like_cpp.is_none()
                 {
-                    self.fixtures.combat.player_alive_like_cpp
-                        && self.fixtures.combat.player_health_like_cpp > 0
+                    *self.fixtures.player_alive && *self.fixtures.player_health > 0
                 } else {
                     canonical_player.unit().is_alive() && canonical_player.unit().data().health > 0
                 };
@@ -83,8 +83,7 @@ impl crate::session::HubRef<'_> {
                         canonical_fail_closed_like_cpp = true;
                         return None;
                     }
-                    self.fixtures.combat.player_alive_like_cpp
-                        && self.fixtures.combat.player_health_like_cpp > 0
+                    *self.fixtures.player_alive && *self.fixtures.player_health > 0
                 }
                 #[cfg(not(any(test, feature = "test-fixtures")))]
                 {
@@ -302,5 +301,17 @@ impl crate::session::HubRef<'_> {
             trainer_class: creature.trainer_class_like_cpp(),
             faction_template_id: creature.faction(),
         })
+    }
+}
+
+impl HubRef<'_> {
+    pub fn represented_npc_can_interact_with_like_cpp(
+        &self,
+        guid: ObjectGuid,
+        npc_flags: u32,
+        npc_flags2: u32,
+    ) -> Option<RepresentedCreatureAccessLikeCpp> {
+        self.trainer_npc_interaction_access_like_cpp()
+            .represented_npc_can_interact_with_like_cpp(guid, npc_flags, npc_flags2)
     }
 }

@@ -2262,6 +2262,24 @@ otras fases de GiveLevel. El traslado conserva la implementación Rust y no
 demuestra esas fases ni repara las diferencias: quedan en el contrato de F6.
 Todo F5/F6 y su aceptación siguen abiertos.
 
+**Acceso NPC seleccionado — 2026-10-03, 18:56 UTC (NO VALIDADO):**
+`wow-world-core/session/canonical_access/trainer_npc.rs` ofrece
+`NpcInteractionAccessLikeCpp`, con factory público, tres referencias de catálogo
+y doce inputs fixture obligatorios mediante constructor opaco. No retiene ni
+reconstruye HubRef/SessionFixtures. Los cuerpos únicos de NPC y reacción están
+en `npc_interaction.rs` y `faction_reactions.rs`; sus fachadas Hub delegan sin
+duplicar las decisiones. La revisión corrigió los campos privados inaccesibles
+desde esos módulos hermanos. La consulta de reputación sigue tras liberar el
+guard canónico; el branch legado conserva su orden existente.
+Se contrastaron `Player.cpp:1929–1980::GetNPCIfCanInteractWith` y
+`Entities/Object/Object.cpp:2709–2857::GetReactionTo/GetFactionReactionTo`, SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`. C++ comprueba reacción antes de
+distancia; Rust conserva el cálculo de distancia dentro del lookup y la reacción
+tras soltar ese guard. El traslado no corrige ese orden ni acredita paridad de
+los inputs representados, owners, flags o fallback legado. Compilación, pruebas,
+capturas y aceptación no se ejecutaron. Trainer List/Buy completos siguen
+pendientes de aura, controller y preflush.
+
 ### F6 — retirada de duplicados, pista de comportamiento
 
 Contraste ItemSet de continuación (2026-10-03, 18:38 UTC, inspección sin
