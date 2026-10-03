@@ -1469,6 +1469,79 @@ checkpoint is **8886.477 seconds** from 23:54:58; its 600-second target fails.
 The following closeout changes only README/runbook/state prose; reused code
 evidence retains the exact code-candidate identity above.
 
+##### Checked target name data — 2026-10-03 (acceptance in progress)
+
+The independent Forever target uses the four complete 70170 WDC5 baselines,
+not empty SQL tables as a substitute and not inherited permissive string
+getters. The integrated acquisition tool adds the explicit parameterless
+`--ack-name-validation-tables`; default acquisition does not read these files.
+Each new output is mode0600 under the ignored isolated root, never overwritten.
+The normal local CascLib path does not download, invent keys or zero-fill
+unavailable sections. Original client files and the official account are untouched.
+
+Fresh private acquisition at 02:27 UTC succeeds with these header contracts:
+
+| Table | Runtime hash / layout | Records / copies | String bytes | File bytes |
+| --- | --- | ---: | ---: | ---: |
+| NamesProfanity | DA82D96C / F227E638 | 6595 / 0 | 28647 | 108131 |
+| NamesReserved | 25C1CB13 / 2B2D5D97 | 2559 / 0 | 30959 | 51703 |
+| NamesReservedLocale | 3ACAE305 / 7B9823D4 | 2 / 0 | 14 | 338 |
+| Cfg_Categories | C7ED797D / 8710BE94 | 91 / 9 | 690 | 2278 |
+
+Exact target source remains `02245dcd245e7433e524577656177723d3e4992e`:
+`src/common/DataStores/DB2FileLoader.cpp:354-376,798-803` materializes concatenated
+physical records followed by concatenated pools. The checked target reader
+resolves a uint32 displacement relative to its physical source field; copies
+retain that source. It checks complete pools/records, address bounds, NUL and
+UTF-8 without lossy fallbacks. Zero displacement follows source EmptyDb2String.
+Synthetic tests cover cross-section pool strings, copies, invalid addresses,
+unterminated/invalid UTF-8 and incomplete pools. Legacy getters are unchanged.
+
+`wow-data::forever_names` owns the immutable effective catalogs: baseline,
+official SQL, custom SQL, then final RecordRemoved. Duplicate IDs within an
+unordered batch fail; effective Language is signed BYTE and validated only after
+overlay/removal. Source anchors `DB2Stores.cpp:1416-1457` and `Common.h:50-65`
+establish twelve locales, global profanity excluding none(9), eight locale-mask
+bits and Cfg_Categories' English fallback. No pattern values enter diagnostics.
+`wow-persistence::forever::names` supplies SQL-free transient DTOs; database
+adapters perform four explicit projections per official/custom batch. Startup
+requires both batches and all files before publishing prerequisite success.
+Known-store registration still rejects Valid hotfixes whose target serializer
+is not implemented; DBQuery cannot silently report those stores absent.
+
+Intentional **Forever** contract, not a source-parity claim: locale-reserved
+overlays read `names_reserved_locale(ID,Name,LocaleMask)`. The inconsistent
+`NamesReservedLocaleLoadInfo` binding to the global reserved statement is not
+copied. `HotfixDatabase.cpp:314-317,1281-1295` declares the correct separate
+columns/tables; acquisition itself performs no SQL-binding repair.
+
+Pure `wow-world::forever::name_rules` implements normalization, UTF-16 length,
+finite source casing, configured character families and triple-repeat rejection
+from `ObjectMgr.cpp:157-174,8732-8805` / `Util.h:121-337` / `Util.cpp:370-423`.
+It is **not** a full name policy or availability result. Source wide regexes use
+Boost Perl/icase/optimize and the UTF-8 process locale; std::wregex is explicitly
+unsuitable. Rust regex/Unicode case is not silently substituted. Regex integration,
+SQL reserved-name lookup, collision query, registry admission and response delivery
+remain open. Startup catalog loading is not a registered handler or a saved Player.
+
+Parent-only prerequisite diagnostic acceptance at 02:27:29 UTC: CMake build -j1
+passes (~1s), CTest passes 1/1 (0.01s), CLI tests pass 10 (0.024s). The fresh
+actual-file acquisition above passes. Combined library acceptance
+`cargo test --locked -p wow-data -p wow-database -p wow-persistence -p wow-world --lib --timings -- --quiet`
+passes 795/365/35/4062 tests (database two ignored, world one ignored), compile
+159.3s; timing report `20261003T023936200Z`. An earlier compilation failed on
+a shadowed new locale array; the related new-code binding/import were corrected
+before this passing rerun. Target binary test
+`cargo test --locked -p world-server --bin forever-world-server --timings -- --quiet`
+passes five tests, compile 3m00s, timing `20261003T024233698Z`. Both commands use
+one job and this checkout's absolute target; libraries requiring the inherited
+C++ fixture use `/tmp/rustycore-forever-cpp`, not as 70170 behavior authority.
+These runs are at HEAD `edce7c7d` with the implementation dirty; a later commit
+must not relabel their tested SHA. Actual-file/SQL startup and committed
+publication acceptance are still in progress.
+The campaign still starts 2026-10-02 23:54:58 UTC; its 600-second target remains
+exceeded, and coding/error-repair time is not reliably separable.
+
 ##### Checked target appearance implementation — 2026-10-03 (local/native validated)
 
 The next delivery uses a private `wdc4::creation` numeric view, leaving legacy

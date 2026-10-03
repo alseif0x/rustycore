@@ -3,6 +3,7 @@
 //! 02245dcd DB2FileLoader.cpp:635-696,807-922: packed offset + compression,
 //! typed array stride and parent override; copies consume materialized sources.
 mod schema;
+mod strings;
 pub(crate) use schema::CreationTable;
 
 use super::{CompressionType, Wdc4Reader};

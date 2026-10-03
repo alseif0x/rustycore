@@ -122,6 +122,11 @@ pub(super) async fn load() -> Result<Runtime> {
         .load_appearance_overlays()
         .await
         .map_err(|_| anyhow::anyhow!("appearance overlay query failed"))?;
+    let name_rows = wow_data::forever_names::NameRecords::load(Path::new(&args[3]))?;
+    let name_overlays = ForeverHotfixRepository::new(hotfix.clone())
+        .load_name_overlays()
+        .await
+        .map_err(|_| anyhow::anyhow!("name overlay query failed"))?;
     let hotfix_adapter = MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::new(hotfix);
     let mut hotfixes = HotfixBlobCache::new();
     hotfixes.register_typed_table(TACT_KEY_TABLE_HASH);
@@ -129,7 +134,8 @@ pub(super) async fn load() -> Result<Runtime> {
     // do not. Mark them known so DBQuery cannot claim an unported store is
     // missing; the Valid-status guard below retains that explicit boundary.
     for hash in [
-        0x49349C6E, 0x2FB7905B, 0x681D0F3D, 0x61431A65, 0xA7E150FE, 0x9B1BEE48,
+        0x49349C6E, 0x2FB7905B, 0x681D0F3D, 0x61431A65, 0xA7E150FE, 0x9B1BEE48, 0xDA82D96C,
+        0x25C1CB13, 0x3ACAE305, 0xC7ED797D,
     ] {
         hotfixes.register_typed_table(hash);
     }
@@ -170,6 +176,17 @@ pub(super) async fn load() -> Result<Runtime> {
         super::appearance::records(appearance_overlays.custom),
         &removals,
     )?;
+    let names = name_rows.finish(
+        super::names::records(name_overlays.official),
+        super::names::records(name_overlays.custom),
+        &removals,
+    )?;
+    println!(
+        "Forever name data prerequisites loaded: {} profanity and {} locale-reserved patterns for esES, {} global reserved patterns; regex/availability not admitted.",
+        names.profanity(6).context("name locale")?.len(),
+        names.locale_reserved(6).context("name locale")?.len(),
+        names.reserved().len(),
+    );
     hotfixes.apply_hotfix_data_rows_like_cpp(
         rows.into_iter().map(|row| {
             (
