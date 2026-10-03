@@ -1134,6 +1134,45 @@ The ordinary 600-second target is **not met**. Earlier schema import/CASC acquis
 were separate prerequisite costs; coding/repair was interleaved, not independently
 timed. Committed-candidate final evidence and the full campaign end follow at publication.
 
+Committed candidate **06ab5ef9c99d0d8759477dd2e01e2f9853c81107** was validated with
+`final --base origin/forever --architecture --timings` (Forever is the independent
+publication line, not a PR into 3.4.3). Clean manifest
+`20261003T003834.512629Z-1735193-final.json` records **failed**, 49.970s:
+architecture policy 21.547s and syntax ownership continuation 27.706s. Physical
+files pass (2304 files), but inherited hotspot ceilings remain red; the generic
+declaration in legacy registry additionally adds 22 lines to that owner. Its shared
+metadata responsibility is being relocated to a private root module, preserving
+the concrete alias and all registrations rather than raising a ceiling.
+
+Syntax ownership exposes pre-existing taunt/creature-insert signature and two
+bridge fingerprint mismatches. The exact three affected source files
+(`spell_effects/effect_combat.rs`, `world_entities/creature_registry.rs`,
+`legacy_runtime/creature_lifecycle_tick.rs`) are byte-identical to fork base
+`2df57d6f` and the preceding Forever publication. No ownership baseline is regenerated.
+This is newly executed evidence of inherited debt, not a green full final or an
+assertion that the scanner audits Forever's separate Session. The new Session's
+four-entry exact-set/thunk/admission tests remain its scoped registry evidence.
+Publication closeout and the relocation's renewed affected checks follow separately;
+full character creation/world goal remains active.
+
+The follow-up is a mechanical relocation, not gameplay ownership retirement:
+`PacketHandlerFn` and `PacketHandlerEntryFor` now have one declaration in private
+`wow-world/src/packet_registry.rs` (47 lines). The legacy registry retains its
+concrete alias, inventory and lookup table and publicly re-exports the same types;
+Forever's existing import path, four registrations, thunk signatures, fields and
+admission semantics are unchanged. Legacy `session/registry.rs` is 62 lines,
+11 fewer than the preceding published `58b4fbde`, with no ceiling adjustment.
+The completed relocation's `cargo test --locked -p wow-world --lib --features
+test-fixtures --timings -- --quiet` passes **4048**, with one ignored, on the
+scoped dirty worktree based at `06ab5ef9`; timing `20261003T004259279Z`
+records an 88.4-second build and 1.29-second test execution. This renews the
+actual legacy and Forever exact-set/dispatch tests, not just compilation.
+The normal production consumer `cargo build --locked -p world-server --bin
+forever-world-server --timings` also passes (2m26s,
+`20261003T004605955Z`), without `test-fixtures`. No packet/state behavior changed
+in this move, so the earlier native scenarios retain their actual binary/input
+revision rather than being relabeled as live tests of this relocation.
+
 At **2026-10-02 22:51:27 UTC**, the operator-only
 [`client-data-probe`](../../tools/wow-test-bot/client-data-probe/README.md)
 read two actual files from the installed `wow_classic_beta` build **70170**, using
