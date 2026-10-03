@@ -1367,6 +1367,91 @@ repair of that source behavior inside a compatibility refactor. The Forever
 creation implementation still needs an explicit commit/publication/recovery
 contract, including cancellation and unknown commit outcomes.
 
+##### Native name-availability wire — 2026-10-03
+
+The new `wow-packet::forever::name_availability` payload codecs follow pinned
+`02245dcd245e7433e524577656177723d3e4992e`:
+`CharacterPackets.cpp:464-484`, `CharacterPackets.h:302-325`. The request has
+LE32 sequence, MSB-first 6-bit name length, three unvalidated bits, 6-bit surname
+length, alignment, then two UTF-8 strings. Truncation/trailing bytes reject and
+the strings have no Debug implementation. The response encodes exactly two LE32
+values (sequence and raw result); candidate server opcode `46001B` is not a fresh
+native-response observation. No handler is registered, no available-name reply
+or reservation is fabricated, and Create still repeats its own admission checks.
+
+`--ack-private-name-availability-capture <new-private-file>` is a **separate**
+opt-in, mutually exclusive with the existing Create capture. It admits only
+authenticated opcode `440071`, excludes Create/auth/TACT and uses a 132-byte
+bound (six framing bytes plus two strings of at most 63 bytes). The private
+create-new/no-overwrite/root/0600 guards remain; its header is `FNR1`, build,
+opcode and length. A repeated matching capture rejects rather than overwriting.
+The integrated read-only `forever_name_availability_probe.py` independently
+checks that framing/layout/UTF-8 and prints only lengths/flags/hash, never names
+or sequence. The production observer calls the Rust decoder only for the
+explicitly selected diagnostic opcode. Normal non-opt-in Session is unchanged.
+
+Completed-slice acceptance, parent-exclusive one Cargo job on Linux x86_64:
+
+- `cargo test --locked -p wow-packet --lib --timings -- --quiet`: **783 pass**,
+  8.01s compilation, timing `20261003T021327419Z`; includes an independent source
+  `10 04` / synthetic gear+fd literal, truncation, UTF-8, six-bit bounds and raw
+  response results 0/27/98/104.
+- `cargo test --locked -p world-server --bin forever-world-server --timings
+  -- --quiet`: **4 pass**, 2m41s, timing `20261003T021345008Z`; includes separate
+  name/Create allowlists, 132/133-byte boundary, framing, privacy and no overwrite.
+- `python3 -m unittest discover -s tools/wow-test-bot -p 'test_forever*probe.py'`:
+  **12 pass** (including the existing probe suites); no client/server data writes.
+- Normal `cargo build --locked -p world-server --bin forever-world-server
+  --timings`: **pass**, 2m39s, timing `20261003T021630095Z`.
+
+At **02:19–02:21 UTC**, the normal installed artifact starts from the seven real
+appearance baselines/SQL and admits a fresh native login/digest/ACK/init/empty
+enum. Ruleset PvP and human male warrior personalization render. TactKey batches
+64/20 receive actual Invalid replies. Synthetic names are entered with the
+hash-pinned scoped UI helper. Finish emits **Create `440070`/106 bytes followed
+by name check `440071`/22 bytes** in this observation; only the latter is captured.
+Rust decoding and the independent Python inspector agree: 9/7 byte lengths,
+unknown bits zero. Private artifact `name-availability-70170-20261003T0219Z.bin`
+is 38 bytes/mode0600, SHA-256
+`475125b51a1515e2986a1ae2467e955a9c5e11ef87f9a2bce25b680a7f67913c`.
+No names/raw bytes/client assets are staged. Neither request gets a fabricated
+success; the observed ordering is not an admission/persistence contract.
+
+SIGINT exits 0, online=0/key length40, Character count=0. Guarded realm restoration
+affects exactly one row; only isolated BNet restarts in warn mode. Restored V1/V2
+positive/negative/offline smoke passes and port18085 is closed. The original
+installation and official account are untouched.
+
+Next complete operation remains name policy + effective rule data + collision
+lookup + ordered result. Exact source: `ObjectMgr.cpp:157-174,8732-8805` uses
+utf8cpp UTF-16 units and finite custom case mappings, **not** Rust expanding
+Unicode casing; minimum configured length, max12, realm Cfg_Categories creation
+charset and triple-repeat checks precede `DB2Stores.cpp:1416-1457,2852-2864`
+Perl/icase regexes. NamesProfanity and NamesReservedLocale yield PROFANE;
+global NamesReserved yields RESERVED. `ObjectMgr.cpp:8682-8730` loads SQL
+`reserved_name` from **CharacterDatabase**, not World; current fixture has zero
+rows. `CharacterHandler.cpp:1687-1719` then queries `CHAR_SEL_CHECK_NAME` and
+returns 27 if present / 0 if absent. Surname is ignored by that source handler.
+The three hotfix SQL tables are empty in this fixture; that is not a substitute
+for the required DB2 baselines. Target string offsets and regex/case behavior
+must be verified instead of invoking the permissive inherited getters.
+Source inconsistency remains explicit: `NamesReservedLocaleLoadInfo` binds the
+global reserved SQL statement despite a separate locale statement existing;
+do not silently label a repair as source parity.
+
+Starting Player work also uses target World tables `player_racestats` plus
+`player_classlevelstats` (`ObjectMgr.cpp:4303-4402`), not an assumed old
+`player_levelstats`. Read-only fixture counts are 33 race rows/1170 class-level
+rows/292 creation rows; human warrior has one matching start/race/level1 row.
+These counts do not prove initialized stats, equipment, save or world entry.
+The active macro goal remains selection, durable creation and world entry.
+
+The original complete campaign began **2026-10-02 23:54:58 UTC**; this phase
+began 02:13:27 and does not reset that envelope. Coding/error-repair time is not
+reliably separable. The **600-second target remains exceeded**. Committed final
+publication acceptance for this slice is recorded below, separately from these
+scoped/native passes.
+
 ##### Checked target appearance implementation — 2026-10-03 (local/native validated)
 
 The next delivery uses a private `wdc4::creation` numeric view, leaving legacy

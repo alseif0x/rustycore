@@ -178,9 +178,23 @@ async fn admitted(
             frame.opcode(),
             frame.payload().len()
         );
-        if let Some(capture) = &runtime.character_capture {
+        if let Some(capture) = &runtime.character_capture
+            && capture.accepts(frame.opcode())
+        {
             capture.record(frame.opcode(), frame.payload()).await?;
             super::appearance::observe(&runtime.appearance, frame.opcode(), frame.payload())?;
+            if frame.opcode() == 0x440071 {
+                let request =
+                    wow_packet::forever::name_availability::CheckCharacterNameAvailability::decode(
+                        frame.payload(),
+                    )?;
+                println!(
+                    "Native name request decoded: name_bytes={}, surname_bytes={}, unknown_bits={}; no names rendered or availability response inferred.",
+                    request.name().len(),
+                    request.surname().len(),
+                    request.unknown_bits()
+                );
+            }
         }
         // Read-only request metadata before the canonical registry dispatch.
         // Never log record IDs or private TACT values here.
