@@ -28,3 +28,10 @@ This project is not affiliated with or endorsed by Blizzard Entertainment.
 
 The complete GNU GPL version 3 text is provided in LICENSE.
 The project license grant above and Cargo.toml specify GPL-3.0-or-later.
+
+Forever's optional source RNG build compiles unmodified SFMT dependencies from
+TrinityCore target source 02245dcd245e7433e524577656177723d3e4992e.
+SFMT is BSD-3-Clause; its complete notice is retained in docs/licenses/SFMT.txt
+and must accompany distributed Forever binaries. The same build compiles
+TrinityCore Random/SFMTRand source fragments and headers, retaining their
+GPL-2.0-or-later notices. These dependencies are separate from client assets.

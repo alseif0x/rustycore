@@ -8,6 +8,10 @@ license.workspace = true
 [features]
 # Target-only native name engine. No Boost dependency in the legacy runtime.
 forever-name-regex = ["dep:cc"]
+# IDs-only source container replay; no C++ gameplay or legacy dependency.
+forever-spell-traversal = ["dep:cc"]
+# Source SFMT/frand startup capability; never the legacy Rust RNG.
+forever-spell-random = ["dep:cc"]
 
 [[bin]]
 name = "world-server"
@@ -16,7 +20,7 @@ path = "src/main.rs"
 [[bin]]
 name = "forever-world-server"
 path = "src/forever/main.rs"
-required-features = ["forever-name-regex"]
+required-features = ["forever-name-regex", "forever-spell-traversal", "forever-spell-random"]
 
 [dependencies]
 tokio = { workspace = true }

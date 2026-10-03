@@ -8,7 +8,10 @@ use wow_data::{
     forever_hotfix::{ForeverHotfixCatalog, ForeverTactKeys, TACT_KEY_TABLE_HASH},
 };
 use wow_persistence::{PersistenceFutureLikeCpp, forever::AccountData};
+mod item_hotfix;
 mod name_availability;
+mod selection;
+mod templates;
 
 fn hotfix_catalog(mut metadata: HotfixBlobCache) -> ForeverHotfixCatalog {
     // Header/section/column/records/IDs are synthetic. No acquired key bytes.
@@ -61,6 +64,9 @@ struct Repository {
     name_error: Option<LoadError>,
     used_name: bool,
     queried_names: std::sync::Mutex<Vec<String>>,
+    selection: wow_persistence::forever::selection::SelectionRows,
+    recustomize_error: Option<LoadError>,
+    recustomized: std::sync::Mutex<Vec<u64>>,
 }
 
 impl Repository {
@@ -72,6 +78,9 @@ impl Repository {
             name_error: None,
             used_name: false,
             queried_names: Default::default(),
+            selection: Default::default(),
+            recustomize_error: None,
+            recustomized: Default::default(),
         }
     }
 }
@@ -100,8 +109,28 @@ impl SessionRepository for Repository {
             Ok(snapshot())
         })
     }
-    fn enumerate_empty(&self, _: u32) -> PersistenceFutureLikeCpp<'_, Result<(), LoadError>> {
-        Box::pin(async move { self.enum_error.map_or(Ok(()), Err) })
+    fn load_character_selection(
+        &self,
+        _: u32,
+        _: bool,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        Result<wow_persistence::forever::selection::SelectionRows, LoadError>,
+    > {
+        Box::pin(async move {
+            self.enum_error
+                .map_or_else(|| Ok(self.selection.clone()), Err)
+        })
+    }
+    fn require_recustomization(
+        &self,
+        _: u32,
+        guid: u64,
+    ) -> PersistenceFutureLikeCpp<'_, Result<(), LoadError>> {
+        Box::pin(async move {
+            self.recustomized.lock().unwrap().push(guid);
+            self.recustomize_error.map_or(Ok(()), Err)
+        })
     }
     fn name_in_use<'a>(
         &'a self,
@@ -122,7 +151,9 @@ fn session(repository: Arc<dyn SessionRepository>) -> Session {
             realm_address: 0x02010001,
             account_expansion: 0,
             dbc_locale: 6,
-            skip_sql_reserved_names: false,
+            permissions: Arc::new(permissions::DefaultAccountPermissions::load(
+                Default::default(),
+            )),
         },
         repository,
         Arc::new(hotfix_catalog(HotfixBlobCache::new())),
@@ -137,6 +168,7 @@ fn session(repository: Arc<dyn SessionRepository>) -> Session {
             strict_mask: 0,
             creation_charset: 2,
         },
+        super::selection::fixture(),
     )
     .unwrap()
 }
@@ -149,6 +181,15 @@ fn policy() -> InitializationPolicy {
         cache_version: 0,
         content_set: 137,
         max_characters: 200,
+        character_templates: Arc::new(
+            creation::CharacterTemplates::load(
+                Default::default(),
+                &wow_data::forever_initialization::InitializationRecords::default()
+                    .finish(Default::default(), Default::default(), &Default::default())
+                    .unwrap(),
+            )
+            .unwrap(),
+        ),
     }
 }
 
@@ -545,8 +586,22 @@ async fn cancelled_initialization_cannot_be_restarted_or_admit_character_operati
         ) -> PersistenceFutureLikeCpp<'_, Result<AccountSnapshot, LoadError>> {
             Box::pin(std::future::pending())
         }
-        fn enumerate_empty(&self, _: u32) -> PersistenceFutureLikeCpp<'_, Result<(), LoadError>> {
+        fn load_character_selection(
+            &self,
+            _: u32,
+            _: bool,
+        ) -> PersistenceFutureLikeCpp<
+            '_,
+            Result<wow_persistence::forever::selection::SelectionRows, LoadError>,
+        > {
             panic!("cancelled initialization must never enumerate")
+        }
+        fn require_recustomization(
+            &self,
+            _: u32,
+            _: u64,
+        ) -> PersistenceFutureLikeCpp<'_, Result<(), LoadError>> {
+            panic!("cancelled initialization must never recustomize")
         }
         fn name_in_use<'a>(
             &'a self,

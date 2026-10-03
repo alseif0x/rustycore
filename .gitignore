@@ -62,6 +62,12 @@ skills/
 /wiki/
 skills-lock.json
 
+# Forever game-domain source modules, not private/local agent skill packages.
+!/crates/wow-world/src/forever/creation/skills/
+!/crates/wow-world/src/forever/creation/skills/**
+!/crates/wow-world/src/forever/player/skills/
+!/crates/wow-world/src/forever/player/skills/**
+
 # Repository-scoped agent skills shared by the RustyCore team. Keep this as an
 # allowlist: future scripts/assets need an intentional exception so local
 # credentials, certificates, logs, and generated files stay ignored.

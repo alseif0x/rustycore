@@ -9,7 +9,13 @@ use wow_persistence::forever::{
     ClassRequirement, GLOBAL_CACHE_MASK, LoadError, RaceClassRequirement, RaceUnlockRequirement,
     SessionRepository,
 };
+mod creation;
 mod names;
+mod permissions;
+mod selection;
+mod spells;
+pub use creation::ForeverCreationWorldRepository;
+pub use spells::ForeverSpellWorldRepository;
 
 pub struct ForeverSessionRepository {
     auth: Arc<LoginDatabase>,
@@ -173,20 +179,23 @@ impl SessionRepository for ForeverSessionRepository {
         Box::pin(self.load(account, battlenet, realm))
     }
 
-    fn enumerate_empty(&self, account: u32) -> PersistenceFutureLikeCpp<'_, Result<(), LoadError>> {
-        Box::pin(async move {
-            self.characters.execute(&PreparedStatement::new("UPDATE character_banned SET active=0 WHERE unbandate<=UNIX_TIMESTAMP() AND unbandate<>bandate")).await.map_err(|_| LoadError::Database)?;
-            // Target enum joins/identity projection, plus its customization
-            // holder. Equipment-row decoding remains part of nonempty enum.
-            let result = self.characters.query(&account_statement(
-                "SELECT c.guid,c.name,c.race,c.class,c.gender,c.level,c.zone,c.map,c.position_x,c.position_y,c.position_z,gm.guildid,c.playerFlags,c.at_login,cp.entry,cp.modelid,cp.level,cb.guid,c.slot,c.createTime,c.logout_time,c.activeTalentGroup,c.lastLoginBuild,c.personalTabardEmblemStyle,c.personalTabardEmblemColor,c.personalTabardBorderStyle,c.personalTabardBorderColor,c.personalTabardBackgroundColor,ceq.guid FROM characters c LEFT JOIN character_pet cp ON c.summonedPetNumber=cp.id LEFT JOIN guild_member gm ON c.guid=gm.guid LEFT JOIN character_banned cb ON c.guid=cb.guid AND cb.active=1 LEFT JOIN character_select_screen_equipment_cache ceq ON c.guid=ceq.guid WHERE c.account=? AND c.deleteInfos_Name IS NULL", account,
-            )).await.map_err(|_| LoadError::Database)?;
-            let choices = self.characters.query(&account_statement("SELECT cc.guid,cc.chrCustomizationOptionID,cc.chrCustomizationChoiceID FROM character_customizations cc LEFT JOIN characters c ON cc.guid=c.guid WHERE c.account=? AND c.deleteInfos_Name IS NULL ORDER BY cc.guid,cc.chrCustomizationOptionID", account)).await.map_err(|_| LoadError::Database)?;
-            if !result.is_empty() || !choices.is_empty() {
-                return Err(LoadError::UnsupportedState);
-            }
-            Ok(())
-        })
+    fn load_character_selection(
+        &self,
+        account: u32,
+        declined: bool,
+    ) -> PersistenceFutureLikeCpp<
+        '_,
+        Result<wow_persistence::forever::selection::SelectionRows, LoadError>,
+    > {
+        Box::pin(self.selection(account, declined))
+    }
+
+    fn require_recustomization(
+        &self,
+        account: u32,
+        guid: u64,
+    ) -> PersistenceFutureLikeCpp<'_, Result<(), LoadError>> {
+        Box::pin(self.recustomize(account, guid))
     }
 
     fn name_in_use<'a>(

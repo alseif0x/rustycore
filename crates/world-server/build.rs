@@ -3,6 +3,12 @@ use std::{
     path::{Path, PathBuf},
     process::Command,
 };
+#[cfg(feature = "forever-spell-random")]
+#[path = "build/forever_spell_random.rs"]
+mod forever_spell_random;
+#[cfg(feature = "forever-spell-traversal")]
+#[path = "build/forever_spell_traversal.rs"]
+mod forever_spell_traversal;
 
 fn git_output(manifest_dir: &Path, args: &[&str]) -> Option<String> {
     let output = Command::new("git")
@@ -68,6 +74,10 @@ fn main() {
     );
     #[cfg(feature = "forever-name-regex")]
     build_forever_names(&manifest_dir);
+    #[cfg(feature = "forever-spell-traversal")]
+    forever_spell_traversal::build(&manifest_dir);
+    #[cfg(feature = "forever-spell-random")]
+    forever_spell_random::build(&manifest_dir);
 }
 
 #[cfg(feature = "forever-name-regex")]

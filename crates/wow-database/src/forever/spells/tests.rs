@@ -1,0 +1,148 @@
+use super::*;
+#[test]
+fn server_effect_sql_has_exact_34_column_source_order_without_orderby_or_hotfix_filter() {
+    let cols = EFFECTS
+        .strip_prefix("SELECT ")
+        .unwrap()
+        .strip_suffix(" FROM serverside_spell_effect")
+        .unwrap()
+        .split(", ")
+        .collect::<Vec<_>>();
+    assert_eq!(
+        cols,
+        [
+            "SpellID",
+            "EffectIndex",
+            "DifficultyID",
+            "Effect",
+            "EffectAura",
+            "EffectAmplitude",
+            "EffectAttributes",
+            "EffectAuraPeriod",
+            "EffectBonusCoefficient",
+            "EffectChainAmplitude",
+            "EffectChainTargets",
+            "EffectItemType",
+            "EffectMechanic",
+            "EffectPointsPerResource",
+            "EffectPosFacing",
+            "EffectRealPointsPerLevel",
+            "EffectTriggerSpell",
+            "BonusCoefficientFromAP",
+            "PvpMultiplier",
+            "Coefficient",
+            "Variance",
+            "ResourceCoefficient",
+            "GroupSizeBasePointsCoefficient",
+            "EffectBasePoints",
+            "EffectMiscValue1",
+            "EffectMiscValue2",
+            "EffectRadiusIndex1",
+            "EffectRadiusIndex2",
+            "EffectSpellClassMask1",
+            "EffectSpellClassMask2",
+            "EffectSpellClassMask3",
+            "EffectSpellClassMask4",
+            "ImplicitTarget1",
+            "ImplicitTarget2"
+        ]
+    );
+}
+#[test]
+fn server_spell_sql_has_exact_83_column_source_order_and_all_17_attributes() {
+    let cols = SPELLS
+        .strip_prefix("SELECT ")
+        .unwrap()
+        .strip_suffix(" FROM serverside_spell")
+        .unwrap()
+        .split(", ")
+        .collect::<Vec<_>>();
+    assert_eq!(
+        cols,
+        [
+            "Id",
+            "DifficultyID",
+            "CategoryId",
+            "Dispel",
+            "Mechanic",
+            "Attributes",
+            "AttributesEx",
+            "AttributesEx2",
+            "AttributesEx3",
+            "AttributesEx4",
+            "AttributesEx5",
+            "AttributesEx6",
+            "AttributesEx7",
+            "AttributesEx8",
+            "AttributesEx9",
+            "AttributesEx10",
+            "AttributesEx11",
+            "AttributesEx12",
+            "AttributesEx13",
+            "AttributesEx14",
+            "AttributesEx15",
+            "AttributesEx16",
+            "Stances",
+            "StancesNot",
+            "Targets",
+            "TargetCreatureType",
+            "RequiresSpellFocus",
+            "FacingCasterFlags",
+            "CasterAuraState",
+            "TargetAuraState",
+            "ExcludeCasterAuraState",
+            "ExcludeTargetAuraState",
+            "CasterAuraSpell",
+            "TargetAuraSpell",
+            "ExcludeCasterAuraSpell",
+            "ExcludeTargetAuraSpell",
+            "CasterAuraType",
+            "TargetAuraType",
+            "ExcludeCasterAuraType",
+            "ExcludeTargetAuraType",
+            "CastingTimeIndex",
+            "RecoveryTime",
+            "CategoryRecoveryTime",
+            "StartRecoveryCategory",
+            "StartRecoveryTime",
+            "InterruptFlags",
+            "AuraInterruptFlags1",
+            "AuraInterruptFlags2",
+            "ChannelInterruptFlags1",
+            "ChannelInterruptFlags2",
+            "ProcFlags",
+            "ProcFlags2",
+            "ProcChance",
+            "ProcCharges",
+            "ProcCooldown",
+            "ProcBasePPM",
+            "MaxLevel",
+            "BaseLevel",
+            "SpellLevel",
+            "DurationIndex",
+            "RangeIndex",
+            "Speed",
+            "LaunchDelay",
+            "StackAmount",
+            "EquippedItemClass",
+            "EquippedItemSubClassMask",
+            "EquippedItemInventoryTypeMask",
+            "ContentTuningId",
+            "SpellName",
+            "ConeAngle",
+            "ConeWidth",
+            "MaxTargetLevel",
+            "MaxAffectedTargets",
+            "SpellFamilyName",
+            "SpellFamilyFlags1",
+            "SpellFamilyFlags2",
+            "SpellFamilyFlags3",
+            "SpellFamilyFlags4",
+            "DmgClass",
+            "PreventionType",
+            "AreaGroupId",
+            "SchoolMask",
+            "ChargeCategoryId"
+        ]
+    );
+}

@@ -5,6 +5,929 @@ Branch naming, 2026-10-02: the experimental target branch is now **`forever`**
 remains `1.60.1.70170`; `3.4.3` is a separate development line, not the merge
 destination of this port. Older evidence below retains its original branch name.
 
+## Forever creation paused; source checkpoint publication — 2026-10-03
+
+The operator explicitly paused selection/creation/world-entry work pending the
+ongoing `3.4.3` architecture refactor, then authorized publishing the current
+Forever work as a preservation checkpoint. No refactor import, cross-version
+merge, deployment or resume of that objective is implied. Rust extraction work
+may proceed separately in `rustycore-extractors` while this integration waits.
+
+This checkpoint includes the authored source/readers/probes/tests below, not a
+verified playable build. Create remains disabled. New working Rust has not been
+compiled or installed; earlier scoped green evidence applies only to its stated
+SHAs. Committed-candidate publication validation is recorded in the runbook,
+including any failures; publishing a WIP snapshot does not turn those green.
+
+## Earlier Forever implementation evidence — 2026-10-03
+
+At **13:40–13:53 UTC**, source cast-definition resolution is authored against
+the same canonical override groups. Player unordered-set replacements precede
+Unit's regular/triggered aura lists and share the exact five-slot context;
+missing IDs consume slots, zero is rejected and the initial spell is not
+previsited. Source map difficulty, mask/family rules and flags are preserved.
+An inner-set native replay and exact-key admission replace the outstanding
+sorted/Rust-order temptation; no native Player state or new locks are added.
+Nineteen domain/four ABI cases, 420 actual-source set histories and 22 cases
+using extracted C++ Player/Unit resolver bodies are authored, unexecuted.
+Actual applied-Unit aura production/casts, skill-book effects, full Player,
+GUID/durable save and native populated selection/create/world remain absent.
+Create stays off. Targeted rustfmt/whitespace hygiene passes only; no build/test
+campaign, DB/runtime/client action, commit or push. Working Rust uncompiled/
+uninstalled; previous failed acceptance and publication waiver are unchanged.
+See the [owning runbook](../operations/forever-login.md#source-cast-definition-resolution--2026-10-03).
+
+At **13:24–13:38 UTC**, source RemoveSpell is authored on the same canonical
+book: next/required removals, post-child re-search, New erase versus saved
+Removed/disabled states, owned/pet aura commands, profession refunds, previous
+skill restoration, other-teacher protection, lower-rank reactivation, override
+cleanup, weapon capabilities/offhand and final publication. 29 additional domain
+cases are authored, unexecuted. Add/remove share the same private source range
+rule, preserving lazy level lookup and distinct grow/clamp semantics; all prior
+31 learning cases remain registered. Required metadata cycles and missing source
+assertions produce explicit prefix-preserving errors, not fabricated success.
+Actual Unit/pet/SetSkill/weapon/inventory-mail/publication executors remain absent;
+offhand's bag-full mail/COMMIT path is not implemented or assumed durable.
+Publication hook/reentry and unordered-set cast-order gates remain open. Create
+stays off; complete Player, GUID/durable save and populated native selection/
+create/world plus cancellation/unknown-COMMIT/restart/relogin are unfinished.
+Targeted rustfmt/whitespace hygiene only passes. No build/test campaign, DB write,
+runtime/client action, commit or push; working Rust uncompiled/uninstalled. See
+the [owning runbook](../operations/forever-login.md#source-removespell-and-skill-range-sharing--2026-10-03).
+
+At **13:10–13:23 UTC**, source AddSpell/LearnSpell coordinators are authored
+against the canonical book, including real entry transitions, previous-rank and
+dependent learning, source-ordered rank replacement, passive/cast decisions,
+skill range commands, override membership, criteria and mount ordering. Thirty-
+one synthetic domain cases are authored, unexecuted, including legitimate skill
+reentry before outer try-emplace and a terminating SQL learning cycle. Mandatory
+effects have no production executor: their recorded commands are not real Unit,
+SetSkill, condition, criteria/collection or packet effects. Publication requires
+an admitted non-book-mutating hook contract; arbitrary OnPacketSend reentry is
+still not integrated. RemoveSpell, unordered-set cast selection, complete Player,
+GUID/durable save and native populated selection/create/world plus restart/
+relogin remain unfinished. Targeted rustfmt/whitespace hygiene only passes; no
+build/test campaign, DB write, runtime/client action, commit or push. Create
+remains disabled and working Rust uncompiled/uninstalled. See the
+[owning runbook](../operations/forever-login.md#source-addspell-and-learnspell-coordinators--2026-10-03).
+
+At **13:00–13:09 UTC**, canonical Player spellbook state and complete source
+temporary/favorite/known-active operations are authored. Private membership
+history feeds a transient numeric-only replay of the pinned GNU unordered_map;
+Rust iteration/sorted/insertion order is not substituted for native order.
+The domain admits the exact key set and borrows canonical entries. Eight domain
+and four production-linked ABI/composition cases plus 420 independent actual
+PlayerSpellMap history cases and signed trait-field checks are authored, all
+unexecuted. Source rank-loop publication reaches OnPacketSend script hooks;
+the full AddSpell coordinator must resolve reentry/invalidation as well as
+integrate learning/casts/skills. Read-only traversal is not that live loop.
+Targeted rustfmt/whitespace hygiene only passes. No build/test campaign, DB write,
+runtime/client action, commit or push; Create remains disabled. Full Player,
+conditions/spell/Unit/inventory effects, GUID/durable save and native populated
+selection/create/world plus restart/relogin remain unfinished. See the
+[owning runbook](../operations/forever-login.md#canonical-player-spellbook-and-native-order--2026-10-03).
+
+At **12:45–12:55 UTC**, source reward and default-learning coordinators are
+authored and integrated with canonical PlayerSkills. SetSkill no longer delegates
+reward admission to an opaque callback: it now performs exact acquire-method,
+condition, race/class, level and rank checks in source order, then mandatory
+AddSpell/LearnSpell/RemoveSpell commands. Default learning checks live HasSkill
+and level before each source-ordered RC call and uses SetSkill, not bulk startup
+requests. The existing range/rank calculation is shared without changing valid
+startup results or its zero-level admission guard. Nine reward, six default and
+one signed-promotion cases are authored, and all 18 prior coordinator cases are
+migrated to the new boundary; none are executed. Targeted rustfmt/whitespace
+hygiene passes only. No build, runtime/client action, DB write, commit or push.
+Actual ConditionMgr and spellbook/Unit/criteria/enchant/inventory executors remain
+missing; Create remains disabled and all working Rust uncompiled/uninstalled.
+GUID/save and populated native selection/create/world plus cancellation,
+unknown-COMMIT/restart/relogin acceptance remain unfinished. See the
+[owning runbook](../operations/forever-login.md#source-default-and-reward-learning--2026-10-03).
+
+At **12:33–12:43 UTC**, the complete source SetSkill field/state coordinator
+is authored with required synchronous effect methods, all stored/absent branches,
+two canonical profession fields, parent-tier admission, Classic child rules and
+final child synchronization on ordinary early returns. Bag-full preserves prior
+item moves and the primary skill; reward reentry uses the same fields. Source
+slot-zero/captured-slot and profession lookup quirks are retained explicitly.
+Eighteen recording-effect cases are authored, unexecuted; they are not actual
+spell/aura/enchant/inventory effects. No production executor exists and Create
+remains disabled. At **12:44 UTC**, Git inspection also found that the private
+agent `skills/` ignore rule hid 15 gameplay source/test files in the two Forever
+skill directories. Two exact-path allowlists now expose them to Git/search;
+private agent directories remain excluded. Nothing was staged or force-added.
+Targeted rustfmt and whitespace hygiene pass only; no build,
+test campaign, DB write, runtime/client action, commit or push. The full Player
+effect executor, AddSpell, inventory/equip, GUID/durable save and populated native
+selection/create/world plus cancellation/unknown-COMMIT/restart/relogin remain
+unfinished. See the [owning runbook](../operations/forever-login.md#source-setskill-coordinator--2026-10-03).
+
+At **12:26–12:33 UTC**, source spell validity and canonical Player skill fields
+are authored. Validity preserves physical effects, depth-first regular child
+lookup and crafting-reagent order against the same admitted numeric templates.
+PlayerSkills owns one 300-field array and an ID/slot/status index; initialization
+does not learn default requests. Source pure/bonus getters, Classic profession
+child-input normalization and actual ordered temporary/permanent bonus mutations
+are implemented, including descendant pruning. Seven validity, nine field/query
+and six bonus cases plus expanded existing composition cases are authored,
+unexecuted. Targeted rustfmt and whitespace hygiene pass only; all working Rust
+remains uncompiled/uninstalled. No Cargo/test campaign, DB write, runtime/client
+action, commit or push. Full SetSkill, live spell/aura/criteria/enchant/inventory
+effects, GUID/save and populated native selection/create/world plus cancellation,
+unknown-COMMIT/restart/relogin acceptance remain unfinished. Create stays disabled.
+See the [owning runbook](../operations/forever-login.md#spell-validity-and-player-skill-fields--2026-10-03).
+
+At **12:13 UTC**, the source first-match skill race/class lookup is authored
+and connected to creation-source startup. The existing pinned GNU container
+capability returns only admitted RC IDs in equal-range order; the domain
+validates the exact set and owns a keys-only index, borrowing the same BirthCatalog.
+Four domain and four native ABI/producer cases plus 84 independent pointer-payload
+oracle cases are authored, unexecuted. Targeted formatting/whitespace hygiene
+passes only; no build, test campaign, runtime/client action, DB write, commit or
+push. The next Player skill operation must preserve the pinned Classic 1.60
+profession-child synchronization rules, not legacy parent-rank behavior.
+Actual Player skill/spell/aura/inventory operations, save and full native
+selection/create/world plus durability/restart/relogin remain unfinished. See
+the [owning runbook](../operations/forever-login.md#source-first-match-skill-lookup--2026-10-03).
+
+At **12:07 UTC**, five further source phases are authored and connected after
+target caps: ranks, required spells, learned skills, specific/aura states and
+learned-spell relationships. Canonical nodes borrow existing definition keys;
+SQL admission and reverse indices retain source order. The existing native RNG
+is reused only for the first Skill effect's full null-caster value calculation.
+Source rank overwrites, uint8 wrapping and SQL-empty learning early return are
+preserved, not silently normalized. Twenty-five new domain cases, one SQL
+query/empty-row case and the expanded production-linked composition are authored,
+unexecuted. The two World schemas were checked read-only; no row contents or
+private data were printed. Targeted formatting and whitespace checks pass only
+as hygiene. No Cargo/build/test campaign, runtime/client action, DB write,
+commit or push; all working Rust remains uncompiled/uninstalled. Actual
+Player/skill/spell/inventory operations, GUID allocation/save and populated
+selection/create/world plus durability/restart/relogin acceptance remain
+unfinished. See the
+[owning runbook](../operations/forever-login.md#rank-and-learning-startup--2026-10-03).
+
+At **11:46–11:49 UTC**, the complete 25-group/35-ID target-cap phase is
+authored and connected after immunity startup. It preserves source equal-range
+difficulty order, defaults, caps-before-diagnostics, fallback value-holder
+lookup and direct CalcBaseValue truncation without variance/RNG. Missing or
+mismatched diagnostic holders retain the hardcoded caps; undefined casts or
+lookup cycles reject the consumed phase. Five new domain cases and expanded
+native composition are authored, unexecuted. Targeted formatting/whitespace
+hygiene passes; no build, runtime, DB write, commit or push. Ranks/learning,
+specific/aura state, actual Player/inventory/GUID/save and full native selection/
+creation/world plus durability/restart/relogin acceptance remain unfinished.
+See the [owning runbook](../operations/forever-login.md#target-cap-startup--2026-10-03).
+
+At **11:32–11:45 UTC**, fresh guarded local acquisition adds complete
+UnitCondition (346 direct rows/seven copies), now 49 spell stores / 668 SQL
+columns. The canonical reader, ordered overlays/removals, strict SQL conversion
+and full 52-byte serializer are authored. Diminishing now consults that final
+store and is connected after custom attributes; the temporary presence callback
+is retired. The next source immunity phase is also authored and connected:
+eight-field World SQL input, exact bitset/token rules, per-effect derived data
+and allowed-mechanic masks. The actual source expression, not its stale hex
+comment, determines the loss-control mask. New/expanded Rust cases remain
+unexecuted; the whole working delta remains uncompiled/uninstalled. Only
+native acquisition and targeted formatting/whitespace hygiene have evidence.
+No runtime start/client action, DB write, commit or push. Target caps,
+ranks/learning, actual Player/inventory/GUID/save and full selection/create/world
+plus durability/restart/relogin acceptance remain required. See the
+[owning runbook](../operations/forever-login.md#unitcondition-and-immunity-startup--2026-10-03).
+
+At **11:23–11:30 UTC**, source diminishing rules and null-caster visual
+selection are authored on the canonical definitions, preserving repeated
+priest visual queries, all negative bits, family precedence and independent
+duration limits. The existing native SFMT capability now also imports exact
+urand/urandweighted bodies; no second production RNG exists. Thirteen new Rust
+cases, expanded production-linked composition and 61,440 additional native
+oracle choices are authored but unexecuted. Diminishing is **not yet enabled**:
+complete final UnitCondition inputs are required; their exact 26-column SQL
+schema was verified read-only. The pipeline remains 48 DB2 stores / 642 SQL
+columns until that reader/overlay/delivery integration is implemented.
+Only targeted formatting/whitespace hygiene passed. No build, runtime/client
+action, DB write, commit or push; creation/world and full validation remain
+unfinished. See the
+[owning runbook](../operations/forever-login.md#diminishing-rules-and-source-visual-selection--2026-10-03-11231130-utc).
+
+At **11:09–11:22 UTC**, the complete ordered derived portion of
+`LoadSpellInfoCustomAttributes` is authored and connected after the SQL prefix
+in working startup: live enchant-proc writes, binary/value/positivity ordering,
+school/talent/cone/family/masks/ammo/LeaveWorld, second primary pass and liquids.
+The effective sparse item catalog finishes first and is shared, not copied.
+Seventeen new source-rule cases and an expanded production-linked native
+replay/RNG case are authored but unexecuted. Targeted rustfmt and diff whitespace
+checks pass only as hygiene; all working Rust remains uncompiled/uninstalled.
+Remaining derived spell/rank/learning, Player/inventory/GUID/save and native
+world/restart/relogin acceptance are still required. Creation stays disabled;
+no runtime start, DB write, commit or push. The
+[owning runbook](../operations/forever-login.md#ordered-custom-attribute-startup--2026-10-03-11091122-utc)
+records source anchors, consumers and evidence boundaries.
+
+At **11:02–11:08 UTC**, private recursive positivity now follows live negative
+bits, source draw/early-return order, shared visited identity and later-only
+target checks. Eleven new source-rule cases are authored but unexecuted. It
+remains uncompiled and is not independently enabled before the complete
+ordered custom-attribute phase, which is the next required integration. No
+readiness marker or graph/value mirror was added; no build/runtime/DB/publication
+action. The [owning runbook](../operations/forever-login.md#live-ordered-positivity-rules--2026-10-03-11021108-utc)
+retains supporting anchors and the full remaining creation/world boundary.
+
+At **10:39–11:00 UTC**, working null-caster spell-value calculations now retain
+source f32/f64 arithmetic, variance/base-override order, separate base/final
+rounding and explicit undefined-input errors. RandPropPoints retains file/copy
+and separate SQL allocation observations, including overwrite-only publication
+and final-removal bounds. A source SFMT/frand numerical capability and native
+oracle are authored; source bodies/headers are imported from pinned Git objects,
+not a legacy Rust RNG. Thirty-four new Rust cases are authored but unexecuted;
+the native oracle is unrun, all working Rust uncompiled/uninstalled. This is not
+the complete custom/positivity or live Player operation. The
+[owning runbook](../operations/forever-login.md#null-caster-values-source-index-bounds-and-random-capability--2026-10-03-10391100-utc)
+records exact anchors, safe SQL metadata evidence and pending checks. Creation
+remains disabled and World stopped; no new commit/push or playable claim.
+
+At **10:16–10:27 UTC**, the canonical target pipeline expands to **48 DB2
+stores / 642 SQL columns**, adding complete ExpectedStat/Mod, ContentTuning,
+ContentTuningXExpected, RandPropPoints and MythicPlusSeason. Fresh guarded
+acquisition succeeds: 24 existing prefixes plus 24 complete files. Read-only
+SQL metadata confirms the 87 new columns. Complete expected-stat reduction
+and random-property selection are implemented against pinned source, with
+final IDs-only indices and explicit unknown-coverage errors. Twenty-three
+new Rust cases are authored but unexecuted; all working Rust remains
+uncompiled/uninstalled. CalcValue, positivity, full custom/derived spell
+semantics, learning, Player/save and world acceptance remain unfinished.
+The [owning runbook](../operations/forever-login.md#expected-stat-and-item-value-dependencies--2026-10-03-10161027-utc)
+retains sources, acquisition evidence and pending checks. No new commit/push.
+
+At **10:03–10:16 UTC**, three complete spell-value GameTables now have one
+immutable target reader and startup owner: SpellScaling, CombatRatingsMultByILvl
+and StaminaMultByILvl. Fresh guarded 70170 acquisition and the read-only Linux
+C++ oracle agree on 124/1301/1301 physical rows and full f32-bit fingerprints.
+The isolated tool campaign passes its header self-test, 14 CLI cases and ten
+native text-oracle cases; two actual Rust comparisons are skipped. Nine new
+Rust cases are authored but unexecuted; all working Rust remains uncompiled.
+This does not implement CalcValue, positivity or character creation, and does
+not change the 42 DB2 stores / 555 SQL-column counts below. See the
+[owning runbook](../operations/forever-login.md#spell-value-gametable-inputs--2026-10-03-10031016-utc).
+
+At **09:44–10:03 UTC**, the working spell pipeline grows to 42 canonical
+stores / 555 hotfix SQL columns with six complete custom-attribute dependency
+schemas and serializers. Fresh isolated acquisition succeeds: 24 explicit
+readable prefixes plus 18 complete files; tool header/prefix self-test and
+14 CLI guards pass. Unknown encrypted rows remain unknown. Read-only SQL
+metadata confirms the 204 added columns and twelve unsigned enchantment words
+requiring same-width signed metadata bit preservation. Eight locale families,
+LiquidType's six plain string components and the final IDs-only missile-set
+index share the existing catalog. Twenty new Rust cases are authored but
+unexecuted; all working Rust remains uncompiled. This is acquisition/inputs,
+not complete custom attributes, SpellInfo, learned spells or character-save/
+world acceptance. Create remains disabled, World stopped; no new commit/push.
+The [owning runbook](../operations/forever-login.md#custom-attribute-dependency-stores--2026-10-03-09441003-utc)
+retains exact source anchors, diagnostic commands and evidence boundaries.
+
+The full selection/create/world goal remains active, with published base
+`ccb99f8caedec328f049b1a93a8d68142f9a4e57`. Current unvalidated work adds
+an independent nine-query World source batch and one immutable source owner
+in the target composition, plus payload-only Create/populated-local-enum codecs.
+It does **not** register Create, allocate a GUID, save a Player, send success
+or enter the world. Local nonempty selection is now connected in the working
+code, but is neither installed nor locally/native validated. No new build/test or
+native acceptance is claimed for this working delta; validation is deferred
+while the complete initialization/persistence operation is implemented.
+
+Exact target contrast finds signed int32 PlayerLevelInfo, mandatory race-stat
+presence and gap fallback after racial composition; legacy uint16/zero-modifier
+projections are not reused. Independent target definitions preserve all sixteen
+SQL columns including nullable NPE and intro fields. DB2/map/model/transport/
+spell/item/GameTable initialization and the full commit/cancellation/unknown-
+COMMIT/publication contract remain mandatory. Source Login commit only queues,
+not acknowledges, its transaction; this known behavior is not silently repaired.
+The [owning runbook](../operations/forever-login.md#independent-creation-sources-and-local-list-codecs--2026-10-03)
+records source functions, code ownership and the remaining evidence boundaries.
+No legacy gameplay code or architecture baseline/ceiling was changed.
+
+The same working candidate now adds guarded local initialization acquisition and
+raw target numeric readers. PowerType, ChrSpecialization and three GT text files
+are complete; Map has 71 plaintext records and eight unknown encrypted records.
+Strict acquisition rejects missing keys. Separate explicit available-map mode
+retains only the unchanged known prefix, following source Skip without zero fill.
+Acquisition-tool self-test and ten CLI guards pass; explicit local acquisition
+succeeds. New Rust readers/tests remain unvalidated; effective initialization
+hotfix composition is now implemented, while full Player integration remains
+incomplete. These isolated acquisition diagnostics are not ordinary
+acceptance or character-save/world-entry evidence.
+
+The working candidate also acquires complete ChrClassesXPowerTypes (15 records,
+byte parent relationship) and Movie (three records). Five target numeric stores
+now compose baseline -> official -> custom -> final removals before immutable
+indexes. Power duplicates retain first ID; class-power pairs deduplicate/sort by
+class/type; default specialization prefers index four then first populated index.
+Source-contrasted normal map/XYZ/orientation/both-gender admission and immutable
+XP baseline/SQL/gap composition are implemented with unexecuted Rust regressions.
+No legacy map, class-power offsets or uint16 stats are reused.
+
+The later working delta expands effective initialization to **seven stores**:
+numeric ChrClasses/ChrRaces now also compose official/custom/removal overlays.
+Availability and World-source admission consume those final identities, not a
+separate baseline-only presence set. Class's inline ID is read as a byte;
+copy IDs wider than that byte are rejected. Signed identity fields and all
+numeric composition widths have written, unexecuted regression coverage.
+
+`creation::vitals` now derives transient pre-equipment stats, agility armor,
+stamina health, GT mana, XP and class-indexed powers from the pinned target
+source. It preserves the missing health-row factor 10, zero max-health clamp,
+initial-login power flags and source XP underflow at zero next-level XP;
+undefined numeric casts/overflow fail closed. Above-cap stat growth also
+retains the target's cap-minus-one loop and unchanged Spirit/new-class cases.
+These are **not** full Player/update-field or spell/item initialization.
+Create/save/world stay disabled; no new Rust/native result,
+commit or publication is claimed.
+
+Read-only Linux GT oracle diagnostics on the complete private files report 124
+rows in each table (including zero), with source-style long-double/f32 fingerprints.
+Its synthetic self-test plus five CLI/private-file tests pass; actual-file Rust
+differential QA is written but not executed. New target composition retains the
+reference's configurable MaxPlayerLevel default 90/range 1..123 **only as reference
+configuration**, not proof of Forever's playable cap. Native cap evidence,
+complete initial Player data, GUID/save, restart/relogin and world wire acceptance
+remain required before enabling Create. World stays stopped and Character count
+is still zero in a fresh read-only query. No commit/push is claimed for this delta.
+
+At **05:15 UTC**, the working candidate adds source-backed starting level/money
+selection and a complete two-query CharacterTemplate startup batch. Normal,
+allied, DK/Pandaren, DH, Evoker-money and GM/template permission branches follow
+`Player.cpp:24649-24716`; DB2 StartingLevel is not selected blindly. Source signed
+configuration reads precede unsigned conversion and clamps; GM is not capped
+to MaxPlayerLevel. Templates retain source faction-mask/class filtering and
+server level, including signed request-ID conversion; query failures are not
+missing templates. AuthResponse now projects permitted templates from the same
+immutable catalog used by creation policy. Multi-template iteration is unordered,
+as in C++, not claimed byte/order-equivalent or native-accepted.
+
+Default RBAC moves out of name rules into one immutable projection referenced
+by Session identity; permission 17's old graph behavior is intended to remain
+unchanged, while permissions 10/41 now drive template/GM selection. Explicit
+grants/denials and nonzero account security still fail admission. Eighteen new
+tests plus the relocated graph regression are written, **unexecuted**. Formatting
+passes; no compile, new live SQL query, DB write, runtime install/start, save,
+commit or publication is claimed. Default skill/spell/item initialization and
+the complete persistence/world operation remain open.
+
+At **05:31 UTC**, the same uncommitted candidate adds optional guarded
+birth-table acquisition plus a raw typed Rust batch/read-only consumer.
+Actual esES build-70170 data supplies 154 SkillLine, 186 SkillRaceClassInfo,
+114 CharacterLoadout and 846 CharacterLoadoutItem rows. Strict SkillLineAbility
+acquisition rejects five unavailable encrypted one-row sections. An additional
+explicit prefix mode preserves 7833 plaintext rows and all six original headers,
+with exact hash/layout/parent/section/extent guards, following source Skip;
+the five rows remain **unknown**, not synthesized or declared absent.
+Local CMake build, one synthetic header/self-test and ten CLI guards pass;
+the acknowledged acquisition passes. Files are private 0600 under a 0700
+ignored directory. These are isolated asset diagnostics, not Rust/native
+character acceptance, and do not reset the exceeded ordinary campaign.
+
+The source batch now additionally reads all sixteen uint32 `skill_tiers`
+columns after the original eight PlayerInfo families, matching source startup
+order. Empty tiers are legitimate; query/decode failures are not empty state.
+One immutable tier owner clamps the requested index to 15 then backtracks zeros,
+retaining uint32 values until the future Player narrowing boundary. Read-only
+local metadata/count inspection confirms seventeen unsigned INT columns and
+59 rows; it does **not** exercise the Rust SQL adapter. Nine new Rust regressions
+and ten private-copy consumer tests are written, **unexecuted**. The birth
+records are still raw prerequisites: official/custom/removal composition,
+effective SpellInfo/ItemTemplate, recursive skill/spell effects and inventory
+placement/save remain open. No new Cargo build/test, DB write, runtime restart,
+character save, commit or push is claimed. README/runbook distinguish those
+boundaries; source handling does not reuse 3.4.3 skill/item layouts.
+
+At **05:43 UTC**, the same working candidate adds all five effective birth
+stores and their complete ten-read official/custom SQL operation. Records
+compose baseline -> official -> custom -> final removals before parent,
+skill-reward and loadout-item indexes; indexes retain IDs, not mutable record
+mirrors. Unlike a corrupt duplicate baseline, duplicate overlay IDs are legal:
+target SQL keys include VerifiedBuild, and DB2DatabaseLoader overwrites in
+observed query-row order. The source's signed skillup-key conversion and
+ascending DB2 vector order are retained; unordered race/class multimap match
+selection is **not** invented. The unavailable baseline count stays diagnostic,
+not an effective unknown-ID coverage claim.
+
+The isolated startup now owns one Arc to that catalog and requires the explicit
+available-ability opt-in when using the bounded prefix. The five stores are
+registered as known; unported hotfix serializers fail explicitly, not as missing
+records. Local read-only metadata inspection confirms exact numeric SQL widths,
+the newly added source fields, seven skill-ability overlay rows and no advertised
+hotfix_data entries for these five hashes. That is not Rust query execution.
+Eight catalog cases, one SQL-shape case and one binary composition case are
+written, **unexecuted**; Cargo compile/tests/native QA remain deferred.
+
+For later native acceptance, 27 whitelisted private assets were copied into
+`target/forever-login/client-data-runtime-70170-20261003T0542Z`; every copy and
+the two shared class/race baselines compare byte-identical, preserving 0600
+files/0700 directories and Git exclusion. No config, build key or private key
+list was copied. Original artifacts/installation are unchanged. Formatting/diff
+hygiene pass. No Cargo build/test, runtime start, DB write, save, commit or push
+is claimed. Full SpellInfo/ItemTemplate, actual skill/spell/inventory transitions,
+complete creation persistence and native selection/create/world remain open.
+
+At **05:54 UTC**, source-backed initial-item list preparation is implemented
+in the working candidate. A separate quantity-only projection joins final
+Item/ItemSparse records and orders item effects by legacy slot, inserting later
+relations before equal slots. Food/drink/DK quantities, vendor minimum one,
+source unlimited-stack sentinel and food-only clamping are retained. It is
+**not** a full ItemTemplate or equip/use admission. Its real target baseline/
+SQL/removal producer and startup integration still need implementation.
+
+`WorldSources::initial_items` consumes effective loadouts plus that quantity
+source and canonical SQL overrides: duplicate entries and source order remain,
+last actually joined loadout determines context, uint32 loadout IDs cannot alias
+uint16 relation keys, and every negative override removes all equal items.
+Target race-mask mapping explicitly includes Skyborne bits 32/33; no legacy
+race-ID-minus-one assumption is retained. Six quantity, two mask and eight list
+regressions are written, **unexecuted**. No Cargo build/test, acquisition, SQL
+write, runtime install/start, GUID, item instance, save, commit or push occurs
+in this slice. The full selection/create/world goal remains unfinished.
+
+At **05:59 UTC**, local item acquisition/metadata diagnostics establish the
+actual next requirement: all four target item stores contain unavailable
+encrypted sections even after the existing private public-key list is imported.
+ItemSparse is additionally **sparse WDC5 (flags 5), 6,999,130 bytes, 68 fields**;
+the normal reader/4 MiB extraction cannot be reused for it. Strict acquisition
+rejects before saving Item; separate acknowledged header-only inspection reads
+all four source-compatible schemas without saving their bodies. No unknown
+item/effect is synthesized or treated as known absent.
+
+Integrated acquisition now has the four independent source schemas and opt-ins;
+CLI parsing moves to ProbeOptions.h, preserving prior flag/error/validation order.
+Source-backed sparse parsing and bounded encrypted Skip remain required. CMake
+and synthetic header/CLI diagnostics pass; these are asset diagnostics, **not**
+Rust suite, item-producer, inventory or native creation acceptance. Original
+installation/artifacts/config/runtime/DB remain unchanged. Full goal stays active.
+
+At **06:04–06:05 UTC**, all four original readable item prefixes are acquired
+under an additional explicit target-only Skip option. Their headers and omitted
+sections remain unchanged: 9033 Item direct records/22788 copies, 19167 sparse
+ItemSparse/57 copies, 7580 ItemEffect/5015 copies and 12588 ItemXItemEffect/no
+copies. Unknown direct records are respectively 59/69/40/40; unavailable-copy
+coverage is distinct. No unknown row/ID is manufactured or declared absent.
+The private artifacts remain 0600/0700 and ignored; the installation is unchanged.
+
+The initial sparse extent gate correctly failed. Exact source contrast identifies
+the second ID-table read after sparse catalog IDs/copies/entries; its bytes are
+now explicitly included, not bypassed. Final isolated CMake/header self-test and
+eleven CLI guards pass, and acknowledged acquisition exits zero. This proves
+asset acquisition only. Rust sparse/numeric/copy decoding, effective item
+overlays/removals, full templates, Player inventory, durable Create and native
+selection/world acceptance remain incomplete. No Cargo campaign, runtime start,
+DB write, character save, commit or push occurred.
+
+At **06:13 UTC**, the working candidate adds the independent Rust sparse
+ItemSparse baseline reader and a counts-only private example. It scans the five
+variable inline strings without retaining them, then all 98 numeric cells with
+the target's 68-field widths/arrays, including **five flags**, two race-mask
+words and signed narrow fields. Raw float bits are preserved; equip/value
+validation is not hidden inside a file reader. Source catalog IDs/copies/entries
+and the second ID-table extent are gated before records are returned. Copy
+processing preserves file order, prior-copy sources, target overwrite and
+source skip rules for zero/missing/out-of-range sources.
+
+Only the exact acknowledged ItemSparse prefix is supported by this new path;
+regular/legacy readers are unchanged. Eight synthetic regressions and the
+production-linked read-only example are written, **unexecuted**. Formatting
+passes, but no Cargo compile/test or actual-file Rust result is claimed. The
+three other raw item readers, effective SQL/removal composition, full templates,
+initial inventory and Create/save/world still require integration/acceptance.
+This is baseline preparation, not an admitted Player or item instance. No DB
+write, runtime install/start, character save, commit or push occurs.
+
+At **06:24 UTC**, the same working candidate completes the four-store numeric
+item producer: three explicit bounded regular-prefix readers join the sparse
+reader; full numeric SQL DTOs, eight official/custom queries, consuming
+composition and final removals precede one immutable `ItemCatalog` in startup.
+The target regular-copy path follows source file-order skip/overwrite semantics;
+non-item copy admission is unchanged. The quantity view is derived only from
+final records, not a template/CanEquip or inventory authority. Full strings,
+wire serializers, durability/spec/addons/bonuses and Player instances remain open.
+
+Runtime requires explicit `--ack-available-item-tables` after the Map/ability
+acknowledgements; omitted or misordered flags fail rather than silently using
+incomplete data. The four known table hashes are registered without inventing
+wire serialization or changing the existing Valid-status rejection fence.
+Fresh read-only SQL inspection confirms numeric widths and 5018/5019/13/7
+stored overlay rows; those are raw SQL counts, not unique effective counts or
+a Rust decoder result. Nine additional item regressions are written, unexecuted.
+Formatting/diff hygiene pass. No Cargo build/test, actual-file Rust run, DB
+write, runtime install/start, character creation, commit or push occurred.
+The full selection/Create/world goal remains active, not manual-test-ready.
+
+At **06:37 UTC**, complete local acquisition supplies ItemSpec (zero records),
+ItemSpecOverride (nine records) and GemProperties (zero records), with exact
+target layouts. Genuine empty tables include complete primitive field metadata.
+The first acquisition exposed a zero-byte CASC section read; source-contrasted
+handling now skips that read and checks the complete empty-file extent instead.
+Two isolated CMake/header/CLI diagnostic rounds pass (one header self-test,
+twelve CLI guards); acquisition succeeds, not Rust or Player acceptance.
+
+The working candidate adds three raw/effective spec/relic stores, six ordered
+official/custom queries, consuming composition and one item-addon query.
+`NumericItemTemplates` nests the sole four-store raw owner and derives source
+durability, item-spec stats/masks (16 classes * **five** specializations, three
+level ranges), ordered effects and addon defaults/swapped money bounds. The
+ninth quality multiplier is source's implicit zero, not out-of-range. Invalid
+C++ indexes/shifts fail closed; missing/invalid overrides do not invent fallback
+matching. Thirteen new Rust regressions are written, unexecuted. No Cargo
+compile/test, actual-file Rust result, character save or publication is claimed.
+
+At 06:37 UTC, fresh SQL metadata shows 4/68/0 spec/override/gem overlay rows and 625 addons.
+More importantly, `hotfix_data` advertises **4457 valid Item, 4457 ItemSparse,
+13 ItemEffect, 7 relations, 4 ItemSpec and 68 overrides**. By inspection the
+working startup's existing Valid-status/typed-serializer fence would reject
+these known-but-unserialized stores. This is now a concrete required next
+operation: full target record delivery, including ItemSparse localized strings
+and their source enUS/main-table versus locale-overlay preservation. The fence
+is not removed, statuses/data are not rewritten, and no runtime start is attempted.
+Full templates/bonus/use/equip/script integration, skills/spells, durable Create
+and native selection/world entry remain mandatory. Fresh read-only evidence:
+zero characters and no World listener on 18085; original private assets remain
+untouched. The full goal remains active, not achieved or blocked.
+
+At **06:50 UTC**, the working candidate implements the seven item-store
+`WriteRecord` serializers and connects them to both Forever hotfix handlers.
+ItemSparse retains its five baseline esES byte strings; full main SQL rows
+update enUS only, then official/custom locale rows update esES without clearing
+on empty input or creating missing IDs. Repeated new IDs preserve Source's
+end-of-batch index semantics. Payloads exclude external IDs but include parent
+fields; float/signed bits and C-string terminators follow the pinned source.
+The Valid-status guard now allows exactly these seven implemented serializers
+(and Tact), not the other unported known stores; status rows are unchanged.
+
+Templates and delivery share one immutable `Arc<ItemCatalog>` allocation;
+effective spec data remains in the delivery owner, without cached byte mirrors
+or new locks. Eight new byte/locale/registry regressions are written,
+**unexecuted**. Only formatting/diff hygiene is checked; no Cargo/native or
+actual-file Rust evidence, runtime start/install, save, commit or push is claimed.
+Fresh read-only SQL reports 5019 sparse rows, 561 official esES locale rows,
+zero Characters; no World listener on 18085. Full Player initialization,
+skills/spells/bonuses/equipment, durable Create and populated selection/world
+entry remain mandatory. The goal stays active and is not manual-test-ready.
+
+At **06:59 UTC**, the working composition shares its effective Birth catalog
+with an immutable initial-skill index for each admitted World definition.
+`InitializeSkillFields` preallocation (ascending SkillLine ID, source 300-slot
+limit, StartingRank one but learned Rank still zero) is separate from
+`LoadPlayerInfo`'s availability-one ordered default requests. MinLevel is signed;
+Source tier precedence/uint16 narrowing, languages 300, armor/runeforging one,
+level*five, AlwaysMax and DK clamping are retained. Duplicate requests are not
+deduplicated: the future actor must check HasSkill after each prior spell effect.
+The existence-only RC lookup does not claim an unordered first-match winner.
+
+Six additional Rust regressions are written, **unexecuted**. No Cargo/native
+or actual-file Rust result, SetSkill/learned spell/child synchronization,
+saved skill state or Player success is claimed. Fresh read-only SQL counts
+59 tiers, 292 raw World definitions and zero availability-one SQL RC overlays;
+that last count says nothing about baseline/effective defaults. Characters
+remain zero. Formatting/diff hygiene only; no runtime/DB mutation, commit or
+push. Full selection/Create/world remains active and incomplete.
+
+At **07:08–07:13 UTC**, isolated local spell-data diagnostics inspect all
+36 source-backed tables against the real 70170 client. Their layouts/field
+contracts match the pinned modern reference; 20 contain unavailable encrypted
+sections. Strict acquisition rejects SpellName before saving its body. Explicit
+metadata-only mode reports headers/keys without saving spell records. A further
+explicit, esES-only readable-prefix mode now acquires 20 unchanged bounded
+prefixes and the other 16 complete tables, including six genuine empty tables.
+Source Skip preserves unknown rows rather than zero-filling or borrowing 3.4.3.
+
+The first synthetic run caught two wrong schema indices; initial actual-prefix
+admission also caught the unobserved numeric-table locale mask. Both are corrected
+from source/actual metadata, not bypassed. Final local CMake build, one synthetic
+header/prefix CTest and **14 CLI guards pass**; all 36 acknowledged acquisitions
+exit zero. Files remain ignored 0600/0700, separate from installed runtime assets.
+This is asset-acquisition evidence only: raw Rust spell readers, effective SQL
+overlays/removals, complete SpellInfo, skill/spell learning and initial Player/
+durable Create/world acceptance are still required. No Cargo campaign, client
+action, runtime install/start, DB write, character save, commit or push occurs.
+Protected legacy/runtime/architecture/dependency paths remain unchanged.
+
+The subsequent working delta adds all **36 typed raw spell record families**
+under `wow-data::forever_spells`, extending the existing checked numeric owner
+with closed target spell schemas rather than reusing legacy spell layouts.
+Complete mode is bounded to 4 MiB per file and rejects unavailable sections;
+explicit available mode admits only the twenty captured prefixes, with the
+other sixteen still complete. Signed widths, all 17 Misc attribute words,
+effect masks/arrays, source parent overrides and copy order are retained.
+Text retains esES raw bytes, distinguishes missing/empty locale values and
+checks source-relative addresses against the full logical record extent;
+unknown string pools are rejected, not fabricated or used as a fallback.
+
+Ten new Rust regressions and a production-linked, counts-only example plus
+ten opt-in private-copy QA tests are **written, not executed**. The synthetic
+public-batch test covers all 36 typed consumers; private QA covers actual
+known/unknown/copy count bounds, hash/layout/locale drift, missing/truncated
+tables, strict no-fallback, unknown-section promotion, complete empty metadata
+and file-size limits. No new compile/test acceptance, effective spell catalog,
+Player state, runtime installation, DB write, commit or publication is claimed.
+The [spell runbook](../operations/forever-login.md#independent-raw-rust-spell-inputs)
+owns the exact source anchors and remaining integration boundary. The full
+selection/Create/world goal remains active; 3.4.3 stays a separate branch.
+
+At **07:36–07:48 UTC**, the working candidate adds complete raw spell-store
+composition and hotfix serializers, still **not compiled or executed**. A
+dependency-free persistence batch retains all 351 source SQL columns; 72
+main-table queries and 12 esES queries preserve official/custom order per
+store and query/decode failure remains an error. Main text is enUS, never an
+esES fallback. Existing-ID nonempty text updates, repeated-new-ID batch
+semantics, missing locale IDs and final removals follow `02245dcd`.
+All 36 effective maps become one immutable `Arc<SpellCatalog>` shared by
+target startup and hotfix delivery, not a learned spellbook or Player mirror.
+The 36 serializers keep full metadata arrays/parent fields and inline IDs,
+exclude external IDs, and write the selected C-string locale without fallback.
+
+Fresh read-only isolated SQL metadata finds **all 351 selected columns**,
+eight nullable text fields and eight signed SQL flag128 words. The latter
+are now signed DTO words converted bit-preservingly to the raw unsigned
+masks; three actual SpellEffect rows use a negative mask word. Counts are
+677 official rows across 19 nonempty tables, zero custom rows, Character
+count zero. An initial metadata invocation had a shell-quoting error; the
+corrected invocation succeeds without database mutation. These diagnostics
+do not execute the new Rust SQL adapter or establish gameplay acceptance.
+
+There are **83 additional written, unexecuted tests**: two SQL projection,
+37 DTO/locale conversion, six effective composition and 38 serializer/delivery
+cases. The earlier public synthetic 36-table reader test now also exercises
+effective publication and all-table removals. The target bootstrap requires
+the spell files and optionally acknowledges the twenty frozen prefixes via
+`--ack-available-spell-info-tables` after the item opt-in; no installed asset
+or running process has been changed. World remains stopped. No Cargo campaign,
+native action, DB write, commit or push occurred. Complete source SpellInfo/
+difficulty/server spell data/learning/equipment/Player/save and native world
+acceptance remain open; this progress does not reset the exceeded ordinary
+600-second acceptance budget or complete the selection/Create/world goal.
+
+At **07:55–08:08 UTC**, the working candidate adds the target spell input
+join and constructor projection, still **uncompiled and unexecuted**.
+`wow-world::forever::spells::SpellLoadPlan` owns ID-only selections against
+the same immutable `Arc<SpellCatalog>` used by hotfix delivery. All fifteen
+scalar families, 32 effect slots, five power slots and four ordered vectors
+retain `02245dcd` storage-ID order and first-nonempty difficulty fallback.
+The Classic unknown effect/aura/target guard is retained as skipped-input
+counts, not normalized support. Languages and battle-pet spell associations
+retain the source pre-skill/pre-character registration boundary.
+
+`SpellInputs::constructor_seed` projects the source constructor's 17
+attribute words, signed flags/IDs, defaults, effect gaps, referenced
+cast-time/duration/range/radii, PPM modifiers, labels and empower thresholds.
+It is a transient immutable precursor, not executable SpellInfo, corrected
+spell data or learned Player state. Startup composition now constructs the
+plan and counts constructor effect slots, but has not been installed/run.
+Sixteen additional regressions are written and unexecuted. Targeted rustfmt
+and `git diff --check` pass; these are hygiene, not type/test/runtime acceptance.
+No Cargo campaign, native action, DB write, runtime start, commit or push
+occurred. Protected legacy owners/policy files remain unchanged relative to
+HEAD `ccb99f8c`; the 600-second acceptance failure remains recorded. Remaining
+server-side spells/corrections/target semantics/learning/equipment/full
+Player/save and native initial-world acceptance stay in the active full goal.
+
+Read-only follow-up at **08:09–08:10 UTC** confirms the next spell-source
+dependency is populated: 4,400 `serverside_spell` rows, 3,200 server effect
+rows, 141 custom attributes and five SQL learn-spell rows. All four tables'
+122 columns are inspected; DifficultyID is signed int32 in both server
+tables and SpellName is nullable. A preliminary combined count included a
+nonexistent `spell_ranks` table and failed; the corrected four-table count
+succeeds. Target `LoadSpellRanks` actually uses effective SkillLineAbility
+supersession, not a legacy SQL ranks table. No table was created or changed.
+World still has no port-18085 listener in a fresh read-only check. The
+runbook records target startup order and the separate server-spell namespace;
+none of these rows has yet been loaded by the new Rust startup path.
+
+At **08:11–08:27 UTC**, the working candidate adds the complete two-query
+server-spell acquisition and constructor materialization, still **uncompiled
+and unexecuted**. SQL-free DTOs retain all 34 effect + 83 main columns; signed
+DifficultyID and effect flag128 words follow actual metadata, nullable names
+remain raw bytes. Both reads/decode checks must finish before publication;
+no snapshot, ORDER BY, transaction or failure-to-empty fallback is introduced.
+
+`SpellLoadPlan::with_server_spells` consumes the ID-only plan into one
+`SpellDefinitionSeeds` constructor authority. Derived scalar/effect data
+moves once, dependencies stay IDs into the same raw `Arc<SpellCatalog>` as
+hotfix delivery, and the load helpers/PPM index retire. Server names remain
+internal, not DB2 overrides. Source collision rules, observed duplicate-effect
+order, first server name plus reapplied SQL fields, sparse effect gaps, radius
+lookups and exact-first difficulty lookup are implemented. This is not
+corrected/executable SpellInfo, Player learning or creation success.
+
+Startup now loads the two World spell queries and materializes
+`Runtime.spell_definitions`; it has not been installed/run. Seventeen new
+tests are written and unexecuted: two exact SQL projection, three client
+materialization/identity/side-index, four server projection/order and eight
+admission/lookup cases. Targeted rustfmt and `git diff --check` pass as hygiene
+only. No Cargo campaign, native action, DB write, runtime start, commit or
+push occurred. Existing protected legacy owners and policy/dependency files
+remain unchanged relative to `ccb99f8c`; no ceilings or acceptance budgets
+are reset. Corrections/custom attributes/target semantics/recursive learning,
+full inventory/Player/save and real native initial-world acceptance remain
+in the full active selection/Create/world goal.
+
+At **08:29–08:37 UTC**, the candidate implements all **191 ID-specific
+correction groups** in pinned target `SpellMgr::LoadSpellInfoCorrections`,
+with 374 spell requests (373 distinct IDs) and 87 effect-fix blocks. One
+consuming startup operation mutates the existing derived definitions before
+Arc publication, retaining every existing signed difficulty and source group
+order. Existing blank effect slots are eligible; absent slots are counted and
+skipped without append. Dependency assignments use checked raw-store lookups,
+missing links become null, and custom/negative flags have their own source
+default storage. A second application is rejected, including additive fixes.
+
+The experimental bootstrap now invokes this intermediate phase. **It has not
+been compiled, executed or installed.** Nine more regressions are written,
+unexecuted; targeted rustfmt/diff hygiene is not acceptance. The raw catalog
+and legacy owners are unchanged by these rules. No native action, DB write,
+runtime start, Cargo campaign, commit or push occurred. Remaining global
+trajectory/area/cone/aura corrections and the three SummonProperties record
+changes are explicitly not claimed complete; their source hash-iteration
+and raw-store ownership contracts need integration before ready SpellInfo.
+Custom attributes, recursive learning, inventory/Player/save and real native
+selection/Create/world/restart/relogin remain required in the same active goal.
+No acceptance budget, architecture baseline or publication gate is reset.
+
+At **08:38–08:45 UTC**, all **153 implicit-target metadata rows** and five
+source properties per row are implemented independently for Forever. Checked
+identity admission preserves NYI/object/reference distinctions, exact area/
+cone queries, object flag masks, A-before-B explicit-mask/location transitions
+and source double-to-float direction angles. Random angles consume a caller's
+normalized float only for RANDOM; no separate RNG owner is introduced.
+The production `SpellEffectView` now resolves these same target rows and
+exposes exact effect/area-aura/unit-owned-aura queries. Nonzero aura data alone
+does not imply an aura; LINE and TRAJ are not classified as area selection.
+
+Thirteen additional tests are written, **not executed**, including all
+765 metadata cells, all 612 initial mask states, angle bits/draw counts and
+all 361 effect kinds' classification. Targeted formatting/diff checks are
+hygiene, not type/test/capture acceptance. Read-only source review confirms
+the C++ Boost dependency sets minimum versions, not a fixed implementation
+or traversal trace. That evidence does not authorize silently substituting
+BTree iteration for trajectory propagation. Full global corrections,
+SummonProperties mutation, remaining derived spell metadata/learning,
+inventory/Player/save and native selection/Create/world remain incomplete.
+No Cargo campaign, live action, DB mutation, process start, commit or push
+occurred. Existing acceptance/performance boundaries remain unchanged.
+
+At **08:48–09:06 UTC**, the working candidate adds the complete general
+correction rules from target `SpellMgr.cpp:5259-5336`: trajectory ranges,
+five movement kinds, source float cone tolerance, area-aura redirection,
+magnet/vehicle/flight/single-target flags and three in-place SummonProperties
+patches. The consuming operation requires the prior ID phase, two explicit
+exact-set traversals and exclusive raw Arc ownership before any mutation.
+It rejects aliases (including Weak observers), copy-on-write and repeated
+application. Effect queries now have one canonical implementation shared by
+the correction owner and readonly views. Raw patches neither resurrect
+missing/removed records nor create client hotfix metadata.
+
+**This global operation is not connected to bootstrap.** Source review finds
+an initial `std::unordered_map<pair<uint32,Difficulty>,...>` using Trinity's
+pair hash, followed by Boost's two hashed indexes. The candidate now retains
+ID-only first helper insertions across all 21 join families (including
+unnamed helpers) and every admitted server emplace request (including
+duplicates). Replay metadata retires after successful global correction;
+shape validation is not C++ traversal provenance. The traversal producer and
+its source/toolchain evidence remain required; sorted BTree/fixed-point
+substitutes are not enabled. Bootstrap now moves the sole raw Arc into the
+definition owner and shares it only after its current startup phases.
+
+Nineteen additional regressions are written, **not executed**: twelve global,
+three raw-patch, three helper-trace and one server-request trace cases.
+Targeted rustfmt and diff hygiene pass, not type/test/live acceptance. No
+Cargo campaign, native action, DB mutation, process start, commit or push
+occurred. All working Rust since `ccb99f8c` remains uncompiled/unexecuted;
+full spell metadata/learning, inventory/Player/save and native selection/
+Create/world/restart/relogin remain in the same active goal. Previous budget
+and architecture/publication boundaries are unchanged.
+
+At **09:05–09:23 UTC**, the previously missing global-correction traversal
+producer is implemented and connected in the working startup. It replays
+only IDs through the source std/Boost container shapes; all domain mutations
+remain in Rust. Direct `SpellMgr.cpp:2580-2646` review first corrected the
+candidate's table order: empower stages precede equipped items, labels precede
+levels, powers precede reagents, and reagent currencies precede scaling.
+The earlier insertion-history test was written, not executed; its fixture
+now reflects the actual source sequence across all 21 joins. No earlier
+source-order or passing-test claim is promoted into proof.
+
+The new optional `forever-spell-traversal` binary feature fixes an explicit
+fresh-startup reference-server contract: Linux x64 GNU, GCC 15.2.0,
+libstdc++ 15 headers dated 20260321, Boost 1.83.0. It is not a client
+dependency or cross-toolchain traversal claim. A separately obtained official
+archive has the manifest's matching SHA256; the extracted header/license
+tree has a fixed checksum-line fingerprint. Build code rejects changed
+headers, symlinks and unsupported compiler/host inputs and does not download
+or repair dependencies. No new Cargo dependency or lockfile change is added;
+the existing optional cc dependency builds this IDs-only startup adapter.
+
+The native ABI returns primary and secondary key orders into caller-owned
+buffers, catches exceptions, publishes no partial result and retains no
+container/pointer after return. The Rust correction owner rechecks both exact
+sets and raw exclusivity, then retires native/helper replay metadata before
+publishing either Arc reader. Validated primary/equal_range order becomes
+canonical readonly collection indexes for later passes, not cloned values.
+`records()` uses the admitted source order after global correction;
+`corrected_difficulties` distinguishes an unadmitted phase from an absent ID.
+Bootstrap now invokes **both** correction phases; it has not been compiled,
+executed or installed. Nine additional Rust regressions (eight binary plus
+one domain-index case) and the independent source-container oracle are
+written, **not run**. The oracle gets actual target Hash.h/Difficulty from
+pinned Git objects and compares primary, secondary and equal_range relative
+orders, including bucket transitions, signed difficulties, unnamed keys and
+duplicate requests. Its synthetic cases do not prove real-client behavior.
+
+Targeted rustfmt/diff hygiene passes; no C++/Cargo/test campaign, client action,
+DB mutation, runtime start, commit or push occurred. World 18085 remains
+stopped in a fresh listener check. All working Rust after `ccb99f8c` remains
+uncompiled/unexecuted. Complete custom/derived spell metadata and recursive
+learning, inventory/Player/save, populated selection and native Create/world/
+restart/relogin remain in the same active goal. Failed ordinary budget and
+architecture/publication boundaries are not reset.
+
+At **09:23–09:33 UTC**, the candidate integrates the complete known effective
+SkillLineAbility spell multimap after both correction phases, as target
+`World.cpp:1390-1396` orders it. One private ID-only index shares the existing
+immutable BirthCatalog Arc; relation payloads are not cloned. Equal spell keys
+retain ascending storage insertion order. Zero, signed-bit-converted and
+currently absent spell identities remain indexed; race/class/rank filters
+belong to later learning, not this source map. Membership compares SkillLine,
+not SkillupSkillLineID. None before admission differs from Some(empty) after
+admission. Repeat/replacement and premature startup phases are rejected.
+Baseline acquisition uncertainty stays explicit after overlays/removals.
+
+All **361 effect-target metadata rows (722 cells)** now have independent
+checked target-version queries, including implicit type versus used object,
+provided masks and missing flag-group coverage. The readonly definition view
+also derives a fresh explicit/required-target-mask result: A before B, location
+state across active effects, blank-slot skipping, either-range versus null/
+zero/NaN behavior, exact zero-range stripping and optional-effect/spell flags.
+This pure calculation **does not cache or admit complete custom attributes,
+positivity, immunity or ready/executable SpellInfo**. It does not enable Create.
+
+Twenty additional Rust regressions are written, **not run**: six skill-map,
+five metadata/missing-mask, seven fresh-target-mask and two production-view
+cases. Reviewed source-derived FNV64 goldens are `bbf9d1685b3a6000` for all
+722 metadata bytes and `ef3e73b4237a23e5` for 49,096 effect/flag/location
+combinations. They are not executed C++/Rust differential or client evidence.
+Targeted rustfmt/diff hygiene passes; no Cargo/native campaign, DB write,
+runtime/client action, commit or push occurred. All working Rust after
+`ccb99f8c` remains uncompiled/unexecuted. Full custom-attribute dependencies,
+ordered recursive skill/spell effects, inventory/Player/save and actual
+populated selection/Create/world/restart/relogin remain in the same active
+goal. World 18085 remains stopped; previous budget/publication gates remain.
+
+At **09:34–09:43 UTC**, working code connects the SQL-only prefix of target
+`SpellMgr.cpp:2995-3039::LoadSpellInfoCustomAttributes`. A separate two-column
+World read preserves observed row order; strict uint32 metadata/NULL/shape/
+width failures abort acquisition rather than producing an empty successful
+batch. A consuming transition follows skill-map/source-index admission,
+rejects reapplication and mutates only the canonical private derived flags.
+All existing signed difficulties are considered in admitted equal_range
+order. Missing IDs are skipped without manufacture; duplicates and zero
+words are retained. SHARE_DAMAGE is target bit **8**, not CONE_BACK bit 2.
+It requires SCHOOL_DAMAGE kind **2**, independent of magnitude, aura or
+effect position; rejection skips the entire input word for that difficulty.
+The source row count increments for an existing ID even when all difficulties
+reject. Prior custom flags, raw DB2 identity and all seventeen DB2 attribute
+words remain separate/preserved. Only partial SQL counts are exposed, **not**
+a complete custom-attribute/positivity/immunity or executable-spell marker.
+
+Eight domain plus four database regressions are written, **not run**. The
+database fixtures check shape/value/metadata contracts without pretending to
+exercise actual SQLx rows. Read-only local schema/count inspection confirms
+two nonnullable uint32 columns and 141 rows; no private values were printed.
+Targeted rustfmt and `git diff --check` pass as hygiene only. No Cargo/native
+campaign, DB write, runtime/client action, commit or push occurred. HEAD remains
+`ccb99f8caedec328f049b1a93a8d68142f9a4e57`; all working Rust after it remains
+uncompiled/unexecuted. Full derived custom attributes and their dependencies,
+ordered learning, full Player/inventory/save and native populated selection/
+Create/world/restart/relogin remain in the same active goal. World-18085 is
+still stopped in a fresh listener check; budget/publication boundaries remain.
+
+At 04:41 UTC the same candidate replaces the empty-only enum repository with
+the target two-query holder, full 19-slot equipment projection and sorted
+customizations. SQL NULL joins become source zero; query/width failures remain
+errors. The Session has one legitimate-character set, revoked during a pending
+refresh/close; billing locks are excluded. Source flag priority, resurrection,
+saved-index specialization, tabard, timestamps, surname and SuperDistrict are
+projected before encoding; idempotent recustomization is acknowledged before
+publication. This last fence intentionally differs from C++'s queued Execute.
+Visible pets still require effective CreatureTemplate integration and fail closed,
+not as invented absence. Populated wire, real SQL-row decoding, cancellation/
+uncertain-write recovery and durable Create/world acceptance remain unproven.
+
+Read-only schema inspection confirms 153 equipment-cache columns (guid + 152
+visual fields), existing surname and no Auth contentSetId column. World therefore
+uses the existing explicit Forever.RealmBindings configuration, matching BNet's
+content/district routing without a schema fallback or mutation. This also removes
+the GlueScreen's independent default-137 content value for the bound PvP realm;
+that initial-byte change requires fresh capture acceptance. Sixteen new regressions
+are written (two SQL-shape, eight projection, six Session/codec), plus two ruleset
+tests. They are **not executed**. `cargo fmt --all` and `git diff --check` pass;
+no Rust build/test, runtime restart, commit or push was performed in this turn.
+
 ## Latest Forever name operation — 2026-10-03 03:24 UTC, local/native validated
 
 The canonical authenticated registry now owns name availability. Immutable

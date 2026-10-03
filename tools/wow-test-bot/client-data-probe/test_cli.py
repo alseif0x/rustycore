@@ -60,6 +60,8 @@ class AcquisitionGuards(unittest.TestCase):
     def test_optional_modes_are_explicit_and_not_repeatable(self):
         args = ["--ack-local-client-data", "/does-not-exist", self.root / "unused", "esES"]
         self.rejected([*args, "--unknown"], "Unknown optional")
+        self.rejected([*args, "--ack-spell-value-game-tables", "--ack-spell-value-game-tables"],
+                      "may appear once")
         self.rejected([*args, "--ack-available-achievements", "--ack-available-achievements"], "may appear once")
         self.rejected([*args, "--ack-public-tact-keys"], "requires one private file")
         self.rejected([*args, "--ack-tact-key-table", "--ack-tact-key-table"], "may appear once")
@@ -67,7 +69,43 @@ class AcquisitionGuards(unittest.TestCase):
                        "--ack-character-customization-tables"], "may appear once")
         self.rejected([*args, "--ack-name-validation-tables", "--ack-name-validation-tables"],
                       "may appear once")
+        self.rejected([*args, "--ack-character-initialization-tables",
+                       "--ack-character-initialization-tables"], "may appear once")
+        self.rejected([*args, "--ack-available-initial-map", "--ack-available-initial-map"],
+                      "may appear once")
+        self.rejected([*args, "--ack-character-birth-tables", "--ack-character-birth-tables"],
+                      "may appear once")
+        self.rejected([*args, "--ack-available-birth-abilities", "--ack-available-birth-abilities"],
+                      "may appear once")
+        self.rejected([*args, "--ack-available-birth-abilities"], "require birth-table")
+        self.rejected([*args, "--ack-character-item-tables", "--ack-character-item-tables"],
+                      "may appear once")
+        self.rejected([*args, "--ack-item-template-tables", "--ack-item-template-tables"],
+                      "may appear once")
+        self.rejected([*args, "--ack-item-table-metadata-only", "--ack-item-table-metadata-only"],
+                      "may appear once")
+        self.rejected([*args, "--ack-item-table-metadata-only"], "requires item-table")
+        self.rejected([*args, "--ack-available-item-tables", "--ack-available-item-tables"],
+                      "may appear once")
+        self.rejected([*args, "--ack-available-item-tables"], "require item-table")
+        self.rejected([*args, "--ack-character-item-tables", "--ack-available-item-tables",
+                       "--ack-item-table-metadata-only"], "mutually exclusive")
+        self.rejected([*args, "--ack-available-initial-map"], "requires initialization-table")
         self.rejected([*args, "--ack-tact-key-table", "--ack-public-tact-keys"], "requires one private file")
+        self.rejected([*args, "--ack-spell-info-tables", "--ack-spell-info-tables"],
+                      "may appear once")
+        self.rejected([*args, "--ack-spell-table-metadata-only", "--ack-spell-table-metadata-only"],
+                      "may appear once")
+        self.rejected([*args, "--ack-spell-table-metadata-only"], "requires SpellInfo-table")
+        self.rejected([*args, "--ack-character-item-tables", "--ack-spell-table-metadata-only"],
+                      "requires SpellInfo-table")
+        self.rejected([*args, "--ack-spell-info-tables", "--ack-item-table-metadata-only"],
+                      "requires item-table")
+        self.rejected([*args, "--ack-available-spell-info-tables", "--ack-available-spell-info-tables"],
+                      "may appear once")
+        self.rejected([*args, "--ack-available-spell-info-tables"], "require SpellInfo-table")
+        self.rejected([*args, "--ack-spell-info-tables", "--ack-available-spell-info-tables",
+                       "--ack-spell-table-metadata-only"], "mutually exclusive")
 
     def test_optional_table_flags_accept_any_option_order(self):
         with tempfile.TemporaryDirectory(dir=self.root) as directory:
@@ -79,9 +117,20 @@ class AcquisitionGuards(unittest.TestCase):
                 str(self.binary), "--ack-local-client-data", "/does-not-exist",
                 directory / "output", "esES", "--ack-tact-key-table",
                 "--ack-available-achievements", "--ack-character-customization-tables",
-                "--ack-name-validation-tables", "--ack-public-tact-keys", key_file,
+                "--ack-name-validation-tables", "--ack-character-initialization-tables",
+                "--ack-available-initial-map",
+                "--ack-character-birth-tables",
+                "--ack-available-birth-abilities",
+                "--ack-character-item-tables",
+                "--ack-item-table-metadata-only",
+                "--ack-item-template-tables",
+                "--ack-spell-info-tables",
+                "--ack-spell-value-game-tables",
+                "--ack-spell-table-metadata-only",
+                "--ack-public-tact-keys", key_file,
             ], capture_output=True, text=True, timeout=5)
             self.assertEqual(result.returncode, 1)
+            self.assertNotIn("Usage:", result.stderr)
             self.assertNotIn("Unknown optional", result.stderr)
             self.assertNotIn("requires one private file", result.stderr)
 
@@ -92,6 +141,20 @@ class AcquisitionGuards(unittest.TestCase):
             key_file.chmod(0o600)
             self.rejected(["--ack-local-client-data", "/does-not-exist", self.root / "unused", "esES",
                            "--ack-public-tact-keys", key_file], "must remain inside")
+
+    def test_available_item_options_accept_both_orders_before_storage(self):
+        with tempfile.TemporaryDirectory(dir=self.root) as directory:
+            args = ["--ack-local-client-data", self.repo, directory, "esES"]
+            for flags in [("--ack-character-item-tables", "--ack-available-item-tables"),
+                          ("--ack-available-item-tables", "--ack-character-item-tables")]:
+                self.rejected([*args, *flags], "Refusing to reuse")
+
+    def test_template_metadata_options_accept_both_orders_before_storage(self):
+        with tempfile.TemporaryDirectory(dir=self.root) as directory:
+            args = ["--ack-local-client-data", self.repo, directory, "esES"]
+            for flags in [("--ack-item-template-tables", "--ack-item-table-metadata-only"),
+                          ("--ack-item-table-metadata-only", "--ack-item-template-tables")]:
+                self.rejected([*args, *flags], "Refusing to reuse")
 
     def test_key_file_permissions_size_and_symlink_guards(self):
         with tempfile.TemporaryDirectory(dir=self.root) as directory:
@@ -104,6 +167,24 @@ class AcquisitionGuards(unittest.TestCase):
             self.rejected([*args, key_file], "size is outside")
             link = Path(directory) / "link.txt"; link.symlink_to(key_file)
             self.rejected([*args, link], "regular non-symlink")
+
+    def test_spell_metadata_options_accept_both_orders_before_storage(self):
+        with tempfile.TemporaryDirectory(dir=self.root) as directory:
+            args = ["--ack-local-client-data", self.repo, directory, "esES"]
+            for flags in [("--ack-spell-info-tables", "--ack-spell-table-metadata-only"),
+                          ("--ack-spell-table-metadata-only", "--ack-spell-info-tables"),
+                          ("--ack-spell-info-tables",)]:
+                self.rejected([*args, *flags], "Refusing to reuse")
+
+    def test_available_spells_require_exact_observed_locale_before_storage(self):
+        args = ["--ack-local-client-data", "/does-not-exist", self.root / "unused", "enUS",
+                "--ack-spell-info-tables", "--ack-available-spell-info-tables"]
+        self.rejected(args, "require observed esES")
+        with tempfile.TemporaryDirectory(dir=self.root) as directory:
+            for flags in [("--ack-spell-info-tables", "--ack-available-spell-info-tables"),
+                          ("--ack-available-spell-info-tables", "--ack-spell-info-tables")]:
+                self.rejected(["--ack-local-client-data", self.repo, directory, "esES", *flags],
+                              "Refusing to reuse")
 
 
 if __name__ == "__main__":

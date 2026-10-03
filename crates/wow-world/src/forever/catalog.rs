@@ -3,7 +3,8 @@
 //! the legacy hardcoded race/class combinations.
 
 use std::collections::BTreeMap;
-use wow_data::forever_character_ids::{ForeverAchievementIds, ForeverCharacterIds};
+use wow_data::forever_character_ids::ForeverAchievementIds;
+use wow_data::forever_initialization::InitializationCatalog;
 use wow_persistence::forever::AvailabilityRows;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -28,7 +29,7 @@ pub struct CharacterCatalog {
 
 impl CharacterCatalog {
     pub fn load(
-        ids: &ForeverCharacterIds,
+        identities: &InitializationCatalog,
         achievements: &ForeverAchievementIds,
         rows: AvailabilityRows,
     ) -> Result<Self, &'static str> {
@@ -36,8 +37,8 @@ impl CharacterCatalog {
         let mut minimum = BTreeMap::<u8, u8>::new();
         for row in rows.classes {
             let class = row.class;
-            if !ids.races().contains(&u32::from(row.race_id))
-                || !ids.classes().contains(&u32::from(class.class_id))
+            if identities.race(u32::from(row.race_id)).is_none()
+                || identities.class(u32::from(class.class_id)).is_none()
                 || class.active_expansion >= 12
                 || class.account_expansion >= 13
             {
@@ -61,7 +62,7 @@ impl CharacterCatalog {
         }
         let mut unlocks = BTreeMap::new();
         for row in rows.unlocks {
-            if !ids.races().contains(&u32::from(row.race_id)) || row.expansion >= 13 {
+            if identities.race(u32::from(row.race_id)).is_none() || row.expansion >= 13 {
                 continue;
             }
             if row.achievement_id != 0 && !achievements.contains(row.achievement_id) {

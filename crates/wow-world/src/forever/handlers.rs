@@ -1,5 +1,6 @@
 //! Registry thunks for target account-phase operations.
 use super::{CharacterCatalog, HandlerResult, Outgoing, Phase, Request, Session, SessionError};
+use std::borrow::Cow;
 use wow_packet::forever as packet;
 
 pub(super) async fn check_name(session: &mut Session, request: Request) -> HandlerResult {
@@ -18,7 +19,7 @@ pub(super) async fn check_name(session: &mut Session, request: Request) -> Handl
             request.name(),
             session.name_policy,
             session.identity.dbc_locale,
-            session.identity.skip_sql_reserved_names,
+            session.identity.permissions.skip_sql_reserved_names(),
         )
         .map_err(SessionError::NameRules)?
     {
@@ -61,7 +62,7 @@ pub(super) async fn disconnect(session: &mut Session, request: Request) -> Handl
     if request.payload.len() != 4 {
         return Err(SessionError::Protocol);
     }
-    session.phase = Phase::Closed;
+    session.close();
     Ok(vec![])
 }
 
@@ -73,11 +74,24 @@ pub(super) async fn enumerate(
     if !request.payload.is_empty() {
         return Err(SessionError::Protocol);
     }
-    session
+    // Revoke the previous normal-list authority while this refresh is pending.
+    // Cancellation cannot leave old characters admitted or restart this phase.
+    session.phase = Phase::Selecting;
+    session.legitimate_characters.clear();
+    session.enumerated = false;
+    let rows = session
         .repository
-        .enumerate_empty(session.identity.account_id)
+        .load_character_selection(
+            session.identity.account_id,
+            session.selection_policy.declined_names,
+        )
         .await
         .map_err(SessionError::Persistence)?;
+    let projection = super::selection::project(
+        rows,
+        session.identity.realm_address,
+        &session.selection_policy,
+    )?;
     let account_expansion = session.identity.account_expansion;
     let races = catalog
         .races()
@@ -110,7 +124,7 @@ pub(super) async fn enumerate(
             }
         })
         .collect();
-    let enumeration = packet::EmptyEnumCharactersResult {
+    let enumeration = packet::character_list::EnumCharactersResult {
         success: true,
         realmless: false,
         is_deleted_characters: false,
@@ -120,10 +134,13 @@ pub(super) async fn enumerate(
         is_restricted_trial: false,
         is_account_lapsed_player: false,
         force_character_list_sort: false,
-        class_disable_mask: Some(0),
+        class_disable_mask: Some(session.selection_policy.class_disable_mask),
         // CharacterPackets.h::EnumCharactersResult defaults to 1 even if empty.
-        max_character_level: 1,
+        max_character_level: projection.max_level,
         race_unlock_data: races,
+        characters: projection.characters,
+        unlocked_conditional_appearances: vec![],
+        race_limit_disables: vec![],
     }
     .encode_payload()
     .map_err(|_| SessionError::Codec)?;
@@ -133,7 +150,19 @@ pub(super) async fn enumerate(
         entry_count: 0,
     }
     .encode_payload();
+    // Intentional fence over the source's queued Execute: await each
+    // idempotent OR before publishing. A lost ACK closes the session; no
+    // success is inferred and a later enumeration can safely repeat it.
+    for guid in projection.recustomize {
+        session
+            .repository
+            .require_recustomization(session.identity.account_id, guid)
+            .await
+            .map_err(SessionError::Persistence)?;
+    }
+    session.legitimate_characters = projection.legitimate;
     session.enumerated = true;
+    session.phase = Phase::Authenticated;
     // CollectionMgr::SendWarbandSceneCollectionData follows the release.
     // ClassicOpcodes.cpp deliberately replaces the retail collection layout
     // with four zero bytes. This 70009 contract still needs native 70170 QA.
@@ -155,20 +184,25 @@ pub(super) async fn hotfix(session: &mut Session, request: Request) -> HandlerRe
     for push in query.push_ids {
         if let Some(push) = session.hotfixes.metadata().hotfix_push(push) {
             for record in &push.records {
-                if record.available_locales_mask & (1 << 6) == 0 {
+                if record.available_locales_mask & (1 << session.identity.dbc_locale) == 0 {
                     continue;
                 }
                 let mut status = record.status as u8;
                 let blob = if status == 1 {
                     match session
                         .hotfixes
-                        .record(record.table_hash, record.record_id as u32)
+                        .write_record(
+                            record.table_hash,
+                            record.record_id as u32,
+                            session.identity.dbc_locale,
+                        )
                         .map_err(|_| SessionError::Protocol)?
                         .or_else(|| {
                             session
                                 .hotfixes
                                 .metadata()
                                 .get_hotfix_blob(record.table_hash, record.record_id)
+                                .map(Cow::Borrowed)
                         }) {
                         Some(blob) => blob,
                         None => {
@@ -177,11 +211,11 @@ pub(super) async fn hotfix(session: &mut Session, request: Request) -> HandlerRe
                             } else {
                                 3
                             };
-                            &[]
+                            Cow::Borrowed(&[] as &[u8])
                         }
                     }
                 } else {
-                    &[]
+                    Cow::Borrowed(&[] as &[u8])
                 };
                 records.push(packet::hotfix::HotfixConnectRecord {
                     push_id: record.id.push_id,
@@ -191,7 +225,7 @@ pub(super) async fn hotfix(session: &mut Session, request: Request) -> HandlerRe
                     size: u32::try_from(blob.len()).map_err(|_| SessionError::Codec)?,
                     status: status.try_into().map_err(|_| SessionError::Protocol)?,
                 });
-                content.extend_from_slice(blob);
+                content.extend_from_slice(&blob);
             }
         }
     }
@@ -204,17 +238,17 @@ pub(super) async fn hotfix(session: &mut Session, request: Request) -> HandlerRe
 pub(super) async fn db_query(session: &mut Session, request: Request) -> HandlerResult {
     let query = packet::db_query::DBQueryBulk::decode(&request.payload)
         .map_err(|_| SessionError::Protocol)?;
-    // Only TactKey has a complete target baseline/typed serializer here.
+    // Only explicitly composed typed stores have serializers here.
     // Other hashes may name target stores not yet loaded by Rust: do not
     // manufacture Invalid/absence merely because this milestone lacks them.
-    if query.table_hash != wow_data::forever_hotfix::TACT_KEY_TABLE_HASH {
+    if !session.hotfixes.has_serializer(query.table_hash) {
         return Err(SessionError::Protocol);
     }
     let mut output = Vec::with_capacity(query.record_ids.len());
     for id in query.record_ids {
         let data = session
             .hotfixes
-            .record(query.table_hash, id)
+            .write_record(query.table_hash, id, session.identity.dbc_locale)
             .map_err(|_| SessionError::Protocol)?;
         let timestamp = std::time::SystemTime::now()
             .duration_since(std::time::UNIX_EPOCH)
@@ -230,7 +264,7 @@ pub(super) async fn db_query(session: &mut Session, request: Request) -> Handler
             } else {
                 packet::hotfix::HotfixStatus::Invalid
             },
-            data: data.unwrap_or(&[]),
+            data: data.as_deref().unwrap_or(&[]),
         }
         .encode_payload()
         .map_err(|_| SessionError::Codec)?;

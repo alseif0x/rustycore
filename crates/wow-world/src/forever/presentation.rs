@@ -56,7 +56,29 @@ pub(super) fn initialize(
                         .collect(),
                 })
                 .collect(),
-            templates: vec![],
+            // AuthHandler.cpp:53-55, CharacterTemplateDataStore and the same
+            // immutable records used by GetStartLevel. No fabricated labels.
+            templates: if identity.permissions.use_character_templates() {
+                policy
+                    .character_templates
+                    .iter()
+                    .map(|template| packet::CharacterTemplate {
+                        template_set_id: template.id(),
+                        classes: template
+                            .classes()
+                            .iter()
+                            .map(|class| packet::CharacterTemplateClass {
+                                class_id: class.class(),
+                                faction_group: class.faction_group(),
+                            })
+                            .collect(),
+                        name: template.name().to_owned(),
+                        description: template.description().to_owned(),
+                    })
+                    .collect()
+            } else {
+                vec![]
+            },
             is_expansion_trial: false,
             force_character_template: false,
             num_players_horde: None,

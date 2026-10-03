@@ -4,7 +4,15 @@
 use crate::PersistenceFutureLikeCpp;
 use std::collections::BTreeMap;
 pub mod appearance;
+pub mod birth;
+pub mod creation;
+pub mod initialization;
+pub mod item_specs;
+pub mod items;
 pub mod names;
+pub mod permissions;
+pub mod selection;
+pub mod spells;
 
 pub const ACCOUNT_DATA_TYPES: usize = 20;
 pub const GLOBAL_CACHE_MASK: u32 = 0x000B_A515;
@@ -28,7 +36,7 @@ pub struct AccountSnapshot {
 pub enum LoadError {
     Database,
     InvalidRow,
-    /// Nonempty collections/characters need their target operation ported.
+    /// Nonempty collections/visible pets need their target operation ported.
     /// This is an explicit admission boundary, never an empty-result fallback.
     UnsupportedState,
 }
@@ -80,7 +88,19 @@ pub trait SessionRepository: Send + Sync {
         realm: u32,
     ) -> PersistenceFutureLikeCpp<'_, Result<AccountSnapshot, LoadError>>;
 
-    fn enumerate_empty(&self, account: u32) -> PersistenceFutureLikeCpp<'_, Result<(), LoadError>>;
+    fn load_character_selection(
+        &self,
+        account: u32,
+        declined_names: bool,
+    ) -> PersistenceFutureLikeCpp<'_, Result<selection::SelectionRows, LoadError>>;
+
+    /// Target recustomization write. On an uncertain acknowledgement no list
+    /// is published; the idempotent OR can be safely retried by a fresh session.
+    fn require_recustomization(
+        &self,
+        account: u32,
+        guid: u64,
+    ) -> PersistenceFutureLikeCpp<'_, Result<(), LoadError>>;
 
     /// Read-only name availability, not a reservation or creation admission.
     /// Errors are never interpreted as absence. Names are not diagnostics.

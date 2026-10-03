@@ -4,21 +4,42 @@
 use std::collections::BTreeSet;
 use wow_data::forever_appearance::{AppearanceCatalog, Requirement};
 use wow_packet::forever::character_create::CharacterCreatePayload;
+use wow_packet::forever::character_create::CustomizationChoice;
 
 pub fn validate_creation_appearance(
     catalog: &AppearanceCatalog,
     create: &CharacterCreatePayload,
     owned_item_appearances: &BTreeSet<u32>,
 ) -> bool {
-    let Some(options) = catalog.options(create.race, create.sex) else {
+    validate_appearance(
+        catalog,
+        create.race,
+        create.class,
+        create.sex,
+        &create.customizations,
+        owned_item_appearances,
+    )
+}
+
+/// The same C++ ValidateAppearance operation is used by Create and Enum.
+/// The caller supplies option-sorted choices (SQL holder or Create sorting).
+pub(super) fn validate_appearance(
+    catalog: &AppearanceCatalog,
+    race: u8,
+    class: u8,
+    sex: u8,
+    customizations: &[CustomizationChoice],
+    owned_item_appearances: &BTreeSet<u32>,
+) -> bool {
+    let Some(options) = catalog.options(race, sex) else {
         return false;
     };
-    if !(1..=32).contains(&create.class) {
+    if !(1..=32).contains(&class) {
         return false;
     }
     let mut previous = 0;
-    for selected in &create.customizations {
-        if selected.option_id <= previous {
+    for selected in customizations {
+        if selected.option_id == previous {
             return false;
         }
         previous = selected.option_id;
@@ -29,7 +50,15 @@ pub fn validate_creation_appearance(
             return false;
         };
         if let Some(req) = catalog.requirement(option.requirement) {
-            if !meets(catalog, req, create, false, owned_item_appearances) {
+            if !meets(
+                catalog,
+                req,
+                race,
+                class,
+                customizations,
+                false,
+                owned_item_appearances,
+            ) {
                 return false;
             }
         }
@@ -43,7 +72,15 @@ pub fn validate_creation_appearance(
             return false;
         };
         if let Some(req) = catalog.requirement(choice.requirement) {
-            if !meets(catalog, req, create, true, owned_item_appearances) {
+            if !meets(
+                catalog,
+                req,
+                race,
+                class,
+                customizations,
+                true,
+                owned_item_appearances,
+            ) {
                 return false;
             }
         }
@@ -54,18 +91,20 @@ pub fn validate_creation_appearance(
 fn meets(
     catalog: &AppearanceCatalog,
     req: &Requirement,
-    create: &CharacterCreatePayload,
+    race: u8,
+    class: u8,
+    customizations: &[CustomizationChoice],
     check_dependencies: bool,
     owned: &BTreeSet<u32>,
 ) -> bool {
     if req.flags & 1 == 0 {
         return true;
     }
-    if req.class_mask != 0 && (req.class_mask as u32 & (1 << (create.class - 1))) == 0 {
+    if req.class_mask != 0 && (req.class_mask as u32 & (1 << (class - 1))) == 0 {
         return false;
     }
-    if create.race != 0 && req.race_mask != [0; 2] && req.race_mask != [u32::MAX; 2] {
-        let Some(bit) = race_bit(create.race) else {
+    if race != 0 && req.race_mask != [0; 2] && req.race_mask != [u32::MAX; 2] {
+        let Some(bit) = race_bit(race) else {
             return false;
         };
         if req.race_mask[bit / 32] & (1 << (bit % 32)) == 0 {
@@ -82,8 +121,7 @@ fn meets(
         if let Some(groups) = catalog.required_choices(req.id) {
             for choices in groups.values() {
                 if !choices.iter().any(|id| {
-                    create
-                        .customizations
+                    customizations
                         .iter()
                         .any(|selected| selected.choice_id == *id)
                 }) {

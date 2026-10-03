@@ -151,7 +151,7 @@ async fn admitted(
             realm_address: 0x02010001,
             account_expansion,
             dbc_locale,
-            skip_sql_reserved_names: runtime.skip_sql_reserved_names,
+            permissions: runtime.permissions.clone(),
         },
         runtime.session_repository.clone(),
         runtime.hotfixes.clone(),
@@ -159,6 +159,18 @@ async fn admitted(
         wow_world::forever::name_rules::NamePolicy {
             creation_charset: runtime.name_rules.creation_charset(realm_timezone),
             ..runtime.name_policy
+        },
+        wow_world::forever::selection::SelectionPolicy {
+            appearance: runtime.appearance.clone(),
+            initialization: runtime.initialization.clone(),
+            // World.cpp forces declined names for a Russian creation charset.
+            declined_names: wow_config::get_value_default("DeclinedNames", false)
+                || runtime.name_rules.creation_charset(realm_timezone) & 4 != 0,
+            super_district: runtime.super_district,
+            class_disable_mask: wow_config::get_value_default(
+                "CharacterCreating.Disabled.ClassMask",
+                0_u32,
+            ),
         },
     )
     .map_err(|_| anyhow::anyhow!("session construction"))?;
@@ -172,6 +184,7 @@ async fn admitted(
         cache_version: runtime.policy.cache_version,
         content_set: runtime.policy.content_set,
         max_characters: runtime.policy.max_characters,
+        character_templates: runtime.policy.character_templates.clone(),
     };
     // No realm-name stand-in: the initialized virtual realm uses its real row.
     let time = i64::try_from(SystemTime::now().duration_since(UNIX_EPOCH)?.as_secs())?;
@@ -205,7 +218,16 @@ async fn admitted(
             && capture.accepts(frame.opcode())
         {
             capture.record(frame.opcode(), frame.payload()).await?;
-            super::appearance::observe(&runtime.appearance, frame.opcode(), frame.payload())?;
+            super::appearance::observe(
+                &runtime.appearance,
+                &runtime.creation_sources,
+                &runtime.initialization,
+                &runtime.game_tables,
+                &runtime.starting_policy,
+                &runtime.permissions,
+                frame.opcode(),
+                frame.payload(),
+            )?;
             if frame.opcode() == 0x440071 {
                 let request =
                     wow_packet::forever::name_availability::CheckCharacterNameAvailability::decode(
@@ -287,7 +309,7 @@ async fn admitted(
             }
             if enumerated {
                 println!(
-                    "Database-backed empty enum published; native character UI still requires observation."
+                    "Database-backed local character enum published; native populated UI still requires observation."
                 );
             }
         } else {

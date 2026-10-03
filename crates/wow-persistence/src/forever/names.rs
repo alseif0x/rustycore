@@ -17,12 +17,3 @@ pub struct NameOverlays {
     pub official: NameRows,
     pub custom: NameRows,
 }
-
-/// Complete permission graph plus realm-scoped security-level-zero roots.
-/// Explicit account grants/security levels retain the runtime admission gate.
-#[derive(Default)]
-pub struct DefaultNamePermissions {
-    pub known: Vec<u32>,
-    pub links: Vec<(u32, u32)>,
-    pub roots: Vec<u32>,
-}

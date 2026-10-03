@@ -3,9 +3,7 @@
 //! Util.cpp:370-423. The source's wide strings hold UTF-16 units even on
 //! Linux. Its finite casing must not be replaced with expanding Unicode case.
 mod catalog;
-mod permissions;
 pub use catalog::{NameRules, Pattern, Patterns, Validation};
-pub use permissions::default_sql_reserved_bypass;
 
 #[derive(Clone, Copy)]
 pub struct NamePolicy {
