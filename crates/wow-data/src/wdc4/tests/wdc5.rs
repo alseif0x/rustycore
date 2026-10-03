@@ -124,6 +124,20 @@ fn regular_external_ids_and_copy_table_are_loaded() {
 }
 
 #[test]
+fn typed_fixed_byte_arrays_do_not_zero_fill_unknown_width_field_or_record() {
+    let reader = open_fixture("fixed-byte-array", &wdc5_fixture(4, 0, 0, 4, 0)).unwrap();
+    assert_eq!(reader.get_fixed_u8_array::<4>(0, 0).unwrap(), [7, 0, 0, 0]);
+    assert!(reader.get_fixed_u8_array::<16>(0, 0).is_err());
+    assert!(reader.get_fixed_u8_array::<4>(0, 1).is_err());
+    assert!(reader.get_fixed_u8_array::<4>(1, 0).is_err());
+    let mut compressed = wdc5_fixture(4, 0, 0, 4, 0);
+    let column = SYNTHETIC_WDC5_HEADER_SIZE + SECTION_HEADER_SIZE + FIELD_META_SIZE;
+    put_u32(&mut compressed, column + 8, 1); // bitpacked, not uncompressed
+    let reader = open_fixture("fixed-byte-array-compression", &compressed).unwrap();
+    assert!(reader.get_fixed_u8_array::<4>(0, 0).is_err());
+}
+
+#[test]
 fn malformed_wdc5_header_and_regular_variants_fail_closed() {
     let valid = wdc5_fixture(0, 0, 0, 0, 0);
     assert!(parse_header(&valid[..203]).is_err());

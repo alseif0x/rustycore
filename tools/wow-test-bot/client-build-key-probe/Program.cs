@@ -6,6 +6,14 @@ using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 
+if (args.Length > 0 && args[0] == "--character-name-input")
+{
+    if (args.Length != 4)
+        throw new ArgumentException("Usage: --character-name-input <isolated WowB.exe> <fixture first name> <fixture surname>");
+    CharacterInput.Enter(args[1], args[2], args[3]);
+    return;
+}
+
 if (args.Length > 0 && args[0] == "--provide-local-world-certificate")
 {
     if (args.Length != 3)

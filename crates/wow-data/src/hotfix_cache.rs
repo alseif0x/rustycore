@@ -248,6 +248,12 @@ impl HotfixBlobCache {
         self.blobs.contains_key(&table_hash)
     }
 
+    /// Register a store whose canonical typed records live outside this raw
+    /// byte cache. No fake record or second copy of its field values is added.
+    pub fn register_typed_table(&mut self, table_hash: u32) {
+        self.blobs.entry(table_hash).or_default();
+    }
+
     /// Total number of blobs cached across all tables.
     pub fn total_blobs(&self) -> usize {
         self.blobs.values().map(|t| t.len()).sum()

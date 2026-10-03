@@ -670,11 +670,44 @@ impl Wdc4Reader {
         String::from_utf8_lossy(&table[offset..end]).into_owned()
     }
 
-    /// Read an element from an array field.
-    ///
-    /// Array fields in WDC4 are stored as a single field with
-    /// `field_size_bits = element_count * element_bits`. This method reads
-    /// a single element at `array_index` within the field.
+    /// Read an explicitly uncompressed byte array without zero fallbacks.
+    /// Target typed consumers must reject unsupported column representations
+    /// instead of manufacturing key/data bytes through permissive getters.
+    pub fn get_fixed_u8_array<const N: usize>(
+        &self,
+        record_idx: usize,
+        field: usize,
+    ) -> Result<[u8; N]> {
+        let info = self
+            .field_info
+            .get(field)
+            .context("DB2 array field absent")?;
+        ensure!(
+            info.compression == CompressionType::None,
+            "DB2 byte array compression is unsupported"
+        );
+        ensure!(
+            usize::from(info.field_size_bits)
+                == N.checked_mul(8).context("DB2 array size overflow")?,
+            "DB2 byte array width does not match typed schema"
+        );
+        ensure!(
+            info.field_offset_bits % 8 == 0,
+            "DB2 byte array is not byte aligned"
+        );
+        let start = usize::from(info.field_offset_bits / 8);
+        let end = start.checked_add(N).context("DB2 array offset overflow")?;
+        let record = self
+            .record_bytes(record_idx)
+            .context("DB2 array record absent")?;
+        let bytes = record
+            .get(start..end)
+            .context("DB2 byte array exceeds record")?;
+        Ok(bytes.try_into().expect("checked fixed-array length"))
+    }
+
+    /// Read an element from an array field. This legacy permissive accessor
+    /// is not the typed byte-array validation contract above.
     pub fn get_array_element(
         &self,
         record_idx: usize,
@@ -763,6 +796,14 @@ impl Wdc4Reader {
     /// Number of fields in this DB2 file.
     pub fn field_count(&self) -> usize {
         self.field_info.len()
+    }
+
+    /// Header metadata is distinct from the parsed column count in WDC5.
+    pub fn declared_field_count(&self) -> u32 {
+        self.header.field_count
+    }
+    pub fn parent_lookup_count(&self) -> u32 {
+        self.header._parent_lookup_count
     }
 
     /// Return the DB2 wire format version (4 for WDC4, 5 for WDC5).

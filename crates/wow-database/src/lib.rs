@@ -41,6 +41,7 @@ pub mod database;
 pub mod error;
 pub(crate) mod field_like_cpp;
 pub mod forever;
+pub mod forever_hotfix;
 pub mod game;
 pub mod group_loot_money_adapter;
 pub mod hotfix;
