@@ -3,6 +3,8 @@
 
 Source 02245dcd CharacterPackets.cpp:464-484 (70009 annotation). Matching the
 layout is not name-policy, availability, reservation or creation-success proof.
+An optional FNS1 response check validates only the captured wire envelope and
+correlates its sequence; it does not establish client acceptance.
 """
 import argparse
 import hashlib
@@ -12,6 +14,9 @@ from pathlib import Path
 from forever_character_create_probe import read_private
 
 BUILD, OPCODE, MAX_PAYLOAD = 70170, 0x440071, 132
+RESPONSE_OPCODE = 0x46001B
+RESPONSE_BYTES = 24
+RESPONSE_PAYLOAD_BYTES = 8
 
 
 def inspect(data):
@@ -41,14 +46,50 @@ def inspect(data):
     }
 
 
+def inspect_response(request_bytes, response_bytes):
+    """Validate one FNR1 request and its exact FNS1 response metadata-only."""
+    request = inspect(request_bytes)
+    if len(response_bytes) != RESPONSE_BYTES or response_bytes[:4] != b"FNS1":
+        raise ValueError("invalid name response envelope")
+    build, opcode, length = struct.unpack_from("<III", response_bytes, 4)
+    if build != BUILD or opcode != RESPONSE_OPCODE or length != RESPONSE_PAYLOAD_BYTES:
+        raise ValueError("wrong name response build/opcode/length")
+    response_sequence, raw_result = struct.unpack_from("<II", response_bytes, 16)
+    request_sequence = struct.unpack_from("<I", request_bytes, 16)[0]
+    if response_sequence != request_sequence:
+        raise ValueError("name response sequence mismatch")
+    request.update({
+        "response_build": build,
+        "response_opcode": opcode,
+        "response_payload_bytes": length,
+        "response_result": raw_result,
+        "response_sha256": hashlib.sha256(response_bytes).hexdigest(),
+        "response_layout_matches": True,
+        "sequence_matches": True,
+        "client_acceptance_proven": False,
+        "creation_proven": False,
+    })
+    return request
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--private-capture", required=True, type=Path)
+    parser.add_argument("--private-response", type=Path)
     args = parser.parse_args()
     try:
-        result = inspect(read_private(args.private_capture))
+        request = read_private(args.private_capture)
+        if args.private_response is None:
+            result = inspect(request)
+        else:
+            result = inspect_response(request, read_private(args.private_response))
     except (OSError, ValueError, struct.error):
-        parser.exit(1, "Private name capture rejected; no contents rendered.\n")
+        message = (
+            "Private name capture/response rejected; no contents rendered.\n"
+            if args.private_response is not None
+            else "Private name capture rejected; no contents rendered.\n"
+        )
+        parser.exit(1, message)
     print(json.dumps(result, sort_keys=True))
 
 

@@ -1,7 +1,11 @@
-//! Target pre-regex name rules, not a complete availability decision.
+//! Target name-validation rules; collision lookup remains a persistence read.
 //! 02245dcd ObjectMgr.cpp:157-174,8732-8805; Util.h:121-337 and
 //! Util.cpp:370-423. The source's wide strings hold UTF-16 units even on
 //! Linux. Its finite casing must not be replaced with expanding Unicode case.
+mod catalog;
+mod permissions;
+pub use catalog::{NameRules, Pattern, Patterns, Validation};
+pub use permissions::default_sql_reserved_bypass;
 
 #[derive(Clone, Copy)]
 pub struct NamePolicy {
@@ -19,6 +23,8 @@ pub enum NameRejection {
     TooLong,
     MixedLanguages,
     ThreeConsecutive,
+    Profane,
+    Reserved,
 }
 
 impl NameRejection {
@@ -29,8 +35,16 @@ impl NameRejection {
             Self::TooLong => 100,
             Self::MixedLanguages => 102,
             Self::ThreeConsecutive => 107,
+            Self::Profane => 103,
+            Self::Reserved => 104,
         }
     }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum NameRuleError {
+    Engine,
+    InvalidLocale,
 }
 
 /// Transient request value. No Debug: neither spelling nor regex input belongs

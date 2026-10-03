@@ -10,16 +10,108 @@ list flow against an isolated Auth database. The synthetic smoke alone does not
 prove real-client login. The separate real-client evidence below now proves BNet
 authentication, account/realm-ticket queries, the ruleset-selection UI and
 acceptance of realm discovery and modern realm join in an isolated probe.
-The native client now also passes strict World `AuthSession` digest verification
-and the derived session key is persisted. The signed encryption offer is now
-acknowledged and an encrypted client ping authenticates. Real `WorldSession`
-admission remains pending; this is not character access or a complete world
-login. These probes do not start the full `world-server`.
+The native client also passes strict World `AuthSession` digest verification,
+signed encryption, canonical Forever account initialization and database-backed
+empty enumeration. The creation UI and a human warrior preview have been
+observed. Character creation/persistence, nonempty enumeration and world entry
+remain pending. This uses `forever-world-server`, not the legacy full
+`world-server`; historical login-only probes below retain their dated boundaries.
 
 The procedure is operator-only. It mutates the disposable Auth database and
 issues normal login/ticket requests. Do not point it at a shared realm, reuse a
 non-empty schema, or put a password, database URL, certificate, private key or
 session ticket in a command line, report or log.
+
+## Native Forever name engine
+
+The Forever binary now requires `--features forever-name-regex`. Its composition
+adapter uses Boost.Regex 1.83, pinned to official source commit
+`4cbcd3078e6ae10d05124379623a1bf03fcb9350` (tag `boost-1.83.0`). Builds never
+download headers and reject a different commit or modified/untracked include
+files. Prepare that source separately; do not commit it or client data:
+
+```bash
+git clone --branch boost-1.83.0 --depth 1 https://github.com/boostorg/regex.git \
+  target/forever-login/boost-regex-1.83
+cargo build --locked -p world-server --bin forever-world-server \
+  --features forever-name-regex --timings
+```
+
+If the checkout already exists, inspect its identity instead of overwriting it.
+`FOREVER_BOOST_REGEX_ROOT` may point to another clean checkout of the same pin.
+The present ABI is Linux `wchar_t32`, with each UTF-16 unit widened separately;
+Windows and other host behavior are not claimed. Standalone Boost.Config is
+absent, so both bridge and oracle explicitly enable `BOOST_HAS_THREADS` and its
+vendor cache synchronization. Parallel Rust tests and an eight-thread compilation/
+matching regression exercise that contract; test serialization is not the fix.
+The adapter explicitly imbues
+the source's composed environment locale without changing process-global locale.
+Its standalone oracle compares that to source-style default `boost::wregex`
+construction under the same global locale. A missing locale or failed pattern
+compilation refuses startup; matching/query failures never become “available.”
+
+The canonical authenticated registry owns `440071`; ordered realm delivery uses
+`46001B` and the exact sequence/result pair. Source anchors at target
+`02245dcd245e7433e524577656177723d3e4992e` are
+`CharacterHandler.cpp:1687-1719`, `ObjectMgr.cpp:8682-8805`,
+`DB2Stores.cpp:1416-1458,2852-2864`, `Regex.h:21-32`,
+`Locales.cpp:28-41`, `CharacterDatabase.cpp:53`, and
+`Opcodes.cpp:345,1431`. Profanity/locale-reserved precedes global-reserved,
+then SQL reserved, then the normalized-name collision read. Success is raw `0`,
+occupied is `27`; this is not a name reservation or Create success.
+
+This isolated composition loads ordinary-security default RBAC and follows its
+valid linked permission graph for permission `17`, which bypasses **only** SQL
+reserved names. Explicit account grants/denials or nonzero account security
+remain rejected, rather than silently ignored. SQL reserved names come from
+CharacterDB; collision uses `SELECT 1 FROM characters WHERE name = ?`, without
+account or soft-delete filters. Account locale is read and mapped through the
+currently loaded esES-only DBC locale/default; charset comes from the real realm
+timezone category. MinPlayerName defaults to two and clamps to 1–12; strict mask
+defaults to zero. There is no new legacy Player/session mirror.
+
+The existing private name-capture opt-in now also records a non-overwriting
+`<request-file>.result` sidecar **after** transport send. Its `FNS1` header is
+build/opcode/payload-length LE32 followed by the eight-byte result payload.
+Both files remain private; the integrated read-only probe can compare their
+sequence and layout without printing names or sequence values. This server-side
+observation does not establish native client acceptance, creation or persistence.
+Current local acceptance, on `60384cb47c97de030f896aef4ab78c2e95ae2c06`
+with the implementation delta:
+
+```bash
+g++ -std=c++17 -O2 -pthread -DBOOST_REGEX_STANDALONE \
+  -Itarget/forever-login/boost-regex-1.83/include \
+  crates/world-server/src/forever/name_regex/bridge.cpp \
+  crates/world-server/src/forever/name_regex/oracle.cpp \
+  -o target/forever-login/name-regex-oracle
+./target/forever-login/name-regex-oracle
+cargo test --locked -p wow-data -p wow-database -p wow-persistence \
+  -p wow-world --lib --timings -- --quiet
+cargo test --locked -p world-server --bin forever-world-server \
+  --features forever-name-regex --timings -- --quiet
+# From tools/wow-test-bot:
+python3 -m unittest -v test_forever_name_availability_probe test_forever_character_create_probe
+```
+
+Parent-exclusive, one Cargo job, same absolute checkout target and private
+protoc path. Oracle **PASS 11**, with one expected invalid-expression error per
+engine and zero locale-restore errors. Libraries **PASS 795/366/35/4071**
+(database two ignored, world one ignored); compilation 2m01s, timing
+`20261003T030619005Z`. Target **PASS 13**, compilation 6.92s, timing
+`20261003T031405477Z`; Python **PASS 9**. Earlier target attempts failed native
+archive linkage (`20261003T030828324Z`) then SIGABRT in Boost's unguarded cache
+(`20261003T031139698Z`). Explicit consumer linkage and `BOOST_HAS_THREADS`
+repair those findings; passing evidence retains default parallel tests plus
+the eight-thread/256-compilation regression. No test serialization or vendor
+header modification is used. Library code is unchanged by those native fixes.
+
+Actual-table startup, fresh native action/response and publication final have
+not yet been executed for this candidate. Creation, nonempty enumeration and
+initial world loading remain open. The complete campaign still starts at
+`2026-10-02 23:54:58 UTC`; its 600-second target is exceeded. Coding/error-repair
+time is not separately measured reliably; these runs are not a new ten-minute
+campaign. Final/live evidence will be recorded here after execution.
 
 ## Fixed fixture and evidence
 

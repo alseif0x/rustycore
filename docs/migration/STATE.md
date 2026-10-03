@@ -5,6 +5,28 @@ Branch naming, 2026-10-02: the experimental target branch is now **`forever`**
 remains `1.60.1.70170`; `3.4.3` is a separate development line, not the merge
 destination of this port. Older evidence below retains its original branch name.
 
+## Latest Forever name operation — 2026-10-03 03:14 UTC, native QA pending
+
+The canonical authenticated registry now owns name availability. Immutable
+compiled target rules precede SQL reserved/collision reads; the normalized
+collision lookup includes other accounts and soft-deleted names. Raw result
+`0`/`27` and rejection codes preserve request sequence. Query/engine errors close
+the incarnation without claiming availability. Default ordinary-account RBAC
+resolves linked permission 17 only for SQL reserved bypass; explicit grants or
+nonzero security remain unsupported admission, not silently ignored.
+
+On `60384cb4` with the implementation delta, scoped suites pass 795 data,
+366 database (two ignored), 35 persistence and 4071 world (one ignored) tests.
+Target binary passes 13 tests with `forever-name-regex`; the source-style oracle
+passes 11 cases and private probe tests pass nine. Initial target validation found
+a missing native archive link and an unsynchronized standalone Boost cache;
+both are repaired and the affected target tests pass with normal parallelism,
+including an eight-thread compilation/matching regression. Real-table startup,
+fresh native response observation and committed publication final are still
+pending. No character is saved; Create, nonempty enum and world entry remain open.
+The complete campaign's 600-second target is already exceeded, not reset for
+this slice. See the [native engine contract](../operations/forever-login.md#native-forever-name-engine).
+
 ## Latest Forever name-data boundary — 2026-10-03 02:49 UTC
 
 Four complete 70170 client tables now load through the checked target string/

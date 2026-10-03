@@ -14,6 +14,7 @@ const MAX_PAYLOAD: usize = 64 * 1024;
 pub(super) struct CharacterCapture {
     path: PathBuf,
     name_availability: bool,
+    response_path: Option<PathBuf>,
 }
 
 impl CharacterCapture {
@@ -44,10 +45,54 @@ impl CharacterCapture {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             _ => anyhow::bail!("capture output already exists or cannot be inspected"),
         }
+        let response_path = name_availability.then(|| {
+            let mut name = path.as_os_str().to_os_string();
+            name.push(".result");
+            PathBuf::from(name)
+        });
+        if let Some(response) = &response_path {
+            match fs::symlink_metadata(response) {
+                Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+                _ => anyhow::bail!("capture response already exists or cannot be inspected"),
+            }
+        }
         Ok(Self {
             path,
             name_availability,
+            response_path,
         })
+    }
+
+    /// A private post-send wire observation, not proof the client accepted it.
+    pub(super) async fn record_response(&self, opcode: u32, payload: &[u8]) -> Result<()> {
+        let Some(path) = &self.response_path else {
+            return Ok(());
+        };
+        if opcode != 0x46001B {
+            return Ok(());
+        }
+        ensure!(payload.len() == 8, "name response capture size");
+        let request = tokio::fs::read(&self.path).await?;
+        ensure!(
+            request.len() >= 22 && &request[..4] == b"FNR1" && request[16..20] == payload[..4],
+            "name response capture sequence"
+        );
+        let mut options = tokio::fs::OpenOptions::new();
+        options.write(true).create_new(true);
+        #[cfg(unix)]
+        options.mode(0o600);
+        let mut file = options.open(path).await?;
+        let mut header = Vec::from(*b"FNS1");
+        header.extend_from_slice(&70170_u32.to_le_bytes());
+        header.extend_from_slice(&opcode.to_le_bytes());
+        header.extend_from_slice(&8_u32.to_le_bytes());
+        file.write_all(&header).await?;
+        file.write_all(payload).await?;
+        file.sync_all().await?;
+        println!(
+            "Private NameResult recorded after transport send; client acceptance not inferred."
+        );
+        Ok(())
     }
 
     pub(super) async fn record(&self, opcode: u32, payload: &[u8]) -> Result<()> {
@@ -196,6 +241,22 @@ mod tests {
         assert_eq!(&bytes[8..12], &0x440071u32.to_le_bytes());
         assert_eq!(&bytes[12..16], &132u32.to_le_bytes());
         assert_eq!(bytes.len(), 148);
+        let response_path = root.0.join("name.bin.result");
+        capture
+            .record_response(0x4A0000, b"excluded")
+            .await
+            .unwrap();
+        assert!(!response_path.exists());
+        assert!(capture.record_response(0x46001B, &[0; 7]).await.is_err());
+        assert!(capture.record_response(0x46001B, &[1; 8]).await.is_err());
+        capture.record_response(0x46001B, &[0; 8]).await.unwrap();
+        let response = fs::read(&response_path).unwrap();
+        assert_eq!(&response[..4], b"FNS1");
+        assert_eq!(&response[8..12], &0x46001B_u32.to_le_bytes());
+        assert_eq!(&response[12..16], &8_u32.to_le_bytes());
+        assert_eq!(&response[16..], &[0; 8]);
+        assert!(capture.record_response(0x46001B, &[0; 8]).await.is_err());
+        assert_eq!(fs::read(&response_path).unwrap(), response);
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;

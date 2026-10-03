@@ -46,7 +46,7 @@ pub(super) async fn run(runtime: &Runtime, stream: TcpStream) -> Result<bool> {
         bail!("target variant rejected");
     }
     let row = runtime.auth.direct_query(concat!(
-        "SELECT a.session_key_bnet,a.expansion,r.name FROM account a JOIN battlenet_accounts b ON a.battlenet_account=b.id JOIN realmlist r ON r.id=1 ",
+        "SELECT a.session_key_bnet,a.expansion,r.name,a.locale,r.timezone FROM account a JOIN battlenet_accounts b ON a.battlenet_account=b.id JOIN realmlist r ON r.id=1 ",
         "WHERE a.id=1 AND a.username='1#1' AND a.client_build=70170 AND LENGTH(a.session_key_bnet)=64 AND a.online=0 ",
         "AND b.id=1 AND b.email='FOREVER@LOCAL.TEST' AND (b.locked=0 OR b.last_ip='127.0.0.1') AND b.lock_country IN ('','00') ",
         "AND NOT EXISTS (SELECT 1 FROM account_banned ab WHERE ab.id=a.id AND ab.active=1 AND (ab.unbandate>UNIX_TIMESTAMP() OR ab.unbandate=ab.bandate)) ",
@@ -61,6 +61,16 @@ pub(super) async fn run(runtime: &Runtime, stream: TcpStream) -> Result<bool> {
         .map_err(|_| anyhow::anyhow!("join key length"))?;
     let account_expansion: u8 = row.try_read(1).context("account expansion")?;
     let realm_name: String = row.try_read(2).context("realm name")?;
+    let account_locale: u8 = row.try_read(3).context("account locale")?;
+    anyhow::ensure!(account_locale < 12, "invalid account locale");
+    // WorldSession.cpp:132/GetAvailableDbcLocale: this isolated data loader
+    // admits esES only, so any other account locale uses its configured default.
+    let dbc_locale = if account_locale == 6 {
+        account_locale
+    } else {
+        6
+    };
+    let realm_timezone: u32 = row.try_read(4).context("realm timezone")?;
     socket.verify_credentials(&join_key, &runtime.build_key)?;
     let mut persist = PreparedStatement::new(
         "UPDATE account SET session_key_bnet=?,online=1 WHERE id=1 AND client_build=70170 AND online=0 AND session_key_bnet=?",
@@ -92,7 +102,7 @@ pub(super) async fn run(runtime: &Runtime, stream: TcpStream) -> Result<bool> {
     // BNet fresh key does not constitute another admitted world session here.
     let mut shutdown = false;
     let outcome = tokio::select! {
-        outcome = admitted(runtime, &mut socket, rows, account_expansion, realm_name) => outcome,
+        outcome = admitted(runtime, &mut socket, rows, account_expansion, realm_name, dbc_locale, realm_timezone) => outcome,
         _ = tokio::signal::ctrl_c() => { shutdown = true; Ok(()) },
     };
     if rows == 1 {
@@ -118,6 +128,8 @@ async fn admitted(
     rows: u64,
     account_expansion: u8,
     realm_name: String,
+    dbc_locale: u8,
+    realm_timezone: u32,
 ) -> Result<()> {
     // WorldSocket::LoadSessionPermissionsCallback precedes encrypted-mode offer.
     // This disposable ordinary account has no explicit grants/denials. Nonempty
@@ -125,6 +137,10 @@ async fn admitted(
     let permissions = runtime.auth.direct_query("SELECT permissionId,granted FROM rbac_account_permissions WHERE accountId=1 AND (realmId=1 OR realmId=-1) ORDER BY permissionId,realmId").await?;
     if !permissions.is_empty() {
         bail!("explicit target RBAC policy required");
+    }
+    let security = runtime.auth.direct_query("SELECT SecurityLevel FROM account_access WHERE AccountID=1 AND (RealmID=1 OR RealmID=-1) ORDER BY SecurityLevel DESC").await?;
+    if !security.is_empty() && security.try_read::<u8>(0).context("account security")? != 0 {
+        bail!("nonordinary target RBAC policy required");
     }
     socket.complete_encryption(rows).await?;
     println!("Forever native digest and encryption ACK accepted; initializing real account state.");
@@ -134,9 +150,16 @@ async fn admitted(
             battlenet_id: 1,
             realm_address: 0x02010001,
             account_expansion,
+            dbc_locale,
+            skip_sql_reserved_names: runtime.skip_sql_reserved_names,
         },
         runtime.session_repository.clone(),
         runtime.hotfixes.clone(),
+        runtime.name_rules.clone(),
+        wow_world::forever::name_rules::NamePolicy {
+            creation_charset: runtime.name_rules.creation_charset(realm_timezone),
+            ..runtime.name_policy
+        },
     )
     .map_err(|_| anyhow::anyhow!("session construction"))?;
     let policy = wow_world::forever::InitializationPolicy {
@@ -189,7 +212,7 @@ async fn admitted(
                         frame.payload(),
                     )?;
                 println!(
-                    "Native name request decoded: name_bytes={}, surname_bytes={}, unknown_bits={}; no names rendered or availability response inferred.",
+                    "Native name request decoded: name_bytes={}, surname_bytes={}, unknown_bits={}; no names rendered.",
                     request.name().len(),
                     request.surname().len(),
                     request.unknown_bits()
@@ -237,6 +260,22 @@ async fn admitted(
                 .count();
             for message in output {
                 socket.send(message.opcode(), message.payload()).await?;
+                if let Some(capture) = &runtime.character_capture {
+                    capture
+                        .record_response(message.opcode(), message.payload())
+                        .await?;
+                }
+                if message.opcode() == 0x46001B {
+                    println!(
+                        "Target NameResult delivered: payload_bytes={}, result={}; client acceptance still requires observation.",
+                        message.payload().len(),
+                        u32::from_le_bytes(
+                            message.payload()[4..8]
+                                .try_into()
+                                .expect("bounded NameResult")
+                        )
+                    );
+                }
             }
             if db_replies != 0 {
                 println!(

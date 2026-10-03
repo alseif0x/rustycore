@@ -5,6 +5,10 @@ edition.workspace = true
 rust-version.workspace = true
 license.workspace = true
 
+[features]
+# Target-only native name engine. No Boost dependency in the legacy runtime.
+forever-name-regex = ["dep:cc"]
+
 [[bin]]
 name = "world-server"
 path = "src/main.rs"
@@ -12,6 +16,7 @@ path = "src/main.rs"
 [[bin]]
 name = "forever-world-server"
 path = "src/forever/main.rs"
+required-features = ["forever-name-regex"]
 
 [dependencies]
 tokio = { workspace = true }
@@ -44,3 +49,6 @@ wow-social = { workspace = true }
 
 [dev-dependencies]
 wow-world = { workspace = true, features = ["test-fixtures"] }
+
+[build-dependencies]
+cc = { version = "1", optional = true }

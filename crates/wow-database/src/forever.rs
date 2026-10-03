@@ -9,6 +9,7 @@ use wow_persistence::forever::{
     ClassRequirement, GLOBAL_CACHE_MASK, LoadError, RaceClassRequirement, RaceUnlockRequirement,
     SessionRepository,
 };
+mod names;
 
 pub struct ForeverSessionRepository {
     auth: Arc<LoginDatabase>,
@@ -185,6 +186,24 @@ impl SessionRepository for ForeverSessionRepository {
                 return Err(LoadError::UnsupportedState);
             }
             Ok(())
+        })
+    }
+
+    fn name_in_use<'a>(
+        &'a self,
+        normalized_name: &'a str,
+    ) -> PersistenceFutureLikeCpp<'a, Result<bool, LoadError>> {
+        Box::pin(async move {
+            // 02245dcd CharacterDatabase.cpp:53. Include all names, including
+            // rows outside this account and soft-deleted rows; no LIMIT/filter.
+            let mut statement = PreparedStatement::new(names::COLLISION_QUERY);
+            statement.set_string(0, normalized_name.to_owned());
+            let result = self
+                .characters
+                .query(&statement)
+                .await
+                .map_err(|_| LoadError::Database)?;
+            Ok(!result.is_empty())
         })
     }
 }
