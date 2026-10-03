@@ -5,6 +5,28 @@ Branch naming, 2026-10-02: the experimental target branch is now **`forever`**
 remains `1.60.1.70170`; `3.4.3` is a separate development line, not the merge
 destination of this port. Older evidence below retains its original branch name.
 
+## Latest Forever appearance boundary — 2026-10-03 02:04 UTC
+
+The target Create decoder and checked numeric DB2 reader now back an immutable
+appearance catalog: seven real baselines, official/custom SQL projections and
+final removals. Startup loads 116 race/gender option indexes. The source-backed
+appearance validator checks membership, uniqueness, masks, ownership and
+dependent choices without legacy field mappings. A fresh native 70170 human
+warrior submits 106 bytes/nine choices; the opt-in production-linked observer
+reports **valid=true**. It does not register/admit creation or send success.
+Character count remains zero; full name/admission, starting Player state,
+durable creation, nonempty enumeration and instance/world entry remain open.
+
+Scoped acceptance passes 786 data, 364 database (two ignored), 777 packet,
+35 persistence and 4058 world tests (one ignored). A source-review correction
+adds the declared maximum ID bound, including copies; affected suites were
+rerun. The installed normal build passes actual-file/SQL startup and native
+observation. The isolated realm was restored offline/normal, online=0, World
+port closed, and V1/V2 BNet smoke passes. Publication final remains pending;
+the inherited architecture debt and exceeded 600-second campaign target are
+not waived as a green result. Exact commands/timings/boundaries are in the
+[owning runbook](../operations/forever-login.md#checked-target-appearance-implementation--2026-10-03-localnative-validated).
+
 ## Latest Forever data/transport boundary — 2026-10-03 01:15 UTC
 
 At 2026-10-03 00:19 UTC, the real build-70170 client accepted target Session

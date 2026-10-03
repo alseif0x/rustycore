@@ -83,10 +83,11 @@ an isolated Wine environment on a Linux x86_64 host:
 | TactKey DBQueryBulk / DBReply | Implemented; native batch observed | Real baseline + official/custom SQL overlays; missing requested records get Invalid, never fabricated keys |
 | Empty character selection | Verified with real client | Database-backed empty list and «Crear personaje» button |
 | Creation UI / personalization | Observed with real client | Fresh probe reaches human warrior customization and rendered models; no character saved |
-| Character creation / nonempty enumeration | Pending | Real 70170 Create request captured privately; target validation, transaction, appearance and persistence still required |
+| Target appearance validation | Implemented; native QA passed | Seven real DB2 baselines + SQL overlays/removals; nine native human-warrior choices validate, without a save/success response |
+| Character creation / nonempty enumeration | Pending | Name/admission, starting Player state and durable persistence still required; no character saved |
 | Initial world load | Pending | Requires target-build packets and appropriate world/client data |
 
-The current evidence includes **133 BNet tests**, **362 database tests** (2
+The current evidence includes **133 BNet tests**, **364 database tests** (2
 additional integration tests ignored), **40 Python tests**, **59 crypto tests**,
 **37 transport tests**, and
 live V1/V2 positive/negative authentication scenarios. These counts describe the

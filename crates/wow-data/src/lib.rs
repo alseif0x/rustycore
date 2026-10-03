@@ -25,6 +25,7 @@ pub mod disable_mgr;
 pub mod dungeon_encounter;
 pub mod entities_movement;
 pub mod faction_change;
+pub mod forever_appearance;
 pub mod forever_character_ids;
 pub mod forever_hotfix;
 pub mod game_tables;

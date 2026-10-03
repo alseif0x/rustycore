@@ -3,6 +3,7 @@
 //! The same PacketHandlerEntry declaration owns metadata and invocation for
 //! this 32-bit protocol. No second opcode match is used as a dispatcher.
 
+pub mod appearance;
 mod catalog;
 mod handlers;
 mod presentation;

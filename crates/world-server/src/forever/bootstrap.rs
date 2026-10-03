@@ -28,6 +28,7 @@ pub(super) struct Runtime {
     pub region_group: i32,
     pub character_idle_timeout: std::time::Duration,
     pub character_capture: Option<CharacterCapture>,
+    pub appearance: wow_data::forever_appearance::AppearanceCatalog,
 }
 
 pub(super) async fn load() -> Result<Runtime> {
@@ -113,9 +114,23 @@ pub(super) async fn load() -> Result<Runtime> {
         overlays.official.into_iter().map(|row| (row.id, row.key)),
         overlays.custom.into_iter().map(|row| (row.id, row.key)),
     )?;
+    let appearance_rows =
+        wow_data::forever_appearance::AppearanceRecords::load(Path::new(&args[3]))?;
+    let appearance_overlays = ForeverHotfixRepository::new(hotfix.clone())
+        .load_appearance_overlays()
+        .await
+        .map_err(|_| anyhow::anyhow!("appearance overlay query failed"))?;
     let hotfix_adapter = MariaDbHotfixDeliveryMetadataPersistenceAdapterLikeCpp::new(hotfix);
     let mut hotfixes = HotfixBlobCache::new();
     hotfixes.register_typed_table(TACT_KEY_TABLE_HASH);
+    // These effective creation stores exist, but their full wire serializers
+    // do not. Mark them known so DBQuery cannot claim an unported store is
+    // missing; the Valid-status guard below retains that explicit boundary.
+    for hash in [
+        0x49349C6E, 0x2FB7905B, 0x681D0F3D, 0x61431A65, 0xA7E150FE, 0x9B1BEE48,
+    ] {
+        hotfixes.register_typed_table(hash);
+    }
     for name in ["ChrClasses.db2", "ChrRaces.db2"] {
         hotfixes.load_db2(Path::new(&args[3]).join(name))?;
     }
@@ -142,6 +157,17 @@ pub(super) async fn load() -> Result<Runtime> {
         );
         ensure!(row.status <= 4, "invalid hotfix status");
     }
+    // The appearance projection consumes every status for its loaded stores,
+    // before delivery filters unknown stores without a blob fallback.
+    let removals = wow_data::Db2HotfixRemovalStoreLikeCpp::from_status_rows_like_cpp(
+        rows.iter()
+            .map(|row| (row.table_hash, row.record_id, row.status)),
+    );
+    let appearance = appearance_rows.finish(
+        super::appearance::records(appearance_overlays.official),
+        super::appearance::records(appearance_overlays.custom),
+        &removals,
+    )?;
     hotfixes.apply_hotfix_data_rows_like_cpp(
         rows.into_iter().map(|row| {
             (
@@ -187,6 +213,10 @@ pub(super) async fn load() -> Result<Runtime> {
     let character_idle_timeout = std::time::Duration::from_secs(u64::from(idle_ms / 1000));
     let hotfixes = ForeverHotfixCatalog::new(tact_keys, hotfixes)?;
     println!(
+        "Forever appearance prerequisites loaded: {} race/gender option indexes; no creation admitted.",
+        appearance.indexed_race_gender_count()
+    );
+    println!(
         "Forever prerequisites loaded: {} availability races, {} readable achievements, {} hotfix records, {} effective TactKey records; no session admitted yet.",
         catalog.races().len(),
         achievements.available_count(),
@@ -197,6 +227,7 @@ pub(super) async fn load() -> Result<Runtime> {
         auth: auth.clone(),
         session_repository: Arc::new(ForeverSessionRepository::new(auth, characters)),
         catalog,
+        appearance,
         hotfixes: Arc::new(hotfixes),
         build_key,
         policy,
