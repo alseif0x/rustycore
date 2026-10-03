@@ -2354,17 +2354,26 @@ de fuente no acreditan compilación, ejecución ni la entrega completa de F5/F6.
 
 La proyección de condiciones ya tiene un constructor inerte y un cuerpo App
 para las lecturas anteriores a los niveles de equipo. La revisión detectó un
-lifetime omitido del store de áreas en el constructor y una diferencia pendiente
-en known-spells: el camino World cfg(test)/sin handle reconstruye el runtime de
-spell antes de consultar sus conocidos; tomar directamente la colección fixture
-no prueba que conserve los mismos filtros ni el orden. Debe reutilizarse la
-operación completa y mantener esa admisión fixture antes de consultar Core.
+lifetime omitido del store de áreas en el constructor. El contraste completo de
+known-spells aclara el camino World cfg(test)/sin handle: su snapshot consulta
+Core antes del fallback fixture y reconstruye el runtime mediante
+`wow-world-spell/records.rs:112::canonical_player_spell_runtime_like_cpp`.
+`wow-entities/player/spell_runtime.rs:400::install_acquisition_snapshot_like_cpp`
+asigna la lista conocida sin filtros ni reordenación. Por tanto no se requiere
+inventar un filtro para la colección fixture ni omitir la consulta Core anterior;
+el proveedor debe conservar esa secuencia y su gate de consumidor World cfg(test).
 Las dos lecturas tardías de valoración y sus consumidores siguen pendientes.
 El adaptador RAF de `World/session/social/contacts.rs` ya delega en el cuerpo
 App compartido con `for_xp`; los filtros condicionales de XP y los consumidores
 sin ese filtro conservan una única implementación en el borrador. El flujo
 principal de `World/session/xp_grants.rs` y el helper de request de
 `World/session/quest/persistence.rs` todavía requieren sustitución completa.
+El acceso Core de valoración escrito conserva solo una referencia privada a
+SessionCore y devuelve lecturas acotadas sin retener guards. Sus lecturas de
+PvP y capacidades de equipamiento aún deben convertirse en la implementación
+única reutilizada por las fachadas Inventory existentes, incluidos los callers
+offhand y el fallback sin handle de capacidades `(false, false)`. Este borrador
+no demuestra los promedios completos ni sustituye CanUse/Unique/CanEquip.
 El request App escrito conserva rest-state, flags, bonus, nivel y XP en ese orden;
 queda pendiente comprobar sus llamadas reales y retirar el cuerpo duplicado.
 
@@ -2382,7 +2391,69 @@ drenar objetivos; las ramas de cuarentena y snapshot no disponible también
 deben conservar su drain posterior a la liberación. Falta cerrar el coordinador
 y ejecutar evidencia de cancelación, COMMIT desconocido e incarnación obsoleta.
 
+Revisión de cuerpos de valoración/XP (2026-10-03, NO VALIDADO): Inventory
+`valuation/item_level.rs` contiene los borradores completos de ItemLevel y
+AvgEquipped. El contraste mantiene el orden PvP/caps/templates/override/curva,
+bonuses/clamp y la relectura por item del promedio equipado. Se detectó un import
+de SessionCatalogs desde el crate equivocado y se asignó su corrección. AvgTotal
+y la cadena de equipabilidad siguen pendientes. World `session/xp_grants.rs`
+ya delega las dos entradas XP al contexto App mediante referencias fixture
+seleccionadas; aún faltan el cierre del helper de persistencia y la revisión
+de consumidores y módulos. El lifetime del store de áreas de la proyección
+de condiciones está corregido. No se ejecutaron compilación ni aceptación.
+
+Revisión de consumidores XP (2026-10-03, NO VALIDADO): el adaptador del request
+de persistencia cambió su receptor World de `&self` a `&mut self` para construir
+QuestRewardCx. Se asignó conservar la firma original mediante un proveedor App
+de lectura seleccionado y único, sin prestar participantes mutables innecesarios.
+La evidencia existente a ejecutar incluye los escenarios de script/zero/max-level,
+reposo, RAF, campos canónicos y conexión Realm de `scenarios_misc_8.rs`, y
+`lifecycle_persistence/player_persistence.rs::represented_xp_reaches_the_port_for_every_classified_outcome_like_cpp`
+para Applied/Failed/Unknown. Su existencia no constituye resultado ejecutado.
+
+Revisión de cierre de dependencias (2026-10-03, NO VALIDADO): el import de
+SessionCatalogs en Inventory/item_level está corregido al owner Core. La
+proyección App ya puede consumir el snapshot tipado existente
+`Inventory/storage.rs::resolved_inventory_items_with_access_like_cpp`, que
+conserva su único kernel y la copia del inventario, ahora público para el
+consumidor concreto, sin exponer mapas mutables ni crear otro estado. El campo
+`consumer_test` ya tiene el cfg correcto. Se detectó un cfg accidental en el
+campo normal `area_table_store` y se asignó retirarlo, pues su construcción y
+uso son de producción. El filtro App ya llama `project_like_cpp` entre las
+copias de PlayerConditionStore y AreaTableStore; el método completo todavía
+depende de la valoración pendiente. No se ha iniciado aceptación.
+
 ### F6 — retirada de duplicados, pista de comportamiento
+
+Contrato de extracción RewardQuest (2026-10-03, fuente Rust NO VALIDADA):
+`World/handlers/quest/rewards.rs:563–785` todavía posee el coordinador completo.
+Su cierre incluye removals, grants, moneda/skills, plan de dinero, títulos/mail/
+lockout, proyección de XP/slot/status, COMMIT, settlement, objetivos/Registry,
+slot, notificación GameEvent, paquetes, reputación/spells y XP antes de liberar
+el flag de teleport diferido. La rama de settlement fallido tras COMMIT hace
+kick y retorna sin liberar ese flag; F5 debe conservarla y F6 contrastarla,
+sin introducir una reparación RAII dentro del movimiento. Los helpers existentes
+de QuestRewardCx no demuestran ese flujo completo ni el drain que lo consume.
+
+Revisión del snapshot spell-click (2026-10-03, NO VALIDADO): el cuerpo Domain
+ahora recibe QuestObjectiveAccess. Comparado con el cuerpo Hub de HEAD, conserva
+los rechazos de GUID, el fallo por lock envenenado, la búsqueda de mapa con
+instance cero y la selección creature/pet. La construcción mantiene la copia de
+PhaseShift, todos los campos de criatura y la preferencia pet-owner antes del
+control-owner. La fachada World todavía usa su split Hub y el filtro completo
+permanece pendiente de la proyección tardía; este traslado no acredita el flujo
+de publicación completo ni su paridad con C++.
+
+Contraste TrainerList (2026-10-03, inspección sin aceptación):
+`NPCHandler.cpp:113–129::SendTrainerList`, SHA
+`a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`, reinicia y establece InteractionData
+antes de `Trainer::SendSpells`. El Rust representado evalúa primero las ofertas
+y establece el rol inmediatamente antes del envío, ahora en AppTrainerListCx.
+F5 conserva ese orden Rust; el helper de publicación no demuestra el flujo
+completo ni la equivalencia de orden C++. `Trainer.cpp:185–225::GetSpellState`
+consulta spell conocido, clase/raza, skill, habilidades, nivel y efectos LearnSpell;
+la extracción debe conservar también las consultas por fila del flujo Rust.
+La equivalencia observable y cualquier reparación pertenecen al contrato F6.
 
 Contraste de valoración de equipo para la proyección de condiciones (inspección
 2026-10-03, sin aceptación): `Player.cpp:28803–28877`
