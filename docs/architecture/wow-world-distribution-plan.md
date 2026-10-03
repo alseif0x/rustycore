@@ -1903,6 +1903,17 @@ permanece en World; el monetario conserva mark-indeterminate, disarm, kick,
 warn y retorno en ese orden. No se pospone la cuarentena al resultado del
 executor. El contexto completo de trainer y su aceptación siguen pendientes.
 
+**Providers de modificadores sin Hub — 2026-10-03, 12:05 UTC
+(NO VALIDADO):** Inventory delega ocho providers en una capacidad tipada de
+Core: snapshot, añadir/quitar item y bonus de set, retirar set vacío, aplicar
+acción y reset. Se mantienen el handle generacional estricto, las ramas de
+fixtures sin handle y los retornos anidados del remove; el reset limpia su
+registro fixture antes de mutar. No añade invalidación, clones ni otro
+acumulador. El productor conserva sus lecturas de catálogos y orden de acciones;
+su contexto completo y Use siguen pendientes. Referencia de la operación:
+`Player.cpp:7654::_ApplyItemMods`, `:7688::_ApplyItemBonuses` y
+`:7975::_ApplyWeaponDamage` en `a5f8da2eb`; estas capacidades no acreditan paridad.
+
 **QA del registro genérico — 2026-10-03, 11:51 UTC (NO VALIDADO):**
 La política de handlers usa schema 2: varias rutas explícitas de registro y un
 único dispatcher; solo se añade Inventory como owner ya implementado. El

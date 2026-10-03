@@ -29,7 +29,8 @@ pub use connection_identity::{
 mod canonical_access;
 pub use canonical_access::{
     OwnedCollectionsAccessLikeCpp, OwnedEquipmentSetsAccessLikeCpp,
-    OwnedInventoryAccessLikeCpp, OwnedSpellAcquisitionAccessLikeCpp,
+    OwnedInventoryAccessLikeCpp, OwnedItemModifiersAccessLikeCpp,
+    OwnedSpellAcquisitionAccessLikeCpp,
 };
 mod catalogs;
 mod connection;

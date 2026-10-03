@@ -152,11 +152,17 @@ impl crate::InventoryState {
         &self,
         hub: HubRef<'_>,
     ) -> Option<wow_entities::PlayerItemModifierRuntimeStateLikeCpp> {
-        let canonical = hub
-            .core
-            .with_owned_player_like_cpp(|player| player.item_modifier_runtime_snapshot_like_cpp());
+        let access = hub.core.owned_item_modifiers_access_like_cpp();
+        self.player_item_modifier_runtime_snapshot_with_access_like_cpp(&access)
+    }
+
+    fn player_item_modifier_runtime_snapshot_with_access_like_cpp(
+        &self,
+        access: &wow_world_core::session::OwnedItemModifiersAccessLikeCpp<'_>,
+    ) -> Option<wow_entities::PlayerItemModifierRuntimeStateLikeCpp> {
+        let canonical = access.item_modifier_runtime_snapshot_like_cpp();
         #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && hub.core.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && access.owner_handle_absent_like_cpp() {
             return Some(
                 self.player_item_test_fixture_like_cpp
                     .represented_item_modifier_runtime_like_cpp
@@ -172,14 +178,22 @@ impl crate::InventoryState {
         item_set_id: u32,
         item_guid: ObjectGuid,
     ) -> Option<usize> {
-        let canonical = hub.core.with_owned_player_mut_like_cpp(|player| {
-            player.add_item_set_item_like_cpp(item_set_id, item_guid)
-        });
+        let access = hub.core.owned_item_modifiers_access_like_cpp();
+        self.add_player_item_set_item_with_access_like_cpp(&access, item_set_id, item_guid)
+    }
+
+    fn add_player_item_set_item_with_access_like_cpp(
+        &mut self,
+        access: &wow_world_core::session::OwnedItemModifiersAccessLikeCpp<'_>,
+        item_set_id: u32,
+        item_guid: ObjectGuid,
+    ) -> Option<usize> {
+        let canonical = access.add_item_set_item_like_cpp(item_set_id, item_guid);
         if canonical.is_some() {
             return canonical;
         }
         #[cfg(any(test, feature = "test-fixtures"))]
-        if hub.core.player_handle_like_cpp.is_none() {
+        if access.owner_handle_absent_like_cpp() {
             return Some(
                 self.player_item_test_fixture_like_cpp
                     .represented_item_modifier_runtime_like_cpp
@@ -195,14 +209,22 @@ impl crate::InventoryState {
         item_set_id: u32,
         spell_entry_id: u32,
     ) -> Option<bool> {
-        let canonical = hub.core.with_owned_player_mut_like_cpp(|player| {
-            player.add_item_set_bonus_like_cpp(item_set_id, spell_entry_id)
-        });
+        let access = hub.core.owned_item_modifiers_access_like_cpp();
+        self.add_player_item_set_bonus_with_access_like_cpp(&access, item_set_id, spell_entry_id)
+    }
+
+    fn add_player_item_set_bonus_with_access_like_cpp(
+        &mut self,
+        access: &wow_world_core::session::OwnedItemModifiersAccessLikeCpp<'_>,
+        item_set_id: u32,
+        spell_entry_id: u32,
+    ) -> Option<bool> {
+        let canonical = access.add_item_set_bonus_like_cpp(item_set_id, spell_entry_id);
         if canonical.is_some() {
             return canonical;
         }
         #[cfg(any(test, feature = "test-fixtures"))]
-        if hub.core.player_handle_like_cpp.is_none() {
+        if access.owner_handle_absent_like_cpp() {
             return Some(
                 self.player_item_test_fixture_like_cpp
                     .represented_item_modifier_runtime_like_cpp
@@ -218,14 +240,22 @@ impl crate::InventoryState {
         item_set_id: u32,
         item_guid: ObjectGuid,
     ) -> Option<Option<usize>> {
-        let canonical = hub.core.with_owned_player_mut_like_cpp(|player| {
-            player.remove_item_set_item_like_cpp(item_set_id, item_guid)
-        });
+        let access = hub.core.owned_item_modifiers_access_like_cpp();
+        self.remove_player_item_set_item_with_access_like_cpp(&access, item_set_id, item_guid)
+    }
+
+    fn remove_player_item_set_item_with_access_like_cpp(
+        &mut self,
+        access: &wow_world_core::session::OwnedItemModifiersAccessLikeCpp<'_>,
+        item_set_id: u32,
+        item_guid: ObjectGuid,
+    ) -> Option<Option<usize>> {
+        let canonical = access.remove_item_set_item_like_cpp(item_set_id, item_guid);
         if canonical.is_some() {
             return canonical;
         }
         #[cfg(any(test, feature = "test-fixtures"))]
-        if hub.core.player_handle_like_cpp.is_none() {
+        if access.owner_handle_absent_like_cpp() {
             return Some(
                 self.player_item_test_fixture_like_cpp
                     .represented_item_modifier_runtime_like_cpp
@@ -241,14 +271,22 @@ impl crate::InventoryState {
         item_set_id: u32,
         spell_entry_id: u32,
     ) -> Option<bool> {
-        let canonical = hub.core.with_owned_player_mut_like_cpp(|player| {
-            player.remove_item_set_bonus_like_cpp(item_set_id, spell_entry_id)
-        });
+        let access = hub.core.owned_item_modifiers_access_like_cpp();
+        self.remove_player_item_set_bonus_with_access_like_cpp(&access, item_set_id, spell_entry_id)
+    }
+
+    fn remove_player_item_set_bonus_with_access_like_cpp(
+        &mut self,
+        access: &wow_world_core::session::OwnedItemModifiersAccessLikeCpp<'_>,
+        item_set_id: u32,
+        spell_entry_id: u32,
+    ) -> Option<bool> {
+        let canonical = access.remove_item_set_bonus_like_cpp(item_set_id, spell_entry_id);
         if canonical.is_some() {
             return canonical;
         }
         #[cfg(any(test, feature = "test-fixtures"))]
-        if hub.core.player_handle_like_cpp.is_none() {
+        if access.owner_handle_absent_like_cpp() {
             return Some(
                 self.player_item_test_fixture_like_cpp
                     .represented_item_modifier_runtime_like_cpp
@@ -263,14 +301,21 @@ impl crate::InventoryState {
         hub: &mut HubMut<'_>,
         item_set_id: u32,
     ) -> Option<bool> {
-        let canonical = hub.core.with_owned_player_mut_like_cpp(|player| {
-            player.drop_empty_item_set_effect_like_cpp(item_set_id)
-        });
+        let access = hub.core.owned_item_modifiers_access_like_cpp();
+        self.drop_player_empty_item_set_effect_with_access_like_cpp(&access, item_set_id)
+    }
+
+    fn drop_player_empty_item_set_effect_with_access_like_cpp(
+        &mut self,
+        access: &wow_world_core::session::OwnedItemModifiersAccessLikeCpp<'_>,
+        item_set_id: u32,
+    ) -> Option<bool> {
+        let canonical = access.drop_empty_item_set_effect_like_cpp(item_set_id);
         if canonical.is_some() {
             return canonical;
         }
         #[cfg(any(test, feature = "test-fixtures"))]
-        if hub.core.player_handle_like_cpp.is_none() {
+        if access.owner_handle_absent_like_cpp() {
             return Some(
                 self.player_item_test_fixture_like_cpp
                     .represented_item_modifier_runtime_like_cpp
@@ -300,14 +345,21 @@ impl crate::InventoryState {
         hub: &mut HubMut<'_>,
         action: ApplyEnchantmentEffectAction,
     ) -> bool {
-        let canonical = hub.core.with_owned_player_mut_like_cpp(|player| {
-            player.apply_item_modifier_action_like_cpp(action);
-        });
+        let access = hub.core.owned_item_modifiers_access_like_cpp();
+        self.apply_represented_item_bonus_action_with_access_like_cpp(&access, action)
+    }
+
+    fn apply_represented_item_bonus_action_with_access_like_cpp(
+        &mut self,
+        access: &wow_world_core::session::OwnedItemModifiersAccessLikeCpp<'_>,
+        action: ApplyEnchantmentEffectAction,
+    ) -> bool {
+        let canonical = access.apply_item_modifier_action_like_cpp(action);
         if canonical.is_some() {
             return true;
         }
         #[cfg(any(test, feature = "test-fixtures"))]
-        if hub.core.player_handle_like_cpp.is_none() {
+        if access.owner_handle_absent_like_cpp() {
             self.player_item_test_fixture_like_cpp
                 .represented_item_modifier_runtime_like_cpp
                 .apply_enchantment_effect_action_like_cpp(action);
@@ -317,6 +369,14 @@ impl crate::InventoryState {
     }
 
     pub fn reset_represented_item_bonus_runtime_like_cpp(&mut self, hub: &mut HubMut<'_>) {
+        let access = hub.core.owned_item_modifiers_access_like_cpp();
+        self.reset_represented_item_bonus_runtime_with_access_like_cpp(&access);
+    }
+
+    fn reset_represented_item_bonus_runtime_with_access_like_cpp(
+        &mut self,
+        access: &wow_world_core::session::OwnedItemModifiersAccessLikeCpp<'_>,
+    ) {
         // C++ WorldSession::HandlePlayerLogin constructs a fresh Player, so
         // item modifiers from a previous character cannot survive into the
         // next login on the same session.
@@ -324,16 +384,11 @@ impl crate::InventoryState {
         self.player_item_test_fixture_like_cpp
             .represented_item_bonus_actions_like_cpp
             .clear();
-        let canonical_missing = hub
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.reset_item_modifier_bonuses_like_cpp();
-            })
-            .is_none();
+        let canonical_missing = access.reset_item_modifier_bonuses_like_cpp().is_none();
         #[cfg(not(any(test, feature = "test-fixtures")))]
         let _ = canonical_missing;
         #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical_missing && hub.core.player_handle_like_cpp.is_none() {
+        if canonical_missing && access.owner_handle_absent_like_cpp() {
             self.player_item_test_fixture_like_cpp
                 .represented_item_modifier_runtime_like_cpp
                 .reset_bonuses_like_cpp();
