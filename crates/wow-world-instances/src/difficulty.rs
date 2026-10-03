@@ -2,7 +2,7 @@ use crate::InstanceState;
 use wow_constants::shared::DifficultyFlags;
 use wow_packet::packets::misc::{DungeonDifficultySet, RaidDifficultySet};
 use wow_social::group::GroupInfo;
-use wow_world_core::session::{HubMut, HubRef};
+use wow_world_core::session::{HubMut, HubRef, InstancePlayerAccessLikeCpp};
 
 /// Which of the three Player difficulty preferences a session transition
 /// writes. C++ names them apart with one setter each
@@ -16,6 +16,99 @@ pub enum SessionDifficultyKindLikeCpp {
 }
 
 impl InstanceState {
+    /// Read the three canonical Player preferences, with the original
+    /// handle-less fallback whenever this domain's fixture feature is enabled.
+    pub fn player_difficulty_preferences_with_access_like_cpp(
+        &self,
+        player: &InstancePlayerAccessLikeCpp<'_>,
+    ) -> Option<(u32, u32, u32)> {
+        let canonical = player.difficulty_preferences_like_cpp();
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && player.owner_handle_absent_like_cpp() {
+            return Some((
+                self.instance_test_fixture_like_cpp
+                    .represented_dungeon_difficulty_id_like_cpp,
+                self.instance_test_fixture_like_cpp
+                    .represented_raid_difficulty_id_like_cpp,
+                self.instance_test_fixture_like_cpp
+                    .represented_legacy_raid_difficulty_id_like_cpp,
+            ));
+        }
+        canonical
+    }
+
+    /// Apply one named canonical setter, retaining this domain's original
+    /// handle-less fixture fallback at the original write point.
+    pub fn set_player_difficulty_with_access_like_cpp(
+        &mut self,
+        player: &InstancePlayerAccessLikeCpp<'_>,
+        kind: SessionDifficultyKindLikeCpp,
+        difficulty_id: u32,
+    ) -> bool {
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if player.owner_handle_absent_like_cpp() {
+            match kind {
+                SessionDifficultyKindLikeCpp::Dungeon => {
+                    self.instance_test_fixture_like_cpp
+                        .represented_dungeon_difficulty_id_like_cpp = difficulty_id;
+                }
+                SessionDifficultyKindLikeCpp::Raid => {
+                    self.instance_test_fixture_like_cpp
+                        .represented_raid_difficulty_id_like_cpp = difficulty_id;
+                }
+                SessionDifficultyKindLikeCpp::LegacyRaid => {
+                    self.instance_test_fixture_like_cpp
+                        .represented_legacy_raid_difficulty_id_like_cpp = difficulty_id;
+                }
+            }
+            return true;
+        }
+        match kind {
+            SessionDifficultyKindLikeCpp::Dungeon => {
+                player.set_dungeon_difficulty_like_cpp(difficulty_id)
+            }
+            SessionDifficultyKindLikeCpp::Raid => {
+                player.set_raid_difficulty_like_cpp(difficulty_id)
+            }
+            SessionDifficultyKindLikeCpp::LegacyRaid => {
+                player.set_legacy_raid_difficulty_like_cpp(difficulty_id)
+            }
+        }
+    }
+
+    pub fn represented_toggle_difficulty_target_with_access_like_cpp(
+        &self,
+        player: &InstancePlayerAccessLikeCpp<'_>,
+        difficulty_store: &wow_data::DifficultyStore,
+    ) -> Option<u32> {
+        let (dungeon, raid, _) =
+            self.player_difficulty_preferences_with_access_like_cpp(player)?;
+        let raid_entry = difficulty_store.get(raid);
+        let entry = match raid_entry {
+            Some(entry) if entry.toggle_difficulty_id != 0 => entry,
+            _ => difficulty_store.get(dungeon)?,
+        };
+        (entry.toggle_difficulty_id != 0).then_some(u32::from(entry.toggle_difficulty_id))
+    }
+
+    pub fn represented_raid_difficulty_request_like_cpp(
+        &self,
+        difficulty_store: &wow_data::DifficultyStore,
+        difficulty_id: i32,
+        legacy: bool,
+    ) -> Option<u32> {
+        let difficulty_id = u32::try_from(difficulty_id).ok()?;
+        let entry = difficulty_store.get(difficulty_id).copied()?;
+        if entry.instance_type != wow_data::map::MAP_RAID {
+            return None;
+        }
+        let flags = DifficultyFlags::from_bits_truncate(entry.flags);
+        if !flags.contains(DifficultyFlags::CAN_SELECT) {
+            return None;
+        }
+        (flags.contains(DifficultyFlags::LEGACY) == legacy).then_some(difficulty_id)
+    }
+
     pub fn create_map_difficulty_context_like_cpp(
         &self,
         hub: HubRef<'_>,
@@ -104,21 +197,8 @@ impl InstanceState {
         &self,
         hub: HubRef<'_>,
     ) -> Option<(u32, u32, u32)> {
-        let canonical = hub
-            .core
-            .with_owned_player_like_cpp(|player| player.difficulty_preferences_like_cpp());
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && hub.core.player_handle_like_cpp.is_none() {
-            return Some((
-                self.instance_test_fixture_like_cpp
-                    .represented_dungeon_difficulty_id_like_cpp,
-                self.instance_test_fixture_like_cpp
-                    .represented_raid_difficulty_id_like_cpp,
-                self.instance_test_fixture_like_cpp
-                    .represented_legacy_raid_difficulty_id_like_cpp,
-            ));
-        }
-        canonical
+        let player = hub.core.instance_player_access_like_cpp();
+        self.player_difficulty_preferences_with_access_like_cpp(&player)
     }
 
     pub fn replace_player_difficulty_preferences_like_cpp(
@@ -157,37 +237,8 @@ impl InstanceState {
         kind: SessionDifficultyKindLikeCpp,
         difficulty_id: u32,
     ) -> bool {
-        #[cfg(any(test, feature = "test-fixtures"))]
-        if hub.core.player_handle_like_cpp.is_none() {
-            match kind {
-                SessionDifficultyKindLikeCpp::Dungeon => {
-                    self.instance_test_fixture_like_cpp
-                        .represented_dungeon_difficulty_id_like_cpp = difficulty_id;
-                }
-                SessionDifficultyKindLikeCpp::Raid => {
-                    self.instance_test_fixture_like_cpp
-                        .represented_raid_difficulty_id_like_cpp = difficulty_id;
-                }
-                SessionDifficultyKindLikeCpp::LegacyRaid => {
-                    self.instance_test_fixture_like_cpp
-                        .represented_legacy_raid_difficulty_id_like_cpp = difficulty_id;
-                }
-            }
-            return true;
-        }
-        hub.core
-            .with_owned_player_mut_like_cpp(|player| match kind {
-                SessionDifficultyKindLikeCpp::Dungeon => {
-                    player.set_dungeon_difficulty_id_like_cpp(difficulty_id);
-                }
-                SessionDifficultyKindLikeCpp::Raid => {
-                    player.set_raid_difficulty_id_like_cpp(difficulty_id);
-                }
-                SessionDifficultyKindLikeCpp::LegacyRaid => {
-                    player.set_legacy_raid_difficulty_id_like_cpp(difficulty_id);
-                }
-            })
-            .is_some()
+        let player = hub.core.instance_player_access_like_cpp();
+        self.set_player_difficulty_with_access_like_cpp(&player, kind, difficulty_id)
     }
 
     pub fn resolved_dungeon_difficulty_id_like_cpp(
@@ -225,14 +276,8 @@ impl InstanceState {
         hub: HubRef<'_>,
     ) -> Option<u32> {
         let store = hub.catalogs.difficulty_store()?;
-        let (dungeon, raid, _) = self.player_difficulty_preferences_snapshot_like_cpp(hub)?;
-        let raid_entry = store.get(raid);
-        let entry = match raid_entry {
-            Some(entry) if entry.toggle_difficulty_id != 0 => entry,
-            _ => store.get(dungeon)?,
-        };
-
-        (entry.toggle_difficulty_id != 0).then_some(u32::from(entry.toggle_difficulty_id))
+        let player = hub.core.instance_player_access_like_cpp();
+        self.represented_toggle_difficulty_target_with_access_like_cpp(&player, store)
     }
 
     pub fn represented_dungeon_difficulty_packet_like_cpp(

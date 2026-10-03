@@ -2,7 +2,7 @@
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Exact source grammar for the Inventory-owned direct `RegistryBuilder` registrar.
+//! Exact source grammar for finitely declared owner-specific `RegistryBuilder` registrars.
 
 use std::collections::BTreeSet;
 use std::path::Path;
@@ -11,20 +11,115 @@ use proc_macro2::{TokenStream, TokenTree};
 use quote::ToTokens;
 use syn::visit::Visit;
 use syn::{
-    Expr, FnArg, Item, ItemFn, Pat, Stmt, Type, TypeParamBound, UseTree,
-    Visibility, WherePredicate,
+    Attribute, Expr, FnArg, Item, ItemFn, Lit, Meta, Pat, Stmt, Type, TypeParamBound,
+    UseTree, Visibility, WherePredicate,
 };
 
 use super::ident_is;
 
-const INVENTORY_PACKAGE: &str = "wow-world-inventory";
-const INVENTORY_MODULE: &str = "crate::handlers::equipment_sets";
-const REGISTRAR_NAME: &str = "register_inventory_handlers_like_cpp";
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct RegistrarFacadeContract {
+    pub(crate) module: &'static str,
+    pub(crate) child: &'static str,
+    pub(crate) exports: &'static [&'static str],
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub(crate) struct DirectRegistrarContract {
+    pub(crate) owner: &'static str,
+    pub(crate) package: &'static str,
+    pub(crate) module: &'static str,
+    pub(crate) registrar: &'static str,
+    pub(crate) host_trait: &'static str,
+    pub(crate) production_type_args: &'static [&'static str],
+    pub(crate) facades: &'static [RegistrarFacadeContract],
+}
+
+const INVENTORY_ROOT_EXPORTS: &[&str] = &[
+    "EquipmentSetsHandlerCxLikeCpp",
+    "InventoryHandlerHostLikeCpp",
+    "EquipmentSetsSaveCxLikeCpp",
+    "register_inventory_handlers_like_cpp",
+];
+const INVENTORY_HANDLER_EXPORTS: &[&str] = &[
+    "EquipmentSetsHandlerCxLikeCpp",
+    "InventoryHandlerHostLikeCpp",
+    "register_inventory_handlers_like_cpp",
+];
+const INVENTORY_FACADES: &[RegistrarFacadeContract] = &[
+    RegistrarFacadeContract {
+        module: "crate",
+        child: "handlers",
+        exports: INVENTORY_ROOT_EXPORTS,
+    },
+    RegistrarFacadeContract {
+        module: "crate::handlers",
+        child: "equipment_sets",
+        exports: INVENTORY_HANDLER_EXPORTS,
+    },
+];
+
+pub(crate) const INVENTORY_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "Inventory",
+    package: "wow-world-inventory",
+    module: "crate::handlers::equipment_sets",
+    registrar: "register_inventory_handlers_like_cpp",
+    host_trait: "InventoryHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: INVENTORY_FACADES,
+};
+
+const INSTANCES_ROOT_EXPORTS: &[&str] = &[
+    "handle_instance_lock_response_like_cpp",
+    "handle_request_raid_info_like_cpp",
+    "handle_reset_instances_like_cpp",
+    "handle_set_difficulty_id_like_cpp",
+    "handle_set_dungeon_difficulty_like_cpp",
+    "handle_set_raid_difficulty_like_cpp",
+    "handle_set_saved_instance_extend_like_cpp",
+    "handle_toggle_difficulty_like_cpp",
+    "register_instance_handlers_like_cpp",
+    "reset_represented_instances_like_cpp",
+    "InstanceDifficultyHandlerCxLikeCpp",
+    "InstanceLockOperationsHandlerCxLikeCpp",
+    "InstanceLockResponseOutcomeLikeCpp",
+    "InstanceRaidInfoHandlerCxLikeCpp",
+    "InstanceResetMethodLikeCpp",
+    "InstancesHandlerHostLikeCpp",
+];
+const INSTANCES_REGISTRATION_EXPORTS: &[&str] = &["register_instance_handlers_like_cpp"];
+const INSTANCES_FACADES: &[RegistrarFacadeContract] = &[
+    RegistrarFacadeContract {
+        module: "crate",
+        child: "instances",
+        exports: INSTANCES_ROOT_EXPORTS,
+    },
+    RegistrarFacadeContract {
+        module: "crate::instances",
+        child: "registration",
+        exports: INSTANCES_REGISTRATION_EXPORTS,
+    },
+];
+
+pub(crate) const INSTANCES_REGISTRAR: DirectRegistrarContract = DirectRegistrarContract {
+    owner: "ApplicationInstances",
+    package: "wow-world-application",
+    module: "crate::instances::registration",
+    registrar: "register_instance_handlers_like_cpp",
+    host_trait: "InstancesHandlerHostLikeCpp",
+    production_type_args: &["WorldSession", "SessionHandlerCatalogsLikeCpp"],
+    facades: INSTANCES_FACADES,
+};
+
+/// Exact direct registrars which exist in the current source tree.
+pub(crate) const DIRECT_REGISTRAR_CONTRACTS: &[DirectRegistrarContract] =
+    &[INVENTORY_REGISTRAR, INSTANCES_REGISTRAR];
 
 #[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
 pub(crate) struct RegistrarReport {
     pub(crate) entries: usize,
     pub(crate) registrar_count: usize,
+    pub(crate) contract: Option<DirectRegistrarContract>,
 }
 
 #[derive(Default)]
@@ -303,10 +398,22 @@ fn is_builder_parameter(argument: &FnArg) -> bool {
         && matches!(&arguments[1], syn::GenericArgument::Type(Type::Path(path)) if path.qself.is_none() && path.path.is_ident("C"))
 }
 
-fn is_registrar_signature(function: &ItemFn) -> bool {
-    function.attrs.is_empty()
+fn registrar_doc_attributes_only(attributes: &[Attribute]) -> bool {
+    attributes.iter().all(|attribute| {
+        attribute.path().is_ident("doc")
+            && matches!(
+                &attribute.meta,
+                Meta::NameValue(name_value)
+                    if name_value.path.is_ident("doc")
+                        && matches!(&name_value.value, Expr::Lit(value) if matches!(&value.lit, Lit::Str(_)))
+            )
+    })
+}
+
+fn is_registrar_signature(function: &ItemFn, contract: DirectRegistrarContract) -> bool {
+    registrar_doc_attributes_only(&function.attrs)
         && matches!(&function.vis, Visibility::Public(_))
-        && ident_is(&function.sig.ident, REGISTRAR_NAME)
+        && ident_is(&function.sig.ident, contract.registrar)
         && function.sig.constness.is_none()
         && function.sig.asyncness.is_none()
         && function.sig.unsafety.is_none()
@@ -321,7 +428,7 @@ fn is_registrar_signature(function: &ItemFn) -> bool {
                     && ident_is(&parameter.ident, if index == 0 { "S" } else { "C" }))
         })
         && function.sig.generics.where_clause.is_some()
-        && is_host_where_clause(function.sig.generics.where_clause.as_ref())
+        && is_host_where_clause(function.sig.generics.where_clause.as_ref(), contract.host_trait)
         && function.sig.inputs.len() == 1
         && is_builder_parameter(&function.sig.inputs[0])
         && is_registrar_output(&function.sig.output)
@@ -349,7 +456,7 @@ fn trait_bound_name(bound: &TypeParamBound, expected: &str) -> bool {
             && bound.path.segments.first().is_some_and(|segment| ident_is(&segment.ident, expected)))
 }
 
-fn is_host_trait_bound(bound: &TypeParamBound) -> bool {
+fn is_host_trait_bound(bound: &TypeParamBound, host_trait: &str) -> bool {
     let TypeParamBound::Trait(bound) = bound else {
         return false;
     };
@@ -362,7 +469,7 @@ fn is_host_trait_bound(bound: &TypeParamBound) -> bool {
         return false;
     }
     let segment = &bound.path.segments[0];
-    if !ident_is(&segment.ident, "InventoryHandlerHostLikeCpp") {
+    if !ident_is(&segment.ident, host_trait) {
         return false;
     }
     let syn::PathArguments::AngleBracketed(arguments) = &segment.arguments else {
@@ -373,7 +480,7 @@ fn is_host_trait_bound(bound: &TypeParamBound) -> bool {
             if path.qself.is_none() && path.path.is_ident("C"))
 }
 
-fn is_host_where_clause(clause: Option<&syn::WhereClause>) -> bool {
+fn is_host_where_clause(clause: Option<&syn::WhereClause>, host_trait: &str) -> bool {
     let Some(clause) = clause else {
         return false;
     };
@@ -389,7 +496,10 @@ fn is_host_where_clause(clause: Option<&syn::WhereClause>) -> bool {
     };
     where_type_name(session, "S")
         && session.bounds.len() == 2
-        && session.bounds.first().is_some_and(is_host_trait_bound)
+        && session
+            .bounds
+            .first()
+            .is_some_and(|bound| is_host_trait_bound(bound, host_trait))
         && session
             .bounds
             .iter()
@@ -517,39 +627,55 @@ fn opcode_key(entry: &syn::ExprStruct) -> Option<String> {
     })
 }
 
-fn analyze_registrar(function: &ItemFn) -> Result<usize, String> {
-    if !is_registrar_signature(function) {
-        return Err("Inventory handler registrar has an unexpected signature or attributes".to_owned());
+fn analyze_registrar(
+    function: &ItemFn,
+    contract: DirectRegistrarContract,
+) -> Result<usize, String> {
+    if !is_registrar_signature(function, contract) {
+        return Err(format!(
+            "{} handler registrar has an unexpected signature or attributes",
+            contract.owner
+        ));
     }
     let Some((tail, registrations)) = function.block.stmts.split_last() else {
-        return Err("Inventory handler registrar is empty".to_owned());
+        return Err(format!("{} handler registrar is empty", contract.owner));
     };
     if !is_ok_unit_tail(tail) {
-        return Err("Inventory handler registrar must end with Ok(())".to_owned());
+        return Err(format!(
+            "{} handler registrar must end with Ok(())",
+            contract.owner
+        ));
     }
     let mut opcodes = BTreeSet::new();
     for statement in registrations {
         let Some(entry) = registration_entry(statement) else {
-            return Err(
-                "Inventory handler registrar permits only direct builder.register(PacketHandlerEntry { ... })? statements before Ok(())"
-                    .to_owned(),
-            );
+            return Err(format!(
+                "{} handler registrar permits only direct builder.register(PacketHandlerEntry {{ ... }})? statements before Ok(())",
+                contract.owner
+            ));
         };
         let opcode = opcode_key(entry).ok_or_else(|| {
-            "Inventory PacketHandlerEntry opcode must be a ClientOpcodes path".to_owned()
+            format!(
+                "{} PacketHandlerEntry opcode must be a ClientOpcodes path",
+                contract.owner
+            )
         })?;
         if !opcodes.insert(opcode.clone()) {
-            return Err(format!("duplicate Inventory handler opcode entry {opcode}"));
+            return Err(format!("duplicate {} handler opcode entry {opcode}", contract.owner));
         }
     }
     if opcodes.is_empty() {
-        return Err("Inventory handler registrar contains no direct entries".to_owned());
+        return Err(format!(
+            "{} handler registrar contains no direct entries",
+            contract.owner
+        ));
     }
     Ok(opcodes.len())
 }
 
-/// Classify the one Inventory registrar only at its authorized logical module.
-pub(crate) fn analyze_owner_source(
+/// Analyze a registrar only under its exact finite owner contract.
+pub(crate) fn analyze_contract_source(
+    contract: DirectRegistrarContract,
     package: &str,
     logical_module: &str,
     source_path: &Path,
@@ -561,7 +687,7 @@ pub(crate) fn analyze_owner_source(
         .items
         .iter()
         .filter_map(|item| match item {
-            Item::Fn(function) if ident_is(&function.sig.ident, REGISTRAR_NAME) => Some(function),
+            Item::Fn(function) if ident_is(&function.sig.ident, contract.registrar) => Some(function),
             _ => None,
         })
         .collect();
@@ -571,25 +697,40 @@ pub(crate) fn analyze_owner_source(
     if registrar_items.is_empty() {
         if occurrences.entry_literals != 0 || occurrences.register_calls != 0 {
             return Err(format!(
-                "direct PacketHandlerEntry or builder.register source is outside the exact Inventory registrar in {} ({logical_module})",
+                "direct PacketHandlerEntry or builder.register source is outside the exact {} registrar in {} ({logical_module})",
+                contract.owner,
                 source_path.display()
             ));
         }
         return Ok(RegistrarReport::default());
     }
-    if package != INVENTORY_PACKAGE || logical_module != INVENTORY_MODULE {
+    if syntax.attrs.iter().any(|attribute| {
+        attribute.path().is_ident("cfg") || attribute.path().is_ident("cfg_attr")
+    }) {
         return Err(format!(
-            "direct Inventory handler registrar is outside {INVENTORY_PACKAGE}::{INVENTORY_MODULE}: {} ({logical_module})",
+            "{} direct registrar source file must not be conditionally compiled",
+            contract.owner
+        ));
+    }
+    if package != contract.package || logical_module != contract.module {
+        return Err(format!(
+            "direct {} handler registrar is outside {}::{}: {} ({logical_module})",
+            contract.owner,
+            contract.package,
+            contract.module,
             source_path.display()
         ));
     }
     if registrar_items.len() != 1 {
-        return Err("Inventory handler registrar must be defined exactly once".to_owned());
+        return Err(format!(
+            "{} handler registrar must be defined exactly once",
+            contract.owner
+        ));
     }
     inspect_imports(&syntax.items)?;
     for item in &syntax.items {
         if matches!(item, Item::Use(_))
-            || matches!(item, Item::Fn(function) if ident_is(&function.sig.ident, REGISTRAR_NAME))
+            || matches!(item, Item::Fn(function) if ident_is(&function.sig.ident, contract.registrar))
         {
             continue;
         }
@@ -597,26 +738,78 @@ pub(crate) fn analyze_owner_source(
         if token_stream_mentions_ident(&tokens, "PacketHandlerEntry")
             || token_stream_mentions_ident(&tokens, "RegistryBuilder")
         {
-            return Err(
-                "Inventory handler entry types may appear only in the exact top-level registrar"
-                    .to_owned(),
-            );
+            return Err(format!(
+                "{} handler entry types may appear only in the exact top-level registrar",
+                contract.owner
+            ));
         }
     }
-    let entries = analyze_registrar(registrar_items[0])?;
+    let entries = analyze_registrar(registrar_items[0], contract)?;
     if occurrences.entry_literals != entries
         || occurrences.register_calls != entries
         || occurrences.all_register_calls != entries
     {
         return Err(format!(
-            "Inventory source contains {} PacketHandlerEntry literals, {} entry-bearing register calls, and {} total register calls, but the exact registrar accounts for {entries}",
+            "{} source contains {} PacketHandlerEntry literals, {} entry-bearing register calls, and {} total register calls, but its exact registrar accounts for {entries}",
+            contract.owner,
             occurrences.entry_literals, occurrences.register_calls, occurrences.all_register_calls
         ));
     }
     Ok(RegistrarReport {
         entries,
         registrar_count: 1,
+        contract: Some(contract),
     })
+}
+
+/// Compatibility entry point for existing Inventory callers/tests.
+pub(crate) fn analyze_owner_source(
+    package: &str,
+    logical_module: &str,
+    source_path: &Path,
+    source: &str,
+) -> Result<RegistrarReport, String> {
+    analyze_contract_source(
+        INVENTORY_REGISTRAR,
+        package,
+        logical_module,
+        source_path,
+        source,
+    )
+}
+
+pub(crate) fn analyze_owner_source_with_contracts(
+    package: &str,
+    logical_module: &str,
+    source_path: &Path,
+    source: &str,
+    contracts: &[DirectRegistrarContract],
+) -> Result<RegistrarReport, String> {
+    let syntax = syn::parse_file(source)
+        .map_err(|error| format!("cannot parse {}: {error}", source_path.display()))?;
+    let declared: Vec<_> = contracts
+        .iter()
+        .filter(|contract| {
+            syntax.items.iter().any(|item| {
+                matches!(item, Item::Fn(function)
+                    if ident_is(&function.sig.ident, contract.registrar))
+            })
+        })
+        .copied()
+        .collect();
+    if declared.len() > 1 {
+        return Err(format!(
+            "{} declares more than one finite direct registrar in the same source module",
+            source_path.display()
+        ));
+    }
+    if let Some(contract) = declared.first() {
+        return analyze_contract_source(*contract, package, logical_module, source_path, source);
+    }
+    if let Some(violation) = unowned_entry_literal_violation(source)? {
+        return Err(format!("{}: {violation}", source_path.display()));
+    }
+    Ok(RegistrarReport::default())
 }
 
 /// Reject a direct generic handler entry constructed outside an authorized registrar.

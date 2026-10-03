@@ -17,6 +17,13 @@
       "tracking_issue": 1263
     },
     {
+      "capability": "handler_registration",
+      "package": "wow-world-application",
+      "module": "crate::instances::registration",
+      "allow_descendants": false,
+      "tracking_issue": 1263
+    },
+    {
       "capability": "packet_dispatcher",
       "package": "wow-world",
       "module": "crate::session",

@@ -25,9 +25,15 @@ pub(crate) use local_inventory::{
     registration_alias_violations_with_legacy_wrapper_reexport,
 };
 pub(crate) use direct_builder::{
-    RegistrarReport, analyze_owner_source, unowned_entry_literal_violation,
+    DIRECT_REGISTRAR_CONTRACTS, DirectRegistrarContract, INSTANCES_REGISTRAR,
+    INVENTORY_REGISTRAR,
+    RegistrarFacadeContract, RegistrarReport,
+    analyze_contract_source, analyze_owner_source, analyze_owner_source_with_contracts,
+    unowned_entry_literal_violation,
 };
-pub(crate) use composer::validate_composition_mounts;
+pub(crate) use composer::{
+    validate_composition_mounts, validate_composition_mounts_with_contracts,
+};
 
 pub(crate) const EXPECTED_REGISTRATION_MACROS: &[&str] = &[
     "register_chat_channel_command_handler",
@@ -1314,12 +1320,21 @@ pub(crate) fn analyze_handler_mounts(
             ));
         }
         let context = owner_contexts[0];
-        let registrar = analyze_owner_source(
+        let registrar = analyze_owner_source_with_contracts(
             &mount.package,
             &context.logical_module_path,
             &mount.source_path,
             &mount.source,
+            DIRECT_REGISTRAR_CONTRACTS,
         )?;
+        if registrar.registrar_count != 0
+            && (!context.production_possible || !context.test_possible || !context.cfg.is_empty())
+        {
+            return Err(format!(
+                "direct registrar in {} must be mounted unconditionally for production and tests",
+                mount.source_path.display()
+            ));
+        }
         builder_entries += registrar.entries;
         builder_registrars += registrar.registrar_count;
         let alias_violations = registration_alias_violations(&mount.source)?;
@@ -1361,9 +1376,10 @@ pub(crate) fn analyze_handler_mounts(
             &mut Vec::new(),
         )?;
     }
-    if builder_registrars != 1 {
+    if builder_registrars != DIRECT_REGISTRAR_CONTRACTS.len() {
         return Err(format!(
-            "handler registration ownership must contain exactly one direct Inventory registrar; found {builder_registrars}"
+            "handler registration ownership must contain exactly one registrar for each finite direct-owner contract ({}); found {builder_registrars}",
+            DIRECT_REGISTRAR_CONTRACTS.len()
         ));
     }
     let mut report = classify_registration_sources(collection)?;

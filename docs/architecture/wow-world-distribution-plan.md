@@ -2135,6 +2135,46 @@ Las pruebas privadas escritas cubren las fuentes reales y mutantes positivos y
 negativos; conservan los seis templates y el snapshot de 478 filas. No se
 ejecutaron esas pruebas, el checker, Cargo ni formato.
 
+**Familia Instances y registro compartido — 2026-10-03 (NO VALIDADO):**
+base local `7e734878c`. La operación completa de raid-info, reset, respuesta al
+pending-bind, extensión y selección de dificultad reside en módulos privados de
+Application. Tres contextos prestados reúnen solamente sus participantes; World
+construye esos préstamos e invoca la operación. El consumidor del comando de grupo
+también usa el mismo cuerpo de aplicación. Los siete registros de raid-info,
+reset, respuesta y dificultad se declaran en `instances/registration.rs`; los
+dos composers llaman a ese registrar después de Inventory y antes del puente
+legacy. La extensión conserva su entrada/alias en Loot, sin reparar protocolo.
+
+Core conserva las capacidades privadas del Player, grupo y manager de locks,
+sin devolver manager, Arc, guard ni Player. El reset y raid-info usan el schedule
+default anterior; bind y extensión leen el schedule configurado en sus puntos
+originales. El guard síncrono termina antes de persistir o enviar paquetes.
+Se conservan la mutación previa al commit, los clones anteriores, el orden de
+miembros y el primer comando de persistencia de dificultad. El contador de
+rechazo sigue en la fixture Combat existente; su incremento y el registro de
+confirmación conservan el gate World cfg(test). Los fallbacks de preferencias
+y GM mantienen el gate test/test-fixtures de sus providers originales; el de
+group-guid mantiene el gate del consumidor World. No se añade otro estado.
+
+Los consumers y escenarios World existentes se conservan. Se escribió una
+prueba independiente del registrar con un host no Copy y constructores que
+no deben invocarse durante el registro: primera composición y duplicidad.
+La QA de source usa contratos finitos de Inventory e Instances, sus fachadas
+exactas y ambos composers; conserva los casos sintéticos independientes y los
+rechazos de aliases, ausencias, duplicados, type-arguments y montajes cfg.
+No se modificaron las expectativas del snapshot de opcodes ni el baseline.
+
+Anclas C++ en `a5f8da2eb`: `GroupHandler.cpp:594::HandleRequestRaidInfoOpcode`,
+`MiscHandler.cpp:890/910/968/1061`, `CalendarHandler.cpp:532`,
+`Player.cpp:19006::ConfirmPendingBind` y `:20667::ResetInstances`.
+Las diferencias de pending-bind, completed-mask, opcodes y extensión se retienen
+en F6 abajo; esta extracción no las acredita como paridad. No se ejecutaron
+Cargo, formato, suites, checker, capturas ni QA live. La evidencia aceptada
+anterior no se atribuye a estos cambios y R1 conserva su estado rojo histórico.
+Trainer buy todavía depende del traslado del guardado completo previo a la
+compra; quest reward depende también de los providers completos de inventario
+y XP/estadísticas. Las demás familias y la aceptación de F5/F6 siguen abiertas.
+
 ### F6 — retirada de duplicados, pista de comportamiento
 
 La revisión F5 conserva dos diferencias que no puede resolver mediante un

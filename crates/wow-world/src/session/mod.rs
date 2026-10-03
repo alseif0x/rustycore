@@ -20,6 +20,7 @@ pub(crate) use combat::{CR_ARMOR_PENETRATION_LIKE_CPP, CR_HIT_MELEE_LIKE_CPP};
 mod effect_learning;
 mod instances;
 mod inventory_handler_contexts;
+mod instance_handler_contexts;
 mod legacy_runtime;
 use legacy_runtime::*;
 // The legacy tick entry points are called from world-server as

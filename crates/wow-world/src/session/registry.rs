@@ -68,6 +68,8 @@ pub fn build_dispatch_table() -> Arc<WorldPacketHandlerRegistry> {
     let mut builder = WorldPacketHandlerRegistryBuilder::new();
     wow_world_inventory::register_inventory_handlers_like_cpp(&mut builder)
         .expect("invalid duplicate packet handler composition");
+    wow_world_application::register_instance_handlers_like_cpp(&mut builder)
+        .expect("invalid duplicate packet handler composition");
     register_remaining_handlers_like_cpp(&mut builder)
         .expect("invalid duplicate packet handler composition");
     Arc::new(builder.build())

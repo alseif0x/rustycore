@@ -4,7 +4,10 @@
 
 use std::path::Path;
 
-use crate::registrations::{analyze_owner_source, unowned_entry_literal_violation};
+use crate::registrations::{
+    DirectRegistrarContract, INSTANCES_REGISTRAR, INVENTORY_REGISTRAR, analyze_contract_source,
+    analyze_owner_source, analyze_owner_source_with_contracts, unowned_entry_literal_violation,
+};
 
 const INVENTORY_PACKAGE: &str = "wow-world-inventory";
 const INVENTORY_MODULE: &str = "crate::handlers::equipment_sets";
@@ -51,6 +54,30 @@ fn direct_inventory_registrar_accepts_current_source_and_counts_entries() {
         analyze(&harmless_text).expect("text mentioning provider names is not source syntax").entries,
         1
     );
+}
+
+#[test]
+fn direct_instances_registrar_accepts_exact_seven_entry_source() {
+    const SOURCE: &str = include_str!("../../../../../crates/wow-world-application/src/instances/registration.rs");
+    let report = analyze_owner_source_with_contracts(
+        INSTANCES_REGISTRAR.package,
+        INSTANCES_REGISTRAR.module,
+        Path::new("registration.rs"),
+        SOURCE,
+        &[INVENTORY_REGISTRAR, INSTANCES_REGISTRAR],
+    )
+    .expect("Application Instances has its own exact finite registrar contract");
+    assert_eq!(report.entries, 7);
+    assert_eq!(report.registrar_count, 1);
+    assert_eq!(report.contract, Some(INSTANCES_REGISTRAR));
+    assert!(analyze_owner_source_with_contracts(
+        INSTANCES_REGISTRAR.package,
+        INSTANCES_REGISTRAR.module,
+        Path::new("registration.rs"),
+        SOURCE,
+        &[INVENTORY_REGISTRAR],
+    )
+    .is_err(), "a direct owner omitted from the finite contract set is rejected");
 }
 
 #[test]
@@ -159,4 +186,138 @@ fn nonowner_register_methods_without_packet_entries_are_not_registrations() {
     )
     .expect("an unrelated method named register does not create handler ownership");
     assert_eq!(report, crate::registrations::RegistrarReport::default());
+}
+
+#[test]
+fn finite_registrar_contract_binds_function_host_and_exact_owner() {
+    const SECOND_OWNER: DirectRegistrarContract = DirectRegistrarContract {
+        owner: "FixtureOwner",
+        package: "fixture-owner",
+        module: "crate::handler_boundary",
+        registrar: "register_fixture_handlers_like_cpp",
+        host_trait: "FixtureHandlerHostLikeCpp",
+        production_type_args: &[],
+        facades: &[],
+    };
+    const SOURCE: &str = r#"
+use wow_handler::{DuplicateHandlerRegistrationLikeCpp, PacketHandlerEntry, RegistryBuilder};
+pub fn register_fixture_handlers_like_cpp<S, C>(builder: &mut RegistryBuilder<S, C>)
+    -> Result<(), DuplicateHandlerRegistrationLikeCpp>
+where
+    S: FixtureHandlerHostLikeCpp<C> + Send,
+    C: Sync,
+{
+    builder.register(PacketHandlerEntry {
+        opcode: ClientOpcodes::FixtureOnly,
+        status: SessionStatus::LoggedIn,
+        processing: PacketProcessing::Inplace,
+        handler_name: "fixture_only",
+        handler: fixture_only,
+    })?;
+    Ok(())
+}
+"#;
+    let accepted = analyze_contract_source(
+        SECOND_OWNER,
+        "fixture-owner",
+        "crate::handler_boundary",
+        Path::new("handler_boundary.rs"),
+        SOURCE,
+    )
+    .expect("an explicitly supplied finite owner contract is honored");
+    assert_eq!(accepted.entries, 1);
+    assert_eq!(accepted.registrar_count, 1);
+    assert_eq!(accepted.contract, Some(SECOND_OWNER));
+    assert_eq!(
+        analyze_owner_source_with_contracts(
+            "fixture-owner",
+            "crate::handler_boundary",
+            Path::new("handler_boundary.rs"),
+            SOURCE,
+            &[SECOND_OWNER],
+        )
+        .expect("the shared owner analyzer uses the supplied finite contract")
+        .contract,
+        Some(SECOND_OWNER),
+    );
+
+    assert!(analyze_contract_source(
+        SECOND_OWNER,
+        "fixture-owner",
+        "crate::other",
+        Path::new("other.rs"),
+        SOURCE,
+    )
+    .is_err(), "the same registrar is rejected at a different logical module");
+    assert!(analyze_contract_source(
+        SECOND_OWNER,
+        "fixture-owner",
+        "crate::handler_boundary",
+        Path::new("handler_boundary.rs"),
+        &SOURCE.replace("FixtureHandlerHostLikeCpp", "DifferentHostLikeCpp"),
+    )
+    .is_err(), "a host-trait substitution is rejected");
+    assert!(analyze_contract_source(
+        SECOND_OWNER,
+        "other-owner",
+        "crate::handler_boundary",
+        Path::new("handler_boundary.rs"),
+        SOURCE,
+    )
+    .is_err(), "a registrar cannot be mounted under another package");
+    assert!(analyze_contract_source(
+        SECOND_OWNER,
+        "fixture-owner",
+        "crate::handler_boundary",
+        Path::new("handler_boundary.rs"),
+        &SOURCE.replace("pub fn register_fixture_handlers_like_cpp", "#[cfg(test)]\npub fn register_fixture_handlers_like_cpp"),
+    )
+    .is_err(), "a conditional registrar declaration is rejected");
+    assert!(analyze_contract_source(
+        SECOND_OWNER,
+        "fixture-owner",
+        "crate::handler_boundary",
+        Path::new("handler_boundary.rs"),
+        &format!("#![cfg(test)]\n{SOURCE}"),
+    )
+    .is_err(), "a conditional source module cannot own the registrar");
+    assert!(analyze_contract_source(
+        SECOND_OWNER,
+        "fixture-owner",
+        "crate::handler_boundary",
+        Path::new("handler_boundary.rs"),
+        &SOURCE.replace("register_fixture_handlers_like_cpp", "register_unowned_handlers_like_cpp"),
+    )
+    .is_err(), "entry construction without the named registrar is rejected");
+    assert!(analyze_contract_source(
+        SECOND_OWNER,
+        "fixture-owner",
+        "crate::handler_boundary",
+        Path::new("handler_boundary.rs"),
+        &format!("{SOURCE}\n{SOURCE}"),
+    )
+    .is_err(), "a duplicate direct registrar declaration is rejected");
+    assert_eq!(
+        analyze_owner_source(
+            INVENTORY_REGISTRAR.package,
+            INVENTORY_REGISTRAR.module,
+            Path::new("equipment_sets.rs"),
+            ONE_ENTRY,
+        )
+        .expect("Inventory keeps its existing exact contract")
+        .entries,
+        1,
+    );
+    assert_eq!(
+        analyze_contract_source(
+            INVENTORY_REGISTRAR,
+            INVENTORY_REGISTRAR.package,
+            INVENTORY_REGISTRAR.module,
+            Path::new("equipment_sets.rs"),
+            ONE_ENTRY,
+        )
+        .expect("Inventory is still checked against its exact owner contract")
+        .contract,
+        Some(INVENTORY_REGISTRAR),
+    );
 }

@@ -106,18 +106,9 @@ impl WorldSession {
     /// generation-checked canonical Player handle. An unresolved owner never
     /// falls back in production.
     pub(crate) fn resolved_group_guid_like_cpp(&self) -> Option<u64> {
-        let canonical = self.core.with_owned_player_like_cpp(|player| {
-            player
-                .gameplay_state()
-                .group
-                .as_ref()
-                .map(|group| group.group_guid.counter() as u64)
-        });
-        #[cfg(test)]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return self.social.group_guid_for_test_like_cpp();
-        }
-        canonical.flatten()
+        let owner = self.core.player_group_owner_access_like_cpp();
+        self.social
+            .resolved_group_guid_with_access_like_cpp(&owner, cfg!(test))
     }
     pub(crate) fn set_owned_player_group_like_cpp(
         &mut self,

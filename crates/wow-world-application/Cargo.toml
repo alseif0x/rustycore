@@ -9,9 +9,11 @@ publish = false
 [features]
 test-fixtures = [
     "wow-world-core/test-fixtures",
+    "wow-world-instances/test-fixtures",
     "wow-world-inventory/test-fixtures",
     "wow-world-lifecycle/test-fixtures",
     "wow-world-loot/test-fixtures",
+    "wow-world-social/test-fixtures",
     "wow-world-spell/test-fixtures",
 ]
 
@@ -26,10 +28,16 @@ wow-packet = { workspace = true }
 wow-persistence = { workspace = true }
 wow-spell-acquisition = { workspace = true }
 wow-entities = { workspace = true }
+wow-handler = { workspace = true }
+wow-instances = { workspace = true }
+wow-map = { workspace = true }
+wow-social = { workspace = true }
 wow-world-core = { workspace = true }
+wow-world-instances = { workspace = true }
 wow-world-inventory = { workspace = true }
 wow-world-lifecycle = { workspace = true }
 wow-world-loot = { workspace = true }
+wow-world-social = { workspace = true }
 wow-world-spell = { workspace = true }
 
 [dev-dependencies]

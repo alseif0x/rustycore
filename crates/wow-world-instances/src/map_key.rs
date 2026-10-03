@@ -22,6 +22,25 @@ impl InstanceState {
         )
     }
 
+    /// Resolve the existing downscaled map/difficulty row from the selected
+    /// catalog references supplied by the application handler.
+    pub fn create_map_db2_entries_from_stores_like_cpp(
+        &self,
+        map_store: &wow_data::MapStore,
+        map_difficulty_store: &wow_data::MapDifficultyStore,
+        difficulty_store: &wow_data::DifficultyStore,
+        map_id: u32,
+        difficulty_id: wow_map::Difficulty,
+    ) -> Option<wow_instances::MapDb2Entries> {
+        wow_instances::MapDb2Entries::from_downscaled_stores_like_cpp(
+            map_store,
+            map_difficulty_store,
+            difficulty_store,
+            map_id,
+            difficulty_id,
+        )
+    }
+
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn represented_reveal_world_map_overlay_criteria_like_cpp(&self) -> &[u32] {
         &self.represented_reveal_world_map_overlay_criteria_like_cpp

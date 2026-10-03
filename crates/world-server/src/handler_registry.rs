@@ -24,6 +24,10 @@ pub fn compose_packet_handlers_like_cpp() -> Result<
         WorldSession,
         SessionHandlerCatalogsLikeCpp,
     >(&mut builder)?;
+    wow_world_application::register_instance_handlers_like_cpp::<
+        WorldSession,
+        SessionHandlerCatalogsLikeCpp,
+    >(&mut builder)?;
     register_remaining_handlers_like_cpp(&mut builder)?;
     Ok(Arc::new(builder.build()))
 }

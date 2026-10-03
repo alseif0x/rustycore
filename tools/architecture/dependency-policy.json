@@ -111,11 +111,17 @@
       "wow-entities",
       "wow-packet",
       "wow-persistence",
+      "wow-handler",
+      "wow-instances",
+      "wow-map",
+      "wow-social",
       "wow-spell-acquisition",
       "wow-world-core",
+      "wow-world-instances",
       "wow-world-inventory",
       "wow-world-lifecycle",
       "wow-world-loot",
+      "wow-world-social",
       "wow-world-spell"
     ],
     "wow-world-core": [

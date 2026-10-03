@@ -14,6 +14,7 @@ mod state;
 mod requests;
 mod trade;
 mod guild;
+mod group_owner;
 #[cfg(any(test, feature = "test-fixtures"))]
 mod test_support;
 

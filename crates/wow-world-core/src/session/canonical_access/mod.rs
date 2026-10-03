@@ -1,5 +1,9 @@
 mod operations;
 mod equipment_sets;
+mod instance_locks;
+mod group_owner;
+mod instance_player;
+mod group_difficulty;
 mod inventory;
 mod item_modifiers;
 mod collections;
@@ -10,6 +14,10 @@ mod registry_hydration;
 mod quest_reward_owner;
 
 pub use equipment_sets::OwnedEquipmentSetsAccessLikeCpp;
+pub use instance_locks::InstanceLockManagerAccessLikeCpp;
+pub use group_owner::PlayerGroupOwnerAccessLikeCpp;
+pub use instance_player::InstancePlayerAccessLikeCpp;
+pub use group_difficulty::GroupDifficultyAccessLikeCpp;
 pub use acquisition_owner::PlayerAcquisitionOwnerAccessLikeCpp;
 pub use inventory::OwnedInventoryAccessLikeCpp;
 pub use item_modifiers::OwnedItemModifiersAccessLikeCpp;

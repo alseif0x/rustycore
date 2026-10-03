@@ -74,14 +74,16 @@ impl crate::session::HubMut<'_> {
 
 impl crate::session::HubRef<'_> {
     pub fn player_is_game_master_like_cpp(&self) -> Option<bool> {
-        let canonical = self
-            .core
-            .with_owned_player_like_cpp(Player::is_game_master_like_cpp);
         #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
-            return Some(self.fixtures.combat.player_game_master_like_cpp);
+        {
+            self.core.player_is_game_master_with_fixture_like_cpp(
+                &self.fixtures.combat.player_game_master_like_cpp,
+            )
         }
-        canonical
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        {
+            self.core.player_is_game_master_canonical_like_cpp()
+        }
     }
 
     pub fn player_unit_presentation_snapshot_like_cpp(&self) -> Option<(UnitFlags, i32, f32)> {
@@ -131,5 +133,27 @@ impl crate::session::HubRef<'_> {
         let is_in_water =
             liquid_status & (LIQUID_MAP_IN_WATER_LIKE_CPP | LIQUID_MAP_UNDER_WATER_LIKE_CPP) != 0;
         Some((is_submerged, is_in_water))
+    }
+}
+
+impl crate::session::state::SessionCore {
+    pub(crate) fn player_is_game_master_canonical_like_cpp(&self) -> Option<bool> {
+        self.with_owned_player_like_cpp(Player::is_game_master_like_cpp)
+    }
+
+    /// Resolve canonical GM state, or the selected handle-less fixture value
+    /// at the caller's original query point.
+    pub(crate) fn player_is_game_master_with_fixture_like_cpp(
+        &self,
+        fixture_value: &bool,
+    ) -> Option<bool> {
+        let canonical = self.with_owned_player_like_cpp(Player::is_game_master_like_cpp);
+        #[cfg(any(test, feature = "test-fixtures"))]
+        if canonical.is_none() && self.player_handle_like_cpp.is_none() {
+            return Some(*fixture_value);
+        }
+        #[cfg(not(any(test, feature = "test-fixtures")))]
+        let _ = fixture_value;
+        canonical
     }
 }

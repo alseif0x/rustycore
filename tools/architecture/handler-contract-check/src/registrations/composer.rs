@@ -10,20 +10,13 @@ use syn::visit::Visit;
 use syn::{Expr, Item, ItemFn, ItemUse, Meta, Stmt, Token, Type, UseTree, Visibility};
 
 use crate::ownership::{SourceMountContext, WorkspaceSourceMount};
+use super::direct_builder::{
+    DIRECT_REGISTRAR_CONTRACTS, DirectRegistrarContract, analyze_contract_source,
+};
 
-const REGISTRAR: &str = "register_inventory_handlers_like_cpp";
-const INVENTORY_PACKAGE: &str = "wow-world-inventory";
-const ROOT_FACADE_EXPORTS: &[&str] = &[
-    "EquipmentSetsHandlerCxLikeCpp",
-    "InventoryHandlerHostLikeCpp",
-    "EquipmentSetsSaveCxLikeCpp",
-    REGISTRAR,
-];
-const HANDLER_FACADE_EXPORTS: &[&str] = &[
-    "EquipmentSetsHandlerCxLikeCpp",
-    "InventoryHandlerHostLikeCpp",
-    REGISTRAR,
-];
+fn crate_ident(package: &str) -> String {
+    package.replace('-', "_")
+}
 
 fn path_is(path: &syn::Path, expected: &[&str]) -> bool {
     path.leading_colon.is_none()
@@ -232,7 +225,11 @@ fn try_call(statement: &Stmt) -> Option<&syn::ExprCall> {
     Some(call)
 }
 
-fn is_domain_registration(statement: &Stmt, allow_inferred_types: bool) -> bool {
+fn is_domain_registration(
+    statement: &Stmt,
+    allow_inferred_types: bool,
+    contract: DirectRegistrarContract,
+) -> bool {
     let Some(call) = try_call(statement) else {
         return false;
     };
@@ -242,10 +239,12 @@ fn is_domain_registration(statement: &Stmt, allow_inferred_types: bool) -> bool 
     let Some(registrar) = function.path.segments.last() else {
         return false;
     };
+    let crate_name = crate_ident(contract.package);
+    let expected_path = [crate_name.as_str(), contract.registrar];
     if !call.attrs.is_empty()
         || !function.attrs.is_empty()
-        || registrar.ident != REGISTRAR
-        || !path_is(&function.path, &["wow_world_inventory", REGISTRAR])
+        || registrar.ident != contract.registrar
+        || !path_is(&function.path, &expected_path)
         || call.args.len() != 1
         || !builder_mut_ref(&call.args[0])
     {
@@ -263,11 +262,17 @@ fn is_domain_registration(statement: &Stmt, allow_inferred_types: bool) -> bool 
     let syn::PathArguments::AngleBracketed(arguments) = &registrar.arguments else {
         return false;
     };
-    arguments.args.len() == 2
-        && matches!(arguments.args.first(), Some(syn::GenericArgument::Type(Type::Path(path)))
-            if path.qself.is_none() && path.path.is_ident("WorldSession"))
-        && matches!(arguments.args.iter().nth(1), Some(syn::GenericArgument::Type(Type::Path(path)))
-            if path.qself.is_none() && path.path.is_ident("SessionHandlerCatalogsLikeCpp"))
+    arguments.args.len() == contract.production_type_args.len()
+        && arguments
+            .args
+            .iter()
+            .zip(contract.production_type_args)
+            .all(|(argument, expected)| {
+                matches!(argument, syn::GenericArgument::Type(Type::Path(path))
+                    if path.qself.is_none()
+                        && path.path.leading_colon.is_none()
+                        && path.path.is_ident(expected))
+            })
 }
 
 fn is_legacy_registration(statement: &Stmt) -> bool {
@@ -315,7 +320,7 @@ fn fixture_expect_call(statement: &Stmt, expected_path: &[&str], domain: bool) -
         let Some(registrar) = path.path.segments.last() else {
             return false;
         };
-        if registrar.ident != REGISTRAR
+        if registrar.ident.to_string() != expected_path.last().copied().unwrap_or_default()
             || !path_is(&path.path, expected_path)
             || !matches!(&registrar.arguments, syn::PathArguments::None)
         {
@@ -393,28 +398,55 @@ fn is_fixture_builder_result(statement: &Stmt) -> bool {
             if path.attrs.is_empty() && path.path.is_ident("builder"))
 }
 
-fn exact_body(function: &ItemFn, fixture: bool) -> bool {
+fn exact_body(
+    function: &ItemFn,
+    fixture: bool,
+    contracts: &[DirectRegistrarContract],
+) -> bool {
     let statements = &function.block.stmts;
-    statements.len() == 4
-        && is_builder_initializer(&statements[0])
-        && if fixture {
+    if statements.len() != contracts.len() + 3
+        || !is_builder_initializer(&statements[0])
+    {
+        return false;
+    }
+    let legacy_registration = &statements[contracts.len() + 1];
+    let legacy_matches = if fixture {
+        fixture_expect_call(
+            legacy_registration,
+            &["register_remaining_handlers_like_cpp"],
+            false,
+        )
+    } else {
+        is_legacy_registration(legacy_registration)
+    };
+    if !legacy_matches {
+        return false;
+    }
+    let registrations_match = contracts.iter().enumerate().all(|(index, contract)| {
+        if fixture {
+            let crate_name = crate_ident(contract.package);
             fixture_expect_call(
-                &statements[1],
-                &["wow_world_inventory", REGISTRAR],
+                &statements[index + 1],
+                &[crate_name.as_str(), contract.registrar],
                 true,
-            ) && fixture_expect_call(
-                &statements[2],
-                &["register_remaining_handlers_like_cpp"],
-                false,
-            ) && is_fixture_builder_result(&statements[3])
+            )
         } else {
-            is_domain_registration(&statements[1], false)
-                && is_legacy_registration(&statements[2])
-                && is_builder_result(&statements[3])
+            is_domain_registration(&statements[index + 1], false, *contract)
+        }
+    });
+    registrations_match
+        && if fixture {
+            is_fixture_builder_result(&statements[contracts.len() + 2])
+        } else {
+            is_builder_result(&statements[contracts.len() + 2])
         }
 }
 
-fn exact_function(function: &ItemFn, fixture: bool) -> bool {
+fn exact_function(
+    function: &ItemFn,
+    fixture: bool,
+    contracts: &[DirectRegistrarContract],
+) -> bool {
     let name = if fixture {
         "build_dispatch_table"
     } else {
@@ -451,22 +483,57 @@ fn exact_function(function: &ItemFn, fixture: bool) -> bool {
         && function.sig.variadic.is_none()
         && cfg_count == usize::from(fixture)
         && is_composer_output(&function.sig.output, fixture)
-        && exact_body(function, fixture)
+        && exact_body(function, fixture, contracts)
 }
 
 #[derive(Default)]
-struct RegistrarCalls {
+struct RegistrarCallCount {
     calls: usize,
     references: usize,
     wrong_path: bool,
 }
 
-impl<'ast> Visit<'ast> for RegistrarCalls {
+struct RegistrarCalls<'a> {
+    contracts: &'a [DirectRegistrarContract],
+    counts: std::collections::BTreeMap<&'static str, RegistrarCallCount>,
+    ambiguous_name: bool,
+}
+
+impl<'a> RegistrarCalls<'a> {
+    fn new(contracts: &'a [DirectRegistrarContract]) -> Self {
+        Self {
+            contracts,
+            counts: std::collections::BTreeMap::new(),
+            ambiguous_name: false,
+        }
+    }
+
+    fn contract_for_path(&mut self, path: &syn::Path) -> Option<DirectRegistrarContract> {
+        let name = path.segments.last()?.ident.to_string();
+        let mut matches = self
+            .contracts
+            .iter()
+            .filter(|contract| contract.registrar == name.as_str());
+        let contract = *matches.next()?;
+        if matches.next().is_some() {
+            self.ambiguous_name = true;
+        }
+        Some(contract)
+    }
+
+    fn saw_call(&self) -> bool {
+        self.counts.values().any(|count| count.calls != 0 || count.references != 0)
+    }
+}
+
+impl<'ast> Visit<'ast> for RegistrarCalls<'_> {
     fn visit_expr_path(&mut self, path: &'ast syn::ExprPath) {
-        if path.path.segments.last().is_some_and(|segment| segment.ident == REGISTRAR) {
-            self.references += 1;
-            if !path_is(&path.path, &["wow_world_inventory", REGISTRAR]) {
-                self.wrong_path = true;
+        if let Some(contract) = self.contract_for_path(&path.path) {
+            let count = self.counts.entry(contract.registrar).or_default();
+            count.references += 1;
+            let crate_name = crate_ident(contract.package);
+            if !path_is(&path.path, &[crate_name.as_str(), contract.registrar]) {
+                count.wrong_path = true;
             }
         }
         syn::visit::visit_expr_path(self, path);
@@ -474,13 +541,12 @@ impl<'ast> Visit<'ast> for RegistrarCalls {
 
     fn visit_expr_call(&mut self, call: &'ast syn::ExprCall) {
         if let Expr::Path(path) = &*call.func {
-            if path.path.segments.last().is_some_and(|segment| segment.ident == REGISTRAR) {
-                self.calls += 1;
+            if let Some(contract) = self.contract_for_path(&path.path) {
+                self.counts.entry(contract.registrar).or_default().calls += 1;
             }
         }
         syn::visit::visit_expr_call(self, call);
     }
-
 }
 
 fn tree_mentions(tree: &UseTree, expected: &str) -> bool {
@@ -497,33 +563,41 @@ fn exact_facade_tree(tree: &UseTree, child: &str, expected_exports: &[&str]) -> 
     let UseTree::Path(path) = tree else {
         return false;
     };
-    if path.ident != child || !matches!(&path.tree, UseTree::Group(_)) {
+    if path.ident != child {
         return false;
     }
-    let UseTree::Group(group) = &path.tree else {
-        return false;
+    let actual_names: Vec<String> = match &path.tree {
+        UseTree::Name(name) if expected_exports.len() == 1 => vec![name.ident.to_string()],
+        UseTree::Group(group) => {
+            let Some(names): Option<Vec<_>> = group
+                .items
+                .iter()
+                .map(|item| match item {
+                    UseTree::Name(name) => Some(name.ident.to_string()),
+                    _ => None,
+                })
+                .collect()
+            else {
+                return false;
+            };
+            names
+        }
+        _ => return false,
     };
-    if group.items.len() != expected_exports.len() {
+    if actual_names.len() != expected_exports.len() {
         return false;
     }
-    let Some(names): Option<Vec<_>> = group
-        .items
-        .iter()
-        .map(|item| match item {
-            UseTree::Name(name) => Some(name.ident.to_string()),
-            _ => None,
-        })
-        .collect()
-    else {
-        return false;
-    };
-    let actual: std::collections::BTreeSet<_> = names.iter().cloned().collect();
-    names.len() == expected_exports.len()
+    let actual: std::collections::BTreeSet<_> = actual_names.iter().cloned().collect();
+    actual_names.len() == expected_exports.len()
         && actual.len() == expected_exports.len()
         && expected_exports.iter().all(|expected| actual.contains(*expected))
 }
 
-fn exact_facade(item: &ItemUse, mount: &WorkspaceSourceMount) -> Option<&'static str> {
+fn exact_facade(
+    item: &ItemUse,
+    mount: &WorkspaceSourceMount,
+    contract: DirectRegistrarContract,
+) -> Option<&'static str> {
     if !item.attrs.is_empty()
         || item.leading_colon.is_some()
         || !matches!(&item.vis, Visibility::Public(_))
@@ -531,26 +605,21 @@ fn exact_facade(item: &ItemUse, mount: &WorkspaceSourceMount) -> Option<&'static
         return None;
     }
     let context = (mount.contexts.len() == 1).then(|| mount.contexts.iter().next()).flatten()?;
-    if mount.package != INVENTORY_PACKAGE
+    if mount.package != contract.package
         || !context.production_possible
         || !context.cfg.is_empty()
         || !context.test_possible
     {
         return None;
     }
-    let (child, expected_exports) = match context.logical_module_path.as_str() {
-        "crate" => ("handlers", ROOT_FACADE_EXPORTS),
-        "crate::handlers" => ("equipment_sets", HANDLER_FACADE_EXPORTS),
-        _ => return None,
-    };
-    if !exact_facade_tree(&item.tree, child, expected_exports) {
+    let facade = contract
+        .facades
+        .iter()
+        .find(|facade| facade.module == context.logical_module_path)?;
+    if !exact_facade_tree(&item.tree, facade.child, facade.exports) {
         return None;
     }
-    Some(match context.logical_module_path.as_str() {
-        "crate" => "crate",
-        "crate::handlers" => "crate::handlers",
-        _ => return None,
-    })
+    Some(facade.module)
 }
 
 fn context_is(context: &SourceMountContext, module: &str, fixture: bool) -> bool {
@@ -560,55 +629,208 @@ fn context_is(context: &SourceMountContext, module: &str, fixture: bool) -> bool
         && (!fixture || context.test_possible)
 }
 
-/// Verify both real composition sites and reject alternate registrar call paths.
+fn analyzed_direct_registrars(
+    mounts: &[WorkspaceSourceMount],
+    configured: &[DirectRegistrarContract],
+) -> Result<Vec<DirectRegistrarContract>, String> {
+    let mut result = Vec::new();
+    let mut names = std::collections::BTreeSet::new();
+    for contract in configured {
+        if !names.insert(contract.registrar) {
+            return Err(format!(
+                "direct registrar function name {} is ambiguous across owner contracts",
+                contract.registrar
+            ));
+        }
+        if contract.facades.is_empty() {
+            return Err(format!(
+                "direct registrar {} must declare its exact public facade mounts",
+                contract.registrar
+            ));
+        }
+        let mut facade_modules = std::collections::BTreeSet::new();
+        if contract
+            .facades
+            .iter()
+            .any(|facade| !facade_modules.insert(facade.module))
+        {
+            return Err(format!(
+                "direct registrar {} repeats a public facade module",
+                contract.registrar
+            ));
+        }
+        let mut declarations = 0usize;
+        for mount in mounts.iter().filter(|mount| mount.package == contract.package) {
+            let syntax = syn::parse_file(&mount.source)
+                .map_err(|error| format!("cannot parse {}: {error}", mount.source_path.display()))?;
+            let count = syntax
+                .items
+                .iter()
+                .filter(|item| declared_registrar(item, *contract))
+                .count();
+            if count == 0 {
+                continue;
+            }
+            if mount.contexts.len() != 1 {
+                return Err(format!(
+                    "direct registrar {} has an ambiguous source mount at {}",
+                    contract.registrar,
+                    mount.source_path.display()
+                ));
+            }
+            let context = mount.contexts.iter().next().expect("one source context");
+            if !context.production_possible || !context.test_possible || !context.cfg.is_empty() {
+                return Err(format!(
+                    "direct registrar {} must be mounted unconditionally for production and tests at {}",
+                    contract.registrar,
+                    mount.source_path.display()
+                ));
+            }
+            let report = analyze_contract_source(
+                *contract,
+                &mount.package,
+                &context.logical_module_path,
+                &mount.source_path,
+                &mount.source,
+            )?;
+            declarations += report.registrar_count;
+            if report.registrar_count == 1 {
+                result.push(report.contract.expect("analyzed registrar carries its contract"));
+            }
+        }
+        if declarations != 1 {
+            return Err(format!(
+                "expected exactly one analyzed {} registrar, found {declarations}",
+                contract.owner
+            ));
+        }
+    }
+    if result.is_empty() {
+        return Err("no finite direct registrar contracts were analyzed".to_owned());
+    }
+    Ok(result)
+}
+
+fn declared_registrar(item: &Item, contract: DirectRegistrarContract) -> bool {
+    matches!(item, Item::Fn(function) if function.sig.ident == contract.registrar)
+}
+
+#[derive(Default)]
+struct OwnerModuleShadows {
+    package_names: std::collections::BTreeSet<String>,
+    shadowed: std::collections::BTreeSet<String>,
+}
+
+impl<'ast> Visit<'ast> for OwnerModuleShadows {
+    fn visit_item_mod(&mut self, item: &'ast syn::ItemMod) {
+        let name = item.ident.to_string();
+        if self.package_names.contains(&name) {
+            self.shadowed.insert(name);
+        }
+        syn::visit::visit_item_mod(self, item);
+    }
+}
+
+/// Verify both composition sites against the finite direct registrars that were analyzed.
 pub(crate) fn validate_composition_mounts(mounts: &[WorkspaceSourceMount]) -> Result<(), String> {
+    validate_composition_mounts_with_contracts(mounts, DIRECT_REGISTRAR_CONTRACTS)
+}
+
+pub(crate) fn validate_composition_mounts_with_contracts(
+    mounts: &[WorkspaceSourceMount],
+    configured_contracts: &[DirectRegistrarContract],
+) -> Result<(), String> {
+    let contracts = analyzed_direct_registrars(mounts, configured_contracts)?;
     let mut production_composers = 0usize;
     let mut fixture_composers = 0usize;
-    let mut root_facades = 0usize;
-    let mut handler_facades = 0usize;
+    let mut facade_counts = std::collections::BTreeMap::<(String, String), usize>::new();
+
     for mount in mounts {
-        if !mount.source.contains(REGISTRAR) {
+        let relevant = contracts
+            .iter()
+            .any(|contract| mount.source.contains(contract.registrar));
+        if !relevant {
             continue;
         }
         let syntax = syn::parse_file(&mount.source)
             .map_err(|error| format!("cannot parse {}: {error}", mount.source_path.display()))?;
+        let mut owner_modules = OwnerModuleShadows {
+            package_names: contracts
+                .iter()
+                .map(|contract| crate_ident(contract.package))
+                .collect(),
+            ..OwnerModuleShadows::default()
+        };
+        owner_modules.visit_file(&syntax);
+        if !owner_modules.shadowed.is_empty() {
+            return Err(format!(
+                "direct registrar package path is shadowed by a local module in {}: {:?}",
+                mount.source_path.display(),
+                owner_modules.shadowed
+            ));
+        }
         let mut invalid_use = false;
         for item in &syntax.items {
             let Item::Use(item_use) = item else {
                 continue;
             };
-            if !tree_mentions(&item_use.tree, REGISTRAR)
-                && !tree_mentions(&item_use.tree, "wow_world_inventory")
-            {
-                continue;
-            }
-            match exact_facade(item_use, mount) {
-                Some("crate") => root_facades += 1,
-                Some("crate::handlers") => handler_facades += 1,
-                _ => invalid_use = true,
+            for contract in &contracts {
+                if !tree_mentions(&item_use.tree, contract.registrar)
+                    && !tree_mentions(&item_use.tree, &crate_ident(contract.package))
+                {
+                    continue;
+                }
+                if let Some(module) = exact_facade(item_use, mount, *contract) {
+                    *facade_counts
+                        .entry((contract.package.to_owned(), module.to_owned()))
+                        .or_default() += 1;
+                } else {
+                    invalid_use = true;
+                }
             }
         }
-        let mut calls = RegistrarCalls::default();
+        let mut calls = RegistrarCalls::new(&contracts);
         calls.visit_file(&syntax);
-        if invalid_use || calls.wrong_path || calls.references != calls.calls {
+        let bad_calls = calls.ambiguous_name
+            || calls.counts.values().any(|count| {
+                count.wrong_path || count.references != count.calls
+            });
+        if invalid_use || bad_calls {
             return Err(format!(
-                "Inventory registrar reference in {} must use its exact qualified provider and no import alias",
+                "direct registrar references in {} must use their exact qualified providers and no aliases",
                 mount.source_path.display()
             ));
         }
-        if calls.calls == 0 {
+        if !calls.saw_call() {
             continue;
         }
+
+        let expected_call_counts = contracts.len();
+        let counts_are_exact = calls.counts.len() == expected_call_counts
+            && contracts.iter().all(|contract| {
+                calls.counts.get(contract.registrar).is_some_and(|count| {
+                    count.calls == 1 && count.references == 1 && !count.wrong_path
+                })
+            });
+        if !counts_are_exact {
+            return Err(format!(
+                "{} must call each analyzed direct registrar exactly once",
+                mount.source_path.display()
+            ));
+        }
+
         let server_context = mount.package == "world-server"
             && mount.contexts.len() == 1
-            && mount.contexts.iter().all(|context| {
-                context_is(context, "crate::handler_registry", false)
-            });
+            && mount
+                .contexts
+                .iter()
+                .all(|context| context_is(context, "crate::handler_registry", false));
         let world_fixture_context = mount.package == "wow-world"
             && mount.contexts.len() == 1
-            && mount.contexts.iter().all(|context| {
-                context_is(context, "crate::session::registry", true)
-            });
+            && mount
+                .contexts
+                .iter()
+                .all(|context| context_is(context, "crate::session::registry", true));
         let functions: Vec<_> = syntax
             .items
             .iter()
@@ -623,12 +845,11 @@ pub(crate) fn validate_composition_mounts(mounts: &[WorkspaceSourceMount]) -> Re
                 .filter(|function| function.sig.ident == "compose_packet_handlers_like_cpp")
                 .collect();
             if composers.len() != 1
-                || calls.calls != 1
                 || !has_exact_legacy_import(&syntax.items)
-                || !exact_function(composers[0], false)
+                || !exact_function(composers[0], false, &contracts)
             {
                 return Err(format!(
-                    "{} must contain exactly one unconditional production composer with Domain then legacy registration",
+                    "{} must contain one unconditional composer with each direct registrar then legacy registration",
                     mount.source_path.display()
                 ));
             }
@@ -638,28 +859,37 @@ pub(crate) fn validate_composition_mounts(mounts: &[WorkspaceSourceMount]) -> Re
                 .iter()
                 .filter(|function| function.sig.ident == "build_dispatch_table")
                 .collect();
-            if composers.len() != 1 || calls.calls != 1 || !exact_function(composers[0], true) {
+            if composers.len() != 1 || !exact_function(composers[0], true, &contracts) {
                 return Err(format!(
-                    "{} fixture dispatch builder must preserve its exact paired Domain/legacy registration and gate",
+                    "{} fixture dispatch builder must preserve its exact registrar set, legacy call, and gate",
                     mount.source_path.display()
                 ));
             }
             fixture_composers += 1;
         } else {
             return Err(format!(
-                "Inventory registrar is called outside the production composer or fixture dispatch builder: {} ({:?})",
+                "a direct registrar is called outside the production composer or fixture dispatch builder: {} ({:?})",
                 mount.source_path.display(),
-                mount.contexts.iter().map(|context| &context.logical_module_path).collect::<Vec<_>>()
+                mount
+                    .contexts
+                    .iter()
+                    .map(|context| &context.logical_module_path)
+                    .collect::<Vec<_>>()
             ));
         }
     }
-    if production_composers != 1
-        || fixture_composers != 1
-        || root_facades != 1
-        || handler_facades != 1
-    {
+
+    let facade_mismatch = contracts.iter().any(|contract| {
+        contract.facades.iter().any(|facade| {
+            facade_counts
+                .get(&(contract.package.to_owned(), facade.module.to_owned()))
+                .copied()
+                != Some(1)
+        })
+    });
+    if production_composers != 1 || fixture_composers != 1 || facade_mismatch {
         return Err(format!(
-            "expected one production composer, one fixture dispatch builder, and two exact Inventory facade re-exports; found {production_composers}, {fixture_composers}, {root_facades}, and {handler_facades}"
+            "expected one production and one fixture composer plus every exact registrar facade; found {production_composers} and {fixture_composers} composers"
         ));
     }
     Ok(())

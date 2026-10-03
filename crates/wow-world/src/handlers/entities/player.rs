@@ -7,24 +7,18 @@ use tracing::{debug, info, warn};
 use wow_constants::{ClientOpcodes, UnitStandStateType};
 use wow_core::{GameTime, ObjectGuid};
 use wow_handler::{PacketProcessing, SessionStatus};
-use wow_persistence::{
-    RepresentedGroupPersistenceModeLikeCpp, RepresentedGroupPersistenceOutcomeLikeCpp,
-    RepresentedGroupPersistenceRequestLikeCpp,
-};
 
 use crate::session::registry::PacketHandlerEntry;
 use wow_packet::ClientPacket;
 use wow_packet::packets::character::SetTitle;
 use wow_packet::packets::item::{GetItemPurchaseData, SetItemPurchaseData};
 use wow_packet::packets::misc::{
-    FarSight, MailNextTimeEntry, MailQueryNextTimeResult, SetDifficultyId, SetDungeonDifficulty,
-    SetRaidDifficulty, StandStateChange, ToggleDifficulty,
+    FarSight, MailNextTimeEntry, MailQueryNextTimeResult, StandStateChange,
 };
 use wow_packet::packets::spell::SetActionButton;
 
 use super::item_purchase_contents_from_extended_cost;
 use crate::entity_update_bridge::player_values_update_to_update_object;
-use crate::handlers::instances::RepresentedInstanceResetMethodLikeCpp;
 
 crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
@@ -97,54 +91,6 @@ crate::session::registry::register_packet_handler_like_cpp! {
         handler_name: "handle_set_action_button",
         handler: |session, _catalogs, pkt| {
             Box::pin(async move { session.handle_set_action_button(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::SetDifficultyId,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_set_difficulty_id",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_set_difficulty_id(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::ToggleDifficulty,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::Inplace,
-        handler_name: "handle_toggle_difficulty",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_toggle_difficulty(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::SetDungeonDifficulty,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_set_dungeon_difficulty",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_set_dungeon_difficulty(pkt).await })
-        },
-    }
-}
-
-crate::session::registry::register_packet_handler_like_cpp! {
-    PacketHandlerEntry {
-        opcode: ClientOpcodes::SetRaidDifficulty,
-        status: SessionStatus::LoggedIn,
-        processing: PacketProcessing::ThreadUnsafe,
-        handler_name: "handle_set_raid_difficulty",
-        handler: |session, _catalogs, pkt| {
-            Box::pin(async move { session.handle_set_raid_difficulty(pkt).await })
         },
     }
 }
@@ -320,118 +266,24 @@ impl crate::session::WorldSession {
             .represented_set_action_button_like_cpp(packet.index, packet.action);
     }
 
-    pub async fn handle_set_difficulty_id(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match SetDifficultyId::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "SetDifficultyId parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        self.apply_represented_difficulty_change_like_cpp(packet.difficulty_id)
-            .await;
+    pub async fn handle_set_difficulty_id(&mut self, pkt: wow_packet::WorldPacket) {
+        let mut cx = self.build_instance_difficulty_handler_cx_like_cpp();
+        wow_world_application::handle_set_difficulty_id_like_cpp(&mut cx, pkt).await;
     }
 
-    pub async fn handle_toggle_difficulty(&mut self, mut pkt: wow_packet::WorldPacket) {
-        if let Err(error) = ToggleDifficulty::read(&mut pkt) {
-            warn!(
-                account = self.core.account_id,
-                "ToggleDifficulty parse failed: {error}"
-            );
-            return;
-        }
-
-        let Some(difficulty_id) = self.represented_toggle_difficulty_target_like_cpp() else {
-            debug!(
-                account = self.core.account_id,
-                "ToggleDifficulty has no represented toggle difficulty available"
-            );
-            return;
-        };
-
-        self.apply_represented_difficulty_change_like_cpp(difficulty_id)
-            .await;
+    pub async fn handle_toggle_difficulty(&mut self, pkt: wow_packet::WorldPacket) {
+        let mut cx = self.build_instance_difficulty_handler_cx_like_cpp();
+        wow_world_application::handle_toggle_difficulty_like_cpp(&mut cx, pkt).await;
     }
 
-    pub async fn handle_set_dungeon_difficulty(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match SetDungeonDifficulty::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "SetDungeonDifficulty parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        self.apply_represented_difficulty_change_like_cpp(packet.difficulty_id)
-            .await;
+    pub async fn handle_set_dungeon_difficulty(&mut self, pkt: wow_packet::WorldPacket) {
+        let mut cx = self.build_instance_difficulty_handler_cx_like_cpp();
+        wow_world_application::handle_set_dungeon_difficulty_like_cpp(&mut cx, pkt).await;
     }
 
-    pub async fn handle_set_raid_difficulty(&mut self, mut pkt: wow_packet::WorldPacket) {
-        let packet = match SetRaidDifficulty::read(&mut pkt) {
-            Ok(packet) => packet,
-            Err(error) => {
-                warn!(
-                    account = self.core.account_id,
-                    "SetRaidDifficulty parse failed: {error}"
-                );
-                return;
-            }
-        };
-
-        let Some(difficulty_id) = self.represented_raid_difficulty_request_like_cpp(
-            crate::session::hub_ref(self),
-            packet.difficulty_id,
-            packet.legacy != 0,
-        ) else {
-            return;
-        };
-
-        self.apply_represented_difficulty_change_like_cpp(difficulty_id)
-            .await;
-    }
-
-    async fn apply_represented_difficulty_change_like_cpp(&mut self, difficulty_id: u32) {
-        let reset_owner = self.represented_set_difficulty_reset_owner_like_cpp(difficulty_id);
-        if let Some(reset_owner) = reset_owner {
-            self.reset_represented_instances_like_cpp(
-                reset_owner,
-                RepresentedInstanceResetMethodLikeCpp::OnChangeDifficulty,
-            )
-            .await;
-        }
-
-        let commands = self.represented_set_difficulty_id_like_cpp(difficulty_id);
-        if commands.is_empty() {
-            return;
-        }
-
-        let Some(port) = self.lifecycle.represented_group_persistence_port_like_cpp() else {
-            return;
-        };
-        let outcome = port
-            .persist_group_commands_like_cpp(RepresentedGroupPersistenceRequestLikeCpp {
-                commands,
-                mode: RepresentedGroupPersistenceModeLikeCpp::Atomic,
-            })
-            .await;
-        if !matches!(
-            outcome,
-            RepresentedGroupPersistenceOutcomeLikeCpp::Applied { .. }
-        ) {
-            warn!(
-                account = self.core.account_id,
-                player_guid = ?self.player_guid(),
-                ?outcome,
-                "failed to persist represented group difficulty change"
-            );
-        }
+    pub async fn handle_set_raid_difficulty(&mut self, pkt: wow_packet::WorldPacket) {
+        let mut cx = self.build_instance_difficulty_handler_cx_like_cpp();
+        wow_world_application::handle_set_raid_difficulty_like_cpp(&mut cx, pkt).await;
     }
 
     pub async fn handle_set_title(&mut self, mut pkt: wow_packet::WorldPacket) {

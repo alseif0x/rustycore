@@ -3113,6 +3113,7 @@ dependencies = [
  "wow-script",
  "wow-social",
  "wow-world",
+ "wow-world-application",
  "wow-world-inventory",
 ]
 
@@ -3494,14 +3495,20 @@ dependencies = [
  "wow-core",
  "wow-data",
  "wow-entities",
+ "wow-handler",
+ "wow-instances",
+ "wow-map",
  "wow-packet",
  "wow-persistence",
+ "wow-social",
  "wow-spell-acquisition",
  "wow-world-application",
  "wow-world-core",
+ "wow-world-instances",
  "wow-world-inventory",
  "wow-world-lifecycle",
  "wow-world-loot",
+ "wow-world-social",
  "wow-world-spell",
 ]
 
