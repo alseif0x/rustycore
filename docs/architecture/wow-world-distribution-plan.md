@@ -2303,6 +2303,19 @@ predicado de habilidad/stamina y consultas actuales de attack-speed/autoattack
 antes de una mutación canónica. Integrar Stats requiere reborrow temporal de las
 referencias de aura; dos roles simultáneos que muten/lean esos mismos fixtures
 no se consideran una solución. El coordinador entero sigue sin cerrar.
+Contrato de shapeshift revisado por fuente: World/spell_state/aura::sync_form_ownership
+clona primero SpellStore, consulta el efecto, resuelve mutated-form y vuelve a
+consultar presencia del spell. Si queda otra aura del mismo spell devuelve Applied,
+incluso durante RemoveAura; no es válido implementar solo Removed. La rama restante
+lee otro snapshot y elige la primera forma en iteración nativa antes de set-form.
+World/character/stats::sync_form exige base-attack-time antes de boosts y retorna
+si falla; después ejecuta display-power, refresh de item-effects y Stats. Retirar
+boosts exige el remover entero por spell/slot, conservando los snapshots y conteos.
+C++ SpellAuraEffects.cpp:1838–1866, SHA a5f8da2ebf5424bf0450ca4e08843ecbf72577bd,
+comprueba prev-form antes de aplicar boosts y solo limpia la forma si no queda
+MOD_SHAPESHIFT; Player.cpp:22090 conserva display antes de equip-spells y damage.
+Estos anchors no convierten la proyección Rust en paridad demostrada. La extracción
+debe preservar la operación representada completa y separar su revisión F6.
 El modo de manejo y la inmunidad polymorph/Dragonmaw de la rama mounted-flight
 requieren contraste completo en F6; la extracción F5 conserva el cuerpo Rust,
 sin introducir esas reparaciones dentro del traslado.
