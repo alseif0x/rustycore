@@ -2894,6 +2894,18 @@ en el punto NeedsProjection, además de la retirada completa de FeignDeath.
 Estas conexiones no prueban compilación ni cierran la familia; TrainerBuy
 continúa pendiente de coordinador completo.
 
+La integración de FeignDeath requiere préstamos secuenciales (decisión de
+2026-10-03, todavía sin aceptación): ListCx conservará el participante Aura
+mutable y builders inertes, sin retener simultáneamente SpellState ni una
+PlayerConditionProjection readonly. NPC presta temporalmente vitals para
+admisión; termina ese préstamo antes de clone/resolve TrainerStore y de la
+retirada completa de FeignDeath. Después, cada oferta construye vistas readonly
+de los owners actuales, conservando sus consultas frescas. También se solapan
+vitals y referencias de auras con Stats; los builders las reciben por reborrow,
+no por snapshots adelantados. Las vistas terminan antes de publicar interaction
+y el paquete. Implementación asignada; esta decisión no acredita que el nuevo
+constructor ni sus consumidores estén terminados o compilados.
+
 Proveedor de precio de trainer (2026-10-03, NO VALIDADO): el nuevo método
 NpcInteractionAccess de faction_reactions.rs conserva los retornos Neutral por
 store/faction ausentes, identidad antes del guard, rank dentro del guard de
