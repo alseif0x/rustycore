@@ -1,6 +1,6 @@
 //! Explicit private QA observation, not character admission or a packet handler.
-//! Only a post-authenticated Classic CreateCharacter (02245dcd core 430070,
-//! Classic group mapping 440070) is eligible. Never capture auth or TACT data.
+//! Each explicit opt-in admits exactly one post-authenticated character request:
+//! CreateCharacter or CheckCharacterNameAvailability. Never auth or TACT data.
 use anyhow::{Result, ensure};
 use std::{
     fs,
@@ -13,10 +13,19 @@ const MAX_PAYLOAD: usize = 64 * 1024;
 
 pub(super) struct CharacterCapture {
     path: PathBuf,
+    name_availability: bool,
 }
 
 impl CharacterCapture {
     pub(super) fn prepare(root: &Path, path: &Path) -> Result<Self> {
+        Self::prepare_kind(root, path, false)
+    }
+
+    pub(super) fn prepare_name(root: &Path, path: &Path) -> Result<Self> {
+        Self::prepare_kind(root, path, true)
+    }
+
+    fn prepare_kind(root: &Path, path: &Path, name_availability: bool) -> Result<Self> {
         let parent = path
             .parent()
             .ok_or_else(|| anyhow::anyhow!("capture parent"))?
@@ -35,14 +44,29 @@ impl CharacterCapture {
             Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
             _ => anyhow::bail!("capture output already exists or cannot be inspected"),
         }
-        Ok(Self { path })
+        Ok(Self {
+            path,
+            name_availability,
+        })
     }
 
     pub(super) async fn record(&self, opcode: u32, payload: &[u8]) -> Result<()> {
-        if opcode != OPCODE {
+        let expected = if self.name_availability {
+            0x440071
+        } else {
+            OPCODE
+        };
+        if opcode != expected {
             return Ok(());
         }
-        ensure!(payload.len() <= MAX_PAYLOAD, "capture payload limit");
+        // Name request: sequence + two bit-packed length bytes + <=63 bytes
+        // per string. Keep the original Create bound unchanged.
+        let bound = if self.name_availability {
+            132
+        } else {
+            MAX_PAYLOAD
+        };
+        ensure!(payload.len() <= bound, "capture payload limit");
         let mut options = tokio::fs::OpenOptions::new();
         options.write(true).create_new(true);
         #[cfg(unix)]
@@ -50,15 +74,28 @@ impl CharacterCapture {
         let mut file = options.open(&self.path).await?;
         // FCR1 | build LE32 | opcode LE32 | payload length LE32 | payload.
         // Names/customizations are private; never log the content or pathname.
-        let mut header = Vec::from(*b"FCR1");
+        let mut header = Vec::from(if self.name_availability {
+            *b"FNR1"
+        } else {
+            *b"FCR1"
+        });
         header.extend_from_slice(&70170u32.to_le_bytes());
-        header.extend_from_slice(&OPCODE.to_le_bytes());
+        header.extend_from_slice(&expected.to_le_bytes());
         header.extend_from_slice(&(payload.len() as u32).to_le_bytes());
         file.write_all(&header).await?;
         file.write_all(payload).await?;
         file.sync_all().await?;
-        println!("Private native character-create observation recorded; no save/success inferred.");
+        println!("Private native character request recorded; no admission/save/success inferred.");
         Ok(())
+    }
+
+    pub(super) fn accepts(&self, opcode: u32) -> bool {
+        opcode
+            == if self.name_availability {
+                0x440071
+            } else {
+                OPCODE
+            }
     }
 }
 
@@ -139,5 +176,38 @@ mod tests {
             assert!(capture.record(OPCODE, b"synthetic").await.is_err());
             assert!(!root.0.join("missing.bin").exists());
         }
+    }
+
+    #[tokio::test]
+    async fn name_opt_in_is_separate_bounded_private_and_non_overwriting() {
+        let root = Root::new();
+        let path = root.0.join("name.bin");
+        let capture = CharacterCapture::prepare_name(&root.0, &path).unwrap();
+        for opcode in [OPCODE, 0x440010, 0x450001, 0x450006] {
+            capture.record(opcode, b"excluded").await.unwrap();
+        }
+        assert!(!path.exists());
+        assert!(capture.record(0x440071, &[0; 133]).await.is_err());
+        assert!(!path.exists());
+        capture.record(0x440071, &[0; 132]).await.unwrap();
+        let bytes = fs::read(&path).unwrap();
+        assert_eq!(&bytes[..4], b"FNR1");
+        assert_eq!(&bytes[4..8], &70170u32.to_le_bytes());
+        assert_eq!(&bytes[8..12], &0x440071u32.to_le_bytes());
+        assert_eq!(&bytes[12..16], &132u32.to_le_bytes());
+        assert_eq!(bytes.len(), 148);
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+        }
+        assert!(capture.record(0x440071, b"replacement").await.is_err());
+        assert_eq!(fs::read(&path).unwrap(), bytes);
+        assert!(CharacterCapture::prepare_name(&root.0, &path).is_err());
+        let outside = Root::new();
+        assert!(CharacterCapture::prepare_name(&root.0, &outside.0.join("out.bin")).is_err());
     }
 }

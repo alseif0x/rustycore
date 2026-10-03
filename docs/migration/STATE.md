@@ -5,6 +5,21 @@ Branch naming, 2026-10-02: the experimental target branch is now **`forever`**
 remains `1.60.1.70170`; `3.4.3` is a separate development line, not the merge
 destination of this port. Older evidence below retains its original branch name.
 
+## Latest Forever name wire boundary — 2026-10-03 02:21 UTC
+
+A separate explicit private observation of authenticated `440071` matches the
+target name-availability codec: 22 bytes, name/surname byte lengths 9/7,
+three unknown bits zero. The normal installed server decodes it without logging
+names. The raw-result response codec is implemented but not registered or sent;
+name policy, effective target rule data and collision lookup remain open.
+Native Create `440070`/106 bytes is observed separately, without success or save.
+Scoped acceptance passes 783 packet tests, four target-binary tests and 12
+Python probe tests. Normal build and native QA pass; online=0, Character count=0,
+realm offline/normal, World stopped and restored BNet V1/V2 smoke pass. This is
+wire evidence, not a completed availability/creation operation. Source/data
+uncertainties and publication validation are recorded in the
+[owning runbook](../operations/forever-login.md#native-name-availability-wire--2026-10-03).
+
 ## Latest Forever appearance boundary — 2026-10-03 02:04 UTC
 
 The target Create decoder and checked numeric DB2 reader now back an immutable

@@ -25,6 +25,7 @@ use crate::WorldPacket;
 pub mod character_create;
 pub mod db_query;
 pub mod hotfix;
+pub mod name_availability;
 
 /// Core opcode values (u32 metadata; no legacy u16 opcode is written here).
 pub const AUTH_RESPONSE_OPCODE: u32 = 0x450001;

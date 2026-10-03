@@ -35,7 +35,7 @@ pub(super) async fn load() -> Result<Runtime> {
     let args: Vec<_> = env::args_os().skip(1).collect();
     if !matches!(args.len(), 4 | 6) || args[0] != "--ack-isolated-forever" {
         bail!(
-            "usage: --ack-isolated-forever <bnet-config> <private-build-key-file> <private-target-db2-directory> [--ack-private-character-create-capture <new-private-file>]"
+            "usage: --ack-isolated-forever <bnet-config> <private-build-key-file> <private-target-db2-directory> [--ack-private-character-create-capture|--ack-private-name-availability-capture <new-private-file>]"
         );
     }
     let root = Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -48,11 +48,13 @@ pub(super) async fn load() -> Result<Runtime> {
         );
     }
     let character_capture = if args.len() == 6 {
-        ensure!(
-            args[4] == "--ack-private-character-create-capture",
-            "unknown opt-in"
-        );
-        Some(CharacterCapture::prepare(&root, Path::new(&args[5]))?)
+        Some(if args[4] == "--ack-private-character-create-capture" {
+            CharacterCapture::prepare(&root, Path::new(&args[5]))?
+        } else if args[4] == "--ack-private-name-availability-capture" {
+            CharacterCapture::prepare_name(&root, Path::new(&args[5]))?
+        } else {
+            bail!("unknown opt-in");
+        })
     } else {
         None
     };
