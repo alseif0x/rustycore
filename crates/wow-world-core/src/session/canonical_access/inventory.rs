@@ -24,6 +24,27 @@ impl OwnedInventoryAccessLikeCpp<'_> {
             .with_owned_player_like_cpp(|player| player.inventory_runtime_like_cpp().clone())
     }
 
+    /// Invalidate aura authority through the existing GUID/map mutation path.
+    /// A missing manager or matching Player is ignored; the manager guard is
+    /// released before this call returns.
+    pub fn invalidate_spell_hit_aura_authority_for_inventory_mutation_like_cpp(&self) {
+        self.core
+            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+    }
+
+    /// Mutate inventory only through this session's generation-checked Player
+    /// handle. A missing or stale owner returns `None` without GUID/map fallback.
+    /// The synchronous callback runs under the manager guard, which is released
+    /// before this method returns.
+    pub fn with_inventory_runtime_mut_like_cpp<R>(
+        &self,
+        update: impl FnOnce(&mut PlayerInventoryRuntime) -> R,
+    ) -> Option<R> {
+        self.core.with_owned_player_mut_like_cpp(|player| {
+            update(player.inventory_runtime_mut_like_cpp())
+        })
+    }
+
     /// Whether this fixture session has no canonical Player handle installed.
     #[cfg(any(test, feature = "test-fixtures"))]
     pub fn owner_handle_absent_like_cpp(&self) -> bool {

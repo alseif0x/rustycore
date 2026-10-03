@@ -1884,6 +1884,15 @@ cambian las firmas, no los cuerpos, llamadas, locks ni fallas. Esto permite
 componer lectores, pero la cuarentena aún escribe el estado de sesión y
 necesita un límite concreto antes de cerrar el contexto completo de trainer.
 
+**Mutación de inventario sin Hub — 2026-10-03, 11:54 UTC (NO VALIDADO):**
+El provider existente delega en un acceso prestado a la autoridad de inventario.
+Conserva la invalidación por GUID antes de resolver la mutación estricta por
+handle generacional, el callback síncrono, las ramas handle-less de fixtures y
+su reflejo posterior. Las dos reconstrucciones iguales de fixture comparten
+un helper privado; no se añaden copias, locks ni una autoridad paralela. Los
+consumidores mantienen su fachada actual mientras se cierra Use y modificadores.
+No se ejecutó compilación ni aceptación.
+
 **QA del registro genérico — 2026-10-03, 11:51 UTC (NO VALIDADO):**
 La política de handlers usa schema 2: varias rutas explícitas de registro y un
 único dispatcher; solo se añade Inventory como owner ya implementado. El

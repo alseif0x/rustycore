@@ -403,49 +403,59 @@ impl crate::InventoryState {
         self.inventory_item_objects = inventory.item_objects().clone();
     }
 
+    #[cfg(any(test, feature = "test-fixtures"))]
+    fn represented_player_inventory_runtime_like_cpp(&self) -> PlayerInventoryRuntime {
+        let mut inventory = PlayerInventoryRuntime::default();
+        inventory.inventory_items_mut().extend(
+            self.player_item_test_fixture_like_cpp
+                .inventory_items
+                .clone(),
+        );
+        inventory
+            .buyback_items_mut()
+            .extend(self.player_item_test_fixture_like_cpp.buyback_items.clone());
+        *inventory.buyback_price_mut() = self.player_item_test_fixture_like_cpp.buyback_price;
+        *inventory.buyback_timestamp_mut() =
+            self.player_item_test_fixture_like_cpp.buyback_timestamp;
+        inventory.set_current_buyback_slot(
+            self.player_item_test_fixture_like_cpp.current_buyback_slot,
+        );
+        inventory
+            .item_objects_mut()
+            .extend(self.inventory_item_objects.clone());
+        inventory
+    }
+
     pub fn mutate_player_inventory_runtime_like_cpp<R>(
         &mut self,
         hub: &mut HubMut<'_>,
         update: impl FnOnce(&mut PlayerInventoryRuntime) -> R,
     ) -> Option<R> {
-        hub.core
-            .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
+        let access = hub.core.owned_inventory_access_like_cpp();
+        self.mutate_player_inventory_runtime_with_access_like_cpp(&access, update)
+    }
+
+    pub(crate) fn mutate_player_inventory_runtime_with_access_like_cpp<R>(
+        &mut self,
+        access: &wow_world_core::session::OwnedInventoryAccessLikeCpp<'_>,
+        update: impl FnOnce(&mut PlayerInventoryRuntime) -> R,
+    ) -> Option<R> {
+        access.invalidate_spell_hit_aura_authority_for_inventory_mutation_like_cpp();
         let mut update = Some(update);
         #[cfg(any(test, feature = "test-fixtures"))]
-        if hub.core.player_handle_like_cpp.is_none() {
-            let mut inventory = PlayerInventoryRuntime::default();
-            inventory.inventory_items_mut().extend(
-                self.player_item_test_fixture_like_cpp
-                    .inventory_items
-                    .clone(),
-            );
-            inventory
-                .buyback_items_mut()
-                .extend(self.player_item_test_fixture_like_cpp.buyback_items.clone());
-            *inventory.buyback_price_mut() = self.player_item_test_fixture_like_cpp.buyback_price;
-            *inventory.buyback_timestamp_mut() =
-                self.player_item_test_fixture_like_cpp.buyback_timestamp;
-            inventory.set_current_buyback_slot(
-                self.player_item_test_fixture_like_cpp.current_buyback_slot,
-            );
-            inventory
-                .item_objects_mut()
-                .extend(self.inventory_item_objects.clone());
+        if access.owner_handle_absent_like_cpp() {
+            let mut inventory = self.represented_player_inventory_runtime_like_cpp();
             let result =
                 update.take().expect("inventory mutation closure runs once")(&mut inventory);
             self.mirror_player_inventory_runtime_to_legacy_like_cpp(&inventory);
             return Some(result);
         }
-        let result = hub.core.with_owned_player_mut_like_cpp(|player| {
-            update.take().expect("inventory mutation closure runs once")(
-                player.inventory_runtime_mut_like_cpp(),
-            )
+        let result = access.with_inventory_runtime_mut_like_cpp(|inventory| {
+            update.take().expect("inventory mutation closure runs once")(inventory)
         });
         #[cfg(any(test, feature = "test-fixtures"))]
         if result.is_some()
-            && let Some(inventory) = hub
-                .core
-                .with_owned_player_like_cpp(|player| player.inventory_runtime_like_cpp().clone())
+            && let Some(inventory) = access.inventory_runtime_snapshot_like_cpp()
         {
             self.mirror_player_inventory_runtime_to_legacy_like_cpp(&inventory);
         }
@@ -469,25 +479,7 @@ impl crate::InventoryState {
         }
         #[cfg(any(test, feature = "test-fixtures"))]
         if access.owner_handle_absent_like_cpp() {
-            let mut inventory = PlayerInventoryRuntime::default();
-            inventory.inventory_items_mut().extend(
-                self.player_item_test_fixture_like_cpp
-                    .inventory_items
-                    .clone(),
-            );
-            inventory
-                .buyback_items_mut()
-                .extend(self.player_item_test_fixture_like_cpp.buyback_items.clone());
-            *inventory.buyback_price_mut() = self.player_item_test_fixture_like_cpp.buyback_price;
-            *inventory.buyback_timestamp_mut() =
-                self.player_item_test_fixture_like_cpp.buyback_timestamp;
-            inventory.set_current_buyback_slot(
-                self.player_item_test_fixture_like_cpp.current_buyback_slot,
-            );
-            inventory
-                .item_objects_mut()
-                .extend(self.inventory_item_objects.clone());
-            return Some(inventory);
+            return Some(self.represented_player_inventory_runtime_like_cpp());
         }
         None
     }
