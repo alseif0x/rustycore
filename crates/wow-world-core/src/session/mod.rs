@@ -175,6 +175,7 @@ mod xp_grants;
 pub use spell_click_values::RepresentedCreatureAccessLikeCpp;
 
 mod persistence;
+pub use persistence::PlayerMoneyTransactionSessionAccessLikeCpp;
 pub mod persistence_capabilities;
 
 mod action_bar_adapter;

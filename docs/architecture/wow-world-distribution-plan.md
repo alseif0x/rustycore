@@ -1893,6 +1893,16 @@ un helper privado; no se añaden copias, locks ni una autoridad paralela. Los
 consumidores mantienen su fachada actual mientras se cierra Use y modificadores.
 No se ejecutó compilación ni aceptación.
 
+**Persistencia monetaria con acceso acotado — 2026-10-03, 11:58 UTC
+(NO VALIDADO):** Lifecycle recibe solo identidad y cuarentena de Core para
+la tarifa de trainer sin adquisición durable y su clasificador de resultado.
+Las fachadas Hub delegan en los mismos cuerpos; no cambian overrides de
+fixtures, igualdad de saldo, request, exclusión ni cancelación. Ambos caminos
+indeterminados de trainer desconectan dentro del commit: el de adquisición
+permanece en World; el monetario conserva mark-indeterminate, disarm, kick,
+warn y retorno en ese orden. No se pospone la cuarentena al resultado del
+executor. El contexto completo de trainer y su aceptación siguen pendientes.
+
 **QA del registro genérico — 2026-10-03, 11:51 UTC (NO VALIDADO):**
 La política de handlers usa schema 2: varias rutas explícitas de registro y un
 único dispatcher; solo se añade Inventory como owner ya implementado. El
@@ -1929,6 +1939,14 @@ y evidencia F6. Save se contrasta por separado contra
 Save conserva además las omisiones Rust de validación ante catálogos ausentes
 y de `ScalingClassRestricted` (`CharacterHandler.cpp:1932`); el contexto no
 convierte esas diferencias en validaciones nuevas durante el traslado.
+
+La proyección de quests conserva también la tabla Rust de XP sin catálogo y
+el índice limitado a nueve. En `a5f8da2eb`,
+`Quests/QuestDef.cpp:387–410::Quest::XPValue` devuelve cero sin jugador, sin fila
+de XP o con dificultad mayor o igual a diez; su redondeo está en `:714`.
+`Player.h:1491–1495::GetQuestLevel` resuelve el nivel escalado del jugador.
+Estas anclas no convierten el fallback Rust en paridad: F5 conserva su cuerpo
+y sus lecturas condicionales, y F6 mantiene pendiente el contrato de reparación.
 
 Por dominio, retirar la duplicidad `represented_*`/canónica y resolver
 `session/legacy_runtime` y el `map_manager` legado. Elegir por la operación completa y

@@ -8,7 +8,7 @@ use crate::{
     PlayerMoneyCommitCancellationFenceLikeCpp, reconcile_absolute_player_money_commit_like_cpp,
 };
 use tracing::warn;
-use wow_world_core::session::HubMut;
+use wow_world_core::session::{HubMut, PlayerMoneyTransactionSessionAccessLikeCpp};
 #[cfg(any(test, feature = "test-fixtures"))]
 use wow_world_core::session::HubRef;
 
@@ -46,6 +46,25 @@ impl SessionLifecycleState {
         money_before: u64,
         money_after: u64,
     ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
+        let mut access = hub.core.player_money_transaction_access_like_cpp();
+        self.commit_exclusive_trainer_money_only_with_access_like_cpp(
+            &mut access,
+            money_persistence,
+            money_before,
+            money_after,
+        )
+        .await
+    }
+
+    /// Access-based form used by the trainer application while its single
+    /// SessionCore capability remains borrowed through the persistence await.
+    pub async fn commit_exclusive_trainer_money_only_with_access_like_cpp(
+        &mut self,
+        access: &mut PlayerMoneyTransactionSessionAccessLikeCpp<'_>,
+        money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
+        money_before: u64,
+        money_after: u64,
+    ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
         #[cfg(any(test, feature = "test-fixtures"))]
         if let Some(success) = self.loot_money_persistence_test_result_like_cpp {
             return success.then_some(money_persistence);
@@ -54,15 +73,15 @@ impl SessionLifecycleState {
         if money_before == money_after {
             return Some(money_persistence);
         }
-        let guid = hub.core.player_guid()?.counter() as u64;
+        let guid = access.player_guid()?.counter() as u64;
         let port = self.player_lifecycle_port_like_cpp().map(Arc::clone)?;
         let request = wow_persistence::PlayerMoneyTransactionRequestLikeCpp {
             player_guid: guid,
             money_after,
             durability_repairs: Vec::new(),
         };
-        self.await_exclusive_player_money_transaction_outcome_like_cpp(
-            hub,
+        self.await_exclusive_player_money_transaction_outcome_with_access_like_cpp(
+            access,
             money_persistence,
             port.persist_money_transaction_like_cpp(request),
             money_before,
@@ -87,6 +106,32 @@ impl SessionLifecycleState {
     pub async fn await_exclusive_player_money_transaction_outcome_like_cpp<F>(
         &mut self,
         hub: &mut HubMut<'_>,
+        money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
+        outcome_future: F,
+        money_before: u64,
+        money_after: u64,
+        operation: &'static str,
+    ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp>
+    where
+        F: std::future::Future<Output = wow_persistence::PlayerMoneyTransactionOutcomeLikeCpp>,
+    {
+        let mut access = hub.core.player_money_transaction_access_like_cpp();
+        self.await_exclusive_player_money_transaction_outcome_with_access_like_cpp(
+            &mut access,
+            money_persistence,
+            outcome_future,
+            money_before,
+            money_after,
+            operation,
+        )
+        .await
+    }
+
+    /// Access-based outcome classifier; the capability is used only for
+    /// session identity and immediate quarantine, never for Player storage.
+    pub async fn await_exclusive_player_money_transaction_outcome_with_access_like_cpp<F>(
+        &mut self,
+        access: &mut PlayerMoneyTransactionSessionAccessLikeCpp<'_>,
         money_persistence: ExclusivePlayerMoneyPersistenceLikeCpp,
         outcome_future: F,
         money_before: u64,
@@ -145,7 +190,7 @@ impl SessionLifecycleState {
                     self.durable_loot_money_persistence_like_cpp
                         .mark_indeterminate_like_cpp();
                     cancellation_fence.disarm_like_cpp();
-                    hub.core.kick(
+                    access.quarantine_like_cpp(
                         "player-money COMMIT outcome is unknown; relog required before another money mutation",
                     );
                     warn!(
