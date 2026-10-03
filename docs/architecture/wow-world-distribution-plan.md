@@ -2324,6 +2324,13 @@ y publicación solo tras cambio. C++ Unit.cpp:5550–5603 incluye ramas vehicle/
 y UpdateDisplayPower llama SetPowerType; su ancla no demuestra paridad completa
 del cálculo Rust representado. FullApply/FullRemove y refresh de item-effects
 siguen pendientes de integración, sin checks ni pruebas ejecutados.
+El contrato de refresh completo se contrastó con World/player_items/equipment:
+snapshot íntegro de items, slots de auras incompatibles ordenados, retirada de
+todas esas auras, items ordenados por slot/GUID, aplicaciones completas y por
+último item-set refresh. C++ Player.cpp:8158–8245 retira/aplica por cada item
+admitido y comprueba auras activas por cast-item durante formChange. La secuencia
+Rust de retirar todas antes de reaplicar todas se conserva en F5 y requiere
+contraste F6; no se presenta ese traslado como paridad nueva.
 El modo de manejo y la inmunidad polymorph/Dragonmaw de la rama mounted-flight
 requieren contraste completo en F6; la extracción F5 conserva el cuerpo Rust,
 sin introducir esas reparaciones dentro del traslado.
