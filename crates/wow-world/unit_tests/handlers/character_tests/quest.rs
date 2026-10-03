@@ -378,13 +378,13 @@ async fn quest_giver_hello_trainer_questgiver_sends_mixed_gossip_like_cpp() {
         Some(guid)
     );
     assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
-    assert_eq!(session.interaction.gossip_options.len(), 1);
+    assert_eq!(session.interaction.gossip_options_for_test_like_cpp().len(), 1);
     assert_eq!(
-        session.interaction.gossip_options[0].gossip_option_id,
+        session.interaction.gossip_options_for_test_like_cpp()[0].gossip_option_id,
         GOSSIP_OPTION_ID_AUTO_TRAINER_LIKE_CPP
     );
     assert_eq!(
-        session.interaction.gossip_options[0].option_npc,
+        session.interaction.gossip_options_for_test_like_cpp()[0].option_npc,
         GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP
     );
     assert!(send_rx.try_recv().is_err());

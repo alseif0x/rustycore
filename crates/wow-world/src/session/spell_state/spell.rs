@@ -46,13 +46,12 @@ impl WorldSession {
     ) {
         self.core
             .invalidate_canonical_player_spell_hit_aura_authority_like_cpp();
-        self.spell_state.spell_script_exact_spell_ids_like_cpp = Some(exact_spell_ids);
-        self.spell_state
-            .spell_script_all_rank_root_spell_ids_like_cpp = Some(all_rank_root_spell_ids);
-        self.spell_state.legacy_spell_script_spell_ids_like_cpp = Some(legacy_spell_ids);
-        self.spell_state
-            .spell_linked_rejected_trigger_spell_ids_like_cpp =
-            Some(rejected_linked_trigger_spell_ids);
+        self.spell_state.install_spell_runtime_script_authority_like_cpp(
+            exact_spell_ids,
+            all_rank_root_spell_ids,
+            legacy_spell_ids,
+            rejected_linked_trigger_spell_ids,
+        );
     }
     pub(in crate::session) fn player_target_spell_is_hit_inert_like_cpp(
         &self,
@@ -530,78 +529,32 @@ impl WorldSession {
         });
         #[cfg(test)]
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
+            let fixture = self.spell_state.player_spell_test_fixture_like_cpp();
             return Some(RepresentedPlayerSpellRuntimeLikeCpp {
-                known_spells: self
-                    .spell_state
-                    .player_spell_test_fixture_like_cpp
-                    .known_spells
-                    .clone(),
-                rows: self
-                    .spell_state
-                    .player_spell_test_fixture_like_cpp
-                    .represented_player_spell_rows_like_cpp
-                    .clone(),
-                rows_loaded: self
-                    .spell_state
-                    .player_spell_test_fixture_like_cpp
-                    .represented_player_spell_rows_loaded_like_cpp,
-                rows_complete: self
-                    .spell_state
-                    .player_spell_test_fixture_like_cpp
-                    .represented_player_spell_rows_complete_like_cpp,
-                fallback_rows: self
-                    .spell_state
-                    .player_spell_test_fixture_like_cpp
-                    .represented_fallback_player_spell_rows_like_cpp
-                    .clone(),
-                dependent_known_spells: self
-                    .spell_state
-                    .player_spell_test_fixture_like_cpp
-                    .represented_dependent_known_spells_like_cpp
-                    .clone(),
-                removed_known_spells: self
-                    .spell_state
-                    .player_spell_test_fixture_like_cpp
-                    .represented_removed_known_spells_like_cpp
-                    .clone(),
-                favorite_known_spells: self
-                    .spell_state
-                    .player_spell_test_fixture_like_cpp
-                    .represented_favorite_known_spells_like_cpp
-                    .clone(),
-                trait_definition_ids: self
-                    .spell_state
-                    .player_spell_test_fixture_like_cpp
+                known_spells: fixture.known_spells.clone(),
+                rows: fixture.represented_player_spell_rows_like_cpp.clone(),
+                rows_loaded: fixture.represented_player_spell_rows_loaded_like_cpp,
+                rows_complete: fixture.represented_player_spell_rows_complete_like_cpp,
+                fallback_rows: fixture.represented_fallback_player_spell_rows_like_cpp.clone(),
+                dependent_known_spells: fixture.represented_dependent_known_spells_like_cpp.clone(),
+                removed_known_spells: fixture.represented_removed_known_spells_like_cpp.clone(),
+                favorite_known_spells: fixture.represented_favorite_known_spells_like_cpp.clone(),
+                trait_definition_ids: fixture
                     .represented_spell_trait_definition_ids_like_cpp
                     .clone(),
-                trait_definition_ids_complete: self
-                    .spell_state
-                    .player_spell_test_fixture_like_cpp
+                trait_definition_ids_complete: fixture
                     .represented_spell_trait_definition_ids_complete_like_cpp,
-                trait_config_rows: self
-                    .spell_state
-                    .player_spell_test_fixture_like_cpp
-                    .represented_trait_config_rows_like_cpp
-                    .clone(),
-                trait_config_rows_complete: self
-                    .spell_state
-                    .player_spell_test_fixture_like_cpp
-                    .represented_trait_config_rows_complete_like_cpp,
-                trait_entry_rows_complete: self
-                    .spell_state
-                    .player_spell_test_fixture_like_cpp
-                    .represented_trait_entry_rows_complete_like_cpp,
-                trait_entry_rows_empty: self
-                    .spell_state
-                    .player_spell_test_fixture_like_cpp
-                    .represented_trait_entry_rows_empty_like_cpp,
+                trait_config_rows: fixture.represented_trait_config_rows_like_cpp.clone(),
+                trait_config_rows_complete: fixture.represented_trait_config_rows_complete_like_cpp,
+                trait_entry_rows_complete: fixture.represented_trait_entry_rows_complete_like_cpp,
+                trait_entry_rows_empty: fixture.represented_trait_entry_rows_empty_like_cpp,
                 override_spells: self
                     .spell_state
-                    .represented_override_spells_like_cpp
+                    .represented_override_spell_fixture_like_cpp()
                     .clone(),
                 override_spells_complete: self
                     .spell_state
-                    .represented_override_spells_complete_like_cpp,
+                    .represented_override_spell_fixture_complete_like_cpp(),
             });
         }
         canonical
@@ -733,8 +686,7 @@ impl WorldSession {
         #[cfg(test)]
         if _canonical || self.core.player_handle_like_cpp.is_none() {
             self.spell_state
-                .represented_self_res_spells_like_cpp
-                .insert(spell_id);
+                .add_represented_self_res_spell_for_test_like_cpp(spell_id);
         }
     }
     pub(crate) fn has_represented_self_res_spell_like_cpp(&self, spell_id: i32) -> bool {
@@ -787,222 +739,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::state::SessionSpellState {
-    pub(crate) fn search_spell_focus_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        focus_id: u32,
-    ) -> Option<RepresentedSpellFocusObjectLikeCpp> {
-        if focus_id == 0 {
-            return None;
-        }
-        let caster_position = hub.player_position_like_cpp()?;
-        let player_map_key = hub.core.current_canonical_player_map_key_like_cpp()?;
-        let manager = hub.core.canonical_map_manager.as_ref()?;
-        let Ok(manager) = manager.lock() else {
-            return None;
-        };
-        let managed = manager.find_map(player_map_key.map_id, player_map_key.instance_id)?;
-        let map = managed.map();
-        let nearby = map.nearby_cell_guids_like_cpp(
-            caster_position.x,
-            caster_position.y,
-            map.visibility_range(),
-        );
-        for guid in nearby.grid.gameobjects {
-            let Some(gameobject) = map.get_typed_game_object(guid) else {
-                continue;
-            };
-            let world = gameobject.world();
-            if !world.object().is_in_world() {
-                continue;
-            }
-            let Some(source) = gameobject.represented_spell_focus_use_source_like_cpp() else {
-                continue;
-            };
-            if source.focus_type != focus_id {
-                continue;
-            }
-            if !world
-                .position()
-                .is_within_dist(&caster_position, source.radius as f32)
-            {
-                continue;
-            }
-            return Some(RepresentedSpellFocusObjectLikeCpp {
-                guid,
-                map_key: player_map_key,
-                position: world.position(),
-                source,
-            });
-        }
-        None
-    }
-
-    pub(crate) fn reset_represented_character_spell_charges_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-    ) {
-        let _ = self.mutate_player_spell_history_like_cpp(hub, |history| {
-            history.charges.clear();
-            history.charges_loaded = false;
-        });
-    }
-
-    pub(crate) fn mark_represented_character_spell_charges_loaded_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-    ) {
-        let _ = self.mutate_player_spell_history_like_cpp(hub, |history| {
-            history.charges_loaded = true;
-        });
-    }
-
-    pub(crate) fn record_loaded_character_spell_charge_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        category_id: u32,
-        recharge_start_unix_secs: i64,
-        recharge_end_unix_secs: i64,
-    ) {
-        let _ = self.mutate_player_spell_history_like_cpp(hub, |history| {
-            history.charges.entry(category_id).or_default().push_back(
-                wow_entities::SpellChargeState {
-                    recharge_start_ms: u64::try_from(recharge_start_unix_secs)
-                        .unwrap_or(0)
-                        .saturating_mul(1_000),
-                    recharge_end_ms: u64::try_from(recharge_end_unix_secs)
-                        .unwrap_or(0)
-                        .saturating_mul(1_000),
-                },
-            );
-        });
-    }
-
-    /// Prove that applying/casting one spell cannot enter an unrepresented
-    /// C++ spell script, legacy spell script, or linked-spell hook.
-    ///
-    /// Rank indeterminacy is not treated as absence: a negative
-    /// `spell_script_names` binding can cover the whole C++ chain.
-    pub(in crate::session) fn spell_has_no_unrepresented_runtime_hooks_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        spell_id: u32,
-    ) -> bool {
-        spell_has_no_unrepresented_runtime_hooks_from_authority_like_cpp(
-            spell_id,
-            self.spell_script_exact_spell_ids_like_cpp.as_deref(),
-            self.spell_script_all_rank_root_spell_ids_like_cpp
-                .as_deref(),
-            self.legacy_spell_script_spell_ids_like_cpp.as_deref(),
-            self.spell_linked_rejected_trigger_spell_ids_like_cpp
-                .as_deref(),
-            hub.catalogs.spell_catalogs.spell_chain_store.as_deref(),
-            hub.catalogs.spell_catalogs.spell_linked_store.as_deref(),
-        )
-    }
-
-    /// Prove that every effective effect and every world-table hook for one
-    /// source spell is inert for the bounded rear physical/melee hit profile.
-    pub(in crate::session) fn player_target_spell_is_hit_inert_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        spell_id: u32,
-        difficulty_id: u8,
-    ) -> bool {
-        let Ok(spell_id_i32) = i32::try_from(spell_id) else {
-            return false;
-        };
-        if !self.spell_has_no_unrepresented_runtime_hooks_like_cpp(hub, spell_id) {
-            return false;
-        }
-        let Some(spell_store) = hub.catalogs.spell_catalogs.spell_store.as_ref() else {
-            return false;
-        };
-        if spell_store.get(spell_id_i32).is_none() {
-            return false;
-        }
-        spell_store
-            .effects_for_difficulty_like_cpp(
-                spell_id_i32,
-                difficulty_id,
-                hub.catalogs.difficulty_store.as_deref(),
-            )
-            .is_some_and(|effects| {
-                effects
-                    .iter()
-                    .all(wow_data::player_target_spell_effect_is_hit_inert_like_cpp)
-            })
-    }
-
-    pub(in crate::session) fn represented_talent_spell_id_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        talent_id: u32,
-        rank: u8,
-    ) -> Option<i32> {
-        hub.catalogs
-            .talent_store()?
-            .get(talent_id)?
-            .spell_rank
-            .get(usize::from(rank))
-            .copied()
-            .filter(|spell_id| *spell_id > 0)
-    }
-
-    pub(in crate::session) fn represented_talent_override_spell_pair_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        talent_id: u32,
-    ) -> Option<(i32, i32)> {
-        let talent = hub.catalogs.talent_store()?.get(talent_id)?;
-        (talent.overrides_spell_id > 0 && talent.spell_id > 0)
-            .then_some((talent.overrides_spell_id, talent.spell_id))
-    }
-
-    pub(in crate::session) fn cleanup_removed_spell_dual_wield_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        spell_id: i32,
-    ) {
-        let Some(spell_store) = hub.catalogs.spell_store() else {
-            return;
-        };
-        let Some(spell_info) = spell_store.get(spell_id) else {
-            return;
-        };
-        if !spell_store.is_passive_like_cpp(spell_id)
-            || !spell_info
-                .has_effect_like_cpp(wow_data::spell::spell_effect_types::SPELL_EFFECT_DUAL_WIELD)
-        {
-            return;
-        }
-
-        let _ = hub.core.mutate_canonical_player_like_cpp(|player| {
-            if player.unit().can_dual_wield_like_cpp() {
-                player.unit_mut().set_can_dual_wield_like_cpp(false);
-            }
-        });
-    }
-
-    pub(crate) fn remove_represented_self_res_spell_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-        spell_id: i32,
-    ) -> bool {
-        let canonical = hub.core.with_owned_player_mut_like_cpp(|player| {
-            player
-                .resurrection_state_mut_like_cpp()
-                .self_res_spells
-                .remove(&spell_id)
-        });
-        #[cfg(test)]
-        if canonical.is_none() && hub.core.player_handle_like_cpp.is_none() {
-            return self.represented_self_res_spells_like_cpp.remove(&spell_id);
-        }
-        canonical.unwrap_or(false)
-    }
-}
 
 #[cfg(test)]
 #[path = "../../../unit_tests/session/spell_state/spell/f3_shims.rs"]

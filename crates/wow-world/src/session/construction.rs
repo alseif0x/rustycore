@@ -27,7 +27,6 @@ use super::BTreeMap;
 use super::DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP;
 use super::ObjectGuid;
 use super::PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP;
-use super::PlayerInteractionDataLikeCpp;
 #[cfg(test)]
 use super::SeedableRng;
 #[cfg(test)]
@@ -40,10 +39,6 @@ use super::persistence::test_fixtures::LoadedPlayerFlagsTestFixtureLikeCpp;
 use super::player_items::test_fixtures::PlayerItemTestFixtureLikeCpp;
 #[cfg(test)]
 use super::quest::test_fixtures::QuestTestFixtureLikeCpp;
-#[cfg(test)]
-use super::spell_state::PlayerSpellAndTraitTestFixtureLikeCpp;
-#[cfg(test)]
-use super::support_features::test_fixtures::SupportFeatureTestFixtureLikeCpp;
 #[cfg(test)]
 use super::visibility::test_fixtures::VisibilityTestFixtureLikeCpp;
 use super::{Arc, BTreeSet};
@@ -219,45 +214,7 @@ impl WorldSession {
                 #[cfg(any(test, feature = "test-fixtures"))]
                 represented_transmog_criteria_events: Vec::new(),
             },
-            spell_state: SessionSpellState {
-                legacy_spell_script_spell_ids_like_cpp: None,
-                spell_linked_rejected_trigger_spell_ids_like_cpp: None,
-                spell_script_all_rank_root_spell_ids_like_cpp: None,
-                spell_script_exact_spell_ids_like_cpp: None,
-                represented_offhand_check_at_spell_unlearn_like_cpp: true,
-                represented_spell_execute_log_effects_like_cpp: Vec::new(),
-                spell_acquisition_cast_authority_like_cpp: None,
-                spell_acquisition_craft_authority_like_cpp: None,
-                #[cfg(test)]
-                player_spell_test_fixture_like_cpp: PlayerSpellAndTraitTestFixtureLikeCpp::default(
-                ),
-                #[cfg(test)]
-                represented_spell_acquisition_post_commit_actions_like_cpp: Vec::new(),
-                #[cfg(test)]
-                represented_spell_history_packets_like_cpp: (Vec::new(), Vec::new()),
-                #[cfg(test)]
-                represented_self_res_spells_like_cpp: BTreeSet::new(),
-                #[cfg(test)]
-                represented_override_spells_like_cpp: HashMap::new(),
-                #[cfg(test)]
-                represented_override_spells_complete_like_cpp: false,
-                #[cfg(test)]
-                active_spell_cast: None,
-                #[cfg(test)]
-                represented_pending_spell_cast_request_like_cpp: None,
-                #[cfg(test)]
-                last_spell_cast_time: None,
-                #[cfg(test)]
-                last_spell_cast_time_per_spell: HashMap::new(),
-                #[cfg(test)]
-                represented_character_spell_cooldowns_like_cpp: HashMap::new(),
-                #[cfg(test)]
-                represented_character_spell_cooldowns_loaded_like_cpp: false,
-                #[cfg(test)]
-                represented_character_spell_charges_like_cpp: BTreeMap::new(),
-                #[cfg(test)]
-                represented_character_spell_charges_loaded_like_cpp: false,
-            },
+            spell_state: SessionSpellState::new_like_cpp(),
             social: SessionSocialLimits::with_recruit_a_friend_limits_like_cpp(85, 4),
             instances: InstanceState {
                 #[cfg(test)]
@@ -308,17 +265,7 @@ impl WorldSession {
                     std::collections::HashSet::new(),
                 last_visibility_pos: None,
             },
-            interaction: InteractionState {
-                vendor_item_counts: HashMap::new(),
-                #[cfg(any(test, feature = "test-fixtures"))]
-                vendor_buy_item_test_override_like_cpp: None,
-                #[cfg(test)]
-                support_feature_test_fixture_like_cpp: SupportFeatureTestFixtureLikeCpp::default(),
-                #[cfg(test)]
-                player_interaction_data_like_cpp: PlayerInteractionDataLikeCpp::default(),
-                #[cfg(test)]
-                gossip_options: Vec::new(),
-            },
+            interaction: InteractionState::new_like_cpp(),
             quest_state: SessionQuestState {
                 min_quest_scaled_xp_ratio_like_cpp: 0,
                 quest_high_level_hide_diff_like_cpp: 7,

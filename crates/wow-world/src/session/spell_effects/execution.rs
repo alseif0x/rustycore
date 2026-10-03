@@ -169,8 +169,7 @@ impl WorldSession {
         // C++ owns one `Spell` object per cast, so `_executeLogEffects` starts
         // empty for it; the represented session reuses one accumulator.
         self.spell_state
-            .represented_spell_execute_log_effects_like_cpp
-            .clear();
+            .clear_represented_spell_execute_log_effects_like_cpp();
         for (
             direct_effect_type,
             direct_effect_base_points,

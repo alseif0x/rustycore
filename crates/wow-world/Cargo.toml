@@ -12,7 +12,9 @@ license.workspace = true
 test-fixtures = [
     "wow-session/test-support",
     "wow-world-core/test-fixtures",
+    "wow-world-interaction/test-fixtures",
     "wow-world-social/test-fixtures",
+    "wow-world-spell/test-fixtures",
 ]
 
 [dependencies]
@@ -50,12 +52,16 @@ wow-script = { workspace = true }
 wow-social = { workspace = true }
 wow-spell-acquisition = { workspace = true }
 wow-world-core = { workspace = true }
+wow-world-interaction = { workspace = true }
 wow-world-social = { workspace = true }
+wow-world-spell = { workspace = true }
 
 [dev-dependencies]
 wow-progression = { workspace = true, features = ["test-fixtures"] }
 wow-spell-acquisition = { workspace = true, features = ["test-fixtures"] }
 wow-world-core = { workspace = true, features = ["test-fixtures"] }
+wow-world-interaction = { workspace = true, features = ["test-fixtures"] }
+wow-world-spell = { workspace = true, features = ["test-fixtures"] }
 wow-session = { workspace = true, features = ["test-support"] }
 # Keep WorldSession fixture fields cfg-aligned with Core while tests borrow Hub views.
 # Core feature unification alone does not set wow-world's test-fixtures cfg.

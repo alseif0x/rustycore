@@ -22,13 +22,13 @@ impl WorldSession {
         safe_cast_spell_ids: impl IntoIterator<Item = u32>,
         valid_craft_spell_ids: impl IntoIterator<Item = u32>,
     ) {
-        self.spell_state.spell_acquisition_cast_authority_like_cpp = Some(Arc::new(
+        self.spell_state.set_spell_acquisition_cast_authority_like_cpp(Arc::new(
             crate::spell_acquisition::SpellAcquisitionCastAuthorityLikeCpp::from_audited_rows_like_cpp(
                 safe_cast_spell_ids,
                 std::iter::empty(),
             ),
         ));
-        self.spell_state.spell_acquisition_craft_authority_like_cpp = Some(Arc::new(
+        self.spell_state.set_spell_acquisition_craft_authority_like_cpp(Arc::new(
             crate::spell_acquisition::SpellAcquisitionCraftValidityAuthorityLikeCpp::from_audited_rows_like_cpp(
                 valid_craft_spell_ids,
                 std::iter::empty(),
@@ -380,51 +380,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::state::SessionSpellState {
-    pub(crate) fn record_spell_acquisition_post_commit_action_like_cpp(
-        &mut self,
-        action: crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp,
-    ) {
-        #[cfg(test)]
-        self.represented_spell_acquisition_post_commit_actions_like_cpp
-            .push(action);
-        #[cfg(not(test))]
-        let _ = action;
-    }
-
-    pub(crate) fn begin_spell_acquisition_post_commit_action_batch_like_cpp(&mut self) {
-        #[cfg(test)]
-        self.represented_spell_acquisition_post_commit_actions_like_cpp
-            .clear();
-    }
-
-    #[cfg(test)]
-    pub(crate) fn represented_spell_acquisition_post_commit_actions_like_cpp(
-        &self,
-    ) -> &[crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp] {
-        &self.represented_spell_acquisition_post_commit_actions_like_cpp
-    }
-
-    pub(crate) fn grant_dual_wield_after_spell_acquisition_like_cpp(
-        &mut self,
-        hub: &mut crate::session::HubMut<'_>,
-    ) -> bool {
-        hub.core
-            .mutate_canonical_player_like_cpp(|player| {
-                player.unit_mut().set_can_dual_wield_like_cpp(true);
-            })
-            .is_some()
-    }
-
-    pub(crate) fn has_canonical_player_for_spell_acquisition_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-    ) -> bool {
-        hub.core
-            .canonical_player_snapshot_like_cpp(|_| ())
-            .is_some()
-    }
-}
 
 #[cfg(test)]
 #[path = "../../../unit_tests/session/spell_state/acquisition/f3_shims.rs"]

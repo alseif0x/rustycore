@@ -84,7 +84,10 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
             skill_id: u32::from(SKILL_RIDING_LIKE_CPP),
         },
     );
-    session.interaction.gossip_options.push(GossipOptionInfo {
+    session
+        .interaction
+        .gossip_options_for_test_mut_like_cpp()
+        .push(GossipOptionInfo {
         gossip_option_id: 1,
         menu_id: 2,
         order_index: 3,
@@ -97,7 +100,7 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
         session.player_trainer_interaction_matches_like_cpp(trainer, 77),
         "reasserting the same Player identity must not reset its PlayerMenu"
     );
-    assert_eq!(session.interaction.gossip_options.len(), 1);
+    assert_eq!(session.interaction.gossip_options_for_test_like_cpp().len(), 1);
     assert_eq!(
         session
             .fixtures
@@ -122,7 +125,7 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
 
     assert!(session.player_interaction_source_guid_like_cpp().is_none());
     assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
-    assert!(session.interaction.gossip_options.is_empty());
+    assert!(session.interaction.gossip_options_for_test_like_cpp().is_empty());
     assert!(
         session.fixtures.auras.visible_auras.is_empty(),
         "active auras cannot cross a C++ Player lifetime"
@@ -149,7 +152,7 @@ fn player_menu_state_does_not_survive_character_lifetime_like_cpp() {
 
     session.set_player_guid(Some(second_player));
     assert!(session.player_interaction_source_guid_like_cpp().is_none());
-    assert!(session.interaction.gossip_options.is_empty());
+    assert!(session.interaction.gossip_options_for_test_like_cpp().is_empty());
     assert!(session.fixtures.auras.visible_auras.is_empty());
     assert!(!session.player_aura_authority_complete_like_cpp());
 }

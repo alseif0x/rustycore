@@ -925,7 +925,11 @@ fn recognized_absolute_provenance(segments: &[String]) -> Option<Provenance> {
     // so aliases do not manufacture bridge debt or masquerade as Core.
     if matches!(
         first,
-        "wow_conditions" | "wow_spell_acquisition" | "wow_world_social"
+        "wow_conditions"
+            | "wow_spell_acquisition"
+            | "wow_world_social"
+            | "wow_world_spell"
+            | "wow_world_interaction"
     )
         || (first == "crate" && segments.get(1).is_some_and(|s| s == "spell_acquisition"))
     {

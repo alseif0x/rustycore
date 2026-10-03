@@ -421,13 +421,13 @@ async fn malformed_trait_entry_keeps_authority_incomplete_without_suppressing_co
     assert!(
         !session
             .spell_state
-            .player_spell_test_fixture_like_cpp
+            .player_spell_test_fixture_like_cpp()
             .represented_trait_config_rows_complete_like_cpp
     );
     assert!(
         !session
             .spell_state
-            .player_spell_test_fixture_like_cpp
+            .player_spell_test_fixture_like_cpp()
             .represented_trait_entry_rows_complete_like_cpp
     );
 }
@@ -468,7 +468,7 @@ async fn failed_trait_entries_do_not_suppress_the_independent_config_query_like_
     assert!(
         !session
             .spell_state
-            .player_spell_test_fixture_like_cpp
+            .player_spell_test_fixture_like_cpp()
             .represented_trait_config_rows_complete_like_cpp
     );
     assert_eq!(port.requests().len(), 2);

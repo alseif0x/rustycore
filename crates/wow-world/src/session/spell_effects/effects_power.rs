@@ -158,30 +158,8 @@ impl WorldSession {
         &mut self,
         effect: i32,
     ) -> &mut wow_packet::packets::combat::SpellLogEffect {
-        if let Some(index) = self
-            .spell_state
-            .represented_spell_execute_log_effects_like_cpp
-            .iter()
-            .position(|entry| entry.effect == effect)
-        {
-            return &mut self
-                .spell_state
-                .represented_spell_execute_log_effects_like_cpp[index];
-        }
         self.spell_state
-            .represented_spell_execute_log_effects_like_cpp
-            .push(wow_packet::packets::combat::SpellLogEffect {
-                effect,
-                ..Default::default()
-            });
-        let index = self
-            .spell_state
-            .represented_spell_execute_log_effects_like_cpp
-            .len()
-            - 1;
-        &mut self
-            .spell_state
-            .represented_spell_execute_log_effects_like_cpp[index]
+            .represented_spell_execute_log_effect_like_cpp(effect)
     }
 
     /// C++ `Spell::ExecuteLogEffectTakeTargetPower` (`Spell.cpp:5076-5086`).
@@ -249,18 +227,15 @@ impl WorldSession {
         spell_id: i32,
         caster_guid: ObjectGuid,
     ) {
-        if self
+        if !self
             .spell_state
-            .represented_spell_execute_log_effects_like_cpp
-            .is_empty()
+            .has_represented_spell_execute_log_effects_like_cpp()
         {
             return;
         }
-        let effects = std::mem::take(
-            &mut self
-                .spell_state
-                .represented_spell_execute_log_effects_like_cpp,
-        );
+        let effects = self
+            .spell_state
+            .take_represented_spell_execute_log_effects_like_cpp();
         self.send_packet(&wow_packet::packets::combat::SpellExecuteLog {
             caster: caster_guid,
             spell_id,

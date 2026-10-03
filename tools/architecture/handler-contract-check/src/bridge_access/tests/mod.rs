@@ -23,3 +23,4 @@ fn inventory(text: &str) -> Result<BridgeAccessBaseline, String> {
 mod import_provenance;
 mod scenarios_1;
 mod social_provenance;
+mod domain_provenance;

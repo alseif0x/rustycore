@@ -4,8 +4,6 @@
 //! Summon object contracts: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::{ObjectGuid, Position};
-
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 #[allow(dead_code)]
 pub(crate) enum ApplyEffectSummonObjectWildSessionStatusLikeCpp {
@@ -58,12 +56,4 @@ pub(crate) struct ApplyEffectSummonObjectSlotSessionOutcomeLikeCpp {
     pub close_point_fallback_represented: bool,
     pub cleanup_outcome: Option<wow_map::map::GameObjectPrepareOwnerSlotForSummonOutcomeLikeCpp>,
     pub map_outcome: Option<wow_map::map::GameObjectSummonObjectForOwnerSlotOutcomeLikeCpp>,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq)]
-pub(crate) struct RepresentedSpellFocusObjectLikeCpp {
-    pub guid: ObjectGuid,
-    pub map_key: wow_map::MapKey,
-    pub position: Position,
-    pub source: wow_entities::SpellFocusUseSource,
 }

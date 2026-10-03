@@ -30,6 +30,8 @@ pub(super) fn collect_units(
                     PackageRole::World
                         | PackageRole::WorldCore
                         | PackageRole::WorldSocial
+                        | PackageRole::WorldSpell
+                        | PackageRole::WorldInteraction
                         | PackageRole::Server
                 )
         })
@@ -232,6 +234,18 @@ pub(super) fn collect_repository_baseline_with_persistence(
         PackageRole::WorldSocial,
         WORLD_SOCIAL_PACKAGE_ROOT,
         WORLD_SOCIAL_CRATE_ROOT,
+    )?);
+    units.extend(repository_units(
+        repository_root,
+        PackageRole::WorldSpell,
+        WORLD_SPELL_PACKAGE_ROOT,
+        WORLD_SPELL_CRATE_ROOT,
+    )?);
+    units.extend(repository_units(
+        repository_root,
+        PackageRole::WorldInteraction,
+        WORLD_INTERACTION_PACKAGE_ROOT,
+        WORLD_INTERACTION_CRATE_ROOT,
     )?);
     units.extend(repository_units(
         repository_root,

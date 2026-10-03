@@ -191,27 +191,19 @@ impl WorldSession {
     }
     #[cfg(test)]
     pub(crate) fn support_feature_policy_for_test_like_cpp(&self) -> SupportFeaturePolicyLikeCpp {
+        let (
+            support_enabled,
+            tickets_enabled,
+            bugs_enabled,
+            complaints_enabled,
+            suggestions_enabled,
+        ) = self.interaction.support_feature_values_for_test_like_cpp();
         SupportFeaturePolicyLikeCpp {
-            support_enabled: self
-                .interaction
-                .support_feature_test_fixture_like_cpp
-                .represented_support_enabled_like_cpp,
-            tickets_enabled: self
-                .interaction
-                .support_feature_test_fixture_like_cpp
-                .represented_support_tickets_enabled_like_cpp,
-            bugs_enabled: self
-                .interaction
-                .support_feature_test_fixture_like_cpp
-                .represented_support_bugs_enabled_like_cpp,
-            complaints_enabled: self
-                .interaction
-                .support_feature_test_fixture_like_cpp
-                .represented_support_complaints_enabled_like_cpp,
-            suggestions_enabled: self
-                .interaction
-                .support_feature_test_fixture_like_cpp
-                .represented_support_suggestions_enabled_like_cpp,
+            support_enabled,
+            tickets_enabled,
+            bugs_enabled,
+            complaints_enabled,
+            suggestions_enabled,
             character_undelete_enabled: self
                 .config
                 .feature_system_character_undelete_enabled_like_cpp,

@@ -22,6 +22,8 @@ pub(super) fn type_identity_package_for_external_root(root: &str) -> Option<&'st
     match root {
         "wow_world_core" => Some("wow-world-core"),
         "wow_world_social" => Some("wow-world-social"),
+        "wow_world_spell" => Some("wow-world-spell"),
+        "wow_world_interaction" => Some("wow-world-interaction"),
         _ => None,
     }
 }

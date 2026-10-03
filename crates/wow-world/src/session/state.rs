@@ -16,7 +16,6 @@ use super::BattlePetAccountAttachmentLikeCpp;
 use super::ClientOpcodes;
 use super::DurableItemLootPersistenceTrackerLikeCpp;
 use super::DurableLootMoneyPersistenceTrackerLikeCpp;
-use super::GossipOptionInfo;
 use super::HashMap;
 use super::NUM_ACCOUNT_DATA_TYPES;
 use super::ObjectGuid;
@@ -25,7 +24,6 @@ use super::PLAYER_EXPLORED_ZONES_SIZE_LIKE_CPP;
 use super::PacketHandlerEntry;
 use super::PhaseShift;
 use super::PlayerCurrency;
-use super::PlayerInteractionDataLikeCpp;
 use super::RepresentedAdventureMapStartQuestLikeCpp;
 use super::RepresentedAuctionPlaceBidLikeCpp;
 use super::RepresentedBankItemMoveLikeCpp;
@@ -37,18 +35,13 @@ use super::RepresentedGameObjectCriteriaEvent;
 use super::RepresentedGuildRepairBankWithdrawLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::RepresentedLootRollCriteriaEvent;
-use super::RepresentedPendingSpellCastRequestLikeCpp;
 use super::RepresentedQuestCompleteStatusUpdateLikeCpp;
 use super::RepresentedQuestObjectiveProgressEventLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::RepresentedTransmogCriteriaEvent;
 use super::RepresentedVoidStorageItemLikeCpp;
 use super::SessionPersistencePortsLikeCpp;
-use super::SpellCastState;
 use super::VecDeque;
-#[cfg(any(test, feature = "test-fixtures"))]
-use super::VendorBuyItemTestOverrideLikeCpp;
-use super::VendorItemCount;
 #[cfg(test)]
 use super::instances::test_fixtures::InstanceTestFixtureLikeCpp;
 #[cfg(test)]
@@ -58,10 +51,6 @@ use super::player_items::test_fixtures::PlayerItemTestFixtureLikeCpp;
 #[cfg(test)]
 use super::quest::test_fixtures::QuestTestFixtureLikeCpp;
 #[cfg(test)]
-use super::spell_state::PlayerSpellAndTraitTestFixtureLikeCpp;
-#[cfg(test)]
-use super::support_features::test_fixtures::SupportFeatureTestFixtureLikeCpp;
-#[cfg(test)]
 use super::visibility::test_fixtures::VisibilityTestFixtureLikeCpp;
 use super::{HomebindPersistenceJobLikeCpp, Instant, Item};
 use super::{PendingCreatureKillRewardLikeCpp, PendingCreatureSpawn};
@@ -69,7 +58,6 @@ use super::{PendingCreatureKillRewardLikeCpp, PendingCreatureSpawn};
 use super::{RepresentedAreaZoneCriteriaLikeCpp, RepresentedAtLoginFlagRemovalLikeCpp};
 use super::{RepresentedAuctionRemoveItemLikeCpp, RepresentedAuctionReplicateRequestLikeCpp};
 use super::{RepresentedAuctionSellItemLikeCpp, RepresentedAutoUnequipOffhandLikeCpp};
-use super::{RepresentedCharacterSpellChargeLikeCpp, RepresentedCharacterSpellCooldownLikeCpp};
 use super::RepresentedGameObjectUseEffect;
 use super::{RepresentedGameObjectUseState, RepresentedGuildRepairBankStateLikeCpp};
 #[cfg(test)]
@@ -77,8 +65,9 @@ use super::{RepresentedGuildBankInventoryMoveLikeCpp, RepresentedGuildBankListRe
 #[cfg(test)]
 use super::{RepresentedGuildBankMoneyMoveLikeCpp, RepresentedGuildBankTabActionLikeCpp};
 use super::{RepresentedLootRollState, RepresentedPendingBind};
-use super::{SpellChargeEntry, SpellHistoryEntry};
 use super::{driver, lifecycle};
+
+pub(crate) use wow_world_spell::SessionSpellState;
 
 #[cfg(any(test, feature = "test-fixtures"))]
 mod fixtures;
@@ -147,84 +136,6 @@ pub(in crate::session) struct SessionWorldView {
 pub(in crate::session) struct SessionPhaseRail {
     pub(in crate::session) tx: flume::Sender<crate::session::mailbox::SessionPhaseRequestLikeCpp>,
     pub(in crate::session) rx: flume::Receiver<crate::session::mailbox::SessionPhaseRequestLikeCpp>,
-}
-
-/// The session's spell-side represented state: the cached spell-script id sets
-/// the startup audit installs, the spell-acquisition authorities, the execute-log
-/// effects and the offhand re-check switch, until the owning Player runtime and the
-/// spell-acquisition module take them over.
-pub(crate) struct SessionSpellState {
-    pub(in crate::session) legacy_spell_script_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
-    pub(in crate::session) spell_linked_rejected_trigger_spell_ids_like_cpp:
-        Option<Arc<BTreeSet<u32>>>,
-    pub(in crate::session) spell_script_all_rank_root_spell_ids_like_cpp:
-        Option<Arc<BTreeSet<u32>>>,
-    /// Effective C++ spell-script hooks. These remain optional so a session
-    /// constructed without the startup audit fails closed.
-    pub(in crate::session) spell_script_exact_spell_ids_like_cpp: Option<Arc<BTreeSet<u32>>>,
-    /// C++ `CONFIG_OFFHAND_CHECK_AT_SPELL_UNLEARN` represented switch.
-    pub(in crate::session) represented_offhand_check_at_spell_unlearn_like_cpp: bool,
-    pub(in crate::session) represented_spell_execute_log_effects_like_cpp:
-        Vec<wow_packet::packets::combat::SpellLogEffect>,
-    pub(crate) spell_acquisition_cast_authority_like_cpp:
-        Option<Arc<crate::spell_acquisition::SpellAcquisitionCastAuthorityLikeCpp>>,
-    pub(crate) spell_acquisition_craft_authority_like_cpp:
-        Option<Arc<crate::spell_acquisition::SpellAcquisitionCraftValidityAuthorityLikeCpp>>,
-    /// Handle-less test fixture for Player spell and trait data.
-    #[cfg(test)]
-    pub(in crate::session) player_spell_test_fixture_like_cpp:
-        PlayerSpellAndTraitTestFixtureLikeCpp,
-    /// Test-only causal trace. Production applies every represented
-    /// post-commit action immediately; retaining a second action history on
-    /// the Session would be audit state, not C++ runtime authority.
-    #[cfg(test)]
-    pub(in crate::session) represented_spell_acquisition_post_commit_actions_like_cpp:
-        Vec<crate::spell_acquisition::SpellAcquisitionPostCommitActionLikeCpp>,
-    /// Login snapshot of the player's spell history + charge packets. C++ reads these
-    /// live from `Player::GetSpellHistory()` in `SendInitialPacketsBeforeAddToMap`; Rust
-    /// persists the login snapshot so the before-add helper can re-send it on far teleport
-    /// without a DB round trip. #NEXT.R8.ENTITIES.1229.
-    #[cfg(test)]
-    pub(in crate::session) represented_spell_history_packets_like_cpp:
-        (Vec<SpellHistoryEntry>, Vec<SpellChargeEntry>),
-    /// C++ `ActivePlayerData::SelfResSpells`, represented until update-field
-    /// ownership is canonical.
-    #[cfg(test)]
-    pub(in crate::session) represented_self_res_spells_like_cpp: BTreeSet<i32>,
-    /// C++ `Player::m_overrideSpells`, represented until active player spell
-    /// cast resolution owns override lookup.
-    #[cfg(test)]
-    pub(in crate::session) represented_override_spells_like_cpp: HashMap<i32, BTreeSet<i32>>,
-    /// True only when all C++ `Player::m_overrideSpells` edges were replaced
-    /// from a complete source rather than accumulated opportunistically.
-    #[cfg(test)]
-    pub(in crate::session) represented_override_spells_complete_like_cpp: bool,
-    /// Currently active spell cast (if any). Set when a cast starts, cleared when it completes.
-    #[cfg(test)]
-    pub(crate) active_spell_cast: Option<SpellCastState>,
-    /// C++ `Player::_pendingSpellCastRequest`, represented separately from
-    /// `active_spell_cast` so cancel queued spell does not interrupt a cast
-    /// already in progress.
-    #[cfg(test)]
-    pub(crate) represented_pending_spell_cast_request_like_cpp:
-        Option<RepresentedPendingSpellCastRequestLikeCpp>,
-    /// Last time a spell was executed (used to enforce global cooldown timers).
-    #[cfg(test)]
-    pub(crate) last_spell_cast_time: Option<Instant>,
-    /// Per-spell cooldown tracking: spell_id → last cast time.
-    /// Used to enforce spell-specific cooldown timers.
-    #[cfg(test)]
-    pub(crate) last_spell_cast_time_per_spell: HashMap<i32, Instant>,
-    #[cfg(test)]
-    pub(in crate::session) represented_character_spell_cooldowns_like_cpp:
-        HashMap<u32, RepresentedCharacterSpellCooldownLikeCpp>,
-    #[cfg(test)]
-    pub(in crate::session) represented_character_spell_cooldowns_loaded_like_cpp: bool,
-    #[cfg(test)]
-    pub(in crate::session) represented_character_spell_charges_like_cpp:
-        BTreeMap<u32, Vec<RepresentedCharacterSpellChargeLikeCpp>>,
-    #[cfg(test)]
-    pub(in crate::session) represented_character_spell_charges_loaded_like_cpp: bool,
 }
 
 /// The session's quest-side represented state: the level-gap thresholds that

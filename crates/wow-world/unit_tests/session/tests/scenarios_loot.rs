@@ -24,7 +24,7 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
     session.fixtures.identity.player_name = Some("Tester".to_string());
     session
         .spell_state
-        .player_spell_test_fixture_like_cpp
+        .player_spell_test_fixture_mut_like_cpp()
         .known_spells = vec![12_345];
     session.mutate_player_quest_gameplay_like_cpp(|state| {
         state.insert_status_like_cpp(
@@ -104,7 +104,7 @@ fn player_registry_publishes_loot_condition_state_like_cpp() {
 
     session
         .spell_state
-        .player_spell_test_fixture_like_cpp
+        .player_spell_test_fixture_mut_like_cpp()
         .known_spells
         .push(54_321);
     session.mutate_player_quest_gameplay_like_cpp(|state| {

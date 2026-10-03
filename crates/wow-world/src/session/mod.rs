@@ -413,22 +413,23 @@ mod player_presentation;
 use player_presentation::RepresentedMountSpellCheckOutcomeLikeCpp;
 mod player_registry_binding;
 mod player_spell_records;
-pub(crate) use player_spell_records::RepresentedCharacterSpellChargeLikeCpp;
-pub(crate) use player_spell_records::RepresentedCharacterSpellCooldownLikeCpp;
 pub(crate) use player_spell_records::RepresentedPlayerSkillLikeCpp;
 pub(crate) use player_spell_records::RepresentedPlayerSkillStateLikeCpp;
-pub(crate) use player_spell_records::RepresentedPlayerSpellLikeCpp;
-use player_spell_records::RepresentedPlayerSpellRuntimeLikeCpp;
-pub(crate) use player_spell_records::RepresentedPlayerSpellStateLikeCpp;
 use player_spell_records::canonical_player_skill_record_like_cpp;
-use player_spell_records::canonical_player_spell_record_like_cpp;
+pub(crate) use wow_world_spell::{
+    RepresentedCharacterSpellChargeLikeCpp, RepresentedCharacterSpellCooldownLikeCpp,
+    RepresentedPlayerSpellLikeCpp, RepresentedPlayerSpellRuntimeLikeCpp,
+    RepresentedPlayerSpellStateLikeCpp,
+};
+use wow_world_spell::{
+    canonical_player_spell_record_like_cpp, represented_player_spell_record_like_cpp,
+    represented_player_spell_runtime_like_cpp,
+};
 #[cfg(test)]
-use player_spell_records::canonical_player_spell_runtime_like_cpp;
+use wow_world_spell::canonical_player_spell_runtime_like_cpp;
 #[cfg(test)]
 pub(crate) use player_spell_records::is_non_durable_skill_tombstone_like_cpp;
 use player_spell_records::represented_player_skill_record_like_cpp;
-use player_spell_records::represented_player_spell_record_like_cpp;
-use player_spell_records::represented_player_spell_runtime_like_cpp;
 mod player_vitals_adapter;
 mod progression_adapters;
 mod quest_dialog;
@@ -549,7 +550,7 @@ pub(crate) use summon_object_contracts::ApplyEffectSummonObjectSlotSessionOutcom
 pub(crate) use summon_object_contracts::ApplyEffectSummonObjectSlotSessionStatusLikeCpp;
 pub(crate) use summon_object_contracts::ApplyEffectSummonObjectWildSessionOutcomeLikeCpp;
 pub(crate) use summon_object_contracts::ApplyEffectSummonObjectWildSessionStatusLikeCpp;
-pub(crate) use summon_object_contracts::RepresentedSpellFocusObjectLikeCpp;
+pub(crate) use wow_world_spell::RepresentedSpellFocusObjectLikeCpp;
 mod support_features;
 mod taxi_contracts;
 pub(crate) use taxi_contracts::RepresentedActivateTaxiLikeCpp;
@@ -902,7 +903,7 @@ pub(crate) const TRADE_STATUS_PLAYER_BUSY_LIKE_CPP: u8 = 0;
 #[cfg(test)]
 use wow_world_core::session::PLAYER_LOCAL_FLAG_WAR_MODE_LIKE_CPP;
 const AREA_FLAG_ENEMIES_PVP_FLAGGED_LIKE_CPP: u32 = 0x0000_0010;
-const AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP: u32 = 0x0000_0080;
+use wow_world_spell::AREA_FLAG_FREE_FOR_ALL_PVP_LIKE_CPP;
 const AREA_FLAG_CONTESTED_LIKE_CPP: u32 = 0x0004_0000;
 const AREA_FLAG_COMBAT_ZONE_LIKE_CPP: u32 = 0x0100_0000;
 const CURRENCY_DB_UNUSED_FLAGS_LIKE_CPP: u8 = 0x13;

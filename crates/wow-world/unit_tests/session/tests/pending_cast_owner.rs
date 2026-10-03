@@ -61,7 +61,7 @@ fn pending_cast_uses_active_and_detached_player_and_publishes_replacement_cancel
         assert!(
             session
                 .spell_state
-                .represented_pending_spell_cast_request_like_cpp
+                .pending_spell_cast_fixture_for_test_like_cpp()
                 .is_none()
         );
         assert_eq!(send_rx.try_recv().unwrap(), cancelled(1));

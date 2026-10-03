@@ -90,6 +90,42 @@ fn baseline_with_world_social(
     )
 }
 
+fn baseline_with_world_domain(
+    role: PackageRole,
+    domain: &str,
+) -> Result<SessionSyntaxBaseline, String> {
+    let unit = |role, path: &str, source: &str| SourceUnit {
+        role,
+        source_path: PathBuf::from(path),
+        repository_relative_path: path.to_owned(),
+        logical_module_path: "crate".to_owned(),
+        cfg: Vec::new(),
+        availability: Availability {
+            production: true,
+            test: true,
+        },
+        source: source.to_owned(),
+    };
+    let domain_path = format!("crates/{}/src/lib.rs", role.package_name());
+    collect_units(
+        vec![
+            unit(PackageRole::World, "crates/wow-world/src/lib.rs", &world_with_core_facade()),
+            unit(PackageRole::WorldCore, WORLD_CORE_CRATE_ROOT, &core_source("")),
+            unit(role, &domain_path, domain),
+            unit(
+                PackageRole::Server,
+                "crates/world-server/src/lib.rs",
+                &server_source("", ""),
+            ),
+            unit(PackageRole::Network, "crates/wow-network/src/lib.rs", NETWORK),
+        ],
+        PersistenceAccessBaseline {
+            schema_version: 3,
+            accesses: Vec::new(),
+        },
+    )
+}
+
 #[test]
 fn world_social_is_a_distinct_package_role_without_contract_ownership() {
     let social = r#"
@@ -527,4 +563,126 @@ fn unresolved_or_ambiguous_core_alias_impl_candidates_fail_closed() {
         .expect_err("an ambiguous alias candidate is not silently dropped");
     assert!(error.contains("candidate CoreAlias"), "{error}");
     assert!(error.contains("ambiguous"), "{error}");
+}
+
+#[test]
+fn world_spell_and_interaction_roles_do_not_take_session_contract_ownership() {
+    for (role, package) in [
+        (PackageRole::WorldSpell, "wow-world-spell"),
+        (PackageRole::WorldInteraction, "wow-world-interaction"),
+    ] {
+        let baseline = baseline_with_world_domain(
+            role,
+            "pub enum SessionCommand { DomainOnly } pub struct KickCommand; \
+             pub struct DomainValue; \
+             fn domain_bridge(old: &wow_world::SharedMapManager, \
+                              new: &wow_entities::Creature) {}",
+        )
+        .expect("a mounted domain package does not become a Session contract owner");
+        assert_eq!(role.package_name(), package);
+        assert_eq!(
+            baseline
+                .session_core_owner
+                .definition
+                .as_ref()
+                .expect("Core remains the SessionCore owner")
+                .package,
+            "wow-world-core"
+        );
+        assert!(baseline
+            .bridge_accesses
+            .bridges
+            .iter()
+            .any(|bridge| bridge.package == package));
+    }
+}
+
+#[test]
+fn world_spell_and_interaction_cannot_define_or_impl_the_core_owner() {
+    for role in [PackageRole::WorldSpell, PackageRole::WorldInteraction] {
+        let error = baseline_with_world_domain(role, "pub struct SessionCore;")
+            .expect_err("domain packages cannot define SessionCore");
+        assert!(error.contains(role.package_name()), "{error}");
+        assert!(error.contains("defines SessionCore"), "{error}");
+
+        let error = baseline_with_world_domain(
+            role,
+            "use wow_world_core::session::SessionCore as CoreBorrow; impl CoreBorrow {}",
+        )
+        .expect_err("a borrowed Core alias does not authorize a domain impl");
+        assert!(error.contains(role.package_name()), "{error}");
+        assert!(error.contains("implements SessionCore"), "{error}");
+    }
+}
+
+#[test]
+fn world_session_remains_owned_by_world_across_all_extracted_packages() {
+    for role in [
+        PackageRole::WorldSocial,
+        PackageRole::WorldSpell,
+        PackageRole::WorldInteraction,
+    ] {
+        let error = baseline_with_world_domain(role, "pub struct WorldSession;")
+            .expect_err("an extracted package cannot define WorldSession");
+        assert!(error.contains(role.package_name()), "{error}");
+        assert!(error.contains("WorldSession struct"), "{error}");
+
+        let error = baseline_with_world_domain(
+            role,
+            "impl crate::session::WorldSession { pub fn foreign_owner(&self) {} }",
+        )
+        .expect_err("an extracted package cannot implement WorldSession");
+        assert!(error.contains(role.package_name()), "{error}");
+        assert!(error.contains("WorldSession impl"), "{error}");
+    }
+
+    for (source, surface) in [
+        ("pub struct WorldSession;", "WorldSession struct"),
+        (
+            "impl crate::session::WorldSession { pub fn foreign_owner(&self) {} }",
+            "WorldSession impl",
+        ),
+    ] {
+        let error = baseline(&world_with_core_facade(), &core_source(source))
+            .expect_err("wow-world-core cannot define or implement WorldSession");
+        assert!(error.contains("wow-world-core"), "{error}");
+        assert!(error.contains(surface), "{error}");
+    }
+}
+
+#[test]
+fn world_spell_and_interaction_source_units_follow_their_real_root_mounts() {
+    let repository_root = crate::repository_root().expect("repository root");
+    let spell = repository_units(
+        &repository_root,
+        PackageRole::WorldSpell,
+        WORLD_SPELL_PACKAGE_ROOT,
+        WORLD_SPELL_CRATE_ROOT,
+    )
+    .expect("the actual WorldSpell root and its declared modules are loadable");
+    let interaction = repository_units(
+        &repository_root,
+        PackageRole::WorldInteraction,
+        WORLD_INTERACTION_PACKAGE_ROOT,
+        WORLD_INTERACTION_CRATE_ROOT,
+    )
+    .expect("the actual WorldInteraction root and its declared modules are loadable");
+
+    assert!(spell.iter().all(|unit| unit.role == PackageRole::WorldSpell));
+    assert!(spell.iter().any(|unit| unit.logical_module_path == "crate"));
+    assert!(spell
+        .iter()
+        .any(|unit| unit.logical_module_path == "crate::player_cast"));
+    assert!(spell
+        .iter()
+        .any(|unit| unit.logical_module_path == "crate::session"));
+    assert!(interaction
+        .iter()
+        .all(|unit| unit.role == PackageRole::WorldInteraction));
+    assert!(interaction
+        .iter()
+        .any(|unit| unit.logical_module_path == "crate::session"));
+    assert!(interaction
+        .iter()
+        .any(|unit| unit.logical_module_path == "crate::state"));
 }

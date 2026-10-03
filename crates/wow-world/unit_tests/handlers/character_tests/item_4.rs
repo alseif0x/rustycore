@@ -87,7 +87,7 @@ async fn gossip_banker_selection_replaces_trainer_provenance_like_cpp() {
     session.set_player_trainer_interaction_like_cpp(banker, 77);
     session
         .interaction
-        .gossip_options
+        .gossip_options_for_test_mut_like_cpp()
         .push(crate::session::GossipOptionInfo {
             gossip_option_id: 51,
             menu_id: 52,
@@ -307,14 +307,11 @@ fn vendor_item_current_count_updates_like_cpp() {
         3
     );
 
-    if let Some(count) = session
-        .interaction
-        .vendor_item_counts
-        .get_mut(&(vendor_guid, 700))
-    {
-        count.last_increment_time =
-            (wow_entities::game_time_secs_like_cpp().max(0) as u64).saturating_sub(120);
-    }
+    let _ = session.interaction.vendor_item_last_increment_time_for_test_like_cpp(
+        vendor_guid,
+        700,
+        (wow_entities::game_time_secs_like_cpp().max(0) as u64).saturating_sub(120),
+    );
 
     assert_eq!(
         session
@@ -322,12 +319,9 @@ fn vendor_item_current_count_updates_like_cpp() {
             .vendor_item_current_count(vendor_guid, 700, 5, 60, 1),
         5
     );
-    assert!(
-        !session
-            .interaction
-            .vendor_item_counts
-            .contains_key(&(vendor_guid, 700))
-    );
+    assert!(!session
+        .interaction
+        .has_vendor_item_count_for_test_like_cpp(vendor_guid, 700));
 }
 #[test]
 fn destroy_item_count_action_matches_cpp_direct_item_branch() {

@@ -49,12 +49,7 @@ pub(crate) fn retain_visual(value: SpellCastVisual) -> SpellCastVisualLikeCpp {
     }
 }
 
-pub(crate) fn present_visual(value: SpellCastVisualLikeCpp) -> SpellCastVisual {
-    SpellCastVisual {
-        spell_visual_id: value.spell_visual_id,
-        script_visual_id: value.script_visual_id,
-    }
-}
+pub(crate) use wow_world_spell::present_visual;
 
 #[cfg(test)]
 mod tests {

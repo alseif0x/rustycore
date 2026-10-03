@@ -759,6 +759,72 @@ El traslado conserva las operaciones Rust y sus límites ya existentes, incluido
 los fallbacks de fixtures; no acredita nueva paridad de guild/duel ni ejecución
 de suites, composición de producción, captures o QA live. Ese trabajo continúa
 pendiente de la aceptación del macro y de la pista F6.
+El checkpoint local `867885a6a` guarda el corte Social y el cierre revisado de
+sus consumidores. La inspección por `rg` ya no encuentra accesos World a sus
+campos privados ni los nueve impls en el origen. **NO VALIDADO:** no se ejecutó
+Cargo, formato, suites o inventarios para ese candidato; no hubo publicación.
+
+**SpellState implementado localmente — 2026-10-03, base `867885a6a`:** el cierre revisado
+incluye 18 impls puros, 22 campos del estado y el fixture de 14 campos.
+`wow-world-spell` recibe adquisición/spellbook, auras/shapeshift y cast/cooldown/
+publicación; los wrappers ligados a `WorldSession`/Cx permanecen en World.
+Los records de skills siguen en Core; los DTO de spells trasladados tendrán un
+único proveedor y las fachadas necesarias. El constructor conserva las 22
+expresiones y su orden, incluido offhand=true, sin sustituirlo por un Default.
+El getter de casts de duelo sigue en el shell: Spell no requiere una arista Social.
+Anclas de owner/operación revisadas en `a5f8da2eb`: `Player.h:1753–1755`,
+`Unit.h:1417–1418`, `Player.cpp:23455–23500`, `SpellHistory.cpp:670,689`,
+`Spell.cpp:4656,4765,5378`, `SpellAuraEffects.cpp:1792` y
+`Unit.cpp:8213,9287`. Rust conserva por ahora el snapshot/resend de SpellHistory
+frente al lector vivo C++; esa diferencia pertenece a F6. Los 18 impls ya se
+retiraron de World. La comparación acotada de sus 102 métodos conserva los
+cuerpos, salvo namespaces, los gates de fixtures y referencias al mismo
+proveedor Core. `present_visual` tiene un solo proveedor en Spell; se conserva
+su conversión de dos campos, con `CombatLogPacketsCommon.h:86–90` y
+`.cpp:164–178` como procedencia del campo serializado `SpellXSpellVisualID`.
+El cierre incluye también el DTO de spell focus que seguía definido en World.
+Los consumidores y fachadas ya usan el nuevo proveedor; los accesos con nombres
+similares que quedan en la configuración de criaturas pertenecen a otro estado.
+Las tres pruebas puras de restricciones de trainer se trasladan, con su módulo
+y aserciones intactos, a la hoja Spell. Sus helpers permanecen privados; los
+escenarios ligados a sesión conservan sus montajes en World.
+El workspace, lockfile y policy incorporan ocho dependencias internas reales y
+`num-traits`/`tracing`, sin una arista World/Social. **NO VALIDADO:** esta
+inspección no acredita compilación, suites ni aceptación del nuevo crate.
+
+Preparación Interaction sobre `867885a6a`: hay cinco impls puros, no solo los
+dos de `session/npc_interaction.rs` y `support_features.rs`. Incluye los aliases
+de `handlers/character/{gossip.rs,bank.rs,vendor_admission.rs}`. El cierre contiene
+el helper `vendor/rules.rs::vendor_buy_stock_refill_count`, los DTO
+`VendorItemCount`/`VendorBuyItemTestOverrideLikeCpp`, cinco campos del estado y
+el fixture Support con sus cinco defaults (solo support=true). Gossip y
+PlayerInteractionData ya tienen proveedores inferiores; conservarlos y sus
+fachadas. Anclas revisadas de `a5f8da2eb`: `GossipDef.h:222–236`,
+`GossipDef.cpp:234,240,307`, `BankHandler.cpp:284`, `NPCHandler.cpp:126–128`
+y `Creature.cpp:3038,3072`. La propiedad Rust del stock por sesión, frente al
+Creature C++, y su guard de incr_time=0 permanecen como límites heredados de F6;
+no repararlos dentro de este traslado. La implementación local y su montaje
+están cerrados: estado privado, constructor explícito, los cinco impls y sus
+24 métodos conservados, DTOs y consumidores. El test puro de refill se traslada
+con las tres aserciones originales; el helper queda privado en Interaction.
+El crate usa cuatro dependencias internas reales, sin dependencias externas.
+Las raíces compartidas y constructores de World tuvieron un único implementador.
+El scanner incorpora `WorldSpell`/`WorldInteraction`, sus mounts reales y ocho
+regresiones escritas, sin modificar las 416 anteriores ni regenerar baselines.
+**NO VALIDADO:** no se ejecutó Cargo, formato, suites o inventarios para el
+conjunto Spell/Interaction. No hay nueva evidencia de producción ni publicación.
+
+El censo siguiente encuentra ocho impls de `InstanceState` y tres de
+`VisibilityState`, incluidos los aliases en handlers. El bloque de respec en
+`handlers/talent/state.rs:169` no lee ni escribe campos de instancia: consulta
+Core/NPC y usa un helper que devuelve `canonical_map_manager.is_some()`.
+`SkillHandler.cpp:43–69` (`a5f8da2eb`) sitúa esa admisión en el handler de respec.
+En F4 debe conservarse como helper privado del handler World, con el mismo
+préstamo Core, constantes, ramas y resultado, al retirar el impl del estado;
+no añadir esa responsabilidad al crate de instancias ni alterar la admisión.
+Los siete bloques de instancia restantes y los tres de visibilidad conservan
+su cierre pendiente de revisión antes de implementarlos. No es evidencia de
+paridad de respec ni inicio de F5.
 
 ### F5 — handlers y orquestación
 

@@ -11,13 +11,14 @@ impl WorldSession {
         &mut self,
         item: VendorBuyItemTestOverrideLikeCpp,
     ) {
-        self.interaction.vendor_buy_item_test_override_like_cpp = Some(item);
+        self.interaction
+            .set_vendor_buy_item_test_override_like_cpp(item);
     }
     #[cfg(test)]
     pub(crate) fn vendor_buy_item_test_override_like_cpp(
         &self,
     ) -> Option<VendorBuyItemTestOverrideLikeCpp> {
-        self.interaction.vendor_buy_item_test_override_like_cpp
+        self.interaction.vendor_buy_item_test_override_like_cpp()
     }
     pub(in crate::session) fn represented_player_has_quest_for_loot_item_like_cpp(
         &self,

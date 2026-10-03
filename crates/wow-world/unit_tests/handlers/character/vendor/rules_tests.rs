@@ -8,8 +8,8 @@ use super::{
     vendor_buy_extended_cost_currency_costs, vendor_buy_extended_cost_item_costs,
     vendor_buy_muid_to_cpp_slot, vendor_buy_packet_quantity_to_cpp_count,
     vendor_buy_player_condition_block_result_like_cpp, vendor_buy_quantity_and_price,
-    vendor_buy_required_reputation_block_result, vendor_buy_stock_refill_count,
-    vendor_buy_template_block_result, vendor_conditions_block_result, vendor_list_item_refundable,
+    vendor_buy_required_reputation_block_result, vendor_buy_template_block_result,
+    vendor_conditions_block_result, vendor_list_item_refundable,
     vendor_list_reaches_cpp_item_limit, vendor_list_should_skip_allowed_class,
     vendor_list_should_skip_currency_row, vendor_list_should_skip_faction_flags,
     vendor_list_should_skip_sold_out, vendor_player_condition_failed_id_like_cpp,
@@ -374,13 +374,6 @@ fn vendor_buy_direct_store_preflight_matches_cpp_store_branch() {
         vendor_buy_direct_store_block_result(INVENTORY_SLOT_BAG_0, 0, 1),
         Some(InventoryResult::NotEquippable)
     );
-}
-
-#[test]
-fn vendor_buy_stock_refill_matches_cpp_increment_and_full_reset() {
-    assert_eq!(vendor_buy_stock_refill_count(2, 20, 10, 5, 20), (12, false));
-    assert_eq!(vendor_buy_stock_refill_count(18, 10, 10, 5, 20), (20, true));
-    assert_eq!(vendor_buy_stock_refill_count(2, 9, 10, 5, 20), (2, false));
 }
 
 #[test]

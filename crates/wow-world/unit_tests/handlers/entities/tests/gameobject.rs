@@ -365,7 +365,7 @@ async fn close_interaction_matching_source_resets_provenance_not_menu_like_cpp()
     session.set_player_trainer_interaction_like_cpp(source_guid, 77);
     session
         .interaction
-        .gossip_options
+        .gossip_options_for_test_mut_like_cpp()
         .push(crate::session::GossipOptionInfo {
             gossip_option_id: 1,
             menu_id: 0,
@@ -382,7 +382,7 @@ async fn close_interaction_matching_source_resets_provenance_not_menu_like_cpp()
     assert!(session.player_interaction_source_guid_like_cpp().is_none());
     assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
     assert_eq!(
-        session.interaction.gossip_options.len(),
+        session.interaction.gossip_options_for_test_like_cpp().len(),
         1,
         "C++ InteractionData::Reset is distinct from PlayerMenu::ClearMenus"
     );
@@ -397,7 +397,7 @@ async fn close_interaction_nonmatching_source_preserves_gossip_like_cpp() {
     session.set_player_trainer_interaction_like_cpp(active_guid, 77);
     session
         .interaction
-        .gossip_options
+        .gossip_options_for_test_mut_like_cpp()
         .push(crate::session::GossipOptionInfo {
             gossip_option_id: 1,
             menu_id: 0,
@@ -416,6 +416,6 @@ async fn close_interaction_nonmatching_source_preserves_gossip_like_cpp() {
         Some(active_guid)
     );
     assert_eq!(session.player_interaction_trainer_id_like_cpp(), 77);
-    assert_eq!(session.interaction.gossip_options.len(), 1);
+    assert_eq!(session.interaction.gossip_options_for_test_like_cpp().len(), 1);
     assert!(send_rx.try_recv().is_err());
 }

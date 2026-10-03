@@ -764,7 +764,7 @@ fn remove_known_spell_removes_trait_definition_override_like_cpp() {
     assert!(
         !session
             .spell_state
-            .player_spell_test_fixture_like_cpp
+            .player_spell_test_fixture_like_cpp()
             .represented_spell_trait_definition_ids_like_cpp
             .contains_key(&20),
         "removed PlayerSpell no longer owns a represented TraitDefinitionId"

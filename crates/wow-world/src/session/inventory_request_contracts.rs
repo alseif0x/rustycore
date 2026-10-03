@@ -71,24 +71,6 @@ pub(crate) struct RepresentedEquipmentSetSavedLikeCpp {
     pub(crate) generated_new_guid: bool,
 }
 
-/// Current finite stock for a vendor item.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct VendorItemCount {
-    pub count: u32,
-    pub last_increment_time: u64,
-}
-
+pub(crate) use wow_world_interaction::VendorItemCount;
 #[cfg(any(test, feature = "test-fixtures"))]
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct VendorBuyItemTestOverrideLikeCpp {
-    pub(crate) item_id: u32,
-    pub(crate) item_type: i32,
-    pub(crate) max_count: u32,
-    pub(crate) incr_time: u32,
-    pub(crate) player_condition_id: u32,
-    pub(crate) has_vendor_conditions: bool,
-    pub(crate) extended_cost: u32,
-    pub(crate) buy_price: u64,
-    pub(crate) max_durability: u32,
-    pub(crate) buy_count: u32,
-}
+pub(crate) use wow_world_interaction::VendorBuyItemTestOverrideLikeCpp;

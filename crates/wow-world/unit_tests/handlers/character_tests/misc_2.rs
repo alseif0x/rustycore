@@ -358,7 +358,7 @@ async fn gossip_catalog_port_preserves_read_order_and_localized_projection_like_
     assert_eq!(message.gossip_options.len(), 1);
     assert_eq!(message.gossip_options[0].text, "Opción localizada");
     assert_eq!(message.gossip_options[0].gossip_option_id, 77);
-    assert_eq!(session.interaction.gossip_options.len(), 1);
+    assert_eq!(session.interaction.gossip_options_for_test_like_cpp().len(), 1);
     assert_eq!(
         port.requests(),
         vec![
@@ -478,7 +478,7 @@ async fn invalid_gossip_hello_preserves_active_player_menu_state_like_cpp() {
     session.set_player_trainer_interaction_like_cpp(active_source, 77);
     session
         .interaction
-        .gossip_options
+        .gossip_options_for_test_mut_like_cpp()
         .push(crate::session::GossipOptionInfo {
             gossip_option_id: 31,
             menu_id: 32,
@@ -502,7 +502,7 @@ async fn invalid_gossip_hello_preserves_active_player_menu_state_like_cpp() {
         "invalid hello must not replace InteractionData"
     );
     assert_eq!(
-        session.interaction.gossip_options.len(),
+        session.interaction.gossip_options_for_test_like_cpp().len(),
         1,
         "C++ clears PlayerMenu only after validating the source"
     );
@@ -522,7 +522,7 @@ async fn valid_direct_service_hello_replaces_stale_trainer_provenance_like_cpp()
     session.set_player_trainer_interaction_like_cpp(old_trainer, 77);
     session
         .interaction
-        .gossip_options
+        .gossip_options_for_test_mut_like_cpp()
         .push(crate::session::GossipOptionInfo {
             gossip_option_id: 21,
             menu_id: 22,
@@ -558,7 +558,7 @@ async fn valid_direct_service_hello_replaces_stale_trainer_provenance_like_cpp()
         0,
         "opening another valid service invalidates an earlier trainer window"
     );
-    assert!(session.interaction.gossip_options.is_empty());
+    assert!(session.interaction.gossip_options_for_test_like_cpp().is_empty());
 }
 #[tokio::test]
 async fn gossip_hello_mixed_direct_service_keeps_service_like_cpp() {
@@ -572,7 +572,7 @@ async fn gossip_hello_mixed_direct_service_keeps_service_like_cpp() {
     session.set_player_trainer_interaction_like_cpp(stale_source, 77);
     session
         .interaction
-        .gossip_options
+        .gossip_options_for_test_mut_like_cpp()
         .push(crate::session::GossipOptionInfo {
             gossip_option_id: 91,
             menu_id: 92,
@@ -599,7 +599,7 @@ async fn gossip_hello_mixed_direct_service_keeps_service_like_cpp() {
     );
     assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
     assert!(
-        session.interaction.gossip_options.is_empty(),
+        session.interaction.gossip_options_for_test_like_cpp().is_empty(),
         "C++ HandleGossipHelloOpcode clears the prior menu before opening a direct service"
     );
 }
@@ -654,7 +654,7 @@ async fn gossip_hello_trainer_fallback_uses_canonical_access_like_cpp() {
     );
     assert_eq!(session.player_interaction_trainer_id_like_cpp(), 0);
     assert_eq!(
-        session.interaction.gossip_options[0].option_npc,
+        session.interaction.gossip_options_for_test_like_cpp()[0].option_npc,
         GOSSIP_OPTION_NPC_TRAINER_LIKE_CPP
     );
     assert!(send_rx.try_recv().is_err());
@@ -734,7 +734,7 @@ async fn gossip_select_trainer_only_source_opens_resolved_trainer_without_close_
     assert_eq!(gossip_message_counts(&menu_packet, guid), (1, 0));
     let option = session
         .interaction
-        .gossip_options
+        .gossip_options_for_test_like_cpp()
         .first()
         .cloned()
         .expect("generated trainer option");
@@ -801,7 +801,7 @@ async fn gossip_select_requires_exact_active_source_and_routes_exact_match_like_
         }
         session
             .interaction
-            .gossip_options
+            .gossip_options_for_test_mut_like_cpp()
             .push(crate::session::GossipOptionInfo {
                 gossip_option_id: 41,
                 menu_id: 42,
@@ -820,7 +820,7 @@ async fn gossip_select_requires_exact_active_source_and_routes_exact_match_like_
             .await;
 
         assert_eq!(drain_server_opcodes(&send_rx), expected_opcodes);
-        assert_eq!(session.interaction.gossip_options.len(), 1);
+        assert_eq!(session.interaction.gossip_options_for_test_like_cpp().len(), 1);
         if active_source == Some(requested) {
             assert_eq!(
                 session.player_interaction_source_guid_like_cpp(),
@@ -853,7 +853,7 @@ async fn gossip_select_requires_exact_active_menu_id_like_cpp() {
     session.set_player_trainer_interaction_like_cpp(banker, 77);
     session
         .interaction
-        .gossip_options
+        .gossip_options_for_test_mut_like_cpp()
         .push(crate::session::GossipOptionInfo {
             gossip_option_id: 61,
             menu_id: 62,
@@ -881,7 +881,7 @@ async fn gossip_select_requires_exact_active_menu_id_like_cpp() {
         session.player_trainer_interaction_matches_like_cpp(banker, 77),
         "a mismatched packet GossipID must not route or replace InteractionData"
     );
-    assert_eq!(session.interaction.gossip_options.len(), 1);
+    assert_eq!(session.interaction.gossip_options_for_test_like_cpp().len(), 1);
     assert!(
         !session
             .fixtures

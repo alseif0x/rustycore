@@ -48,7 +48,7 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.interaction.gossip_options.clear();
+            self.interaction.clear_gossip_options_for_test_like_cpp();
         }
         canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
@@ -69,7 +69,8 @@ impl WorldSession {
             .is_some();
         #[cfg(test)]
         if canonical || self.core.player_handle_like_cpp.is_none() {
-            self.interaction.gossip_options = fixture_options;
+            self.interaction
+                .replace_gossip_options_for_test_like_cpp(fixture_options);
         }
         canonical || cfg!(test) && self.core.player_handle_like_cpp.is_none()
     }
@@ -88,7 +89,7 @@ impl WorldSession {
         if canonical.is_none() && self.core.player_handle_like_cpp.is_none() {
             return self
                 .interaction
-                .gossip_options
+                .gossip_options_for_test_like_cpp()
                 .iter()
                 .find(|option| option.gossip_option_id == gossip_option_id)
                 .cloned();

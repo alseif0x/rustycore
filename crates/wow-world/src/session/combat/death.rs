@@ -42,7 +42,7 @@ impl WorldSession {
                     .represented_delayed_resurrection_after_teleport_like_cpp,
                 self_res_spells: self
                     .spell_state
-                    .represented_self_res_spells_like_cpp
+                    .represented_self_res_spells_for_test_like_cpp()
                     .clone(),
                 death_timer_active: self.fixtures.combat.represented_death_timer_active_like_cpp,
                 area_spirit_healer_guid: self.fixtures.combat.area_spirit_healer_guid_like_cpp,

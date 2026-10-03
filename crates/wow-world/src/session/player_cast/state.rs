@@ -33,18 +33,9 @@ impl WorldSession {
         &mut self,
         f: impl FnOnce(&mut wow_entities::CastExecutionStateLikeCpp) -> R,
     ) -> Option<R> {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
-            let mut state = wow_entities::CastExecutionStateLikeCpp {
-                active: self.spell_state.active_spell_cast.clone(),
-                last_cast_time: self.spell_state.last_spell_cast_time,
-                last_cast_time_per_spell: self.spell_state.last_spell_cast_time_per_spell.clone(),
-            };
-            let result = f(&mut state);
-            self.spell_state.active_spell_cast = state.active;
-            self.spell_state.last_spell_cast_time = state.last_cast_time;
-            self.spell_state.last_spell_cast_time_per_spell = state.last_cast_time_per_spell;
-            return Some(result);
+            return self.spell_state.mutate_cast_execution_fixture_like_cpp(f);
         }
         self.core.with_owned_player_mut_like_cpp(|player| {
             f(&mut player.unit_mut().subsystems_mut().spells.execution)
@@ -70,7 +61,7 @@ impl WorldSession {
         let Some(request) = self
             .with_pending_spell_cast_owner_like_cpp(
                 wow_entities::Player::cancel_pending_spell_cast_like_cpp,
-                #[cfg(test)]
+                #[cfg(any(test, feature = "test-fixtures"))]
                 Option::take,
             )
             .flatten()
@@ -101,15 +92,14 @@ impl WorldSession {
     fn with_pending_spell_cast_owner_like_cpp<R>(
         &mut self,
         canonical: impl FnOnce(&mut wow_entities::Player) -> R,
-        #[cfg(test)] fallback: impl FnOnce(&mut Option<RepresentedPendingSpellCastRequestLikeCpp>) -> R,
+        #[cfg(any(test, feature = "test-fixtures"))] fallback: impl FnOnce(&mut Option<RepresentedPendingSpellCastRequestLikeCpp>) -> R,
     ) -> Option<R> {
-        #[cfg(test)]
+        #[cfg(any(test, feature = "test-fixtures"))]
         if self.core.player_handle_like_cpp.is_none() {
-            return Some(fallback(
-                &mut self
-                    .spell_state
-                    .represented_pending_spell_cast_request_like_cpp,
-            ));
+            return Some(
+                self.spell_state
+                    .mutate_pending_spell_cast_fixture_like_cpp(fallback),
+            );
         }
         self.core.with_owned_player_mut_like_cpp(canonical)
     }
@@ -294,91 +284,6 @@ impl WorldSession {
             &creature_spawn_catalogs,
         )
         .await;
-    }
-}
-
-impl crate::session::state::SessionSpellState {
-    pub(in crate::session) fn with_cast_execution_like_cpp<R>(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        f: impl FnOnce(&wow_entities::CastExecutionStateLikeCpp) -> R,
-    ) -> Option<R> {
-        #[cfg(test)]
-        if hub.core.player_handle_like_cpp.is_none() {
-            return Some(f(&wow_entities::CastExecutionStateLikeCpp {
-                active: self.active_spell_cast.clone(),
-                last_cast_time: self.last_spell_cast_time,
-                last_cast_time_per_spell: self.last_spell_cast_time_per_spell.clone(),
-            }));
-        }
-        hub.core
-            .with_owned_player_like_cpp(|player| f(&player.unit().subsystems().spells.execution))
-    }
-
-    #[cfg(test)]
-    pub(crate) fn active_spell_cast_snapshot_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-    ) -> Option<SpellCastState> {
-        self.with_cast_execution_like_cpp(hub, |state| state.active.clone())
-            .flatten()
-    }
-
-    pub(crate) fn last_spell_cast_time_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-    ) -> Option<Option<Instant>> {
-        self.with_cast_execution_like_cpp(hub, |state| state.last_cast_time)
-    }
-
-    pub(crate) fn spell_last_cast_time_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        spell_id: i32,
-    ) -> Option<Option<Instant>> {
-        self.with_cast_execution_like_cpp(hub, |state| {
-            state.last_cast_time_per_spell.get(&spell_id).copied()
-        })
-    }
-
-    pub(in crate::session) fn pending_spell_cast_snapshot_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-    ) -> Option<Option<RepresentedPendingSpellCastRequestLikeCpp>> {
-        #[cfg(test)]
-        if hub.core.player_handle_like_cpp.is_none() {
-            return Some(self.represented_pending_spell_cast_request_like_cpp.clone());
-        }
-        hub.core
-            .with_owned_player_like_cpp(wow_entities::Player::pending_spell_cast_snapshot_like_cpp)
-    }
-
-    #[cfg(test)]
-    pub(crate) fn pending_spell_cast_for_test_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-    ) -> Option<RepresentedPendingSpellCastRequestLikeCpp> {
-        self.pending_spell_cast_snapshot_like_cpp(hub).flatten()
-    }
-
-    pub(crate) fn remaining_global_cooldown_ms_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-        spell_info: &wow_data::SpellInfo,
-    ) -> Option<u32> {
-        self.with_cast_execution_like_cpp(hub, |state| {
-            state.remaining_global_cooldown_ms(spell_info.cooldown_ms)
-        })
-    }
-
-    pub(crate) fn remaining_active_spell_cast_ms_like_cpp(
-        &self,
-        hub: crate::session::HubRef<'_>,
-    ) -> Option<u32> {
-        self.with_cast_execution_like_cpp(
-            hub,
-            wow_entities::CastExecutionStateLikeCpp::remaining_cast_ms,
-        )
     }
 }
 

@@ -54,17 +54,12 @@ fn active_cast_and_timestamps_mutate_once_under_active_and_detached_unit_owner()
             session.spell_last_cast_time_like_cpp(133),
             Some(Some(stamp))
         );
-        assert!(
-            session.spell_state.active_spell_cast.is_none(),
-            "do not mirror the canonical owner"
-        );
-        assert!(session.spell_state.last_spell_cast_time.is_none());
-        assert!(
-            session
-                .spell_state
-                .last_spell_cast_time_per_spell
-                .is_empty()
-        );
+        let (active, last_cast_time, per_spell_cast_times) = session
+            .spell_state
+            .cast_execution_fixture_for_test_like_cpp();
+        assert!(active.is_none(), "do not mirror the canonical owner");
+        assert!(last_cast_time.is_none());
+        assert!(per_spell_cast_times.is_empty());
         assert!(session.interrupt_non_melee_spell_cast_for_loot_like_cpp());
         assert!(!session.interrupt_non_melee_spell_cast_for_loot_like_cpp());
         assert_eq!(session.last_spell_cast_time_like_cpp(), Some(Some(stamp)));

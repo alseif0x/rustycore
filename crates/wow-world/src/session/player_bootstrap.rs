@@ -277,7 +277,7 @@ impl WorldSession {
                     .represented_delayed_resurrection_after_teleport_like_cpp,
                 self_res_spells: self
                     .spell_state
-                    .represented_self_res_spells_like_cpp
+                    .represented_self_res_spells_for_test_like_cpp()
                     .clone(),
                 death_timer_active: self.fixtures.combat.represented_death_timer_active_like_cpp,
                 area_spirit_healer_guid: self.fixtures.combat.area_spirit_healer_guid_like_cpp,
@@ -336,79 +336,46 @@ impl WorldSession {
                     .progression
                     .represented_primary_specialization_id_like_cpp,
             );
+            let spell_fixture = self.spell_state.player_spell_test_fixture_like_cpp();
             player.replace_spell_runtime_like_cpp(canonical_player_spell_runtime_like_cpp(
                 RepresentedPlayerSpellRuntimeLikeCpp {
-                    known_spells: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
-                        .known_spells
-                        .clone(),
-                    rows: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
-                        .represented_player_spell_rows_like_cpp
-                        .clone(),
-                    rows_loaded: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
-                        .represented_player_spell_rows_loaded_like_cpp,
-                    rows_complete: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
-                        .represented_player_spell_rows_complete_like_cpp,
-                    fallback_rows: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
+                    known_spells: spell_fixture.known_spells.clone(),
+                    rows: spell_fixture.represented_player_spell_rows_like_cpp.clone(),
+                    rows_loaded: spell_fixture.represented_player_spell_rows_loaded_like_cpp,
+                    rows_complete: spell_fixture.represented_player_spell_rows_complete_like_cpp,
+                    fallback_rows: spell_fixture
                         .represented_fallback_player_spell_rows_like_cpp
                         .clone(),
-                    dependent_known_spells: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
+                    dependent_known_spells: spell_fixture
                         .represented_dependent_known_spells_like_cpp
                         .clone(),
-                    removed_known_spells: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
+                    removed_known_spells: spell_fixture
                         .represented_removed_known_spells_like_cpp
                         .clone(),
-                    favorite_known_spells: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
+                    favorite_known_spells: spell_fixture
                         .represented_favorite_known_spells_like_cpp
                         .clone(),
-                    trait_definition_ids: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
+                    trait_definition_ids: spell_fixture
                         .represented_spell_trait_definition_ids_like_cpp
                         .clone(),
-                    trait_definition_ids_complete: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
+                    trait_definition_ids_complete: spell_fixture
                         .represented_spell_trait_definition_ids_complete_like_cpp,
-                    trait_config_rows: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
+                    trait_config_rows: spell_fixture
                         .represented_trait_config_rows_like_cpp
                         .clone(),
-                    trait_config_rows_complete: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
+                    trait_config_rows_complete: spell_fixture
                         .represented_trait_config_rows_complete_like_cpp,
-                    trait_entry_rows_complete: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
+                    trait_entry_rows_complete: spell_fixture
                         .represented_trait_entry_rows_complete_like_cpp,
-                    trait_entry_rows_empty: self
-                        .spell_state
-                        .player_spell_test_fixture_like_cpp
+                    trait_entry_rows_empty: spell_fixture
                         .represented_trait_entry_rows_empty_like_cpp,
                     override_spells: self
                         .spell_state
-                        .represented_override_spells_like_cpp
+                        .represented_override_spell_fixture_like_cpp()
                         .clone(),
                     override_spells_complete: self
                         .spell_state
-                        .represented_override_spells_complete_like_cpp,
+                        .represented_override_spell_fixture_complete_like_cpp(),
                 },
             ));
             player.gameplay_state_mut().cuf_profiles = self

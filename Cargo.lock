@@ -3465,7 +3465,9 @@ dependencies = [
  "wow-spell-acquisition",
  "wow-world",
  "wow-world-core",
+ "wow-world-interaction",
  "wow-world-social",
+ "wow-world-spell",
 ]
 
 [[package]]
@@ -3502,6 +3504,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "wow-world-interaction"
+version = "0.1.0"
+dependencies = [
+ "wow-core",
+ "wow-entities",
+ "wow-packet",
+ "wow-world-core",
+]
+
+[[package]]
 name = "wow-world-social"
 version = "0.1.0"
 dependencies = [
@@ -3509,6 +3521,22 @@ dependencies = [
  "wow-entities",
  "wow-packet",
  "wow-social",
+ "wow-world-core",
+]
+
+[[package]]
+name = "wow-world-spell"
+version = "0.1.0"
+dependencies = [
+ "num-traits",
+ "tracing",
+ "wow-constants",
+ "wow-core",
+ "wow-data",
+ "wow-entities",
+ "wow-map",
+ "wow-packet",
+ "wow-spell-acquisition",
  "wow-world-core",
 ]
 

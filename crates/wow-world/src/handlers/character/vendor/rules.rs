@@ -387,32 +387,6 @@ pub(in crate::handlers::character) fn vendor_buy_direct_store_block_result(
     Some(InventoryResult::WrongSlot)
 }
 
-pub(in crate::handlers::character) fn vendor_buy_stock_refill_count(
-    current_count: u32,
-    elapsed_secs: u64,
-    incr_time: u32,
-    buy_count: u32,
-    max_count: u32,
-) -> (u32, bool) {
-    if max_count == 0 || current_count >= max_count || incr_time == 0 {
-        // C++ assumes nonzero incrtime for finite stock; keep invalid DB rows from dividing by zero.
-        return (current_count.min(max_count), current_count >= max_count);
-    }
-
-    let increments = elapsed_secs / u64::from(incr_time);
-    if increments == 0 {
-        return (current_count, false);
-    }
-
-    let restored = increments.saturating_mul(u64::from(buy_count.max(1)));
-    let new_count = u64::from(current_count).saturating_add(restored);
-    if new_count >= u64::from(max_count) {
-        (max_count, true)
-    } else {
-        (new_count as u32, false)
-    }
-}
-
 pub(in crate::handlers::character) fn vendor_list_should_skip_sold_out(
     max_count: i32,
     current_count: u32,

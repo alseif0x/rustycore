@@ -358,19 +358,3 @@ impl WorldSession {
         };
     }
 }
-
-impl crate::session::InteractionState {
-    pub(super) fn send_show_bank_like_cpp(
-        &mut self,
-        hub: crate::session::HubRef<'_>,
-        banker_guid: ObjectGuid,
-    ) {
-        use wow_packet::packets::misc::NpcInteractionOpenResult;
-
-        // C++ `WorldSession::SendShowBank` resets PlayerMenu::InteractionData
-        // and stores the banker as the sole active interaction source.
-        self.set_player_interaction_source_like_cpp(hub, banker_guid);
-        hub.core
-            .send_packet(&NpcInteractionOpenResult::new(banker_guid, 8));
-    }
-}

@@ -144,8 +144,7 @@ impl WorldSession {
             self.clear_player_gossip_options_like_cpp();
             #[cfg(test)]
             self.spell_state
-                .represented_spell_acquisition_post_commit_actions_like_cpp
-                .clear();
+                .clear_spell_acquisition_post_commit_actions_for_test_like_cpp();
             if previous_player_guid.is_some() {
                 let _ = self.clear_represented_fallback_spell_rows_like_cpp();
             }
