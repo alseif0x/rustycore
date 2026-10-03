@@ -27,6 +27,7 @@ wow-movement = { workspace = true }
 wow-network = { workspace = true }
 wow-module-api = { workspace = true }
 wow-world = { workspace = true }
+wow-world-inventory = { workspace = true }
 wow-handler = { workspace = true }
 wow-instances = { workspace = true }
 wow-packet = { workspace = true }

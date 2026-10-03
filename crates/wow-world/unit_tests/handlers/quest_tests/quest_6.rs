@@ -263,8 +263,7 @@ async fn push_quest_to_party_missing_group_registry_keeps_explicit_blocker_like_
 }
 #[test]
 fn push_quest_to_party_registration_and_dispatch_are_wired_like_cpp() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::PushQuestToParty)
         .expect("PushQuestToParty handler registration");
 
@@ -311,8 +310,7 @@ fn quest_packet_registration_and_dispatch_are_wired_like_cpp() {
         ),
     ];
     for (opcode, handler_name, call) in cases {
-        let entry = inventory::iter::<PacketHandlerEntry>
-            .into_iter()
+        let entry = crate::session::registry::registered_handler_entries_like_cpp()
             .find(|entry| entry.opcode == opcode)
             .unwrap_or_else(|| panic!("{opcode:?} handler registration"));
 

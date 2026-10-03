@@ -171,6 +171,7 @@ fn make_session_with_send_capacity(capacity: usize) -> (WorldSession, flume::Rec
         "esES".into(),
         pkt_rx,
         send_tx,
+        crate::session::registry::build_dispatch_table(),
     );
     session.set_loot_money_persistence_test_result_like_cpp(true);
     (session, send_rx)

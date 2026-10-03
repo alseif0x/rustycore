@@ -25,6 +25,7 @@ async fn production_session_driver_executes_ready_rename_callbacks() {
         "esES".into(),
         packet_rx,
         send_tx,
+        crate::session::registry::build_dispatch_table(),
     );
     let guid = ObjectGuid::create_player(1, 42);
     session.set_legit_characters(vec![guid]);

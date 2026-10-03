@@ -9,7 +9,7 @@ use wow_constants::ClientOpcodes;
 use wow_handler::PacketProcessing;
 use wow_handler::SessionStatus;
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChatMessageSay,
         status: SessionStatus::LoggedIn,
@@ -20,7 +20,7 @@ inventory::submit! {
         },
     }
 }
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChatMessageYell,
         status: SessionStatus::LoggedIn,
@@ -31,7 +31,7 @@ inventory::submit! {
         },
     }
 }
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChatMessageParty,
         status: SessionStatus::LoggedIn,
@@ -42,7 +42,7 @@ inventory::submit! {
         },
     }
 }
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChatMessageGuild,
         status: SessionStatus::LoggedIn,
@@ -53,7 +53,7 @@ inventory::submit! {
         },
     }
 }
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChatMessageOfficer,
         status: SessionStatus::LoggedIn,
@@ -64,7 +64,7 @@ inventory::submit! {
         },
     }
 }
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChatMessageRaid,
         status: SessionStatus::LoggedIn,
@@ -75,7 +75,7 @@ inventory::submit! {
         },
     }
 }
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChatMessageRaidWarning,
         status: SessionStatus::LoggedIn,
@@ -86,7 +86,7 @@ inventory::submit! {
         },
     }
 }
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChatMessageInstanceChat,
         status: SessionStatus::LoggedIn,
@@ -97,7 +97,7 @@ inventory::submit! {
         },
     }
 }
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChatMessageWhisper,
         status: SessionStatus::LoggedIn,
@@ -106,7 +106,7 @@ inventory::submit! {
         handler: |session, catalogs, pkt| Box::pin(async move { session.handle_chat_whisper_with_policy_like_cpp(pkt, catalogs.chat_policy.as_ref()).await }),
     }
 }
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChatMessageChannel,
         status: SessionStatus::LoggedIn,
@@ -117,7 +117,7 @@ inventory::submit! {
         },
     }
 }
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChatMessageAfk,
         status: SessionStatus::LoggedIn,
@@ -126,7 +126,7 @@ inventory::submit! {
         handler: |session, catalogs, pkt| Box::pin(async move { session.handle_chat_afk_with_policy_like_cpp(pkt, catalogs.chat_policy.as_ref()).await }),
     }
 }
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChatMessageDnd,
         status: SessionStatus::LoggedIn,
@@ -135,7 +135,7 @@ inventory::submit! {
         handler: |session, catalogs, pkt| Box::pin(async move { session.handle_chat_dnd_with_policy_like_cpp(pkt, catalogs.chat_policy.as_ref()).await }),
     }
 }
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::UpdateAadcStatus,
         status: SessionStatus::LoggedIn,
@@ -146,7 +146,7 @@ inventory::submit! {
         },
     }
 }
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChatReportIgnored,
         status: SessionStatus::LoggedIn,
@@ -157,7 +157,7 @@ inventory::submit! {
         },
     }
 }
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChatReportFiltered,
         status: SessionStatus::LoggedIn,
@@ -168,7 +168,7 @@ inventory::submit! {
         },
     }
 }
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChatMessageEmote,
         status: SessionStatus::LoggedIn,
@@ -177,7 +177,7 @@ inventory::submit! {
         handler: |session, catalogs, pkt| Box::pin(async move { session.handle_chat_emote_with_policy_like_cpp(pkt, catalogs.chat_policy.as_ref()).await }),
     }
 }
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::Emote,
         status: SessionStatus::LoggedIn,
@@ -186,7 +186,7 @@ inventory::submit! {
         handler: |session, _catalogs, pkt| Box::pin(async move { session.handle_emote(pkt).await }),
     }
 }
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SendTextEmote,
         status: SessionStatus::LoggedIn,
@@ -206,7 +206,7 @@ inventory::submit! {
         },
     }
 }
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChatRegisterAddonPrefixes,
         status: SessionStatus::LoggedIn,
@@ -217,7 +217,7 @@ inventory::submit! {
         },
     }
 }
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChatAddonMessage,
         status: SessionStatus::LoggedIn,
@@ -228,7 +228,7 @@ inventory::submit! {
         },
     }
 }
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChatAddonMessageWhisper,
         status: SessionStatus::LoggedIn,

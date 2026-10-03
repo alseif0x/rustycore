@@ -3113,6 +3113,7 @@ dependencies = [
  "wow-script",
  "wow-social",
  "wow-world",
+ "wow-world-inventory",
 ]
 
 [[package]]
@@ -3247,6 +3248,10 @@ dependencies = [
 [[package]]
 name = "wow-handler"
 version = "0.1.0"
+dependencies = [
+ "wow-constants",
+ "wow-packet",
+]
 
 [[package]]
 name = "wow-instances"
@@ -3464,6 +3469,7 @@ dependencies = [
  "wow-social",
  "wow-spell-acquisition",
  "wow-world",
+ "wow-world-application",
  "wow-world-core",
  "wow-world-entities",
  "wow-world-interaction",
@@ -3474,6 +3480,18 @@ dependencies = [
  "wow-world-social",
  "wow-world-spell",
  "wow-world-visibility",
+]
+
+[[package]]
+name = "wow-world-application"
+version = "0.1.0"
+dependencies = [
+ "tokio",
+ "wow-config",
+ "wow-core",
+ "wow-data",
+ "wow-persistence",
+ "wow-spell-acquisition",
 ]
 
 [[package]]
@@ -3561,6 +3579,7 @@ dependencies = [
  "wow-core",
  "wow-data",
  "wow-entities",
+ "wow-handler",
  "wow-packet",
  "wow-persistence",
  "wow-progression",

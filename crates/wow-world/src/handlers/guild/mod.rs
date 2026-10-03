@@ -16,7 +16,7 @@ use wow_packet::packets::misc::{
     GuildBankWithdrawMoney, GuildCommandResult, GuildSetAchievementTracking,
 };
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GuildSetAchievementTracking,
         status: SessionStatus::LoggedIn,
@@ -28,7 +28,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::DeclineGuildInvites,
         status: SessionStatus::LoggedIn,
@@ -40,7 +40,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GuildDeclineInvitation,
         status: SessionStatus::LoggedIn,
@@ -52,7 +52,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AcceptGuildInvite,
         status: SessionStatus::LoggedIn,
@@ -64,7 +64,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GuildBankRemainingWithdrawMoneyQuery,
         status: SessionStatus::LoggedIn,
@@ -76,7 +76,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GuildBankActivate,
         status: SessionStatus::LoggedIn,
@@ -88,7 +88,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GuildBankQueryTab,
         status: SessionStatus::LoggedIn,
@@ -100,7 +100,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GuildBankBuyTab,
         status: SessionStatus::LoggedIn,
@@ -112,7 +112,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GuildBankUpdateTab,
         status: SessionStatus::LoggedIn,
@@ -124,7 +124,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GuildBankDepositMoney,
         status: SessionStatus::LoggedIn,
@@ -136,7 +136,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GuildBankWithdrawMoney,
         status: SessionStatus::LoggedIn,
@@ -148,7 +148,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GuildBankLogQuery,
         status: SessionStatus::LoggedIn,
@@ -160,7 +160,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GuildBankTextQuery,
         status: SessionStatus::LoggedIn,
@@ -172,7 +172,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GuildBankSetTabText,
         status: SessionStatus::LoggedIn,
@@ -184,7 +184,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AutoGuildBankItem,
         status: SessionStatus::LoggedIn,
@@ -196,7 +196,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AutoStoreGuildBankItem,
         status: SessionStatus::LoggedIn,

@@ -26,7 +26,7 @@ const LFG_LOCKSTATUS_MISSING_ITEM_LIKE_CPP: u32 = 1025;
 const LFG_LOCKSTATUS_NOT_IN_SEASON_LIKE_CPP: u32 = 1031;
 const LFG_LOCKSTATUS_MISSING_ACHIEVEMENT_LIKE_CPP: u32 = 1034;
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::DfGetSystemInfo,
         status: SessionStatus::LoggedIn,
@@ -45,7 +45,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::DfGetJoinStatus,
         status: SessionStatus::LoggedIn,
@@ -57,7 +57,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::RequestConquestFormulaConstants,
         status: SessionStatus::LoggedIn,
@@ -69,7 +69,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::RequestLfgListBlacklist,
         status: SessionStatus::LoggedIn,
@@ -81,7 +81,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LfgListGetStatus,
         status: SessionStatus::LoggedIn,

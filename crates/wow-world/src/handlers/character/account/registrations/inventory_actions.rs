@@ -1,6 +1,6 @@
 use super::*;
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SwapInvItem,
         status: SessionStatus::LoggedIn,
@@ -25,7 +25,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AutoEquipItem,
         status: SessionStatus::LoggedIn,
@@ -50,7 +50,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AutoEquipItemSlot,
         status: SessionStatus::LoggedIn,
@@ -75,7 +75,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SwapItem,
         status: SessionStatus::LoggedIn,
@@ -100,7 +100,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AutoStoreBagItem,
         status: SessionStatus::LoggedIn,
@@ -125,7 +125,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::DestroyItem,
         status: SessionStatus::LoggedIn,
@@ -142,7 +142,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CancelTempEnchantment,
         status: SessionStatus::LoggedIn,
@@ -159,7 +159,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ShowTradeSkill,
         status: SessionStatus::LoggedIn,

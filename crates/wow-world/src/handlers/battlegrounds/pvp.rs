@@ -16,7 +16,7 @@ use wow_packet::packets::misc::{
     RequestBattlefieldStatus, SetPvp, TogglePvp,
 };
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::RequestBattlefieldStatus,
         status: SessionStatus::LoggedIn,
@@ -28,7 +28,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BattlemasterHello,
         status: SessionStatus::LoggedIn,
@@ -40,7 +40,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BattlefieldList,
         status: SessionStatus::LoggedIn,
@@ -59,7 +59,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BattlemasterJoin,
         status: SessionStatus::LoggedIn,
@@ -78,7 +78,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BattlemasterJoinArena,
         status: SessionStatus::LoggedIn,
@@ -97,7 +97,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BattlemasterJoinSkirmish,
         status: SessionStatus::LoggedIn,
@@ -116,7 +116,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BattlefieldPort,
         status: SessionStatus::LoggedIn,
@@ -126,7 +126,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::RequestRatedPvpInfo,
         status: SessionStatus::LoggedIn,
@@ -138,7 +138,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BattlefieldLeave,
         status: SessionStatus::LoggedIn,
@@ -150,7 +150,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AcceptWargameInvite,
         status: SessionStatus::LoggedIn,
@@ -162,7 +162,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::RequestPvpRewards,
         status: SessionStatus::LoggedIn,
@@ -174,7 +174,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::TogglePvp,
         status: SessionStatus::LoggedIn,
@@ -184,7 +184,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetPvp,
         status: SessionStatus::LoggedIn,

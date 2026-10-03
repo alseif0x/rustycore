@@ -226,6 +226,7 @@ fn extended_cost_item_turnin_plan_matches_cpp_destroy_order() {
         "esES".into(),
         pkt_rx,
         send_tx,
+        crate::session::registry::build_dispatch_table(),
     );
     let player_guid = ObjectGuid::create_player(1, 1);
     session.set_player_guid(Some(player_guid));
@@ -287,6 +288,7 @@ fn vendor_item_current_count_updates_like_cpp() {
         "esES".into(),
         pkt_rx,
         send_tx,
+        crate::session::registry::build_dispatch_table(),
     );
     let vendor_guid = ObjectGuid::create_world_object(HighGuid::Creature, 0, 1, 0, 0, 7, 1);
 

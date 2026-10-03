@@ -23,7 +23,7 @@ use wow_packet::{ClientPacket, ServerPacket};
 use crate::entity_update_bridge::player_values_update_to_update_object;
 use crate::session::{CAST_FLAG_EX_USE_TOY_SPELL_LIKE_CPP, SpellCastMetadata};
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::MountSetFavorite,
         status: SessionStatus::LoggedIn,
@@ -35,7 +35,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::MountSpecialAnim,
         status: SessionStatus::LoggedIn,
@@ -47,7 +47,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CollectionItemSetFavorite,
         status: SessionStatus::LoggedIn,
@@ -59,7 +59,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::MountClearFanfare,
         status: SessionStatus::LoggedIn,
@@ -71,7 +71,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AddToy,
         status: SessionStatus::LoggedIn,
@@ -81,7 +81,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ToyClearFanfare,
         status: SessionStatus::LoggedIn,
@@ -93,7 +93,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::UseToy,
         status: SessionStatus::LoggedIn,

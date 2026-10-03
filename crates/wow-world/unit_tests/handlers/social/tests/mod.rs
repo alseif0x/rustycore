@@ -133,6 +133,7 @@ fn make_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
             "enUS".into(),
             pkt_rx,
             send_tx,
+            crate::session::registry::build_dispatch_table(),
         ),
         send_rx,
     )

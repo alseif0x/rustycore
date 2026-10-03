@@ -46,6 +46,7 @@ impl Fixture {
             "enUS".into(),
             incoming,
             outgoing,
+            crate::session::registry::build_dispatch_table(),
         );
         let (command_tx, command_rx) = flume::bounded(1);
         session.core.session_command_tx = command_tx;

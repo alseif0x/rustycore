@@ -25,7 +25,7 @@ pub(crate) enum RepresentedInstanceResetMethodLikeCpp {
     OnChangeDifficulty,
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::RequestRaidInfo,
         status: SessionStatus::LoggedIn,
@@ -37,7 +37,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ResetInstances,
         status: SessionStatus::LoggedIn,
@@ -47,7 +47,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::InstanceLockResponse,
         status: SessionStatus::LoggedIn,

@@ -16,6 +16,7 @@ mod enchantment;
 mod equipment;
 mod equipment_slots;
 mod equipment_sets;
+mod handlers;
 mod durability;
 mod modifiers;
 mod offhand;
@@ -70,6 +71,10 @@ pub use contracts::{
 };
 pub use enchantment::LoadedEquippedItemEnchantmentsOutcomeLikeCpp;
 pub use equipment_sets::represented_equipment_set_from_packet_like_cpp;
+pub use handlers::{
+    EquipmentSetsHandlerCxLikeCpp, InventoryHandlerHostLikeCpp,
+    register_inventory_handlers_like_cpp,
+};
 pub use modifiers::represented_player_stat_changes_like_cpp;
 pub use publication::item_storage_fields_values_update_like_cpp;
 pub use storage_slots::is_represented_bag_slot;

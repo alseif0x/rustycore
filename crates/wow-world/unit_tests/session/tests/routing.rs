@@ -99,7 +99,7 @@ async fn borrowed_hotfix_catalog_dispatch_preserves_locale_unknown_push_and_curr
         session.core.locale = locale.to_owned();
         let entry = session
             .dispatch_table
-            .get(&ClientOpcodes::HotfixRequest)
+            .get(ClientOpcodes::HotfixRequest)
             .unwrap();
         assert_eq!(entry.status, SessionStatus::Authed);
         assert_eq!(entry.processing, PacketProcessing::ThreadUnsafe);

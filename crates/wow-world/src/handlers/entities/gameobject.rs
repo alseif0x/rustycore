@@ -27,7 +27,7 @@ use super::represented_gameobject_icon_allows_interaction_like_cpp;
 use crate::handlers::loot::represented_gameobject_interaction_distance_like_cpp;
 use crate::session::{RepresentedGameObjectAccessLikeCpp, RepresentedGameObjectUseEffect};
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CloseInteraction,
         status: SessionStatus::LoggedIn,
@@ -39,7 +39,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GameObjUse,
         status: SessionStatus::LoggedIn,
@@ -60,7 +60,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GameObjReportUse,
         status: SessionStatus::LoggedIn,

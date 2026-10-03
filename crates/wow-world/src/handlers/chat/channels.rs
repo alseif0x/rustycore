@@ -48,7 +48,7 @@ pub(super) fn join_channel_custom_precheck_like_cpp(
     JoinChannelPrecheckLikeCpp::Continue
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChatJoinChannel,
         status: SessionStatus::LoggedIn,
@@ -60,7 +60,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChatLeaveChannel,
         status: SessionStatus::LoggedIn,
@@ -74,7 +74,7 @@ inventory::submit! {
 
 macro_rules! register_chat_channel_command_handler {
     ($opcode:ident) => {
-        inventory::submit! {
+        crate::session::registry::register_packet_handler_like_cpp! {
             PacketHandlerEntry {
                 opcode: ClientOpcodes::$opcode,
                 status: SessionStatus::LoggedIn,
@@ -96,7 +96,7 @@ register_chat_channel_command_handler!(ChatChannelOwner);
 
 macro_rules! register_chat_channel_player_command_handler {
     ($opcode:ident) => {
-        inventory::submit! {
+        crate::session::registry::register_packet_handler_like_cpp! {
             PacketHandlerEntry {
                 opcode: ClientOpcodes::$opcode,
                 status: SessionStatus::LoggedIn,
@@ -120,7 +120,7 @@ register_chat_channel_player_command_handler!(ChatChannelUnban);
 register_chat_channel_player_command_handler!(ChatChannelUnmoderator);
 register_chat_channel_player_command_handler!(ChatChannelUnsilenceAll);
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChatChannelPassword,
         status: SessionStatus::LoggedIn,
@@ -132,7 +132,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChatUnregisterAllAddonPrefixes,
         status: SessionStatus::LoggedIn,

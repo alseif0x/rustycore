@@ -49,9 +49,8 @@ impl HandlerContractRow {
 }
 
 fn registered_contract() -> Vec<HandlerContractRow> {
-    let mut rows: Vec<_> = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
-        .map(HandlerContractRow::from_entry)
+    let mut rows: Vec<_> = crate::session::registry::registered_handler_entries_like_cpp()
+        .map(|entry| HandlerContractRow::from_entry(&entry))
         .collect();
     rows.sort_by(|left, right| {
         left.opcode_value

@@ -16,7 +16,7 @@ use wow_packet::packets::misc::{
 
 use crate::session::{AreaTriggerCatalogsLikeCpp, RepresentedActivateTaxiLikeCpp};
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ActivateTaxi,
         status: SessionStatus::LoggedIn,
@@ -26,7 +26,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AreaTrigger,
         status: SessionStatus::LoggedIn,
@@ -45,7 +45,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::WorldPortResponse,
         status: SessionStatus::Transfer,
@@ -66,7 +66,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SuspendTokenResponse,
         status: SessionStatus::Transfer,
@@ -78,7 +78,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::TaxiNodeStatusQuery,
         status: SessionStatus::LoggedIn,
@@ -90,7 +90,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetTaxiBenchmarkMode,
         status: SessionStatus::LoggedIn,
@@ -102,7 +102,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::UpdateAreaTriggerVisual,
         status: SessionStatus::Authed,

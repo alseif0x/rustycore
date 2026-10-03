@@ -16,7 +16,7 @@ use wow_packet::packets::misc::{
     SupportTicketSubmitBug, SupportTicketSubmitComplaint, SupportTicketSubmitSuggestion,
 };
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GmTicketGetCaseStatus,
         status: SessionStatus::LoggedIn,
@@ -28,7 +28,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GmTicketGetSystemStatus,
         status: SessionStatus::LoggedIn,
@@ -47,7 +47,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GmTicketAcknowledgeSurvey,
         status: SessionStatus::LoggedIn,
@@ -59,7 +59,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::Complaint,
         status: SessionStatus::LoggedIn,
@@ -69,7 +69,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SubmitUserFeedback,
         status: SessionStatus::LoggedIn,
@@ -88,7 +88,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SupportTicketSubmitBug,
         status: SessionStatus::LoggedIn,
@@ -107,7 +107,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SupportTicketSubmitComplaint,
         status: SessionStatus::LoggedIn,
@@ -126,7 +126,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SupportTicketSubmitSuggestion,
         status: SessionStatus::LoggedIn,
@@ -145,7 +145,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BugReport,
         status: SessionStatus::LoggedIn,
@@ -164,7 +164,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ObjectUpdateFailed,
         status: SessionStatus::LoggedIn,
@@ -176,7 +176,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ObjectUpdateRescued,
         status: SessionStatus::LoggedIn,

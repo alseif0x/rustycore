@@ -619,40 +619,35 @@ async fn auto_store_guild_bank_item_records_null_slot_to_char_like_cpp() {
 
 #[test]
 fn guild_bank_inventory_move_handler_metadata_matches_cpp() {
-    let activate = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let activate = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::GuildBankActivate)
         .expect("GuildBankActivate handler entry");
     assert_eq!(activate.status, SessionStatus::LoggedIn);
     assert_eq!(activate.processing, PacketProcessing::ThreadUnsafe);
     assert_eq!(activate.handler_name, "handle_guild_bank_activate");
 
-    let query_tab = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let query_tab = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::GuildBankQueryTab)
         .expect("GuildBankQueryTab handler entry");
     assert_eq!(query_tab.status, SessionStatus::LoggedIn);
     assert_eq!(query_tab.processing, PacketProcessing::ThreadUnsafe);
     assert_eq!(query_tab.handler_name, "handle_guild_bank_query_tab");
 
-    let buy_tab = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let buy_tab = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::GuildBankBuyTab)
         .expect("GuildBankBuyTab handler entry");
     assert_eq!(buy_tab.status, SessionStatus::LoggedIn);
     assert_eq!(buy_tab.processing, PacketProcessing::ThreadUnsafe);
     assert_eq!(buy_tab.handler_name, "handle_guild_bank_buy_tab");
 
-    let update_tab = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let update_tab = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::GuildBankUpdateTab)
         .expect("GuildBankUpdateTab handler entry");
     assert_eq!(update_tab.status, SessionStatus::LoggedIn);
     assert_eq!(update_tab.processing, PacketProcessing::ThreadUnsafe);
     assert_eq!(update_tab.handler_name, "handle_guild_bank_update_tab");
 
-    let deposit_money = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let deposit_money = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::GuildBankDepositMoney)
         .expect("GuildBankDepositMoney handler entry");
     assert_eq!(deposit_money.status, SessionStatus::LoggedIn);
@@ -662,8 +657,7 @@ fn guild_bank_inventory_move_handler_metadata_matches_cpp() {
         "handle_guild_bank_deposit_money"
     );
 
-    let withdraw_money = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let withdraw_money = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::GuildBankWithdrawMoney)
         .expect("GuildBankWithdrawMoney handler entry");
     assert_eq!(withdraw_money.status, SessionStatus::LoggedIn);
@@ -673,40 +667,35 @@ fn guild_bank_inventory_move_handler_metadata_matches_cpp() {
         "handle_guild_bank_withdraw_money"
     );
 
-    let log_query = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let log_query = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::GuildBankLogQuery)
         .expect("GuildBankLogQuery handler entry");
     assert_eq!(log_query.status, SessionStatus::LoggedIn);
     assert_eq!(log_query.processing, PacketProcessing::ThreadUnsafe);
     assert_eq!(log_query.handler_name, "handle_guild_bank_log_query");
 
-    let text_query = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let text_query = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::GuildBankTextQuery)
         .expect("GuildBankTextQuery handler entry");
     assert_eq!(text_query.status, SessionStatus::LoggedIn);
     assert_eq!(text_query.processing, PacketProcessing::ThreadUnsafe);
     assert_eq!(text_query.handler_name, "handle_guild_bank_text_query");
 
-    let set_tab_text = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let set_tab_text = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::GuildBankSetTabText)
         .expect("GuildBankSetTabText handler entry");
     assert_eq!(set_tab_text.status, SessionStatus::LoggedIn);
     assert_eq!(set_tab_text.processing, PacketProcessing::ThreadUnsafe);
     assert_eq!(set_tab_text.handler_name, "handle_guild_bank_set_tab_text");
 
-    let auto_guild = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let auto_guild = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::AutoGuildBankItem)
         .expect("AutoGuildBankItem handler entry");
     assert_eq!(auto_guild.status, SessionStatus::LoggedIn);
     assert_eq!(auto_guild.processing, PacketProcessing::ThreadUnsafe);
     assert_eq!(auto_guild.handler_name, "handle_auto_guild_bank_item");
 
-    let auto_store = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let auto_store = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::AutoStoreGuildBankItem)
         .expect("AutoStoreGuildBankItem handler entry");
     assert_eq!(auto_store.status, SessionStatus::LoggedIn);

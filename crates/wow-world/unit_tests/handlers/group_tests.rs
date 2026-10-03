@@ -27,7 +27,6 @@ use wow_constants::{ClientOpcodes, ServerOpcodes};
 use wow_core::{ObjectGuid, Position, guid::HighGuid};
 use wow_handler::{PacketProcessing, SessionStatus};
 
-use crate::session::registry::PacketHandlerEntry;
 use wow_packet::{ServerPacket, WorldPacket, packets::party::party_result};
 use wow_persistence::{
     PersistenceFutureLikeCpp, PersistenceOutcomeLikeCpp, RepresentedGroupPersistenceOutcomeLikeCpp,
@@ -663,6 +662,7 @@ fn make_session_with_send() -> (WorldSession, flume::Receiver<Vec<u8>>) {
         "esES".into(),
         pkt_rx,
         send_tx,
+        crate::session::registry::build_dispatch_table(),
     );
     session.set_loaded_player_identity_like_cpp(0, 1, 1, 80, 0);
     (session, send_rx)

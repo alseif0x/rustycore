@@ -345,6 +345,7 @@ pub(super) async fn create_session(
         account.locale.clone(),
         pkt_rx,
         send_tx,
+        Arc::clone(&resources.core.packet_handlers),
     );
     session.set_send_write_fence_like_cpp(send_write_fence_like_cpp);
     let Some((active_session_id, session_cancellation, ready_for_phases_like_cpp)) =

@@ -1,5 +1,4 @@
 use super::*;
-use crate::session::registry::PacketHandlerEntry;
 use wow_constants::ClientOpcodes;
 use wow_handler::{PacketProcessing, SessionStatus};
 
@@ -93,8 +92,7 @@ async fn insufficient_money_uses_prepared_effective_price_without_mutation() {
 #[test]
 fn buy_registration_carries_the_call_while_legacy_shortcuts_stay_disabled() {
     let trainer = include_str!("../../../../src/handlers/trainer.rs");
-    let registrations: Vec<_> = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let registrations: Vec<_> = crate::session::registry::registered_handler_entries_like_cpp()
         .filter(|entry| entry.opcode == ClientOpcodes::TrainerBuySpell)
         .collect();
     assert_eq!(registrations.len(), 1);

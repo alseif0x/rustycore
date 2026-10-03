@@ -99,7 +99,7 @@ impl WorldSession {
         let Some(opcode) = head.client_opcode() else {
             return matches!(phase, PacketUpdatePhase::World);
         };
-        let Some(entry) = self.dispatch_table.get(&opcode) else {
+        let Some(entry) = self.dispatch_table.get(opcode).copied() else {
             return matches!(phase, PacketUpdatePhase::World);
         };
         entry.processing.allows_phase(phase, residence)

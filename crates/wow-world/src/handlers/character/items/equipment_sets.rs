@@ -56,23 +56,9 @@ impl WorldSession {
     /// `Handle_NULL`. This Rust handler currently assigns the first matching
     /// equipment-set ID without a response; the next full player save persists it.
     /// This version difference requires F6 evidence before claiming parity.
-    pub async fn handle_assign_equipment_set_spec(&mut self, mut pkt: WorldPacket) {
-        let request = match AssignEquipmentSetSpec::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!("Bad AssignEquipmentSetSpec: {error}");
-                return;
-            }
-        };
-
-        let _assigned = {
-            let (s, mut h) = crate::session::split_inventory_mut(self);
-            s.assign_represented_equipment_set_to_spec_like_cpp(
-                &mut h,
-                request.set_id,
-                request.spec_index,
-            )
-        };
+    pub async fn handle_assign_equipment_set_spec(&mut self, pkt: WorldPacket) {
+        self.build_equipment_sets_handler_cx_like_cpp()
+            .handle_assign_equipment_set_spec(pkt);
     }
 
     /// Handle CMSG_DELETE_EQUIPMENT_SET.
@@ -80,16 +66,9 @@ impl WorldSession {
     /// C++ marks existing equipment/transmog sets as deleted unless the set was
     /// still new in memory, in which case it removes it immediately. The DB
     /// delete happens later in `_SaveEquipmentSets`.
-    pub async fn handle_delete_equipment_set(&mut self, mut pkt: WorldPacket) {
-        let request = match DeleteEquipmentSet::read(&mut pkt) {
-            Ok(request) => request,
-            Err(error) => {
-                warn!("Bad DeleteEquipmentSet: {error}");
-                return;
-            }
-        };
-
-        let _deleted = self.delete_represented_equipment_set_like_cpp(request.id);
+    pub async fn handle_delete_equipment_set(&mut self, pkt: WorldPacket) {
+        self.build_equipment_sets_handler_cx_like_cpp()
+            .handle_delete_equipment_set(pkt);
     }
 
     /// Handle CMSG_USE_EQUIPMENT_SET.

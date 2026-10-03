@@ -23,7 +23,7 @@ use super::{
 /// The application deliberately knows only the canonical identity and the
 /// ordered mutation/publication seam. Session rows, tombstone retention and
 /// packets belong to the concrete adapter.
-pub(crate) trait PlayerSpellAcquisitionRuntimeLikeCpp {
+pub trait PlayerSpellAcquisitionRuntimeLikeCpp {
     fn character_guid(&self) -> Option<wow_core::ObjectGuid>;
     fn has_canonical_player(&self) -> bool;
     fn install_snapshot(
@@ -44,7 +44,7 @@ pub(crate) trait PlayerSpellAcquisitionRuntimeLikeCpp {
 /// Applies and publishes an already committed plan. This function contains no
 /// await point: the live runtime is installed first and the ordered C++ action
 /// stream is observed only afterwards.
-pub(crate) fn apply_prepared_player_spell_acquisition_like_cpp<
+pub fn apply_prepared_player_spell_acquisition_like_cpp<
     R: ?Sized + PlayerSpellAcquisitionRuntimeLikeCpp,
 >(
     runtime: &mut R,
@@ -58,7 +58,7 @@ pub(crate) fn apply_prepared_player_spell_acquisition_like_cpp<
 /// publication hook immediately before the ordered learning actions. Trainer
 /// purchases use the hook for C++'s money and visual publications, after every
 /// runtime owner and replacement has already been proven safe.
-pub(crate) fn apply_prepared_player_spell_acquisition_with_before_actions_like_cpp<
+pub fn apply_prepared_player_spell_acquisition_with_before_actions_like_cpp<
     R: ?Sized + PlayerSpellAcquisitionRuntimeLikeCpp,
     Before,
 >(
@@ -83,7 +83,7 @@ where
 /// Installs an already committed runtime snapshot while deferring every
 /// observable learning action. Cross-socket workflows use the returned action
 /// bundle after their physical writer fences have preserved C++ order.
-pub(crate) fn install_prepared_player_spell_acquisition_runtime_like_cpp<
+pub fn install_prepared_player_spell_acquisition_runtime_like_cpp<
     R: ?Sized + PlayerSpellAcquisitionRuntimeLikeCpp,
 >(
     runtime: &mut R,
@@ -119,7 +119,7 @@ pub(crate) fn install_prepared_player_spell_acquisition_runtime_like_cpp<
 
 /// Proves every runtime owner needed after COMMIT is available before a
 /// trainer fee or acquisition row becomes durable.
-pub(crate) fn validate_prepared_player_spell_acquisition_runtime_like_cpp<
+pub fn validate_prepared_player_spell_acquisition_runtime_like_cpp<
     R: ?Sized + PlayerSpellAcquisitionRuntimeLikeCpp,
 >(
     runtime: &R,
@@ -132,7 +132,7 @@ pub(crate) fn validate_prepared_player_spell_acquisition_runtime_like_cpp<
     )
 }
 
-pub(crate) fn validate_prepared_player_spell_acquisition_actions_runtime_like_cpp<
+pub fn validate_prepared_player_spell_acquisition_actions_runtime_like_cpp<
     R: ?Sized + PlayerSpellAcquisitionRuntimeLikeCpp,
 >(
     runtime: &R,
@@ -148,7 +148,7 @@ pub(crate) fn validate_prepared_player_spell_acquisition_actions_runtime_like_cp
 /// Apply non-packet effects from an actions-only cast immediately after its
 /// trainer fee commits. Later publication still records the complete causal
 /// action stream, but will not apply these runtime effects a second time.
-pub(crate) fn install_prepared_player_spell_acquisition_actions_runtime_like_cpp<
+pub fn install_prepared_player_spell_acquisition_actions_runtime_like_cpp<
     R: ?Sized + PlayerSpellAcquisitionRuntimeLikeCpp,
 >(
     runtime: &mut R,
@@ -169,7 +169,7 @@ pub(crate) fn install_prepared_player_spell_acquisition_actions_runtime_like_cpp
 /// Applies the exact prepared plan with C++ `Player::LearnSpell` timing. The
 /// runtime and packets change synchronously while the plan's persistence states
 /// remain dirty for the ordinary `Player::SaveToDB` lifecycle.
-pub(crate) fn apply_prepared_player_spell_acquisition_before_save_like_cpp<
+pub fn apply_prepared_player_spell_acquisition_before_save_like_cpp<
     R: ?Sized + PlayerSpellAcquisitionRuntimeLikeCpp,
 >(
     runtime: &mut R,
@@ -185,7 +185,7 @@ pub(crate) fn apply_prepared_player_spell_acquisition_before_save_like_cpp<
     )
 }
 
-pub(crate) fn apply_prepared_player_spell_acquisition_with_fault_like_cpp<
+pub fn apply_prepared_player_spell_acquisition_with_fault_like_cpp<
     R: ?Sized + PlayerSpellAcquisitionRuntimeLikeCpp,
     F,
 >(
@@ -257,7 +257,7 @@ where
     )
 }
 
-pub(crate) fn apply_prepared_player_spell_acquisition_actions_like_cpp<
+pub fn apply_prepared_player_spell_acquisition_actions_like_cpp<
     R: ?Sized + PlayerSpellAcquisitionRuntimeLikeCpp,
 >(
     runtime: &mut R,

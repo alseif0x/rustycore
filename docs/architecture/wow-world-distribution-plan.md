@@ -1746,11 +1746,101 @@ producción, sin ocultar código en otro lenguaje, cfg o fixture. No se ejecutan
 checks por estos cortes internos: se completan implementación/tests/consumers
 y se conserva la campaña final y su presupuesto íntegro de 600 s.
 
-**Estado: propuesta de diseño, sin implementación ni aceptación de F5.**
-Conserva la revisión explícita de diseño indicada en §6 antes de cambiar
-el contrato de registro/composición. F4b tampoco se declara aceptado por fuente.
+**Aprobación de diseño — 2026-10-03, 10:25 UTC:** el usuario responde
+«adelanteentonces» tras la explicación del registro genérico, contextos acotados
+y nuevo crate de aplicación. Esa aprobación satisface la revisión explícita F5
+conservada en §6; se continúa su implementación dentro de #1263 sin pedirla de
+nuevo para cortes internos. Se mantienen la campaña diferida de aceptación,
+R1/publicación y las autoridades separadas de runtime/Git. F4b sigue escrito
+pero no aceptado; el diseño aprobado tampoco acredita implementación ni
+aceptación de F5.
+
+**Inicio de implementación F5 — 2026-10-03:** base local `fe059c1b0`,
+sin ejecución de validación. La primera unidad define el registro genérico
+en wow-handler y sus pruebas fuera de src. Para integrar las declaraciones
+todavía residentes en World se usa una envoltura local temporal que contiene
+únicamente una referencia a la entrada genérica estática, sin repetir metadata.
+Es necesaria mientras inventory requiere un tipo colectable local a World;
+el tipo genérico inferior no se convierte en un tipo local por instanciarlo
+con WorldSession. Los macros temporales mantienen una única entrada y thunk
+por declaración. La tabla compuesta consume esas referencias y los registrars
+de dominio, con rechazo de duplicidad; la envoltura y su colección se retiran
+cuando hayan migrado todos los opcodes. No son un segundo registro de fallback.
+Los lectores de inventory, la prueba probe y los snapshots deben migrar a la
+misma tabla efectiva, conservando sus assertions y gates. El constructor de
+producción recibe la tabla de composición: no reconstruye una tabla parcial
+por sesión. Este contrato de transición no acredita implementación aceptada.
+
+**Cortes concretos en curso — 2026-10-03, 10:39 UTC (NO VALIDADO):**
+equipment-set usa una capacidad prestada de Core con campos privados que
+delegará la resolución generation-checked ya existente; no expone SessionCore,
+Player ni el guard de mapa al handler. Su contexto de Inventory conserva el
+fallback fixture únicamente cuando falta el handle, nunca ante un handle stale,
+manager ausente, lock fallido o un resultado canónico `Some(false)`.
+Las firmas antiguas Hub quedan como consumidores transitorios de ese contexto,
+sin duplicar las reglas assign/delete. Save/use conservan su análisis separado.
+
+La clausura de trainer requiere los módulos puros de preparación/traducción/
+validación y el runtime genérico de spell acquisition, hoy residentes en World,
+además de sus planes de profesión. El primer corte de aplicación traslada los
+modelos y algoritmos puros de profesión con once pruebas; World conserva el
+adaptador de snapshot y su escenario de sesión. Este primer consumidor normal
+no es el coordinador de trainer completo: siguen pendientes su traslado, sus
+contextos concretos, exclusión, fences y las tres pruebas de orden/cancelación.
+El planificador inferior wow-spell-acquisition conserva sus modelos/planner.
+La nueva arista de aplicación no autoriza dependencias de vuelta a World.
+
+**Composición y primeros registros escritos — 2026-10-03, 10:55 UTC
+(NO VALIDADO):** wow-handler aporta el registro genérico inmutable y cinco
+pruebas, incluida la cancelación de un futuro pendiente que conserva solo su
+primera mutación. La comparación de las 38 rutas World conserva las 397
+expresiones originales al normalizar únicamente el macro de integración y el
+lector inline Battle.net; después assign/delete trasladan dos declaraciones
+a Inventory. El censo de fuente queda en 395 expresiones World, seis plantillas
+y 87 invocaciones, más dos entradas de dominio: 478 esperadas, todavía sin
+prueba del conjunto compilado. Su contexto consume una capacidad síncrona de
+Core y sus métodos World quedan como adaptadores para los seis escenarios
+existentes. Save/use permanecen pendientes de su corte de contexto.
+
+world-server compone una tabla mediante el registrar de Inventory y los
+registros World restantes, rechaza duplicidad y comparte el Arc por
+SessionResources/constructor requerido. El campo conserva su posición; el
+dispatcher copia la entrada antes del préstamo mutable y la fase mantiene su
+FIFO. Los builders/getters World quedan bajo test/test-fixtures. La prueba
+`production_linked_world_handler_registry_matches_snapshot` conserva su única
+identidad y expectativa TSV al pasar de wow-world/tests a world-server/tests,
+donde consume el compositor normal. En la campaña final se debe ejecutar
+`cargo test -p world-server --test production_handler_registry_contract`
+con PROTOC/jobs/target y presupuesto de §10; no se ha ejecutado ahora.
+El traslado no sustituye la prueba aislada de features normales ni los demás
+extras de persistencia, captura, runtime y arquitectura. Los controles de
+registro requieren adaptar sus owners y gramática a estas declaraciones;
+no se regeneran snapshots ni se omiten sus casos negativos para aceptarlas.
+
+**Coordinación de trainer trasladada — 2026-10-03, 11:12 UTC
+(NO VALIDADO):** aplicación contiene ahora el plan preparado, traducción,
+validadores, runtime genérico y coordinador de compra completos, incluido el
+DTO de oferta. Se retiraron sus proveedores anteriores de World; quedan
+fachadas y los adaptadores concretos de sesión. La preparación del snapshot,
+petición durable y puerto de persistencia siguen en World hasta cerrar sus
+participantes. La comparación de fuente conserva los cuerpos del ejecutor,
+preparación pura, cuatro módulos auxiliares y tres escenarios de trainer;
+las once pruebas puras de profesión también conservan sus cuerpos. Esto no
+demuestra compilación, paridad, cancelación ni durabilidad: quedan pendientes
+los contextos concretos, exclusión monetaria, ambos fences y publicación.
+Inventory conserva el argumento de estado del constructor para los fixtures;
+el campo de respaldo solo existe con test/test-fixtures.
 
 ### F6 — retirada de duplicados, pista de comportamiento
+
+La revisión F5 conserva dos diferencias que no puede resolver mediante un
+traslado estructural: assign-equipment-set sigue activo en Rust frente a
+STATUS_UNHANDLED/Handle_NULL en Opcodes.cpp:170; la validación Rust de profesiones
+0..=11 no tiene ese límite explícito en World.cpp:1135. Se corrigieron sus
+comentarios contra `a5f8da2eb` sin cambiar las reglas ni presentar esas
+diferencias como divergencias aprobadas. El campo C++ compartido CharacterPoints
+se verifica en Player.h:1848–1849/Player.cpp:2359 y los dos slots en
+UpdateFields.h:755; no son evidencia de la preparación/durabilidad asíncrona.
 
 Por dominio, retirar la duplicidad `represented_*`/canónica y resolver
 `session/legacy_runtime` y el `map_manager` legado. Elegir por la operación completa y
@@ -1823,7 +1913,7 @@ integración posterior; los SHAs de aceptación y de squash no se confunden.
 | F4a P4a | aceptación completada; publicación/integración en #1263 | candidato `d9c9e3637`, evidencia abajo |
 | F4a P4b | pendiente | §6 |
 | F4b | pendiente | §6 |
-| F5 | propuesta detallada escrita; revisión e implementación pendientes | §6 |
+| F5 | diseño aprobado; implementación en curso, sin aceptación | §6 |
 | F6 | pendiente | pista de comportamiento |
 
 R5 leído con `python3 -B tools/architecture/wow_world_coupling.py report --json` en P3:

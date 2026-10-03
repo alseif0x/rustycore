@@ -4,6 +4,8 @@
 //! State: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
+use std::sync::Arc;
+
 use super::AreaTriggerScriptDispatcherLikeCpp;
 #[cfg(test)]
 use super::AtomicUsize;
@@ -13,7 +15,6 @@ use super::BTreeSet;
 use super::ClientOpcodes;
 use super::HashMap;
 use super::OwnedLootAuthority;
-use super::PacketHandlerEntry;
 use super::RepresentedAdventureMapStartQuestLikeCpp;
 #[cfg(any(test, feature = "test-fixtures"))]
 use super::RepresentedLootRollCriteriaEvent;
@@ -185,6 +186,7 @@ pub struct WorldSession {
 
     /// The session's view of its world: area trigger, taxi, combat and realm flags.
     pub(in crate::session) view: SessionWorldView,
-    /// Opcode -> registered handler; `&'static` entries only, so its drop has no side effect.
-    pub(in crate::session) dispatch_table: HashMap<ClientOpcodes, &'static PacketHandlerEntry>,
+    /// Immutable opcode registry shared by the session's dispatch readers.
+    pub(in crate::session) dispatch_table:
+        Arc<crate::session::registry::WorldPacketHandlerRegistry>,
 }

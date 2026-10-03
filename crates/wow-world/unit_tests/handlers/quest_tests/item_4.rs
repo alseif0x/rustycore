@@ -7,8 +7,7 @@ use super::*;
 
 #[test]
 fn quest_log_remove_inventory_registration_and_dispatcher_contract_like_cpp() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::QuestLogRemoveQuest)
         .expect("QuestLogRemoveQuest handler registration");
 

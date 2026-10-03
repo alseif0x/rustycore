@@ -118,6 +118,7 @@ fn group_reconciliation_fixture_like_cpp(
         "esES".into(),
         target_pkt_rx,
         target_socket_tx,
+        crate::session::registry::build_dispatch_table(),
     );
     target_session.set_loaded_player_identity_like_cpp(0, 1, 1, 80, 0);
     target_session.set_player_guid(Some(target));

@@ -160,6 +160,7 @@ mod tests {
             "enUS".into(),
             packets,
             output,
+            crate::session::registry::build_dispatch_table(),
         );
         session.set_player_guid(Some(wow_core::ObjectGuid::create_player(1, 42)));
         crate::canonical_player_access::install_canonical_player_owner_for_test(

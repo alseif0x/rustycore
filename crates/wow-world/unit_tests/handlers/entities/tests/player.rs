@@ -878,8 +878,7 @@ async fn repeated_stand_state_still_sends_direct_cpp_packet_without_values_delta
 
 #[test]
 fn stand_state_change_handler_metadata_matches_cpp() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::StandStateChange)
         .expect("StandStateChange handler entry");
 

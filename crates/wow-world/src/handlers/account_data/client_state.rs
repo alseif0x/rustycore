@@ -13,7 +13,7 @@ use wow_packet::packets::misc::{
     LoadingScreenNotify, SetAdvancedCombatLogging, SetCurrencyFlags, ViolenceLevel,
 };
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LoadingScreenNotify,
         status: SessionStatus::Authed,
@@ -25,7 +25,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AddBattlenetFriend,
         status: SessionStatus::Authed,
@@ -37,7 +37,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BattlenetChallengeResponse,
         status: SessionStatus::Authed,
@@ -49,7 +49,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetInsertItemsLeftToRight,
         status: SessionStatus::Authed,
@@ -61,7 +61,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SaveAccountDataExport,
         status: SessionStatus::Authed,
@@ -73,7 +73,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChangeBagSlotFlag,
         status: SessionStatus::Authed,
@@ -85,7 +85,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CloseQuestChoice,
         status: SessionStatus::Authed,
@@ -97,7 +97,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueryQuestItemUsability,
         status: SessionStatus::Authed,
@@ -109,7 +109,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetPreferredCemetery,
         status: SessionStatus::Authed,
@@ -121,7 +121,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::UpdateClientSettings,
         status: SessionStatus::Authed,
@@ -133,7 +133,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::DiscardedTimeSyncAcks,
         status: SessionStatus::LoggedIn,
@@ -145,7 +145,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::EngineSurvey,
         status: SessionStatus::LoggedIn,
@@ -157,7 +157,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LatencyReport,
         status: SessionStatus::LoggedIn,
@@ -169,7 +169,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ReportServerLag,
         status: SessionStatus::LoggedIn,
@@ -181,7 +181,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SuspendCommsAck,
         status: SessionStatus::LoggedIn,
@@ -195,7 +195,7 @@ inventory::submit! {
 
 macro_rules! register_unhandled_threadsafe_null_handler {
     ($opcode:ident) => {
-        inventory::submit! {
+        crate::session::registry::register_packet_handler_like_cpp! {
             PacketHandlerEntry {
                 opcode: ClientOpcodes::$opcode,
                 status: SessionStatus::Authed,
@@ -229,7 +229,7 @@ register_unhandled_threadsafe_null_handler!(MoveSetAdvFlyingPitchingRateUpAck);
 register_unhandled_threadsafe_null_handler!(MoveSetAdvFlyingSurfaceFrictionAck);
 register_unhandled_threadsafe_null_handler!(MoveSetAdvFlyingTurnVelocityThresholdAck);
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ViolenceLevel,
         status: SessionStatus::Authed,
@@ -239,7 +239,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::OverrideScreenFlash,
         status: SessionStatus::LoggedIn,
@@ -251,7 +251,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueuedMessagesEnd,
         status: SessionStatus::LoggedIn,
@@ -263,7 +263,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetActionBarToggles,
         status: SessionStatus::LoggedIn,
@@ -275,7 +275,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetAdvancedCombatLogging,
         status: SessionStatus::LoggedIn,
@@ -287,7 +287,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetCurrencyFlags,
         status: SessionStatus::LoggedIn,
@@ -299,7 +299,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetAmmo,
         status: SessionStatus::LoggedIn,
@@ -309,7 +309,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetGameEventDebugViewState,
         status: SessionStatus::LoggedIn,
@@ -321,7 +321,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ShowingHelm,
         status: SessionStatus::LoggedIn,
@@ -331,7 +331,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ShowingCloak,
         status: SessionStatus::LoggedIn,
@@ -341,7 +341,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GetAccountCharacterList,
         status: SessionStatus::Authed,
@@ -353,7 +353,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GetAccountNotifications,
         status: SessionStatus::Authed,
@@ -365,7 +365,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ReportClientVariables,
         status: SessionStatus::Authed,
@@ -377,7 +377,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ReportEnabledAddons,
         status: SessionStatus::Authed,
@@ -389,7 +389,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ReportFrozenWhileLoadingMap,
         status: SessionStatus::Authed,
@@ -401,7 +401,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LogStreamingError,
         status: SessionStatus::Authed,
@@ -413,7 +413,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CompleteCinematic,
         status: SessionStatus::LoggedIn,
@@ -425,7 +425,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::NextCinematicCamera,
         status: SessionStatus::LoggedIn,
@@ -437,7 +437,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CompleteMovie,
         status: SessionStatus::LoggedIn,
@@ -447,7 +447,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LogoutInstant,
         status: SessionStatus::Authed,
@@ -457,7 +457,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SpawnTrackingUpdate,
         status: SessionStatus::Authed,
@@ -469,7 +469,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::TimeAdjustmentResponse,
         status: SessionStatus::Authed,
@@ -481,7 +481,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::UpdateSpellVisual,
         status: SessionStatus::Authed,
@@ -493,7 +493,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::UsedFollow,
         status: SessionStatus::Authed,
@@ -503,7 +503,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ReportKeybindingExecutionCounts,
         status: SessionStatus::Authed,
@@ -515,7 +515,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueryCountdownTimer,
         status: SessionStatus::LoggedIn,

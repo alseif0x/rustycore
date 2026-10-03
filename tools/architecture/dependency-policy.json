@@ -29,6 +29,7 @@
       "wow-conditions",
       "wow-spell-acquisition",
       "wow-world",
+      "wow-world-application",
       "wow-world-core",
       "wow-world-entities",
       "wow-world-interaction",
@@ -98,6 +99,17 @@
     ]
   },
   "restricted_packages": {
+    "wow-handler": [
+      "wow-constants",
+      "wow-packet"
+    ],
+    "wow-world-application": [
+      "wow-config",
+      "wow-core",
+      "wow-data",
+      "wow-persistence",
+      "wow-spell-acquisition"
+    ],
     "wow-world-core": [
       "wow-ai",
       "wow-conditions",
@@ -156,6 +168,7 @@
       "wow-core",
       "wow-data",
       "wow-entities",
+      "wow-handler",
       "wow-packet",
       "wow-persistence",
       "wow-progression",

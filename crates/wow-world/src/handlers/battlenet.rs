@@ -21,7 +21,7 @@ use crate::session::WorldSession;
 
 // ── Handler registration ────────────────────────────────────────────
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BattlenetRequest,
         status: SessionStatus::Authed,
@@ -38,7 +38,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChangeRealmTicket,
         status: SessionStatus::Authed,
@@ -111,6 +111,7 @@ mod tests {
                 "enUS".to_string(),
                 pkt_rx,
                 send_tx,
+                crate::session::registry::build_dispatch_table(),
             ),
             send_rx,
         )
@@ -150,7 +151,7 @@ mod tests {
 
     #[test]
     fn change_realm_ticket_handler_metadata_matches_cpp() {
-        let entry = inventory::iter::<PacketHandlerEntry>
+        let entry = crate::session::registry::registered_handler_entries_like_cpp()
             .into_iter()
             .find(|entry| entry.opcode == ClientOpcodes::ChangeRealmTicket)
             .expect("ChangeRealmTicket handler entry");

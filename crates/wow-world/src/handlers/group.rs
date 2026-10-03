@@ -64,7 +64,7 @@ pub use state::*;
 
 // ── inventory registrations ───────────────────────────────────────────────────
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::PartyInvite,
         status: SessionStatus::LoggedIn,
@@ -81,7 +81,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::PartyInviteResponse,
         status: SessionStatus::LoggedIn,
@@ -93,7 +93,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::PartyUninvite,
         status: SessionStatus::LoggedIn,
@@ -103,7 +103,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LeaveGroup,
         status: SessionStatus::LoggedIn,
@@ -113,7 +113,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ConvertRaid,
         status: SessionStatus::LoggedIn,
@@ -123,7 +123,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ChangeSubGroup,
         status: SessionStatus::LoggedIn,
@@ -133,7 +133,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SwapSubGroups,
         status: SessionStatus::LoggedIn,
@@ -143,7 +143,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetLootMethod,
         status: SessionStatus::LoggedIn,
@@ -153,7 +153,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetPartyLeader,
         status: SessionStatus::LoggedIn,
@@ -163,7 +163,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetAssistantLeader,
         status: SessionStatus::LoggedIn,
@@ -175,7 +175,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetEveryoneIsAssistant,
         status: SessionStatus::LoggedIn,
@@ -187,7 +187,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SilencePartyTalker,
         status: SessionStatus::LoggedIn,
@@ -199,7 +199,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetPartyAssignment,
         status: SessionStatus::LoggedIn,
@@ -211,7 +211,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetRole,
         status: SessionStatus::LoggedIn,
@@ -221,7 +221,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::InitiateRolePoll,
         status: SessionStatus::LoggedIn,
@@ -233,7 +233,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::UpdateRaidTarget,
         status: SessionStatus::LoggedIn,
@@ -245,7 +245,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::RequestPartyJoinUpdates,
         status: SessionStatus::LoggedIn,
@@ -257,7 +257,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::RequestPartyMemberStats,
         status: SessionStatus::LoggedIn,
@@ -269,7 +269,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::DoReadyCheck,
         status: SessionStatus::LoggedIn,
@@ -279,7 +279,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ReadyCheckResponse,
         status: SessionStatus::LoggedIn,
@@ -291,7 +291,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::OptOutOfLoot,
         status: SessionStatus::LoggedIn,
@@ -301,7 +301,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LowLevelRaid1,
         status: SessionStatus::LoggedIn,
@@ -311,7 +311,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LowLevelRaid2,
         status: SessionStatus::LoggedIn,
@@ -321,7 +321,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::MinimapPing,
         status: SessionStatus::LoggedIn,
@@ -331,7 +331,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::RandomRoll,
         status: SessionStatus::LoggedIn,

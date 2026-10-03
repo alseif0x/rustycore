@@ -23,8 +23,8 @@ impl super::WorldSession {
             }
         };
 
-        let entry = match self.dispatch_table.get(&opcode) {
-            Some(e) => *e,
+        let entry = match self.dispatch_table.get(opcode).copied() {
+            Some(e) => e,
             None => {
                 info!(
                     "No handler for {:?} (0x{opcode_raw:04X}) from account {}",

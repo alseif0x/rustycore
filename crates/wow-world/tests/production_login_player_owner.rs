@@ -338,6 +338,7 @@ async fn hydrate(
         "enUS".into(),
         packet_rx,
         send_tx,
+        wow_world::session::registry::build_dispatch_table(),
     );
     let guid = ObjectGuid::create_player(1, 42);
     let manager = Arc::new(std::sync::Mutex::new(wow_map::MapManager::new(300_000, 10)));

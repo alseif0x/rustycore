@@ -230,6 +230,7 @@ mod tests {
             "enUS".into(),
             input,
             output,
+            crate::session::registry::build_dispatch_table(),
         );
         let (realm_tx, realm) = flume::bounded(1);
         realm_tx.send(vec![0]).unwrap();

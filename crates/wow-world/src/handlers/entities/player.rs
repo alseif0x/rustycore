@@ -26,7 +26,7 @@ use super::item_purchase_contents_from_extended_cost;
 use crate::entity_update_bridge::player_values_update_to_update_object;
 use crate::handlers::instances::RepresentedInstanceResetMethodLikeCpp;
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::FarSight,
         status: SessionStatus::LoggedIn,
@@ -45,7 +45,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetSelection,
         status: SessionStatus::LoggedIn,
@@ -55,7 +55,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::StandStateChange,
         status: SessionStatus::LoggedIn,
@@ -67,7 +67,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueryTime,
         status: SessionStatus::LoggedIn,
@@ -77,7 +77,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueryNextMailTime,
         status: SessionStatus::LoggedIn,
@@ -89,7 +89,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetActionButton,
         status: SessionStatus::LoggedIn,
@@ -101,7 +101,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetDifficultyId,
         status: SessionStatus::LoggedIn,
@@ -113,7 +113,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ToggleDifficulty,
         status: SessionStatus::LoggedIn,
@@ -125,7 +125,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetDungeonDifficulty,
         status: SessionStatus::LoggedIn,
@@ -137,7 +137,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetRaidDifficulty,
         status: SessionStatus::LoggedIn,
@@ -149,7 +149,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetTitle,
         status: SessionStatus::LoggedIn,
@@ -159,7 +159,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GetItemPurchaseData,
         status: SessionStatus::LoggedIn,

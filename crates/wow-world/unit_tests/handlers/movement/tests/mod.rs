@@ -37,6 +37,7 @@ fn make_session_with_send_rx() -> (WorldSession, flume::Receiver<Vec<u8>>) {
         "esES".into(),
         pkt_rx,
         send_tx,
+        crate::session::registry::build_dispatch_table(),
     );
     (session, send_rx)
 }

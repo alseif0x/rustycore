@@ -13,7 +13,7 @@ mod queries;
 mod reward_flow;
 mod sharing;
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AdventureMapStartQuest,
         status: SessionStatus::LoggedIn,
@@ -32,7 +32,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestGiverStatusQuery,
         status: SessionStatus::LoggedIn,
@@ -44,7 +44,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestGiverHello,
         status: SessionStatus::LoggedIn,
@@ -56,7 +56,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestGiverQueryQuest,
         status: SessionStatus::LoggedIn,
@@ -68,7 +68,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestGiverAcceptQuest,
         status: SessionStatus::LoggedIn,
@@ -87,7 +87,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestLogRemoveQuest,
         status: SessionStatus::LoggedIn,
@@ -99,7 +99,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueryQuestInfo,
         status: SessionStatus::LoggedIn,
@@ -109,7 +109,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueryQuestCompletionNpcs,
         status: SessionStatus::LoggedIn,
@@ -126,7 +126,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestPoiQuery,
         status: SessionStatus::LoggedIn,
@@ -143,7 +143,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestGiverRequestReward,
         status: SessionStatus::LoggedIn,
@@ -162,7 +162,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestGiverCompleteQuest,
         status: SessionStatus::LoggedIn,
@@ -174,7 +174,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestGiverChooseReward,
         status: SessionStatus::LoggedIn,
@@ -193,7 +193,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestGiverCloseQuest,
         status: SessionStatus::LoggedIn,
@@ -205,7 +205,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::RequestWorldQuestUpdate,
         status: SessionStatus::LoggedIn,
@@ -217,7 +217,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestConfirmAccept,
         status: SessionStatus::LoggedIn,
@@ -236,7 +236,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QuestPushResult,
         status: SessionStatus::LoggedIn,
@@ -248,7 +248,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::PushQuestToParty,
         status: SessionStatus::LoggedIn,

@@ -168,8 +168,7 @@ fn normalize_player_name_handles_unicode_case_like_cpp_wide_string_path() {
 
 #[test]
 fn del_ignore_dispatch_metadata_matches_cpp() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::DelIgnore)
         .expect("DelIgnore handler entry");
 

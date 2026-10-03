@@ -16,7 +16,7 @@ use wow_packet::packets::misc::{
     compress_account_data_like_cpp, decompress_account_data_like_cpp,
 };
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AddonList,
         status: SessionStatus::Authed,
@@ -26,7 +26,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::RequestAccountData,
         status: SessionStatus::Authed,
@@ -38,7 +38,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::UpdateAccountData,
         status: SessionStatus::Authed,
@@ -50,7 +50,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SaveCufProfiles,
         status: SessionStatus::LoggedIn,
@@ -62,7 +62,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::Tutorial,
         status: SessionStatus::LoggedIn,

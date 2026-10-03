@@ -20,7 +20,7 @@ use crate::session::WorldSession;
 
 // ── inventory registration ────────────────────────────────────────────────────
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::Inspect,
         status: SessionStatus::LoggedIn,
@@ -30,7 +30,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::RequestHonorStats,
         status: SessionStatus::LoggedIn,
@@ -42,7 +42,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueryInspectAchievements,
         status: SessionStatus::LoggedIn,

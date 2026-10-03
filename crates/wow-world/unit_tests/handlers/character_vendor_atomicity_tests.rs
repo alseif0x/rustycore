@@ -27,6 +27,7 @@ fn make_vendor_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
         "esES".into(),
         packet_rx,
         send_tx,
+        crate::session::registry::build_dispatch_table(),
     );
     session.set_item_guid_generator_like_cpp(Arc::new(ObjectGuidGenerator::new(HighGuid::Item, 1)));
     let player_guid = ObjectGuid::create_player(1, 42);

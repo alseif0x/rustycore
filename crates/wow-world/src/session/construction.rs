@@ -4,6 +4,8 @@
 //! Construction: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
+use std::sync::Arc;
+
 use crate::session::state::InstanceState;
 use crate::session::state::InteractionState;
 use crate::session::state::InventoryState;
@@ -29,7 +31,7 @@ use super::StdRng;
 #[cfg(test)]
 use super::quest::test_fixtures::QuestTestFixtureLikeCpp;
 use super::{HashMap, Instant};
-use super::{VecDeque, WorldPacket, WorldSession, build_dispatch_table, connection};
+use super::{VecDeque, WorldPacket, WorldSession, connection};
 
 impl WorldSession {
     pub(in crate::session) const MIN_ITEM_LEVEL_LIKE_CPP: u32 = 1;
@@ -47,6 +49,7 @@ impl WorldSession {
         locale: String,
         packet_rx: flume::Receiver<WorldPacket>,
         send_tx: flume::Sender<Vec<u8>>,
+        packet_handler_registry: Arc<crate::session::registry::WorldPacketHandlerRegistry>,
     ) -> Self {
         let (session_command_tx, session_command_rx) = flume::bounded(256);
         // One outstanding request per phase at most: the producer waits for the
@@ -111,7 +114,7 @@ impl WorldSession {
                 #[cfg(test)]
                 area_trigger_script_dispatcher_like_cpp: None,
             },
-            dispatch_table: build_dispatch_table(),
+            dispatch_table: packet_handler_registry,
         }
     }
 

@@ -1,6 +1,6 @@
 use super::*;
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueryCreature,
         status: SessionStatus::LoggedIn,
@@ -24,7 +24,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueryGameObject,
         status: SessionStatus::LoggedIn,
@@ -48,7 +48,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueryCorpseLocationFromClient,
         status: SessionStatus::LoggedIn,
@@ -65,7 +65,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueryCorpseTransport,
         status: SessionStatus::LoggedIn,
@@ -82,7 +82,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueryPageText,
         status: SessionStatus::LoggedIn,
@@ -106,7 +106,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ItemTextQuery,
         status: SessionStatus::LoggedIn,
@@ -123,7 +123,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueryPetName,
         status: SessionStatus::LoggedIn,
@@ -140,7 +140,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueryPlayerNames,
         status: SessionStatus::LoggedIn,
@@ -157,7 +157,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueryRealmName,
         status: SessionStatus::LoggedIn,
@@ -174,7 +174,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::Ping,
         status: SessionStatus::Authed,
@@ -191,7 +191,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::TalkToGossip,
         status: SessionStatus::LoggedIn,
@@ -208,7 +208,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::GossipSelectOption,
         status: SessionStatus::LoggedIn,
@@ -225,7 +225,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueryNpcText,
         status: SessionStatus::LoggedIn,

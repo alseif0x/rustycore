@@ -1,73 +1,99 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! The one place an opcode is bound to the code that runs it.
-//!
-//! #359 retires the dispatcher's opcode match. Before it, an opcode had to be
-//! declared twice — a `PacketHandlerEntry` for its admission metadata and a
-//! match arm for the call — and `AGENTS.md` had to warn that forgetting either
-//! silently drops the packet. The registration now carries the call as well, so
-//! there is one declaration per opcode and no second side to drift from.
-//!
-//! The entry lives here rather than in `wow-handler` because it names
-//! [`WorldSession`]: a handler thunk is `fn(&mut WorldSession, WorldPacket)`,
-//! and `wow-handler` is the crate `wow-world` depends on, not the reverse.
-//! `wow-handler` keeps the vocabulary both sides share — [`SessionStatus`],
-//! [`PacketProcessing`] and [`HandlerFuture`].
+//! The world-session adapter for the shared packet-handler registry.
 
-use std::collections::HashMap;
+#[cfg(any(test, feature = "test-fixtures"))]
+use std::sync::Arc;
 
+#[cfg(any(test, feature = "test-fixtures"))]
 use wow_constants::ClientOpcodes;
-use wow_handler::{HandlerFuture, PacketProcessing, SessionStatus};
-use wow_packet::WorldPacket;
+use wow_handler::DuplicateHandlerRegistrationLikeCpp;
 
 use super::{SessionHandlerCatalogsLikeCpp, WorldSession};
 
-/// The call a registered opcode performs.
-///
-/// Handlers are `async` methods on [`WorldSession`], so a registration boxes
-/// the future rather than storing an `async fn` pointer. A non-capturing
-/// closure coerces to this type, which keeps a registration one literal.
-pub type PacketHandlerFn = for<'a> fn(
-    &'a mut WorldSession,
-    &'a SessionHandlerCatalogsLikeCpp,
-    WorldPacket,
-) -> HandlerFuture<'a, ()>;
+/// A handler thunk specialized for the world session and its catalog view.
+pub type PacketHandlerFn =
+    wow_handler::PacketHandlerFn<WorldSession, SessionHandlerCatalogsLikeCpp>;
 
-/// A registered packet handler: its admission rules and the call itself.
-///
-/// Collected at startup via the `inventory` crate to build the dispatch table.
-pub struct PacketHandlerEntry {
-    pub opcode: ClientOpcodes,
-    pub status: SessionStatus,
-    pub processing: PacketProcessing,
-    pub handler_name: &'static str,
-    /// The handler this opcode runs. The dispatcher calls this and nothing
-    /// else; it does not know which method it reaches (#359).
-    pub handler: PacketHandlerFn,
+/// A registered handler specialized for the world session and its catalog view.
+pub type PacketHandlerEntry =
+    wow_handler::PacketHandlerEntry<WorldSession, SessionHandlerCatalogsLikeCpp>;
+
+/// The immutable registry used by a world session.
+pub type WorldPacketHandlerRegistry =
+    wow_handler::PacketHandlerRegistry<WorldSession, SessionHandlerCatalogsLikeCpp>;
+
+/// The builder used to compose world-session packet handlers.
+pub type WorldPacketHandlerRegistryBuilder =
+    wow_handler::RegistryBuilder<WorldSession, SessionHandlerCatalogsLikeCpp>;
+
+/// Inventory's orphan-rule adapter for registrations declared in this crate.
+pub(crate) struct LegacyPacketHandlerRegistrationLikeCpp {
+    pub(crate) entry: &'static PacketHandlerEntry,
 }
 
-inventory::collect!(PacketHandlerEntry);
+inventory::collect!(LegacyPacketHandlerRegistrationLikeCpp);
 
-/// Build the dispatch table from all statically registered handlers.
+/// Register one static world-session packet handler with the legacy collector.
+macro_rules! register_packet_handler_like_cpp {
+    ($entry:expr) => {
+        const _: () = {
+            static ENTRY: $crate::session::registry::PacketHandlerEntry = $entry;
+            inventory::submit! {
+                $crate::session::registry::LegacyPacketHandlerRegistrationLikeCpp {
+                    entry: &ENTRY,
+                }
+            }
+        };
+    };
+}
+
+pub(crate) use register_packet_handler_like_cpp;
+
+/// Register every legacy inventory entry in a world-session registry builder.
+pub fn register_remaining_handlers_like_cpp(
+    builder: &mut WorldPacketHandlerRegistryBuilder,
+) -> Result<(), DuplicateHandlerRegistrationLikeCpp> {
+    for registration in inventory::iter::<LegacyPacketHandlerRegistrationLikeCpp> {
+        builder.register(*registration.entry)?;
+    }
+    Ok(())
+}
+
+/// Compose the immutable world-session dispatch table from registered handlers.
+#[cfg(any(test, feature = "test-fixtures"))]
 #[must_use]
-pub fn build_dispatch_table() -> HashMap<ClientOpcodes, &'static PacketHandlerEntry> {
-    inventory::iter::<PacketHandlerEntry>
+pub fn build_dispatch_table() -> Arc<WorldPacketHandlerRegistry> {
+    let mut builder = WorldPacketHandlerRegistryBuilder::new();
+    wow_world_inventory::register_inventory_handlers_like_cpp(&mut builder)
+        .expect("invalid duplicate packet handler composition");
+    register_remaining_handlers_like_cpp(&mut builder)
+        .expect("invalid duplicate packet handler composition");
+    Arc::new(builder.build())
+}
+
+/// Snapshot the composed handler entries for callers outside the dispatch path.
+#[cfg(any(test, feature = "test-fixtures"))]
+#[must_use]
+pub fn registered_handler_entries_like_cpp() -> std::vec::IntoIter<PacketHandlerEntry> {
+    build_dispatch_table()
+        .iter()
+        .copied()
+        .collect::<Vec<_>>()
         .into_iter()
-        .map(|entry| (entry.opcode, entry))
-        .collect()
 }
 
 /// Check if a handler is registered for the given opcode.
+#[cfg(any(test, feature = "test-fixtures"))]
 #[must_use]
 pub fn contains_handler(opcode: ClientOpcodes) -> bool {
     get_handler(opcode).is_some()
 }
 
-/// Get the handler entry for a specific opcode.
+/// Get the composed handler entry for a specific opcode.
+#[cfg(any(test, feature = "test-fixtures"))]
 #[must_use]
-pub fn get_handler(opcode: ClientOpcodes) -> Option<&'static PacketHandlerEntry> {
-    inventory::iter::<PacketHandlerEntry>
-        .into_iter()
-        .find(|entry| entry.opcode == opcode)
+pub fn get_handler(opcode: ClientOpcodes) -> Option<PacketHandlerEntry> {
+    build_dispatch_table().get(opcode).copied()
 }

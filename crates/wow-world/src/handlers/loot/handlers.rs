@@ -11,7 +11,7 @@ use wow_packet::ClientPacket;
 mod item;
 mod money;
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LootUnit,
         status: SessionStatus::LoggedIn,
@@ -25,7 +25,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LootItem,
         status: SessionStatus::LoggedIn,
@@ -42,7 +42,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LootMoney,
         status: SessionStatus::LoggedIn,
@@ -61,7 +61,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LootRelease,
         status: SessionStatus::LoggedIn,
@@ -71,7 +71,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LootRoll,
         status: SessionStatus::LoggedIn,
@@ -96,7 +96,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::MasterLootItem,
         status: SessionStatus::LoggedIn,
@@ -127,7 +127,7 @@ inventory::submit! {
 // CMSG_CLIENT_PORT_GRAVEYARD (empty). Rust keeps one enum variant and splits by
 // payload length until the real opcode table is resolved, so this one
 // registration carries all five payload shapes.
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetLootSpecialization,
         status: SessionStatus::LoggedIn,

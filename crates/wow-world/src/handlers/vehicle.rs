@@ -172,7 +172,7 @@ pub fn request_vehicle_exit_action_like_cpp(
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::MoveDismissVehicle,
         status: SessionStatus::LoggedIn,
@@ -239,7 +239,7 @@ impl WorldSession {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::RequestVehiclePrevSeat,
         status: SessionStatus::LoggedIn,
@@ -256,7 +256,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::RequestVehicleNextSeat,
         status: SessionStatus::LoggedIn,
@@ -273,7 +273,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::MoveChangeVehicleSeats,
         status: SessionStatus::LoggedIn,
@@ -290,7 +290,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::RequestVehicleSwitchSeat,
         status: SessionStatus::LoggedIn,
@@ -307,7 +307,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::RideVehicleInteract,
         status: SessionStatus::LoggedIn,
@@ -324,7 +324,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::EjectPassenger,
         status: SessionStatus::LoggedIn,
@@ -341,7 +341,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::RequestVehicleExit,
         status: SessionStatus::LoggedIn,

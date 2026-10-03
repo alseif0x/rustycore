@@ -10,7 +10,7 @@ use wow_handler::PacketProcessing;
 use wow_handler::SessionStatus;
 use wow_packet::ClientPacket;
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::TrainerList,
         status: SessionStatus::LoggedIn,
@@ -26,7 +26,7 @@ inventory::submit! {
         },
     }
 }
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::TrainerBuySpell,
         status: SessionStatus::LoggedIn,

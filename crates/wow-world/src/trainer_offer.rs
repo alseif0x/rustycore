@@ -19,6 +19,7 @@ pub(crate) use crate::spell_acquisition::{
     SpellAcquisitionIndeterminateLikeCpp, SpellAcquisitionOutcomeLikeCpp,
     SpellAcquisitionPlanLikeCpp, SpellAcquisitionRootLikeCpp,
 };
+pub(crate) use wow_world_application::PreparedTrainerOfferLikeCpp;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum TrainerHiddenReasonLikeCpp {
@@ -55,20 +56,6 @@ pub(crate) enum TrainerUnavailableReasonLikeCpp {
     BattlePetMetadataIndeterminate,
     AcquisitionIndeterminate(SpellAcquisitionIndeterminateLikeCpp),
     ProfessionCapacity(PrimaryProfessionCapacityPlanErrorLikeCpp),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) struct PreparedTrainerOfferLikeCpp {
-    pub source_spell_id: u32,
-    pub effective_price: u32,
-    pub acquisition_plan: SpellAcquisitionPlanLikeCpp,
-    pub profession_plan: PrimaryProfessionCapacityPlanLikeCpp,
-    /// C++ resolves the battle-pet species before `IsCastable()`
-    /// (`Trainer.cpp:99-128`): a castable spell with a confirmed species
-    /// keeps the normal wrapper acquisition but retains the silent
-    /// per-species capacity gate and suppresses the trainer visual kits.
-    /// `None` for spells without a battle-pet classification.
-    pub battle_pet_species_id: Option<u32>,
 }
 
 /// A purchasable battle-pet trainer offer (issue #161). C++

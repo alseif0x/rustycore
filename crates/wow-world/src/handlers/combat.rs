@@ -23,7 +23,7 @@ use crate::session::{PlayerAttackStartLikeCppResult, WorldSession};
 
 // ── Handler registrations ─────────────────────────────────────────
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AttackSwing,
         status: SessionStatus::LoggedIn,
@@ -33,7 +33,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AttackStop,
         status: SessionStatus::LoggedIn,
@@ -43,7 +43,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetSheathed,
         status: SessionStatus::LoggedIn,

@@ -28,12 +28,15 @@ mod adapter;
 mod application;
 mod effect_learning;
 mod runtime_adapter;
-mod trainer_purchase;
 
 pub(crate) use application::*;
 pub(crate) use effect_learning::*;
-pub(crate) use trainer_purchase::*;
 pub(crate) use wow_spell_acquisition::*;
+pub(crate) use wow_world_application::{
+    execute_trainer_acquisition_like_cpp, TrainerAcquisitionCompletionLikeCpp,
+    TrainerAcquisitionPublicationLikeCpp, TrainerAcquisitionResultLikeCpp,
+    TrainerAcquisitionRuntimeLikeCpp,
+};
 
 #[cfg(test)]
 #[path = "../../unit_tests/spell_acquisition/tests/mod.rs"]

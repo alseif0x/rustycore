@@ -14,7 +14,7 @@ use wow_packet::packets::reputation::{
     SetWatchedFaction,
 };
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::RequestForcedReactions,
         status: SessionStatus::LoggedIn,
@@ -26,7 +26,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetFactionAtWar,
         status: SessionStatus::LoggedIn,
@@ -38,7 +38,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetFactionNotAtWar,
         status: SessionStatus::LoggedIn,
@@ -50,7 +50,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetFactionInactive,
         status: SessionStatus::LoggedIn,
@@ -62,7 +62,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetWatchedFaction,
         status: SessionStatus::LoggedIn,

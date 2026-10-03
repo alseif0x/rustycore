@@ -16,7 +16,7 @@ use wow_packet::packets::misc::{
     UnacceptTrade,
 };
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CancelTrade,
         status: SessionStatus::LoggedInOrRecentlyLogout,
@@ -26,7 +26,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AcceptTrade,
         status: SessionStatus::LoggedIn,
@@ -36,7 +36,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ClearTradeItem,
         status: SessionStatus::LoggedIn,
@@ -46,7 +46,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetTradeItem,
         status: SessionStatus::LoggedIn,
@@ -56,7 +56,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetTradeGold,
         status: SessionStatus::LoggedIn,
@@ -66,7 +66,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetTradeSpell,
         status: SessionStatus::LoggedIn,
@@ -76,7 +76,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SignPetition,
         status: SessionStatus::LoggedIn,
@@ -86,7 +86,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::DeclinePetition,
         status: SessionStatus::LoggedIn,
@@ -96,7 +96,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueryPetition,
         status: SessionStatus::LoggedIn,
@@ -106,7 +106,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::UnacceptTrade,
         status: SessionStatus::LoggedIn,
@@ -116,7 +116,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BusyTrade,
         status: SessionStatus::LoggedIn,
@@ -126,7 +126,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BeginTrade,
         status: SessionStatus::LoggedIn,
@@ -136,7 +136,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CanDuel,
         status: SessionStatus::LoggedIn,
@@ -146,7 +146,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::DuelResponse,
         status: SessionStatus::LoggedIn,
@@ -156,7 +156,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::IgnoreTrade,
         status: SessionStatus::LoggedIn,

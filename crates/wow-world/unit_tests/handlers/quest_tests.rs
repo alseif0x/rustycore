@@ -99,6 +99,7 @@ fn make_session() -> (WorldSession, flume::Receiver<Vec<u8>>) {
         "enUS".into(),
         pkt_rx,
         send_tx,
+        crate::session::registry::build_dispatch_table(),
     );
     session.set_player_guid(Some(ObjectGuid::create_player(1, 42)));
     session.set_loaded_player_identity_like_cpp(571, 1, 1, 80, 0);

@@ -429,6 +429,7 @@ async fn save_equipment_set_requires_process_wide_guid_allocator() {
         "esES".into(),
         pkt_rx,
         send_tx,
+        crate::session::registry::build_dispatch_table(),
     );
     let ignore_mask = (1_u32 << wow_packet::packets::misc::EQUIPMENT_SET_SLOTS_LIKE_CPP) - 1;
 

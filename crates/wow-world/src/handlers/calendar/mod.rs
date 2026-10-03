@@ -15,7 +15,7 @@ use wow_packet::packets::misc::{
     CalendarSendCalendar, CalendarSendNumPending, CalendarStatus, CalendarUpdateEvent,
 };
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CalendarGetNumPending,
         status: SessionStatus::LoggedIn,
@@ -27,7 +27,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CalendarComplain,
         status: SessionStatus::LoggedIn,
@@ -44,7 +44,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CalendarCommunityInvite,
         status: SessionStatus::LoggedIn,
@@ -61,7 +61,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CalendarAddEvent,
         status: SessionStatus::LoggedIn,
@@ -78,7 +78,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CalendarGet,
         status: SessionStatus::LoggedIn,
@@ -88,7 +88,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CalendarGetEvent,
         status: SessionStatus::LoggedIn,
@@ -105,7 +105,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CalendarCopyEvent,
         status: SessionStatus::LoggedIn,
@@ -122,7 +122,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CalendarEventSignUp,
         status: SessionStatus::LoggedIn,
@@ -139,7 +139,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CalendarInvite,
         status: SessionStatus::LoggedIn,
@@ -156,7 +156,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CalendarUpdateEvent,
         status: SessionStatus::LoggedIn,
@@ -173,7 +173,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CalendarRemoveEvent,
         status: SessionStatus::LoggedIn,
@@ -190,7 +190,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CalendarRemoveInvite,
         status: SessionStatus::LoggedIn,
@@ -207,7 +207,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CalendarRsvp,
         status: SessionStatus::LoggedIn,
@@ -224,7 +224,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CalendarModeratorStatus,
         status: SessionStatus::LoggedIn,
@@ -241,7 +241,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CalendarStatus,
         status: SessionStatus::LoggedIn,

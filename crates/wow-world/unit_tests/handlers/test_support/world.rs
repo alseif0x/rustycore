@@ -59,6 +59,7 @@ pub(crate) fn make_session() -> (crate::session::WorldSession, flume::Receiver<V
             "enUS".into(),
             pkt_rx,
             send_tx,
+            crate::session::registry::build_dispatch_table(),
         ),
         send_rx,
     )

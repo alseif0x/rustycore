@@ -20,6 +20,7 @@ fn make_session() -> (crate::session::WorldSession, flume::Receiver<Vec<u8>>) {
         "enUS".to_string(),
         packet_rx,
         send_tx,
+        crate::session::registry::build_dispatch_table(),
     );
     session.attach_player_controller_like_cpp(crate::session::SessionPlayerController::new(
         wow_core::ObjectGuid::create_player(1, 42),

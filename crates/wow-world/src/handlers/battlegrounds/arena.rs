@@ -14,7 +14,7 @@ use wow_packet::packets::misc::{
     ArenaTeamRemove, ArenaTeamRoster, QueryArenaTeam,
 };
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ArenaTeamRoster,
         status: SessionStatus::LoggedIn,
@@ -26,7 +26,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ArenaTeamAccept,
         status: SessionStatus::LoggedIn,
@@ -38,7 +38,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ArenaTeamDecline,
         status: SessionStatus::LoggedIn,
@@ -50,7 +50,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ArenaTeamLeave,
         status: SessionStatus::LoggedIn,
@@ -60,7 +60,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ArenaTeamRemove,
         status: SessionStatus::LoggedIn,
@@ -72,7 +72,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ArenaTeamDisband,
         status: SessionStatus::LoggedIn,
@@ -84,7 +84,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ArenaTeamLeader,
         status: SessionStatus::LoggedIn,
@@ -96,7 +96,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueryArenaTeam,
         status: SessionStatus::LoggedIn,

@@ -31,6 +31,7 @@ mod tests {
             "enUS".into(),
             packet_rx,
             send_tx,
+            crate::session::registry::build_dispatch_table(),
         );
         let index = TraitTreeSkillLineIndexLikeCpp::from_effective_stores_like_cpp(
             &SkillLineXTraitTreeStore::from_entries([]),
@@ -93,6 +94,7 @@ mod tests {
             "enUS".into(),
             packet_rx,
             send_tx,
+            crate::session::registry::build_dispatch_table(),
         );
         session.set_chr_specialization_store(Arc::new(
             wow_data::ChrSpecializationStore::from_entries([wow_data::ChrSpecializationEntry {
@@ -172,6 +174,7 @@ mod tests {
             "enUS".into(),
             packet_rx,
             send_tx,
+            crate::session::registry::build_dispatch_table(),
         );
         let nodes =
             TraitNodeEntryStore::from_entries([wow_data::trait_tree::TraitNodeEntryEntry {
@@ -230,6 +233,7 @@ mod tests {
             "enUS".into(),
             packet_rx,
             send_tx,
+            crate::session::registry::build_dispatch_table(),
         );
         let trees = TraitTreeStore::from_entries([TraitTreeEntry {
             id: 10,

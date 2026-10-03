@@ -51,7 +51,7 @@ fn normalize_player_name_like_cpp(name: &str) -> Option<String> {
 
 // ── inventory registrations ───────────────────────────────────────────────────
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AddFriend,
         status: SessionStatus::LoggedIn,
@@ -61,7 +61,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AddIgnore,
         status: SessionStatus::LoggedIn,
@@ -78,7 +78,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::DelFriend,
         status: SessionStatus::LoggedIn,
@@ -88,7 +88,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::DelIgnore,
         status: SessionStatus::LoggedIn,
@@ -105,7 +105,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SendContactList,
         status: SessionStatus::LoggedIn,
@@ -117,7 +117,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SetContactNotes,
         status: SessionStatus::LoggedIn,
@@ -134,7 +134,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SocialContractRequest,
         status: SessionStatus::Authed,
@@ -151,7 +151,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AcceptSocialContract,
         status: SessionStatus::Authed,
@@ -168,7 +168,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AccountNotificationAcknowledged,
         status: SessionStatus::Authed,

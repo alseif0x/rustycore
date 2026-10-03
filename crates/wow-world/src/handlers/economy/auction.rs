@@ -26,7 +26,7 @@ use crate::session::{
     RepresentedAuctionReplicateRequestLikeCpp, RepresentedAuctionSellItemLikeCpp,
 };
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AuctionListBidderItems,
         status: SessionStatus::LoggedIn,
@@ -38,7 +38,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AuctionListItems,
         status: SessionStatus::LoggedIn,
@@ -55,7 +55,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AuctionPlaceBid,
         status: SessionStatus::LoggedIn,
@@ -72,7 +72,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AuctionRemoveItem,
         status: SessionStatus::LoggedIn,
@@ -89,7 +89,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AuctionSellItem,
         status: SessionStatus::LoggedIn,
@@ -106,7 +106,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AuctionReplicateItems,
         status: SessionStatus::LoggedIn,
@@ -123,7 +123,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AuctionListOwnerItems,
         status: SessionStatus::LoggedIn,
@@ -135,7 +135,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AuctionListPendingSales,
         status: SessionStatus::LoggedIn,
@@ -147,7 +147,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AuctionableTokenSell,
         status: SessionStatus::LoggedIn,
@@ -159,7 +159,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::AuctionableTokenSellAtMarketPrice,
         status: SessionStatus::LoggedIn,
@@ -171,7 +171,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::CommerceTokenGetLog,
         status: SessionStatus::LoggedIn,

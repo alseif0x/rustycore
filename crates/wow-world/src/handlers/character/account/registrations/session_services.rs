@@ -1,6 +1,6 @@
 use super::*;
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::ServerTimeOffsetRequest,
         status: SessionStatus::Authed,
@@ -12,7 +12,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::RequestPlayedTime,
         status: SessionStatus::LoggedIn,
@@ -24,7 +24,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BattlePayGetProductList,
         status: SessionStatus::Authed,
@@ -36,7 +36,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::BattlePayGetPurchaseList,
         status: SessionStatus::Authed,
@@ -48,7 +48,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::UpdateVasPurchaseStates,
         status: SessionStatus::Authed,
@@ -60,7 +60,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::DbQueryBulk,
         status: SessionStatus::Authed,
@@ -84,7 +84,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::HotfixRequest,
         status: SessionStatus::Authed,
@@ -101,7 +101,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::TimeSyncResponse,
         status: SessionStatus::LoggedIn,
@@ -118,7 +118,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::TimeSyncResponseDropped,
         status: SessionStatus::LoggedIn,
@@ -135,7 +135,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::TimeSyncResponseFailed,
         status: SessionStatus::LoggedIn,
@@ -152,7 +152,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LogoutRequest,
         status: SessionStatus::LoggedIn,
@@ -176,7 +176,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::LogoutCancel,
         status: SessionStatus::LoggedIn,

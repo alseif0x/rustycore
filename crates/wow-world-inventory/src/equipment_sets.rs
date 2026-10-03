@@ -331,14 +331,9 @@ impl crate::InventoryState {
         set_id: u32,
         spec_index: u32,
     ) -> bool {
-        if set_id >= MAX_EQUIPMENT_SET_INDEX_LIKE_CPP {
-            return false;
-        }
-
-        self.with_owned_equipment_sets_mut_like_cpp(hub, |sets| {
-            sets.assign_set_to_spec_like_cpp(set_id, spec_index as i32)
-        })
-        .unwrap_or(false)
+        let owner = hub.core.owned_equipment_sets_access_like_cpp();
+        crate::handlers::EquipmentSetsHandlerCxLikeCpp::new(self, owner)
+            .assign_represented_equipment_set_to_spec_like_cpp(set_id, spec_index)
     }
 
     pub fn delete_represented_equipment_set_like_cpp(
@@ -346,8 +341,9 @@ impl crate::InventoryState {
         hub: &mut HubMut<'_>,
         id: u64,
     ) -> bool {
-        self.with_owned_equipment_sets_mut_like_cpp(hub, |sets| sets.delete_set_like_cpp(id))
-            .unwrap_or(false)
+        let owner = hub.core.owned_equipment_sets_access_like_cpp();
+        crate::handlers::EquipmentSetsHandlerCxLikeCpp::new(self, owner)
+            .delete_represented_equipment_set_like_cpp(id)
     }
 
     /// Install the process-wide C++ `sObjectMgr->GenerateEquipmentSetGuid()`

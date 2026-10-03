@@ -2,10 +2,7 @@
 // RustyCore — WoW WotLK 3.4.3 server in Rust
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! Proves that the production-linked handler registry matches the reviewed
-//! snapshot without any `#[cfg(test)]` registrations leaking into the contract.
-
-use wow_world::session::registry::PacketHandlerEntry;
+//! Production-linked handler registry contract, without cfg(test) registrations leaking into the contract.
 
 const CONTRACT_SNAPSHOT: &str =
     include_str!("../../../tools/architecture/world-handler-contract.tsv");
@@ -25,13 +22,14 @@ fn expected_contract_rows() -> Vec<String> {
 }
 
 fn production_linked_contract_rows() -> Vec<String> {
-    // Referencing the public session type makes the production wow-world rlib
-    // an explicit part of this integration-test binary. Unlike unit tests, the
-    // library itself is compiled without `cfg(test)`.
+    // The public Server factory exposes the canonical table used to construct sessions.
+    // This integration target links normal libraries, without cfg(test) registrations.
     let _ = std::any::TypeId::of::<wow_world::WorldSession>();
 
-    let mut rows: Vec<_> = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let registry = world_server::compose_packet_handlers_like_cpp()
+        .expect("valid world-server packet handler composition");
+    let mut rows: Vec<_> = registry
+        .iter()
         .map(|entry| {
             (
                 entry.opcode as u32,

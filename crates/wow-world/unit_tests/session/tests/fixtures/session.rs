@@ -67,6 +67,7 @@ pub(in crate::session::tests) fn make_session() -> (
         "esES".into(),
         pkt_rx,
         send_tx,
+        crate::session::registry::build_dispatch_table(),
     );
     session.set_active_player_local_flags_like_cpp(
         PLAYER_LOCAL_FLAG_OVERRIDE_TRANSPORT_SERVER_TIME_LIKE_CPP,

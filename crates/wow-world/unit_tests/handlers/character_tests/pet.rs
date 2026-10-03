@@ -81,8 +81,7 @@ async fn query_pet_name_uses_canonical_owned_pet_name_like_cpp() {
 }
 #[test]
 fn query_pet_name_handler_registration_matches_cpp() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::QueryPetName)
         .expect("QueryPetName handler registration");
 

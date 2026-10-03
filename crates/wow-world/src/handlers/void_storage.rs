@@ -36,7 +36,7 @@ use wow_world_inventory::{
 const VOID_STORAGE_UNLOCK_COST_LIKE_CPP: u64 = 100 * 10_000;
 const VOID_STORAGE_STORE_ITEM_COST_LIKE_CPP: u64 = 10 * 10_000;
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::UnlockVoidStorage,
         status: SessionStatus::LoggedIn,
@@ -55,7 +55,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::QueryVoidStorage,
         status: SessionStatus::LoggedIn,
@@ -67,7 +67,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::VoidStorageTransfer,
         status: SessionStatus::LoggedIn,
@@ -86,7 +86,7 @@ inventory::submit! {
     }
 }
 
-inventory::submit! {
+crate::session::registry::register_packet_handler_like_cpp! {
     PacketHandlerEntry {
         opcode: ClientOpcodes::SwapVoidItem,
         status: SessionStatus::LoggedIn,

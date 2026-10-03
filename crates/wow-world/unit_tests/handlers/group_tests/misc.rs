@@ -154,8 +154,7 @@ fn ready_check_start_gate_allows_leader_or_assistant_only_like_cpp() {
 }
 #[test]
 fn ready_check_response_dispatch_metadata_matches_cpp() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::ReadyCheckResponse)
         .expect("ReadyCheckResponse handler entry");
 

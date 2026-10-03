@@ -27,6 +27,7 @@ pub use connection_identity::{
 };
 
 mod canonical_access;
+pub use canonical_access::OwnedEquipmentSetsAccessLikeCpp;
 mod catalogs;
 mod connection;
 mod construction;

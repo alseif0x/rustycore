@@ -15,6 +15,7 @@ members = [
     "crates/wow-proto",
     # ECS + Game Core
     "crates/wow-world",
+    "crates/wow-world-application",
     "crates/wow-world-core",
     "crates/wow-world-entities",
     "crates/wow-world-interaction",
@@ -167,6 +168,7 @@ wow-persistence = { path = "crates/wow-persistence" }
 wow-network = { path = "crates/wow-network" }
 wow-proto = { path = "crates/wow-proto" }
 wow-world = { path = "crates/wow-world" }
+wow-world-application = { path = "crates/wow-world-application" }
 wow-world-core = { path = "crates/wow-world-core" }
 wow-world-entities = { path = "crates/wow-world-entities" }
 wow-world-interaction = { path = "crates/wow-world-interaction" }

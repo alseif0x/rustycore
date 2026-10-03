@@ -7,11 +7,37 @@
 //! supplies the existing money exclusion; this operation retains it through both
 //! physical writer fences. C++: Trainer::TeachSpell, Trainer.cpp:79-145.
 
-use super::*;
-use crate::trainer_offer::PreparedTrainerOfferLikeCpp;
 use std::future::Future;
 
-pub(crate) struct TrainerAcquisitionPublicationLikeCpp {
+use crate::spell_acquisition::{
+    PlayerSpellAcquisitionRuntimeLikeCpp, PreparedPlayerSpellAcquisitionActionsLikeCpp,
+    PreparedPlayerSpellAcquisitionLikeCpp,
+    PreparedPlayerSpellAcquisitionOutcomeLikeCpp,
+    apply_prepared_player_spell_acquisition_actions_like_cpp,
+    install_prepared_player_spell_acquisition_actions_runtime_like_cpp,
+    install_prepared_player_spell_acquisition_runtime_like_cpp,
+    prepare_player_spell_acquisition_like_cpp,
+    validate_prepared_player_spell_acquisition_actions_runtime_like_cpp,
+    validate_prepared_player_spell_acquisition_runtime_like_cpp,
+};
+use crate::PrimaryProfessionCapacityPlanLikeCpp;
+use wow_spell_acquisition::{SpellAcquisitionPlanLikeCpp, PlayerSpellAcquisitionSnapshotLikeCpp};
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct PreparedTrainerOfferLikeCpp {
+    pub source_spell_id: u32,
+    pub effective_price: u32,
+    pub acquisition_plan: SpellAcquisitionPlanLikeCpp,
+    pub profession_plan: PrimaryProfessionCapacityPlanLikeCpp,
+    /// C++ resolves the battle-pet species before `IsCastable()`
+    /// (`Trainer.cpp:99-128`): a castable spell with a confirmed species
+    /// keeps the normal wrapper acquisition but retains the silent
+    /// per-species capacity gate and suppresses the trainer visual kits.
+    /// `None` for spells without a battle-pet classification.
+    pub battle_pet_species_id: Option<u32>,
+}
+
+pub struct TrainerAcquisitionPublicationLikeCpp {
     pub trainer_guid: wow_core::ObjectGuid,
     pub player_guid: wow_core::ObjectGuid,
     pub trainer_position: wow_core::Position,
@@ -20,7 +46,7 @@ pub(crate) struct TrainerAcquisitionPublicationLikeCpp {
 
 /// Capabilities of the existing admitted trainer operation, not a new owner.
 /// No synchronous Player/Map guard is returned or retained across these awaits.
-pub(crate) trait TrainerAcquisitionRuntimeLikeCpp:
+pub trait TrainerAcquisitionRuntimeLikeCpp:
     PlayerSpellAcquisitionRuntimeLikeCpp
 {
     type MoneyExclusion: Send;
@@ -40,7 +66,7 @@ pub(crate) trait TrainerAcquisitionRuntimeLikeCpp:
 }
 
 #[derive(Clone, Copy)]
-pub(crate) enum TrainerAcquisitionResultLikeCpp {
+pub enum TrainerAcquisitionResultLikeCpp {
     Applied,
     InvalidPreparation,
     PersistenceUnavailable,
@@ -52,7 +78,7 @@ pub(crate) enum TrainerAcquisitionResultLikeCpp {
 
 /// Keep admission closed while the caller publishes a failure or quarantines
 /// the session. Returning only an enum would release the fence too early.
-pub(crate) struct TrainerAcquisitionCompletionLikeCpp<Exclusion> {
+pub struct TrainerAcquisitionCompletionLikeCpp<Exclusion> {
     pub result: TrainerAcquisitionResultLikeCpp,
     _exclusion: Option<Exclusion>,
 }
@@ -63,7 +89,7 @@ enum PreparedTrainerAcquisitionLikeCpp {
     NoChange,
 }
 
-pub(crate) async fn execute_trainer_acquisition_like_cpp<R: TrainerAcquisitionRuntimeLikeCpp>(
+pub async fn execute_trainer_acquisition_like_cpp<R: TrainerAcquisitionRuntimeLikeCpp>(
     runtime: &mut R,
     exclusion: R::MoneyExclusion,
     offer: &PreparedTrainerOfferLikeCpp,
@@ -166,3 +192,7 @@ pub(crate) async fn execute_trainer_acquisition_like_cpp<R: TrainerAcquisitionRu
     }
     finish!(Result::Applied);
 }
+
+#[cfg(test)]
+#[path = "../unit_tests/trainer_purchase.rs"]
+mod tests;

@@ -736,8 +736,7 @@ async fn quest_confirm_accept_without_source_item_does_not_overclaim_source_gate
 }
 #[test]
 fn quest_push_inventory_registration_and_dispatcher_contract_like_cpp() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::QuestPushResult)
         .expect("QuestPushResult handler registration");
 
@@ -844,8 +843,7 @@ async fn push_quest_to_party_repeatable_turn_in_success_prompts_request_items_wi
 }
 #[test]
 fn request_world_quest_update_inventory_entry_matches_cpp_status_and_processing() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::RequestWorldQuestUpdate)
         .expect("RequestWorldQuestUpdate handler registration");
 
@@ -903,8 +901,7 @@ async fn quest_giver_status_multiple_skips_missing_player_item_and_non_questgive
 }
 #[test]
 fn quest_giver_close_inventory_registration_matches_dispatch_contract_like_cpp() {
-    let entry = inventory::iter::<PacketHandlerEntry>
-        .into_iter()
+    let entry = crate::session::registry::registered_handler_entries_like_cpp()
         .find(|entry| entry.opcode == ClientOpcodes::QuestGiverCloseQuest)
         .expect("QuestGiverCloseQuest handler registration");
 
