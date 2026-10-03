@@ -4240,6 +4240,22 @@ client assets change. `unit_condition` remains crate-private. This fixture API
 exists for the real cross-crate test consumer, not a temporary production bridge.
 Final evidence for the repaired committed candidate follows at closeout.
 
+Repaired code candidate `5d2c5b4ec0630bb10db0b3dbfa24843a5ae95754` ran
+`validation-v2 final --base ccb99f8caedec328f049b1a93a8d68142f9a4e57 --timings`
+with one Cargo job, pinned protoc and this checkout's absolute target, clean
+provenance, **14:04:54–14:05:27 UTC / 32.96s**. Manifest
+`forever-snapshot-5d2c5b4e-final.json` records passing hygiene, physical-file
+policy (2696 files), Python compilation and rustfmt; the cross-package parser
+failure is gone. Final still exits **1** on the unchanged inherited Session/
+Map/character/quest/composition/Player hotspot ceilings, before production Cargo
+checks or library tests. `git diff --quiet` against published `ccb99f8c` confirms
+the affected Session, Map, character/quest and Player trees, composition root and
+architecture checker/policy are byte-identical. No baseline was adjusted.
+Publication therefore uses only the existing inherited-debt experimental waiver:
+this is preserved WIP source, NOT passing build/test, fixture-runtime acceptance,
+manual-test readiness or completed character/world integration. The subsequent
+closeout changes only this document; its own validation retains the actual SHA.
+
 #### Source cast-definition resolution — 2026-10-03
 
 **13:40–13:53 UTC**, working candidate over published `ccb99f8caedec328f049b1a93a8d68142f9a4e57`,
