@@ -2357,6 +2357,10 @@ texto vacío de respuesta inválida. Ninguno de estos contrastes ejecutó prueba
 Ambas lecturas de equipo ya se corrigieron por fuente al proveedor full-runtime.
 El constructor World y las fachadas completas de Apply/Remove ya están escritos,
 con export normal App; aún faltan casos completos, FeignDeath y consumidores Trainer.
+FeignDeath ya está escrito y World delega: consulta DIED por la misma mutación
+canónica, snapshot actual y slots nativos, retirada completa por slot con
+resultado ignorado y limpieza DIED al final. Sigue sin prueba ejecutada ni
+aceptación de todos los consumidores Trainer.
 El modo de manejo y la inmunidad polymorph/Dragonmaw de la rama mounted-flight
 requieren contraste completo en F6; la extracción F5 conserva el cuerpo Rust,
 sin introducir esas reparaciones dentro del traslado.
@@ -2818,6 +2822,12 @@ gate antes de leer owner, recurrence actual y vectores nativos, proyección
 íntegra, snapshots tardíos y evaluación de área por jerarquía. Se revisó contra
 World/eligibility:117–240, sin reutilizar las reglas distintas de Trainer.
 La conexión a CanTake/diálogo y sus pruebas siguen pendientes, NO VALIDADAS.
+El cuerpo CanTake completo ya se escribió con recurrence inicial, gates frescos
+de exclusive-group/condiciones, cooldowns ordenados y expansion al final. Se
+revisó contra World/eligibility:524–768 y el orden C++ Player.cpp:14090–14102;
+Timed y demás diferencias representadas no se repararon dentro de F5. Se detectó
+en el nuevo factory un argumento consumer-test sin el cfg de su parámetro y se
+asignó corregirlo. Conexión de consumidores/diálogo y aceptación siguen pendientes.
 
 Consulta compartida de slot (2026-10-03, NO VALIDADO): el ancla original es
 `handlers/quest/state.rs:327`; toma un snapshot actual, exige slot menor que
