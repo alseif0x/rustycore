@@ -16,6 +16,7 @@ use wow_persistence::forever::{AvailabilityRepository, SessionRepository};
 use wow_persistence::{
     HotfixDeliveryMetadataLoadOutcomeLikeCpp, HotfixDeliveryMetadataPersistencePortLikeCpp,
 };
+use wow_world::forever::name_rules::{NamePolicy, NameRules, default_sql_reserved_bypass};
 use wow_world::forever::{CharacterCatalog, InitializationPolicy};
 
 pub(super) struct Runtime {
@@ -29,6 +30,9 @@ pub(super) struct Runtime {
     pub character_idle_timeout: std::time::Duration,
     pub character_capture: Option<CharacterCapture>,
     pub appearance: wow_data::forever_appearance::AppearanceCatalog,
+    pub name_rules: Arc<NameRules>,
+    pub name_policy: NamePolicy,
+    pub skip_sql_reserved_names: bool,
 }
 
 pub(super) async fn load() -> Result<Runtime> {
@@ -95,6 +99,17 @@ pub(super) async fn load() -> Result<Runtime> {
     let auth = Arc::new(LoginDatabase::open_with_pool_size(&url(&info.database), 1).await?);
     let characters = Arc::new(
         CharacterDatabase::open_with_pool_size(&url("characters_forever_70170"), 1).await?,
+    );
+    let session_repository = Arc::new(ForeverSessionRepository::new(auth.clone(), characters));
+    let reserved_names = session_repository
+        .load_reserved_names()
+        .await
+        .map_err(|_| anyhow::anyhow!("reserved name query failed"))?;
+    let skip_sql_reserved_names = default_sql_reserved_bypass(
+        session_repository
+            .load_default_name_permissions(1)
+            .await
+            .map_err(|_| anyhow::anyhow!("default name permissions query failed"))?,
     );
     let world =
         Arc::new(WorldDatabase::open_with_pool_size(&url("world_forever_70170_02245"), 1).await?);
@@ -182,10 +197,20 @@ pub(super) async fn load() -> Result<Runtime> {
         &removals,
     )?;
     println!(
-        "Forever name data prerequisites loaded: {} profanity and {} locale-reserved patterns for esES, {} global reserved patterns; regex/availability not admitted.",
+        "Forever name data loaded: {} profanity and {} locale-reserved patterns for esES, {} global reserved patterns; compiling target expressions.",
         names.profanity(6).context("name locale")?.len(),
         names.locale_reserved(6).context("name locale")?.len(),
         names.reserved().len(),
+    );
+    let name_rules = Arc::new(super::names::compile(&names, reserved_names)?);
+    drop(names); // Compiled immutable rules are now the sole runtime policy.
+    let name_policy = NamePolicy {
+        minimum_units: wow_config::get_value_default("MinPlayerName", 2_u32).clamp(1, 12),
+        strict_mask: wow_config::get_value_default("StrictPlayerNames", 0_u32),
+        creation_charset: 2, // Replaced using the admitted real realm timezone.
+    };
+    println!(
+        "Target name expressions compiled; database-backed availability registered, no character creation admitted."
     );
     hotfixes.apply_hotfix_data_rows_like_cpp(
         rows.into_iter().map(|row| {
@@ -244,7 +269,10 @@ pub(super) async fn load() -> Result<Runtime> {
     );
     Ok(Runtime {
         auth: auth.clone(),
-        session_repository: Arc::new(ForeverSessionRepository::new(auth, characters)),
+        session_repository,
+        name_rules,
+        name_policy,
+        skip_sql_reserved_names,
         catalog,
         appearance,
         hotfixes: Arc::new(hotfixes),

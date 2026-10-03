@@ -8,6 +8,7 @@ use wow_data::{
     forever_hotfix::{ForeverHotfixCatalog, ForeverTactKeys, TACT_KEY_TABLE_HASH},
 };
 use wow_persistence::{PersistenceFutureLikeCpp, forever::AccountData};
+mod name_availability;
 
 fn hotfix_catalog(mut metadata: HotfixBlobCache) -> ForeverHotfixCatalog {
     // Header/section/column/records/IDs are synthetic. No acquired key bytes.
@@ -57,6 +58,9 @@ struct Repository {
     load_error: Option<LoadError>,
     enum_error: Option<LoadError>,
     loads: AtomicUsize,
+    name_error: Option<LoadError>,
+    used_name: bool,
+    queried_names: std::sync::Mutex<Vec<String>>,
 }
 
 impl Repository {
@@ -65,6 +69,9 @@ impl Repository {
             load_error: None,
             enum_error: None,
             loads: AtomicUsize::new(0),
+            name_error: None,
+            used_name: false,
+            queried_names: Default::default(),
         }
     }
 }
@@ -96,6 +103,15 @@ impl SessionRepository for Repository {
     fn enumerate_empty(&self, _: u32) -> PersistenceFutureLikeCpp<'_, Result<(), LoadError>> {
         Box::pin(async move { self.enum_error.map_or(Ok(()), Err) })
     }
+    fn name_in_use<'a>(
+        &'a self,
+        name: &'a str,
+    ) -> PersistenceFutureLikeCpp<'a, Result<bool, LoadError>> {
+        Box::pin(async move {
+            self.queried_names.lock().unwrap().push(name.into());
+            self.name_error.map_or(Ok(self.used_name), Err)
+        })
+    }
 }
 
 fn session(repository: Arc<dyn SessionRepository>) -> Session {
@@ -105,9 +121,22 @@ fn session(repository: Arc<dyn SessionRepository>) -> Session {
             battlenet_id: 1,
             realm_address: 0x02010001,
             account_expansion: 0,
+            dbc_locale: 6,
+            skip_sql_reserved_names: false,
         },
         repository,
         Arc::new(hotfix_catalog(HotfixBlobCache::new())),
+        Arc::new(name_rules::NameRules::new(
+            std::array::from_fn(|_| vec![]),
+            vec![],
+            Vec::new(),
+            [],
+        )),
+        name_rules::NamePolicy {
+            minimum_units: 2,
+            strict_mask: 0,
+            creation_charset: 2,
+        },
     )
     .unwrap()
 }
@@ -170,6 +199,12 @@ fn linked_registry_has_one_exact_metadata_and_call_set() {
                 "Authenticated".into(),
                 "Inplace".into(),
                 "forever_db_query"
+            ),
+            (
+                0x440071,
+                "Authenticated".into(),
+                "ThreadUnsafe".into(),
+                "forever_check_name"
             ),
         ])
     );
@@ -512,6 +547,12 @@ async fn cancelled_initialization_cannot_be_restarted_or_admit_character_operati
         }
         fn enumerate_empty(&self, _: u32) -> PersistenceFutureLikeCpp<'_, Result<(), LoadError>> {
             panic!("cancelled initialization must never enumerate")
+        }
+        fn name_in_use<'a>(
+            &'a self,
+            _: &'a str,
+        ) -> PersistenceFutureLikeCpp<'a, Result<bool, LoadError>> {
+            panic!("cancelled initialization must never check names")
         }
     }
     let mut session = session(Arc::new(PendingRepository));

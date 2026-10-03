@@ -3092,6 +3092,7 @@ name = "world-server"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "cc",
  "flume",
  "serde",
  "serde_json",

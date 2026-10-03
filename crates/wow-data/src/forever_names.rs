@@ -192,6 +192,12 @@ impl ForeverNames {
             .copied()
             .unwrap_or(ENGLISH_CHARSET)
     }
+
+    /// Consume these primitive projections into the compiled name-rule owner
+    /// without retaining a second catalog of pattern strings at runtime.
+    pub fn charset_categories(&self) -> impl Iterator<Item = (u32, u8)> + '_ {
+        self.creation_charsets.iter().map(|(&id, &mask)| (id, mask))
+    }
 }
 
 fn effective<T, Id, Validate>(

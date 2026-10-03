@@ -81,6 +81,13 @@ pub trait SessionRepository: Send + Sync {
     ) -> PersistenceFutureLikeCpp<'_, Result<AccountSnapshot, LoadError>>;
 
     fn enumerate_empty(&self, account: u32) -> PersistenceFutureLikeCpp<'_, Result<(), LoadError>>;
+
+    /// Read-only name availability, not a reservation or creation admission.
+    /// Errors are never interpreted as absence. Names are not diagnostics.
+    fn name_in_use<'a>(
+        &'a self,
+        normalized_name: &'a str,
+    ) -> PersistenceFutureLikeCpp<'a, Result<bool, LoadError>>;
 }
 
 pub trait AvailabilityRepository: Send + Sync {

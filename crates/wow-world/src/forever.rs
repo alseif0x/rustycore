@@ -41,6 +41,7 @@ pub enum SessionError {
     Codec,
     Persistence(LoadError),
     Registry,
+    NameRules(name_rules::NameRuleError),
 }
 
 /// Already admitted account identity, supplied by composition after proof.
@@ -49,6 +50,9 @@ pub struct Identity {
     pub battlenet_id: u32,
     pub realm_address: u32,
     pub account_expansion: u8,
+    pub dbc_locale: u8,
+    /// Effective RBAC permission 17. It bypasses SQL names only, not DB2 rules.
+    pub skip_sql_reserved_names: bool,
 }
 
 pub struct InitializationPolicy {
@@ -94,6 +98,8 @@ pub struct Session {
     snapshot: Option<AccountSnapshot>,
     repository: Arc<dyn SessionRepository>,
     hotfixes: Arc<ForeverHotfixCatalog>,
+    name_rules: Arc<name_rules::NameRules>,
+    name_policy: name_rules::NamePolicy,
     registry: HashMap<u32, &'static Entry>,
     latency: u32,
     enumerated: bool,
@@ -105,6 +111,8 @@ impl Session {
         identity: Identity,
         repository: Arc<dyn SessionRepository>,
         hotfixes: Arc<ForeverHotfixCatalog>,
+        name_rules: Arc<name_rules::NameRules>,
+        name_policy: name_rules::NamePolicy,
     ) -> Result<Self, SessionError> {
         let mut registry = HashMap::new();
         for entry in inventory::iter::<Entry> {
@@ -115,6 +123,8 @@ impl Session {
         if identity.account_id == 0
             || identity.battlenet_id == 0
             || identity.realm_address & 0xFFFF == 0
+            || identity.dbc_locale >= 12
+            || !(1..=12).contains(&name_policy.minimum_units)
         {
             return Err(SessionError::Protocol);
         }
@@ -124,6 +134,8 @@ impl Session {
             snapshot: None,
             repository,
             hotfixes,
+            name_rules,
+            name_policy,
             registry,
             latency: 0,
             enumerated: false,
@@ -235,3 +247,4 @@ inventory::submit! { Entry { opcode: LOG_DISCONNECT, status: Admission::Connecti
 inventory::submit! { Entry { opcode: ENUM_CHARACTERS, status: Admission::Authenticated, processing: PacketProcessing::ThreadUnsafe, handler_name: "forever_enum", handler: |session, catalog, request| Box::pin(handlers::enumerate(session, catalog, request)) } }
 inventory::submit! { Entry { opcode: HOTFIX_REQUEST, status: Admission::Authenticated, processing: PacketProcessing::ThreadUnsafe, handler_name: "forever_hotfix", handler: |session, _, request| Box::pin(handlers::hotfix(session, request)) } }
 inventory::submit! { Entry { opcode: wow_packet::forever::db_query::CLASSIC_QUERY_OPCODE, status: Admission::Authenticated, processing: PacketProcessing::Inplace, handler_name: "forever_db_query", handler: |session, _, request| Box::pin(handlers::db_query(session, request)) } }
+inventory::submit! { Entry { opcode: wow_packet::forever::name_availability::CHECK_CHARACTER_NAME_AVAILABILITY_OPCODE, status: Admission::Authenticated, processing: PacketProcessing::ThreadUnsafe, handler_name: "forever_check_name", handler: |session, _, request| Box::pin(handlers::check_name(session, request)) } }

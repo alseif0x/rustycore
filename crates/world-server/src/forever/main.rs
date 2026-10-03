@@ -4,6 +4,7 @@ mod appearance;
 mod bootstrap;
 mod character_capture;
 mod connection;
+mod name_regex;
 mod names;
 
 use anyhow::Result;

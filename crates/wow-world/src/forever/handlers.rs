@@ -2,6 +2,49 @@
 use super::{CharacterCatalog, HandlerResult, Outgoing, Phase, Request, Session, SessionError};
 use wow_packet::forever as packet;
 
+pub(super) async fn check_name(session: &mut Session, request: Request) -> HandlerResult {
+    use super::name_rules::Validation;
+    use packet::name_availability::{
+        CHECK_CHARACTER_NAME_AVAILABILITY_RESULT_OPCODE, CheckCharacterNameAvailability,
+        CheckCharacterNameAvailabilityResult,
+    };
+    let request = CheckCharacterNameAvailability::decode(&request.payload)
+        .map_err(|_| SessionError::Protocol)?;
+    // CharacterHandler.cpp:1687-1719. Surname and unknown bits are source
+    // fields, not extra admission rules. Preserve the caller's sequence.
+    let result = match session
+        .name_rules
+        .check(
+            request.name(),
+            session.name_policy,
+            session.identity.dbc_locale,
+            session.identity.skip_sql_reserved_names,
+        )
+        .map_err(SessionError::NameRules)?
+    {
+        Validation::Rejected(rejection) => rejection.wire_result(),
+        Validation::Accepted(name) => {
+            if session
+                .repository
+                .name_in_use(name.spelling())
+                .await
+                .map_err(SessionError::Persistence)?
+            {
+                27
+            } else {
+                0
+            }
+        }
+    };
+    // Read-only lookup: this is not a name reservation. The complete Create
+    // operation must recheck admission/collision and commit independently.
+    Ok(vec![Outgoing::new(
+        CHECK_CHARACTER_NAME_AVAILABILITY_RESULT_OPCODE,
+        CheckCharacterNameAvailabilityResult::new(request.sequence_index(), result)
+            .encode_payload(),
+    )])
+}
+
 pub(super) async fn ping(session: &mut Session, request: Request) -> HandlerResult {
     if request.payload.len() != 8 {
         return Err(SessionError::Protocol);
