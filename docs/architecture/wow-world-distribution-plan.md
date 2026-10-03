@@ -2337,6 +2337,51 @@ CanStoreItem/CanUnequipItem/CanEquipItem, nested inventory y fanout no queda
 acreditado por ese traslado. Compilación, contratos ejecutados, capturas y
 aceptación F5/F6 siguen pendientes.
 
+Revisión de integración XP/condiciones (2026-10-03, NO VALIDADO): el borrador
+RAF de `quest/reward/xp_grants.rs` conserva la secuencia Rust de
+`session/social/contacts.rs::gets_recruit_a_friend_bonus_like_cpp(true)`:
+admisión, nivel, pertenencia al grupo, posición/mapa/instancia y recorrido con
+relectura de límites y relación de reclutador. El acceso Core verifica ambos
+registros antes de consultar el grupo y libera su guard antes del recorrido.
+Queda pendiente sustituir el cuerpo World compartido por un único proveedor
+para XP y los consumidores con `for_xp = false`, sin duplicar su política.
+El rechazo Rust de miembros muertos no acredita el cálculo C++ desde el cadáver.
+El filtro spell-click escrito aún debe materializar la proyección de condiciones
+después de clonar PlayerConditionStore y antes de clonar AreaTableStore; recibir
+un holder precomputado no conserva ese orden. La valoración total/equipada ya
+tiene ownership exclusivo asignado para cerrar esa dependencia. Estas revisiones
+de fuente no acreditan compilación, ejecución ni la entrega completa de F5/F6.
+
+La proyección de condiciones ya tiene un constructor inerte y un cuerpo App
+para las lecturas anteriores a los niveles de equipo. La revisión detectó un
+lifetime omitido del store de áreas en el constructor y una diferencia pendiente
+en known-spells: el camino World cfg(test)/sin handle reconstruye el runtime de
+spell antes de consultar sus conocidos; tomar directamente la colección fixture
+no prueba que conserve los mismos filtros ni el orden. Debe reutilizarse la
+operación completa y mantener esa admisión fixture antes de consultar Core.
+Las dos lecturas tardías de valoración y sus consumidores siguen pendientes.
+El adaptador RAF de `World/session/social/contacts.rs` ya delega en el cuerpo
+App compartido con `for_xp`; los filtros condicionales de XP y los consumidores
+sin ese filtro conservan una única implementación en el borrador. El flujo
+principal de `World/session/xp_grants.rs` y el helper de request de
+`World/session/quest/persistence.rs` todavía requieren sustitución completa.
+El request App escrito conserva rest-state, flags, bonus, nivel y XP en ese orden;
+queda pendiente comprobar sus llamadas reales y retirar el cuerpo duplicado.
+
+Revisión de guardado completo (2026-10-03, NO VALIDADO):
+`session/lifecycle/persistence.rs::save_current_player_to_db_with_generator_like_cpp`
+todavía conserva el coordinador World; `Application/player_save.rs` solo posee
+captura/persistencia. La revisión de `Core/player_save_owner.rs:279–323` confirma
+que el recibo se consume una vez, contrasta handle y GUID, accede a la misma
+incarnación y aplica la intersección de grupos esperados/confirmados antes del ACK.
+`World/.../persistence/prepared.rs:112–140` publica tutoriales únicamente tras
+ese ACK y conserva el dirty cuando sus valores cambiaron; después sincroniza
+Registry para spells/skills. La extracción completa debe mantener esa publicación
+antes de liberar el bloqueo de dinero, liberar luego la admisión y finalmente
+drenar objetivos; las ramas de cuarentena y snapshot no disponible también
+deben conservar su drain posterior a la liberación. Falta cerrar el coordinador
+y ejecutar evidencia de cancelación, COMMIT desconocido e incarnación obsoleta.
+
 ### F6 — retirada de duplicados, pista de comportamiento
 
 Contraste de valoración de equipo para la proyección de condiciones (inspección
