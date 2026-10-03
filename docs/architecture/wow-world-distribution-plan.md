@@ -2283,8 +2283,11 @@ caso de consumo del contador antes de scale-duration ausente, según el implemen
 Contrato de velocidad contrastado con C++ SpellAuraEffects.cpp:3159–3257, SHA
 a5f8da2ebf5424bf0450ca4e08843ecbf72577bd: DecreaseSpeed actualiza run, swim,
 flight y las tres velocidades backward en ese orden. IncreaseFlightSpeed calcula
-la velocidad antes de la rama de flags y exige !IsGravityDisabled para MoveFall;
-el cuerpo Rust World actual hace flags antes del recálculo y carece de ese gate.
+la velocidad antes de la rama de flags; el cuerpo Rust World actual hace flags
+antes del recálculo. El gate de gravedad no es una carencia: al seguir el caller
+hasta Core/movement/fall.rs::move_represented_player_fall_like_cpp se confirma
+el rechazo DISABLE_GRAVITY antes de FALLING, también conservado en el provider
+nuevo. La ausencia de un gate duplicado en el caller no acredita un defecto.
 El modo de manejo y la inmunidad polymorph/Dragonmaw de la rama mounted-flight
 requieren contraste completo en F6; la extracción F5 conserva el cuerpo Rust,
 sin introducir esas reparaciones dentro del traslado.
