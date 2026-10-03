@@ -2828,6 +2828,14 @@ revisó contra World/eligibility:524–768 y el orden C++ Player.cpp:14090–141
 Timed y demás diferencias representadas no se repararon dentro de F5. Se detectó
 en el nuevo factory un argumento consumer-test sin el cfg de su parámetro y se
 asignó corregirlo. Conexión de consumidores/diálogo y aceptación siguen pendientes.
+El cfg del argumento ya está corregido por fuente. La revisión del consumidor
+detectó otro problema: construir RewardCx para CanTake exigía mutable Core,
+Inventory, Lifecycle y QuestState y ampliaba consultas World de &self a &mut self.
+Ese límite se rechazó: la admisión completa requiere un contexto de solo lectura
+y una capacidad Core finita, con proyección de condiciones inerte y lecturas
+tardías originales. Se asignó conservar el cuerpo completo y restaurar firmas
+de lectura, sin cambiar gameplay ni duplicar autoridad. La integración de esa
+corrección sigue pendiente; revisar el cuerpo no aprobaba ese consumidor mutable.
 
 Consulta compartida de slot (2026-10-03, NO VALIDADO): el ancla original es
 `handlers/quest/state.rs:327`; toma un snapshot actual, exige slot menor que
