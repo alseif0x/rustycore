@@ -2689,6 +2689,14 @@ confirma equipped-slot, item/enchantment, ApplyEnchantment(remove) y ClearEnchan
 La dependencia Rust Inventory/enchantment.rs:205–260 retira el objeto antes de leer
 required-skill; su retorno si falta esa lectura debe conservarse en F5 y revisarse
 como diferencia F6, sin ocultar una reparación dentro del traslado.
+El owner Core de enchantment y el template compartido ya están escritos y
+exportados. La revisión conserva skill-records completos y su proyección,
+fallback NoHandle original y mutate_canonical_player, sin reemplazarlo por
+una mutación de otra autoridad. Inventory/enchantment/operation contiene la
+operación completa de condición/socket/plan: lecturas actuales, remove antes de
+skill, mutación y reinserción. Los lectores seleccionados de item/slot conservan
+la proyección completa de runtime que usaban las fachadas originales. El handler
+CancelTempEnchantment y su registro siguen pendientes; no se ejecutaron checks.
 
 Quest eligibility de visibilidad también está escrito como módulo privado: nivel,
 race/class y CanSeeStart conservan disable, status, recurrence, seasonal, prev-quest
