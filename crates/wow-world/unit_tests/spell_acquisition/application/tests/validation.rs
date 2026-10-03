@@ -5,65 +5,6 @@
 use super::*;
 
 #[test]
-fn stable_source_authority_is_exact_and_rejects_unsaved_state() {
-    let mut favorite = spell(200, PlayerSpellPersistenceStateLikeCpp::Unchanged);
-    favorite.favorite = true;
-    let mut dependent = spell(201, PlayerSpellPersistenceStateLikeCpp::Unchanged);
-    dependent.dependent = true;
-    dependent.favorite = true;
-    let mut source = snapshot(vec![favorite, dependent]);
-    source.skills = vec![PlayerSkillAcquisitionRowLikeCpp {
-        skill_id: 164,
-        step: 1,
-        value: 75,
-        maximum: 150,
-        profession_association: ProfessionAssociationInputLikeCpp::Slot(1),
-        state: PlayerSkillPersistenceStateLikeCpp::Unchanged,
-    }];
-    source.occupied_skill_slots = 1;
-
-    assert_eq!(
-        stable_source_durable_authority_like_cpp(&source),
-        Some(DurablePlayerSpellAcquisitionAuthorityLikeCpp {
-            spells: vec![DurablePlayerSpellRowLikeCpp {
-                spell_id: 200,
-                active: true,
-                disabled: false,
-            }],
-            favorite_spell_ids: vec![200, 201],
-            skills: vec![DurablePlayerSkillRowLikeCpp {
-                skill_id: 164,
-                value: 75,
-                maximum: 150,
-                profession_slot: 1,
-            }],
-        })
-    );
-
-    let mut unsaved_spell = source.clone();
-    unsaved_spell.spells[0].state = PlayerSpellPersistenceStateLikeCpp::Changed;
-    assert!(stable_source_durable_authority_like_cpp(&unsaved_spell).is_none());
-    assert!(snapshot_has_pending_durable_save_like_cpp(&unsaved_spell));
-
-    let mut with_temporary_spell = source.clone();
-    with_temporary_spell
-        .spells
-        .push(spell(202, PlayerSpellPersistenceStateLikeCpp::Temporary));
-    assert_eq!(
-        stable_source_durable_authority_like_cpp(&with_temporary_spell),
-        stable_source_durable_authority_like_cpp(&source)
-    );
-    assert!(!snapshot_has_pending_durable_save_like_cpp(
-        &with_temporary_spell
-    ));
-
-    let mut unsaved_skill = source;
-    unsaved_skill.skills[0].state = PlayerSkillPersistenceStateLikeCpp::New;
-    assert!(stable_source_durable_authority_like_cpp(&unsaved_skill).is_none());
-    assert!(snapshot_has_pending_durable_save_like_cpp(&unsaved_skill));
-}
-
-#[test]
 fn required_learning_publications_cannot_be_omitted() {
     let (source, plan) = direct_learn_plan();
     prepare_player_spell_acquisition_like_cpp(&plan, &no_profession_changes(), &source)

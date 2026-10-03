@@ -20,6 +20,7 @@ pub use profession::{
     plan_primary_professions_like_cpp,
 };
 pub use spell_acquisition::{
+    PlayerSpellAcquisitionPersistenceOutcomeLikeCpp,
     PlayerSpellAcquisitionPublicationFaultPointLikeCpp,
     PlayerSpellAcquisitionPrepareErrorLikeCpp, PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp,
     PlayerSpellAcquisitionRuntimeLikeCpp, PreparedPlayerSpellAcquisitionActionsLikeCpp,
@@ -31,7 +32,10 @@ pub use spell_acquisition::{
     apply_prepared_player_spell_acquisition_with_fault_like_cpp,
     install_prepared_player_spell_acquisition_actions_runtime_like_cpp,
     install_prepared_player_spell_acquisition_runtime_like_cpp,
+    persist_player_spell_acquisition_through_port_like_cpp,
+    player_spell_acquisition_persistence_request_like_cpp,
     prepare_player_spell_acquisition_like_cpp,
+    snapshot_has_pending_durable_save_like_cpp,
     validate_prepared_player_spell_acquisition_actions_runtime_like_cpp,
     validate_prepared_player_spell_acquisition_runtime_like_cpp,
 };

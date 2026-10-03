@@ -14,10 +14,9 @@ use super::*;
 use crate::profession::{
     PrimaryProfessionCapacityPlanLikeCpp, PrimaryProfessionEquipmentSlotLikeCpp,
 };
+#[cfg(test)]
 use wow_persistence::{
-    PlayerSpellAcquisitionAuthorityLikeCpp as DurablePlayerSpellAcquisitionAuthorityLikeCpp,
-    PlayerSpellAcquisitionDurableOperationLikeCpp, PlayerSpellAcquisitionPersistencePortLikeCpp,
-    PlayerSpellAcquisitionPersistenceRequestLikeCpp,
+    PlayerSpellAcquisitionDurableOperationLikeCpp,
     PlayerSpellAcquisitionSkillRowLikeCpp as DurablePlayerSkillRowLikeCpp,
     PlayerSpellAcquisitionSpellRowLikeCpp as DurablePlayerSpellRowLikeCpp,
 };
@@ -27,19 +26,12 @@ use wow_persistence::{
     classify_player_spell_acquisition_money_reconciliation_like_cpp,
 };
 
-pub(crate) enum PlayerSpellAcquisitionPersistenceOutcomeLikeCpp {
-    Applied,
-    ReconciledCommit(String),
-    DefinitelyRolledBack(String),
-    Indeterminate(String),
-}
-
 #[cfg(test)]
 #[path = "../../unit_tests/spell_acquisition/application/tests/mod.rs"]
 mod tests;
 
-mod prepare;
 pub(crate) use wow_world_application::{
+    PlayerSpellAcquisitionPersistenceOutcomeLikeCpp,
     PlayerSpellAcquisitionPublicationFaultPointLikeCpp,
     PlayerSpellAcquisitionPrepareErrorLikeCpp, PlayerSpellAcquisitionRuntimeApplyErrorLikeCpp,
     PlayerSpellAcquisitionRuntimeLikeCpp, PreparedPlayerSpellAcquisitionActionsLikeCpp,
@@ -51,18 +43,10 @@ pub(crate) use wow_world_application::{
     apply_prepared_player_spell_acquisition_with_fault_like_cpp,
     install_prepared_player_spell_acquisition_actions_runtime_like_cpp,
     install_prepared_player_spell_acquisition_runtime_like_cpp,
+    persist_player_spell_acquisition_through_port_like_cpp,
+    player_spell_acquisition_persistence_request_like_cpp,
     prepare_player_spell_acquisition_like_cpp,
+    snapshot_has_pending_durable_save_like_cpp,
     validate_prepared_player_spell_acquisition_actions_runtime_like_cpp,
     validate_prepared_player_spell_acquisition_runtime_like_cpp,
 };
-
-pub(crate) use prepare::{
-    persist_player_spell_acquisition_through_port_like_cpp,
-    player_spell_acquisition_persistence_request_like_cpp,
-    snapshot_has_pending_durable_save_like_cpp,
-};
-
-// The plan-validation tests reach this through `use super::*`; the plain build
-// has no other reader, so the binding is test-only.
-#[cfg(test)]
-use prepare::stable_source_durable_authority_like_cpp;

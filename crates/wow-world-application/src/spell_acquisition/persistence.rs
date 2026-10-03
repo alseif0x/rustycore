@@ -1,11 +1,34 @@
-//! Prepare items of application.
-//!
-//! Separated from application.rs under #711; every item keeps its name,
-//! signature and body.
+// Copyright (c) 2026 alseif0x
+// RustyCore — WoW WotLK 3.4.3 server in Rust
+// Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-use super::*;
+//! Durable persistence projection and exact-attempt reconciliation for spell acquisition.
 
-pub(crate) fn snapshot_has_pending_durable_save_like_cpp(
+use std::collections::BTreeSet;
+
+use super::PreparedPlayerSpellAcquisitionLikeCpp;
+use wow_persistence::{
+    PlayerSpellAcquisitionAuthorityLikeCpp as DurablePlayerSpellAcquisitionAuthorityLikeCpp,
+    PlayerSpellAcquisitionPersistencePortLikeCpp,
+    PlayerSpellAcquisitionPersistenceRequestLikeCpp,
+    PlayerSpellAcquisitionSkillRowLikeCpp as DurablePlayerSkillRowLikeCpp,
+    PlayerSpellAcquisitionSpellRowLikeCpp as DurablePlayerSpellRowLikeCpp,
+};
+use wow_spell_acquisition::{
+    PlayerSkillPersistenceStateLikeCpp, PlayerSpellAcquisitionSnapshotLikeCpp,
+    PlayerSpellPersistenceStateLikeCpp,
+};
+#[cfg(test)]
+use wow_persistence::PlayerSpellAcquisitionMoneyReconciliationLikeCpp;
+
+pub enum PlayerSpellAcquisitionPersistenceOutcomeLikeCpp {
+    Applied,
+    ReconciledCommit(String),
+    DefinitelyRolledBack(String),
+    Indeterminate(String),
+}
+
+pub fn snapshot_has_pending_durable_save_like_cpp(
     snapshot: &PlayerSpellAcquisitionSnapshotLikeCpp,
 ) -> bool {
     snapshot.spells.iter().any(|spell| {
@@ -24,7 +47,7 @@ pub(crate) fn snapshot_has_pending_durable_save_like_cpp(
 /// Temporary spells have no durable row; any other dirty state is ambiguous
 /// until the ordinary C++ save lifecycle consumes it, so trainer persistence
 /// must fail closed instead of guessing the database pre-state.
-pub(super) fn stable_source_durable_authority_like_cpp(
+fn stable_source_durable_authority_like_cpp(
     snapshot: &PlayerSpellAcquisitionSnapshotLikeCpp,
 ) -> Option<DurablePlayerSpellAcquisitionAuthorityLikeCpp> {
     let mut spells = Vec::new();
@@ -83,7 +106,7 @@ pub(super) fn stable_source_durable_authority_like_cpp(
 
 /// Converts an already validated application plan into the complete SQLx-free
 /// transaction request consumed by the Character-database adapter.
-pub(crate) fn player_spell_acquisition_persistence_request_like_cpp(
+pub fn player_spell_acquisition_persistence_request_like_cpp(
     guid_counter: u64,
     prepared: &PreparedPlayerSpellAcquisitionLikeCpp,
     money_before: u64,
@@ -115,7 +138,7 @@ pub(crate) fn player_spell_acquisition_persistence_request_like_cpp(
     })
 }
 
-pub(crate) async fn persist_player_spell_acquisition_through_port_like_cpp(
+pub async fn persist_player_spell_acquisition_through_port_like_cpp(
     port: &dyn PlayerSpellAcquisitionPersistencePortLikeCpp,
     request: PlayerSpellAcquisitionPersistenceRequestLikeCpp,
 ) -> PlayerSpellAcquisitionPersistenceOutcomeLikeCpp {
@@ -145,3 +168,7 @@ pub(crate) async fn persist_player_spell_acquisition_through_port_like_cpp(
         },
     }
 }
+
+#[cfg(test)]
+#[path = "../../unit_tests/spell_acquisition/persistence.rs"]
+mod tests;

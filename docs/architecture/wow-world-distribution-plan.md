@@ -1853,6 +1853,18 @@ comportamiento base, sin demostrar equivalencia de esta preparación async.
 Los escenarios existentes de skill owner, spell state y effect learning y
 los casos de entidad permanecen escritos; no se han ejecutado en este corte.
 
+**Preparación y clasificación durable trasladadas — 2026-10-03, 11:35 UTC
+(NO VALIDADO):** aplicación contiene las cuatro funciones restantes de
+spell acquisition: detección de save pendiente, autoridad estable privada,
+petición durable y ejecución/reconciliación a través del puerto. World retira
+el proveedor prepare anterior y el enum de resultado, conservando fachadas.
+La comparación de fuente conserva los cuatro cuerpos, las cuatro salidas y
+la reconciliación únicamente tras COMMIT desconocido. Se trasladan, con sus
+identidades y cuerpos, los dos casos independientes de autoridad estable y
+resultado del puerto, junto con su mock y petición fixture; World conserva
+los demás escenarios de sesión. No cambia SQL, la exclusión, el cancellation
+fence ni la cuarentena; esos participantes concretos siguen pendientes de F5.
+
 ### F6 — retirada de duplicados, pista de comportamiento
 
 La revisión F5 conserva dos diferencias que no puede resolver mediante un
@@ -1874,6 +1886,9 @@ resultado final; corregir su alcance exige el contrato completo de inventario
 y evidencia F6. Save se contrasta por separado contra
 `CharacterHandler.cpp:1860::HandleEquipmentSetSave` y
 `Player.cpp:26376::SetEquipmentSet` antes de diseñar su contexto acotado.
+Save conserva además las omisiones Rust de validación ante catálogos ausentes
+y de `ScalingClassRestricted` (`CharacterHandler.cpp:1932`); el contexto no
+convierte esas diferencias en validaciones nuevas durante el traslado.
 
 Por dominio, retirar la duplicidad `represented_*`/canónica y resolver
 `session/legacy_runtime` y el `map_manager` legado. Elegir por la operación completa y
