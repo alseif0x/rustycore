@@ -11,7 +11,7 @@ pub(crate) fn unit_condition(id: u32) -> UnitConditionRecord {
     }
 }
 
-pub(crate) fn talent(id: u32, locale: u8, text: &[u8]) -> TalentRecord {
+pub fn talent(id: u32, locale: u8, text: &[u8]) -> TalentRecord {
     let _ = (locale, text);
     TalentRecord {
         id,
@@ -35,11 +35,7 @@ pub(crate) fn talent(id: u32, locale: u8, text: &[u8]) -> TalentRecord {
     }
 }
 
-pub(crate) fn spell_item_enchantment(
-    id: u32,
-    locale: u8,
-    text: &[u8],
-) -> SpellItemEnchantmentRecord {
+pub fn spell_item_enchantment(id: u32, locale: u8, text: &[u8]) -> SpellItemEnchantmentRecord {
     let _ = (locale, text);
     SpellItemEnchantmentRecord {
         id,
@@ -82,7 +78,7 @@ pub(crate) fn spell_item_enchantment(
     }
 }
 
-pub(crate) fn spell_visual(id: u32, locale: u8, text: &[u8]) -> SpellVisualRecord {
+pub fn spell_visual(id: u32, locale: u8, text: &[u8]) -> SpellVisualRecord {
     let _ = (locale, text);
     SpellVisualRecord {
         id,
@@ -114,7 +110,7 @@ pub(crate) fn spell_visual(id: u32, locale: u8, text: &[u8]) -> SpellVisualRecor
     }
 }
 
-pub(crate) fn spell_visual_missile(id: u32, locale: u8, text: &[u8]) -> SpellVisualMissileRecord {
+pub fn spell_visual_missile(id: u32, locale: u8, text: &[u8]) -> SpellVisualMissileRecord {
     let _ = (locale, text);
     SpellVisualMissileRecord {
         cast_offset: [
@@ -151,11 +147,7 @@ pub(crate) fn spell_visual_missile(id: u32, locale: u8, text: &[u8]) -> SpellVis
     }
 }
 
-pub(crate) fn spell_visual_effect_name(
-    id: u32,
-    locale: u8,
-    text: &[u8],
-) -> SpellVisualEffectNameRecord {
+pub fn spell_visual_effect_name(id: u32, locale: u8, text: &[u8]) -> SpellVisualEffectNameRecord {
     let _ = (locale, text);
     SpellVisualEffectNameRecord {
         id,
@@ -178,7 +170,7 @@ pub(crate) fn spell_visual_effect_name(
     }
 }
 
-pub(crate) fn liquid_type(id: u32, locale: u8, text: &[u8]) -> LiquidTypeRecord {
+pub fn liquid_type(id: u32, locale: u8, text: &[u8]) -> LiquidTypeRecord {
     let _ = (locale, text);
     LiquidTypeRecord {
         id,

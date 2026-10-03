@@ -11,9 +11,7 @@ mod binary;
 mod effect_flags;
 mod tail;
 // Reuse synthetic full-schema rows, not private client assets or a raw mirror.
-#[allow(dead_code)]
-#[path = "../../../../../../wow-data/src/forever_spells/custom_source_fixtures.rs"]
-mod dependency_rows;
+use wow_data::forever_spells::test_fixtures as dependency_rows;
 
 fn effect(kind: u32, aura: u32, bp: f32) -> SpellEffectValues {
     SpellEffectValues {

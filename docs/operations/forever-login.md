@@ -4228,6 +4228,18 @@ The committed-candidate final result and publication SHA are recorded at closeou
 the earlier inherited-debt waiver cannot relabel new failures or authored tests
 as green. The original objective remains paused, not complete.
 
+The first committed-candidate final at `f05c9e3d484fb7cb2a6a92dc823f39a3d80eb816`
+failed in **14.57s** (14:01:07–14:01:22 UTC), before Cargo, on a NEW cross-package
+`#[path]` fixture mount. Manifest `forever-snapshot-f05c9e3d-final.json` records
+the failure; it is not covered by the inherited-debt waiver. The safe-refactor
+skill guided a narrow test-only boundary repair: `wow-data` keeps the canonical
+synthetic constructors and exposes six through the opt-in `test-fixtures` facade;
+`wow-world` enables it only as a dev-dependency instead of mounting dependency
+source. No constructor values, test registrations, gameplay, runtime owner or
+client assets change. `unit_condition` remains crate-private. This fixture API
+exists for the real cross-crate test consumer, not a temporary production bridge.
+Final evidence for the repaired committed candidate follows at closeout.
+
 #### Source cast-definition resolution — 2026-10-03
 
 **13:40–13:53 UTC**, working candidate over published `ccb99f8caedec328f049b1a93a8d68142f9a4e57`,
