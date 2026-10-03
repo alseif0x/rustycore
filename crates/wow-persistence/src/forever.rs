@@ -31,6 +31,18 @@ pub enum LoadError {
     UnsupportedState,
 }
 
+/// No Debug: these serialized field values can be private TACT keys.
+pub struct TactKeyRow {
+    pub id: u32,
+    pub key: [u8; 16],
+}
+
+/// Complete startup batches: both queries must succeed before publication.
+pub struct TactKeyOverlays {
+    pub official: Vec<TactKeyRow>,
+    pub custom: Vec<TactKeyRow>,
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct ClassRequirement {
     pub class_id: u8,

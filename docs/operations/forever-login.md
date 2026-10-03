@@ -1190,6 +1190,187 @@ native scenarios/restoration. Closing documentation validation/publication exten
 that same envelope; the ordinary **600-second target is not met**. It is not reset
 by the mechanical move. Character persistence and world admission remain open.
 
+Publication reached `origin/forever` **`d0bb654cf3e16fbecb72b42b8e0eae3fed60cba6`**
+at 00:50:22Z (same campaign envelope: **3324 seconds**). Documentation-only quick
+manifest `20261003T005012.241643Z-1742719-quick.json` passes against tested code
+candidate `1e631b4d`; its executable inputs are unchanged. Final remains red,
+not reused as green. Remote `3.4.3` remained
+`24a513855e1d4c55f208cc3e53a5f23973b5f675`; no cross-version PR/merge was made.
+
+##### Typed TactKey delivery — scoped acceptance and native observation
+
+The native requests identify **TactKey.db2**, hash `DF2F53CF`, with 44/84 IDs.
+Target source `02245dcd` anchors: `DB2Metadata.h:22769-22785` (FDID 1302850,
+layout `CBA490FC`, external metadata ID, one unsigned 16-byte array),
+`DB2LoadInfo.h:6066-6089`, `HotfixDatabase.cpp:1820-1823`, shared
+`DataStores/DB2Store.cpp::LoadFromDB` (official then custom) and `WriteRecord`
+(skip the external ID, serialize only the 16 field bytes),
+`DB2Stores.cpp::LoadHotfixData:1741-1806` (last status per ID; only RecordRemoved
+erases), and `HotfixHandler.cpp:25-57,78-130` / `HotfixPackets.cpp:58-76`.
+Classic opcode mapping names native request `440010` and response `4A0000`;
+fresh native batch delivery is recorded below.
+
+The operator-only probe adds parameterless `--ack-tact-key-table`. Normal complete
+CASC extraction, with the existing private source-provided key list, succeeds:
+**69 records / 1654 bytes**, WDC5/v5, one field/section, 16-byte records,
+flags 4, header ID index **0**, external IDs 276 bytes, parent count 0. Column
+metadata is uncompressed, offset 0 / width 128 bits. Private file SHA-256 is
+`bdf268fa9eefda4ae23773599a69b542666fd9b7e1172fca135c183ab1b7b9e5`;
+artifact directory `target/forever-login/client-data-tact-70170-20261003T0105Z`,
+mode 0600, not a repository asset or fixture. No keys/records are printed.
+An initial attempt correctly refused an existing output directory; two subsequent
+attempts exposed an overly strict header-index guard. The source metadata's
+IndexField=-1 is **not** the native header's IndexField: `DB2FileLoader::LoadHeaders`
+does not equate them. Actual ChrRaces likewise uses flags 4 / header index 0.
+The corrected guard preserves external-ID list sizes, hashes, array/schema,
+non-sparse and normal-read requirements. CMake, one expanded synthetic CTest
+and **10 CLI guards pass**; this is acquisition evidence, not native DBReply QA.
+
+The new immutable `wow-data::forever_hotfix` catalog owns effective key fields:
+mandatory actual baseline → complete official/custom SQL batches → metadata's
+final removal decisions → immutable session resource. Read-only SQL metadata
+finds **498 official / 108 custom** rows, 517 unique IDs (89 cross-batch overlaps),
+no duplicate IDs within a batch and no negative VerifiedBuild. Both queries must
+succeed before publication; duplicate unordered batch IDs explicitly reject as
+unsupported ambiguity. The cache registers table presence without copying raw
+key records. Metadata-only errors and no Debug/Clone keep values out of logs.
+TactKey itself allows no optional data in this source: `LoadHotfixOptionalData`
+permits a TactKey optional key only **for BroadcastText**. TactKey optional rows
+are skipped, not appended blindly; the actual fixture has zero such rows.
+
+The registered authenticated/Inplace DBQueryBulk operation (`Opcodes.cpp:423`)
+preserves requested ID order
+and duplicates, 13-bit bounds and source DBReply timestamp/status/size/field bytes.
+Missing records in the complete effective TactKey store receive Invalid with no
+data; other table hashes remain an explicit unsupported boundary, not fabricated
+absence in an incomplete target catalog. HotfixConnect uses the same canonical
+typed records, then source SQL-blob fallback, then actual RecordRemoved/Invalid
+status. No SQL runs per client packet, no auth/encryption verification is bypassed,
+and no plaintext record content is captured. Character saving/world remain open.
+
+Affected Rust acceptance began **2026-10-03 01:02:36Z** on dirty `d0bb654c`:
+`cargo test --locked -p wow-data -p wow-database -p wow-packet -p wow-persistence
+-p wow-world --lib --features wow-world/test-fixtures --timings -- --quiet`.
+Compilation passed in 2m59.5s (`20261003T010236485Z`), and **774 data tests
+passed**. The command then failed five inherited database source-contract tests
+because `RUSTYCORE_CPP_REFERENCE_ROOT` had been omitted; all failures were missing
+reference files, not TactKey assertions. With that environment set to the pinned
+reference path, the unchanged database/packet/persistence/world suites passed
+(`20261003T010610648Z`, no compilation), including **4052 world tests / one
+ignored**. The failed first run is not relabelled as green.
+
+Target-binary test and normal production build passed sequentially. The normal
+build took 2m51s (`20261003T010954493Z`). A final diagnostic-only correction
+removed the obsolete “Unported DBQueryBulk” label; its renewed bin test passes
+**1/1**, 1.27s (`20261003T011254284Z`), followed by the normal build, 1.10s
+(`20261003T011255605Z`). Library executable inputs are unchanged by that label.
+
+The installed normal binary loaded **522 effective TactKey records**, 33
+availability races, 434 readable Achievement rows and 3052 hotfix records.
+At **01:13–01:15 UTC**, fresh strict native login/ACK/init and empty enumeration
+were followed by target queries for **16 and 68 TactKey IDs**. Both reply batches
+contained zero Valid records: these requested IDs are absent from this complete
+effective catalog, so the source-defined Invalid/empty response is used. No
+request IDs or record/key values were logged. The client proceeds to creation,
+renders race/class models (including Cielonato and human), and opens **human
+warrior personalization** with appearance controls. This observation does not
+prove the earlier loading cause or general repeatability. No Finish/name/save
+operation was submitted; Character row count remains **zero**.
+
+At **01:15:58Z**, isolated World had exited cleanly, account online was zero,
+the exact fixture realm was restored offline/normal, BNet restarted in warn mode,
+and restored V1/V2 positive/negative/offline smoke passed. This stage's recorded
+acceptance/restoration interval is **802 seconds**; the 600-second performance
+target is **not met**. It extends the already over-budget full account/character
+campaign rather than resetting its envelope. Final publication validation for
+this delivery remains separate; prior inherited-red evidence is not a new pass.
+
+##### Native Create request and customization prerequisites — 2026-10-03
+
+The isolated product adds a separate optional diagnostic flag:
+`--ack-private-character-create-capture <new-private-file>`, after its existing
+four arguments. Only an already authenticated **`440070` CreateCharacter** is
+recorded; all other opcodes, including auth, ping, TACT queries and hotfixes,
+are excluded. The output must be under the ignored isolated runtime, is created
+with mode 0600 / create-new, and has a 64-KiB payload bound. The recorder does
+not register/admit creation, alter Session ownership or send success. Existing
+files/symlinks and out-of-root destinations reject; two new synthetic tests
+exercise scope, permissions, opcode exclusion, framing, size and no-overwrite.
+The target-binary suite passes **3/3** (`20261003T011847751Z`, 1.53s), followed
+by the normal build (`20261003T011849326Z`, 1.49s). Unchanged library inputs
+retain the separately dated TactKey acceptance above.
+
+The integrated Windows probe adds `--character-name-input <isolated WowB.exe>
+<fixture first name> <fixture surname>`. It validates the existing target SHA,
+exact process path, bounded ASCII fixture names and the observed Win32 client
+rectangle **1432x1018** (X11 window 1440x1052), and only queues name-field UI
+input, never Submit. Two initial diagnostic attempts rejected an incorrect
+1440x1024 client-area assumption; no field input occurred. Corrected .NET
+publish and real name input pass, as do **five native negative CLI tests**
+(invalid names/arity and non-fixture paths). The original installation and
+official account were not used.
+
+At **01:19–01:22 UTC**, a second strict native session/empty enum reaches
+race/class models and human warrior personalization; TactKey query batches
+**32/52 IDs** receive actual Invalid replies. The visible Finish action submits
+**opcode `440070`, 106 payload bytes**. Exactly that action is recorded in
+private `character-create-70170-20261003T0119Z.bin` (122 total bytes, mode 0600,
+SHA-256 `4472b82df9bced5198974c58fdeaea8c26b5d675fb7cf10a4ea3c7f2f6e607f5`).
+The new read-only `forever_character_create_probe.py` validates framing/build/
+opcode and the source layout, returning metadata only, never either name or
+choice values. Its **three synthetic tests pass**. Actual metadata: race 1,
+class 1, sex 0, name/surname lengths 9/7, nine customization pairs, no template
+or flags, unknown int32=-1, season=0, no duplicate options. Wire options are
+not sorted; `CharacterPackets.cpp:487-516` sorts them after reading. The
+70009-annotated source layout matches this fresh **70170** action; this is not
+server admission/save proof. Name-availability request `440071` (22 bytes) is
+also observed but remains unported and was not captured.
+
+World exited cleanly, account online returned to zero, Character row count
+remained zero, the exact realm was restored offline/normal, and restored BNet
+V1/V2 smoke passed at **01:22:05Z**. No create success was sent. Private captures,
+client assets and binaries are not staged or distributed.
+
+The expanded operator data probe adds independent, parameterless
+`--ack-character-customization-tables`. CMake/CTest (**1/1 expanded schema
+self-test**) and **10 CLI guard tests** pass. Complete normal local CASC
+acquisition into private `client-data-customization-70170-20261003T0122Z`
+succeeds for all six files, with every section readable and every file mode 0600:
+
+| Table | FDID | Layout | Physical rows | Bytes |
+| --- | ---: | --- | ---: | ---: |
+| ChrModel | 3384313 | 03FAB755 | 127 | 8342 |
+| ChrCustomizationOption | 3384247 | DCC2A86E | 1173 | 31868 |
+| ChrCustomizationChoice | 3450554 | 9559C358 | 10447 | 286600 |
+| ChrCustomizationReq | 3450453 | CA154412 | 48 (+444 copies) | 4986 |
+| ChrRaceXChrModel | 3490304 | A203BC29 | 116 | 2122 |
+| ChrCustomizationReqChoice | 3580359 | F925BC6F | 446 | 6976 |
+
+Source `02245dcd` anchors: the six `DB2Metadata.h` structs, corresponding
+`DB2LoadInfo.h:1046-1200`, `DB2FileLoader.cpp::LoadHeaders` metadata/section-ID
+rules, and `DB2Stores.cpp:1181-1249,2147-2165` model/race/gender/option/choice/
+dependent-requirement indexes. ReqChoice uses one file field plus a parent
+relationship, not a TactKey-style array. Presence and schema acquisition do not
+establish decoded effective fields, official/custom SQL overlays, appearance
+validation, Player initialization or durable creation. Those remain the next
+implementation boundary; no client-data rows become public test fixtures.
+
+The complete source creation review also identifies a durability boundary:
+`CharacterHandler.cpp:1000-1047` generates a GUID, constructs independent
+Character/Login transactions, waits for the Character async commit, and only
+then submits Login work. `DatabaseWorkerPool.cpp:331-355::CommitTransaction`
+merely queues that Login transaction; it does **not** acknowledge durability
+before cache insertion/script callback/Create success. A destroyed Session can
+drop the callback while Character work still commits (`AsyncCallbackProcessor.h`).
+Do not claim that the reference waits for both transactions, or silently hide a
+repair of that source behavior inside a compatibility refactor. The Forever
+creation implementation still needs an explicit commit/publication/recovery
+contract, including cancellation and unknown commit outcomes.
+`Player.cpp:391-561::Create` and `20665-21078::SaveToDB` require more than a
+main Character insert: effective starting position/stats/models/skills/spells/
+items and all creation-linked saves. Source homebind INSERT is deferred to
+first login; a SQL-only row or artificial successful GUID is not acceptance.
+
 At **2026-10-02 22:51:27 UTC**, the operator-only
 [`client-data-probe`](../../tools/wow-test-bot/client-data-probe/README.md)
 read two actual files from the installed `wow_classic_beta` build **70170**, using

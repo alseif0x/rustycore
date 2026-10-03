@@ -102,30 +102,38 @@ pub(super) async fn enumerate(
 }
 
 pub(super) async fn hotfix(session: &mut Session, request: Request) -> HandlerResult {
-    let query =
-        packet::hotfix::HotfixRequest::decode(&request.payload, session.hotfixes.hotfix_count())
-            .map_err(|_| SessionError::Protocol)?;
+    let query = packet::hotfix::HotfixRequest::decode(
+        &request.payload,
+        session.hotfixes.metadata().hotfix_count(),
+    )
+    .map_err(|_| SessionError::Protocol)?;
     let mut records = vec![];
     let mut content = vec![];
     for push in query.push_ids {
-        if let Some(push) = session.hotfixes.hotfix_push(push) {
+        if let Some(push) = session.hotfixes.metadata().hotfix_push(push) {
             for record in &push.records {
                 if record.available_locales_mask & (1 << 6) == 0 {
                     continue;
                 }
                 let mut status = record.status as u8;
                 let blob = if status == 1 {
-                    if session.hotfixes.has_table(record.table_hash) {
-                        // No target DB2Storage::WriteRecord => no fabricated wire.
-                        return Err(SessionError::Protocol);
-                    }
                     match session
                         .hotfixes
-                        .get_hotfix_blob(record.table_hash, record.record_id)
-                    {
+                        .record(record.table_hash, record.record_id as u32)
+                        .map_err(|_| SessionError::Protocol)?
+                        .or_else(|| {
+                            session
+                                .hotfixes
+                                .metadata()
+                                .get_hotfix_blob(record.table_hash, record.record_id)
+                        }) {
                         Some(blob) => blob,
                         None => {
-                            status = 3;
+                            status = if session.hotfixes.has_store(record.table_hash) {
+                                2
+                            } else {
+                                3
+                            };
                             &[]
                         }
                     }
@@ -148,4 +156,42 @@ pub(super) async fn hotfix(session: &mut Session, request: Request) -> HandlerRe
         .encode_payload()
         .map_err(|_| SessionError::Codec)?;
     Ok(vec![Outgoing::new(0x4A0003, payload)])
+}
+
+pub(super) async fn db_query(session: &mut Session, request: Request) -> HandlerResult {
+    let query = packet::db_query::DBQueryBulk::decode(&request.payload)
+        .map_err(|_| SessionError::Protocol)?;
+    // Only TactKey has a complete target baseline/typed serializer here.
+    // Other hashes may name target stores not yet loaded by Rust: do not
+    // manufacture Invalid/absence merely because this milestone lacks them.
+    if query.table_hash != wow_data::forever_hotfix::TACT_KEY_TABLE_HASH {
+        return Err(SessionError::Protocol);
+    }
+    let mut output = Vec::with_capacity(query.record_ids.len());
+    for id in query.record_ids {
+        let data = session
+            .hotfixes
+            .record(query.table_hash, id)
+            .map_err(|_| SessionError::Protocol)?;
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .ok()
+            .and_then(|time| u32::try_from(time.as_secs()).ok())
+            .ok_or(SessionError::Protocol)?;
+        let reply = packet::db_query::DBReply {
+            table_hash: query.table_hash,
+            record_id: id,
+            timestamp,
+            status: if data.is_some() {
+                packet::hotfix::HotfixStatus::Valid
+            } else {
+                packet::hotfix::HotfixStatus::Invalid
+            },
+            data: data.unwrap_or(&[]),
+        }
+        .encode_payload()
+        .map_err(|_| SessionError::Codec)?;
+        output.push(Outgoing::new(packet::db_query::CLASSIC_REPLY_OPCODE, reply));
+    }
+    Ok(output)
 }

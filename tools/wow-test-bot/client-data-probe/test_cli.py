@@ -62,6 +62,26 @@ class AcquisitionGuards(unittest.TestCase):
         self.rejected([*args, "--unknown"], "Unknown optional")
         self.rejected([*args, "--ack-available-achievements", "--ack-available-achievements"], "may appear once")
         self.rejected([*args, "--ack-public-tact-keys"], "requires one private file")
+        self.rejected([*args, "--ack-tact-key-table", "--ack-tact-key-table"], "may appear once")
+        self.rejected([*args, "--ack-character-customization-tables",
+                       "--ack-character-customization-tables"], "may appear once")
+        self.rejected([*args, "--ack-tact-key-table", "--ack-public-tact-keys"], "requires one private file")
+
+    def test_optional_table_flags_accept_any_option_order(self):
+        with tempfile.TemporaryDirectory(dir=self.root) as directory:
+            directory = Path(directory)
+            key_file = directory / "synthetic.txt"
+            key_file.write_text("synthetic, not key material")
+            key_file.chmod(0o600)
+            result = subprocess.run([
+                str(self.binary), "--ack-local-client-data", "/does-not-exist",
+                directory / "output", "esES", "--ack-tact-key-table",
+                "--ack-available-achievements", "--ack-character-customization-tables",
+                "--ack-public-tact-keys", key_file,
+            ], capture_output=True, text=True, timeout=5)
+            self.assertEqual(result.returncode, 1)
+            self.assertNotIn("Unknown optional", result.stderr)
+            self.assertNotIn("requires one private file", result.stderr)
 
     def test_key_file_outside_private_root_is_not_imported(self):
         with tempfile.TemporaryDirectory() as directory:

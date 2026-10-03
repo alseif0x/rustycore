@@ -22,6 +22,7 @@ use wow_core::ObjectGuid;
 
 use crate::WorldPacket;
 
+pub mod db_query;
 pub mod hotfix;
 
 /// Core opcode values (u32 metadata; no legacy u16 opcode is written here).

@@ -10,7 +10,7 @@ using System.Text;
 // PEM/X.509 parser and signature path to run unchanged.
 internal static class LocalCertificateProvider
 {
-    private const string ExpectedClientSha256 =
+    internal const string ExpectedClientSha256 =
         "369CE842043F6177850947274287FC5A6CEC3EE033A891FAA0400A1D0A475D8E";
     private const int TactLoaderRva = 0x4721670;
     private const int TactFileIdCallRva = 0x472169B;
@@ -152,7 +152,7 @@ internal static class LocalCertificateProvider
         }
     }
 
-    private static string RequireIsolatedClient(string executable)
+    internal static string RequireIsolatedClient(string executable)
     {
         string full = Path.GetFullPath(executable);
         string normalized = full.Replace('/', '\\');
@@ -234,7 +234,7 @@ internal static class LocalCertificateProvider
         return builder.ToString();
     }
 
-    private static Process FindClient(string executable)
+    internal static Process FindClient(string executable)
     {
         Process[] matches = Process.GetProcessesByName("WowB")
             .Where(process =>

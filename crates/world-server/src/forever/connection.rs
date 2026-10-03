@@ -178,14 +178,17 @@ async fn admitted(
             frame.opcode(),
             frame.payload().len()
         );
-        // Read-only metadata for the still-unported DBQueryBulk boundary.
-        // This does not dispatch, admit a record or publish an absent-record reply.
+        if let Some(capture) = &runtime.character_capture {
+            capture.record(frame.opcode(), frame.payload()).await?;
+        }
+        // Read-only request metadata before the canonical registry dispatch.
+        // Never log record IDs or private TACT values here.
         if frame.opcode() == 0x440010 && frame.payload().len() >= 6 {
             let bytes = frame.payload();
             let table = u32::from_le_bytes(bytes[..4].try_into().expect("bounded metadata"));
             let count = u16::from(bytes[4]) << 5 | u16::from(bytes[5] >> 3);
             println!(
-                "Unported DBQueryBulk metadata: table_hash=0x{table:08X}, requested_records={count}"
+                "DBQueryBulk request metadata: table_hash=0x{table:08X}, requested_records={count}"
             );
         }
         let output = session
@@ -203,8 +206,27 @@ async fn admitted(
             })?;
         if let Some(output) = output {
             let enumerated = output.iter().any(|message| message.opcode() == 0x460018);
+            let db_replies = output
+                .iter()
+                .filter(|message| message.opcode() == 0x4A0000)
+                .count();
+            let valid_db_replies = output
+                .iter()
+                .filter(|message| {
+                    message.opcode() == 0x4A0000
+                        && message
+                            .payload()
+                            .get(12)
+                            .is_some_and(|status| status >> 5 == 1)
+                })
+                .count();
             for message in output {
                 socket.send(message.opcode(), message.payload()).await?;
+            }
+            if db_replies != 0 {
+                println!(
+                    "Target DBReply batch delivered: {db_replies} records, {valid_db_replies} valid; no record values logged."
+                );
             }
             if session.is_closed() {
                 return Ok(());

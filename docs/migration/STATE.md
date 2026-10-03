@@ -5,20 +5,32 @@ Branch naming, 2026-10-02: the experimental target branch is now **`forever`**
 remains `1.60.1.70170`; `3.4.3` is a separate development line, not the merge
 destination of this port. Older evidence below retains its original branch name.
 
-## Latest Forever data/transport boundary — 2026-10-02 23:14 UTC
+## Latest Forever data/transport boundary — 2026-10-03 01:15 UTC
 
 At 2026-10-03 00:19 UTC, the real build-70170 client accepted target Session
 initialization, requested encrypted enumeration and displayed the database-backed
 empty character list. Creation UI also opens with a human warrior 3D preview.
-The repeat with corrected defaults remained loading with creation disabled and
-then disconnected; stable creation readiness, persistence and initial world
-loading remain open. The separate Session
+Earlier repeats with corrected defaults remained loading with creation disabled.
+At 01:13–01:15 UTC, after typed TactKey DBQueryBulk delivery, a fresh native
+session again renders creation models and reaches human warrior personalization.
+Both observed query batches (16/68 IDs) receive actual Invalid/missing responses
+from the complete 522-record effective catalog; no keys are invented. This does
+not isolate the earlier loading cause or prove broader repeatability.
+At 01:21 UTC a second native session reaches personalization and submits a
+106-byte Create request, captured privately without a fabricated success. Its
+layout matches the source's modern Classic name/surname and nine appearance
+pairs. The six complete native model/customization DB2 files are acquired and
+schema-checked; effective server appearance validation is not yet implemented.
+Character row count remains zero; persistence and initial world loading remain
+open. The separate Session
 uses real disposable Character/World/Hotfix databases and target codecs.
 The earlier scoped account-phase acceptance passed after correcting two source-backed
 test-fixture aura mistakes. The authenticated-idle repair passes 42 transport and
 4048 world tests; the fresh client remained connected over three minutes with
-encrypted pings. Creation still waits for unported TactKey DBQueryBulk delivery,
-not a stable readiness gate. The
+encrypted pings. Typed TactKey delivery passes 774 data tests and affected
+database/packet/persistence/world suites (4052 world tests, one ignored), plus
+the target binary test and installed normal build. Creation still requires
+target appearance/admission, transactions and nonempty enumeration. The
 [owning runbook](../operations/forever-login.md#target-accountcharacter-initialization-implementation-2026-10-03-in-progress)
 records source/schema, bootstrap recovery, tests, native evidence and Achievement's
 unknown-key boundary. Publication/architecture closeout remains separately recorded.

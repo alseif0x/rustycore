@@ -3,7 +3,55 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     sync::atomic::{AtomicUsize, Ordering},
 };
+use wow_data::{
+    HotfixBlobCache,
+    forever_hotfix::{ForeverHotfixCatalog, ForeverTactKeys, TACT_KEY_TABLE_HASH},
+};
 use wow_persistence::{PersistenceFutureLikeCpp, forever::AccountData};
+
+fn hotfix_catalog(mut metadata: HotfixBlobCache) -> ForeverHotfixCatalog {
+    // Header/section/column/records/IDs are synthetic. No acquired key bytes.
+    let mut bytes = vec![0; 312];
+    for (offset, value) in [
+        (0, 0x35434457u32),
+        (4, 5),
+        (136, 2),
+        (140, 1),
+        (144, 16),
+        (152, TACT_KEY_TABLE_HASH),
+        (156, 0xCBA490FC),
+        (160, 7),
+        (164, 8),
+        (176, 1),
+        (188, 24),
+        (200, 1),
+        (212, 272),
+        (216, 2),
+        (228, 8),
+    ] {
+        bytes[offset..offset + 4].copy_from_slice(&value.to_le_bytes());
+    }
+    bytes[172..174].copy_from_slice(&4u16.to_le_bytes());
+    bytes[250..252].copy_from_slice(&128u16.to_le_bytes());
+    bytes[272..288].fill(0xA5);
+    bytes[288..304].fill(0xB6);
+    bytes[304..308].copy_from_slice(&7u32.to_le_bytes());
+    bytes[308..312].copy_from_slice(&8u32.to_le_bytes());
+    static NEXT: AtomicUsize = AtomicUsize::new(0);
+    let directory = std::env::temp_dir().join(format!(
+        "rustycore-forever-tact-{}-{}",
+        std::process::id(),
+        NEXT.fetch_add(1, Ordering::SeqCst)
+    ));
+    std::fs::create_dir(&directory).unwrap(); // owns new directory, never overwrite
+    let path = directory.join("TactKey.db2");
+    std::fs::write(&path, bytes).unwrap();
+    let keys = ForeverTactKeys::load(&directory);
+    std::fs::remove_file(path).unwrap();
+    std::fs::remove_dir(directory).unwrap();
+    metadata.register_typed_table(TACT_KEY_TABLE_HASH);
+    ForeverHotfixCatalog::new(keys.unwrap(), metadata).unwrap()
+}
 
 struct Repository {
     load_error: Option<LoadError>,
@@ -59,7 +107,7 @@ fn session(repository: Arc<dyn SessionRepository>) -> Session {
             account_expansion: 0,
         },
         repository,
-        Arc::new(HotfixBlobCache::new()),
+        Arc::new(hotfix_catalog(HotfixBlobCache::new())),
     )
     .unwrap()
 }
@@ -117,8 +165,151 @@ fn linked_registry_has_one_exact_metadata_and_call_set() {
                 "ThreadUnsafe".into(),
                 "forever_hotfix"
             ),
+            (
+                0x440010,
+                "Authenticated".into(),
+                "Inplace".into(),
+                "forever_db_query"
+            ),
         ])
     );
+}
+
+fn bulk_request(table_hash: u32, ids: &[u32]) -> Request {
+    let mut payload = table_hash.to_le_bytes().to_vec();
+    payload.extend_from_slice(&((ids.len() as u16) << 3).to_be_bytes());
+    for id in ids {
+        payload.extend_from_slice(&id.to_le_bytes());
+    }
+    Request {
+        opcode: wow_packet::forever::db_query::CLASSIC_QUERY_OPCODE,
+        payload,
+    }
+}
+
+#[tokio::test]
+async fn db_bulk_uses_registered_admission_and_typed_data_in_request_order() {
+    let mut session = session(Arc::new(Repository::good()));
+    let catalog = CharacterCatalog::fixture();
+    assert!(matches!(
+        session
+            .dispatch(&catalog, bulk_request(TACT_KEY_TABLE_HASH, &[7]))
+            .await,
+        Err(SessionError::Phase)
+    ));
+    session.initialize(&catalog, &policy(), 17).await.unwrap();
+    let before = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    let output = session
+        .dispatch(&catalog, bulk_request(TACT_KEY_TABLE_HASH, &[7, 99, 8, 7]))
+        .await
+        .unwrap()
+        .unwrap();
+    let after = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap()
+        .as_secs();
+    assert_eq!(output.len(), 4);
+    for (reply, id) in output.iter().zip([7u32, 99, 8, 7]) {
+        assert_eq!(reply.opcode(), 0x4A0000);
+        let bytes = reply.payload();
+        assert_eq!(&bytes[..4], &TACT_KEY_TABLE_HASH.to_le_bytes());
+        assert_eq!(&bytes[4..8], &id.to_le_bytes());
+        let timestamp = u32::from_le_bytes(bytes[8..12].try_into().unwrap()) as u64;
+        assert!((before..=after).contains(&timestamp));
+        if id == 99 {
+            assert_eq!(&bytes[12..], &[0x60, 0, 0, 0, 0]);
+        } else {
+            assert_eq!(&bytes[12..17], &[0x20, 16, 0, 0, 0]);
+            assert_eq!(&bytes[17..], &[if id == 7 { 0xA5 } else { 0xB6 }; 16]);
+        }
+    }
+    assert!(!session.is_closed());
+}
+
+#[tokio::test]
+async fn malformed_bulk_closes_and_unported_table_does_not_masquerade_as_absent_or_use_sql_blob() {
+    let catalog = CharacterCatalog::fixture();
+    let mut session = session(Arc::new(Repository::good()));
+    session.initialize(&catalog, &policy(), 17).await.unwrap();
+    let mut request = bulk_request(TACT_KEY_TABLE_HASH, &[7]);
+    request.payload.pop();
+    assert!(matches!(
+        session.dispatch(&catalog, request).await,
+        Err(SessionError::Protocol)
+    ));
+    assert!(session.is_closed());
+
+    let mut session = super::tests::session(Arc::new(Repository::good()));
+    let mut metadata = HotfixBlobCache::new();
+    metadata.insert_hotfix_blob(123, 7, vec![1, 2]);
+    session.hotfixes = Arc::new(hotfix_catalog(metadata));
+    session.initialize(&catalog, &policy(), 17).await.unwrap();
+    assert!(matches!(
+        session.dispatch(&catalog, bulk_request(123, &[7])).await,
+        Err(SessionError::Protocol)
+    ));
+    assert!(session.is_closed());
+}
+
+#[tokio::test]
+async fn known_unported_store_is_an_error_not_a_fake_missing_record() {
+    let mut session = session(Arc::new(Repository::good()));
+    let mut metadata = HotfixBlobCache::new();
+    metadata.register_typed_table(123);
+    session.hotfixes = Arc::new(hotfix_catalog(metadata));
+    let catalog = CharacterCatalog::fixture();
+    session.initialize(&catalog, &policy(), 17).await.unwrap();
+    assert!(matches!(
+        session.dispatch(&catalog, bulk_request(123, &[7])).await,
+        Err(SessionError::Protocol)
+    ));
+    assert!(session.is_closed());
+}
+
+#[tokio::test]
+async fn hotfix_connect_prefers_typed_record_then_blob_and_marks_actual_missing_record_removed() {
+    let mut metadata = HotfixBlobCache::new();
+    metadata.register_typed_table(TACT_KEY_TABLE_HASH);
+    metadata.insert_hotfix_blob(TACT_KEY_TABLE_HASH, 99, vec![0xCC, 0xDD]);
+    metadata.apply_hotfix_data_rows_like_cpp(
+        [
+            (1, 1, TACT_KEY_TABLE_HASH, 7, 1),
+            (2, 2, TACT_KEY_TABLE_HASH, 99, 1),
+            (3, 3, TACT_KEY_TABLE_HASH, 999, 1),
+        ],
+        "esES",
+    );
+    let mut session = session(Arc::new(Repository::good()));
+    session.hotfixes = Arc::new(hotfix_catalog(metadata));
+    let catalog = CharacterCatalog::fixture();
+    session.initialize(&catalog, &policy(), 17).await.unwrap();
+    let mut payload = 70170u32.to_le_bytes().repeat(2);
+    payload.extend_from_slice(&3u32.to_le_bytes());
+    for id in [1i32, 2, 3] {
+        payload.extend_from_slice(&id.to_le_bytes());
+    }
+    let output = session
+        .dispatch(
+            &catalog,
+            Request {
+                opcode: HOTFIX_REQUEST,
+                payload,
+            },
+        )
+        .await
+        .unwrap()
+        .unwrap();
+    assert_eq!(output.len(), 1);
+    assert_eq!(output[0].opcode(), 0x4A0003);
+    let bytes = output[0].payload();
+    assert_eq!(&bytes[..4], &3u32.to_le_bytes());
+    assert_eq!((bytes[24], bytes[45], bytes[66]), (0x20, 0x20, 0x40));
+    assert_eq!(&bytes[67..71], &18u32.to_le_bytes());
+    assert_eq!(&bytes[71..87], &[0xA5; 16]);
+    assert_eq!(&bytes[87..], &[0xCC, 0xDD]);
 }
 
 #[tokio::test]

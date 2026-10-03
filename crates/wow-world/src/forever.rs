@@ -11,7 +11,7 @@ mod tests;
 
 use crate::session::registry::PacketHandlerEntryFor;
 use std::{collections::HashMap, sync::Arc};
-use wow_data::HotfixBlobCache;
+use wow_data::forever_hotfix::ForeverHotfixCatalog;
 use wow_handler::PacketProcessing;
 use wow_persistence::forever::{AccountSnapshot, LoadError, SessionRepository};
 
@@ -91,7 +91,7 @@ pub struct Session {
     phase: Phase,
     snapshot: Option<AccountSnapshot>,
     repository: Arc<dyn SessionRepository>,
-    hotfixes: Arc<HotfixBlobCache>,
+    hotfixes: Arc<ForeverHotfixCatalog>,
     registry: HashMap<u32, &'static Entry>,
     latency: u32,
     enumerated: bool,
@@ -102,7 +102,7 @@ impl Session {
     pub fn after_encryption(
         identity: Identity,
         repository: Arc<dyn SessionRepository>,
-        hotfixes: Arc<HotfixBlobCache>,
+        hotfixes: Arc<ForeverHotfixCatalog>,
     ) -> Result<Self, SessionError> {
         let mut registry = HashMap::new();
         for entry in inventory::iter::<Entry> {
@@ -159,7 +159,7 @@ impl Session {
             catalog,
             policy,
             &snapshot,
-            &self.hotfixes,
+            self.hotfixes.metadata(),
             time,
         ) {
             Ok(output) => output,
@@ -232,3 +232,4 @@ inventory::submit! { Entry { opcode: wow_network::forever::PING, status: Admissi
 inventory::submit! { Entry { opcode: LOG_DISCONNECT, status: Admission::ConnectionEarly, processing: PacketProcessing::Inplace, handler_name: "forever_disconnect", handler: |session, _, request| Box::pin(handlers::disconnect(session, request)) } }
 inventory::submit! { Entry { opcode: ENUM_CHARACTERS, status: Admission::Authenticated, processing: PacketProcessing::ThreadUnsafe, handler_name: "forever_enum", handler: |session, catalog, request| Box::pin(handlers::enumerate(session, catalog, request)) } }
 inventory::submit! { Entry { opcode: HOTFIX_REQUEST, status: Admission::Authenticated, processing: PacketProcessing::ThreadUnsafe, handler_name: "forever_hotfix", handler: |session, _, request| Box::pin(handlers::hotfix(session, request)) } }
+inventory::submit! { Entry { opcode: wow_packet::forever::db_query::CLASSIC_QUERY_OPCODE, status: Admission::Authenticated, processing: PacketProcessing::Inplace, handler_name: "forever_db_query", handler: |session, _, request| Box::pin(handlers::db_query(session, request)) } }

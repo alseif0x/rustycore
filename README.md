@@ -54,8 +54,9 @@ No password bypass or synthetic login success.
 > **Research preview — not playable yet.** The real client now logs into the
 > target-specific encrypted Session, shows the empty **character selection**
 > screen and opens **creation UI with a 3D human warrior preview**.
-> Creation UI was observed in the first probe, but a subsequent probe remained
-> loading with the creation button disabled: it is not yet a stable readiness gate.
+> After implementing typed `TactKey` query delivery, a fresh probe again reaches
+> race/class selection and **personalization**, with rendered 3D models.
+> Earlier repeats stalled during loading; broader repeatability is not yet proven.
 > Saving a character and entering the world remain unimplemented; a visible
 > creation screen is not persistence. The normal fixture stays offline.
 > The diagnostic launcher setup is not a turnkey client installer.
@@ -77,11 +78,12 @@ an isolated Wine environment on a Linux x86_64 host:
 | Modern BNet realm join | Verified | JSON ticket, build variant and session-key persistence; real client accepts the response |
 | World TCP, V2 preamble and AuthSession proof | Verified in isolated probe | Native 70170 digest verified; 40-byte session key persisted; build key kept private |
 | Signed encryption / AES-256-GCM traffic | Verified in isolated probe | Native ACK, encrypted requests and server replies; no signature bypass |
-| Target character-data acquisition | Verified locally | Actual `ChrClasses` / `ChrRaces` and 434 readable Achievement rows; nine unknown-key rows remain unavailable |
+| Target character-data acquisition | Verified locally | Actual classes/races, six model/customization tables and 434 readable Achievement rows; nine Achievement rows remain unavailable |
 | Target Session / initial server packet sequence | Verified in isolated probe | Real Character/Auth query holders, ordered success initialization and native enum request |
+| TactKey DBQueryBulk / DBReply | Implemented; native batch observed | Real baseline + official/custom SQL overlays; missing requested records get Invalid, never fabricated keys |
 | Empty character selection | Verified with real client | Database-backed empty list and «Crear personaje» button |
-| Creation UI | Observed, not stable yet | First probe human warrior 3D preview; repeat pending data/loading completion; no character saved |
-| Character creation / nonempty enumeration | Pending | Target validation, transaction, appearance and persistence still required |
+| Creation UI / personalization | Observed with real client | Fresh probe reaches human warrior customization and rendered models; no character saved |
+| Character creation / nonempty enumeration | Pending | Real 70170 Create request captured privately; target validation, transaction, appearance and persistence still required |
 | Initial world load | Pending | Requires target-build packets and appropriate world/client data |
 
 The current evidence includes **133 BNet tests**, **362 database tests** (2
@@ -95,8 +97,11 @@ The account-phase delivery additionally passed **764 data / 362 database / 767
 packet / 35 persistence / 4048 world tests**, with 2 database and 1 world tests
 ignored, plus 1 target-binary ticket test, 48 Python guards and 9 probe CLI guards.
 The authenticated-idle correction passed **42 transport tests** and a fresh
-three-minute native connection; creation is still waiting for target TactKey
-DBQueryBulk delivery. No key material is distributed with this repository.
+three-minute native connection. Typed TactKey delivery additionally passed **774
+data tests**, the affected database/packet/persistence/world suites (**4052 world
+tests**, 1 ignored), and the target-binary test and normal build. A fresh native
+probe reaches customization after receiving two DBReply batches. No key material
+is distributed with this repository.
 These are scoped results; the ordinary 600-second acceptance budget was exceeded.
 The character-data candidate additionally passed **760 data tests**, **4 strict
 fixture tests**, **6 acquisition guards** and **9 negative private-copy cases**;
