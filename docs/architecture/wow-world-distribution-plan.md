@@ -2740,6 +2740,11 @@ separado mediante un lector Core de faction/manager, con race/class tardíos,
 catálogo ausente como standing cero y fallback original solo sin handle. La
 revisión por fuente no sustituye su aceptación ni el CanTakeQuest completo,
 todavía pendiente junto con sus condiciones y consumidores de diálogo.
+Exclusive-group ya conserva el gate positivo y catálogo ausente antes del
+snapshot actual, recorrido nativo de peers, cooldowns DF/day/week/seasonal y
+status/rewarded de la pareja repeatable. Se contrastó por fuente con World/
+eligibility:339–414 y C++ Player.cpp:15345–15410; sigue privado, NO VALIDADO,
+sin acreditar el coordinador de admisión completo ni sus consumidores.
 
 Consulta compartida de slot (2026-10-03, NO VALIDADO): el ancla original es
 `handlers/quest/state.rs:327`; toma un snapshot actual, exige slot menor que
