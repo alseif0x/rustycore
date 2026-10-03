@@ -2255,12 +2255,22 @@ aura_removal/initial conserva consulta mounted, presentación actual, retirada,
 reinserción ante fallo de presentación y transform posterior. Core usa referencias
 fixture seleccionadas y consulta canónica antes del fallback NoHandle; Spell y
 las fachadas existentes delegan esos providers. El cuerpo App sigue privado y
-no sustituye la operación World completa: faltan threat, mount/control, velocidades,
-publicación, stats, shapeshift y display. No se ejecutaron checks.
+no sustituye la operación World completa: el cierre de todas las fases continúa
+pendiente. No se ejecutaron checks.
 La fase threat también está escrita: conversión de spell a u32 antes de mutar,
 retirada canónica única y fallback NoHandle limitado al consumer World cfg(test),
 con recorrido de los 32 bits del effect-mask. World/aggro delega solo su rama
 apply=false al mismo provider; el cuerpo Aura completo continúa pendiente.
+Mount/control está escrito y su provider seleccionado ya existe. La comparación
+por fuente con HEAD de World/player_presentation, Core/movement/movement_publication,
+Core/movement/state y Core/spell_state/cast conserva presentación antes del cálculo,
+mutación canónica de altura, mirror limitado al consumidor World cfg(test), consumo
+del contador antes del gate scale-duration y publicación posterior del estado de
+movimiento con radio/realm-connection originales. El provider de mascota conserva
+lectura de GUID, modo y lifecycle, mutación antes de PetMode y limpieza final de
+temporary-react incluso sin mascota. Esto no cierra la recursión del remover entero:
+velocidades, publicación de aura, stats, shapeshift y display siguen pendientes de
+integración completa y aceptación. Las pruebas negativas solicitadas no se han ejecutado.
 
 ItemSet, continuación 18:41 UTC (NO VALIDADO): están escritos el acceso Core
 `canonical_access/item_sets.rs` y el proveedor Inventory `item_sets.rs`, con
