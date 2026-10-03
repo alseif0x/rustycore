@@ -2628,6 +2628,18 @@ trainer, limit-category y meets-player-condition. Su retiro forma parte del
 mismo traslado; disponer del constructor App no demuestra una autoridad única
 ni autoriza cerrar condiciones. Se notificaron esos consumidores al dueño.
 
+Retiro del cálculo duplicado (2026-10-03, NO VALIDADO): World ahora conserva
+un holder fino que delega project_like_cpp y condition_context_like_cpp a App.
+La conversión prestada es pública y separa el préstamo temporal del contexto
+de las referencias de salida. AvgTotal y su helper exclusivo se retiraron de
+World; el proyector App calcula AvgTotal antes de AvgEquipped. La revisión del
+delegado equipado detectó una lectura rápida de runtime-item que sustituía la
+proyección completa original; el delegado ya usa el provider completo compartido
+resolved_player_inventory_item_object_with_access_like_cpp por cada slot.
+CanUse mantiene por fuente consultas de skill-records y su proyección a valores,
+requisitos de spell, reputación, efectos y especialización del snapshot inicial.
+Las fachadas restantes de equipabilidad siguen en cierre; no hay aceptación.
+
 Conexión del guardado canónico (2026-10-03, NO VALIDADO): World ya llama a
 `save_canonical_player_like_cpp` después de adquirir sus fences. La revisión
 confirma captura única, ACK canónico y tutorials dentro de App, retorno del
@@ -2645,6 +2657,16 @@ INCREASE. Se extrae un solo evento antes de cada secuencia y finish se llama
 únicamente al agotar normalmente la cola. La persistencia y sincronización
 Registry de cada update no se agrupan al final. El traslado completo a App
 está en implementación; esta inspección fija el contrato sin ejecutar pruebas.
+
+Pruebas de receipt escritas (2026-10-03, NO EJECUTADAS):
+World/unit_tests/session/tests/lifecycle_persistence/save_interleaving.rs añade
+full_save_stale_core_receipt_does_not_acknowledge_retired_handle y
+full_save_receipt_preserves_tutorials_changed_after_capture. La primera retira
+el owner durante la persistencia con try_lock y comprueba que la fila New no
+se limpia. La segunda usa captura y receipt canónicos, persistencia App y ACK
+con un tutorial modificado después de la captura; exige conservar valor y dirty.
+RecordingPort registra la request antes del hook y devuelve sus committed groups.
+Los casos cubren riesgos distintos; su existencia no acredita PASS ni DB real.
 
 Primer cuerpo CanEquip completo (2026-10-03, NO VALIDADO): el placeholder ya
 está reemplazado por la operación App. La revisión detectó que omitía CanUnequip
@@ -2708,13 +2730,14 @@ cierre de los consumidores de almacenamiento o recompensas.
 
 Revisión de transición de reposo (2026-10-03, NO VALIDADO): Core XP ya instala
 el reposo canónico mediante una única with_owned_player_mut/mutate_rest_state;
-la sustitución del snapshot queda limitada al fixture sin handle. Queda pendiente
-el participante Rest acotado: las dos fachadas de test todavía construyen el
-contexto completo QuestReward/XP y llaman a un constructor privado de otro módulo.
-Además, FixtureTake con handle debe conservar bonus, modifier y setter
-incondicional del cuerpo original; no puede sustituirse por el orden del consumo
-normal de XP. Se asignó ese cierre al propietario de XP antes de declarar retirada
-la operación original. No se han ejecutado compilación ni pruebas.
+la sustitución del snapshot queda limitada al fixture sin handle. El participante
+Rest acotado ya está escrito mediante entradas estáticas con referencias
+seleccionadas: las dos fachadas de test no construyen QuestReward/Stats ni llaman
+al constructor privado de XP. FixtureTake conserva victim vacío, bonus, premio,
+modifier, pérdida y setter incondicional también con handle canónico; mantiene
+la normalización cuando el premio entero es cero. La inspección contrasta esa
+secuencia con el cuerpo original de HEAD. Sigue pendiente aceptación de las
+ramas canónica y fixture; no se han ejecutado compilación ni pruebas.
 
 Revisión de condiciones de trainer (2026-10-03, NO VALIDADO): el nuevo cuerpo
 App conserva store, objeto jugador, proyección completa, snapshots Unit/Player
@@ -2748,6 +2771,16 @@ kick y retorna sin liberar ese flag; F5 debe conservarla y F6 contrastarla,
 sin introducir una reparación RAII dentro del movimiento. Los helpers existentes
 de QuestRewardCx no demuestran ese flujo completo ni el drain que lo consume.
 
+Effects de Reward escritos (2026-10-03, NO VALIDADO): la hoja privada effects
+conserva por fuente los registros de skill/title/mail condicionados al consumidor
+World-test y la mutación canónica de talent points antes del fallback sin handle.
+La revisión detectó que el registro de spells leía can_delay directamente del
+fixture, mientras el original consulta el snapshot de teleport canónico por cada
+registro. La hoja ya consulta el participante QuestRewardPlayerAccess por cada
+spell, delegando al mismo snapshot canónico con fallback sin handle en Core
+movement/transfer. No cachea un bool previo ni construye Hub. Los cuerpos originales
+siguen presentes y deben delegar una vez cerrado el conjunto; no hay aceptación.
+
 Revisión del snapshot spell-click (2026-10-03, NO VALIDADO): el cuerpo Domain
 ahora recibe QuestObjectiveAccess. Comparado con el cuerpo Hub de HEAD, conserva
 los rechazos de GUID, el fallo por lock envenenado, la búsqueda de mapa con
@@ -2762,6 +2795,13 @@ Contraste TrainerList (2026-10-03, inspección sin aceptación):
 `a5f8da2ebf5424bf0450ca4e08843ecbf72577bd`, reinicia y establece InteractionData
 antes de `Trainer::SendSpells`. El Rust representado evalúa primero las ofertas
 y establece el rol inmediatamente antes del envío, ahora en AppTrainerListCx.
+Además, Trainer.cpp:185–225::GetSpellState devuelve Known antes del filtro
+race/class; el preflight Rust representado evalúa class/race y condiciones antes
+de directly_known. F5 conserva esa diferencia de orden, cuya resolución de
+paridad queda en F6 y no se oculta en la extracción. La proyección NeedsProjection
+debe volver a consultar filas completas, slots, traits, overrides y tombstones
+en el orden de spell_acquisition/adapter.rs:155–322; reutilizar las filas previas
+del offer eliminaría consultas originales. No se ha ejecutado aceptación.
 F5 conserva ese orden Rust; el helper de publicación no demuestra el flujo
 completo ni la equivalencia de orden C++. `Trainer.cpp:185–225::GetSpellState`
 consulta spell conocido, clase/raza, skill, habilidades, nivel y efectos LearnSpell;
