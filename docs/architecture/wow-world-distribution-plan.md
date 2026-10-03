@@ -2815,6 +2815,65 @@ referencias fixture prestadas seleccionadas y conservar los gates NoHandle y de
 completitud originales, sin añadir una segunda autoridad. Ambos hallazgos están
 asignados a los implementadores; no se declara compilación ni corrección ejecutada.
 
+Revisión de grants Reward (2026-10-03, NO VALIDADO): App/reward/grants contiene
+los loops completos de entrega fija, elegida y package, con las mismas colecciones
+primary/fallback y selección previa al await que World/rewards/items. La hoja
+item_storage ya usa el provider completo para existing-stack, como el original
+World/Inventory/storage::resolved_inventory_item_object_like_cpp, que proyecta
+todo el runtime. El getter rápido usado por EquipmentSet permanece intacto.
+Player.cpp:14582–14623::RewardQuestPackage, SHA C++ a5f8da2ebf5424bf0450ca4e08843ecbf72577bd,
+continúa el loop ante CanStoreNewItem rechazado y genera random properties; el
+Rust original devuelve false/publica error y representa propiedades cero. Son
+diferencias F6, no reparaciones implícitas de F5. El gate de plantilla elegida
+antes de package queda contrastado con Player.cpp:14713–14731. Los consumidores
+World de grants y el coordinador completo aún requieren cierre y aceptación.
+
+Correcciones posteriores revisadas por fuente (2026-10-03, NO VALIDADO): las
+cuatro constantes de objetivos ya están definidas en wow_constants::quest.
+Core/spell_acquisition recibe referencias prestadas obligatorias de completitud,
+ocupación y tombstones; conserva canonical primero, NoHandle y Some(None) sin
+fallback. App/projection pasa esas referencias y distingue consumer_test según
+cfg. Reward/item_storage ya usa el provider de runtime completo para existing-stack.
+No se ejecutó validación; la proyección completa de ofertas está escrita, como
+se detalla abajo. Siguen pendientes sus consumidores, los restantes consumidores
+Reward y el cierre de completion/Save.
+
+Contrato de completion revisado (2026-10-03, NO VALIDADO): World/handlers/quest/
+state.rs::complete_represented_quest_like_cpp ejecuta invalidación, transición,
+registro, refresh de gameobjects/spell-click y publicación Registry. El kernel de
+estado App no sustituye ese sufijo. AfterObjective vuelve a consultar snapshot,
+status y reglas; tras completar devuelve true incluso si tracking Reward falla,
+pero marca auto-reward y drena recursivamente con Box::pin solamente si rewarded
+es true. Se conserva ese contrato F5. C++ Player.cpp:14496::CompleteQuest, SHA
+a5f8da2ebf5424bf0450ca4e08843ecbf72577bd, incluye SetQuestStatus, tracking Reward,
+flag del slot y tracker; SetQuestStatus (15557) contiene SendQuestUpdate y scripts.
+Los registros Rust que declaran efectos unrepresented no prueban paridad F6.
+App/visibility ya contiene los filtros
+HasQuestForGameObject/IsForQuests, pero su presencia no cierra los consumidores
+World/quest_interaction ni el refresh completo.
+
+Dependencias del refresh contrastadas (2026-10-03, NO VALIDADO): World/gameobject_query
+consulta GUIDs visibles, entrada canónica y una copia del use-state por objeto;
+evalúa HasQuest e IsForQuests por separado antes de DynamicFlags y lee el map ID
+en la fase de publicación. Después ejecuta spell-click con su propio snapshot;
+este exige ambos stores antes del scan y solo publica criaturas con SPELLCLICK y
+algún click condicionado. DynamicFlags depende también de ActivateToQuest, el
+estado por viewer, GM y condiciones; IsForQuests o flags crudos no lo sustituyen.
+ActivateToQuest incluye el diálogo de questgiver (handlers/quest/eligibility) y
+loot de misión específico del jugador (session/loot/operations), no únicamente
+loot genérico del catálogo. Ese cierre está asignado como módulos privados de
+aplicación; no autoriza callbacks World ni precalcular resultados de esos gates.
+
+Proyección completa de ofertas escrita (2026-10-03, NO VALIDADO): App/trainer_purchase/
+projection contiene finish, wrapper resolution, snapshot fresco, metadata y el
+planificador existente; capacity solo se consulta tras un plan Deterministic.
+La comparación con World/spell_acquisition/adapter y World/profession conserva
+wrapper antes del snapshot, metadata después, fallback cast/craft tipado y la
+secuencia skill-lines, loaded, skill-records actuales, análisis y requested-plan.
+Los stores seleccionados son referencias prestadas inertes. El provider Spell
+seleccionado mantiene el cuerpo anterior del wrapper; quedan constructores y
+consumidores de esta unidad, además de Feign/Buy del macro Trainer y aceptación.
+
 Revisión del snapshot spell-click (2026-10-03, NO VALIDADO): el cuerpo Domain
 ahora recibe QuestObjectiveAccess. Comparado con el cuerpo Hub de HEAD, conserva
 los rechazos de GUID, el fallo por lock envenenado, la búsqueda de mapa con
