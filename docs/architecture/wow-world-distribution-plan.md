@@ -2354,6 +2354,9 @@ mediante el proveedor full-runtime existente; no reutilizar un item precalculado
 ItemTextQuery ya usa ese proveedor completo y su wire se contrastó con C++
 QueryPackets.cpp:495–519: valid-bit, longitud/texto de 13 bits y GUID, incluido
 texto vacío de respuesta inválida. Ninguno de estos contrastes ejecutó pruebas.
+Ambas lecturas de equipo ya se corrigieron por fuente al proveedor full-runtime.
+El constructor World y las fachadas completas de Apply/Remove ya están escritos,
+con export normal App; aún faltan casos completos, FeignDeath y consumidores Trainer.
 El modo de manejo y la inmunidad polymorph/Dragonmaw de la rama mounted-flight
 requieren contraste completo en F6; la extracción F5 conserva el cuerpo Rust,
 sin introducir esas reparaciones dentro del traslado.
@@ -2773,6 +2776,14 @@ actual, respuesta válida con texto o inválida, envío y registro único tipado
 C++ QueryHandler.cpp:305–318 y Opcodes.cpp:550, SHA
 a5f8da2ebf5424bf0450ca4e08843ecbf72577bd, fijan GetItemByGuid/Text y LoggedIn/Inplace;
 faltan traslado, consumidores y evidencia de esa siguiente operación.
+ItemTextQuery se entregó completo por fuente: context Inventory, World thin,
+registro único de cinco entradas, consumidor normal y contrato/fixtures finitos.
+Dos casos nuevos del thunk cubren parse-failure, bytes válidos/ inválidos y
+owner reemplazado con igual GUID; están escritos, no ejecutados. No hay nuevas
+dependencias ni mounts pendientes identificados. La siguiente responsabilidad
+asignada es el mapa acotado de swap/equip completo y sus fences/await/publicación,
+para definir su traslado sin callbacks World ni duplicar la operación existente
+de UseEquipmentSet. Ningún cierre por fuente acredita la aceptación de #1263.
 
 Quest eligibility de visibilidad también está escrito como módulo privado: nivel,
 race/class y CanSeeStart conservan disable, status, recurrence, seasonal, prev-quest
