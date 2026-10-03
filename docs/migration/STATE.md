@@ -22,9 +22,11 @@ Scoped acceptance passes 786 data, 364 database (two ignored), 777 packet,
 adds the declared maximum ID bound, including copies; affected suites were
 rerun. The installed normal build passes actual-file/SQL startup and native
 observation. The isolated realm was restored offline/normal, online=0, World
-port closed, and V1/V2 BNet smoke passes. Publication final remains pending;
-the inherited architecture debt and exceeded 600-second campaign target are
-not waived as a green result. Exact commands/timings/boundaries are in the
+port closed, and V1/V2 BNet smoke passes. Publication final on `eee5fc39`
+passes physical-file limits but fails unchanged inherited hotspot/ownership
+debt; no new source-size failure or ceiling relaxation. Its explicit inherited
+experimental-publication exception is not a green full-final result, and the
+600-second campaign target is exceeded. Exact commands/timings/boundaries are in the
 [owning runbook](../operations/forever-login.md#checked-target-appearance-implementation--2026-10-03-localnative-validated).
 
 ## Latest Forever data/transport boundary — 2026-10-03 01:15 UTC

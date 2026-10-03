@@ -1457,7 +1457,28 @@ candidate is rebuilt (`20261003T020146289Z`, **35.64s**) and exercised:
 At **02:05:02Z**, the full campaign from 23:54:58Z is **7804 seconds**; the
 ordinary 600-second performance target is not met. This additional phase starts
 at 01:48:02Z but does not reset that campaign. Repair/coding interleaves and has
-no separately reliable wall-clock total. Publication final is still pending.
+no separately reliable wall-clock total.
+
+Appearance publication candidate **`eee5fc3958aee9bca22361506b64049a2609cf75`**
+contains the locally/native-validated source unchanged. Clean-candidate
+`validation-v2 final --base origin/forever --architecture --timings` fails
+exit1, **49.984s**, manifest
+`20261003T020650.044248Z-1786793-final.json` (02:06:50.044–02:07:40.027Z).
+Physical ratchet passes **2325 files**. Hotspot counts are unchanged from the
+preceding publication (21.696s), and syntax ownership reports the same obsolete
+taunt/creature-insertion signatures and two inherited bridges (27.756s).
+The three implicated legacy files remain byte-identical to `5abe8c04`.
+No policy ceiling/baseline is relaxed and no new failure is hidden. The runner
+stops before Cargo; the separately executed scoped suites/normal build/native
+evidence above are not described as a green full-final run. The existing
+experimental exception applies only to this unchanged inherited debt.
+
+The final campaign checkpoint at 02:07:40.027Z is **7962 seconds** from the
+original start, not a compliant 600-second campaign. This documentation-only
+closeout retains those exact candidate/evidence boundaries. Only `forever` is
+authorized for publication; remote `3.4.3` is still
+`24a513855e1d4c55f208cc3e53a5f23973b5f675`. No PR/merge into that branch,
+runtime deployment or playable-world completion is inferred.
 
 `Player.cpp:391-561::Create` and `20665-21078::SaveToDB` require more than a
 main Character insert: effective starting position/stats/models/skills/spells/
