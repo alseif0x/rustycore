@@ -20,6 +20,7 @@
 
 mod catalogs;
 mod character_administration;
+pub mod forever;
 mod hotfix;
 mod hotfix_delivery_metadata;
 mod instance_lock;

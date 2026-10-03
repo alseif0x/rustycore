@@ -21,6 +21,7 @@ wow-packet = { workspace = true }
 wow-constants = { workspace = true }
 
 [dev-dependencies]
+aes-gcm = { workspace = true }
 flate2 = { workspace = true }
 
 [lints]

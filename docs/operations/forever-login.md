@@ -997,6 +997,143 @@ mean a playable realm or authorization to merge into `3.4.3`.
 
 ### Build-70170 character-data prerequisite
 
+#### Target account/character initialization implementation (2026-10-03, in progress)
+
+The new `forever-world-server` product uses a separate canonical
+`wow_world::forever::Session`, with SQL-free persistence contracts and target
+MariaDB adapters. It does not construct a legacy Player or send legacy u16
+packets. `PacketHandlerEntryFor` is generic, preserving the existing
+registrations through a concrete legacy alias; the same generic declaration owns
+Forever's u32 metadata and call thunk.
+The legacy alias retains closure type inference; a generic-default-only attempt
+failed compilation and was corrected centrally, not in hundreds of handlers.
+
+The disposable container now also has `characters_forever_70170` (134 tables),
+`world_forever_70170_02245` (253) and `hotfixes_forever_70170` (483). Bootstrap
+uses source `02245dcd245e7433e524577656177723d3e4992e`, release archive
+`TDB_full_1210.26091_2026_09_09.7z` with SHA-256
+`fc5513334d7534a19f533124a95910193c8150379e5ed8d0db3e547ac2c5a3f5`,
+and target updates ordered by **filename**, as `UpdateFetcher::PathCompare`.
+An independent read-only check found all selected source update hashes match:
+4 Character, 76 World and 10 Hotfix, with zero pending target updates.
+Four missing target session-only Auth tables were added from pinned CREATE
+definitions; no Auth dump/account/password reset was performed.
+
+Bootstrap initially rejected a qualified `world.conditions` patch after exposing
+a directory-order error. That diagnostic `world_forever_70170` copy remains
+untouched; corrected loading used the new `_02245` destination. An earlier empty
+Character destination was resumed only after proving it had zero tables. The
+tracked bootstrap refuses nonempty reuse, cross-schema directives and source
+hash mismatch; it does not drop/reset databases or render secret-bearing SQL errors.
+
+Account query holders must succeed before the ordered eight-message initialization
+batch is returned. A genuinely empty character query produces enum, recent-ally
+release and Classic collection response in source order. These 70009 character
+layouts/opcodes were exercised by the fresh native scenario below; remaining
+unimplemented operations are not covered by that observation.
+Nonempty unported collections/characters fail explicitly, not as empty results.
+Creation, nonempty enumeration, player admission and initial world loading remain
+open. Successful initialization, empty selection and creation UI are observed,
+but no character creation transaction or playable world is claimed.
+
+Achievement's actual 70170/esES header has table hash `D2EE2CA7`, layout
+`6FC5281B`, 19 fields and inline ID 3. Its two sections contain 434 readable and
+9 unknown-key records. Normal optional TACT import follows the reference extractor
+and the public [TACTKeys source](https://github.com/wowdev/TACTKeys), pinned at
+`71b75360752840dd62a412013a38b5a972524a50`; private key-file SHA-256 is
+`6d83241ed776f9e74e27ed65d1ec52f1a1464a4e9b16bed497258fdd61020b52`.
+It still does not decrypt the second section. Explicit available-prefix acquisition
+and reader support follow `DB2CascFileSource::HandleEncryptedSection` /
+`DB2FileLoader::LoadTableData`'s **Skip** path. The nine inaccessible IDs must
+remain absent, without zero-fill or an assertion that the whole table was read.
+Ordinary WDC5 loading remains strict; no keys/assets are tracked.
+
+At **2026-10-03 00:19 UTC**, the normal debug `forever-world-server` loaded
+33 availability races, 434 readable achievements and 2940 effective hotfix records.
+The isolated native client passed strict proof and signed encryption, accepted
+the real account initialization batch, sent `0x440014` with an empty body and
+displayed the empty character list. After the first-run Classic/Improved experience
+choice, «Crear personaje» opened a human warrior 3D preview. The client also sent
+a hotfix request (`0x440011`, 2344 bytes) and encrypted pings. Unregistered requests
+were ignored with metadata-only diagnostics; this is not whole-session protocol
+completeness. Neither the original installation nor official account was used or
+modified. Screenshots remain private in the ignored QA context.
+
+Real DB observation: account 1 online, 40-byte continued key, zero characters.
+SIGINT cancellation exited successfully and released online to zero. The exact
+realm predicate restored `flag=2, icon=0`, affecting one row; port 18085 closed.
+Restarted isolated BNet's V1/V2 offline smoke passes.
+Subsequent source review found two defaults to correct: BNet notification
+suppression is true (`BattlenetPackets.h:63-72`) and empty enum's maximum character
+level starts at 1 (`CharacterPackets.h:291`). Focused assertions now cover both.
+The two other availability observations are explicit isolated policy: active
+expansion 0, achievement-requirement bypass disabled. Arbitrary expansion/config
+support is not claimed. The repeated enum diagnostic was also corrected to describe
+only an actual outgoing enum, not every later ping.
+
+The **00:24 UTC repeat** with those defaults accepted initialization/empty enum,
+but stayed on a black scene/loading bar with creation disabled and subsequently
+showed WOW51900319; cleanup released the online flag. Creation UI is therefore
+an earlier observation, **not a stable current readiness gate**. Requests
+`0x440010` (DBQueryBulk, 294/230 bytes) were unimplemented. No missing target
+store is silently labeled an absent record. Separately, the socket still imposed
+the diagnostic 30-second entire-frame wait on authenticated idle connections.
+The in-progress repair separates the unchanged bounded frame-completion read
+from the character-phase remaining deadline: target World.cpp:726,1061 defaults
+`SocketTimeOutTime` to 900000ms/900s. The canonical Session owns monotonic activity;
+initialization and registered ordinary packets reset it, ping/unregistered packets
+do not (`WorldSession::ResetTimeOutTime`, WorldSocket.cpp:438/HandlePing).
+Partial-frame reads cannot extend the remaining deadline. Player-active/queue
+semantics are not claimed.
+
+The completed idle delta passes **42 network / 4048 world tests (1 ignored)**,
+report `20261003T003042839Z` (1m00s compilation), plus the target-binary test
+`20261003T003149252Z` (35.43s). Normal target build without fixture features passes,
+`20261003T003235740Z` (32.90s). The five new transport scenarios cover idle timeout,
+wrong phase, cancellation, partial-frame deadline and independent client-direction
+AES-256-GCM nonce/counter-2 acceptance. Session assertions cover non-refreshing
+ping/unregistered requests, deadline expiry and registered enum refresh.
+
+Fresh native repetition at **00:33–00:37 UTC** accepted initialization and empty
+enum, remained connected for more than three minutes and sent successive encrypted
+pings. It still showed the loading/disabled-creation UI. Metadata-only observations
+identify `DBQueryBulk` hash **DF2F53CF**, count 44/84 and payload 182/342 bytes:
+exactly `4 + 2 + 4*N`, consistent with the source's 13-bit count. No requested
+record bytes or keys were logged. Pinned source identifies **TactKey.db2**:
+`DB2Stores.cpp:350`, `DB2LoadInfo.h:6066–6089`, `DB2Metadata.h:22769–22785`
+(FDID 1302850), and the custom Classic update's table-hash metadata at lines
+113–115. This is the next typed-store/DBReply responsibility; missing/unported
+key records must not be fabricated as successful or silently absent. Source
+Classic mapping yields DBReply wire `4A0000`; target payload acceptance remains
+to be exercised after implementation. The earlier enabled creation preview is
+not relabeled as this later binary's result.
+
+SIGINT again released account online to zero, guarded realm restoration affected
+one row and port 18085 closed. BNet-only restoration smoke is recorded separately.
+
+Scoped acceptance on dirty `58b4fbde` plus this implementation: 764 data,
+362 database (2 ignored), 767 packet, 35 persistence and **4048 world (1 ignored)**
+tests pass. One target-binary strict-ticket test passes; the legacy binary compiled
+with zero tests (not behavioral proof). Python guards: 48 pass; acquisition CLI:
+9 pass; CASC header CTest: 1 pass. Normal target build passes without fixture features.
+The first packet test expected success-presence bit 1 instead of native/source
+MSB `0x80`; production encoding was already correct, only the expectation changed.
+Two intermittent legacy world fixtures used victim-only
+`MOD_ATTACKER_MELEE_HIT_CHANCE` on the attacker, leaving a 5% miss band.
+`02245dcd` Unit.cpp::MeleeSpellMissChance (12538–12543) confirms attacker
+`MOD_HIT_CHANCE`. Correcting only these fixtures yielded the green full suite,
+without changing combat production code. Initial binary compilation also exposed
+a missing final `Ok(())`, corrected before its passing test/build.
+
+Cargo timing reports include `20261002T235744273Z` (3m30s),
+`20261003T000137401Z` (2m50s), `20261003T001040988Z` (3.23s),
+`20261003T001127386Z` (3m04s normal build) and `20261003T002044553Z` (2.97s).
+The campaign began at **2026-10-02 23:54:58 UTC** and includes failures, repairs,
+checks and live/restoration closeout; it exceeded 1500 seconds before publication.
+The ordinary 600-second target is **not met**. Earlier schema import/CASC acquisition
+were separate prerequisite costs; coding/repair was interleaved, not independently
+timed. Committed-candidate final evidence and the full campaign end follow at publication.
+
 At **2026-10-02 22:51:27 UTC**, the operator-only
 [`client-data-probe`](../../tools/wow-test-bot/client-data-probe/README.md)
 read two actual files from the installed `wow_classic_beta` build **70170**, using

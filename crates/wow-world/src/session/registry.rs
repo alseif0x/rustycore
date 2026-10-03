@@ -1,7 +1,7 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-//! The world-session adapter for the shared packet-handler registry.
+//! Protocol-specific adapters for the shared packet-handler registry.
 
 #[cfg(any(test, feature = "test-fixtures"))]
 use std::sync::Arc;
@@ -17,6 +17,10 @@ pub type PacketHandlerFn =
 /// A registered handler specialized for the world session and its catalog view.
 pub type PacketHandlerEntry =
     wow_handler::PacketHandlerEntry<WorldSession, SessionHandlerCatalogsLikeCpp>;
+
+/// A registered handler specialized for an explicitly selected protocol.
+pub type PacketHandlerEntryFor<S, C, O, P, R, A> =
+    wow_handler::PacketHandlerEntry<S, C, O, P, R, A>;
 
 /// The immutable registry used by a world session.
 pub type WorldPacketHandlerRegistry =

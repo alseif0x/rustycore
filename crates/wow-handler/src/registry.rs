@@ -10,26 +10,34 @@ use wow_packet::WorldPacket;
 
 use crate::{HandlerFuture, PacketProcessing, SessionStatus};
 
-/// The call a registered opcode performs for a concrete session and catalog type.
-pub type PacketHandlerFn<S, C> = for<'a> fn(&'a mut S, &'a C, WorldPacket) -> HandlerFuture<'a, ()>;
+/// The call a registered opcode performs for a concrete protocol and session.
+pub type PacketHandlerFn<S, C, P = WorldPacket, R = ()> =
+    for<'a> fn(&'a mut S, &'a C, P) -> HandlerFuture<'a, R>;
 
 /// A registered packet handler: admission metadata and the call itself.
-pub struct PacketHandlerEntry<S, C> {
+pub struct PacketHandlerEntry<
+    S,
+    C,
+    O = ClientOpcodes,
+    P = WorldPacket,
+    R = (),
+    A = SessionStatus,
+> {
     /// Opcode dispatched to this handler.
-    pub opcode: ClientOpcodes,
+    pub opcode: O,
     /// Session status required before invoking the handler.
-    pub status: SessionStatus,
+    pub status: A,
     /// Packet phase eligibility for this handler.
     pub processing: PacketProcessing,
     /// Stable diagnostic name for the handler.
     pub handler_name: &'static str,
     /// The handler thunk invoked by the dispatcher.
-    pub handler: PacketHandlerFn<S, C>,
+    pub handler: PacketHandlerFn<S, C, P, R>,
 }
 
-impl<S, C> Copy for PacketHandlerEntry<S, C> {}
+impl<S, C, O: Copy, A: Copy, P, R> Copy for PacketHandlerEntry<S, C, O, P, R, A> {}
 
-impl<S, C> Clone for PacketHandlerEntry<S, C> {
+impl<S, C, O: Copy, A: Copy, P, R> Clone for PacketHandlerEntry<S, C, O, P, R, A> {
     fn clone(&self) -> Self {
         *self
     }

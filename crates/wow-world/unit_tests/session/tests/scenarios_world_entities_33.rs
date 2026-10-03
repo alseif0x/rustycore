@@ -129,8 +129,8 @@ fn legacy_creature_melee_tick_once_absorbs_creature_victim_damage_like_cpp() {
     let spell_store = Arc::new(spell_store);
     session.set_spell_store(Arc::clone(&spell_store));
 
-    // The +5 hit aura cancels C++'s flat 5% miss band. Its amount is registered
-    // on the canonical creature so the production creature projection reads it.
+    // +5 MOD_HIT_CHANCE on the attacker cancels C++'s flat 5% miss band.
+    // Unit.cpp (02245dcd, MeleeSpellMissChance) reads this attacker modifier.
     session
         .mutate_world_creature(attacker_guid, |creature| {
             let aura = wow_entities::AppliedAuraRef::new(hit_spell_id as u32, attacker_guid, 0, 1);

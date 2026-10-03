@@ -18,6 +18,7 @@ use tracing::{debug, trace};
 
 // ── Constants ────────────────────────────────────────────────────────
 
+mod available;
 mod bits;
 mod format;
 mod reader;
