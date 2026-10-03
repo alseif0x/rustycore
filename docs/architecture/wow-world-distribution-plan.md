@@ -1959,9 +1959,19 @@ macro y reexport exactos), conserva el rechazo de aliases, cfg, collectors
 ajenos y montajes ambiguos, y distingue los seis templates existentes de las
 invocaciones directas cualificadas. El positivo de `register_move` conserva el
 cuerpo real con `$opcode`; las repeticiones y entradas reenviadas se rechazan.
-No se ejecutó el checker ni se cambió el snapshot. La gramática del builder
-directo de Inventory y de su composición sigue pendiente; este checkpoint no
+No se ejecutó el checker ni se cambió el snapshot. Este checkpoint no
 acredita el conjunto compilado ni aceptación.
+
+**Cierre de fuente del builder y composers — 2026-10-03, 12:53 UTC
+(NO VALIDADO):** el checker analiza el registrar real de Inventory, sus
+entradas completas y el receiver del builder. La comprobación de repositorio
+consume también los dos composers reales y las fachadas públicas exactas:
+cuatro exports en la raíz y tres desde equipment_sets. Rechaza registros
+condicionales, duplicados, alias, forwarding y miembros extra en esas fachadas;
+los aliases de tipos que solo describen metadata no se cuentan como registros.
+Las pruebas privadas escritas cubren las fuentes reales y mutantes positivos y
+negativos; conservan los seis templates y el snapshot de 478 filas. No se
+ejecutaron esas pruebas, el checker, Cargo ni formato.
 
 ### F6 — retirada de duplicados, pista de comportamiento
 

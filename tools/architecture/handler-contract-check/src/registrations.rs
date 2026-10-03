@@ -18,10 +18,16 @@ use crate::ownership::WorkspaceSourceMount;
 
 mod local_inventory;
 mod legacy_registry;
+mod direct_builder;
+mod composer;
 pub(crate) use local_inventory::{
     data_module_alias_violations, inventory_dependency_packages, registration_alias_violations,
     registration_alias_violations_with_legacy_wrapper_reexport,
 };
+pub(crate) use direct_builder::{
+    RegistrarReport, analyze_owner_source, unowned_entry_literal_violation,
+};
+pub(crate) use composer::validate_composition_mounts;
 
 pub(crate) const EXPECTED_REGISTRATION_MACROS: &[&str] = &[
     "register_chat_channel_command_handler",
@@ -76,13 +82,14 @@ struct SourceCollection {
 #[derive(Debug, Eq, PartialEq)]
 pub(crate) struct RegistrationSourceReport {
     pub(crate) direct_submissions: usize,
+    pub(crate) builder_entries: usize,
     pub(crate) registration_macro_invocations: usize,
     pub(crate) registration_macro_names: BTreeSet<String>,
 }
 
 impl RegistrationSourceReport {
     pub(crate) fn represented_entries(&self) -> usize {
-        self.direct_submissions + self.registration_macro_invocations
+        self.direct_submissions + self.builder_entries + self.registration_macro_invocations
     }
 }
 
@@ -586,6 +593,11 @@ pub(crate) fn analyze_registration_syntax_outside_handlers(
         .into_iter()
         .map(|violation| format!("{} {violation}", source_path.display()))
         .collect::<Vec<_>>();
+    if token_stream_mentions_ident(&tokens, "PacketHandlerEntry") {
+        if let Some(violation) = direct_builder::unowned_entry_literal_violation(source)? {
+            violations.push(format!("{} {violation}", source_path.display()));
+        }
+    }
     let syntax = syn::parse_file(source)
         .map_err(|error| format!("cannot parse {}: {error}", source_path.display()))?;
     let bridge = legacy_registry::analyze_bridge(
@@ -1257,6 +1269,7 @@ fn classify_registration_sources(
     if errors.is_empty() {
         Ok(RegistrationSourceReport {
             direct_submissions,
+            builder_entries: 0,
             registration_macro_invocations,
             registration_macro_names: registration_names,
         })
@@ -1270,6 +1283,8 @@ pub(crate) fn analyze_handler_mounts(
     owners: &[CapabilityOwner],
 ) -> Result<RegistrationSourceReport, String> {
     let mut collection = SourceCollection::default();
+    let mut builder_entries = 0;
+    let mut builder_registrars = 0;
     for mount in mounts.iter().filter(|mount| {
         owners
             .iter()
@@ -1299,6 +1314,14 @@ pub(crate) fn analyze_handler_mounts(
             ));
         }
         let context = owner_contexts[0];
+        let registrar = analyze_owner_source(
+            &mount.package,
+            &context.logical_module_path,
+            &mount.source_path,
+            &mount.source,
+        )?;
+        builder_entries += registrar.entries;
+        builder_registrars += registrar.registrar_count;
         let alias_violations = registration_alias_violations(&mount.source)?;
         if !alias_violations.is_empty() {
             return Err(format!(
@@ -1338,7 +1361,14 @@ pub(crate) fn analyze_handler_mounts(
             &mut Vec::new(),
         )?;
     }
-    classify_registration_sources(collection)
+    if builder_registrars != 1 {
+        return Err(format!(
+            "handler registration ownership must contain exactly one direct Inventory registrar; found {builder_registrars}"
+        ));
+    }
+    let mut report = classify_registration_sources(collection)?;
+    report.builder_entries = builder_entries;
+    Ok(report)
 }
 
 #[cfg(test)]
