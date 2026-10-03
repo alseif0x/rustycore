@@ -31,6 +31,7 @@ pub use canonical_access::{
     InventoryPlayerProjectionLikeCpp, OwnedCollectionsAccessLikeCpp,
     OwnedEquipmentSetsAccessLikeCpp, OwnedInventoryAccessLikeCpp,
     OwnedItemModifiersAccessLikeCpp, OwnedSpellAcquisitionAccessLikeCpp,
+    OwnedPlayerCurrencyAccessLikeCpp, PlayerRegistryHydrationAccessLikeCpp, QuestRewardPlayerAccessLikeCpp,
 };
 mod catalogs;
 mod connection;
@@ -42,7 +43,7 @@ mod movement;
 mod runtime_policy_access;
 mod world_state;
 pub use movement::MovementTransportMembershipLikeCpp;
-pub use movement::PlayerRegistrySyncAccessLikeCpp;
+pub use movement::{PlayerRegistryControlBindingLikeCpp, PlayerRegistrySyncAccessLikeCpp};
 mod condition_objects;
 mod player_presentation;
 mod player_stat_queries;
@@ -177,7 +178,9 @@ mod xp_grants;
 pub use spell_click_values::RepresentedCreatureAccessLikeCpp;
 
 mod persistence;
-pub use persistence::PlayerMoneyTransactionSessionAccessLikeCpp;
+pub use persistence::{
+    PlayerMoneyTransactionSessionAccessLikeCpp, plan_player_currency_save_for_store_like_cpp,
+};
 pub mod persistence_capabilities;
 
 mod action_bar_adapter;

@@ -106,23 +106,14 @@ impl WorldSession {
     pub(crate) async fn begin_exclusive_player_money_persistence_like_cpp(
         &mut self,
     ) -> Option<ExclusivePlayerMoneyPersistenceLikeCpp> {
-        let tracker = Arc::clone(
-            self.lifecycle
-                .durable_loot_money_persistence_tracker_like_cpp(),
-        );
-        let save_fence = tracker.close_admission_for_save_like_cpp();
-        tracker.wait_until_idle_like_cpp().await;
-        if !self
-            .reconcile_durable_loot_money_before_save_like_cpp()
-            .await
-        {
-            return None;
-        }
-        let mutation_lock = tracker.lock_money_mutation_like_cpp().await;
-        Some(ExclusivePlayerMoneyPersistenceLikeCpp::new(
-            save_fence,
-            mutation_lock,
-        ))
+        let mut player = self.core.quest_reward_player_access_like_cpp();
+        wow_world_application::begin_exclusive_player_money_persistence_like_cpp(
+            &mut self.lifecycle,
+            &mut self.inventory,
+            &mut self.quest_state,
+            &mut player,
+        )
+        .await
     }
     /// Derive one runtime money change only after the shared payout barrier,
     /// persist it while admission and the mutation mutex remain held, then

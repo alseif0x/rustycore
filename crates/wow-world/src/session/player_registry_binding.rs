@@ -120,15 +120,43 @@ impl WorldSession {
         let (Some(guid), Some(registry)) = (self.player_guid(), &self.core.player_registry) else {
             return;
         };
-        crate::session::hub_ref(self).update_registry_position();
-        #[cfg(test)]
-        crate::canonical_player_sync::hydrate_player_directory_fixture_like_cpp(self);
-        registry.replace_loot_rolls_for_control_channel(
-            guid,
-            &self.core.session_command_tx,
-            self.loot
-                .represented_loot_roll_command_identities_snapshot_like_cpp(),
+        let position = self.core.player_registry_sync_access_like_cpp(
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.movement.player_position,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.combat.player_health_like_cpp,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.combat.player_max_health_like_cpp,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.combat.player_alive_like_cpp,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.identity.player_level,
+            #[cfg(any(test, feature = "test-fixtures"))]
+            &self.fixtures.vehicles.player_transport_login_state_like_cpp,
         );
-        self.sync_player_registry_party_member_party_type_like_cpp();
+        let control = self
+            .core
+            .player_registry_control_binding_like_cpp(guid, registry);
+        let sync = wow_world_application::PlayerRegistrySyncContext::new(
+            position,
+            control,
+            &self.loot,
+        );
+        #[cfg(test)]
+        let sync = sync.with_fixture_hydration(
+            wow_world_application::PlayerRegistryHydrationContext::new(
+                self.core.player_registry_hydration_access_like_cpp(),
+                &self.spell_state,
+                &self.quest_state,
+                (
+                    &self.fixtures.vehicles.player_mount_vehicle_kit_like_cpp,
+                    &self.fixtures.vehicles.player_vehicle_seat_flags_like_cpp,
+                    &self.fixtures.vehicles.player_vehicle_seat_id_like_cpp,
+                    &self.fixtures.pets.represented_pet_guid_like_cpp,
+                ),
+                true,
+            ),
+        );
+        sync.sync();
     }
 }

@@ -153,16 +153,8 @@ impl SessionSocialLimits {
         &self,
         hub: HubRef<'_>,
     ) {
-        let (Some(guid), Some(registry)) = (hub.core.player_guid(), &hub.core.player_registry)
-        else {
-            return;
-        };
-        let party_type = hub.core.party_member_party_type_like_cpp();
-        registry.publish_party_type_for_control_channel(
-            guid,
-            &hub.core.session_command_tx,
-            party_type,
-        );
+        hub.core
+            .sync_player_registry_party_member_party_type_like_cpp();
     }
 
     /// Record that this session must reconcile its owned group snapshot.

@@ -4,7 +4,9 @@
 //! Narrow access to the canonical inputs needed to publish a Player's registry position.
 
 use crate::session::state::SessionCore;
-use wow_core::Position;
+use crate::player_directory::PlayerRegistry;
+use crate::session::mailbox::SessionCommand;
+use wow_core::{ObjectGuid, Position};
 
 /// Borrows the canonical Player and the exact fixture inputs used by registry synchronization.
 /// The fields stay private so callers can perform the operation without receiving a mutable
@@ -117,5 +119,60 @@ impl PlayerRegistrySyncAccessLikeCpp<'_> {
                 ),
             },
         );
+    }
+}
+
+/// Captures the proven session incarnation and its control-channel endpoints for one registry
+/// publication sequence. The private fields prevent callers from using this as a registry view.
+pub struct PlayerRegistryControlBindingLikeCpp<'a> {
+    core: &'a SessionCore,
+    guid: ObjectGuid,
+    registry: &'a PlayerRegistry,
+    command_tx: &'a flume::Sender<SessionCommand>,
+}
+
+impl SessionCore {
+    /// Bind the already-proven registration identity to this session's publication rails.
+    pub fn player_registry_control_binding_like_cpp<'a>(
+        &'a self,
+        guid: ObjectGuid,
+        registry: &'a PlayerRegistry,
+    ) -> PlayerRegistryControlBindingLikeCpp<'a> {
+        PlayerRegistryControlBindingLikeCpp {
+            core: self,
+            guid,
+            registry,
+            command_tx: &self.session_command_tx,
+        }
+    }
+
+    /// Re-resolve this session's current registry binding before publishing party state.
+    pub fn sync_player_registry_party_member_party_type_like_cpp(&self) {
+        let (Some(guid), Some(registry)) = (self.player_guid(), self.player_registry.as_ref()) else {
+            return;
+        };
+        let party_type = self.party_member_party_type_like_cpp();
+        registry.publish_party_type_for_control_channel(
+            guid,
+            &self.session_command_tx,
+            party_type,
+        );
+    }
+}
+
+impl PlayerRegistryControlBindingLikeCpp<'_> {
+    /// Replace the session incarnation's current loot-roll identities on its control rail.
+    pub fn replace_loot_rolls_like_cpp(
+        &self,
+        identities: Vec<crate::session::mailbox::LootRollCommandIdentityLikeCpp>,
+    ) -> bool {
+        self.registry
+            .replace_loot_rolls_for_control_channel(self.guid, self.command_tx, identities)
+    }
+
+    /// Publish party state through a fresh Core-owned GUID/registry proof.
+    pub fn sync_party_member_party_type_like_cpp(&self) {
+        self.core
+            .sync_player_registry_party_member_party_type_like_cpp();
     }
 }

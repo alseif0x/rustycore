@@ -6,9 +6,16 @@
 //! Pure quest operation planning shared by World adapters.
 
 mod reward_plan;
+mod reward_commit;
+mod money_persistence;
 mod session_state;
 
 pub use self::reward_plan::QuestRewardDurablePlanLikeCpp;
+pub use self::reward_commit::QuestRewardCommitCx;
+pub use self::money_persistence::{
+    begin_exclusive_player_money_persistence_like_cpp,
+    reconcile_durable_loot_money_before_save_like_cpp,
+};
 pub use self::session_state::SessionQuestState;
 pub use self::session_state::contracts::{
     RepresentedQuestCompleteStatusUpdateLikeCpp, RepresentedQuestObjectiveProgressEventLikeCpp,

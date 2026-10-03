@@ -3496,8 +3496,12 @@ dependencies = [
  "wow-entities",
  "wow-persistence",
  "wow-spell-acquisition",
+ "wow-world-application",
  "wow-world-core",
+ "wow-world-inventory",
  "wow-world-lifecycle",
+ "wow-world-loot",
+ "wow-world-spell",
 ]
 
 [[package]]

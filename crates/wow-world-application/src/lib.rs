@@ -6,11 +6,17 @@
 
 mod profession;
 mod quest;
+mod registry_sync;
 mod spell_acquisition;
 mod trainer_purchase;
 
+pub use registry_sync::PlayerRegistrySyncContext;
+#[cfg(any(test, feature = "test-fixtures"))]
+pub use registry_sync::PlayerRegistryHydrationContext;
 pub use quest::QuestRewardDurablePlanLikeCpp;
 pub use quest::{
+    QuestRewardCommitCx, begin_exclusive_player_money_persistence_like_cpp,
+    reconcile_durable_loot_money_before_save_like_cpp,
     RepresentedPendingQuestSharingLikeCpp, RepresentedPushQuestToPartyOutcomeLikeCpp,
     RepresentedPushQuestToPartyOutcomeReasonLikeCpp, RepresentedQuestCompleteStatusUpdateLikeCpp,
     RepresentedQuestConfirmAcceptLikeCpp, RepresentedQuestConfirmAcceptOutcomeReasonLikeCpp,

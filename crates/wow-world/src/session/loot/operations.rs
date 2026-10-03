@@ -130,58 +130,14 @@ impl WorldSession {
     pub(in crate::session) async fn reconcile_durable_loot_money_before_save_like_cpp(
         &mut self,
     ) -> bool {
-        let tracker = Arc::clone(
-            self.lifecycle
-                .durable_loot_money_persistence_tracker_like_cpp(),
-        );
-        tracker.wait_until_idle_like_cpp().await;
-        let completions = tracker.pending_completions_like_cpp();
-        for completion in completions {
-            if completion
-                .applied
-                .compare_exchange(false, true, Ordering::AcqRel, Ordering::Acquire)
-                .is_err()
-            {
-                continue;
-            }
-            let Some(old_money) = self.resolved_player_money_like_cpp() else {
-                self.kick(
-                    "canonical Player money owner is unavailable during durable reconciliation",
-                );
-                return false;
-            };
-            let new_money = old_money
-                .checked_add(completion.durable_applied_amount)
-                .filter(|money| *money <= MAX_MONEY_AMOUNT)
-                .unwrap_or(old_money);
-            if !self.set_player_gold_like_cpp(new_money) {
-                self.kick(
-                    "canonical Player money owner became unavailable during durable reconciliation",
-                );
-                return false;
-            }
-            if old_money != new_money {
-                self.quest_state
-                    .enqueue_represented_quest_objective_progress_like_cpp(
-                        RepresentedQuestObjectiveProgressEventLikeCpp::MoneyChanged {
-                            old_money,
-                            new_money,
-                        },
-                    );
-            }
-        }
-
-        // Do not drain money criteria while the save fence is held. That path
-        // can reward a quest and re-enter `save_player_gold`, which would wait
-        // on this same fence. Queue the exact transition here; normal command
-        // publication or the save caller drains it only after releasing the
-        // fence. This keeps a save-first completion from losing MoneyChanged.
-
-        if tracker.is_indeterminate_like_cpp() {
-            self.kick("loot-money COMMIT outcome is unknown; skipping absolute money save");
-            return false;
-        }
-        true
+        let mut player = self.core.quest_reward_player_access_like_cpp();
+        wow_world_application::reconcile_durable_loot_money_before_save_like_cpp(
+            &mut self.lifecycle,
+            &mut self.inventory,
+            &mut self.quest_state,
+            &mut player,
+        )
+        .await
     }
     pub(in crate::session) fn represented_creature_has_loot_recipient_like_cpp(
         &self,

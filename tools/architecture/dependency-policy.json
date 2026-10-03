@@ -112,7 +112,10 @@
       "wow-persistence",
       "wow-spell-acquisition",
       "wow-world-core",
-      "wow-world-lifecycle"
+      "wow-world-inventory",
+      "wow-world-lifecycle",
+      "wow-world-loot",
+      "wow-world-spell"
     ],
     "wow-world-core": [
       "wow-ai",

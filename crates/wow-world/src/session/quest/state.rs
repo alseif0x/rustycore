@@ -10,11 +10,14 @@ impl WorldSession {
         &self,
     ) -> Option<PlayerQuestGameplayState> {
         #[cfg(test)]
-        if self.core.player_handle_like_cpp.is_none() {
+        let hydration_access = self.core.player_registry_hydration_access_like_cpp();
+        #[cfg(test)]
+        if hydration_access.owner_handle_absent_like_cpp() {
             return Some(self.player_quest_gameplay_fixture_like_cpp());
         }
-        self.core
-            .with_owned_player_like_cpp(|player| player.gameplay_state().quests.clone())
+        #[cfg(not(test))]
+        let hydration_access = self.core.player_registry_hydration_access_like_cpp();
+        hydration_access.owned_player_quest_gameplay_snapshot_like_cpp()
     }
 
     pub(crate) fn represented_raid_difficulty_request_like_cpp(

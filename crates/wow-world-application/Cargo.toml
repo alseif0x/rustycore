@@ -8,9 +8,11 @@ publish = false
 
 [features]
 test-fixtures = [
-    "dep:wow-entities",
     "wow-world-core/test-fixtures",
+    "wow-world-inventory/test-fixtures",
     "wow-world-lifecycle/test-fixtures",
+    "wow-world-loot/test-fixtures",
+    "wow-world-spell/test-fixtures",
 ]
 
 [dependencies]
@@ -22,14 +24,18 @@ wow-config = { workspace = true }
 wow-data = { workspace = true }
 wow-persistence = { workspace = true }
 wow-spell-acquisition = { workspace = true }
-wow-entities = { workspace = true, optional = true }
+wow-entities = { workspace = true }
 wow-world-core = { workspace = true }
+wow-world-inventory = { workspace = true }
 wow-world-lifecycle = { workspace = true }
+wow-world-loot = { workspace = true }
+wow-world-spell = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }
 wow-spell-acquisition = { workspace = true, features = ["test-fixtures"] }
-wow-entities = { workspace = true }
+# Keep the application and its concrete participants cfg-aligned in all-targets tests.
+wow-world-application = { workspace = true, features = ["test-fixtures"] }
 
 [lints]
 workspace = true

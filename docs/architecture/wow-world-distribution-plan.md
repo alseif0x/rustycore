@@ -1975,6 +1975,45 @@ legacy ni los fences asíncronos. La hidratación de fixtures, loot y party del
 sync completo y el contexto de trainer siguen en curso; no se ejecutaron
 compilación, formato, pruebas, capturas ni QA runtime por este traslado.
 
+La continuación revisada en fuente a las 13:54 UTC cierra el sync completo
+en `application/registry_sync.rs`: conserva la prueba exterior de GUID/registro,
+la publicación de posición con su prueba propia, la hidratación World cfg(test),
+el snapshot de identidades de loot sin ordenar y la publicación de party con
+una prueba nueva. Core guarda el binding del control channel en una capacidad
+privada, sin devolver el registro; Social delega al mismo publisher de party.
+La hidratación conserva orden, duplicados y puntos de clon de spells, quests,
+vehículo y pet, incluyendo la mutación por GUID. Sus tres puntos de llamada
+World permanecen; el lector normal de quest conserva el camino estricto y la
+fixture solo se selecciona sin handle bajo el gate World original.
+Los escenarios de registro, party, quest y loot permanecen integrados en World.
+La unidad queda escrita y congelada, **NO VALIDADA**; no acredita ejecución de
+esas pruebas, paridad del directorio ni terminación del contexto de trainer.
+
+**Commit de recompensa y barrera monetaria en aplicación — 2026-10-03,
+13:54 UTC (NO VALIDADO):** `application/quest/reward_commit.rs` contiene el
+cierre completo del plan durable con Inventory, Lifecycle, Quest y acceso
+privado al Player. La moneda usa un único lector/escritor canónico y el plan
+por CurrencyTypesStore conserva el orden de iteración y cambios de flags sobre
+la copia. Las fachadas World no anticipan queries ni clonan Player o catálogos.
+El port y el override no-I/O se resuelven en el punto anterior; ese override
+conserva el gate World cfg(test). La rama monetaria reutiliza el clasificador
+Lifecycle y su testigo de dinero; la rama sin dinero conserva el testigo de
+quest, sus resultados y cuarentena. La aplicación de memoria sigue al COMMIT
+conocido y precede al drop de la exclusión.
+`application/quest/money_persistence.rs` comparte begin/reconcile con todos
+sus callers World. Conserva los dos clones/esperas del tracker, cierre de
+admisión, compare_exchange antes de leer dinero, límite, MoneyChanged solo
+cuando cambia el saldo, cuarentena y adquisición del mutex al final. No drena
+criterios ni añade un evento al setter de dinero. Se conservan los escenarios
+World de transacción única, rollback, COMMIT perdido y quest repetible en
+`unit_tests/handlers/quest_tests/reward_transaction.rs`, sin ejecutarlos.
+Anclas de cierre: RewardQuest llama a SaveToDB en Player.cpp:14867 y el save
+llama a _SaveCurrency en :19654, en a5f8da2eb; no prueban los contratos
+asíncronos. El cuerpo de _SaveCurrency está en :6800–6845 y SaveToDB en
+:19312/19323; se distinguen de esos sitios de llamada. La incertidumbre de cancelación
+sin dinero y el resto de la operación normal choose-reward permanecen abiertos.
+No se ejecutaron compilación, formato, suites, scanners, capturas ni QA live.
+
 **Dinero y banco con acceso canónico acotado — 2026-10-03, 13:07 UTC
 (NO VALIDADO):** OwnedInventoryAccess concentra las siete lecturas/mutaciones
 de dinero, cantidad y flags de bolsas bancarias y cantidad de slots de
@@ -2097,6 +2136,22 @@ de XP o con dificultad mayor o igual a diez; su redondeo está en `:714`.
 `Player.h:1491–1495::GetQuestLevel` resuelve el nivel escalado del jugador.
 Estas anclas no convierten el fallback Rust en paridad: F5 conserva su cuerpo
 y sus lecturas condicionales, y F6 mantiene pendiente el contrato de reparación.
+
+La preparación de la familia Instances, revisada en fuente el 2026-10-03 a las
+13:52 UTC, conserva otros contratos pendientes contra `a5f8da2eb`:
+`SetSavedInstanceExtend` llega en Rust por la declaración de
+`SetLootSpecialization` y la forma de nueve bytes del alias `0xBADD`
+(`handlers/loot/handlers.rs`); C++ tiene el registro propio en
+`Opcodes.cpp:910` y `CalendarHandler.cpp:532`. `SetDifficultyId` y
+`ToggleDifficulty` están activos en Rust, mientras C++ los registra
+STATUS_UNHANDLED/Handle_NULL en `Opcodes.cpp:889/973`. La respuesta al pending
+bind lo consume antes de confirmar en Rust; su rechazo solo incrementa una
+fixture bajo cfg(test). C++ ejecuta confirmación o `RepopAtGraveyard` y después
+limpia el pending (`MiscHandler.cpp:1061–1076`). El productor productivo del
+pending y la autoridad del completed-mask representado aún requieren cierre.
+F5 debe preservar esas rutas y el orden de mutación del manager antes del
+commit, sin introducir una reparación de protocolo, rollback o gameplay
+durante su traslado. Esta revisión no ejecuta pruebas ni demuestra paridad.
 
 Por dominio, retirar la duplicidad `represented_*`/canónica y resolver
 `session/legacy_runtime` y el `map_manager` legado. Elegir por la operación completa y

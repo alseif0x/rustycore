@@ -1,7 +1,9 @@
 // Copyright (c) 2026 alseif0x
 // Licensed under GPL v3 — https://www.gnu.org/licenses/gpl-3.0.html
 
-use wow_world_core::session::{HubMut, HubRef, OwnedInventoryAccessLikeCpp};
+use wow_world_core::session::{
+    HubMut, HubRef, OwnedInventoryAccessLikeCpp, QuestRewardPlayerAccessLikeCpp,
+};
 
 impl crate::InventoryState {
     pub fn set_player_gold_like_cpp(
@@ -31,6 +33,21 @@ impl crate::InventoryState {
         {
             canonical
         }
+    }
+
+    pub fn resolved_player_money_with_quest_reward_access_like_cpp(
+        &self,
+        access: &QuestRewardPlayerAccessLikeCpp<'_>,
+    ) -> Option<u64> {
+        self.resolved_player_money_with_access_like_cpp(&access.inventory_like_cpp())
+    }
+
+    pub fn set_player_gold_with_quest_reward_access_like_cpp(
+        &mut self,
+        access: &QuestRewardPlayerAccessLikeCpp<'_>,
+        gold: u64,
+    ) -> bool {
+        self.set_player_gold_with_access_like_cpp(&access.inventory_like_cpp(), gold)
     }
 
 }

@@ -4,7 +4,9 @@
 use std::collections::HashMap;
 
 use wow_entities::PlayerCurrency;
-use wow_world_core::session::{HubMut, HubRef};
+use wow_world_core::session::{
+    HubMut, HubRef, OwnedPlayerCurrencyAccessLikeCpp, QuestRewardPlayerAccessLikeCpp,
+};
 
 impl crate::InventoryState {
     pub fn set_player_currencies_like_cpp(
@@ -12,14 +14,18 @@ impl crate::InventoryState {
         hub: &mut HubMut<'_>,
         currencies: HashMap<u32, PlayerCurrency>,
     ) -> bool {
-        let canonical = hub
-            .core
-            .with_owned_player_mut_like_cpp(|player| {
-                player.install_currencies_like_cpp(currencies.clone());
-            })
-            .is_some();
+        let access = hub.core.owned_player_currency_access_like_cpp();
+        self.set_player_currencies_with_access_like_cpp(&access, currencies)
+    }
+
+    pub fn set_player_currencies_with_access_like_cpp(
+        &mut self,
+        access: &OwnedPlayerCurrencyAccessLikeCpp<'_>,
+        currencies: HashMap<u32, PlayerCurrency>,
+    ) -> bool {
+        let canonical = access.set_player_currencies_like_cpp(&currencies);
         #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical || hub.core.player_handle_like_cpp.is_none() {
+        if canonical || access.owner_handle_absent_like_cpp() {
             self.player_currencies = currencies;
             return true;
         }
@@ -30,13 +36,34 @@ impl crate::InventoryState {
         &self,
         hub: HubRef<'_>,
     ) -> Option<HashMap<u32, PlayerCurrency>> {
-        let canonical = hub
-            .core
-            .with_owned_player_like_cpp(|player| player.gameplay_state().currencies.clone());
+        let access = hub.core.owned_player_currency_access_like_cpp();
+        self.player_currencies_with_access_like_cpp(&access)
+    }
+
+    pub fn player_currencies_with_access_like_cpp(
+        &self,
+        access: &OwnedPlayerCurrencyAccessLikeCpp<'_>,
+    ) -> Option<HashMap<u32, PlayerCurrency>> {
+        let canonical = access.player_currencies_like_cpp();
         #[cfg(any(test, feature = "test-fixtures"))]
-        if canonical.is_none() && hub.core.player_handle_like_cpp.is_none() {
+        if canonical.is_none() && access.owner_handle_absent_like_cpp() {
             return Some(self.player_currencies.clone());
         }
         canonical
+    }
+
+    pub fn player_currencies_with_quest_reward_access_like_cpp(
+        &self,
+        access: &QuestRewardPlayerAccessLikeCpp<'_>,
+    ) -> Option<HashMap<u32, PlayerCurrency>> {
+        self.player_currencies_with_access_like_cpp(&access.currency_like_cpp())
+    }
+
+    pub fn set_player_currencies_with_quest_reward_access_like_cpp(
+        &mut self,
+        access: &QuestRewardPlayerAccessLikeCpp<'_>,
+        currencies: HashMap<u32, PlayerCurrency>,
+    ) -> bool {
+        self.set_player_currencies_with_access_like_cpp(&access.currency_like_cpp(), currencies)
     }
 }
