@@ -2638,7 +2638,14 @@ proyección completa original; el delegado ya usa el provider completo compartid
 resolved_player_inventory_item_object_with_access_like_cpp por cada slot.
 CanUse mantiene por fuente consultas de skill-records y su proyección a valores,
 requisitos de spell, reputación, efectos y especialización del snapshot inicial.
-Las fachadas restantes de equipabilidad siguen en cierre; no hay aceptación.
+CanUse World/persistence_load ya delega el cuerpo completo en el export App,
+manteniendo not_loading y sin proyectar condiciones al construir su vista.
+El handoff nativo del implementador confirma el checkpoint de esta unidad
+NO VALIDADO. World/equipment ya delega CanEquip y Unique a las entradas
+seleccionadas de App; la revisión conserva slot, swap, not_loading, combate,
+dual-wield y titan-grip, además de las consultas previas de PlanEquip. La revisión
+posterior confirma ambos exports normales de esas entradas en App/lib.rs.
+CanStore y el macro Inventory permanecen abiertos; no hay aceptación.
 
 Conexión del guardado canónico (2026-10-03, NO VALIDADO): World ya llama a
 `save_canonical_player_like_cpp` después de adquirir sus fences. La revisión
@@ -2780,6 +2787,33 @@ registro. La hoja ya consulta el participante QuestRewardPlayerAccess por cada
 spell, delegando al mismo snapshot canónico con fallback sin handle en Core
 movement/transfer. No cachea un bool previo ni construye Hub. Los cuerpos originales
 siguen presentes y deben delegar una vez cerrado el conjunto; no hay aceptación.
+
+Retirada de requisitos escrita (2026-10-03, NO VALIDADO): App/reward/removals
+ya contiene el cuerpo completo de planificación de objetos y monedas, con los
+rollback presentes en el original, item-drop después de objetivos, filas currency
+vacías dentro del plan QuestTurnIn y aplicación de objetos antes de los paquetes
+de pérdida de monedas. Los casts comprobados conservan el salto de publicación
+si cantidad o pérdida no caben en i32. Inventory/turnins ya aplica el cuerpo
+seleccionado completo: updates y sus paquetes dentro del loop, las dos mutaciones
+de delete, valores al final y retorno del indicador para la fase App de stats.
+Los proveedores currency mantienen snapshots frescos y Some(0) cuando falta una
+moneda; el coordinador ya pasa las referencias fixture de stats. La revisión
+posterior confirma que World/handlers/quest/rewards delega la retirada completa
+mediante QuestRewardCx y once referencias fixture de stats; World/handlers/
+character/items::apply_item_turnin_changes delega la aplicación en Inventory,
+conservando la publicación de stats después del resultado. Quedan los demás
+consumidores del macro Reward y su aceptación; estas conexiones no prueban su cierre.
+
+Revisión de integración pendiente (2026-10-03, NO VALIDADO): objectives App
+ya contiene las ramas de dinero, moneda y reputación, además de storing-value y
+storing-flag. La lectura detecta cuatro constantes referidas en wow_constants::quest
+que siguen siendo locales World/session/mod.rs: currency 4, min-reputation 6,
+max-reputation 7 y money 8. Su autoridad y consumidores requieren cierre antes de
+aceptación. El snapshot de adquisición de entrenadores también usa dos providers
+Core que acceden a self.core.fixtures, inexistente en ese owner; deben recibir
+referencias fixture prestadas seleccionadas y conservar los gates NoHandle y de
+completitud originales, sin añadir una segunda autoridad. Ambos hallazgos están
+asignados a los implementadores; no se declara compilación ni corrección ejecutada.
 
 Revisión del snapshot spell-click (2026-10-03, NO VALIDADO): el cuerpo Domain
 ahora recibe QuestObjectiveAccess. Comparado con el cuerpo Hub de HEAD, conserva
