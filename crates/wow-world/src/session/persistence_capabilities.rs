@@ -4,8 +4,6 @@
 //! Persistence capabilities: private Session responsibility.
 //! Relocated under #1233; canonical state, phase order and public paths are unchanged.
 
-use super::Arc;
-
 #[cfg(test)]
 pub(in crate::session) use wow_world_core::session::persistence_capabilities::empty_character_power_snapshot_like_cpp;
 pub(crate) use wow_world_core::session::persistence_capabilities::{
@@ -15,78 +13,8 @@ pub(in crate::session) use wow_world_core::session::persistence_capabilities::{
     character_power_snapshot_values_like_cpp, loaded_character_power_snapshot_like_cpp,
 };
 
-/// Per-player session on the world server.
-///
-/// Receives deserialized packets from the socket layer via a channel,
-/// dispatches them to registered handlers, and sends responses back.
-#[derive(Clone, Default)]
-pub struct SessionAdmissionPersistenceLikeCpp {
-    pub(crate) character_administration:
-        Option<Arc<dyn wow_persistence::CharacterAdministrationPersistencePortLikeCpp>>,
-    pub(crate) character_enumeration:
-        Option<Arc<dyn wow_persistence::CharacterEnumerationPersistencePortLikeCpp>>,
-    pub(crate) session_account_state:
-        Option<Arc<dyn wow_persistence::SessionAccountStatePortLikeCpp>>,
-    pub(crate) packet_spoof_ban:
-        Option<Arc<dyn wow_persistence::PacketSpoofBanPersistencePortLikeCpp>>,
-    pub(crate) player_name_query:
-        Option<Arc<dyn wow_persistence::PlayerNameQueryPersistencePortLikeCpp>>,
-    pub(crate) support_bug_report:
-        Option<Arc<dyn wow_persistence::SupportBugReportPersistencePortLikeCpp>>,
-}
-
-#[derive(Clone, Default)]
-pub struct PlayerPersistenceCapabilitiesLikeCpp {
-    pub(crate) player_lifecycle: Option<Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>>,
-    pub(crate) void_storage: Option<Arc<dyn wow_persistence::VoidStoragePersistencePortLikeCpp>>,
-    pub(crate) social: Option<Arc<dyn wow_persistence::SocialPersistencePortLikeCpp>>,
-    pub(crate) stored_item_money:
-        Option<Arc<dyn wow_persistence::StoredItemMoneyPersistencePortLikeCpp>>,
-    pub(crate) stored_item: Option<Arc<dyn wow_persistence::StoredItemPersistencePortLikeCpp>>,
-    pub(crate) player_inventory:
-        Option<Arc<dyn wow_persistence::PlayerInventoryPersistencePortLikeCpp>>,
-    pub(crate) player_quest: Option<Arc<dyn wow_persistence::PlayerQuestPersistencePortLikeCpp>>,
-    /// Commits one complete quest-reward operation as a single character
-    /// transaction, the way C++ closes `Player::RewardQuest` with
-    /// `SaveToDB(false)` (Player.cpp:14867).
-    pub(crate) player_quest_reward:
-        Option<Arc<dyn wow_persistence::PlayerQuestRewardPersistencePortLikeCpp>>,
-    pub(crate) vendor_trade: Option<Arc<dyn wow_persistence::VendorTradePersistencePortLikeCpp>>,
-    pub(crate) player_spell_acquisition:
-        Option<Arc<dyn wow_persistence::PlayerSpellAcquisitionPersistencePortLikeCpp>>,
-    pub(crate) instance_lock: Option<Arc<dyn wow_persistence::InstanceLockPersistencePortLikeCpp>>,
-    pub(crate) battle_pet_purchase:
-        Option<Arc<dyn wow_persistence::BattlePetPurchasePersistencePortLikeCpp>>,
-}
-
-#[derive(Clone, Default)]
-pub struct WorldPersistenceCapabilitiesLikeCpp {
-    pub(crate) map_corpse: Option<Arc<dyn wow_persistence::MapCorpsePersistencePortLikeCpp>>,
-    pub(crate) group_loot_money:
-        Option<Arc<dyn wow_persistence::GroupLootMoneyPersistencePortLikeCpp>>,
-    pub(crate) represented_group:
-        Option<Arc<dyn wow_persistence::RepresentedGroupPersistencePortLikeCpp>>,
-}
-
-#[derive(Clone, Default)]
-pub struct CatalogPersistenceCapabilitiesLikeCpp {
-    pub(crate) quest_poi: Option<Arc<dyn wow_persistence::QuestPoiPersistencePortLikeCpp>>,
-    pub(crate) item_template_addon_catalog:
-        Option<Arc<dyn wow_persistence::ItemTemplateAddonCatalogPersistencePortLikeCpp>>,
-    pub(crate) loot_template_catalog:
-        Option<Arc<dyn wow_persistence::LootTemplateCatalogPersistencePortLikeCpp>>,
-    pub(crate) vendor_catalog:
-        Option<Arc<dyn wow_persistence::VendorCatalogPersistencePortLikeCpp>>,
-    pub(crate) visibility_spawn_catalog:
-        Option<Arc<dyn wow_persistence::VisibilitySpawnCatalogPersistencePortLikeCpp>>,
-    pub(crate) gossip_catalog:
-        Option<Arc<dyn wow_persistence::GossipCatalogPersistencePortLikeCpp>>,
-}
-
-#[derive(Clone, Default)]
-pub struct SessionPersistencePortsLikeCpp {
-    pub(crate) admission: SessionAdmissionPersistenceLikeCpp,
-    pub(crate) player: PlayerPersistenceCapabilitiesLikeCpp,
-    pub(crate) world: WorldPersistenceCapabilitiesLikeCpp,
-    pub(crate) catalogs: CatalogPersistenceCapabilitiesLikeCpp,
-}
+pub use wow_world_lifecycle::{
+    CatalogPersistenceCapabilitiesLikeCpp, PlayerPersistenceCapabilitiesLikeCpp,
+    SessionAdmissionPersistenceLikeCpp, SessionPersistencePortsLikeCpp,
+    WorldPersistenceCapabilitiesLikeCpp,
+};

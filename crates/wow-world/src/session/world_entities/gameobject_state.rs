@@ -63,8 +63,7 @@ impl WorldSession {
             .restore_represented_gameobject_override_flags_like_cpp(gameobject_guid);
         let map_id = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)
+            .represented_gameobject_use_state_like_cpp(gameobject_guid)
             .and_then(|state| state.map_id)
             .unwrap_or_else(|| self.core.player_map_id_like_cpp());
         self.send_packet(&wow_packet::packets::update::UpdateObject::destroy_objects(

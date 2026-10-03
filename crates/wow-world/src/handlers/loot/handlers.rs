@@ -512,7 +512,7 @@ impl WorldSession {
                     .reconcile_represented_loot_cache_like_cpp(owner_guid, master_loot_item.target);
             }
 
-            let Some(loot) = self.loot.loot_table.get(&owner_guid) else {
+            let Some(loot) = self.loot.cached_loot_for_owner_like_cpp(owner_guid) else {
                 return;
             };
             let dungeon_encounter_id = loot.dungeon_encounter_id;
@@ -559,8 +559,7 @@ impl WorldSession {
             let claim = if let Some(authority) = authority {
                 let Some(expected_generation) = self
                     .loot
-                    .active_loot_view_generations_like_cpp
-                    .get(&owner_guid)
+                    .active_loot_view_generation_like_cpp(owner_guid)
                     .copied()
                 else {
                     self.send_loot_error_like_cpp(
@@ -778,7 +777,10 @@ impl WorldSession {
         command: LootRollVoteCommand,
     ) {
         let roll_key = (command.loot_obj, command.loot_list_id);
-        let Some(current_roll) = self.loot.represented_loot_rolls.get(&roll_key) else {
+        let Some(current_roll) = self
+            .loot
+            .represented_loot_roll_like_cpp(roll_key.0, roll_key.1)
+        else {
             return;
         };
         if !command.targets_identity_like_cpp(&current_roll.command_identity) {

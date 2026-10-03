@@ -20,7 +20,7 @@ impl WorldSession {
             return Vec::new();
         };
 
-        let Some(loot) = self.loot.loot_table.get(&loot_guid) else {
+        let Some(loot) = self.loot.cached_loot_for_owner_like_cpp(loot_guid) else {
             return vec![player_guid];
         };
         // C++ shares only LOOT_CORPSE. Pickpocket money is creature-owned but
@@ -106,13 +106,11 @@ impl WorldSession {
     ) -> bool {
         if !self
             .loot
-            .active_loot_view_authorities_like_cpp
-            .get(&owner_guid)
+            .active_loot_view_authority_like_cpp(owner_guid)
             .is_some_and(|active| active.shares_storage_like_cpp(expected_authority))
             || !self
                 .loot
-                .active_loot_view_generations_like_cpp
-                .get(&owner_guid)
+                .active_loot_view_generation_like_cpp(owner_guid)
                 .is_some_and(|active| *active == authority_generation)
         {
             return false;
@@ -186,7 +184,7 @@ impl WorldSession {
         if let Some(player_guid) = self.player_guid() {
             let _ = self.reconcile_represented_loot_cache_like_cpp(owner_guid, player_guid);
         }
-        let Some(loot) = self.loot.loot_table.get(&owner_guid) else {
+        let Some(loot) = self.loot.cached_loot_for_owner_like_cpp(owner_guid) else {
             return;
         };
 
@@ -230,7 +228,7 @@ impl WorldSession {
         }
 
         if !stale_looters.is_empty()
-            && let Some(loot) = self.loot.loot_table.get_mut(&owner_guid)
+            && let Some(loot) = self.loot.cached_loot_for_owner_mut_like_cpp(owner_guid)
         {
             loot.players_looting
                 .retain(|looter| !stale_looters.contains(looter));
@@ -418,4 +416,3 @@ impl WorldSession {
         Some((worker, balance_applied, publication_applied))
     }
 }
-

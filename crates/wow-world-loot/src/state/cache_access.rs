@@ -49,12 +49,36 @@ impl LootState {
         self.represented_personal_loot_owners.contains(&owner)
     }
 
+    pub fn personal_loot_money_for_owner_and_player_like_cpp(
+        &self,
+        owner: ObjectGuid,
+        player: ObjectGuid,
+    ) -> Option<&u32> {
+        self.represented_personal_loot_money.get(&(owner, player))
+    }
+
     pub fn insert_personal_loot_owner_like_cpp(&mut self, owner: ObjectGuid) -> bool {
         self.represented_personal_loot_owners.insert(owner)
     }
 
     pub fn remove_personal_loot_owner_like_cpp(&mut self, owner: ObjectGuid) -> bool {
         self.represented_personal_loot_owners.remove(&owner)
+    }
+
+    pub fn record_personal_loot_money_or_clear_cached_coins_for_owner_like_cpp(
+        &mut self,
+        owner: ObjectGuid,
+        player: ObjectGuid,
+    ) -> Option<&mut CreatureLoot> {
+        let personal_money_owner = self.represented_personal_loot_owners.contains(&owner);
+        let loot = self.loot_table.get_mut(&owner)?;
+        if personal_money_owner {
+            self.represented_personal_loot_money
+                .insert((owner, player), 0);
+        } else {
+            loot.coins = 0;
+        }
+        Some(loot)
     }
 
     pub fn insert_personal_loot_money_like_cpp(

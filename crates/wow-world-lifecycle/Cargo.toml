@@ -7,9 +7,10 @@ license.workspace = true
 publish = false
 
 [features]
-test-fixtures = []
+test-fixtures = ["wow-world-core/test-fixtures"]
 
 [dependencies]
+dashmap = { workspace = true }
 flume = { workspace = true }
 tokio = { workspace = true }
 tracing = { workspace = true }
@@ -22,6 +23,7 @@ wow-world-core = { workspace = true }
 
 [dev-dependencies]
 tokio = { workspace = true }
+wow-world-core = { workspace = true, features = ["test-fixtures"] }
 
 [lints]
 workspace = true

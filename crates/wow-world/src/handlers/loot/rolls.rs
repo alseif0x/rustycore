@@ -87,7 +87,11 @@ impl WorldSession {
         pass_on_group_loot: bool,
     ) -> bool {
         let roll_key = (roll.loot_obj, roll.loot_list_id);
-        let Some(roll_state) = self.loot.represented_loot_rolls.get(&roll_key).cloned() else {
+        let Some(roll_state) = self
+            .loot
+            .represented_loot_roll_like_cpp(roll_key.0, roll_key.1)
+            .cloned()
+        else {
             return false;
         };
         if self
@@ -104,7 +108,7 @@ impl WorldSession {
 
         let owner_guid = roll_state.owner_guid;
 
-        let Some(loot) = self.loot.loot_table.get(&owner_guid) else {
+        let Some(loot) = self.loot.cached_loot_for_owner_like_cpp(owner_guid) else {
             return false;
         };
         if !matches!(
@@ -140,8 +144,7 @@ impl WorldSession {
 
         let Some(state) = self
             .loot
-            .represented_loot_rolls
-            .get_mut(&(loot_guid, roll.loot_list_id))
+            .represented_loot_roll_mut_like_cpp(loot_guid, roll.loot_list_id)
         else {
             return false;
         };
@@ -230,7 +233,8 @@ impl WorldSession {
             authority_generation = state.authority_generation,
             "represented loot roll cancelled after owner loot generation changed"
         );
-        self.loot.represented_loot_rolls.remove(&key);
+        self.loot
+            .remove_represented_loot_roll_like_cpp(key.0, key.1);
         self.publish_represented_loot_roll_ownership_like_cpp();
     }
 
@@ -259,8 +263,7 @@ impl WorldSession {
         let owner_guid = state.owner_guid;
         let dungeon_encounter_id = self
             .loot
-            .loot_table
-            .get(&owner_guid)
+            .cached_loot_for_owner_like_cpp(owner_guid)
             .map(|loot| loot.dungeon_encounter_id as i32)
             .unwrap_or(0);
 
@@ -299,7 +302,7 @@ impl WorldSession {
         };
         let _ = self.reconcile_represented_loot_cache_like_cpp(owner_guid, scope_player);
 
-        if let Some(loot) = self.loot.loot_table.get_mut(&owner_guid) {
+        if let Some(loot) = self.loot.cached_loot_for_owner_mut_like_cpp(owner_guid) {
             if let Some(loot_entry) = loot
                 .items
                 .iter_mut()
@@ -313,8 +316,7 @@ impl WorldSession {
         }
 
         self.loot
-            .represented_loot_rolls
-            .remove(&(loot_obj, loot_list_id));
+            .remove_represented_loot_roll_like_cpp(loot_obj, loot_list_id);
         self.publish_represented_loot_roll_ownership_like_cpp();
 
         let Some((winner_guid, winner_vote)) = winner else {
@@ -410,8 +412,7 @@ impl WorldSession {
     ) {
         let dungeon_encounter_id = self
             .loot
-            .loot_table
-            .get(&owner_guid)
+            .cached_loot_for_owner_like_cpp(owner_guid)
             .map(|loot| loot.dungeon_encounter_id)
             .unwrap_or(0);
         if winner_vote.vote == ROLL_VOTE_DISENCHANT_LIKE_CPP {
@@ -470,8 +471,7 @@ impl WorldSession {
 
         let mut store_entry = self
             .loot
-            .loot_table
-            .get(&owner_guid)
+            .cached_loot_for_owner_like_cpp(owner_guid)
             .and_then(|loot| {
                 loot.items
                     .iter()
@@ -618,8 +618,7 @@ impl WorldSession {
         let mut unblocked_without_roll = Vec::new();
         let item_flags2_by_item_id: HashMap<u32, (Option<u32>, Option<u16>)> = self
             .loot
-            .loot_table
-            .get(&owner_guid)
+            .cached_loot_for_owner_like_cpp(owner_guid)
             .map(|loot| {
                 loot.items
                     .iter()
@@ -646,7 +645,7 @@ impl WorldSession {
             return;
         };
 
-        if let Some(loot) = self.loot.loot_table.get_mut(&owner_guid) {
+        if let Some(loot) = self.loot.cached_loot_for_owner_mut_like_cpp(owner_guid) {
             for entry in &mut loot.items {
                 if !entry.flags.blocked {
                     continue;
@@ -796,8 +795,7 @@ impl WorldSession {
 
         for roll in pending_rolls {
             self.loot
-                .represented_loot_rolls
-                .insert((roll.loot_obj, roll.loot_list_id), roll);
+                .insert_represented_loot_roll_like_cpp(roll);
         }
         self.publish_represented_loot_roll_ownership_like_cpp();
 
@@ -840,10 +838,7 @@ impl WorldSession {
         };
         let identities = self
             .loot
-            .represented_loot_rolls
-            .values()
-            .map(|state| state.command_identity.clone())
-            .collect();
+            .represented_loot_roll_command_identities_snapshot_like_cpp();
         let _ = registry.replace_loot_rolls_for_control_channel(
             player_guid,
             &self.session_command_tx(),
@@ -869,13 +864,12 @@ impl WorldSession {
     ) {
         let now = Instant::now();
         let roll_keys: Vec<(ObjectGuid, u8)> =
-            self.loot.represented_loot_rolls.keys().copied().collect();
+            self.loot.represented_loot_roll_keys_snapshot_like_cpp();
 
         for (loot_obj, loot_list_id) in roll_keys {
             let Some(state) = self
                 .loot
-                .represented_loot_rolls
-                .get(&(loot_obj, loot_list_id))
+                .represented_loot_roll_like_cpp(loot_obj, loot_list_id)
                 .cloned()
             else {
                 continue;
@@ -895,15 +889,14 @@ impl WorldSession {
             }
 
             let owner_guid = state.owner_guid;
-            let Some(entry) = self.loot.loot_table.get(&owner_guid).and_then(|loot| {
+            let Some(entry) = self.loot.cached_loot_for_owner_like_cpp(owner_guid).and_then(|loot| {
                 loot.items
                     .iter()
                     .find(|entry| entry.loot_list_id == loot_list_id)
                     .cloned()
             }) else {
                 self.loot
-                    .represented_loot_rolls
-                    .remove(&(loot_obj, loot_list_id));
+                    .remove_represented_loot_roll_like_cpp(loot_obj, loot_list_id);
                 self.publish_represented_loot_roll_ownership_like_cpp();
                 continue;
             };

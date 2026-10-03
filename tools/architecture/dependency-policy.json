@@ -157,6 +157,7 @@
       "wow-data",
       "wow-entities",
       "wow-packet",
+      "wow-progression",
       "wow-world-core"
     ],
     "wow-world-lifecycle": [
@@ -514,12 +515,14 @@
       },
       "wow-world-inventory": {
         "normal": [
-          "num-traits"
+          "num-traits",
+          "tracing"
         ],
         "build": []
       },
       "wow-world-lifecycle": {
         "normal": [
+          "dashmap",
           "flume",
           "tokio",
           "tracing"

@@ -10,7 +10,7 @@ impl WorldSession {
         &self,
         bag_guid: ObjectGuid,
     ) -> bool {
-        if self.loot.active_loot_view_owners.is_empty() {
+        if self.loot.active_loot_view_owners_is_empty_like_cpp() {
             return false;
         }
 
@@ -20,9 +20,10 @@ impl WorldSession {
                     item.container_guid() == bag_guid
                         && self
                             .loot
-                            .active_loot_view_owners
-                            .contains(&item.object().guid())
-                        && self.loot.loot_table.contains_key(&item.object().guid())
+                            .has_active_loot_view_owner_like_cpp(item.object().guid())
+                        && self
+                            .loot
+                            .cached_loot_contains_owner_like_cpp(item.object().guid())
                 })
             })
     }

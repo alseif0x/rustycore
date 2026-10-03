@@ -153,7 +153,7 @@ impl WorldSession {
             return;
         }
 
-        let Some(loot) = self.loot.loot_table.get(&owner_guid) else {
+        let Some(loot) = self.loot.cached_loot_for_owner_like_cpp(owner_guid) else {
             return;
         };
 

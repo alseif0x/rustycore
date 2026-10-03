@@ -1,7 +1,7 @@
 //! Logout admission. Persistence and retirement run through the finalization executor.
-use super::super::{SessionState, WorldSession};
-use crate::finalization::{FinalizationMode, SessionFinalization};
-use tracing::info;
+use super::super::WorldSession;
+#[cfg(test)]
+use crate::finalization::FinalizationMode;
 
 impl WorldSession {
     #[cfg(test)]
@@ -15,34 +15,8 @@ impl WorldSession {
     }
 
     pub(crate) fn set_player_logout_like_cpp(&mut self, player_logout: bool) {
-        self.lifecycle.player_logout_like_cpp = player_logout;
-        if player_logout {
-            self.lifecycle
-                .durable_loot_money_persistence_like_cpp
-                .close_admission_permanently_like_cpp();
-        }
+        self.lifecycle.set_player_logout_like_cpp(player_logout);
         self.sync_current_player_session_visibility_detection_like_cpp();
-    }
-}
-
-impl crate::session::state::SessionLifecycleState {
-    pub(crate) fn player_logout_like_cpp(&self) -> bool {
-        self.player_logout_like_cpp
-    }
-
-    /// Admit timed finalization, without publishing completion before save.
-    /// The session supervisor executes the same obligation coordinator; the
-    /// timed route retains disconnect semantics after its logout publication.
-    pub(in crate::session) fn complete_logout(&mut self, hub: &mut crate::session::HubMut<'_>) {
-        info!("Timed logout admitted for account {}", hub.core.account_id);
-        if self.finalization.is_none() {
-            self.finalization = Some(SessionFinalization::new(
-                FinalizationMode::TimedLogout,
-                hub.core.player_guid().is_some(),
-                hub.core.player_handle_like_cpp,
-            ));
-        }
-        hub.core.state = SessionState::Disconnecting;
     }
 }
 

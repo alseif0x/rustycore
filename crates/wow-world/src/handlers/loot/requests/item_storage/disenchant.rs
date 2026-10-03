@@ -128,9 +128,9 @@ impl WorldSession {
         };
 
         #[cfg(test)]
-        if let Some(grants) = self.loot.loot_item_store_test_grants_like_cpp.clone() {
-            let success = self.loot.loot_item_store_test_success_like_cpp;
-            let commit_gate = self.loot.loot_item_store_test_commit_gate_like_cpp.clone();
+        if let Some(grants) = self.loot.loot_item_store_test_grants_like_cpp() {
+            let success = self.loot.loot_item_store_test_success_like_cpp();
+            let commit_gate = self.loot.loot_item_store_test_commit_gate_like_cpp();
             let grant_count = loot_entries.len();
             let runtime_inventory_applied =
                 claim_commit_context.map(|_| Arc::new(AtomicBool::new(false)));

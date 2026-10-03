@@ -4,6 +4,8 @@
 //! Session-owned inventory state and its bounded represented contracts.
 
 mod auction_contracts;
+mod bank;
+mod appearance;
 mod guild_inventory_contracts;
 mod inventory_request_contracts;
 mod item_modifiers;
@@ -12,6 +14,7 @@ mod enchantment;
 mod equipment;
 mod equipment_slots;
 mod equipment_sets;
+mod durability;
 mod modifiers;
 mod offhand;
 mod publication;
@@ -20,6 +23,7 @@ mod catalog;
 mod storage;
 mod storage_bags;
 mod storage_slots;
+mod valuation;
 mod persistence_load;
 mod state;
 

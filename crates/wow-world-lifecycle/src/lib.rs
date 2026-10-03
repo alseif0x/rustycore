@@ -1,15 +1,25 @@
 //! Lifecycle-domain state shared with the World session adapter.
 
+mod collection_contracts;
 mod finalization;
 mod character_administration;
 mod rename_callbacks;
 mod durable_item_loot;
 mod value_contracts;
 mod pet_load;
+mod persistence_capabilities;
+mod state;
+#[cfg(any(test, feature = "test-fixtures"))]
+mod fixture;
 
 pub use finalization::{
     FinalizationDisposition, FinalizationMode, FinalizationOutcome, FinalizationReport,
     FinalizationStep,
+};
+
+#[doc(hidden)]
+pub use collection_contracts::{
+    AccountHeirloomSaveRowLikeCpp, AccountMountSaveRowLikeCpp, AccountToySaveRowLikeCpp,
 };
 
 #[doc(hidden)]
@@ -42,6 +52,20 @@ pub use pet_load::{
     CharacterPetSpellCooldownRowLikeCpp, CharacterPetSpellRowLikeCpp,
     PetLoadQueryHolderRowsLikeCpp,
 };
+
+#[doc(hidden)]
+pub use persistence_capabilities::{
+    CatalogPersistenceCapabilitiesLikeCpp, PlayerPersistenceCapabilitiesLikeCpp,
+    SessionAdmissionPersistenceLikeCpp, SessionPersistencePortsLikeCpp,
+    WorldPersistenceCapabilitiesLikeCpp,
+};
+
+#[doc(hidden)]
+pub use state::{DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP, SessionLifecycleState};
+
+#[cfg(any(test, feature = "test-fixtures"))]
+#[doc(hidden)]
+pub use fixture::LoadedPlayerFlagsTestFixtureLikeCpp;
 
 #[cfg(any(test, feature = "test-fixtures"))]
 #[doc(hidden)]

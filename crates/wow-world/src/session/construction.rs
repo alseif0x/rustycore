@@ -22,21 +22,14 @@ use crate::session::state::SessionWorldView;
 use crate::session::state::VisibilityState;
 use crate::session::state::WorldEntitiesState;
 
-use super::DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP;
-use super::ObjectGuid;
 #[cfg(test)]
 use super::SeedableRng;
 #[cfg(test)]
 use super::StdRng;
 #[cfg(test)]
-use super::persistence::test_fixtures::LoadedPlayerFlagsTestFixtureLikeCpp;
-#[cfg(test)]
 use super::quest::test_fixtures::QuestTestFixtureLikeCpp;
-use super::Arc;
-use super::{DurableItemLootPersistenceTrackerLikeCpp, DurableLootMoneyPersistenceTrackerLikeCpp};
 use super::{HashMap, Instant};
 use super::{VecDeque, WorldPacket, WorldSession, build_dispatch_table, connection};
-use super::{default_account_data_like_cpp, lifecycle};
 
 impl WorldSession {
     pub(in crate::session) const MIN_ITEM_LEVEL_LIKE_CPP: u32 = 1;
@@ -80,45 +73,7 @@ impl WorldSession {
                 connection,
                 session_key,
             ),
-            lifecycle: SessionLifecycleState {
-                account_data_like_cpp: default_account_data_like_cpp(),
-                battle_pet_account_attachment_like_cpp: None,
-                character_rename_callbacks: Default::default(),
-                durable_item_loot_persistence_like_cpp:
-                    DurableItemLootPersistenceTrackerLikeCpp::default(),
-                durable_loot_money_persistence_like_cpp: Arc::new(
-                    DurableLootMoneyPersistenceTrackerLikeCpp::default(),
-                ),
-                finalization: None,
-                homebind_persistence_tx_like_cpp: None,
-                level_played_time: 0,
-                login_time: None,
-                logout_time: None,
-                next_player_save_ms_like_cpp: DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP,
-                pending_periodic_player_save_like_cpp: false,
-                persistence_ports_like_cpp: Box::default(),
-                pet_load_query_holder_rows_like_cpp:
-                    lifecycle::PetLoadQueryHolderRowsLikeCpp::default(),
-                player_loading: None,
-                player_login_claim_like_cpp: None,
-                player_logout_like_cpp: false,
-                player_save_interval_ms_like_cpp: DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP,
-                total_played_time: 0,
-                tutorials_changed_like_cpp: false,
-                tutorials_like_cpp: [0; 8],
-                tutorials_loaded_coherently_like_cpp: false,
-                tutorials_loaded_from_db_like_cpp: false,
-                #[cfg(test)]
-                player_flags_test_fixture_like_cpp: LoadedPlayerFlagsTestFixtureLikeCpp::default(),
-                #[cfg(test)]
-                represented_at_login_flags_like_cpp: 0,
-                #[cfg(test)]
-                represented_at_login_flag_removals_like_cpp: Vec::new(),
-                #[cfg(test)]
-                loot_money_persistence_test_result_like_cpp: None,
-                #[cfg(test)]
-                loaded_player_customizations_like_cpp: Box::default(),
-            },
+            lifecycle: SessionLifecycleState::new_like_cpp(),
             phase: SessionPhaseRail {
                 tx: session_phase_tx,
                 rx: session_phase_rx,

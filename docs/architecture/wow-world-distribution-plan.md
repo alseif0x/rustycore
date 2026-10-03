@@ -1135,6 +1135,14 @@ ausencias no demuestran por sí solas un fallo de ese consumidor. Se conserva la
 operación actual en F4; su traslado no prueba la equivalencia completa del helper
 ni autoriza ampliar callers o corregir gameplay sin el contrato de F6.
 
+La preparación de apariencias conserva además el chequeo y los avisos del opcode
+provisional de AccountTransmogUpdate. `CollectionMgr::SetAppearanceIsFavorite`
+(:828) y SendFavoriteAppearances (:858) envían el packet, pero el mismo target
+declara SMSG_ACCOUNT_TRANSMOG_UPDATE = 0xBADD (Opcodes.h:1894). Rust conserva su
+alias provisional y evita emitirlo mediante el chequeo actual de appearance;
+la fila/payload existe en wow-packet. F4 no inventa un ID ni acredita favoritos
+en el cliente. Resolver ese contrato requiere evidencia de la versión en F6.
+
 La preparación Lifecycle confirma 28 campos y las 28 expresiones originales
 de construcción, incluidos cinco campos de fixture. El orden de declaración
 conserva las obligaciones de drop registradas en `session/state.rs`: attachment
@@ -1253,6 +1261,81 @@ consumidores/fixtures privados, el resto de Inventory, la extracción del estado
 Lifecycle y F5–F6. No se ejecutó Cargo, formato, pruebas ni aceptación para este
 lote; no es un candidato compilado y no cambia el gate rojo R1/publicación de
 P4b ni su evidencia histórica. El trabajo autorizado continúa en la misma rama.
+El checkpoint guardado es `b7a6b7a43` (176 archivos, árbol limpio al commit).
+La continuación de fuente añade las consultas de rolls por clave y snapshots
+con la misma iteración/copia, y cierra rolls/fanout World. El driver de Entities
+usa cinco operaciones acotadas de tick y take: conserva las lecturas separadas
+4/2/4 y completa la cola de loot antes de extraer rewards. Las cinco familias de
+capacidades de persistencia y sus required constructors tienen proveedor
+Lifecycle, con campos internos y mismos tipos/orden/derives; los 14 métodos del
+estado aún esperan su extracción. Los dos bloques de equipment sets añaden 14
+cuerpos iguales a la fuente original, conservando su helper único y el
+coordinador World; Inventory lleva 21 bloques/114 métodos, con 27/117 pendientes.
+Estos cambios posteriores no forman parte del SHA guardado ni tienen aceptación.
+La fundación posterior de Lifecycle también está escrita: 28 campos y sus 28
+expresiones iniciales conservan tipos, valores y orden de declaración/construcción
+tras los aliases y gates revisados. Los cinco campos de fixture, inicializadores
+e imports se emparejan con test-fixtures en el dominio y conservan los gates World.
+El fixture de loaded flags conserva tres campos y su Default; el intervalo de
+guardado tiene proveedor único Lifecycle y fachada World. Los campos permanecen
+internos y los 145 métodos/consumidores se cierran en la misma entrega, sin pruebas
+ejecutadas ni nueva afirmación de persistencia/paridad.
+
+La continuación revisada de Inventory añade appearance (19 métodos), valuation
+(6) y durability (5), después de equipment sets: 25 bloques/144 métodos escritos,
+con 23/87 todavía en World. Los cuerpos conservan la fuente original tras aliases
+y gates; durability usa el mismo `wow_entities::INVENTORY_DEFAULT_SIZE`. Los
+coordinadores de pérdida, reparación, transacciones y publicación siguen en World.
+El contraste de reparación retiene un límite previo para F6: en `a5f8da2eb`,
+`Player::DurabilityRepairAll` (`Player.cpp:4629–4711`) usa
+`GetInventorySlotCount()` para el backpack; el helper Rust de costes conserva
+`INVENTORY_DEFAULT_SIZE`. Ambos coordinadores Rust de reparación con dinero
+consumen esa lista. El traslado no corrige ni acredita ese conjunto para un
+backpack ampliado; F6 debe cerrar la operación completa y su publicación.
+Lifecycle añade los 16 métodos de puertos/identidad, dos de login claims y seis de
+finalización, cleanup y logout: 6 bloques/24 métodos originales trasladados,
+con 27/121 pendientes. Conserva la reserva Weak por GUID, los tokens de retiro y
+la admisión de finalización; el coordinador async permanece en World.
+Los cierres de consumidores Loot en authority/claims/money/persistence y los tres
+handlers conservan snapshots, fallback, orden de claims/durabilidad y publicación.
+Entities cierra tracking de aura y las hojas de uso básico, tipos y PvP mediante
+operaciones por GUID, manteniendo los clocks y eventos originales. Los demás
+consumidores privados y fixtures siguen pendientes. Estos cambios posteriores a
+`b7a6b7a43` son fuente revisada y **NO VALIDADA**; no se ejecutó Cargo, formato,
+pruebas ni aceptación y no modifican R1 ni el resultado del presupuesto histórico.
+
+El corte posterior de bank mueve dos bloques/16 métodos a Inventory: 27/160
+escritos y 21/71 pendientes. La revisión conserva los 16 cuerpos tras gates y
+el mismo bridge Core para los updates; World conserva reparación y transacciones.
+Lifecycle mueve los seis métodos de filas de colección, temporizador y CUF:
+7/30 trasladados y 26/115 pendientes. Los tres DTO de filas conservan diez campos,
+derives y orden con proveedor único Lifecycle. Su feature de fixtures se reenvía
+a Core y la dependencia de desarrollo activa el mismo gate del Hub.
+Los consumidores GameObject de scripts, tick y delete usan consultas por GUID e
+iteración de solo lectura del mismo BTreeMap; las cuatro retiradas de cache Loot
+siguen en sus puntos originales. El registro de jugadores, kill y trap despawn
+reutilizan las consultas existentes de Loot. Inventario/bolsas conservan el
+cortocircuito, la consulta sin snapshots y el retorno temprano; los hooks de item
+storage conservan el orden de clonación de Arc bajo el mismo gate World. Todo
+permanece **NO VALIDADO** y los cierres de consumidores continúan.
+
+**Checkpoint de continuación local F4b — 2026-10-03, NO VALIDADO:** Inventory
+añade dos bloques/19 métodos de modifiers, alcanzando 29/179 originales
+trasladados y 19/52 pendientes. La comparación conserva sus 19 cuerpos tras
+gates; cuatro operaciones de fixture sustituyen cinco accesos World, con los
+mismos append/clones y orden de aplicación. Los slots usan su proveedor Entities;
+`reputation_to_rank_like_cpp` conserva Progression y gana su edge normal real,
+registrado también en lock y policy. Lifecycle alcanza 8/36 métodos originales
+trasladados, con 25/109 pendientes, tras los seis métodos de cuenta. Conserva
+borrow/Arc, snapshots, retención antes del await y clasificación de persistencia.
+El temporizador tiene setter/consultas acotados; los coordinadores y las pruebas
+World conservan sus condiciones y aserciones. Los once append de eventos de muerte
+y el mutador de trap mantienen sus gates/orden mediante APIs de Entities. Los dos
+setters de hooks de loot conservan movimiento de Arc y el gate World original.
+Este checkpoint guarda fuente revisada y los cierres de consumidores anteriores;
+no ejecuta compilación, formato, tests, scanners ni aceptación, no acredita paridad
+nueva y no habilita publicación. Continúan los métodos restantes, consumidores,
+fixtures y F5–F6 dentro de la misma entrega autorizada.
 
 El scanner ya incorpora los roots y roles de Loot, Entities, Inventory y
 Lifecycle. Se extienden las pruebas existentes de montaje y de rechazo de

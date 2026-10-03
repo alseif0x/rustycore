@@ -189,16 +189,14 @@ impl WorldSession {
         let _ = outcome;
         #[cfg(test)]
         if outcome.applied {
-            self.world_entities
-                .represented_creature_kill_events_like_cpp
-                .push(
-                    RepresentedCreatureKillEventLikeCpp::CreatureKillReputationAwarded {
-                        creature_guid,
-                        faction_id: effective_faction_id,
-                        reputation,
-                        spillover_only,
-                    },
-                );
+            self.world_entities.record_represented_creature_kill_event_like_cpp(
+                RepresentedCreatureKillEventLikeCpp::CreatureKillReputationAwarded {
+                    creature_guid,
+                    faction_id: effective_faction_id,
+                    reputation,
+                    spillover_only,
+                },
+            );
         }
     }
     pub(in crate::session) fn reward_reputation_from_creature_kill_like_cpp(
@@ -287,8 +285,9 @@ impl WorldSession {
         &mut self,
         item_guid_generator: &wow_core::ObjectGuidGenerator,
     ) {
-        let mut pending =
-            std::mem::take(&mut self.world_entities.pending_creature_kill_loot_like_cpp);
+        let mut pending = self
+            .world_entities
+            .take_pending_creature_kill_loot_like_cpp();
         pending.sort_by_key(|guid| (guid.high_value(), guid.low_value()));
         pending.dedup();
         for creature_guid in pending {
@@ -296,8 +295,9 @@ impl WorldSession {
                 .await;
         }
 
-        let mut rewards =
-            std::mem::take(&mut self.world_entities.pending_creature_kill_rewards_like_cpp);
+        let mut rewards = self
+            .world_entities
+            .take_pending_creature_kill_rewards_like_cpp();
         rewards.sort_by_key(|reward| {
             (
                 reward.creature_guid.high_value(),
@@ -399,12 +399,12 @@ impl WorldSession {
             }
         }
 
-        self.world_entities
-            .represented_creature_kill_events_like_cpp
-            .push(RepresentedCreatureKillEventLikeCpp::KillerProc {
+        self.world_entities.record_represented_creature_kill_event_like_cpp(
+            RepresentedCreatureKillEventLikeCpp::KillerProc {
                 attacker_guid,
                 victim_guid: creature_guid,
-            });
+            },
+        );
 
         for tapper_guid in unique_tappers {
             if !self.represented_player_at_group_reward_distance_like_cpp(
@@ -414,28 +414,26 @@ impl WorldSession {
             ) {
                 continue;
             }
-            self.world_entities
-                .represented_creature_kill_events_like_cpp
-                .push(RepresentedCreatureKillEventLikeCpp::TapperTargetDiesProc {
+            self.world_entities.record_represented_creature_kill_event_like_cpp(
+                RepresentedCreatureKillEventLikeCpp::TapperTargetDiesProc {
                     tapper_guid,
                     victim_guid: creature_guid,
-                });
-        }
-
-        self.world_entities
-            .represented_creature_kill_events_like_cpp
-            .push(RepresentedCreatureKillEventLikeCpp::VictimDeathProc {
-                victim_guid: creature_guid,
-            });
-        self.world_entities
-            .represented_creature_kill_events_like_cpp
-            .push(
-                RepresentedCreatureKillEventLikeCpp::DeliveredKillingBlowCriteria {
-                    player_guid: attacker_guid,
-                    victim_guid: creature_guid,
-                    quantity: 1,
                 },
             );
+        }
+
+        self.world_entities.record_represented_creature_kill_event_like_cpp(
+            RepresentedCreatureKillEventLikeCpp::VictimDeathProc {
+                victim_guid: creature_guid,
+            },
+        );
+        self.world_entities.record_represented_creature_kill_event_like_cpp(
+            RepresentedCreatureKillEventLikeCpp::DeliveredKillingBlowCriteria {
+                player_guid: attacker_guid,
+                victim_guid: creature_guid,
+                quantity: 1,
+            },
+        );
     }
     pub(in crate::session) fn complete_represented_creature_death_state_after_kill_hooks_like_cpp(
         &mut self,
@@ -446,8 +444,7 @@ impl WorldSession {
         let _ = attacker_guid;
         let lootable = self
             .loot
-            .loot_table
-            .get(&creature_guid)
+            .cached_loot_for_owner_like_cpp(creature_guid)
             .is_some_and(|loot| loot.coins != 0 || loot.unlooted_count != 0);
         let can_skin = {
             let (s, mut h) = crate::session::split_world_entities_mut(self);
@@ -459,55 +456,51 @@ impl WorldSession {
             creature.creature.unit().values_update()
         })?;
         #[cfg(test)]
-        self.world_entities
-            .represented_creature_kill_events_like_cpp
-            .push(RepresentedCreatureKillEventLikeCpp::DeathStateJustDied {
+        self.world_entities.record_represented_creature_kill_event_like_cpp(
+            RepresentedCreatureKillEventLikeCpp::DeathStateJustDied {
                 victim_guid: creature_guid,
-            });
+            },
+        );
         #[cfg(test)]
-        self.world_entities
-            .represented_creature_kill_events_like_cpp
-            .push(RepresentedCreatureKillEventLikeCpp::ZoneScriptUnitDeath {
+        self.world_entities.record_represented_creature_kill_event_like_cpp(
+            RepresentedCreatureKillEventLikeCpp::ZoneScriptUnitDeath {
                 unit_guid: creature_guid,
-            });
+            },
+        );
         #[cfg(test)]
         self.record_represented_tapper_pet_killed_unit_hooks_like_cpp(creature_guid);
         #[cfg(test)]
-        self.world_entities
-            .represented_creature_kill_events_like_cpp
-            .push(RepresentedCreatureKillEventLikeCpp::LootFlagsApplied {
+        self.world_entities.record_represented_creature_kill_event_like_cpp(
+            RepresentedCreatureKillEventLikeCpp::LootFlagsApplied {
                 creature_guid,
                 lootable,
                 can_skin,
                 skinnable: can_skin,
-            });
+            },
+        );
         #[cfg(test)]
-        self.world_entities
-            .represented_creature_kill_events_like_cpp
-            .push(
-                RepresentedCreatureKillEventLikeCpp::CreatureOnHealthDepletedAi {
-                    creature_guid,
-                    attacker_guid,
-                    is_kill: true,
-                },
-            );
+        self.world_entities.record_represented_creature_kill_event_like_cpp(
+            RepresentedCreatureKillEventLikeCpp::CreatureOnHealthDepletedAi {
+                creature_guid,
+                attacker_guid,
+                is_kill: true,
+            },
+        );
         #[cfg(test)]
-        self.world_entities
-            .represented_creature_kill_events_like_cpp
-            .push(RepresentedCreatureKillEventLikeCpp::CreatureJustDiedAi {
+        self.world_entities.record_represented_creature_kill_event_like_cpp(
+            RepresentedCreatureKillEventLikeCpp::CreatureJustDiedAi {
                 creature_guid,
                 killer_guid: attacker_guid,
-            });
+            },
+        );
         #[cfg(test)]
         if attacker_guid.is_player() {
-            self.world_entities
-                .represented_creature_kill_events_like_cpp
-                .push(
-                    RepresentedCreatureKillEventLikeCpp::ScriptMgrOnCreatureKill {
-                        killer_guid: attacker_guid,
-                        creature_guid,
-                    },
-                );
+            self.world_entities.record_represented_creature_kill_event_like_cpp(
+                RepresentedCreatureKillEventLikeCpp::ScriptMgrOnCreatureKill {
+                    killer_guid: attacker_guid,
+                    creature_guid,
+                },
+            );
         }
         Some(values_update)
     }

@@ -95,6 +95,14 @@ impl WorldEntitiesState {
     }
 
     #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn record_represented_creature_kill_event_like_cpp(
+        &mut self,
+        event: RepresentedCreatureKillEventLikeCpp,
+    ) {
+        self.represented_creature_kill_events_like_cpp.push(event);
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
     pub fn represented_creature_kill_events_like_cpp(
         &self,
     ) -> &[RepresentedCreatureKillEventLikeCpp] {

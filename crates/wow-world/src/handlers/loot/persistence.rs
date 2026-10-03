@@ -151,13 +151,11 @@ impl WorldSession {
     ) {
         let same_view_still_open = self
             .loot
-            .active_loot_view_authorities_like_cpp
-            .get(&route.owner_guid)
+            .active_loot_view_authority_like_cpp(route.owner_guid)
             .is_some_and(|authority| authority.shares_storage_like_cpp(&route.authority))
             && self
                 .loot
-                .active_loot_view_generations_like_cpp
-                .get(&route.owner_guid)
+                .active_loot_view_generation_like_cpp(route.owner_guid)
                 .is_some_and(|generation| *generation == route.authority_generation);
         if same_view_still_open {
             return;
@@ -183,11 +181,9 @@ impl WorldSession {
         };
 
         self.loot
-            .loot_table
-            .insert(route.owner_guid, snapshot.loot.clone());
+            .insert_cached_loot_for_owner_like_cpp(route.owner_guid, snapshot.loot.clone());
         self.loot
-            .represented_loot_cache_generations_like_cpp
-            .insert(route.owner_guid, snapshot.generation);
+            .insert_cached_loot_generation_like_cpp(route.owner_guid, snapshot.generation);
 
         if route.owner_guid.is_game_object() {
             let release = AuthoritativeLootReleaseLikeCpp {
@@ -225,7 +221,7 @@ impl WorldSession {
                     route.owner_guid,
                 );
             }
-            self.loot.loot_table.remove(&route.owner_guid);
+            self.loot.remove_cached_loot_for_owner_like_cpp(route.owner_guid);
             return;
         }
 
@@ -236,7 +232,7 @@ impl WorldSession {
                 observation.object_generation,
                 observation.lifecycle_revision,
             );
-            self.loot.loot_table.remove(&route.owner_guid);
+            self.loot.remove_cached_loot_for_owner_like_cpp(route.owner_guid);
             return;
         }
 
@@ -274,7 +270,7 @@ impl WorldSession {
                     (marked, creature.creature.unit().values_update())
                 },
             );
-        self.loot.loot_table.remove(&route.owner_guid);
+        self.loot.remove_cached_loot_for_owner_like_cpp(route.owner_guid);
         if let Some((_, values_update)) = lifecycle_update.as_ref() {
             self.send_creature_loot_release_dynamic_flags_update_like_cpp(
                 route.owner_guid,
@@ -448,8 +444,7 @@ impl WorldSession {
 
                     let fully_looted = self
                         .loot
-                        .loot_table
-                        .get_mut(&completion.owner_guid)
+                        .cached_loot_for_owner_mut_like_cpp(completion.owner_guid)
                         .is_some_and(|loot| {
                             loot.coins = 0;
                             loot_is_looted_like_cpp(loot)
@@ -478,8 +473,7 @@ impl WorldSession {
                 debug_assert!(completion.owner_guid.is_item());
                 let removal = self
                     .loot
-                    .loot_table
-                    .get_mut(&completion.owner_guid)
+                    .cached_loot_for_owner_mut_like_cpp(completion.owner_guid)
                     .and_then(|loot| {
                         let entry = loot
                             .items
@@ -555,7 +549,7 @@ impl WorldSession {
         item_guid_generator: &wow_core::ObjectGuidGenerator,
     ) {
         let mut authorities = Vec::<OwnedLootAuthority>::new();
-        for authority in self.loot.active_loot_view_authorities_like_cpp.values() {
+        for authority in self.loot.active_loot_view_authorities_iter_like_cpp() {
             if authorities
                 .iter()
                 .any(|existing| existing.shares_storage_like_cpp(authority))

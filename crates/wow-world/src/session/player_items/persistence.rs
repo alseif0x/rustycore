@@ -654,7 +654,7 @@ impl WorldSession {
         &mut self,
         gate: Arc<tokio::sync::Notify>,
     ) {
-        self.loot.loot_item_store_test_commit_gate_like_cpp = Some(gate);
+        self.loot.set_loot_item_store_test_commit_gate_like_cpp(gate);
     }
     pub fn send_new_item_plan(&self, plan: &SendNewItemPlan) {
         let packet = crate::session::item_push_result_from_send_new_item_plan(plan);

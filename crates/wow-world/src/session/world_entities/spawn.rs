@@ -24,8 +24,7 @@ impl WorldSession {
         }
         if let Some(state) = self
             .world_entities
-            .represented_gameobject_use_states
-            .get_mut(&trap_guid)
+            .represented_gameobject_use_state_mut_like_cpp(trap_guid)
         {
             state.loot_state = Some(wow_entities::LootState::NotReady);
             state.loot_state_unit_guid = ObjectGuid::EMPTY;
@@ -34,7 +33,7 @@ impl WorldSession {
             }
         }
         self.core.client_visible_guids_like_cpp.remove(&trap_guid);
-        self.loot.loot_table.remove(&trap_guid);
+        self.loot.remove_cached_loot_for_owner_like_cpp(trap_guid);
         self.send_represented_gameobject_delete_packets_like_cpp(trap_guid);
     }
 }

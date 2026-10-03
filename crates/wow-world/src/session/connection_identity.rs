@@ -151,26 +151,6 @@ impl WorldSession {
     }
 }
 
-impl crate::session::state::SessionLifecycleState {
-    /// Install the Player lifecycle persistence port. Composition supplies the
-    /// MariaDB adapter; unit sessions leave it empty and skip durable writes.
-    pub fn set_player_lifecycle_port_like_cpp(
-        &mut self,
-        port: Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>,
-    ) {
-        self.persistence_ports_like_cpp.player.player_lifecycle = Some(port);
-    }
-
-    pub(crate) fn player_lifecycle_port_like_cpp(
-        &self,
-    ) -> Option<&Arc<dyn wow_persistence::PlayerLifecyclePortLikeCpp>> {
-        self.persistence_ports_like_cpp
-            .player
-            .player_lifecycle
-            .as_ref()
-    }
-}
-
 #[cfg(test)]
 #[path = "../../unit_tests/session/connection_identity/f3_shims.rs"]
 mod f3_shims;

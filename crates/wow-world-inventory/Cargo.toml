@@ -11,6 +11,7 @@ test-fixtures = ["wow-world-core/test-fixtures"]
 
 [dependencies]
 num-traits = { workspace = true }
+tracing = { workspace = true }
 wow-constants = { workspace = true }
 wow-core = { workspace = true }
 wow-data = { workspace = true }

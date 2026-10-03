@@ -110,9 +110,9 @@ impl WorldSession {
                 count,
             );
         #[cfg(test)]
-        if let Some(grants) = self.loot.loot_item_store_test_grants_like_cpp.clone() {
-            let success = self.loot.loot_item_store_test_success_like_cpp;
-            let commit_gate = self.loot.loot_item_store_test_commit_gate_like_cpp.clone();
+        if let Some(grants) = self.loot.loot_item_store_test_grants_like_cpp() {
+            let success = self.loot.loot_item_store_test_success_like_cpp();
+            let commit_gate = self.loot.loot_item_store_test_commit_gate_like_cpp();
             let materializes_inventory_item = bound_objective_plan.is_none();
             let durable_completion_context = stored_item_loot_source
                 .map(|owner_guid| (owner_guid, loot_entry.loot_list_id, player_guid, true))
@@ -905,4 +905,3 @@ impl crate::session::LootCxRef<'_> {
         (remaining == 0).then_some(dest)
     }
 }
-

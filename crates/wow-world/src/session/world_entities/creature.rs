@@ -439,8 +439,7 @@ impl WorldSession {
             .canonical_creature_aura_slot_like_cpp(target_guid, spell_key, caster_guid)
             .ok_or("creature aura slot missing after application")?;
         self.world_entities
-            .represented_creature_auras_like_cpp
-            .push(RepresentedCreatureAuraLikeCpp {
+            .record_represented_creature_aura_like_cpp(RepresentedCreatureAuraLikeCpp {
                 target_guid,
                 spell_id,
                 caster_guid,
@@ -527,21 +526,13 @@ impl WorldSession {
     pub(in crate::session) fn tick_represented_creature_auras_like_cpp(&mut self) {
         if self
             .world_entities
-            .represented_creature_auras_like_cpp
-            .is_empty()
+            .represented_creature_auras_are_empty_like_cpp()
         {
             return;
         }
         let expired: Vec<RepresentedCreatureAuraLikeCpp> = self
             .world_entities
-            .represented_creature_auras_like_cpp
-            .iter()
-            .filter(|aura| {
-                aura.duration_ms > 0
-                    && aura.applied_at.elapsed().as_millis() as u32 >= aura.duration_ms
-            })
-            .copied()
-            .collect();
+            .expired_represented_creature_auras_like_cpp();
         for aura in expired {
             let removed = self
                 .core
@@ -571,8 +562,7 @@ impl WorldSession {
                 })
                 .unwrap_or(false);
             self.world_entities
-                .represented_creature_auras_like_cpp
-                .retain(|tracked| *tracked != aura);
+                .retire_represented_creature_aura_like_cpp(aura);
             if removed {
                 self.publish_creature_aura_slot_update_like_cpp(aura.target_guid, aura.slot, false);
             }

@@ -3556,11 +3556,13 @@ name = "wow-world-inventory"
 version = "0.1.0"
 dependencies = [
  "num-traits",
+ "tracing",
  "wow-constants",
  "wow-core",
  "wow-data",
  "wow-entities",
  "wow-packet",
+ "wow-progression",
  "wow-world-core",
 ]
 
@@ -3568,6 +3570,7 @@ dependencies = [
 name = "wow-world-lifecycle"
 version = "0.1.0"
 dependencies = [
+ "dashmap",
  "flume",
  "tokio",
  "tracing",

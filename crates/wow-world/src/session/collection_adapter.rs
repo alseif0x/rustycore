@@ -13,27 +13,9 @@ pub(crate) use wow_world_inventory::{
 };
 pub(in crate::session) use wow_world_inventory::DEFAULT_TRANSMOG_ILLUSIONS_LIKE_CPP;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct AccountMountSaveRowLikeCpp {
-    pub(crate) bnet_account_id: u32,
-    pub(crate) mount_spell_id: u32,
-    pub(crate) flags: u8,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct AccountToySaveRowLikeCpp {
-    pub(crate) bnet_account_id: u32,
-    pub(crate) item_id: u32,
-    pub(crate) is_favorite: bool,
-    pub(crate) has_fanfare: bool,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) struct AccountHeirloomSaveRowLikeCpp {
-    pub(crate) bnet_account_id: u32,
-    pub(crate) item_id: u32,
-    pub(crate) flags: u32,
-}
+pub(crate) use wow_world_lifecycle::{
+    AccountHeirloomSaveRowLikeCpp, AccountMountSaveRowLikeCpp, AccountToySaveRowLikeCpp,
+};
 
 pub(in crate::session) fn heirloom_bonus_for_flags_like_cpp(
     heirloom: &HeirloomEntry,

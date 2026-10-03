@@ -184,8 +184,7 @@ impl WorldSession {
         let current_map_id = self.core.player_map_id_like_cpp();
         let expired_per_player_states = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let despawn_expired = state
                     .per_player_despawn_until
@@ -211,8 +210,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let expired_despawn_delay_guids = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 state
                     .despawn_delay_until
@@ -222,8 +220,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let expired_respawn_guids = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 state
                     .respawn_until
@@ -233,8 +230,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let expired_door_or_button_guids = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let is_door_or_button = matches!(
                     state.go_type.map(u32::from),
@@ -249,8 +245,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let expired_goober_guids = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let is_goober =
                     state.go_type.map(u32::from) == Some(wow_entities::GAMEOBJECT_TYPE_GOOBER);
@@ -263,8 +258,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let just_deactivated_goobers = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let is_goober =
                     state.go_type.map(u32::from) == Some(wow_entities::GAMEOBJECT_TYPE_GOOBER);
@@ -277,8 +271,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let mut generic_just_deactivated_gameobjects = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let is_goober =
                     state.go_type.map(u32::from) == Some(wow_entities::GAMEOBJECT_TYPE_GOOBER);
@@ -300,8 +293,7 @@ impl WorldSession {
             .sort_by_key(|(_, _, delete_after_clear, _, _, _, _, _)| (*delete_after_clear,));
         let charge_depleted_guids = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let depletes_by_charges = matches!(
                     state.go_type.map(u32::from),
@@ -317,8 +309,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let not_ready_bomb_trap_guids = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let is_bomb_trap = state.go_type.map(u32::from)
                     == Some(wow_entities::GAMEOBJECT_TYPE_TRAP)
@@ -331,8 +322,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let not_ready_non_bomb_traps = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let source = state.trap_use_source?;
                 let is_non_bomb_trap = state.go_type.map(u32::from)
@@ -348,8 +338,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let default_not_ready_gameobjects = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let Some(go_type) = state.go_type.map(u32::from) else {
                     return None;
@@ -366,8 +355,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let ready_fishing_bobbers = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let is_fishing_bobber = state.go_type.map(u32::from)
                     == Some(wow_entities::GAMEOBJECT_TYPE_FISHING_NODE);
@@ -383,8 +371,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let restocked_chests = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let is_chest =
                     state.go_type.map(u32::from) == Some(wow_entities::GAMEOBJECT_TYPE_CHEST);
@@ -400,8 +387,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let ready_bomb_trap_guids = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let is_bomb_trap = state.go_type.map(u32::from)
                     == Some(wow_entities::GAMEOBJECT_TYPE_TRAP)
@@ -417,8 +403,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let ready_non_bomb_traps = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let source = state.trap_use_source?;
                 let is_non_bomb_trap = state.go_type.map(u32::from)
@@ -449,8 +434,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let activated_bomb_traps = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let source = state.trap_use_source?;
                 let is_bomb_trap = state.go_type.map(u32::from)
@@ -462,8 +446,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let activated_non_bomb_traps = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let source = state.trap_use_source?;
                 let is_non_bomb_trap = state.go_type.map(u32::from)
@@ -482,8 +465,7 @@ impl WorldSession {
             .collect::<Vec<_>>();
         let expired_capture_points = self
             .world_entities
-            .represented_gameobject_use_states
-            .iter()
+            .represented_gameobject_use_states_iter_like_cpp()
             .filter_map(|(&guid, state)| {
                 let source = state.capture_point_source?;
                 let capture_team = match state.capture_point_state {
@@ -501,8 +483,7 @@ impl WorldSession {
         for (guid, player_guid, despawned, needs_state_update) in expired_per_player_states {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 if despawned {
                     state.per_player_despawn_until = None;
@@ -516,7 +497,7 @@ impl WorldSession {
                     state.per_player_state_player_guid = None;
                 }
             }
-            self.world_entities.represented_gameobject_use_effects.push(
+            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
                 RepresentedGameObjectUseEffect::GameObjectPerPlayerStateExpired {
                     gameobject_guid: guid,
                     player_guid,
@@ -528,16 +509,14 @@ impl WorldSession {
         for guid in expired_despawn_delay_guids {
             let linked_trap_guid = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get(&guid)
+                .represented_gameobject_use_state_like_cpp(guid)
                 .and_then(|state| state.linked_trap_guid);
             if let Some(trap_guid) = linked_trap_guid.filter(|trap_guid| *trap_guid != guid) {
                 self.despawn_represented_linked_trap_by_guid_like_cpp(trap_guid);
             }
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.despawn_delay_until = None;
                 state.loot_state = Some(wow_entities::LootState::NotReady);
@@ -547,14 +526,13 @@ impl WorldSession {
                 }
             }
             self.core.client_visible_guids_like_cpp.remove(&guid);
-            self.loot.loot_table.remove(&guid);
+            self.loot.remove_cached_loot_for_owner_like_cpp(guid);
             self.send_represented_gameobject_delete_packets_like_cpp(guid);
         }
         for guid in expired_respawn_guids {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.respawn_until = None;
                 state.loot_state = Some(wow_entities::LootState::Ready);
@@ -569,13 +547,12 @@ impl WorldSession {
         for (guid, max_charges) in charge_depleted_guids {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.use_count = 0;
                 state.loot_state = Some(wow_entities::LootState::JustDeactivated);
             }
-            self.world_entities.represented_gameobject_use_effects.push(
+            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
                 RepresentedGameObjectUseEffect::GameObjectChargesDepleted {
                     gameobject_guid: guid,
                     max_charges,
@@ -586,8 +563,7 @@ impl WorldSession {
         for guid in not_ready_bomb_trap_guids {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.cooldown_until = Some(now + Duration::from_secs(10));
                 state.loot_state = Some(wow_entities::LootState::Ready);
@@ -596,8 +572,7 @@ impl WorldSession {
         for (guid, owner_in_combat, start_delay_secs) in not_ready_non_bomb_traps {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.cooldown_until = owner_in_combat
                     .then_some(now + Duration::from_secs(u64::from(start_delay_secs)));
@@ -607,8 +582,7 @@ impl WorldSession {
         for guid in default_not_ready_gameobjects {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.loot_state = Some(wow_entities::LootState::Ready);
             }
@@ -616,14 +590,13 @@ impl WorldSession {
         for (guid, owner_guid) in ready_fishing_bobbers {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.fishing_bobber_ready_at = None;
                 state.loot_state = Some(wow_entities::LootState::Ready);
             }
             if !owner_guid.is_empty() {
-                self.world_entities.represented_gameobject_use_effects.push(
+                self.world_entities.record_represented_gameobject_use_effect_like_cpp(
                     RepresentedGameObjectUseEffect::FishingBobberReady {
                         gameobject_guid: guid,
                         owner_guid,
@@ -634,22 +607,20 @@ impl WorldSession {
         for guid in restocked_chests {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.chest_restock_until = None;
                 state.loot_state = Some(wow_entities::LootState::Ready);
                 state.loot_state_unit_guid = wow_core::ObjectGuid::EMPTY;
             }
-            self.loot.loot_table.remove(&guid);
+            self.loot.remove_cached_loot_for_owner_like_cpp(guid);
             let _ = crate::session::cx_loot_ref(self)
                 .queue_chest_gameobject_state_refresh_for_same_map_like_cpp(guid);
         }
         for guid in ready_bomb_trap_guids {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.loot_state = Some(wow_entities::LootState::Activated);
             }
@@ -657,13 +628,12 @@ impl WorldSession {
         for (guid, target_guid) in ready_non_bomb_traps {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.loot_state = Some(wow_entities::LootState::Activated);
                 state.loot_state_unit_guid = target_guid;
             }
-            self.world_entities.represented_gameobject_use_effects.push(
+            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
                 RepresentedGameObjectUseEffect::TrapTargetActivated {
                     gameobject_guid: guid,
                     target_guid,
@@ -672,7 +642,7 @@ impl WorldSession {
         }
         for (guid, source) in activated_bomb_traps {
             if source.spell_id != 0 {
-                self.world_entities.represented_gameobject_use_effects.push(
+                self.world_entities.record_represented_gameobject_use_effect_like_cpp(
                     RepresentedGameObjectUseEffect::TrapBombSpellCast {
                         gameobject_guid: guid,
                         spell_id: source.spell_id,
@@ -681,15 +651,14 @@ impl WorldSession {
             }
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.loot_state = Some(wow_entities::LootState::JustDeactivated);
             }
         }
         for (guid, source, target_guid, original_caster_guid) in activated_non_bomb_traps {
             if source.spell_id != 0 {
-                self.world_entities.represented_gameobject_use_effects.push(
+                self.world_entities.record_represented_gameobject_use_effect_like_cpp(
                     RepresentedGameObjectUseEffect::TrapTargetSpellCast {
                         gameobject_guid: guid,
                         target_guid,
@@ -700,8 +669,7 @@ impl WorldSession {
             }
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 let cooldown_secs = if source.cooldown_secs != 0 {
                     source.cooldown_secs
@@ -732,8 +700,7 @@ impl WorldSession {
             };
             if let Some(go_state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 go_state.capture_point_state = Some(state);
                 go_state.capture_point_last_team_capture = capture_team;
@@ -751,8 +718,7 @@ impl WorldSession {
         for guid in expired_goober_guids {
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.gameobject_flags &= !wow_entities::GO_FLAG_IN_USE;
                 state.loot_state = Some(wow_entities::LootState::JustDeactivated);
@@ -781,22 +747,21 @@ impl WorldSession {
                 if let Some(trap_guid) = linked_trap_guid {
                     self.despawn_represented_linked_trap_by_guid_like_cpp(trap_guid);
                 }
-                self.world_entities.represented_gameobject_use_effects.push(
+                self.world_entities.record_represented_gameobject_use_effect_like_cpp(
                     RepresentedGameObjectUseEffect::GameObjectLinkedTrapDespawn {
                         gameobject_guid: guid,
                         trap_entry,
                     },
                 );
             }
-            self.loot.loot_table.remove(&guid);
+            self.loot.remove_cached_loot_for_owner_like_cpp(guid);
             let mut delete_after_clear = delete_after_clear;
             let mut schedule_respawn = false;
             let is_chest = go_type == Some(wow_entities::GAMEOBJECT_TYPE_CHEST);
             if is_chest && !is_despawn_at_action && !delete_after_clear {
                 if let Some(state) = self
                     .world_entities
-                    .represented_gameobject_use_states
-                    .get_mut(&guid)
+                    .represented_gameobject_use_state_mut_like_cpp(guid)
                 {
                     state.loot_state_unit_guid = wow_core::ObjectGuid::EMPTY;
                     state.use_count = 0;
@@ -809,7 +774,7 @@ impl WorldSession {
                         state.loot_state = Some(wow_entities::LootState::Ready);
                     }
                 }
-                self.world_entities.represented_gameobject_use_effects.push(
+                self.world_entities.record_represented_gameobject_use_effect_like_cpp(
                     RepresentedGameObjectUseEffect::GameObjectJustDeactivatedCleared {
                         gameobject_guid: guid,
                         deleted: false,
@@ -819,8 +784,7 @@ impl WorldSession {
             }
             if let Some(state) = self
                 .world_entities
-                .represented_gameobject_use_states
-                .get_mut(&guid)
+                .represented_gameobject_use_state_mut_like_cpp(guid)
             {
                 state.loot_state = Some(wow_entities::LootState::NotReady);
                 state.loot_state_unit_guid = wow_core::ObjectGuid::EMPTY;
@@ -850,7 +814,7 @@ impl WorldSession {
                 self.core.client_visible_guids_like_cpp.remove(&guid);
                 self.send_represented_gameobject_delete_packets_like_cpp(guid);
             }
-            self.world_entities.represented_gameobject_use_effects.push(
+            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
                 RepresentedGameObjectUseEffect::GameObjectJustDeactivatedCleared {
                     gameobject_guid: guid,
                     deleted: delete_after_clear,

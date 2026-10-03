@@ -29,6 +29,7 @@ mod reconciliation;
 mod request_cache;
 mod request_context;
 mod request_state;
+mod roll_access;
 mod roll_publication;
 mod rolls;
 

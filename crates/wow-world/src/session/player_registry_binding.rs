@@ -57,10 +57,7 @@ impl WorldSession {
             .unwrap_or(0);
         let active_loot_rolls = self
             .loot
-            .represented_loot_rolls
-            .values()
-            .map(|state| state.command_identity.clone())
-            .collect();
+            .represented_loot_roll_command_identities_snapshot_like_cpp();
         reg.register_or_replace(
             guid,
             PlayerSessionRegistrationLikeCpp {
@@ -127,10 +124,7 @@ impl WorldSession {
             guid,
             &self.core.session_command_tx,
             self.loot
-                .represented_loot_rolls
-                .values()
-                .map(|state| state.command_identity.clone())
-                .collect(),
+                .represented_loot_roll_command_identities_snapshot_like_cpp(),
         );
         self.sync_player_registry_party_member_party_type_like_cpp();
     }

@@ -563,7 +563,7 @@ use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 #[cfg(test)]
 use std::sync::atomic::AtomicUsize;
 use std::sync::{
-    Arc, Mutex, OnceLock, Weak,
+    Arc, Mutex,
     atomic::{AtomicBool, Ordering},
 };
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
@@ -828,7 +828,7 @@ const QUEST_OBJECTIVE_CURRENCY_LIKE_CPP: u8 = 4;
 const QUEST_OBJECTIVE_MIN_REPUTATION_LIKE_CPP: u8 = 6;
 const QUEST_OBJECTIVE_MAX_REPUTATION_LIKE_CPP: u8 = 7;
 const QUEST_OBJECTIVE_MONEY_LIKE_CPP: u8 = 8;
-const DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP: u32 = 15 * 60 * 1000;
+pub(crate) use wow_world_lifecycle::DEFAULT_PLAYER_SAVE_INTERVAL_MS_LIKE_CPP;
 const QUEST_OBJECTIVE_PLAYERKILLS_LIKE_CPP: u8 = 9;
 const QUEST_OBJECTIVE_HAVE_CURRENCY_LIKE_CPP: u8 = 16;
 const QUEST_OBJECTIVE_OBTAIN_CURRENCY_LIKE_CPP: u8 = 17;
@@ -859,15 +859,6 @@ pub(crate) const PLAYER_FLAGS_VOID_UNLOCKED_LIKE_CPP: u32 = 0x2000_0000;
 pub(crate) use wow_constants::rest::{
     REST_STATE_NORMAL_LIKE_CPP, REST_STATE_RAF_LINKED_LIKE_CPP, REST_STATE_RESTED_LIKE_CPP,
 };
-
-/// Process-wide ownership of a character's live `Player` runtime.
-///
-/// C++ has one `Player*` per GUID in `ObjectAccessor`; accepting a second
-/// session would create two independent save authorities for the same rows.
-/// Reserve the GUID before the asynchronous login pipeline starts. Weak
-/// values make an abandoned session claim recoverable without a global sweep.
-static ACTIVE_CHARACTER_LOGIN_CLAIMS_LIKE_CPP: OnceLock<dashmap::DashMap<ObjectGuid, Weak<()>>> =
-    OnceLock::new();
 
 /// Live seam for C++ `ScriptMgr::OnAreaTrigger`.
 ///

@@ -283,12 +283,7 @@ impl WorldSession {
         state.direct_item_contains_items(hub, item_guid)
     }
     pub(crate) fn has_active_non_item_loot_views_like_cpp(&self) -> bool {
-        (!self.loot.active_loot_guid.is_empty() && !self.loot.active_loot_guid.is_item())
-            || self
-                .loot
-                .active_loot_view_owners
-                .iter()
-                .any(|guid| !guid.is_item())
+        self.loot.has_active_non_item_loot_views_like_cpp()
     }
     pub(in crate::session) fn represented_has_item_fit_to_spell_requirements_like_cpp(
         &self,

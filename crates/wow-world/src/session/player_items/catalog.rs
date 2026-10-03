@@ -108,8 +108,8 @@ impl WorldSession {
         grants: Arc<AtomicUsize>,
         success: bool,
     ) {
-        self.loot.loot_item_store_test_grants_like_cpp = Some(grants);
-        self.loot.loot_item_store_test_success_like_cpp = success;
+        self.loot
+            .set_loot_item_store_test_seam_like_cpp(grants, success);
     }
 }
 

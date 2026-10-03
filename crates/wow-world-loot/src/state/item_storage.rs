@@ -1,7 +1,11 @@
 use super::LootState;
+#[cfg(any(test, feature = "test-fixtures"))]
+use std::sync::{Arc, atomic::AtomicUsize};
 use wow_constants::ItemFieldFlags;
 use wow_entities::{INVENTORY_SLOT_BAG_0, Item, is_bag_pos, make_item_pos};
 use wow_world_core::session::HubRef;
+#[cfg(any(test, feature = "test-fixtures"))]
+use tokio::sync::Notify;
 
 impl LootState {
     /// Apply the item state established by C++ `Player::StoreNewItem` and
@@ -47,5 +51,35 @@ impl LootState {
         }
         planned.bind_if_stored(is_bag_pos(make_item_pos(INVENTORY_SLOT_BAG_0, slot)));
         planned.item_flags_bits()
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn loot_item_store_test_grants_like_cpp(&self) -> Option<Arc<AtomicUsize>> {
+        self.loot_item_store_test_grants_like_cpp.clone()
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn set_loot_item_store_test_seam_like_cpp(
+        &mut self,
+        grants: Arc<AtomicUsize>,
+        success: bool,
+    ) {
+        self.loot_item_store_test_grants_like_cpp = Some(grants);
+        self.loot_item_store_test_success_like_cpp = success;
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn loot_item_store_test_success_like_cpp(&self) -> bool {
+        self.loot_item_store_test_success_like_cpp
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn loot_item_store_test_commit_gate_like_cpp(&self) -> Option<Arc<Notify>> {
+        self.loot_item_store_test_commit_gate_like_cpp.clone()
+    }
+
+    #[cfg(any(test, feature = "test-fixtures"))]
+    pub fn set_loot_item_store_test_commit_gate_like_cpp(&mut self, gate: Arc<Notify>) {
+        self.loot_item_store_test_commit_gate_like_cpp = Some(gate);
     }
 }

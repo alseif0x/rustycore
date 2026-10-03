@@ -251,8 +251,8 @@ impl WorldSession {
         let can_install_first_generation = represented_local_loot_fixture_allowed_like_cpp()
             && authority.is_retired_like_cpp()
             && authority.generation_like_cpp() == 0
-            && self.loot.loot_table.contains_key(&owner_guid)
-            && (self.loot.active_loot_view_owners.contains(&owner_guid)
+            && self.loot.cached_loot_contains_owner_like_cpp(owner_guid)
+            && (self.loot.has_active_loot_view_owner_like_cpp(owner_guid)
                 || self.loot.is_active_loot_guid(owner_guid));
         if !can_install_first_generation {
             return Some(authority);
@@ -269,13 +269,9 @@ impl WorldSession {
         let authority = self.represented_owned_loot_authority_like_cpp(owner_guid)?;
         if let Some(snapshot) = authority.snapshot_for_player_like_cpp(scope_player) {
             self.loot
-                .active_loot_view_generations_like_cpp
-                .entry(owner_guid)
-                .or_insert(snapshot.generation);
+                .ensure_active_loot_view_generation_like_cpp(owner_guid, snapshot.generation);
             self.loot
-                .active_loot_view_authorities_like_cpp
-                .entry(owner_guid)
-                .or_insert_with(|| authority.clone());
+                .insert_active_loot_view_authority_if_absent_like_cpp(owner_guid, &authority);
         }
         Some(authority)
     }

@@ -43,7 +43,7 @@ impl WorldSession {
             return false;
         };
         if no_damage_immune && player_unit_flags.contains(UnitFlags::IMMUNE) {
-            self.world_entities.represented_gameobject_use_effects.push(
+            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
                 RepresentedGameObjectUseEffect::UseRejectedNoDamageImmune {
                     gameobject_guid,
                     player_guid,
@@ -56,7 +56,7 @@ impl WorldSession {
             if !self.remove_represented_mounted_auras_by_type_like_cpp() {
                 return false;
             }
-            self.world_entities.represented_gameobject_use_effects.push(
+            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
                 RepresentedGameObjectUseEffect::RemoveMountedAuras {
                     gameobject_guid,
                     player_guid,
@@ -64,7 +64,7 @@ impl WorldSession {
             );
         }
 
-        self.world_entities.represented_gameobject_use_effects.push(
+        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
             RepresentedGameObjectUseEffect::ClearPlayerTalkMenus {
                 gameobject_guid,
                 player_guid,
@@ -73,11 +73,10 @@ impl WorldSession {
 
         let handled = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)
+            .represented_gameobject_use_state_like_cpp(gameobject_guid)
             .map(|state| state.gossip_hello_ai_returns_true)
             .unwrap_or(false);
-        self.world_entities.represented_gameobject_use_effects.push(
+        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
             RepresentedGameObjectUseEffect::GossipHelloAi {
                 gameobject_guid,
                 player_guid,
@@ -133,7 +132,7 @@ impl WorldSession {
             .spell_store()
             .is_some_and(|store| store.get(spell_id as i32).is_none());
 
-        self.world_entities.represented_gameobject_use_effects.push(
+        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
             RepresentedGameObjectUseEffect::OutdoorPvpCustomSpellRequested {
                 gameobject_guid,
                 player_guid,
@@ -146,7 +145,7 @@ impl WorldSession {
         );
 
         if spell_info_missing {
-            self.world_entities.represented_gameobject_use_effects.push(
+            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
                 RepresentedGameObjectUseEffect::GameObjectPostUseSpellMissing {
                     gameobject_guid,
                     player_guid,
@@ -159,7 +158,7 @@ impl WorldSession {
             return false;
         }
 
-        self.world_entities.represented_gameobject_use_effects.push(
+        self.world_entities.record_represented_gameobject_use_effect_like_cpp(
             RepresentedGameObjectUseEffect::GameObjectPostUseSpellCast {
                 gameobject_guid,
                 target_guid: player_guid,
@@ -192,14 +191,13 @@ impl WorldSession {
     ) -> bool {
         let linked_trap_guid = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)
+            .represented_gameobject_use_state_like_cpp(gameobject_guid)
             .and_then(|state| state.linked_trap_guid);
         if source.linked_trap_entry != 0 {
             if let Some(trap_guid) = linked_trap_guid {
                 self.despawn_represented_linked_trap_by_guid_like_cpp(trap_guid);
             }
-            self.world_entities.represented_gameobject_use_effects.push(
+            self.world_entities.record_represented_gameobject_use_effect_like_cpp(
                 RepresentedGameObjectUseEffect::GooberLinkedTrapDespawn {
                     gameobject_guid,
                     trap_entry: source.linked_trap_entry,
@@ -212,9 +210,7 @@ impl WorldSession {
         {
             let state = self
                 .world_entities
-                .represented_gameobject_use_states
-                .entry(gameobject_guid)
-                .or_default();
+                .ensure_represented_gameobject_use_state_like_cpp(gameobject_guid);
             if source.spell_id != 0 {
                 unique_users = std::mem::take(&mut state.unique_users);
             } else {
@@ -245,7 +241,7 @@ impl WorldSession {
 
         if source.spell_id != 0 {
             for player_guid in unique_users {
-                self.world_entities.represented_gameobject_use_effects.push(
+                self.world_entities.record_represented_gameobject_use_effect_like_cpp(
                     RepresentedGameObjectUseEffect::GooberUniqueUserSpell {
                         gameobject_guid,
                         player_guid,
@@ -255,20 +251,19 @@ impl WorldSession {
             }
         }
 
-        if let Some(state) = self
+        let cleared_effect = self
             .world_entities
-            .represented_gameobject_use_states
-            .get(&gameobject_guid)
-        {
-            self.world_entities.represented_gameobject_use_effects.push(
-                RepresentedGameObjectUseEffect::GooberCleared {
-                    gameobject_guid,
-                    loot_state: state
-                        .loot_state
-                        .unwrap_or(wow_entities::LootState::NotReady),
-                    go_state: state.go_state,
-                },
-            );
+            .represented_gameobject_use_state_like_cpp(gameobject_guid)
+            .map(|state| RepresentedGameObjectUseEffect::GooberCleared {
+                gameobject_guid,
+                loot_state: state
+                    .loot_state
+                    .unwrap_or(wow_entities::LootState::NotReady),
+                go_state: state.go_state,
+            });
+        if let Some(effect) = cleared_effect {
+            self.world_entities
+                .record_represented_gameobject_use_effect_like_cpp(effect);
         }
 
         true
